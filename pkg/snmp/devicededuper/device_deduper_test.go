@@ -6,10 +6,9 @@
 package devicededuper
 
 import (
+	"sync/atomic"
 	"testing"
 	"time"
-
-	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/stretchr/testify/assert"
@@ -548,4 +547,63 @@ func TestNewDeviceDeduper(t *testing.T) {
 		count++
 	}
 	assert.Equal(t, 4, count)
+}
+
+func TestDeviceDeduper_ResetCounters(t *testing.T) {
+	config := snmp.ListenerConfig{
+		Configs: []snmp.Config{
+			{
+				Network: "192.168.1.0/30",
+				Authentications: []snmp.Authentication{
+					{Community: "public"},
+					{Community: "private"},
+				},
+				IgnoredIPAddresses: map[string]bool{
+					"192.168.1.0": true,
+				},
+			},
+		},
+	}
+
+	deduper := NewDeviceDeduper(config)
+	deduperImpl, ok := deduper.(*deviceDeduperImpl)
+	assert.True(t, ok)
+
+	// Initially, all counters should be set to 2 (number of authentications)
+	count := deduperImpl.ipsCounter["192.168.1.1"].Load()
+	assert.Equal(t, uint32(2), count)
+	count = deduperImpl.ipsCounter["192.168.1.2"].Load()
+	assert.Equal(t, uint32(2), count)
+
+	// Process some IPs
+	deduper.MarkIPAsProcessed("192.168.1.1")
+	deduper.MarkIPAsProcessed("192.168.1.2")
+
+	count = deduperImpl.ipsCounter["192.168.1.1"].Load()
+	assert.Equal(t, uint32(1), count)
+	count = deduperImpl.ipsCounter["192.168.1.2"].Load()
+	assert.Equal(t, uint32(1), count)
+
+	// Add a discovered device
+	now := time.Now().UnixMilli()
+	deviceInfo := DeviceInfo{
+		Name:        "device1",
+		Description: "test device",
+		BootTimeMs:  now,
+		SysObjectID: "1.3.6.1.4.1.9.1.1",
+	}
+	deduperImpl.deviceInfos = append(deduperImpl.deviceInfos, deviceInfo)
+	assert.Len(t, deduperImpl.deviceInfos, 1)
+
+	// Reset counters
+	deduper.ResetCounters()
+
+	// Verify counters are reset to initial value
+	count = deduperImpl.ipsCounter["192.168.1.1"].Load()
+	assert.Equal(t, uint32(2), count)
+	count = deduperImpl.ipsCounter["192.168.1.2"].Load()
+	assert.Equal(t, uint32(2), count)
+
+	// Verify device infos are cleared
+	assert.Len(t, deduperImpl.deviceInfos, 0)
 }

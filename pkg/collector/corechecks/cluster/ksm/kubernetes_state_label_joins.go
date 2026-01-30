@@ -130,11 +130,11 @@ func newLeafNode() *node {
 // If the label isn't a "matching label", it will be prefixed by either "label_" or "annotation_",
 // if the label is NOT a "matching label", so we can use that to determine which substitution to do.
 func resolveTag(labelName string, config *joinsConfig) string {
-	if strings.HasPrefix(labelName, "label_") {
+	if label, ok := strings.CutPrefix(labelName, "label_"); ok {
 		return strings.ReplaceAll(
 			config.wildcardTemplate,
 			"%%label%%",
-			strings.TrimPrefix(labelName, "label_"),
+			label,
 		)
 	}
 	return strings.ReplaceAll(

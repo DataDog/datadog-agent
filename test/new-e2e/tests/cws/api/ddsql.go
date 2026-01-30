@@ -76,7 +76,7 @@ func (c *Client) TableQuery(query string) (*DDSQLTableResponse, error) {
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", "https://app.datadoghq.com/api/v2/ddql/table", bytes.NewBuffer(reqData))
+	req, err := http.NewRequest("POST", "https://app.datadoghq.com/api/v2/ddsql/table", bytes.NewBuffer(reqData))
 	if err != nil {
 		return nil, err
 	}

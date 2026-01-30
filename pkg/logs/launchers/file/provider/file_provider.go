@@ -17,12 +17,15 @@ import (
 	"time"
 
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/opener"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/bmatcuk/doublestar/v4"
 )
 
 // OpenFilesLimitWarningType is the key of the message generated when too many
@@ -267,7 +270,7 @@ func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID b
 // with ordering defined by 'wildcardOrder'
 func (p *FileProvider) CollectFiles(source *sources.LogSource) ([]*tailer.File, error) {
 	path := source.Config.Path
-	_, err := os.Stat(path)
+	_, err := opener.StatLogFile(path)
 	switch {
 	case err == nil:
 		return []*tailer.File{
@@ -289,7 +292,15 @@ func (p *FileProvider) CollectFiles(source *sources.LogSource) ([]*tailer.File, 
 // filesMatchingSource returns all the files matching the source path pattern.
 func (p *FileProvider) filesMatchingSource(source *sources.LogSource) ([]*tailer.File, error) {
 	pattern := source.Config.Path
-	paths, err := filepath.Glob(pattern)
+	recursiveGlobEnabled := pkgconfigsetup.Datadog().GetBool("logs_config.enable_recursive_glob")
+
+	var paths []string
+	var err error
+	if recursiveGlobEnabled && strings.Contains(pattern, "**") {
+		paths, err = doublestar.FilepathGlob(pattern)
+	} else {
+		paths, err = filepath.Glob(pattern)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("malformed pattern, could not find any file: %s", pattern)
 	}
@@ -300,7 +311,13 @@ func (p *FileProvider) filesMatchingSource(source *sources.LogSource) ([]*tailer
 
 	excludedPaths := make(map[string]int)
 	for _, excludePattern := range source.Config.ExcludePaths {
-		excludedGlob, err := filepath.Glob(excludePattern)
+		var excludedGlob []string
+		var err error
+		if recursiveGlobEnabled && strings.Contains(excludePattern, "**") {
+			excludedGlob, err = doublestar.FilepathGlob(excludePattern)
+		} else {
+			excludedGlob, err = filepath.Glob(excludePattern)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("malformed exclusion pattern: %s, %s", excludePattern, err)
 		}
@@ -401,9 +418,9 @@ func ShouldIgnore(validatePodContainerID bool, file *tailer.File) bool {
 	}
 
 	infos := make(map[string]string)
-	err := filepath.Walk(ContainersLogsDir, func(containerLogFilename string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(ContainersLogsDir, func(containerLogFilename string, d os.DirEntry, err error) error {
 		// we only wants to follow symlinks
-		if info == nil || info.Mode()&os.ModeSymlink != os.ModeSymlink || info.IsDir() {
+		if d == nil || d.Type()&os.ModeSymlink != os.ModeSymlink || d.IsDir() {
 			// not a symlink, we are not interested in this file
 			return nil
 		}

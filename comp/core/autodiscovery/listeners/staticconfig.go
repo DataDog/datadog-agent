@@ -55,6 +55,13 @@ func (l *StaticConfigListener) createServices() {
 	if enabled := pkgconfigsetup.SystemProbe().GetBool("discovery.enabled"); enabled {
 		l.newService <- &StaticConfigService{adIdentifier: "_discovery"}
 	}
+
+	// Infrastructure mode: emit a single service for the mode
+	// All checks with ad_identifiers: [_<mode>] will be scheduled
+	infraMode := pkgconfigsetup.Datadog().GetString("infrastructure_mode")
+	if infraMode != "full" {
+		l.newService <- &StaticConfigService{adIdentifier: "_" + infraMode}
+	}
 }
 
 // Equal returns whether the two StaticConfigService are equal

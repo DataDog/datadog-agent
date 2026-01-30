@@ -1,0 +1,212 @@
+load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
+
+package(
+    default_applicable_licenses = [":license"],
+    default_visibility = ["//visibility:public"],
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:MIT"],
+    # LICENSE file contains a single line that refers to COPYING
+    license_text = "COPYING",
+    visibility = ["//visibility:public"],
+)
+
+SO_VERSION = "14.25.1"
+VERSION = "1.58"
+
+PUBLIC_HEADERS = [
+    "lib/includes/nghttp2/nghttp2ver.h",
+    "lib/includes/nghttp2/nghttp2.h",
+]
+
+# This builds only the nghttp2 C library, not the C++ application code.
+# Following the omnibus build configuration which uses:
+# --disable-app --disable-examples --disable-hpack-tools
+cc_library(
+    name = "nghttp2",
+    srcs = [
+        "lib/nghttp2_buf.c",
+        "lib/nghttp2_buf.h",
+        "lib/nghttp2_callbacks.c",
+        "lib/nghttp2_callbacks.h",
+        "lib/nghttp2_debug.c",
+        "lib/nghttp2_debug.h",
+        "lib/nghttp2_extpri.c",
+        "lib/nghttp2_extpri.h",
+        "lib/nghttp2_frame.c",
+        "lib/nghttp2_frame.h",
+        "lib/nghttp2_hd_huffman_data.c",
+        "lib/nghttp2_hd_huffman.c",
+        "lib/nghttp2_hd_huffman.h",
+        "lib/nghttp2_hd.c",
+        "lib/nghttp2_hd.h",
+        "lib/nghttp2_helper.c",
+        "lib/nghttp2_helper.h",
+        "lib/nghttp2_http.c",
+        "lib/nghttp2_http.h",
+        "lib/nghttp2_int.h",
+        "lib/nghttp2_map.c",
+        "lib/nghttp2_map.h",
+        "lib/nghttp2_mem.c",
+        "lib/nghttp2_mem.h",
+        "lib/nghttp2_net.h",
+        "lib/nghttp2_npn.c",
+        "lib/nghttp2_npn.h",
+        "lib/nghttp2_option.c",
+        "lib/nghttp2_option.h",
+        "lib/nghttp2_outbound_item.c",
+        "lib/nghttp2_outbound_item.h",
+        "lib/nghttp2_pq.c",
+        "lib/nghttp2_pq.h",
+        "lib/nghttp2_priority_spec.c",
+        "lib/nghttp2_priority_spec.h",
+        "lib/nghttp2_queue.c",
+        "lib/nghttp2_queue.h",
+        "lib/nghttp2_ratelim.c",
+        "lib/nghttp2_ratelim.h",
+        "lib/nghttp2_rcbuf.c",
+        "lib/nghttp2_rcbuf.h",
+        "lib/nghttp2_session.c",
+        "lib/nghttp2_session.h",
+        "lib/nghttp2_stream.c",
+        "lib/nghttp2_stream.h",
+        "lib/nghttp2_submit.c",
+        "lib/nghttp2_submit.h",
+        "lib/nghttp2_time.c",
+        "lib/nghttp2_time.h",
+        "lib/nghttp2_version.c",
+        "lib/sfparse.c",
+        "lib/sfparse.h",
+    ],
+    hdrs = glob([
+        "lib/includes/**/*.h",
+    ]) + [
+        "config.h",
+    ],
+    includes = [
+        ".",  # For config.h
+        "lib/includes",
+    ],
+    visibility = ["//visibility:public"],
+    # The library is pure C, no need for C++ linking
+    copts = [
+        "-O2",
+        "-DHAVE_CONFIG_H",
+        "-DBUILDING_NGHTTP2",
+    ],
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+)
+
+cc_shared_library(
+    name = "nghttp2_shared",
+    shared_lib_name = "nghttp2.so.%s" % SO_VERSION,
+    deps = ["nghttp2"],
+    user_link_flags = select({
+        "@platforms//os:linux": [
+            "-Wl,--gc-sections",
+            "-Wl,--strip-all",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+so_symlink(
+    name = "lib_files",
+    src = ":nghttp2_shared",
+    libname = "libnghttp2",
+    # Lands in embedded/lib, but prefix should really override that.
+    prefix = "embedded",
+    version = SO_VERSION,
+)
+
+pkg_files(
+    name = "header_files",
+    srcs = PUBLIC_HEADERS,
+    prefix = "embedded/include/nghttp2",
+)
+
+pkg_files(
+    name = "license_file",
+    srcs = ["COPYING"],
+    prefix = "LICENSES",
+    renames = {
+        "COPYING": "nghttp2-COPYING",
+    },
+)
+
+# This is a hack to work around a bug in rules_pkg.
+copy_file(
+    name = "pull_fetch_ocsp_response",
+    src = "@@//third_party/nghttp2:fetch-ocsp-response",
+    out = "fetch-ocsp-response",
+)
+
+pkg_files(
+    name = "fetch_ocsp_response",
+    # It would be nicer to use the target
+    # "@@//third_party/nghttp2:fetch-ocsp-response"
+    # here, but rules_pkg calculates the path as a relative ref to @nghttp2
+    # instead of the main project.
+    srcs = [":fetch-ocsp-response"],
+    attributes = pkg_attributes(mode = "0755"),
+    prefix = "embedded/share/nghttp2",
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":license_file",
+        ":header_files",
+        ":lib_files",
+        ":fetch_ocsp_response",
+    ],
+)
+
+#  This is generally installed with destdir={install_dir}
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+    ],
+)
+
+# The pc file is temporary until curl builds with bazel and we don't need it
+# any more.
+dd_agent_expand_template(
+    name = "pc_file",
+    template = "lib/libnghttp2.pc.in",
+    out = "libnghttp2.pc",
+    substitutions = {
+        "@prefix@": "{install_dir}/embedded",
+        "@exec_prefix@": "{install_dir}/embedded/bin",
+        "@libdir@": "{install_dir}/embedded/lib",
+        "@includedir@": "{install_dir}/embedded/include",
+        "@VERSION@": VERSION,
+    },
+)
+
+pkg_files(
+    name = "pc_files",
+    srcs = [":pc_file"],
+    prefix = "lib/pkgconfig",
+)
+
+# This should be installed with --destdir=/, so that the pc file
+# is always in /lib/pkgconfig so the rest of the build can find it
+pkg_install(
+    name = "install_pc",
+    srcs = [
+        ":pc_files",
+    ],
+)

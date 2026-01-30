@@ -5,8 +5,8 @@
 needs-rules:
   allowed-stages:
     - .pre
+    - .post
     - lint
-    - notify
     - deploy_dca
     - deploy_dca_mutable_tags
     - deploy_containers
@@ -94,7 +94,6 @@ job-owners:
     - new-e2e-unit-tests
     - publish_fakeintake
     - publish_fakeintake_latest
-    - rc_kubernetes_deploy
     - revert_latest_7
     - send_pipeline_stats
     - send_pkg_size

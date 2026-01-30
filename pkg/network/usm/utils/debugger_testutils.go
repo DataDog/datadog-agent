@@ -97,11 +97,6 @@ func WaitForPathToBeBlocked(t *testing.T, moduleName, programType string, path s
 	require.NoError(t, err)
 	require.Eventuallyf(t, func() bool {
 		blocked := debugger.GetBlockedPathIDs(moduleName, programType)
-		for _, id := range blocked {
-			if id == pathID {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(blocked, pathID)
 	}, time.Second*5, time.Millisecond*100, "path %v is not blocked in %v", path, programType)
 }

@@ -56,11 +56,8 @@ type BBSCache struct {
 	sync.RWMutex
 	cancelContext      context.Context
 	configured         bool
-	bbsAPIClient       bbs.Client
+	config             BBSCacheConfig
 	bbsAPIClientLogger lager.Logger
-	pollInterval       time.Duration
-	envIncludeList     []*regexp.Regexp
-	envExcludeList     []*regexp.Regexp
 	// maps Desired LRPs' AppGUID to list of ActualLRPs (IOW this is list of running containers per app)
 	actualLRPsByProcessGUID map[string][]*ActualLRP
 	actualLRPsByCellID      map[string][]*ActualLRP
@@ -75,8 +72,17 @@ var (
 	globalBBSCacheLock sync.Mutex
 )
 
+// BBSCacheConfig holds configuration for BBSCache
+type BBSCacheConfig struct {
+	BBSClient    bbs.Client       // BBS API client
+	PollInterval time.Duration    // Interval between cache refresh polls
+	IncludeList  []*regexp.Regexp // Regex patterns for environment variables to include as tags
+	ExcludeList  []*regexp.Regexp // Regex patterns for environment variables to exclude from tags
+	CCCache      CCCacheI         // CC cache for enriching LRP data (optional, can be nil)
+}
+
 // ConfigureGlobalBBSCache configures the global instance of BBSCache from provided config
-func ConfigureGlobalBBSCache(ctx context.Context, bbsURL, cafile, certfile, keyfile string, pollInterval time.Duration, includeList, excludeList []*regexp.Regexp, testing bbs.Client) (*BBSCache, error) {
+func ConfigureGlobalBBSCache(ctx context.Context, config BBSCacheConfig) (*BBSCache, error) {
 	globalBBSCacheLock.Lock()
 	defer globalBBSCacheLock.Unlock()
 
@@ -85,35 +91,11 @@ func ConfigureGlobalBBSCache(ctx context.Context, bbsURL, cafile, certfile, keyf
 	}
 
 	globalBBSCache.configured = true
-	if testing != nil {
-		globalBBSCache.bbsAPIClient = testing
-	} else {
-		clientConfig := bbs.ClientConfig{
-			URL:                    bbsURL,
-			IsTLS:                  true,
-			CAFile:                 cafile,
-			CertFile:               certfile,
-			KeyFile:                keyfile,
-			ClientSessionCacheSize: 0,
-			MaxIdleConnsPerHost:    0,
-			InsecureSkipVerify:     false,
-			Retries:                10,
-			RequestTimeout:         5 * time.Second,
-		}
-		var err error
-		globalBBSCache.bbsAPIClient, err = bbs.NewClientWithConfig(clientConfig)
-		if err != nil {
-			return nil, err
-		}
-	}
-
+	globalBBSCache.config = config
 	globalBBSCache.bbsAPIClientLogger = lager.NewLogger("bbs")
-	globalBBSCache.pollInterval = pollInterval
 	globalBBSCache.lastUpdated = time.Time{} // zero time
 	globalBBSCache.updatedOnce = make(chan struct{})
 	globalBBSCache.cancelContext = ctx
-	globalBBSCache.envIncludeList = includeList
-	globalBBSCache.envExcludeList = excludeList
 
 	go globalBBSCache.start()
 
@@ -192,7 +174,7 @@ func (bc *BBSCache) GetTagsForNode(nodename string) (map[string][]string, error)
 
 func (bc *BBSCache) start() {
 	bc.readData()
-	dataRefreshTicker := time.NewTicker(bc.pollInterval)
+	dataRefreshTicker := time.NewTicker(bc.config.PollInterval)
 	for {
 		select {
 		case <-dataRefreshTicker.C:
@@ -253,7 +235,7 @@ func (bc *BBSCache) readData() {
 func (bc *BBSCache) readActualLRPs() (map[string][]*ActualLRP, map[string][]*ActualLRP, error) {
 	actualLRPsByProcessGUID := map[string][]*ActualLRP{}
 	actualLRPsByCellID := map[string][]*ActualLRP{}
-	actualLRPsBBS, err := bc.bbsAPIClient.ActualLRPs(bc.bbsAPIClientLogger, models.ActualLRPFilter{})
+	actualLRPsBBS, err := bc.config.BBSClient.ActualLRPs(bc.bbsAPIClientLogger, models.ActualLRPFilter{})
 	if err != nil {
 		return actualLRPsByProcessGUID, actualLRPsByCellID, err
 	}
@@ -267,13 +249,14 @@ func (bc *BBSCache) readActualLRPs() (map[string][]*ActualLRP, map[string][]*Act
 }
 
 func (bc *BBSCache) readDesiredLRPs() (map[string]*DesiredLRP, error) {
-	desiredLRPsBBS, err := bc.bbsAPIClient.DesiredLRPs(bc.bbsAPIClientLogger, models.DesiredLRPFilter{})
+	desiredLRPsBBS, err := bc.config.BBSClient.DesiredLRPs(bc.bbsAPIClientLogger, models.DesiredLRPFilter{})
 	if err != nil {
 		return map[string]*DesiredLRP{}, err
 	}
+	// Use the injected CC cache for enriching LRP data
 	desiredLRPs := make(map[string]*DesiredLRP, len(desiredLRPsBBS))
 	for _, lrp := range desiredLRPsBBS {
-		desiredLRP := DesiredLRPFromBBSModel(lrp, bc.envIncludeList, bc.envExcludeList)
+		desiredLRP := DesiredLRPFromBBSModel(lrp, bc.config.IncludeList, bc.config.ExcludeList, bc.config.CCCache)
 		desiredLRPs[desiredLRP.ProcessGUID] = &desiredLRP
 	}
 	log.Debugf("Successfully read %d Desired LRPs", len(desiredLRPsBBS))

@@ -161,14 +161,6 @@ func (ctx *systemContext) removeProcess(pid int) {
 	}
 }
 
-// cleanOld removes any old entries that have not been accessed in a while, to avoid
-// retaining unused data forever
-func (ctx *systemContext) cleanOld() {
-	if ctx.cudaKernelCache != nil {
-		ctx.cudaKernelCache.CleanOld()
-	}
-}
-
 // filterDevicesForContainer filters the available GPU devices for the given
 // container. If the ID is not empty, we check the assignment of GPU resources
 // to the container and return only the devices that are available to the
@@ -265,10 +257,14 @@ func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int, containerI
 			if err != nil {
 				// Check if procRoot/pid exists, if not, the process has exited and we can't get the env var. Don't
 				// block metrics on that.
-				if _, err := os.Stat(filepath.Join(ctx.procRoot, strconv.Itoa(pid))); err != nil && errors.Is(err, fs.ErrNotExist) {
+				_, statErr := os.Stat(filepath.Join(ctx.procRoot, strconv.Itoa(pid)))
+				if statErr == nil {
+					return nil, fmt.Errorf("error getting env var %s for process %d, process is still alive but parsing env var failed: %w", cuda.CudaVisibleDevicesEnvVar, pid, err)
+				} else if errors.Is(statErr, fs.ErrNotExist) {
+					// Process has exited, we can't get the env var. Don't block metrics on that.
 					envVar = ""
 				} else {
-					return nil, fmt.Errorf("error getting env var %s for process %d: %w", cuda.CudaVisibleDevicesEnvVar, pid, err)
+					return nil, fmt.Errorf("error getting env var %s for process %d (%w), also failed to check if process is alive: %w", cuda.CudaVisibleDevicesEnvVar, pid, err, statErr)
 				}
 			}
 		}

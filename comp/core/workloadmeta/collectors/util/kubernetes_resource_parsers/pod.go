@@ -23,7 +23,7 @@ type podParser struct {
 
 // NewPodParser creates and returns a pod parser based on annotations exclusion list
 func NewPodParser(annotationsExclude []string) (ObjectParser, error) {
-	filters, err := parseFilters(annotationsExclude)
+	filters, err := ParseFilters(annotationsExclude)
 	if err != nil {
 		return nil, err
 	}
@@ -89,6 +89,12 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 		if memoryReq, found := container.Resources.Requests[corev1.ResourceMemory]; found {
 			c.Resources.MemoryRequest = kubernetes.FormatMemoryRequests(memoryReq)
 		}
+		if cpuLimit, found := container.Resources.Limits[corev1.ResourceCPU]; found {
+			c.Resources.CPULimit = kubernetes.FormatCPURequests(cpuLimit)
+		}
+		if memoryLimit, found := container.Resources.Limits[corev1.ResourceMemory]; found {
+			c.Resources.MemoryLimit = kubernetes.FormatMemoryRequests(memoryLimit)
+		}
 		containersList = append(containersList, c)
 	}
 
@@ -100,7 +106,7 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 		EntityMeta: workloadmeta.EntityMeta{
 			Name:        pod.Name,
 			Namespace:   pod.Namespace,
-			Annotations: filterMapStringKey(pod.Annotations, p.annotationsFilter),
+			Annotations: FilterMapStringKey(pod.Annotations, p.annotationsFilter),
 			Labels:      pod.Labels,
 		},
 		Phase:                      string(pod.Status.Phase),

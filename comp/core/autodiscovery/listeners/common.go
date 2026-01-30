@@ -8,7 +8,6 @@
 package listeners
 
 import (
-	"fmt"
 	"hash/fnv"
 	"maps"
 	"strconv"
@@ -31,18 +30,18 @@ const (
 
 // getStandardTags extract standard tags from labels of kubernetes services
 func getStandardTags(labels map[string]string) []string {
-	tags := []string{}
 	if labels == nil {
-		return tags
+		return []string{}
 	}
 	labelToTagKeys := map[string]string{
 		kubernetes.EnvTagLabelKey:     tagKeyEnv,
 		kubernetes.VersionTagLabelKey: tagKeyVersion,
 		kubernetes.ServiceTagLabelKey: tagKeyService,
 	}
+	tags := make([]string, 0, len(labelToTagKeys))
 	for labelKey, tagKey := range labelToTagKeys {
 		if tagValue, found := labels[labelKey]; found {
-			tags = append(tags, fmt.Sprintf("%s:%s", tagKey, tagValue))
+			tags = append(tags, tagKey+":"+tagValue)
 		}
 	}
 	return tags

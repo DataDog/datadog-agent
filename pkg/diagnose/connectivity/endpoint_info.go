@@ -13,11 +13,12 @@ import (
 	"log"
 
 	"github.com/DataDog/agent-payload/v5/gogen"
+	"github.com/gogo/protobuf/proto"
+
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/gogo/protobuf/proto"
 )
 
 // endpointInfo is a value object that contains all the information we need to
@@ -52,7 +53,7 @@ func getEndpointsInfo(cfg model.Reader) []endpointInfo {
 		log.Fatalf("Failed to marshal SketchPayload: %v", err)
 	}
 
-	checkRunPayload := []byte("{\"check\": \"test\", \"status\": 0}")
+	checkRunPayload := []byte("[{\"check\": \"test\", \"status\": 0}]")
 
 	jsonCT := "application/json"
 	protoCT := "application/x-protobuf"

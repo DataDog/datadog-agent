@@ -28,7 +28,7 @@ import (
 // namespaces so that we can test mutation with and without lib injection
 // separately.
 func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespaceWithoutLibInjection string, namespaceWithLibInjection string, opts ...pulumi.ResourceOption) (*componentskube.Workload, error) {
-	opts = append(opts, pulumi.Provider(kubeProvider), pulumi.Parent(kubeProvider), pulumi.DeletedWith(kubeProvider))
+	opts = append(opts, pulumi.Provider(kubeProvider), pulumi.Parent(kubeProvider), pulumi.DeletedWith(kubeProvider), pulumi.Timeouts(&pulumi.CustomTimeouts{Create: "20m", Update: "10m", Delete: "10m"}))
 
 	k8sComponent := &componentskube.Workload{}
 	if err := e.Ctx().RegisterComponentResource("dd:apps", "mutated", k8sComponent, opts...); err != nil {

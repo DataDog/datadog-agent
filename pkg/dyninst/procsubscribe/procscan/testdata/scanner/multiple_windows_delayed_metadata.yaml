@@ -1,0 +1,78 @@
+# Test discovery with multiple process delay windows and delayed metadata.
+# This demonstrates how a longer delay window can catch a process that was
+# missed by the shorter window.
+#
+# Setup:
+# - Two process delay windows: 100 ticks (short) and 300 ticks (long)
+# - Process 1001: starts at tick 1000, metadata available at tick 1250
+#
+# The key insight: window 2 (300 delay) has a SMALLER nextWatermark than
+# window 1 (100 delay), meaning it covers processes that started further in
+# the past. This gives processes more time for metadata to become available.
+#
+# Timeline:
+# - At tick 1100: Window 1 range [0, 1000] includes process, Window 2 range
+#   [0, 800] excludes it. Metadata at 1250 > 1100, not available.
+# - At tick 1200: Window 1 range [1000, 1100] includes process, Window 2 range
+#   [800, 900] excludes it. Metadata at 1250 > 1200, not available.
+# - At tick 1300: Window 1 range [1100, 1200] excludes process (1000 < 1100)!
+#   Window 2 range [900, 1000] includes it! Metadata at 1250 <= 1300, available!
+#   Process discovered via the longer delay window.
+- !initialize
+  current_time: 0
+  process_delays: [100, 300]
+- !create-process
+  pid: 1001
+  start_time: 1000
+  metadata_available_at: 1250
+  tracer_metadata:
+    language: "go"
+    service: "slow-metadata-service"
+# First scan: window 1 catches, metadata not ready
+- !advance-time {to: 1100}
+- !scan {}
+# Second scan: window 1 still catches, metadata still not ready
+- !advance-time {to: 1200}
+- !scan {}
+# Third scan: window 1 has moved past, but window 2 catches, metadata ready!
+- !advance-time {to: 1300}
+- !scan {}
+---
+command: !initialize
+  current_time: 0
+  process_delays: [100, 300]
+---
+command: !create-process
+  pid: 1001
+  start_time: 1000
+  metadata_available_at: 1250
+  tracer_metadata:
+    language: "go"
+    service: "slow-metadata-service"
+---
+command: !advance-time {to: 1100}
+---
+command: !scan {}
+state:
+  current_time: 1100
+  last_scan: 1100
+  process_delays: [100, 300]
+  processes_in_procfs: [1001]
+---
+command: !advance-time {to: 1200}
+---
+command: !scan {}
+state:
+  current_time: 1200
+  last_scan: 1200
+  processes_in_procfs: [1001]
+---
+command: !advance-time {to: 1300}
+---
+command: !scan {}
+new: [1001]
+state:
+  current_time: 1300
+  last_scan: 1300
+  live: [1001]
+  processes_in_procfs: [1001]

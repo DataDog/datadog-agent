@@ -39,10 +39,7 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 			}
 
 			ebpfProbe.Walk(func(entry *model.ProcessCacheEntry) {
-				entry.Retain()
-				defer entry.Release()
-
-				if entry.ContainerContext.ContainerID == "" {
+				if entry.ContainerContext.IsNull() {
 					return
 				}
 
@@ -51,7 +48,7 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 				})
 				defer preparator.put(ctx)
 
-				value, found := scopedVariable.GetValue(ctx)
+				value, found := scopedVariable.GetValue(ctx, true) // for status, let's not follow inheritance
 				if !found {
 					return
 				}
@@ -71,10 +68,7 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 			}
 
 			ebpfProbe.Walk(func(entry *model.ProcessCacheEntry) {
-				entry.Retain()
-				defer entry.Release()
-
-				if entry.ProcessContext.Process.CGroup.CGroupFile.IsNull() {
+				if entry.ProcessContext.Process.CGroup.IsNull() {
 					return
 				}
 
@@ -83,7 +77,7 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 				})
 				defer preparator.put(ctx)
 
-				value, found := scopedVariable.GetValue(ctx)
+				value, found := scopedVariable.GetValue(ctx, true) // for status, let's not follow inheritance
 				if !found {
 					return
 				}

@@ -53,8 +53,9 @@ func newInUpperLayerKFilter(tableName string, eventType model.EventType) (kFilte
 	return &eventMaskKFilter{
 		approverType: InUpperLayerApproverType,
 		tableName:    tableName,
-		tableKey:     uint32(0),
+		tableKey:     ebpf.Uint32MapItem(0),
 		eventMask:    uint64(1 << (eventType - 1)),
+		isArrayMap:   true,
 	}, nil
 }
 
@@ -92,7 +93,7 @@ func newKFilterWithUInt32Flags(tableName string, flags ...uint32) (kFilter, erro
 	}, nil
 }
 
-func newKFilterWithUInt64Flags(tableName string, flags ...uint64) (kFilter, error) {
+func newKFilterWithUInt64FlagsAndIndex(tableName string, index uint32, flags ...uint64) (kFilter, error) {
 	var bitmask uint64
 	for _, flag := range flags {
 		bitmask |= flag
@@ -101,9 +102,24 @@ func newKFilterWithUInt64Flags(tableName string, flags ...uint64) (kFilter, erro
 	return &arrayKFilter{
 		approverType: FlagApproverType,
 		tableName:    tableName,
-		index:        uint32(0),
+		index:        index,
 		value:        ebpf.NewUint64FlagsMapItem(bitmask),
 		zeroValue:    ebpf.Uint64FlagsZeroMapItem,
+	}, nil
+}
+
+func newKFilterZeroFlagValue(tableName string, approve bool) (kFilter, error) {
+	mapValue := ebpf.BoolFalseMapItem
+	if approve {
+		mapValue = ebpf.BoolTrueMapItem
+	}
+
+	return &arrayKFilter{
+		approverType: FlagApproverType,
+		tableName:    tableName,
+		index:        uint32(0),
+		value:        mapValue,
+		zeroValue:    ebpf.BoolFalseMapItem,
 	}, nil
 }
 
@@ -111,12 +127,12 @@ func getFlagsKFilter(tableName string, flags ...uint32) (kFilter, error) {
 	return newKFilterWithUInt32Flags(tableName, flags...)
 }
 
-func getEnumsKFilters(tableName string, enums ...uint64) (kFilter, error) {
+func getEnumsKFiltersWithIndex(tableName string, index uint32, enums ...uint64) (kFilter, error) {
 	var flags []uint64
 	for _, enum := range enums {
 		flags = append(flags, 1<<(enum%64))
 	}
-	return newKFilterWithUInt64Flags(tableName, flags...)
+	return newKFilterWithUInt64FlagsAndIndex(tableName, index, flags...)
 }
 
 func getBasenameKFilters(eventType model.EventType, field string, approvers rules.Approvers) ([]kFilter, []eval.Field, error) {
@@ -206,4 +222,5 @@ func init() {
 	KFilterGetters["sysctl"] = sysctlKFiltersGetter
 	KFilterGetters["connect"] = connectKFiltersGetter
 	KFilterGetters["prctl"] = prctlKFiltersGetter
+	KFilterGetters["setsockopt"] = setsockoptKFiltersGetter
 }

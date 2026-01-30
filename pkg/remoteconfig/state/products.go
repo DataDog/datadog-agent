@@ -18,6 +18,7 @@ var validProducts = map[string]struct{}{
 	ProductAPMSampling:                  {},
 	ProductCWSDD:                        {},
 	ProductCWSCustom:                    {},
+	ProductCWSRemediation:               {},
 	ProductCWSProfiles:                  {},
 	ProductCSMSideScanning:              {},
 	ProductASM:                          {},
@@ -25,8 +26,6 @@ var validProducts = map[string]struct{}{
 	ProductASMDD:                        {},
 	ProductASMData:                      {},
 	ProductAPMTracing:                   {},
-	ProductSDSRules:                     {},
-	ProductSDSAgentConfig:               {},
 	ProductLiveDebugging:                {},
 	ProductContainerAutoscalingSettings: {},
 	ProductContainerAutoscalingValues:   {},
@@ -72,6 +71,8 @@ const (
 	ProductCWSDD = "CWS_DD"
 	// ProductCWSCustom is the cloud workload security product managed by datadog customers
 	ProductCWSCustom = "CWS_CUSTOM"
+	// ProductCWSRemediation is the cloud workload security remediation product
+	ProductCWSRemediation = "CWS_REMEDIATION"
 	// ProductCWSProfiles is the cloud workload security profile product
 	ProductCWSProfiles = "CWS_SECURITY_PROFILES"
 	// ProductCSMSideScanning is the side scanning product
@@ -86,10 +87,6 @@ const (
 	ProductASMData = "ASM_DATA"
 	// ProductAPMTracing is the apm tracing product
 	ProductAPMTracing = "APM_TRACING"
-	// ProductSDSRules is the SDS definitions product
-	ProductSDSRules = "SDS_RULES_DD"
-	// ProductSDSAgentConfig is the user SDS configurations product.
-	ProductSDSAgentConfig = "SDS_AGENT_CONFIG"
 	// ProductLiveDebugging is the dynamic instrumentation product
 	ProductLiveDebugging = "LIVE_DEBUGGING"
 	// ProductLiveDebuggingSymbolDB is used by the live debugging product for

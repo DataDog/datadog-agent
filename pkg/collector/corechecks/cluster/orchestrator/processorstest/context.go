@@ -24,10 +24,12 @@ type ProcessorContext struct {
 	Clock               *clock.Mock
 	ClusterID           string
 	CollectorTags       []string
+	HostName            string
+	ManifestProducer    bool
 	MsgGroupID          int32
 	NodeType            pkgorchestratormodel.NodeType
 	OrchestratorConfig  *config.OrchestratorConfig
-	ManifestProducer    bool
+	SystemInfo          *model.SystemInfo
 	TerminatedResources bool
 }
 
@@ -40,13 +42,15 @@ func NewProcessorContext() *ProcessorContext {
 			Patch:  0,
 			Commit: "commit",
 		},
-		APIVersion:    "apiGroup/v1",
-		Kind:          "ResourceKind",
-		Clock:         clock.NewMock(),
-		ClusterID:     "cluster-id",
-		CollectorTags: []string{"collector_tag:collector_tag_value"},
-		MsgGroupID:    1,
-		NodeType:      1,
+		APIVersion:       "apiGroup/v1",
+		Kind:             "ResourceKind",
+		Clock:            clock.NewMock(),
+		ClusterID:        "cluster-id",
+		CollectorTags:    []string{"collector_tag:collector_tag_value"},
+		HostName:         "host-name",
+		ManifestProducer: true,
+		MsgGroupID:       1,
+		NodeType:         1,
 		OrchestratorConfig: &config.OrchestratorConfig{
 			ExtraTags:                      []string{"extra_tag:extra_tag_value"},
 			IsManifestCollectionEnabled:    true,
@@ -54,7 +58,9 @@ func NewProcessorContext() *ProcessorContext {
 			MaxPerMessage:                  100,
 			OrchestrationCollectionEnabled: true,
 		},
-		ManifestProducer:    true,
+		SystemInfo: &model.SystemInfo{
+			Uuid: "system-uuid",
+		},
 		TerminatedResources: false,
 	}
 }
@@ -90,6 +96,11 @@ func (pc *ProcessorContext) GetKind() string {
 }
 
 //nolint:revive
+func (pc *ProcessorContext) GetHostName() string {
+	return pc.HostName
+}
+
+//nolint:revive
 func (pc *ProcessorContext) GetMsgGroupID() int32 {
 	return pc.MsgGroupID
 }
@@ -112,4 +123,9 @@ func (pc *ProcessorContext) IsManifestProducer() bool {
 //nolint:revive
 func (pc *ProcessorContext) IsTerminatedResources() bool {
 	return pc.TerminatedResources
+}
+
+//nolint:revive
+func (pc *ProcessorContext) GetSystemInfo() *model.SystemInfo {
+	return pc.SystemInfo
 }

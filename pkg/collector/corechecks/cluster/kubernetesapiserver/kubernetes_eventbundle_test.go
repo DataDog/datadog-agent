@@ -8,6 +8,7 @@ package kubernetesapiserver
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -146,7 +147,7 @@ func TestFormatEvent(t *testing.T) {
 				SourceTypeName: "kubernetes",
 				EventType:      CheckName,
 				Ts:             timestamp,
-				Host:           fmt.Sprintf("%s-%s", nodeName, clusterName),
+				Host:           nodeName + "-" + clusterName,
 				Tags: []string{
 					"kube_namespace:default",
 					"kube_kind:Pod",
@@ -251,6 +252,71 @@ func TestEventsTagging(t *testing.T) {
 			got, err := bundle.formatEvents(taggerfxmock.SetupFakeTagger(t))
 			assert.NoError(t, err)
 			assert.ElementsMatch(t, tt.expectedTags, got.Tags)
+		})
+	}
+}
+
+func TestKubernetesEventBundle_fitsEvent(t *testing.T) {
+	reallyLongMessage := strings.Repeat("a", 3700)
+	mediumMessage1 := strings.Repeat("b", 1500)
+	mediumMessage2 := strings.Repeat("c", 1500)
+	mediumMessage3 := strings.Repeat("d", 1500)
+
+	tests := []struct {
+		name               string
+		events             []*v1.Event
+		expectedEventsFits []bool
+	}{
+		{
+			name:               "event text length does not exceed the maximum allowed length",
+			events:             []*v1.Event{createEvent(1, "default", "nginx", "Deployment", "b85978f5-2bf2-413f-9611-0b433d2cbf30", "deployment-controller", "deployment-controller", "", "ScalingReplicaSet", "Scaled up replica set nginx-b49f5958c to 1", "Normal", 709662600)},
+			expectedEventsFits: []bool{true},
+		},
+		{
+			name: "event text length exceeds the maximum allowed length",
+			events: []*v1.Event{
+				createEvent(1, "default", "nginx", "Deployment", "b85978f5-2bf2-413f-9611-0b433d2cbf30", "deployment-controller", "deployment-controller", "", "ScalingReplicaSet", "Scaled up replica set nginx-b49f5958c to 1", "Normal", 709662600),
+				createEvent(1, "default", "nginx", "Deployment", "b85978f5-2bf2-413f-9611-0b433d2cbf30", "deployment-controller", "deployment-controller", "", "ScalingReplicaSet", reallyLongMessage, "Normal", 709662600),
+			},
+			expectedEventsFits: []bool{true, false},
+		},
+		{
+			name: "multiple medium events exceed cumulative limit",
+			events: []*v1.Event{
+				createEvent(1, "default", "pod", "Pod", "uid1", "scheduler", "scheduler", "", "Reason", mediumMessage1, "Normal", 100),
+				createEvent(1, "default", "pod", "Pod", "uid1", "scheduler", "scheduler", "", "Reason", mediumMessage2, "Normal", 100),
+				createEvent(1, "default", "pod", "Pod", "uid1", "scheduler", "scheduler", "", "Reason", mediumMessage3, "Normal", 100),
+			},
+			expectedEventsFits: []bool{true, true, false},
+		},
+		{
+			name: "duplicate events do not exceed cumulative limit",
+			events: []*v1.Event{
+				createEvent(1, "default", "pod", "Pod", "uid1", "scheduler", "scheduler", "", "Reason", mediumMessage3, "Normal", 100),
+				createEvent(1, "default", "pod", "Pod", "uid1", "scheduler", "scheduler", "", "Reason", mediumMessage3, "Normal", 100),
+				createEvent(1, "default", "pod", "Pod", "uid1", "scheduler", "scheduler", "", "Reason", mediumMessage3, "Normal", 100),
+			},
+			expectedEventsFits: []bool{true, true, true},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fmt.Println(tt.name)
+			assert.Equal(t, len(tt.events), len(tt.expectedEventsFits))
+
+			bundle := newKubernetesEventBundler("", tt.events[0])
+			for i, ev := range tt.events {
+				_, fits := bundle.fitsEvent(ev)
+				assert.Equal(t, tt.expectedEventsFits[i], fits)
+
+				if fits {
+					err := bundle.addEvent(ev)
+					assert.NoError(t, err)
+				}
+
+				fmt.Println(bundle.estimatedSize)
+			}
 		})
 	}
 }

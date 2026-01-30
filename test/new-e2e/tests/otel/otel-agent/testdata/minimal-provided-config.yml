@@ -48,8 +48,8 @@ exporters:
         initial_cumulative_monotonic_value: auto
     only_metadata: false
     orchestrator_explorer:
-      cluster_name: ""
       enabled: false
+      endpoint: https://orchestrator.datadoghq.com/api/v2/orchmanif
     retry_on_failure:
       enabled: true
       initial_interval: 5s
@@ -64,7 +64,6 @@ exporters:
         min_size: 8192
         sizer: {}
       block_on_overflow: false
-      enabled: true
       num_consumers: 10
       queue_size: 1000
       sizer: {}
@@ -103,6 +102,7 @@ receivers:
         read_header_timeout: 0s
         tls: null
         traces_url_path: /v1/traces
+        transport: tcp
         write_timeout: 0s
 service:
   pipelines:

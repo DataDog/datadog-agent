@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -107,14 +108,14 @@ func discoverIntegrationSources() map[string]bool {
 			continue
 		}
 
-		err := filepath.Walk(searchPath, func(path string, info os.FileInfo, err error) error {
+		err := filepath.WalkDir(searchPath, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
 				return nil // Continue walking, don't fail on individual errors
 			}
-			if info.IsDir() {
+			if d.IsDir() {
 				return nil
 			}
-			if info.Name() != "conf.yaml.example" && info.Name() != "conf.yaml" {
+			if d.Name() != "conf.yaml.example" && d.Name() != "conf.yaml" {
 				return nil
 			}
 
@@ -283,18 +284,13 @@ var agentProcessNames = []string{
 	"trace-agent",
 	"security-agent",
 	"system-probe",
+	"privateactionrunner",
 }
 
 func isAgentProcess(process *workloadmeta.Process) bool {
 	// Check if the process name matches any of the known agent process names;
 	// we may not be able to make assumptions about the executable paths.
-	for _, agentName := range agentProcessNames {
-		if process.Name == agentName {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(agentProcessNames, process.Name)
 }
 
 func (p *processLogConfigProvider) processEventsInner(evBundle workloadmeta.EventBundle, verifyReadable bool) integration.ConfigChanges {

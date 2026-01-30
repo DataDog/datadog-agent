@@ -17,6 +17,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
@@ -30,10 +31,16 @@ var numberedResourceRegex = regexp.MustCompile(`^nvidia([0-9]+)$`)
 
 const (
 	nvidiaVisibleDevicesEnvVar = "NVIDIA_VISIBLE_DEVICES"
+	dockerInspectTimeout       = 100 * time.Millisecond
 )
 
 // HasGPUs returns true if the container has GPUs assigned to it.
 func HasGPUs(container *workloadmeta.Container) bool {
+	// ECS: Check GPUDeviceIDs (populated by Docker collector for ECS only)
+	if len(container.GPUDeviceIDs) > 0 {
+		return true
+	}
+
 	switch container.Runtime {
 	case workloadmeta.ContainerRuntimeDocker:
 		// If we have an error, we assume there are no GPUs for the container, so
@@ -55,6 +62,12 @@ func HasGPUs(container *workloadmeta.Container) bool {
 // MatchContainerDevices matches the devices assigned to a container to the list of available devices
 // It returns a list of devices that are assigned to the container, and an error if any of the devices cannot be matched
 func MatchContainerDevices(container *workloadmeta.Container, devices []ddnvml.Device) ([]ddnvml.Device, error) {
+	// ECS: Use GPUDeviceIDs (UUID format) extracted from container config at discovery time
+	// This is checked first because ECS uses Docker runtime but needs UUID-based matching
+	if len(container.GPUDeviceIDs) > 0 {
+		return matchByGPUDeviceIDs(container.GPUDeviceIDs, devices)
+	}
+
 	switch container.Runtime {
 	case workloadmeta.ContainerRuntimeDocker:
 		return matchDockerDevices(container, devices)
@@ -66,13 +79,34 @@ func MatchContainerDevices(container *workloadmeta.Container, devices []ddnvml.D
 }
 
 func getDockerVisibleDevicesEnv(container *workloadmeta.Container) (string, error) {
-	// We can't use container.EnvVars as it doesn't contain the environment variables
-	// added by the container runtime. We need to get them from the main PID environment.
+	// We can't use container.EnvVars as it doesn't contain the environment
+	// variables added by the container runtime, we only get those defined by
+	// the container image, and those can be overridden by the container
+	// runtime. We need to get them from the main PID environment.
 	envVar, err := kernel.GetProcessEnvVariable(container.PID, kernel.ProcFSRoot(), nvidiaVisibleDevicesEnvVar)
-	if err != nil {
-		return "", fmt.Errorf("error getting %s for container %s: %w", nvidiaVisibleDevicesEnvVar, container.ID, err)
+	if err == nil {
+		return strings.TrimSpace(envVar), nil
 	}
-	return strings.TrimSpace(envVar), nil
+
+	// If we have an error (e.g, the agent does not have permissions to inspect
+	// the process environment variables) fall back to the container runtime
+	// data
+	if container.Resources.GPURequest == nil {
+		return "", nil // no GPUs requested, so no visible devices
+	}
+
+	if *container.Resources.GPURequest == workloadmeta.RequestAllGPUs {
+		return "all", nil
+	}
+
+	// return 0,1,...numGpus-1 as the assumed visible devices variable,
+	// that's how Docker assigns devices to containers, there's no exclusive
+	// allocation.
+	visibleDevices := make([]string, int(*container.Resources.GPURequest))
+	for i := 0; i < int(*container.Resources.GPURequest); i++ {
+		visibleDevices[i] = strconv.Itoa(i)
+	}
+	return strings.Join(visibleDevices, ","), nil
 }
 
 func matchDockerDevices(container *workloadmeta.Container, devices []ddnvml.Device) ([]ddnvml.Device, error) {
@@ -92,9 +126,44 @@ func matchDockerDevices(container *workloadmeta.Container, devices []ddnvml.Devi
 		return devices, nil
 	}
 
-	visibleDevices := strings.Split(visibleDevicesVar, ",")
-	for _, device := range visibleDevices {
+	visibleDevices := strings.SplitSeq(visibleDevicesVar, ",")
+	for device := range visibleDevices {
 		matchingDevice, err := findDeviceByIndex(devices, device)
+		if err != nil {
+			multiErr = errors.Join(multiErr, err)
+			continue
+		}
+		filteredDevices = append(filteredDevices, matchingDevice)
+	}
+
+	return filteredDevices, multiErr
+}
+
+// matchByGPUDeviceIDs matches devices using GPUDeviceIDs from workloadmeta.
+// This is used for ECS containers where GPU UUIDs are provided in the format
+// "GPU-aec058b1-c18e-236e-c14d-49d2990fda0f".
+// Special values:
+//   - "all" returns all available devices (GPU sharing)
+//   - "none", "void" returns empty slice (no GPU access)
+//
+// The order of devices is preserved from the input gpuDeviceIDs, as this matches
+// the order CUDA will use when selecting devices.
+func matchByGPUDeviceIDs(gpuDeviceIDs []string, devices []ddnvml.Device) ([]ddnvml.Device, error) {
+	if len(gpuDeviceIDs) == 1 {
+		switch gpuDeviceIDs[0] {
+		case "all":
+			return devices, nil
+		case "none", "void":
+			return nil, nil
+		}
+	}
+
+	var filteredDevices []ddnvml.Device
+	var multiErr error
+
+	for _, id := range gpuDeviceIDs {
+		// ECS provides GPU UUIDs in format "GPU-xxxx-xxxx-xxxx-xxxx"
+		matchingDevice, err := findDeviceByUUID(devices, id)
 		if err != nil {
 			multiErr = errors.Join(multiErr, err)
 			continue

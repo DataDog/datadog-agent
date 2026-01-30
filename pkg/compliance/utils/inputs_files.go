@@ -9,6 +9,7 @@
 package utils
 
 import (
+	"fmt"
 	"os"
 	"os/user"
 	"strconv"
@@ -22,6 +23,7 @@ func GetFileUser(fi os.FileInfo) string {
 		if user, err := user.LookupId(u); err == nil {
 			return user.Username
 		}
+		return fmt.Sprintf("uid:%d", statt.Uid)
 	}
 	return ""
 }
@@ -33,6 +35,7 @@ func GetFileGroup(fi os.FileInfo) string {
 		if group, err := user.LookupGroupId(g); err == nil {
 			return group.Name
 		}
+		return fmt.Sprintf("gid:%d", statt.Gid)
 	}
 	return ""
 }

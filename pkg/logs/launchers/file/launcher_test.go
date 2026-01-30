@@ -24,7 +24,6 @@ import (
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	fileprovider "github.com/DataDog/datadog-agent/pkg/logs/launchers/file/provider"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -36,12 +35,18 @@ import (
 	filetailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
+	"github.com/DataDog/datadog-agent/pkg/logs/util/testutils"
 )
 
 type RegularTestSetupStrategy struct{}
 
 func (s *RegularTestSetupStrategy) Setup(t *testing.T) TestSetupResult {
-	return TestSetupResult{TestDirs: []string{t.TempDir(), t.TempDir()}}
+	return TestSetupResult{TestDirs: []string{t.TempDir(), t.TempDir()},
+		TestOps: TestOps{
+			create: os.Create,
+			rename: os.Rename,
+			remove: os.Remove,
+		}}
 }
 
 type LauncherTestSuite struct {
@@ -110,8 +115,15 @@ type TestSetupStrategy interface {
 	Setup(t *testing.T) TestSetupResult
 }
 
+type TestOps struct {
+	create func(name string) (*os.File, error)
+	rename func(oldPath, newPath string) error
+	remove func(name string) error
+}
+
 type TestSetupResult struct {
 	TestDirs []string
+	TestOps  TestOps
 }
 
 type BaseLauncherTestSuite struct {
@@ -132,6 +144,8 @@ type BaseLauncherTestSuite struct {
 
 	setupStrategy TestSetupStrategy
 	setupResult   TestSetupResult
+
+	ops TestOps
 }
 
 const DefaultFileLimit = 100
@@ -190,13 +204,15 @@ func (suite *BaseLauncherTestSuite) SetupTest() {
 	var err error
 	suite.testDir = suite.setupResult.TestDirs[0]
 
+	suite.ops = suite.setupResult.TestOps
+
 	suite.testPath = suite.testDir + "/launcher.log"
 	suite.testRotatedPath = suite.testPath + ".1"
 
-	f, err := os.Create(suite.testPath)
+	f, err := suite.ops.create(suite.testPath)
 	suite.Nil(err)
 	suite.testFile = f
-	f, err = os.Create(suite.testRotatedPath)
+	f, err = suite.ops.create(suite.testRotatedPath)
 	suite.Nil(err)
 	suite.testRotatedFile = f
 
@@ -206,7 +222,7 @@ func (suite *BaseLauncherTestSuite) SetupTest() {
 	suite.s.pipelineProvider = suite.pipelineProvider
 	suite.s.registry = auditorMock.NewMockRegistry()
 	suite.s.activeSources = append(suite.s.activeSources, suite.source)
-	status.InitStatus(cfg, util.CreateSources([]*sources.LogSource{suite.source}))
+	status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{suite.source}))
 	suite.s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 }
 
@@ -263,8 +279,9 @@ func (suite *BaseLauncherTestSuite) TestLauncherScanWithLogRotation() {
 	suite.Equal("hello world", string(msg.GetContent()))
 
 	tailer, _ = s.tailers.Get(getScanKey(suite.testPath, suite.source))
-	os.Rename(suite.testPath, suite.testRotatedPath)
-	f, err := os.Create(suite.testPath)
+	err = suite.ops.rename(suite.testPath, suite.testRotatedPath)
+	suite.Nil(err)
+	f, err := suite.ops.create(suite.testPath)
 	suite.Nil(err)
 	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 	newTailer, _ = s.tailers.Get(getScanKey(suite.testPath, suite.source))
@@ -298,7 +315,7 @@ func (suite *BaseLauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_R
 	s.registry = auditorMock.NewMockRegistry()
 	s.activeSources = append(s.activeSources, suite.source)
 	status.Clear()
-	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{suite.source}))
+	status.InitStatus(mockConfig, testutils.CreateSources([]*sources.LogSource{suite.source}))
 	defer status.Clear()
 
 	// Write initial content
@@ -333,8 +350,9 @@ func (suite *BaseLauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_R
 	s.registry.(*auditorMock.Registry).SetFingerprint(fingerprint)
 
 	// Rotate file
-	os.Rename(suite.testPath, suite.testRotatedPath)
-	f, err := os.Create(suite.testPath)
+	err = suite.ops.rename(suite.testPath, suite.testRotatedPath)
+	suite.Nil(err)
+	f, err := suite.ops.create(suite.testPath)
 	suite.Nil(err)
 
 	// Write different content
@@ -377,7 +395,7 @@ func (suite *BaseLauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_N
 	s.registry = auditorMock.NewMockRegistry()
 	s.activeSources = append(s.activeSources, suite.source)
 	status.Clear()
-	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{suite.source}))
+	status.InitStatus(mockConfig, testutils.CreateSources([]*sources.LogSource{suite.source}))
 	defer status.Clear()
 
 	// Write initial content
@@ -457,13 +475,13 @@ func (suite *BaseLauncherTestSuite) TestLauncherScanWithFileRemovedAndCreated() 
 	var err error
 
 	// remove file
-	err = os.Remove(suite.testPath)
+	err = suite.ops.remove(suite.testPath)
 	suite.Nil(err)
 	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 	suite.Equal(tailerLen-1, s.tailers.Count())
 
 	// create file
-	_, err = os.Create(suite.testPath)
+	_, err = suite.ops.create(suite.testPath)
 	suite.Nil(err)
 	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 	suite.Equal(tailerLen, s.tailers.Count())
@@ -501,7 +519,7 @@ func runLauncherScanStartNewTailerTest(t *testing.T, testDirs []string) {
 		source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Identifier: configID, Path: path})
 		launcher.activeSources = append(launcher.activeSources, source)
 		status.Clear()
-		status.InitStatus(cfg, util.CreateSources([]*sources.LogSource{source}))
+		status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source}))
 		defer status.Clear()
 
 		// create file
@@ -552,7 +570,7 @@ func runLauncherScanStartNewTailerForEmptyFileTest(t *testing.T, testDirs []stri
 	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})
 	launcher.activeSources = append(launcher.activeSources, source)
 	status.Clear()
-	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{source}))
+	status.InitStatus(mockConfig, testutils.CreateSources([]*sources.LogSource{source}))
 	defer status.Clear()
 
 	// create empty file
@@ -584,7 +602,7 @@ func runLauncherScanStartNewTailerWithOneLineTest(t *testing.T, testDirs []strin
 	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, FingerprintConfig: &types.FingerprintConfig{Count: 1, MaxBytes: 256, CountToSkip: 0, FingerprintStrategy: types.FingerprintStrategyDisabled}})
 	launcher.activeSources = append(launcher.activeSources, source)
 	status.Clear()
-	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{source}))
+	status.InitStatus(mockConfig, testutils.CreateSources([]*sources.LogSource{source}))
 	defer status.Clear()
 
 	// create file
@@ -634,7 +652,7 @@ func runLauncherScanStartNewTailerWithLongLineTest(t *testing.T, testDirs []stri
 	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, FingerprintConfig: &types.FingerprintConfig{Count: 1, MaxBytes: 256, CountToSkip: 0, FingerprintStrategy: types.FingerprintStrategyByteChecksum}})
 	launcher.activeSources = append(launcher.activeSources, source)
 	status.Clear()
-	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{source}))
+	status.InitStatus(mockConfig, testutils.CreateSources([]*sources.LogSource{source}))
 	defer status.Clear()
 
 	// create file
@@ -854,7 +872,7 @@ func runLauncherScanWithTooManyFilesTest(t *testing.T, testDirs []string) {
 	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})
 	launcher.activeSources = append(launcher.activeSources, source)
 	status.Clear()
-	status.InitStatus(cfg, util.CreateSources([]*sources.LogSource{source}))
+	status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source}))
 	defer status.Clear()
 
 	// test at scan
@@ -953,7 +971,7 @@ func runLauncherScanRecentFilesWithRemovalTest(t *testing.T, testDirs []string) 
 		source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: logDirectory})
 		launcher.activeSources = append(launcher.activeSources, source)
 		status.Clear()
-		status.InitStatus(cfg, util.CreateSources([]*sources.LogSource{source}))
+		status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source}))
 
 		return launcher
 	}
@@ -1009,7 +1027,7 @@ func runLauncherScanRecentFilesWithNewFilesTest(t *testing.T, testDirs []string)
 		source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: logDirectory})
 		launcher.activeSources = append(launcher.activeSources, source)
 		status.Clear()
-		status.InitStatus(cfg, util.CreateSources([]*sources.LogSource{source}))
+		status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source}))
 
 		return launcher
 	}
@@ -1069,7 +1087,7 @@ func runLauncherFileRotationTest(t *testing.T, testDirs []string) {
 		source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: logDirectory})
 		launcher.activeSources = append(launcher.activeSources, source)
 		status.Clear()
-		status.InitStatus(cfg, util.CreateSources([]*sources.LogSource{source}))
+		status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source}))
 
 		return launcher
 	}
@@ -1133,7 +1151,7 @@ func runLauncherFileDetectionSingleScanTest(t *testing.T, testDirs []string) {
 		source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: logDirectory})
 		launcher.activeSources = append(launcher.activeSources, source)
 		status.Clear()
-		status.InitStatus(cfg, util.CreateSources([]*sources.LogSource{source}))
+		status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source}))
 
 		return launcher
 	}
@@ -1178,7 +1196,7 @@ func (suite *BaseLauncherTestSuite) TestLauncherDoesNotCreateTailerForTruncatedU
 	s.registry = auditorMock.NewMockRegistry()
 	s.activeSources = append(s.activeSources, suite.source)
 	status.Clear()
-	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{suite.source}))
+	status.InitStatus(mockConfig, testutils.CreateSources([]*sources.LogSource{suite.source}))
 	defer status.Clear()
 
 	// Write initial content
@@ -1240,7 +1258,7 @@ func (suite *BaseLauncherTestSuite) TestLauncherDoesNotCreateTailerForRotatedUnd
 	s.registry = auditorMock.NewMockRegistry()
 	s.activeSources = append(s.activeSources, suite.source)
 	status.Clear()
-	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{suite.source}))
+	status.InitStatus(mockConfig, testutils.CreateSources([]*sources.LogSource{suite.source}))
 	defer status.Clear()
 
 	// Write initial content
@@ -1260,11 +1278,11 @@ func (suite *BaseLauncherTestSuite) TestLauncherDoesNotCreateTailerForRotatedUnd
 
 	// Simulate file rotation: move current file to .1 and create a new empty file
 	rotatedPath := suite.testPath + ".1"
-	err = os.Rename(suite.testPath, rotatedPath)
+	err = suite.ops.rename(suite.testPath, rotatedPath)
 	suite.Nil(err)
 
 	// Create a new file that is undersized (empty, which results in fingerprint = 0)
-	newFile, err := os.Create(suite.testPath)
+	newFile, err := suite.ops.create(suite.testPath)
 	suite.Nil(err)
 	newFile.Close()
 
@@ -1312,7 +1330,7 @@ func (suite *BaseLauncherTestSuite) TestRotatedTailersNotStoppedDuringScan() {
 	s.registry = auditorMock.NewMockRegistry()
 	s.activeSources = append(s.activeSources, suite.source)
 	status.Clear()
-	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{suite.source}))
+	status.InitStatus(mockConfig, testutils.CreateSources([]*sources.LogSource{suite.source}))
 	defer status.Clear()
 
 	// Create initial file with content
@@ -1328,10 +1346,10 @@ func (suite *BaseLauncherTestSuite) TestRotatedTailersNotStoppedDuringScan() {
 
 	// Rotate the file
 	rotatedPath := suite.testPath + ".1"
-	err = os.Rename(suite.testPath, rotatedPath)
+	err = suite.ops.rename(suite.testPath, rotatedPath)
 	suite.Nil(err)
 
-	newFile, err := os.Create(suite.testPath)
+	newFile, err := suite.ops.create(suite.testPath)
 	suite.Nil(err)
 	_, err = newFile.WriteString("new content\n")
 	suite.Nil(err)
@@ -1378,7 +1396,7 @@ func (suite *BaseLauncherTestSuite) TestRestartTailerAfterFileRotationRemovesTai
 	s.registry = auditorMock.NewMockRegistry()
 	s.activeSources = append(s.activeSources, suite.source)
 	status.Clear()
-	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{suite.source}))
+	status.InitStatus(mockConfig, testutils.CreateSources([]*sources.LogSource{suite.source}))
 	defer status.Clear()
 
 	// Create initial file
@@ -1398,11 +1416,11 @@ func (suite *BaseLauncherTestSuite) TestRestartTailerAfterFileRotationRemovesTai
 
 	// Simulate rotation
 	rotatedPath := suite.testPath + ".1"
-	err = os.Rename(suite.testPath, rotatedPath)
+	err = suite.ops.rename(suite.testPath, rotatedPath)
 	suite.Nil(err)
 
 	// Create new file
-	newFile, err := os.Create(suite.testPath)
+	newFile, err := suite.ops.create(suite.testPath)
 	suite.Nil(err)
 	_, err = newFile.WriteString("line2\n")
 	suite.Nil(err)
@@ -1473,11 +1491,11 @@ func (suite *LauncherTestSuite) TestTailerReceivesConfigWhenDisabled() {
 	source := sources.NewLogSource("test_disabled", sourceConfig)
 	s.activeSources = append(s.activeSources, source)
 	status.Clear()
-	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{source}))
+	status.InitStatus(mockConfig, testutils.CreateSources([]*sources.LogSource{source}))
 	defer status.Clear()
 
 	// Create file with content
-	f, err := os.Create(suite.testPath)
+	f, err := suite.ops.create(suite.testPath)
 	suite.Nil(err)
 	_, err = f.WriteString("test data\n")
 	suite.Nil(err)

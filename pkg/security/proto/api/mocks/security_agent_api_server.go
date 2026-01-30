@@ -4,7 +4,7 @@ package mocks
 
 import (
 	api "github.com/DataDog/datadog-agent/pkg/security/proto/api"
-	empty "github.com/golang/protobuf/ptypes/empty"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 
 	grpc "google.golang.org/grpc"
 
@@ -25,7 +25,7 @@ func (_m *SecurityAgentAPIServer) EXPECT() *SecurityAgentAPIServer_Expecter {
 }
 
 // SendActivityDumpStream provides a mock function with given fields: _a0
-func (_m *SecurityAgentAPIServer) SendActivityDumpStream(_a0 grpc.ClientStreamingServer[api.ActivityDumpStreamMessage, empty.Empty]) error {
+func (_m *SecurityAgentAPIServer) SendActivityDumpStream(_a0 grpc.ClientStreamingServer[api.ActivityDumpStreamMessage, emptypb.Empty]) error {
 	ret := _m.Called(_a0)
 
 	if len(ret) == 0 {
@@ -33,7 +33,7 @@ func (_m *SecurityAgentAPIServer) SendActivityDumpStream(_a0 grpc.ClientStreamin
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(grpc.ClientStreamingServer[api.ActivityDumpStreamMessage, empty.Empty]) error); ok {
+	if rf, ok := ret.Get(0).(func(grpc.ClientStreamingServer[api.ActivityDumpStreamMessage, emptypb.Empty]) error); ok {
 		r0 = rf(_a0)
 	} else {
 		r0 = ret.Error(0)
@@ -48,14 +48,14 @@ type SecurityAgentAPIServer_SendActivityDumpStream_Call struct {
 }
 
 // SendActivityDumpStream is a helper method to define mock.On call
-//   - _a0 grpc.ClientStreamingServer[api.ActivityDumpStreamMessage,empty.Empty]
+//   - _a0 grpc.ClientStreamingServer[api.ActivityDumpStreamMessage,emptypb.Empty]
 func (_e *SecurityAgentAPIServer_Expecter) SendActivityDumpStream(_a0 interface{}) *SecurityAgentAPIServer_SendActivityDumpStream_Call {
 	return &SecurityAgentAPIServer_SendActivityDumpStream_Call{Call: _e.mock.On("SendActivityDumpStream", _a0)}
 }
 
-func (_c *SecurityAgentAPIServer_SendActivityDumpStream_Call) Run(run func(_a0 grpc.ClientStreamingServer[api.ActivityDumpStreamMessage, empty.Empty])) *SecurityAgentAPIServer_SendActivityDumpStream_Call {
+func (_c *SecurityAgentAPIServer_SendActivityDumpStream_Call) Run(run func(_a0 grpc.ClientStreamingServer[api.ActivityDumpStreamMessage, emptypb.Empty])) *SecurityAgentAPIServer_SendActivityDumpStream_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(grpc.ClientStreamingServer[api.ActivityDumpStreamMessage, empty.Empty]))
+		run(args[0].(grpc.ClientStreamingServer[api.ActivityDumpStreamMessage, emptypb.Empty]))
 	})
 	return _c
 }
@@ -65,13 +65,13 @@ func (_c *SecurityAgentAPIServer_SendActivityDumpStream_Call) Return(_a0 error) 
 	return _c
 }
 
-func (_c *SecurityAgentAPIServer_SendActivityDumpStream_Call) RunAndReturn(run func(grpc.ClientStreamingServer[api.ActivityDumpStreamMessage, empty.Empty]) error) *SecurityAgentAPIServer_SendActivityDumpStream_Call {
+func (_c *SecurityAgentAPIServer_SendActivityDumpStream_Call) RunAndReturn(run func(grpc.ClientStreamingServer[api.ActivityDumpStreamMessage, emptypb.Empty]) error) *SecurityAgentAPIServer_SendActivityDumpStream_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // SendEvent provides a mock function with given fields: _a0
-func (_m *SecurityAgentAPIServer) SendEvent(_a0 grpc.ClientStreamingServer[api.SecurityEventMessage, empty.Empty]) error {
+func (_m *SecurityAgentAPIServer) SendEvent(_a0 grpc.ClientStreamingServer[api.SecurityEventMessage, emptypb.Empty]) error {
 	ret := _m.Called(_a0)
 
 	if len(ret) == 0 {
@@ -79,7 +79,7 @@ func (_m *SecurityAgentAPIServer) SendEvent(_a0 grpc.ClientStreamingServer[api.S
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(grpc.ClientStreamingServer[api.SecurityEventMessage, empty.Empty]) error); ok {
+	if rf, ok := ret.Get(0).(func(grpc.ClientStreamingServer[api.SecurityEventMessage, emptypb.Empty]) error); ok {
 		r0 = rf(_a0)
 	} else {
 		r0 = ret.Error(0)
@@ -94,14 +94,14 @@ type SecurityAgentAPIServer_SendEvent_Call struct {
 }
 
 // SendEvent is a helper method to define mock.On call
-//   - _a0 grpc.ClientStreamingServer[api.SecurityEventMessage,empty.Empty]
+//   - _a0 grpc.ClientStreamingServer[api.SecurityEventMessage,emptypb.Empty]
 func (_e *SecurityAgentAPIServer_Expecter) SendEvent(_a0 interface{}) *SecurityAgentAPIServer_SendEvent_Call {
 	return &SecurityAgentAPIServer_SendEvent_Call{Call: _e.mock.On("SendEvent", _a0)}
 }
 
-func (_c *SecurityAgentAPIServer_SendEvent_Call) Run(run func(_a0 grpc.ClientStreamingServer[api.SecurityEventMessage, empty.Empty])) *SecurityAgentAPIServer_SendEvent_Call {
+func (_c *SecurityAgentAPIServer_SendEvent_Call) Run(run func(_a0 grpc.ClientStreamingServer[api.SecurityEventMessage, emptypb.Empty])) *SecurityAgentAPIServer_SendEvent_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(grpc.ClientStreamingServer[api.SecurityEventMessage, empty.Empty]))
+		run(args[0].(grpc.ClientStreamingServer[api.SecurityEventMessage, emptypb.Empty]))
 	})
 	return _c
 }
@@ -111,7 +111,7 @@ func (_c *SecurityAgentAPIServer_SendEvent_Call) Return(_a0 error) *SecurityAgen
 	return _c
 }
 
-func (_c *SecurityAgentAPIServer_SendEvent_Call) RunAndReturn(run func(grpc.ClientStreamingServer[api.SecurityEventMessage, empty.Empty]) error) *SecurityAgentAPIServer_SendEvent_Call {
+func (_c *SecurityAgentAPIServer_SendEvent_Call) RunAndReturn(run func(grpc.ClientStreamingServer[api.SecurityEventMessage, emptypb.Empty]) error) *SecurityAgentAPIServer_SendEvent_Call {
 	_c.Call.Return(run)
 	return _c
 }

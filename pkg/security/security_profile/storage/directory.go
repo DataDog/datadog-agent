@@ -177,28 +177,34 @@ func (d *Directory) Persist(request config.StorageRequest, p *profile.Profile, r
 
 	filePath := filepath.Join(d.directoryPath, filename)
 
+	tmpFilePath := filePath + ".tmp"
+
 	if err := createDir(d.directoryPath); err != nil {
 		return err
 	}
 
-	file, err := os.Create(filePath)
+	file, err := os.Create(tmpFilePath)
 	if err != nil {
-		return fmt.Errorf("couldn't persist to file [%s]: %w", filePath, err)
+		return fmt.Errorf("couldn't persist to file [%s]: %w", tmpFilePath, err)
 	}
 	defer file.Close()
 
 	// set output file access mode
-	if err := os.Chmod(filePath, 0400); err != nil {
-		return fmt.Errorf("couldn't set mod for file [%s]: %w", filePath, err)
+	if err := file.Chmod(0400); err != nil {
+		return fmt.Errorf("couldn't set mod for file [%s]: %w", file.Name(), err)
 	}
 
 	// persist data to disk
 	if _, err := file.Write(raw.Bytes()); err != nil {
-		return fmt.Errorf("couldn't write to file [%s]: %w", filePath, err)
+		return fmt.Errorf("couldn't write to file [%s]: %w", file.Name(), err)
 	}
 
 	if err := file.Close(); err != nil {
 		return fmt.Errorf("could not close file [%s]: %w", file.Name(), err)
+	}
+
+	if err := os.Rename(tmpFilePath, filePath); err != nil {
+		return fmt.Errorf("couldn't rename file from [%s] to [%s]: %w", tmpFilePath, filePath, err)
 	}
 
 	seclog.Infof("[%s] file for [%s] written at: [%s]", request.Format, p.GetSelectorStr(), filePath)

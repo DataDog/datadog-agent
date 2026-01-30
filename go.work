@@ -1,4 +1,4 @@
-go 1.24.10
+go 1.25.6
 
 // Disable new post-quantum key exchange mechanism X25519MLKEM768
 // See https://github.com/DataDog/datadog-agent/issues/34323 for historical context.
@@ -100,14 +100,12 @@ use (
 	pkg/fips
 	pkg/fleet/installer
 	pkg/gohai
-	pkg/linters/components/pkgconfigusage
 	pkg/logs/client
 	pkg/logs/diagnostic
 	pkg/logs/message
 	pkg/logs/metrics
 	pkg/logs/pipeline
 	pkg/logs/processor
-	pkg/logs/sds
 	pkg/logs/sender
 	pkg/logs/sources
 	pkg/logs/status/statusinterface
@@ -141,6 +139,10 @@ use (
 	pkg/telemetry
 	pkg/template
 	pkg/trace
+	pkg/trace/log
+	pkg/trace/otel
+	pkg/trace/stats
+	pkg/trace/traceutil
 	pkg/util/backoff
 	pkg/util/buf
 	pkg/util/cache
@@ -159,6 +161,7 @@ use (
 	pkg/util/http
 	pkg/util/json
 	pkg/util/jsonquery
+	pkg/util/kubernetes/apiserver/common/namespace
 	pkg/util/log
 	pkg/util/log/setup
 	pkg/util/option

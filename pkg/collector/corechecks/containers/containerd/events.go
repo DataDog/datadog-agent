@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -44,11 +45,9 @@ func (c *ContainerdCheck) computeEvents(events []containerdEvent, sender sender.
 			continue
 		}
 
-		var tags []string
-		if len(e.Extra) > 0 {
-			for k, v := range e.Extra {
-				tags = append(tags, fmt.Sprintf("%s:%s", k, v))
-			}
+		tags := make([]string, 0, len(e.Extra))
+		for k, v := range e.Extra {
+			tags = append(tags, k+":"+v)
 		}
 
 		alertType := event.AlertTypeInfo
@@ -513,9 +512,7 @@ func (s *subscriber) GetImageSizes() map[string]map[string]int64 {
 	snapshot := make(map[string]map[string]int64)
 	for namespace, images := range s.imageSizeCache {
 		snapshot[namespace] = make(map[string]int64)
-		for imageName, size := range images {
-			snapshot[namespace][imageName] = size
-		}
+		maps.Copy(snapshot[namespace], images)
 	}
 
 	return snapshot

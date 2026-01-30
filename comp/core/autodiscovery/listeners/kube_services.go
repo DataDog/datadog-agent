@@ -50,7 +50,7 @@ type KubeServiceListener struct {
 // KubeServiceService represents a Kubernetes Service
 type KubeServiceService struct {
 	entity          string
-	metadata        *workloadfilter.Service
+	metadata        *workloadfilter.KubeService
 	tags            []string
 	hosts           map[string]string
 	ports           []ContainerPort
@@ -254,9 +254,9 @@ func processService(ksvc *v1.Service, filterStore workloadfilter.Component) *Kub
 		namespace: ksvc.Namespace,
 	}
 
-	svc.metadata = workloadfilter.CreateService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations())
-	svc.metricsExcluded = filterStore.GetServiceAutodiscoveryFilters(workloadfilter.MetricsFilter).IsExcluded(svc.metadata)
-	svc.globalExcluded = filterStore.GetServiceAutodiscoveryFilters(workloadfilter.GlobalFilter).IsExcluded(svc.metadata)
+	svc.metadata = workloadfilter.CreateKubeService(ksvc.Name, ksvc.Namespace, ksvc.GetAnnotations())
+	svc.metricsExcluded = filterStore.GetKubeServiceAutodiscoveryFilters(workloadfilter.MetricsFilter).IsExcluded(svc.metadata)
+	svc.globalExcluded = filterStore.GetKubeServiceAutodiscoveryFilters(workloadfilter.GlobalFilter).IsExcluded(svc.metadata)
 
 	// Service tags
 	svc.tags = []string{

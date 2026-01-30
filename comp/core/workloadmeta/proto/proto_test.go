@@ -670,6 +670,46 @@ func TestConversions(t *testing.T) {
 			expectsError: false,
 		},
 		{
+			name: "event with valid crd",
+			workloadmetaEvent: workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.CRD{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindCRD,
+						ID:   "crd://datadogagents.datadoghq.com",
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:        "datadogagents.datadoghq.com",
+						Namespace:   "",
+						Annotations: map[string]string{"meta.helm.sh/release-name": "datadog-operator"},
+						Labels:      map[string]string{"pp.kubernetes.io/managed-by": "Helm"},
+					},
+					Group:   "datadoghq.com",
+					Kind:    "DatadogAgent",
+					Version: "v2alpha1e",
+				},
+			},
+			protoWorkloadmetaEvent: &pb.WorkloadmetaEvent{
+				Type: pb.WorkloadmetaEventType_EVENT_TYPE_SET,
+				Crd: &pb.Crd{
+					EnityId: &pb.WorkloadmetaEntityId{
+						Kind: pb.WorkloadmetaKind_CRD,
+						Id:   "crd://datadogagents.datadoghq.com",
+					},
+					EntityMeta: &pb.EntityMeta{
+						Name:        "datadogagents.datadoghq.com",
+						Namespace:   "",
+						Annotations: map[string]string{"meta.helm.sh/release-name": "datadog-operator"},
+						Labels:      map[string]string{"pp.kubernetes.io/managed-by": "Helm"},
+					},
+					Group:   "datadoghq.com",
+					Kind:    "DatadogAgent",
+					Version: "v2alpha1e",
+				},
+			},
+			expectsError: false,
+		},
+		{
 			name: "invalid event",
 			workloadmetaEvent: workloadmeta.Event{
 				Type:   -1, // invalid

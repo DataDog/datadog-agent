@@ -20,6 +20,8 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
+var expectedAPIVersion = GetMetadataAPIVersion()
+
 func TestGetAlias(t *testing.T) {
 	ctx := context.Background()
 	expected := "5d33a910-a7a0-4443-9f01-6a807801b29b"
@@ -38,7 +40,7 @@ func TestGetAlias(t *testing.T) {
 	require.Len(t, aliases, 1)
 	assert.Equal(t, expected, aliases[0])
 	assert.Equal(t, lastRequest.URL.Path, "/metadata/instance/compute/vmId")
-	assert.Equal(t, lastRequest.URL.RawQuery, "api-version=2017-04-02&format=text")
+	assert.Equal(t, lastRequest.URL.RawQuery, expectedAPIVersion+"&format=text")
 }
 
 func TestGetClusterName(t *testing.T) {
@@ -82,7 +84,7 @@ func TestGetClusterName(t *testing.T) {
 			assert.Equal(t, tt.wantErr, (err != nil))
 			assert.Equal(t, tt.want, got)
 			assert.Equal(t, lastRequest.URL.Path, "/metadata/instance/compute/resourceGroupName")
-			assert.Equal(t, lastRequest.URL.RawQuery, "api-version=2017-08-01&format=text")
+			assert.Equal(t, lastRequest.URL.RawQuery, expectedAPIVersion+"&format=text")
 		})
 	}
 }
@@ -218,7 +220,7 @@ func TestGetCCRID(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expected, ccrid)
 	assert.Equal(t, "/metadata/instance/compute/resourceId", lastRequest.URL.Path)
-	assert.Equal(t, "api-version=2021-02-01&format=text", lastRequest.URL.RawQuery)
+	assert.Equal(t, expectedAPIVersion+"&format=text", lastRequest.URL.RawQuery)
 }
 
 func TestInstanceType(t *testing.T) {
@@ -238,5 +240,5 @@ func TestInstanceType(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expected, instanceType)
 	assert.Equal(t, "/metadata/instance/compute/vmSize", lastRequest.URL.Path)
-	assert.Equal(t, "api-version=2021-02-01&format=text", lastRequest.URL.RawQuery)
+	assert.Equal(t, expectedAPIVersion+"&format=text", lastRequest.URL.RawQuery)
 }

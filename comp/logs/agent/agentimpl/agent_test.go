@@ -108,6 +108,9 @@ func (suite *AgentTestSuite) SetupTest() {
 	suite.configOverrides["logs_config.stop_grace_period"] = 1
 	// Set a short scan period to allow it to run in the time period of the tcp and http tests
 	suite.configOverrides["logs_config.file_scan_period"] = 1
+	// Disable auto multiline detection tagging by default in tests
+	// Individual tests can re-enable it if they need to test that feature
+	suite.configOverrides["logs_config.auto_multi_line_detection_tagging"] = false
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(suite.T())
 	suite.tagger = fakeTagger
@@ -162,6 +165,9 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 	}
 
 	agent.setupAgent()
+	suite.T().Cleanup(func() {
+		_ = agent.stop(context.TODO())
+	})
 
 	return agent, sources, services
 }

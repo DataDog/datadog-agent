@@ -59,20 +59,29 @@ func GetFDFromListener(ln net.Listener) (uintptr, error) {
 		return 0, fmt.Errorf("failed to duplicate file descriptor: %v", err)
 	}
 
-	fd := uintptr(duppedFD)
+	err = MakeExecutable(uintptr(duppedFD))
+	if err != nil {
+		return 0, err
+	}
+
+	return uintptr(duppedFD), nil
+}
+
+// MakeExecutable updates a file descriptor so that it can be passed to child processes using the exec syscall.
+func MakeExecutable(fd uintptr) error {
 	// Get the current flags of the file descriptor, so that we can check if CLOEXEC is set.
 	// If CLOEXEC is set, we remove it so that the file descriptor is not closed when using the exec syscall.
 	flag, err := unix.FcntlInt(fd, unix.F_GETFD, 0)
 	if err != nil {
-		return 0, fmt.Errorf("fcntl GETFD: %v", err)
+		return fmt.Errorf("fcntl GETFD: %v", err)
 	}
 
 	if flag&unix.FD_CLOEXEC != 0 {
 		_, err := unix.FcntlInt(fd, unix.F_SETFD, flag & ^unix.FD_CLOEXEC)
 		if err != nil {
-			return 0, fmt.Errorf("fcntl SETFD: %v", err)
+			return fmt.Errorf("fcntl SETFD: %v", err)
 		}
 	}
 
-	return fd, nil
+	return nil
 }

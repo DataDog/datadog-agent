@@ -17,13 +17,21 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/tracegen"
 	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 
+	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ssm"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
 	resourcesAws "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	resourcesEcs "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/ecs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
-	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ssm"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
+
+// isEC2ProviderSet checks whether at least one EC2 capacity provider is set in the given params
+// An EC2 provider is considered set if at least one of its node groups is enabled.
+func isEC2ProviderSet(params *Params) bool {
+	return params.LinuxNodeGroup || params.LinuxARMNodeGroup || params.WindowsNodeGroup || params.LinuxBottleRocketNodeGroup
+
+}
 
 func Run(ctx *pulumi.Context) error {
 	awsEnv, err := resourcesAws.NewEnvironment(ctx)
@@ -60,7 +68,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env *envir
 	var apiKeyParam *ssm.Parameter
 	var fakeIntake *fakeintakeComp.Fakeintake
 
-	if params.agentOptions != nil {
+	if awsEnv.AgentDeploy() {
 		if params.fakeintakeOptions != nil {
 			if fakeIntake, err = fakeintake.NewECSFargateInstance(awsEnv, "ecs", params.fakeintakeOptions...); err != nil {
 				return err
@@ -100,13 +108,13 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env *envir
 
 	// Wait for container instances to be ready before deploying EC2 workloads
 	// This prevents services from timing out while waiting for instances to register
-	if clusterParams.LinuxNodeGroup || clusterParams.LinuxARMNodeGroup || clusterParams.LinuxBottleRocketNodeGroup || clusterParams.WindowsNodeGroup {
+	if isEC2ProviderSet(clusterParams) {
 		ctx.Log.Info("Waiting for EC2 container instances to register with the cluster...", nil)
 		_ = resourcesEcs.WaitForContainerInstances(awsEnv, cluster.ClusterArn, 2)
 	}
 
-	// Testing workload
-	if params.testingWorkload {
+	// Testing workload if at least one EC2 node group is present
+	if params.testingWorkload && isEC2ProviderSet(clusterParams) {
 		if _, err := nginx.EcsAppDefinition(awsEnv, cluster.ClusterArn); err != nil {
 			return err
 		}
@@ -135,7 +143,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env *envir
 	}
 
 	// Deploy Fargate test apps when enabled
-	if params.testingWorkload && params.agentOptions != nil && clusterParams.FargateCapacityProvider {
+	if params.testingWorkload && clusterParams.FargateCapacityProvider {
 		if _, err := redis.FargateAppDefinition(awsEnv, cluster.ClusterArn, apiKeyParam.Name, fakeIntake); err != nil {
 			return err
 		}

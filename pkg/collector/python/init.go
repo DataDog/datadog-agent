@@ -34,8 +34,9 @@ import (
 )
 
 /*
-#cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
-#cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
+#cgo !windows LDFLAGS: -L${SRCDIR}/../../../rtloader/build/rtloader -ldatadog-agent-rtloader -ldl
+#cgo windows LDFLAGS: -L${SRCDIR}/../../../rtloader/build/rtloader -ldatadog-agent-rtloader -lstdc++ -static
+#cgo CFLAGS: -I "${SRCDIR}/../../../rtloader/include"  -I "${SRCDIR}/../../../rtloader/common"
 
 #include "datadog_agent_rtloader.h"
 #include "rtloader_mem.h"
@@ -117,6 +118,7 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 // aggregator module
 //
 
+// callbacks from the collector aggregator package, every exported Go function can be used in any package
 void SubmitMetric(char *, metric_type_t, char *, double, char **, char *, bool);
 void SubmitServiceCheck(char *, char *, int, char **, char *, char *);
 void SubmitEvent(char *, event_t *);

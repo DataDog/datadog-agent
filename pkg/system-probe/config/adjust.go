@@ -21,7 +21,7 @@ var adjustMtx sync.Mutex
 func Adjust(cfg model.Config) {
 	adjustMtx.Lock()
 	defer adjustMtx.Unlock()
-	if cfg.GetBool(spNS("adjusted")) {
+	if k := spNS("adjusted"); cfg.GetBool(k) && cfg.GetSource(k) == model.SourceAgentRuntime {
 		return
 	}
 
@@ -49,10 +49,6 @@ func Adjust(cfg model.Config) {
 	adjustNetwork(cfg)
 	adjustUSM(cfg)
 	adjustSecurity(cfg)
-
-	if usmEnabled {
-		applyDefault(cfg, discoveryNS("enabled"), true)
-	}
 
 	if cfg.GetBool(spNS("process_service_inference", "enabled")) &&
 		!usmEnabled &&
@@ -104,10 +100,14 @@ func validateInt64(cfg model.Config, key string, defaultVal int64, valFn func(in
 }
 
 // applyDefault sets configuration `key` to `defaultVal` only if not previously set.
-func applyDefault(cfg model.Config, key string, defaultVal interface{}) {
+// Returns true if the default value was applied.
+func applyDefault(cfg model.Config, key string, defaultVal interface{}) bool {
 	if !cfg.IsConfigured(key) {
 		cfg.Set(key, defaultVal, model.SourceAgentRuntime)
+		return true
 	}
+
+	return false
 }
 
 // deprecateBool logs a deprecation message if `oldkey` is used.

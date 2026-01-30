@@ -178,7 +178,7 @@ func PodString(pod *corev1.Pod) string {
 	if pod.GetNamespace() == "" || pod.GetName() == "" {
 		return "with generate name " + pod.GetGenerateName()
 	}
-	return fmt.Sprintf("%s/%s", pod.GetNamespace(), pod.GetName())
+	return pod.GetNamespace() + "/" + pod.GetName()
 }
 
 // containsVolumeMount returns whether a list of volume mounts contains

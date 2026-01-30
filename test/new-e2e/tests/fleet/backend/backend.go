@@ -7,6 +7,8 @@
 package backend
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,6 +24,8 @@ import (
 	"github.com/avast/retry-go/v4"
 	"github.com/google/go-containerregistry/pkg/crane"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/nacl/box"
 	"golang.org/x/mod/semver"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -29,7 +33,8 @@ import (
 
 // RemoteConfigState is the state of the remote config.
 type RemoteConfigState struct {
-	Packages []RemoteConfigStatePackage `json:"remote_config_state"`
+	Packages      []RemoteConfigStatePackage `json:"remote_config_state"`
+	SecretsPubKey string                     `json:"secrets_pub_key,omitempty"`
 }
 
 // RemoteConfigStatePackage is the state of a package in the remote config.
@@ -77,14 +82,48 @@ type FileOperation struct {
 	Patch             json.RawMessage   `json:"patch,omitempty"`
 }
 
+// getSecretsPubKey gets the public key for the secrets.
+func (b *Backend) getSecretsPubKey() (*[32]byte, error) {
+	// Get public signing key
+	rcStatus, err := b.RemoteConfigStatus()
+	if err != nil {
+		return nil, fmt.Errorf("error getting remote config status: %w", err)
+	}
+	publicKey, err := base64.StdEncoding.DecodeString(rcStatus.SecretsPubKey)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding secrets public key: %w", err)
+	}
+	if len(publicKey) != 32 {
+		return nil, fmt.Errorf("unexpected public key length: got %d, want 32", len(publicKey))
+	}
+	var pk [32]byte
+	copy(pk[:], publicKey)
+	return &pk, nil
+}
+
 // StartConfigExperiment starts a config experiment for the given package.
-func (b *Backend) StartConfigExperiment(operations ConfigOperations) error {
+func (b *Backend) StartConfigExperiment(operations ConfigOperations, secrets map[string]string) error {
 	b.t().Logf("Starting config experiment")
 	rawOperations, err := json.Marshal(operations)
 	if err != nil {
 		return err
 	}
-	output, err := b.runDaemonCommandWithRestart("start-config-experiment", "datadog-agent", string(rawOperations))
+
+	flags := []string{"datadog-agent", string(rawOperations)}
+	if len(secrets) > 0 {
+		publicKey, err := b.getSecretsPubKey()
+		require.NoError(b.t(), err)
+		// For each secret, encrypt it with the public key and add the flag to the list
+		for key, secret := range secrets {
+			encryptedSecret, err := box.SealAnonymous(nil, []byte(secret), publicKey, rand.Reader)
+			if err != nil {
+				return fmt.Errorf("error encrypting secret: %w", err)
+			}
+			flags = append(flags, fmt.Sprintf("--secret=%s=%s", key, base64.StdEncoding.EncodeToString(encryptedSecret)))
+		}
+	}
+
+	output, err := b.runDaemonCommandWithRestart("start-config-experiment", flags...)
 	if err != nil {
 		return fmt.Errorf("%w, output: %s", err, output)
 	}

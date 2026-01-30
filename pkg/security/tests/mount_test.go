@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
+	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -106,12 +107,12 @@ func TestMount(t *testing.T) {
 		}
 		defer os.Remove(file)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return os.Chmod(file, 0707)
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "chmod", event.GetType(), "wrong event type")
 			assert.Equal(t, file, event.Chmod.File.PathnameStr, "wrong path")
-		})
+		}, "test_rule")
 	})
 
 	releaseFile, err := os.Create(path.Join(dstMntPath, "test-release"))
@@ -145,12 +146,12 @@ func TestMount(t *testing.T) {
 	})
 
 	t.Run("release-mount", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return syscall.Fchownat(int(releaseFile.Fd()), "", 123, 123, unix.AT_EMPTY_PATH)
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
 			assertTriggeredRule(t, rule, "test_rule_pending")
-		})
+		}, "test_rule_pending")
 	})
 }
 
@@ -241,12 +242,12 @@ func TestMountPropagated(t *testing.T) {
 	}
 
 	t.Run("bind-mounted-chmod", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return os.Chmod(file, 0700)
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "chmod", event.GetType(), "wrong event type")
 			assert.Equal(t, file, event.Chmod.File.PathnameStr, "wrong path")
-		})
+		}, "test_rule")
 	})
 }
 
@@ -476,7 +477,7 @@ func TestMountEvent(t *testing.T) {
 			withFSType("tmpfs"),
 		)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if err := tmpfsMount.mount(); err != nil {
 				return err
 			}
@@ -497,7 +498,7 @@ func TestMountEvent(t *testing.T) {
 			validateSyscallContext(t, event, "$.syscall.mount.path")
 			validateSyscallContext(t, event, "$.syscall.mount.destination_path")
 			validateSyscallContext(t, event, "$.syscall.mount.fs_type")
-		})
+		}, "test_mount_tmpfs")
 	})
 
 	t.Run("mount-bind", func(t *testing.T) {
@@ -507,7 +508,7 @@ func TestMountEvent(t *testing.T) {
 			withFlags(syscall.MS_BIND),
 		)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if err := bindMount.mount(); err != nil {
 				return err
 			}
@@ -529,7 +530,7 @@ func TestMountEvent(t *testing.T) {
 			validateSyscallContext(t, event, "$.syscall.mount.path")
 			validateSyscallContext(t, event, "$.syscall.mount.destination_path")
 			validateSyscallContext(t, event, "$.syscall.mount.fs_type")
-		})
+		}, "test_mount_bind")
 	})
 
 	const dockerMountDest = "/host_root"
@@ -541,12 +542,16 @@ func TestMountEvent(t *testing.T) {
 			t.Skip("Skip test where docker is unavailable")
 		}
 
+		checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *ebpfkernel.Version) bool {
+			return kv.IsSuse12Kernel()
+		})
+
 		wrapperTruePositive, err := newDockerCmdWrapper("/", dockerMountDest, "alpine", "")
 		if err != nil {
 			t.Fatalf("failed to start docker wrapper: %v", err)
 		}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if _, err := wrapperTruePositive.start(); err != nil {
 				return err
 			}
@@ -566,13 +571,17 @@ func TestMountEvent(t *testing.T) {
 			validateSyscallContext(t, event, "$.syscall.mount.path")
 			validateSyscallContext(t, event, "$.syscall.mount.destination_path")
 			validateSyscallContext(t, event, "$.syscall.mount.fs_type")
-		})
+		}, "test_mount_in_container_root")
 	})
 
 	t.Run("mount-in-container-legitimate", func(t *testing.T) {
 		if _, err := whichNonFatal("docker"); err != nil {
 			t.Skip("Skip test where docker is unavailable")
 		}
+
+		checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *ebpfkernel.Version) bool {
+			return kv.IsSuse12Kernel()
+		})
 
 		legitimateSourcePath := testDrive.Path("legitimate_source")
 		if err = os.Mkdir(legitimateSourcePath, 0755); err != nil {

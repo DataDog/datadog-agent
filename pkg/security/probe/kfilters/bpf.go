@@ -29,7 +29,7 @@ func bpfKFiltersGetter(approvers rules.Approvers) (KFilters, []eval.Field, error
 	for field, values := range approvers {
 		switch field {
 		case "bpf.cmd":
-			kfilter, err := getEnumsKFilters("bpf_cmd_approvers", uintValues[uint64](values)...)
+			kfilter, err := getEnumsKFiltersWithIndex("bpf_cmd_approvers", 0, uintValues[uint64](values)...)
 			if err != nil {
 				return nil, nil, err
 			}

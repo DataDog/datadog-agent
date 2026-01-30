@@ -19,6 +19,7 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -83,7 +84,8 @@ type Requires struct {
 type Provides struct {
 	compdef.Out
 
-	Comp workloadfilter.Component
+	Comp          workloadfilter.Component
+	FlareProvider flaretypes.Provider
 }
 
 // NewComponent returns a new remote filter client
@@ -96,11 +98,12 @@ func NewComponent(req Requires) (Provides, error) {
 	})
 
 	return Provides{
-		Comp: remoteFilter,
+		Comp:          remoteFilter,
+		FlareProvider: flaretypes.NewProvider(remoteFilter.FlareCallback),
 	}, nil
 }
 
-// NewComponent creates a remote implementation
+// newFilter creates a remote implementation
 func newFilter(cfg config.Component, logger log.Component, telemetryComp coretelemetry.Component, ipc ipc.Component) *remoteFilterStore {
 	base := baseimpl.NewBaseFilterStore(cfg, logger, telemetryComp)
 
@@ -112,11 +115,11 @@ func newFilter(cfg config.Component, logger log.Component, telemetryComp coretel
 	}
 
 	for _, cfg := range remoteProgramConfig {
-		if remoteFilter.FilterConfig.CELProductRules[cfg.productType][cfg.resourceType] != nil {
-			fn := func(_ *catalog.FilterConfig, logger log.Component) program.FilterProgram {
-				return catalog.NewRemoteProgram(cfg.programName, cfg.resourceType, logger, remoteFilter.TelemetryStore, remoteFilter)
+		if remoteFilter.FilterConfig.CELProductRules[cfg.productType][cfg.filterID.TargetResource()] != nil {
+			fn := func(builder *catalog.ProgramBuilder) program.FilterProgram {
+				return catalog.NewRemoteProgram(cfg.filterID.GetFilterName(), cfg.filterID.TargetResource(), builder, remoteFilter)
 			}
-			remoteFilter.RegisterFactory(cfg.resourceType, cfg.programName, fn)
+			remoteFilter.RegisterFactory(cfg.filterID, fn)
 		}
 	}
 
@@ -198,68 +201,55 @@ func (r *remoteFilterStore) GetAuthToken() string {
 }
 
 var remoteProgramConfig = []struct {
-	resourceType workloadfilter.ResourceType
-	productType  workloadfilter.Product
-	programName  string
+	filterID    workloadfilter.FilterIdentifier
+	productType workloadfilter.Product
 }{
 	{
-		resourceType: workloadfilter.ContainerType,
-		productType:  workloadfilter.ProductMetrics,
-		programName:  string(workloadfilter.ContainerCELMetrics),
+		filterID:    workloadfilter.ContainerCELMetrics,
+		productType: workloadfilter.ProductMetrics,
 	},
 	{
-		resourceType: workloadfilter.ContainerType,
-		productType:  workloadfilter.ProductLogs,
-		programName:  string(workloadfilter.ContainerCELLogs),
+		filterID:    workloadfilter.ContainerCELLogs,
+		productType: workloadfilter.ProductLogs,
 	},
 	{
-		resourceType: workloadfilter.ContainerType,
-		productType:  workloadfilter.ProductSBOM,
-		programName:  string(workloadfilter.ContainerCELSBOM),
+		filterID:    workloadfilter.ContainerCELSBOM,
+		productType: workloadfilter.ProductSBOM,
 	},
 	{
-		resourceType: workloadfilter.ContainerType,
-		productType:  workloadfilter.ProductGlobal,
-		programName:  string(workloadfilter.ContainerCELGlobal),
+		filterID:    workloadfilter.ContainerCELGlobal,
+		productType: workloadfilter.ProductGlobal,
 	},
 	{
-		resourceType: workloadfilter.ServiceType,
-		productType:  workloadfilter.ProductMetrics,
-		programName:  string(workloadfilter.ServiceCELMetrics),
+		filterID:    workloadfilter.KubeServiceCELMetrics,
+		productType: workloadfilter.ProductMetrics,
 	},
 	{
-		resourceType: workloadfilter.ServiceType,
-		productType:  workloadfilter.ProductGlobal,
-		programName:  string(workloadfilter.ServiceCELGlobal),
+		filterID:    workloadfilter.KubeServiceCELGlobal,
+		productType: workloadfilter.ProductGlobal,
 	},
 	{
-		resourceType: workloadfilter.EndpointType,
-		productType:  workloadfilter.ProductMetrics,
-		programName:  string(workloadfilter.EndpointCELMetrics),
+		filterID:    workloadfilter.KubeEndpointCELMetrics,
+		productType: workloadfilter.ProductMetrics,
 	},
 	{
-		resourceType: workloadfilter.EndpointType,
-		productType:  workloadfilter.ProductGlobal,
-		programName:  string(workloadfilter.EndpointCELGlobal),
+		filterID:    workloadfilter.KubeEndpointCELGlobal,
+		productType: workloadfilter.ProductGlobal,
 	},
 	{
-		resourceType: workloadfilter.PodType,
-		productType:  workloadfilter.ProductMetrics,
-		programName:  string(workloadfilter.PodCELMetrics),
+		filterID:    workloadfilter.PodCELMetrics,
+		productType: workloadfilter.ProductMetrics,
 	},
 	{
-		resourceType: workloadfilter.PodType,
-		productType:  workloadfilter.ProductGlobal,
-		programName:  string(workloadfilter.PodCELGlobal),
+		filterID:    workloadfilter.PodCELGlobal,
+		productType: workloadfilter.ProductGlobal,
 	},
 	{
-		resourceType: workloadfilter.ProcessType,
-		productType:  workloadfilter.ProductLogs,
-		programName:  string(workloadfilter.ProcessCELLogs),
+		filterID:    workloadfilter.ProcessCELLogs,
+		productType: workloadfilter.ProductLogs,
 	},
 	{
-		resourceType: workloadfilter.ProcessType,
-		productType:  workloadfilter.ProductGlobal,
-		programName:  string(workloadfilter.ProcessCELGlobal),
+		filterID:    workloadfilter.ProcessCELGlobal,
+		productType: workloadfilter.ProductGlobal,
 	},
 }

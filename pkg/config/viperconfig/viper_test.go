@@ -370,6 +370,46 @@ func TestParseEnvAsSliceMapString(t *testing.T) {
 	assert.Equal(t, []map[string]string{{"a": "a", "b": "b", "c": "c"}}, config.Get("map"))
 }
 
+func TestUnsetForSource(t *testing.T) {
+	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.SetDefault("some.setting", "default_value")
+
+	yamlExample := []byte(`
+some:
+  setting: file_value
+`)
+
+	tempfile, err := os.CreateTemp("", "test-*.yaml")
+	require.NoError(t, err, "failed to create temporary file")
+	defer os.Remove(tempfile.Name())
+
+	tempfile.Write(yamlExample)
+
+	config.SetConfigFile(tempfile.Name())
+	config.ReadInConfig()
+
+	config.Set("some.setting", "runtime_value", model.SourceAgentRuntime)
+	config.Set("some.setting", "process_value", model.SourceLocalConfigProcess)
+	config.Set("some.setting", "RC_value", model.SourceRC)
+
+	assert.Equal(t, "RC_value", config.GetString("some.setting"))
+
+	config.UnsetForSource("some.setting", model.SourceRC)
+	assert.Equal(t, "process_value", config.GetString("some.setting"))
+
+	config.UnsetForSource("some.setting", model.SourceLocalConfigProcess)
+	assert.Equal(t, "runtime_value", config.GetString("some.setting"))
+
+	config.UnsetForSource("some.setting", model.SourceAgentRuntime)
+	assert.Equal(t, "file_value", config.GetString("some.setting"))
+
+	config.UnsetForSource("some.setting", model.SourceFile)
+	assert.Equal(t, "default_value", config.GetString("some.setting"))
+
+	config.UnsetForSource("some.setting", model.SourceDefault)
+	assert.Equal(t, "", config.GetString("some.setting"))
+}
+
 func TestListenersUnsetForSource(t *testing.T) {
 	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 

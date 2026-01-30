@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/textproto"
 	"os"
 	"path/filepath"
@@ -119,12 +120,8 @@ func (s *dpkgScanner) listInstalledFiles(root *os.Root) (map[string][]string, er
 
 	// merge both maps, info dir has priority
 	res := make(map[string][]string, len(installedFilesInfo)+len(installedFilesStatus))
-	for k, v := range installedFilesStatus {
-		res[k] = v
-	}
-	for k, v := range installedFilesInfo {
-		res[k] = v
-	}
+	maps.Copy(res, installedFilesStatus)
+	maps.Copy(res, installedFilesInfo)
 	return res, nil
 }
 

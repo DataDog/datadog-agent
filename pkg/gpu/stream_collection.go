@@ -9,6 +9,7 @@ package gpu
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"golang.org/x/sys/unix"
@@ -355,6 +356,7 @@ func (sc *streamCollection) cleanHandlerMap(handlerMap *sync.Map, nowKtime int64
 
 			if deleteReason != "" {
 				handlerMap.Delete(key)
+				handler.releasePoolResources()
 				sc.telemetry.removedHandlers.Inc(handler.metadata.gpuUUID, deleteReason)
 			}
 		}
@@ -369,4 +371,30 @@ func (sc *streamCollection) clean(nowKtime int64) {
 	sc.cleanHandlerMap(&sc.globalStreams, nowKtime)
 
 	sc.telemetry.activeHandlers.Set(float64(sc.allStreamsCount()))
+}
+
+// String returns a human-readable representation of the streamCollection. Used for better debugging in tests
+func (sc *streamCollection) String() string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("streamCollection{streams=%d, globalStreams=%d}\n", sc.streamsCount(), sc.globalStreamsCount()))
+
+	sc.streams.Range(func(key, value interface{}) bool {
+		if k, ok := key.(streamKey); ok {
+			if handler, ok := value.(*StreamHandler); ok {
+				sb.WriteString(fmt.Sprintf("  [pid=%d, stream=%d]: %s\n", k.pid, k.stream, handler.String()))
+			}
+		}
+		return true
+	})
+
+	sc.globalStreams.Range(func(key, value interface{}) bool {
+		if k, ok := key.(globalStreamKey); ok {
+			if handler, ok := value.(*StreamHandler); ok {
+				sb.WriteString(fmt.Sprintf("  [pid=%d, gpu=%s (global)]: %s\n", k.pid, k.gpuUUID, handler.String()))
+			}
+		}
+		return true
+	})
+
+	return sb.String()
 }

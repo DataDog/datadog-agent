@@ -8,15 +8,40 @@ package util
 import (
 	"crypto"
 	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
+	"maps"
 	"time"
 
 	"github.com/go-jose/go-jose/v4"
 	"github.com/golang-jwt/jwt/v5"
 )
+
+func GenerateKeys() (*jose.JSONWebKey, *jose.JSONWebKey, error) {
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to generate key pair: %w", err)
+	}
+	publicKey := &privateKey.PublicKey
+
+	privateJwk, err := EcdsaToJWK(privateKey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to encode private key: %w", err)
+	}
+
+	publicJwk, err := EcdsaToJWK(publicKey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to encode public key: %w", err)
+	}
+
+	return privateJwk, publicJwk, nil
+}
 
 func Base64ToJWK(privateKey string) (jwk jose.JSONWebKey, err error) {
 	decodedKeyBytes, err := base64.RawURLEncoding.DecodeString(privateKey)
@@ -64,9 +89,7 @@ func GeneratePARJWT(orgId int64, runnerId string, privateKey *ecdsa.PrivateKey, 
 		"exp":      time.Now().Add(time.Minute * 1).Unix(),
 	}
 
-	for k, v := range extraClaims {
-		claims[k] = v
-	}
+	maps.Copy(claims, extraClaims)
 
 	token := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
 	token.Header["alg"] = "ES256"
@@ -78,4 +101,28 @@ func GeneratePARJWT(orgId int64, runnerId string, privateKey *ecdsa.PrivateKey, 
 	}
 
 	return signed, nil
+}
+
+// JWKToPEM converts a JWK public key to PEM format
+func JWKToPEM(pubJWK *jose.JSONWebKey) (string, error) {
+	if !pubJWK.IsPublic() {
+		return "", errors.New("error converting JWK to PEM: the key is not public")
+	}
+
+	pk, ok := pubJWK.Key.(*ecdsa.PublicKey)
+	if !ok {
+		return "", errors.New("error converting JWK to PEM: wrong underlying key type")
+	}
+
+	x509EncodedPub, err := x509.MarshalPKIXPublicKey(pk)
+	if err != nil {
+		return "", errors.New("error converting JWK to PEM: failed to marshal public key")
+	}
+
+	pemEncodedPub := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: x509EncodedPub})
+	if pemEncodedPub == nil {
+		return "", errors.New("error converting JWK to PEM: failed to encode public key to PEM format")
+	}
+
+	return string(pemEncodedPub), nil
 }

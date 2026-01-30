@@ -24,5 +24,6 @@ target:
     DD_PROFILING_EXECUTION_TRACE_PERIOD: 1m
     DD_PROFILING_WAIT_PROFILE: true
     DD_TRACE_AGENT_URL: unix:///var/run/datadog/apm.socket
+    DD_APM_INTERNAL_PROFILING_ENABLED: true
 
     DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:pycheck_lots_of_tags

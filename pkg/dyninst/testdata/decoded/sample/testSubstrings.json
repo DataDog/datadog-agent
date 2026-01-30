@@ -60,16 +60,20 @@
               },
               "c": {
                 "type": "string",
-                "size": "6",
-                "truncated": true,
-                "value": "abcd"
+                "value": "abcdef"
               }
             }
           }
         }
-      }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
     },
     "timestamp": "[ts]",
-    "message": "abcd, ab, abcd..."
+    "message": "abcd, ab, abcdef"
   }
 ]

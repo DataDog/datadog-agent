@@ -31,6 +31,8 @@ const (
 	EventPairingExpectationCallMapFull           EventPairingExpectation = 3
 	EventPairingExpectationCallCountExceeded     EventPairingExpectation = 4
 	EventPairingExpectationBufferFull            EventPairingExpectation = 5
+	EventPairingExpectationNoneInlined           EventPairingExpectation = 6
+	EventPairingExpectationNoneNoBody            EventPairingExpectation = 7
 )
 
 const (

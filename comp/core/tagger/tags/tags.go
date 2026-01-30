@@ -111,6 +111,9 @@ const (
 	// which is either true (dedicated CPUs) or false
 	KubeStaticCPUsTag = "kube_static_cpus"
 
+	// KubeServerVersion is the tag for the Kubernetes server version
+	KubeServerVersion = "kube_server_version"
+
 	// CPURestartPolicy is the tag for the container's CPU restart policy
 	CPURestartPolicy = "cpu_restart_policy"
 	// MemoryRestartPolicy is the tag for the container's memory restart policy
@@ -134,6 +137,12 @@ const (
 	GPUVirtualizationMode = "gpu_virtualization_mode"
 	// GPUArchitecture is the tag for the GPU model architecture (e.g. Blackwell, Hopper, ...)
 	GPUArchitecture = "gpu_architecture"
+	// GPUType is the tag for the normalized GPU model type (e.g., a100, t4)
+	GPUType = "gpu_type"
+	// GPUSlicingMode is the tag for the GPU slicing mode (mig, none)
+	GPUSlicingMode = "gpu_slicing_mode"
+	// GPUParentGPUUUID is the tag for the parent GPU UUID
+	GPUParentGPUUUID = "gpu_parent_uuid"
 
 	// KubeArgoRollout is the tag for the Argo Rollout name
 	KubeArgoRollout = "kube_argo_rollout"

@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -93,15 +92,6 @@ var gpuSystems = map[systemName]systemData{
 
 func dockerImageName() string {
 	return fmt.Sprintf("%s:%s", vectorAddDockerImg, *imageTag)
-}
-
-func mandatoryMetricTagRegexes() []*regexp.Regexp {
-	regexes := make([]*regexp.Regexp, 0, len(mandatoryMetricTags))
-	for _, tag := range mandatoryMetricTags {
-		regexes = append(regexes, regexp.MustCompile(tag+":.*"))
-	}
-
-	return regexes
 }
 
 type gpuHostSuite struct {
@@ -285,10 +275,10 @@ func (s *gpuK8sSuite) AfterTest(suiteName, testName string) {
 
 // runCudaDockerWorkload runs a CUDA workload in a Docker container and returns the container ID
 func (v *gpuBaseSuite[Env]) runCudaDockerWorkload() string {
-	// Configure some defaults
-	vectorSize := 50000
-	numLoops := 100      // Loop extra times to ensure the kernel runs for a bit
-	waitTimeSeconds := 5 // Give enough time to our monitor to hook the probes
+	// Configure some defaults. Big vector size and number of loops to ensure the kernel runs for a bit
+	vectorSize := 2000000
+	numLoops := 10000000
+	waitTimeSeconds := 30 // Give enough time to our monitor to hook the probes and for workloadmeta to detect containers
 	binary := "/usr/local/bin/cuda-basic"
 	args := []string{binary, strconv.Itoa(vectorSize), strconv.Itoa(numLoops), strconv.Itoa(waitTimeSeconds)}
 
@@ -349,9 +339,9 @@ func (v *gpuBaseSuite[Env]) TestLimitMetricsAreReported() {
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		metricNames := []string{"gpu.core.limit", "gpu.memory.limit"}
 		for _, metricName := range metricNames {
-			metrics, err := v.caps.FakeIntake().Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0), client.WithMatchingTags[*aggregator.MetricSeries](mandatoryMetricTagRegexes()))
+			metrics, err := v.caps.FakeIntake().Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0))
 			assert.NoError(c, err)
-			assert.Greater(c, len(metrics), 0, "no '%s' with value higher than 0 yet", metricName)
+			assertMetricsHaveExpectedTagKeys(c, metrics, mandatoryMetricTags, metricName)
 		}
 	}, 5*time.Minute, 10*time.Second)
 }
@@ -371,6 +361,8 @@ func (v *gpuBaseSuite[Env]) TestVectorAddProgramDetected() {
 	flake.MarkOnLog(v.T(), "error code CUDA-capable device(s) is/are busy or unavailable")
 	containerID := v.runCudaDockerWorkload()
 
+	expectedTags := v.caps.ExpectedWorkloadTags()
+	expectedTags = append(expectedTags, mandatoryMetricTags...)
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		// Check for workload errors first
 		err := v.caps.CheckWorkloadErrors(containerID)
@@ -378,27 +370,21 @@ func (v *gpuBaseSuite[Env]) TestVectorAddProgramDetected() {
 
 		// We are not including "gpu.memory", as that represents the "current
 		// memory usage" and that might be zero at the time it's checked
-		metricNames := []string{"gpu.process.core.usage"}
+		metricToExpectedTags := map[string][]string{
+			"gpu.process.core.usage": append(expectedTags, "pid"),
+			"gpu.sm_active":          expectedTags,
+		}
 
 		var usageMetricTags []string
-		for _, metricName := range metricNames {
-			metrics, err := v.caps.FakeIntake().Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0), client.WithMatchingTags[*aggregator.MetricSeries](mandatoryMetricTagRegexes()))
+		for metricName, metricExpectedTags := range metricToExpectedTags {
+			metrics, err := v.caps.FakeIntake().Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0))
 			assert.NoError(c, err)
-			assert.Greater(c, len(metrics), 0, "no '%s' with value higher than 0 yet", metricName)
+			assertMetricsHaveExpectedTagKeys(c, metrics, metricExpectedTags, metricName)
 
 			if metricName == "gpu.process.core.usage" && len(metrics) > 0 {
 				usageMetricTags = metrics[0].Tags
 			}
 		}
-
-		hasPidTag := false
-		for _, tag := range usageMetricTags {
-			if strings.HasPrefix(tag, "pid:") {
-				hasPidTag = true
-				break
-			}
-		}
-		assert.True(c, hasPidTag, "no tag starting with 'pid:' found in usage metric tags")
 
 		if len(usageMetricTags) > 0 {
 			// Ensure we get the limit metric with the same tags as the usage one
@@ -429,16 +415,12 @@ func (v *gpuBaseSuite[Env]) TestNvmlMetricsPresent() {
 		for _, metric := range metrics {
 			// We don't care about values, as long as the metrics are there. Values come from NVML
 			// so we cannot control that.
-			var options []client.MatchOpt[*aggregator.MetricSeries]
-			if metric.deviceSpecific {
-				// device-specific metrics should be tagged with device tags
-				options = append(options, client.WithMatchingTags[*aggregator.MetricSeries](mandatoryMetricTagRegexes()))
-			}
-
-			metrics, err := v.caps.FakeIntake().Client().FilterMetrics(metric.name, options...)
+			metrics, err := v.caps.FakeIntake().Client().FilterMetrics(metric.name)
 			assert.NoError(c, err)
 
-			assert.Greater(c, len(metrics), 0, "no metric '%s' found", metric.name)
+			if metric.deviceSpecific {
+				assertMetricsHaveExpectedTagKeys(c, metrics, mandatoryMetricTags, metric.name)
+			}
 		}
 	}, 5*time.Minute, 10*time.Second)
 }
@@ -472,4 +454,46 @@ func (v *gpuBaseSuite[Env]) TestZZAgentDidNotRestart() {
 		finalCount := v.caps.GetRestartCount(service)
 		v.Assert().Equal(initialCount, finalCount, "Service %s restarted during test suite", service)
 	}
+}
+
+func assertMetricsHaveExpectedTagKeys(c *assert.CollectT, metrics []*aggregator.MetricSeries, expectedTagKeys []string, metricName string) bool {
+	smallestMissingTagSet := expectedTagKeys
+
+	if !assert.Greater(c, len(metrics), 0, "no metric values found for metric %s", metricName) {
+		// Don't follow with the rest of the assertions in the function, but
+		// also don't use require so that the caller of the function can
+		// continue with other assertions.
+		return false
+	}
+
+	missingTags := make(map[string]bool)
+	for _, metric := range metrics {
+		for _, expectedTagKey := range expectedTagKeys {
+			missingTags[expectedTagKey] = true
+		}
+
+		for _, tag := range metric.GetTags() {
+			tagParts := strings.SplitN(tag, ":", 2)
+			if len(tagParts) == 2 {
+				tagKey := tagParts[0]
+
+				if _, ok := missingTags[tagKey]; ok {
+					missingTags[tagKey] = false
+				}
+			}
+		}
+
+		missingTagSet := []string{}
+		for tagKey, isMissing := range missingTags {
+			if isMissing {
+				missingTagSet = append(missingTagSet, tagKey)
+			}
+		}
+
+		if len(missingTagSet) < len(smallestMissingTagSet) {
+			smallestMissingTagSet = missingTagSet
+		}
+	}
+
+	return assert.Empty(c, smallestMissingTagSet, "no metric %s found with expected tag keys %v. The closest tagset we got had the following missing tag keys: %v", metricName, expectedTagKeys, smallestMissingTagSet)
 }

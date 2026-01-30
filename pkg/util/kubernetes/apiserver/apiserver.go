@@ -44,10 +44,12 @@ import (
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+
+	apiextentionsinformer "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 )
 
 var (
@@ -141,6 +143,9 @@ type APIClient struct {
 
 	// DynamicInformerFactory gives access to dynamic informers
 	DynamicInformerFactory dynamicinformer.DynamicSharedInformerFactory
+
+	// CustomResourceDefinitionsFactory gives access to CustomResourceDefinition informers
+	APIExentionsInformerFactory apiextentionsinformer.SharedInformerFactory
 
 	//
 	// Internal
@@ -320,6 +325,15 @@ func (c *APIClient) GetInformerWithOptions(resyncPeriod *time.Duration, options 
 	return informers.NewSharedInformerFactoryWithOptions(c.InformerCl, *resyncPeriod, options...)
 }
 
+// GetAPIExtensionsInformerWithOptions return the informer factory for customResourceDefinitions
+func (c *APIClient) GetAPIExtensionsInformerWithOptions(resyncPeriod *time.Duration, options ...apiextentionsinformer.SharedInformerOption) apiextentionsinformer.SharedInformerFactory {
+	if resyncPeriod == nil {
+		resyncPeriod = &c.defaultInformerResyncPeriod
+	}
+
+	return apiextentionsinformer.NewSharedInformerFactoryWithOptions(c.CRDInformerClient, *resyncPeriod, options...)
+}
+
 func (c *APIClient) connect() error {
 	var err error
 	// Clients
@@ -379,6 +393,7 @@ func (c *APIClient) connect() error {
 
 	// Creating informers
 	c.InformerFactory = c.GetInformerWithOptions(nil)
+	c.APIExentionsInformerFactory = c.GetAPIExtensionsInformerWithOptions(nil)
 
 	if pkgconfigsetup.Datadog().GetBool("admission_controller.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("compliance_config.enabled") ||
@@ -399,7 +414,7 @@ func (c *APIClient) connect() error {
 		c.CertificateSecretInformerFactory = c.GetInformerWithOptions(
 			nil,
 			informers.WithTweakListOptions(optionsForService),
-			informers.WithNamespace(common.GetResourcesNamespace()),
+			informers.WithNamespace(namespace.GetResourcesNamespace()),
 		)
 
 		optionsForWebhook := func(options *metav1.ListOptions) {
@@ -460,16 +475,16 @@ func (c *APIClient) getOrCreateConfigMap(name, namespace string) (cmEvent *v1.Co
 
 // GetTokenFromConfigmap returns the value of the `tokenValue` from the `tokenKey` in the ConfigMap `configMapDCAToken` if its timestamp is less than tokenTimeout old.
 func (c *APIClient) GetTokenFromConfigmap(token string) (string, time.Time, error) {
-	namespace := common.GetResourcesNamespace()
+	ns := namespace.GetResourcesNamespace()
 	nowTs := time.Now()
 
 	configMapDCAToken := pkgconfigsetup.Datadog().GetString("cluster_agent.token_name")
-	cmEvent, err := c.getOrCreateConfigMap(configMapDCAToken, namespace)
+	cmEvent, err := c.getOrCreateConfigMap(configMapDCAToken, ns)
 	if err != nil {
 		// we do not process event if we can't interact with the CM.
 		return "", time.Now(), err
 	}
-	eventTokenKey := fmt.Sprintf("%s.%s", token, tokenKey)
+	eventTokenKey := token + "." + tokenKey
 	if cmEvent.Data == nil {
 		cmEvent.Data = make(map[string]string)
 	}
@@ -482,7 +497,7 @@ func (c *APIClient) GetTokenFromConfigmap(token string) (string, time.Time, erro
 	}
 	log.Tracef("%s is %q", token, tokenValue)
 
-	eventTokenTS := fmt.Sprintf("%s.%s", token, tokenTime)
+	eventTokenTS := token + "." + tokenTime
 	tokenTimeStr, set := cmEvent.Data[eventTokenTS]
 	if !set {
 		log.Debugf("Could not find timestamp associated with %s in the ConfigMap %s. Refreshing.", eventTokenTS, configMapDCAToken)
@@ -501,22 +516,22 @@ func (c *APIClient) GetTokenFromConfigmap(token string) (string, time.Time, erro
 // UpdateTokenInConfigmap updates the value of the `tokenValue` from the `tokenKey` and
 // sets its collected timestamp in the ConfigMap `configmaptokendca`
 func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string, timestamp time.Time) error {
-	namespace := common.GetResourcesNamespace()
+	ns := namespace.GetResourcesNamespace()
 	configMapDCAToken := pkgconfigsetup.Datadog().GetString("cluster_agent.token_name")
-	tokenConfigMap, err := c.getOrCreateConfigMap(configMapDCAToken, namespace)
+	tokenConfigMap, err := c.getOrCreateConfigMap(configMapDCAToken, ns)
 	if err != nil {
 		return err
 	}
-	eventTokenKey := fmt.Sprintf("%s.%s", token, tokenKey)
+	eventTokenKey := token + "." + tokenKey
 	if tokenConfigMap.Data == nil {
 		tokenConfigMap.Data = make(map[string]string)
 	}
 	tokenConfigMap.Data[eventTokenKey] = tokenValue
 
-	eventTokenTS := fmt.Sprintf("%s.%s", token, tokenTime)
+	eventTokenTS := token + "." + tokenTime
 	tokenConfigMap.Data[eventTokenTS] = timestamp.Format(time.RFC3339) // Timestamps in the ConfigMap should all use the type int.
 
-	_, err = c.Cl.CoreV1().ConfigMaps(namespace).Update(context.TODO(), tokenConfigMap, metav1.UpdateOptions{})
+	_, err = c.Cl.CoreV1().ConfigMaps(ns).Update(context.TODO(), tokenConfigMap, metav1.UpdateOptions{})
 	if err != nil {
 		return err
 	}
@@ -604,9 +619,9 @@ func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
 		return nil, nil
 	}
 	log.Tracef("found %d services for the pod %s on the node %s", len(serviceList), podName, nodeName)
-	var metaList []string
-	for _, s := range serviceList {
-		metaList = append(metaList, "kube_service:"+s)
+	metaList := make([]string, len(serviceList))
+	for i, s := range serviceList {
+		metaList[i] = "kube_service:" + s
 	}
 	return metaList, nil
 }

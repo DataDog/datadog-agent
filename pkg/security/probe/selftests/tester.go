@@ -73,7 +73,7 @@ func (t *SelfTester) RunSelfTest(ctx context.Context, timeout time.Duration) err
 		ctx, cancelFnc := context.WithTimeout(ctx, 10*time.Second)
 		if err := selfTest.GenerateEvent(ctx); err != nil {
 			if time.Since(t.errorTimestamp[selfTest.GetRuleDefinition().ID]) > logRateLimit {
-				log.Errorf("self test failed (%s): %v", selfTest.GetRuleDefinition().ID, err)
+				log.Warnf("self test failed (%s): %v", selfTest.GetRuleDefinition().ID, err)
 
 				t.errorTimestamp[selfTest.GetRuleDefinition().ID] = time.Now()
 			}

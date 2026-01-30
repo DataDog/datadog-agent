@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Added support for ``infrastructure_mode: end_user_device`` configuration option.
+    When enabled, this mode automatically activates key monitoring features tailored for 
+    end-user devices including process collection, software inventory tracking, and 
+    notable events monitoring. These settings can still be individually overridden in 
+    the configuration file if needed.

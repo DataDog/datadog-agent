@@ -25,7 +25,20 @@ import (
 
 func createTestFile(t *testing.T, dir, filename, content string) string {
 	filePath := filepath.Join(dir, filename)
-	err := os.WriteFile(filePath, []byte(content), 0000)
+	WithParentPermFixup(t, filePath, func() error {
+		err := os.WriteFile(filePath, []byte(content), 0000)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			os.Remove(filePath)
+		})
+		return err
+	})
+	return filePath
+}
+
+func createAccessibleTestFile(t *testing.T, dir, filename, content string) string {
+	filePath := filepath.Join(dir, filename)
+	err := os.WriteFile(filePath, []byte(content), 0644)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		os.Remove(filePath)
@@ -66,22 +79,46 @@ func assertClientOpenContent(t *testing.T, filePath, expectedContent string) {
 	assert.Equal(t, expectedContent, string(data))
 }
 
-func assertOpenPrivilegedError(t *testing.T, socketPath, filePath, expectedErrorMsg string) {
+func assertClientStatInfo(t *testing.T, filePath string, expectedSize int64) {
+	info, err := client.Stat(filePath)
+	require.NoError(t, err)
+	require.NotNil(t, info)
+	assert.Equal(t, expectedSize, info.Size())
+}
+
+func assertClientStatError(t *testing.T, filePath, expectedErrorMsg string) {
+	info, err := client.Stat(filePath)
+	require.Error(t, err)
+	assert.Nil(t, info)
+	assert.Contains(t, err.Error(), expectedErrorMsg)
+}
+
+func assertOpenPrivilegedError(t *testing.T, socketPath, filePath, expectedErrorMsg string) error {
 	file, err := client.OpenPrivileged(socketPath, filePath)
 	require.Error(t, err)
 	assert.Nil(t, file)
 	assert.Contains(t, err.Error(), expectedErrorMsg)
+	return err
 }
 
 type PrivilegedLogsSuite struct {
 	suite.Suite
-	handler *Handler
-	tempDir string
+	handler          *Handler
+	searchableTmpDir string
+	tempDir          string
 }
 
 func (s *PrivilegedLogsSuite) SetupSuite() {
 	s.handler = Setup(s.T(), func() {
-		s.tempDir = s.T().TempDir()
+		s.searchableTmpDir = s.T().TempDir()
+
+		unsearchableDir := filepath.Join(s.searchableTmpDir, "unsearchable")
+		err := os.Mkdir(unsearchableDir, 0000)
+		require.NoError(s.T(), err)
+		s.T().Cleanup(func() {
+			os.Remove(unsearchableDir)
+		})
+		s.tempDir = unsearchableDir
 	})
 }
 
@@ -114,7 +151,9 @@ func (s *PrivilegedLogsSuite) TestPrivilegedLogsModule_Symlink() {
 	realLogFile := createTestFile(s.T(), s.tempDir, "real.log", testContent)
 
 	symlinkPath := filepath.Join(s.tempDir, "fake.log")
-	err := os.Symlink(realLogFile, symlinkPath)
+	err := WithParentPermFixup(s.T(), symlinkPath, func() error {
+		return os.Symlink(realLogFile, symlinkPath)
+	})
 	require.NoError(s.T(), err)
 
 	assertOpenPrivilegedContent(s.T(), s.handler.SocketPath, symlinkPath, testContent)
@@ -124,10 +163,13 @@ func (s *PrivilegedLogsSuite) TestPrivilegedLogsModule_SymlinkToNonLogFile() {
 	nonLogFile := createTestFile(s.T(), s.tempDir, "secret_nonlog.txt", "secret content")
 
 	symlinkPath := filepath.Join(s.tempDir, "fake_nonlog.log")
-	err := os.Symlink(nonLogFile, symlinkPath)
+	err := WithParentPermFixup(s.T(), symlinkPath, func() error {
+		return os.Symlink(nonLogFile, symlinkPath)
+	})
 	require.NoError(s.T(), err)
 
-	assertOpenPrivilegedError(s.T(), s.handler.SocketPath, symlinkPath, "non-log file not allowed")
+	err = assertOpenPrivilegedError(s.T(), s.handler.SocketPath, symlinkPath, "non-log file not allowed")
+	assert.Contains(s.T(), err.Error(), nonLogFile)
 }
 
 func (s *PrivilegedLogsSuite) TestPrivilegedLogsModule_CaseInsensitiveLogExtension() {
@@ -146,6 +188,7 @@ func (s *PrivilegedLogsSuite) TestPrivilegedLogsModule_OpenFallback() {
 	setupSystemProbeConfig(s.T(), s.handler.SocketPath, true)
 
 	assertClientOpenContent(s.T(), upperLogFile, testContent)
+	assertClientStatInfo(s.T(), upperLogFile, int64(len(testContent)))
 }
 
 func (s *PrivilegedLogsSuite) TestPrivilegedLogsModule_OpenFallbackError() {
@@ -155,6 +198,7 @@ func (s *PrivilegedLogsSuite) TestPrivilegedLogsModule_OpenFallbackError() {
 	setupSystemProbeConfig(s.T(), s.handler.SocketPath, true)
 
 	assertClientOpenError(s.T(), upperLogFile, "non-log file not allowed")
+	assertClientStatError(s.T(), upperLogFile, "non-log file not allowed")
 }
 
 func TestPrivilegedLogsSuite(t *testing.T) {
@@ -170,12 +214,13 @@ func TestPrivilegedLogsModule_Close(t *testing.T) {
 
 func (s *PrivilegedLogsSuite) TestOpen_SuccessfulNormalOpen() {
 	testContent := "Hello, privileged logs transfer!"
-	testFile := createTestFile(s.T(), s.tempDir, "test.log", testContent)
+	testFile := createAccessibleTestFile(s.T(), s.searchableTmpDir, "test.log", testContent)
 
-	// Force the file to be accesssible from the non-privileged user
+	// Force the file to be accessible from the non-privileged user
 	require.NoError(s.T(), os.Chmod(testFile, 0644))
 
 	assertClientOpenContent(s.T(), testFile, testContent)
+	assertClientStatInfo(s.T(), testFile, int64(len(testContent)))
 }
 
 func (s *PrivilegedLogsSuite) TestOpen_PermissionErrorWithModuleDisabled() {
@@ -184,6 +229,7 @@ func (s *PrivilegedLogsSuite) TestOpen_PermissionErrorWithModuleDisabled() {
 	setupSystemProbeConfig(s.T(), s.handler.SocketPath, false)
 
 	assertClientOpenError(s.T(), testFile, "permission denied")
+	assertClientStatError(s.T(), testFile, "permission denied")
 }
 
 func (s *PrivilegedLogsSuite) TestOpen_PermissionErrorWithModuleFailure() {
@@ -197,6 +243,12 @@ func (s *PrivilegedLogsSuite) TestOpen_PermissionErrorWithModuleFailure() {
 	assert.Nil(t, file)
 	assert.Contains(t, err.Error(), "failed to open file with system-probe")
 	assert.Contains(t, err.Error(), "permission denied")
+
+	stat, err := client.Stat(testFile)
+	require.Error(t, err)
+	assert.Nil(t, stat)
+	assert.Contains(t, err.Error(), "failed to open file with system-probe")
+	assert.Contains(t, err.Error(), "permission denied")
 }
 
 func (s *PrivilegedLogsSuite) TestOpen_NonPermissionError() {
@@ -204,5 +256,10 @@ func (s *PrivilegedLogsSuite) TestOpen_NonPermissionError() {
 	t := s.T()
 	require.Error(t, err)
 	assert.Nil(t, file)
+	assert.NotContains(t, err.Error(), "system-probe")
+
+	stat, err := client.Stat("/nonexistent/file.log")
+	require.Error(t, err)
+	assert.Nil(t, stat)
 	assert.NotContains(t, err.Error(), "system-probe")
 }

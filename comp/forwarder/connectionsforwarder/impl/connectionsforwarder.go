@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -24,8 +25,9 @@ import (
 type Requires struct {
 	Lifecycle compdef.Lifecycle
 
-	Config config.Component
-	Logger log.Component
+	Config  config.Component
+	Logger  log.Component
+	Secrets secrets.Component
 }
 
 // Provides defines the output of the connectionsforwarder component
@@ -50,6 +52,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	if err != nil {
 		return Provides{}, err
 	}
+	processForwarderOpts.Secrets = reqs.Secrets
 
 	forwarder := defaultforwarder.NewDefaultForwarder(reqs.Config, reqs.Logger, processForwarderOpts)
 	reqs.Lifecycle.Append(compdef.Hook{

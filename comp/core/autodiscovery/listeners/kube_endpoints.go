@@ -54,7 +54,7 @@ type KubeEndpointsListener struct {
 // KubeEndpointService represents an endpoint in a Kubernetes Endpoints
 type KubeEndpointService struct {
 	entity          string
-	metadata        *workloadfilter.Endpoint
+	metadata        *workloadfilter.KubeEndpoint
 	tags            []string
 	hosts           map[string]string
 	ports           []ContainerPort
@@ -334,9 +334,9 @@ func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, checkServiceAnn
 func processEndpoints(kep *v1.Endpoints, tags []string, filterStore workloadfilter.Component) []*KubeEndpointService {
 	var eps []*KubeEndpointService
 
-	filterableEndpoint := workloadfilter.CreateEndpoint(kep.Name, kep.Namespace, kep.GetAnnotations())
-	metricsExcluded := filterStore.GetEndpointAutodiscoveryFilters(workloadfilter.MetricsFilter).IsExcluded(filterableEndpoint)
-	globalExcluded := filterStore.GetEndpointAutodiscoveryFilters(workloadfilter.GlobalFilter).IsExcluded(filterableEndpoint)
+	filterableEndpoint := workloadfilter.CreateKubeEndpoint(kep.Name, kep.Namespace, kep.GetAnnotations())
+	metricsExcluded := filterStore.GetKubeEndpointAutodiscoveryFilters(workloadfilter.MetricsFilter).IsExcluded(filterableEndpoint)
+	globalExcluded := filterStore.GetKubeEndpointAutodiscoveryFilters(workloadfilter.GlobalFilter).IsExcluded(filterableEndpoint)
 
 	for i := range kep.Subsets {
 		ports := []ContainerPort{}

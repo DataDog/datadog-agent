@@ -151,7 +151,6 @@ func (s *Launcher) receiveSources(cfg integrations.IntegrationConfig) {
 	}
 
 	for _, source := range sources {
-		// TODO: integrations should only be allowed to have one IntegrationType config.
 		if source.Config.Type == config.IntegrationType {
 			// This check avoids duplicating files that have already been created
 			// by scanInitialFiles

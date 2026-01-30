@@ -43,7 +43,7 @@ func (e *CGroupContext) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	n, err := e.CGroupFile.UnmarshalBinary(data)
+	n, err := e.CGroupPathKey.UnmarshalBinary(data)
 	if err != nil {
 		return 0, err
 	}
@@ -485,13 +485,15 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	switch origin {
 	case MountEventSourceMountSyscall:
-		e.Origin = MountOriginEvent
+		e.Mount.Origin = MountOriginEvent
 	case MountEventSourceOpenTreeSyscall:
-		e.Origin = MountOriginOpenTree
+		e.Mount.Origin = MountOriginOpenTree
 	case MountEventSourceFsmountSyscall:
-		e.Origin = MountOriginFsmount
+		e.Mount.Origin = MountOriginFsmount
+	case MountEventSourceMoveMountSyscall:
+		e.Mount.Origin = MountOriginMoveMount
 	}
-
+	e.Origin = e.Mount.Origin
 	return n + 4, nil
 }
 
@@ -719,13 +721,14 @@ func UnmarshalBinary(data []byte, binaryUnmarshalers ...BinaryUnmarshaler) (int,
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *MountReleasedEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 4 {
+	if len(data) < 16 {
 		return 0, ErrNotEnoughData
 	}
 
 	e.MountID = binary.NativeEndian.Uint32(data[0:4])
+	e.MountIDUnique = binary.NativeEndian.Uint64(data[8:16])
 
-	return 8, nil
+	return 16, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -1008,7 +1011,7 @@ func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *CgroupWriteEvent) UnmarshalBinary(data []byte) (int, error) {
-	read, err := UnmarshalBinary(data, &e.File)
+	read, err := UnmarshalBinary(data, &e.File.PathKey)
 	if err != nil {
 		return 0, err
 	}
@@ -1126,17 +1129,17 @@ func (e *IMDSEvent) UnmarshalBinary(data []byte) (int, error) {
 	firstWord := strings.SplitN(string(data[0:10]), " ", 2)
 	switch {
 	case strings.HasPrefix(firstWord[0], "HTTP"):
-		// this is an IMDS response
-		e.Type = IMDSResponseType
 		resp, err := http.ReadResponse(bufio.NewReader(bytes.NewBuffer(data)), nil)
 		if err != nil {
 			return 0, fmt.Errorf("failed to parse IMDS response: %v", err)
 		}
-		e.fillFromIMDSHeader(resp.Header, "")
-
 		if resp.StatusCode != http.StatusOK {
 			return len(data), ErrNoUsefulData
 		}
+
+		// this is an IMDS response
+		e.Type = IMDSResponseType
+		e.fillFromIMDSHeader(resp.Header, "")
 
 		// try to parse cloud provider specific data
 		if e.CloudProvider == IMDSAWSCloudProvider {
@@ -1162,12 +1165,13 @@ func (e *IMDSEvent) UnmarshalBinary(data []byte) (int, error) {
 		http.MethodOptions,
 		http.MethodTrace,
 	}, firstWord[0]):
-		// this is an IMDS request
-		e.Type = IMDSRequestType
 		req, err := http.ReadRequest(bufio.NewReader(bytes.NewBuffer(data)))
 		if err != nil {
 			return 0, fmt.Errorf("failed to parse IMDS request: %v", err)
 		}
+
+		// this is an IMDS request
+		e.Type = IMDSRequestType
 		e.URL = req.URL.String()
 		e.fillFromIMDSHeader(req.Header, e.URL)
 		e.Host = req.Host

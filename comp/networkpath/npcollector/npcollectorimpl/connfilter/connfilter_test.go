@@ -8,6 +8,7 @@
 package connfilter
 
 import (
+	"net/netip"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -165,8 +166,8 @@ filters:
 				{domain: "abc", ip: "10.10.10.5", shouldMatch: false},
 				{domain: "abc", ip: "10.10.10.100", shouldMatch: true},
 				{domain: "abc", ip: "10.10.10.101", shouldMatch: false},
+				{domain: "abc", ip: "10.10.10.254", shouldMatch: false},
 				{domain: "abc", ip: "10.10.10.255", shouldMatch: false},
-				{domain: "abc", ip: "10.10.10.256", shouldMatch: true},
 			},
 			expectedCustomFilterCount: 3,
 		},
@@ -403,7 +404,11 @@ filters:
 			assert.Len(t, connFilter.filters, tt.expectedCustomFilterCount+len(getDefaultConnFilters(tt.ddSite, false)))
 			for _, expMatch := range tt.expectedMatches {
 				require.NotNil(t, connFilter)
-				assert.Equal(t, connFilter.IsIncluded(expMatch.domain, expMatch.ip), expMatch.shouldMatch, expMatch)
+				if expMatch.ip == "" {
+					assert.Equal(t, connFilter.IsIncluded(expMatch.domain, netip.Addr{}), expMatch.shouldMatch, expMatch)
+				} else {
+					assert.Equal(t, connFilter.IsIncluded(expMatch.domain, netip.MustParseAddr(expMatch.ip)), expMatch.shouldMatch, expMatch)
+				}
 			}
 		})
 	}

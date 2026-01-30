@@ -50,6 +50,7 @@ type ProcessEvent struct {
 	StringSizeLimit     uint32
 	Frameless           bool
 	HasAssociatedReturn bool
+	NoReturnReason      ir.NoReturnReason
 	EventKind           ir.EventKind
 	TopPCOffset         int8
 	EventRootType       *ir.EventRootType

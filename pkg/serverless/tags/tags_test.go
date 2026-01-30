@@ -11,18 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestBuildTracerTags(t *testing.T) {
-	tagsMap := map[string]string{
-		"key0":     "value0",
-		"resource": "value1",
-		"key1":     "value1",
-	}
-	resultTagsMap := BuildTracerTags(tagsMap)
-	assert.Equal(t, 2, len(resultTagsMap))
-	assert.Equal(t, "value0", resultTagsMap["key0"])
-	assert.Equal(t, "value1", resultTagsMap["key1"])
-}
-
 func TestAddTagInvalidNoValue(t *testing.T) {
 	tagMap := map[string]string{
 		"key_a": "value_a",

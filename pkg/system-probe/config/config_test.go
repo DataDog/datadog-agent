@@ -87,19 +87,48 @@ func TestEnableDiscovery(t *testing.T) {
 	})
 
 	t.Run("default enabled with USM", func(t *testing.T) {
+		// Reset global config to avoid test interference
+		_ = mock.NewSystemProbe(t)
+
 		t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
 
-		cfg := mock.NewSystemProbe(t)
-		Adjust(cfg)
-		assert.True(t, cfg.GetBool(discoveryNS("enabled")))
+		cfg, err := New("", "")
+		require.NoError(t, err)
+		assert.True(t, cfg.ModuleIsEnabled(DiscoveryModule))
 	})
 
-	t.Run("force disabled with USM", func(t *testing.T) {
+	t.Run("default enabled with NPM", func(t *testing.T) {
+		// Reset global config to avoid test interference
+		_ = mock.NewSystemProbe(t)
+
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")
+
+		cfg, err := New("", "")
+		require.NoError(t, err)
+		assert.True(t, cfg.ModuleIsEnabled(DiscoveryModule))
+	})
+
+	t.Run("force disabled with USM via env var", func(t *testing.T) {
+		// Reset global config to avoid test interference
+		_ = mock.NewSystemProbe(t)
+
 		t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
 		t.Setenv("DD_DISCOVERY_ENABLED", "false")
 
-		cfg := mock.NewSystemProbe(t)
-		Adjust(cfg)
-		assert.False(t, cfg.GetBool(discoveryNS("enabled")))
+		cfg, err := New("", "")
+		require.NoError(t, err)
+		assert.False(t, cfg.ModuleIsEnabled(DiscoveryModule))
+	})
+
+	t.Run("force disabled with USM via config file", func(t *testing.T) {
+		// Reset global config to avoid test interference
+		mockCfg := mock.NewSystemProbe(t)
+
+		t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
+		mockCfg.SetWithoutSource("discovery.enabled", false)
+
+		cfg, err := New("", "")
+		require.NoError(t, err)
+		assert.False(t, cfg.ModuleIsEnabled(DiscoveryModule))
 	})
 }

@@ -43,16 +43,17 @@ var logLimitCheck = log.NewLogLimit(20, 10*time.Minute)
 // Check represents the GPU check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
-	collectors        []nvidia.Collector               // collectors for NVML metrics
-	tagger            tagger.Component                 // Tagger instance to add tags to outgoing metrics
-	telemetry         *checkTelemetry                  // Internal telemetry metrics for the check
-	wmeta             workloadmeta.Component           // Workloadmeta store to get the list of containers
-	deviceTags        map[string][]string              // deviceTags is a map of device UUID to tags
-	deviceCache       ddnvml.DeviceCache               // deviceCache is a cache of GPU devices
-	spCache           *nvidia.SystemProbeCache         // spCache manages system-probe GPU stats and client (only initialized when gpu_monitoring is enabled in system-probe)
-	deviceEvtGatherer *nvidia.DeviceEventsGatherer     // deviceEvtGatherer asynchronously listens for device events and gathers them
-	workloadTagCache  *WorkloadTagCache                // workloadTagCache caches workload tags for GPU metrics
-	containerProvider proccontainers.ContainerProvider // containerProvider is used as a fallback to get a PID -> CID mapping when workloadmeta does not have the process data
+	collectors         []nvidia.Collector               // collectors for NVML metrics
+	disabledCollectors []string                         // disabledCollectors is a list of collector names that should not be created
+	tagger             tagger.Component                 // Tagger instance to add tags to outgoing metrics
+	telemetry          *checkTelemetry                  // Internal telemetry metrics for the check
+	wmeta              workloadmeta.Component           // Workloadmeta store to get the list of containers
+	deviceTags         map[string][]string              // deviceTags is a map of device UUID to tags
+	deviceCache        ddnvml.DeviceCache               // deviceCache is a cache of GPU devices
+	spCache            *nvidia.SystemProbeCache         // spCache manages system-probe GPU stats and client (only initialized when gpu_monitoring is enabled in system-probe)
+	deviceEvtGatherer  *nvidia.DeviceEventsGatherer     // deviceEvtGatherer asynchronously listens for device events and gathers them
+	workloadTagCache   *WorkloadTagCache                // workloadTagCache caches workload tags for GPU metrics
+	containerProvider  proccontainers.ContainerProvider // containerProvider is used as a fallback to get a PID -> CID mapping when workloadmeta does not have the process data
 }
 
 type checkTelemetry struct {
@@ -88,6 +89,17 @@ func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta work
 	}
 }
 
+// NewCheck creates a new GPU check instance. This is exported for integration testing.
+func NewCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta workloadmeta.Component) check.Check {
+	return newCheck(tagger, telemetry, wmeta)
+}
+
+// SetContainerProvider sets the container provider on the Check.
+// This is exported for integration testing.
+func (c *Check) SetContainerProvider(provider proccontainers.ContainerProvider) {
+	c.containerProvider = provider
+}
+
 func newCheckTelemetry(tm telemetry.Component) *checkTelemetry {
 	return &checkTelemetry{
 		metrics:            newCheckTelemetryMetrics(tm),
@@ -116,6 +128,12 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 
 	if err := c.CommonConfigure(senderManager, initConfig, config, source); err != nil {
 		return err
+	}
+
+	// Get the list of disabled collectors from global configuration
+	c.disabledCollectors = pkgconfigsetup.Datadog().GetStringSlice("gpu.disabled_collectors")
+	for _, collectorName := range c.disabledCollectors {
+		log.Infof("Collector %s is disabled by configuration", collectorName)
 	}
 
 	if c.containerProvider == nil {
@@ -151,12 +169,12 @@ func (c *Check) ensureInitCollectors() error {
 	// the list of devices can change over time, so grab the latest and:
 	// - remove collectors for the devices that are not present anymore
 	// - collect devices for which a new collector must be added
-	physicalDevices, err := c.deviceCache.AllPhysicalDevices()
+	devices, err := c.deviceCache.All()
 	if err != nil {
 		return fmt.Errorf("failed to retrieve physical devices: %w", err)
 	}
 	curDevices := map[string]ddnvml.Device{}
-	for _, d := range physicalDevices {
+	for _, d := range devices {
 		curDevices[d.GetDeviceInfo().UUID] = d
 	}
 
@@ -185,7 +203,8 @@ func (c *Check) ensureInitCollectors() error {
 				SystemProbeCache:     c.spCache,
 				Telemetry:            c.telemetry.collectorTelemetry,
 				Workloadmeta:         c.wmeta,
-			})
+			},
+			c.disabledCollectors)
 		if err != nil {
 			return fmt.Errorf("failed to build NVML collectors: %w", err)
 		}

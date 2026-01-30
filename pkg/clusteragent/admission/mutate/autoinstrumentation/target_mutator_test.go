@@ -8,6 +8,7 @@
 package autoinstrumentation
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -23,10 +24,35 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+)
+
+var (
+	defaultLibraries = map[string]string{
+		"java":   "v1",
+		"python": "v4",
+		"ruby":   "v2",
+		"dotnet": "v3",
+		"js":     "v5",
+		"php":    "v1",
+	}
+
+	// TODO: Add new entry when a new language is supported
+	defaultLibImageVersions = map[language]string{
+		java:   "registry/dd-lib-java-init:" + defaultLibraries["java"],
+		js:     "registry/dd-lib-js-init:" + defaultLibraries["js"],
+		python: "registry/dd-lib-python-init:" + defaultLibraries["python"],
+		dotnet: "registry/dd-lib-dotnet-init:" + defaultLibraries["dotnet"],
+		ruby:   "registry/dd-lib-ruby-init:" + defaultLibraries["ruby"],
+		php:    "registry/dd-lib-php-init:" + defaultLibraries["php"],
+	}
+
+	imageResolver = imageresolver.NewNoOpResolver()
 )
 
 func TestNewTargetMutator(t *testing.T) {
@@ -105,7 +131,7 @@ func TestMutatePod(t *testing.T) {
 				AppliedTargetEnvVar:               "{\"name\":\"Application Namespace\",\"namespaceSelector\":{\"matchNames\":[\"application\"]},\"ddTraceVersions\":{\"python\":\"v3\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
 			},
 			expectedAnnotations: map[string]string{
-				AppliedTargetAnnotation: "{\"name\":\"Application Namespace\",\"namespaceSelector\":{\"matchNames\":[\"application\"]},\"ddTraceVersions\":{\"python\":\"v3\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
+				annotation.AppliedTarget: "{\"name\":\"Application Namespace\",\"namespaceSelector\":{\"matchNames\":[\"application\"]},\"ddTraceVersions\":{\"python\":\"v3\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
 			},
 		},
 		"no matching rule does not mutate pod": {
@@ -143,7 +169,7 @@ func TestMutatePod(t *testing.T) {
 				AppliedTargetEnvVar:               "{\"name\":\"Python Apps\",\"podSelector\":{\"matchLabels\":{\"language\":\"python\"}},\"ddTraceVersions\":{\"python\":\"v3\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
 			},
 			expectedAnnotations: map[string]string{
-				AppliedTargetAnnotation: "{\"name\":\"Python Apps\",\"podSelector\":{\"matchLabels\":{\"language\":\"python\"}},\"ddTraceVersions\":{\"python\":\"v3\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
+				annotation.AppliedTarget: "{\"name\":\"Python Apps\",\"podSelector\":{\"matchLabels\":{\"language\":\"python\"}},\"ddTraceVersions\":{\"python\":\"v3\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
 			},
 		},
 		"service name is applied when set in tracer configs": {
@@ -189,7 +215,7 @@ func TestMutatePod(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver())
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver())
 			require.NoError(t, err)
 
 			input := test.in.DeepCopy()
@@ -294,7 +320,7 @@ func TestShouldMutatePod(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver())
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver())
 			require.NoError(t, err)
 
 			// Determine if the pod should be mutated.
@@ -380,7 +406,7 @@ func TestIsNamespaceEligible(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver())
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver())
 			require.NoError(t, err)
 
 			// Determine if the namespace is eligible.
@@ -460,7 +486,7 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 			))
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver())
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver())
 			require.NoError(t, err)
 
 			// Get the target from the annotation.
@@ -478,7 +504,7 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 }
 
 func TestGetTargetLibraries(t *testing.T) {
-	imageResolver := newNoOpImageResolver()
+	imageResolver := imageresolver.NewNoOpResolver()
 
 	tests := map[string]struct {
 		configPath string
@@ -874,4 +900,34 @@ func languageSetOf(languages ...string) languagemodels.LanguageSet {
 		_ = set.Add(languagemodels.LanguageName(l))
 	}
 	return set
+}
+
+func defaultLibInfo(l language) libInfo {
+	return libInfo{
+		lang:       l,
+		image:      defaultLibImageVersions[l],
+		registry:   "registry",
+		repository: fmt.Sprintf("dd-lib-%s-init", l),
+		tag:        defaultLibraries[string(l)],
+		ctrName:    "",
+	}
+}
+
+func defaultLibInfoWithVersion(l language, version string) libInfo {
+	return libInfo{
+		lang:       l,
+		image:      fmt.Sprintf("registry/dd-lib-%s-init:%s", l, version),
+		registry:   "registry",
+		repository: fmt.Sprintf("dd-lib-%s-init", l),
+		tag:        version,
+		ctrName:    "",
+	}
+}
+
+func defaultLibrariesFor(languages ...string) map[string]string {
+	out := map[string]string{}
+	for _, l := range languages {
+		out[l] = defaultLibraries[l]
+	}
+	return out
 }
