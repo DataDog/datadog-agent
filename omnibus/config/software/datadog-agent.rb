@@ -59,30 +59,8 @@ build do
   end
 
   env = with_standard_compiler_flags(env)
-
-  # Use msgo toolchain when fips mode is enabled
   if fips_mode?
-    if windows_target?
-      msgoroot = ENV['MSGO_ROOT']
-      if msgoroot.nil? || msgoroot.empty?
-        raise "MSGO_ROOT not set"
-      end
-      if !File.exist?("#{msgoroot}\\bin\\go.exe")
-        raise "msgo go.exe not found at #{msgoroot}\\bin\\go.exe"
-      end
-      env["GOROOT"] = msgoroot
-      env["PATH"] = "#{msgoroot}\\bin;#{env['PATH']}"
-      # also update the global env so that the symbol inspector use the correct go version
-      ENV['GOROOT'] = msgoroot
-      ENV['PATH'] = "#{msgoroot}\\bin;#{ENV['PATH']}"
-    else
-      msgoroot = "/usr/local/msgo"
-      env["GOROOT"] = msgoroot
-      env["PATH"] = "#{msgoroot}/bin:#{env['PATH']}"
-      # also update the global env so that the symbol inspector use the correct go version
-      ENV['GOROOT'] = msgoroot
-      ENV['PATH'] = "#{msgoroot}/bin:#{ENV['PATH']}"
-    end
+    fips_add_msgo_to_env(env)
   end
 
   # we assume the go deps are already installed before running omnibus
@@ -313,36 +291,21 @@ build do
     command "touch #{install_dir}/.install_root"
   end
 
-  # TODO: move this to omnibus-ruby::health-check.rb
-  # check that linux binaries contains OpenSSL symbols when building to support FIPS
   if fips_mode? && linux_target?
-    # Put the ruby code in a block to prevent omnibus from running it directly but rather at build step with the rest of the code above.
-    # If not in a block, it will search for binaries that have not been built yet.
-    block do
-      LINUX_BINARIES = [
-        "#{install_dir}/bin/agent/agent",
-        "#{install_dir}/embedded/bin/trace-agent",
-        "#{install_dir}/embedded/bin/process-agent",
-        "#{install_dir}/embedded/bin/security-agent",
-        "#{install_dir}/embedded/bin/system-probe",
-        "#{install_dir}/embedded/bin/installer",
-        "#{install_dir}/embedded/bin/secret-generic-connector",
-      ]
+    install_path = Pathname.new(install_dir)
 
-      symbol = "_Cfunc__mkcgo_OPENSSL"
-      check_block = Proc.new { |binary, symbols|
-        count = symbols.scan(symbol).count
-        if count > 0
-          log.info(log_key) { "Symbol '#{symbol}' found #{count} times in binary '#{binary}'." }
-        else
-          raise FIPSSymbolsNotFound.new("Expected to find '#{symbol}' symbol in #{binary} but did not")
-        end
-      }.curry
+    LINUX_BINARIES = [
+      "bin/agent/agent",
+      "embedded/bin/trace-agent",
+      "embedded/bin/process-agent",
+      "embedded/bin/security-agent",
+      "embedded/bin/system-probe",
+      "embedded/bin/installer",
+      "embedded/bin/secret-generic-connector",
+    ]
 
-      LINUX_BINARIES.each do |bin|
-        partially_applied_check = check_block.call(bin)
-        GoSymbolsInspector.new(bin,  &partially_applied_check).inspect()
-      end
+    LINUX_BINARIES.each do |bin|
+      fips_check_binary_for_openssl_symbol(install_path + bin)
     end
   end
 
