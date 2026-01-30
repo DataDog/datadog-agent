@@ -22,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	k8stesting "k8s.io/client-go/testing"
+	"k8s.io/client-go/tools/record"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -140,7 +141,8 @@ func TestIntegration_InstanciatePatterns_WithValidConfig(t *testing.T) {
 		"cluster_agent.appsec.injector.annotations":                 map[string]string{"annotation": "value"},
 	})
 	defer f.cleanup()
-
+	mockLogger := logmock.New(t)
+	mockClient := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())
 	mockConfig := appsecconfig.Config{
 		Injection: appsecconfig.Injection{
 			Enabled: true,
@@ -167,14 +169,7 @@ func TestIntegration_InstanciatePatterns_WithValidConfig(t *testing.T) {
 		},
 	}
 
-	si := &securityInjector{
-		k8sClient: f.dynamicClient,
-		logger:    f.logger,
-		config:    mockConfig,
-		leaderSub: leaderFakeSub,
-	}
-
-	patterns := si.InstantiatePatterns()
+	patterns := instantiatePatterns(mockConfig, mockLogger, mockClient, record.NewFakeRecorder(100))
 
 	require.Len(t, patterns, len(appsecconfig.AllProxyTypes), "Should have one pattern")
 	assert.Contains(t, patterns, appsecconfig.ProxyTypeEnvoyGateway, "Should have envoy-gateway pattern")

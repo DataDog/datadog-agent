@@ -39,6 +39,10 @@ type mockInjectionPattern struct {
 	deletedCalls         int
 }
 
+func (m *mockInjectionPattern) Mode() appsecconfig.InjectionMode {
+	return appsecconfig.InjectionModeExternal
+}
+
 func (m *mockInjectionPattern) IsInjectionPossible(context.Context) error {
 	return m.injectionPossibleErr
 }
@@ -322,10 +326,7 @@ func TestCompilePatterns(t *testing.T) {
 		},
 	}
 
-	ctx := context.Background()
-	injector := newMockSecurityInjector(ctx, mockClient, mockLogger, mockConfig)
-
-	patterns := injector.InstantiatePatterns()
+	patterns := instantiatePatterns(mockConfig, mockLogger, mockClient, record.NewFakeRecorder(100))
 
 	require.Len(t, patterns, len(appsecconfig.AllProxyTypes), "Should have one pattern for envoy-gateway")
 	assert.Contains(t, patterns, appsecconfig.ProxyTypeEnvoyGateway, "Should have envoy-gateway pattern")
