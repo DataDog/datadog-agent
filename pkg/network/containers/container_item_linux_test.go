@@ -13,14 +13,12 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/require"
 	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/network/events"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func TestStripResolvConf(t *testing.T) {
@@ -270,7 +268,6 @@ func TestReadContainerItemProcessRunningVsNotRunning(t *testing.T) {
 					result: tt.readResolvConfResult,
 					err:    tt.readResolvConfErr,
 				},
-				log.NewLogLimit(999, time.Second),
 			)
 			// Override isProcessStillRunning for mocking
 			cr.isProcessStillRunning = func(_ context.Context, _ *events.Process) (bool, error) {
