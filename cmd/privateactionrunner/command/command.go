@@ -11,6 +11,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// LoggerName defines the logger name for the private action runner
+const LoggerName = "PRIV-ACTION"
+
 // GlobalParams contains the values of agent-global Cobra flags.
 //
 // A pointer to this type is passed to SubcommandFactory's, but its contents

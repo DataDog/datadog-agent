@@ -146,7 +146,7 @@ def fetch_main_headroom(failing_gates: list[str]) -> dict[str, dict[str, int]]:
 
     # Single query with all metrics for failing gates only
     queries = ",".join(
-        f"avg:datadog.agent.static_quality_gate.{m}{{git_ref:main,({gate_filter})}} by {{gate_name}}"
+        f"avg:datadog.agent.static_quality_gate.{m}{{git_ref:main AND ({gate_filter})}} by {{gate_name}}"
         for m in metric_map
     )
     result = query_metrics(queries, from_time="now-1d", to_time="now")
@@ -686,7 +686,7 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     if ancestor == current_commit:
         ancestor = get_commit_sha(ctx, commit="HEAD~1")
         print(color_message(f"On main branch, using parent commit {ancestor} as ancestor", "cyan"))
-    metric_handler.generate_relative_size(ctx, ancestor=ancestor, report_path="ancestor_static_gate_report.json")
+    metric_handler.generate_relative_size(ancestor=ancestor)
 
     # Post-process gate failures: mark as non-blocking if delta <= 0
     # This means the size issue existed before this PR and wasn't introduced by current changes
