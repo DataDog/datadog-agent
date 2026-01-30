@@ -168,6 +168,10 @@ require.Equal(t, 0, stats.active)  // No leaked items
 require.Equal(t, stats.get, stats.put)  // Balanced get/put
 ```
 
+## Integration Test Notes
+
+- `pkg/gpu/integrationtests` depends on code behind the `test` build tag; run with `-tags "nvml test"` when executing those tests.
+
 ## Thread Safety
 
 - **Consumer thread**: Calls `getStream()`, `handle*()` methods
