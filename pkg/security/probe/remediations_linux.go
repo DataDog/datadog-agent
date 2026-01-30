@@ -133,7 +133,6 @@ func getRemediationKeysFromRule(rule *rules.Rule) []string {
 			keys = append(keys, newKey)
 		}
 	}
-	fmt.Printf("[DEBUG] keys: %v\n", keys)
 	return keys
 }
 
@@ -365,15 +364,15 @@ func (p *EBPFProbe) HandleRemediationNotTriggered() {
 			// Only send events for remediation rules
 			continue
 		}
-		var remediation_str string
+		var remediationStr string
 		if !state.triggered {
 			if state.actionType == RemediationTypeNetworkIsolation {
-				remediation_str = "network_isolation"
+				remediationStr = "network_isolation"
 			} else if state.actionType == RemediationTypeKill {
-				remediation_str = "kill"
+				remediationStr = "kill"
 			}
 			remediation := p.activeRemediations[remediationKey]
-			re := NewRemediationEvent(p, remediation, "not_triggered", remediation_str)
+			re := NewRemediationEvent(p, remediation, "not_triggered", remediationStr)
 			p.SendRemediationEvent(re)
 		}
 	}
