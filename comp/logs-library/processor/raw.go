@@ -10,8 +10,8 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
 	"github.com/DataDog/datadog-agent/comp/logs-library/message"
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
 
 // RawEncoder is a shared raw encoder.

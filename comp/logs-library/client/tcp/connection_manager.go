@@ -20,8 +20,8 @@ import (
 
 	"golang.org/x/net/proxy"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
 	"github.com/DataDog/datadog-agent/comp/logs-library/status/statusinterface"
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

@@ -15,10 +15,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client/mock"
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 	"github.com/DataDog/datadog-agent/comp/logs-library/status/statusinterface"
 	"github.com/DataDog/datadog-agent/comp/logs-library/testutils"
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
 
 func newConnectionManagerForAddr(addr net.Addr) *ConnectionManager {

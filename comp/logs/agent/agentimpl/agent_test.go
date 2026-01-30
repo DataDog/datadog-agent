@@ -32,7 +32,7 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/mock"
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	auditorfx "github.com/DataDog/datadog-agent/comp/logs/auditor/fx"
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"

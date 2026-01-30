@@ -73,6 +73,9 @@ const (
 
 	megaByte = 1024 * 1024
 
+	// DefaultBatchMaxConcurrentSend is the default HTTP batch max concurrent send for logs
+	DefaultBatchMaxConcurrentSend = 0
+
 	// DefaultBatchWait is the default HTTP batch wait in second for logs
 	DefaultBatchWait = logdefaults.DefaultBatchWait
 

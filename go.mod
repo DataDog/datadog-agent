@@ -72,7 +72,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/def v0.76.0-devel
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.76.0-devel
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.76.0-devel
-	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.76.0-devel
+	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.64.0
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.56.0-rc.3
