@@ -25,13 +25,13 @@ import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
+	status "github.com/DataDog/datadog-agent/comp/logs-library/status/utils"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/opener"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory/tailers"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	containerutilPkg "github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )

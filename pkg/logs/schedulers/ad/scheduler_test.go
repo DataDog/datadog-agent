@@ -17,9 +17,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	sourcesPkg "github.com/DataDog/datadog-agent/comp/logs-library/sources"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
-	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 func setup() (scheduler *Scheduler, spy *schedulers.MockSourceManager) {

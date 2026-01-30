@@ -12,8 +12,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 )
 
 func newTestMessage(content string) *message.Message {

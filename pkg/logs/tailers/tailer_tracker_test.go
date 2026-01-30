@@ -10,7 +10,7 @@ import (
 
 	assert "github.com/stretchr/testify/require"
 
-	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
+	status "github.com/DataDog/datadog-agent/comp/logs-library/status/utils"
 )
 
 type TestTailer1 struct {

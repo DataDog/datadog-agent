@@ -11,10 +11,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/types"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
-	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 func TestPosition(t *testing.T) {

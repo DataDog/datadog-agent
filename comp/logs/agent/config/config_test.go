@@ -15,8 +15,9 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/logs-library/defaults"
+	"github.com/DataDog/datadog-agent/comp/logs-library/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 type ConfigTestSuite struct {
@@ -303,7 +304,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 		isReliable:             true,
 	}
 
-	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, 1*time.Second, pkgconfigsetup.DefaultBatchMaxConcurrentSend, pkgconfigsetup.DefaultBatchMaxSize, pkgconfigsetup.DefaultBatchMaxContentSize, pkgconfigsetup.DefaultInputChanSize)
+	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, 1*time.Second, defaults.DefaultBatchMaxConcurrentSend, defaults.DefaultBatchMaxSize, defaults.DefaultBatchMaxContentSize, defaults.DefaultInputChanSize)
 	endpoints, err := BuildHTTPEndpoints(suite.config, "test-track", "test-proto", "test-source")
 
 	suite.Nil(err)
@@ -388,10 +389,10 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 		useSSL:                 true,
 		UseCompression:         true,
 		CompressionLevel:       6,
-		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
-		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
-		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
-		RecoveryInterval:       pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
+		BackoffFactor:          defaults.DefaultLogsSenderBackoffFactor,
+		BackoffBase:            defaults.DefaultLogsSenderBackoffBase,
+		BackoffMax:             defaults.DefaultLogsSenderBackoffMax,
+		RecoveryInterval:       defaults.DefaultLogsSenderBackoffRecoveryInterval,
 		Version:                EPIntakeVersion1,
 		isReliable:             true,
 	}
@@ -405,10 +406,10 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 		useSSL:                 true,
 		UseCompression:         true,
 		CompressionLevel:       6,
-		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
-		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
-		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
-		RecoveryInterval:       pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
+		BackoffFactor:          defaults.DefaultLogsSenderBackoffFactor,
+		BackoffBase:            defaults.DefaultLogsSenderBackoffBase,
+		BackoffMax:             defaults.DefaultLogsSenderBackoffMax,
+		RecoveryInterval:       defaults.DefaultLogsSenderBackoffRecoveryInterval,
 		Version:                EPIntakeVersion1,
 		isReliable:             true,
 	}
@@ -422,15 +423,15 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 		useSSL:                 true,
 		UseCompression:         true,
 		CompressionLevel:       6,
-		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
-		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
-		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
-		RecoveryInterval:       pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
+		BackoffFactor:          defaults.DefaultLogsSenderBackoffFactor,
+		BackoffBase:            defaults.DefaultLogsSenderBackoffBase,
+		BackoffMax:             defaults.DefaultLogsSenderBackoffMax,
+		RecoveryInterval:       defaults.DefaultLogsSenderBackoffRecoveryInterval,
 		Version:                EPIntakeVersion1,
 		isReliable:             true,
 	}
 
-	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, 1*time.Second, pkgconfigsetup.DefaultBatchMaxConcurrentSend, pkgconfigsetup.DefaultBatchMaxSize, pkgconfigsetup.DefaultBatchMaxContentSize, pkgconfigsetup.DefaultInputChanSize)
+	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, 1*time.Second, defaults.DefaultBatchMaxConcurrentSend, defaults.DefaultBatchMaxSize, defaults.DefaultBatchMaxContentSize, defaults.DefaultInputChanSize)
 	endpoints, err := BuildHTTPEndpoints(suite.config, "test-track", "test-proto", "test-source")
 
 	suite.Nil(err)
@@ -472,10 +473,10 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 		useSSL:                 true,
 		UseCompression:         true,
 		CompressionLevel:       6,
-		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
-		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
-		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
-		RecoveryInterval:       pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
+		BackoffFactor:          defaults.DefaultLogsSenderBackoffFactor,
+		BackoffBase:            defaults.DefaultLogsSenderBackoffBase,
+		BackoffMax:             defaults.DefaultLogsSenderBackoffMax,
+		RecoveryInterval:       defaults.DefaultLogsSenderBackoffRecoveryInterval,
 		Version:                EPIntakeVersion2,
 		TrackType:              "test-track",
 		Protocol:               "test-proto",
@@ -492,10 +493,10 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 		useSSL:                 true,
 		UseCompression:         true,
 		CompressionLevel:       6,
-		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
-		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
-		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
-		RecoveryInterval:       pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
+		BackoffFactor:          defaults.DefaultLogsSenderBackoffFactor,
+		BackoffBase:            defaults.DefaultLogsSenderBackoffBase,
+		BackoffMax:             defaults.DefaultLogsSenderBackoffMax,
+		RecoveryInterval:       defaults.DefaultLogsSenderBackoffRecoveryInterval,
 		Version:                EPIntakeVersion1,
 		isReliable:             true,
 	}
@@ -509,10 +510,10 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 		useSSL:                 true,
 		UseCompression:         true,
 		CompressionLevel:       6,
-		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
-		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
-		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
-		RecoveryInterval:       pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
+		BackoffFactor:          defaults.DefaultLogsSenderBackoffFactor,
+		BackoffBase:            defaults.DefaultLogsSenderBackoffBase,
+		BackoffMax:             defaults.DefaultLogsSenderBackoffMax,
+		RecoveryInterval:       defaults.DefaultLogsSenderBackoffRecoveryInterval,
 		Version:                EPIntakeVersion2,
 		TrackType:              "test-track",
 		Protocol:               "test-proto",
@@ -520,7 +521,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 		isReliable:             true,
 	}
 
-	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, 1*time.Second, pkgconfigsetup.DefaultBatchMaxConcurrentSend, pkgconfigsetup.DefaultBatchMaxSize, pkgconfigsetup.DefaultBatchMaxContentSize, pkgconfigsetup.DefaultInputChanSize)
+	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, 1*time.Second, defaults.DefaultBatchMaxConcurrentSend, defaults.DefaultBatchMaxSize, defaults.DefaultBatchMaxContentSize, defaults.DefaultInputChanSize)
 	endpoints, err := BuildHTTPEndpoints(suite.config, "test-track", "test-proto", "test-source")
 
 	suite.Nil(err)
@@ -672,11 +673,11 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 		Port:                   0,
 		useSSL:                 true,
 		UseCompression:         true,
-		CompressionLevel:       ZstdCompressionLevel,
-		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
-		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
-		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
-		RecoveryInterval:       pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
+		CompressionLevel:       pkgconfigsetup.DefaultZstdCompressionLevel,
+		BackoffFactor:          defaults.DefaultLogsSenderBackoffFactor,
+		BackoffBase:            defaults.DefaultLogsSenderBackoffBase,
+		BackoffMax:             defaults.DefaultLogsSenderBackoffMax,
+		RecoveryInterval:       defaults.DefaultLogsSenderBackoffRecoveryInterval,
 		Version:                EPIntakeVersion2,
 		TrackType:              "test-track",
 		Origin:                 "test-source",
@@ -689,10 +690,10 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 		BatchWait:              10 * time.Second,
 		Main:                   main,
 		Endpoints:              []Endpoint{main},
-		BatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-		BatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-		BatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
-		InputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+		BatchMaxSize:           defaults.DefaultBatchMaxSize,
+		BatchMaxContentSize:    defaults.DefaultBatchMaxContentSize,
+		BatchMaxConcurrentSend: defaults.DefaultBatchMaxConcurrentSend,
+		InputChanSize:          defaults.DefaultInputChanSize,
 	}
 
 	suite.Nil(err)
@@ -712,12 +713,12 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 		Port:                   0,
 		useSSL:                 true,
 		UseCompression:         true,
-		CompressionKind:        ZstdCompressionKind,
-		CompressionLevel:       ZstdCompressionLevel,
-		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
-		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
-		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
-		RecoveryInterval:       pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
+		CompressionKind:        defaults.ZstdCompressionKind,
+		CompressionLevel:       pkgconfigsetup.DefaultZstdCompressionLevel,
+		BackoffFactor:          defaults.DefaultLogsSenderBackoffFactor,
+		BackoffBase:            defaults.DefaultLogsSenderBackoffBase,
+		BackoffMax:             defaults.DefaultLogsSenderBackoffMax,
+		RecoveryInterval:       defaults.DefaultLogsSenderBackoffRecoveryInterval,
 		Version:                EPIntakeVersion2,
 		TrackType:              "test-track",
 		Origin:                 "serverless",
@@ -730,10 +731,10 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 		BatchWait:              1 * time.Second,
 		Main:                   main,
 		Endpoints:              []Endpoint{main},
-		BatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-		BatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-		BatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
-		InputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+		BatchMaxSize:           defaults.DefaultBatchMaxSize,
+		BatchMaxContentSize:    defaults.DefaultBatchMaxContentSize,
+		BatchMaxConcurrentSend: defaults.DefaultBatchMaxConcurrentSend,
+		InputChanSize:          defaults.DefaultInputChanSize,
 	}
 
 	endpoints, err := BuildServerlessEndpoints(suite.config, "test-track", "test-proto")
@@ -745,11 +746,11 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 func getTestEndpoint(host string, port int, ssl bool) Endpoint {
 	e := NewEndpoint("123", "", host, port, EmptyPathPrefix, ssl)
 	e.UseCompression = true
-	e.CompressionLevel = ZstdCompressionLevel // by default endpoints uses zstd
-	e.BackoffFactor = pkgconfigsetup.DefaultLogsSenderBackoffFactor
-	e.BackoffBase = pkgconfigsetup.DefaultLogsSenderBackoffBase
-	e.BackoffMax = pkgconfigsetup.DefaultLogsSenderBackoffMax
-	e.RecoveryInterval = pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval
+	e.CompressionLevel = pkgconfigsetup.DefaultZstdCompressionLevel // by default endpoints uses zstd
+	e.BackoffFactor = defaults.DefaultLogsSenderBackoffFactor
+	e.BackoffBase = defaults.DefaultLogsSenderBackoffBase
+	e.BackoffMax = defaults.DefaultLogsSenderBackoffMax
+	e.RecoveryInterval = defaults.DefaultLogsSenderBackoffRecoveryInterval
 	e.Version = EPIntakeVersion2
 	e.TrackType = "test-track"
 	e.Protocol = "test-proto"
@@ -760,13 +761,13 @@ func getTestEndpoint(host string, port int, ssl bool) Endpoint {
 func getTestEndpoints(e Endpoint) *Endpoints {
 	return &Endpoints{
 		UseHTTP:                true,
-		BatchWait:              pkgconfigsetup.DefaultBatchWait * time.Second,
+		BatchWait:              defaults.DefaultBatchWait * time.Second,
 		Main:                   e,
 		Endpoints:              []Endpoint{e},
-		BatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-		BatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-		BatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
-		InputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+		BatchMaxSize:           defaults.DefaultBatchMaxSize,
+		BatchMaxContentSize:    defaults.DefaultBatchMaxContentSize,
+		BatchMaxConcurrentSend: defaults.DefaultBatchMaxConcurrentSend,
+		InputChanSize:          defaults.DefaultInputChanSize,
 	}
 }
 func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHttpOverride() {
@@ -906,11 +907,11 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrlWithPrefix() {
 		Port:                   443,
 		useSSL:                 true,
 		UseCompression:         true,
-		CompressionLevel:       ZstdCompressionLevel,
-		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
-		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
-		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
-		RecoveryInterval:       pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
+		CompressionLevel:       pkgconfigsetup.DefaultZstdCompressionLevel,
+		BackoffFactor:          defaults.DefaultLogsSenderBackoffFactor,
+		BackoffBase:            defaults.DefaultLogsSenderBackoffBase,
+		BackoffMax:             defaults.DefaultLogsSenderBackoffMax,
+		RecoveryInterval:       defaults.DefaultLogsSenderBackoffRecoveryInterval,
 		Version:                EPIntakeVersion2,
 		TrackType:              "test-track",
 		Protocol:               "test-proto",
@@ -920,13 +921,13 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrlWithPrefix() {
 
 	expectedEndpoints := &Endpoints{
 		UseHTTP:                true,
-		BatchWait:              pkgconfigsetup.DefaultBatchWait * time.Second,
+		BatchWait:              defaults.DefaultBatchWait * time.Second,
 		Main:                   main,
 		Endpoints:              []Endpoint{main},
-		BatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-		BatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-		BatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
-		InputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+		BatchMaxSize:           defaults.DefaultBatchMaxSize,
+		BatchMaxContentSize:    defaults.DefaultBatchMaxContentSize,
+		BatchMaxConcurrentSend: defaults.DefaultBatchMaxConcurrentSend,
+		InputChanSize:          defaults.DefaultInputChanSize,
 	}
 
 	suite.Nil(err)
@@ -951,11 +952,11 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDUrlWithPrefix() {
 		Port:                   443,
 		useSSL:                 true,
 		UseCompression:         true,
-		CompressionLevel:       ZstdCompressionLevel,
-		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
-		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
-		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
-		RecoveryInterval:       pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
+		CompressionLevel:       pkgconfigsetup.DefaultZstdCompressionLevel,
+		BackoffFactor:          defaults.DefaultLogsSenderBackoffFactor,
+		BackoffBase:            defaults.DefaultLogsSenderBackoffBase,
+		BackoffMax:             defaults.DefaultLogsSenderBackoffMax,
+		RecoveryInterval:       defaults.DefaultLogsSenderBackoffRecoveryInterval,
 		Version:                EPIntakeVersion2,
 		TrackType:              "test-track",
 		Protocol:               "test-proto",
@@ -965,13 +966,13 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDUrlWithPrefix() {
 
 	expectedEndpoints := &Endpoints{
 		UseHTTP:                true,
-		BatchWait:              pkgconfigsetup.DefaultBatchWait * time.Second,
+		BatchWait:              defaults.DefaultBatchWait * time.Second,
 		Main:                   main,
 		Endpoints:              []Endpoint{main},
-		BatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-		BatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-		BatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
-		InputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+		BatchMaxSize:           defaults.DefaultBatchMaxSize,
+		BatchMaxContentSize:    defaults.DefaultBatchMaxContentSize,
+		BatchMaxConcurrentSend: defaults.DefaultBatchMaxConcurrentSend,
+		InputChanSize:          defaults.DefaultInputChanSize,
 	}
 
 	suite.Nil(err)
@@ -1240,14 +1241,14 @@ func (suite *ConfigTestSuite) TestBatchWaitSubsecondValues() {
 	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
 
 	suite.Nil(err)
-	suite.Equal(pkgconfigsetup.DefaultBatchWait*time.Second, endpoints.BatchWait, "BatchWait should fallback to default for too-small values")
+	suite.Equal(defaults.DefaultBatchWait*time.Second, endpoints.BatchWait, "BatchWait should fallback to default for too-small values")
 
 	// Test with value above maximum (should fallback to default)
 	suite.config.SetWithoutSource("logs_config.batch_wait", 15) // Above 10 second maximum
 	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
 
 	suite.Nil(err)
-	suite.Equal(pkgconfigsetup.DefaultBatchWait*time.Second, endpoints.BatchWait, "BatchWait should fallback to default for too-large values")
+	suite.Equal(defaults.DefaultBatchWait*time.Second, endpoints.BatchWait, "BatchWait should fallback to default for too-large values")
 }
 
 func (suite *ConfigTestSuite) TestTCPEndpointsPortLookup() {

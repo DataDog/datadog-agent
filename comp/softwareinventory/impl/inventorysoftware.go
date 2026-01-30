@@ -19,8 +19,8 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 	softwareinventory "github.com/DataDog/datadog-agent/comp/softwareinventory/def"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"

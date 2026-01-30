@@ -47,6 +47,7 @@ use (
 	comp/def
 	comp/forwarder/defaultforwarder
 	comp/forwarder/orchestrator/orchestratorinterface
+	comp/logs-library
 	comp/logs/agent/config
 	comp/netflow/payload
 	comp/otelcol/collector-contrib/def
@@ -100,18 +101,6 @@ use (
 	pkg/fips
 	pkg/fleet/installer
 	pkg/gohai
-	pkg/logs/client
-	pkg/logs/diagnostic
-	pkg/logs/message
-	pkg/logs/metrics
-	pkg/logs/pipeline
-	pkg/logs/processor
-	pkg/logs/sender
-	pkg/logs/sources
-	pkg/logs/status/statusinterface
-	pkg/logs/status/utils
-	pkg/logs/types
-	pkg/logs/util/testutils
 	pkg/metrics
 	pkg/network/driver
 	pkg/network/payload
