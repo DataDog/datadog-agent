@@ -15,16 +15,12 @@ import (
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 )
 
-// CPUCollector is a stub for unsupported platforms
 type CPUCollector struct{}
 
-// NewCPUCollector returns an error on unsupported platforms
 func NewCPUCollector(metricAgent *serverlessMetrics.ServerlessMetricAgent, metricSource metrics.MetricSource) (*CPUCollector, error) {
 	return nil, fmt.Errorf("CPU collector is only supported on Linux")
 }
 
-// Start is a no-op on unsupported platforms
 func (c *CPUCollector) Start(ctx context.Context) {}
 
-// Stop is a no-op on unsupported platforms
 func (c *CPUCollector) Stop() {}

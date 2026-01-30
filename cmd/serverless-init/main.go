@@ -43,13 +43,13 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
 	serverlessInitTag "github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/otlp"
 	serverlessTag "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
@@ -112,7 +112,7 @@ func run(secretComp secrets.Component, _ autodiscovery.Component, _ healthprobeD
 	return err
 }
 
-func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (cloudservice.CloudService, *serverlessInitLog.Config, *cloudservice.TracingContext, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
+func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (cloudservice.CloudService, *serverlessInitLog.Config, *cloudservice.TracingContext, *serverlessMetrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
 	tracelog.SetLogger(log.NewWrapper(3))
 
 	// load proxy settings
@@ -163,7 +163,7 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 	metricTags := serverlessInitTag.MakeMetricAgentTags(tags)
 	metricAgent := setupMetricAgent(metricTags, tagger, cloudService.ShouldForceFlushAllOnForceFlushToSerializer())
 
-	metric.Add(cloudService.GetStartMetricName(), 1.0, cloudService.GetSource(), *metricAgent)
+	metricAgent.AddMetric(cloudService.GetStartMetricName(), 1.0, cloudService.GetSource(), metrics.DistributionType)
 
 	// Start CPU metrics collection for Azure Container Apps and Google Cloud Run
 	switch cs := cloudService.(type) {
@@ -230,22 +230,22 @@ func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tag
 	return traceAgent
 }
 
-func setupMetricAgent(tags map[string]string, tagger tagger.Component, shouldForceFlushAllOnForceFlushToSerializer bool) *metrics.ServerlessMetricAgent {
+func setupMetricAgent(tags map[string]string, tagger tagger.Component, shouldForceFlushAllOnForceFlushToSerializer bool) *serverlessMetrics.ServerlessMetricAgent {
 	// Enable v2 API for series to support origin metadata (metric source attribution)
 	// v1 API (JSON) does not include origin/source information, but v2 API (protobuf) does
 	pkgconfigsetup.Datadog().Set("use_v2_api.series", true, model.SourceAgentRuntime)
 	pkgconfigsetup.Datadog().Set("dogstatsd_socket", "", model.SourceAgentRuntime)
 
-	metricAgent := &metrics.ServerlessMetricAgent{
+	metricAgent := &serverlessMetrics.ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 0,
 		Tagger:               tagger,
 	}
-	metricAgent.Start(5*time.Second, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{}, shouldForceFlushAllOnForceFlushToSerializer)
+	metricAgent.Start(5*time.Second, &serverlessMetrics.MetricConfig{}, &serverlessMetrics.MetricDogStatsD{}, shouldForceFlushAllOnForceFlushToSerializer)
 	metricAgent.SetExtraTags(serverlessTag.MapToArray(tags))
 	return metricAgent
 }
 
-func setupOtlpAgent(metricAgent *metrics.ServerlessMetricAgent, tagger tagger.Component) {
+func setupOtlpAgent(metricAgent *serverlessMetrics.ServerlessMetricAgent, tagger tagger.Component) {
 	if !otlp.IsEnabled() {
 		log.Debugf("otlp endpoint disabled")
 		return
@@ -254,7 +254,7 @@ func setupOtlpAgent(metricAgent *metrics.ServerlessMetricAgent, tagger tagger.Co
 	otlpAgent.Start()
 }
 
-func flushMetricsAgent(metricAgent *metrics.ServerlessMetricAgent) {
+func flushMetricsAgent(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
 	for range time.Tick(3 * time.Second) {
 		metricAgent.Flush()
 	}
