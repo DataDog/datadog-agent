@@ -686,7 +686,7 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     if ancestor == current_commit:
         ancestor = get_commit_sha(ctx, commit="HEAD~1")
         print(color_message(f"On main branch, using parent commit {ancestor} as ancestor", "cyan"))
-    metric_handler.generate_relative_size(ctx, ancestor=ancestor, report_path="ancestor_static_gate_report.json")
+    metric_handler.generate_relative_size(ancestor=ancestor)
 
     # Post-process gate failures: mark as non-blocking if delta <= 0
     # This means the size issue existed before this PR and wasn't introduced by current changes

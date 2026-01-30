@@ -41,7 +41,6 @@
 '@datadog/metrics-aggregation': '#metrics-aggregation'
 '@datadog/ndm-core': '#ndm-core'
 '@datadog/ndm-integrations': '#ndm-integrations'
-'@datadog/network-device-monitoring': '#network-device-monitoring'
 '@datadog/cloud-network-monitoring': '#cloud-network-monitoring'
 '@datadog/network-path': '#network-path-dev'
 '@datadog/opentelemetry': '#opentelemetry-ops'
@@ -55,3 +54,4 @@
 '@datadog/windows-products': '#windows-products-ops'
 '@datadog/synthetics-executing': '#synthetics'
 '@datadog/agent-health': '#agent-health'
+'@datadog/profiling-full-host': '#profiling-full-host-project'
