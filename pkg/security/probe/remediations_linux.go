@@ -345,6 +345,7 @@ func (p *EBPFProbe) SendRemediationEvent(re *RemediationEvent) {
 }
 func (p *EBPFProbe) HandleRemediationNotTriggered() {
 	p.activeRemediationsLock.Lock()
+	defer p.activeRemediationsLock.Unlock()
 	for remediationKey, state := range p.activeRemediations {
 		if len(remediationKey) > 4 && remediationKey[0:4] != "rem_" {
 			// Only send events for remediation rules
@@ -362,6 +363,5 @@ func (p *EBPFProbe) HandleRemediationNotTriggered() {
 			p.SendRemediationEvent(re)
 		}
 	}
-	p.activeRemediationsLock.Unlock()
 
 }
