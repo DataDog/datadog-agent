@@ -427,7 +427,7 @@ require (
 	pgregory.net/rapid v1.2.0
 	sigs.k8s.io/custom-metrics-apiserver v1.33.0
 	sigs.k8s.io/gateway-api v1.3.1-0.20250527223622-54df0a899c1c
-	sigs.k8s.io/karpenter v1.8.0
+	sigs.k8s.io/karpenter v1.8.2
 	sigs.k8s.io/yaml v1.6.0
 )
 
