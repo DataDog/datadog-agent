@@ -1,6 +1,5 @@
 using Datadog.AgentCustomActions;
 using Datadog.CustomActions;
-using NineDigit.WixSharpExtensions;
 using System;
 using System.IO;
 using System.Linq;
@@ -245,20 +244,23 @@ namespace WixSetup.Datadog_Agent
                     bannerImage: new FileInfo(InstallerBannerImagePath),
                     // $@"{installerSource}\LICENSE" is not RTF and Compiler.AllowNonRtfLicense = true doesn't help.
                     licenceRtfFile: new FileInfo(ProductLicenceRtfFilePath)
-                )
-                .AddDirectories(
-                    CreateProgramFilesFolder(),
-                    CreateAppDataFolder(),
-                    new Dir(new Id("ProgramMenuDatadog"), @"%ProgramMenu%\Datadog",
-                        new ExeFileShortcut
-                        {
-                            Name = "Datadog Agent Manager",
-                            Target = "[AGENT]ddtray.exe",
-                            Arguments = "\"--launch-gui\"",
-                            WorkingDirectory = "AGENT",
-                        }
-                    )
                 );
+
+            // WiX 5 migration: AddDirectories is not available in WixSharp_wix4, add to Dirs array instead
+            project.Dirs = new Dir[]
+            {
+                CreateProgramFilesFolder(),
+                CreateAppDataFolder(),
+                new Dir(new Id("ProgramMenuDatadog"), @"%ProgramMenu%\Datadog",
+                    new ExeFileShortcut
+                    {
+                        Name = "Datadog Agent Manager",
+                        Target = "[AGENT]ddtray.exe",
+                        Arguments = "\"--launch-gui\"",
+                        WorkingDirectory = "AGENT",
+                    }
+                )
+            };
 
             project.SetNetFxPrerequisite(Condition.Net45_Installed,
                 "This application requires the .Net Framework 4.5, or later to be installed.");
@@ -300,7 +302,8 @@ namespace WixSetup.Datadog_Agent
             project.InstallerVersion = 500;
             project.DefaultFeature = _agentFeatures.MainApplication;
             project.Codepage = "1252";
-            project.InstallScope = InstallScope.perMachine; // WiX 4+: InstallPrivileges.elevated → InstallScope.perMachine
+            // WiX 5 migration: InstallPrivileges is obsolete in WiX4.
+            // Per-machine installation (elevated) is the default, so this line is removed.
             project.LocalizationFile = "localization-en-us.wxl";
             if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("AGENT_MSI_OUTDIR")))
             {
@@ -308,15 +311,17 @@ namespace WixSetup.Datadog_Agent
                 project.OutDir = Environment.GetEnvironmentVariable("AGENT_MSI_OUTDIR");
             }
             project.OutFileName = _agentFlavor.PackageOutFileName;
-            project.Package.AttributesDefinition = $"Comments={ProductComment}";
+            // WiX 5 migration: Comments attribute is no longer valid on Package element
+            // The comment is already set via ControlPanelInfo.Comments in SetControlPanelInfo()
 
             // clear default media as we will add it via MediaTemplate
             project.Media.Clear();
             project.WixSourceGenerated += document =>
             {
                 WixSourceGenerated?.Invoke(document);
+                // WiX 5 migration: Product was renamed to Package in WiX 4/5
                 document
-                    .Select("Wix/Product")
+                    .Select("Wix/Package")
                     .AddElement("MediaTemplate",
                         "CabinetTemplate=cab{0}.cab; CompressionLevel=high; EmbedCab=yes; MaximumUncompressedMediaSize=2");
 
@@ -352,14 +357,15 @@ namespace WixSetup.Datadog_Agent
                         value => value.StartsWith("APPLICATIONDATADIRECTORY") ||
                                  value.StartsWith("EXAMPLECONFSLOCATION")))
                     .ForEach(c => c.SetAttributeValue("KeyPath", "yes"));
+                // WiX 5 migration: WixFailWhenDeferred was replaced with util:FailWhenDeferred element
                 document
-                    .Select("Wix/Product")
-                    .AddElement("CustomActionRef", "Id=WixFailWhenDeferred");
+                    .Select("Wix/Package")
+                    .Add(new XElement(WixExtension.Util.ToXName("FailWhenDeferred")));
+                // WiX 5 migration: Condition is now an attribute, not inner text
                 document
-                    .Select("Wix/Product/InstallExecuteSequence")
+                    .Select("Wix/Package/InstallExecuteSequence")
                     .AddElement("DeleteServices",
-                        value:
-                        "(Installed AND (REMOVE=\"ALL\") AND NOT (WIX_UPGRADE_DETECTED OR UPGRADINGPRODUCTCODE))");
+                        "Condition=(Installed AND (REMOVE=\"ALL\") AND NOT (WIX_UPGRADE_DETECTED OR UPGRADINGPRODUCTCODE))");
 
                 // We don't use the Wix "Merge" MSM feature because it seems to be a no-op...
                 document
