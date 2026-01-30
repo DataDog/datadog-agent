@@ -78,6 +78,11 @@ func (m *mockSession) GetVersion() gosnmp.SnmpVersion {
 	return args.Get(0).(gosnmp.SnmpVersion)
 }
 
+func (m *mockSession) IsUnconnectedUDP() bool {
+	args := m.Called()
+	return args.Bool(0)
+}
+
 // TestConnectionManager_ConnectSuccess tests successful connection
 func TestConnectionManager_ConnectSuccess(t *testing.T) {
 	config := &checkconfig.CheckConfig{
@@ -93,11 +98,14 @@ func TestConnectionManager_ConnectSuccess(t *testing.T) {
 	}
 
 	connMgr := NewConnectionManager(config, sessionFactory)
-	fallbackEnabled, err := connMgr.Connect()
+	sess, err := connMgr.Connect()
 
 	assert.NoError(t, err)
-	assert.False(t, fallbackEnabled, "Fallback should not be enabled on successful connection")
-	assert.Equal(t, mainSess, connMgr.GetSession())
+	assert.Equal(t, mainSess, sess)
+
+	gotSess, err := connMgr.GetSession()
+	assert.NoError(t, err)
+	assert.Equal(t, mainSess, gotSess)
 
 	mainSess.AssertExpectations(t)
 }
@@ -143,12 +151,15 @@ func TestConnectionManager_TimeoutTriggersFallback(t *testing.T) {
 	}
 
 	connMgr := NewConnectionManager(config, sessionFactory)
-	fallbackEnabled, err := connMgr.Connect()
+	sess, err := connMgr.Connect()
 
 	assert.NoError(t, err)
-	assert.True(t, fallbackEnabled, "Fallback should be enabled after timeout")
-	assert.Equal(t, newSess, connMgr.GetSession())
+	assert.Equal(t, newSess, sess)
 	assert.True(t, config.UseUnconnectedUDPSocket, "Config should be updated")
+
+	gotSess, err := connMgr.GetSession()
+	assert.NoError(t, err)
+	assert.Equal(t, newSess, gotSess)
 
 	mainSess.AssertExpectations(t)
 	testSess.AssertExpectations(t)
@@ -171,11 +182,11 @@ func TestConnectionManager_NonTimeoutError(t *testing.T) {
 	}
 
 	connMgr := NewConnectionManager(config, sessionFactory)
-	fallbackEnabled, err := connMgr.Connect()
+	sess, err := connMgr.Connect()
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "authentication failed")
-	assert.False(t, fallbackEnabled, "Fallback should not be enabled for non-timeout errors")
+	assert.Nil(t, sess)
 
 	mainSess.AssertExpectations(t)
 }
@@ -210,11 +221,11 @@ func TestConnectionManager_FallbackTestFails(t *testing.T) {
 	}
 
 	connMgr := NewConnectionManager(config, sessionFactory)
-	fallbackEnabled, err := connMgr.Connect()
+	sess, err := connMgr.Connect()
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "timeout")
-	assert.False(t, fallbackEnabled, "Fallback should not be enabled if test fails")
+	assert.Nil(t, sess)
 
 	mainSess.AssertExpectations(t)
 	testSess.AssertExpectations(t)
@@ -236,8 +247,9 @@ func TestConnectionManager_Close(t *testing.T) {
 	}
 
 	connMgr := NewConnectionManager(config, sessionFactory)
-	_, err := connMgr.Connect()
+	gotSess, err := connMgr.Connect()
 	assert.NoError(t, err)
+	assert.Equal(t, sess, gotSess)
 
 	err = connMgr.Close()
 	assert.NoError(t, err)

@@ -16,34 +16,30 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ConnectionManager handles SNMP session creation and connection management,
-// including automatic fallback to unconnected UDP sockets for multi-homed devices.
+// ConnectionManager handles SNMP session creation and connection management.
 type ConnectionManager interface {
-	// Connect establishes connection with automatic fallback handling.
-	// Returns whether unconnected UDP fallback was enabled.
-	Connect() (bool, error)
+	// Connect establishes a connection and returns the active session.
+	Connect() (session.Session, error)
 
-	// GetSession returns the current active session.
-	// Must be called after successful Connect().
-	GetSession() session.Session
+	// GetSession returns the current active session if initialized.
+	GetSession() (session.Session, error)
 
 	// Close closes the current session.
 	Close() error
 }
 
-// snmpConnectionManager implements ConnectionManager with UDP socket fallback support.
+// snmpConnectionManager implements ConnectionManager with automatic fallback support.
 type snmpConnectionManager struct {
 	config         *checkconfig.CheckConfig
 	sessionFactory session.Factory
 	session        session.Session
-	fallbackState  fallbackState
+	fallbackState  udpFallbackState
 }
 
-// fallbackState tracks whether we should use unconnected UDP sockets.
-// Unconnected sockets accept responses from any source IP, working around devices
-// that respond from IP B when queried on IP A (multi-homed devices). This prevents
-// connection timeouts for devices with multiple management interfaces.
-type fallbackState struct {
+// udpFallbackState tracks whether we should use unconnected UDP sockets for multi-homed devices.
+// Unconnected sockets accept responses from any source IP, working around devices that respond
+// from IP B when queried on IP A, which prevents connection timeouts.
+type udpFallbackState struct {
 	connectedSocketSucceeded bool // True if standard connected socket ever worked
 	fallbackTestAttempted    bool // True if we already tested unconnected fallback
 	useUnconnectedSocket     bool // True if we should use unconnected UDP mode
@@ -54,25 +50,24 @@ func NewConnectionManager(config *checkconfig.CheckConfig, sessionFactory sessio
 	return &snmpConnectionManager{
 		config:         config,
 		sessionFactory: sessionFactory,
-		fallbackState:  fallbackState{},
+		fallbackState:  udpFallbackState{},
 	}
 }
 
-// Connect establishes connection with automatic fallback handling.
-// Returns whether unconnected UDP fallback was enabled during this connection.
-func (m *snmpConnectionManager) Connect() (bool, error) {
+// Connect establishes a connection and returns the active session.
+// Automatically falls back to unconnected UDP sockets for multi-homed devices.
+func (m *snmpConnectionManager) Connect() (session.Session, error) {
 	// Create initial session
 	sess, err := m.sessionFactory(m.config)
 	if err != nil {
-		return false, fmt.Errorf("failed to create session: %w", err)
+		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
 
 	// Try to connect
 	err = sess.Connect()
 	if err == nil {
-		// Connection succeeded - now test reachability for UDP
-		// This is critical because UDP Connect() doesn't actually establish a connection
-		// The timeout happens during the first read operation (Get/GetNext)
+		// Connection succeeded - now test reachability
+		// For UDP, Connect() doesn't establish a real connection; timeouts occur during read operations
 		_, reachErr := sess.GetNext([]string{coresnmp.DeviceReachableGetNextOid})
 		if reachErr == nil {
 			// Both connect and reachability check succeeded
@@ -80,32 +75,26 @@ func (m *snmpConnectionManager) Connect() (bool, error) {
 				m.fallbackState.connectedSocketSucceeded = true
 			}
 			m.session = sess
-			return false, nil
+			return sess, nil
 		}
-		// Reachability check failed - this is the timeout for multi-homed devices
+		// Reachability check failed
 		err = reachErr
 	}
 
 	// Connection or reachability failed - check if we should attempt fallback
-	// Convert net.Error timeouts to our typed error for consistent detection
-	if isRawNetworkTimeout(err) {
-		err = session.NewConnectionTimeoutError(m.config.IPAddress, err)
-	}
-
 	if !m.shouldAttemptFallback(err) {
-		return false, err
+		return nil, err
 	}
 
-	// Attempt fallback
+	// Attempt unconnected UDP fallback for multi-homed devices
 	log.Infof("[%s] Connected socket failed with timeout, testing unconnected socket fallback", m.config.IPAddress)
 
-	fallbackSuccess, fallbackSess := m.testFallback()
-	if !fallbackSuccess {
+	if !m.testFallback() {
 		log.Infof("[%s] Unconnected socket test failed, keeping connected mode", m.config.IPAddress)
-		return false, err
+		return nil, err
 	}
 
-	// Fallback test succeeded - switch to unconnected mode
+	// Fallback test succeeded - switch to unconnected mode permanently
 	log.Infof("[%s] Unconnected socket test succeeded, switching to unconnected mode", m.config.IPAddress)
 	m.fallbackState.useUnconnectedSocket = true
 
@@ -113,22 +102,25 @@ func (m *snmpConnectionManager) Connect() (bool, error) {
 	m.config.UseUnconnectedUDPSocket = true
 	newSess, createErr := m.sessionFactory(m.config)
 	if createErr != nil {
-		return false, fmt.Errorf("failed to recreate session with unconnected socket for %s: %w", m.config.IPAddress, createErr)
+		return nil, fmt.Errorf("failed to recreate session with unconnected socket for %s: %w", m.config.IPAddress, createErr)
 	}
 
 	// Try connecting with new session
 	if connectErr := newSess.Connect(); connectErr != nil {
-		return false, connectErr
+		return nil, connectErr
 	}
 
 	m.session = newSess
-	return true, nil
+	return newSess, nil
 }
 
 // GetSession returns the current active session.
-// Must be called after successful Connect().
-func (m *snmpConnectionManager) GetSession() session.Session {
-	return m.session
+// Returns an error if no session has been initialized via Connect().
+func (m *snmpConnectionManager) GetSession() (session.Session, error) {
+	if m.session == nil {
+		return nil, errors.New("session not initialized - call Connect() first")
+	}
+	return m.session, nil
 }
 
 // Close closes the current session.
@@ -156,9 +148,9 @@ func (m *snmpConnectionManager) shouldAttemptFallback(err error) bool {
 	return true
 }
 
-// testFallback tests if unconnected socket works.
-// Returns (success bool, test session for cleanup).
-func (m *snmpConnectionManager) testFallback() (bool, session.Session) {
+// testFallback tests if unconnected socket works for multi-homed devices.
+// Returns true if the test succeeded.
+func (m *snmpConnectionManager) testFallback() bool {
 	m.fallbackState.fallbackTestAttempted = true
 
 	// Create test session with unconnected socket
@@ -168,7 +160,7 @@ func (m *snmpConnectionManager) testFallback() (bool, session.Session) {
 	testSession, err := m.sessionFactory(testConfig)
 	if err != nil {
 		log.Debugf("[%s] Fallback test: failed to create session: %s", m.config.IPAddress, err)
-		return false, nil
+		return false
 	}
 	defer func() {
 		if closeErr := testSession.Close(); closeErr != nil {
@@ -178,39 +170,36 @@ func (m *snmpConnectionManager) testFallback() (bool, session.Session) {
 
 	if err := testSession.Connect(); err != nil {
 		log.Debugf("[%s] Fallback test: connect failed: %s", m.config.IPAddress, err)
-		return false, testSession
+		return false
 	}
 
 	_, err = testSession.GetNext([]string{coresnmp.DeviceReachableGetNextOid})
 	if err != nil {
 		log.Debugf("[%s] Fallback test: GetNext failed: %s", m.config.IPAddress, err)
-		return false, testSession
+		return false
 	}
 
-	return true, testSession
+	return true
 }
 
-// isTimeoutError checks if error is a connection timeout using type assertion
-// This is robust and doesn't rely on fragile string matching
+// isTimeoutError checks if error is a timeout error.
+// Handles both our wrapped ConnectionTimeoutError and raw net.Error timeouts.
 func isTimeoutError(err error) bool {
 	if err == nil {
 		return false
 	}
 
-	// Check if it's our typed timeout error from the session package
+	// Check if it's our typed timeout error
 	var timeoutErr *session.ConnectionTimeoutError
-	return errors.As(err, &timeoutErr)
-}
-
-// isRawNetworkTimeout checks if error is a raw net.Error timeout (not yet wrapped in ConnectionTimeoutError)
-// This is used to detect timeouts from Get/GetNext operations that aren't wrapped by the session layer
-func isRawNetworkTimeout(err error) bool {
-	if err == nil {
-		return false
+	if errors.As(err, &timeoutErr) {
+		return true
 	}
+
+	// Check if it's a raw network timeout
 	var netErr net.Error
 	if errors.As(err, &netErr) {
 		return netErr.Timeout()
 	}
+
 	return false
 }

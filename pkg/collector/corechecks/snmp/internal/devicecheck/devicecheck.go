@@ -30,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
-	coresnmp "github.com/DataDog/datadog-agent/pkg/snmp"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
@@ -40,7 +39,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/diagnoses"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
-	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
 const (
@@ -348,7 +346,7 @@ func (d *DeviceCheck) getValuesAndTags() (bool, profiledefinition.ProfileDefinit
 	var tags []string
 
 	// Create connection with automatic UDP fallback for multi-homed devices
-	_, connErr := d.connMgr.Connect()
+	sess, connErr := d.connMgr.Connect()
 
 	if connErr != nil {
 		d.diagnoses.Add("error", "SNMP_FAILED_TO_OPEN_CONNECTION", "Agent failed to open connection.")
@@ -364,8 +362,12 @@ func (d *DeviceCheck) getValuesAndTags() (bool, profiledefinition.ProfileDefinit
 		}
 	}()
 
-	// Get the connected session
-	sess := d.connMgr.GetSession()
+	// Emit metric if using unconnected UDP mode
+	if sess.IsUnconnectedUDP() {
+		tags := []string{fmt.Sprintf("device_ip:%s", d.config.IPAddress)}
+		tags = append(tags, d.config.GetStaticTags()...)
+		d.sender.Gauge("snmp.devices.using_unconnected_socket", 1, tags)
+	}
 
 	// Check if the device is reachable (already done in Connect(), but checking result)
 	// The Connect() method already performed a GetNext() test, so device is reachable
@@ -436,7 +438,11 @@ func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string)
 	d.sender.Gauge("datadog.snmp.submitted_metrics", float64(d.sender.GetSubmittedMetrics()), newTags)
 
 	// Get session for SNMP request counts
-	sess := d.connMgr.GetSession()
+	sess, err := d.connMgr.GetSession()
+	if err != nil {
+		log.Debugf("failed to get session for telemetry metrics: %s", err)
+		return
+	}
 	d.sender.Gauge(snmpRequestMetric, float64(sess.GetSnmpGetCount()), append(utils.CopyStrings(newTags), snmpGetRequestTag))
 	d.sender.Gauge(snmpRequestMetric, float64(sess.GetSnmpGetBulkCount()), append(utils.CopyStrings(newTags), snmpGetBulkRequestTag))
 	d.sender.Gauge(snmpRequestMetric, float64(sess.GetSnmpGetNextCount()), append(utils.CopyStrings(newTags), snmpGetNextReqestTag))
