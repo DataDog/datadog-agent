@@ -95,7 +95,7 @@ func getNonCriticalAPIs() []string {
 
 // symbolLookup is an internal interface for checking symbol availability
 type symbolLookup interface {
-	lookup(string) error
+	isAvailable(string) error
 }
 
 // SafeNVML represents a safe wrapper around NVML library operations.
@@ -129,13 +129,20 @@ type safeNvml struct {
 	lib          nvml.Interface
 	mu           sync.Mutex
 	capabilities map[string]struct{}
+	pollerOnce   sync.Once
+	pauseOnce    sync.Once
+	pauseEvents  sync.Once
+	controller   *pauseController
 }
 
 func toNativeName(symbol string) string {
 	return "nvmlDevice" + symbol
 }
 
-func (s *safeNvml) lookup(symbol string) error {
+func (s *safeNvml) isAvailable(symbol string) error {
+	if s.getPauseController().IsPaused() {
+		return pausedError(symbol)
+	}
 	if _, ok := s.capabilities[symbol]; !ok {
 		return NewNvmlAPIErrorOrNil(symbol, nvml.ERROR_FUNCTION_NOT_FOUND)
 	}
@@ -145,7 +152,7 @@ func (s *safeNvml) lookup(symbol string) error {
 
 // SystemGetDriverVersion returns the Nvidia driver version
 func (s *safeNvml) SystemGetDriverVersion() (string, error) {
-	if err := s.lookup("nvmlSystemGetDriverVersion"); err != nil {
+	if err := s.isAvailable("nvmlSystemGetDriverVersion"); err != nil {
 		return "", err
 	}
 	driverVersion, ret := s.lib.SystemGetDriverVersion()
@@ -154,7 +161,7 @@ func (s *safeNvml) SystemGetDriverVersion() (string, error) {
 
 // Shutdown shuts down the NVML library
 func (s *safeNvml) Shutdown() error {
-	if err := s.lookup("nvmlShutdown"); err != nil {
+	if err := s.isAvailable("nvmlShutdown"); err != nil {
 		return err
 	}
 	ret := s.lib.Shutdown()
@@ -163,7 +170,7 @@ func (s *safeNvml) Shutdown() error {
 
 // DeviceGetCount returns the number of NVIDIA devices in the system
 func (s *safeNvml) DeviceGetCount() (int, error) {
-	if err := s.lookup(toNativeName("GetCount")); err != nil {
+	if err := s.isAvailable(toNativeName("GetCount")); err != nil {
 		return 0, err
 	}
 	count, ret := s.lib.DeviceGetCount()
@@ -172,7 +179,7 @@ func (s *safeNvml) DeviceGetCount() (int, error) {
 
 // DeviceGetHandleByIndex returns a SafeDevice for the device at the given index
 func (s *safeNvml) DeviceGetHandleByIndex(idx int) (SafeDevice, error) {
-	if err := s.lookup(toNativeName("GetHandleByIndex")); err != nil {
+	if err := s.isAvailable(toNativeName("GetHandleByIndex")); err != nil {
 		return nil, err
 	}
 	dev, ret := s.lib.DeviceGetHandleByIndex(idx)
@@ -183,7 +190,7 @@ func (s *safeNvml) DeviceGetHandleByIndex(idx int) (SafeDevice, error) {
 }
 
 func (s *safeNvml) GpmSampleAlloc() (nvml.GpmSample, error) {
-	if err := s.lookup("nvmlGpmSampleAlloc"); err != nil {
+	if err := s.isAvailable("nvmlGpmSampleAlloc"); err != nil {
 		return nil, err
 	}
 	sample, ret := s.lib.GpmSampleAlloc()
@@ -191,7 +198,7 @@ func (s *safeNvml) GpmSampleAlloc() (nvml.GpmSample, error) {
 }
 
 func (s *safeNvml) GpmSampleFree(sample nvml.GpmSample) error {
-	if err := s.lookup("nvmlGpmSampleFree"); err != nil {
+	if err := s.isAvailable("nvmlGpmSampleFree"); err != nil {
 		return err
 	}
 	ret := s.lib.GpmSampleFree(sample)
@@ -199,7 +206,7 @@ func (s *safeNvml) GpmSampleFree(sample nvml.GpmSample) error {
 }
 
 func (s *safeNvml) GpmMetricsGet(metrics *nvml.GpmMetricsGetType) error {
-	if err := s.lookup("nvmlGpmMetricsGet"); err != nil {
+	if err := s.isAvailable("nvmlGpmMetricsGet"); err != nil {
 		return err
 	}
 	ret := s.lib.GpmMetricsGet(metrics)
@@ -207,7 +214,7 @@ func (s *safeNvml) GpmMetricsGet(metrics *nvml.GpmMetricsGetType) error {
 }
 
 func (s *safeNvml) EventSetCreate() (nvml.EventSet, error) {
-	if err := s.lookup("nvmlEventSetCreate"); err != nil {
+	if err := s.isAvailable("nvmlEventSetCreate"); err != nil {
 		return nil, err
 	}
 	evtSet, ret := s.lib.EventSetCreate()
@@ -215,7 +222,7 @@ func (s *safeNvml) EventSetCreate() (nvml.EventSet, error) {
 }
 
 func (s *safeNvml) EventSetFree(evtSet nvml.EventSet) error {
-	if err := s.lookup("nvmlEventSetFree"); err != nil {
+	if err := s.isAvailable("nvmlEventSetFree"); err != nil {
 		return err
 	}
 	ret := s.lib.EventSetFree(evtSet)
@@ -223,8 +230,8 @@ func (s *safeNvml) EventSetFree(evtSet nvml.EventSet) error {
 }
 
 func (s *safeNvml) EventSetWait(evtSet nvml.EventSet, timeout time.Duration) (DeviceEventData, error) {
-	v1Err := errors.Join(s.lookup("nvmlEventSetWait_v1"))
-	v2Err := errors.Join(s.lookup("nvmlEventSetWait_v2"))
+	v1Err := errors.Join(s.isAvailable("nvmlEventSetWait_v1"))
+	v2Err := errors.Join(s.isAvailable("nvmlEventSetWait_v2"))
 	if v1Err != nil && v2Err != nil {
 		return DeviceEventData{}, errors.Join(v1Err, v2Err)
 	}
@@ -290,6 +297,9 @@ func populateCapabilities(lib nvml.Interface) (map[string]struct{}, error) {
 
 // ensureInitWithOpts initializes the NVML library with the given options (used for testing)
 func (s *safeNvml) ensureInitWithOpts(nvmlNewFunc func(opts ...nvml.LibraryOption) nvml.Interface) error {
+	if s.getPauseController().IsPaused() {
+		return pausedError("Init")
+	}
 	// If the library is already initialized, return nil without locking
 	if s.lib != nil {
 		return nil
@@ -357,5 +367,7 @@ func GetSafeNvmlLib() (SafeNVML, error) {
 		return nil, err
 	}
 
+	singleton.startPauseSubscriber()
+	singleton.startMigPoller()
 	return &singleton, nil
 }

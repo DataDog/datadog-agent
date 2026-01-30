@@ -101,12 +101,14 @@ func (c *Check) SetContainerProvider(provider proccontainers.ContainerProvider) 
 }
 
 func newCheckTelemetry(tm telemetry.Component) *checkTelemetry {
-	return &checkTelemetry{
+	telemetryState := &checkTelemetry{
 		metrics:            newCheckTelemetryMetrics(tm),
 		component:          tm,
 		nvmlState:          ddnvml.NewNvmlStateTelemetry(tm),
 		collectorTelemetry: nvidia.NewCollectorTelemetry(tm),
 	}
+	ddnvml.SetNvmlStateTelemetry(telemetryState.nvmlState)
+	return telemetryState
 }
 
 func newCheckTelemetryMetrics(tm telemetry.Component) *checkTelemetryMetrics {
@@ -247,6 +249,10 @@ func (c *Check) Run() error {
 	c.telemetry.nvmlState.Check()
 
 	if err := c.deviceCache.Refresh(); err != nil {
+		if errors.Is(err, ddnvml.ErrNvmlPaused) {
+			log.Debugf("NVML paused due to MIG reconfiguration, skipping GPU check run")
+			return nil
+		}
 		return fmt.Errorf("failed to refresh device cache: %w", err)
 	}
 

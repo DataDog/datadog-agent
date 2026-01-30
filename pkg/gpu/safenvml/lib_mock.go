@@ -8,6 +8,7 @@
 package safenvml
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -41,6 +42,11 @@ func resetSingleton() {
 
 	singleton.lib = nil
 	singleton.capabilities = nil
+	singleton.pollerOnce = sync.Once{}
+	singleton.pauseOnce = sync.Once{}
+	singleton.pauseEvents = sync.Once{}
+	singleton.controller = nil
+	telemetrySubscriberOnce = sync.Once{}
 }
 
 // WithPartialMockNVML sets the singleton SafeNVML library for testing purposes.
