@@ -331,12 +331,12 @@ func (mr *Resolver) InsertMoved(m model.Mount) error {
 
 func (mr *Resolver) insert(m *model.Mount) {
 
-	invalidateChildrenPath := false
+	//invalidateChildrenPath := false
 	// Remove the previous one if exists
 	if prev, ok := mr.mounts.Get(m.MountID); prev != nil && ok {
-		if prev.ParentPathKey != m.ParentPathKey {
-			invalidateChildrenPath = true
-		}
+		//if prev.ParentPathKey != m.ParentPathKey {
+		//	invalidateChildrenPath = true
+		//}
 		m.Children = prev.Children
 		prev.Children = []uint32{}
 		mr.delete(prev)
@@ -363,11 +363,13 @@ func (mr *Resolver) insert(m *model.Mount) {
 		mr.dangling.Add(m.MountID, m)
 	}
 
-	if invalidateChildrenPath {
-		mr.walkMountSubtree(m, func(child *model.Mount) {
-			child.Path = ""
-		})
-	}
+	//if invalidateChildrenPath {
+	//	mr.walkMountSubtree(m, func(child *model.Mount) {
+	//		if child.Origin != model.MountOriginProcfs {
+	//			child.Path = ""
+	//		}
+	//	})
+	//}
 
 	// check if this mount has any dangling children
 	start := len(m.Children)
