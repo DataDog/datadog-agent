@@ -86,7 +86,7 @@ RUN apt full-upgrade -y \
   # When the network check will have switched from using ss to directly parsing /proc/net/tcp,
   # this can be removed
   # Install libseccomp2 as required by `nosys-seccomp` wrapper
-  && apt install --no-install-recommends -y iproute2 libseccomp2 tzdata adduser
+  && apt install --no-install-recommends -y iproute2 libseccomp2 tzdata adduser sudo
 
 ARG WITH_JMX
 ARG WITH_JMX_FIPS
@@ -202,6 +202,11 @@ RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agen
   && chmod 755 /probe.sh /initlog.sh \
   && chown root:secret-manager /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh \
   && chmod 550 /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh
+
+# Create dd-scriptuser for running privateactionrunner user scripts
+RUN adduser --no-create-home dd-scriptuser \
+  && echo "dd-agent ALL=(dd-scriptuser) NOPASSWD: ALL" > /etc/sudoers.d/dd-agent \
+  && chmod 440 /etc/sudoers.d/dd-agent
 
 # Check that the UID of dd-agent is still 100.
 #
