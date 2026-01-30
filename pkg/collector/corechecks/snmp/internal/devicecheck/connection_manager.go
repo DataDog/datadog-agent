@@ -75,22 +75,25 @@ func (m *snmpConnectionManager) Connect() (session.Session, bool, error) {
 	}
 
 	// Try connected socket
-	sess, reachable, reachErr, connErr := m.tryConnect(m.config)
-	if connErr != nil {
-		// Socket connection failed
-		return nil, false, connErr
-	}
+	sess, reachable, err := m.tryConnect(m.config)
 
-	if reachable {
+	// Check if connected socket works perfectly
+	if err == nil && reachable {
 		// Connected socket works - remember this for future calls
 		m.fallbackState.connectedSocketSucceeded = true
 		m.session = sess
 		return sess, true, nil
 	}
 
-	// Device unreachable with connected socket
+	// Something went wrong (connection error or reachability error)
+	// If socket connection failed completely, cannot proceed
+	if sess == nil {
+		return nil, false, err
+	}
+
+	// Socket connected but device unreachable
 	// Should we test unconnected mode?
-	if m.shouldTestUnconnected(reachErr) {
+	if m.shouldTestUnconnected(err) {
 		// First time encountering timeout - test unconnected once
 		return m.testUnconnectedFallback(sess)
 	}
@@ -123,9 +126,9 @@ func (m *snmpConnectionManager) Close() error {
 // connectWithUnconnectedSocket connects using unconnected UDP socket mode.
 // Called on subsequent Connect() calls after we've decided to use unconnected mode permanently.
 func (m *snmpConnectionManager) connectWithUnconnectedSocket() (session.Session, bool, error) {
-	sess, reachable, _, connErr := m.tryConnect(m.config) // m.config has UseUnconnectedUDPSocket = true
-	if connErr != nil {
-		return nil, false, connErr
+	sess, reachable, err := m.tryConnect(m.config) // m.config has UseUnconnectedUDPSocket = true
+	if sess == nil {
+		return nil, false, err
 	}
 	m.session = sess
 	return sess, reachable, nil
@@ -156,10 +159,10 @@ func (m *snmpConnectionManager) testUnconnectedFallback(connectedSess session.Se
 	testConfig := m.config.Copy()
 	testConfig.UseUnconnectedUDPSocket = true
 
-	unconnectedSess, reachable, _, connErr := m.tryConnect(testConfig)
-	if connErr != nil {
+	unconnectedSess, reachable, err := m.tryConnect(testConfig)
+	if unconnectedSess == nil {
 		// Unconnected socket failed to connect - keep using connected mode
-		log.Infof("[%s] Unconnected socket failed: %s, keeping connected mode", m.config.IPAddress, connErr)
+		log.Infof("[%s] Unconnected socket failed: %s, keeping connected mode", m.config.IPAddress, err)
 		m.session = connectedSess
 		return connectedSess, false, nil
 	}
@@ -183,24 +186,24 @@ func (m *snmpConnectionManager) testUnconnectedFallback(connectedSess session.Se
 }
 
 // tryConnect attempts to create a session, connect, and check reachability.
-// Returns (session, reachable, reachabilityError, connectionError).
-// - connectionError != nil: Socket connection failed, cannot use session
-// - connectionError == nil && !reachable: Socket connected but device unreachable
-// - connectionError == nil && reachable: Socket connected and device reachable
-func (m *snmpConnectionManager) tryConnect(config *checkconfig.CheckConfig) (sess session.Session, reachable bool, reachErr error, connErr error) {
+// Returns (session, reachable, error).
+// - error == nil && reachable: Success - socket connected and device reachable
+// - error != nil && session == nil: Socket connection failed
+// - error != nil && session != nil: Socket connected but device unreachable
+func (m *snmpConnectionManager) tryConnect(config *checkconfig.CheckConfig) (session.Session, bool, error) {
 	sess, err := m.sessionFactory(config)
 	if err != nil {
-		return nil, false, nil, fmt.Errorf("failed to create session: %w", err)
+		return nil, false, fmt.Errorf("failed to create session: %w", err)
 	}
 
-	connErr = sess.Connect()
-	if connErr != nil {
-		return nil, false, nil, connErr
+	connectErr := sess.Connect()
+	if connectErr != nil {
+		return nil, false, connectErr
 	}
 
 	// Connection succeeded - check reachability
-	_, reachErr = sess.GetNext([]string{coresnmp.DeviceReachableGetNextOid})
-	return sess, reachErr == nil, reachErr, nil
+	_, reachErr := sess.GetNext([]string{coresnmp.DeviceReachableGetNextOid})
+	return sess, reachErr == nil, reachErr
 }
 
 // isTimeoutError checks if error is a network timeout.
