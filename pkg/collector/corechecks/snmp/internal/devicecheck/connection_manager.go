@@ -185,20 +185,12 @@ func (m *snmpConnectionManager) testFallback() bool {
 	return true
 }
 
-// isTimeoutError checks if error is a timeout error.
-// Handles both our wrapped ConnectionTimeoutError and raw net.Error timeouts.
+// isTimeoutError checks if error is a network timeout.
 func isTimeoutError(err error) bool {
 	if err == nil {
 		return false
 	}
 
-	// Check if it's our typed timeout error
-	var timeoutErr *session.ConnectionTimeoutError
-	if errors.As(err, &timeoutErr) {
-		return true
-	}
-
-	// Check if it's a raw network timeout
 	var netErr net.Error
 	if errors.As(err, &netErr) {
 		return netErr.Timeout()

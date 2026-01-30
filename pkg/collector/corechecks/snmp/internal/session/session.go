@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	stdlog "log"
-	"net"
 	"strings"
 	"time"
 
@@ -25,31 +24,6 @@ import (
 )
 
 const sysObjectIDOid = "1.3.6.1.2.1.1.2.0"
-
-// ConnectionTimeoutError represents a connection timeout specifically
-// Wraps the underlying timeout error for type-safe error checking
-type ConnectionTimeoutError struct {
-	addr string
-	err  error
-}
-
-// NewConnectionTimeoutError creates a new timeout error
-func NewConnectionTimeoutError(addr string, err error) *ConnectionTimeoutError {
-	return &ConnectionTimeoutError{
-		addr: addr,
-		err:  err,
-	}
-}
-
-// Error returns the error message
-func (e *ConnectionTimeoutError) Error() string {
-	return fmt.Sprintf("connection timeout to %s: %v", e.addr, e.err)
-}
-
-// Unwrap returns the underlying error
-func (e *ConnectionTimeoutError) Unwrap() error {
-	return e.err
-}
 
 // Factory will create a new Session
 type Factory func(config *checkconfig.CheckConfig) (Session, error)
@@ -78,26 +52,7 @@ type GosnmpSession struct {
 
 // Connect is used to create a new connection
 func (s *GosnmpSession) Connect() error {
-	err := s.gosnmpInst.Connect()
-	if err != nil {
-		// Check if this is a timeout error and wrap it with our type
-		if isNetworkTimeout(err) {
-			return NewConnectionTimeoutError(s.gosnmpInst.Target, err)
-		}
-		// Return other errors as-is (auth failures, etc.)
-		return err
-	}
-	return nil
-}
-
-// isNetworkTimeout checks if the underlying error is a network timeout
-// Uses net.Error interface (standard Go way)
-func isNetworkTimeout(err error) bool {
-	var netErr net.Error
-	if errors.As(err, &netErr) {
-		return netErr.Timeout()
-	}
-	return false
+	return s.gosnmpInst.Connect()
 }
 
 // Close is used to close the connection

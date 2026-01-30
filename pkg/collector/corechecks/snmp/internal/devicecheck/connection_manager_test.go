@@ -24,6 +24,19 @@ type mockSession struct {
 	mock.Mock
 }
 
+// mockTimeoutError implements net.Error for testing timeout scenarios
+type mockTimeoutError struct {
+	msg string
+}
+
+func (e *mockTimeoutError) Error() string   { return e.msg }
+func (e *mockTimeoutError) Timeout() bool   { return true }
+func (e *mockTimeoutError) Temporary() bool { return false }
+
+func newMockTimeoutError(msg string) error {
+	return &mockTimeoutError{msg: msg}
+}
+
 func (m *mockSession) Connect() error {
 	args := m.Called()
 	return args.Error(0)
@@ -123,7 +136,7 @@ func TestConnectionManager_TimeoutTriggersFallback(t *testing.T) {
 	// Main session fails with timeout on reachability check
 	mainSess.On("Connect").Return(nil).Once()
 	mainSess.On("GetNext", []string{coresnmp.DeviceReachableGetNextOid}).
-		Return(nil, session.NewConnectionTimeoutError("10.0.0.1", errors.New("timeout"))).Once()
+		Return(nil, newMockTimeoutError("timeout")).Once()
 
 	// Test session with unconnected socket succeeds
 	testSess.On("Connect").Return(nil).Once()
@@ -203,7 +216,7 @@ func TestConnectionManager_FallbackTestFails(t *testing.T) {
 	// Main session fails with timeout
 	mainSess.On("Connect").Return(nil).Once()
 	mainSess.On("GetNext", []string{coresnmp.DeviceReachableGetNextOid}).
-		Return(nil, session.NewConnectionTimeoutError("10.0.0.1", errors.New("timeout"))).Once()
+		Return(nil, newMockTimeoutError("timeout")).Once()
 
 	// Test session fails
 	testSess.On("Connect").Return(nil).Once()
@@ -310,13 +323,13 @@ func TestIsTimeoutError(t *testing.T) {
 			expected: false,
 		},
 		{
-			name:     "ConnectionTimeoutError",
-			err:      session.NewConnectionTimeoutError("10.0.0.1", errors.New("timeout")),
+			name:     "network timeout error",
+			err:      newMockTimeoutError("timeout"),
 			expected: true,
 		},
 		{
-			name:     "wrapped ConnectionTimeoutError",
-			err:      fmt.Errorf("wrapped: %w", session.NewConnectionTimeoutError("10.0.0.1", errors.New("timeout"))),
+			name:     "wrapped network timeout",
+			err:      fmt.Errorf("wrapped: %w", newMockTimeoutError("timeout")),
 			expected: true,
 		},
 		{
