@@ -3,11 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build !linux
+
 package sender
 
-import "github.com/DataDog/datadog-agent/pkg/eventmonitor"
+import (
+	"context"
+	"errors"
+)
 
-// EventConsumerRegistry is the interface for an eventmonitor which allows adding handlers
-type EventConsumerRegistry interface {
-	AddEventConsumerHandler(consumer eventmonitor.EventConsumerHandler) error
+// New creates a direct sender
+func New(
+	_ context.Context,
+	_ ConnectionsSource,
+	_ Dependencies,
+) (Sender, error) {
+	return nil, errors.New("unsupported platform")
 }

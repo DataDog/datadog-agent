@@ -87,13 +87,13 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 		log.Info("event monitoring network consumer initialized")
 
 		if netconfig.DirectSend {
-			dp, err := sender.NewDirectSenderConsumer(evm, deps.Log, deps.SysprobeConfig)
+			ds, err := sender.NewDirectSenderConsumer(evm, deps.Log, deps.SysprobeConfig)
 			if err != nil {
 				return nil, err
 			}
-			if dp != nil {
-				evm.RegisterEventConsumer(dp)
-				log.Info("event monitoring docker proxy consumer initialized")
+			if ds != nil {
+				evm.RegisterEventConsumer(ds)
+				log.Info("event monitoring direct sender consumer initialized")
 			}
 		}
 	}
