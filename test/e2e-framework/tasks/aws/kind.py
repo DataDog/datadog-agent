@@ -31,6 +31,7 @@ scenario_name = "aws/kind"
         "cluster_agent_full_image_path": doc.cluster_agent_full_image_path,
         "agent_flavor": doc.agent_flavor,
         "helm_config": doc.helm_config,
+        "kube_version": doc.kubernetes_version,
     }
 )
 def create_kind(
@@ -49,6 +50,7 @@ def create_kind(
     cluster_agent_full_image_path: Optional[str] = None,
     agent_flavor: Optional[str] = None,
     helm_config: Optional[str] = None,
+    kube_version: Optional[str] = None,
 ):
     """
     Create a kind environment.
@@ -60,6 +62,7 @@ def create_kind(
         "ddinfra:aws/defaultInstanceType": "t3.xlarge",
         "ddagent:deployWithOperator": bool(install_agent_with_operator),
         "ddtestworkload:deployArgoRollout": install_argorollout,
+        "ddinfra:kubernetesVersion": kube_version,
     }
 
     full_stack_name = deploy(

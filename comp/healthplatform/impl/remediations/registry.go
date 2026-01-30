@@ -11,14 +11,16 @@ import (
 	"fmt"
 	"sync"
 
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	"github.com/DataDog/agent-payload/v5/healthplatform"
+
+	"github.com/DataDog/datadog-agent/comp/healthplatform/impl/remediations/checkfailure"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/impl/remediations/dockerpermissions"
 )
 
 // IssueTemplate defines how to build a complete issue (metadata + remediation) from context
 type IssueTemplate interface {
 	// BuildIssue creates a complete issue using the provided context
-	BuildIssue(context map[string]string) *healthplatform.Issue
+	BuildIssue(context map[string]string) (*healthplatform.Issue, error)
 }
 
 // Registry manages issue templates for known issues
@@ -43,6 +45,9 @@ func NewRegistry() *Registry {
 func (r *Registry) registerBuiltInTemplates() {
 	// Docker log permissions
 	r.Register("docker-file-tailing-disabled", dockerpermissions.NewDockerPermissionIssue())
+
+	// Check execution failures
+	r.Register("check-execution-failure", checkfailure.NewCheckFailureIssue())
 }
 
 // Register adds an issue template for a specific issue ID
@@ -67,5 +72,5 @@ func (r *Registry) BuildIssue(issueID string, context map[string]string) (*healt
 		return nil, fmt.Errorf("no issue template found for: %s", issueID)
 	}
 
-	return template.BuildIssue(context), nil
+	return template.BuildIssue(context)
 }

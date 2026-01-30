@@ -318,6 +318,7 @@ def pr_commenter(
     body: str = '',
     body_file: str = '',
     pr_id: int = 0,
+    pr=None,
     verbose: bool = True,
     delete: bool = False,
     force_delete: bool = False,
@@ -329,6 +330,7 @@ def pr_commenter(
     The title is used to identify the comment to update.
 
     - pr_id: If None, will use $CI_COMMIT_BRANCH to identify which PR to comment on.
+    - pr: Pass an existing PR object to avoid an additional GitHub API call.
     - delete: If True and the body is empty, will delete the comment.
     - force_delete: Won't throw error if the comment to delete is not found.
     - echo: Print comment content to stdout.
@@ -355,16 +357,18 @@ def pr_commenter(
 
     github = GithubAPI()
 
-    if pr_id == 0:
-        branch = os.environ["CI_COMMIT_BRANCH"]
-        prs = list(github.get_pr_for_branch(branch))
-        if len(prs) == 0 and not fail_on_pr_missing:
-            print(f'{color_message("Warning", Color.ORANGE)}: No PR found for branch {branch}, skipping PR comment')
-            return
-        assert len(prs) == 1, f"Expected 1 PR for branch {branch}, found {len(prs)} PRs"
-        pr = prs[0]
-    else:
-        pr = github.get_pr(pr_id)
+    # Use provided PR object if available, otherwise fetch from API
+    if pr is None:
+        if pr_id == 0:
+            branch = os.environ["CI_COMMIT_BRANCH"]
+            prs = list(github.get_pr_for_branch(branch))
+            if len(prs) == 0 and not fail_on_pr_missing:
+                print(f'{color_message("Warning", Color.ORANGE)}: No PR found for branch {branch}, skipping PR comment')
+                return
+            assert len(prs) == 1, f"Expected 1 PR for branch {branch}, found {len(prs)} PRs"
+            pr = prs[0]
+        else:
+            pr = github.get_pr(pr_id)
 
     # Created / updated / deleted comment
     action = ''

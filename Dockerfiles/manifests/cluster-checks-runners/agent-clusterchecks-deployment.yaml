@@ -5,7 +5,8 @@ kind: Deployment
 metadata:
   name: datadog-clusterchecks
   namespace: default
-  labels: {}
+  labels:
+    agent.datadoghq.com/component: cluster-checks-runner
 spec:
   replicas: 2
   revisionHistoryLimit: 10
@@ -21,11 +22,13 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: "datadog"
-        app.kubernetes.io/instance: "datadog"
+        app.kubernetes.io/instance: datadog-cluster-checks-runner
         app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/part-of: default-datadog
         app.kubernetes.io/component: clusterchecks-agent
         admission.datadoghq.com/enabled: "false"
         app: datadog-clusterchecks
+        agent.datadoghq.com/component: cluster-checks-runner
       name: datadog-clusterchecks
       annotations: {}
     spec:
@@ -34,7 +37,7 @@ spec:
       imagePullSecrets: []
       initContainers:
         - name: init-volume
-          image: "gcr.io/datadoghq/agent:7.59.0"
+          image: "gcr.io/datadoghq/agent:7.73.0"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -45,7 +48,7 @@ spec:
               readOnly: false # Need RW for writing agent config files
           resources: {}
         - name: init-config
-          image: "gcr.io/datadoghq/agent:7.59.0"
+          image: "gcr.io/datadoghq/agent:7.73.0"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -57,7 +60,7 @@ spec:
           resources: {}
       containers:
         - name: agent
-          image: "gcr.io/datadoghq/agent:7.59.0"
+          image: "gcr.io/datadoghq/agent:7.73.0"
           command: ["bash", "-c"]
           args:
             - find /etc/datadog-agent/conf.d/ -name "*.yaml.default" -type f -delete && touch /etc/datadog-agent/datadog.yaml && exec agent run
@@ -65,6 +68,8 @@ spec:
           env:
             - name: KUBERNETES
               value: "yes"
+            - name: DD_CSI_ENABLED
+              value: "false"
             - name: DD_API_KEY
               valueFrom:
                 secretKeyRef:
@@ -100,10 +105,12 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-            # Remove unused features
             - name: DD_USE_DOGSTATSD
               value: "false"
+            # Remove unused features
             - name: DD_PROCESS_AGENT_ENABLED
+              value: "false"
+            - name: DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED
               value: "false"
             - name: DD_LOGS_ENABLED
               value: "false"
@@ -116,7 +123,15 @@ spec:
                 fieldRef:
                   fieldPath: spec.nodeName
           resources: {}
+          securityContext:
+            readOnlyRootFilesystem: true
           volumeMounts:
+            - name: datadogrun
+              mountPath: /opt/datadog-agent/run
+            - name: varlog
+              mountPath: /var/log/datadog
+            - name: tmpdir
+              mountPath: /tmp
             - name: installinfo
               subPath: install_info
               mountPath: /etc/datadog-agent/install_info
@@ -155,6 +170,12 @@ spec:
             successThreshold: 1
             timeoutSeconds: 5
       volumes:
+        - name: datadogrun
+          emptyDir: {}
+        - name: varlog
+          emptyDir: {}
+        - name: tmpdir
+          emptyDir: {}
         - name: installinfo
           configMap:
             name: datadog-installinfo

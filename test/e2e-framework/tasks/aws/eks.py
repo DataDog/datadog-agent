@@ -30,12 +30,15 @@ scenario_name = "aws/eks"
         "linux_arm_node_group": doc.linux_arm_node_group,
         "bottlerocket_node_group": doc.bottlerocket_node_group,
         "windows_node_group": doc.windows_node_group,
+        "gpu_node_group": doc.gpu_node_group,
+        "gpu_instance_type": doc.gpu_instance_type,
         "instance_type": aws_doc.instance_type,
         "full_image_path": doc.full_image_path,
         "cluster_agent_full_image_path": doc.cluster_agent_full_image_path,
         "agent_flavor": doc.agent_flavor,
         "helm_config": doc.helm_config,
         "local_chart_path": doc.local_chart_path,
+        "kube_version": doc.kubernetes_version,
     }
 )
 def create_eks(
@@ -51,24 +54,37 @@ def create_eks(
     linux_arm_node_group: bool = False,
     bottlerocket_node_group: bool = True,
     windows_node_group: bool = False,
+    gpu_node_group: bool = False,
+    gpu_instance_type: Optional[str] = None,
     instance_type: Optional[str] = None,
     full_image_path: Optional[str] = None,
     cluster_agent_full_image_path: Optional[str] = None,
     agent_flavor: Optional[str] = None,
     helm_config: Optional[str] = None,
     local_chart_path: Optional[str] = None,
+    kube_version: Optional[str] = None,
 ):
     """
     Create a new EKS environment. It lasts around 20 minutes.
     """
+
+    # When GPU node group is enabled, disable other node groups for a GPU-only cluster
+    # GPU instances are x86_64 only, so ARM is incompatible
+    if gpu_node_group:
+        linux_node_group = False
+        linux_arm_node_group = False
+        bottlerocket_node_group = False
 
     extra_flags = {
         "ddinfra:aws/eks/linuxARMNodeGroup": linux_arm_node_group,
         "ddinfra:aws/eks/linuxBottlerocketNodeGroup": bottlerocket_node_group,
         "ddinfra:aws/eks/linuxNodeGroup": str(linux_node_group),
         "ddinfra:aws/eks/windowsNodeGroup": windows_node_group,
+        "ddinfra:aws/eks/gpuNodeGroup": gpu_node_group,
+        "ddinfra:aws/eks/gpuInstanceType": gpu_instance_type if gpu_instance_type else "g4dn.xlarge",
         "ddagent:localChartPath": local_chart_path,
         "ddtestworkload:deployArgoRollout": install_argorollout,
+        "ddinfra:kubernetesVersion": kube_version,
     }
 
     # Override the instance type if specified

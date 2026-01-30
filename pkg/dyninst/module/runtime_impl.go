@@ -100,7 +100,10 @@ func (rt *runtimeImpl) Load(
 
 	runtimeID, ok := rt.store.updateOnLoad(processID, executable, programID)
 	if !ok {
-		return nil, nil
+		// This can happen if the process has gone away after the load call was
+		// initiated. Such a race is unavoidable because loading happens
+		// asynchronously.
+		return nil, fmt.Errorf("process %v not found", processID)
 	}
 
 	rt.procRuntimeIDbyProgramID.Store(programID, runtimeID)

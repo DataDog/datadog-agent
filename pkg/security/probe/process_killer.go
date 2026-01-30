@@ -299,10 +299,10 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 
 	// if a rule with a kill container scope is triggered outside a container,
 	// don't kill anything
-	containerID := ev.FieldHandlers.ResolveContainerID(ev, &ev.ProcessContext.Process.ContainerContext)
-	if containerID == "" && scope == "container" {
+	if ev.ProcessContext.Process.ContainerContext.IsNull() && scope == "container" {
 		return false
 	}
+	containerID := ev.ProcessContext.Process.ContainerContext.ContainerID
 
 	var disarmer *ruleDisarmer
 	if p.useDisarmers.Load() {
@@ -337,7 +337,7 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 		if disarmer.container.enabled {
 			if containerID != "" {
 				disarmer.m.Lock()
-				allow, newlyDisarmed := disarmer.allow(disarmer.containerCache, containerID)
+				allow, newlyDisarmed := disarmer.allow(disarmer.containerCache, string(containerID))
 				if newlyDisarmed {
 					if disarmer.dismantled {
 						disarmer.dismantledCount[containerDisarmerType]++

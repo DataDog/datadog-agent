@@ -218,8 +218,8 @@ func LoadPostgreSQLConfig(ctx context.Context, hostroot string, proc *process.Pr
 			hintPath = filepath.Clean(cmdline[i+1])
 			break
 		}
-		if strings.HasPrefix(arg, "--config-file=") {
-			hintPath = filepath.Clean(strings.TrimPrefix(arg, "--config-file="))
+		if after, ok := strings.CutPrefix(arg, "--config-file="); ok {
+			hintPath = filepath.Clean(after)
 			break
 		}
 	}

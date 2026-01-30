@@ -10,6 +10,7 @@ var dummy int
 //go:noinline
 func Foo() {
 	dummy++
+	InlinedFunc()
 }
 
 func InlinedFunc() {

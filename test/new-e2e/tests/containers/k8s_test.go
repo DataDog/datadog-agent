@@ -515,9 +515,9 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 			suite.T().Logf("Output:\n%s", stdout)
 
 			validEntryCount := 0
-			lines := strings.Split(stdout, "\n")
+			lines := strings.SplitSeq(stdout, "\n")
 
-			for _, line := range lines {
+			for line := range lines {
 				line = strings.TrimSpace(line)
 				if line == "" {
 					continue
@@ -745,6 +745,9 @@ func (suite *k8sSuite) TestRedis() {
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "redis.net.instantaneous_ops_per_sec",
+			Tags: []string{
+				`^kube_namespace:workload-redis$`,
+			},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
@@ -802,6 +805,9 @@ func (suite *k8sSuite) TestRedis() {
 	suite.testLog(&testLogArgs{
 		Filter: testLogFilterArgs{
 			Service: "redis",
+			Tags: []string{
+				`^kube_namespace:workload-redis$`,
+			},
 		},
 		Expect: testLogExpectArgs{
 			Tags: &[]string{
@@ -1595,6 +1601,7 @@ func (suite *k8sSuite) TestSBOM() {
 				regexp.MustCompile(`^image_name:ghcr\.io/datadog/apps-nginx-server$`),
 				regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`),
 				regexp.MustCompile(`^os_name:linux$`),
+				regexp.MustCompile(`^scan_method:(filesystem|tarball|overlayfs)$`),
 				regexp.MustCompile(`^short_image:apps-nginx-server$`),
 			}
 			err = assertTags(image.GetTags(), expectedTags, []*regexp.Regexp{}, false)

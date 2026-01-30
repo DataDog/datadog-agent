@@ -130,6 +130,9 @@ type NotificationReceiver func(setting string, source Source, oldValue, newValue
 
 // Reader is a subset of Config that only allows reading of configuration
 type Reader interface {
+	// GetLibType returns the lib used to power the configuration (viper / tee / nodetreemodel)
+	GetLibType() string
+
 	Get(key string) interface{}
 	GetString(key string) string
 	GetBool(key string) bool
@@ -160,7 +163,10 @@ type Reader interface {
 	// AllKeysLowercased returns all config keys in the config, no matter how they are set.
 	// Note that it returns the keys lowercased.
 	AllKeysLowercased() []string
-	AllSettingsWithSequenceID() (map[string]interface{}, uint64)
+	// AllFlattenedSettingsWithSequenceID returns all settings as a flattened map (e.g., "logs_config.enabled"
+	// instead of nested {"logs_config": {"enabled": ...}}) along with the current sequence ID.
+	// This provides atomic access to flattened keys, values, and sequence ID under a single lock.
+	AllFlattenedSettingsWithSequenceID() (map[string]interface{}, uint64)
 
 	// SetTestOnlyDynamicSchema is used by tests to disable validation of the config schema
 	// This lets tests use the config is more flexible ways (can add to the schema at any point,

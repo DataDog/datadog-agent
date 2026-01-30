@@ -151,7 +151,9 @@ func (s *sink) HandleEvent(msg dispatcher.Message) error {
 			"maximum call count exceeded",
 		)
 		entryEvent = msgEvent
-	case output.EventPairingExpectationNone:
+	case output.EventPairingExpectationNone,
+		output.EventPairingExpectationNoneInlined,
+		output.EventPairingExpectationNoneNoBody:
 		entryEvent = msgEvent
 	default:
 		return fmt.Errorf("unknown event pairing expectation: %d", evHeader.Event_pairing_expectation)

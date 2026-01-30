@@ -517,17 +517,11 @@ func TestUsageMetric_DDOT(t *testing.T) {
 		DDOTGWUsage: telemetryComp.NewGauge(
 			"runtime",
 			"datadog_agent_ddot_gateway_usage",
-			[]string{"version", "command", "host", "task_arn"},
+			[]string{"version", "command"},
 			"Usage metric for GW deployments with DDOT",
 		),
-
-		DDOTGWEnvValue: telemetryComp.NewGauge(
-			"runtime",
-			"datadog_agent_ddot_gateway_configured",
-			[]string{"version", "command", "host", "task_arn"},
-			"The value of DD_OTELCOLLECTOR_GATEWAY_MODE env. var set by Helm Chart or Operator",
-		),
 	}
+
 	f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
 		return "agent-host", nil
 	}, nil, otel.NewDisabledGatewayUsage(), store, nil)
@@ -568,7 +562,7 @@ func TestUsageMetric_DDOT(t *testing.T) {
 	usageMetric, err = telemetryComp.GetGaugeMetric("runtime", "datadog_agent_ddot_gateway_usage")
 	require.NoError(t, err)
 	require.Len(t, usageMetric, 1)
-	assert.Equal(t, map[string]string{"host": "test-host", "command": "otelcol", "version": "latest", "task_arn": ""}, usageMetric[0].Tags())
+	assert.Equal(t, map[string]string{"command": "otelcol", "version": "latest"}, usageMetric[0].Tags())
 	assert.Equal(t, float64(0), usageMetric[0].Value())
 
 	_, err = telemetryComp.GetGaugeMetric("runtime", "datadog_agent_otlp_ingest_metrics")
@@ -583,15 +577,20 @@ func usageMetricGW(t *testing.T, gwUsage otel.GatewayUsage, expGwUsage float64, 
 		DDOTGWUsage: telemetryComp.NewGauge(
 			"runtime",
 			"datadog_agent_ddot_gateway_usage",
-			[]string{"version", "command", "host", "task_arn"},
+			[]string{"version", "command"},
 			"Usage metric for GW deployments with DDOT",
 		),
-		DDOTGWEnvValue: telemetryComp.NewGauge(
-			"runtime",
-			"datadog_agent_ddot_gateway_configured",
-			[]string{"version", "command", "host", "task_arn"},
-			"The value of DD_OTELCOLLECTOR_GATEWAY_MODE env. var set by Helm Chart or Operator",
-		),
+	}
+
+	DDOTGWEnvValue := telemetryComp.NewGauge(
+		"runtime",
+		"datadog_agent_ddot_gateway_configured",
+		[]string{"version", "command"},
+		"The value of DD_OTELCOLLECTOR_GATEWAY_MODE env. var set by Helm Chart or Operator",
+	)
+
+	if DDOTGWEnvValue != nil {
+		DDOTGWEnvValue.Set(expGwEnvVar, "latest", "otelcol")
 	}
 
 	f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
@@ -627,13 +626,13 @@ func usageMetricGW(t *testing.T, gwUsage otel.GatewayUsage, expGwUsage float64, 
 	usageMetric, err := telemetryComp.GetGaugeMetric("runtime", "datadog_agent_ddot_gateway_usage")
 	require.NoError(t, err)
 	require.Len(t, usageMetric, 1)
-	assert.Equal(t, map[string]string{"host": "test-host", "command": "otelcol", "version": "latest", "task_arn": ""}, usageMetric[0].Tags())
+	assert.Equal(t, map[string]string{"command": "otelcol", "version": "latest"}, usageMetric[0].Tags())
 	assert.Equal(t, expGwUsage, usageMetric[0].Value())
 
 	usageGwEnvVar, err := telemetryComp.GetGaugeMetric("runtime", "datadog_agent_ddot_gateway_configured")
 	require.NoError(t, err)
 	require.Len(t, usageGwEnvVar, 1)
-	assert.Equal(t, map[string]string{"host": "test-host", "command": "otelcol", "version": "latest", "task_arn": ""}, usageGwEnvVar[0].Tags())
+	assert.Equal(t, map[string]string{"command": "otelcol", "version": "latest"}, usageGwEnvVar[0].Tags())
 	assert.Equal(t, expGwEnvVar, usageGwEnvVar[0].Value())
 
 	_, err = telemetryComp.GetGaugeMetric("runtime", "datadog_agent_otlp_ingest_metrics")

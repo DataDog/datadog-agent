@@ -10,6 +10,7 @@ package tracer
 import (
 	"net"
 	"net/url"
+	"os/exec"
 	"runtime"
 	"strconv"
 	"testing"
@@ -20,6 +21,7 @@ import (
 	"github.com/vishvananda/netns"
 	"go4.org/netipx"
 
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -49,10 +51,30 @@ func TestConntrackers(t *testing.T) {
 			runConntrackerTest(t, "eBPF", setupEBPFConntracker)
 		})
 	})
+
+	// these tests exercise the __nf_conntrack_confirm alternate probes via normal packet flow
+	t.Run("eBPFAlternateProbesNFConntrackConfirm", func(t *testing.T) {
+		runAlternateProbesTest(t, func(t *testing.T) {
+			runConntrackerTest(t, "eBPFAlternateProbesNFConntrackConfirm", setupEBPFConntracker)
+		})
+	})
+
+	// these tests exercise the nf_conntrack_hash_check_insert alternate probes via the ctnetlink
+	// interface using the conntrack -I CLI
+	t.Run("eBPFAlternateProbesNFConntrackHashCheckInsert", func(t *testing.T) {
+		if _, err := exec.LookPath("conntrack"); err != nil {
+			t.Skip("conntrack CLI not available")
+		}
+
+		runAlternateProbesTest(t, func(t *testing.T) {
+			runNFConntrackHashCheckInsertTest(t, setupEBPFConntracker)
+		})
+	})
 }
 
 func runConntrackerTest(t *testing.T, name string, createFn func(*testing.T, *config.Config) (netlink.Conntracker, error)) {
 	t.Run("IPv4", func(t *testing.T) {
+		mock.NewSystemProbe(t)
 		cfg := config.New()
 		ct, err := createFn(t, cfg)
 		require.NoError(t, err)
@@ -63,6 +85,7 @@ func runConntrackerTest(t *testing.T, name string, createFn func(*testing.T, *co
 		testConntracker(t, net.ParseIP("1.1.1.1"), net.ParseIP("2.2.2.2"), ct, cfg)
 	})
 	t.Run("IPv6", func(t *testing.T) {
+		mock.NewSystemProbe(t)
 		cfg := config.New()
 		ct, err := createFn(t, cfg)
 		require.NoError(t, err)
@@ -73,6 +96,7 @@ func runConntrackerTest(t *testing.T, name string, createFn func(*testing.T, *co
 		testConntracker(t, net.ParseIP("fd00::1"), net.ParseIP("fd00::2"), ct, cfg)
 	})
 	t.Run("cross namespace - NAT rule on test namespace", func(t *testing.T) {
+		mock.NewSystemProbe(t)
 		if name == "netlink" {
 			if kv >= kernel.VersionCode(5, 19, 0) && kv < kernel.VersionCode(6, 3, 0) {
 				// see https://lore.kernel.org/netfilter-devel/CALvGib_xHOVD2+6tKm2Sf0wVkQwut2_z2gksZPcGw30tOvOAAA@mail.gmail.com/T/#u
@@ -89,6 +113,7 @@ func runConntrackerTest(t *testing.T, name string, createFn func(*testing.T, *co
 		testConntrackerCrossNamespace(t, ct)
 	})
 	t.Run("cross namespace - NAT rule on root namespace", func(t *testing.T) {
+		mock.NewSystemProbe(t)
 		cfg := config.New()
 		cfg.EnableConntrackAllNamespaces = true
 		ct, err := createFn(t, cfg)
@@ -96,6 +121,142 @@ func runConntrackerTest(t *testing.T, name string, createFn func(*testing.T, *co
 		defer ct.Close()
 
 		testConntrackerCrossNamespaceNATonRoot(t, ct)
+	})
+}
+
+func runAlternateProbesTest(t *testing.T, testFn func(t *testing.T)) {
+	supportedOnKernel, err := ebpfConntrackerAlternateProbesSupportedOnKernel()
+	if err != nil || !supportedOnKernel {
+		t.Skip("alternate probes for conntracker not supported")
+	}
+
+	origVerifyKernelFuncs := verifyKernelFuncs
+	t.Cleanup(func() {
+		verifyKernelFuncs = origVerifyKernelFuncs
+	})
+
+	// mock verifyKernelFuncs to report __nf_conntrack_hash_insert as missing to force the use of alternate probes
+	verifyKernelFuncs = func(requiredKernelFuncs ...string) (map[string]struct{}, error) {
+		missing := make(map[string]struct{})
+		for _, fn := range requiredKernelFuncs {
+			if fn == "__nf_conntrack_hash_insert" {
+				missing[fn] = struct{}{}
+			}
+		}
+		return missing, nil
+	}
+
+	// only test CO-RE and RuntimeCompiled modes since Prebuilt doesn't support alternate probes
+	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled}
+	if ebpfCOREConntrackerSupportedOnKernelT(t) {
+		modes = append([]ebpftest.BuildMode{ebpftest.CORE}, modes...)
+	}
+	ebpftest.TestBuildModes(t, modes, "", testFn)
+}
+
+func runNFConntrackHashCheckInsertTest(t *testing.T, createFn func(*testing.T, *config.Config) (netlink.Conntracker, error)) {
+	t.Run("IPv4", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := config.New()
+		ct, err := createFn(t, cfg)
+		require.NoError(t, err)
+		defer ct.Close()
+
+		netlinktestutil.SetupDNAT(t)
+
+		testNFConntrackHashCheckInsert(t, "10.0.0.100", "2.2.2.2", "1.1.1.1", network.AFINET, ct, cfg)
+	})
+	t.Run("IPv6", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := config.New()
+		ct, err := createFn(t, cfg)
+		require.NoError(t, err)
+		defer ct.Close()
+
+		netlinktestutil.SetupDNAT6(t)
+
+		testNFConntrackHashCheckInsert(t, "fd00::100", "fd00::2", "fd00::1", network.AFINET6, ct, cfg)
+	})
+	t.Run("cross namespace - NAT rule on test namespace", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := config.New()
+		cfg.EnableConntrackAllNamespaces = true
+		ct, err := createFn(t, cfg)
+		require.NoError(t, err)
+		defer ct.Close()
+
+		testNFConntrackHashCheckInsertCrossNamespace(t, ct)
+	})
+	t.Run("cross namespace - NAT rule on root namespace", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := config.New()
+		cfg.EnableConntrackAllNamespaces = true
+		ct, err := createFn(t, cfg)
+		require.NoError(t, err)
+		defer ct.Close()
+
+		testNFConntrackHashCheckInsertCrossNamespaceNATonRoot(t, ct)
+	})
+}
+
+func testNFConntrackHashCheckInsert(t *testing.T, srcIP, dstIP, replySrcIP string, family network.ConnectionFamily, ct netlink.Conntracker, cfg *config.Config) {
+	curNs, err := netnsutil.GetCurrentIno()
+	require.NoError(t, err)
+
+	t.Run("TCP", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		srcPort := 54320
+		dstPort := 8080
+
+		netlinktestutil.CreateConntrackEntry(t, srcIP, dstIP, srcPort, dstPort, replySrcIP, srcIP, dstPort, srcPort, "tcp")
+
+		var trans *network.IPTranslation
+		cs := network.ConnectionTuple{
+			Source: util.AddressFromString(srcIP),
+			SPort:  uint16(srcPort),
+			Dest:   util.AddressFromString(dstIP),
+			DPort:  uint16(dstPort),
+			Type:   network.TCP,
+			Family: family,
+			NetNS:  curNs,
+		}
+		require.Eventually(t, func() bool {
+			trans = ct.GetTranslationForConn(&cs)
+			return trans != nil
+		}, 5*time.Second, 100*time.Millisecond, "timed out waiting for TCP conntrack entry created via ctnetlink for %s", cs.String())
+
+		assert.Equal(t, util.AddressFromString(replySrcIP), trans.ReplSrcIP,
+			"expected NAT translation to %s but got %s", replySrcIP, trans.ReplSrcIP)
+	})
+
+	t.Run("UDP", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		if family == network.AFINET6 && !cfg.CollectUDPv6Conns {
+			t.Skip("UDPv6 disabled")
+		}
+
+		srcPort := 54321
+		dstPort := 8081
+
+		netlinktestutil.CreateConntrackEntry(t, srcIP, dstIP, srcPort, dstPort, replySrcIP, srcIP, dstPort, srcPort, "udp")
+
+		var trans *network.IPTranslation
+		cs := network.ConnectionTuple{
+			Source: util.AddressFromString(srcIP),
+			SPort:  uint16(srcPort),
+			Dest:   util.AddressFromString(dstIP),
+			DPort:  uint16(dstPort),
+			Type:   network.UDP,
+			Family: family,
+			NetNS:  curNs,
+		}
+		require.Eventually(t, func() bool {
+			trans = ct.GetTranslationForConn(&cs)
+			return trans != nil
+		}, 5*time.Second, 100*time.Millisecond, "timed out waiting for UDP conntrack entry created via ctnetlink for %s", cs.String())
+
+		assert.Equal(t, util.AddressFromString(replySrcIP), trans.ReplSrcIP,
+			"expected NAT translation to %s but got %s", replySrcIP, trans.ReplSrcIP)
 	})
 }
 
@@ -293,6 +454,83 @@ func testConntrackerCrossNamespaceNATonRoot(t *testing.T, ct netlink.Conntracker
 	}, 5*time.Second, 100*time.Millisecond, "timed out waiting for conntrack entry for %s", cs.String())
 
 	assert.Equal(t, util.AddressFromString("1.1.1.1"), trans.ReplSrcIP)
+}
+
+func testNFConntrackHashCheckInsertCrossNamespace(t *testing.T, ct netlink.Conntracker) {
+	ns := netlinktestutil.SetupCrossNsDNAT(t)
+
+	testNs, err := netns.GetFromName(ns)
+	require.NoError(t, err)
+	defer testNs.Close()
+	testIno, err := netnsutil.GetInoForNs(testNs)
+	require.NoError(t, err)
+
+	// Create a conntrack entry in the test namespace via CLI
+	// The NAT rule translates 2.2.2.4:80 -> 2.2.2.4:8080
+	srcIP := "10.0.0.50"
+	dstIP := "2.2.2.4"
+	srcPort := 54400
+	dstPort := 80
+	replySrcPort := 8080
+
+	// Create conntrack entry in the test namespace
+	err = netnsutil.WithNS(testNs, func() error {
+		netlinktestutil.CreateConntrackEntry(t, srcIP, dstIP, srcPort, dstPort, dstIP, srcIP, replySrcPort, srcPort, "tcp")
+		return nil
+	})
+	require.NoError(t, err)
+
+	var trans *network.IPTranslation
+	cs := network.ConnectionTuple{
+		Source: util.AddressFromString(srcIP),
+		SPort:  uint16(srcPort),
+		Dest:   util.AddressFromString(dstIP),
+		DPort:  uint16(dstPort),
+		Type:   network.TCP,
+		NetNS:  testIno,
+	}
+	require.Eventually(t, func() bool {
+		trans = ct.GetTranslationForConn(&cs)
+		return trans != nil
+	}, 5*time.Second, 100*time.Millisecond, "timed out waiting for conntrack entry for %s", cs.String())
+
+	assert.Equal(t, uint16(replySrcPort), trans.ReplSrcPort)
+}
+
+func testNFConntrackHashCheckInsertCrossNamespaceNATonRoot(t *testing.T, ct netlink.Conntracker) {
+	_ = netlinktestutil.SetupVethPair(t)
+
+	// SetupDNAT sets up a NAT translation from 3.3.3.3 to 1.1.1.1
+	netlinktestutil.SetupDNAT(t)
+
+	curNs, err := netnsutil.GetCurrentIno()
+	require.NoError(t, err)
+
+	// Create a conntrack entry via CLI in the root namespace
+	// simulating a connection from the test namespace through NAT
+	srcIP := "2.2.2.3" // IP in the veth pair (root namespace side)
+	srcPort := 54500
+	dstIP := "3.3.3.3"
+	dstPort := 8080
+	replySrcIP := "1.1.1.1"
+
+	netlinktestutil.CreateConntrackEntry(t, srcIP, dstIP, srcPort, dstPort, replySrcIP, srcIP, dstPort, srcPort, "tcp")
+
+	var trans *network.IPTranslation
+	cs := network.ConnectionTuple{
+		Source: util.AddressFromString(srcIP),
+		SPort:  uint16(srcPort),
+		Dest:   util.AddressFromString(dstIP),
+		DPort:  uint16(dstPort),
+		Type:   network.TCP,
+		NetNS:  curNs,
+	}
+	require.Eventually(t, func() bool {
+		trans = ct.GetTranslationForConn(&cs)
+		return trans != nil
+	}, 5*time.Second, 100*time.Millisecond, "timed out waiting for conntrack entry for %s", cs.String())
+
+	assert.Equal(t, util.AddressFromString(replySrcIP), trans.ReplSrcIP)
 }
 
 func TestCiliumConntrackerEnabledByDefault(t *testing.T) {

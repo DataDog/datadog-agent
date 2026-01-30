@@ -136,6 +136,12 @@ func processMemorySample(device ddnvml.Device) ([]Metric, uint64, error) {
 }
 
 func processDetailListSample(device ddnvml.Device) ([]Metric, uint64, error) {
+	if device.GetDeviceInfo().Architecture < nvml.DEVICE_ARCH_HOPPER {
+		// This API is only supported on Hopper and later, but it doesn't return "not supported" error,
+		// instead it reports "Argument version mismatch", so just do the check here.
+		return nil, 0, ddnvml.NewNvmlAPIErrorOrNil("GetRunningProcessDetailList", nvml.ERROR_NOT_SUPPORTED)
+	}
+
 	detail, err := device.GetRunningProcessDetailList()
 	var usage []processMemoryUsageData
 	if err == nil {

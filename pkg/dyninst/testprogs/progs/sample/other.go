@@ -9,7 +9,19 @@ import (
 	"bytes"
 	"runtime"
 	"strconv"
+	"sync/atomic"
 )
+
+var atomicCounter uint64
+
+//nolint:all
+//go:noinline
+func testAtomicAdd(x uint64) uint64 {
+	// by using using sync/atomic we expect Go to generate ARMv8.1 LSE atomic
+	// instructions (like LDADDAL) on arm64, exercising the LSE detection
+	// in disassembleArm64Function.
+	return atomic.AddUint64(&atomicCounter, x)
+}
 
 type triggerVerifierErrorForTesting byte
 
@@ -39,6 +51,6 @@ func returnGoroutineId() uint64 {
 func executeOther() {
 	x := make(chan bool)
 	testChannel(x)
-
+	testAtomicAdd(1)
 	testTriggerVerifierError(1)
 }

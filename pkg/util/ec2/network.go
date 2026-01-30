@@ -131,8 +131,8 @@ var vpcSubnetFetcher = cachedfetch.Fetcher{
 			if err != nil {
 				return fmt.Errorf("EC2: GetVPCSubnetsForHost failed to get CIDRs for mac %s: %w", mac, err)
 			}
-			cidrList := strings.Split(cidrs, "\n")
-			for _, cidr := range cidrList {
+			cidrList := strings.SplitSeq(cidrs, "\n")
+			for cidr := range cidrList {
 				allSubnets.Add(cidr)
 			}
 			return nil

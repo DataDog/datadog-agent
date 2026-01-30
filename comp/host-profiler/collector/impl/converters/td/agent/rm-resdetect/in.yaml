@@ -1,0 +1,18 @@
+processors:
+  resourcedetection:
+    detectors:
+    - system
+  batch: {}
+service:
+  pipelines:
+    profiles:
+      processors:
+      - resourcedetection
+      - batch
+      receivers: []
+      exporters:
+      - otlphttp
+exporters:
+  otlphttp:
+    headers:
+      dd-api-key: test-api-key

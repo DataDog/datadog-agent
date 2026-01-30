@@ -102,6 +102,8 @@ func GeneratePARJWT(orgId int64, runnerId string, privateKey *ecdsa.PrivateKey, 
 
 	return signed, nil
 }
+
+// JWKToPEM converts a JWK public key to PEM format
 func JWKToPEM(pubJWK *jose.JSONWebKey) (string, error) {
 	if !pubJWK.IsPublic() {
 		return "", errors.New("error converting JWK to PEM: the key is not public")

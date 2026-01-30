@@ -493,6 +493,33 @@ func (sh *StreamHandler) markEnd() error {
 	return nil
 }
 
+// releasePoolResources releases all pool-allocated objects held by this handler
+// without emitting any spans or data. This is used during cleanup of inactive
+// streams where we don't want to generate metrics from stale data.
+func (sh *StreamHandler) releasePoolResources() {
+	sh.kernelLaunchesMutex.Lock()
+	defer sh.kernelLaunchesMutex.Unlock()
+
+	for _, launch := range sh.kernelLaunches {
+		memPools.enrichedKernelLaunchPool.Put(launch)
+	}
+	sh.kernelLaunches = nil
+
+	// Drain and release pending spans from channels.
+	// Limit iterations to channel capacities to avoid blocking if concurrent writes happen.
+	maxIterations := cap(sh.pendingKernelSpans) + cap(sh.pendingMemorySpans)
+	for i := 0; i < maxIterations; i++ {
+		select {
+		case span := <-sh.pendingKernelSpans:
+			memPools.kernelSpanPool.Put(span)
+		case span := <-sh.pendingMemorySpans:
+			memPools.memorySpanPool.Put(span)
+		default:
+			return
+		}
+	}
+}
+
 func (sh *StreamHandler) isInactive(now int64, maxInactivity time.Duration) bool {
 	// If the stream has no events, it's considered active, we don't want to
 	// delete a stream that has just been created

@@ -34,25 +34,32 @@ service_monitoring_config:
 
 ### `usm sysinfo`
 
-Shows system information relevant to USM debugging.
+Shows system information relevant to USM debugging, including detected services and programming languages.
 
 **Usage:**
 ```bash
 sudo ./system-probe usm sysinfo
 sudo ./system-probe usm sysinfo --max-cmdline-length 100  # Extended command line display
 sudo ./system-probe usm sysinfo --max-name-length 50      # Extended process name display
-sudo ./system-probe usm sysinfo --max-cmdline-length 0 --max-name-length 0  # Unlimited
+sudo ./system-probe usm sysinfo --max-service-length 30   # Extended service name display
+sudo ./system-probe usm sysinfo --max-cmdline-length 0 --max-name-length 0 --max-service-length 0  # Unlimited
 ```
 
 **Options:**
 - `--max-cmdline-length` - Maximum command line length to display (default: 50, 0 for unlimited)
 - `--max-name-length` - Maximum process name length to display (default: 25, 0 for unlimited)
+- `--max-service-length` - Maximum service name length to display (default: 20, 0 for unlimited)
 
 **Output:**
 - Kernel version
 - OS type and architecture
 - Hostname
-- List of all running processes with PIDs, PPIDs, names, and command lines
+- List of all running processes with:
+  - PIDs and PPIDs
+  - Process names
+  - Detected service names (using the same logic as the process-agent)
+  - Detected programming language and version
+  - Command lines
 
 **Output Example:**
 ```
@@ -65,13 +72,53 @@ Hostname:       agent-dev-ubuntu-22
 
 Running Processes: 127
 
-PID     | PPID    | Name                      | Command
---------|---------|---------------------------|--------------------------------------------------
-1       | 0       | systemd                   | /sbin/init
-156     | 1       | sshd                      | /usr/sbin/sshd -D
+PID     | PPID    | Name                      | Service              | Language     | Command
+--------|---------|---------------------------|----------------------|--------------|--------------------------------------------------
+1       | 0       | systemd                   | systemd              | -            | /sbin/init autoinstall
+774     | 1       | containerd                | containerd           | go/go1.23.7  | /usr/bin/containerd
+1046    | 1       | dockerd                   | dockerd              | go/go1.23.8  | /usr/bin/dockerd -H fd:// --containerd=/run/con...
 ...
 ```
 
+
+### `usm netstat`
+
+Shows network connections similar to `netstat -antpu`. Displays TCP and UDP connections with process information.
+
+**Usage:**
+```bash
+sudo ./system-probe usm netstat                    # Show all TCP and UDP connections
+sudo ./system-probe usm netstat --tcp=false        # Show only UDP connections
+sudo ./system-probe usm netstat --udp=false        # Show only TCP connections
+```
+
+**Options:**
+- `--tcp` / `-t` - Show TCP connections (default: true)
+- `--udp` / `-u` - Show UDP connections (default: true)
+
+**Output:**
+- Protocol (tcp, tcp6, udp, udp6)
+- Local address and port
+- Remote address and port
+- Connection state (ESTABLISHED, LISTEN, etc. for TCP)
+- PID and process name
+
+**Output Example:**
+```
+Proto | Local Address           | Foreign Address         | State       | PID/Program
+------|-------------------------|-------------------------|-------------|------------------
+tcp   | 0.0.0.0:22             | 0.0.0.0:0              | LISTEN      | 1234/sshd
+tcp   | 127.0.0.1:8080         | 127.0.0.1:45678        | ESTABLISHED | 5678/python
+tcp6  | :::80                  | :::0                   | LISTEN      | 9012/nginx
+udp   | 0.0.0.0:53             | 0.0.0.0:0              |             | 3456/systemd-resolved
+```
+
+**Use Cases:**
+- Debug USM connectivity issues
+- Verify which processes are listening on ports
+- Check established connections for monitored services
+- Identify which processes own specific network connections
+- Troubleshoot port conflicts
 
 ### `usm symbols ls`
 
@@ -140,6 +187,8 @@ This provides complete context about the USM configuration and system environmen
 Use `usm sysinfo` to see what processes are running that USM might be monitoring, helping to:
 - Verify target applications are running
 - Check if applications are running with expected command line arguments
+- Identify detected service names for processes (e.g., "nginx", "postgres", "node")
+- See which programming languages are detected and their versions
 - Identify processes by PID for further investigation
 
 ### Inspecting eBPF Maps
@@ -164,10 +213,22 @@ See the [eBPF subcommands README](../ebpf/README.md) for full documentation on e
 ### Sysinfo Command
 - Collects process information using `procutil.NewProcessProbe()` (same as process-agent)
 - Uses `kernel.Release()` for kernel version detection
+- Detects service names using `parser.NewServiceExtractor()` (same logic as process-agent service discovery)
 - Processes are sorted by PID
-- Output truncates long process names (default 25 chars) and command lines (default 50 chars) for readability
-- Both truncation limits are configurable via flags
-- Use `--max-cmdline-length 0` and `--max-name-length 0` for unlimited display
+- Output truncates long process names (default 25 chars), service names (default 20 chars), and command lines (default 50 chars) for readability
+- All truncation limits are configurable via flags
+- Use `--max-cmdline-length 0`, `--max-name-length 0`, and `--max-service-length 0` for unlimited display
+
+### Netstat Command
+- Uses `procnet.GetTCPConnections()` for robust TCP connection parsing with PID/FD mapping
+- Reads UDP connections from `/proc/net/udp` and `/proc/net/udp6` (manual parsing)
+- Maps socket inodes to processes by reading `/proc/*/fd/*` symlinks for UDP
+- Parses hexadecimal IP addresses and ports to human-readable format
+- Shows TCP connection states (ESTABLISHED, LISTEN, TIME_WAIT, etc.)
+- Filters connections based on protocol flags (`--tcp`, `--udp`)
+- Connections sorted by protocol and local port
+- Use standard Unix tools like `grep` for additional filtering (e.g., `| grep LISTEN`)
+- Linux with eBPF support only (requires `linux_bpf` build tag)
 
 ### Symbols Ls Command
 - Parses ELF binaries using `pkg/util/safeelf` package for safe symbol table reading

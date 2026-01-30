@@ -103,10 +103,15 @@ echo "# Installing the app"
 mv -v "$OPT_APP_DIR" /Applications || echo "App already installed"
 
 # Set the run directory for the agent
-# This directory is used for agent runtime files including IPC sockets
+# This directory is used for agent runtime files including databases and registries
 mkdir -vp "$RUN_DIR"
-chown -vR root:wheel "$RUN_DIR"
-chmod -v 1777 "$RUN_DIR"  # Sticky bit: users can create GUI sockets but not delete others' files
+chown -vR "${INSTALL_USER}:admin" "$RUN_DIR"
+chmod -v 755 "$RUN_DIR"  # Secure: protects databases and registries
+
+# Create separate world-writable directory ONLY for multi-user GUI sockets
+mkdir -vp "$RUN_DIR/ipc"
+chown -vR root:wheel "$RUN_DIR/ipc"
+chmod -v 1777 "$RUN_DIR/ipc"  # Sticky bit: users can create GUI sockets but not delete others' files
 
 echo "# Copying conf"
 mkdir -vp $CONF_DIR/checks.d

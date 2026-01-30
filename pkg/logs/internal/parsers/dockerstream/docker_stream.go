@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"fmt"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
@@ -56,6 +57,7 @@ func (p *dockerStreamFormat) SupportsPartialLine() bool {
 
 func parseDockerStream(msg *message.Message, containerID string) (*message.Message, error) {
 	content := msg.GetContent()
+	stream := "" // stdout or stderr
 	// The format of the message should be :
 	// [8]byte{STREAM_TYPE, 0, 0, 0, SIZE1, SIZE2, SIZE3, SIZE4}[]byte{OUTPUT}
 	// If we don't have at the very least 8 bytes we can consider this message can't be parsed.
@@ -86,6 +88,14 @@ func parseDockerStream(msg *message.Message, containerID string) (*message.Messa
 			msg.Status = status
 			return msg, fmt.Errorf("cannot parse docker message for container %v: message too short after processing", containerID)
 		}
+		// Before removing the header, capture the stream from the first byte:
+		// 1 -> stdout, 2 -> stderr
+		switch content[0] {
+		case 1:
+			stream = "stdout"
+		case 2:
+			stream = "stderr"
+		}
 		// remove the header as we don't need it anymore
 		content = content[dockerHeaderLength:]
 
@@ -102,6 +112,12 @@ func parseDockerStream(msg *message.Message, containerID string) (*message.Messa
 	msg.SetContent(content[idx+1:])
 	msg.Status = status
 	msg.ParsingExtra.IsPartial = false
+	// Add a tag for the stream when deducible from the header byte
+	if pkgconfigsetup.Datadog().GetBool("logs_config.add_logsource_tag") {
+		if stream != "" {
+			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.LogSourceTag(stream))
+		}
+	}
 	return msg, nil
 }
 

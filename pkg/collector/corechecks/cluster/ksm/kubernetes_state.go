@@ -1318,19 +1318,18 @@ func ownerTags(kind, name string) []string {
 		return nil
 	}
 
-	tagList := []string{tagKey + ":" + name}
 	switch kind {
 	case kubernetes.JobKind:
 		if cronjob, _ := kubernetes.ParseCronJobForJob(name); cronjob != "" {
-			return append(tagList, tags.KubeCronjob+":"+cronjob)
+			return []string{tagKey + ":" + name, tags.KubeCronjob + ":" + cronjob}
 		}
 	case kubernetes.ReplicaSetKind:
 		if deployment := kubernetes.ParseDeploymentForReplicaSet(name); deployment != "" {
-			return append(tagList, tags.KubeDeployment+":"+deployment)
+			return []string{tagKey + ":" + name, tags.KubeDeployment + ":" + deployment}
 		}
 	}
 
-	return tagList
+	return []string{tagKey + ":" + name}
 }
 
 // labelsMapperOverride allows overriding the default label mapping for

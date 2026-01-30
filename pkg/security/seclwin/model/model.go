@@ -96,10 +96,9 @@ func (r *Releasable) AppendReleaseCallback(callback func()) {
 // ContainerContext holds the container context of an event
 type ContainerContext struct {
 	*Releasable
-	ContainerID containerutils.ContainerID `field:"id,handler:ResolveContainerID,opts:gen_getters"`                // SECLDoc[id] Definition:`ID of the container`
-	CreatedAt   uint64                     `field:"created_at,handler:ResolveContainerCreatedAt,opts:gen_getters"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
-	Tags        []string                   `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"`    // SECLDoc[tags] Definition:`Tags of the container`
-	Resolved    bool                       `field:"-"`
+	ContainerID containerutils.ContainerID `field:"id,opts:gen_getters"`                                        // SECLDoc[id] Definition:`ID of the container`
+	CreatedAt   uint64                     `field:"created_at,opts:gen_getters"`                                // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
+	Tags        []string                   `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
 }
 
 // Hash returns a unique key for the entity
@@ -107,6 +106,11 @@ func (c *ContainerContext) Hash() eval.ScopeHashKey {
 	return eval.ScopeHashKey{
 		String: string(c.ContainerID),
 	}
+}
+
+// IsNull returns true if the container context is null
+func (c *ContainerContext) IsNull() bool {
+	return c.ContainerID == ""
 }
 
 // ParentScope returns the parent entity scope
@@ -396,11 +400,16 @@ type MatchedRule struct {
 	PolicyVersion string
 }
 
+type DelayabledEvent interface {
+	IsResolved() error
+	MaxRetry() int
+}
+
 // ActionReport defines an action report
 type ActionReport interface {
+	DelayabledEvent
 	ToJSON() ([]byte, error)
 	IsMatchingRule(ruleID eval.RuleID) bool
-	IsResolved() error
 }
 
 // NewMatchedRule return a new MatchedRule instance
@@ -686,7 +695,6 @@ type AWSSecurityCredentials struct {
 type BaseExtraFieldHandlers interface {
 	ResolveProcessCacheEntry(ev *Event, newEntryCb func(*ProcessCacheEntry, error)) (*ProcessCacheEntry, bool)
 	ResolveProcessCacheEntryFromPID(pid uint32) *ProcessCacheEntry
-	ResolveContainerContext(ev *Event) (*ContainerContext, bool)
 }
 
 // ResolveProcessCacheEntry stub implementation
@@ -694,11 +702,6 @@ func (dfh *FakeFieldHandlers) ResolveProcessCacheEntry(ev *Event, _ func(*Proces
 	if ev.ProcessCacheEntry != nil {
 		return ev.ProcessCacheEntry, true
 	}
-	return nil, false
-}
-
-// ResolveContainerContext stub implementation
-func (dfh *FakeFieldHandlers) ResolveContainerContext(_ *Event) (*ContainerContext, bool) {
 	return nil, false
 }
 

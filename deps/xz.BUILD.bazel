@@ -49,13 +49,19 @@ _API_HEADERS = glob([
 ])
 
 cc_library(
+    name = "xz_config",
+    hdrs = [
+        "config.h"
+    ],
+)
+
+cc_library(
     name = "liblzma",
     srcs = [
         "src/common/tuklib_cpucores.c",
         "src/common/tuklib_physmem.c",
         "src/common/tuklib_exit.c",
         "src/common/tuklib_progname.c",
-        ":copy_config_h",
     ] + glob(
         [
             "src/**/*.h",
@@ -100,7 +106,10 @@ cc_library(
         "src/liblzma/simple",
         "src/liblzma/delta",
         "src/liblzma/rangecoder",
-    ]
+    ],
+    implementation_deps = [
+        ":xz_config",
+    ],
 )
 
 cc_shared_library(

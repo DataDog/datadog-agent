@@ -29,8 +29,6 @@ func (ev *Event) resolveFields(forADs bool) {
 	_ = ev.FieldHandlers.ResolveSource(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)
 	_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, &ev.BaseEvent.ProcessContext.Process)
-	_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.BaseEvent.ProcessContext.Process.ContainerContext)
-	_ = ev.FieldHandlers.ResolveContainerID(ev, &ev.BaseEvent.ProcessContext.Process.ContainerContext)
 	_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.BaseEvent.ProcessContext.Process)
@@ -47,8 +45,6 @@ func (ev *Event) resolveFields(forADs bool) {
 	}
 	if ev.BaseEvent.ProcessContext.HasParent() {
 		_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.BaseEvent.ProcessContext.Parent)
-		_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.BaseEvent.ProcessContext.Parent.ContainerContext)
-		_ = ev.FieldHandlers.ResolveContainerID(ev, &ev.BaseEvent.ProcessContext.Parent.ContainerContext)
 		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.BaseEvent.ProcessContext.Parent)
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.BaseEvent.ProcessContext.Parent)
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.BaseEvent.ProcessContext.Parent)
@@ -76,8 +72,6 @@ func (ev *Event) resolveFields(forADs bool) {
 	case "delete_key":
 	case "exec":
 		_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exec.Process)
-		_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.Exec.Process.ContainerContext)
-		_ = ev.FieldHandlers.ResolveContainerID(ev, &ev.Exec.Process.ContainerContext)
 		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exec.Process)
@@ -90,8 +84,6 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 	case "exit":
 		_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exit.Process)
-		_ = ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.Exit.Process.ContainerContext)
-		_ = ev.FieldHandlers.ResolveContainerID(ev, &ev.Exit.Process.ContainerContext)
 		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process)
@@ -122,8 +114,6 @@ func (ev *Event) resolveFields(forADs bool) {
 }
 
 type FieldHandlers interface {
-	ResolveContainerCreatedAt(ev *Event, e *ContainerContext) int
-	ResolveContainerID(ev *Event, e *ContainerContext) string
 	ResolveContainerTags(ev *Event, e *ContainerContext) []string
 	ResolveEventTime(ev *Event, e *BaseEvent) time.Time
 	ResolveEventTimestamp(ev *Event, e *BaseEvent) int
@@ -150,12 +140,6 @@ type FieldHandlers interface {
 }
 type FakeFieldHandlers struct{}
 
-func (dfh *FakeFieldHandlers) ResolveContainerCreatedAt(ev *Event, e *ContainerContext) int {
-	return int(e.CreatedAt)
-}
-func (dfh *FakeFieldHandlers) ResolveContainerID(ev *Event, e *ContainerContext) string {
-	return string(e.ContainerID)
-}
 func (dfh *FakeFieldHandlers) ResolveContainerTags(ev *Event, e *ContainerContext) []string {
 	return []string(e.Tags)
 }

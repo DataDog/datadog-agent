@@ -16,18 +16,19 @@ import (
 	"sync/atomic"
 	"time"
 
-	// import the full compliance code in the system-probe (including the rego evaluator)
-	// this allows us to reserve the package size while we work on pluging things out
-	_ "github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
 func init() { registerModule(ComplianceModule) }
+
+var complianceConfigNamespaces = []string{"compliance_config", "runtime_security_config"}
 
 // ComplianceModule is a system-probe module that exposes an HTTP api to
 // perform compliance checks that require more privileges than security-agent
@@ -37,21 +38,52 @@ func init() { registerModule(ComplianceModule) }
 // accessing the /proc/<pid>/root mount point.
 var ComplianceModule = &module.Factory{
 	Name:             config.ComplianceModule,
-	ConfigNamespaces: []string{},
-	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
-		return &complianceModule{}, nil
-	},
+	ConfigNamespaces: complianceConfigNamespaces,
+	Fn:               newComplianceModule,
 	NeedsEBPF: func() bool {
 		return false
 	},
 }
 
+func newComplianceModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
+	stopper := startstop.NewSerialStopper()
+
+	var complianceAgent *compliance.Agent
+
+	enabled := deps.CoreConfig.GetBool("compliance_config.enabled")
+	runInSystemProbe := deps.CoreConfig.GetBool("compliance_config.run_in_system_probe")
+
+	if enabled && runInSystemProbe {
+		hostnameDetected, err := deps.Hostname.Get(context.Background())
+		if err != nil {
+			return nil, err
+		}
+
+		sysProbeClient := &compliance.LocalSysProbeClient{}
+
+		// start compliance agent
+		complianceAgent, err = compliance.StartCompliance(deps.Log, deps.CoreConfig, hostnameDetected, stopper, deps.Statsd, deps.WMeta, deps.FilterStore, deps.Compression, sysProbeClient)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &complianceModule{
+		stopper: stopper,
+		agent:   complianceAgent,
+	}, nil
+}
+
 type complianceModule struct {
+	agent   *compliance.Agent
+	stopper startstop.Stopper
+
 	performedChecks atomic.Uint64
 }
 
-// Close is a noop (implements module.Module)
-func (*complianceModule) Close() {
+// Close stops the compliance module (implements module.Module)
+func (m *complianceModule) Close() {
+	m.stopper.Stop()
 }
 
 // GetStats returns statistics related to the compliance module (implements module.Module)

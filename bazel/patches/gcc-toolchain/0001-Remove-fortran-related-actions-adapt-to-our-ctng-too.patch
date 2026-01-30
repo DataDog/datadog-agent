@@ -328,8 +328,8 @@ index 0e55fd7..7c8787f 100644
          "x86_64": {
 -            "url": "https://github.com/f0rmiga/gcc-builds/releases/download/18082025/gcc-toolchain-12.5.0-x86_64.tar.xz",
 -            "sha256": "51076e175839b434bb2dc0006c0096916df585e8c44666d35b0e3ce821d535db",
-+            "url": "https://dd-agent-omnibus.s3.amazonaws.com/bazel/datadog_agent_cc_toolchain_x86_64.tar.gz",
-+            "sha256": "5b85c1bcd1743c9f4bbc3c18c0af32f9164375bc8d7fa540a3cd2bbac72bca6b",
++            "url": "https://dd-agent-omnibus.s3.amazonaws.com/bazel/datadog_agent_cc_toolchain_ubuntu_22_gcc_11.4.0_x86_64.tar.gz",
++            "sha256": "5d6d23c2ac58b4843b5b5cc2de76d655a4da71656627b1ab7160d8e96996b080",
          },
      },
 -    "13.4.0": {
@@ -373,8 +373,8 @@ index 0e55fd7..7c8787f 100644
 -        "x86_64": {
 -            "url": "https://github.com/f0rmiga/gcc-builds/releases/download/18082025/gcc-toolchain-15.2.0-x86_64.tar.xz",
 -            "sha256": "50dd28021365e7443853d5e77bc94ab1d1c947ad48fd91cbec44dbdfa61412c9",
-+            "url": "https://dd-agent-omnibus.s3.amazonaws.com/bazel/datadog_agent_cc_toolchain_aarch64.tar.gz",
-+            "sha256": "cc84eee2a9e1f2ef25895cae5b34667e3d1c0d5aa16199ed45d3d21c7b1e2690",
++            "url": "https://dd-agent-omnibus.s3.amazonaws.com/bazel/datadog_agent_cc_toolchain_ubuntu_22_gcc_12.3.0_aarch64.tar.gz",
++            "sha256": "a599fdb7c5985db5bed1bfa06a6fa5aef73f0dba81c6ce12328d176738ec0d09",
          },
      },
  }

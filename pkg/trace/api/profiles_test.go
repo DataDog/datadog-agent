@@ -300,7 +300,15 @@ func TestProfileProxyHandler(t *testing.T) {
 		}))
 		conf := newTestReceiverConfig()
 		conf.ProfilingProxy = config.ProfilingProxyConfig{DDURL: srv.URL}
-		conf.AzureServerlessTags = ",subscription_id:123,resource_group:test-rg,resource_id:456,aca.subscription.id:123,aca.resource.group:test-rg,aca.resource.id:456,aca.replica.name:test-replica"
+		conf.AdditionalProfileTags = map[string]string{
+			"subscription_id":     "123",
+			"resource_group":      "test-rg",
+			"resource_id":         "456",
+			"aca.subscription.id": "123",
+			"aca.resource.group":  "test-rg",
+			"aca.resource.id":     "456",
+			"aca.replica.name":    "test-replica",
+		}
 		req, err := http.NewRequest("POST", "/some/path", nil)
 		if err != nil {
 			t.Fatal(err)
@@ -331,7 +339,11 @@ func TestProfileProxyHandler(t *testing.T) {
 		}))
 		conf := newTestReceiverConfig()
 		conf.ProfilingProxy = config.ProfilingProxyConfig{DDURL: srv.URL}
-		conf.AzureServerlessTags = ",aas.subscription.id:123,aas.resource.group:test-rg,aas.resource.id:456"
+		conf.AdditionalProfileTags = map[string]string{
+			"aas.subscription.id": "123",
+			"aas.resource.group":  "test-rg",
+			"aas.resource.id":     "456",
+		}
 		req, err := http.NewRequest("POST", "/some/path", nil)
 		if err != nil {
 			t.Fatal(err)

@@ -6,34 +6,97 @@ on:
       - labeled
 
 jobs:
-  backport:
-    name: Backport PR
+  get-backport-targets:
+    name: Get backport targets
     runs-on: ubuntu-latest
-    if: >
-      github.event.pull_request.merged
-      && (
-        github.event.action == 'closed'
-        || (
-          github.event.action == 'labeled'
-          && contains(github.event.label.name, 'backport')
-        )
-      )
+    if: github.event.pull_request.merged
+    outputs:
+      targets: ${{ steps.get-targets.outputs.targets }}
+    steps:
+      - name: Get backport targets
+        id: get-targets
+        run: |
+          # For 'labeled' event, use just the added label
+          # For 'closed' event, use all backport labels
+          if [[ "${{ github.event.action }}" == "labeled" ]]; then
+            if [[ "${{ github.event.label.name }}" == backport/* ]]; then
+              echo "targets=[\"${{ github.event.label.name }}\"]" >> $GITHUB_OUTPUT
+            else
+              echo "targets=[]" >> $GITHUB_OUTPUT
+            fi
+          else
+            # Extract all backport/* labels as JSON array
+            targets=$(echo '${{ toJson(github.event.pull_request.labels.*.name) }}' | jq -c '[.[] | select(startswith("backport/"))]')
+            echo "targets=$targets" >> $GITHUB_OUTPUT
+          fi
+
+  backport:
+    name: Backport PR to ${{ matrix.target }}
+    needs: get-backport-targets
+    if: needs.get-backport-targets.outputs.targets != '[]' && needs.get-backport-targets.outputs.targets != ''
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJson(needs.get-backport-targets.outputs.targets) }}
     permissions:
       id-token: write # This is required for getting the required OIDC token from GitHub
+      contents: write # This is required for pushing the backport branch
+      pull-requests: write # This is required for creating the backport PR
     steps:
+      - name: Compute target branch
+        id: target
+        run: |
+          target="${{ matrix.target }}"
+          target_branch="${target/backport\//}"
+          echo "target_branch=$target_branch" >> $GITHUB_OUTPUT
+
       - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
         id: octo-sts
         with:
           scope: DataDog/datadog-agent
           policy: self.backport-pr.create-pr
-      - uses: tibdex/backport@9565281eda0731b1d20c4025c43339fb0a23812e # v2.0.4
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          label_pattern: "^backport/(?<base>([^ ]+))$"
-          labels_template: "<%= JSON.stringify([...labels, 'backport', 'bot']) %>"
-          github_token: ${{ steps.octo-sts.outputs.token }}
-          body_template: |
-            Backport <%- mergeCommitSha %> from #<%- number %>.
+          fetch-depth: 0 # needed to get the full history of the PR
+
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: github
+
+      - name: Run cherry-pick script
+        id: cherry-pick
+        env:
+            GITHUB_TOKEN: ${{ steps.octo-sts.outputs.token }}
+            GITHUB_EVENT_PATH: ${{ github.event_path }}
+        run: dda gh cherry-pick-pr --target-branch "${{ steps.target.outputs.target_branch }}"
+
+      - name: Reset cherry-pick
+        if: steps.cherry-pick.outputs.base != ''
+        run: git reset HEAD~1
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
+        if: steps.cherry-pick.outputs.base != ''
+        with:
+          token: ${{ steps.octo-sts.outputs.token }}
+          base: ${{ steps.cherry-pick.outputs.base }}
+          branch: backport-${{steps.cherry-pick.outputs.original_pr_number}}-to-${{steps.cherry-pick.outputs.base}}
+          sign-commits: true
+          title: "[Backport ${{steps.cherry-pick.outputs.base}}]  ${{steps.cherry-pick.outputs.original_title}}"
+          body: |
+            Backport ${{steps.cherry-pick.outputs.merge_commit_sha}} from #${{steps.cherry-pick.outputs.original_pr_number}}.
+
+             ___
+
+            ${{ steps.cherry-pick.outputs.original_body }}
+
+          labels: ${{ steps.cherry-pick.outputs.original_labels }},backport,bot
+          commit-message: |
+            ${{ steps.cherry-pick.outputs.message }}
 
             ___
 
-            <%- body %>
+            Co-authored-by: ${{ steps.cherry-pick.outputs.author }}

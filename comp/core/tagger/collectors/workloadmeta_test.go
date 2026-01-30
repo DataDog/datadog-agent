@@ -2520,8 +2520,9 @@ func TestHandleGPU(t *testing.T) {
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: entityID.ID,
 				},
-				Vendor: "nvidia",
-				Device: "tesla-v100",
+				Vendor:  "nvidia",
+				Device:  "tesla-v100",
+				GPUType: "v100",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -2532,6 +2533,7 @@ func TestHandleGPU(t *testing.T) {
 					LowCardTags: []string{
 						"gpu_vendor:nvidia",
 						"gpu_device:tesla-v100",
+						"gpu_type:v100",
 						"gpu_uuid:gpu-1234",
 						"gpu_slicing_mode:none",
 						"gpu_parent_uuid:gpu-1234",
@@ -2550,8 +2552,9 @@ func TestHandleGPU(t *testing.T) {
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: "GPU-1234",
 				},
-				Vendor: "Nvidia",
-				Device: "Tesla v100",
+				Vendor:  "Nvidia",
+				Device:  "Tesla v100",
+				GPUType: "V100",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -2562,6 +2565,7 @@ func TestHandleGPU(t *testing.T) {
 					LowCardTags: []string{
 						"gpu_vendor:nvidia",
 						"gpu_device:tesla_v100",
+						"gpu_type:v100",
 						"gpu_uuid:gpu-1234",
 						"gpu_slicing_mode:none",
 						"gpu_parent_uuid:gpu-1234",
@@ -2582,6 +2586,7 @@ func TestHandleGPU(t *testing.T) {
 				},
 				Vendor:             "nvidia",
 				Device:             "A100-SXM4-40GB MIG 3g.20gb",
+				GPUType:            "a100",
 				DriverVersion:      "525.60.13",
 				DeviceType:         workloadmeta.GPUDeviceTypeMIG,
 				ParentGPUUUID:      "GPU-1234",
@@ -2600,6 +2605,7 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_driver_version:525.60.13",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_slicing_mode:mig",
+						"gpu_type:a100",
 						"gpu_uuid:mig-432",
 						"gpu_vendor:nvidia",
 						"gpu_virtualization_mode:none",
@@ -2620,6 +2626,7 @@ func TestHandleGPU(t *testing.T) {
 				},
 				Vendor:             "nvidia",
 				Device:             "A100-SXM4-40GB",
+				GPUType:            "a100",
 				DriverVersion:      "525.60.13",
 				DeviceType:         workloadmeta.GPUDeviceTypePhysical,
 				ParentGPUUUID:      "GPU-1234",
@@ -2639,6 +2646,7 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_driver_version:525.60.13",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_slicing_mode:mig-parent",
+						"gpu_type:a100",
 						"gpu_uuid:gpu-1234",
 						"gpu_vendor:nvidia",
 						"gpu_virtualization_mode:none",

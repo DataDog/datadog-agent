@@ -184,7 +184,7 @@ func (h *hooksCLI) getPath(pkg string, pkgType PackageType, experiment bool) str
 }
 
 func (h *hooksCLI) callHook(ctx context.Context, experiment bool, pkg string, name string, packageType PackageType, upgrade bool, windowsArgs []string) error {
-	hooksCLIPath, err := os.Executable()
+	hooksCLIPath, err := exec.GetExecutable()
 	if err != nil {
 		return fmt.Errorf("failed to get executable path: %w", err)
 	}

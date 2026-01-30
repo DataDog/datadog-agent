@@ -41,7 +41,7 @@ type Processor interface {
 }
 
 // SubmitSpan submits a completed span to the trace agent
-func SubmitSpan(span *pb.Span, origin string, traceAgent interface{}) {
+func SubmitSpan(span *pb.Span, origin string, traceAgent Processor) {
 	if span == nil || traceAgent == nil {
 		return
 	}
@@ -59,13 +59,9 @@ func SubmitSpan(span *pb.Span, origin string, traceAgent interface{}) {
 		Chunks: []*pb.TraceChunk{traceChunk},
 	}
 
-	if ta, ok := traceAgent.(Processor); ok {
-		ta.Process(&api.Payload{
-			Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}),
-			TracerPayload: tracerPayload,
-		})
-		log.Debug("Inferred span submitted successfully")
-	} else {
-		log.Warn("Unable to submit inferred span")
-	}
+	traceAgent.Process(&api.Payload{
+		Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}),
+		TracerPayload: tracerPayload,
+	})
+	log.Debug("Inferred span submitted successfully")
 }

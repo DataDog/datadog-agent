@@ -426,7 +426,7 @@ func TestChooseServiceNameFromEnvs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			value, ok := chooseServiceNameFromEnvs(tt.envs)
+			value, ok := ChooseServiceNameFromEnvs(tt.envs)
 			require.Equal(t, tt.expected, value)
 			require.Equal(t, tt.found, ok)
 		})

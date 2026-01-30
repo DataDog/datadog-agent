@@ -7,7 +7,6 @@ replace github.com/cihub/seelog => github.com/cihub/seelog v0.0.0-20151216151435
 require (
 	github.com/DataDog/datadog-agent/pkg/template v0.64.1
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.1
-	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/atomic v1.11.0
 	go.uber.org/zap v1.27.1
@@ -111,7 +110,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/fips => ../../../pkg/fips
 	github.com/DataDog/datadog-agent/pkg/fleet/installer => ../../../pkg/fleet/installer
 	github.com/DataDog/datadog-agent/pkg/gohai => ../../../pkg/gohai
-	github.com/DataDog/datadog-agent/pkg/linters/components/pkgconfigusage => ../../../pkg/linters/components/pkgconfigusage
 	github.com/DataDog/datadog-agent/pkg/logs/client => ../../../pkg/logs/client
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../../pkg/logs/diagnostic
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../../../pkg/logs/message
@@ -151,6 +149,10 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/template => ../../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../pkg/trace
+	github.com/DataDog/datadog-agent/pkg/trace/log => ../../../pkg/trace/log
+	github.com/DataDog/datadog-agent/pkg/trace/otel => ../../../pkg/trace/otel
+	github.com/DataDog/datadog-agent/pkg/trace/stats => ../../../pkg/trace/stats
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil => ../../../pkg/trace/traceutil
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../../../pkg/util/buf
 	github.com/DataDog/datadog-agent/pkg/util/cache => ../../../pkg/util/cache
@@ -169,6 +171,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/http => ../../../pkg/util/http
 	github.com/DataDog/datadog-agent/pkg/util/json => ../../../pkg/util/json
 	github.com/DataDog/datadog-agent/pkg/util/jsonquery => ../../../pkg/util/jsonquery
+	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace => ../../../pkg/util/kubernetes/apiserver/common/namespace
 	github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../../pkg/util/log/setup
 	github.com/DataDog/datadog-agent/pkg/util/option => ../../../pkg/util/option
 	github.com/DataDog/datadog-agent/pkg/util/otel => ../../../pkg/util/otel

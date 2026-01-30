@@ -280,6 +280,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`process.ancestors.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`process.ancestors.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`process.ancestors.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`process.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`process.ancestors.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`process.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
@@ -388,6 +389,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`process.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`process.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`process.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`process.parent.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
 | [`process.parent.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
 | [`process.parent.args_options`](#common-process-args_options-doc) | Argument of the process as options |
@@ -478,6 +480,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`process.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`process.parent.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`process.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`process.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`process.parent.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`process.parent.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
@@ -763,6 +766,7 @@ A DNS request was sent
 | [`network.destination.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
 | [`network.device.ifname`](#common-networkdevicecontext-ifname-doc) | Interface ifname |
+| [`network.device.netns`](#common-networkdevicecontext-netns-doc) | Interface NetNS ID |
 | [`network.l3_protocol`](#common-networkcontext-l3_protocol-doc) | L3 protocol of the network packet |
 | [`network.l4_protocol`](#common-networkcontext-l4_protocol-doc) | L4 protocol of the network packet |
 | [`network.network_direction`](#common-networkcontext-network_direction-doc) | Network direction of the network packet |
@@ -876,6 +880,7 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`exec.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`exec.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`exec.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`exec.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`exec.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`exec.syscall.path`](#exec-syscall-path-doc) | path argument of the syscall |
@@ -994,6 +999,7 @@ A process was terminated
 | [`exit.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`exit.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`exit.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`exit.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`exit.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`exit.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`exit.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
@@ -1031,6 +1037,7 @@ An IMDS event was captured
 | [`network.destination.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
 | [`network.device.ifname`](#common-networkdevicecontext-ifname-doc) | Interface ifname |
+| [`network.device.netns`](#common-networkdevicecontext-netns-doc) | Interface NetNS ID |
 | [`network.l3_protocol`](#common-networkcontext-l3_protocol-doc) | L3 protocol of the network packet |
 | [`network.l4_protocol`](#common-networkcontext-l4_protocol-doc) | L4 protocol of the network packet |
 | [`network.network_direction`](#common-networkcontext-network_direction-doc) | Network direction of the network packet |
@@ -1256,6 +1263,7 @@ A network monitor event was sent
 | Property | Definition |
 | -------- | ------------- |
 | [`network_flow_monitor.device.ifname`](#common-networkdevicecontext-ifname-doc) | Interface ifname |
+| [`network_flow_monitor.device.netns`](#common-networkdevicecontext-netns-doc) | Interface NetNS ID |
 | [`network_flow_monitor.flows.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
 | [`network_flow_monitor.flows.destination.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`network_flow_monitor.flows.destination.port`](#common-ipportcontext-port-doc) | Port number |
@@ -1320,6 +1328,7 @@ A raw network packet was captured
 | [`network.destination.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`network.destination.port`](#common-ipportcontext-port-doc) | Port number |
 | [`network.device.ifname`](#common-networkdevicecontext-ifname-doc) | Interface ifname |
+| [`network.device.netns`](#common-networkdevicecontext-netns-doc) | Interface NetNS ID |
 | [`network.l3_protocol`](#common-networkcontext-l3_protocol-doc) | L3 protocol of the network packet |
 | [`network.l4_protocol`](#common-networkcontext-l4_protocol-doc) | L4 protocol of the network packet |
 | [`network.network_direction`](#common-networkcontext-network_direction-doc) | Network direction of the network packet |
@@ -1332,6 +1341,7 @@ A raw network packet was captured
 | [`packet.destination.is_public`](#common-ipportcontext-is_public-doc) | Whether the IP address belongs to a public network |
 | [`packet.destination.port`](#common-ipportcontext-port-doc) | Port number |
 | [`packet.device.ifname`](#common-networkdevicecontext-ifname-doc) | Interface ifname |
+| [`packet.device.netns`](#common-networkdevicecontext-netns-doc) | Interface NetNS ID |
 | [`packet.filter`](#packet-filter-doc) | pcap filter expression |
 | [`packet.l3_protocol`](#common-networkcontext-l3_protocol-doc) | L3 protocol of the network packet |
 | [`packet.l4_protocol`](#common-networkcontext-l4_protocol-doc) | L4 protocol of the network packet |
@@ -1453,6 +1463,7 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`ptrace.tracee.ancestors.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`ptrace.tracee.ancestors.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`ptrace.tracee.ancestors.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`ptrace.tracee.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`ptrace.tracee.ancestors.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`ptrace.tracee.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
@@ -1561,6 +1572,7 @@ A ptrace command was executed
 | [`ptrace.tracee.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`ptrace.tracee.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`ptrace.tracee.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`ptrace.tracee.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`ptrace.tracee.parent.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
 | [`ptrace.tracee.parent.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
 | [`ptrace.tracee.parent.args_options`](#common-process-args_options-doc) | Argument of the process as options |
@@ -1651,6 +1663,7 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`ptrace.tracee.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`ptrace.tracee.parent.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`ptrace.tracee.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`ptrace.tracee.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`ptrace.tracee.parent.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`ptrace.tracee.parent.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
@@ -1950,6 +1963,7 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`setrlimit.target.ancestors.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`setrlimit.target.ancestors.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`setrlimit.target.ancestors.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`setrlimit.target.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`setrlimit.target.ancestors.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`setrlimit.target.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
@@ -2058,6 +2072,7 @@ A setrlimit command was executed
 | [`setrlimit.target.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`setrlimit.target.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`setrlimit.target.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`setrlimit.target.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`setrlimit.target.parent.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
 | [`setrlimit.target.parent.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
 | [`setrlimit.target.parent.args_options`](#common-process-args_options-doc) | Argument of the process as options |
@@ -2148,6 +2163,7 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`setrlimit.target.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`setrlimit.target.parent.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`setrlimit.target.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`setrlimit.target.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`setrlimit.target.parent.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`setrlimit.target.parent.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
@@ -2352,6 +2368,7 @@ A signal was sent
 | [`signal.target.ancestors.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`signal.target.ancestors.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`signal.target.ancestors.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`signal.target.ancestors.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`signal.target.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`signal.target.ancestors.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`signal.target.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
@@ -2460,6 +2477,7 @@ A signal was sent
 | [`signal.target.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`signal.target.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`signal.target.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`signal.target.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`signal.target.parent.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
 | [`signal.target.parent.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
 | [`signal.target.parent.args_options`](#common-process-args_options-doc) | Argument of the process as options |
@@ -2550,6 +2568,7 @@ A signal was sent
 | [`signal.target.parent.is_exec`](#common-process-is_exec-doc) | Indicates whether the process entry is from a new binary execution |
 | [`signal.target.parent.is_kworker`](#common-pidcontext-is_kworker-doc) | Indicates whether the process is a kworker |
 | [`signal.target.parent.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| [`signal.target.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`signal.target.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`signal.target.parent.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`signal.target.parent.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
@@ -3350,6 +3369,24 @@ exec.file.name == "apt"
 {{< /code-block >}}
 
 Matches the execution of any file named apt.
+
+### `*.netns` {#common-networkdevicecontext-netns-doc}
+Type: int
+
+Definition: Interface NetNS ID
+
+`*.netns` has 3 possible prefixes:
+`network.device` `network_flow_monitor.device` `packet.device`
+
+
+### `*.netns` {#common-pidcontext-netns-doc}
+Type: int
+
+Definition: NetNS ID of the process
+
+`*.netns` has 14 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
 
 ### `*.network_direction` {#common-networkcontext-network_direction-doc}
 Type: int

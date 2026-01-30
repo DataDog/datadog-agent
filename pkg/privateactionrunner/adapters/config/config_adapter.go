@@ -45,6 +45,8 @@ type Config struct {
 	HealthCheckInterval        int32
 	HttpServerReadTimeout      int32
 	HttpServerWriteTimeout     int32
+	HTTPTimeout                time.Duration
+	TaskTimeoutSeconds         *int32
 	RunnerAccessTokenHeader    string
 	RunnerAccessTokenIdHeader  string
 	Port                       int32
@@ -60,9 +62,6 @@ type Config struct {
 }
 
 func (c *Config) IsActionAllowed(bundleId, actionName string) bool {
-	bundleId = strings.ToLower(bundleId)
-	actionName = strings.ToLower(actionName)
-
 	if _, ok := c.ActionsAllowlist[bundleId]; ok {
 		return c.ActionsAllowlist[bundleId].HasAny(actionName, "*")
 	}
