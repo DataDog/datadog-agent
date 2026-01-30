@@ -6,7 +6,7 @@
 package auditor
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/types"
+	"github.com/DataDog/datadog-agent/comp/logs-library/types"
 )
 
 // Registry holds a list of offsets.

@@ -8,7 +8,7 @@ package decoder
 import (
 	"regexp"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 )
 
 // MockDecoder is a mock decoder that can be used to test the decoder

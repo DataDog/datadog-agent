@@ -20,9 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers/container"
 	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory/tailers"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 // get gets a DockerUtil instance, either returning a memoized value

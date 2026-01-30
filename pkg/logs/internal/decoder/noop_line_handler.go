@@ -8,7 +8,7 @@ package decoder
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 )
 
 // NoopLineHandler provides a passthrough functionality for flows that don't need a functional line handler
