@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	networktracer "github.com/DataDog/datadog-agent/comp/system-probe/networktracer/fx"
+	softwareinventory "github.com/DataDog/datadog-agent/comp/system-probe/softwareinventory/fx"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -94,5 +95,6 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 func getPlatformModules() fx.Option {
 	return fx.Options(
 		networktracer.Module(),
+		softwareinventory.Module(),
 	)
 }

@@ -17,8 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func init() { registerModule(SoftwareInventory) }
-
 // SoftwareInventory Factory
 var SoftwareInventory = &module.Factory{
 	Name:             config.SoftwareInventoryModule,
