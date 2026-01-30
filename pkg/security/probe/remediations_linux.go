@@ -278,46 +278,45 @@ func (p *EBPFProbe) HandleRemediationStatus(rs *rules.RuleSet) {
 	}
 }
 
-func (p *EBPFProbe) HandleKillRemediation(rule *rules.Rule, ev *model.Event, action *rules.Action) {
-	if killReport, ok := ev.ActionReports[len(ev.ActionReports)-1].(*KillActionReport); ok {
-		remediationKey := getRemediationKeyFromAction(rule, action)
-		p.activeRemediationsLock.Lock()
-		defer p.activeRemediationsLock.Unlock()
-		remediation, found := p.activeRemediations[remediationKey]
-		// Record that the kill action was triggered for remediation feature
-		if found {
-			remediation.triggered = true
-			remediation.processContext.PID = ev.ProcessContext.Process.Pid
-			remediation.containerContext.ID = string(ev.ProcessContext.Process.ContainerContext.ContainerID)
-			remediation.containerContext.CreatedAt = ev.ProcessContext.Process.ContainerContext.CreatedAt
-			remediation.policy = ""
-			remediation.ruleTags = getTagsFromRule(rule)
+func (p *EBPFProbe) HandleKillRemediation(rule *rules.Rule, ev *model.Event, report *KillActionReport, action *rules.Action) {
+	remediationKey := getRemediationKeyFromAction(rule, action)
+	p.activeRemediationsLock.Lock()
+	defer p.activeRemediationsLock.Unlock()
+	remediation, found := p.activeRemediations[remediationKey]
+	// Record that the kill action was triggered for remediation feature
+	if found {
+		remediation.triggered = true
+		remediation.processContext.PID = ev.ProcessContext.Process.Pid
+		remediation.containerContext.ID = string(ev.ProcessContext.Process.ContainerContext.ContainerID)
+		remediation.containerContext.CreatedAt = ev.ProcessContext.Process.ContainerContext.CreatedAt
+		remediation.policy = ""
+		remediation.ruleTags = getTagsFromRule(rule)
 
-		} else {
-			// Don't create a new entry for kill actions that are not from the remediation feature
-			// It will only be used to send an event
-			remediation = &Remediation{
-				actionType: RemediationTypeKill,
-				triggered:  true,
-				processContext: RemediationProcessContext{
-					PID: ev.ProcessContext.Process.Pid,
-				},
-				containerContext: RemediationContainerContext{
-					ID:        string(ev.ProcessContext.Process.ContainerContext.ContainerID),
-					CreatedAt: ev.ProcessContext.Process.ContainerContext.CreatedAt,
-				},
-				scope: action.Def.Kill.Scope,
-			}
+	} else {
+		// Don't create a new entry for kill actions that are not from the remediation feature
+		// It will only be used to send an event
+		remediation = &Remediation{
+			actionType: RemediationTypeKill,
+			triggered:  true,
+			processContext: RemediationProcessContext{
+				PID: ev.ProcessContext.Process.Pid,
+			},
+			containerContext: RemediationContainerContext{
+				ID:        string(ev.ProcessContext.Process.ContainerContext.ContainerID),
+				CreatedAt: ev.ProcessContext.Process.ContainerContext.CreatedAt,
+			},
+			scope: action.Def.Kill.Scope,
 		}
-
-		// Get kill status
-		killReport.RLock()
-		status := string(killReport.Status)
-		killReport.RUnlock()
-		// Send custom event
-		killActionEvent := NewRemediationEvent(p, remediation, status, "kill")
-		p.SendRemediationEvent(killActionEvent)
 	}
+
+	// Get kill status
+	report.RLock()
+	status := string(report.Status)
+	report.RUnlock()
+	// Send custom event
+	killActionEvent := NewRemediationEvent(p, remediation, status, "kill")
+	p.SendRemediationEvent(killActionEvent)
+
 }
 
 func (p *EBPFProbe) HandleNetworkRemediation(rule *rules.Rule, ev *model.Event, report *RawPacketActionReport, action *rules.Action) {
