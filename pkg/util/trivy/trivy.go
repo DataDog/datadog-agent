@@ -57,6 +57,7 @@ const (
 
 // collectorConfig allows to pass configuration
 type collectorConfig struct {
+	cacheDir            string
 	clearCacheOnClose   bool
 	maxCacheSize        int
 	computeDependencies bool
@@ -221,6 +222,7 @@ func DefaultDisabledHandlers() []ftypes.HandlerType {
 func NewCollector(cfg config.Component, wmeta option.Option[workloadmeta.Component]) (*Collector, error) {
 	return &Collector{
 		config: collectorConfig{
+			cacheDir:            cfg.GetString("sbom.cache_directory"),
 			clearCacheOnClose:   cfg.GetBool("sbom.clear_cache_on_exit"),
 			maxCacheSize:        cfg.GetInt("sbom.cache.max_disk_size"),
 			computeDependencies: cfg.GetBool("sbom.compute_dependencies"),
@@ -294,7 +296,7 @@ func (c *Collector) GetCache() (CacheWithCleaner, error) {
 	c.cacheInitialized.Do(func() {
 		c.persistentCache, c.persistentCacheErr = NewCustomBoltCache(
 			c.wmeta,
-			defaultCacheDir(),
+			c.config.cacheDir,
 			c.config.maxCacheSize,
 		)
 	})
