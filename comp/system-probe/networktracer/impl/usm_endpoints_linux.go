@@ -5,28 +5,27 @@
 
 //go:build linux_bpf
 
-package modules
+package networktracerimpl
 
 import (
 	"net/http"
 
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	httpdebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/http/debugging"
 	kafkadebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/kafka/debugging"
 	postgresdebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/debugging"
 	redisdebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/redis/debugging"
 	usmconsts "github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	usm "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func registerUSMEndpoints(nt *networkTracer, httpMux *module.Router) {
+func registerUSMEndpoints(nt *networkTracer, httpMux types.SystemProbeRouter) {
 	registerUSMCommonEndpoints(nt, httpMux)
 
 	httpMux.HandleFunc("/debug/kafka_monitoring", func(w http.ResponseWriter, req *http.Request) {
-		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.kafka.enabled") {
+		if !nt.syscfg.GetBool("service_monitoring_config.kafka.enabled") {
 			writeDisabledProtocolMessage("kafka", w)
 			return
 		}
@@ -43,7 +42,7 @@ func registerUSMEndpoints(nt *networkTracer, httpMux *module.Router) {
 	})
 
 	httpMux.HandleFunc("/debug/postgres_monitoring", func(w http.ResponseWriter, req *http.Request) {
-		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.postgres.enabled") {
+		if !nt.syscfg.GetBool("service_monitoring_config.postgres.enabled") {
 			writeDisabledProtocolMessage("postgres", w)
 			return
 		}
@@ -60,7 +59,7 @@ func registerUSMEndpoints(nt *networkTracer, httpMux *module.Router) {
 	})
 
 	httpMux.HandleFunc("/debug/redis_monitoring", func(w http.ResponseWriter, req *http.Request) {
-		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.redis.enabled") {
+		if !nt.syscfg.GetBool("service_monitoring_config.redis.enabled") {
 			writeDisabledProtocolMessage("redis", w)
 			return
 		}
@@ -77,7 +76,7 @@ func registerUSMEndpoints(nt *networkTracer, httpMux *module.Router) {
 	})
 
 	httpMux.HandleFunc("/debug/http2_monitoring", func(w http.ResponseWriter, req *http.Request) {
-		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.http2.enabled") {
+		if !nt.syscfg.GetBool("service_monitoring_config.http2.enabled") {
 			writeDisabledProtocolMessage("http2", w)
 			return
 		}

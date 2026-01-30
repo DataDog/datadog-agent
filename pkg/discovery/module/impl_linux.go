@@ -21,6 +21,7 @@ import (
 
 	"github.com/shirou/gopsutil/v4/process"
 
+	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	"github.com/DataDog/datadog-agent/pkg/discovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/discovery/core"
 	"github.com/DataDog/datadog-agent/pkg/discovery/language"
@@ -84,7 +85,7 @@ func (s *discovery) GetStats() map[string]any {
 }
 
 // Register registers the discovery module with the provided HTTP mux.
-func (s *discovery) Register(httpMux *module.Router) error {
+func (s *discovery) Register(httpMux types.SystemProbeRouter) error {
 	httpMux.HandleFunc("/status", s.handleStatusEndpoint)
 	httpMux.HandleFunc("/state", s.handleStateEndpoint)
 	httpMux.HandleFunc(pathServices, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleServices))

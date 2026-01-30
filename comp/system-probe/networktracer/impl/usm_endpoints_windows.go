@@ -3,11 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux && linux_bpf && nvml
+//go:build windows && npm
 
-package modules
+package networktracerimpl
 
-//func TestGPUModuleOrder(t *testing.T) {
-//	allModules := All()
-//	assert.Less(t, slices.Index(allModules, EventMonitor), slices.Index(allModules, GPUMonitoring))
-//}
+import "github.com/DataDog/datadog-agent/comp/system-probe/types"
+
+func registerUSMEndpoints(nt *networkTracer, httpMux types.SystemProbeRouter) {
+	registerUSMCommonEndpoints(nt, httpMux)
+}

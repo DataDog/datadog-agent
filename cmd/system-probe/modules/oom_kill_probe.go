@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/oomkill"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
@@ -50,7 +51,7 @@ type oomKillModule struct {
 	lastCheck atomic.Int64
 }
 
-func (o *oomKillModule) Register(httpMux *module.Router) error {
+func (o *oomKillModule) Register(httpMux types.SystemProbeRouter) error {
 	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, _ *http.Request) {
 		o.lastCheck.Store(time.Now().Unix())
 		stats := o.Probe.GetAndFlush()

@@ -16,6 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
@@ -94,7 +95,7 @@ func (m *complianceModule) GetStats() map[string]interface{} {
 }
 
 // Register implements module.Module.
-func (m *complianceModule) Register(router *module.Router) error {
+func (m *complianceModule) Register(router types.SystemProbeRouter) error {
 	router.HandleFunc("/dbconfig", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, m.handleScanDBConfig))
 	return nil
 }

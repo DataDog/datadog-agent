@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
@@ -50,7 +51,7 @@ type ebpfModule struct {
 	lastCheck atomic.Int64
 }
 
-func (o *ebpfModule) Register(httpMux *module.Router) error {
+func (o *ebpfModule) Register(httpMux types.SystemProbeRouter) error {
 	// Limit concurrency to one as the probe check is not thread safe (mainly in the entry count buffers)
 	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, _ *http.Request) {
 		o.lastCheck.Store(time.Now().Unix())

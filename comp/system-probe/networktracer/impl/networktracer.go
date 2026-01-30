@@ -1,29 +1,26 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2026-present Datadog, Inc.
 
 //go:build (linux && linux_bpf) || (windows && npm)
 
-package modules
+// Package networktracerimpl implements the networktracer component interface
+package networktracerimpl
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 	"sync/atomic"
 	"time"
 
+	networktracer "github.com/DataDog/datadog-agent/comp/system-probe/networktracer/def"
+	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
-	"github.com/DataDog/datadog-agent/pkg/network/sender"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -31,71 +28,16 @@ import (
 // ErrSysprobeUnsupported is the unsupported error prefix, for error-class matching from callers
 var ErrSysprobeUnsupported = errors.New("system-probe unsupported")
 
-const inactivityLogDuration = 10 * time.Minute
-const inactivityRestartDuration = 20 * time.Minute
-
 var networkTracerModuleConfigNamespaces = []string{"network_config", "service_monitoring_config"}
 
+const inactivityLogDuration = 10 * time.Minute
+const inactivityRestartDuration = 20 * time.Minute
 const maxConntrackDumpSize = 3000
 
-func createNetworkTracerModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
-	ncfg := networkconfig.New()
-
-	// Checking whether the current OS + kernel version is supported by the tracer
-	if supported, err := tracer.IsTracerSupportedByOS(ncfg.ExcludedBPFLinuxVersions); !supported {
-		return nil, fmt.Errorf("%w: %s", ErrSysprobeUnsupported, err)
-	}
-
-	if ncfg.NPMEnabled {
-		log.Info("enabling network performance monitoring (NPM)")
-	}
-	if ncfg.ServiceMonitoringEnabled {
-		log.Info("enabling universal service monitoring (USM)")
-	}
-
-	t, err := tracer.NewTracer(ncfg, deps.Telemetry, deps.Statsd)
-	if err != nil {
-		return nil, err
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	var connsSender sender.Sender
-	if ncfg.DirectSend {
-		connsSender, err = sender.New(ctx, t, sender.Dependencies{
-			Config:         deps.CoreConfig,
-			Logger:         deps.Log,
-			Sysprobeconfig: deps.SysprobeConfig,
-			Tagger:         deps.Tagger,
-			Wmeta:          deps.WMeta,
-			Hostname:       deps.Hostname,
-			Forwarder:      deps.ConnectionsForwarder,
-			NPCollector:    deps.NPCollector,
-		})
-		if err != nil {
-			t.Stop()
-			cancel()
-			return nil, fmt.Errorf("create direct sender: %s", err)
-		}
-	}
-
-	return &networkTracer{
-		tracer:      t,
-		cfg:         ncfg,
-		connsSender: connsSender,
-		ctx:         ctx,
-		cancelFunc:  cancel,
-	}, nil
-}
-
-var _ module.Module = &networkTracer{}
-
-type networkTracer struct {
-	tracer       *tracer.Tracer
-	cfg          *networkconfig.Config
-	restartTimer *time.Timer
-	connsSender  sender.Sender
-	ctx          context.Context
-	cancelFunc   context.CancelFunc
+// Provides defines the output of the networktracer component
+type Provides struct {
+	Comp   networktracer.Component
+	Module types.ProvidesSystemProbeModule
 }
 
 func (nt *networkTracer) GetStats() map[string]interface{} {
@@ -104,7 +46,7 @@ func (nt *networkTracer) GetStats() map[string]interface{} {
 }
 
 // Register all networkTracer endpoints
-func (nt *networkTracer) Register(httpMux *module.Router) error {
+func (nt *networkTracer) Register(httpMux types.SystemProbeRouter) error {
 	if !nt.cfg.DirectSend {
 		var runCounter atomic.Uint64
 
@@ -234,15 +176,6 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	return nt.platformRegister(httpMux)
 }
 
-// Close will stop all system probe activities
-func (nt *networkTracer) Close() {
-	if nt.connsSender != nil {
-		nt.connsSender.Stop()
-	}
-	nt.tracer.Stop()
-	nt.cancelFunc()
-}
-
 func logRequests(client string, count uint64, connectionsCount int, start time.Time) {
 	args := []interface{}{client, count, connectionsCount, time.Since(start)}
 	msg := "Got request on /connections?client_id=%s (count: %d): retrieved %d connections in %s"
@@ -275,16 +208,6 @@ func writeConnections(w http.ResponseWriter, marshaler marshal.Marshaler, cs *ne
 	}
 
 	log.Tracef("/connections: %d connections", len(cs.Conns))
-}
-
-func writeDisabledProtocolMessage(protocolName string, w http.ResponseWriter) {
-	log.Warnf("%s monitoring is disabled", protocolName)
-	w.WriteHeader(404)
-	// Writing JSON to ensure compatibility when using the jq bash utility for output
-	outputString := map[string]string{"error": fmt.Sprintf("%s monitoring is disabled", protocolName)}
-	// We are marshaling a static string, so we can ignore the error
-	buf, _ := json.Marshal(outputString)
-	w.Write(buf)
 }
 
 func writeConntrackTable(table *tracer.DebugConntrackTable, w http.ResponseWriter) {

@@ -15,5 +15,5 @@ import (
 type Factory struct {
 	Name             sysconfigtypes.ModuleName
 	ConfigNamespaces []string
-	Fn               func(cfg *sysconfigtypes.Config, deps FactoryDependencies) (Module, error)
+	Fn               func(cfg *sysconfigtypes.Config, deps FactoryDependencies) (types.SystemProbeModule, error)
 }

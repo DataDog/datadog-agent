@@ -9,32 +9,33 @@ package module
 
 import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func isEBPFRequired(factories []*Factory) bool {
-	for _, f := range factories {
-		if f.NeedsEBPF() {
+func isEBPFRequired(modules []types.SystemProbeModuleComponent) bool {
+	for _, m := range modules {
+		if m.NeedsEBPF() {
 			return true
 		}
 	}
 	return false
 }
 
-func isEBPFOptional(factories []*Factory) bool {
-	for _, f := range factories {
-		if f.OptionalEBPF {
+func isEBPFOptional(modules []types.SystemProbeModuleComponent) bool {
+	for _, m := range modules {
+		if m.OptionalEBPF() {
 			return true
 		}
 	}
 	return false
 }
 
-func preRegister(_ *sysconfigtypes.Config, rcclient rcclient.Component, moduleFactories []*Factory) error {
-	needed := isEBPFRequired(moduleFactories)
-	if needed || isEBPFOptional(moduleFactories) {
+func preRegister(_ *sysconfigtypes.Config, rcclient rcclient.Component, modules []types.SystemProbeModuleComponent) error {
+	needed := isEBPFRequired(modules)
+	if needed || isEBPFOptional(modules) {
 		err := ebpf.Setup(ebpf.NewConfig(), rcclient)
 		if err != nil && !needed {
 			log.Warnf("ignoring eBPF setup error: %v", err)
@@ -46,8 +47,8 @@ func preRegister(_ *sysconfigtypes.Config, rcclient rcclient.Component, moduleFa
 	return nil
 }
 
-func postRegister(cfg *sysconfigtypes.Config, moduleFactories []*Factory) error {
-	needBTFFlush := isEBPFRequired(moduleFactories) || isEBPFOptional(moduleFactories)
+func postRegister(cfg *sysconfigtypes.Config, modules []types.SystemProbeModuleComponent) error {
+	needBTFFlush := isEBPFRequired(modules) || isEBPFOptional(modules)
 
 	if cfg.TelemetryEnabled && ebpf.ContentionCollector != nil {
 		needBTFFlush = true

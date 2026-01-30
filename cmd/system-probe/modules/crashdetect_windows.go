@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect/probe"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -43,7 +44,7 @@ type winCrashDetectModule struct {
 	*probe.WinCrashProbe
 }
 
-func (wcdm *winCrashDetectModule) Register(httpMux *module.Router) error {
+func (wcdm *winCrashDetectModule) Register(httpMux types.SystemProbeRouter) error {
 	// only ever allow one concurrent check of the blue screen file.
 	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, _ *http.Request) {
 		log.Infof("Got check request in crashDetect")

@@ -5,20 +5,22 @@
 
 //go:build (linux && linux_bpf) || (windows && npm)
 
-package modules
+package networktracerimpl
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 	httpdebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/http/debugging"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func registerUSMCommonEndpoints(nt *networkTracer, httpMux *module.Router) {
+func registerUSMCommonEndpoints(nt *networkTracer, httpMux types.SystemProbeRouter) {
 	httpMux.HandleFunc("/debug/http_monitoring", func(w http.ResponseWriter, req *http.Request) {
 		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.http.enabled") {
 			writeDisabledProtocolMessage("http", w)
@@ -37,4 +39,14 @@ func registerUSMCommonEndpoints(nt *networkTracer, httpMux *module.Router) {
 	})
 
 	httpMux.HandleFunc("/debug/usm_telemetry", telemetry.Handler)
+}
+
+func writeDisabledProtocolMessage(protocolName string, w http.ResponseWriter) {
+	log.Warnf("%s monitoring is disabled", protocolName)
+	w.WriteHeader(404)
+	// Writing JSON to ensure compatibility when using the jq bash utility for output
+	outputString := map[string]string{"error": fmt.Sprintf("%s monitoring is disabled", protocolName)}
+	// We are marshaling a static string, so we can ignore the error
+	buf, _ := json.Marshal(outputString)
+	w.Write(buf)
 }
