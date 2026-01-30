@@ -106,9 +106,7 @@ cc_library(
     ],
     deps = [
         ":misc",
-        "@openssl//:crypto",
-        "@openssl//:ssl",
-        "@openssl//:imported_ssl_headers",
+        "@openssl",
         "@zstd//:libzstd",
         "@popt//:libpopt",
         "@lua//:liblua",
