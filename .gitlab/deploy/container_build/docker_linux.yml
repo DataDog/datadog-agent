@@ -309,10 +309,20 @@ docker_build_host_profiler_standalone_arm64:
   extends: .docker_build_job_definition
   before_script:
     - mkdir /tmp/otel
-    - find . -name "$OTEL_PACKAGE_NAME" | xargs tar --extract --xz --directory /tmp/otel --file
-    - cp /tmp/otel/opt/datadog-agent/embedded/bin/otel-agent $BUILD_CONTEXT/otel-agent
-    - cp /tmp/otel/etc/datadog-agent/otel-config.yaml.example $BUILD_CONTEXT/otel-config.yaml
-    - ls -l $BUILD_CONTEXT/
+    - ARCHIVE_NAME=$(find . -name "datadog-*agent-ddot-7*.tar.xz" | head -1) # Only 1 match is expected
+    - |
+      tar --extract --xz --file $ARCHIVE_NAME \
+      --verbose \
+      --directory $BUILD_CONTEXT \
+      --strip-components 4 \
+      opt/datadog-agent/embedded/bin/otel-agent
+    - |
+      tar --extract --xz --file $ARCHIVE_NAME \
+      --verbose \
+      --directory $BUILD_CONTEXT \
+      --strip-components 2 \
+      --transform 's|\.example||' \
+      etc/datadog-agent/otel-config.yaml.example
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -322,7 +332,6 @@ docker_build_host_profiler_standalone_arm64:
     FLATTEN_IMAGE: false
     BUILD_ARG: --target release
     TAG_SUFFIX: -7
-    OTEL_PACKAGE_NAME: datadog-agent-ddot-7*.tar.xz
 
 docker_build_ot_agent_standalone_amd64:
   extends:
@@ -346,7 +355,6 @@ docker_build_ot_agent_standalone_fips_amd64:
     - job: datadog-otel-agent-x64-fips
   variables:
     TAG_SUFFIX: -7-fips
-    OTEL_PACKAGE_NAME: datadog-fips-agent-ddot-7*.tar.xz
 
 docker_build_ot_agent_standalone_fips_arm64:
   extends:
@@ -356,7 +364,6 @@ docker_build_ot_agent_standalone_fips_arm64:
     - job: datadog-otel-agent-arm64-fips
   variables:
     TAG_SUFFIX: -7-fips
-    OTEL_PACKAGE_NAME: datadog-fips-agent-ddot-7*.tar.xz
 
 docker_build_agent7_full:
   extends: [.docker_build_amd64, .docker_build_agent7]
