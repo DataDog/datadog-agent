@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
 	status "github.com/DataDog/datadog-agent/comp/logs-library/status/utils"
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/util/statstracker"
 )
 

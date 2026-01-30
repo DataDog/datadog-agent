@@ -88,7 +88,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.76.0-devel // indirect
-	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.64.0-rc.12 // indirect
 	github.com/DataDog/datadog-agent/pkg/api v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.76.0-devel // indirect

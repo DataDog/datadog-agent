@@ -17,7 +17,7 @@ import (
 
 	"go.uber.org/atomic"
 
-	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	logsconfig "github.com/DataDog/datadog-agent/comp/logs-library/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"

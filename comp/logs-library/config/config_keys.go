@@ -22,11 +22,6 @@ type LogsConfigKeys struct {
 	config       pkgconfigmodel.Reader
 }
 
-// Required for otel backward compatibility
-const (
-	GzipCompressionKind = "gzip"
-)
-
 // defaultLogsConfigKeys defines the default YAML keys used to retrieve logs configuration
 func defaultLogsConfigKeys(config pkgconfigmodel.Reader) *LogsConfigKeys {
 	return NewLogsConfigKeys("logs_config.", config)

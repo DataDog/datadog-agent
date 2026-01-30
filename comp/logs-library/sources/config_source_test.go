@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	logsConfig "github.com/DataDog/datadog-agent/comp/logs-library/config"
 )
 
 func CreateTestFile(tempDir string) *os.File {

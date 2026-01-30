@@ -11,8 +11,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
 	"github.com/DataDog/datadog-agent/comp/logs-library/message"
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
 
 func TestComputeServiceNameOrderOfPrecedent(t *testing.T) {
