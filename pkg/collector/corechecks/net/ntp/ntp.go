@@ -215,15 +215,17 @@ func (c *NTPCheck) Run() error {
 
 	// Submit intake offset first (captured from forwarder responses)
 	// This is independent of NTP check success
-	if intakeOffsetVar := expvar.Get("intakeOffset"); intakeOffsetVar != nil {
+	if intakeOffsetVar := expvar.Get("corechecks_net_ntp_intake_time_offset"); intakeOffsetVar != nil {
 		if floatVar, ok := intakeOffsetVar.(*expvar.Float); ok {
 			intakeOffset := floatVar.Value()
 			if !math.IsNaN(intakeOffset) {
-				// Use server time as timestamp: positive offset means agent is behind (NTP convention)
-				// So server_time = agent_time + offset
-				agentTime := time.Now()
-				serverTime := agentTime.Add(time.Duration(intakeOffset * float64(time.Second)))
-				intakeTS := float64(serverTime.UnixNano()) / 1e9
+				// Calculate what the intake server's time would be by applying the offset to current time
+				// Using intake server's time as the metric timestamp ensures it appears correctly
+				// in Datadog even when the agent's clock is drifted
+				// (positive offset = agent behind, negative = agent ahead)
+				currentTime := time.Now()
+				intakeServerTime := currentTime.Add(time.Duration(intakeOffset * float64(time.Second)))
+				intakeTS := float64(intakeServerTime.UnixNano()) / 1e9
 				_ = sender.GaugeWithTimestamp("ntp.offset", intakeOffset, "", []string{"source:intake"}, intakeTS)
 			}
 		}

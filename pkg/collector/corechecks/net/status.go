@@ -47,7 +47,7 @@ func (Provider) populateStatus(stats map[string]interface{}) {
 		}
 	}
 
-	intakeOffset := expvar.Get("intakeOffset")
+	intakeOffset := expvar.Get("corechecks_net_ntp_intake_time_offset")
 	if intakeOffset != nil && intakeOffset.String() != "" {
 		float, err := strconv.ParseFloat(intakeOffset.String(), 64)
 		if err == nil {
