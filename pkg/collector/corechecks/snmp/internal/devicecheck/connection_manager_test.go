@@ -213,12 +213,12 @@ func TestConnectionManager_FallbackTestFails(t *testing.T) {
 	connectedSess.On("Connect").Return(nil).Once()
 	connectedSess.On("GetNext", []string{coresnmp.DeviceReachableGetNextOid}).
 		Return(nil, newMockTimeoutError("timeout")).Once()
-	connectedSess.On("Close").Return(nil).Once()
 
 	// Unconnected session connects but is also unreachable
 	unconnectedSess.On("Connect").Return(nil).Once()
 	unconnectedSess.On("GetNext", []string{coresnmp.DeviceReachableGetNextOid}).
 		Return(nil, errors.New("still fails")).Once()
+	unconnectedSess.On("Close").Return(nil).Once()
 
 	callCount := 0
 	sessionFactory := func(cfg *checkconfig.CheckConfig) (session.Session, error) {
@@ -234,9 +234,9 @@ func TestConnectionManager_FallbackTestFails(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.False(t, reachable)
-	// With new logic, we use unconnected session even if unreachable
+	// When unconnected is also unreachable, fall back to connected session
 	assert.NotNil(t, sess)
-	assert.Equal(t, unconnectedSess, sess)
+	assert.Equal(t, connectedSess, sess)
 
 	connectedSess.AssertExpectations(t)
 	unconnectedSess.AssertExpectations(t)

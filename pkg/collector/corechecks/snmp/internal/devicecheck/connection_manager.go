@@ -87,9 +87,12 @@ func (m *snmpConnectionManager) Connect() (session.Session, bool, error) {
 	// Timeout occurred - try unconnected socket once
 	log.Infof("[%s] Connected socket failed with timeout, trying unconnected socket", m.config.IPAddress)
 	m.fallbackState.fallbackTestAttempted = true
-	m.config.UseUnconnectedUDPSocket = true
 
-	unconnectedSess, unconnectedReachable, unconnectedErr := m.tryConnect(m.config)
+	// Create temporary config for testing unconnected socket
+	testConfig := m.config.Copy()
+	testConfig.UseUnconnectedUDPSocket = true
+
+	unconnectedSess, unconnectedReachable, unconnectedErr := m.tryConnect(testConfig)
 	if unconnectedSess == nil {
 		// Unconnected socket failed to connect - fall back to connected
 		log.Infof("[%s] Unconnected socket failed: %s, keeping connected mode", m.config.IPAddress, unconnectedErr)
@@ -97,12 +100,18 @@ func (m *snmpConnectionManager) Connect() (session.Session, bool, error) {
 		return sess, false, nil
 	}
 
-	// Unconnected socket connected successfully - use it regardless of reachability
-	if unconnectedReachable {
-		log.Infof("[%s] Unconnected socket succeeded, switching to unconnected mode", m.config.IPAddress)
-	} else {
-		log.Infof("[%s] Unconnected socket connected but device unreachable, switching to unconnected mode", m.config.IPAddress)
+	// Check if device is reachable with unconnected socket
+	if !unconnectedReachable {
+		// Unconnected socket also unreachable - fall back to connected
+		log.Infof("[%s] Unconnected socket also unreachable, keeping connected mode", m.config.IPAddress)
+		unconnectedSess.Close()
+		m.session = sess
+		return sess, false, nil
 	}
+
+	// Device is reachable with unconnected socket - switch to it permanently
+	log.Infof("[%s] Unconnected socket succeeded, switching to unconnected mode", m.config.IPAddress)
+	m.config.UseUnconnectedUDPSocket = true
 	m.fallbackState.useUnconnectedSocket = true
 
 	// Close the old connected session and use unconnected
@@ -110,7 +119,7 @@ func (m *snmpConnectionManager) Connect() (session.Session, bool, error) {
 		log.Debugf("[%s] Failed to close connected session: %s", m.config.IPAddress, err)
 	}
 	m.session = unconnectedSess
-	return unconnectedSess, unconnectedReachable, nil
+	return unconnectedSess, true, nil
 }
 
 // GetSession returns the current active session.
