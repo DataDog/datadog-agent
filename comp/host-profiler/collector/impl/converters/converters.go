@@ -307,7 +307,7 @@ func addProfilerMetadataTags(conf confMap) error {
 	}
 	profilerVersionElement := confMap{
 		"key":    "profiler_version",
-		"value":  version.AgentPackageVersion,
+		"value":  version.AgentVersion,
 		"action": "upsert",
 	}
 
