@@ -121,7 +121,11 @@ def _fix_makesfxca_dll(path):
     Zero-ing out the certificate data directory table entry allows signtool/jsign to create a new
     certificate table in the PE file.
 
-    This may be able to be removed if we upgrade to a later version of the WiX toolset.
+    WiX 5 Migration Note:
+    This workaround was originally for WiX 3.11. WiX 5 may have different behavior.
+    This function is safe to keep because it's a no-op if the certificate table is already
+    zeroed (returns early if ct_offset == 0 and ct_size == 0). After confirming WiX 5 builds
+    work correctly, this function can potentially be removed if no longer needed.
     """
 
     def intval(data, offset, size):
