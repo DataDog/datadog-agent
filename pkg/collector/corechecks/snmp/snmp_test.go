@@ -1669,8 +1669,7 @@ tags:
 	sender.On("Commit").Return()
 
 	var nilPacket *gosnmp.SnmpPacket
-	// GetNext for reachability check during connection - succeeds so device is reachable
-	sess.On("GetNext", []string{"1.0"}).Return(&gosnmp.SnmpPacket{}, nil).Once()
+	sess.On("GetNext", []string{"1.0"}).Return(nilPacket, errors.New("no value for GetNext"))
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(nilPacket, errors.New("no value"))
 
 	sess.On("Get", []string{
@@ -1685,7 +1684,7 @@ tags:
 	}).Return(nilPacket, errors.New("device failure"))
 	sess.On("Get", []string{"1.3.6.1.2.1.1.1.0"}).Return(nilPacket, errors.New("device failure"))
 
-	expectedErrMsg := "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: failed getting oids `[1.3.6.1.2.1.1.1.0]` using Get: device failure"
+	expectedErrMsg := "check device reachable: failed: no value for GetNext; failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: failed getting oids `[1.3.6.1.2.1.1.1.0]` using Get: device failure"
 
 	err = chk.Run()
 	assert.EqualError(t, err, expectedErrMsg)
@@ -1718,7 +1717,7 @@ tags:
         "snmp_device:1.2.3.5"
       ],
       "ip_address": "1.2.3.5",
-      "status": 1,
+      "status": 2,
       "subnet": "127.0.0.0/30",
 	  "integration": "snmp",
 	  "device_type": "other"
@@ -1729,6 +1728,11 @@ tags:
 	  "resource_type": "device",
 	  "resource_id": "default:1.2.3.5",
 	  "diagnoses": [
+		{
+		  "severity": "error",
+		  "message": "Agent failed to poll this network device. Check the authentication method and ensure the agent can ping it.",
+		  "code": "SNMP_FAILED_TO_POLL_DEVICE"
+		},
 		{
 		  "severity": "error",
 		  "message": "Agent failed to detect a profile for this network device.",

@@ -199,7 +199,9 @@ func TestConnectionManager_NonTimeoutError(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "authentication failed")
-	assert.Nil(t, sess)
+	// Session should be returned even on reachability failure so caller can continue
+	assert.NotNil(t, sess)
+	assert.Equal(t, mainSess, sess)
 
 	mainSess.AssertExpectations(t)
 }
@@ -238,7 +240,9 @@ func TestConnectionManager_FallbackTestFails(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "timeout")
-	assert.Nil(t, sess)
+	// Session should be returned even when fallback test fails so caller can continue
+	assert.NotNil(t, sess)
+	assert.Equal(t, mainSess, sess)
 
 	mainSess.AssertExpectations(t)
 	testSess.AssertExpectations(t)

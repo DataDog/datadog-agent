@@ -64,34 +64,43 @@ func (m *snmpConnectionManager) Connect() (session.Session, error) {
 	}
 
 	// Try to connect
-	err = sess.Connect()
-	if err == nil {
-		// Connection succeeded - now test reachability
-		// For UDP, Connect() doesn't establish a real connection; timeouts occur during read operations
-		_, reachErr := sess.GetNext([]string{coresnmp.DeviceReachableGetNextOid})
-		if reachErr == nil {
-			// Both connect and reachability check succeeded
-			if !m.fallbackState.useUnconnectedSocket {
-				m.fallbackState.connectedSocketSucceeded = true
-			}
-			m.session = sess
-			return sess, nil
-		}
-		// Reachability check failed
-		err = reachErr
+	connectErr := sess.Connect()
+	if connectErr != nil {
+		// Socket connection failed - cannot use this session at all
+		return nil, connectErr
 	}
 
-	// Connection or reachability failed - check if we should attempt fallback
-	if !m.shouldAttemptFallback(err) {
-		return nil, err
+	// Connection succeeded - now test reachability
+	// For UDP, Connect() doesn't establish a real connection; timeouts occur during read operations
+	_, reachErr := sess.GetNext([]string{coresnmp.DeviceReachableGetNextOid})
+	if reachErr == nil {
+		// Both connect and reachability check succeeded
+		if !m.fallbackState.useUnconnectedSocket {
+			m.fallbackState.connectedSocketSucceeded = true
+		}
+		m.session = sess
+		return sess, nil
 	}
+
+	// Reachability check failed - check if we should attempt fallback
+	if !m.shouldAttemptFallback(reachErr) {
+		// Socket is connected but device is unreachable
+		// Return session so caller can continue and report device as unreachable
+		m.session = sess
+		return sess, reachErr
+	}
+
+	// Timeout occurred - attempt fallback
+	err = reachErr
 
 	// Attempt unconnected UDP fallback for multi-homed devices
 	log.Infof("[%s] Connected socket failed with timeout, testing unconnected socket fallback", m.config.IPAddress)
 
 	if !m.testFallback() {
 		log.Infof("[%s] Unconnected socket test failed, keeping connected mode", m.config.IPAddress)
-		return nil, err
+		// Return the session anyway so caller can continue and report device as unreachable
+		m.session = sess
+		return sess, err
 	}
 
 	// Fallback test succeeded - switch to unconnected mode permanently
