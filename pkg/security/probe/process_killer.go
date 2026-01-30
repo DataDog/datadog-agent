@@ -293,7 +293,7 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 
 	scope := "process"
 	switch kill.Scope {
-	case "container", "process":
+	case "container", "process", "cgroup":
 		scope = kill.Scope
 	}
 

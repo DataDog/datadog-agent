@@ -1039,7 +1039,7 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 				{
 					Kill: &rules.KillDefinition{
 						Signal:                    "SIGKILL",
-						Scope:                     "container",
+						Scope:                     "cgroup",
 						DisableContainerDisarmer:  true,
 						DisableExecutableDisarmer: true,
 					},
