@@ -1138,8 +1138,8 @@ collect_topology: false
 	}, deviceCk.profileCache.columnOIDs)
 }
 
-// TestDeviceCheck_UDPFallbackConnector_Initialized tests that UDP fallback connector is initialized
-func TestDeviceCheck_UDPFallbackConnector_Initialized(t *testing.T) {
+// TestDeviceCheck_ConnectionManager_Initialized tests that ConnectionManager is initialized
+func TestDeviceCheck_ConnectionManager_Initialized(t *testing.T) {
 	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateFakeSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -1165,10 +1165,10 @@ profiles:
 	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, agentconfig.NewMock(t))
 	assert.Nil(t, err)
 
-	// Verify udpFallback is initialized
-	assert.NotNil(t, deviceCk.udpFallback, "udpFallback connector should be initialized in NewDeviceCheck")
+	// Verify ConnectionManager is initialized
+	assert.NotNil(t, deviceCk.connMgr, "ConnectionManager should be initialized in NewDeviceCheck")
 
 	// Verify it's the correct type (implementation detail, but good to check)
-	_, ok := deviceCk.udpFallback.(*udpSocketFallbackManager)
-	assert.True(t, ok, "udpFallback should be a *udpSocketFallbackManager")
+	_, ok := deviceCk.connMgr.(*snmpConnectionManager)
+	assert.True(t, ok, "connMgr should be a *snmpConnectionManager")
 }

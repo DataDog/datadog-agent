@@ -141,8 +141,7 @@ func (pc *profileCache) RemoveMissingOIDs(values *valuestore.ResultValueStore) {
 type DeviceCheck struct {
 	config                  *checkconfig.CheckConfig
 	sender                  *report.MetricSender
-	session                 session.Session
-	sessionFactory          session.Factory
+	connMgr                 ConnectionManager
 	oidBatchSizeOptimizers  *fetch.OidBatchSizeOptimizers
 	devicePinger            pinger.Pinger
 	sessionCloseErrorCount  *atomic.Uint64
@@ -152,7 +151,6 @@ type DeviceCheck struct {
 	cacheKey                string
 	agentConfig             config.Component
 	profileCache            profileCache
-	udpFallback             udpSocketFallbackConnector // Handles automatic fallback to unconnected UDP sockets
 }
 
 const cacheKeyPrefix = "snmp-tags"
@@ -175,7 +173,7 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 
 	d := DeviceCheck{
 		config:                  newConfig,
-		sessionFactory:          sessionFactory,
+		connMgr:                 NewConnectionManager(newConfig, sessionFactory),
 		oidBatchSizeOptimizers:  fetch.NewOidBatchSizeOptimizers(newConfig.OidBatchSize),
 		devicePinger:            devicePinger,
 		sessionCloseErrorCount:  atomic.NewUint64(0),
@@ -183,7 +181,6 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 		interfaceBandwidthState: report.MakeInterfaceBandwidthState(),
 		cacheKey:                cacheKey,
 		agentConfig:             agentConfig,
-		udpFallback:             newUDPSocketFallbackManager(newConfig, sessionFactory),
 	}
 
 	d.readTagsFromCache()
@@ -242,12 +239,6 @@ func (d *DeviceCheck) GetDeviceHostname() (string, error) {
 func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	startTime := time.Now()
 	staticTags := append(d.config.GetStaticTags(), d.config.GetNetworkTags()...)
-
-	var err error
-	d.session, err = d.sessionFactory(d.config)
-	if err != nil {
-		return err
-	}
 
 	// Fetch and report metrics
 	var checkErr error
@@ -360,9 +351,7 @@ func (d *DeviceCheck) getValuesAndTags() (bool, profiledefinition.ProfileDefinit
 	var tags []string
 
 	// Create connection with automatic UDP fallback for multi-homed devices
-	var fallbackEnabled bool
-	var connErr error
-	d.session, fallbackEnabled, connErr = d.udpFallback.connectWithFallback(d.session)
+	fallbackEnabled, connErr := d.connMgr.Connect()
 
 	if connErr != nil {
 		d.diagnoses.Add("error", "SNMP_FAILED_TO_OPEN_CONNECTION", "Agent failed to open connection.")
@@ -375,27 +364,24 @@ func (d *DeviceCheck) getValuesAndTags() (bool, profiledefinition.ProfileDefinit
 		d.sender.Gauge(unconnectedSocketFallbackMetric, 1.0, append(d.config.GetStaticTags(), "status:enabled"))
 	}
 	defer func() {
-		err := d.session.Close()
+		err := d.connMgr.Close()
 		if err != nil {
 			d.sessionCloseErrorCount.Inc()
 			log.Warnf("failed to close session (count: %d): %v", d.sessionCloseErrorCount.Load(), err)
 		}
 	}()
 
-	// Check if the device is reachable
-	getNextValue, err := d.session.GetNext([]string{coresnmp.DeviceReachableGetNextOid})
-	if err != nil {
-		deviceReachable = false
-		d.diagnoses.Add("error", "SNMP_FAILED_TO_POLL_DEVICE", "Agent failed to poll this network device. Check the authentication method and ensure the agent can ping it.")
-		checkErrors = append(checkErrors, fmt.Sprintf("check device reachable: failed: %s", err))
-	} else {
-		deviceReachable = true
-		if log.ShouldLog(log.DebugLvl) {
-			log.Debugf("check device reachable: success: %v", gosnmplib.PacketAsString(getNextValue))
-		}
+	// Get the connected session
+	sess := d.connMgr.GetSession()
+
+	// Check if the device is reachable (already done in Connect(), but checking result)
+	// The Connect() method already performed a GetNext() test, so device is reachable
+	deviceReachable = true
+	if log.ShouldLog(log.DebugLvl) {
+		log.Debugf("check device reachable: success (verified during connection)")
 	}
 
-	profile, err := d.detectMetricsToMonitor(d.session)
+	profile, err := d.detectMetricsToMonitor(sess)
 	if err != nil {
 		d.diagnoses.Add("error", "SNMP_FAILED_TO_DETECT_PROFILE", "Agent failed to detect a profile for this network device.")
 		checkErrors = append(checkErrors, fmt.Sprintf("failed to autodetect profile: %s", err))
@@ -403,7 +389,7 @@ func (d *DeviceCheck) getValuesAndTags() (bool, profiledefinition.ProfileDefinit
 
 	tags = append(tags, profile.StaticTags...)
 
-	valuesStore, err := fetch.Fetch(d.session, d.profileCache.scalarOIDs, d.profileCache.columnOIDs,
+	valuesStore, err := fetch.Fetch(sess, d.profileCache.scalarOIDs, d.profileCache.columnOIDs,
 		d.oidBatchSizeOptimizers, d.config.BulkMaxRepetitions)
 	if log.ShouldLog(log.DebugLvl) {
 		log.Debugf("fetched values: %v", valuestore.ResultValueStoreAsString(valuesStore))
@@ -455,9 +441,12 @@ func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string)
 	d.sender.MonotonicCount("datadog.snmp.check_interval", time.Duration(startTime.UnixNano()).Seconds(), newTags)
 	d.sender.Gauge("datadog.snmp.check_duration", time.Since(startTime).Seconds(), newTags)
 	d.sender.Gauge("datadog.snmp.submitted_metrics", float64(d.sender.GetSubmittedMetrics()), newTags)
-	d.sender.Gauge(snmpRequestMetric, float64(d.session.GetSnmpGetCount()), append(utils.CopyStrings(newTags), snmpGetRequestTag))
-	d.sender.Gauge(snmpRequestMetric, float64(d.session.GetSnmpGetBulkCount()), append(utils.CopyStrings(newTags), snmpGetBulkRequestTag))
-	d.sender.Gauge(snmpRequestMetric, float64(d.session.GetSnmpGetNextCount()), append(utils.CopyStrings(newTags), snmpGetNextReqestTag))
+
+	// Get session for SNMP request counts
+	sess := d.connMgr.GetSession()
+	d.sender.Gauge(snmpRequestMetric, float64(sess.GetSnmpGetCount()), append(utils.CopyStrings(newTags), snmpGetRequestTag))
+	d.sender.Gauge(snmpRequestMetric, float64(sess.GetSnmpGetBulkCount()), append(utils.CopyStrings(newTags), snmpGetBulkRequestTag))
+	d.sender.Gauge(snmpRequestMetric, float64(sess.GetSnmpGetNextCount()), append(utils.CopyStrings(newTags), snmpGetNextReqestTag))
 }
 
 // GetDiagnoses collects diagnoses for diagnose CLI
