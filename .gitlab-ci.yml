@@ -251,6 +251,7 @@ variables:
   # End vault variables
 
   DD_PKG_VERSION: "latest"
+  DD_PKG_GITLAB_URL: "https://artifact-gateway.us1.ddbuild.io/internal/artifact-gateway/api/v4"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
 
   # Job cloning strategy
