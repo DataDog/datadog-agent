@@ -5,3 +5,9 @@ crate.from_cargo(
     lockfile = "//pkg/discovery/module/rust:Cargo.Bazel.lock",
     manifests = ["//pkg/discovery/module/rust:Cargo.toml"],
 )
+crate.from_cargo(
+    name = "deepinference_crates",
+    cargo_lockfile = "//pkg/deepinference/rust:Cargo.lock",
+    lockfile = "//pkg/deepinference/rust:Cargo.Bazel.lock",
+    manifests = ["//pkg/deepinference/rust:Cargo.toml"],
+)

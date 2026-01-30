@@ -1,0 +1,26 @@
+load("@rules_rust//rust:defs.bzl", "rust_shared_library")
+
+rust_shared_library(
+    name = "libdeepinference",
+    srcs = ["src/lib.rs"],
+    crate_name = "deepinference",
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@deepinference_crates//:anyhow",
+        "@deepinference_crates//:candle-core",
+        "@deepinference_crates//:candle-nn",
+        "@deepinference_crates//:candle-transformers",
+        "@deepinference_crates//:hf-hub",
+        "@deepinference_crates//:serde_json",
+        "@deepinference_crates//:tokenizers",
+    ],
+    # TODO: Macos...
+    rustc_flags = select({
+        "@platforms//os:linux": [
+            "-C", "link-arg=-Wl,-rpath=/opt/datadog-agent/embedded/lib",
+        ],
+        "//conditions:default": [],
+    }),
+)
