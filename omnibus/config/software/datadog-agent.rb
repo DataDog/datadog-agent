@@ -90,20 +90,6 @@ build do
   # Clean Rust target directory to avoid CMake cache path conflicts
   delete "pkg/deepinference/rust/target"
 
-  # Ensure OpenSSL 3 symlinks exist for Linux builds
-  # The Rust library needs libssl.so.3 and libcrypto.so.3 symlinks
-  # The Bazel install should create these, but ensure they exist
-  if linux_target?
-    embedded_lib = "#{install_dir}/embedded/lib"
-    # Create symlinks if the base libraries exist but symlinks don't
-    if File.exist?("#{embedded_lib}/libssl.so") && !File.exist?("#{embedded_lib}/libssl.so.3")
-      command "ln -sf libssl.so #{embedded_lib}/libssl.so.3"
-    end
-    if File.exist?("#{embedded_lib}/libcrypto.so") && !File.exist?("#{embedded_lib}/libcrypto.so.3")
-      command "ln -sf libcrypto.so #{embedded_lib}/libcrypto.so.3"
-    end
-  end
-
   # we assume the go deps are already installed before running omnibus
   if windows_target?
     platform = windows_arch_i386? ? "x86" : "x64"
@@ -122,22 +108,6 @@ build do
     command "dda inv -- -e rtloader.install", :live_stream => Omnibus.logger.live_stream(:info)
 
     command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
-
-    # Patch the Rust deepinference library to use embedded OpenSSL libraries
-    if linux_target?
-      rust_lib = "#{project_dir}/pkg/deepinference/rust/target/release/libdeepinference.so"
-      if File.exist?(rust_lib)
-        # Ensure the library can find embedded OpenSSL libraries at runtime
-        shellout! "patchelf --add-rpath #{install_dir}/embedded/lib #{rust_lib}"
-        # If the library is linked against system OpenSSL, ensure it uses the embedded version
-        # Check what libraries it needs and patch if necessary
-        needed_libs = shellout("patchelf --print-needed #{rust_lib}").stdout
-        if needed_libs.include?("libssl.so.3") || needed_libs.include?("libcrypto.so.3")
-          # The library already needs libssl.so.3/libcrypto.so.3, just ensure rpath is set
-          # The rpath we added above should allow it to find the embedded libraries
-        end
-      end
-    end
   end
 
   if osx_target?
