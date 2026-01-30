@@ -260,6 +260,7 @@ pkg_filegroup(
         ":lib_file",
         ":so_link",
     ],
+    visibility = ["//visibility:public"],
 )
 
 pkg_install(

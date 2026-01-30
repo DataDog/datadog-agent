@@ -8,7 +8,12 @@
   rules: !reference [.on_deploy_internal_or_internal_image_change_or_manual]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
-  timeout: 1h 30m
+  timeout: 1h
+  parallel:
+    matrix:
+      - COMPRESSION:
+          - "zstd"
+          - "nydus"
   script:
     # Constant variables
     - export RELEASE_STAGING="true"
@@ -17,6 +22,8 @@
     - export BASE_RELEASE_TAG="${CI_COMMIT_REF_NAME//\//-}"
     - export RELEASE_TAG="${BASE_RELEASE_TAG}${RELEASE_TAG_SUFFIX}"
     - export TMPL_SRC_IMAGE="v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${TMPL_SRC_IMAGE_SUFFIX}"
+    # Specify the compression
+    - export IMAGE_VERSION="${IMAGE_VERSION}-${COMPRESSION}"
     # BUILD_TAG is always RELEASE_TAG
     - export BUILD_TAG="${RELEASE_TAG}"
     # Fetch Gitlab token
@@ -28,11 +35,7 @@
         TMPL_SRC_REPO="${TMPL_SRC_REPO}-nightly"
       fi
     - if [ "$BUCKET_BRANCH" = "dev" ]; then RELEASE_TAG="dev-${BASE_RELEASE_TAG}-${CI_COMMIT_SHORT_SHA}${RELEASE_TAG_SUFFIX}"; fi
-    # Also build images with zstd compression
-    - export ENABLE_ZSTD_PREVIEW="true"
-    # Also build images with nydus
-    - export ENABLE_NYDUS_PREVIEW="true"
-    - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref master --timeout 3600 --variable IMAGE_VERSION --variable IMAGE_NAME --variable RELEASE_TAG --variable TMPL_SRC_IMAGE --variable TMPL_SRC_REPO --variable TMPL_ADP_VERSION --variable RELEASE_STAGING --variable RELEASE_PROD --variable DYNAMIC_BUILD_RENDER_RULES --variable APPS --variable BAZEL_TARGET --variable DDR --variable DDR_WORKFLOW_ID --variable TARGET_ENV --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS --variable ENABLE_ZSTD_PREVIEW --variable ENABLE_NYDUS_PREVIEW"
+    - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref master --timeout 3600 --variable IMAGE_VERSION --variable IMAGE_NAME --variable RELEASE_TAG --variable TMPL_SRC_IMAGE --variable TMPL_SRC_REPO --variable TMPL_ADP_VERSION --variable RELEASE_STAGING --variable RELEASE_PROD --variable DYNAMIC_BUILD_RENDER_RULES --variable APPS --variable BAZEL_TARGET --variable DDR --variable DDR_WORKFLOW_ID --variable TARGET_ENV --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
   retry: 2
 
 # -- binary specific variables --

@@ -781,7 +781,7 @@ Package client implements a component to send process metadata to the Cluster-Ag
 
 ### [comp/networkdeviceconfig](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkdeviceconfig)
 
-*Datadog Team*: ndm-core ndm-integrations
+*Datadog Team*: ndm-integrations
 
 Package networkdeviceconfig provides the component for retrieving network device configurations.
 

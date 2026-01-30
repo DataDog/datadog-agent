@@ -117,7 +117,8 @@ jobs:
             [ -n "$digest" ] || { echo "Error: Could not get digest for $tag"; exit 1; }
 
             # Append the digest into the new versions JSON
-            new_versions=$(jq --arg tag "$tag" --arg digest "$digest" '.[$tag].digest = $digest' <<< "$new_versions")
+            # Must use the -c option (compact) to keep the jq output to a single-line
+            new_versions=$(jq -c --arg tag "$tag" --arg digest "$digest" '.[$tag].digest = $digest' <<< "$new_versions")
           done
 
           echo "new_versions=$new_versions" >> "$GITHUB_OUTPUT"
