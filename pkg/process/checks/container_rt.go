@@ -119,6 +119,11 @@ func (r *RTContainerCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 func (r *RTContainerCheck) Cleanup() {}
 
 func convertAndChunkContainers(containers []*model.Container, chunks int) [][]*model.ContainerStat {
+	// Callers should already ensure this, but check just in case
+	if chunks == 0 {
+		log.Tracef("No chunks requested, returning nil slice")
+		return nil
+	}
 	perChunk := (len(containers) / chunks) + 1
 	chunked := make([][]*model.ContainerStat, chunks)
 	chunk := make([]*model.ContainerStat, 0, perChunk)

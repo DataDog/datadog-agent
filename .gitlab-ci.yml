@@ -1,5 +1,8 @@
 ---
 include:
+  - local: .adms/npm/gitlab.yaml
+  - local: .adms/go/gitlab.yaml
+  - local: .adms/python/gitlab.yaml
   - local: .gitlab/.pre/**.yml
   - local: .gitlab/build/**.yml
   - local: .gitlab/deploy/**.yml

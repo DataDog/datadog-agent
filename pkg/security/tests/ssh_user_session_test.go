@@ -150,8 +150,24 @@ func (u *testSSHUser) cleanup() error {
 	return nil
 }
 
+// SSHUserSessionExpected contient les valeurs attendues pour vérifier une session SSH
+type SSHUserSessionExpected struct {
+	SessionType    *string  // If nil, only check if the field exists and is "ssh"
+	AuthMethod     *string  // If nil, only check if the field exists and is either "password" or "public_key" or "unknown"
+	ClientIP       *string  // If nil, only check it's local host
+	ClientPort     *float64 // If nil, only check if port > 0
+	SessionID      *string  // If nil, only check if ssh_session_id > 0
+	CheckPublicKey bool     // If true and AuthMethod == "public_key", checks if the public key is valid
+}
+
 // checkSSHUserSessionJSON check if all the fields in the JSON are valid for a SSH Session
-func checkSSHUserSessionJSON(testMod *testModule, t testing.TB, data []byte) {
+func checkSSHUserSessionJSON(testMod *testModule, t testing.TB, data []byte, expected *SSHUserSessionExpected) {
+	if expected == nil {
+		expected = &SSHUserSessionExpected{
+			CheckPublicKey: true,
+		}
+	}
+
 	jsonPathValidation(testMod, data, func(_ *testModule, jsonData interface{}) {
 
 		// Check all the fields
@@ -167,6 +183,9 @@ func checkSSHUserSessionJSON(testMod *testModule, t testing.TB, data []byte) {
 			if !ok || sshSessionID == "" || sshSessionID == "0" {
 				t.Errorf("user_session.user_session_id is empty or invalid: %v", el)
 			}
+			if expected.SessionID != nil && sshSessionID != *expected.SessionID {
+				t.Errorf("user_session.ssh_session_id mismatch: got %v, want %v", sshSessionID, *expected.SessionID)
+			}
 		}
 
 		if el, err := jsonpath.JsonPathLookup(jsonData, `$.process.user_session.id`); err != nil || el == nil {
@@ -177,8 +196,16 @@ func checkSSHUserSessionJSON(testMod *testModule, t testing.TB, data []byte) {
 
 		if el, err := jsonpath.JsonPathLookup(jsonData, `$.process.user_session.session_type`); err != nil || el == nil {
 			t.Errorf("user_session.session_type not found: %v", err)
-		} else if sessionType, ok := el.(string); !ok || sessionType != "ssh" {
-			t.Errorf("user_session.session_type is not 'ssh': %v", el)
+		} else if sessionType, ok := el.(string); !ok {
+			t.Errorf("user_session.session_type is not a string: %v", el)
+		} else {
+			expectedType := "ssh"
+			if expected.SessionType != nil {
+				expectedType = *expected.SessionType
+			}
+			if sessionType != expectedType {
+				t.Errorf("user_session.session_type mismatch: got %v, want %v", sessionType, expectedType)
+			}
 		}
 
 		if el, err := jsonpath.JsonPathLookup(jsonData, `$.process.user_session.ssh_client_port`); err != nil || el == nil {
@@ -189,6 +216,9 @@ func checkSSHUserSessionJSON(testMod *testModule, t testing.TB, data []byte) {
 			if !ok || sshClientPort <= 0 {
 				t.Errorf("user_session.ssh_client_port is invalid: %v", el)
 			}
+			if expected.ClientPort != nil && sshClientPort != *expected.ClientPort {
+				t.Errorf("user_session.ssh_client_port mismatch: got %v, want %v", sshClientPort, *expected.ClientPort)
+			}
 		}
 
 		if el, err := jsonpath.JsonPathLookup(jsonData, `$.process.user_session.ssh_client_ip`); err != nil || el == nil {
@@ -198,6 +228,10 @@ func checkSSHUserSessionJSON(testMod *testModule, t testing.TB, data []byte) {
 			sshClientIP, ok = el.(string)
 			if !ok || sshClientIP == "" {
 				t.Errorf("user_session.ssh_client_ip is empty: %v", el)
+			} else if expected.ClientIP != nil {
+				if sshClientIP != *expected.ClientIP {
+					t.Errorf("user_session.ssh_client_ip mismatch: got %v, want %v", sshClientIP, *expected.ClientIP)
+				}
 			} else if sshClientIP != "127.0.0.1" && sshClientIP != "::1" {
 				t.Errorf("user_session.ssh_client_ip should be localhost (127.0.0.1 or ::1): %v", sshClientIP)
 			}
@@ -207,7 +241,7 @@ func checkSSHUserSessionJSON(testMod *testModule, t testing.TB, data []byte) {
 
 		if el, err := jsonpath.JsonPathLookup(jsonData, `$.process.user_session.identity`); err != nil || el == nil {
 			t.Errorf("user_session.identity not found: %v", err)
-		} else if identity, ok := el.(string); !ok || identity == fmt.Sprintf("%s:%f", sshClientIP, sshClientPort) {
+		} else if identity, ok := el.(string); !ok || identity == "" {
 			t.Errorf("user_session.identity is empty: %v", el)
 		}
 
@@ -215,16 +249,24 @@ func checkSSHUserSessionJSON(testMod *testModule, t testing.TB, data []byte) {
 			t.Errorf("user_session.ssh_auth_method not found: %v", err)
 		} else if authMethod, ok := el.(string); !ok || authMethod == "" {
 			t.Errorf("user_session.ssh_auth_method is empty: %v", el)
-		} else if authMethod != "public_key" && authMethod != "password" {
-			t.Errorf("user_session.ssh_auth_method has unexpected value: %v", authMethod)
+		} else {
+			if expected.AuthMethod != nil {
+				if authMethod != *expected.AuthMethod {
+					t.Errorf("user_session.ssh_auth_method mismatch: got %v, want %v", authMethod, *expected.AuthMethod)
+				}
+			} else if authMethod != "public_key" && authMethod != "password" && authMethod != "unknown" {
+				t.Errorf("user_session.ssh_auth_method has unexpected value: %v", authMethod)
+			}
 		}
 
-		if authMethod, err := jsonpath.JsonPathLookup(jsonData, `$.process.user_session.ssh_auth_method`); err == nil {
-			if authMethodStr, ok := authMethod.(string); ok && authMethodStr == "public_key" {
-				if el, err := jsonpath.JsonPathLookup(jsonData, `$.process.user_session.ssh_public_key`); err != nil || el == nil {
-					t.Errorf("user_session.ssh_public_key not found for publickey auth: %v", err)
-				} else if pubKey, ok := el.(string); !ok || pubKey == "" {
-					t.Errorf("user_session.ssh_public_key is empty for publickey auth: %v", el)
+		if expected.CheckPublicKey {
+			if authMethod, err := jsonpath.JsonPathLookup(jsonData, `$.process.user_session.ssh_auth_method`); err == nil {
+				if authMethodStr, ok := authMethod.(string); ok && authMethodStr == "public_key" {
+					if el, err := jsonpath.JsonPathLookup(jsonData, `$.process.user_session.ssh_public_key`); err != nil || el == nil {
+						t.Errorf("user_session.ssh_public_key not found for publickey auth: %v", err)
+					} else if pubKey, ok := el.(string); !ok || pubKey == "" {
+						t.Errorf("user_session.ssh_public_key is empty for publickey auth: %v", el)
+					}
 				}
 			}
 		}
@@ -287,7 +329,10 @@ func rotateAuthLog(logPath string) error {
 	}
 
 	if err := exec.Command("systemctl", "reload", "rsyslog").Run(); err != nil {
-		_ = exec.Command("bash", "-c", "pidof rsyslogd >/dev/null 2>&1 && kill -HUP $(pidof rsyslogd)").Run()
+		err = exec.Command("bash", "-c", "pidof rsyslogd >/dev/null 2>&1 && kill -HUP $(pidof rsyslogd)").Run()
+		if err != nil {
+			return fmt.Errorf("reload rsyslog: %w", err)
+		}
 	}
 
 	return nil
@@ -301,7 +346,6 @@ func restoreRotatedLog(logPath string) error {
 	if _, err := os.Stat(rotatedPath); os.IsNotExist(err) {
 		return nil // Nothing to restore
 	}
-
 	// Remove the new empty log
 	_ = os.Remove(logPath)
 
@@ -312,7 +356,10 @@ func restoreRotatedLog(logPath string) error {
 
 	// Reload rsyslog
 	if err := exec.Command("systemctl", "reload", "rsyslog").Run(); err != nil {
-		_ = exec.Command("bash", "-c", "pidof rsyslogd >/dev/null 2>&1 && kill -HUP $(pidof rsyslogd)").Run()
+		err = exec.Command("bash", "-c", "pidof rsyslogd >/dev/null 2>&1 && kill -HUP $(pidof rsyslogd)").Run()
+		if err != nil {
+			return fmt.Errorf("reload rsyslog: %w", err)
+		}
 	}
 
 	return nil
@@ -341,6 +388,7 @@ func getLogFile() (bool, string, uint64) {
 	}
 	return false, "", 0
 }
+
 func TestSSHUserSession(t *testing.T) {
 	SkipIfNotAvailable(t)
 	if testEnvironment == DockerEnvironment {
@@ -398,7 +446,11 @@ func TestSSHUserSession(t *testing.T) {
 			validateMessageSchema(t, string(msg.Data))
 
 			// Check all the fields
-			checkSSHUserSessionJSON(test, t, msg.Data)
+			expectedAuthType := "public_key"
+			expected := &SSHUserSessionExpected{
+				AuthMethod: &expectedAuthType,
+			}
+			checkSSHUserSessionJSON(test, t, msg.Data, expected)
 
 			return nil
 		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
@@ -486,11 +538,136 @@ func TestSSHUserSessionRotated(t *testing.T) {
 			validateMessageSchema(t, string(msg.Data))
 
 			// Check all the fields
-			checkSSHUserSessionJSON(test, t, msg.Data)
+			expectedAuthType := "public_key"
+			expected := &SSHUserSessionExpected{
+				AuthMethod: &expectedAuthType,
+			}
+
+			checkSSHUserSessionJSON(test, t, msg.Data, expected)
 
 			return nil
 		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
 		assert.NoError(t, err)
 
 	})
+}
+
+func TestSSHUserSessionBlocking(t *testing.T) {
+	SkipIfNotAvailable(t)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+
+	isLogFileExist, _, _ := getLogFile()
+	// We skip test when we don't have a log file because we don't use journalctl for now
+	if !isLogFileExist {
+		t.Skip("Skip test if log file does not exist")
+	}
+
+	testUser, err := createTestUser()
+	if err != nil {
+		t.Fatalf("failed to create test user: %v", err)
+	}
+	defer func() {
+		if err := testUser.cleanup(); err != nil {
+			t.Logf("warning: failed to cleanup test user: %v", err)
+		}
+	}()
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_blocking_ssh_user_session",
+			Expression: `process.user_session.ssh_session_id != 0 && process.comm == "ls" && exec.user == "` + testUser.Username + `"`,
+		},
+	}
+	controlPath := filepath.Join(os.TempDir(),
+		fmt.Sprintf("cm-%s-%d", testUser.Username, time.Now().UnixNano()),
+	)
+	defer os.Remove(controlPath)
+
+	baseOpts := []string{
+		"-i", testUser.KeyPath,
+		"-o", "StrictHostKeyChecking=no",
+		"-o", "UserKnownHostsFile=/dev/null",
+		"-o", "PasswordAuthentication=no",
+		"-o", "PubkeyAuthentication=yes",
+		"-o", "BatchMode=yes",
+		"-o", "LogLevel=ERROR",
+		"-o", "ControlPath=" + controlPath,
+	}
+
+	host := testUser.Username + "@localhost"
+
+	// 2) Start master in background: -M (master), -N (pas de commande), -f (fork background)
+	masterArgs := append([]string{}, baseOpts...)
+	masterArgs = append(masterArgs,
+		"-o", "ControlMaster=yes",
+		"-o", "ControlPersist=2m",
+		"-N", "-f",
+		host,
+	)
+
+	cmd := exec.Command("ssh", masterArgs...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("Failed to start SSH master: %v", err)
+	}
+
+	// 3) Wait socket exists
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if _, err := os.Stat(controlPath); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("Control socket not created at %s", controlPath)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, withForceReload())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	t.Run("second_ssh_multiplexed", func(t *testing.T) {
+		// 5) Must use master
+		args := append([]string{}, baseOpts...)
+		args = append(args,
+			"-o", "ControlMaster=auto",
+			host,
+			"ls",
+		)
+
+		cmd := exec.Command("ssh", args...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			t.Fatalf("Second SSH command failed: %v", err)
+		}
+
+		err = retry.Do(func() error {
+			msg := test.msgSender.getMsg("test_rule_blocking_ssh_user_session")
+			if msg == nil {
+				return errors.New("not found")
+			}
+			validateMessageSchema(t, string(msg.Data))
+
+			// Check that the field is unknown since the connection is multiplexed and ws initialized before the resolver started
+			expectedAuthType := "unknown"
+			expected := &SSHUserSessionExpected{
+				AuthMethod: &expectedAuthType,
+			}
+			checkSSHUserSessionJSON(test, t, msg.Data, expected)
+			return nil
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		assert.NoError(t, err)
+	})
+
+	exitArgs := append([]string{}, baseOpts...)
+	exitArgs = append(exitArgs, "-O", "exit", host)
+	_ = exec.Command("ssh", exitArgs...).Run()
+
 }

@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/google/uuid"
 	"github.com/mdlayher/vsock"
 	"github.com/pkg/errors"
@@ -50,7 +50,6 @@ import (
 )
 
 const (
-	noTimeout         = 0 * time.Minute
 	streamRecvTimeout = 10 * time.Minute
 	cacheExpiration   = 1 * time.Minute
 )
@@ -465,7 +464,6 @@ func (t *remoteTagger) run() {
 	expBackoff := backoff.NewExponentialBackOff()
 	expBackoff.InitialInterval = 500 * time.Millisecond
 	expBackoff.MaxInterval = 5 * time.Minute
-	expBackoff.MaxElapsedTime = noTimeout
 
 	// Use a timer to trigger the loop. Start immediately.
 	timer := time.NewTimer(0)

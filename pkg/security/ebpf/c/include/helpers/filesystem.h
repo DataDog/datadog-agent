@@ -62,62 +62,6 @@ static __attribute__((always_inline)) void update_path_id(struct path_key_t *pat
     path_key->path_id = get_path_id(path_key->ino, path_key->mount_id, nlink, invalidate);
 }
 
-static __attribute__((always_inline)) void inc_mount_ref(u32 mount_id) {
-    u32 key = mount_id;
-    struct mount_ref_t zero = {};
-
-    bpf_map_update_elem(&mount_ref, &key, &zero, BPF_NOEXIST);
-    struct mount_ref_t *ref = bpf_map_lookup_elem(&mount_ref, &key);
-    if (ref) {
-        __sync_fetch_and_add(&ref->counter, 1);
-    }
-}
-
-static __attribute__((always_inline)) void dec_mount_ref(ctx_t *ctx, u32 mount_id) {
-    u32 key = mount_id;
-    struct mount_ref_t *ref = bpf_map_lookup_elem(&mount_ref, &key);
-    if (ref) {
-        __sync_fetch_and_add(&ref->counter, -1);
-        if (ref->counter > 0 || !ref->umounted) {
-            return;
-        }
-        bpf_map_delete_elem(&mount_ref, &key);
-    } else {
-        return;
-    }
-
-    bump_mount_discarder_revision(mount_id);
-    bump_path_id(mount_id);
-
-    struct mount_released_event_t event = {
-        .mount_id = mount_id,
-    };
-
-    send_event(ctx, EVENT_MOUNT_RELEASED, event);
-}
-
-static __attribute__((always_inline)) void umounted(struct pt_regs *ctx, u32 mount_id) {
-    u32 key = mount_id;
-    struct mount_ref_t *ref = bpf_map_lookup_elem(&mount_ref, &key);
-    if (ref) {
-        if (ref->counter <= 0) {
-            bpf_map_delete_elem(&mount_ref, &key);
-        } else {
-            ref->umounted = 1;
-            return;
-        }
-    }
-
-    bump_mount_discarder_revision(mount_id);
-    bump_path_id(mount_id);
-
-    struct mount_released_event_t event = {
-        .mount_id = mount_id,
-    };
-
-    send_event(ctx, EVENT_MOUNT_RELEASED, event);
-}
-
 static __attribute__((always_inline)) void set_file_layer(struct dentry *dentry, struct file_t *file) {
     if (is_overlayfs(dentry)) {
         u32 flags = get_overlayfs_layer(dentry);

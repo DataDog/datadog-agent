@@ -6,7 +6,7 @@
 
 // Checks the buffer represent a standard response (OK) or any of redis commands
 // https://redis.io/commands/
-static __always_inline bool check_supported_ascii_and_crlf(const char* buf, __u32 buf_size, int index_to_start_from) {
+static __always_inline __maybe_unused bool check_supported_ascii_and_crlf(const char* buf, __u32 buf_size, int index_to_start_from) {
     bool found_cr = false;
     char current_char;
     int i = index_to_start_from;
@@ -30,8 +30,8 @@ static __always_inline bool check_supported_ascii_and_crlf(const char* buf, __u3
 }
 
 static __always_inline __maybe_unused void convert_method_to_upper_case(char* method) {
-    #pragma unroll (METHOD_LEN)
-    for (int i = 0; i < METHOD_LEN; i++) {
+    #pragma unroll (MAX_METHOD_LEN)
+    for (int i = 0; i < MAX_METHOD_LEN; i++) {
         if ('a' <= method[i] && method[i] <= 'z') {
             method[i] = method[i] - 'a' + 'A';
         }
@@ -39,7 +39,7 @@ static __always_inline __maybe_unused void convert_method_to_upper_case(char* me
 }
 
 // Checks the buffer represents an error according to https://redis.io/docs/reference/protocol-spec/#resp-errors
-static __always_inline bool check_err_prefix(const char* buf, __u32 buf_size) {
+static __always_inline __maybe_unused bool check_err_prefix(const char* buf, __u32 buf_size) {
 #define ERR "-ERR "
 #define WRONGTYPE "-WRONGTYPE "
 
@@ -52,7 +52,7 @@ static __always_inline bool check_err_prefix(const char* buf, __u32 buf_size) {
     return match;
 }
 
-static __always_inline bool check_integer_and_crlf(const char* buf, __u32 buf_size, int index_to_start_from) {
+static __always_inline __maybe_unused bool check_integer_and_crlf(const char* buf, __u32 buf_size, int index_to_start_from) {
     bool found_cr = false;
     char current_char;
     int i = index_to_start_from;
@@ -77,14 +77,23 @@ static __always_inline bool is_redis(const char* buf, __u32 buf_size) {
 
     char first_char = buf[0];
     switch (first_char) {
-    case '+':
-        return check_supported_ascii_and_crlf(buf, buf_size, 1);
-    case '-':
-        return check_err_prefix(buf, buf_size);
-    case ':':
-    case '$':
-    case '*':
-        return check_integer_and_crlf(buf, buf_size, 1);
+    // RESP2 types
+    case '+':  // Simple String
+    case '-':  // Error
+    case ':':  // Integer
+    case '$':  // Bulk String
+    case '*':  // Array
+    // RESP3 types (Redis 6.0+)
+    case '_':  // Null
+    case '#':  // Boolean
+    case ',':  // Double
+    case '(':  // Big Number
+    case '!':  // Bulk Error
+    case '=':  // Verbatim String
+    case '%':  // Map
+    case '~':  // Set
+    case '>':  // Push
+        return true;
     default:
         return false;
     }

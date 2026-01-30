@@ -1,6 +1,5 @@
 import os
 import platform
-import shutil
 import sys
 import zipfile
 from pathlib import Path
@@ -11,12 +10,12 @@ from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.retry import run_command_with_retry
-from tasks.libs.common.utils import bin_name, environ, gitlab_section
+from tasks.libs.common.utils import environ, gitlab_section
 
 TOOL_LIST = [
     'github.com/frapposelli/wwhrd',
     'github.com/go-enry/go-license-detector/v4/cmd/license-detector',
-    'github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest',
+    'github.com/golangci/golangci-lint/v2/cmd/golangci-lint',
     'github.com/goware/modvendor',
     'github.com/stormcat24/protodep',
     'gotest.tools/gotestsum',
@@ -63,29 +62,6 @@ def install_tools(ctx: Context, max_retry: int = 3):
                 with ctx.cd(path):
                     for tool in tools:
                         run_command_with_retry(ctx, f"go install {tool}", max_retry=max_retry)
-        # Always install the custom golangci-lint not to fail on custom linters run (e.g pkgconfigusage)
-        install_custom_golanci_lint(ctx)
-
-
-def install_custom_golanci_lint(ctx):
-    res = ctx.run("golangci-lint custom -v")
-    if res.ok:
-        gopath = os.getenv('GOPATH')
-        gobin = os.getenv('GOBIN')
-        default_gopath = os.path.join(Path.home(), "go")
-
-        golintci_binary = bin_name('golangci-lint')
-        golintci_lint_backup_binary = bin_name('golangci-lint-backup')
-
-        go_binaries_folder = gobin or os.path.join(gopath or default_gopath, "bin")
-
-        shutil.move(
-            os.path.join(go_binaries_folder, golintci_binary),
-            os.path.join(go_binaries_folder, golintci_lint_backup_binary),
-        )
-        shutil.move(golintci_binary, os.path.join(go_binaries_folder, golintci_binary))
-
-        print("Installed custom golangci-lint binary successfully")
 
 
 @task

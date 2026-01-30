@@ -789,11 +789,20 @@ func (c *safeConfig) AllSettingsBySource() map[model.Source]interface{} {
 	return res
 }
 
-// AllSettingsWithSequenceID returns the settings and the sequence ID.
-func (c *safeConfig) AllSettingsWithSequenceID() (map[string]interface{}, uint64) {
+// AllFlattenedSettingsWithSequenceID returns all settings as a flattened map along with the sequence ID.
+// Keys are flattened (e.g., "logs_config.enabled" instead of nested {"logs_config": {"enabled": ...}}).
+// This provides atomic access to flattened keys, values, and sequence ID under a single lock.
+func (c *safeConfig) AllFlattenedSettingsWithSequenceID() (map[string]interface{}, uint64) {
 	c.RLock()
 	defer c.RUnlock()
-	return c.Viper.AllSettings(), c.sequenceID
+
+	keys := c.Viper.AllKeys()
+	settings := make(map[string]interface{}, len(keys))
+	for _, key := range keys {
+		val, _ := c.Viper.GetE(key)
+		settings[key] = val
+	}
+	return settings, c.sequenceID
 }
 
 // AddConfigPath wraps Viper for concurrent access

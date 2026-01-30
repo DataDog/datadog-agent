@@ -21,30 +21,27 @@ if TYPE_CHECKING:
     features=["github"],
 )
 @click.option("--pr-number", type=int)
-@click.option("--target-branch", type=str)
+@click.option("--target-branch", type=str, required=True)
 @pass_app
 def cmd(
     app: Application,
+    target_branch: str,
     pr_number: int | None = None,
-    target_branch: str | None = None,
 ) -> None:
     """
     Cherry-pick a merged PR changes to another branch.
     """
-    # Use pr_number and target_branch if provided, otherwise use the event
-    if pr_number and target_branch:
+    # Get the PR either from --pr-number or from the event
+    if pr_number:
         original_pr = get_pr_by_number(pr_number)
-        base = target_branch
     else:
         event = get_event()
         original_pr = event.get("pull_request")
         if not original_pr:
-            app.display_warning("Expecting a pull request event or --pr-number and --target-branch arguments.")
+            app.display_warning("Expecting a pull request event or --pr-number argument.")
             return
-        base = find_backport_target(original_pr.get("labels", []))
-        if not base:
-            app.display_warning("No backport/<target> label found. Skipping backport.")
-            return
+
+    base = target_branch
 
     # Merge commit SHA (the commit created on base branch)
     merge_commit_sha = original_pr.get("merge_commit_sha")
@@ -131,19 +128,6 @@ def get_event() -> dict:
     event_path = os.environ["GITHUB_EVENT_PATH"]
     with open(event_path, encoding="utf-8") as f:
         return json.load(f)
-
-
-def find_backport_target(labels: list[dict]) -> str | None:
-    """
-    Look for a label of the form 'backport/<target>' and return <target>'.
-    """
-    for lbl in labels:
-        name = lbl.get("name")
-        if not name:
-            continue
-        if name.startswith("backport/"):
-            return name.split("/", 1)[1]
-    return None
 
 
 def get_non_backport_labels(labels: list[dict]) -> list[str]:

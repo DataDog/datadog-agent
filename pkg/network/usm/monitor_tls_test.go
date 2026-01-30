@@ -1078,6 +1078,54 @@ func testNodeJSNormalMonitoring(t *testing.T, usmMonitor *Monitor, nodeJSPID uin
 	verifyAllRequestsEventuallyCaptured(t, usmMonitor, protocols.HTTP, requests, 3*time.Second, 100*time.Millisecond, "Expected all NodeJS container requests to be captured")
 }
 
+// TestNodeJSTLSWithLibnode tests Node.js TLS monitoring when Node.js is installed via
+// apt-get (e.g., `apt install nodejs` on Debian/Ubuntu). In this case, SSL symbols are
+// in libnode.so rather than statically linked in the node binary, unlike the official
+// Node.js Docker images which have SSL statically linked.
+func (s *tlsSuite) TestNodeJSTLSWithLibnode() {
+	t := s.T()
+
+	// Check if the current kernel has a bug that causes segfaults when uretprobes are used with seccomp filters.
+	hasKernelBug, err := kernelbugs.HasUretprobeSyscallSeccompBug()
+	require.NoError(t, err)
+	if hasKernelBug {
+		t.Skip("Skipping test due to kernel uretprobe/seccomp bug")
+	}
+
+	const (
+		expectedOccurrences = 10
+		serverPort          = "4445"
+	)
+
+	cert, key, err := testutil.GetCertsPaths()
+	require.NoError(t, err)
+
+	// Use apt-get installed Node.js (Ubuntu package) where SSL symbols are bundled in libnode.so
+	require.NoError(t, nodejs.RunServerNodeJSUbuntu(t, key, cert, serverPort))
+	nodeJSPID, err := nodejs.GetNodeJSUbuntuDockerPID()
+	require.NoError(t, err)
+
+	cfg := utils.NewUSMEmptyConfig()
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableNodeJSMonitoring = true
+
+	usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
+
+	t.Log("Testing Node.js TLS monitoring with Ubuntu apt-installed Node.js (SSL symbols bundled in libnode.so)")
+
+	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, nodeJsAttacherName, int(nodeJSPID), utils.ManualTracingFallbackEnabled)
+
+	client, requestFn := simpleGetRequestsGenerator(t, "localhost:"+serverPort)
+
+	var requests []*nethttp.Request
+	for i := 0; i < expectedOccurrences; i++ {
+		requests = append(requests, requestFn())
+	}
+
+	client.CloseIdleConnections()
+	verifyAllRequestsEventuallyCaptured(t, usmMonitor, protocols.HTTP, requests, 3*time.Second, 100*time.Millisecond, "Expected all NodeJS (apt-get installed, libnode.so) requests to be captured")
+}
+
 func (s *tlsSuite) TestOpenSSLTLSContainer() {
 	t := s.T()
 

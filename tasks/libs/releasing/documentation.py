@@ -14,7 +14,6 @@ NON_RELEASING_TEAMS = {
     'apm-core-reliability-and-performance',
     'debugger',
     'asm-go',
-    'agent-e2e-testing',
     'serverless',
     'agent-platform',
     'agent-release-management',

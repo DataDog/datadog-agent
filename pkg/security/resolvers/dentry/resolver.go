@@ -174,8 +174,8 @@ func (dr *Resolver) sendERPCStats() error {
 	return dr.bufferSelector.Put(ebpf.BufferSelectorERPCMonitorKey, dr.activeERPCStatsBuffer)
 }
 
-// DelCacheEntries removes all the entries belonging to a mountID
-func (dr *Resolver) DelCacheEntries(mountID uint32) {
+// DelCacheEntriesForMountID removes all the entries belonging to a mountID
+func (dr *Resolver) DelCacheEntriesForMountID(mountID uint32) {
 	dr.cache.RemoveKey1(mountID)
 }
 

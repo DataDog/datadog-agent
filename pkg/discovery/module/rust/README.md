@@ -79,24 +79,46 @@ Built binaries are located in `bazel-bin/`.
 
 ### Updating Bazel Build Files
 
-When you make changes to `Cargo.toml`, you need to update the Bazel dependencies:
+Bazel automatically reads dependencies from `Cargo.toml` and `Cargo.lock`. When you modify Rust dependencies, you need to regenerate the Bazel lockfile.
 
 #### Adding Dependencies
 
-1. Add the dependency to `Cargo.toml` as usual
-2. Update the Bazel lockfile:
-   ```bash
-   CARGO_BAZEL_REPIN=1 bazel sync --only=crates
+1. Add the dependency to `Cargo.toml` as usual:
+   ```toml
+   [dependencies]
+   your-new-crate = "1.0"
    ```
+
+2. Regenerate the Bazel lockfile:
+   ```bash
+   CARGO_BAZEL_REPIN=1 bazel fetch //pkg/discovery/module/rust:sd-agent
+   ```
+
 3. Add the dependency to the appropriate target in `BUILD.bazel`:
    ```starlark
    rust_binary(
        name = "sd-agent",
        deps = [
-           "@crates//:your-new-crate",
+           "@sdagent_crates//:your-new-crate",
            # ... other deps
        ],
    )
+   ```
+
+#### Updating Dependencies
+
+When running `cargo update` to update dependency versions:
+
+1. Update dependencies:
+   ```bash
+   cargo update              # Update all dependencies
+   # or
+   cargo update tokio        # Update specific dependency
+   ```
+
+2. Regenerate the Bazel lockfile:
+   ```bash
+   CARGO_BAZEL_REPIN=1 bazel fetch //pkg/discovery/module/rust:sd-agent
    ```
 
 #### Adding New Source Files

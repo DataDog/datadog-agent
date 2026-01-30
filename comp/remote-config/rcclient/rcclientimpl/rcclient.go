@@ -44,7 +44,11 @@ func Module() fxutil.Module {
 }
 
 const (
-	agentTaskTimeout = 5 * time.Minute
+	agentTaskTimeout        = 5 * time.Minute
+	failoverMetricsSetting  = "multi_region_failover.failover_metrics"
+	failoverLogsSetting     = "multi_region_failover.failover_logs"
+	failoverAPMSetting      = "multi_region_failover.failover_apm"
+	metricsAllowlistSetting = "multi_region_failover.metric_allowlist"
 )
 
 type rcClient struct {
@@ -181,12 +185,11 @@ func (rc *rcClient) start() {
 // If a setting is not set via any config, it will fallback if the source was RC.
 func (rc *rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	var enableLogs, enableMetrics, enableAPM *bool
-	var enableLogsCfgPth, enableMetricsCfgPth, enableAPMCfgPth string
-	for cfgPath, update := range updates {
-		if (enableLogs != nil && *enableLogs) && (enableMetrics != nil && *enableMetrics) && (enableAPM != nil && *enableAPM) {
-			break
-		}
+	var enableLogsCfgPth, enableMetricsCfgPth, enableAPMCfgPth, metricsAllowlistCfgPth string
+	var isAllowlistConfigured bool
+	allowedMetrics := make(map[string]struct{})
 
+	for cfgPath, update := range updates {
 		mrfUpdate, err := parseMultiRegionFailoverConfig(update.Config)
 		if err != nil {
 			pkglog.Errorf("Multi-Region Failover update unmarshal failed: %s", err)
@@ -197,7 +200,10 @@ func (rc *rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyS
 			continue
 		}
 
-		if mrfUpdate == nil || (mrfUpdate.FailoverMetrics == nil && mrfUpdate.FailoverLogs == nil && mrfUpdate.FailoverAPM == nil) {
+		if mrfUpdate == nil || (mrfUpdate.FailoverMetrics == nil &&
+			mrfUpdate.FailoverLogs == nil &&
+			mrfUpdate.FailoverAPM == nil &&
+			mrfUpdate.MetricsAllowlist == nil) {
 			continue
 		}
 
@@ -215,10 +221,19 @@ func (rc *rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyS
 			enableAPM = mrfUpdate.FailoverAPM
 			enableAPMCfgPth = cfgPath
 		}
+
+		// Empty allowlist means no metrics are allowed
+		if mrfUpdate.MetricsAllowlist != nil {
+			isAllowlistConfigured = true
+			metricsAllowlistCfgPth = cfgPath
+			for _, metric := range mrfUpdate.MetricsAllowlist {
+				allowedMetrics[metric] = struct{}{}
+			}
+		}
 	}
 
 	if enableMetrics != nil {
-		err := rc.applyMRFRuntimeSetting("multi_region_failover.failover_metrics", *enableMetrics, enableMetricsCfgPth, applyStateCallback)
+		err := rc.applyMRFRuntimeSetting(failoverMetricsSetting, *enableMetrics, enableMetricsCfgPth, applyStateCallback)
 		if err != nil {
 			pkglog.Errorf("Multi-Region Failover failed to apply new metrics settings : %s", err)
 			applyStateCallback(enableMetricsCfgPth, state.ApplyStatus{
@@ -234,15 +249,15 @@ func (rc *rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyS
 		pkglog.Infof("Received remote update for Multi-Region Failover configuration: %s failover for metrics", change)
 		applyStateCallback(enableMetricsCfgPth, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 	} else {
-		mrfFailoverMetricsSource := pkgconfigsetup.Datadog().GetSource("multi_region_failover.failover_metrics")
-		pkgconfigsetup.Datadog().UnsetForSource("multi_region_failover.failover_metrics", model.SourceRC)
+		mrfFailoverMetricsSource := pkgconfigsetup.Datadog().GetSource(failoverMetricsSetting)
+		pkgconfigsetup.Datadog().UnsetForSource(failoverMetricsSetting, model.SourceRC)
 		if mrfFailoverMetricsSource == model.SourceRC {
-			pkglog.Infof("Falling back to `multi_region_failover.failover_metrics: %t`", pkgconfigsetup.Datadog().GetBool("multi_region_failover.failover_metrics"))
+			pkglog.Infof("Falling back to `%s: %t`", failoverMetricsSetting, pkgconfigsetup.Datadog().GetBool(failoverMetricsSetting))
 		}
 	}
 
 	if enableLogs != nil {
-		err := rc.applyMRFRuntimeSetting("multi_region_failover.failover_logs", *enableLogs, enableLogsCfgPth, applyStateCallback)
+		err := rc.applyMRFRuntimeSetting(failoverLogsSetting, *enableLogs, enableLogsCfgPth, applyStateCallback)
 		if err != nil {
 			pkglog.Errorf("Multi-Region Failover failed to apply new logs settings : %s", err)
 			applyStateCallback(enableLogsCfgPth, state.ApplyStatus{
@@ -258,15 +273,15 @@ func (rc *rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyS
 		pkglog.Infof("Received remote update for Multi-Region Failover configuration: %s failover for logs", change)
 		applyStateCallback(enableLogsCfgPth, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 	} else {
-		mrfFailoverLogsSource := pkgconfigsetup.Datadog().GetSource("multi_region_failover.failover_logs")
-		pkgconfigsetup.Datadog().UnsetForSource("multi_region_failover.failover_logs", model.SourceRC)
+		mrfFailoverLogsSource := pkgconfigsetup.Datadog().GetSource(failoverLogsSetting)
+		pkgconfigsetup.Datadog().UnsetForSource(failoverLogsSetting, model.SourceRC)
 		if mrfFailoverLogsSource == model.SourceRC {
-			pkglog.Infof("Falling back to `multi_region_failover.failover_logs: %t`", pkgconfigsetup.Datadog().GetBool("multi_region_failover.failover_logs"))
+			pkglog.Infof("Falling back to `%s: %t`", failoverLogsSetting, pkgconfigsetup.Datadog().GetBool(failoverLogsSetting))
 		}
 	}
 
 	if enableAPM != nil {
-		err := rc.applyMRFRuntimeSetting("multi_region_failover.failover_apm", *enableAPM, enableAPMCfgPth, applyStateCallback)
+		err := rc.applyMRFRuntimeSetting(failoverAPMSetting, *enableAPM, enableAPMCfgPth, applyStateCallback)
 		if err != nil {
 			pkglog.Errorf("Multi-Region Failover failed to apply new apm settings : %s", err)
 			applyStateCallback(enableAPMCfgPth, state.ApplyStatus{
@@ -282,19 +297,44 @@ func (rc *rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyS
 		pkglog.Infof("Received remote update for Multi-Region Failover configuration: %s failover for apm", change)
 		applyStateCallback(enableAPMCfgPth, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 	} else {
-		mrfFailoverAPMSource := pkgconfigsetup.Datadog().GetSource("multi_region_failover.failover_apm")
-		pkgconfigsetup.Datadog().UnsetForSource("multi_region_failover.failover_apm", model.SourceRC)
+		mrfFailoverAPMSource := pkgconfigsetup.Datadog().GetSource(failoverAPMSetting)
+		pkgconfigsetup.Datadog().UnsetForSource(failoverAPMSetting, model.SourceRC)
 		if mrfFailoverAPMSource == model.SourceRC {
-			pkglog.Infof("Falling back to `multi_region_failover.failover_apm: %t`", pkgconfigsetup.Datadog().GetBool("multi_region_failover.failover_apm"))
+			pkglog.Infof("Falling back to `%s: %t`", failoverAPMSetting, pkgconfigsetup.Datadog().GetBool(failoverAPMSetting))
+		}
+	}
+
+	if isAllowlistConfigured {
+		var allowlist []string
+		for metric := range allowedMetrics {
+			allowlist = append(allowlist, metric)
+		}
+
+		err := rc.applyMRFRuntimeSetting(metricsAllowlistSetting, allowlist, metricsAllowlistCfgPth, applyStateCallback)
+		if err != nil {
+			pkglog.Errorf("Multi-Region Failover failed to apply new metrics allowlist : %s", err)
+			applyStateCallback(metricsAllowlistCfgPth, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: err.Error(),
+			})
+			return
+		}
+		pkglog.Infof("Received remote update for Multi-Region Failover configuration: metrics allowlist updated")
+		applyStateCallback(metricsAllowlistCfgPth, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+	} else {
+		mrfMetricsAllowlistSource := pkgconfigsetup.Datadog().GetSource(metricsAllowlistSetting)
+		pkgconfigsetup.Datadog().UnsetForSource(metricsAllowlistSetting, model.SourceRC)
+		if mrfMetricsAllowlistSource == model.SourceRC {
+			pkglog.Infof("Falling back to `%s: %v`", metricsAllowlistSetting, pkgconfigsetup.Datadog().GetStringSlice(metricsAllowlistSetting))
 		}
 	}
 }
 
-func (rc *rcClient) applyMRFRuntimeSetting(setting string, value bool, cfgPath string, applyStateCallback func(string, state.ApplyStatus)) error {
-	pkglog.Debugf("Setting `%s: %t` through remote config", setting, value)
+func (rc *rcClient) applyMRFRuntimeSetting(setting string, value any, cfgPath string, applyStateCallback func(string, state.ApplyStatus)) error {
+	pkglog.Debugf("Setting `%s: %v` through remote config", setting, value)
 	err := rc.settingsComponent.SetRuntimeSetting(setting, value, model.SourceRC)
 	if err != nil {
-		pkglog.Errorf("Failed to set %s runtime setting to %t: %s", setting, value, err)
+		pkglog.Errorf("Failed to set %s runtime setting to %v: %s", setting, value, err)
 		applyStateCallback(cfgPath, state.ApplyStatus{
 			State: state.ApplyStateError,
 			Error: err.Error(),

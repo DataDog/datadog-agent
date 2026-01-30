@@ -216,4 +216,47 @@ func TestConfigStream(t *testing.T) {
 			t.Fatal("timed out waiting for channel to close")
 		}
 	})
+
+	t.Run("snapshot contains correct sources for nested keys", func(t *testing.T) {
+		provides, configComp := buildComponent(t)
+
+		// Set nested config values with different sources
+		configComp.Set("logs_config.auto_multi_line_detection", false, model.SourceFile)
+		configComp.Set("logs_config.use_compression", true, model.SourceAgentRuntime)
+
+		eventsCh, unsubscribe := provides.Comp.Subscribe(&pb.ConfigStreamRequest{Name: "test-client-nested"})
+		defer unsubscribe()
+
+		// Get the snapshot
+		var event *pb.ConfigEvent
+		select {
+		case event = <-eventsCh:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for initial snapshot")
+		}
+		require.NotNil(t, event)
+		snapshot, isSnapshot := event.GetEvent().(*pb.ConfigEvent_Snapshot)
+		require.True(t, isSnapshot, "first event must be a snapshot")
+
+		// Build a map of key -> source from the snapshot
+		settingsMap := make(map[string]string)
+		for _, setting := range snapshot.Snapshot.Settings {
+			settingsMap[setting.Key] = setting.Source
+		}
+
+		// Verify flattened keys have their correct individual sources
+		require.Contains(t, settingsMap, "logs_config.auto_multi_line_detection",
+			"snapshot should contain flattened key logs_config.auto_multi_line_detection")
+		require.Equal(t, model.SourceFile.String(), settingsMap["logs_config.auto_multi_line_detection"],
+			"logs_config.auto_multi_line_detection should have source 'file'")
+
+		require.Contains(t, settingsMap, "logs_config.use_compression",
+			"snapshot should contain flattened key logs_config.use_compression")
+		require.Equal(t, model.SourceAgentRuntime.String(), settingsMap["logs_config.use_compression"],
+			"logs_config.use_compression should have source 'agent-runtime'")
+
+		// Parent keys should not exist as settings (they are containers, not leaf values)
+		require.NotContains(t, settingsMap, "logs_config",
+			"snapshot should NOT contain the parent key 'logs_config' as a setting")
+	})
 }
