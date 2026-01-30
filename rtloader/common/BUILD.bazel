@@ -35,7 +35,7 @@ cc_library(
 
 # What to install
 pkg_files(
-    name = "all",
+    name = "all_files",
     srcs = [
         "rtloader_mem.h",
     ],

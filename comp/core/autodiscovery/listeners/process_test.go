@@ -107,7 +107,7 @@ func TestCreateProcessService(t *testing.T) {
 					service: &ProcessService{
 						process: basicProcess,
 						hosts:   map[string]string{"host": "127.0.0.1"},
-						ports: []ContainerPort{
+						ports: []workloadmeta.ContainerPort{
 							{Port: 6379},
 						},
 						pid:   int(testPidInt),
@@ -124,7 +124,7 @@ func TestCreateProcessService(t *testing.T) {
 					service: &ProcessService{
 						process: processWithMultiplePorts,
 						hosts:   map[string]string{"host": "127.0.0.1"},
-						ports: []ContainerPort{
+						ports: []workloadmeta.ContainerPort{
 							{Port: 80},
 							{Port: 443},
 						},
@@ -152,7 +152,7 @@ func TestCreateProcessService(t *testing.T) {
 					service: &ProcessService{
 						process: processWithSameCommAndGeneratedName,
 						hosts:   map[string]string{"host": "127.0.0.1"},
-						ports: []ContainerPort{
+						ports: []workloadmeta.ContainerPort{
 							{Port: 5432},
 						},
 						pid:   int(testPidInt),
@@ -197,7 +197,7 @@ func TestProcessServiceInterface(t *testing.T) {
 	svc := &ProcessService{
 		process: process,
 		hosts:   map[string]string{"host": "127.0.0.1"},
-		ports:   []ContainerPort{{Port: 6379}},
+		ports:   []workloadmeta.ContainerPort{{Port: 6379}},
 		pid:     1234,
 		ready:   true,
 		tagger:  taggerComponent,
@@ -221,7 +221,7 @@ func TestProcessServiceInterface(t *testing.T) {
 	t.Run("GetPorts", func(t *testing.T) {
 		ports, err := svc.GetPorts()
 		assert.NoError(t, err)
-		assert.Equal(t, []ContainerPort{{Port: 6379}}, ports)
+		assert.Equal(t, []workloadmeta.ContainerPort{{Port: 6379}}, ports)
 	})
 
 	t.Run("GetPid", func(t *testing.T) {
@@ -268,7 +268,7 @@ func TestProcessServiceEqual(t *testing.T) {
 		process:  process,
 		tagsHash: "hash1",
 		hosts:    map[string]string{"host": "127.0.0.1"},
-		ports:    []ContainerPort{{Port: 6379}},
+		ports:    []workloadmeta.ContainerPort{{Port: 6379}},
 		pid:      1234,
 		ready:    true,
 	}
@@ -277,7 +277,7 @@ func TestProcessServiceEqual(t *testing.T) {
 		process:  process,
 		tagsHash: "hash1",
 		hosts:    map[string]string{"host": "127.0.0.1"},
-		ports:    []ContainerPort{{Port: 6379}},
+		ports:    []workloadmeta.ContainerPort{{Port: 6379}},
 		pid:      1234,
 		ready:    true,
 	}
@@ -286,7 +286,7 @@ func TestProcessServiceEqual(t *testing.T) {
 		process:  process,
 		tagsHash: "hash2", // different hash
 		hosts:    map[string]string{"host": "127.0.0.1"},
-		ports:    []ContainerPort{{Port: 6379}},
+		ports:    []workloadmeta.ContainerPort{{Port: 6379}},
 		pid:      1234,
 		ready:    true,
 	}
@@ -405,7 +405,7 @@ func TestCreateProcessServiceWithFilters(t *testing.T) {
 					service: &ProcessService{
 						process: basicProcess,
 						hosts:   map[string]string{"host": "127.0.0.1"},
-						ports: []ContainerPort{
+						ports: []workloadmeta.ContainerPort{
 							{Port: 6379},
 						},
 						pid:   int(testPidInt),
@@ -423,7 +423,7 @@ func TestCreateProcessServiceWithFilters(t *testing.T) {
 					service: &ProcessService{
 						process: basicProcess,
 						hosts:   map[string]string{"host": "127.0.0.1"},
-						ports: []ContainerPort{
+						ports: []workloadmeta.ContainerPort{
 							{Port: 6379},
 						},
 						pid:   int(testPidInt),
