@@ -44,22 +44,21 @@ import (
 )
 
 const (
-	snmpLoaderTag                      = "loader:core"
-	snmpRequestMetric                  = "datadog.snmp.requests"
-	snmpGetRequestTag                  = "request_type:get"
-	snmpGetBulkRequestTag              = "request_type:getbulk"
-	snmpGetNextReqestTag               = "request_type:getnext"
-	serviceCheckName                   = "snmp.can_check"
-	deviceReachableMetric              = "snmp.device.reachable"
-	deviceUnreachableMetric            = "snmp.device.unreachable"
-	unconnectedSocketFallbackMetric    = "snmp.unconnected_socket_fallback"
-	pingReachableMetric                = "networkdevice.ping.reachable"
-	pingUnreachableMetric              = "networkdevice.ping.unreachable"
-	pingPacketLoss                     = "networkdevice.ping.packet_loss"
-	pingAvgRttMetric                   = "networkdevice.ping.avg_rtt"
-	deviceHostnamePrefix               = "device:"
-	checkDurationThreshold             = 30  // Thirty seconds
-	profileRefreshDelay                = 600 // Number of seconds after which a profile needs to be refreshed
+	snmpLoaderTag           = "loader:core"
+	snmpRequestMetric       = "datadog.snmp.requests"
+	snmpGetRequestTag       = "request_type:get"
+	snmpGetBulkRequestTag   = "request_type:getbulk"
+	snmpGetNextReqestTag    = "request_type:getnext"
+	serviceCheckName        = "snmp.can_check"
+	deviceReachableMetric   = "snmp.device.reachable"
+	deviceUnreachableMetric = "snmp.device.unreachable"
+	pingReachableMetric     = "networkdevice.ping.reachable"
+	pingUnreachableMetric   = "networkdevice.ping.unreachable"
+	pingPacketLoss          = "networkdevice.ping.packet_loss"
+	pingAvgRttMetric        = "networkdevice.ping.avg_rtt"
+	deviceHostnamePrefix    = "device:"
+	checkDurationThreshold  = 30  // Thirty seconds
+	profileRefreshDelay     = 600 // Number of seconds after which a profile needs to be refreshed
 )
 
 type profileCache struct {
@@ -156,28 +155,26 @@ type DeviceCheck struct {
 const cacheKeyPrefix = "snmp-tags"
 
 // NewDeviceCheck returns a new DeviceCheck
-func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFactory session.Factory, agentConfig config.Component) (*DeviceCheck, error) {
-	newConfig := config.CopyWithNewIP(ipAddress)
-
+func NewDeviceCheck(config *checkconfig.CheckConfig, connMgr ConnectionManager, agentConfig config.Component) (*DeviceCheck, error) {
 	var devicePinger pinger.Pinger
 	var err error
-	if newConfig.PingEnabled {
-		devicePinger, err = createPinger(newConfig.PingConfig)
+	if config.PingEnabled {
+		devicePinger, err = createPinger(config.PingConfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create pinger: %s", err)
 		}
 	}
 
-	configHash := newConfig.DeviceDigest(newConfig.IPAddress)
+	configHash := config.DeviceDigest(config.IPAddress)
 	cacheKey := fmt.Sprintf("%s:%s", cacheKeyPrefix, configHash)
 
 	d := DeviceCheck{
-		config:                  newConfig,
-		connMgr:                 NewConnectionManager(newConfig, sessionFactory),
-		oidBatchSizeOptimizers:  fetch.NewOidBatchSizeOptimizers(newConfig.OidBatchSize),
+		config:                  config,
+		connMgr:                 connMgr,
+		oidBatchSizeOptimizers:  fetch.NewOidBatchSizeOptimizers(config.OidBatchSize),
 		devicePinger:            devicePinger,
 		sessionCloseErrorCount:  atomic.NewUint64(0),
-		diagnoses:               diagnoses.NewDeviceDiagnoses(newConfig.DeviceID),
+		diagnoses:               diagnoses.NewDeviceDiagnoses(config.DeviceID),
 		interfaceBandwidthState: report.MakeInterfaceBandwidthState(),
 		cacheKey:                cacheKey,
 		agentConfig:             agentConfig,
@@ -351,7 +348,7 @@ func (d *DeviceCheck) getValuesAndTags() (bool, profiledefinition.ProfileDefinit
 	var tags []string
 
 	// Create connection with automatic UDP fallback for multi-homed devices
-	fallbackEnabled, connErr := d.connMgr.Connect()
+	_, connErr := d.connMgr.Connect()
 
 	if connErr != nil {
 		d.diagnoses.Add("error", "SNMP_FAILED_TO_OPEN_CONNECTION", "Agent failed to open connection.")
@@ -359,10 +356,6 @@ func (d *DeviceCheck) getValuesAndTags() (bool, profiledefinition.ProfileDefinit
 		return false, d.profileCache.GetProfile(), tags, nil, fmt.Errorf("snmp connection error: %s", connErr)
 	}
 
-	// Emit metric if unconnected UDP fallback was enabled on this run
-	if fallbackEnabled {
-		d.sender.Gauge(unconnectedSocketFallbackMetric, 1.0, append(d.config.GetStaticTags(), "status:enabled"))
-	}
 	defer func() {
 		err := d.connMgr.Close()
 		if err != nil {
