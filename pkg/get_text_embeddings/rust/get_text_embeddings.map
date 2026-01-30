@@ -1,0 +1,15 @@
+GLIBC_2.17 {
+  stat64;
+  fstat64;
+  pthread_key_create;
+  pthread_setspecific;
+  pthread_key_delete;
+};
+
+GLIBC_2.23 {
+  stat64;
+  fstat64;
+  pthread_key_create;
+  pthread_setspecific;
+  pthread_key_delete;
+};
