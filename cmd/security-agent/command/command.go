@@ -44,11 +44,11 @@ const LoggerName = "SECURITY"
 
 var (
 	defaultSecurityAgentConfigFilePaths = []string{
-		path.Join(defaultpaths.ConfPath, "datadog.yaml"),
-		path.Join(defaultpaths.ConfPath, "security-agent.yaml"),
+		path.Join(defaultpaths.GetConfPath(), "datadog.yaml"),
+		path.Join(defaultpaths.GetConfPath(), "security-agent.yaml"),
 	}
 
-	defaultSysProbeConfPath = path.Join(defaultpaths.ConfPath, "system-probe.yaml")
+	defaultSysProbeConfPath = path.Join(defaultpaths.GetConfPath(), "system-probe.yaml")
 )
 
 // MakeCommand makes the top-level Cobra command for this command.

@@ -291,7 +291,7 @@ func (d *serverDebugImpl) getDogstatsdDebug(cfg model.Reader) pkglog.LoggerInter
 	// Configuring the log file path
 	logFile := cfg.GetString("dogstatsd_log_file")
 	if logFile == "" {
-		logFile = defaultpaths.DogstatsDLogFile
+		logFile = defaultpaths.GetDogstatsDProtocolLogFile()
 	}
 
 	// Set up dogstatsdLogger

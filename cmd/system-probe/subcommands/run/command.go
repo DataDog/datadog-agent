@@ -117,7 +117,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 func getSharedFxOption() fx.Option {
 	return fx.Options(
-		fx.Supply(log.ForDaemon(command.LoggerName, "log_file", common.DefaultLogFile)),
+		fx.Supply(log.ForDaemon(command.LoggerName, "log_file", common.DefaultLogFile())),
 		config.Module(),
 		sysprobeconfigimpl.Module(),
 		systemprobeloggerfx.Module(),

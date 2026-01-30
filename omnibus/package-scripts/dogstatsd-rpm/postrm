@@ -7,10 +7,14 @@
 # Remove the symlink to the binary.
 rm -f "/usr/bin/datadog-dogstatsd"
 
+INSTALL_DIR=/opt/datadog-dogstatsd
+
 case "$*" in
     0)
         # We're uninstalling.
         # We don't delete the dd-agent user/group (see https://fedoraproject.org/wiki/Packaging:UsersAndGroups#Allocation_Strategies)
+        # Clean up runtime-created directories (sockets, pid files, etc.)
+        rm -rf "$INSTALL_DIR/run" || true
     ;;
     1)
         # We're upgrading.
