@@ -365,6 +365,10 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	if err != nil {
 		return fmt.Errorf("could not store package installation in db: %w", err)
 	}
+	err = extensionsPkg.SetPackage(ctx, pkg.Name, pkg.Version, false)
+	if err != nil {
+		return fmt.Errorf("could not store package extensions in db: %w", err)
+	}
 	return nil
 }
 

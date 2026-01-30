@@ -21,6 +21,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
+// ExtensionsDBDir is the path to the extensions database, overridden in tests
+var ExtensionsDBDir = paths.RunPath
+
 // ExtensionHooks is the interface for the extension hooks.
 type ExtensionHooks interface {
 	PreInstallExtension(ctx context.Context, pkg string, extension string) error
@@ -37,7 +40,7 @@ func SetPackage(ctx context.Context, pkg string, version string, isExperiment bo
 	span.SetTag("is_experiment", isExperiment)
 
 	// Open & lock the extensions database
-	db, err := newExtensionsDB(filepath.Join(paths.RunPath, "extensions.db"))
+	db, err := newExtensionsDB(filepath.Join(ExtensionsDBDir, "extensions.db"))
 	if err != nil {
 		return fmt.Errorf("could not create extensions db: %w", err)
 	}
@@ -54,7 +57,7 @@ func DeletePackage(ctx context.Context, pkg string, isExperiment bool) (err erro
 	span.SetTag("is_experiment", isExperiment)
 
 	// Open & lock the extensions database
-	db, err := newExtensionsDB(filepath.Join(paths.RunPath, "extensions.db"))
+	db, err := newExtensionsDB(filepath.Join(ExtensionsDBDir, "extensions.db"))
 	if err != nil {
 		return fmt.Errorf("could not create extensions db: %w", err)
 	}
@@ -72,7 +75,7 @@ func Install(ctx context.Context, downloader *oci.Downloader, url string, extens
 	span.SetTag("is_experiment", isExperiment)
 
 	// Open & lock the extensions database
-	db, err := newExtensionsDB(filepath.Join(paths.RunPath, "extensions.db"))
+	db, err := newExtensionsDB(filepath.Join(ExtensionsDBDir, "extensions.db"))
 	if err != nil {
 		return fmt.Errorf("could not create extensions db: %w", err)
 	}
@@ -193,7 +196,7 @@ func Remove(ctx context.Context, pkg string, extensions []string, isExperiment b
 	span.SetTag("is_experiment", isExperiment)
 
 	// Open & lock the extensions database
-	db, err := newExtensionsDB(filepath.Join(paths.RunPath, "extensions.db"))
+	db, err := newExtensionsDB(filepath.Join(ExtensionsDBDir, "extensions.db"))
 	if err != nil {
 		return fmt.Errorf("could not create extensions db: %w", err)
 	}
@@ -241,7 +244,7 @@ func RemoveAll(ctx context.Context, pkg string, isExperiment bool, hooks Extensi
 	span.SetTag("package_name", pkg)
 
 	// Open & lock the extensions database
-	db, err := newExtensionsDB(filepath.Join(paths.RunPath, "extensions.db"))
+	db, err := newExtensionsDB(filepath.Join(ExtensionsDBDir, "extensions.db"))
 	if err != nil {
 		return fmt.Errorf("could not create extensions db: %w", err)
 	}
@@ -308,7 +311,7 @@ func Promote(ctx context.Context, pkg string) (err error) {
 	span.SetTag("package_name", pkg)
 
 	// Open & lock the extensions database
-	db, err := newExtensionsDB(filepath.Join(paths.RunPath, "extensions.db"))
+	db, err := newExtensionsDB(filepath.Join(ExtensionsDBDir, "extensions.db"))
 	if err != nil {
 		return fmt.Errorf("could not create extensions db: %w", err)
 	}
@@ -331,7 +334,7 @@ func Save(ctx context.Context, pkg string, saveDir string) (err error) {
 	span.SetTag("save_dir", saveDir)
 
 	// Open & lock the extensions database
-	db, err := newExtensionsDB(filepath.Join(paths.RunPath, "extensions.db"))
+	db, err := newExtensionsDB(filepath.Join(ExtensionsDBDir, "extensions.db"))
 	if err != nil {
 		return fmt.Errorf("could not create extensions db: %w", err)
 	}

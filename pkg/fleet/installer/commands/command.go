@@ -571,7 +571,7 @@ func packageCommand() *cobra.Command {
 // extensionsCommands are the extensions installer commands
 func extensionsCommands() *cobra.Command {
 	ctlCmd := &cobra.Command{
-		Use:     "extensions [command]",
+		Use:     "extension [command]",
 		Short:   "Interact with the extensions of a package",
 		GroupID: "extension",
 	}
