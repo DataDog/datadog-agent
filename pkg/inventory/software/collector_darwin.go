@@ -48,6 +48,13 @@ const (
 )
 
 // defaultCollectors returns the default collectors for production use on macOS
+// These collectors focus on system-level software relevant to IT professionals:
+// - Applications (.app bundles)
+// - PKG installer receipts
+// - Kernel extensions (kexts)
+// - System extensions
+// - Homebrew packages
+// - MacPorts packages
 func defaultCollectors() []Collector {
 	return []Collector{
 		&applicationsCollector{},
@@ -56,12 +63,6 @@ func defaultCollectors() []Collector {
 		&systemExtensionsCollector{},
 		&homebrewCollector{},
 		&macPortsCollector{},
-		&nixCollector{},
-		&condaCollector{},
-		&pipCollector{},
-		&npmCollector{},
-		&gemCollector{},
-		&cargoCollector{},
 	}
 }
 
