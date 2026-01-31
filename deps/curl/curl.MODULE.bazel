@@ -1,0 +1,17 @@
+# This file is generated. Do not hand edit.
+
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+http_archive(
+    name = "curl",
+    files = {
+        "BUILD.bazel": "//deps/curl:overlay/curl.BUILD.bazel",
+        "darwin_arm64/lib/curl_config.h": "//deps/curl:overlay/darwin_arm64/lib/curl_config.h",
+        "lib/curl_config.h": "//deps/curl:overlay/lib/curl_config.h",
+        "lib_contents.bzl": "//deps/curl:overlay/lib_contents.bzl",
+        "linux_arm64/lib/curl_config.h": "//deps/curl:overlay/linux_arm64/lib/curl_config.h",
+    },
+    sha256 = "e9274a5f8ab5271c0e0e6762d2fce194d5f98acc568e4ce816845b2dcc0cf88f",
+    strip_prefix = "curl-8.18.0",
+    url = "https://curl.haxx.se/download/curl-8.18.0.tar.gz",
+)
