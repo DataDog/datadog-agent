@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package secretsimpl
+package filesystem
 
 import (
 	"errors"
@@ -19,9 +19,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
-// checkRights check that the given filename has access controls set only for
+// CheckRights check that the given filename has access controls set only for
 // Administrator, Local System and the datadog user.
-func checkRights(filename string, allowGroupExec bool) error {
+//
+// This function is used by the secret component `comp/core/secrets`
+// Modifications to this function should be made carefully
+func CheckRights(filename string, allowGroupExec bool) error {
 	// this function ignore `allowGroupExec` since it was design for the cluster-agent,
 	// but the cluster-agent is not delivered for windows.
 	if allowGroupExec {
