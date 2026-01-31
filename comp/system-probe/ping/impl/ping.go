@@ -10,7 +10,6 @@ package pingimpl
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/system-probe/module"
 	ping "github.com/DataDog/datadog-agent/comp/system-probe/ping/def"
 	"github.com/DataDog/datadog-agent/comp/system-probe/types"
@@ -18,10 +17,7 @@ import (
 )
 
 // Requires defines the dependencies for the ping component
-type Requires struct {
-	// Remove this field if the component has no lifecycle hooks
-	Lifecycle compdef.Lifecycle
-}
+type Requires struct{}
 
 // Provides defines the output of the ping component
 type Provides struct {

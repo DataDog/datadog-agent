@@ -23,7 +23,6 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
 	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	"github.com/DataDog/datadog-agent/comp/system-probe/types"
@@ -53,9 +52,6 @@ type Requires struct {
 	Hostname             hostname.Component
 	ConnectionsForwarder connectionsforwarder.Component
 	NPCollector          npcollector.Component
-
-	// Remove this field if the component has no lifecycle hooks
-	Lifecycle compdef.Lifecycle
 }
 
 type networkTracerComp struct {

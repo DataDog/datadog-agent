@@ -15,7 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
@@ -30,9 +29,6 @@ type Requires struct {
 	SysprobeConfig sysprobeconfig.Component
 	Telemetry      telemetry.Component
 	Statsd         ddgostatsd.ClientInterface
-
-	// Remove this field if the component has no lifecycle hooks
-	Lifecycle compdef.Lifecycle
 }
 
 type networkTracerComp struct {
