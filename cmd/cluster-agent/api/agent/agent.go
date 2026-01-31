@@ -311,7 +311,6 @@ func filterTextWorkloadResponse(response workloadmeta.WorkloadDumpResponse, sear
 	return filtered
 }
 
-
 func getLocalAutoscalingWorkloadCheck(w http.ResponseWriter, r *http.Request) {
 	response := localautoscalingworkload.GetAutoscalingWorkloadCheck(r.Context())
 	if response == nil {

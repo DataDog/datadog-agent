@@ -468,10 +468,10 @@ const RequestAllGPUs = -1
 
 // ContainerResources is resources requests or limitations for a container
 type ContainerResources struct {
-	GPURequest    *int64   `json:"gpuRequest,omitempty"` // Number of GPUs requested (-1 for all GPUs, used in Docker runtimes)
-	GPULimit      *int64   `json:"gpuLimit,omitempty"`   // Number of GPUs limit (-1 for no limit, used in Docker runtimes)
+	GPURequest    *int64   `json:"gpuRequest,omitempty"`    // Number of GPUs requested (-1 for all GPUs, used in Docker runtimes)
+	GPULimit      *int64   `json:"gpuLimit,omitempty"`      // Number of GPUs limit (-1 for no limit, used in Docker runtimes)
 	GPUVendorList []string `json:"gpuVendorList,omitempty"` // The type of GPU requested (eg. nvidia, amd, intel)
-	CPURequest    *float64 `json:"cpuRequest,omitempty"` // Percentage 0-100*numCPU (aligned with CPU Limit from metrics provider)
+	CPURequest    *float64 `json:"cpuRequest,omitempty"`    // Percentage 0-100*numCPU (aligned with CPU Limit from metrics provider)
 	CPULimit      *float64 `json:"cpuLimit,omitempty"`
 	MemoryRequest *uint64  `json:"memoryRequest,omitempty"` // Bytes
 	MemoryLimit   *uint64  `json:"memoryLimit,omitempty"`
@@ -626,13 +626,13 @@ type Container struct {
 	// ECSContainer contains properties specific to container running in ECS
 	*ECSContainer `json:"ecsContainer,omitempty"`
 	// EnvVars are limited to variables included in pkg/util/containers/env_vars_filter.go
-	EnvVars       map[string]string `json:"envVars,omitempty"`
-	Hostname      string            `json:"hostname,omitempty"`
-	Image         ContainerImage    `json:"image,omitempty"`
-	NetworkIPs    map[string]string `json:"networkIPs,omitempty"`
-	PID           int               `json:"pid,omitempty"`
-	Ports         []ContainerPort   `json:"ports,omitempty"`
-	Runtime       ContainerRuntime  `json:"runtime,omitempty"`
+	EnvVars       map[string]string      `json:"envVars,omitempty"`
+	Hostname      string                 `json:"hostname,omitempty"`
+	Image         ContainerImage         `json:"image,omitempty"`
+	NetworkIPs    map[string]string      `json:"networkIPs,omitempty"`
+	PID           int                    `json:"pid,omitempty"`
+	Ports         []ContainerPort        `json:"ports,omitempty"`
+	Runtime       ContainerRuntime       `json:"runtime,omitempty"`
 	RuntimeFlavor ContainerRuntimeFlavor `json:"runtimeFlavor,omitempty"`
 	State         ContainerState         `json:"state,omitempty"`
 	// CollectorTags represent tags coming from the collector itself
@@ -802,8 +802,8 @@ var GetRunningContainers EntityFilterFunc[*Container] = func(container *Containe
 
 // KubernetesPod is an Entity representing a Kubernetes Pod.
 type KubernetesPod struct {
-	EntityID   `json:",inline"`
-	EntityMeta `json:",inline"`
+	EntityID                   `json:",inline"`
+	EntityMeta                 `json:",inline"`
 	Owners                     []KubernetesPodOwner    `json:"owners,omitempty"`
 	PersistentVolumeClaimNames []string                `json:"persistentVolumeClaimNames,omitempty"`
 	InitContainers             []OrchestratorContainer `json:"initContainers,omitempty"`
@@ -825,19 +825,19 @@ type KubernetesPod struct {
 	// The following fields are only needed for the kubelet check or KSM check
 	// when configured to emit pod metrics from the node agent. That means only
 	// the node agent needs them, so for now they're not added to the protobufs.
-	CreationTimestamp          time.Time                     `json:"creationTimestamp,omitempty"`
-	DeletionTimestamp          *time.Time                    `json:"deletionTimestamp,omitempty"`
-	StartTime                  *time.Time                    `json:"startTime,omitempty"`
-	NodeName                   string                        `json:"nodeName,omitempty"`
-	HostIP                     string                        `json:"hostIP,omitempty"`
-	HostNetwork                bool                          `json:"hostNetwork,omitempty"`
-	InitContainerStatuses      []KubernetesContainerStatus   `json:"initContainerStatuses,omitempty"`
-	ContainerStatuses          []KubernetesContainerStatus   `json:"containerStatuses,omitempty"`
-	EphemeralContainerStatuses []KubernetesContainerStatus   `json:"ephemeralContainerStatuses,omitempty"`
-	Conditions                 []KubernetesPodCondition      `json:"conditions,omitempty"`
-	Volumes                    []KubernetesPodVolume         `json:"volumes,omitempty"`
-	Tolerations                []KubernetesPodToleration     `json:"tolerations,omitempty"`
-	Reason                     string                        `json:"reason,omitempty"`
+	CreationTimestamp          time.Time                   `json:"creationTimestamp,omitempty"`
+	DeletionTimestamp          *time.Time                  `json:"deletionTimestamp,omitempty"`
+	StartTime                  *time.Time                  `json:"startTime,omitempty"`
+	NodeName                   string                      `json:"nodeName,omitempty"`
+	HostIP                     string                      `json:"hostIP,omitempty"`
+	HostNetwork                bool                        `json:"hostNetwork,omitempty"`
+	InitContainerStatuses      []KubernetesContainerStatus `json:"initContainerStatuses,omitempty"`
+	ContainerStatuses          []KubernetesContainerStatus `json:"containerStatuses,omitempty"`
+	EphemeralContainerStatuses []KubernetesContainerStatus `json:"ephemeralContainerStatuses,omitempty"`
+	Conditions                 []KubernetesPodCondition    `json:"conditions,omitempty"`
+	Volumes                    []KubernetesPodVolume       `json:"volumes,omitempty"`
+	Tolerations                []KubernetesPodToleration   `json:"tolerations,omitempty"`
+	Reason                     string                      `json:"reason,omitempty"`
 }
 
 // GetID implements Entity#GetID.
@@ -1014,7 +1014,7 @@ func (o KubernetesPodOwner) String(verbose bool) string {
 
 // KubernetesPodVolume represents a volume in a Kubernetes pod.
 type KubernetesPodVolume struct {
-	Name                  string                            `json:"name,omitempty"`
+	Name                  string                           `json:"name,omitempty"`
 	PersistentVolumeClaim *KubernetesPersistentVolumeClaim `json:"persistentVolumeClaim,omitempty"`
 	Ephemeral             *KubernetesEphemeralVolume       `json:"ephemeral,omitempty"`
 }
@@ -1528,11 +1528,11 @@ type ContainerImageMetadata struct {
 
 // ContainerImageLayer represents a layer of a container image
 type ContainerImageLayer struct {
-	MediaType string       `json:"mediaType,omitempty"`
-	Digest    string       `json:"digest,omitempty"`
-	SizeBytes int64        `json:"sizeBytes,omitempty"`
-	URLs      []string     `json:"urls,omitempty"`
-	History   *v1.History  `json:"history,omitempty"`
+	MediaType string      `json:"mediaType,omitempty"`
+	Digest    string      `json:"digest,omitempty"`
+	SizeBytes int64       `json:"sizeBytes,omitempty"`
+	URLs      []string    `json:"urls,omitempty"`
+	History   *v1.History `json:"history,omitempty"`
 }
 
 // SBOM represents the Software Bill Of Materials (SBOM) of a container
@@ -1729,20 +1729,20 @@ func (i InjectionState) String() string {
 type Process struct {
 	EntityID `json:",inline"` // EntityID.ID is the PID
 
-	Pid            int32                     `json:"pid,omitempty"`            // Process ID -- /proc/[pid]
-	NsPid          int32                     `json:"nsPid,omitempty"`          // Namespace PID -- /proc/[pid]/status
-	Ppid           int32                     `json:"ppid,omitempty"`           // Parent Process ID -- /proc/[pid]/stat
-	Name           string                    `json:"name,omitempty"`           // Name -- /proc/[pid]/status
-	Cwd            string                    `json:"cwd,omitempty"`            // Current Working Directory -- /proc/[pid]/cwd
-	Exe            string                    `json:"exe,omitempty"`            // Exceutable Path -- /proc[pid]/exe
-	Comm           string                    `json:"comm,omitempty"`           // Short Command Name -- /proc/[pid]/comm
-	Cmdline        []string                  `json:"cmdline,omitempty"`        // Command Line -- /proc/[pid]/cmdline
-	Uids           []int32                   `json:"uids,omitempty"`           // User IDs -- /proc/[pid]/status
-	Gids           []int32                   `json:"gids,omitempty"`           // Group IDs -- /proc/[pid]/status
-	ContainerID    string                    `json:"containerID,omitempty"`
-	CreationTime   time.Time                 `json:"creationTime,omitempty"`   // Process Start Time -- /proc/[pid]/stat
-	Language       *languagemodels.Language  `json:"language,omitempty"`
-	InjectionState InjectionState            `json:"injectionState,omitempty"` // APM auto-injector detection status
+	Pid            int32                    `json:"pid,omitempty"`     // Process ID -- /proc/[pid]
+	NsPid          int32                    `json:"nsPid,omitempty"`   // Namespace PID -- /proc/[pid]/status
+	Ppid           int32                    `json:"ppid,omitempty"`    // Parent Process ID -- /proc/[pid]/stat
+	Name           string                   `json:"name,omitempty"`    // Name -- /proc/[pid]/status
+	Cwd            string                   `json:"cwd,omitempty"`     // Current Working Directory -- /proc/[pid]/cwd
+	Exe            string                   `json:"exe,omitempty"`     // Exceutable Path -- /proc[pid]/exe
+	Comm           string                   `json:"comm,omitempty"`    // Short Command Name -- /proc/[pid]/comm
+	Cmdline        []string                 `json:"cmdline,omitempty"` // Command Line -- /proc/[pid]/cmdline
+	Uids           []int32                  `json:"uids,omitempty"`    // User IDs -- /proc/[pid]/status
+	Gids           []int32                  `json:"gids,omitempty"`    // Group IDs -- /proc/[pid]/status
+	ContainerID    string                   `json:"containerID,omitempty"`
+	CreationTime   time.Time                `json:"creationTime,omitempty"` // Process Start Time -- /proc/[pid]/stat
+	Language       *languagemodels.Language `json:"language,omitempty"`
+	InjectionState InjectionState           `json:"injectionState,omitempty"` // APM auto-injector detection status
 
 	// Owner will temporarily duplicate the ContainerID field until the new collector is enabled so we can then remove the ContainerID field
 	Owner *EntityID `json:"owner,omitempty"` // Owner is a reference to a container in WLM
