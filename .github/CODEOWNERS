@@ -23,6 +23,7 @@
 /.vscode/                               @DataDog/agent-devx
 
 # Bazel configuration
+/.adms/                                 @DataDog/agent-build
 /.bazel*                                @DataDog/agent-build
 /bazel/                                 @DataDog/agent-build
 /MODULE.bazel*                          @DataDog/agent-build
