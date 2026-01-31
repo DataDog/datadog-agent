@@ -44,3 +44,5 @@ bzl_library(
 )
 
 template_test_suite(name = "_dd_agent_expand_template_tests")
+
+exports_files(["rewrite_rpath/macos.sh"])
