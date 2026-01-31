@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package viperconfig
+package basic
 
 import (
 	"testing"
@@ -53,6 +53,11 @@ func TestValidateBasic(t *testing.T) {
 		{
 			name:   "map of string",
 			val:    map[string]string{"eel": "zap"},
+			expect: true,
+		},
+		{
+			name:   "map of string typed as interface",
+			val:    map[Identifier]interface{}{"frog": "ribbit"},
 			expect: true,
 		},
 		{

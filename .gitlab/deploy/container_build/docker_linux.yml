@@ -308,9 +308,21 @@ docker_build_host_profiler_standalone_arm64:
 .docker_build_ot_agent_standalone:
   extends: .docker_build_job_definition
   before_script:
-    - cp bin/otel-agent/otel-agent $BUILD_CONTEXT/
-    - cp cmd/otel-agent/dist/otel-config.yaml $BUILD_CONTEXT/
-    - ls -l $BUILD_CONTEXT/
+    - mkdir /tmp/otel
+    - ARCHIVE_NAME=$(find . -name "datadog-*agent-ddot-7*.tar.xz" | head -1) # Only 1 match is expected
+    - |
+      tar --extract --xz --file $ARCHIVE_NAME \
+      --verbose \
+      --directory $BUILD_CONTEXT \
+      --strip-components 4 \
+      opt/datadog-agent/embedded/bin/otel-agent
+    - |
+      tar --extract --xz --file $ARCHIVE_NAME \
+      --verbose \
+      --directory $BUILD_CONTEXT \
+      --strip-components 2 \
+      --transform 's|\.example||' \
+      etc/datadog-agent/otel-config.yaml.example
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -326,14 +338,32 @@ docker_build_ot_agent_standalone_amd64:
     [.docker_build_ot_agent_standalone, .docker_build_amd64]
   needs:
     - job: docker_build_base_image_amd64
-    - job: build_otel_agent_binary_x64
+    - job: datadog-otel-agent-x64
 
 docker_build_ot_agent_standalone_arm64:
   extends:
     [.docker_build_ot_agent_standalone, .docker_build_arm64]
   needs:
     - job: docker_build_base_image_arm64
-    - job: build_otel_agent_binary_arm64
+    - job: datadog-otel-agent-arm64
+
+docker_build_ot_agent_standalone_fips_amd64:
+  extends:
+    [.docker_build_ot_agent_standalone, .docker_build_amd64]
+  needs:
+    - job: docker_build_base_image_amd64
+    - job: datadog-otel-agent-x64-fips
+  variables:
+    TAG_SUFFIX: -7-fips
+
+docker_build_ot_agent_standalone_fips_arm64:
+  extends:
+    [.docker_build_ot_agent_standalone, .docker_build_arm64]
+  needs:
+    - job: docker_build_base_image_arm64
+    - job: datadog-otel-agent-arm64-fips
+  variables:
+    TAG_SUFFIX: -7-fips
 
 docker_build_agent7_full:
   extends: [.docker_build_amd64, .docker_build_agent7]
