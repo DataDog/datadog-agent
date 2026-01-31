@@ -12,7 +12,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/config/servicenaming/subscriber"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -29,6 +31,16 @@ func GetWorkloadmetaInit() workloadmeta.InitHelper {
 			}
 
 			sbomScanner.Start(ctx)
+		}
+
+		// Initialize CEL-based service naming subscriber if enabled.
+		// This is opt-in and does nothing if disabled or no rules are configured.
+		serviceNamingSub, err := subscriber.NewSubscriber(cfg, wm)
+		if err != nil {
+			log.Warnf("Failed to initialize CEL service naming subscriber: %v", err)
+			// Non-fatal error; continue without CEL service naming
+		} else if serviceNamingSub != nil {
+			go serviceNamingSub.Start(ctx)
 		}
 
 		return nil
