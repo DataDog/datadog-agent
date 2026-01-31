@@ -24,7 +24,6 @@ import (
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	localtraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-local"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
@@ -33,7 +32,6 @@ import (
 	networktracer "github.com/DataDog/datadog-agent/comp/system-probe/networktracer/fx"
 	softwareinventory "github.com/DataDog/datadog-agent/comp/system-probe/softwareinventory/fx"
 	traceroute "github.com/DataDog/datadog-agent/comp/system-probe/traceroute/fx"
-	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -111,10 +109,6 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 func getPlatformModules() fx.Option {
 	return fx.Options(
 		localtraceroute.Module(),
-		statsd.Module(),
-		fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
-			return statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
-		}),
 		wmcatalog.GetCatalog(),
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType: workloadmeta.Remote,

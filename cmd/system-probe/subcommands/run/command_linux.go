@@ -6,10 +6,8 @@
 package run
 
 import (
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -18,7 +16,6 @@ import (
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	connectionsforwarderfx "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
@@ -40,16 +37,10 @@ import (
 	process "github.com/DataDog/datadog-agent/comp/system-probe/process/fx"
 	tcpqueuelength "github.com/DataDog/datadog-agent/comp/system-probe/tcpqueuelength/fx"
 	traceroute "github.com/DataDog/datadog-agent/comp/system-probe/traceroute/fx"
-	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 func getPlatformModules() fx.Option {
 	return fx.Options(
-		statsd.Module(),
-		// TODO is this bad to do multiple times?
-		fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
-			return statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
-		}),
 		wmcatalog.GetCatalog(),
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType: workloadmeta.Remote,
