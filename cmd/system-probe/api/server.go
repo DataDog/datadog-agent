@@ -12,12 +12,10 @@ import (
 	"fmt"
 	"net/http"
 	"runtime"
-	"slices"
 
 	gorilla "github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/debug"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
@@ -39,11 +37,6 @@ func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, rcclie
 	}
 
 	mux := gorilla.NewRouter()
-
-	// TODO move elsewhere
-	slices.SortStableFunc(mods, func(a, b types.SystemProbeModuleComponent) int {
-		return slices.Index(modules.ModuleOrder, a.Name()) - slices.Index(modules.ModuleOrder, b.Name())
-	})
 	err = module.Register(cfg, telemetry, mux, mods, rcclient)
 	if err != nil {
 		_ = conn.Close()

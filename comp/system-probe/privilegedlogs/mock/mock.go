@@ -15,7 +15,7 @@ import (
 )
 
 // Mock returns a mock for privilegedlogs component.
-func Mock(t *testing.T) privilegedlogs.Component {
+func Mock(_t *testing.T) privilegedlogs.Component {
 	// TODO: Implement the privilegedlogs mock
 	return nil
 }

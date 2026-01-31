@@ -15,7 +15,7 @@ import (
 )
 
 // Mock returns a mock for languagedetection component.
-func Mock(t *testing.T) languagedetection.Component {
+func Mock(_t *testing.T) languagedetection.Component {
 	// TODO: Implement the languagedetection mock
 	return nil
 }

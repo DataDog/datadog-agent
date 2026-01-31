@@ -15,7 +15,7 @@ import (
 )
 
 // Mock returns a mock for networktracer component.
-func Mock(t *testing.T) networktracer.Component {
+func Mock(_t *testing.T) networktracer.Component {
 	// TODO: Implement the networktracer mock
 	return nil
 }

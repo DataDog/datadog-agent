@@ -15,7 +15,7 @@ import (
 )
 
 // Mock returns a mock for softwareinventory component.
-func Mock(t *testing.T) softwareinventory.Component {
+func Mock(_t *testing.T) softwareinventory.Component {
 	// TODO: Implement the softwareinventory mock
 	return nil
 }

@@ -75,7 +75,6 @@ func withModule(name sysconfigtypes.ModuleName, fn func()) {
 // * Register the gRPC server;
 func Register(cfg *sysconfigtypes.Config, telemetry telemetry.Component, httpMux *mux.Router, modules []types.SystemProbeModuleComponent, rcclient rcclient.Component) error {
 	var enabledModules []types.SystemProbeModuleComponent
-	// TODO can we filter out disabled modules before this?
 	for _, mod := range modules {
 		if !cfg.ModuleIsEnabled(mod.Name()) {
 			log.Infof("module %s disabled", mod.Name())

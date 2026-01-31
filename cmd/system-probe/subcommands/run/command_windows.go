@@ -12,11 +12,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
-	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
@@ -24,17 +21,13 @@ import (
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	localtraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-local"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	crashdetect "github.com/DataDog/datadog-agent/comp/system-probe/crashdetect/fx"
 	eventmonitor "github.com/DataDog/datadog-agent/comp/system-probe/eventmonitor/fx"
 	networktracer "github.com/DataDog/datadog-agent/comp/system-probe/networktracer/fx"
 	softwareinventory "github.com/DataDog/datadog-agent/comp/system-probe/softwareinventory/fx"
 	traceroute "github.com/DataDog/datadog-agent/comp/system-probe/traceroute/fx"
-	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -69,15 +62,11 @@ func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error,
 
 func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 	return fxutil.OneShot(
-		func(
-			_ config.Component,
-			rcclient rcclient.Component,
-			_ healthprobe.Component,
-			settings settings.Component,
-			deps module.FactoryDependencies,
-		) error {
+		func(deps runDependencies) error {
 			defer stopSystemProbe()
-			err := startSystemProbe(rcclient, settings, deps)
+			deps.sortModules()
+
+			err := startSystemProbe(deps)
 			if err != nil {
 				return err
 			}
@@ -110,15 +99,10 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 func getPlatformModules() fx.Option {
 	return fx.Options(
 		localtraceroute.Module(),
-		statsd.Module(),
-		fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
-			return statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
-		}),
 		wmcatalog.GetCatalog(),
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType: workloadmeta.Remote,
 		}),
-		ipcfx.ModuleReadWrite(),
 		remoteWorkloadfilterfx.Module(),
 		remotehostnameimpl.Module(),
 		logscompressionfx.Module(),

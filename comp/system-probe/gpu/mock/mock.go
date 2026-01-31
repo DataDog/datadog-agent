@@ -15,7 +15,7 @@ import (
 )
 
 // Mock returns a mock for gpu component.
-func Mock(t *testing.T) gpu.Component {
+func Mock(_t *testing.T) gpu.Component {
 	// TODO: Implement the gpu mock
 	return nil
 }

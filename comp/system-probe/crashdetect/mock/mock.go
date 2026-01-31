@@ -15,7 +15,7 @@ import (
 )
 
 // Mock returns a mock for crashdetect component.
-func Mock(t *testing.T) crashdetect.Component {
+func Mock(_t *testing.T) crashdetect.Component {
 	// TODO: Implement the crashdetect mock
 	return nil
 }

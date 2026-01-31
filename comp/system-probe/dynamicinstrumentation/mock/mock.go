@@ -15,7 +15,7 @@ import (
 )
 
 // Mock returns a mock for dynamicinstrumentation component.
-func Mock(t *testing.T) dynamicinstrumentation.Component {
+func Mock(_t *testing.T) dynamicinstrumentation.Component {
 	// TODO: Implement the dynamicinstrumentation mock
 	return nil
 }

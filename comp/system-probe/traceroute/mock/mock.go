@@ -15,7 +15,7 @@ import (
 )
 
 // Mock returns a mock for traceroute component.
-func Mock(t *testing.T) traceroute.Component {
+func Mock(_t *testing.T) traceroute.Component {
 	// TODO: Implement the traceroute mock
 	return nil
 }

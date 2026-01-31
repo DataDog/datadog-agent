@@ -15,7 +15,7 @@ import (
 )
 
 // Mock returns a mock for eventmonitor component.
-func Mock(t *testing.T) eventmonitor.Component {
+func Mock(_t *testing.T) eventmonitor.Component {
 	// TODO: Implement the eventmonitor mock
 	return nil
 }

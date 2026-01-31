@@ -15,7 +15,7 @@ import (
 )
 
 // Mock returns a mock for oomkill component.
-func Mock(t *testing.T) oomkill.Component {
+func Mock(_t *testing.T) oomkill.Component {
 	// TODO: Implement the oomkill mock
 	return nil
 }

@@ -27,7 +27,7 @@ type Provides struct {
 }
 
 // NewComponent creates a new process component
-func NewComponent(reqs Requires) (Provides, error) {
+func NewComponent(_ Requires) (Provides, error) {
 	mc := &module.Component{
 		Factory: modules.Process,
 		CreateFn: func() (types.SystemProbeModule, error) {

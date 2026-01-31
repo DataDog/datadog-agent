@@ -15,7 +15,7 @@ import (
 )
 
 // Mock returns a mock for discovery component.
-func Mock(t *testing.T) discovery.Component {
+func Mock(_t *testing.T) discovery.Component {
 	// TODO: Implement the discovery mock
 	return nil
 }

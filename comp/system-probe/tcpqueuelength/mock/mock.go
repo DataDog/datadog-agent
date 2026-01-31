@@ -15,7 +15,7 @@ import (
 )
 
 // Mock returns a mock for tcpqueuelength component.
-func Mock(t *testing.T) tcpqueuelength.Component {
+func Mock(_t *testing.T) tcpqueuelength.Component {
 	// TODO: Implement the tcpqueuelength mock
 	return nil
 }

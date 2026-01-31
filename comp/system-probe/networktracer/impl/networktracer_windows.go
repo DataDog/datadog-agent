@@ -8,6 +8,7 @@
 package networktracerimpl
 
 import (
+	"fmt"
 	"os"
 	"time"
 
@@ -15,11 +16,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/messagestrings"
@@ -30,9 +31,6 @@ type Requires struct {
 	SysprobeConfig sysprobeconfig.Component
 	Telemetry      telemetry.Component
 	Statsd         ddgostatsd.ClientInterface
-
-	// Remove this field if the component has no lifecycle hooks
-	Lifecycle compdef.Lifecycle
 }
 
 type networkTracerComp struct {
@@ -103,11 +101,11 @@ func createNetworkTracerModule(telemetry telemetry.Component, statsd ddgostatsd.
 	}, nil
 }
 
-func (nt *networkTracer) platformRegister(httpMux *module.Router) error {
+func (nt *networkTracer) platformRegister(httpMux types.SystemProbeRouter) error {
 	if !nt.cfg.DirectSend {
 		nt.restartTimer = time.AfterFunc(inactivityRestartDuration, func() {
 			log.Criticalf("%v since the process-agent last queried for data. It may not be configured correctly and/or running. Exiting system-probe to save system resources.", inactivityRestartDuration)
-			winutil.LogEventViewer(config.ServiceName, messagestrings.MSG_SYSPROBE_RESTART_INACTIVITY, inactivityRestartDuration.String())
+			winutil.LogEventViewer(sysconfig.ServiceName, messagestrings.MSG_SYSPROBE_RESTART_INACTIVITY, inactivityRestartDuration.String())
 			nt.Close()
 			os.Exit(1)
 		})

@@ -10,7 +10,6 @@ import (
 	"errors"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
@@ -21,8 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/comp/system-probe/types"
@@ -37,20 +34,16 @@ type Module = types.SystemProbeModule
 
 // FactoryDependencies defines the fx dependencies for a module factory
 type FactoryDependencies struct {
-	fx.In
-
-	SysprobeConfig       sysprobeconfig.Component
-	CoreConfig           config.Component
-	Log                  log.Component
-	WMeta                workloadmeta.Component
-	FilterStore          workloadfilter.Component
-	Tagger               tagger.Component
-	Telemetry            telemetry.Component
-	Compression          logscompression.Component
-	Statsd               ddgostatsd.ClientInterface
-	Hostname             hostname.Component
-	Ipc                  ipc.Component
-	Traceroute           traceroute.Component
-	ConnectionsForwarder connectionsforwarder.Component
-	NPCollector          npcollector.Component
+	SysprobeConfig sysprobeconfig.Component
+	CoreConfig     config.Component
+	Log            log.Component
+	WMeta          workloadmeta.Component
+	FilterStore    workloadfilter.Component
+	Tagger         tagger.Component
+	Telemetry      telemetry.Component
+	Compression    logscompression.Component
+	Statsd         ddgostatsd.ClientInterface
+	Hostname       hostname.Component
+	Ipc            ipc.Component
+	Traceroute     traceroute.Component
 }

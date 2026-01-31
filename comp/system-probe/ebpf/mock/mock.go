@@ -15,7 +15,7 @@ import (
 )
 
 // Mock returns a mock for ebpf component.
-func Mock(t *testing.T) ebpf.Component {
+func Mock(_t *testing.T) ebpf.Component {
 	// TODO: Implement the ebpf mock
 	return nil
 }

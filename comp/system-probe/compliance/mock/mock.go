@@ -15,7 +15,7 @@ import (
 )
 
 // Mock returns a mock for compliance component.
-func Mock(t *testing.T) compliance.Component {
+func Mock(_t *testing.T) compliance.Component {
 	// TODO: Implement the compliance mock
 	return nil
 }

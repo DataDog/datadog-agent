@@ -243,8 +243,6 @@
 /cmd/serverless-init/                   @DataDog/serverless-azure-gcp
 /cmd/sbomgen/                           @DataDog/agent-security
 /cmd/system-probe/                      @DataDog/ebpf-platform
-/cmd/system-probe/modules/usm*          @DataDog/universal-service-monitoring
-/cmd/system-probe/modules/network_tracer*  @DataDog/cloud-network-monitoring
 /cmd/system-probe/modules/oom_kill_probe*   @DataDog/container-integrations
 /cmd/system-probe/modules/process*      @DataDog/container-experiences
 /cmd/system-probe/modules/eventmonitor* @DataDog/agent-security
@@ -389,6 +387,22 @@
 /comp/snmpscanmanager @DataDog/ndm-core
 /comp/softwareinventory @DataDog/windows-products
 /comp/syntheticstestscheduler @DataDog/synthetics-executing
+/comp/system-probe/compliance @DataDog/agent-cspm
+/comp/system-probe/crashdetect @DataDog/windows-products
+/comp/system-probe/discovery @DataDog/agent-discovery
+/comp/system-probe/dynamicinstrumentation @DataDog/debugger-go
+/comp/system-probe/ebpf @DataDog/ebpf-platform
+/comp/system-probe/eventmonitor @DataDog/agent-security
+/comp/system-probe/gpu @DataDog/ebpf-platform
+/comp/system-probe/languagedetection @DataDog/container-experiences @DataDog/agent-discovery
+/comp/system-probe/networktracer @DataDog/cloud-network-monitoring
+/comp/system-probe/oomkill @DataDog/ebpf-platform
+/comp/system-probe/ping @DataDog/ndm-core
+/comp/system-probe/privilegedlogs @DataDog/agent-discovery @DataDog/agent-log-pipelines
+/comp/system-probe/process @DataDog/container-experiences
+/comp/system-probe/softwareinventory @DataDog/windows-products
+/comp/system-probe/tcpqueuelength @DataDog/ebpf-platform
+/comp/system-probe/traceroute @DataDog/cloud-network-monitoring @DataDog/network-path
 /comp/workloadselection @DataDog/injection-platform
 # END COMPONENTS
 
@@ -402,6 +416,8 @@
 /comp/core/remoteagent/impl-systemprobe @DataDog/agent-runtimes @DataDog/ebpf-platform
 /comp/core/remoteagent/impl-trace @DataDog/agent-runtimes @DataDog/agent-apm
 /comp/core/remoteagent/impl-securityagent @DataDog/agent-runtimes @DataDog/agent-security
+
+/comp/system-probe/networktracer/impl/usm*   @DataDog/universal-service-monitoring
 
 # pkg
 /pkg/                                   @DataDog/agent-runtimes

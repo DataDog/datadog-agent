@@ -15,7 +15,7 @@ import (
 )
 
 // Mock returns a mock for ping component.
-func Mock(t *testing.T) ping.Component {
+func Mock(_t *testing.T) ping.Component {
 	// TODO: Implement the ping mock
 	return nil
 }

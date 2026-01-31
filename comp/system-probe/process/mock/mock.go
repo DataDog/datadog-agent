@@ -15,7 +15,7 @@ import (
 )
 
 // Mock returns a mock for process component.
-func Mock(t *testing.T) process.Component {
+func Mock(_t *testing.T) process.Component {
 	// TODO: Implement the process mock
 	return nil
 }

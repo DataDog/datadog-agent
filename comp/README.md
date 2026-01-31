@@ -859,6 +859,102 @@ versions, installation dates, and other relevant details for inventory tracking.
 Package syntheticstestscheduler defines a synthetics scheduler component to run
 network tests based on remote config.
 
+### [comp/system-probe/compliance](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/system-probe/compliance)
+
+*Datadog Team*: agent-cspm
+
+Package compliance ... /* TODO: detailed doc comment for the component */
+
+### [comp/system-probe/crashdetect](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/system-probe/crashdetect)
+
+*Datadog Team*: windows-products
+
+Package crashdetect ... /* TODO: detailed doc comment for the component */
+
+### [comp/system-probe/discovery](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/system-probe/discovery)
+
+*Datadog Team*: agent-discovery
+
+Package discovery ... /* TODO: detailed doc comment for the component */
+
+### [comp/system-probe/dynamicinstrumentation](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/system-probe/dynamicinstrumentation)
+
+*Datadog Team*: debugger-go
+
+Package dynamicinstrumentation ... /* TODO: detailed doc comment for the component */
+
+### [comp/system-probe/ebpf](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/system-probe/ebpf)
+
+*Datadog Team*: ebpf-platform
+
+Package ebpf ... /* TODO: detailed doc comment for the component */
+
+### [comp/system-probe/eventmonitor](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/system-probe/eventmonitor)
+
+*Datadog Team*: agent-security
+
+Package eventmonitor ... /* TODO: detailed doc comment for the component */
+
+### [comp/system-probe/gpu](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/system-probe/gpu)
+
+*Datadog Team*: ebpf-platform
+
+Package gpu ... /* TODO: detailed doc comment for the component */
+
+### [comp/system-probe/languagedetection](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/system-probe/languagedetection)
+
+*Datadog Team*: container-experiences agent-discovery
+
+Package languagedetection ... /* TODO: detailed doc comment for the component */
+
+### [comp/system-probe/networktracer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/system-probe/networktracer)
+
+*Datadog Team*: cloud-network-monitoring
+
+Package networktracer ... /* TODO: detailed doc comment for the component */
+
+### [comp/system-probe/oomkill](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/system-probe/oomkill)
+
+*Datadog Team*: ebpf-platform
+
+Package oomkill ... /* TODO: detailed doc comment for the component */
+
+### [comp/system-probe/ping](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/system-probe/ping)
+
+*Datadog Team*: ndm-core
+
+Package ping ... /* TODO: detailed doc comment for the component */
+
+### [comp/system-probe/privilegedlogs](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/system-probe/privilegedlogs)
+
+*Datadog Team*: agent-discovery agent-log-pipelines
+
+Package privilegedlogs ... /* TODO: detailed doc comment for the component */
+
+### [comp/system-probe/process](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/system-probe/process)
+
+*Datadog Team*: container-experiences
+
+Package process ... /* TODO: detailed doc comment for the component */
+
+### [comp/system-probe/softwareinventory](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/system-probe/softwareinventory)
+
+*Datadog Team*: windows-products
+
+Package softwareinventory ... /* TODO: detailed doc comment for the component */
+
+### [comp/system-probe/tcpqueuelength](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/system-probe/tcpqueuelength)
+
+*Datadog Team*: ebpf-platform
+
+Package tcpqueuelength ... /* TODO: detailed doc comment for the component */
+
+### [comp/system-probe/traceroute](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/system-probe/traceroute)
+
+*Datadog Team*: cloud-network-monitoring network-path
+
+Package traceroute ... /* TODO: detailed doc comment for the component */
+
 ### [comp/workloadselection](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/workloadselection)
 
 *Datadog Team*: injection-platform

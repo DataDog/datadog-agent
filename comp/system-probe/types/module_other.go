@@ -7,7 +7,10 @@
 
 package types
 
+import "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+
 type SystemProbeModuleComponent interface {
 	Name() types.ModuleName
+	ConfigNamespaces() []string
 	Create() (SystemProbeModule, error)
 }

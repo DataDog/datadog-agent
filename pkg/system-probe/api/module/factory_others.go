@@ -8,6 +8,7 @@
 package module
 
 import (
+	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
