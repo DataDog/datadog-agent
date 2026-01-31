@@ -117,7 +117,7 @@ func ecsLinuxAgentSingleContainerDefinition(e config.Env, apiKeySSMParamName pul
 			},
 			ecs.TaskDefinitionKeyValuePairArgs{
 				Name:  pulumi.StringPtr("DD_APM_ENABLE_CONTAINER_TAGS_BUFFER"),
-				Value: pulumi.StringPtr("true"),
+				Value: pulumi.StringPtr("false"),
 			},
 			ecs.TaskDefinitionKeyValuePairArgs{
 				Name:  pulumi.StringPtr("DD_CONTAINER_PROC_ROOT"),
