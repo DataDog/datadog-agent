@@ -7,18 +7,31 @@
 package engine
 
 import (
+	"context"
 	"fmt"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
+	"unicode"
 
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/ext"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// logLimiter prevents log flooding from runtime errors in high-throughput scenarios
-var logLimiter = log.NewLogLimit(20, 10*time.Minute)
+const (
+	// evalTimeout is the maximum time allowed for CEL expression evaluation
+	evalTimeout = 100 * time.Millisecond
+)
+
+var (
+	// serviceNameRegex validates allowed characters in service names
+	// Datadog service names allow alphanumeric, hyphens, underscores, dots, slashes, and colons
+	serviceNameRegex = regexp.MustCompile(`^[a-zA-Z0-9._:/\-]+$`)
+)
 
 // ServiceDiscoveryResult contains the evaluated service discovery values.
 type ServiceDiscoveryResult struct {
@@ -47,7 +60,8 @@ type Rule struct {
 
 // Engine is a CEL rule evaluation engine with precompiled programs.
 type Engine struct {
-	rules []compiledRule
+	rules      []compiledRule
+	logLimiter *log.Limit
 }
 
 // compiledRule holds precompiled CEL programs for a rule.
@@ -119,16 +133,24 @@ func NewEngine(rules []Rule) (*Engine, error) {
 		})
 	}
 
-	return &Engine{rules: compiled}, nil
+	return &Engine{
+		rules:      compiled,
+		logLimiter: log.NewLogLimit(20, 10*time.Minute),
+	}, nil
 }
 
 // Evaluate evaluates the rules against the input in order (first-match-wins).
 // Returns the first matching rule's result, or nil if no rule matches.
 // Runtime errors are logged (rate-limited) and cause the rule to be skipped.
-func (e *Engine) Evaluate(input CELInput) *ServiceDiscoveryResult {
+// Evaluation is bounded by a timeout to prevent resource exhaustion from malicious expressions.
+func (e *Engine) Evaluate(ctx context.Context, input CELInput) *ServiceDiscoveryResult {
 	if len(e.rules) == 0 {
 		return nil
 	}
+
+	// Add timeout to prevent resource exhaustion from malicious/complex expressions
+	evalCtx, cancel := context.WithTimeout(ctx, evalTimeout)
+	defer cancel()
 
 	// Prepare CEL variables (input is already in map format)
 	vars := map[string]any{
@@ -138,10 +160,20 @@ func (e *Engine) Evaluate(input CELInput) *ServiceDiscoveryResult {
 	for _, rule := range e.rules {
 		ruleID := getRuleID(rule)
 
+		// Check context before evaluating (respect cancellation)
+		select {
+		case <-evalCtx.Done():
+			if e.logLimiter.ShouldLog() {
+				log.Warnf("servicenaming: evaluation timeout or cancelled: %v", evalCtx.Err())
+			}
+			return nil
+		default:
+		}
+
 		// Evaluate query
 		queryResult, _, err := rule.queryProgram.Eval(vars)
 		if err != nil {
-			if logLimiter.ShouldLog() {
+			if e.logLimiter.ShouldLog() {
 				log.Warnf("servicenaming rule[%s]: runtime error evaluating query: %v", ruleID, err)
 			}
 			continue
@@ -150,7 +182,7 @@ func (e *Engine) Evaluate(input CELInput) *ServiceDiscoveryResult {
 		// Check if query result is true
 		queryBool, ok := queryResult.Value().(bool)
 		if !ok {
-			if logLimiter.ShouldLog() {
+			if e.logLimiter.ShouldLog() {
 				log.Warnf("servicenaming rule[%s]: query returned non-boolean value: %v", ruleID, queryResult.Value())
 			}
 			continue
@@ -163,7 +195,7 @@ func (e *Engine) Evaluate(input CELInput) *ServiceDiscoveryResult {
 		// Query matched, evaluate value
 		valueResult, _, err := rule.valueProgram.Eval(vars)
 		if err != nil {
-			if logLimiter.ShouldLog() {
+			if e.logLimiter.ShouldLog() {
 				log.Warnf("servicenaming rule[%s]: runtime error evaluating value: %v", ruleID, err)
 			}
 			continue
@@ -172,7 +204,7 @@ func (e *Engine) Evaluate(input CELInput) *ServiceDiscoveryResult {
 		// Extract string value
 		valueStr, ok := valueResult.Value().(string)
 		if !ok {
-			if logLimiter.ShouldLog() {
+			if e.logLimiter.ShouldLog() {
 				log.Warnf("servicenaming rule[%s]: value returned non-string value: %v", ruleID, valueResult.Value())
 			}
 			continue
@@ -180,8 +212,16 @@ func (e *Engine) Evaluate(input CELInput) *ServiceDiscoveryResult {
 
 		// Skip empty service names (likely configuration error or missing data)
 		if valueStr == "" {
-			if logLimiter.ShouldLog() {
+			if e.logLimiter.ShouldLog() {
 				log.Warnf("servicenaming rule[%s]: value evaluated to empty string, skipping", ruleID)
+			}
+			continue
+		}
+
+		// Validate service name format
+		if err := validateServiceName(valueStr); err != nil {
+			if e.logLimiter.ShouldLog() {
+				log.Warnf("servicenaming rule[%s]: invalid service name %q: %v", ruleID, valueStr, err)
 			}
 			continue
 		}
@@ -203,6 +243,41 @@ func getRuleID(rule compiledRule) string {
 		return rule.name
 	}
 	return strconv.Itoa(rule.index)
+}
+
+// validateServiceName validates that a service name conforms to Datadog's requirements.
+// Service names must:
+//   - Be 100 characters or less
+//   - Contain only alphanumeric characters, hyphens, underscores, dots, slashes, and colons
+//   - Not contain leading/trailing whitespace
+func validateServiceName(name string) error {
+	// Check length using canonical Datadog service name length limit
+	if len(name) > normalize.MaxServiceLen {
+		return fmt.Errorf("exceeds maximum length of %d characters (got %d)", normalize.MaxServiceLen, len(name))
+	}
+
+	// Check for leading/trailing whitespace
+	if strings.TrimSpace(name) != name {
+		return fmt.Errorf("contains leading or trailing whitespace")
+	}
+
+	// Check for invalid characters
+	if !serviceNameRegex.MatchString(name) {
+		// Find the first invalid character for a helpful error message
+		for i, r := range name {
+			if !isValidServiceNameChar(r) {
+				return fmt.Errorf("contains invalid character %q at position %d", r, i)
+			}
+		}
+		return fmt.Errorf("contains invalid characters")
+	}
+
+	return nil
+}
+
+// isValidServiceNameChar checks if a rune is valid in a Datadog service name
+func isValidServiceNameChar(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '.' || r == '_' || r == ':' || r == '/' || r == '-'
 }
 
 // CreateCELEnvironment creates and returns the CEL environment for service naming.

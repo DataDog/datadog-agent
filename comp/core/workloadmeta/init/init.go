@@ -35,12 +35,21 @@ func GetWorkloadmetaInit() workloadmeta.InitHelper {
 
 		// Initialize CEL-based service naming subscriber if enabled.
 		// This is opt-in and does nothing if disabled or no rules are configured.
+		serviceNamingExplicitlyEnabled := cfg.GetBool("service_discovery.enabled")
 		serviceNamingSub, err := subscriber.NewSubscriber(cfg, wm)
 		if err != nil {
-			log.Warnf("Failed to initialize CEL service naming subscriber: %v", err)
-			// Non-fatal error; continue without CEL service naming
+			// If the user explicitly enabled the feature, fail fast - don't hide configuration errors
+			// Silent failures lead to broken deployments that are difficult to debug
+			if serviceNamingExplicitlyEnabled {
+				return fmt.Errorf("CEL service naming is enabled but failed to initialize: %w", err)
+			}
+
+			// If not explicitly enabled, just log at debug level (feature is disabled anyway)
+			log.Debugf("CEL service naming subscriber not initialized: %v", err)
 		} else if serviceNamingSub != nil {
+			// Start subscriber (handles subscription internally)
 			go serviceNamingSub.Start(ctx)
+			log.Infof("CEL service naming subscriber started successfully")
 		}
 
 		return nil

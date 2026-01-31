@@ -6,6 +6,7 @@
 package servicenaming
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -234,7 +235,7 @@ func TestAgentConfig_CompileEngine(t *testing.T) {
 	require.NotNil(t, eng)
 
 	// Verify the engine works
-	result := eng.Evaluate(ToEngineInput(CELInput{}))
+	result := eng.Evaluate(context.Background(), ToEngineInput(CELInput{}))
 	require.NotNil(t, result)
 	assert.Equal(t, "test-service", result.ServiceName)
 	assert.Equal(t, "test-rule", result.MatchedRule) // Name is passed through

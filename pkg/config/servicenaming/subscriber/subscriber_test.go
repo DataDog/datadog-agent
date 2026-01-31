@@ -95,9 +95,6 @@ service_discovery:
 
 	go sub.Start(ctx)
 
-	// Give subscriber time to subscribe
-	time.Sleep(50 * time.Millisecond)
-
 	// Add a container that matches the redis rule
 	testContainer := &workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -114,15 +111,26 @@ service_discovery:
 			Tag:       "latest",
 		},
 	}
-	wmeta.Set(testContainer)
+	wmeta.Push(workloadmeta.SourceRuntime, workloadmeta.Event{
+		Type:   workloadmeta.EventTypeSet,
+		Entity: testContainer,
+	})
 
-	// Wait for event processing
-	time.Sleep(100 * time.Millisecond)
+	// Wait for event processing using Eventually for reliability
+	require.Eventually(t, func() bool {
+		container, err := wmeta.GetContainer("test-container-123")
+		if err != nil {
+			return false
+		}
+		return container.CELServiceDiscovery != nil &&
+			container.CELServiceDiscovery.ServiceName == "redis-service" &&
+			container.CELServiceDiscovery.MatchedRule == "redis-rule"
+	}, 2*time.Second, 10*time.Millisecond, "CELServiceDiscovery should be populated")
 
-	// Verify the container now has CELServiceDiscovery
+	// Final verification
 	container, err := wmeta.GetContainer("test-container-123")
 	require.NoError(t, err)
-	require.NotNil(t, container.CELServiceDiscovery, "CELServiceDiscovery should be populated")
+	require.NotNil(t, container.CELServiceDiscovery)
 	assert.Equal(t, "redis-service", container.CELServiceDiscovery.ServiceName)
 	assert.Equal(t, "redis-rule", container.CELServiceDiscovery.MatchedRule)
 }
@@ -154,7 +162,6 @@ service_discovery:
 	defer cancel()
 
 	go sub.Start(ctx)
-	time.Sleep(50 * time.Millisecond)
 
 	// Add a container that doesn't match any rule
 	testContainer := &workloadmeta.Container{
@@ -170,14 +177,21 @@ service_discovery:
 			ShortName: "generic-app",
 		},
 	}
-	wmeta.Set(testContainer)
+	wmeta.Push(workloadmeta.SourceRuntime, workloadmeta.Event{
+		Type:   workloadmeta.EventTypeSet,
+		Entity: testContainer,
+	})
 
-	time.Sleep(100 * time.Millisecond)
-
-	container, err := wmeta.GetContainer("unmatched-container")
-	require.NoError(t, err)
-	// CELServiceDiscovery should be nil since no rule matched
-	assert.Nil(t, container.CELServiceDiscovery, "CELServiceDiscovery should be nil when no rule matches")
+	// Use Never to assert that CELServiceDiscovery never gets set (negative assertion).
+	// This repeatedly checks over a period to ensure the value stays nil.
+	require.Never(t, func() bool {
+		container, err := wmeta.GetContainer("unmatched-container")
+		if err != nil {
+			return false
+		}
+		// Return true if CELServiceDiscovery is NOT nil (which would fail the test)
+		return container.CELServiceDiscovery != nil
+	}, 200*time.Millisecond, 20*time.Millisecond, "CELServiceDiscovery should remain nil when no rule matches")
 }
 
 func TestBuildCELInput(t *testing.T) {
@@ -244,7 +258,6 @@ service_discovery:
 	defer cancel()
 
 	go sub.Start(ctx)
-	time.Sleep(50 * time.Millisecond)
 
 	// Container with nil labels and envs
 	container := &workloadmeta.Container{
@@ -262,10 +275,22 @@ service_discovery:
 		},
 	}
 
-	wmeta.Set(container)
-	time.Sleep(100 * time.Millisecond)
+	wmeta.Push(workloadmeta.SourceRuntime, workloadmeta.Event{
+		Type:   workloadmeta.EventTypeSet,
+		Entity: container,
+	})
 
-	// Should still work and extract service name from image
+	// Wait for event processing using Eventually for reliability
+	require.Eventually(t, func() bool {
+		result, err := wmeta.GetContainer("nil-metadata-container")
+		if err != nil {
+			return false
+		}
+		return result.CELServiceDiscovery != nil &&
+			result.CELServiceDiscovery.ServiceName == "nginx"
+	}, 2*time.Second, 10*time.Millisecond, "Should extract service name from image")
+
+	// Final verification
 	result, err := wmeta.GetContainer("nil-metadata-container")
 	require.NoError(t, err)
 	require.NotNil(t, result.CELServiceDiscovery)
@@ -302,7 +327,6 @@ service_discovery:
 	defer cancel()
 
 	go sub.Start(ctx)
-	time.Sleep(50 * time.Millisecond)
 
 	// Add multiple containers
 	redisContainer := &workloadmeta.Container{
@@ -341,13 +365,34 @@ service_discovery:
 		Image: workloadmeta.ContainerImage{ShortName: "nginx"},
 	}
 
-	wmeta.Set(redisContainer)
-	wmeta.Set(postgresContainer)
-	wmeta.Set(nginxContainer)
+	wmeta.Push(workloadmeta.SourceRuntime, workloadmeta.Event{
+		Type:   workloadmeta.EventTypeSet,
+		Entity: redisContainer,
+	})
+	wmeta.Push(workloadmeta.SourceRuntime, workloadmeta.Event{
+		Type:   workloadmeta.EventTypeSet,
+		Entity: postgresContainer,
+	})
+	wmeta.Push(workloadmeta.SourceRuntime, workloadmeta.Event{
+		Type:   workloadmeta.EventTypeSet,
+		Entity: nginxContainer,
+	})
 
-	time.Sleep(150 * time.Millisecond)
+	// Wait for all three containers to be processed using Eventually
+	require.Eventually(t, func() bool {
+		redis, err1 := wmeta.GetContainer("redis-123")
+		postgres, err2 := wmeta.GetContainer("postgres-456")
+		nginx, err3 := wmeta.GetContainer("nginx-789")
 
-	// Verify all three containers were processed correctly
+		return err1 == nil && redis.CELServiceDiscovery != nil &&
+			redis.CELServiceDiscovery.ServiceName == "redis-service" &&
+			err2 == nil && postgres.CELServiceDiscovery != nil &&
+			postgres.CELServiceDiscovery.ServiceName == "postgres-service" &&
+			err3 == nil && nginx.CELServiceDiscovery != nil &&
+			nginx.CELServiceDiscovery.ServiceName == "nginx"
+	}, 2*time.Second, 10*time.Millisecond, "All containers should be processed")
+
+	// Final verification
 	redis, err := wmeta.GetContainer("redis-123")
 	require.NoError(t, err)
 	require.NotNil(t, redis.CELServiceDiscovery)
@@ -362,4 +407,270 @@ service_discovery:
 	require.NoError(t, err)
 	require.NotNil(t, nginx.CELServiceDiscovery)
 	assert.Equal(t, "nginx", nginx.CELServiceDiscovery.ServiceName)
+}
+
+func TestSubscriber_ClearsStaleDataWhenRuleStopsMatching(t *testing.T) {
+	// Test that when a container previously matched a rule but then changes so it no longer
+	// matches, the CELServiceDiscovery is cleared to prevent stale data.
+	yamlConfig := `
+service_discovery:
+  enabled: true
+  service_definitions:
+    - name: "redis-rule"
+      query: "container['labels']['app'] == 'redis'"
+      value: "'redis-service'"
+`
+	wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component {
+			return config.NewMockFromYAML(t, yamlConfig)
+		}),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	cfg := wmeta.GetConfig()
+
+	sub, err := NewSubscriber(cfg, wmeta)
+	require.NoError(t, err)
+	require.NotNil(t, sub)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go sub.Start(ctx)
+
+	// Add a container that initially matches the redis rule
+	testContainer := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "changing-container",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:   "redis-container",
+			Labels: map[string]string{"app": "redis"},
+		},
+		Image: workloadmeta.ContainerImage{
+			ShortName: "redis",
+		},
+	}
+	wmeta.Push(workloadmeta.SourceRuntime, workloadmeta.Event{
+		Type:   workloadmeta.EventTypeSet,
+		Entity: testContainer,
+	})
+
+	// Wait for service name to be set
+	require.Eventually(t, func() bool {
+		container, err := wmeta.GetContainer("changing-container")
+		return err == nil && container.CELServiceDiscovery != nil &&
+			container.CELServiceDiscovery.ServiceName == "redis-service"
+	}, 2*time.Second, 10*time.Millisecond, "Service name should be set initially")
+
+	// Now update the container so it no longer matches (change the label)
+	updatedContainer := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "changing-container",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:   "redis-container",
+			Labels: map[string]string{"app": "not-redis"}, // Changed label
+		},
+		Image: workloadmeta.ContainerImage{
+			ShortName: "redis",
+		},
+	}
+	wmeta.Push(workloadmeta.SourceRuntime, workloadmeta.Event{
+		Type:   workloadmeta.EventTypeSet,
+		Entity: updatedContainer,
+	})
+
+	// Wait for CELServiceDiscovery to be cleared
+	require.Eventually(t, func() bool {
+		container, err := wmeta.GetContainer("changing-container")
+		return err == nil && container.CELServiceDiscovery == nil
+	}, 2*time.Second, 10*time.Millisecond, "Service name should be cleared when rule stops matching")
+
+	// Final verification
+	container, err := wmeta.GetContainer("changing-container")
+	require.NoError(t, err)
+	assert.Nil(t, container.CELServiceDiscovery, "CELServiceDiscovery should be nil after rule stops matching")
+}
+
+func TestSubscriber_CleansUpOnContainerDelete(t *testing.T) {
+	// Test that when a container is deleted (EventTypeUnset), we clean up our
+	// SourceServiceDiscovery contribution to prevent stale data from keeping the entity alive.
+	yamlConfig := `
+service_discovery:
+  enabled: true
+  service_definitions:
+    - name: "test-rule"
+      query: "true"
+      value: "container['image']['shortname']"
+`
+	wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component {
+			return config.NewMockFromYAML(t, yamlConfig)
+		}),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	cfg := wmeta.GetConfig()
+
+	sub, err := NewSubscriber(cfg, wmeta)
+	require.NoError(t, err)
+	require.NotNil(t, sub)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go sub.Start(ctx)
+
+	// Add a container
+	testContainer := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "temporary-container",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "temp",
+		},
+		Image: workloadmeta.ContainerImage{
+			ShortName: "nginx",
+		},
+	}
+	wmeta.Push(workloadmeta.SourceRuntime, workloadmeta.Event{
+		Type:   workloadmeta.EventTypeSet,
+		Entity: testContainer,
+	})
+
+	// Wait for service name to be set
+	require.Eventually(t, func() bool {
+		container, err := wmeta.GetContainer("temporary-container")
+		return err == nil && container.CELServiceDiscovery != nil &&
+			container.CELServiceDiscovery.ServiceName == "nginx"
+	}, 2*time.Second, 10*time.Millisecond, "Service name should be set")
+
+	// Now delete the container (EventTypeUnset from runtime)
+	wmeta.Push(workloadmeta.SourceRuntime, workloadmeta.Event{
+		Type:   workloadmeta.EventTypeUnset,
+		Entity: testContainer,
+	})
+
+	// Give time for cleanup to process
+	time.Sleep(100 * time.Millisecond)
+
+	// Re-add the same container with a different image to verify cleanup happened
+	// If cleanup didn't work, the subscriber might skip evaluation due to stale tracking
+	readdedContainer := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "temporary-container", // Same ID
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "temp-v2",
+		},
+		Image: workloadmeta.ContainerImage{
+			ShortName: "redis", // Different image
+		},
+	}
+	wmeta.Push(workloadmeta.SourceRuntime, workloadmeta.Event{
+		Type:   workloadmeta.EventTypeSet,
+		Entity: readdedContainer,
+	})
+
+	// Verify the re-added container gets evaluated correctly with the new image name
+	// This proves cleanup happened (tracking was cleared)
+	require.Eventually(t, func() bool {
+		container, err := wmeta.GetContainer("temporary-container")
+		return err == nil && container.CELServiceDiscovery != nil &&
+			container.CELServiceDiscovery.ServiceName == "redis"
+	}, 2*time.Second, 10*time.Millisecond, "Re-added container should be evaluated with new properties")
+}
+
+func TestSubscriber_ReevaluatesWhenPortsChange(t *testing.T) {
+	// Test that changes in ports trigger re-evaluation (hash includes ports)
+	yamlConfig := `
+service_discovery:
+  enabled: true
+  service_definitions:
+    - name: "port-8080"
+      query: "size(container['ports']) > 0 && container['ports'][0]['port'] == 8080"
+      value: "'svc-8080'"
+    - name: "fallback"
+      query: "true"
+      value: "'svc-other'"
+`
+	wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component {
+			return config.NewMockFromYAML(t, yamlConfig)
+		}),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	cfg := wmeta.GetConfig()
+
+	sub, err := NewSubscriber(cfg, wmeta)
+	require.NoError(t, err)
+	require.NotNil(t, sub)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go sub.Start(ctx)
+
+	// Initial container with port 8080 -> should match port-8080 rule
+	container := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "port-change-container",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "port-change",
+		},
+		Image: workloadmeta.ContainerImage{
+			ShortName: "demo",
+		},
+		Ports: []workloadmeta.ContainerPort{
+			{Name: "http", Port: 8080, Protocol: "tcp"},
+		},
+	}
+	wmeta.Push(workloadmeta.SourceRuntime, workloadmeta.Event{
+		Type:   workloadmeta.EventTypeSet,
+		Entity: container,
+	})
+
+	require.Eventually(t, func() bool {
+		c, err := wmeta.GetContainer("port-change-container")
+		return err == nil && c.CELServiceDiscovery != nil &&
+			c.CELServiceDiscovery.ServiceName == "svc-8080"
+	}, 2*time.Second, 10*time.Millisecond, "Expected service name for port 8080")
+
+	// Update ports to 9090 -> should fall back
+	updated := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "port-change-container",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "port-change",
+		},
+		Image: workloadmeta.ContainerImage{
+			ShortName: "demo",
+		},
+		Ports: []workloadmeta.ContainerPort{
+			{Name: "http", Port: 9090, Protocol: "tcp"},
+		},
+	}
+	wmeta.Push(workloadmeta.SourceRuntime, workloadmeta.Event{
+		Type:   workloadmeta.EventTypeSet,
+		Entity: updated,
+	})
+
+	require.Eventually(t, func() bool {
+		c, err := wmeta.GetContainer("port-change-container")
+		return err == nil && c.CELServiceDiscovery != nil &&
+			c.CELServiceDiscovery.ServiceName == "svc-other"
+	}, 2*time.Second, 10*time.Millisecond, "Expected fallback service name after port change")
 }

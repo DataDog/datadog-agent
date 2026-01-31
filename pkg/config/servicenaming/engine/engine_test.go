@@ -6,6 +6,7 @@
 package engine
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,7 +18,7 @@ func TestNewEngine_EmptyRules(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, eng)
 
-	result := eng.Evaluate(CELInput{})
+	result := eng.Evaluate(context.Background(), CELInput{})
 	assert.Nil(t, result)
 }
 
@@ -99,7 +100,7 @@ func TestEvaluate_FirstRuleMatches(t *testing.T) {
 		Container: map[string]any{"name": "web"},
 	}
 
-	result := eng.Evaluate(input)
+	result := eng.Evaluate(context.Background(), input)
 	require.NotNil(t, result)
 	assert.Equal(t, "first-service", result.ServiceName)
 	assert.Equal(t, "0", result.MatchedRule)
@@ -116,7 +117,7 @@ func TestEvaluate_NoRuleMatches(t *testing.T) {
 		Container: map[string]any{"name": "web"},
 	}
 
-	result := eng.Evaluate(input)
+	result := eng.Evaluate(context.Background(), input)
 	assert.Nil(t, result)
 }
 
@@ -131,7 +132,7 @@ func TestEvaluate_RuntimeErrorInQuery_RuleSkipped(t *testing.T) {
 		Container: nil,
 	}
 
-	result := eng.Evaluate(input)
+	result := eng.Evaluate(context.Background(), input)
 	require.NotNil(t, result)
 	assert.Equal(t, "fallback-service", result.ServiceName)
 	assert.Equal(t, "1", result.MatchedRule)
@@ -148,7 +149,7 @@ func TestEvaluate_ValueNotEvaluatedIfQueryFalse(t *testing.T) {
 		Container: nil,
 	}
 
-	result := eng.Evaluate(input)
+	result := eng.Evaluate(context.Background(), input)
 	require.NotNil(t, result)
 	assert.Equal(t, "success-service", result.ServiceName)
 	assert.Equal(t, "1", result.MatchedRule)
@@ -161,7 +162,7 @@ func TestEvaluate_EmptyValueSkipped(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	result := eng.Evaluate(CELInput{})
+	result := eng.Evaluate(context.Background(), CELInput{})
 	require.NotNil(t, result)
 	assert.Equal(t, "valid-name", result.ServiceName)
 	assert.Equal(t, "1", result.MatchedRule)
@@ -249,7 +250,7 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 			eng, err := NewEngine(tt.rules)
 			require.NoError(t, err)
 
-			result := eng.Evaluate(tt.input)
+			result := eng.Evaluate(context.Background(), tt.input)
 
 			if tt.wantNil {
 				assert.Nil(t, result)
@@ -288,7 +289,7 @@ func TestEvaluate_QueryRuntimeTypeMismatch(t *testing.T) {
 
 	// First rule should fail runtime type check (returns string, not bool)
 	// Fallback should be returned
-	result := eng.Evaluate(input)
+	result := eng.Evaluate(context.Background(), input)
 	require.NotNil(t, result)
 	assert.Equal(t, "fallback-service", result.ServiceName)
 	assert.Equal(t, "fallback-rule", result.MatchedRule)
@@ -350,7 +351,7 @@ func TestEvaluate_NilFieldAccess(t *testing.T) {
 			eng, err := NewEngine(tt.rules)
 			require.NoError(t, err)
 
-			result := eng.Evaluate(tt.input)
+			result := eng.Evaluate(context.Background(), tt.input)
 			require.NotNil(t, result)
 			assert.Equal(t, tt.wantService, result.ServiceName)
 			assert.Equal(t, tt.wantMatched, result.MatchedRule)
@@ -407,7 +408,7 @@ func TestEvaluate_EmptyContainerInput(t *testing.T) {
 			eng, err := NewEngine(tt.rules)
 			require.NoError(t, err)
 
-			result := eng.Evaluate(tt.input)
+			result := eng.Evaluate(context.Background(), tt.input)
 
 			if tt.wantNil {
 				assert.Nil(t, result)

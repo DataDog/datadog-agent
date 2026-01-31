@@ -17,6 +17,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/servicenaming/engine"
 )
 
+// Note: We previously cached the CEL environment using sync.Once, but this had a critical flaw:
+// if CreateCELEnvironment() failed on the first call, the error was cached permanently.
+// Since CreateCELEnvironment() is lightweight (just creates a CEL env with extensions),
+// we now create it fresh each time to avoid permanent error caching.
+
 // AgentServiceDiscoveryConfig is the global agent-level service discovery configuration.
 // This feature is opt-in: it only activates when Enabled is true and ServiceDefinitions are present.
 type AgentServiceDiscoveryConfig struct {
@@ -118,17 +123,31 @@ func parseServiceDefinitions(raw interface{}) ([]ServiceDefinition, error) {
 			def.Name = name
 		}
 
-		// Query is required
-		query, ok := m["query"].(string)
-		if !ok || query == "" {
-			return nil, fmt.Errorf("service_definitions[%d]: query is required", i)
+		// Query is required - check type and value separately for better error messages
+		queryVal, queryExists := m["query"]
+		if !queryExists {
+			return nil, fmt.Errorf("service_definitions[%d]: missing required field 'query'", i)
+		}
+		query, ok := queryVal.(string)
+		if !ok {
+			return nil, fmt.Errorf("service_definitions[%d]: query must be a string, got %T", i, queryVal)
+		}
+		if query == "" {
+			return nil, fmt.Errorf("service_definitions[%d]: query cannot be empty", i)
 		}
 		def.Query = query
 
-		// Value is required
-		value, ok := m["value"].(string)
-		if !ok || value == "" {
-			return nil, fmt.Errorf("service_definitions[%d]: value is required", i)
+		// Value is required - check type and value separately for better error messages
+		valueVal, valueExists := m["value"]
+		if !valueExists {
+			return nil, fmt.Errorf("service_definitions[%d]: missing required field 'value'", i)
+		}
+		value, ok := valueVal.(string)
+		if !ok {
+			return nil, fmt.Errorf("service_definitions[%d]: value must be a string, got %T", i, valueVal)
+		}
+		if value == "" {
+			return nil, fmt.Errorf("service_definitions[%d]: value cannot be empty", i)
 		}
 		def.Value = value
 
@@ -254,10 +273,17 @@ func (c *AgentServiceDiscoveryConfig) Validate() error {
 	return nil
 }
 
+// getCachedCELEnvironment creates a CEL environment for validation.
+// Note: Despite the name, this no longer caches the environment to avoid permanent error caching.
+// CreateCELEnvironment is lightweight and can be called repeatedly without performance issues.
+func getCachedCELEnvironment() (*cel.Env, error) {
+	return engine.CreateCELEnvironment()
+}
+
 // validateCELBooleanExpression validates that an expression compiles and returns boolean.
 // It accepts both BoolType and DynType (runtime validation ensures actual boolean value).
 func validateCELBooleanExpression(expr string) error {
-	env, err := engine.CreateCELEnvironment()
+	env, err := getCachedCELEnvironment()
 	if err != nil {
 		return err
 	}
@@ -279,7 +305,7 @@ func validateCELBooleanExpression(expr string) error {
 // validateCELStringExpression validates that an expression compiles and returns string.
 // It accepts both StringType and DynType (runtime validation ensures actual string value).
 func validateCELStringExpression(expr string) error {
-	env, err := engine.CreateCELEnvironment()
+	env, err := getCachedCELEnvironment()
 	if err != nil {
 		return err
 	}

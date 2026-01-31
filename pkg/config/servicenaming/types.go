@@ -92,18 +92,11 @@ func ToEngineInput(input CELInput) engine.CELInput {
 }
 
 // convertContainer converts ContainerCEL to a CEL-compatible map (or nil).
+// Note: nil maps are normalized to empty maps at the source (buildCELInput),
+// so we don't need to check for nil here.
 func convertContainer(c *ContainerCEL) map[string]any {
 	if c == nil {
 		return nil
-	}
-	// Normalize nil maps to empty maps to avoid runtime errors in CEL
-	labels := c.Labels
-	if labels == nil {
-		labels = map[string]string{}
-	}
-	envs := c.Envs
-	if envs == nil {
-		envs = map[string]string{}
 	}
 
 	// Convert ports to list of maps for CEL access
@@ -125,8 +118,8 @@ func convertContainer(c *ContainerCEL) map[string]any {
 			"tag":       c.Image.Tag,
 			"registry":  c.Image.Registry,
 		},
-		"labels": labels,
-		"envs":   envs,
+		"labels": c.Labels,
+		"envs":   c.Envs,
 		"ports":  ports,
 	}
 }
