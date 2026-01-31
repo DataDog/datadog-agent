@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+//go:build (linux && linux_bpf) || (windows && npm)
+
 // Package fx provides the fx module for the networktracer component
 package fx
 

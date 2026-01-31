@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux && (!linux_bpf || !nvml)
+//go:build (linux && !linux_bpf) || (windows && !npm)
 
-// Package fx provides the fx module for the gpu component
+// Package fx provides the fx module for the networktracer component
 package fx
 
 import "github.com/DataDog/datadog-agent/pkg/util/fxutil"
