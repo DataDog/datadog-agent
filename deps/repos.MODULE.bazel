@@ -359,3 +359,13 @@ http_archive(
     strip_prefix = "rpm-rpm-4.18.1-release",
     url = "https://github.com/rpm-software-management/rpm/archive/refs/tags/rpm-4.18.1-release.tar.gz",
 )
+
+http_archive(
+    name = "krb5",
+    files = {
+        "BUILD.bazel": "//deps:krb5/krb5.BUILD.bazel",
+    },
+    sha256 = "b7a4cd5ead67fb08b980b21abd150ff7217e85ea320c9ed0c6dadd304840ad35",
+    strip_prefix = "krb5-1.21.3",
+    url = "https://kerberos.org/dist/krb5/1.21/krb5-1.21.3.tar.gz",
+)
