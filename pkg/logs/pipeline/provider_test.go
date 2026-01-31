@@ -330,3 +330,108 @@ func TestPipelineChannelDistribution(t *testing.T) {
 		})
 	}
 }
+
+func TestCompressorPool(t *testing.T) {
+	// Test CompressorPool creation and access
+	poolSize := 5
+	pool := NewCompressorPool(poolSize)
+
+	require.NotNil(t, pool)
+	assert.Equal(t, poolSize, pool.Size())
+
+	// Test setting and getting compressors
+	compression := compressionfx.NewMockCompressor()
+	for i := 0; i < poolSize; i++ {
+		compressor := compression.NewCompressor("none", 0)
+		pool.SetCompressor(i, compressor)
+		retrieved := pool.GetCompressor(i)
+		assert.NotNil(t, retrieved)
+		assert.Equal(t, compressor, retrieved)
+	}
+
+	// Test bounds checking
+	assert.Nil(t, pool.GetCompressor(-1), "should return nil for negative index")
+	assert.Nil(t, pool.GetCompressor(poolSize), "should return nil for index >= size")
+
+	// Test that SetCompressor doesn't panic on out of bounds
+	pool.SetCompressor(-1, compression.NewCompressor("none", 0))
+	pool.SetCompressor(poolSize, compression.NewCompressor("none", 0))
+}
+
+func TestProviderCompressorPoolInitialization(t *testing.T) {
+	tests := []struct {
+		name              string
+		numberOfPipelines int
+		useHTTP           bool
+		useCompression    bool
+	}{
+		{
+			name:              "HTTP with compression",
+			numberOfPipelines: 3,
+			useHTTP:           true,
+			useCompression:    true,
+		},
+		{
+			name:              "HTTP without compression",
+			numberOfPipelines: 3,
+			useHTTP:           true,
+			useCompression:    false,
+		},
+		{
+			name:              "TCP without compression",
+			numberOfPipelines: 3,
+			useHTTP:           false,
+			useCompression:    false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup
+			cfg := configmock.New(t)
+			endpoints := config.NewMockEndpointsWithOptions([]config.Endpoint{config.NewMockEndpoint()}, map[string]interface{}{
+				"use_http":        tc.useHTTP,
+				"use_compression": tc.useCompression,
+			})
+
+			destinationsContext := &client.DestinationsContext{}
+			diagnosticMessageReceiver := &diagnostic.BufferedMessageReceiver{}
+			status := statusinterface.NewStatusProviderMock()
+			compression := compressionfx.NewMockCompressor()
+
+			providerImpl := NewProvider(
+				tc.numberOfPipelines,
+				&sender.NoopSink{},
+				diagnosticMessageReceiver,
+				nil, // processing rules
+				endpoints,
+				destinationsContext,
+				status,
+				nil, // hostname
+				cfg,
+				compression,
+				false, // legacy mode
+				false, // serverless
+			)
+
+			require.NotNil(t, providerImpl)
+			p := providerImpl.(*provider)
+
+			// Verify compressor pool is created
+			require.NotNil(t, p.compressorPool, "compressor pool should be initialized")
+			assert.Equal(t, tc.numberOfPipelines, p.compressorPool.Size(), "compressor pool size should match number of pipelines")
+
+			// Start provider to initialize compressors
+			p.Start()
+
+			// Verify all compressors in the pool are initialized
+			for i := 0; i < tc.numberOfPipelines; i++ {
+				compressor := p.compressorPool.GetCompressor(i)
+				assert.NotNil(t, compressor, "compressor at index %d should be initialized", i)
+			}
+
+			// Cleanup
+			p.Stop()
+		})
+	}
+}
