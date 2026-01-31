@@ -12,14 +12,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/credentials/ec2rolecreds"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -152,17 +156,58 @@ func fetchEc2TagsFromIMDS(ctx context.Context) ([]string, error) {
 	return tags, nil
 }
 
+func createEC2Client(_ context.Context, region string, creds aws.CredentialsProvider) (*ec2.Client, error) {
+	cfg := aws.Config{Region: region}
+
+	if creds != nil {
+		// explicit credentials (fallback)
+		cfg.Credentials = creds
+	} else {
+		// minimal credential chain: IRSA, EC2 IMDS
+		providers := []aws.CredentialsProvider{}
+
+		// IRSA / web identity token
+		roleARN := os.Getenv("AWS_ROLE_ARN")
+		tokenFile := os.Getenv("AWS_WEB_IDENTITY_TOKEN_FILE")
+		if roleARN != "" && tokenFile != "" {
+			stsClient := sts.NewFromConfig(aws.Config{Region: region})
+			providers = append(providers, stscreds.NewWebIdentityRoleProvider(stsClient, roleARN, stscreds.IdentityTokenFile(tokenFile)))
+		}
+
+		// EC2 IMDS as fallback
+		providers = append(providers, ec2rolecreds.New())
+
+		if len(providers) > 0 {
+			cfg.Credentials = aws.NewCredentialsCache(
+				aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+					for _, provider := range providers {
+						creds, err := provider.Retrieve(ctx)
+						if err == nil {
+							return creds, nil
+						}
+					}
+					return aws.Credentials{}, errors.New("no credentials available")
+				}),
+			)
+		}
+	}
+
+	return ec2.NewFromConfig(cfg), nil
+}
+
 func fetchEc2TagsFromAPI(ctx context.Context) ([]string, error) {
 	instanceIdentity, err := ec2internal.GetInstanceIdentity(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// First, try automatic credentials detection. This works in most scenarios,
-	// except when a more specific role (e.g. task role in ECS) does not have
-	// EC2:DescribeTags permission, but a more general role (e.g. instance role)
-	// does have it.
-	tags, err := getTagsWithCreds(ctx, instanceIdentity, nil)
+	// default client chain (IRSA/ECS/env/instance-profile chain)
+	ec2Client, err := createEC2Client(ctx, instanceIdentity.Region, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	tags, err := getTagsWithClientFunc(ctx, ec2Client, instanceIdentity)
 	if err == nil {
 		return tags, nil
 	}
@@ -176,22 +221,18 @@ func fetchEc2TagsFromAPI(ctx context.Context) ([]string, error) {
 	}
 
 	awsCreds := credentials.NewStaticCredentialsProvider(iamParams.AccessKeyID, iamParams.SecretAccessKey, iamParams.Token)
-	return getTagsWithCreds(ctx, instanceIdentity, awsCreds)
+	legacyClient, err := createEC2Client(ctx, instanceIdentity.Region, awsCreds)
+	if err != nil {
+		return nil, err
+	}
+	return getTagsWithClientFunc(ctx, legacyClient, instanceIdentity)
 }
 
-func getTagsWithCreds(ctx context.Context, instanceIdentity *ec2internal.EC2Identity, awsCreds aws.CredentialsProvider) ([]string, error) {
-	connection := ec2.New(ec2.Options{
-		Region:      instanceIdentity.Region,
-		Credentials: awsCreds,
-	})
-
-	// We want to use 'ec2_metadata_timeout' here instead of current context. 'ctx' comes from the agent main and will
-	// only be canceled if the agent is stopped. The default timeout for the AWS SDK is 1 minutes (20s timeout with
-	// 3 retries). Since we call getTagsWithCreds twice in a row, it can be a 2 minutes latency.
+func getTagsWithClient(ctx context.Context, client *ec2.Client, instanceIdentity *ec2internal.EC2Identity) ([]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, pkgconfigsetup.Datadog().GetDuration("ec2_metadata_timeout")*time.Millisecond)
 	defer cancel()
 
-	ec2Tags, err := connection.DescribeTags(ctx,
+	out, err := client.DescribeTags(ctx,
 		&ec2.DescribeTagsInput{
 			Filters: []types.Filter{{
 				Name: aws.String("resource-id"),
@@ -207,7 +248,7 @@ func getTagsWithCreds(ctx context.Context, instanceIdentity *ec2internal.EC2Iden
 	}
 
 	tags := []string{}
-	for _, tag := range ec2Tags.Tags {
+	for _, tag := range out.Tags {
 		if isTagExcluded(*tag.Key) {
 			continue
 		}
@@ -218,6 +259,7 @@ func getTagsWithCreds(ctx context.Context, instanceIdentity *ec2internal.EC2Iden
 
 // for testing purposes
 var fetchTags = fetchEc2Tags
+var getTagsWithClientFunc = getTagsWithClient
 
 func fetchTagsFromCache(ctx context.Context) ([]string, error) {
 	if !configutils.IsCloudProviderEnabled(ec2internal.CloudProviderName, pkgconfigsetup.Datadog()) {
