@@ -202,6 +202,14 @@ jira_statuses = ["TRIAGE", "In Progress", "Done"]
 github_team = "container-experiences"
 github_labels = ["team/container-experiences"]
 
+[teams."ECS Experiences"]
+jira_project = "EXP"
+jira_issue_type = "Task"
+jira_statuses = ["To Do", "In Progress", "Done"]
+github_team = "ecs-experiences"
+github_labels = ["team/ecs-experiences"]
+exclude_members = []
+
 [teams."Windows Products"]
 jira_project = "WINA"
 jira_issue_type = "QA Task"
