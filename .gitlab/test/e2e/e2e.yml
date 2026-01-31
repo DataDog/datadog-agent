@@ -753,6 +753,11 @@ new-e2e-fleet-upgrade:
   variables:
     EXTRA_PARAMS: --run TestFleetUpgrade
 
+new-e2e-fleet-extensions:
+  extends: .new_e2e_fleet_template
+  variables:
+    EXTRA_PARAMS: --run TestFleetExtensions
+
 new-e2e-installer-script:
   extends: .new_e2e_template
   rules:
