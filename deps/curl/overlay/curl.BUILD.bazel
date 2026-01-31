@@ -1,0 +1,224 @@
+""" Agent specific curl build."""
+
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+
+# load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+load(
+    "lib_contents.bzl",
+    "HDRS",
+    "HDRS_DARWIN_ARM64",
+    "HDRS_LINUX_ARM64",
+    "LIB_CURLTOOL_SRCS_DARWIN_ARM64",
+    "LIB_CURLTOOL_SRCS_LINUX_ARM64",
+    "LIB_CURLU_SRCS_DARWIN_ARM64",
+    "LIB_CURLU_SRCS_LINUX_ARM64",
+)
+
+SO_VERSION = "4.8.0"
+
+package(
+    default_package_metadata = [":license"],
+    default_visibility = ["@@//packages:__subpackages__"],
+)
+
+license(
+    name = "license",
+    # The "curl" license is a specially designated type.
+    license_kinds = ["@rules_license//licenses/spdx:curl"],
+    license_text = "COPYING",
+    visibility = ["//visibility:public"],
+)
+
+VERSION = "8.16.0"
+SONAME = "libcurl.so.%s" % VERSION
+
+PUBLIC_HEADERS = [
+    "include/curl/curl.h",
+    "include/curl/curlver.h",
+    "include/curl/easy.h",
+    "include/curl/header.h",
+    "include/curl/mprintf.h",
+    "include/curl/multi.h",
+    "include/curl/options.h",
+    "include/curl/stdcheaders.h",
+    "include/curl/system.h",
+    "include/curl/typecheck-gcc.h",
+    "include/curl/urlapi.h",
+    "include/curl/websockets.h",
+]
+
+LOCAL_DEFINES = [
+    "-DHAVE_CONFIG_H",
+]
+
+# TODO: Bring this into LOCAL_DEFINES
+XLOCAL_DEFINES = [
+    "-DOPENSSLDIR='\"/opt/datadog/embedded/ssl/cacerts\"'",
+    "-DENGINESDIR='\"_/opt/datadog/embedded/lib/engines-3\"'",
+    "-DMODULESDIR='\"/opt/datadog/embedded/lib/ossl-modules\"'",
+    "-DBSAES_ASM",
+    "-DECP_NISTZ256_ASM",
+    "-DECP_SM2P256_ASM",
+    "-DKECCAK1600_ASM",
+    "-DOPENSSL_CPUID_OBJ",
+    "-DSHA1_ASM",
+    "-DSHA256_ASM",
+    "-DSHA512_ASM",
+    "-DSM4_ASM",
+    "-DVPAES_ASM",
+    "-DVPSM4_ASM",
+    "-DL_ENDIAN",
+    "-DOPENSSL_PIC",
+]
+
+ARCH_HDRS_COND = {
+    "@platforms//os:linux": HDRS_LINUX_ARM64,
+    "@platforms//os:macos": HDRS_DARWIN_ARM64,
+}
+
+cc_binary(
+    name = "curl_bin",
+    srcs = ["lib/curl_config.h"] + HDRS + PUBLIC_HEADERS + select(ARCH_HDRS_COND) + select({
+        "@platforms//os:linux": LIB_CURLTOOL_SRCS_LINUX_ARM64,
+        "@platforms//os:macos": LIB_CURLTOOL_SRCS_DARWIN_ARM64,
+    }),
+    defines = ["HAVE_CONFIG_H"],
+    includes = [
+        ".",
+        "include",
+        "lib",
+    ],
+    copts = LOCAL_DEFINES + [
+        "-I.",
+    ],
+    dynamic_deps = ["curl"],
+    linkstatic = False,
+    linkopts = select({
+        "@platforms//os:linux": [
+            "-Wl,-L/opt/datadog-agent/embedded/lib",
+            "-Wl,-rpath=/opt/datadog-agent/embedded/lib",
+            # "-Wl,-lnghttp2",
+            #"-Wl,-lz",
+        ],
+        "@platforms//os:macos": [
+            "-Wl,-framework,CoreFoundation",
+            "-Wl,-framework,SystemConfiguration",
+            # "-Wl,-rpath=/opt/datadog-agent/embedded/lib",
+        ],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "curl_static",
+    srcs = ["lib/curl_config.h"] + HDRS + select(ARCH_HDRS_COND) + select({
+        "@platforms//os:linux": LIB_CURLU_SRCS_LINUX_ARM64,
+        "@platforms//os:macos": LIB_CURLU_SRCS_DARWIN_ARM64,
+    }) + ["@openssl//:headers"],
+    hdrs = PUBLIC_HEADERS,
+    # Using includes because -I just does not work with bzlmod.
+    # But yuch. What we need is to  port local_incudes concept from Google out
+    # to rules_cc.
+    includes = [
+        "include",
+    ],
+    local_defines = [
+        "BUILDING_LIBCURL",
+        "HAVE_CONFIG_H",
+        "NDEBUG",
+    ] + select({
+        "@platforms//os:macos": [
+            "CURL_MACOS_CALL_COPYPROXIES",
+        ],
+        "//conditions:default": [],
+    }),
+    copts = [
+        "-Wno-implicit-function-declaration",
+        "-Wno-int-conversion",
+        "-I.",
+    ] + select({
+        "@platforms//os:linux": [
+            "-fvisibility=hidden",
+            "-O2",
+        ],
+        "@platforms//os:macos": [
+            "-O2",
+        ],
+    }),
+    linkopts = select({
+        "@platforms//os:macos": [
+            "-Wl,-framework,CoreFoundation",
+            "-Wl,-framework,SystemConfiguration",
+        ],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:public"],
+    deps = [
+        "@nghttp2//:nghttp2",
+        "@openssl//:crypto",
+        "@openssl//:ssl",
+        "@openssl//:imported_ssl_headers",
+        "@zlib//:zlib",
+    ],
+)
+
+cc_shared_library(
+    name = "curl",
+    deps = [
+        ":curl_static",
+    ],
+    dynamic_deps = [
+        "@nghttp2//:nghttp2_shared",
+        "@openssl//:ssl_shared",
+        "@openssl//:crypto_shared",
+        "@zlib//:z",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+pkg_files(
+    name = "bin_files",
+    srcs = [
+        ":curl_bin",
+    ],
+    attributes = pkg_attributes(mode = "0755"),
+    renames = {
+        "curl_bin": "curl",
+    },
+    prefix = "embedded/bin",
+)
+
+so_symlink(
+    name = "lib_files",
+    src = ":curl",
+    libname = "libcurl",
+    version = SO_VERSION,
+    prefix = "embedded",
+)
+
+pkg_files(
+    name = "hdr_files",
+    srcs = PUBLIC_HEADERS,
+    prefix = "embedded/include/curl",
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":bin_files",
+        ":hdr_files",
+        ":lib_files",
+    ],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [":all_files"],
+)
