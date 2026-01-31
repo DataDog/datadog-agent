@@ -73,7 +73,7 @@ func TestGRPCScenarios(t *testing.T) {
 			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
-				if tc.isTLS && !gotlsutils.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
+				if tc.isTLS && !gotlsutils.GoTLSSupported(t, NewUSMEmptyConfig()) {
 					t.Skip("GoTLS not supported for this setup")
 				}
 				suite.Run(t, &usmGRPCSuite{isTLS: tc.isTLS})
@@ -100,7 +100,7 @@ func getGRPCClientsArray(t *testing.T, size int, withTLS bool) ([]*grpc.Client, 
 }
 
 func (s *usmGRPCSuite) getConfig() *config.Config {
-	cfg := utils.NewUSMEmptyConfig()
+	cfg := NewUSMEmptyConfig()
 	cfg.EnableHTTP2Monitoring = true
 	cfg.EnableGoTLSSupport = s.isTLS
 	cfg.GoTLSExcludeSelf = s.isTLS
