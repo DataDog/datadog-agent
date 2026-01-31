@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/signal"
 	"os/user"
+	"slices"
 	"syscall"
 	"time"
 
@@ -26,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/common"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -109,6 +111,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
 				getSharedFxOption(),
 				getPlatformModules(),
+				sortSystemProbeModules(),
 			)
 		},
 	}
@@ -170,6 +173,15 @@ func getSharedFxOption() fx.Option {
 		remoteagentfx.Module(),
 		fxinstrumentation.Module(),
 	)
+}
+
+func sortSystemProbeModules() fx.Option {
+	return fx.Decorate(func(mods []types.SystemProbeModuleComponent) []types.SystemProbeModuleComponent {
+		slices.SortStableFunc(mods, func(a, b types.SystemProbeModuleComponent) int {
+			return slices.Index(modules.ModuleOrder, a.Name()) - slices.Index(modules.ModuleOrder, b.Name())
+		})
+		return mods
+	})
 }
 
 type runDependencies struct {

@@ -104,6 +104,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		fx.Supply(pidimpl.NewParams("")),
 		getSharedFxOption(),
 		getPlatformModules(),
+		sortSystemProbeModules(),
 	)
 }
 
