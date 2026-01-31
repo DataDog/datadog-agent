@@ -899,6 +899,11 @@ type PathKey struct {
 	PathID  uint32 `field:"-"`
 }
 
+// MountEquals returns true if the mount ID is the same as the other mount ID taking the path ID into account
+func (p *PathKey) MountEquals(other PathKey) bool {
+	return p.MountID == other.MountID && (p.PathID == 0 || other.PathID == 0 || p.PathID&0xFFFF == other.PathID&0xFFFF)
+}
+
 // OnDemandPerArgSize is the size of each argument in Data in the on-demand event
 const OnDemandPerArgSize = 64
 

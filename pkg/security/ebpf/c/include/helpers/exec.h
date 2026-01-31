@@ -30,7 +30,7 @@ int __attribute__((always_inline)) handle_exec_event(ctx_t *ctx, struct syscall_
 
     syscall->exec.file.path_key.ino = inode ? get_inode_ino(inode) : get_path_ino(path);
     syscall->exec.file.path_key.mount_id = mount_id;
-    set_file_inode(syscall->exec.dentry, &syscall->exec.file, 0);
+    set_file_inode(syscall->exec.dentry, &syscall->exec.file, PATH_ID_INVALIDATE_TYPE_NONE);
 
     // resolve dentry
     syscall->resolver.key = syscall->exec.file.path_key;
