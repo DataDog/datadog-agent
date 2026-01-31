@@ -9,7 +9,6 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
-	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	remoteWorkloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-remote"
@@ -51,7 +50,6 @@ func getPlatformModules() fx.Option {
 		rdnsquerierfx.Module(),
 		npcollectorimpl.Module(),
 		remoteTaggerFx.Module(tagger.NewRemoteParams()),
-		ipcfx.ModuleReadWrite(),
 		remoteWorkloadfilterfx.Module(),
 		remotehostnameimpl.Module(),
 		logscompressionfx.Module(),

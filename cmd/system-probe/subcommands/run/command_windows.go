@@ -12,11 +12,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
-	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
@@ -25,14 +22,12 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	localtraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-local"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	crashdetect "github.com/DataDog/datadog-agent/comp/system-probe/crashdetect/fx"
 	eventmonitor "github.com/DataDog/datadog-agent/comp/system-probe/eventmonitor/fx"
 	networktracer "github.com/DataDog/datadog-agent/comp/system-probe/networktracer/fx"
 	softwareinventory "github.com/DataDog/datadog-agent/comp/system-probe/softwareinventory/fx"
 	traceroute "github.com/DataDog/datadog-agent/comp/system-probe/traceroute/fx"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -67,15 +62,9 @@ func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error,
 
 func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 	return fxutil.OneShot(
-		func(
-			_ config.Component,
-			rcclient rcclient.Component,
-			_ healthprobe.Component,
-			settings settings.Component,
-			deps module.FactoryDependencies,
-		) error {
+		func(deps runDependencies) error {
 			defer stopSystemProbe()
-			err := startSystemProbe(rcclient, settings, deps)
+			err := startSystemProbe(deps)
 			if err != nil {
 				return err
 			}
@@ -113,7 +102,6 @@ func getPlatformModules() fx.Option {
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType: workloadmeta.Remote,
 		}),
-		ipcfx.ModuleReadWrite(),
 		remoteWorkloadfilterfx.Module(),
 		remotehostnameimpl.Module(),
 		logscompressionfx.Module(),

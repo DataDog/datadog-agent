@@ -10,7 +10,6 @@ import (
 	"errors"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
@@ -37,8 +36,6 @@ type Module = types.SystemProbeModule
 
 // FactoryDependencies defines the fx dependencies for a module factory
 type FactoryDependencies struct {
-	fx.In
-
 	SysprobeConfig       sysprobeconfig.Component
 	CoreConfig           config.Component
 	Log                  log.Component
