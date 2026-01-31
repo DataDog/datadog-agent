@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -54,25 +55,56 @@ func (m *mockComp) Subscribe(req *pb.ConfigStreamRequest) (<-chan *pb.ConfigEven
 	return args.Get(0).(<-chan *pb.ConfigEvent), args.Get(1).(func())
 }
 
-func setupTest(ctx context.Context, t *testing.T) (*Server, *mockComp, *mockStream, chan *pb.ConfigEvent) {
+// mockRemoteAgentRegistry is a mock of the remoteagentregistry.Component interface
+type mockRemoteAgentRegistry struct {
+	mock.Mock
+}
+
+func (m *mockRemoteAgentRegistry) RegisterRemoteAgent(_ *remoteagentregistry.RegistrationData) (string, uint32, error) {
+	return "test-session-id", 30, nil
+}
+
+func (m *mockRemoteAgentRegistry) RefreshRemoteAgent(_ string) bool {
+	// Always return true for tests (agent is registered)
+	return true
+}
+
+func (m *mockRemoteAgentRegistry) GetRegisteredAgents() []remoteagentregistry.RegisteredAgent {
+	return nil
+}
+
+func (m *mockRemoteAgentRegistry) GetRegisteredAgentStatuses() []remoteagentregistry.StatusData {
+	return nil
+}
+
+func setupTest(ctx context.Context, t *testing.T, sessionID string) (*Server, *mockComp, *mockStream, chan *pb.ConfigEvent) {
 	cfg := configmock.New(t)
 	cfg.Set("config_stream.sleep_interval", 10*time.Millisecond, model.SourceAgentRuntime)
 
 	comp := &mockComp{}
-	stream := &mockStream{ctx: ctx}
 
-	server := NewServer(cfg, comp)
+	// Add session_id to context metadata
+	md := metadata.New(map[string]string{"session_id": sessionID})
+	ctxWithMetadata := metadata.NewIncomingContext(ctx, md)
+	stream := &mockStream{ctx: ctxWithMetadata}
+
+	// Create a mock RAR that always returns true for RefreshRemoteAgent
+	mockRAR := &mockRemoteAgentRegistry{}
+
+	server := NewServer(cfg, comp, mockRAR)
 	eventsCh := make(chan *pb.ConfigEvent, 1)
 
 	return server, comp, stream, eventsCh
 }
 
 func TestStreamConfigEventsErrors(t *testing.T) {
-	testReq := &pb.ConfigStreamRequest{}
+	testReq := &pb.ConfigStreamRequest{
+		Name: "test-client",
+	}
 	testEvent := &pb.ConfigEvent{}
 
 	t.Run("returns error on terminal error from stream Send", func(t *testing.T) {
-		server, comp, stream, eventsCh := setupTest(context.Background(), t)
+		server, comp, stream, eventsCh := setupTest(context.Background(), t, "test-session-id")
 		unsubscribe := func() {}
 		comp.On("Subscribe", testReq).Return((<-chan *pb.ConfigEvent)(eventsCh), unsubscribe).Once()
 
@@ -99,7 +131,7 @@ func TestStreamConfigEventsErrors(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		server, comp, stream, eventsCh := setupTest(ctx, t)
+		server, comp, stream, eventsCh := setupTest(ctx, t, "test-session-id")
 		var unsubscribeCalled bool
 		unsubscribe := func() { unsubscribeCalled = true }
 		comp.On("Subscribe", testReq).Return((<-chan *pb.ConfigEvent)(eventsCh), unsubscribe).Once()
@@ -143,4 +175,59 @@ func TestStreamConfigEventsErrors(t *testing.T) {
 		assert.True(t, unsubscribeCalled, "unsubscribe should have been called")
 	})
 
+}
+
+func TestRARAuthorization(t *testing.T) {
+	testReq := &pb.ConfigStreamRequest{
+		Name: "test-client",
+	}
+
+	t.Run("rejects request with missing metadata", func(t *testing.T) {
+		cfg := configmock.New(t)
+		comp := &mockComp{}
+		mockRAR := &mockRemoteAgentRegistry{}
+		server := NewServer(cfg, comp, mockRAR)
+
+		// Context without metadata
+		stream := &mockStream{ctx: context.Background()}
+
+		err := server.StreamConfigEvents(testReq, stream)
+		assert.Error(t, err)
+		assert.Equal(t, codes.Unauthenticated, status.Code(err))
+		assert.Contains(t, err.Error(), "missing gRPC metadata")
+	})
+
+	t.Run("rejects request with missing session_id in metadata", func(t *testing.T) {
+		cfg := configmock.New(t)
+		comp := &mockComp{}
+		mockRAR := &mockRemoteAgentRegistry{}
+		server := NewServer(cfg, comp, mockRAR)
+
+		// Context with metadata but no session_id
+		md := metadata.New(map[string]string{})
+		ctx := metadata.NewIncomingContext(context.Background(), md)
+		stream := &mockStream{ctx: ctx}
+
+		err := server.StreamConfigEvents(testReq, stream)
+		assert.Error(t, err)
+		assert.Equal(t, codes.Unauthenticated, status.Code(err))
+		assert.Contains(t, err.Error(), "session_id required in metadata")
+	})
+
+	t.Run("rejects request with empty session_id", func(t *testing.T) {
+		cfg := configmock.New(t)
+		comp := &mockComp{}
+		mockRAR := &mockRemoteAgentRegistry{}
+		server := NewServer(cfg, comp, mockRAR)
+
+		// Context with empty session_id
+		md := metadata.New(map[string]string{"session_id": ""})
+		ctx := metadata.NewIncomingContext(context.Background(), md)
+		stream := &mockStream{ctx: ctx}
+
+		err := server.StreamConfigEvents(testReq, stream)
+		assert.Error(t, err)
+		assert.Equal(t, codes.Unauthenticated, status.Code(err))
+		assert.Contains(t, err.Error(), "session_id cannot be empty")
+	})
 }
