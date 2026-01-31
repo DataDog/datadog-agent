@@ -386,12 +386,56 @@ func (suite *k8sSuite) testAgentCLI() {
 		}
 	})
 
+	suite.Run("agent workload-list --json", func() {
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "workload-list", "--json"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `agent workload-list --json` should be empty")
+		suite.Contains(stdout, `"entities"`)
+		suite.Contains(stdout, `"container"`)
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
+	})
+
+	suite.Run("agent workload-list --json container", func() {
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "workload-list", "--json", "container"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `agent workload-list --json container` should be empty")
+		suite.Contains(stdout, `"container"`)
+		suite.NotContains(stdout, `"kubernetes_pod"`)
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
+	})
+
 	suite.Run("agent tagger-list", func() {
 		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "tagger-list"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `agent tagger-list` should be empty")
 		suite.Contains(stdout, "=== Entity container_id://")
 		suite.Contains(stdout, "=== Entity kubernetes_pod_uid://")
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
+	})
+
+	suite.Run("agent tagger-list --json", func() {
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "tagger-list", "--json"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `agent tagger-list --json` should be empty")
+		suite.Contains(stdout, `"entities"`)
+		suite.Contains(stdout, `"container_id"`)
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
+	})
+
+	suite.Run("agent tagger-list --json container_id", func() {
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "tagger-list", "--json", "container_id"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `agent tagger-list --json container_id` should be empty")
+		suite.Contains(stdout, `"container_id"`)
+		suite.NotContains(stdout, `"kubernetes_pod_uid"`)
 		if suite.T().Failed() {
 			suite.T().Log(stdout)
 		}
