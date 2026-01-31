@@ -10,7 +10,7 @@ lint_licenses:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
     - dda inv -- -e lint-licenses
-  needs: ["go_tools_deps", "go_deps"]
+  needs: ["go_deps", "go_tools_deps"]
 
 lint_shell:
   extends: .lint

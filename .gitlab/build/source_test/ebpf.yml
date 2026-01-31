@@ -11,7 +11,7 @@
 .tests_linux_ebpf:
   stage: source_test
   extends: .unit_test_base
-  needs: ["go_deps", "go_tools_deps"]
+  needs: ["go_deps", "go_tools_deps", "go_tools_deps_arm64"]
   variables:
     KUBERNETES_MEMORY_REQUEST: "16Gi"
     KUBERNETES_MEMORY_LIMIT: "16Gi"
@@ -19,7 +19,6 @@
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
-    - if [[ $(uname -m) == "aarch64" ]]; then dda inv -- -e install-tools; fi
   script:
     - dda inv -- -e system-probe.object-files
     - dda inv -- -e linter.go --build system-probe-unit-tests --cpus 4 --targets ./pkg
@@ -42,6 +41,9 @@ tests_ebpf_arm64:
   extends: .tests_linux_ebpf
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64", "specific:true"]
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps_arm64]
   variables:
     ARCH: arm64
     TASK_ARCH: arm64
@@ -51,7 +53,7 @@ tests_ebpf_arm64:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  needs: ["go_deps", "go_tools_deps"]
+  needs: ["go_deps", "go_tools_deps", "go_tools_deps_arm64"]
   variables:
     KUBERNETES_CPU_REQUEST: 4
   artifacts:
@@ -69,6 +71,10 @@ prepare_sysprobe_ebpf_functional_tests_arm64:
   extends: .prepare_sysprobe_ebpf_functional_tests
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64", "specific:true"]
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps_arm64]
+    - !reference [.retrieve_sysprobe_deps]
   variables:
     ARCH: arm64
     DD_CC: "aarch64-unknown-linux-gnu-gcc"
@@ -89,7 +95,7 @@ prepare_sysprobe_ebpf_functional_tests_x64:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  needs: ["go_deps", "go_tools_deps"]
+  needs: ["go_deps", "go_tools_deps", "go_tools_deps_arm64"]
   artifacts:
     when: always
     paths:
@@ -106,6 +112,10 @@ prepare_secagent_ebpf_functional_tests_arm64:
   extends: .prepare_secagent_ebpf_functional_tests
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64", "specific:true"]
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps_arm64]
+    - !reference [.retrieve_sysprobe_deps]
   variables:
     ARCH: arm64
     DD_CC: "aarch64-unknown-linux-gnu-gcc"

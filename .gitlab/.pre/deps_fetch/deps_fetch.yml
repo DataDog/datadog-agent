@@ -9,10 +9,17 @@
 
 .retrieve_linux_go_tools_deps:
   - mkdir -p /tmp/cached_tools && tar xJf modcache_tools.tar.xz -C /tmp/cached_tools
-  - mkdir -p $GOPATH/install_tools/bin && cp -r /tmp/cached_tools/bin/* $GOPATH/install_tools/bin/
+  - mkdir -p $GOPATH/bin && cp -r /tmp/cached_tools/bin/* $GOPATH/bin/
   - mkdir -p $GOPATH/pkg/mod/cache && cp -r /tmp/cached_tools/pkg/mod/cache/* $GOPATH/pkg/mod/cache/
   - rm -rf /tmp/cached_tools modcache_tools.tar.xz
-  - export PATH=$PATH:$GOPATH/install_tools/bin
+  - export PATH=$PATH:$GOPATH/bin
+
+.retrieve_linux_go_tools_deps_arm64:
+  - mkdir -p /tmp/cached_tools && tar xJf modcache_tools_arm64.tar.xz -C /tmp/cached_tools
+  - mkdir -p $GOPATH/bin && cp -r /tmp/cached_tools/bin/* $GOPATH/bin/
+  - mkdir -p $GOPATH/pkg/mod/cache && cp -r /tmp/cached_tools/pkg/mod/cache/* $GOPATH/pkg/mod/cache/
+  - rm -rf /tmp/cached_tools modcache_tools_arm64.tar.xz
+  - export PATH=$PATH:$GOPATH/bin
 
 .retrieve_linux_go_e2e_deps:
   - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache_e2e.tar.xz -C $GOPATH/pkg/mod/cache
@@ -25,7 +32,6 @@
 .cache:
   stage: deps_fetch
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
   needs: ["setup_agent_version"]
   variables:
     KUBERNETES_CPU_REQUEST: 16
@@ -41,6 +47,7 @@
 # HACK: If you change the behavior of this job, change the `cache:key:prefix` value to invalidate the cache
 go_deps:
   extends: .cache
+  tags: ["arch:amd64", "specific:true"]
   variables:
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
@@ -49,7 +56,6 @@ go_deps:
     # but still provide the artifact that's expected for the other jobs to run
     - if [ -f modcache.tar.xz  ]; then exit 0; fi
     - dda inv -- -e deps --verbose
-    - dda inv -- -e install-tools
     - cd $GOPATH/pkg/mod/cache/ && tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache.tar.xz .
   artifacts:
     expire_in: 1 day
@@ -69,6 +75,7 @@ go_deps:
 
 go_tools_deps:
   extends: .cache
+  tags: ["arch:amd64", "specific:true"]
   script:
     - if [ -f modcache_tools.tar.xz  ]; then exit 0; fi
     - dda inv -- -e install-tools
@@ -86,11 +93,32 @@ go_tools_deps:
       paths:
         - modcache_tools.tar.xz
 
+go_tools_deps_arm64:
+  extends: .cache
+  tags: ["arch:arm64", "specific:true"]
+  script:
+    - if [ -f modcache_tools_arm64.tar.xz  ]; then exit 0; fi
+    - dda inv -- -e install-tools
+    - cd $GOPATH/pkg/mod/cache/ && tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools_arm64.tar.xz .
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - $CI_PROJECT_DIR/modcache_tools_arm64.tar.xz
+  cache:
+    - key:
+        files:
+          - ./**/go.mod
+          - .gitlab/.pre/deps_fetch/deps_fetch.yml
+        prefix: "go_tools_deps_modcache_arm64"
+      paths:
+        - modcache_tools_arm64.tar.xz
+
 go_e2e_deps:
   id_tokens:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
   extends: .cache
+  tags: ["arch:amd64", "specific:true"]
   before_script:
     - dd-octo-sts version
     - dd-octo-sts debug --scope DataDog/datadog-agent --policy self.gitlab.deps-fetch

@@ -80,6 +80,7 @@ job-owners:
     - go_e2e_deps
     - go_mod_tidy_check
     - go_tools_deps
+    - go_tools_deps_arm64
     - installer-amd64
     - installer-amd64-oci
     - installer-arm64
