@@ -8,6 +8,8 @@ package pipeline
 import (
 	"context"
 	"strconv"
+	"sync"
+	"time"
 
 	"go.uber.org/atomic"
 
@@ -68,6 +70,13 @@ type provider struct {
 	hostname    hostnameinterface.Component
 	cfg         pkgconfigmodel.Reader
 	compression logscompression.Component
+
+	failoverEnabled    bool
+	failoverTimeoutMs  int
+	routerChannels     []chan *message.Message
+	routerMonitors     []*metrics.CapacityMonitor
+	forwarderWaitGroup sync.WaitGroup
+	routerMutex        sync.Mutex // Protects routerChannels and routerMonitors
 }
 
 // NewProvider returns a new Provider
@@ -224,6 +233,10 @@ func newProvider(
 		hostname:                  hostname,
 		cfg:                       cfg,
 		compression:               compression,
+
+		failoverEnabled:   cfg.GetBool("logs_config.pipeline_failover_enabled"),
+		failoverTimeoutMs: cfg.GetInt("logs_config.pipeline_failover_timeout_ms"),
+		routerChannels:    make([]chan *message.Message, 0),
 	}
 }
 
@@ -253,6 +266,17 @@ func (p *provider) Start() {
 func (p *provider) Stop() {
 	stopper := startstop.NewParallelStopper()
 
+	// close all router channels to signal forwarders to stop
+	p.routerMutex.Lock()
+	channelsToClose := p.routerChannels
+	p.routerMutex.Unlock()
+
+	for _, routerChannel := range channelsToClose {
+		close(routerChannel)
+	}
+
+	p.forwarderWaitGroup.Wait()
+
 	// close the pipelines
 	for _, pipeline := range p.pipelines {
 		stopper.Add(pipeline)
@@ -261,17 +285,39 @@ func (p *provider) Stop() {
 	stopper.Stop()
 	p.sender.Stop()
 	p.pipelines = p.pipelines[:0]
+	p.routerChannels = p.routerChannels[:0]
+	p.routerMonitors = p.routerMonitors[:0]
 }
 
 // NextPipelineChan returns the next pipeline input channel
+// If failover is enabled, returns a router channel with automatic failover
+// If failover is disabled, returns direct pipeline InputChan (legacy behavior)
 func (p *provider) NextPipelineChan() chan *message.Message {
 	pipelinesLen := len(p.pipelines)
 	if pipelinesLen == 0 {
 		return nil
 	}
-	index := p.currentPipelineIndex.Inc() % uint32(pipelinesLen)
-	nextPipeline := p.pipelines[index]
-	return nextPipeline.InputChan
+
+	if !p.failoverEnabled {
+		// Legacy: direct pipeline access
+		index := p.currentPipelineIndex.Inc() % uint32(pipelinesLen)
+		nextPipeline := p.pipelines[index]
+		return nextPipeline.InputChan
+	}
+
+	// Router channel for this tailer
+	channelSize := p.cfg.GetInt("logs_config.message_channel_size")
+	routerChannel := make(chan *message.Message, channelSize)
+
+	// Thread-safe append to router channels slice
+	p.routerMutex.Lock()
+	p.routerChannels = append(p.routerChannels, routerChannel)
+	p.routerMutex.Unlock()
+
+	p.forwarderWaitGroup.Add(1)
+	go p.forwardWithFailover(routerChannel)
+
+	return routerChannel
 }
 
 func (p *provider) GetOutputChan() chan *message.Message {
@@ -279,14 +325,85 @@ func (p *provider) GetOutputChan() chan *message.Message {
 }
 
 // NextPipelineChanWithMonitor returns the next pipeline input channel with it's monitor.
+// Used by file tailers which track capacity metrics
+// if failover is enabled, returns a router channel with a dedicated monitor
+// if failover is disabled, returns direct pipeline channel with pipeline monitor (legacy)
 func (p *provider) NextPipelineChanWithMonitor() (chan *message.Message, *metrics.CapacityMonitor) {
 	pipelinesLen := len(p.pipelines)
 	if pipelinesLen == 0 {
 		return nil, nil
 	}
-	index := p.currentPipelineIndex.Inc() % uint32(pipelinesLen)
-	nextPipeline := p.pipelines[index]
-	return nextPipeline.InputChan, nextPipeline.pipelineMonitor.GetCapacityMonitor(metrics.ProcessorTlmName, strconv.Itoa(int(index)))
+
+	if !p.failoverEnabled {
+		// Legacy behavior: direct pipeline access with pipeline monitor
+		index := p.currentPipelineIndex.Inc() % uint32(pipelinesLen)
+		nextPipeline := p.pipelines[index]
+		return nextPipeline.InputChan, nextPipeline.pipelineMonitor.GetCapacityMonitor(metrics.ProcessorTlmName, strconv.Itoa(int(index)))
+	}
+
+	// Failover enabled: create router channel with its own monitor
+	channelSize := p.cfg.GetInt("logs_config.message_channel_size")
+	routerChannel := make(chan *message.Message, channelSize)
+
+	// Choose a primary pipeline for this routers monitor
+	// (The forwarder might send to different pipeline, but tailer doesnt know that)
+	primaryIndex := p.currentPipelineIndex.Inc() % uint32(pipelinesLen)
+	primaryPipeline := p.pipelines[primaryIndex]
+
+	// Get the primary pipelines monitor for tailer to report to
+	monitor := primaryPipeline.pipelineMonitor.GetCapacityMonitor(metrics.ProcessorTlmName, strconv.Itoa(int(primaryIndex)))
+
+	// Thread-safe append to router channels and monitors slices
+	p.routerMutex.Lock()
+	p.routerChannels = append(p.routerChannels, routerChannel)
+	p.routerMonitors = append(p.routerMonitors, monitor)
+	p.routerMutex.Unlock()
+
+	// Start forwarder
+	p.forwarderWaitGroup.Add(1)
+	go p.forwardWithFailover(routerChannel)
+
+	return routerChannel, monitor
+}
+
+// forwardWithFailover reads messages from a router channel and forwards them
+// to healthy pipelines with automatic failover on blocking
+func (p *provider) forwardWithFailover(routerChannel chan *message.Message) {
+	defer p.forwarderWaitGroup.Done()
+
+	timeout := time.Duration(p.failoverTimeoutMs) * time.Millisecond
+	pipelinesLen := len(p.pipelines)
+
+	for msg := range routerChannel {
+		sent := false
+		startIdx := p.currentPipelineIndex.Inc() % uint32(pipelinesLen)
+
+		// Try each pipeline with timeout
+		for attempt := 0; attempt < pipelinesLen; attempt++ {
+			idx := (startIdx + uint32(attempt)) % uint32(pipelinesLen)
+			pipeline := p.pipelines[idx]
+
+			timer := time.NewTimer(timeout)
+
+			select {
+			case pipeline.InputChan <- msg:
+				timer.Stop()
+				sent = true
+				goto done
+
+			case <-timer.C:
+				// try next pipeline
+				continue
+			}
+		}
+
+	done:
+		// All pipelines blocked, apply backpressure via blocking
+		if !sent {
+			idx := startIdx % uint32(pipelinesLen)
+			p.pipelines[idx].InputChan <- msg // Blocks until pipeline accepts
+		}
+	}
 }
 
 // Flush flushes synchronously all the contained pipeline of this provider.
