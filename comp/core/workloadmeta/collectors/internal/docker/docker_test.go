@@ -18,62 +18,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
-func Test_extractGPUDeviceIDs(t *testing.T) {
-	tests := []struct {
-		name     string
-		envVars  []string
-		expected []string
-	}{
-		{
-			name:     "single GPU UUID",
-			envVars:  []string{"PATH=/usr/bin", "NVIDIA_VISIBLE_DEVICES=GPU-aec058b1-c18e-236e-c14d-49d2990fda0f"},
-			expected: []string{"GPU-aec058b1-c18e-236e-c14d-49d2990fda0f"},
-		},
-		{
-			name:     "multiple GPU UUIDs",
-			envVars:  []string{"NVIDIA_VISIBLE_DEVICES=GPU-aec058b1-c18e-236e-c14d-49d2990fda0f,GPU-bec058b1-d18e-336e-d14d-59d2990fda1f"},
-			expected: []string{"GPU-aec058b1-c18e-236e-c14d-49d2990fda0f", "GPU-bec058b1-d18e-336e-d14d-59d2990fda1f"},
-		},
-		{
-			name:     "all GPUs",
-			envVars:  []string{"NVIDIA_VISIBLE_DEVICES=all"},
-			expected: []string{"all"},
-		},
-		{
-			name:     "none",
-			envVars:  []string{"NVIDIA_VISIBLE_DEVICES=none"},
-			expected: []string{"none"},
-		},
-		{
-			name:     "void",
-			envVars:  []string{"NVIDIA_VISIBLE_DEVICES=void"},
-			expected: []string{"void"},
-		},
-		{
-			name:     "empty value",
-			envVars:  []string{"NVIDIA_VISIBLE_DEVICES="},
-			expected: nil,
-		},
-		{
-			name:     "no NVIDIA_VISIBLE_DEVICES",
-			envVars:  []string{"PATH=/usr/bin", "HOME=/root"},
-			expected: nil,
-		},
-		{
-			name:     "empty env vars",
-			envVars:  []string{},
-			expected: nil,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := extractGPUDeviceIDs(tt.envVars)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
 func Test_LayersFromDockerHistoryAndInspect(t *testing.T) {
 	var emptySize int64
 	var noDiffCmd = "ENV var=dummy"
