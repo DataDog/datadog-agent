@@ -175,6 +175,9 @@ type Config struct {
 
 	// SnapshotUsingListmount enables the use of listmount to take filesystem mount snapshots
 	SnapshotUsingListmount bool
+
+	// EventProcessingTimeMetricsEnabled enables metrics for the time that kernel events take to get processed
+	GenerateEventProcessingTimeMetrics bool
 }
 
 // NewConfig returns a new Config object
@@ -210,18 +213,19 @@ func NewConfig() (*Config, error) {
 		EventStreamUseKprobeFallback:       getBool("event_stream.use_kprobe_fallback"),
 		EventStreamKretprobeMaxActive:      getInt("event_stream.kretprobe_max_active"),
 
-		EnvsWithValue:               getStringSlice("envs_with_value"),
-		NetworkEnabled:              getBool("network.enabled"),
-		NetworkIngressEnabled:       getBool("network.ingress.enabled"),
-		NetworkRawPacketEnabled:     getBool("network.raw_packet.enabled"),
-		NetworkRawPacketLimiterRate: getInt("network.raw_packet.limiter_rate"),
-		NetworkRawPacketFilter:      getString("network.raw_packet.filter"),
-		NetworkPrivateIPRanges:      getStringSlice("network.private_ip_ranges"),
-		NetworkExtraPrivateIPRanges: getStringSlice("network.extra_private_ip_ranges"),
-		StatsPollingInterval:        time.Duration(getInt("events_stats.polling_interval")) * time.Second,
-		SyscallsMonitorEnabled:      getBool("syscalls_monitor.enabled"),
-		DNSResolverCacheSize:        getInt("dns_resolution.cache_size"),
-		DNSResolutionEnabled:        getBool("dns_resolution.enabled"),
+		EnvsWithValue:                      getStringSlice("envs_with_value"),
+		NetworkEnabled:                     getBool("network.enabled"),
+		NetworkIngressEnabled:              getBool("network.ingress.enabled"),
+		NetworkRawPacketEnabled:            getBool("network.raw_packet.enabled"),
+		NetworkRawPacketLimiterRate:        getInt("network.raw_packet.limiter_rate"),
+		NetworkRawPacketFilter:             getString("network.raw_packet.filter"),
+		NetworkPrivateIPRanges:             getStringSlice("network.private_ip_ranges"),
+		NetworkExtraPrivateIPRanges:        getStringSlice("network.extra_private_ip_ranges"),
+		StatsPollingInterval:               time.Duration(getInt("events_stats.polling_interval")) * time.Second,
+		SyscallsMonitorEnabled:             getBool("syscalls_monitor.enabled"),
+		DNSResolverCacheSize:               getInt("dns_resolution.cache_size"),
+		DNSResolutionEnabled:               getBool("dns_resolution.enabled"),
+		GenerateEventProcessingTimeMetrics: getBool("event_processing_time.enabled"),
 
 		// runtime compilation
 		RuntimeCompilationEnabled: getBool("runtime_compilation.enabled"),
@@ -237,7 +241,7 @@ func NewConfig() (*Config, error) {
 		// Mount resolver
 		SnapshotUsingListmount: getBool("snapshot_using_listmount"),
 	}
-
+	
 	if err := c.sanitize(); err != nil {
 		return nil, err
 	}
