@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/mux"
 
@@ -222,15 +223,27 @@ func getTaggerList(w http.ResponseWriter, _ *http.Request, taggerComp tagger.Com
 }
 
 func getWorkloadList(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
-	verbose := false
 	params := r.URL.Query()
-	if v, ok := params["verbose"]; ok {
-		if len(v) >= 1 && v[0] == "true" {
-			verbose = true
+
+	verbose := params.Get("verbose") == "true"
+	structured := params.Get("format") == "json"
+	search := params.Get("search")
+
+	var response interface{}
+	if structured {
+		response = wmeta.DumpStructured(verbose)
+		// Apply search filter if provided
+		if search != "" {
+			response = filterStructuredWorkloadResponse(response.(workloadmeta.WorkloadDumpStructuredResponse), search)
+		}
+	} else {
+		response = wmeta.Dump(verbose)
+		// Apply search filter if provided
+		if search != "" {
+			response = filterTextWorkloadResponse(response.(workloadmeta.WorkloadDumpResponse), search)
 		}
 	}
 
-	response := wmeta.Dump(verbose)
 	jsonDump, err := json.Marshal(response)
 	if err != nil {
 		httputils.SetJSONError(w, log.Errorf("Unable to marshal workload list response: %v", err), 500)
@@ -239,6 +252,65 @@ func getWorkloadList(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.
 
 	w.Write(jsonDump)
 }
+
+// filterStructuredWorkloadResponse filters entities by kind or entity ID
+func filterStructuredWorkloadResponse(response workloadmeta.WorkloadDumpStructuredResponse, search string) workloadmeta.WorkloadDumpStructuredResponse {
+	filtered := workloadmeta.WorkloadDumpStructuredResponse{
+		Entities: make(map[string][]workloadmeta.Entity),
+	}
+
+	for kind, entities := range response.Entities {
+		if strings.Contains(kind, search) {
+			// Kind matches - include all entities
+			filtered.Entities[kind] = entities
+			continue
+		}
+
+		// Filter by entity ID
+		var matchingEntities []workloadmeta.Entity
+		for _, entity := range entities {
+			if strings.Contains(entity.GetID().ID, search) {
+				matchingEntities = append(matchingEntities, entity)
+			}
+		}
+
+		if len(matchingEntities) > 0 {
+			filtered.Entities[kind] = matchingEntities
+		}
+	}
+
+	return filtered
+}
+
+// filterTextWorkloadResponse filters text-formatted entities by kind or entity ID
+func filterTextWorkloadResponse(response workloadmeta.WorkloadDumpResponse, search string) workloadmeta.WorkloadDumpResponse {
+	filtered := workloadmeta.WorkloadDumpResponse{
+		Entities: make(map[string]workloadmeta.WorkloadEntity),
+	}
+
+	for kind, workloadEntity := range response.Entities {
+		if strings.Contains(kind, search) {
+			// Kind matches - include all entities
+			filtered.Entities[kind] = workloadEntity
+			continue
+		}
+
+		// Filter by entity ID
+		filteredInfos := make(map[string]string)
+		for entityID, info := range workloadEntity.Infos {
+			if strings.Contains(entityID, search) {
+				filteredInfos[entityID] = info
+			}
+		}
+
+		if len(filteredInfos) > 0 {
+			filtered.Entities[kind] = workloadmeta.WorkloadEntity{Infos: filteredInfos}
+		}
+	}
+
+	return filtered
+}
+
 
 func getLocalAutoscalingWorkloadCheck(w http.ResponseWriter, r *http.Request) {
 	response := localautoscalingworkload.GetAutoscalingWorkloadCheck(r.Context())

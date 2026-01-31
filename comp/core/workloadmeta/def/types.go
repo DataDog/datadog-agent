@@ -263,10 +263,10 @@ type Entity interface {
 type EntityID struct {
 	// Kind identifies the kind of entity.  This typically corresponds to the concrete
 	// type of the Entity, but this is not always the case; see Entity for details.
-	Kind Kind
+	Kind Kind `json:"kind"`
 
 	// ID is the ID for this entity, in a format specific to the entity Kind.
-	ID string
+	ID string `json:"id"`
 }
 
 // String implements Entity#String.
@@ -276,11 +276,11 @@ func (i EntityID) String(_ bool) string {
 
 // EntityMeta represents generic metadata about an Entity.
 type EntityMeta struct {
-	Name        string
-	Namespace   string
-	Annotations map[string]string
-	Labels      map[string]string
-	UID         string
+	Name        string            `json:"name,omitempty"`
+	Namespace   string            `json:"namespace,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty"`
+	UID         string            `json:"uid,omitempty"`
 }
 
 // String returns a string representation of EntityMeta.
@@ -305,13 +305,13 @@ func (e EntityMeta) String(verbose bool) string {
 // To avoid confusion, an extra field of repo digest is added to the struct, if it is available, it
 // will also be added to the container tags in tagger.
 type ContainerImage struct {
-	ID         string
-	RawName    string
-	Name       string
-	Registry   string
-	ShortName  string
-	Tag        string
-	RepoDigest string
+	ID         string `json:"id,omitempty"`
+	RawName    string `json:"rawName,omitempty"`
+	Name       string `json:"name,omitempty"`
+	Registry   string `json:"registry,omitempty"`
+	ShortName  string `json:"shortName,omitempty"`
+	Tag        string `json:"tag,omitempty"`
+	RepoDigest string `json:"repoDigest,omitempty"`
 }
 
 // NewContainerImage builds a ContainerImage from an image name and its id
@@ -357,13 +357,13 @@ func (c ContainerImage) String(verbose bool) string {
 
 // ContainerState is the state of a container.
 type ContainerState struct {
-	Running    bool
-	Status     ContainerStatus
-	Health     ContainerHealth
-	CreatedAt  time.Time
-	StartedAt  time.Time
-	FinishedAt time.Time
-	ExitCode   *int64
+	Running    bool            `json:"running"`
+	Status     ContainerStatus `json:"status,omitempty"`
+	Health     ContainerHealth `json:"health,omitempty"`
+	CreatedAt  time.Time       `json:"createdAt,omitempty"`
+	StartedAt  time.Time       `json:"startedAt,omitempty"`
+	FinishedAt time.Time       `json:"finishedAt,omitempty"`
+	ExitCode   *int64          `json:"exitCode,omitempty"`
 }
 
 // String returns a string representation of ContainerState.
@@ -387,10 +387,10 @@ func (c ContainerState) String(verbose bool) string {
 
 // ContainerPort is a port open in the container.
 type ContainerPort struct {
-	Name     string
-	Port     int
-	Protocol string
-	HostPort uint16
+	Name     string `json:"name,omitempty"`
+	Port     int    `json:"port,omitempty"`
+	Protocol string `json:"protocol,omitempty"`
+	HostPort uint16 `json:"hostPort,omitempty"`
 }
 
 // String returns a string representation of ContainerPort.
@@ -409,9 +409,9 @@ func (c ContainerPort) String(verbose bool) string {
 
 // ContainerNetwork is the network attached to the container.
 type ContainerNetwork struct {
-	NetworkMode   string
-	IPv4Addresses []string
-	IPv6Addresses []string
+	NetworkMode   string   `json:"networkMode,omitempty"`
+	IPv4Addresses []string `json:"ipv4Addresses,omitempty"`
+	IPv6Addresses []string `json:"ipv6Addresses,omitempty"`
 }
 
 // String returns a string representation of ContainerPort.
@@ -426,9 +426,9 @@ func (c ContainerNetwork) String(_ bool) string {
 
 // ContainerVolume is a volume mounted in the container.
 type ContainerVolume struct {
-	Name        string
-	Source      string
-	Destination string
+	Name        string `json:"name,omitempty"`
+	Source      string `json:"source,omitempty"`
+	Destination string `json:"destination,omitempty"`
 }
 
 // String returns a string representation of ContainerVolume.
@@ -443,10 +443,10 @@ func (c ContainerVolume) String(_ bool) string {
 
 // ContainerHealthStatus is the health status of a container
 type ContainerHealthStatus struct {
-	Status   string
-	Since    *time.Time
-	ExitCode *int64
-	Output   string
+	Status   string     `json:"status,omitempty"`
+	Since    *time.Time `json:"since,omitempty"`
+	ExitCode *int64     `json:"exitCode,omitempty"`
+	Output   string     `json:"output,omitempty"`
 }
 
 // String returns a string representation of ContainerHealthStatus.
@@ -468,24 +468,24 @@ const RequestAllGPUs = -1
 
 // ContainerResources is resources requests or limitations for a container
 type ContainerResources struct {
-	GPURequest    *int64   // Number of GPUs requested (-1 for all GPUs, used in Docker runtimes)
-	GPULimit      *int64   // Number of GPUs limit (-1 for no limit, used in Docker runtimes)
-	GPUVendorList []string // The type of GPU requested (eg. nvidia, amd, intel)
-	CPURequest    *float64 // Percentage 0-100*numCPU (aligned with CPU Limit from metrics provider)
-	CPULimit      *float64
-	MemoryRequest *uint64 // Bytes
-	MemoryLimit   *uint64
+	GPURequest    *int64   `json:"gpuRequest,omitempty"` // Number of GPUs requested (-1 for all GPUs, used in Docker runtimes)
+	GPULimit      *int64   `json:"gpuLimit,omitempty"`   // Number of GPUs limit (-1 for no limit, used in Docker runtimes)
+	GPUVendorList []string `json:"gpuVendorList,omitempty"` // The type of GPU requested (eg. nvidia, amd, intel)
+	CPURequest    *float64 `json:"cpuRequest,omitempty"` // Percentage 0-100*numCPU (aligned with CPU Limit from metrics provider)
+	CPULimit      *float64 `json:"cpuLimit,omitempty"`
+	MemoryRequest *uint64  `json:"memoryRequest,omitempty"` // Bytes
+	MemoryLimit   *uint64  `json:"memoryLimit,omitempty"`
 
 	// The container is requesting to use entire core(s)
 	// e.g. 1000m or 1 -- NOT 1500m or 1.5
-	RequestedWholeCores *bool
+	RequestedWholeCores *bool `json:"requestedWholeCores,omitempty"`
 
 	// Raw resources. This duplicates some of the information in other fields,
 	// but it is needed by kubelet check because it needs to emit metrics for
 	// all resources. This includes the typical ones defined above (cpu, memory,
 	// gpu) but also custom resources.
-	RawRequests map[string]string
-	RawLimits   map[string]string
+	RawRequests map[string]string `json:"rawRequests,omitempty"`
+	RawLimits   map[string]string `json:"rawLimits,omitempty"`
 }
 
 // String returns a string representation of ContainerPort.
@@ -511,8 +511,8 @@ func (cr ContainerResources) String(bool) string {
 
 // ContainerResizePolicy represents a resize policy for a container
 type ContainerResizePolicy struct {
-	CPURestartPolicy    string
-	MemoryRestartPolicy string
+	CPURestartPolicy    string `json:"cpuRestartPolicy,omitempty"`
+	MemoryRestartPolicy string `json:"memoryRestartPolicy,omitempty"`
 
 	// Currently, the only supported resourceName values are "cpu" and "memory"
 	// Additionally, these strings are always either "NotRequired" or "RestartContainer" (k8s docs)
@@ -532,10 +532,10 @@ func (crp ContainerResizePolicy) String() string {
 // ContainerAllocatedResource is a resource allocated to a container, consisting of a name and an ID.
 type ContainerAllocatedResource struct {
 	// Name is the name of the resource as defined in the pod spec (e.g. "nvidia.com/gpu").
-	Name string
+	Name string `json:"name,omitempty"`
 
 	// ID is the unique ID of the resource, the format depends on the provider
-	ID string
+	ID string `json:"id,omitempty"`
 }
 
 func (c ContainerAllocatedResource) String() string {
@@ -545,10 +545,10 @@ func (c ContainerAllocatedResource) String() string {
 // OrchestratorContainer is a reference to a Container with
 // orchestrator-specific data attached to it.
 type OrchestratorContainer struct {
-	ID        string
-	Name      string
-	Image     ContainerImage
-	Resources ContainerResources
+	ID        string             `json:"id,omitempty"`
+	Name      string             `json:"name,omitempty"`
+	Image     ContainerImage     `json:"image,omitempty"`
+	Resources ContainerResources `json:"resources,omitempty"`
 }
 
 // String returns a string representation of OrchestratorContainer.
@@ -566,17 +566,17 @@ func (o OrchestratorContainer) String(verbose bool) string {
 
 // ECSContainer is a reference to a container running in ECS
 type ECSContainer struct {
-	DisplayName   string
-	Networks      []ContainerNetwork
-	Volumes       []ContainerVolume
-	Health        *ContainerHealthStatus
-	DesiredStatus string
-	KnownStatus   string
-	Type          string
-	LogDriver     string
-	LogOptions    map[string]string
-	ContainerARN  string
-	Snapshotter   string
+	DisplayName   string                 `json:"displayName,omitempty"`
+	Networks      []ContainerNetwork     `json:"networks,omitempty"`
+	Volumes       []ContainerVolume      `json:"volumes,omitempty"`
+	Health        *ContainerHealthStatus `json:"health,omitempty"`
+	DesiredStatus string                 `json:"desiredStatus,omitempty"`
+	KnownStatus   string                 `json:"knownStatus,omitempty"`
+	Type          string                 `json:"type,omitempty"`
+	LogDriver     string                 `json:"logDriver,omitempty"`
+	LogOptions    map[string]string      `json:"logOptions,omitempty"`
+	ContainerARN  string                 `json:"containerARN,omitempty"`
+	Snapshotter   string                 `json:"snapshotter,omitempty"`
 }
 
 // String returns a string representation of ECSContainer.
@@ -616,47 +616,47 @@ func (e ECSContainer) String(verbose bool) string {
 type ContainerProbe struct {
 	// This is only used by KSM, so it only includes the fields used by KSM. We
 	// can add the rest later as needed.
-	InitialDelaySeconds int32
+	InitialDelaySeconds int32 `json:"initialDelaySeconds,omitempty"`
 }
 
 // Container is an Entity representing a containerized workload.
 type Container struct {
-	EntityID
-	EntityMeta
+	EntityID   `json:",inline"`
+	EntityMeta `json:",inline"`
 	// ECSContainer contains properties specific to container running in ECS
-	*ECSContainer
+	*ECSContainer `json:"ecsContainer,omitempty"`
 	// EnvVars are limited to variables included in pkg/util/containers/env_vars_filter.go
-	EnvVars       map[string]string
-	Hostname      string
-	Image         ContainerImage
-	NetworkIPs    map[string]string
-	PID           int
-	Ports         []ContainerPort
-	Runtime       ContainerRuntime
-	RuntimeFlavor ContainerRuntimeFlavor
-	State         ContainerState
+	EnvVars       map[string]string `json:"envVars,omitempty"`
+	Hostname      string            `json:"hostname,omitempty"`
+	Image         ContainerImage    `json:"image,omitempty"`
+	NetworkIPs    map[string]string `json:"networkIPs,omitempty"`
+	PID           int               `json:"pid,omitempty"`
+	Ports         []ContainerPort   `json:"ports,omitempty"`
+	Runtime       ContainerRuntime  `json:"runtime,omitempty"`
+	RuntimeFlavor ContainerRuntimeFlavor `json:"runtimeFlavor,omitempty"`
+	State         ContainerState         `json:"state,omitempty"`
 	// CollectorTags represent tags coming from the collector itself
 	// and that it would be impossible to compute later on
-	CollectorTags   []string
-	Owner           *EntityID
-	SecurityContext *ContainerSecurityContext
-	ReadinessProbe  *ContainerProbe
-	Resources       ContainerResources
-	ResizePolicy    ContainerResizePolicy
+	CollectorTags   []string                  `json:"collectorTags,omitempty"`
+	Owner           *EntityID                 `json:"owner,omitempty"`
+	SecurityContext *ContainerSecurityContext `json:"securityContext,omitempty"`
+	ReadinessProbe  *ContainerProbe           `json:"readinessProbe,omitempty"`
+	Resources       ContainerResources        `json:"resources,omitempty"`
+	ResizePolicy    ContainerResizePolicy     `json:"resizePolicy,omitempty"`
 
 	// ResolvedAllocatedResources is the list of resources allocated to this pod. Requires the
 	// PodResources API to query that data.
-	ResolvedAllocatedResources []ContainerAllocatedResource
+	ResolvedAllocatedResources []ContainerAllocatedResource `json:"resolvedAllocatedResources,omitempty"`
 	// GPUDeviceIDs contains the GPU device UUIDs assigned to this container.
 	// Format: ["GPU-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"]
 	// Note: Currently only reliably populated in ECS environments, where it is extracted
 	// from the NVIDIA_VISIBLE_DEVICES environment variable set by the ECS agent.
-	GPUDeviceIDs []string
+	GPUDeviceIDs []string `json:"gpuDeviceIDs,omitempty"`
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.
 	// Linux only.
-	CgroupPath   string
-	RestartCount int
+	CgroupPath   string `json:"cgroupPath,omitempty"`
+	RestartCount int    `json:"restartCount,omitempty"`
 }
 
 // GetID implements Entity#GetID.
@@ -761,22 +761,22 @@ func (c Container) String(verbose bool) string {
 
 // PodSecurityContext is the Security Context of a Kubernetes pod
 type PodSecurityContext struct {
-	RunAsUser  int32
-	RunAsGroup int32
-	FsGroup    int32
+	RunAsUser  int32 `json:"runAsUser,omitempty"`
+	RunAsGroup int32 `json:"runAsGroup,omitempty"`
+	FsGroup    int32 `json:"fsGroup,omitempty"`
 }
 
 // ContainerSecurityContext is the Security Context of a Container
 type ContainerSecurityContext struct {
-	*Capabilities
-	Privileged     bool
-	SeccompProfile *SeccompProfile
+	*Capabilities  `json:"capabilities,omitempty"`
+	Privileged     bool            `json:"privileged,omitempty"`
+	SeccompProfile *SeccompProfile `json:"seccompProfile,omitempty"`
 }
 
 // Capabilities is the capabilities a certain Container security context is capable of
 type Capabilities struct {
-	Add  []string
-	Drop []string
+	Add  []string `json:"add,omitempty"`
+	Drop []string `json:"drop,omitempty"`
 }
 
 // SeccompProfileType is the type of seccomp profile used
@@ -791,8 +791,8 @@ const (
 
 // SeccompProfile contains fields for unmarshalling a Pod.Spec.Containers.SecurityContext.SeccompProfile
 type SeccompProfile struct {
-	Type             SeccompProfileType
-	LocalhostProfile string
+	Type             SeccompProfileType `json:"type,omitempty"`
+	LocalhostProfile string             `json:"localhostProfile,omitempty"`
 }
 
 var _ Entity = &Container{}
@@ -802,42 +802,42 @@ var GetRunningContainers EntityFilterFunc[*Container] = func(container *Containe
 
 // KubernetesPod is an Entity representing a Kubernetes Pod.
 type KubernetesPod struct {
-	EntityID
-	EntityMeta
-	Owners                     []KubernetesPodOwner
-	PersistentVolumeClaimNames []string
-	InitContainers             []OrchestratorContainer
-	Containers                 []OrchestratorContainer
-	EphemeralContainers        []OrchestratorContainer
-	Ready                      bool
-	Phase                      string
-	IP                         string
-	PriorityClass              string
-	QOSClass                   string
-	GPUVendorList              []string
-	RuntimeClass               string
-	KubeServices               []string
-	NamespaceLabels            map[string]string
-	NamespaceAnnotations       map[string]string
-	FinishedAt                 time.Time
-	SecurityContext            *PodSecurityContext
+	EntityID   `json:",inline"`
+	EntityMeta `json:",inline"`
+	Owners                     []KubernetesPodOwner    `json:"owners,omitempty"`
+	PersistentVolumeClaimNames []string                `json:"persistentVolumeClaimNames,omitempty"`
+	InitContainers             []OrchestratorContainer `json:"initContainers,omitempty"`
+	Containers                 []OrchestratorContainer `json:"containers,omitempty"`
+	EphemeralContainers        []OrchestratorContainer `json:"ephemeralContainers,omitempty"`
+	Ready                      bool                    `json:"ready"`
+	Phase                      string                  `json:"phase,omitempty"`
+	IP                         string                  `json:"ip,omitempty"`
+	PriorityClass              string                  `json:"priorityClass,omitempty"`
+	QOSClass                   string                  `json:"qosClass,omitempty"`
+	GPUVendorList              []string                `json:"gpuVendorList,omitempty"`
+	RuntimeClass               string                  `json:"runtimeClass,omitempty"`
+	KubeServices               []string                `json:"kubeServices,omitempty"`
+	NamespaceLabels            map[string]string       `json:"namespaceLabels,omitempty"`
+	NamespaceAnnotations       map[string]string       `json:"namespaceAnnotations,omitempty"`
+	FinishedAt                 time.Time               `json:"finishedAt,omitempty"`
+	SecurityContext            *PodSecurityContext     `json:"securityContext,omitempty"`
 
 	// The following fields are only needed for the kubelet check or KSM check
 	// when configured to emit pod metrics from the node agent. That means only
 	// the node agent needs them, so for now they're not added to the protobufs.
-	CreationTimestamp          time.Time
-	DeletionTimestamp          *time.Time
-	StartTime                  *time.Time
-	NodeName                   string
-	HostIP                     string
-	HostNetwork                bool
-	InitContainerStatuses      []KubernetesContainerStatus
-	ContainerStatuses          []KubernetesContainerStatus
-	EphemeralContainerStatuses []KubernetesContainerStatus
-	Conditions                 []KubernetesPodCondition
-	Volumes                    []KubernetesPodVolume
-	Tolerations                []KubernetesPodToleration
-	Reason                     string
+	CreationTimestamp          time.Time                     `json:"creationTimestamp,omitempty"`
+	DeletionTimestamp          *time.Time                    `json:"deletionTimestamp,omitempty"`
+	StartTime                  *time.Time                    `json:"startTime,omitempty"`
+	NodeName                   string                        `json:"nodeName,omitempty"`
+	HostIP                     string                        `json:"hostIP,omitempty"`
+	HostNetwork                bool                          `json:"hostNetwork,omitempty"`
+	InitContainerStatuses      []KubernetesContainerStatus   `json:"initContainerStatuses,omitempty"`
+	ContainerStatuses          []KubernetesContainerStatus   `json:"containerStatuses,omitempty"`
+	EphemeralContainerStatuses []KubernetesContainerStatus   `json:"ephemeralContainerStatuses,omitempty"`
+	Conditions                 []KubernetesPodCondition      `json:"conditions,omitempty"`
+	Volumes                    []KubernetesPodVolume         `json:"volumes,omitempty"`
+	Tolerations                []KubernetesPodToleration     `json:"tolerations,omitempty"`
+	Reason                     string                        `json:"reason,omitempty"`
 }
 
 // GetID implements Entity#GetID.
@@ -994,10 +994,10 @@ var _ Entity = &KubernetesPod{}
 
 // KubernetesPodOwner is extracted from a pod's owner references.
 type KubernetesPodOwner struct {
-	Kind       string
-	Name       string
-	ID         string
-	Controller *bool
+	Kind       string `json:"kind,omitempty"`
+	Name       string `json:"name,omitempty"`
+	ID         string `json:"id,omitempty"`
+	Controller *bool  `json:"controller,omitempty"`
 }
 
 // String returns a string representation of KubernetesPodOwner.
@@ -1014,9 +1014,9 @@ func (o KubernetesPodOwner) String(verbose bool) string {
 
 // KubernetesPodVolume represents a volume in a Kubernetes pod.
 type KubernetesPodVolume struct {
-	Name                  string
-	PersistentVolumeClaim *KubernetesPersistentVolumeClaim
-	Ephemeral             *KubernetesEphemeralVolume
+	Name                  string                            `json:"name,omitempty"`
+	PersistentVolumeClaim *KubernetesPersistentVolumeClaim `json:"persistentVolumeClaim,omitempty"`
+	Ephemeral             *KubernetesEphemeralVolume       `json:"ephemeral,omitempty"`
 }
 
 // String returns a string representation of KubernetesPodVolume.
@@ -1041,25 +1041,25 @@ func (v KubernetesPodVolume) String(_ bool) string {
 
 // KubernetesPersistentVolumeClaim represents a PVC volume source.
 type KubernetesPersistentVolumeClaim struct {
-	ClaimName string
-	ReadOnly  bool
+	ClaimName string `json:"claimName,omitempty"`
+	ReadOnly  bool   `json:"readOnly"`
 }
 
 // KubernetesEphemeralVolume represents an ephemeral volume source.
 type KubernetesEphemeralVolume struct {
-	Name        string
-	UID         string
-	Annotations map[string]string
-	Labels      map[string]string
+	Name        string            `json:"name,omitempty"`
+	UID         string            `json:"uid,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty"`
 }
 
 // KubernetesPodToleration represents a toleration in a Kubernetes pod.
 type KubernetesPodToleration struct {
-	Key               string
-	Operator          string
-	Value             string
-	Effect            string
-	TolerationSeconds *int64
+	Key               string `json:"key,omitempty"`
+	Operator          string `json:"operator,omitempty"`
+	Value             string `json:"value,omitempty"`
+	Effect            string `json:"effect,omitempty"`
+	TolerationSeconds *int64 `json:"tolerationSeconds,omitempty"`
 }
 
 // String returns a string representation of KubernetesPodToleration.
@@ -1079,9 +1079,9 @@ func (t KubernetesPodToleration) String(_ bool) string {
 
 // KubernetesPodCondition represents a condition in a Kubernetes pod status.
 type KubernetesPodCondition struct {
-	Type   string
-	Status string
-	Reason string
+	Type   string `json:"type,omitempty"`
+	Status string `json:"status,omitempty"`
+	Reason string `json:"reason,omitempty"`
 }
 
 // String returns a string representation of KubernetesPodCondition.
@@ -1091,14 +1091,14 @@ func (c KubernetesPodCondition) String(_ bool) string {
 
 // KubernetesContainerStatus represents the status of a container in a Kubernetes pod.
 type KubernetesContainerStatus struct {
-	ContainerID          string
-	Name                 string
-	Image                string
-	ImageID              string
-	Ready                bool
-	RestartCount         int32
-	State                KubernetesContainerState
-	LastTerminationState KubernetesContainerState
+	ContainerID          string                   `json:"containerID,omitempty"`
+	Name                 string                   `json:"name,omitempty"`
+	Image                string                   `json:"image,omitempty"`
+	ImageID              string                   `json:"imageID,omitempty"`
+	Ready                bool                     `json:"ready"`
+	RestartCount         int32                    `json:"restartCount,omitempty"`
+	State                KubernetesContainerState `json:"state,omitempty"`
+	LastTerminationState KubernetesContainerState `json:"lastTerminationState,omitempty"`
 }
 
 // String returns a string representation of KubernetesContainerStatus.
@@ -1117,9 +1117,9 @@ func (cs KubernetesContainerStatus) String(_ bool) string {
 
 // KubernetesContainerState represents the state of a container.
 type KubernetesContainerState struct {
-	Waiting    *KubernetesContainerStateWaiting
-	Running    *KubernetesContainerStateRunning
-	Terminated *KubernetesContainerStateTerminated
+	Waiting    *KubernetesContainerStateWaiting    `json:"waiting,omitempty"`
+	Running    *KubernetesContainerStateRunning    `json:"running,omitempty"`
+	Terminated *KubernetesContainerStateTerminated `json:"terminated,omitempty"`
 }
 
 // String returns a string representation of KubernetesContainerState.
@@ -1145,20 +1145,20 @@ func (cs KubernetesContainerState) String(_ bool) string {
 
 // KubernetesContainerStateWaiting represents a waiting container state.
 type KubernetesContainerStateWaiting struct {
-	Reason string
+	Reason string `json:"reason,omitempty"`
 }
 
 // KubernetesContainerStateRunning represents a running container state.
 type KubernetesContainerStateRunning struct {
-	StartedAt time.Time
+	StartedAt time.Time `json:"startedAt,omitempty"`
 }
 
 // KubernetesContainerStateTerminated represents a terminated container state.
 type KubernetesContainerStateTerminated struct {
-	ExitCode   int32
-	StartedAt  time.Time
-	FinishedAt time.Time
-	Reason     string
+	ExitCode   int32     `json:"exitCode,omitempty"`
+	StartedAt  time.Time `json:"startedAt,omitempty"`
+	FinishedAt time.Time `json:"finishedAt,omitempty"`
+	Reason     string    `json:"reason,omitempty"`
 }
 
 // KubeMetadataEntityID is a unique ID for Kube Metadata Entity
@@ -1166,9 +1166,9 @@ type KubeMetadataEntityID string
 
 // KubernetesMetadata is an Entity representing kubernetes resource metadata
 type KubernetesMetadata struct {
-	EntityID
-	EntityMeta
-	GVR *schema.GroupVersionResource
+	EntityID   `json:",inline"`
+	EntityMeta `json:",inline"`
+	GVR        *schema.GroupVersionResource `json:"gvr,omitempty"`
 }
 
 // GetID implements Entity#GetID.
@@ -1188,8 +1188,8 @@ func (m *KubernetesMetadata) Merge(e Entity) error {
 
 // KubeletMetrics contains collection-level metrics from the kubelet
 type KubeletMetrics struct {
-	EntityID
-	ExpiredPodCount int
+	EntityID        `json:",inline"`
+	ExpiredPodCount int `json:"expiredPodCount,omitempty"`
 }
 
 // GetID implements Entity#GetID.
@@ -1271,11 +1271,11 @@ func (kc KubeletConfigDocument) String() string {
 // Kubelet is an Entity representing the kubelet, right now it only holds
 // the kubelet configuration
 type Kubelet struct {
-	EntityID
-	EntityMeta
-	ConfigDocument KubeletConfigDocument
-	RawConfig      []byte
-	NodeName       string
+	EntityID       `json:",inline"`
+	EntityMeta     `json:",inline"`
+	ConfigDocument KubeletConfigDocument `json:"configDocument,omitempty"`
+	RawConfig      []byte                `json:"rawConfig,omitempty"`
+	NodeName       string                `json:"nodeName,omitempty"`
 }
 
 // GetID implements Entity#GetID
@@ -1320,19 +1320,19 @@ var _ Entity = &Kubelet{}
 
 // KubernetesDeployment is an Entity representing a Kubernetes Deployment.
 type KubernetesDeployment struct {
-	EntityID
-	EntityMeta
-	Env     string
-	Service string
-	Version string
+	EntityID   `json:",inline"`
+	EntityMeta `json:",inline"`
+	Env        string `json:"env,omitempty"`
+	Service    string `json:"service,omitempty"`
+	Version    string `json:"version,omitempty"`
 
 	// InjectableLanguages indicate containers languages that can be injected by the admission controller
 	// These languages are determined by parsing the deployment annotations
-	InjectableLanguages languagemodels.ContainersLanguages
+	InjectableLanguages languagemodels.ContainersLanguages `json:"injectableLanguages,omitempty"`
 
 	// DetectedLanguages languages indicate containers languages detected and reported by the language
 	// detection server.
-	DetectedLanguages languagemodels.ContainersLanguages
+	DetectedLanguages languagemodels.ContainersLanguages `json:"detectedLanguages,omitempty"`
 }
 
 // GetID implements Entity#GetID.
@@ -1416,31 +1416,31 @@ type MapTags map[string]string
 
 // ECSTask is an Entity representing an ECS Task.
 type ECSTask struct {
-	EntityID
-	EntityMeta
-	Tags                    MapTags
-	ContainerInstanceTags   MapTags
-	ClusterName             string
-	ContainerInstanceARN    string
-	ClusterARN              string
-	ServiceARN              string
-	TaskDefinitionARN       string
-	AWSAccountID            string
-	Region                  string
-	AvailabilityZone        string
-	Family                  string
-	Version                 string
-	DesiredStatus           string
-	KnownStatus             string
-	PullStartedAt           *time.Time
-	PullStoppedAt           *time.Time
-	ExecutionStoppedAt      *time.Time
-	VPCID                   string
-	ServiceName             string
-	EphemeralStorageMetrics map[string]int64
-	Limits                  map[string]float64
-	LaunchType              ECSLaunchType
-	Containers              []OrchestratorContainer
+	EntityID                `json:",inline"`
+	EntityMeta              `json:",inline"`
+	Tags                    MapTags                 `json:"tags,omitempty"`
+	ContainerInstanceTags   MapTags                 `json:"containerInstanceTags,omitempty"`
+	ClusterName             string                  `json:"clusterName,omitempty"`
+	ContainerInstanceARN    string                  `json:"containerInstanceARN,omitempty"`
+	ClusterARN              string                  `json:"clusterARN,omitempty"`
+	ServiceARN              string                  `json:"serviceARN,omitempty"`
+	TaskDefinitionARN       string                  `json:"taskDefinitionARN,omitempty"`
+	AWSAccountID            string                  `json:"awsAccountID,omitempty"`
+	Region                  string                  `json:"region,omitempty"`
+	AvailabilityZone        string                  `json:"availabilityZone,omitempty"`
+	Family                  string                  `json:"family,omitempty"`
+	Version                 string                  `json:"version,omitempty"`
+	DesiredStatus           string                  `json:"desiredStatus,omitempty"`
+	KnownStatus             string                  `json:"knownStatus,omitempty"`
+	PullStartedAt           *time.Time              `json:"pullStartedAt,omitempty"`
+	PullStoppedAt           *time.Time              `json:"pullStoppedAt,omitempty"`
+	ExecutionStoppedAt      *time.Time              `json:"executionStoppedAt,omitempty"`
+	VPCID                   string                  `json:"vpcID,omitempty"`
+	ServiceName             string                  `json:"serviceName,omitempty"`
+	EphemeralStorageMetrics map[string]int64        `json:"ephemeralStorageMetrics,omitempty"`
+	Limits                  map[string]float64      `json:"limits,omitempty"`
+	LaunchType              ECSLaunchType           `json:"launchType,omitempty"`
+	Containers              []OrchestratorContainer `json:"containers,omitempty"`
 }
 
 // GetID implements Entity#GetID.
@@ -1512,47 +1512,47 @@ var _ Entity = &ECSTask{}
 
 // ContainerImageMetadata is an Entity that represents container image metadata
 type ContainerImageMetadata struct {
-	EntityID
-	EntityMeta
-	RepoTags     []string
-	RepoDigests  []string
-	MediaType    string
-	SizeBytes    int64
-	OS           string
-	OSVersion    string
-	Architecture string
-	Variant      string
-	Layers       []ContainerImageLayer
-	SBOM         *CompressedSBOM
+	EntityID     `json:",inline"`
+	EntityMeta   `json:",inline"`
+	RepoTags     []string              `json:"repoTags,omitempty"`
+	RepoDigests  []string              `json:"repoDigests,omitempty"`
+	MediaType    string                `json:"mediaType,omitempty"`
+	SizeBytes    int64                 `json:"sizeBytes,omitempty"`
+	OS           string                `json:"os,omitempty"`
+	OSVersion    string                `json:"osVersion,omitempty"`
+	Architecture string                `json:"architecture,omitempty"`
+	Variant      string                `json:"variant,omitempty"`
+	Layers       []ContainerImageLayer `json:"layers,omitempty"`
+	SBOM         *CompressedSBOM       `json:"sbom,omitempty"`
 }
 
 // ContainerImageLayer represents a layer of a container image
 type ContainerImageLayer struct {
-	MediaType string
-	Digest    string
-	SizeBytes int64
-	URLs      []string
-	History   *v1.History
+	MediaType string       `json:"mediaType,omitempty"`
+	Digest    string       `json:"digest,omitempty"`
+	SizeBytes int64        `json:"sizeBytes,omitempty"`
+	URLs      []string     `json:"urls,omitempty"`
+	History   *v1.History  `json:"history,omitempty"`
 }
 
 // SBOM represents the Software Bill Of Materials (SBOM) of a container
 type SBOM struct {
-	CycloneDXBOM       *cyclonedx_v1_4.Bom
-	GenerationTime     time.Time
-	GenerationDuration time.Duration
-	GenerationMethod   string // method used to generate the SBOM. Can be one of tarball, filesystem or overlayfs. This is reported by the collector for the used container runtime (docker, containerd ir cri-o) and converted to the `scan_method` tag.
-	Status             SBOMStatus
-	Error              string // needs to be stored as a string otherwise the merge() will favor the nil value
+	CycloneDXBOM       *cyclonedx_v1_4.Bom `json:"cycloneDXBOM,omitempty"`
+	GenerationTime     time.Time           `json:"generationTime,omitempty"`
+	GenerationDuration time.Duration       `json:"generationDuration,omitempty"`
+	GenerationMethod   string              `json:"generationMethod,omitempty"` // method used to generate the SBOM. Can be one of tarball, filesystem or overlayfs. This is reported by the collector for the used container runtime (docker, containerd ir cri-o) and converted to the `scan_method` tag.
+	Status             SBOMStatus          `json:"status,omitempty"`
+	Error              string              `json:"error,omitempty"` // needs to be stored as a string otherwise the merge() will favor the nil value
 }
 
 // CompressedSBOM represents a compressed version of the Software Bill Of Materials (SBOM) of a container
 type CompressedSBOM struct {
-	Bom                []byte
-	GenerationTime     time.Time
-	GenerationDuration time.Duration
-	GenerationMethod   string
-	Status             SBOMStatus
-	Error              string
+	Bom                []byte        `json:"bom,omitempty"`
+	GenerationTime     time.Time     `json:"generationTime,omitempty"`
+	GenerationDuration time.Duration `json:"generationDuration,omitempty"`
+	GenerationMethod   string        `json:"generationMethod,omitempty"`
+	Status             SBOMStatus    `json:"status,omitempty"`
+	Error              string        `json:"error,omitempty"`
 }
 
 // GetID implements Entity#GetID.
@@ -1653,41 +1653,41 @@ var _ Entity = &ContainerImageMetadata{}
 // Service contains service discovery information for a process
 type Service struct {
 	// GeneratedName is the name generated from the process info
-	GeneratedName string
+	GeneratedName string `json:"generatedName,omitempty"`
 
 	// LogFiles are the log files associated with this service
-	LogFiles []string
+	LogFiles []string `json:"logFiles,omitempty"`
 
 	// GeneratedNameSource indicates the source of the generated name
-	GeneratedNameSource string
+	GeneratedNameSource string `json:"generatedNameSource,omitempty"`
 
 	// AdditionalGeneratedNames contains other potential names for the service
-	AdditionalGeneratedNames []string
+	AdditionalGeneratedNames []string `json:"additionalGeneratedNames,omitempty"`
 
 	// TracerMetadata contains APM tracer metadata
-	TracerMetadata []tracermetadata.TracerMetadata
+	TracerMetadata []tracermetadata.TracerMetadata `json:"tracerMetadata,omitempty"`
 
 	// UST contains Unified Service Tagging environment variables
-	UST UST
+	UST UST `json:"ust,omitempty"`
 
 	// TCPPorts is the list of TCP ports the service is listening on
-	TCPPorts []uint16
+	TCPPorts []uint16 `json:"tcpPorts,omitempty"`
 
 	// UDPPorts is the list of UDP ports the service is listening on
-	UDPPorts []uint16
+	UDPPorts []uint16 `json:"udpPorts,omitempty"`
 
 	// APMInstrumentation indicates if the service is instrumented for APM
-	APMInstrumentation bool
+	APMInstrumentation bool `json:"apmInstrumentation"`
 
 	// Type is the service type (e.g., "web_service")
-	Type string
+	Type string `json:"type,omitempty"`
 }
 
 // UST contains Unified Service Tagging environment variables
 type UST struct {
-	Service string
-	Env     string
-	Version string
+	Service string `json:"service,omitempty"`
+	Env     string `json:"env,omitempty"`
+	Version string `json:"version,omitempty"`
 }
 
 // String returns a string representation of UST
@@ -1727,31 +1727,31 @@ func (i InjectionState) String() string {
 
 // Process is an Entity that represents a process
 type Process struct {
-	EntityID // EntityID.ID is the PID
+	EntityID `json:",inline"` // EntityID.ID is the PID
 
-	Pid            int32    // Process ID -- /proc/[pid]
-	NsPid          int32    // Namespace PID -- /proc/[pid]/status
-	Ppid           int32    // Parent Process ID -- /proc/[pid]/stat
-	Name           string   // Name -- /proc/[pid]/status
-	Cwd            string   // Current Working Directory -- /proc/[pid]/cwd
-	Exe            string   // Exceutable Path -- /proc[pid]/exe
-	Comm           string   // Short Command Name -- /proc/[pid]/comm
-	Cmdline        []string // Command Line -- /proc/[pid]/cmdline
-	Uids           []int32  // User IDs -- /proc/[pid]/status
-	Gids           []int32  // Group IDs -- /proc/[pid]/status
-	ContainerID    string
-	CreationTime   time.Time // Process Start Time -- /proc/[pid]/stat
-	Language       *languagemodels.Language
-	InjectionState InjectionState // APM auto-injector detection status
+	Pid            int32                     `json:"pid,omitempty"`            // Process ID -- /proc/[pid]
+	NsPid          int32                     `json:"nsPid,omitempty"`          // Namespace PID -- /proc/[pid]/status
+	Ppid           int32                     `json:"ppid,omitempty"`           // Parent Process ID -- /proc/[pid]/stat
+	Name           string                    `json:"name,omitempty"`           // Name -- /proc/[pid]/status
+	Cwd            string                    `json:"cwd,omitempty"`            // Current Working Directory -- /proc/[pid]/cwd
+	Exe            string                    `json:"exe,omitempty"`            // Exceutable Path -- /proc[pid]/exe
+	Comm           string                    `json:"comm,omitempty"`           // Short Command Name -- /proc/[pid]/comm
+	Cmdline        []string                  `json:"cmdline,omitempty"`        // Command Line -- /proc/[pid]/cmdline
+	Uids           []int32                   `json:"uids,omitempty"`           // User IDs -- /proc/[pid]/status
+	Gids           []int32                   `json:"gids,omitempty"`           // Group IDs -- /proc/[pid]/status
+	ContainerID    string                    `json:"containerID,omitempty"`
+	CreationTime   time.Time                 `json:"creationTime,omitempty"`   // Process Start Time -- /proc/[pid]/stat
+	Language       *languagemodels.Language  `json:"language,omitempty"`
+	InjectionState InjectionState            `json:"injectionState,omitempty"` // APM auto-injector detection status
 
 	// Owner will temporarily duplicate the ContainerID field until the new collector is enabled so we can then remove the ContainerID field
-	Owner *EntityID // Owner is a reference to a container in WLM
+	Owner *EntityID `json:"owner,omitempty"` // Owner is a reference to a container in WLM
 
 	// GPUs is a reference to a list of GPU entities in WLM that this process is using
-	GPUs []EntityID
+	GPUs []EntityID `json:"gpus,omitempty"`
 
 	// Service contains service discovery information for this process
-	Service *Service
+	Service *Service `json:"service,omitempty"`
 }
 
 var _ Entity = &Process{}
@@ -1843,9 +1843,9 @@ func (p Process) String(verbose bool) string {
 
 // HostTags is an Entity that represents host tags
 type HostTags struct {
-	EntityID
+	EntityID `json:",inline"`
 
-	HostTags []string
+	HostTags []string `json:"hostTags,omitempty"`
 }
 
 var _ Entity = &HostTags{}
@@ -1885,9 +1885,9 @@ func (p HostTags) String(verbose bool) string {
 // CollectorEvent is an event generated by a metadata collector, to be handled
 // by the metadata store.
 type CollectorEvent struct {
-	Type   EventType
-	Source Source
-	Entity Entity
+	Type   EventType `json:"type,omitempty"`
+	Source Source    `json:"source,omitempty"`
+	Entity Entity    `json:"entity,omitempty"`
 }
 
 // Event represents a change to an entity.
@@ -1898,7 +1898,7 @@ type Event struct {
 	// Multiple set events may be sent for a single entity.
 	//
 	// When Type is EventTypeUnset, this represents a removed entity.
-	Type EventType
+	Type EventType `json:"type,omitempty"`
 
 	// Entity is the entity involved in this event.  For an EventTypeSet event,
 	// this may contain information "merged" from multiple sources.  For an
@@ -1908,7 +1908,7 @@ type Event struct {
 	// concrete type corresponding to its kind (Entity.GetID().Kind).  For Type
 	// == EventTypeUnset, only the Entity ID is available and such a cast will
 	// fail.
-	Entity Entity
+	Entity Entity `json:"entity,omitempty"`
 }
 
 // SubscriberPriority is a priority for subscribers to the store.  Subscribers
@@ -1942,10 +1942,10 @@ const (
 // See the example for Store#Subscribe for details.
 type EventBundle struct {
 	// Events gives the events in this bundle.
-	Events []Event
+	Events []Event `json:"events,omitempty"`
 
 	// Ch should be closed once the subscriber has handled the event.
-	Ch chan struct{}
+	Ch chan struct{} `json:"-"`
 }
 
 // Acknowledge acknowledges that the subscriber has handled the event.
@@ -1985,69 +1985,69 @@ const (
 
 // GPU represents a GPU resource.
 type GPU struct {
-	EntityID
-	EntityMeta
+	EntityID   `json:",inline"`
+	EntityMeta `json:",inline"`
 	// Vendor is the name of the manufacturer of the device (e.g., NVIDIA)
-	Vendor string
+	Vendor string `json:"vendor,omitempty"`
 
 	// Device is the commercial name of the device (e.g., Tesla V100) as returned
 	// by the device driver (NVML for NVIDIA GPUs). Note that some models might
 	// have some additional information like the memory size (e.g., Tesla
 	// A100-SXM2-80GB), the exact format of this field is vendor and device
 	// specific.
-	Device string
+	Device string `json:"device,omitempty"`
 
 	// GPUType is the normalized model type of the GPU (e.g., "a100", "t4", "h100").
 	// This is extracted from the Device name and normalized to lowercase.
 	// For RTX cards, includes the rtx prefix (e.g., "rtx_a6000").
 	// Empty string if the type cannot be determined.
-	GPUType string
+	GPUType string `json:"gpuType,omitempty"`
 
 	// DriverVersion is the version of the driver used for the gpu device
-	DriverVersion string
+	DriverVersion string `json:"driverVersion,omitempty"`
 
 	// ActivePIDs is the list of process IDs that are using the GPU.
-	ActivePIDs []int
+	ActivePIDs []int `json:"activePIDs,omitempty"`
 
 	// Index is the index of the GPU in the host system. This is useful as sometimes
 	// GPUs will be identified by their index instead of their UUID. Note that the index
 	// is not guaranteed to be stable across reboots, nor is necessarily the same inside
 	// of containers.
-	Index int
+	Index int `json:"index,omitempty"`
 
 	// Architecture contains the architecture of the GPU (e.g., Pascal, Volta, etc.). Optional, can be empty.
-	Architecture string
+	Architecture string `json:"architecture,omitempty"`
 
 	// ComputeCapability contains the compute capability version of the GPU. Optional, can be 0/0
-	ComputeCapability GPUComputeCapability
+	ComputeCapability GPUComputeCapability `json:"computeCapability,omitempty"`
 
 	// Total number of cores available for the device,
 	// this is a number that represents number of SMs * number of cores per SM (depends on the model)
-	TotalCores int
+	TotalCores int `json:"totalCores,omitempty"`
 
 	// TotalMemory is the total available memory for the device in bytes
-	TotalMemory uint64
+	TotalMemory uint64 `json:"totalMemory,omitempty"`
 
 	// MaxClockRates contains the maximum clock rates for SM and Memory
-	MaxClockRates [GPUCOUNT]uint32
+	MaxClockRates [GPUCOUNT]uint32 `json:"maxClockRates,omitempty"`
 
 	// MemoryBusWidth is the width of the memory bus in bits.
-	MemoryBusWidth uint32
+	MemoryBusWidth uint32 `json:"memoryBusWidth,omitempty"`
 
 	// DeviceType identifies if this is a physical or virtual device (e.g. MIG)
-	DeviceType GPUDeviceType
+	DeviceType GPUDeviceType `json:"deviceType,omitempty"`
 
 	// VirtualizationMode contains the virtualization mode of the device
-	VirtualizationMode string
+	VirtualizationMode string `json:"virtualizationMode,omitempty"`
 
 	// Healthy indicates whether or not the GPU device is healthy
-	Healthy bool
+	Healthy bool `json:"healthy"`
 
 	// ParentGPUUUID is the UUID of the parent GPU device. Empty string if the device does not have a parent.
-	ParentGPUUUID string
+	ParentGPUUUID string `json:"parentGPUUUID,omitempty"`
 
 	// ChildrenGPUUUIDs is the UUIDs of the child GPU devices. Empty slice if the device does not have children.
-	ChildrenGPUUUIDs []string
+	ChildrenGPUUUIDs []string `json:"childrenGPUUUIDs,omitempty"`
 }
 
 var _ Entity = &GPU{}
@@ -2127,10 +2127,10 @@ func (g GPU) SlicingMode() string {
 // GPUComputeCapability represents the compute capability version of a GPU.
 type GPUComputeCapability struct {
 	// Major represents the major version of the compute capability.
-	Major int
+	Major int `json:"major,omitempty"`
 
 	// Minor represents the minor version of the compute capability.
-	Minor int
+	Minor int `json:"minor,omitempty"`
 }
 
 func (gcc GPUComputeCapability) String() string {
@@ -2152,11 +2152,11 @@ const (
 
 // CRD struct exposes known CRD group/kind/versions
 type CRD struct {
-	EntityID
-	EntityMeta
-	Group   string
-	Kind    string
-	Version string
+	EntityID   `json:",inline"`
+	EntityMeta `json:",inline"`
+	Group      string `json:"group,omitempty"`
+	Kind       string `json:"kind,omitempty"`
+	Version    string `json:"version,omitempty"`
 }
 
 var _ Entity = &CRD{}
@@ -2213,17 +2213,17 @@ const (
 
 // FeatureGate represents a single Kubernetes feature gate
 type FeatureGate struct {
-	Name    string
-	Stage   FeatureGateStage
-	Enabled bool
+	Name    string           `json:"name,omitempty"`
+	Stage   FeatureGateStage `json:"stage,omitempty"`
+	Enabled bool             `json:"enabled"`
 }
 
 // KubeCapabilities represents the capabilities of a Kubernetes cluster.
 type KubeCapabilities struct {
-	EntityID
-	EntityMeta
-	FeatureGates map[string]FeatureGate
-	Version      *version.Info
+	EntityID     `json:",inline"`
+	EntityMeta   `json:",inline"`
+	FeatureGates map[string]FeatureGate `json:"featureGates,omitempty"`
+	Version      *version.Info          `json:"version,omitempty"`
 }
 
 var _ Entity = &KubeCapabilities{}
