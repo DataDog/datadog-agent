@@ -142,9 +142,7 @@ cc_library(
     deps = [
         "@libxslt//:libxslt",
         "@libxml2//:libxml2",
-        "@openssl//:crypto",
-        "@openssl//:ssl",
-        "@openssl//:imported_ssl_headers",
+        "@openssl",
         ":libxmlsec1",
     ],
     defines = [
