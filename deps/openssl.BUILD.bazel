@@ -214,7 +214,7 @@ configure_make(
             for lib in libcrypto.dylib libssl.dylib; do
                 install_name_tool -id @rpath/$$lib $$INSTALLDIR/lib/$$lib
                 for dep in $$(otool -L $$INSTALLDIR/lib/$$lib | grep 'sandbox.*execroot' | awk '{print $$1}'); do
-                    install_name_tool -change $$dep "@loader_path/$$(basename $$dep)" $$INSTALLDIR/lib/$$lib
+                    install_name_tool -change $$dep "@rpath/$$(basename $$dep)" $$INSTALLDIR/lib/$$lib
                 done
             done
             LIBS="$$INSTALLDIR/lib/libcrypto.dylib $$INSTALLDIR/lib/libssl.dylib"
