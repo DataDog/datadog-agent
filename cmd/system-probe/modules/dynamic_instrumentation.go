@@ -23,8 +23,6 @@ import (
 	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
-func init() { registerModule(DynamicInstrumentation) }
-
 // DynamicInstrumentation is a system probe module which allows you to add instrumentation into
 // running Go services without restarts.
 var DynamicInstrumentation = &module.Factory{
@@ -35,7 +33,7 @@ var DynamicInstrumentation = &module.Factory{
 		if err != nil {
 			return nil, fmt.Errorf("invalid dynamic instrumentation module configuration: %w", err)
 		}
-		ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+		ipcAddress, err := pkgconfigsetup.GetIPCAddress(deps.CoreConfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get ipc address: %w", err)
 		}

@@ -36,9 +36,8 @@ func newHTTP2Encoder(http2Payloads map[http.Key]*http.RequestStats) *http2Encode
 	}
 }
 
-func (e *http2Encoder) EncodeConnectionDirect(c network.ConnectionStats, conn *model.Connection) (staticTags uint64, dynamicTags map[string]struct{}) {
-	var buf bytes.Buffer
-	staticTags, dynamicTags = e.encodeData(c, &buf)
+func (e *http2Encoder) EncodeConnectionDirect(c network.ConnectionStats, conn *model.Connection, buf *bytes.Buffer) (staticTags uint64, dynamicTags map[string]struct{}) {
+	staticTags, dynamicTags = e.encodeData(c, buf)
 	conn.Http2Aggregations = buf.Bytes()
 	return
 }

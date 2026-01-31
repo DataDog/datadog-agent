@@ -7,17 +7,12 @@
 package modules
 
 import (
-	"slices"
-	"sync"
-
-	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
-var all []*module.Factory
-
-var moduleOrder = []types.ModuleName{
+// ModuleOrder is the desired creation order for system-probe modules
+var ModuleOrder = []types.ModuleName{
 	config.EBPFModule,
 	config.NetworkTracerModule,
 	config.TCPQueueLengthTracerModule,
@@ -33,20 +28,5 @@ var moduleOrder = []types.ModuleName{
 	config.GPUMonitoringModule, // GPU monitoring needs to be initialized after EventMonitor, so that we have the event consumer ready
 	config.SoftwareInventoryModule,
 	config.PrivilegedLogsModule,
+	config.WindowsCrashDetectModule,
 }
-
-// nolint: deadcode, unused // may be unused with certain build tag combinations
-func registerModule(mod *module.Factory) {
-	if mod.Name == "" {
-		return
-	}
-	all = append(all, mod)
-}
-
-// All is the list of supported modules in the order specified by `moduleOrder`
-var All = sync.OnceValue(func() []*module.Factory {
-	slices.SortStableFunc(all, func(a, b *module.Factory) int {
-		return slices.Index(moduleOrder, a.Name) - slices.Index(moduleOrder, b.Name)
-	})
-	return all
-})

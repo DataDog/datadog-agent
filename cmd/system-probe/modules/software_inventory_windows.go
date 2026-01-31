@@ -6,17 +6,16 @@
 package modules
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/inventory/software"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/comp/system-probe/types"
+	"github.com/DataDog/datadog-agent/pkg/inventory/software"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-func init() { registerModule(SoftwareInventory) }
 
 // SoftwareInventory Factory
 var SoftwareInventory = &module.Factory{
@@ -32,7 +31,7 @@ var _ module.Module = &softwareInventoryModule{}
 type softwareInventoryModule struct {
 }
 
-func (sim *softwareInventoryModule) Register(httpMux *module.Router) error {
+func (sim *softwareInventoryModule) Register(httpMux types.SystemProbeRouter) error {
 	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, _ *http.Request) {
 		log.Infof("Got check request in software inventory")
 		inventory, warnings, err := software.GetSoftwareInventory()

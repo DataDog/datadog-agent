@@ -11,8 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 )
 
-func init() { registerModule(DiscoveryModule) }
-
 // DiscoveryModule is the discovery module factory.
 var DiscoveryModule = &module.Factory{
 	Name:             config.DiscoveryModule,

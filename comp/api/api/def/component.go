@@ -75,6 +75,8 @@ var AuthorizedConfigPathsCore = buildAuthorizedSet(
 	"runtime_security_config.endpoints.additional_endpoints",
 	"runtime_security_config.activity_dump.remote_storage.endpoints",
 	"compliance_config.endpoints",
+	"process_config.process_dd_url",
+	"process_config.additional_endpoints",
 )
 
 func buildAuthorizedSet(paths ...string) AuthorizedSet {

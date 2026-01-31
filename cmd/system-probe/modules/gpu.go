@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
@@ -33,8 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-func init() { registerModule(GPUMonitoring) }
 
 var _ module.Module = &GPUMonitoringModule{}
 var gpuMonitoringConfigNamespaces = []string{gpuconfigconsts.GPUNS}
@@ -98,7 +97,7 @@ type GPUMonitoringModule struct {
 }
 
 // Register registers the GPU monitoring module
-func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
+func (t *GPUMonitoringModule) Register(httpMux types.SystemProbeRouter) error {
 	// Ensure only one concurrent check is allowed, as the GetAndFlush method is not thread safe.
 	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, _ *http.Request) {
 		stats, err := t.Probe.GetAndFlush()

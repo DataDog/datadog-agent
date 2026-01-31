@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
@@ -20,8 +21,6 @@ import (
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 )
-
-func init() { registerModule(TCPQueueLength) }
 
 // TCPQueueLength Factory
 var TCPQueueLength = &module.Factory{
@@ -49,7 +48,7 @@ type tcpQueueLengthModule struct {
 	lastCheck atomic.Int64
 }
 
-func (t *tcpQueueLengthModule) Register(httpMux *module.Router) error {
+func (t *tcpQueueLengthModule) Register(httpMux types.SystemProbeRouter) error {
 	httpMux.HandleFunc("/check", func(w http.ResponseWriter, _ *http.Request) {
 		t.lastCheck.Store(time.Now().Unix())
 		stats := t.Tracer.GetAndFlush()

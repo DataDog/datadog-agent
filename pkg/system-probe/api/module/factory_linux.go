@@ -8,6 +8,7 @@
 package module
 
 import (
+	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
@@ -15,7 +16,7 @@ import (
 type Factory struct {
 	Name             sysconfigtypes.ModuleName
 	ConfigNamespaces []string
-	Fn               func(cfg *sysconfigtypes.Config, deps FactoryDependencies) (Module, error)
+	Fn               func(cfg *sysconfigtypes.Config, deps FactoryDependencies) (types.SystemProbeModule, error)
 	NeedsEBPF        func() bool
 	OptionalEBPF     bool
 }
