@@ -3,6 +3,7 @@
 runtime_security_config:
   # Set to true to enable CWS
   enabled: true
+  direct_send_from_system_probe: true
 
 system_probe_config:
   debug_port: 7654
