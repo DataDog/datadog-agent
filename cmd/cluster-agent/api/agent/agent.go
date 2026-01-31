@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 
@@ -231,7 +232,21 @@ func getWorkloadList(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.
 
 	var response interface{}
 	if structured {
-		response = wmeta.DumpStructured(verbose)
+		// Use structured format for JSON
+		structuredResp := wmeta.DumpStructured(verbose)
+
+		// Filter entities based on verbose flag
+		// Non-verbose: only include fields shown in text output
+		// Verbose: include all fields
+		filteredResp := workloadmeta.WorkloadDumpStructuredResponse{
+			Entities: make(map[string][]workloadmeta.Entity),
+		}
+		for kind, entities := range structuredResp.Entities {
+			filteredResp.Entities[kind] = filterWorkloadEntitiesForVerbose(entities, verbose)
+		}
+
+		response = filteredResp
+
 		// Apply search filter if provided
 		if search != "" {
 			response = filterStructuredWorkloadResponse(response.(workloadmeta.WorkloadDumpStructuredResponse), search)
@@ -324,4 +339,108 @@ func getLocalAutoscalingWorkloadCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write(jsonResponse)
+}
+
+// filterWorkloadEntitiesForVerbose filters entities to only include fields shown in non-verbose text output
+func filterWorkloadEntitiesForVerbose(entities []workloadmeta.Entity, verbose bool) []workloadmeta.Entity {
+	if verbose {
+		return entities
+	}
+
+	filtered := make([]workloadmeta.Entity, len(entities))
+	for i, entity := range entities {
+		filtered[i] = filterWorkloadEntityForNonVerbose(entity)
+	}
+	return filtered
+}
+
+// filterWorkloadEntityForNonVerbose returns a copy of the entity with verbose-only fields zeroed out
+func filterWorkloadEntityForNonVerbose(entity workloadmeta.Entity) workloadmeta.Entity {
+	switch e := entity.(type) {
+	case *workloadmeta.Container:
+		return filterWorkloadContainer(e)
+	case *workloadmeta.KubernetesPod:
+		return filterWorkloadPod(e)
+	default:
+		return entity
+	}
+}
+
+// filterWorkloadContainer removes verbose-only fields
+func filterWorkloadContainer(c *workloadmeta.Container) *workloadmeta.Container {
+	filtered := *c
+	filtered.Hostname = ""
+	filtered.NetworkIPs = nil
+	filtered.PID = 0
+	filtered.CgroupPath = ""
+	filtered.Ports = nil
+	filtered.ResizePolicy = workloadmeta.ContainerResizePolicy{}
+	filtered.EnvVars = nil
+
+	// Filter state
+	filtered.State = workloadmeta.ContainerState{Running: c.State.Running}
+
+	// Filter image
+	filtered.Image = workloadmeta.ContainerImage{
+		Name: c.Image.Name,
+		Tag:  c.Image.Tag,
+	}
+
+	// Filter meta
+	filtered.EntityMeta = workloadmeta.EntityMeta{
+		Name:      c.EntityMeta.Name,
+		Namespace: c.EntityMeta.Namespace,
+	}
+
+	return &filtered
+}
+
+// filterWorkloadPod removes verbose-only fields
+func filterWorkloadPod(p *workloadmeta.KubernetesPod) *workloadmeta.KubernetesPod {
+	filtered := *p
+	filtered.EntityMeta = workloadmeta.EntityMeta{
+		Name:      p.EntityMeta.Name,
+		Namespace: p.EntityMeta.Namespace,
+	}
+	filtered.CreationTimestamp = time.Time{}
+	filtered.DeletionTimestamp = nil
+	filtered.StartTime = nil
+	filtered.HostIP = ""
+	filtered.HostNetwork = false
+	filtered.InitContainerStatuses = nil
+	filtered.ContainerStatuses = nil
+	filtered.EphemeralContainerStatuses = nil
+	filtered.Conditions = nil
+	filtered.Volumes = nil
+	filtered.Tolerations = nil
+	filtered.PersistentVolumeClaimNames = nil
+	filtered.NamespaceLabels = nil
+	filtered.NamespaceAnnotations = nil
+
+	// Filter containers
+	filtered.InitContainers = filterWorkloadOrchestratorContainers(p.InitContainers)
+	filtered.Containers = filterWorkloadOrchestratorContainers(p.Containers)
+	filtered.EphemeralContainers = filterWorkloadOrchestratorContainers(p.EphemeralContainers)
+
+	return &filtered
+}
+
+// filterWorkloadOrchestratorContainers filters container list
+func filterWorkloadOrchestratorContainers(containers []workloadmeta.OrchestratorContainer) []workloadmeta.OrchestratorContainer {
+	if len(containers) == 0 {
+		return nil
+	}
+
+	filtered := make([]workloadmeta.OrchestratorContainer, len(containers))
+	for i, c := range containers {
+		filtered[i] = workloadmeta.OrchestratorContainer{
+			ID:   c.ID,
+			Name: c.Name,
+			Image: workloadmeta.ContainerImage{
+				Name: c.Image.Name,
+				Tag:  c.Image.Tag,
+			},
+		}
+	}
+	return filtered
 }

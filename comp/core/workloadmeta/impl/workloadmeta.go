@@ -127,7 +127,21 @@ func (w *workloadmeta) writeResponse(writer http.ResponseWriter, r *http.Request
 
 	var response interface{}
 	if structured {
-		response = w.DumpStructured(verbose)
+		// Use structured format for JSON
+		structuredResp := w.DumpStructured(verbose)
+
+		// Filter entities based on verbose flag
+		// Non-verbose: only include fields shown in text output
+		// Verbose: include all fields
+		filteredResp := wmdef.WorkloadDumpStructuredResponse{
+			Entities: make(map[string][]wmdef.Entity),
+		}
+		for kind, entities := range structuredResp.Entities {
+			filteredResp.Entities[kind] = filterEntitiesForVerbose(entities, verbose)
+		}
+
+		response = filteredResp
+
 		// Apply search filter if provided
 		if search != "" {
 			response = filterStructuredResponse(response.(wmdef.WorkloadDumpStructuredResponse), search)
