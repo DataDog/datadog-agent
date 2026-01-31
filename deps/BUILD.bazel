@@ -27,6 +27,11 @@ filegroup(
             "@lua//:liblua",
             "@nghttp2",
         ],
+        "//:macos_arm64": [
+            "@curl",
+            "@nghttp2",
+            "@openssl3//:libcrypto",
+        ],
         "@platforms//os:windows": [
             "@cpython//:python_win",
         ],
