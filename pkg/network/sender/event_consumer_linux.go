@@ -132,17 +132,20 @@ func (d *directSenderConsumer) HandleEvent(ev any) {
 		}
 		p.Cwd = cwd
 	}
-	if p.EventType == model.ForkEventType && p.PPid > 0 {
-		if parent, ok := d.processes[p.PPid]; ok && parent != nil {
-			p.Cmdline = parent.Cmdline
-		}
-	}
 	d.process(p)
+	d.proxyFilter.process(p)
+	d.extractor.process(p)
 }
 
 func (d *directSenderConsumer) process(p *process) {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
+
+	if p.EventType == model.ForkEventType && p.PPid > 0 {
+		if parent, ok := d.processes[p.PPid]; ok && parent != nil {
+			p.Cmdline = parent.Cmdline
+		}
+	}
 
 	if _, seen := d.processes[p.Pid]; seen {
 		if p.EventType == model.ExitEventType {
@@ -154,8 +157,6 @@ func (d *directSenderConsumer) process(p *process) {
 	if p.EventType == model.ExecEventType || p.EventType == model.ForkEventType {
 		d.processes[p.Pid] = p
 	}
-	d.proxyFilter.process(p)
-	d.extractor.process(p)
 	eventConsumerTelemetry.processCount.Set(float64(len(d.processes)))
 }
 
