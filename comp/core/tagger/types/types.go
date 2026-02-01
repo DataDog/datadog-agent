@@ -20,7 +20,7 @@ type ApplyFunc[V any] func(EntityID, V)
 
 // TaggerListResponse holds the tagger list response
 type TaggerListResponse struct {
-	Entities map[string]TaggerListEntity
+	Entities map[string]TaggerListEntity `json:"entities"`
 }
 
 // TaggerListEntity holds the tagging info about an entity
