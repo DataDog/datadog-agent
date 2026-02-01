@@ -129,8 +129,7 @@ cc_shared_library(
         "@zlib//:z",
         "@xz//:lzma",
         "@bzip2//:bz2",
-        "@openssl//:crypto_shared",
-        "@openssl//:ssl_shared",
+        "@openssl//:openssl_shared",
     ],
     user_link_flags = select({
         "@platforms//os:linux": [

@@ -172,8 +172,7 @@ cc_shared_library(
     dynamic_deps = [
         "@libxslt//:xslt",
         "@libxml2//:xml2",
-        "@openssl//:crypto_shared",
-        "@openssl//:ssl_shared",
+        "@openssl//:openssl_shared",
         ":xmlsec1",
     ],
     user_link_flags = select({

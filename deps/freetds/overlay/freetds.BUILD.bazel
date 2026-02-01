@@ -216,8 +216,7 @@ cc_shared_library(
     shared_lib_name = "libtdsodbc.so",
     dynamic_deps = [
         "@unixodbc//:libodbc_so",
-        "@openssl//:crypto_shared",
-        "@openssl//:ssl_shared",
+        "@openssl//:openssl_shared",
     ],
     user_link_flags = select({
         "@platforms//os:linux": [

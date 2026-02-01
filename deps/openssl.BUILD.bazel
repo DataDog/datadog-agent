@@ -1,7 +1,6 @@
+load("@//bazel/rules:cc_shared_library_wrapper.bzl", "cc_shared_library_wrapper")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
-load("@rules_cc//cc:cc_import.bzl", "cc_import")
-load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
@@ -184,9 +183,12 @@ configure_make(
     }),
 )
 
-########################################################################
+cc_shared_library_wrapper(
+    name = "openssl_shared",
+    input = ":openssl",
+)
 
-# Now we have to use filegroups to pull the outputs of configure_make into targets.
+########################################################################
 
 filegroup(
     name = "headers",
@@ -215,46 +217,6 @@ filegroup(
         "@platforms//os:macos": MACOS_LIBCRYPTO,
         "@platforms//os:linux": LINUX_LIBCRYPTO,
     }),
-)
-
-cc_import(
-    name = "ssl",
-    shared_library = ":libssl_shared_file",
-)
-
-cc_library(
-    name = "ssl_library",
-    deps = [":ssl"],
-)
-
-cc_shared_library(
-    name = "ssl_shared",
-    shared_lib_name = select({
-        "@platforms//os:windows": WIN_LIBSSL,
-        "@platforms//os:macos": MACOS_LIBSSL,
-        "@platforms//os:linux": LINUX_LIBSSL,
-    }),
-    deps = [":ssl_library"],
-)
-
-cc_import(
-    name = "crypto",
-    shared_library = ":libcrypto_shared_file",
-)
-
-cc_library(
-    name = "crypto_library",
-    deps = [":crypto"],
-)
-
-cc_shared_library(
-    name = "crypto_shared",
-    shared_lib_name = select({
-        "@platforms//os:windows": WIN_LIBCRYPTO,
-        "@platforms//os:macos": MACOS_LIBCRYPTO,
-        "@platforms//os:linux": LINUX_LIBCRYPTO,
-    }),
-    deps = [":crypto_library"],
 )
 
 #####
