@@ -345,6 +345,21 @@ var TunnelMetadataConfig = profiledefinition.MetadataConfig{
 	},
 }
 
+// RequiredInterfaceMetadataConfig contains interface metadata fields that must always be collected
+// regardless of what is defined in profiles. These fields override any user-defined configuration.
+var RequiredInterfaceMetadataConfig = profiledefinition.MetadataConfig{
+	"interface": {
+		Fields: map[string]profiledefinition.MetadataField{
+			"if_type": {
+				Symbol: profiledefinition.SymbolConfig{
+					OID:  "1.3.6.1.2.1.2.2.1.3",
+					Name: "ifType",
+				},
+			},
+		},
+	},
+}
+
 // updateMetadataDefinitionWithDefaults will add metadata config for resources
 // that does not have metadata definitions
 func updateMetadataDefinitionWithDefaults(metadataConfig profiledefinition.MetadataConfig, collectTopology bool, collectVPN bool) profiledefinition.MetadataConfig {
@@ -359,6 +374,8 @@ func updateMetadataDefinitionWithDefaults(metadataConfig profiledefinition.Metad
 		mergeMetadata(newConfig, RouteMetadataConfig)
 		mergeMetadata(newConfig, TunnelMetadataConfig)
 	}
+	// Required fields must be merged last to override any user-defined configuration
+	mergeRequiredMetadataFields(newConfig, RequiredInterfaceMetadataConfig)
 	return newConfig
 }
 
@@ -367,5 +384,20 @@ func mergeMetadata(metadataConfig profiledefinition.MetadataConfig, extraMetadat
 		if _, ok := metadataConfig[resourceName]; !ok {
 			metadataConfig[resourceName] = resourceConfig
 		}
+	}
+}
+
+// mergeRequiredMetadataFields merges metadata fields at the field level, overwriting existing fields.
+// This is used for required fields that must always be collected regardless of user configuration.
+func mergeRequiredMetadataFields(metadataConfig profiledefinition.MetadataConfig, requiredMetadata profiledefinition.MetadataConfig) {
+	for resourceName, requiredConfig := range requiredMetadata {
+		existingConfig := metadataConfig[resourceName]
+		if existingConfig.Fields == nil {
+			existingConfig.Fields = make(map[string]profiledefinition.MetadataField)
+		}
+		for fieldName, field := range requiredConfig.Fields {
+			existingConfig.Fields[fieldName] = field
+		}
+		metadataConfig[resourceName] = existingConfig
 	}
 }
