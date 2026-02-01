@@ -1105,7 +1105,7 @@ func (s *tlsSuite) TestNodeJSTLSWithLibnode() {
 	nodeJSPID, err := nodejs.GetNodeJSUbuntuDockerPID()
 	require.NoError(t, err)
 
-	cfg := utils.NewUSMEmptyConfig()
+	cfg := NewUSMEmptyConfig()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableNodeJSMonitoring = true
 
