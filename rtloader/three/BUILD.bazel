@@ -69,6 +69,10 @@ cc_library(
             # TODO: only set if MSVC
             "/MT",
         ],
+    }) + select({
+        "@platforms//cpu:x86_64": ["-march=x86-64-v3"],
+        "@platforms//cpu:aarch64": ["-march=armv8.1-a"],
+        "//conditions:default": [],
     }),
     includes = [
         ".",
