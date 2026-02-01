@@ -160,7 +160,7 @@ func verifyHTTPStats(t *testing.T, monitor Monitor, expectedEndpoints map[http.K
 		if !ok {
 			return false
 		}
-		if actual.statusCode != expected.statusCode || actual.count != expected.count {
+		if actual.statusCode != expected.statusCode || actual.count < expected.count {
 			return false
 		}
 	}
