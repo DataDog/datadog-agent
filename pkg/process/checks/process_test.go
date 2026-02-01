@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -783,4 +784,69 @@ func TestProcessTaggerIntegration(t *testing.T) {
 
 	// Verify that process 9101 has no tags (no tags in tagger)
 	assert.Empty(t, proc9101.Tags, "Process 9101 should have no tags")
+}
+
+func TestProcessCheckIsEnabled(t *testing.T) {
+	tests := []struct {
+		name                     string
+		processCollectionEnabled bool
+		discoveryEnabled         bool
+		expectedOnLinux          bool
+		expectedOnNonLinux       bool
+	}{
+		{
+			name:                     "enabled when process_collection.enabled is true",
+			processCollectionEnabled: true,
+			discoveryEnabled:         false,
+			expectedOnLinux:          true,
+			expectedOnNonLinux:       true,
+		},
+		{
+			name:                     "enabled when both process_collection and discovery enabled",
+			processCollectionEnabled: true,
+			discoveryEnabled:         true,
+			expectedOnLinux:          true,
+			expectedOnNonLinux:       true,
+		},
+		{
+			name:                     "enabled on Linux when discovery.enabled is true (WLM enabled)",
+			processCollectionEnabled: false,
+			discoveryEnabled:         true,
+			expectedOnLinux:          true,  // WLM=true && discovery=true
+			expectedOnNonLinux:       false, // WLM=false, so WLM && discovery = false
+		},
+		{
+			name:                     "disabled when both flags are false",
+			processCollectionEnabled: false,
+			discoveryEnabled:         false,
+			expectedOnLinux:          false,
+			expectedOnNonLinux:       false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := configmock.New(t)
+			sysConfig := configmock.New(t)
+
+			cfg.SetWithoutSource("process_config.process_collection.enabled", tc.processCollectionEnabled)
+			sysConfig.SetWithoutSource("discovery.enabled", tc.discoveryEnabled)
+
+			check := &ProcessCheck{
+				config:    cfg,
+				sysConfig: sysConfig,
+			}
+
+			actual := check.IsEnabled()
+
+			var expected bool
+			if runtime.GOOS == "linux" {
+				expected = tc.expectedOnLinux
+			} else {
+				expected = tc.expectedOnNonLinux
+			}
+
+			assert.Equal(t, expected, actual, "IsEnabled() returned unexpected value")
+		})
+	}
 }
