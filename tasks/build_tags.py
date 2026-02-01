@@ -230,7 +230,6 @@ TRACE_AGENT_TAGS = {
     "docker",
     "containerd",
     "datadog.no_waf",
-    "kubeapiserver",
     "kubelet",
     "otlp",
     "netcgo",
