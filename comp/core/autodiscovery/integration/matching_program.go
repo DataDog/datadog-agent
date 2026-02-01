@@ -5,7 +5,7 @@
 
 //go:build cel
 
-package autodiscoveryimpl
+package integration
 
 import (
 	"errors"
@@ -14,7 +14,6 @@ import (
 	"github.com/google/cel-go/cel"
 
 	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/celprogram"
 )
@@ -28,12 +27,14 @@ const (
 	endpointNamespaceField = string(workloadfilter.KubeEndpointType) + ".namespace"
 )
 
-type matchingProgram struct {
+// CELMatchingProgram wraps a CEL program to implement the MatchingProgram interface
+type CELMatchingProgram struct {
 	program cel.Program
 	target  workloadfilter.ResourceType
 }
 
-func (m *matchingProgram) IsMatched(obj workloadfilter.Filterable) bool {
+// IsMatched evaluates the CEL program against the given object
+func (m *CELMatchingProgram) IsMatched(obj workloadfilter.Filterable) bool {
 	if m == nil || m.program == nil {
 		return false
 	}
@@ -44,13 +45,11 @@ func (m *matchingProgram) IsMatched(obj workloadfilter.Filterable) bool {
 		return false
 	}
 	result, ok := out.Value().(bool)
-	if !ok {
-		return false
-	}
-	return result
+	return ok && result
 }
 
-func (m *matchingProgram) GetTargetType() workloadfilter.ResourceType {
+// GetTargetType returns the target resource type of the program
+func (m *CELMatchingProgram) GetTargetType() workloadfilter.ResourceType {
 	return m.target
 }
 
@@ -103,9 +102,9 @@ func checkRuleRecommendations(rules string, celADID adtypes.CelIdentifier) error
 	return nil
 }
 
-// createMatchingProgram creates a MatchingProgram from the given workloadfilter.Rules.
+// CreateMatchingProgram creates a MatchingProgram from the given workloadfilter.Rules.
 // It returns nil if no rules are defined.
-func createMatchingProgram(rules workloadfilter.Rules) (program integration.MatchingProgram, celADID adtypes.CelIdentifier, compileErr error, recError error) {
+func CreateMatchingProgram(rules workloadfilter.Rules) (program MatchingProgram, celADID adtypes.CelIdentifier, compileErr error, recError error) {
 	ruleList, objectType, celADID := extractRuleMetadata(rules)
 	if len(ruleList) == 0 {
 		return nil, "", nil, nil
@@ -120,7 +119,7 @@ func createMatchingProgram(rules workloadfilter.Rules) (program integration.Matc
 
 	recError = checkRuleRecommendations(combinedRule, celADID)
 
-	return &matchingProgram{
+	return &CELMatchingProgram{
 		program: celprg,
 		target:  objectType,
 	}, celADID, nil, recError

@@ -5,14 +5,14 @@
 
 //go:build !cel
 
-package autodiscoveryimpl
+package integration
 
 import (
 	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 )
 
-func createMatchingProgram(_ workloadfilter.Rules) (program integration.MatchingProgram, celADID adtypes.CelIdentifier, compileErr error, recError error) {
+// CreateMatchingProgram is a no-op when CEL is not enabled
+func CreateMatchingProgram(_ workloadfilter.Rules) (program MatchingProgram, celADID adtypes.CelIdentifier, compileErr error, recError error) {
 	return nil, "", nil, nil
 }
