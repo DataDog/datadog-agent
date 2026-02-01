@@ -364,6 +364,17 @@ new-e2e-agent-subcommands:
       - EXTRA_PARAMS: --run "Test(Linux|Windows)RunSuite"
       - EXTRA_PARAMS: --run "Test(Linux|Windows)DogstatsdReplaySuite"
 
+new-e2e-agent-health:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - agent_deb-x64-a7
+  rules:
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-health
+    TEAM: agent-health
+
 new-e2e-fips-compliance-test:
   extends: .new_e2e_template
   needs:
