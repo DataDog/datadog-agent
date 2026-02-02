@@ -90,9 +90,9 @@ type GraphSketchCorrelator struct {
 	uniqueSources map[string]bool // unique anomaly sources seen
 
 	// Caching for expensive edge ranking (fixes backpressure)
-	cachedTopEdges       []EdgeInfo
-	cacheValidUntilData  int64 // data timestamp when cache expires (uses data time, not wall clock)
-	cacheTTLDataSeconds  int64 // how long cache is valid in data-time seconds (default: 5s)
+	cachedTopEdges      []EdgeInfo
+	cacheValidUntilData int64 // data timestamp when cache expires (uses data time, not wall clock)
+	cacheTTLDataSeconds int64 // how long cache is valid in data-time seconds (default: 5s)
 }
 
 // EdgeInfo stores metadata about a learned edge.
@@ -153,14 +153,14 @@ func NewGraphSketchCorrelator(config GraphSketchCorrelatorConfig) *GraphSketchCo
 	}
 
 	return &GraphSketchCorrelator{
-		config:          config,
-		tensorSketch:    tensorSketch,
-		layerToBinMap:   make(map[int]int64),
-		anomalyBuffer:   make([]observer.AnomalyOutput, 0, 100),
-		clusters:        nil,
-		edgeFirstSeen:   make(map[string]int64),
-		knownEdges:      make(map[string]int),
-		uniqueSources:   make(map[string]bool),
+		config:              config,
+		tensorSketch:        tensorSketch,
+		layerToBinMap:       make(map[int]int64),
+		anomalyBuffer:       make([]observer.AnomalyOutput, 0, 100),
+		clusters:            nil,
+		edgeFirstSeen:       make(map[string]int64),
+		knownEdges:          make(map[string]int),
+		uniqueSources:       make(map[string]bool),
 		cacheTTLDataSeconds: 5, // Cache edge rankings for 5 data-time seconds to reduce backpressure
 	}
 }

@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build observer
-
 package observerimpl
 
 import (
@@ -343,7 +341,6 @@ func (tb *TestBench) loadLogsDir(dir string) error {
 	return nil
 }
 
-
 // runAnalyses runs all time series analyses on all stored series.
 func (tb *TestBench) runAnalyses() {
 	// Get all unique series keys
@@ -396,7 +393,9 @@ func (tb *TestBench) runAnalyses() {
 
 	// Collect correlations from processors that support it
 	for _, proc := range tb.anomalyProcessors {
-		if cs, ok := proc.(interface{ ActiveCorrelations() []observerdef.ActiveCorrelation }); ok {
+		if cs, ok := proc.(interface {
+			ActiveCorrelations() []observerdef.ActiveCorrelation
+		}); ok {
 			tb.correlations = append(tb.correlations, cs.ActiveCorrelations()...)
 		}
 	}

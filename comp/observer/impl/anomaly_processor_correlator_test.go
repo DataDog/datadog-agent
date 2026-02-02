@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build observer
-
 package observerimpl
 
 import (
@@ -419,7 +417,7 @@ func TestCorrelator_DedupesBySourceKeepingMostRecent(t *testing.T) {
 	})
 	correlator.Process(observer.AnomalyOutput{
 		Source:      "network.retransmits:avg",
-		Description: "newest retransmits", // should be kept
+		Description: "newest retransmits",                       // should be kept
 		TimeRange:   observer.TimeRange{Start: 1010, End: 1025}, // latest End
 	})
 	correlator.Process(observer.AnomalyOutput{

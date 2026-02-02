@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build observer
-
 package observerimpl
 
 import (
@@ -103,7 +101,7 @@ func (r *RingBuffer) GetMostRecent() int64 {
 // LagHistogram tracks the distribution of lags between two sources.
 // Bins: [-30, -20, -10, -5, 0, +5, +10, +20, +30] seconds (configurable based on maxLag)
 type LagHistogram struct {
-	bins              []int // counts per bin
+	bins              []int   // counts per bin
 	binEdges          []int64 // bin edges in seconds
 	totalObservations int
 }
@@ -195,10 +193,10 @@ func (h *LagHistogram) Analyze() (leader string, typicalLag int64, confidence fl
 
 // LeadLagEdge represents a detected lead-lag relationship between two sources.
 type LeadLagEdge struct {
-	Leader       string  `json:"leader"`        // Source that leads
-	Follower     string  `json:"follower"`      // Source that follows
-	TypicalLag   int64   `json:"typical_lag"`   // Seconds
-	Confidence   float64 `json:"confidence"`    // 0-1
+	Leader       string  `json:"leader"`      // Source that leads
+	Follower     string  `json:"follower"`    // Source that follows
+	TypicalLag   int64   `json:"typical_lag"` // Seconds
+	Confidence   float64 `json:"confidence"`  // 0-1
 	Observations int     `json:"observations"`
 }
 

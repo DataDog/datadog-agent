@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build observer
-
 package observerimpl
 
 import (
@@ -66,8 +64,8 @@ func DefaultSurpriseConfig() SurpriseConfig {
 type SurpriseEdge struct {
 	Source1      string  `json:"source1"`
 	Source2      string  `json:"source2"`
-	Lift         float64 `json:"lift"`         // > 1 = surprising co-occurrence, < 1 = surprisingly rare
-	Support      int     `json:"support"`      // Number of co-occurrences
+	Lift         float64 `json:"lift"`          // > 1 = surprising co-occurrence, < 1 = surprisingly rare
+	Support      int     `json:"support"`       // Number of co-occurrences
 	Source1Count int     `json:"source1_count"` // Total anomalies from source1
 	Source2Count int     `json:"source2_count"` // Total anomalies from source2
 	IsSurprising bool    `json:"is_surprising"` // true if lift > MinLift, false if lift < MaxLift
@@ -75,9 +73,10 @@ type SurpriseEdge struct {
 
 // SurpriseCorrelator detects unexpected co-occurrences using lift metric.
 // Lift measures how much more (or less) often two sources co-occur than expected by chance:
-//   lift(A,B) = P(A ∩ B) / (P(A) × P(B))
-//             = (pairCount[A,B] / totalWindows) / ((sourceCount[A] / totalWindows) × (sourceCount[B] / totalWindows))
-//             = pairCount[A,B] × totalWindows / (sourceCount[A] × sourceCount[B])
+//
+//	lift(A,B) = P(A ∩ B) / (P(A) × P(B))
+//	          = (pairCount[A,B] / totalWindows) / ((sourceCount[A] / totalWindows) × (sourceCount[B] / totalWindows))
+//	          = pairCount[A,B] × totalWindows / (sourceCount[A] × sourceCount[B])
 //
 // - lift > 2.0: A and B co-occur MORE than expected → interesting pattern
 // - lift < 0.5: A and B co-occur LESS than expected → also interesting (anti-correlation)
@@ -383,18 +382,18 @@ func (c *SurpriseCorrelator) GetStats() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"sources_tracked":       len(c.sourceCounts),
-		"pairs_tracked":         len(c.pairCounts),
-		"total_windows":         c.totalWindows,
-		"surprising_patterns":   surprisingCount,
-		"rare_patterns":         rareCount,
-		"recent_anomalies":      len(c.recentAnomalies),
-		"window_size_seconds":   c.config.WindowSizeSeconds,
-		"min_lift":              c.config.MinLift,
-		"max_lift":              c.config.MaxLift,
-		"min_support":           c.config.MinSupport,
-		"current_window_start":  c.currentWindowStart,
+		"sources_tracked":        len(c.sourceCounts),
+		"pairs_tracked":          len(c.pairCounts),
+		"total_windows":          c.totalWindows,
+		"surprising_patterns":    surprisingCount,
+		"rare_patterns":          rareCount,
+		"recent_anomalies":       len(c.recentAnomalies),
+		"window_size_seconds":    c.config.WindowSizeSeconds,
+		"min_lift":               c.config.MinLift,
+		"max_lift":               c.config.MaxLift,
+		"min_support":            c.config.MinSupport,
+		"current_window_start":   c.currentWindowStart,
 		"current_window_sources": len(c.currentWindowSources),
-		"current_data_time":     c.currentDataTime,
+		"current_data_time":      c.currentDataTime,
 	}
 }

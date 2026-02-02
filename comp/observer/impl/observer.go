@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build observer
-
 // Package observerimpl implements the observer component.
 package observerimpl
 
@@ -247,14 +245,14 @@ type observerImpl struct {
 	maxEvents   int
 
 	// Raw anomaly tracking for test bench display
-	rawAnomalies       []observerdef.AnomalyOutput
-	rawAnomalyMu       sync.RWMutex
-	rawAnomalyWindow   int64 // seconds to keep raw anomalies (0 = unlimited)
-	maxRawAnomalies    int   // max number of raw anomalies to keep (0 = unlimited)
-	currentDataTime    int64 // latest data timestamp seen
-	totalAnomalyCount  int   // total count of all anomalies ever detected (no cap)
+	rawAnomalies         []observerdef.AnomalyOutput
+	rawAnomalyMu         sync.RWMutex
+	rawAnomalyWindow     int64           // seconds to keep raw anomalies (0 = unlimited)
+	maxRawAnomalies      int             // max number of raw anomalies to keep (0 = unlimited)
+	currentDataTime      int64           // latest data timestamp seen
+	totalAnomalyCount    int             // total count of all anomalies ever detected (no cap)
 	uniqueAnomalySources map[string]bool // unique sources that had anomalies
-	dedupSkipped       int   // count of anomalies skipped by dedup
+	dedupSkipped         int             // count of anomalies skipped by dedup
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
@@ -397,7 +395,7 @@ func (o *observerImpl) runSignalEmitters(series observerdef.Series, agg Aggregat
 			anomaly := o.signalToAnomaly(signal, emitter.Name())
 			o.captureRawAnomaly(anomaly) // For UI display
 			o.processAnomaly(anomaly)    // Send to correlators (GraphSketchCorrelator, etc.)
-			
+
 			// Also send signal to signal processors (Layer 2)
 			o.processSignal(signal)
 		}

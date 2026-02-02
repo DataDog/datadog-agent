@@ -73,17 +73,17 @@ type DemoV2Config struct {
 	LightESDMaxPeriods              int     // Default: 2
 
 	// GraphSketch correlator parameters (anomaly_processor_graphsketch.go)
-	GraphSketchCoOccurrenceWindow  int64   // Default: 10, seconds for co-occurrence
-	GraphSketchDecayFactor         float64 // Default: 0.85
-	GraphSketchMinCorrelation      float64 // Default: 2.0
-	GraphSketchEdgeLimit           int     // Default: 200
+	GraphSketchCoOccurrenceWindow int64   // Default: 10, seconds for co-occurrence
+	GraphSketchDecayFactor        float64 // Default: 0.85
+	GraphSketchMinCorrelation     float64 // Default: 2.0
+	GraphSketchEdgeLimit          int     // Default: 200
 
 	// TimeCluster correlator parameters (anomaly_processor_time_cluster.go)
 	TimeClusterSlackSeconds int64 // Default: 1
 
 	// LeadLag correlator parameters (anomaly_processor_leadlag.go)
-	LeadLagMaxLag    int64   // Default: 30, max lag seconds to track
-	LeadLagMinObs    int     // Default: 3, min observations for edge
+	LeadLagMaxLag     int64   // Default: 30, max lag seconds to track
+	LeadLagMinObs     int     // Default: 3, min observations for edge
 	LeadLagConfidence float64 // Default: 0.6, confidence threshold
 
 	// Surprise correlator parameters (anomaly_processor_surprise.go)
@@ -329,8 +329,8 @@ func RunDemoV2WithConfig(config DemoV2Config) {
 		reporters:        reporters,
 		storage:          storage,
 		obsCh:            make(chan observation, 10000000), // Very large buffer (10M) to prevent drops during demo with large datasets
-		rawAnomalyWindow: 0,                              // 0 = unlimited - keep all anomalies during demo
-		maxRawAnomalies:  500,                            // keep up to 500 raw anomalies
+		rawAnomalyWindow: 0,                                // 0 = unlimited - keep all anomalies during demo
+		maxRawAnomalies:  500,                              // keep up to 500 raw anomalies
 	}
 	go obs.run()
 
