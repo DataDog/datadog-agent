@@ -47,8 +47,6 @@ configure_make(
     args = [
         "-j 16",
     ],
-    autoreconf = True,
-    configure_in_place = True,
     configure_options = [
         "--without-keyutils", # this would require additional deps/system deps, disable it
         "--without-system-verto", # do not prefer libverto from the system, if installed
