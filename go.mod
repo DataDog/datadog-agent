@@ -167,7 +167,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/version v0.76.0-devel
 	github.com/DataDog/datadog-go/v5 v5.8.2
-	github.com/DataDog/datadog-operator/api v0.0.0-20251127112405-4be7033d5f47
+	github.com/DataDog/datadog-operator/api v0.0.0-20260130110400-4fcb91d49671
 	github.com/DataDog/datadog-traceroute v1.0.3
 	github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251120091008-29f645374bec
 	github.com/DataDog/ebpf-manager v0.7.15
