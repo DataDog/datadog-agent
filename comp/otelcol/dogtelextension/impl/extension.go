@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package dogtelextensionimpl provides the implementation for the Dogtel extension.
 package dogtelextensionimpl
 
 import (
 	"context"
 
-	"go.opentelemetry.io/collector/component"
 	"github.com/DataDog/datadog-agent/comp/otelcol/dogtelextension/def"
+	"go.opentelemetry.io/collector/component"
 )
 
 // dogtelExtension implements the dogtelextension.Component interface
@@ -23,11 +24,11 @@ func NewComponent() dogtelextension.Component {
 }
 
 // Start implements extension.Extension
-func (e *dogtelExtension) Start(ctx context.Context, host component.Host) error {
+func (e *dogtelExtension) Start(_ context.Context, _ component.Host) error {
 	return nil
 }
 
 // Shutdown implements extension.Extension
-func (e *dogtelExtension) Shutdown(ctx context.Context) error {
+func (e *dogtelExtension) Shutdown(_ context.Context) error {
 	return nil
 }
