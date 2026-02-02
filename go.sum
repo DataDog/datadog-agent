@@ -236,8 +236,8 @@ github.com/DataDog/nikos v1.12.12 h1:72YrdzMeQT3wcXIDgiS1ClU53SzUdR7uAbp5FSSpo5k
 github.com/DataDog/nikos v1.12.12/go.mod h1:kZGOhfE76+nXS7V5PAlIw3MRxWKM70ynET4VeuZ4U4k=
 github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816 h1:8diKw2aLYE6LsjWfYxDEqx0ZmcyMMmqB+qapRJrGtys=
 github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816/go.mod h1:7cPuErOAt7k/oVWAVJnxqAC6mwArrAazkvk0RXiih2A=
-github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20251209111023-a403a55f78da h1:ZBmMIv7/Xqdmw6WSs4lRXF75TOQCrnQdvnL5k8uk/t8=
-github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20251209111023-a403a55f78da/go.mod h1:6Y2/ixrHEY2qmt0eJVdG6pP7CPb9p5ypxnKj2t3kPJU=
+github.com/DataDog/opentelemetry-ebpf-profiler v0.0.202602-0.20260130121113-9fabd54fb605 h1:C3c2EoKJ9cl6r4vka0LBC9pSSHUOE28dvFSlaQIC5qs=
+github.com/DataDog/opentelemetry-ebpf-profiler v0.0.202602-0.20260130121113-9fabd54fb605/go.mod h1:6Y2/ixrHEY2qmt0eJVdG6pP7CPb9p5ypxnKj2t3kPJU=
 github.com/DataDog/sketches-go v1.4.7 h1:eHs5/0i2Sdf20Zkj0udVFWuCrXGRFig2Dcfm5rtcTxc=
 github.com/DataDog/sketches-go v1.4.7/go.mod h1:eAmQ/EBmtSO+nQp7IZMZVRPT4BQTmIc5RZQ+deGlTPM=
 github.com/DataDog/trivy v0.0.0-20251216175138-81422df93657 h1:UuMA1oxXCY6cVoVIGLYNU18YDchvxS3n57PjGysxxPg=
@@ -2899,8 +2899,8 @@ go.opentelemetry.io/proto/slim/otlp/collector/profiles/v1development v0.2.0 h1:o
 go.opentelemetry.io/proto/slim/otlp/collector/profiles/v1development v0.2.0/go.mod h1:Gyb6Xe7FTi/6xBHwMmngGoHqL0w29Y4eW8TGFzpefGA=
 go.opentelemetry.io/proto/slim/otlp/profiles/v1development v0.2.0 h1:EiUYvtwu6PMrMHVjcPfnsG3v+ajPkbUeH+IL93+QYyk=
 go.opentelemetry.io/proto/slim/otlp/profiles/v1development v0.2.0/go.mod h1:mUUHKFiN2SST3AhJ8XhJxEoeVW12oqfXog0Bo8W3Ec4=
-go.temporal.io/api v1.61.0 h1:gGIvUu1pRE9yVKqlirYd5FGDT5N/hvcZ0tlB4mRvVM4=
-go.temporal.io/api v1.61.0/go.mod h1:iaxoP/9OXMJcQkETTECfwYq4cw/bj4nwov8b3ZLVnXM=
+go.temporal.io/api v1.62.0 h1:rh7LqqV+pxaLNwPLsFRZgYoDJ/NvCNDv0EnWe6oS7A4=
+go.temporal.io/api v1.62.0/go.mod h1:iaxoP/9OXMJcQkETTECfwYq4cw/bj4nwov8b3ZLVnXM=
 go.temporal.io/sdk v1.38.0 h1:4Bok5LEdED7YKpsSjIa3dDqram5VOq+ydBf4pyx0Wo4=
 go.temporal.io/sdk v1.38.0/go.mod h1:a+R2Ej28ObvHoILbHaxMyind7M6D+W0L7edt5UJF4SE=
 go.uber.org/atomic v1.3.2/go.mod h1:gD2HeocX3+yG+ygLZcrzQJaqmWj9AIm7n08wl/qW/PE=

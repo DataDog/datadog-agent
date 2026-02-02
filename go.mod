@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.25.3
+go 1.25.6
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -25,7 +25,7 @@ replace (
 	// To update the Datadog/opentelemetry-ebpf-profiler dependency on latest commit on datadog branch, change the following line to:
 	// replace go.opentelemetry.io/ebpf-profiler => github.com/DataDog/opentelemetry-ebpf-profiler datadog
 	// and run `go mod tidy`
-	go.opentelemetry.io/ebpf-profiler => github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20251209111023-a403a55f78da
+	go.opentelemetry.io/ebpf-profiler => github.com/DataDog/opentelemetry-ebpf-profiler v0.0.202602-0.20260130121113-9fabd54fb605
 )
 
 require (
@@ -92,6 +92,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/api v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.76.0-devel
+	github.com/DataDog/datadog-agent/pkg/config/basic v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/env v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.76.0-devel
@@ -999,7 +1000,7 @@ require (
 	github.com/qri-io/jsonpointer v0.1.1
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	gitlab.com/gitlab-org/api/client-go v1.14.0
-	go.temporal.io/api v1.61.0
+	go.temporal.io/api v1.62.0
 	go.temporal.io/sdk v1.38.0
 )
 
@@ -1317,6 +1318,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ./pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/api => ./pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ./pkg/collector/check/defaults
+	github.com/DataDog/datadog-agent/pkg/config/basic => ./pkg/config/basic
 	github.com/DataDog/datadog-agent/pkg/config/create => ./pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ./pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/helper => ./pkg/config/helper
