@@ -6,7 +6,8 @@ require (
 	github.com/DataDog/agent-payload/v5 v5.0.179
 	github.com/DataDog/datadog-agent/comp/core/config v0.76.0-devel
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.73.0-devel.0.20251030121902-cd89eab046d6
-	github.com/DataDog/datadog-agent/comp/core/log/def v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/log/def v0.64.0-devel
+	github.com/DataDog/datadog-agent/comp/core/log/mock v0.75.1
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.76.0-devel
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.76.0-devel
@@ -21,6 +22,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/http v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/log v0.76.0-devel
+	github.com/DataDog/datadog-agent/pkg/util/option v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.70.0
@@ -53,7 +55,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/template v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.76.0-devel // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.76.0-devel // indirect

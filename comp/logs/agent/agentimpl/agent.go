@@ -81,7 +81,7 @@ type dependencies struct {
 	Config             configComponent.Component
 	InventoryAgent     inventoryagent.Component
 	Hostname           hostname.Component
-	Auditor            auditor.Component
+	Auditor            option.Option[auditor.Component]
 	WMeta              option.Option[workloadmeta.Component]
 	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
 	Tagger             tagger.Component
@@ -147,6 +147,17 @@ func newLogsAgent(deps dependencies) provides {
 			deps.Log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
 		}
 
+		// Auditor is required when logs are enabled
+		auditorComp, ok := deps.Auditor.Get()
+		if !ok {
+			deps.Log.Error("logs-agent requires auditor component but it is not available")
+			return provides{
+				Comp:           option.None[agent.Component](),
+				StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
+				LogsReciever:   option.None[integrations.Component](),
+			}
+		}
+
 		integrationsLogs := integrationsimpl.NewLogsIntegration()
 
 		logsAgent := &logAgent{
@@ -155,7 +166,7 @@ func newLogsAgent(deps dependencies) provides {
 			inventoryAgent:     deps.InventoryAgent,
 			hostname:           deps.Hostname,
 			started:            atomic.NewUint32(status.StatusNotStarted),
-			auditor:            deps.Auditor,
+			auditor:            auditorComp,
 			sources:            sources.NewLogSources(),
 			services:           service.NewServices(),
 			tracker:            tailers.NewTailerTracker(),

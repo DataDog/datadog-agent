@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/client/mock"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client/tcp"
 	"github.com/DataDog/datadog-agent/comp/logs-library/config"
+	depvalidatormock "github.com/DataDog/datadog-agent/comp/logs-library/depvalidator/mock"
 	kubehealthdef "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/def"
 	kubehealthmock "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/mock"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
@@ -64,7 +65,7 @@ type RestartTestSuite struct {
 	source              *sources.LogSource
 	configOverrides     map[string]interface{}
 	tagger              tagger.Component
-	kubeHealthRegistrar kubehealthdef.Component
+	kubeHealthRegistrar option.Option[kubehealthdef.Component]
 }
 
 func (suite *RestartTestSuite) SetupTest() {
@@ -127,10 +128,15 @@ func createTestAgent(suite *RestartTestSuite, endpoints *config.Endpoints) (*log
 		inventoryagentimpl.MockModule(),
 		auditorfx.Module(),
 		fx.Provide(kubehealthmock.NewProvides),
+		fx.Provide(depvalidatormock.NewProvides),
 	))
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(suite.T())
 	suite.kubeHealthRegistrar = deps.KubeHealthRegistrar
+
+	// Auditor is now optional, extract it
+	auditorComp, ok := deps.Auditor.Get()
+	suite.Require().True(ok, "auditor should be present when logs are enabled")
 
 	agent := &logAgent{
 		log:              deps.Log,
@@ -139,7 +145,7 @@ func createTestAgent(suite *RestartTestSuite, endpoints *config.Endpoints) (*log
 		started:          atomic.NewUint32(0),
 		integrationsLogs: integrationsimpl.NewLogsIntegration(),
 
-		auditor:         deps.Auditor,
+		auditor:         auditorComp,
 		sources:         sources,
 		services:        services,
 		tracker:         tailers.NewTailerTracker(),

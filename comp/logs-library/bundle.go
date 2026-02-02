@@ -8,6 +8,7 @@ package logslibrary
 
 import (
 	batchsenderfx "github.com/DataDog/datadog-agent/comp/logs-library/api/batchsender/fx"
+	depvalidatorfx "github.com/DataDog/datadog-agent/comp/logs-library/depvalidator/fx"
 	kubehealthfx "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -19,5 +20,6 @@ func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
 		kubehealthfx.Module(),
 		batchsenderfx.Module(),
+		depvalidatorfx.Module(),
 	)
 }

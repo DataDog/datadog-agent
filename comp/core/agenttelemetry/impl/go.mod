@@ -7,7 +7,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def v0.0.0
 	github.com/DataDog/datadog-agent/comp/core/config v0.76.0-devel
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.70.0
-	github.com/DataDog/datadog-agent/comp/core/log/mock v0.70.0
+	github.com/DataDog/datadog-agent/comp/core/log/mock v0.75.1
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.76.0-devel
 	github.com/DataDog/datadog-agent/comp/def v0.76.0-devel
 	github.com/DataDog/datadog-agent/comp/logs-library v0.0.0-00010101000000-000000000000

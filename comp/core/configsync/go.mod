@@ -8,7 +8,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers v0.70.0
 	github.com/DataDog/datadog-agent/comp/core/ipc/mock v0.70.0
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.76.0-devel
-	github.com/DataDog/datadog-agent/comp/core/log/mock v0.70.0
+	github.com/DataDog/datadog-agent/comp/core/log/mock v0.75.1
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/create v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.76.0-devel

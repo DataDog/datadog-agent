@@ -7,13 +7,20 @@
 package kubehealthimpl
 
 import (
+	depvalidator "github.com/DataDog/datadog-agent/comp/logs-library/depvalidator/def"
 	kubehealthdef "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/def"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
+
+// Requires defines the dependencies for the kubehealth component
+type Requires struct {
+	DepValidator depvalidator.Component
+}
 
 // Provides contains the kubehealth component
 type Provides struct {
-	Comp kubehealthdef.Component
+	Comp option.Option[kubehealthdef.Component]
 }
 
 // RegistrarImpl is an implementation of KubeHealthRegistrar
@@ -24,11 +31,12 @@ func newRegistrar() *RegistrarImpl {
 	return &RegistrarImpl{}
 }
 
-// NewProvides provides a new Registrar
-func NewProvides() Provides {
-	return Provides{
-		Comp: newRegistrar(),
+// NewProvides provides a new Registrar if logs are enabled
+func NewProvides(reqs Requires) Provides {
+	if err := reqs.DepValidator.ValidateIfEnabled(reqs); err != nil {
+		return Provides{Comp: option.None[kubehealthdef.Component]()}
 	}
+	return Provides{Comp: option.New[kubehealthdef.Component](newRegistrar())}
 }
 
 // RegisterReadiness registers a readiness check with the health package

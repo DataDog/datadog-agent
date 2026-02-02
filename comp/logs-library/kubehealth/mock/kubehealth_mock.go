@@ -11,6 +11,7 @@ package mock
 import (
 	kubehealthdef "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/def"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Registrar is a mock implementation of KubeHealthRegistrar
@@ -20,13 +21,20 @@ type Registrar struct {
 
 // Provides is the mock component output
 type Provides struct {
-	Comp kubehealthdef.Component
+	Comp option.Option[kubehealthdef.Component]
 }
 
-// NewProvides provides a new MockRegistrar
+// NewProvides provides a new MockRegistrar wrapped in an option
 func NewProvides() Provides {
 	return Provides{
-		Comp: NewMockRegistrar(),
+		Comp: option.New[kubehealthdef.Component](NewMockRegistrar()),
+	}
+}
+
+// NewProvidesNone provides an empty option (for testing logs-disabled scenarios)
+func NewProvidesNone() Provides {
+	return Provides{
+		Comp: option.None[kubehealthdef.Component](),
 	}
 }
 
