@@ -1104,6 +1104,9 @@ def compare_inventory(ctx, parent_inventory_report, current_inventory_report):
     parent_file_inventory = [FileInfo(**values) for values in parent_inventory['file_inventory']]
     current_file_inventory = [FileInfo(**values) for values in current_inventory['file_inventory']]
     added, removed, changed = _compare_inventory(parent_file_inventory, current_file_inventory)
+    if len(added) == 0 and len(removed) == 0 and len(changed) == 0:
+        print(color_message('✅ No change detected', 'green'))
+        return True
     success = True
     if len(added) > 0:
         success = False
