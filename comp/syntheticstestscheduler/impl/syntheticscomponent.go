@@ -12,6 +12,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -31,6 +33,7 @@ type Requires struct {
 	Traceroute      traceroute.Component
 	AgentConfig     agentconfig.Component
 	HostnameService hostname.Component
+	Statsd          statsd.ClientInterface
 }
 
 // Provides defines the output of the syntheticstestscheduler component
@@ -56,7 +59,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, reqs.Logger.Errorf("error getting EpForwarder")
 	}
 
-	scheduler := newSyntheticsTestScheduler(configs, epForwarder, reqs.Logger, reqs.HostnameService, time.Now, reqs.Traceroute)
+	scheduler := newSyntheticsTestScheduler(configs, epForwarder, reqs.Logger, reqs.HostnameService, time.Now, reqs.Statsd, reqs.Traceroute)
 
 	var rcListener rctypes.ListenerProvider
 	rcListener.ListenerProvider = rctypes.RCListener{

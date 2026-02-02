@@ -9,10 +9,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 	"sync"
 	"time"
+
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -41,10 +44,11 @@ type syntheticsTestScheduler struct {
 	tickerC                      <-chan time.Time
 	sendResult                   func(w *workerResult) (string, error)
 	hostNameService              hostname.Component
+	statsdClient                 ddgostatsd.ClientInterface
 }
 
 // newSyntheticsTestScheduler creates a scheduler and initializes its state.
-func newSyntheticsTestScheduler(configs *schedulerConfigs, forwarder eventplatform.Forwarder, logger log.Component, hostNameService hostname.Component, timeFunc func() time.Time, traceroute traceroute.Component) *syntheticsTestScheduler {
+func newSyntheticsTestScheduler(configs *schedulerConfigs, forwarder eventplatform.Forwarder, logger log.Component, hostNameService hostname.Component, timeFunc func() time.Time, statsd ddgostatsd.ClientInterface, traceroute traceroute.Component) *syntheticsTestScheduler {
 	scheduler := &syntheticsTestScheduler{
 		epForwarder:                  forwarder,
 		log:                          logger,
@@ -58,6 +62,7 @@ func newSyntheticsTestScheduler(configs *schedulerConfigs, forwarder eventplatfo
 		workers:                      configs.workers,
 		flushInterval:                configs.flushInterval,
 		generateTestResultID:         generateRandomStringUInt63,
+		statsdClient:                 statsd,
 	}
 
 	// by default, sendResult delegates to the real forwarder-backed implementation
@@ -117,6 +122,7 @@ func (s *syntheticsTestScheduler) updateRunningState(newConfig map[string]common
 		seen[pubID] = true
 		current, exists := s.state.tests[pubID]
 		ChecksReceived.Inc()
+		s.statsdClient.Incr(syntheticsMetricPrefix+"checks_received", []string{fmt.Sprintf("org_id:%d", newTestConfig.OrgID)}, 1) //nolint:errcheck
 		if !exists {
 			s.state.tests[pubID] = &runningTestState{
 				cfg:     newTestConfig,
