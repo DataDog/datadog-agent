@@ -137,7 +137,7 @@ func (w *workloadmeta) writeResponse(writer http.ResponseWriter, r *http.Request
 			Entities: make(map[string][]wmdef.Entity),
 		}
 		for kind, entities := range structuredResp.Entities {
-			filteredResp.Entities[kind] = filterEntitiesForVerbose(entities, verbose)
+			filteredResp.Entities[kind] = FilterEntitiesForVerbose(entities, verbose)
 		}
 
 		response = filteredResp

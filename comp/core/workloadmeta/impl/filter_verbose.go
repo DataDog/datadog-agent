@@ -11,8 +11,8 @@ import (
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
-// filterEntitiesForVerbose filters entities to only include fields shown in non-verbose text output
-func filterEntitiesForVerbose(entities []wmdef.Entity, verbose bool) []wmdef.Entity {
+// FilterEntitiesForVerbose filters entities to only include fields shown in non-verbose text output
+func FilterEntitiesForVerbose(entities []wmdef.Entity, verbose bool) []wmdef.Entity {
 	if verbose {
 		// Verbose mode: return all entities as-is
 		return entities
@@ -37,6 +37,20 @@ func filterEntityForNonVerbose(entity wmdef.Entity) wmdef.Entity {
 		return filterECSTask(e)
 	case *wmdef.Process:
 		return filterProcess(e)
+	case *wmdef.ContainerImageMetadata:
+		return filterContainerImageMetadata(e)
+	case *wmdef.GPU:
+		return filterGPU(e)
+	case *wmdef.KubeCapabilities:
+		return filterKubeCapabilities(e)
+	case *wmdef.Kubelet:
+		return filterKubelet(e)
+	case *wmdef.KubernetesDeployment:
+		return filterKubernetesDeployment(e)
+	case *wmdef.KubernetesMetadata:
+		return filterKubernetesMetadata(e)
+	case *wmdef.CRD:
+		return filterCRD(e)
 	default:
 		// For other types, return as-is
 		return entity
@@ -174,5 +188,108 @@ func filterProcess(p *wmdef.Process) *wmdef.Process {
 	// Based on Process.String() - non-verbose shows PID, Command, Language
 	// For now, return as-is since Process doesn't have many verbose-only fields
 
+	return &filtered
+}
+
+// filterContainerImageMetadata removes verbose-only fields from ContainerImageMetadata
+func filterContainerImageMetadata(img *wmdef.ContainerImageMetadata) *wmdef.ContainerImageMetadata {
+	filtered := *img // Copy the struct
+
+	// Filter EntityMeta to only show Name and Namespace
+	filtered.EntityMeta = filterEntityMeta(img.EntityMeta)
+
+	// Based on ContainerImageMetadata.String(verbose=false):
+	// Non-verbose shows: EntityID, EntityMeta (filtered), RepoTags, RepoDigests
+	// Verbose-only: MediaType, SizeBytes, OS, OSVersion, Architecture, Variant, Layers, SBOM
+	filtered.MediaType = ""
+	filtered.SizeBytes = 0
+	filtered.OS = ""
+	filtered.OSVersion = ""
+	filtered.Architecture = ""
+	filtered.Variant = ""
+	filtered.Layers = nil
+	filtered.SBOM = nil
+
+	return &filtered
+}
+
+// filterGPU removes verbose-only fields from GPU
+func filterGPU(g *wmdef.GPU) *wmdef.GPU {
+	filtered := *g // Copy the struct
+
+	// Filter EntityMeta to only show Name and Namespace
+	filtered.EntityMeta = filterEntityMeta(g.EntityMeta)
+
+	// GPU.String() doesn't have verbose-specific logic, but we filter EntityMeta for consistency
+	return &filtered
+}
+
+// filterKubeCapabilities removes verbose-only fields from KubeCapabilities
+func filterKubeCapabilities(kc *wmdef.KubeCapabilities) *wmdef.KubeCapabilities {
+	filtered := *kc // Copy the struct
+
+	// Filter EntityMeta to only show Name and Namespace
+	filtered.EntityMeta = filterEntityMeta(kc.EntityMeta)
+
+	// Based on KubeCapabilities.String(verbose=false):
+	// Non-verbose shows: EntityID, EntityMeta (filtered), Version
+	// Verbose-only: FeatureGates
+	filtered.FeatureGates = nil
+
+	return &filtered
+}
+
+// filterKubelet removes verbose-only fields from Kubelet
+func filterKubelet(ku *wmdef.Kubelet) *wmdef.Kubelet {
+	filtered := *ku // Copy the struct
+
+	// Filter EntityMeta to only show Name and Namespace
+	filtered.EntityMeta = filterEntityMeta(ku.EntityMeta)
+
+	// Based on Kubelet.String(verbose=false):
+	// Non-verbose shows: EntityID, EntityMeta (filtered), NodeName
+	// Verbose-only: ConfigDocument, RawConfig
+	filtered.ConfigDocument = wmdef.KubeletConfigDocument{}
+	filtered.RawConfig = nil
+
+	return &filtered
+}
+
+// filterKubernetesDeployment removes verbose-only fields from KubernetesDeployment
+func filterKubernetesDeployment(d *wmdef.KubernetesDeployment) *wmdef.KubernetesDeployment {
+	filtered := *d // Copy the struct
+
+	// Filter EntityMeta to only show Name and Namespace
+	filtered.EntityMeta = filterEntityMeta(d.EntityMeta)
+
+	// KubernetesDeployment.String() doesn't have verbose-specific logic,
+	// but we filter EntityMeta for consistency
+	return &filtered
+}
+
+// filterKubernetesMetadata removes verbose-only fields from KubernetesMetadata
+func filterKubernetesMetadata(m *wmdef.KubernetesMetadata) *wmdef.KubernetesMetadata {
+	filtered := *m // Copy the struct
+
+	// Filter EntityMeta to only show Name and Namespace
+	filtered.EntityMeta = filterEntityMeta(m.EntityMeta)
+
+	// Based on KubernetesMetadata.String(verbose=false):
+	// Non-verbose shows: EntityID, EntityMeta (filtered)
+	// Verbose-only: GVR (GroupVersionResource)
+	filtered.GVR = nil
+
+	return &filtered
+}
+
+// filterCRD removes verbose-only fields from CRD
+func filterCRD(crd *wmdef.CRD) *wmdef.CRD {
+	filtered := *crd // Copy the struct
+
+	// Filter EntityMeta to only show Name and Namespace
+	filtered.EntityMeta = filterEntityMeta(crd.EntityMeta)
+
+	// CRD.String() doesn't have verbose-specific logic,
+	// but we filter EntityMeta for consistency
 	return &filtered
 }
