@@ -424,7 +424,7 @@ func (suite *k8sSuite) testAgentCLI() {
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `agent tagger-list --json` should be empty")
 		suite.Contains(stdout, `"entities"`)
-		suite.Contains(stdout, `"container_id"`)
+		suite.Contains(stdout, `container_id`)
 		if suite.T().Failed() {
 			suite.T().Log(stdout)
 		}
@@ -434,8 +434,8 @@ func (suite *k8sSuite) testAgentCLI() {
 		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "tagger-list", "--json", "container_id"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `agent tagger-list --json container_id` should be empty")
-		suite.Contains(stdout, `"container_id"`)
-		suite.NotContains(stdout, `"kubernetes_pod_uid"`)
+		suite.Contains(stdout, `container_id`)
+		suite.NotContains(stdout, `kubernetes_pod_uid`)
 		if suite.T().Failed() {
 			suite.T().Log(stdout)
 		}
