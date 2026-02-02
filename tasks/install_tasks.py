@@ -87,6 +87,16 @@ def install_shellcheck(ctx, version="0.8.0", destination="/usr/local/bin"):
 
 
 @task
+def install_rust_license_tool(ctx):
+    """
+    Install dd-rust-license-tool and cargo-deny for Rust license verification.
+    Required to run the lint-rust-licenses task.
+    """
+    ctx.run("cargo install --git https://github.com/DataDog/rust-license-tool dd-rust-license-tool")
+    ctx.run("cargo install cargo-deny --locked")
+
+
+@task
 def install_protoc(ctx, version=None):
     """
     Installs the requested version of protoc in the specified folder (by default /usr/local/bin).

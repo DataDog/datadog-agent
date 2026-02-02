@@ -47,6 +47,7 @@ tests_ebpf_arm64:
     TASK_ARCH: arm64
 
 .prepare_sysprobe_ebpf_functional_tests:
+  extends: .bazel:defs:cache:ephemeral
   stage: source_test
   rules:
     - !reference [.except_mergequeue]

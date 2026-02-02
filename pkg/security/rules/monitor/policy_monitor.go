@@ -219,7 +219,8 @@ type RuleAction struct {
 // HashAction is used to report 'hash' action
 // easyjson:json
 type HashAction struct {
-	Enabled bool `json:"enabled,omitempty"`
+	Enabled bool   `json:"enabled,omitempty"`
+	Field   string `json:"field,omitempty"`
 }
 
 // RuleSetAction is used to report 'set' action
@@ -357,6 +358,7 @@ func RuleStateFromRule(rule *rules.PolicyRule, policy *rules.PolicyInfo, status 
 		case action.Def.Hash != nil:
 			ruleAction.Hash = &HashAction{
 				Enabled: true,
+				Field:   action.Def.Hash.Field,
 			}
 		case action.Def.CoreDump != nil:
 			ruleAction.CoreDump = &CoreDumpAction{
