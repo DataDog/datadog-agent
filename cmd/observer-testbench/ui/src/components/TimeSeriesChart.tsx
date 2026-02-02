@@ -21,12 +21,36 @@ const CORRELATION_COLORS = [
   { fill: 'rgba(139, 92, 246, 0.15)', stroke: '#8b5cf6' },   // violet
 ];
 
+// Line colors for split series - distinct, vibrant colors
+const LINE_COLORS = [
+  '#8b5cf6', // violet (default/primary)
+  '#f59e0b', // amber
+  '#10b981', // emerald
+  '#ec4899', // pink
+  '#06b6d4', // cyan
+  '#ef4444', // red
+  '#84cc16', // lime
+  '#f97316', // orange
+  '#6366f1', // indigo
+  '#14b8a6', // teal
+];
+
 function getAnalyzerColor(analyzerName: string) {
   return ANALYZER_COLORS[analyzerName] || ANALYZER_COLORS.default;
 }
 
 function getCorrelationColor(index: number) {
   return CORRELATION_COLORS[index % CORRELATION_COLORS.length];
+}
+
+function getLineColor(index: number) {
+  return LINE_COLORS[index % LINE_COLORS.length];
+}
+
+// Represents a single series line when splitting by tag
+export interface SplitSeries {
+  label: string;  // The tag value (e.g., "host:web1")
+  points: Point[];
 }
 
 interface TimeSeriesChartProps {
@@ -38,6 +62,8 @@ interface TimeSeriesChartProps {
   timeRange?: TimeRange | null;
   onTimeRangeChange?: (range: TimeRange | null) => void;
   height?: number;
+  smoothLines?: boolean;
+  splitSeries?: SplitSeries[];  // When provided, renders multiple lines instead of single points array
 }
 
 export function TimeSeriesChart({
@@ -49,6 +75,8 @@ export function TimeSeriesChart({
   timeRange,
   onTimeRangeChange,
   height = 200,
+  smoothLines = true,
+  splitSeries,
 }: TimeSeriesChartProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -72,12 +100,25 @@ export function TimeSeriesChart({
     return points.filter((p) => p.timestamp >= timeRange.start && p.timestamp <= timeRange.end);
   }, [points, timeRange]);
 
+  // Filter split series points by time range
+  const displaySplitSeries = useMemo(() => {
+    if (!splitSeries) return undefined;
+    if (!timeRange) return splitSeries;
+    return splitSeries.map((s) => ({
+      ...s,
+      points: s.points.filter((p) => p.timestamp >= timeRange.start && p.timestamp <= timeRange.end),
+    }));
+  }, [splitSeries, timeRange]);
+
   // Stable callback ref for brush
   const onTimeRangeChangeRef = useRef(onTimeRangeChange);
   onTimeRangeChangeRef.current = onTimeRangeChange;
 
   useEffect(() => {
-    if (!svgRef.current || !containerRef.current || points.length === 0) return;
+    const hasSplitData = displaySplitSeries && displaySplitSeries.length > 0 && displaySplitSeries.some(s => s.points.length > 0);
+    const hasMainData = points.length > 0;
+
+    if (!svgRef.current || !containerRef.current || (!hasMainData && !hasSplitData)) return;
 
     // Skip redraw if user is currently brushing to prevent visual disruption
     // (Panning should update live, so we don't skip for that)
@@ -99,12 +140,22 @@ export function TimeSeriesChart({
 
     const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
 
-    // Use displayPoints for rendering but full points extent for context
+    // Determine which data to use for scales and rendering
+    const useSplitData = hasSplitData;
     const pointsToRender = displayPoints.length > 0 ? displayPoints : points;
 
-    // Scales - timestamps are in seconds, convert to milliseconds for d3.scaleTime
-    const xExtent = d3.extent(pointsToRender, (d) => d.timestamp * 1000) as [number, number];
-    const yExtent = d3.extent(pointsToRender, (d) => d.value) as [number, number];
+    // Calculate extents - when split, combine all series for proper scaling
+    let xExtent: [number, number];
+    let yExtent: [number, number];
+
+    if (useSplitData && displaySplitSeries) {
+      const allPoints = displaySplitSeries.flatMap(s => s.points);
+      xExtent = d3.extent(allPoints, (d) => d.timestamp * 1000) as [number, number];
+      yExtent = d3.extent(allPoints, (d) => d.value) as [number, number];
+    } else {
+      xExtent = d3.extent(pointsToRender, (d) => d.timestamp * 1000) as [number, number];
+      yExtent = d3.extent(pointsToRender, (d) => d.value) as [number, number];
+    }
 
     // Add padding to y extent
     const yPadding = (yExtent[1] - yExtent[0]) * 0.1 || 1;
@@ -211,15 +262,59 @@ export function TimeSeriesChart({
       .line<Point>()
       .x((d) => xScale(d.timestamp * 1000))
       .y((d) => yScale(d.value))
-      .curve(d3.curveMonotoneX);
+      .curve(smoothLines ? d3.curveMonotoneX : d3.curveLinear);
 
-    // Draw the line
-    g.append('path')
-      .datum(pointsToRender)
-      .attr('fill', 'none')
-      .attr('stroke', '#8b5cf6')
-      .attr('stroke-width', 1.5)
-      .attr('d', line);
+    // Draw the line(s)
+    if (useSplitData && displaySplitSeries) {
+      // Draw multiple lines for split series
+      displaySplitSeries.forEach((series, idx) => {
+        if (series.points.length === 0) return;
+        const color = getLineColor(idx);
+        g.append('path')
+          .datum(series.points)
+          .attr('fill', 'none')
+          .attr('stroke', color)
+          .attr('stroke-width', 1.5)
+          .attr('d', line);
+      });
+
+      // Draw legend
+      const legendX = innerWidth - 10;
+      const legendY = 5;
+      const legendSpacing = 14;
+
+      displaySplitSeries.forEach((series, idx) => {
+        if (series.points.length === 0) return;
+        const color = getLineColor(idx);
+        const y = legendY + idx * legendSpacing;
+
+        // Color line
+        g.append('line')
+          .attr('x1', legendX - 35)
+          .attr('x2', legendX - 20)
+          .attr('y1', y)
+          .attr('y2', y)
+          .attr('stroke', color)
+          .attr('stroke-width', 2);
+
+        // Label
+        g.append('text')
+          .attr('x', legendX - 38)
+          .attr('y', y + 3)
+          .attr('text-anchor', 'end')
+          .attr('fill', '#94a3b8')
+          .attr('font-size', '9px')
+          .text(series.label.length > 20 ? series.label.slice(0, 20) + '…' : series.label);
+      });
+    } else {
+      // Draw single line
+      g.append('path')
+        .datum(pointsToRender)
+        .attr('fill', 'none')
+        .attr('stroke', '#8b5cf6')
+        .attr('stroke-width', 1.5)
+        .attr('d', line);
+    }
 
     // X axis
     g.append('g')
@@ -291,7 +386,7 @@ export function TimeSeriesChart({
       .attr('stroke', '#8b5cf6')
       .attr('stroke-width', 1);
 
-  }, [points, displayPoints, filteredAnomalies, correlationRanges, height, timeRange]);
+  }, [points, displayPoints, filteredAnomalies, correlationRanges, height, timeRange, smoothLines, displaySplitSeries]);
 
   // Handle resize
   useEffect(() => {
