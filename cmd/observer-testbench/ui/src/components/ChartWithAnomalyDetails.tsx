@@ -86,7 +86,7 @@ export function ChartWithAnomalyDetails({
               const isCUSUM = anomaly.analyzerName === 'cusum_detector';
 
               return (
-                <div key={`${anomaly.analyzerName}-${anomaly.timestamp}`} className="text-xs">
+                <div key={`${anomaly.analyzerName}-${anomaly.timestamp}-${idx}`} className="text-xs">
                   {/* Compact header */}
                   <button
                     onClick={() => setExpandedIndex(isExpanded ? null : idx)}

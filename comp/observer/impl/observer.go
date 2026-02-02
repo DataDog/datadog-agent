@@ -105,7 +105,12 @@ func NewComponent(deps Requires) Provides {
 		maxEvents: 1000, // Keep last 1000 events for debugging
 	}
 
-	obs.handleFunc = deps.Recorder.GetHandle(obs.innerHandle)
+	// If recorder is provided, wrap handles through it; otherwise use inner handle directly
+	if deps.Recorder != nil {
+		obs.handleFunc = deps.Recorder.GetHandle(obs.innerHandle)
+	} else {
+		obs.handleFunc = obs.innerHandle
+	}
 
 	cfg := pkgconfigsetup.Datadog()
 
