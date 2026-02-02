@@ -233,8 +233,8 @@ func newProvider(
 		cfg:                       cfg,
 		compression:               compression,
 
-		failoverEnabled:   cfg.GetBool("logs_config.pipeline_failover_enabled"),
-		failoverTimeoutMs: cfg.GetInt("logs_config.pipeline_failover_timeout_ms"),
+		failoverEnabled:   cfg.GetBool("logs_config.pipeline_failover.enabled"),
+		failoverTimeoutMs: cfg.GetInt("logs_config.pipeline_failover.timeout_ms"),
 		routerChannels:    make([]chan *message.Message, 0),
 	}
 }

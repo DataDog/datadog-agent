@@ -63,8 +63,8 @@ func createMockSender() sender.PipelineComponent {
 // createTestProviderWithFailover creates a test provider with failover enabled
 func createTestProviderWithFailover(t *testing.T, numberOfPipelines int, failoverTimeoutMs int) *provider {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("logs_config.pipeline_failover_enabled", true)
-	cfg.SetWithoutSource("logs_config.pipeline_failover_timeout_ms", failoverTimeoutMs)
+	cfg.SetWithoutSource("logs_config.pipeline_failover.enabled", true)
+	cfg.SetWithoutSource("logs_config.pipeline_failover.timeout_ms", failoverTimeoutMs)
 	cfg.SetWithoutSource("logs_config.message_channel_size", 10)
 
 	endpoints := config.NewMockEndpointsWithOptions([]config.Endpoint{config.NewMockEndpoint()}, map[string]interface{}{
@@ -216,8 +216,8 @@ func TestGracefulShutdown(t *testing.T) {
 // TestRouterChannelBufferSize verifies router channels use configured buffer size
 func TestRouterChannelBufferSize(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("logs_config.pipeline_failover_enabled", true)
-	cfg.SetWithoutSource("logs_config.pipeline_failover_timeout_ms", 10)
+	cfg.SetWithoutSource("logs_config.pipeline_failover.enabled", true)
+	cfg.SetWithoutSource("logs_config.pipeline_failover.timeout_ms", 10)
 	cfg.SetWithoutSource("logs_config.message_channel_size", 50)
 
 	endpoints := config.NewMockEndpointsWithOptions([]config.Endpoint{config.NewMockEndpoint()}, map[string]interface{}{
@@ -254,8 +254,8 @@ func TestRouterChannelBufferSize(t *testing.T) {
 // TestFailoverConfigurationParsed verifies config options are read correctly
 func TestFailoverConfigurationParsed(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("logs_config.pipeline_failover_enabled", true)
-	cfg.SetWithoutSource("logs_config.pipeline_failover_timeout_ms", 25)
+	cfg.SetWithoutSource("logs_config.pipeline_failover.enabled", true)
+	cfg.SetWithoutSource("logs_config.pipeline_failover.timeout_ms", 25)
 
 	endpoints := config.NewMockEndpointsWithOptions([]config.Endpoint{config.NewMockEndpoint()}, map[string]interface{}{
 		"use_http": true,

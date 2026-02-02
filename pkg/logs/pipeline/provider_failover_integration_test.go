@@ -37,8 +37,8 @@ func TestProviderFailoverIntegrationSuite(t *testing.T) {
 
 func (suite *ProviderFailoverIntegrationSuite) SetupTest() {
 	cfg := configmock.New(suite.T())
-	cfg.SetWithoutSource("logs_config.pipeline_failover_enabled", true)
-	cfg.SetWithoutSource("logs_config.pipeline_failover_timeout_ms", 5)
+	cfg.SetWithoutSource("logs_config.pipeline_failover.enabled", true)
+	cfg.SetWithoutSource("logs_config.pipeline_failover.timeout_ms", 5)
 	cfg.SetWithoutSource("logs_config.message_channel_size", 5)
 
 	endpoints := config.NewMockEndpointsWithOptions([]config.Endpoint{config.NewMockEndpoint()}, map[string]interface{}{
