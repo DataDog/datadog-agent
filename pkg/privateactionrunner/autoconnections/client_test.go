@@ -6,7 +6,12 @@
 package autoconnections
 
 import (
+	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/stretchr/testify/assert"
@@ -38,13 +43,14 @@ func TestBuildConnectionRequest_NoAdditionalFields(t *testing.T) {
 			AdditionalFields: nil,
 		},
 	}
-	runnerID := "runner-123"
-	name := "HTTP (runner-123)"
+	runnerID := "2112072a-b24c-4f23-b80e-d4e93484cf3a"
+	runnerName := "runner-123"
+	connectionName := "HTTP (runner-123)"
 
-	request := buildConnectionRequest(httpDef, runnerID, name)
+	request := buildConnectionRequest(httpDef, runnerID, runnerName)
 
 	assert.Equal(t, "action_connection", request.Data.Type)
-	assert.Equal(t, name, request.Data.Attributes.Name)
+	assert.Equal(t, connectionName, request.Data.Attributes.Name)
 	assert.Equal(t, runnerID, request.Data.Attributes.RunnerID)
 	assert.Equal(t, "HTTP", request.Data.Attributes.Integration.Type)
 	assert.Equal(t, "HTTPNoAuth", request.Data.Attributes.Integration.Credentials["type"])
@@ -62,17 +68,125 @@ func TestBuildConnectionRequest_WithAdditionalFields(t *testing.T) {
 			},
 		},
 	}
-	runnerID := "runner-456"
-	name := "Script (runner-456)"
+	runnerID := "2112072a-b24c-4f23-b80e-d4e93484cf3a"
+	runnerName := "runner-456"
+	connectionName := "Script (runner-456)"
 
-	request := buildConnectionRequest(scriptDef, runnerID, name)
+	request := buildConnectionRequest(scriptDef, runnerID, runnerName)
 
 	assert.Equal(t, "action_connection", request.Data.Type)
-	assert.Equal(t, name, request.Data.Attributes.Name)
+	assert.Equal(t, connectionName, request.Data.Attributes.Name)
 	assert.Equal(t, runnerID, request.Data.Attributes.RunnerID)
 	assert.Equal(t, "Script", request.Data.Attributes.Integration.Type)
 	assert.Equal(t, "Script", request.Data.Attributes.Integration.Credentials["type"])
 	assert.Equal(t, "/etc/dd-action-runner/config/credentials/script.yaml",
 		request.Data.Attributes.Integration.Credentials["configFileLocation"])
 	assert.Len(t, request.Data.Attributes.Integration.Credentials, 2)
+}
+
+func TestCreateConnection_Success(t *testing.T) {
+	var receivedMethod string
+	var receivedPath string
+	var receivedHeaders http.Header
+	var receivedBody string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedMethod = r.Method
+		receivedPath = r.URL.Path
+		receivedHeaders = r.Header
+
+		body, _ := io.ReadAll(r.Body)
+		receivedBody = string(body)
+
+		w.WriteHeader(http.StatusCreated)
+		w.Write([]byte(`{"data": {"id": "conn-123"}}`))
+	}))
+	defer server.Close()
+
+	client := &Client{
+		httpClient: &http.Client{Timeout: 10 * time.Second},
+		baseUrl:    server.URL,
+		apiKey:     "test-api-key",
+		appKey:     "test-app-key",
+	}
+
+	httpDef := ConnectionDefinition{
+		BundleID:        "com.datadoghq.http",
+		IntegrationType: "HTTP",
+		Credentials: CredentialConfig{
+			Type:             "HTTPNoAuth",
+			AdditionalFields: nil,
+		},
+	}
+
+	err := client.CreateConnection(context.Background(), httpDef, "runner-id-123", "runner-name-abc")
+
+	require.NoError(t, err)
+	assert.Equal(t, "POST", receivedMethod)
+	assert.Equal(t, "/api/v2/actions/connections", receivedPath)
+	assert.Equal(t, "test-api-key", receivedHeaders.Get("DD-API-KEY"))
+	assert.Equal(t, "test-app-key", receivedHeaders.Get("DD-APPLICATION-KEY"))
+	assert.Contains(t, receivedHeaders.Get("User-Agent"), "datadog-agent/")
+	assert.Contains(t, receivedBody, `"name":"HTTP (runner-name-abc)"`)
+	assert.Contains(t, receivedBody, `"runner_id":"runner-id-123"`)
+}
+
+func TestCreateConnection_ErrorResponses(t *testing.T) {
+	tests := []struct {
+		name          string
+		statusCode    int
+		responseBody  string
+		expectedError string
+	}{
+		{
+			name:          "400 Bad Request",
+			statusCode:    http.StatusBadRequest,
+			responseBody:  `{"errors": ["invalid request"]}`,
+			expectedError: "400",
+		},
+		{
+			name:          "403 Forbidden",
+			statusCode:    http.StatusForbidden,
+			responseBody:  `{"errors": ["forbidden"]}`,
+			expectedError: "403",
+		},
+		{
+			name:          "500 Internal Server Error",
+			statusCode:    http.StatusInternalServerError,
+			responseBody:  `{"errors": ["server error"]}`,
+			expectedError: "500",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tt.statusCode)
+				w.Write([]byte(tt.responseBody))
+			}))
+			defer server.Close()
+
+			client := &Client{
+				httpClient: &http.Client{Timeout: 10 * time.Second},
+				baseUrl:    server.URL,
+				apiKey:     "test-api-key",
+				appKey:     "test-app-key",
+			}
+
+			httpDef := ConnectionDefinition{
+				BundleID:        "com.datadoghq.http",
+				IntegrationType: "HTTP",
+				Credentials: CredentialConfig{
+					Type:             "HTTPNoAuth",
+					AdditionalFields: nil,
+				},
+			}
+
+			err := client.CreateConnection(context.Background(), httpDef, "runner-id-123", "runner-name-abc")
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.expectedError)
+			assert.Contains(t, err.Error(), tt.responseBody)
+		})
+	}
 }

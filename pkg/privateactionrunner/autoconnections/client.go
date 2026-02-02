@@ -64,7 +64,9 @@ type IntegrationConfig struct {
 	Credentials map[string]interface{} `json:"credentials"`
 }
 
-func buildConnectionRequest(definition ConnectionDefinition, runnerID, name string) ConnectionRequest {
+func buildConnectionRequest(definition ConnectionDefinition, runnerID, runnerName string) ConnectionRequest {
+	connectionName := GenerateConnectionName(definition, runnerName)
+
 	credentials := map[string]interface{}{
 		"type": definition.Credentials.Type,
 	}
@@ -77,7 +79,7 @@ func buildConnectionRequest(definition ConnectionDefinition, runnerID, name stri
 		Data: ConnectionRequestData{
 			Type: "action_connection",
 			Attributes: ConnectionRequestAttributes{
-				Name:     name,
+				Name:     connectionName,
 				RunnerID: runnerID,
 				Integration: IntegrationConfig{
 					Type:        definition.IntegrationType,
@@ -88,10 +90,8 @@ func buildConnectionRequest(definition ConnectionDefinition, runnerID, name stri
 	}
 }
 
-func (c *Client) CreateConnection(ctx context.Context, definition ConnectionDefinition, runnerID string) error {
-	name := GenerateConnectionName(definition, runnerID)
-
-	reqBody := buildConnectionRequest(definition, runnerID, name)
+func (c *Client) CreateConnection(ctx context.Context, definition ConnectionDefinition, runnerID, runnerName string) error {
+	reqBody := buildConnectionRequest(definition, runnerID, runnerName)
 
 	body, err := json.Marshal(reqBody)
 	if err != nil {
