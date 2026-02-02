@@ -56,11 +56,11 @@ func dockerAgentFullImagePath(e config.Env, repositoryPath, imageTag string, ote
 			tag += otelSuffix
 		}
 
-		exists, err := e.InternalRegistryImageTagExists(fmt.Sprintf("%s/agent", e.InternalRegistry()), tag)
+		exists, err := e.InternalRegistryImageTagExists(fmt.Sprintf("%s/agent-qa", e.InternalRegistry()), tag)
 		if err != nil || !exists {
-			panic(fmt.Sprintf("image %s/agent:%s not found in the internal registry", e.InternalRegistry(), tag))
+			panic(fmt.Sprintf("image %s/agent-qa:%s not found in the internal registry", e.InternalRegistry(), tag))
 		}
-		return utils.BuildDockerImagePath(fmt.Sprintf("%s/agent", e.InternalRegistry()), tag)
+		return utils.BuildDockerImagePath(fmt.Sprintf("%s/agent-qa", e.InternalRegistry()), tag)
 	}
 
 	if useOtel {
@@ -121,11 +121,11 @@ func dockerClusterAgentFullImagePath(e config.Env, repositoryPath string, fips b
 			tag += fipsSuffix
 		}
 
-		exists, err := e.InternalRegistryImageTagExists(fmt.Sprintf("%s/cluster-agent", e.InternalRegistry()), tag)
+		exists, err := e.InternalRegistryImageTagExists(fmt.Sprintf("%s/cluster-agent-qa", e.InternalRegistry()), tag)
 		if err != nil || !exists {
-			panic(fmt.Sprintf("image %s/cluster-agent:%s not found in the internal registry", e.InternalRegistry(), tag))
+			panic(fmt.Sprintf("image %s/cluster-agent-qa:%s not found in the internal registry", e.InternalRegistry(), tag))
 		}
-		return utils.BuildDockerImagePath(fmt.Sprintf("%s/cluster-agent", e.InternalRegistry()), tag)
+		return utils.BuildDockerImagePath(fmt.Sprintf("%s/cluster-agent-qa", e.InternalRegistry()), tag)
 	}
 
 	if useFips {
