@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	agentsidecar "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/agent_sidecar"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/appsec"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoscaling"
 	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
@@ -142,6 +143,10 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 	// Setup autoscaling webhook.
 	autoscalingWebhook := autoscaling.NewWebhook(pa, datadogConfig)
 	webhooks = append(webhooks, autoscalingWebhook)
+
+	// Setup appsec proxy webhook.
+	appsecWebhook := appsec.NewWebhook(datadogConfig)
+	webhooks = append(webhooks, appsecWebhook)
 
 	// Setup APM Instrumentation webhook. APM Instrumentation webhook needs to be registered after the config webhook.
 	apmWebhook, err := autoinstrumentation.NewAutoInstrumentation(datadogConfig, wmeta, rcClient)

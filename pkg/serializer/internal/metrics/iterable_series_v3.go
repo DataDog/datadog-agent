@@ -124,7 +124,6 @@ type payloadsBuilderV3 struct {
 	deltaNameRef           deltaEncoder
 	deltaTagsRef           deltaEncoder
 	deltaResourcesRef      deltaEncoder
-	deltaInterval          deltaEncoder
 	deltaTimestamp         deltaEncoder
 	deltaSourceTypeNameRef deltaEncoder
 	deltaOriginRef         deltaEncoder
@@ -297,7 +296,6 @@ func (pb *payloadsBuilderV3) reset() {
 	pb.deltaNameRef.reset()
 	pb.deltaTagsRef.reset()
 	pb.deltaResourcesRef.reset()
-	pb.deltaInterval.reset()
 	pb.deltaTimestamp.reset()
 	pb.deltaSourceTypeNameRef.reset()
 	pb.deltaOriginRef.reset()
@@ -404,7 +402,7 @@ func (pb *payloadsBuilderV3) writeMetricCommon(
 ) {
 	pb.txn.Sint64(columnNameRef, pb.deltaNameRef.encode(pb.dict.internName(name)))
 	pb.txn.Sint64(columnTagsRef, pb.deltaTagsRef.encode(pb.dict.internTags(tags)))
-	pb.txn.Sint64(columnInterval, pb.deltaInterval.encode(interval))
+	pb.txn.Int64(columnInterval, interval)
 
 	pb.txn.Sint64(columnResourcesRef,
 		pb.deltaResourcesRef.encode(pb.dict.internResources(pb.resourcesBuf)))
