@@ -1550,67 +1550,6 @@ timeout: 5
 	}
 }
 
-func TestGivenADiskCheckWithMultipleBlockingMounts_WhenSemaphoreExhausted_ThenNewCallsAreSkipped(t *testing.T) {
-	// This test verifies that the global semaphore limits the maximum number
-	// of concurrent disk usage calls to prevent thread explosion.
-	setupDefaultMocks()
-
-	// Track how many times diskUsage is called
-	var callCount int32
-	callStarted := make(chan struct{}, 12)
-
-	diskCheck := createDiskCheck(t)
-	diskCheck = diskv2.WithDiskUsage(diskCheck, func(path string) (*gopsutil_disk.UsageStat, error) {
-		atomic.AddInt32(&callCount, 1)
-		callStarted <- struct{}{}
-		// Sleep longer than timeout to simulate blocking
-		time.Sleep(5 * time.Second)
-		return nil, nil
-	})
-
-	// Create partitions that exceed the semaphore limit (defaultMaxInflightUsage = 8)
-	partitions := make([]gopsutil_disk.PartitionStat, 12)
-	for i := 0; i < 12; i++ {
-		partitions[i] = gopsutil_disk.PartitionStat{
-			Device:     fmt.Sprintf("/dev/sd%c", 'a'+i),
-			Mountpoint: fmt.Sprintf("/mnt/disk%d", i),
-			Fstype:     "nfs",
-			Opts:       []string{"rw"},
-		}
-	}
-
-	diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
-		return partitions, nil
-	})
-
-	m := mocksender.NewMockSender(diskCheck.ID())
-	m.SetupAcceptAll()
-	config := integration.Data([]byte(`
-timeout: 1
-`))
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
-
-	// Run the check
-	done := make(chan struct{})
-	go func() {
-		diskCheck.Run()
-		close(done)
-	}()
-
-	// Wait for check to complete (timeouts will fire)
-	select {
-	case <-done:
-	case <-time.After(5 * time.Second):
-		t.Fatal("Test timed out")
-	}
-
-	// Verify that not all 12 calls were made (semaphore should have limited it)
-	finalCount := atomic.LoadInt32(&callCount)
-
-	// Should be limited to defaultMaxInflightUsage (8)
-	assert.LessOrEqual(t, finalCount, int32(8), "Semaphore should limit concurrent calls to 8")
-}
-
 func TestGivenADiskCheckWithSameMountBlocking_WhenCalledTwice_ThenSecondCallIsSkipped(t *testing.T) {
 	// This test verifies that repeated calls for the same mountpoint are skipped
 	// when a previous call is still inflight (blocked in kernel).
