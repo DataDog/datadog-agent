@@ -203,7 +203,7 @@ func getTagsWithClient(ctx context.Context, client *ec2.Client, instanceIdentity
 	ctx, cancel := context.WithTimeout(ctx, pkgconfigsetup.Datadog().GetDuration("ec2_metadata_timeout")*time.Millisecond)
 	defer cancel()
 
-	out, err := client.DescribeTags(ctx,
+	describeTagsOutput, err := client.DescribeTags(ctx,
 		&ec2.DescribeTagsInput{
 			Filters: []types.Filter{{
 				Name: aws.String("resource-id"),
@@ -219,7 +219,7 @@ func getTagsWithClient(ctx context.Context, client *ec2.Client, instanceIdentity
 	}
 
 	tags := []string{}
-	for _, tag := range out.Tags {
+	for _, tag := range describeTagsOutput.Tags {
 		if isTagExcluded(*tag.Key) {
 			continue
 		}
