@@ -115,6 +115,7 @@ tests_linux-arm64-py3:
   extends:
     - .rtloader_tests
     - .linux_tests
+  needs: ["go_deps", "go_tools_deps_arm64"]
   before_script:
     - !reference [.retrieve_linux_go_tools_deps_arm64]
   after_script:
