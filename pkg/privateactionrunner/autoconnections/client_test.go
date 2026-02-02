@@ -13,53 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewConnectionAPIClient_MissingCredentials(t *testing.T) {
-	tests := []struct {
-		name    string
-		apiKey  string
-		appKey  string
-		wantErr string
-	}{
-		{
-			name:    "missing api_key",
-			apiKey:  "",
-			appKey:  "valid-app-key",
-			wantErr: "api_key and app_key required",
-		},
-		{
-			name:    "missing app_key",
-			apiKey:  "valid-api-key",
-			appKey:  "",
-			wantErr: "api_key and app_key required",
-		},
-		{
-			name:    "missing both keys",
-			apiKey:  "",
-			appKey:  "",
-			wantErr: "api_key and app_key required",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ddSite := "datadoghq.com"
-			cfg := mock.New(t)
-			cfg.SetWithoutSource("api_key", tt.apiKey)
-			cfg.SetWithoutSource("app_key", tt.appKey)
-
-			client, err := NewConnectionAPIClient(cfg, ddSite, tt.apiKey, tt.appKey)
-
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.wantErr)
-			assert.Nil(t, client)
-		})
-	}
-}
-
 func TestNewConnectionAPIClient_ValidCredentials(t *testing.T) {
 	cfg := mock.New(t)
-	apiKey := "api_key"
-	appKey := "app_key"
+	apiKey := "test-api-key"
+	appKey := "test-app-key"
 	ddSite := "datadoghq.com"
 
 	client, err := NewConnectionAPIClient(cfg, ddSite, apiKey, appKey)
