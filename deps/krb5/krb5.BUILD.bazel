@@ -60,6 +60,9 @@ configure_make(
     deps = [
         "@openssl//:openssl",
     ],
+    dynamic_deps = [
+        "@openssl//:openssl_shared",
+    ],
     out_binaries = [
         "kinit",
     ],
