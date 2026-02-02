@@ -407,7 +407,7 @@ func (r *secretResolver) SubscribeToChanges(cb secrets.SecretChangeCallback) {
 // We enforce 3 type of limitation (each giving different level of control to the user). These limitations
 // are active when using either:
 // `k8s_secret@namespace/secret-name/key`
-// `namespace/secret-name;key` (for datadog-secret-backend)
+// `namespace/secret-name;key` (for secret-generic-connector)
 //
 // The levels are:
 // - secret_scope_integration_to_their_k8s_namespace: containers can only access secret from their own namespace
@@ -926,7 +926,7 @@ func (r *secretResolver) getDebugInfo(stats map[string]interface{}, includeVersi
 	stats["refreshIntervalEnabled"] = r.refreshInterval > 0
 	if r.refreshInterval > 0 {
 		stats["refreshInterval"] = r.refreshInterval.String()
-		stats["scatterDuration"] = r.scatterDuration.String()
+		stats["scatterDuration"] = fmt.Sprintf("%.2fs", r.scatterDuration.Seconds())
 	}
 
 	stats["unresolvedSecrets"] = r.unresolvedSecrets

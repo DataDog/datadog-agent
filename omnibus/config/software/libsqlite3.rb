@@ -1,7 +1,6 @@
 name "libsqlite3"
 default_version "3.50.4"
 
-dependency "config_guess"
 dependency "zlib"
 
 source url: "https://sqlite.org/2025/sqlite-autoconf-3500400.tar.gz",

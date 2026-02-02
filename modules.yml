@@ -170,6 +170,8 @@ modules:
     used_by_otel: true
   pkg/collector/check/defaults:
     used_by_otel: true
+  pkg/config/basic:
+    used_by_otel: true
   pkg/config/create:
     used_by_otel: true
   pkg/config/env:
@@ -200,9 +202,6 @@ modules:
     used_by_otel: true
   pkg/gohai:
     used_by_otel: true
-  pkg/linters/components/pkgconfigusage:
-    independent: false
-    should_tag: false
   pkg/logs/client:
     used_by_otel: true
   pkg/logs/diagnostic:

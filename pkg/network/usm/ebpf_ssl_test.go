@@ -46,7 +46,7 @@ func setNativeTLSPeriodicTerminatedProcessesScanInterval(tb testing.TB, interval
 }
 
 func testArch(t *testing.T, arch string) {
-	cfg := utils.NewUSMEmptyConfig()
+	cfg := NewUSMEmptyConfig()
 	cfg.EnableNativeTLSMonitoring = true
 
 	utils.SkipIfTLSUnsupported(t, cfg)
@@ -100,7 +100,7 @@ func findNonExistingPid(t *testing.T) int {
 func TestSSLMapsCleaner(t *testing.T) {
 	setNativeTLSPeriodicTerminatedProcessesScanInterval(t, time.Second)
 	// setup monitor
-	cfg := utils.NewUSMEmptyConfig()
+	cfg := NewUSMEmptyConfig()
 	cfg.EnableNativeTLSMonitoring = true
 	// test cleanup is faster without event stream, this test does not require event stream
 	cfg.EnableUSMEventStream = false
@@ -225,9 +225,9 @@ func startDummyProgram(t *testing.T) (*exec.Cmd, context.CancelFunc) {
 // correctly removes entries from the ssl_sock_by_ctx and ssl_ctx_by_tuple maps
 // when the TCP connection associated with a TLS session is closed.
 func TestSSLMapsCleanup(t *testing.T) {
-	utils.SkipIfTLSUnsupported(t, utils.NewUSMEmptyConfig())
+	utils.SkipIfTLSUnsupported(t, NewUSMEmptyConfig())
 
-	cfg := utils.NewUSMEmptyConfig()
+	cfg := NewUSMEmptyConfig()
 	cfg.EnableNativeTLSMonitoring = true
 	cfg.EnableHTTPMonitoring = true
 	usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)

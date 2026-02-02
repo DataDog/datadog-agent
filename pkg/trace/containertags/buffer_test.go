@@ -253,7 +253,7 @@ func TestAsyncEnrichment_Buffered_HardLimit(t *testing.T) {
 	}
 
 	ctb := newContainerTagsBuffer(conf, &statsd.NoOpClient{})
-	ctb.hardTimeLimit = 1 * time.Nanosecond
+	ctb.hardTimeLimit = 100 * time.Millisecond
 	ctb.Start()
 
 	resultChan := make(chan []string, 1)
