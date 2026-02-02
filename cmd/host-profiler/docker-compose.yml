@@ -37,8 +37,6 @@ services:
     secrets:
       - dd-api-key
       - dd-app-key
-    entrypoint: ['/app/tools/host-profiler/entrypoint.sh']
-    command: ['/app/tools/host-profiler/launch.sh']
 
 volumes:
   agent-ipc:
