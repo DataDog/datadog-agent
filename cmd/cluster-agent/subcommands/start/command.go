@@ -68,12 +68,14 @@ import (
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	privateactionrunnerfx "github.com/DataDog/datadog-agent/comp/privateactionrunner/fx"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/mcp"
 
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	metadatarunner "github.com/DataDog/datadog-agent/comp/metadata/runner"
 	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
 	rccomp "github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
@@ -203,6 +205,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				autodiscoveryimpl.Module(),
 				rcserviceimpl.Module(),
+				rcclientimpl.Module(),
 				rctelemetryreporterimpl.Module(),
 				fx.Provide(func(config config.Component) healthprobe.Options {
 					return healthprobe.Options{
@@ -245,6 +248,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 				clusterchecksmetadatafx.Module(),
 				ipcfx.ModuleReadWrite(),
+				privateactionrunnerfx.Module(),
 			)
 		},
 	}
