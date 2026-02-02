@@ -29,11 +29,13 @@ def _cc_shared_library_wrapper_impl(ctx):
 cc_shared_library_wrapper = rule(
     implementation = _cc_shared_library_wrapper_impl,
     attrs = {
-        "input": attr.label(providers=[CcInfo]),
+        "input": attr.label(
+            mandatory = True,
+            providers = [CcInfo],
+            doc = "Input label from which to generate a `CcSharedLibraryInfo`",
+        ),
     },
-    doc = """
-    Creates a `CcSharedLibraryInfo` provider out of a `CcInfo` one.
-    It's use case comes from wanting to wire a rules_foreign_cc target to a cc_shared_library's
-    dynamic_deps, particularly when said target produces several libraries.
-    """,
+    doc = """Creates a `CcSharedLibraryInfo` provider out of a `CcInfo` one.
+It's use case comes from wanting to wire a rules_foreign_cc target to a cc_shared_library's
+dynamic_deps, particularly when said target produces several libraries.""",
 )
