@@ -32,8 +32,8 @@ func TestStatusProvider(t *testing.T) {
 				"external_metrics_provider.enabled": true,
 				"external_metrics_provider.endpoints": []map[string]interface{}{
 					{
-						"site": "api.datadoghq.eu",
-						"url": "https://api.datadoghq.eu.",
+						"site":    "api.datadoghq.eu",
+						"url":     "https://api.datadoghq.eu.",
 						"api_key": "12345",
 						"app_key": "67890",
 					},

@@ -40,8 +40,8 @@ func TestNewFallbackClient(t *testing.T) {
 	cfg.SetWithoutSource(metricsRedundantEndpointConfig,
 		[]map[string]interface{}{
 			{
-				"site": "api.datadoghq.eu",
-				"url": "https://api.datadoghq.eu",
+				"site":    "api.datadoghq.eu",
+				"url":     "https://api.datadoghq.eu",
 				"api_key": "12345",
 				"app_key": "67890",
 			},
