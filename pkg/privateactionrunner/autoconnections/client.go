@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,26 +21,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-// httpDoer is an interface for making HTTP requests
-type httpDoer interface {
+type httpClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
-// Client is an HTTP client for the Connections API
 type Client struct {
-	httpClient httpDoer
+	httpClient httpClient
 	endpoint   string
 	apiKey     string
 	appKey     string
 }
 
-// NewConnectionAPIClient creates a new HTTP client for the Connections API
 func NewConnectionAPIClient(cfg model.Reader) (*Client, error) {
 	// 1. Validate credentials
 	apiKey := utils.SanitizeAPIKey(cfg.GetString("api_key"))
 	appKey := utils.SanitizeAPIKey(cfg.GetString("app_key"))
 	if apiKey == "" || appKey == "" {
-		return nil, fmt.Errorf("api_key and app_key required")
+		return nil, errors.New("api_key and app_key required")
 	}
 
 	// 2. Resolve endpoint
