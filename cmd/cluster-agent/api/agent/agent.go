@@ -230,7 +230,7 @@ func getWorkloadList(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.
 	structured := params.Get("format") == "json"
 	search := params.Get("search")
 
-	var response interface{}
+	var response any
 	if structured {
 		// Use structured format for JSON
 		structuredResp := wmeta.DumpStructured(verbose)
@@ -340,4 +340,3 @@ func getLocalAutoscalingWorkloadCheck(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Write(jsonResponse)
 }
-

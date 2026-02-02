@@ -401,8 +401,25 @@ func (suite *k8sSuite) testAgentCLI() {
 		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "workload-list", "--json", "container"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `agent workload-list --json container` should be empty")
+		// Search term "container" uses substring matching on kind names
+		// Should match "container" and may also match "container_image_metadata" if present
 		suite.Contains(stdout, `"container"`)
+		// Should not match kinds that don't contain "container" substring
 		suite.NotContains(stdout, `"kubernetes_pod"`)
+		suite.NotContains(stdout, `"ecs_task"`)
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
+	})
+
+	suite.Run("agent workload-list --json kubernetes_pod", func() {
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "workload-list", "--json", "kubernetes_pod"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `agent workload-list --json kubernetes_pod` should be empty")
+		// Should match "kubernetes_pod" kind
+		suite.Contains(stdout, `"kubernetes_pod"`)
+		// Should not match "container" since "kubernetes_pod" doesn't contain "container"
+		suite.NotContains(stdout, `"container"`)
 		if suite.T().Failed() {
 			suite.T().Log(stdout)
 		}

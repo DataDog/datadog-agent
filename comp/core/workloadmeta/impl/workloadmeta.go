@@ -125,7 +125,7 @@ func (w *workloadmeta) writeResponse(writer http.ResponseWriter, r *http.Request
 	structured := params.Get("format") == "json"
 	search := params.Get("search")
 
-	var response interface{}
+	var response any
 	if structured {
 		// Use structured format for JSON
 		structuredResp := w.DumpStructured(verbose)
