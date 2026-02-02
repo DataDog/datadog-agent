@@ -290,7 +290,7 @@ func addProfilerMetadataTags(conf confMap) error {
 		return err
 	}
 
-	resourceProcessorName := "resource/default"
+	resourceProcessorName := "resource/host-profiler-default"
 	isResourceProcessorInPipeline := false
 	for _, processorAny := range processors {
 		// by that point, processors pipeline has been verified to be only strings

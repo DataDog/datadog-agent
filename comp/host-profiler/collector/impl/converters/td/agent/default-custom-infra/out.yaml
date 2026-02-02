@@ -7,7 +7,7 @@ processors:
         allow_hostname_override: true
     infraattributes/custom:
         allow_hostname_override: true
-    resource/default:
+    resource/host-profiler-default:
         attributes:
             - action: upsert
               key: profiler_name
@@ -30,6 +30,6 @@ service:
             processors:
                 - infraattributes
                 - infraattributes/custom
-                - resource/default
+                - resource/host-profiler-default
             receivers:
                 - hostprofiler

@@ -5,7 +5,7 @@ exporters:
 processors:
     infraattributes/default:
         allow_hostname_override: true
-    resource/default:
+    resource/host-profiler-default:
         attributes:
             - action: upsert
               key: profiler_name
@@ -31,6 +31,6 @@ service:
                 - otlphttp
             processors:
                 - infraattributes/default
-                - resource/default
+                - resource/host-profiler-default
             receivers:
                 - hostprofiler

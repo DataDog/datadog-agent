@@ -8,7 +8,7 @@ processors:
         allow_hostname_override: true
     infraattributes_custom: {}
     myresourcedetection: {}
-    resource/default:
+    resource/host-profiler-default:
         attributes:
             - action: upsert
               key: profiler_name
@@ -33,6 +33,6 @@ service:
                 - myresourcedetection
                 - batch
                 - infraattributes/default
-                - resource/default
+                - resource/host-profiler-default
             receivers:
                 - hostprofiler
