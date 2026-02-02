@@ -2320,6 +2320,12 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor10
 			} else {
 				out.Enabled = bool(in.Bool())
 			}
+		case "field":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Field = string(in.String())
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -2339,6 +2345,16 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor10
 		first = false
 		out.RawString(prefix[1:])
 		out.Bool(bool(in.Enabled))
+	}
+	if in.Field != "" {
+		const prefix string = ",\"field\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.Field))
 	}
 	out.RawByte('}')
 }
