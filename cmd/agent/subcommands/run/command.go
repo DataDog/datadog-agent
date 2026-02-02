@@ -591,7 +591,7 @@ func startAgent(
 	ipc ipc.Component,
 	snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component,
-	connForwarder option.Option[connectionsforwarder.Component],
+	_ option.Option[connectionsforwarder.Component],
 ) error {
 	var err error
 

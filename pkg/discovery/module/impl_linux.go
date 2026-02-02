@@ -958,9 +958,9 @@ processLoop:
 				// Reply.Dst is the translated source (what the source becomes)
 				// Reply.Src is the translated destination (what the destination becomes)
 				translations[key] = &network.IPTranslation{
-					ReplSrcIP:   util.Address{conn.Reply.Dst.Addr()},
+					ReplSrcIP:   util.Address{Addr: conn.Reply.Dst.Addr()},
 					ReplSrcPort: conn.Reply.Dst.Port(),
-					ReplDstIP:   util.Address{conn.Reply.Src.Addr()},
+					ReplDstIP:   util.Address{Addr: conn.Reply.Src.Addr()},
 					ReplDstPort: conn.Reply.Src.Port(),
 				}
 			}
@@ -971,7 +971,7 @@ processLoop:
 
 		case <-timeoutTimer.C:
 			log.Warnf("Conntrack dump timed out after 5 seconds")
-			return translations, fmt.Errorf("timeout")
+			return translations, errors.New("timeout")
 		}
 	}
 
@@ -994,7 +994,7 @@ processLoop:
 
 // translateConnectionWithMap applies NAT translation from the conntrack lookup map
 func translateConnectionWithMap(conn *model.Connection, translations map[connKey]*network.IPTranslation) {
-	if translations == nil || len(translations) == 0 {
+	if len(translations) == 0 {
 		return
 	}
 

@@ -10,6 +10,7 @@
 package connections
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -93,7 +94,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		sysprobeclient.WithSocketPath(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
 	)
 
-	c.hostname, err = hostname.Get(nil)
+	c.hostname, err = hostname.Get(context.TODO())
 	if err != nil {
 		log.Warnf("Error getting hostname: %v", err)
 		c.hostname = "unknown"
