@@ -42,6 +42,7 @@ from tasks import (
     invoke_unit_tests,
     issue,
     k8s_versions,
+    kind_node_image,
     kmt,
     linter,
     loader,
@@ -119,10 +120,15 @@ from tasks.install_tasks import (
     download_tools,
     install_devcontainer_cli,
     install_protoc,
+    install_rust_license_tool,
     install_shellcheck,
     install_tools,
 )
 from tasks.junit_tasks import junit_upload
+from tasks.licenses import (
+    generate_rust_licenses,
+    lint_rust_licenses,
+)
 from tasks.show_linters_issues.show_linters_issues import show_linters_issues
 from tasks.update_go import go_version, update_go
 from tasks.windows_resources import build_messagetable
@@ -139,6 +145,8 @@ ns.add_task(deps)
 ns.add_task(deps_vendored)
 ns.add_task(lint_licenses)
 ns.add_task(generate_licenses)
+ns.add_task(lint_rust_licenses)
+ns.add_task(generate_rust_licenses)
 ns.add_task(lint_components)
 ns.add_task(lint_fxutil_oneshot_test)
 ns.add_task(reset)
@@ -150,6 +158,7 @@ ns.add_task(print_default_build_tags)
 ns.add_task(e2e_tests)
 ns.add_task(install_shellcheck)
 ns.add_task(install_protoc)
+ns.add_task(install_rust_license_tool)
 ns.add_task(install_devcontainer_cli)
 ns.add_task(download_tools)
 ns.add_task(install_tools)
@@ -232,6 +241,7 @@ ns.add_collection(new_e2e_tests)
 ns.add_collection(fakeintake)
 ns.add_collection(kmt)
 ns.add_collection(k8s_versions)
+ns.add_collection(kind_node_image)
 ns.add_collection(diff)
 ns.add_collection(installer)
 ns.add_collection(owners)
