@@ -32,7 +32,7 @@ func TestNewWebhook(t *testing.T) {
 	tests := []struct {
 		name           string
 		config         map[string]any
-		expectNil      bool
+		expectDisabled bool
 		expectEnabled  bool
 		expectEndpoint string
 	}{
@@ -41,21 +41,21 @@ func TestNewWebhook(t *testing.T) {
 			config: map[string]any{
 				"cluster_agent.appsec.injector.mode": "external",
 			},
-			expectNil: true,
+			expectDisabled: true,
 		},
 		{
 			name: "webhook nil when mode is not sidecar",
 			config: map[string]any{
 				"cluster_agent.appsec.injector.mode": "invalid",
 			},
-			expectNil: true,
+			expectDisabled: true,
 		},
 		{
 			name: "webhook created for sidecar mode",
 			config: map[string]any{
 				"cluster_agent.appsec.injector.mode": "sidecar",
 			},
-			expectNil:      false,
+			expectDisabled: false,
 			expectEnabled:  false, // Enabled depends on patterns available
 			expectEndpoint: "/appsec-proxies",
 		},
@@ -66,8 +66,8 @@ func TestNewWebhook(t *testing.T) {
 			mockConfig := common.FakeConfigWithValues(t, tt.config)
 			webhook := NewWebhook(mockConfig)
 
-			if tt.expectNil {
-				assert.Nil(t, webhook)
+			if tt.expectDisabled {
+				assert.False(t, webhook.isEnabled)
 			} else {
 				require.NotNil(t, webhook)
 				assert.Equal(t, tt.expectEndpoint, webhook.Endpoint())

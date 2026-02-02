@@ -45,7 +45,7 @@ var (
 
 type leaderNotifier func() (<-chan struct{}, func() bool)
 
-// Start initializes and starts the proxy injector. Must be run before starting the admissiong controller as the singleton
+// Start initializes and starts the proxy injector. Must be run before starting the admission controller as the singleton
 // is used in there
 func Start(ctx context.Context, logger logComp.Component, datadogConfig config.Component, leaderSub leaderNotifier) error {
 	if injector != nil {
@@ -362,7 +362,7 @@ func GetSidecarPatterns() []appsecconfig.SidecarInjectionPattern {
 	// Only return patterns for enabled proxies
 	for proxyType, pattern := range injector.patterns {
 		// Check if pattern is in SIDECAR mode and implements SidecarInjectionPattern
-		if pattern.Mode() == appsecconfig.InjectionModeSidecar {
+		if _, enabled := injector.config.Proxies[proxyType]; enabled && pattern.Mode() == appsecconfig.InjectionModeSidecar {
 			if sidecarPattern, ok := pattern.(appsecconfig.SidecarInjectionPattern); ok {
 				sidecarPatterns = append(sidecarPatterns, sidecarPattern)
 				injector.logger.Debugf("Gathering sidecar pattern for proxy type: %s", proxyType)

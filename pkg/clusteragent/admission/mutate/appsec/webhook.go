@@ -44,10 +44,6 @@ type Webhook struct {
 
 // NewWebhook creates a new appsec sidecar webhook
 func NewWebhook(config config.Component) *Webhook {
-	if appsecconfig.InjectionMode(config.GetString("cluster_agent.appsec.injector.mode")) != appsecconfig.InjectionModeSidecar {
-		return nil
-	}
-
 	mutatorFilter := newMutationFilter()
 
 	configMutators := mutatecommon.NewMutators(
@@ -56,7 +52,6 @@ func NewWebhook(config config.Component) *Webhook {
 	)
 
 	patterns := appsec.GetSidecarPatterns()
-
 	return &Webhook{
 		name:          webhookName,
 		isEnabled:     len(patterns) > 0,

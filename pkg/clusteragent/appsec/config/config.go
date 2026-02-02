@@ -105,7 +105,7 @@ type Product struct {
 	// AutoDetect tries to find all currently installed integration that could be enabled and enables them.
 	AutoDetect bool
 
-	// Proxies are manually set by the user to be enabled is the auto-detection is disabled
+	// Proxies are manually set by the user to be enabled if the auto-detection is disabled
 	Proxies map[ProxyType]struct{}
 
 	// Mode determines how the processor is deployed
@@ -217,6 +217,10 @@ func FromComponent(cfg config.Component, logger log.Component) Config {
 
 	mode := InjectionMode(strings.ToLower(cfg.GetString("cluster_agent.appsec.injector.mode")))
 	switch mode {
+	default:
+		logger.Warnf("Invalid appsec proxy injection mode: %q (defaults to sidecar mode)", mode)
+		mode = InjectionModeSidecar
+		fallthrough
 	case InjectionModeSidecar:
 		staticAnnotations[AppsecProcessorResourceAnnotation] = "localhost"
 		// Validate required sidecar configuration
@@ -229,9 +233,6 @@ func FromComponent(cfg config.Component, logger log.Component) Config {
 		if processor.ServiceName == "" {
 			logger.Error("processor.service.name is required for EXTERNAL mode")
 		}
-	default:
-		logger.Warnf("Invalid appsec proxy injection mode: %q (defaults to sidecar mode)", mode)
-		mode = InjectionModeSidecar
 	}
 
 	maps.Copy(staticLabels, cfg.GetStringMapString("cluster_agent.appsec.injector.labels"))

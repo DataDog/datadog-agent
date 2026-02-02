@@ -144,9 +144,9 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 	autoscalingWebhook := autoscaling.NewWebhook(pa, datadogConfig)
 	webhooks = append(webhooks, autoscalingWebhook)
 
-	if appsecWebhook := appsec.NewWebhook(datadogConfig); appsecWebhook != nil {
-		webhooks = append(webhooks, appsecWebhook)
-	}
+	// Setup appsec proxy webhook.
+	appsecWebhook := appsec.NewWebhook(datadogConfig)
+	webhooks = append(webhooks, appsecWebhook)
 
 	// Setup APM Instrumentation webhook. APM Instrumentation webhook needs to be registered after the config webhook.
 	apmWebhook, err := autoinstrumentation.NewAutoInstrumentation(datadogConfig, wmeta, rcClient)
