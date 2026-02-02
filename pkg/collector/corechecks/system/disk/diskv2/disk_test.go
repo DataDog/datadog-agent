@@ -1558,7 +1558,7 @@ func TestGivenADiskCheckWithSameMountBlocking_WhenCalledTwice_ThenSecondCallIsSk
 	callStarted := make(chan struct{}, 1)
 
 	diskCheck := createDiskCheck(t)
-	diskCheck = diskv2.WithDiskUsage(diskCheck, func(path string) (*gopsutil_disk.UsageStat, error) {
+	diskCheck = diskv2.WithDiskUsage(diskCheck, func(_ string) (*gopsutil_disk.UsageStat, error) {
 		atomic.AddInt32(&callCount, 1)
 		callStarted <- struct{}{}
 		// Sleep longer than timeout
