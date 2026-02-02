@@ -17,9 +17,11 @@ import (
 	"github.com/cenkalti/backoff/v5"
 	"golang.org/x/sys/windows"
 
+	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	winevtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
+	evtbookmark "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
 	evtsubscribe "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription"
 )
 
@@ -48,6 +50,40 @@ type eventKey struct {
 	EventID  uint
 }
 
+// bookmarkPersistentCacheKey is the key used to store the bookmark in persistent cache
+// Stores in path: run/notable_events/event_log_bookmark
+const bookmarkPersistentCacheKey = "notable_events:event_log_bookmark"
+
+// persistentCacheSaver implements evtbookmark.Saver using the Agent's persistent cache.
+type persistentCacheSaver struct {
+	key string
+}
+
+// newPersistentCacheSaver creates a new persistentCacheSaver with the given cache key.
+func newPersistentCacheSaver(key string) evtbookmark.Saver {
+	return &persistentCacheSaver{key: key}
+}
+
+// Save writes the bookmark XML to the persistent cache.
+func (s *persistentCacheSaver) Save(bookmarkXML string) error {
+	err := persistentcache.Write(s.key, bookmarkXML)
+	if err != nil {
+		return fmt.Errorf("failed to write bookmark to persistent cache: %w", err)
+	}
+	return nil
+}
+
+// Load reads the bookmark XML from the persistent cache.
+func (s *persistentCacheSaver) Load() (string, error) {
+	bookmarkXML, err := persistentcache.Read(s.key)
+	if err != nil {
+		// persistentcache.Read() does not return error if key does not exist,
+		// but we'll handle any other errors
+		return "", fmt.Errorf("failed to read bookmark from persistent cache: %w", err)
+	}
+	return bookmarkXML, nil
+}
+
 // collector monitors Windows Event Log for notable events
 type collector struct {
 	// in
@@ -57,9 +93,11 @@ type collector struct {
 	// out
 	outChan chan<- eventPayload
 	// internal
-	sub    evtsubscribe.PullSubscription
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
+	sub             evtsubscribe.PullSubscription
+	cancel          context.CancelFunc
+	wg              sync.WaitGroup
+	bookmarkSaver   evtbookmark.Saver
+	bookmarkManager evtbookmark.Manager
 }
 
 // getEventDefinitions returns the list of notable events to collect
@@ -167,11 +205,22 @@ func newCollector(outChan chan<- eventPayload) (*collector, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to build event lookup: %w", err)
 	}
+
+	api := winevtapi.New()
+	bookmarkSaver := newPersistentCacheSaver(bookmarkPersistentCacheKey)
+	bookmarkManager := evtbookmark.NewManager(evtbookmark.Config{
+		API:               api,
+		Saver:             bookmarkSaver,
+		BookmarkFrequency: 1,
+	})
+
 	return &collector{
-		api:         winevtapi.New(),
-		query:       buildQuery(events),
-		outChan:     outChan,
-		eventLookup: lookup,
+		api:             api,
+		query:           buildQuery(events),
+		outChan:         outChan,
+		eventLookup:     lookup,
+		bookmarkSaver:   bookmarkSaver,
+		bookmarkManager: bookmarkManager,
 	}, nil
 }
 
@@ -183,11 +232,12 @@ func (c *collector) start() error {
 
 	// Create subscription object (will be started in the event loop)
 	c.sub = evtsubscribe.NewPullSubscription(
-		"", // empty chennel path when XML query is used
+		"", // empty channel path when XML query is used
 		c.query,
 		evtsubscribe.WithWindowsEventLogAPI(c.api),
+		evtsubscribe.WithBookmarkSaver(c.bookmarkSaver),
+		evtsubscribe.WithStartMode("now"), // Start from latest event when no bookmark exists
 	)
-
 	log.Debugf("Initialized Windows Event Log subscription: query=%s", c.query)
 
 	// Start processing events in background
@@ -203,6 +253,11 @@ func (c *collector) stop() {
 		c.cancel()
 	}
 	c.wg.Wait()
+
+	// Close the bookmark manager to release resources
+	if c.bookmarkManager != nil {
+		c.bookmarkManager.Close()
+	}
 }
 
 // retryForeverWithCancel retries an operation with exponential backoff until it succeeds or context is cancelled
@@ -221,6 +276,12 @@ func retryForeverWithCancel(ctx context.Context, operation func() error) error {
 func (c *collector) run(ctx context.Context) {
 	defer c.wg.Done()
 	defer func() {
+		// Save bookmark before stopping subscription
+		if c.bookmarkManager != nil {
+			if err := c.bookmarkManager.Save(); err != nil {
+				log.Warnf("Failed to save bookmark on shutdown: %v", err)
+			}
+		}
 		if c.sub != nil {
 			c.sub.Stop()
 		}
@@ -360,6 +421,15 @@ func (c *collector) processEvent(renderCtx evtapi.EventRenderContextHandle, even
 	log.Debugf("Collected notable event: provider=%s, event_id=%d, title=%s", providerName, eventID, payload.Title)
 
 	c.outChan <- payload
+
+	// Update bookmark to track this event as processed
+	// This must happen after successful processing but before the event handle is closed
+	if c.bookmarkManager != nil {
+		if err := c.bookmarkManager.UpdateAndSave(eventRecord.EventRecordHandle); err != nil {
+			log.Warnf("Failed to update bookmark: %v", err)
+			// Don't return error - event was successfully processed, bookmark failure is non-fatal
+		}
+	}
 
 	return nil
 }
