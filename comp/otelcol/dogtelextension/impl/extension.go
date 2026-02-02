@@ -17,6 +17,11 @@ type dogtelExtension struct{}
 
 var _ dogtelextension.Component = (*dogtelExtension)(nil)
 
+// NewComponent creates a new dogtelextension component
+func NewComponent() dogtelextension.Component {
+	return &dogtelExtension{}
+}
+
 // Start implements extension.Extension
 func (e *dogtelExtension) Start(ctx context.Context, host component.Host) error {
 	return nil
