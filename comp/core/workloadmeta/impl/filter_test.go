@@ -275,11 +275,11 @@ type mockWorkloadMeta struct {
 	textResp       wmdef.WorkloadDumpResponse
 }
 
-func (m *mockWorkloadMeta) DumpStructured(verbose bool) wmdef.WorkloadDumpStructuredResponse {
+func (m *mockWorkloadMeta) DumpStructured(_ bool) wmdef.WorkloadDumpStructuredResponse {
 	return m.structuredResp
 }
 
-func (m *mockWorkloadMeta) Dump(verbose bool) wmdef.WorkloadDumpResponse {
+func (m *mockWorkloadMeta) Dump(_ bool) wmdef.WorkloadDumpResponse {
 	return m.textResp
 }
 
