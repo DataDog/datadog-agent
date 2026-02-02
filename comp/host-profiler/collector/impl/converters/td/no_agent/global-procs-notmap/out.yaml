@@ -3,7 +3,7 @@ exporters:
         headers:
             dd-api-key: test-key
 processors:
-    resource/default:
+    resource/host-profiler-default:
         attributes:
             - action: upsert
               key: profiler_name
@@ -36,6 +36,6 @@ service:
             processors:
                 - batch
                 - resourcedetection/default
-                - resource/default
+                - resource/host-profiler-default
             receivers:
                 - hostprofiler

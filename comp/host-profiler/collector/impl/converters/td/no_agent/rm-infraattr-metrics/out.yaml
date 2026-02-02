@@ -5,7 +5,7 @@ exporters:
 processors:
     batch:
         timeout: 10s
-    resource/default:
+    resource/host-profiler-default:
         attributes:
             - action: upsert
               key: profiler_name
@@ -41,6 +41,6 @@ service:
             processors:
                 - batch
                 - resourcedetection/default
-                - resource/default
+                - resource/host-profiler-default
             receivers:
                 - hostprofiler
