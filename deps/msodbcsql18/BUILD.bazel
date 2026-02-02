@@ -1,0 +1,219 @@
+"""Build file for msodbcsql18 - Microsoft ODBC Driver 18 for SQL Server.
+
+This replicates the functionality of omnibus/config/software/msodbcsql18.rb
+by extracting pre-built binaries from Microsoft's deb/rpm packages.
+
+The build:
+1. Downloads platform-specific deb/rpm package
+2. Extracts it using dpkg-deb or rpm2cpio
+3. Copies lib64/, share/ to embedded/msodbcsql/
+4. Creates a symlink: lib/libmsodbcsql-18.3.so -> lib64/libmsodbcsql-18.3.so.3.1
+5. Copies license files
+
+Note: rpath patching is handled separately via replace_prefix.
+"""
+
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "pkg_mklink")
+
+package(
+    default_visibility = ["//visibility:public"],
+)
+
+SO_VERSION = "18.3"
+SO_FULL_VERSION = "3.1"
+SO_FILENAME = "libmsodbcsql-%s.so.%s" % (SO_VERSION, SO_FULL_VERSION)
+SO_LINK_NAME = "libmsodbcsql-%s.so" % SO_VERSION
+
+# ============================================================================
+# Extraction command templates
+# ============================================================================
+
+EXTRACT_CMD = """
+    set -e
+    WORKDIR=$$(mktemp -d)
+    trap "rm -rf $$WORKDIR" EXIT
+
+    # Extract package
+    {extract_cmd}
+
+    # Copy the files we need
+    cp $$WORKDIR/opt/microsoft/msodbcsql18/lib64/{so_filename} $(location {variant}/{so_filename})
+    cp $$WORKDIR/opt/microsoft/msodbcsql18/share/resources/en_US/msodbcsqlr18.rll $(location {variant}/msodbcsqlr18.rll)
+    cp $$WORKDIR/usr/share/doc/msodbcsql18/LICENSE.txt $(location {variant}/LICENSE.txt)
+"""
+
+DEB_EXTRACT = "dpkg-deb -R $(SRCS) $$WORKDIR"
+RPM_EXTRACT = "rpm2cpio $(SRCS) | cpio -idm -D $$WORKDIR"
+
+# ============================================================================
+# Extract the driver from deb/rpm packages
+# ============================================================================
+
+genrule(
+    name = "extract_deb",
+    srcs = select({
+        "//:linux_x86_64": ["@msodbcsql18_deb_amd64//file"],
+        "//:linux_arm64": ["@msodbcsql18_deb_arm64//file"],
+    }),
+    outs = [
+        "deb/%s" % SO_FILENAME,
+        "deb/msodbcsqlr18.rll",
+        "deb/LICENSE.txt",
+    ],
+    cmd = EXTRACT_CMD.format(
+        extract_cmd = DEB_EXTRACT,
+        variant = "deb",
+        so_filename = SO_FILENAME,
+    ),
+    visibility = ["//visibility:public"],
+)
+
+genrule(
+    name = "extract_rpm",
+    srcs = select({
+        "//:linux_x86_64": ["@msodbcsql18_rpm_amd64//file"],
+        "//:linux_arm64": ["@msodbcsql18_rpm_arm64//file"],
+    }),
+    outs = [
+        "rpm/%s" % SO_FILENAME,
+        "rpm/msodbcsqlr18.rll",
+        "rpm/LICENSE.txt",
+    ],
+    cmd = EXTRACT_CMD.format(
+        extract_cmd = RPM_EXTRACT,
+        variant = "rpm",
+        so_filename = SO_FILENAME,
+    ),
+    visibility = ["//visibility:public"],
+)
+
+genrule(
+    name = "extract_rpm_sles",
+    srcs = ["@msodbcsql18_rpm_sles//file"],
+    outs = [
+        "sles/%s" % SO_FILENAME,
+        "sles/msodbcsqlr18.rll",
+        "sles/LICENSE.txt",
+    ],
+    cmd = EXTRACT_CMD.format(
+        extract_cmd = RPM_EXTRACT,
+        variant = "sles",
+        so_filename = SO_FILENAME,
+    ),
+    visibility = ["//visibility:public"],
+)
+
+# ============================================================================
+# Packaging - per-variant targets
+# ============================================================================
+
+# Symlink is shared across all variants
+pkg_mklink(
+    name = "lib_symlink",
+    attributes = pkg_attributes(mode = "0755"),
+    link_name = "embedded/msodbcsql/lib/%s" % SO_LINK_NAME,
+    target = "../lib64/%s" % SO_FILENAME,
+)
+
+# --- deb ---
+pkg_files(
+    name = "lib64_files_deb",
+    srcs = ["deb/%s" % SO_FILENAME],
+    prefix = "embedded/msodbcsql/lib64",
+)
+
+pkg_files(
+    name = "resource_files_deb",
+    srcs = ["deb/msodbcsqlr18.rll"],
+    prefix = "embedded/msodbcsql/share/resources/en_US",
+)
+
+pkg_files(
+    name = "license_files_deb",
+    srcs = ["deb/LICENSE.txt"],
+    prefix = "embedded/msodbcsql/share/doc/msodbcsql18",
+)
+
+pkg_filegroup(
+    name = "all_files_deb",
+    srcs = [
+        ":lib64_files_deb",
+        ":lib_symlink",
+        ":resource_files_deb",
+        ":license_files_deb",
+    ],
+)
+
+pkg_install(
+    name = "install_deb",
+    srcs = [":all_files_deb"],
+)
+
+# --- rpm ---
+pkg_files(
+    name = "lib64_files_rpm",
+    srcs = ["rpm/%s" % SO_FILENAME],
+    prefix = "embedded/msodbcsql/lib64",
+)
+
+pkg_files(
+    name = "resource_files_rpm",
+    srcs = ["rpm/msodbcsqlr18.rll"],
+    prefix = "embedded/msodbcsql/share/resources/en_US",
+)
+
+pkg_files(
+    name = "license_files_rpm",
+    srcs = ["rpm/LICENSE.txt"],
+    prefix = "embedded/msodbcsql/share/doc/msodbcsql18",
+)
+
+pkg_filegroup(
+    name = "all_files_rpm",
+    srcs = [
+        ":lib64_files_rpm",
+        ":lib_symlink",
+        ":resource_files_rpm",
+        ":license_files_rpm",
+    ],
+)
+
+pkg_install(
+    name = "install_rpm",
+    srcs = [":all_files_rpm"],
+)
+
+# --- sles ---
+pkg_files(
+    name = "lib64_files_sles",
+    srcs = ["sles/%s" % SO_FILENAME],
+    prefix = "embedded/msodbcsql/lib64",
+)
+
+pkg_files(
+    name = "resource_files_sles",
+    srcs = ["sles/msodbcsqlr18.rll"],
+    prefix = "embedded/msodbcsql/share/resources/en_US",
+)
+
+pkg_files(
+    name = "license_files_sles",
+    srcs = ["sles/LICENSE.txt"],
+    prefix = "embedded/msodbcsql/share/doc/msodbcsql18",
+)
+
+pkg_filegroup(
+    name = "all_files_sles",
+    srcs = [
+        ":lib64_files_sles",
+        ":lib_symlink",
+        ":resource_files_sles",
+        ":license_files_sles",
+    ],
+)
+
+pkg_install(
+    name = "install_rpm_sles",
+    srcs = [":all_files_sles"],
+)
