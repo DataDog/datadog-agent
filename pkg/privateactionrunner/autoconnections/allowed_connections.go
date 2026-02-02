@@ -8,6 +8,8 @@ package autoconnections
 import (
 	"fmt"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 )
 
 // SupportedConnections defines all connection types that can be auto-created
@@ -106,9 +108,11 @@ func GenerateConnectionName(definition ConnectionDefinition, runnerID string) st
 }
 
 func extractRunnerIDFromURN(urn string) (string, error) {
-	parts := strings.Split(urn, ":")
-	if len(parts) != 3 {
-		return "", fmt.Errorf("invalid URN format: expected 3 parts, got %d", len(parts))
+	parts, err := util.ParseRunnerURN(urn)
+
+	if err != nil {
+		return "", err
 	}
-	return parts[2], nil
+
+	return parts.RunnerID, nil
 }

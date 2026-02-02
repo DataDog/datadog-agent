@@ -312,13 +312,13 @@ func TestExtractRunnerIDFromURN(t *testing.T) {
 	}{
 		{
 			name:        "valid URN - us1",
-			urn:         "us1:12345:runner-abc123",
+			urn:         "urn:dd:apps:on-prem-runner:us1:12345:runner-abc123",
 			expectedID:  "runner-abc123",
 			expectError: false,
 		},
 		{
 			name:        "valid URN - eu1",
-			urn:         "eu1:67890:runner-xyz789",
+			urn:         "urn:dd:apps:on-prem-runner:eu1:67890:runner-xyz789",
 			expectedID:  "runner-xyz789",
 			expectError: false,
 		},
@@ -335,8 +335,8 @@ func TestExtractRunnerIDFromURN(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name:        "incomplete URN - two parts",
-			urn:         "us1:12345",
+			name:        "incomplete URN - missing parts",
+			urn:         "urn:dd:apps:on-prem-runner:us1:12345",
 			expectedID:  "",
 			expectError: true,
 		},
