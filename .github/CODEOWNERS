@@ -125,7 +125,6 @@
 /.gitlab/build/binary_build/cluster_agent_cloudfoundry.yml @DataDog/agent-integrations @DataDog/agent-build
 /.gitlab/build/binary_build/cluster_agent.yml              @DataDog/container-integrations @DataDog/agent-build
 /.gitlab/build/binary_build/fakeintake.yml                 @DataDog/agent-devx
-/.gitlab/build/binary_build/otel_agent.yml                 @DataDog/opentelemetry-agent @DataDog/agent-build
 /.gitlab/build/binary_build/host_profiler.yml              @DataDog/opentelemetry-agent @DataDog/profiling-full-host @DataDog/agent-build
 /.gitlab/build/binary_build/system_probe.yml               @DataDog/ebpf-platform @DataDog/agent-build
 /.gitlab/build/binary_build/windows.yml                    @DataDog/agent-build @DataDog/windows-products
@@ -575,6 +574,7 @@
 /pkg/util/prometheus                    @DataDog/container-integrations
 /pkg/util/quantile/                     @DataDog/opentelemetry-agent
 /pkg/util/tags/                         @DataDog/container-platform
+/pkg/util/tmplvar/                      @DataDog/container-platform
 /pkg/util/trivy/                        @DataDog/agent-security @DataDog/container-integrations
 /pkg/util/uuid/                         @DataDog/agent-runtimes
 /pkg/util/cgroups/                      @DataDog/container-integrations
