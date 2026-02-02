@@ -24,8 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	slogzap "github.com/DataDog/datadog-agent/pkg/util/log/slog/zap"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
 	"go.uber.org/zap"
@@ -144,7 +144,7 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 			return pkgconfig
 		}),
 		fx.Provide(func(log *zap.Logger) (logdef.Component, error) {
-			zp := &datadog.Zaplogger{Logger: log}
+			zp := slogzap.NewZapLogger(log)
 			return zp, nil
 		}),
 		// casts the defaultforwarder.Component to a defaultforwarder.Forwarder

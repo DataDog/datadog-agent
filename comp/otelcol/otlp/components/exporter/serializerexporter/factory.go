@@ -12,14 +12,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	exp "go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.uber.org/zap"
-
-	pkgdatadog "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -98,7 +97,7 @@ func newFactoryForAgentWithType(
 	ipath ingestionPath,
 ) exp.Factory {
 	var options []otlpmetrics.TranslatorOption
-	if !pkgdatadog.MetricRemappingDisabledFeatureGate.IsEnabled() {
+	if !featuregates.MetricRemappingDisabledFeatureGate.IsEnabled() {
 		options = append(options, otlpmetrics.WithOTelPrefix())
 	}
 
@@ -138,7 +137,7 @@ func newFactoryForAgentWithType(
 // NewFactoryForOSSExporter creates a new serializer exporter factory for the OSS Datadog exporter.
 func NewFactoryForOSSExporter(typ component.Type, statsIn chan []byte) exp.Factory {
 	var options []otlpmetrics.TranslatorOption
-	if !pkgdatadog.MetricRemappingDisabledFeatureGate.IsEnabled() {
+	if !featuregates.MetricRemappingDisabledFeatureGate.IsEnabled() {
 		options = append(options, otlpmetrics.WithRemapping())
 	}
 
