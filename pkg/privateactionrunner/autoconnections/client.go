@@ -9,87 +9,61 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-type httpClient interface {
-	Do(req *http.Request) (*http.Response, error)
-}
-
+// Client is an HTTP client for creating connections via the Datadog API.
 type Client struct {
-	httpClient httpClient
-	endpoint   string
+	httpClient *http.Client
+	baseUrl    string
 	apiKey     string
 	appKey     string
 }
 
-func NewConnectionAPIClient(cfg model.Reader) (*Client, error) {
-	// 1. Validate credentials
-	apiKey := utils.SanitizeAPIKey(cfg.GetString("api_key"))
-	appKey := utils.SanitizeAPIKey(cfg.GetString("app_key"))
-	if apiKey == "" || appKey == "" {
-		return nil, errors.New("api_key and app_key required")
+func NewConnectionAPIClient(cfg model.Reader, ddSite, apiKey, appKey string) (*Client, error) {
+	baseUrl := "https://api." + ddSite
+
+	transport := httputils.CreateHTTPTransport(cfg)
+	httpClient := &http.Client{
+		Timeout:   10 * time.Second,
+		Transport: transport,
 	}
 
-	// 2. Resolve endpoint
-	endpoint := utils.GetMainEndpoint(cfg, "https://api.", "dd_url")
-
-	// 3. Create transport
-	transport := httputils.CreateHTTPTransport(cfg)
-
-	// 4. Wrap with ResetClient
-	resetClient := httputils.NewResetClient(
-		30*time.Second,
-		func() *http.Client {
-			return &http.Client{
-				Timeout:   10 * time.Second,
-				Transport: transport,
-			}
-		},
-	)
-
 	return &Client{
-		httpClient: resetClient,
-		endpoint:   endpoint,
+		httpClient: httpClient,
+		baseUrl:    baseUrl,
 		apiKey:     apiKey,
 		appKey:     appKey,
 	}, nil
 }
 
-// ConnectionRequest represents the JSON:API request structure
 type ConnectionRequest struct {
 	Data ConnectionRequestData `json:"data"`
 }
 
-// ConnectionRequestData represents the data section of the JSON:API request
 type ConnectionRequestData struct {
 	Type       string                      `json:"type"`
 	Attributes ConnectionRequestAttributes `json:"attributes"`
 }
 
-// ConnectionRequestAttributes represents the attributes section of the request
 type ConnectionRequestAttributes struct {
 	Name        string            `json:"name"`
 	RunnerID    string            `json:"runner_id"`
 	Integration IntegrationConfig `json:"integration"`
 }
 
-// IntegrationConfig represents the integration configuration in the request
 type IntegrationConfig struct {
 	Type        string                 `json:"type"`
 	Credentials map[string]interface{} `json:"credentials"`
 }
 
-// buildConnectionRequest builds an API request from a connection definition
 func buildConnectionRequest(definition ConnectionDefinition, runnerID, name string) ConnectionRequest {
 	credentials := map[string]interface{}{
 		"type": definition.Credentials.Type,
@@ -124,7 +98,7 @@ func (c *Client) CreateConnection(ctx context.Context, definition ConnectionDefi
 		return fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	url := c.endpoint + "/api/v2/actions/connections"
+	url := c.baseUrl + "/api/v2/actions/connections"
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
 	if err != nil {

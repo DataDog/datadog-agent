@@ -42,11 +42,12 @@ func TestNewConnectionAPIClient_MissingCredentials(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			ddSite := "datadoghq.com"
 			cfg := mock.New(t)
 			cfg.SetWithoutSource("api_key", tt.apiKey)
 			cfg.SetWithoutSource("app_key", tt.appKey)
 
-			client, err := NewConnectionAPIClient(cfg)
+			client, err := NewConnectionAPIClient(cfg, ddSite, tt.apiKey, tt.appKey)
 
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.wantErr)
@@ -57,16 +58,16 @@ func TestNewConnectionAPIClient_MissingCredentials(t *testing.T) {
 
 func TestNewConnectionAPIClient_ValidCredentials(t *testing.T) {
 	cfg := mock.New(t)
-	cfg.SetWithoutSource("api_key", "test-api-key")
-	cfg.SetWithoutSource("app_key", "test-app-key")
-	cfg.SetWithoutSource("site", "datadoghq.com")
+	apiKey := "api_key"
+	appKey := "app_key"
+	ddSite := "datadoghq.com"
 
-	client, err := NewConnectionAPIClient(cfg)
+	client, err := NewConnectionAPIClient(cfg, ddSite, apiKey, appKey)
 
 	require.NoError(t, err)
 	require.NotNil(t, client)
 	assert.NotNil(t, client.httpClient)
-	assert.NotEmpty(t, client.endpoint)
+	assert.NotEmpty(t, client.baseUrl)
 	assert.Equal(t, "test-api-key", client.apiKey)
 	assert.Equal(t, "test-app-key", client.appKey)
 }
