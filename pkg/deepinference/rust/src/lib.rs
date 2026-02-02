@@ -188,9 +188,9 @@ pub extern "C" fn dd_deepinference_benchmark(err: *mut *mut c_char) {
     let tokenizer_result = tokenizer_result.unwrap();
     println!("Tokenizer benchmark result (input sentence of {} bytes):", tokenizer_result.sentence_bytes);
     println!("- Total time:\t{}s", tokenizer_result.total_time.as_secs());
-    println!("- Number of tokenizer calls:\t{}\t({} calls/s)", tokenizer_result.num_calls, repr_benchmark_unit(tokenizer_result.num_calls as f64 / tokenizer_result.total_time.as_secs() as f64));
-    println!("- Number of input bytes:\t{}\t({} bytes/s)", tokenizer_result.num_bytes, repr_benchmark_unit(tokenizer_result.num_bytes as f64 / tokenizer_result.total_time.as_secs() as f64));
-    println!("- Number of output tokens:\t{}\t({} tokens/s)", tokenizer_result.num_tokens, repr_benchmark_unit(tokenizer_result.num_tokens as f64 / tokenizer_result.total_time.as_secs() as f64));
+    println!("- Number of tokenizer calls:\t{} call/s", repr_benchmark_unit(tokenizer_result.num_calls as f64 / tokenizer_result.total_time.as_secs() as f64));
+    println!("- Number of input bytes:\t{} byte/s", repr_benchmark_unit(tokenizer_result.num_bytes as f64 / tokenizer_result.total_time.as_secs() as f64));
+    println!("- Number of output tokens:\t{} token/s", repr_benchmark_unit(tokenizer_result.num_tokens as f64 / tokenizer_result.total_time.as_secs() as f64));
 
     println!("Benchmarking model for {} seconds", time_window.as_secs());
     let model_result = benchmark_model(time_window, &CONTEXT.get().unwrap().model, &CONTEXT.get().unwrap().tokenizer);
@@ -201,11 +201,17 @@ pub extern "C" fn dd_deepinference_benchmark(err: *mut *mut c_char) {
         return;
     }
     let model_result = model_result.unwrap();
+    println!();
     println!("Model benchmark result (input sentence of {} tokens):", model_result.sentence_tokens);
     println!("- Total time: {}s", model_result.total_time.as_secs());
-    println!("- Number of inference calls:\t{}\t({} calls/s)", model_result.num_calls, repr_benchmark_unit(model_result.num_calls as f64 / model_result.total_time.as_secs() as f64));
-    println!("- Number of input tokens:\t{}\t({} tokens/s)", model_result.num_tokens, repr_benchmark_unit(model_result.num_tokens as f64 / model_result.total_time.as_secs() as f64));
-    println!("- Number of output embedding bytes:\t{}\t({} bytes/s)", model_result.num_bytes, repr_benchmark_unit(model_result.num_bytes as f64 / model_result.total_time.as_secs() as f64));
+    println!("- Number of inference calls:\t{} call/s", repr_benchmark_unit(model_result.num_calls as f64 / model_result.total_time.as_secs() as f64));
+    println!("- Number of input tokens:\t{} token/s", repr_benchmark_unit(model_result.num_tokens as f64 / model_result.total_time.as_secs() as f64));
+    println!("- Number of output embedding bytes:\t{} byte/s", repr_benchmark_unit(model_result.num_bytes as f64 / model_result.total_time.as_secs() as f64));
+
+    println!();
+    let total_tokens_per_second = 1.0 / ((model_result.total_time.as_secs() as f64 / model_result.num_tokens as f64) + (tokenizer_result.total_time.as_secs() as f64 / tokenizer_result.num_tokens as f64));
+    println!("Overall tokens per second:\t{} token/s", repr_benchmark_unit(total_tokens_per_second));
+    println!("Overall sentences per second:\t{} sentence/s (sentence of {} tokens)", repr_benchmark_unit(total_tokens_per_second / model_result.sentence_tokens as f64), model_result.sentence_tokens);
 }
 
 fn repr_benchmark_unit(value: f64) -> String {
