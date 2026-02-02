@@ -6,7 +6,7 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-enhancements:
+fixes:
   - |
     OTLP logs now support array type attributes. Arrays containing
     primitive values or nested maps are now correctly preserved in the log output.
