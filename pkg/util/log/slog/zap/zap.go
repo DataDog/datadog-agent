@@ -25,7 +25,7 @@ func NewZapLogger(logger *zap.Logger) types.LoggerInterface {
 	return slog.NewWrapperWithCloseAndFlush(h, func() { logger.Sync() }, nil)
 }
 
-func (h *zapHandler) Handle(ctx context.Context, r stdslog.Record) error {
+func (h *zapHandler) Handle(_ctx context.Context, r stdslog.Record) error {
 	switch types.FromSlogLevel(r.Level) {
 	case types.DebugLvl:
 		h.logger.Debug(r.Message)
@@ -41,14 +41,14 @@ func (h *zapHandler) Handle(ctx context.Context, r stdslog.Record) error {
 	return nil
 }
 
-func (h *zapHandler) Enabled(ctx context.Context, level stdslog.Level) bool {
+func (h *zapHandler) Enabled(context.Context, stdslog.Level) bool {
 	return true
 }
 
-func (h *zapHandler) WithAttrs(attrs []stdslog.Attr) stdslog.Handler {
+func (h *zapHandler) WithAttrs([]stdslog.Attr) stdslog.Handler {
 	return h
 }
 
-func (h *zapHandler) WithGroup(name string) stdslog.Handler {
+func (h *zapHandler) WithGroup(string) stdslog.Handler {
 	return h
 }
