@@ -212,7 +212,7 @@ func (suite *ecsAPMSuite) Test01AgentAPMReady() {
 	// Test that the APM agent is ready and receiving traces
 	suite.Run("APM agent readiness check", func() {
 		suite.AssertAgentHealth(&TestAgentHealthArgs{
-			CheckComponents: []string{"trace"},
+			CheckComponents: []string{"trace_agent"},
 		})
 
 		// Verify we're receiving traces
