@@ -30,7 +30,9 @@ filegroup(
     ] + select({
         "//packages/agent:linux_heroku": [],
         "//packages/agent:linux_default": [
+            "//deps/nfsiostat:all_files",
             "//deps/openscap:all_deps",
+            "@freetds//:all_files",
         ],
         "//conditions:default": [
             # This will become "//deps/openscap:all_deps" in the future
