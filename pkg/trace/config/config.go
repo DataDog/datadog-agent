@@ -81,13 +81,6 @@ type OTLP struct {
 	// AttributesTranslator specifies an OTLP to Datadog attributes translator.
 	AttributesTranslator *ddattributes.Translator `mapstructure:"-"`
 
-	// IgnoreMissingDatadogFields specifies whether we should recompute DD span fields if the corresponding "datadog."
-	// namespaced span attributes are missing. If it is false (default), we will use the incoming "datadog." namespaced
-	// OTLP span attributes to construct the DD span, and if they are missing, we will recompute them from the other
-	// OTLP semantic convention attributes. If it is true, we will only populate a field if its associated "datadog."
-	// OTLP span attribute exists, otherwise we will leave it empty.
-	IgnoreMissingDatadogFields bool `mapstructure:"ignore_missing_datadog_fields"`
-
 	// GrpcMaxRecvMsgSizeMib specifies the max receive message size (in Mib) in OTLP receiver gRPC server in the trace agent binary.
 	// This config only applies to Agent OTLP ingestion. It does not apply to OSS Datadog exporter/connector or DDOT.
 	GrpcMaxRecvMsgSizeMib int `mapstructure:"-"`

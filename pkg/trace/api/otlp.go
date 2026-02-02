@@ -331,22 +331,10 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		hostname = o.conf.Hostname
 		src = source.Source{Kind: source.HostnameKind, Identifier: hostname}
 	}
-	if o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
-		hostname = ""
-	}
-	if incomingHostname := traceutilotel.GetOTelAttrVal(resourceAttributes, true, transform.KeyDatadogHost); incomingHostname != "" {
-		hostname = incomingHostname
-	}
 
-	containerID := traceutilotel.GetOTelAttrVal(resourceAttributes, true, transform.KeyDatadogContainerID)
-	if containerID == "" && !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
-		containerID = traceutilotel.GetOTelAttrVal(resourceAttributes, true, string(semconv.ContainerIDKey), string(semconv.K8SPodUIDKey))
-	}
+	containerID := traceutilotel.GetOTelAttrVal(resourceAttributes, true, string(semconv.ContainerIDKey), string(semconv.K8SPodUIDKey))
+	env := traceutilotel.GetOTelAttrVal(resourceAttributes, true, string(semconv127.DeploymentEnvironmentNameKey), string(semconv.DeploymentEnvironmentKey))
 
-	env := traceutilotel.GetOTelAttrVal(resourceAttributes, true, transform.KeyDatadogEnvironment)
-	if env == "" && !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
-		env = traceutilotel.GetOTelAttrVal(resourceAttributes, true, string(semconv127.DeploymentEnvironmentNameKey), string(semconv.DeploymentEnvironmentKey))
-	}
 	p.TracerPayload = &pb.TracerPayload{
 		Hostname:      hostname,
 		Chunks:        o.createChunks(tracesByID, priorityByID),
@@ -356,25 +344,20 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		TracerVersion: tagstats.TracerVersion,
 	}
 
-	var flattenedTags string
-	if incomingContainerTags := traceutilotel.GetOTelAttrVal(resourceAttributes, true, transform.KeyDatadogContainerTags); incomingContainerTags != "" {
-		flattenedTags = incomingContainerTags
-	} else if !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
-		ctags := attributes.ContainerTagsFromResourceAttributes(resourceAttributes)
-		payloadTags := flatten(ctags)
+	ctags := attributes.ContainerTagsFromResourceAttributes(resourceAttributes)
+	payloadTags := flatten(ctags)
 
-		// Populate container tags by calling ContainerTags tagger from configuration
-		if tags := getContainerTags(o.conf.ContainerTags, containerID); tags != "" {
-			appendTags(payloadTags, tags)
-		} else {
-			// we couldn't obtain any container tags
-			if src.Kind == source.AWSECSFargateKind {
-				// but we have some information from the source provider that we can add
-				appendTags(payloadTags, src.Tag())
-			}
+	// Populate container tags by calling ContainerTags tagger from configuration
+	if tags := getContainerTags(o.conf.ContainerTags, containerID); tags != "" {
+		appendTags(payloadTags, tags)
+	} else {
+		// we couldn't obtain any container tags
+		if src.Kind == source.AWSECSFargateKind {
+			// but we have some information from the source provider that we can add
+			appendTags(payloadTags, src.Tag())
 		}
-		flattenedTags = payloadTags.String()
 	}
+	flattenedTags := payloadTags.String()
 
 	if len(flattenedTags) > 0 {
 		p.TracerPayload.Tags = map[string]string{

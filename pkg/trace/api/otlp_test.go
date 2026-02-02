@@ -1644,10 +1644,9 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 		operationNameV2            string
 		resourceNameV1             string
 		resourceNameV2             string
-		out                        *pb.Span
-		outTags                    map[string]string
-		topLevelOutMetrics         map[string]float64
-		ignoreMissingDatadogFields bool
+		out                *pb.Span
+		outTags            map[string]string
+		topLevelOutMetrics map[string]float64
 	}{
 		{
 			rattr: map[string]string{
@@ -2154,135 +2153,6 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 		},
 		{
 			rattr: map[string]string{
-				transform.KeyDatadogService:     "test-service",
-				transform.KeyDatadogEnvironment: "test-env",
-				transform.KeyDatadogVersion:     "test-version",
-			},
-			libname: "ddtracer",
-			libver:  "v2",
-			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
-				TraceID:    otlpTestTraceID,
-				SpanID:     otlpTestSpanID,
-				TraceState: "state",
-				Name:       "/path",
-				Kind:       ptrace.SpanKindServer,
-				Start:      now,
-				End:        now + 200000000,
-				Attributes: map[string]interface{}{
-					transform.KeyDatadogName:           "test-name",
-					transform.KeyDatadogResource:       "test-resource",
-					transform.KeyDatadogType:           "test-type",
-					transform.KeyDatadogError:          1,
-					transform.KeyDatadogSpanKind:       "test-kind",
-					transform.KeyDatadogErrorMsg:       "Out of memory",
-					transform.KeyDatadogErrorType:      "mem",
-					transform.KeyDatadogErrorStack:     "1/2/3",
-					transform.KeyDatadogHTTPStatusCode: 404,
-					"http.status_code":                 200,
-				},
-			}),
-			operationNameV1: "test-name",
-			operationNameV2: "test-name",
-			resourceNameV1:  "test-resource",
-			resourceNameV2:  "test-resource",
-			out: &pb.Span{
-				Service:  "test-service",
-				TraceID:  2594128270069917171,
-				SpanID:   2594128270069917171,
-				ParentID: 0,
-				Start:    int64(now),
-				Duration: 200000000,
-				Error:    1,
-				Meta: map[string]string{
-					"env":                  "test-env",
-					"version":              "test-version",
-					"span.kind":            "test-kind",
-					"otel.trace_id":        "72df520af2bde7a5240031ead750e5f3",
-					"otel.status_code":     "Unset",
-					"otel.library.name":    "ddtracer",
-					"otel.library.version": "v2",
-					"w3c.tracestate":       "state",
-					"error.msg":            "Out of memory",
-					"error.type":           "mem",
-					"error.stack":          "1/2/3",
-					"http.status_code":     "404",
-				},
-				Metrics: map[string]float64{
-					"http.status_code": 404,
-				},
-				Type: "test-type",
-			},
-			topLevelOutMetrics: map[string]float64{
-				"_top_level":       1,
-				"http.status_code": 404,
-			},
-		},
-		{
-			rattr:   map[string]string{},
-			libname: "ddtracer",
-			libver:  "v2",
-			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
-				TraceID:    otlpTestTraceID,
-				SpanID:     otlpTestSpanID,
-				TraceState: "state",
-				Name:       "/path",
-				Kind:       ptrace.SpanKindServer,
-				Start:      now,
-				End:        now + 200000000,
-				Attributes: map[string]interface{}{
-					transform.KeyDatadogService:        "test-service",
-					transform.KeyDatadogName:           "test-name",
-					transform.KeyDatadogResource:       "test-resource",
-					transform.KeyDatadogType:           "test-type",
-					transform.KeyDatadogError:          1,
-					transform.KeyDatadogEnvironment:    "test-env",
-					transform.KeyDatadogVersion:        "test-version",
-					transform.KeyDatadogSpanKind:       "test-kind",
-					transform.KeyDatadogErrorMsg:       "Out of memory",
-					transform.KeyDatadogErrorType:      "mem",
-					transform.KeyDatadogErrorStack:     "1/2/3",
-					transform.KeyDatadogHTTPStatusCode: 404,
-					"http.status_code":                 200,
-				},
-			}),
-			operationNameV1: "test-name",
-			operationNameV2: "test-name",
-			resourceNameV1:  "test-resource",
-			resourceNameV2:  "test-resource",
-			out: &pb.Span{
-				Service:  "test-service",
-				TraceID:  2594128270069917171,
-				SpanID:   2594128270069917171,
-				ParentID: 0,
-				Start:    int64(now),
-				Duration: 200000000,
-				Error:    1,
-				Meta: map[string]string{
-					"span.kind":            "test-kind",
-					"otel.trace_id":        "72df520af2bde7a5240031ead750e5f3",
-					"otel.status_code":     "Unset",
-					"otel.library.name":    "ddtracer",
-					"otel.library.version": "v2",
-					"w3c.tracestate":       "state",
-					"error.msg":            "Out of memory",
-					"error.type":           "mem",
-					"error.stack":          "1/2/3",
-					"http.status_code":     "404",
-					"env":                  "test-env",
-					"version":              "test-version",
-				},
-				Metrics: map[string]float64{
-					"http.status_code": 404,
-				},
-				Type: "test-type",
-			},
-			topLevelOutMetrics: map[string]float64{
-				"_top_level":       1,
-				"http.status_code": 404,
-			},
-		},
-		{
-			rattr: map[string]string{
 				"service.name":                      "myservice",
 				"service.version":                   "v1.2.3",
 				"env":                               "staging",
@@ -2559,7 +2429,6 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			cfg.OTLPReceiver.IgnoreMissingDatadogFields = tt.ignoreMissingDatadogFields
 			o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 			lib := pcommon.NewInstrumentationScope()
 			lib.SetName(tt.libname)

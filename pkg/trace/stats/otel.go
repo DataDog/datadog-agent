@@ -61,10 +61,10 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 			continue
 		}
 
-		env := transform.GetOTelEnv(otelspan, otelres, conf.OTLPReceiver.IgnoreMissingDatadogFields)
-		hostname := transform.GetOTelHostname(otelspan, otelres, conf.OTLPReceiver.AttributesTranslator, conf.Hostname, conf.OTLPReceiver.IgnoreMissingDatadogFields)
-		version := transform.GetOTelVersion(otelspan, otelres, conf.OTLPReceiver.IgnoreMissingDatadogFields)
-		cid := transform.GetOTelContainerID(otelspan, otelres, conf.OTLPReceiver.IgnoreMissingDatadogFields)
+		env := transform.GetOTelEnv(otelspan, otelres)
+		hostname := transform.GetOTelHostname(otelspan, otelres, conf.OTLPReceiver.AttributesTranslator, conf.Hostname)
+		version := transform.GetOTelVersion(otelspan, otelres)
+		cid := transform.GetOTelContainerID(otelspan, otelres)
 		var ctags []string
 		if cid != "" {
 			ctags = oteltraceutil.GetOTelContainerTags(otelres.Attributes(), containerTagKeys)
