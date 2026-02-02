@@ -238,6 +238,10 @@ func (p *EBPFProbe) HandleRemediationStatus(rs *rules.RuleSet) {
 			}
 			// We get the remediation key which must be unique per action and ruleID
 			remediationKey := getRemediationKeyFromAction(rule, action)
+			if remediationKey == "" {
+				// Should not happen
+				continue
+			}
 			if action.Def.NetworkFilter != nil {
 				// If isolation is new, create a new entry in the map
 				if _, exists := p.activeRemediations[remediationKey]; !exists {
