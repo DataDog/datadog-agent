@@ -25,7 +25,7 @@ type mockSession struct {
 }
 
 func newMockTimeoutError() error {
-	return fmt.Errorf(".* timeout .*")
+	return errors.New(".* timeout .*")
 }
 
 func (m *mockSession) Connect() error {
@@ -97,7 +97,7 @@ func TestConnectionManager_ConnectSuccess(t *testing.T) {
 	mainSess.On("Connect").Return(nil).Once()
 	mainSess.On("GetNext", []string{coresnmp.DeviceReachableGetNextOid}).Return(&gosnmp.SnmpPacket{}, nil).Once()
 
-	sessionFactory := func(cfg *checkconfig.CheckConfig) (session.Session, error) {
+	sessionFactory := func(_ *checkconfig.CheckConfig) (session.Session, error) {
 		return mainSess, nil
 	}
 
@@ -175,7 +175,7 @@ func TestConnectionManager_NonTimeoutError(t *testing.T) {
 	mainSess.On("GetNext", []string{coresnmp.DeviceReachableGetNextOid}).
 		Return(nil, errors.New("authentication failed")).Once()
 
-	sessionFactory := func(cfg *checkconfig.CheckConfig) (session.Session, error) {
+	sessionFactory := func(_ *checkconfig.CheckConfig) (session.Session, error) {
 		return mainSess, nil
 	}
 
@@ -212,7 +212,7 @@ func TestConnectionManager_FallbackTestFails(t *testing.T) {
 	unconnectedSess.On("Close").Return(nil).Once()
 
 	callCount := 0
-	sessionFactory := func(cfg *checkconfig.CheckConfig) (session.Session, error) {
+	sessionFactory := func(_ *checkconfig.CheckConfig) (session.Session, error) {
 		callCount++
 		if callCount == 1 {
 			return connectedSess, nil
@@ -244,7 +244,7 @@ func TestConnectionManager_Close(t *testing.T) {
 	sess.On("GetNext", []string{coresnmp.DeviceReachableGetNextOid}).Return(&gosnmp.SnmpPacket{}, nil).Once()
 	sess.On("Close").Return(nil).Once()
 
-	sessionFactory := func(cfg *checkconfig.CheckConfig) (session.Session, error) {
+	sessionFactory := func(_ *checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
 
@@ -271,7 +271,7 @@ func TestConnectionManager_GetSessionAfterClose(t *testing.T) {
 	sess.On("GetNext", []string{coresnmp.DeviceReachableGetNextOid}).Return(&gosnmp.SnmpPacket{}, nil).Once()
 	sess.On("Close").Return(nil).Once()
 
-	sessionFactory := func(cfg *checkconfig.CheckConfig) (session.Session, error) {
+	sessionFactory := func(_ *checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
 
@@ -429,7 +429,7 @@ func TestConnectionManager_SessionFactoryError(t *testing.T) {
 	}
 
 	factoryErr := errors.New("failed to create session")
-	sessionFactory := func(cfg *checkconfig.CheckConfig) (session.Session, error) {
+	sessionFactory := func(_ *checkconfig.CheckConfig) (session.Session, error) {
 		return nil, factoryErr
 	}
 
@@ -451,7 +451,7 @@ func TestConnectionManager_SessionConnectError(t *testing.T) {
 	mainSess := new(mockSession)
 	mainSess.On("Connect").Return(errors.New("connection refused")).Once()
 
-	sessionFactory := func(cfg *checkconfig.CheckConfig) (session.Session, error) {
+	sessionFactory := func(_ *checkconfig.CheckConfig) (session.Session, error) {
 		return mainSess, nil
 	}
 
@@ -481,7 +481,7 @@ func TestConnectionManager_UnconnectedSessionCreationFails(t *testing.T) {
 		Return(nil, newMockTimeoutError()).Once()
 
 	callCount := 0
-	sessionFactory := func(cfg *checkconfig.CheckConfig) (session.Session, error) {
+	sessionFactory := func(_ *checkconfig.CheckConfig) (session.Session, error) {
 		callCount++
 		if callCount == 1 {
 			return connectedSess, nil
@@ -507,7 +507,7 @@ func TestConnectionManager_GetSessionBeforeConnect(t *testing.T) {
 		IPAddress: "10.0.0.1",
 	}
 
-	sessionFactory := func(cfg *checkconfig.CheckConfig) (session.Session, error) {
+	sessionFactory := func(_ *checkconfig.CheckConfig) (session.Session, error) {
 		return nil, nil
 	}
 
@@ -525,7 +525,7 @@ func TestConnectionManager_CloseWithoutSession(t *testing.T) {
 		IPAddress: "10.0.0.1",
 	}
 
-	sessionFactory := func(cfg *checkconfig.CheckConfig) (session.Session, error) {
+	sessionFactory := func(_ *checkconfig.CheckConfig) (session.Session, error) {
 		return nil, nil
 	}
 
@@ -552,7 +552,7 @@ func TestConnectionManager_ReconnectAfterClose(t *testing.T) {
 	sess2.On("GetNext", []string{coresnmp.DeviceReachableGetNextOid}).Return(&gosnmp.SnmpPacket{}, nil).Once()
 
 	callCount := 0
-	sessionFactory := func(cfg *checkconfig.CheckConfig) (session.Session, error) {
+	sessionFactory := func(_ *checkconfig.CheckConfig) (session.Session, error) {
 		callCount++
 		if callCount == 1 {
 			return sess1, nil
