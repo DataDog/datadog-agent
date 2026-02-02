@@ -9,6 +9,7 @@ package loadstore
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -35,6 +36,21 @@ const (
 	StatefulSet
 	Unsupported
 )
+
+// podOwnerTypeFromString converts a string kind to PodOwnerType.
+// Accepts both capitalized (e.g., "Deployment") and lowercase (e.g., "deployment") formats.
+func podOwnerTypeFromString(kind string) PodOwnerType {
+	switch strings.ToLower(kind) {
+	case "deployment":
+		return Deployment
+	case "replicaset":
+		return ReplicaSet
+	case "statefulset":
+		return StatefulSet
+	default:
+		return Unsupported
+	}
+}
 
 const (
 	// maxDataPoints is the maximum number of data points to store per entity.

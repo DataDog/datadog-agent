@@ -154,12 +154,13 @@ func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 				continue
 			}
 			wResult.tracerouteResult = result
+
 			wResult.assertionResult = runAssertions(syntheticsTestCtx.cfg, common.NetStats{
 				PacketsSent:          result.E2eProbe.PacketsSent,
 				PacketsReceived:      result.E2eProbe.PacketsReceived,
 				PacketLossPercentage: result.E2eProbe.PacketLossPercentage,
-				Jitter:               result.E2eProbe.Jitter,
-				Latency:              result.E2eProbe.RTT,
+				Jitter:               &result.E2eProbe.Jitter,
+				Latency:              &result.E2eProbe.RTT,
 				Hops:                 result.Traceroute.HopCount,
 			})
 
@@ -367,13 +368,22 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 			PacketsSent:          w.tracerouteResult.E2eProbe.PacketsSent,
 			PacketsReceived:      w.tracerouteResult.E2eProbe.PacketsReceived,
 			PacketLossPercentage: w.tracerouteResult.E2eProbe.PacketLossPercentage,
-			Jitter:               w.tracerouteResult.E2eProbe.Jitter,
-			Latency:              w.tracerouteResult.E2eProbe.RTT,
+			Jitter:               &w.tracerouteResult.E2eProbe.Jitter,
+			Latency:              &w.tracerouteResult.E2eProbe.RTT,
 			Hops:                 w.tracerouteResult.Traceroute.HopCount,
 		},
 		Netpath: w.tracerouteResult,
 		Status:  "passed",
 		RunType: w.testCfg.cfg.RunType,
+	}
+
+	if w.tracerouteResult.E2eProbe.RTT.Max == 0 || w.tracerouteResult.E2eProbe.PacketsReceived == 0 {
+		result.Netstats.Latency = nil
+		result.Netstats.Jitter = nil
+	}
+
+	if w.tracerouteResult.E2eProbe.PacketsReceived == 1 {
+		result.Netstats.Jitter = nil
 	}
 
 	s.setResultStatus(w, &result)

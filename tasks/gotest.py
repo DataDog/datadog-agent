@@ -100,12 +100,7 @@ def build_standard_lib(
     """
     args["go_build_tags"] = " ".join(build_tags)
 
-    ctx.run(
-        cmd.format(**args),
-        env=env,
-        out_stream=test_profiler,
-        warn=True,
-    )
+    ctx.run(cmd.format(**args), env=env, out_stream=test_profiler)  # with `warn=True`, errors went unnoticed
 
 
 def test_flavor(
@@ -328,7 +323,7 @@ def test(
     # build flags are used both for building the stdlib and to run the tests
     gobuild_flags = '-mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" {build_cpus} {race_opt} {trimpath_opt}'
 
-    stdlib_build_cmd = f'go build {verbose} {gobuild_flags} std cmd'
+    stdlib_build_cmd = f'go build {{verbose}} {gobuild_flags} std cmd'
     rerun_coverage_fix = '--raw-command {cov_test_path}' if coverage else ""
     gotestsum_flags = (
         '{junit_file_flag} {json_flag} --format {gotestsum_format} {rerun_fails} --packages="{packages}" '

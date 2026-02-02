@@ -11,13 +11,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 type dummyService struct {
 	ID              string
 	ADIdentifiers   []string
 	Hosts           map[string]string
-	Ports           []listeners.ContainerPort
+	Ports           []workloadmeta.ContainerPort
 	Pid             int
 	Hostname        string
 	filterTemplates func(map[string]integration.Config)
@@ -44,7 +45,7 @@ func (s *dummyService) GetHosts() (map[string]string, error) {
 }
 
 // GetPorts returns dummy ports
-func (s *dummyService) GetPorts() ([]listeners.ContainerPort, error) {
+func (s *dummyService) GetPorts() ([]workloadmeta.ContainerPort, error) {
 	return s.Ports, nil
 }
 

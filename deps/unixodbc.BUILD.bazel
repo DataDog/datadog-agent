@@ -155,6 +155,7 @@ cc_library(
         "include/sqltypes.h",
         "include/sqlucode.h",
         "include/sqlspi.h",
+        "include/unixodbc_conf.h",
     ],
     visibility = ["//visibility:public"],
     copts = COMMON_COPTS,

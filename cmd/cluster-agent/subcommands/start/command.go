@@ -523,7 +523,7 @@ func start(log log.Component,
 		go func() {
 			defer wg.Done()
 
-			if err := runCompliance(mainCtx, demultiplexer, wmeta, apiCl, compression, ipc, le.IsLeader); err != nil {
+			if err := runCompliance(mainCtx, demultiplexer, wmeta, filterStore, apiCl, compression, le.IsLeader); err != nil {
 				pkglog.Errorf("Error while running compliance agent: %v", err)
 			}
 		}()
@@ -585,7 +585,8 @@ func start(log log.Component,
 			}
 			// Webhook and secret controllers are started successfully
 			// Set up the k8s admission webhook server
-			server := admissioncmd.NewServer()
+			secretsLister := apiCl.CertificateSecretInformerFactory.Core().V1().Secrets().Lister()
+			server := admissioncmd.NewServer(secretsLister)
 
 			for _, webhookConf := range webhooks {
 				server.Register(webhookConf.Endpoint(), webhookConf.Name(), webhookConf.WebhookType(), webhookConf.WebhookFunc(), apiCl.DynamicCl, apiCl.Cl)
@@ -596,7 +597,7 @@ func start(log log.Component,
 			go func() {
 				defer wg.Done()
 
-				errServ := server.Run(mainCtx, apiCl.Cl)
+				errServ := server.Run(mainCtx)
 				if errServ != nil {
 					pkglog.Errorf("Error in the Admission Controller Webhook Server: %v", errServ)
 				}

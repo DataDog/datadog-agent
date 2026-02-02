@@ -216,8 +216,8 @@ type program struct {
 	// Populated after the program has been loaded.
 	loaded *loadedProgram
 
-	// Stats collected from the last heartbeat.
-	lastRuntimeStats loader.RuntimeStats
+	// Stats collected from the last heartbeat, indexed by core.
+	lastRuntimeStats []loader.RuntimeStats
 
 	// The process with which this program is associated.
 	//
@@ -915,16 +915,22 @@ func handleHeartbeatCheck(sm *state, effects effectHandler) {
 			continue
 		}
 		perCoreStats := prog.loaded.loaded.RuntimeStats()
+		if len(prog.lastRuntimeStats) < len(perCoreStats) {
+			lastRuntimeStats := make([]loader.RuntimeStats, len(perCoreStats))
+			copy(lastRuntimeStats, prog.lastRuntimeStats)
+			prog.lastRuntimeStats = lastRuntimeStats
+		}
 		for len(totalCostSPS) < len(perCoreStats) {
 			totalCostSPS = append(totalCostSPS, 0)
 			maxCostSPS = append(maxCostSPS, -1)
 			maxProg = append(maxProg, nil)
 		}
 		for core, stats := range perCoreStats {
-			hits := stats.HitCnt - prog.lastRuntimeStats.HitCnt
-			execCost := stats.CPU - prog.lastRuntimeStats.CPU
+			lastStats := prog.lastRuntimeStats[core]
+			hits := stats.HitCnt - lastStats.HitCnt
+			execCost := stats.CPU - lastStats.CPU
 			interruptCost := sm.breakerCfg.InterruptOverhead * time.Duration(hits)
-			prog.lastRuntimeStats = stats
+			prog.lastRuntimeStats[core] = stats
 
 			costSPS := (execCost + interruptCost).Seconds() / interval.Seconds()
 			totalCostSPS[core] += costSPS

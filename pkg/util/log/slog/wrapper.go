@@ -50,6 +50,11 @@ func NewWrapperWithCloseAndFlush(handler slog.Handler, flush func(), close func(
 	}
 }
 
+// Handler returns the slog.Handler used by the Wrapper.
+func (w *Wrapper) Handler() slog.Handler {
+	return w.handler
+}
+
 func (w *Wrapper) handleArgs(level types.LogLevel, v ...interface{}) {
 	if !w.closed.Load() && w.handler.Enabled(context.Background(), types.ToSlogLevel(level)) {
 		// rendering is only done if the level is enabled

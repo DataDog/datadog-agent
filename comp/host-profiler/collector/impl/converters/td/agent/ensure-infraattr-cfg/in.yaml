@@ -1,0 +1,15 @@
+processors:
+  infraattributes:
+    some_other_config: value
+service:
+  pipelines:
+    profiles:
+      processors:
+      - infraattributes
+      receivers: []
+      exporters:
+      - otlphttp
+exporters:
+  otlphttp:
+    headers:
+      dd-api-key: test-api-key
