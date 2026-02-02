@@ -103,6 +103,10 @@ build do
     command "dda inv -- -e rtloader.install", :live_stream => Omnibus.logger.live_stream(:info)
 
     command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+
+    # TODO: How to not remove that?
+    # Remove Rust libraries from their build folder
+    delete "#{project_dir}/pkg/get_text_embeddings/rust/target/release/libget_text_embeddings.so"
   end
 
   if osx_target?
