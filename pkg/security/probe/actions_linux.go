@@ -26,6 +26,8 @@ const (
 	HashTriggerTimeout = "timeout"
 	// HashTriggerProcessExit hash triggered on process exit
 	HashTriggerProcessExit = "process_exit"
+	// HashTriggerFileSizeStable hash triggered when file size is stable
+	HashTriggerFileSizeStable = "file_size_stable"
 
 	// maxRetryForMsgWithHashAction is the maximum number of retries for a hash action
 	// the reports will be marked as resolved after MAX 5 sec (so it doesn't matter if this retry period lasts for longer)
@@ -43,13 +45,15 @@ type HashActionReport struct {
 	Trigger string `json:"trigger"`
 
 	// internal
-	resolved  bool
-	rule      *rules.Rule
-	pid       uint32
-	seenAt    time.Time
-	fileEvent model.FileEvent
-	crtID     containerutils.ContainerID
-	eventType model.EventType
+	resolved     bool
+	rule         *rules.Rule
+	pid          uint32
+	firstSeenAt  time.Time
+	lastStatAt   time.Time
+	lastFileSize int64
+	fileEvent    model.FileEvent
+	crtID        containerutils.ContainerID
+	eventType    model.EventType
 }
 
 // IsResolved return if the action is resolved
