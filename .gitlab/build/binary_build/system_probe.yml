@@ -1,5 +1,6 @@
 ---
 .system-probe_build_common:
+  extends: .bazel:defs:cache:ephemeral
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
