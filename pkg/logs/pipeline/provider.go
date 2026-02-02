@@ -306,7 +306,7 @@ func (p *provider) NextPipelineChan() chan *message.Message {
 	// Router channel for this tailer and its primary pipeline to report to
 	channelSize := p.cfg.GetInt("logs_config.message_channel_size")
 	routerChannel := make(chan *message.Message, channelSize)
-    primaryPipelineIndex := p.currentPipelineIndex.Inc() % uint32(pipelinesLen)
+	primaryPipelineIndex := p.currentPipelineIndex.Inc() % uint32(pipelinesLen)
 
 	// Thread-safe append to router channels slice
 	p.routerMutex.Lock()
@@ -358,7 +358,7 @@ func (p *provider) NextPipelineChanWithMonitor() (chan *message.Message, *metric
 }
 
 // forwardWithFailover reads messages from a router channel and forwards them
-// to its primary pipeline unless its blocked, in which case 
+// to its primary pipeline unless its blocked, in which case
 // it will find the next healthy pipeline with automatic failover
 func (p *provider) forwardWithFailover(routerChannel chan *message.Message, primaryPipelinesIndex uint32) {
 	defer p.forwarderWaitGroup.Done()
