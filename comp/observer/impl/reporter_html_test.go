@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build observer
+
 package observerimpl
 
 import (
@@ -406,7 +408,7 @@ func TestHTMLReporter_APICorrelations_ReturnsJSON(t *testing.T) {
 			{
 				Pattern: "test_pattern",
 				Title:   "Test Correlation",
-				Signals: []string{"signal1", "signal2"},
+				Sources: []string{"signal1", "signal2"},
 				Anomalies: []observer.AnomalyOutput{
 					{Source: "signal1", Title: "Anomaly 1", Description: "Description 1"},
 				},

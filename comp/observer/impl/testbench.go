@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build observer
+
 package observerimpl
 
 import (
@@ -13,7 +15,6 @@ import (
 	"strings"
 	"sync"
 
-	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
@@ -21,7 +22,6 @@ import (
 type TestBenchConfig struct {
 	ScenariosDir string
 	HTTPAddr     string
-	Recorder     recorderdef.Component // Optional: for loading parquet scenarios
 }
 
 // TestBench is the main controller for the observer test bench.
@@ -236,14 +236,6 @@ func (tb *TestBench) LoadScenario(name string) error {
 		}
 	}
 
-	// Load event files
-	eventsDir := filepath.Join(scenarioPath, "events")
-	if _, err := os.Stat(eventsDir); err == nil {
-		if err := tb.loadEventsDir(eventsDir); err != nil {
-			return fmt.Errorf("failed to load events: %w", err)
-		}
-	}
-
 	// Run analyses on all loaded data
 	tb.runAnalyses()
 
@@ -253,25 +245,41 @@ func (tb *TestBench) LoadScenario(name string) error {
 	return nil
 }
 
-// loadParquetDir loads all parquet files from a directory using the recorder component.
-// Uses batch loading for efficiency - reads all metrics at once instead of streaming.
+// loadParquetDir loads all parquet files from a directory.
 func (tb *TestBench) loadParquetDir(dir string) error {
-	if tb.config.Recorder == nil {
-		return fmt.Errorf("recorder component not configured - cannot load parquet files")
-	}
-
-	// Use batch loading - get all metrics at once
-	metrics, err := tb.config.Recorder.ReadAllMetrics(dir)
+	reader, err := NewParquetReader(dir)
 	if err != nil {
-		return fmt.Errorf("reading parquet metrics: %w", err)
+		return err
 	}
 
-	fmt.Printf("  Loading %d samples from parquet files\n", len(metrics))
+	fmt.Printf("  Loading %d samples from parquet files\n", reader.Len())
 
-	// Batch add all metrics to storage
-	for _, m := range metrics {
+	for {
+		metric := reader.Next()
+		if metric == nil {
+			break
+		}
+
+		// Convert FGMMetric to storage format
+		var value float64
+		if metric.ValueFloat != nil {
+			value = *metric.ValueFloat
+		} else if metric.ValueInt != nil {
+			value = float64(*metric.ValueInt)
+		}
+
+		// Convert tags map to slice
+		var tags []string
+		for k, v := range metric.Tags {
+			tags = append(tags, k+":"+v)
+		}
+
+		// Time is in milliseconds, convert to seconds
+		timestamp := metric.Time / 1000
+
 		// Strip aggregation suffix from metric name (e.g., ":avg", ":count")
-		metricName := m.Name
+		// The storage handles aggregation internally
+		metricName := metric.MetricName
 		if idx := strings.LastIndex(metricName, ":"); idx != -1 {
 			suffix := metricName[idx+1:]
 			if suffix == "avg" || suffix == "count" || suffix == "sum" || suffix == "min" || suffix == "max" {
@@ -282,9 +290,9 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 		tb.storage.Add(
 			"parquet", // namespace
 			metricName,
-			m.Value,
-			m.Timestamp,
-			m.Tags,
+			value,
+			timestamp,
+			tags,
 		)
 	}
 
@@ -335,37 +343,6 @@ func (tb *TestBench) loadLogsDir(dir string) error {
 	return nil
 }
 
-// loadEventsDir loads all event files from a directory.
-func (tb *TestBench) loadEventsDir(dir string) error {
-	files, err := filepath.Glob(filepath.Join(dir, "*.json"))
-	if err != nil {
-		return err
-	}
-
-	totalEvents := 0
-	for _, file := range files {
-		events, err := LoadEventFile(file)
-		if err != nil {
-			fmt.Printf("  Warning: failed to load event file %s: %v\n", filepath.Base(file), err)
-			continue
-		}
-
-		// Send events to anomaly processors that support them
-		for _, event := range events {
-			for _, proc := range tb.anomalyProcessors {
-				if receiver, ok := proc.(observerdef.EventSignalReceiver); ok {
-					receiver.AddEventSignal(event)
-				}
-			}
-		}
-		totalEvents += len(events)
-	}
-
-	if totalEvents > 0 {
-		fmt.Printf("  Loaded %d events\n", totalEvents)
-	}
-	return nil
-}
 
 // runAnalyses runs all time series analyses on all stored series.
 func (tb *TestBench) runAnalyses() {
@@ -419,9 +396,7 @@ func (tb *TestBench) runAnalyses() {
 
 	// Collect correlations from processors that support it
 	for _, proc := range tb.anomalyProcessors {
-		if cs, ok := proc.(interface {
-			ActiveCorrelations() []observerdef.ActiveCorrelation
-		}); ok {
+		if cs, ok := proc.(interface{ ActiveCorrelations() []observerdef.ActiveCorrelation }); ok {
 			tb.correlations = append(tb.correlations, cs.ActiveCorrelations()...)
 		}
 	}

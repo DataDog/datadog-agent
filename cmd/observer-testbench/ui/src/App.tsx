@@ -3,50 +3,7 @@ import { useObserver } from './hooks/useObserver';
 import { ChartWithAnomalyDetails } from './components/ChartWithAnomalyDetails';
 import { SeriesTree } from './components/SeriesTree';
 import { api } from './api/client';
-import type { SeriesData, SeriesInfo } from './api/client';
-import type { SplitSeries } from './components/TimeSeriesChart';
-
-// Parse tag string "key:value" into parts
-function parseTag(tag: string): { key: string; value: string } | null {
-  const idx = tag.indexOf(':');
-  if (idx === -1) return null;
-  return { key: tag.slice(0, idx), value: tag.slice(idx + 1) };
-}
-
-// Aggregation types available for metrics
-const AGGREGATION_TYPES = ['avg', 'count', 'sum', 'min', 'max'] as const;
-type AggregationType = typeof AGGREGATION_TYPES[number];
-
-// Get the base metric name without aggregation suffix
-function getBaseMetricName(name: string): string {
-  // Series names often end with :avg, :sum, :count, :min, :max
-  const match = name.match(/^(.+):(avg|sum|count|min|max)$/);
-  return match ? match[1] : name;
-}
-
-// Get the aggregation type from a series name
-function getAggregationType(name: string): AggregationType | null {
-  const match = name.match(/:(avg|sum|count|min|max)$/);
-  return match ? (match[1] as AggregationType) : null;
-}
-
-// Find all series variants (same base name, different tags)
-function findSeriesVariants(
-  baseName: string,
-  allSeries: SeriesInfo[],
-  splitByTag: string
-): SeriesInfo[] {
-  const base = getBaseMetricName(baseName);
-  return allSeries.filter((s) => {
-    const sBase = getBaseMetricName(s.name);
-    if (sBase !== base) return false;
-    // Must have the split tag key
-    return (s.tags ?? []).some((t) => {
-      const parsed = parseTag(t);
-      return parsed?.key === splitByTag;
-    });
-  });
-}
+import type { SeriesData } from './api/client';
 
 function ConnectionStatus({ state }: { state: string }) {
   const colors: Record<string, string> = {
@@ -90,10 +47,6 @@ function App() {
   const [timeRange, setTimeRange] = useState<TimeRange | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [correlationsExpanded, setCorrelationsExpanded] = useState(true);
-  const [smoothLines, setSmoothLines] = useState(true);
-  const [splitByTag, setSplitByTag] = useState<string | null>(null);
-  const [splitSeriesData, setSplitSeriesData] = useState<Map<string, SeriesData[]>>(new Map());
-  const [aggregationType, setAggregationType] = useState<AggregationType>('avg');
   const isResizingRef = useRef(false);
 
   // Safely access arrays with fallbacks
@@ -114,45 +67,6 @@ function App() {
     () => components.filter((c) => c.type === 'ts_analysis').map((c) => c.name),
     [components]
   );
-
-  // Extract available tag keys from all series
-  const availableTagKeys = useMemo(() => {
-    const tagKeys = new Set<string>();
-    series.forEach((s) => {
-      (s.tags ?? []).forEach((t) => {
-        const parsed = parseTag(t);
-        if (parsed) tagKeys.add(parsed.key);
-      });
-    });
-    return Array.from(tagKeys).sort();
-  }, [series]);
-
-  // Filter series by selected aggregation type and deduplicate by base name
-  const filteredSeries = useMemo(() => {
-    // First, filter to only include series with the selected aggregation type
-    const withAggType = series.filter((s) => {
-      const aggType = getAggregationType(s.name);
-      return aggType === aggregationType;
-    });
-
-    // Deduplicate by base name (in case there are multiple with same base but different tags)
-    const seen = new Set<string>();
-    return withAggType.filter((s) => {
-      const baseName = getBaseMetricName(s.name);
-      const key = `${s.namespace}/${baseName}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }, [series, aggregationType]);
-
-  // Create display series with stripped aggregation suffix for the tree
-  const displaySeries = useMemo(() => {
-    return filteredSeries.map((s) => ({
-      ...s,
-      displayName: getBaseMetricName(s.name),
-    }));
-  }, [filteredSeries]);
 
   // Initialize enabled analyzers when components load
   useEffect(() => {
@@ -230,45 +144,6 @@ function App() {
 
     fetchSeriesData();
   }, [selectedSeries, state.connectionState, state.activeScenario]);
-
-  // Fetch split series data when splitByTag is enabled
-  useEffect(() => {
-    setSplitSeriesData(new Map());
-
-    if (!splitByTag || selectedSeries.size === 0 || state.connectionState !== 'ready') {
-      return;
-    }
-
-    const fetchSplitData = async () => {
-      const newSplitData = new Map<string, SeriesData[]>();
-
-      for (const key of selectedSeries) {
-        const [namespace, ...nameParts] = key.split('/');
-        const name = nameParts.join('/');
-
-        // Find all series variants with different tag values for the split key
-        const variants = findSeriesVariants(name, series, splitByTag);
-
-        if (variants.length > 1) {
-          // Fetch data for each variant
-          const variantData: SeriesData[] = [];
-          for (const variant of variants) {
-            try {
-              const data = await api.getSeriesData(variant.namespace, variant.name);
-              variantData.push(data);
-            } catch (e) {
-              console.error(`Failed to fetch variant ${variant.name}:`, e);
-            }
-          }
-          newSplitData.set(key, variantData);
-        }
-      }
-
-      setSplitSeriesData(newSplitData);
-    };
-
-    fetchSplitData();
-  }, [splitByTag, selectedSeries, series, state.connectionState]);
 
   const toggleAnalyzer = (name: string) => {
     const newSet = new Set(enabledAnalyzers);
@@ -348,40 +223,6 @@ function App() {
               <span className="text-xs text-slate-500">
                 Drag to zoom, middle-drag to pan
               </span>
-            )}
-            {/* Smooth Lines Toggle */}
-            <label className="flex items-center gap-2 cursor-pointer">
-              <span className="text-xs text-slate-400">Smooth</span>
-              <button
-                onClick={() => setSmoothLines(!smoothLines)}
-                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                  smoothLines ? 'bg-purple-600' : 'bg-slate-600'
-                }`}
-              >
-                <span
-                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                    smoothLines ? 'translate-x-5' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </label>
-            {/* Split by Tag Dropdown */}
-            {availableTagKeys.length > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-400">Split by</span>
-                <select
-                  value={splitByTag ?? ''}
-                  onChange={(e) => setSplitByTag(e.target.value || null)}
-                  className="text-xs bg-slate-700 text-slate-300 rounded px-2 py-1 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                >
-                  <option value="">None</option>
-                  {availableTagKeys.map((key) => (
-                    <option key={key} value={key}>
-                      {key}
-                    </option>
-                  ))}
-                </select>
-              </div>
             )}
             <ConnectionStatus state={state.connectionState} />
             {state.status && (
@@ -469,40 +310,18 @@ function App() {
             </div>
           </div>
 
-          {/* Aggregation Type */}
-          <div className="p-4 border-b border-slate-700">
-            <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-              Aggregation
-            </h2>
-            <div className="flex gap-1 flex-wrap">
-              {AGGREGATION_TYPES.map((type) => (
-                <button
-                  key={type}
-                  onClick={() => setAggregationType(type)}
-                  className={`text-xs px-2 py-1 rounded transition-colors ${
-                    aggregationType === type
-                      ? 'bg-purple-600 text-white'
-                      : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-                  }`}
-                >
-                  {type}
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* Series Tree */}
           <div className="flex-1 p-4 overflow-hidden flex flex-col min-h-0">
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Series ({displaySeries.length})
+                Series ({series.length})
               </h2>
               {/* Quick selection buttons */}
               <div className="flex gap-1">
                 <button
                   onClick={() => {
-                    const anomalousKeys = displaySeries
-                      .filter((s) => anomalies.some((a) => a.source === s.name || a.source === s.displayName))
+                    const anomalousKeys = series
+                      .filter((s) => anomalies.some((a) => a.source === s.name))
                       .map((s) => `${s.namespace}/${s.name}`);
                     setSelectedSeries(new Set(anomalousKeys));
                   }}
@@ -513,7 +332,7 @@ function App() {
                 </button>
                 <button
                   onClick={() => {
-                    const allKeys = displaySeries.map((s) => `${s.namespace}/${s.name}`);
+                    const allKeys = series.map((s) => `${s.namespace}/${s.name}`);
                     setSelectedSeries(new Set(allKeys));
                   }}
                   className="text-xs px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 rounded text-slate-400"
@@ -531,7 +350,7 @@ function App() {
               </div>
             </div>
             <SeriesTree
-              series={displaySeries}
+              series={series}
               selectedSeries={selectedSeries}
               anomalousSources={anomalousSources}
               onSelectionChange={setSelectedSeries}
@@ -672,25 +491,6 @@ function App() {
                         start: c.firstSeen,
                         end: c.lastUpdated,
                       }));
-
-                    // Build split series if tag splitting is enabled
-                    let splitSeries: SplitSeries[] | undefined;
-                    if (splitByTag) {
-                      const variants = splitSeriesData.get(key);
-                      if (variants && variants.length > 1) {
-                        splitSeries = variants.map((v) => {
-                          // Find the value for the split tag
-                          const tagValue = (v.tags ?? [])
-                            .map((t) => parseTag(t))
-                            .find((p) => p?.key === splitByTag)?.value ?? 'unknown';
-                          return {
-                            label: `${splitByTag}:${tagValue}`,
-                            points: v.points,
-                          };
-                        });
-                      }
-                    }
-
                     return (
                       <ChartWithAnomalyDetails
                         key={key}
@@ -702,8 +502,6 @@ function App() {
                         enabledAnalyzers={enabledAnalyzers}
                         timeRange={timeRange}
                         onTimeRangeChange={setTimeRange}
-                        smoothLines={smoothLines}
-                        splitSeries={splitSeries}
                       />
                     );
                   })}

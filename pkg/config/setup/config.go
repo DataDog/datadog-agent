@@ -549,8 +549,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_devices.autodiscovery.timeout", 5)
 	config.BindEnvAndSetDefault("network_devices.autodiscovery.retries", 3)
 
-	config.BindEnvAndSetDefault("network_devices.default_scan.enabled", false)
-
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.snmp_traps.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.enabled", false)
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.port", 9162)
@@ -841,14 +839,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Changing this setting may impact your custom metrics billing.
 	config.BindEnvAndSetDefault("checks_tag_cardinality", "low")
 	config.BindEnvAndSetDefault("dogstatsd_tag_cardinality", "low")
-
-	// Observer component configuration for metric capture and anomaly detection
-	config.BindEnvAndSetDefault("observer.capture_metrics.enabled", false)
-	config.BindEnvAndSetDefault("observer.capture_metrics.sample_rate", 1.0)
-	config.BindEnvAndSetDefault("observer.high_frequency_interval", 0*time.Second) // 0 = disabled
-	config.BindEnvAndSetDefault("observer.parquet_output_dir", "")                 // Directory for parquet files
-	config.BindEnvAndSetDefault("observer.parquet_flush_interval", 60*time.Second) // File rotation interval
-	config.BindEnvAndSetDefault("observer.parquet_retention", 24*time.Hour)        // Cleanup after 24 hours
 
 	config.BindEnvAndSetDefault("hpa_watcher_polling_freq", 10)
 	config.BindEnvAndSetDefault("hpa_watcher_gc_period", 60*5) // 5 minutes
@@ -1166,7 +1156,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
-	config.BindEnvAndSetDefault("compliance_config.run_in_system_probe", false)
 	config.BindEnvAndSetDefault("compliance_config.xccdf.enabled", false) // deprecated, use host_benchmarks instead
 	config.BindEnvAndSetDefault("compliance_config.host_benchmarks.enabled", true)
 	config.BindEnvAndSetDefault("compliance_config.database_benchmarks.enabled", false)
@@ -1258,9 +1247,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("appsec.proxy.proxies", []string{})
 
 	setupProcesses(config)
-
-	// Private Action Runner configuration
-	setupPrivateActionRunner(config)
 
 	// Installer configuration
 	config.BindEnvAndSetDefault("remote_updates", true)
@@ -1370,6 +1356,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("log_to_console", true)
 	config.BindEnvAndSetDefault("log_format_rfc3339", false)
 	config.BindEnvAndSetDefault("log_all_goroutines_when_unhealthy", false)
+	config.BindEnvAndSetDefault("log_use_slog", true)
 	config.BindEnvAndSetDefault("logging_frequency", int64(500))
 	config.BindEnvAndSetDefault("disable_file_logging", false)
 	config.BindEnvAndSetDefault("syslog_uri", "")
@@ -2878,15 +2865,10 @@ func envVarAreSetAndNotEqual(lhsName string, rhsName string) bool {
 
 // sanitizeAPIKeyConfig strips newlines and other control characters from a given key.
 func sanitizeAPIKeyConfig(config pkgconfigmodel.Config, key string) {
-	if !config.IsKnown(key) || !config.IsConfigured(key) {
+	if !config.IsKnown(key) || !config.IsSet(key) {
 		return
 	}
-	original := config.GetString(key)
-	trimmed := strings.TrimSpace(original)
-	if original == trimmed {
-		return
-	}
-	config.Set(key, trimmed, pkgconfigmodel.SourceAgentRuntime)
+	config.Set(key, strings.TrimSpace(config.GetString(key)), config.GetSource(key))
 }
 
 // sanitizeExternalMetricsProviderChunkSize ensures the value of `external_metrics_provider.chunk_size` is within an acceptable range

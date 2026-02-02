@@ -31,9 +31,6 @@ type Handle interface {
 	ObserveLog(msg LogView)
 }
 
-// HandleFunc is a function that returns a handle for a named source.
-type HandleFunc func(name string) Handle
-
 // MetricView provides read-only access to a metric sample.
 //
 // This interface exists to prevent data races. The underlying metric data may be
@@ -83,6 +80,12 @@ type MetricOutput struct {
 	Tags  []string
 }
 
+// TimeRange represents a time period covered by an analysis.
+type TimeRange struct {
+	Start int64 // earliest timestamp in analyzed data (unix seconds)
+	End   int64 // latest timestamp in analyzed data (unix seconds)
+}
+
 // AnomalyOutput is a detected anomaly event.
 // Anomalies represent a point in time where something anomalous was detected.
 type AnomalyOutput struct {
@@ -93,7 +96,8 @@ type AnomalyOutput struct {
 	Title        string
 	Description  string
 	Tags         []string
-	Timestamp    int64 // when the anomaly was detected (unix seconds)
+	Timestamp    int64     // when the anomaly was detected (unix seconds)
+	TimeRange    TimeRange // period covered by the analysis that produced this anomaly
 	// DebugInfo contains analyzer-specific debug information explaining the detection.
 	DebugInfo *AnomalyDebugInfo
 }
@@ -101,17 +105,17 @@ type AnomalyOutput struct {
 // AnomalyDebugInfo provides detailed information about why an anomaly was detected.
 type AnomalyDebugInfo struct {
 	// Baseline statistics
-	BaselineStart  int64   // timestamp of baseline period start
-	BaselineEnd    int64   // timestamp of baseline period end
-	BaselineMean   float64 // mean of baseline (for CUSUM)
-	BaselineMedian float64 // median of baseline (for robust z-score)
-	BaselineStddev float64 // stddev of baseline (for CUSUM)
-	BaselineMAD    float64 // MAD of baseline (for robust z-score)
+	BaselineStart   int64   // timestamp of baseline period start
+	BaselineEnd     int64   // timestamp of baseline period end
+	BaselineMean    float64 // mean of baseline (for CUSUM)
+	BaselineMedian  float64 // median of baseline (for robust z-score)
+	BaselineStddev  float64 // stddev of baseline (for CUSUM)
+	BaselineMAD     float64 // MAD of baseline (for robust z-score)
 
 	// Detection parameters
-	Threshold      float64 // threshold that was crossed
-	SlackParam     float64 // k parameter (CUSUM only)
-	CurrentValue   float64 // value at detection time
+	Threshold     float64 // threshold that was crossed
+	SlackParam    float64 // k parameter (CUSUM only)
+	CurrentValue  float64 // value at detection time
 	DeviationSigma float64 // how many sigmas from baseline
 
 	// For CUSUM: the cumulative sum values leading up to detection
@@ -166,12 +170,27 @@ type AnomalyProcessor interface {
 	Flush() []ReportOutput
 }
 
-// EventSignalReceiver is an optional interface for processors that accept discrete event signals.
-// Events like container OOMs, restarts, and lifecycle transitions are routed here
-// instead of being processed as logs (no metric derivation).
-type EventSignalReceiver interface {
-	// AddEventSignal adds a discrete event signal for correlation context.
-	AddEventSignal(signal EventSignal)
+// SignalEmitter produces point signals from time series data.
+// This replaces TimeSeriesAnalysis with a simpler point-based output model.
+// Layer 1: Emitters detect anomalous conditions and emit signals immediately.
+type SignalEmitter interface {
+	// Name returns the emitter name for debugging.
+	Name() string
+	// Emit analyzes a series and returns point signals for anomalous conditions.
+	Emit(series Series) []Signal
+}
+
+// SignalProcessor processes signal streams and maintains internal state.
+// This replaces AnomalyProcessor, using a pull-based model where reporters
+// query state via typed interfaces (e.g., CorrelationState, ClusterState).
+// Layer 2: Processors correlate, cluster, or filter signals.
+type SignalProcessor interface {
+	// Name returns the processor name for debugging.
+	Name() string
+	// Process receives a signal for accumulation/correlation.
+	Process(signal Signal)
+	// Flush updates internal state. Reporters pull state via typed interfaces.
+	Flush()
 }
 
 // Reporter receives reports and displays or delivers them.
@@ -191,24 +210,40 @@ type CorrelationState interface {
 
 // ActiveCorrelation represents a detected correlation pattern.
 type ActiveCorrelation struct {
-	Pattern      string          // pattern name, e.g. "kernel_bottleneck"
-	Title        string          // display title, e.g. "Correlated: Kernel network bottleneck"
-	Signals      []string        // contributing signal sources
-	Anomalies    []AnomalyOutput // the actual anomalies that triggered this correlation
-	EventSignals []EventSignal   // discrete event signals relevant to this correlation
-	FirstSeen    int64           // when pattern first matched (unix seconds, from data)
-	LastUpdated  int64           // most recent contributing signal (unix seconds, from data)
+	Pattern     string          // pattern name, e.g. "kernel_bottleneck"
+	Title       string          // display title, e.g. "Correlated: Kernel network bottleneck"
+	Sources     []string        // source identifiers that matched the pattern (e.g., "metric:cpu.usage", "event:oom_killed")
+	Anomalies   []AnomalyOutput // the actual anomalies that triggered this correlation (legacy, for backward compat)
+	FirstSeen   int64           // when pattern first matched (unix seconds, from data)
+	LastUpdated int64           // most recent contributing signal (unix seconds, from data)
 }
 
-// EventSignal represents a discrete event used as correlation evidence or annotation.
-// Unlike anomalies (which are detected from time series analysis), event signals are
-// explicit events such as container OOMs, restarts, or lifecycle transitions.
-// They are not analyzed with CUSUM but serve as context for understanding correlations.
-type EventSignal struct {
-	Source    string   // event source, e.g., "container_oom", "container_restart", "agent_startup"
-	Timestamp int64    // when the event occurred (unix seconds)
-	Tags      []string // event tags for filtering/grouping
-	Message   string   // optional human-readable description
+// ClusterState provides read access to clustered signal regions.
+// TimeClusterer implements this interface to expose grouped signals.
+type ClusterState interface {
+	// ActiveRegions returns currently active signal regions.
+	ActiveRegions() []SignalRegion
+}
+
+// SignalRegion represents a time region with grouped point signals.
+// Created by TimeClusterer from point signals that occur close together in time.
+type SignalRegion struct {
+	Source    string    // signal source
+	TimeRange TimeRange // start and end of the region
+	Signals   []Signal  // contributing point signals
+}
+
+// Signal represents a point-in-time observation of interest.
+// Signals unify metric anomalies and discrete events into a common type.
+// This replaces the region-based AnomalyOutput for incremental processing.
+type Signal struct {
+	Source    string   // identifies what produced this, e.g., "metric:cpu.usage:avg", "event:oom_killed"
+	Timestamp int64    // unix timestamp (seconds)
+	Tags      []string // metadata tags
+
+	// Optional fields (algorithm-dependent)
+	Value float64  // current metric value (if applicable)
+	Score *float64 // confidence/severity (nil if algorithm doesn't provide)
 }
 
 // RawAnomalyState provides read access to raw anomalies before correlation processing.

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { TimeSeriesChart } from './TimeSeriesChart';
-import type { SplitSeries } from './TimeSeriesChart';
 import type { Point, AnomalyMarker, Anomaly } from '../api/client';
 
 export interface CorrelationRange {
@@ -24,8 +23,6 @@ interface ChartWithAnomalyDetailsProps {
   enabledAnalyzers: Set<string>;
   timeRange?: TimeRange | null;
   onTimeRangeChange?: (range: TimeRange | null) => void;
-  smoothLines?: boolean;
-  splitSeries?: SplitSeries[];
 }
 
 export function ChartWithAnomalyDetails({
@@ -37,8 +34,6 @@ export function ChartWithAnomalyDetails({
   enabledAnalyzers,
   timeRange,
   onTimeRangeChange,
-  smoothLines = true,
-  splitSeries,
 }: ChartWithAnomalyDetailsProps) {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
 
@@ -69,8 +64,6 @@ export function ChartWithAnomalyDetails({
         timeRange={timeRange}
         onTimeRangeChange={onTimeRangeChange}
         height={200}
-        smoothLines={smoothLines}
-        splitSeries={splitSeries}
       />
 
       {/* Anomaly details - compact list below chart */}
@@ -86,7 +79,7 @@ export function ChartWithAnomalyDetails({
               const isCUSUM = anomaly.analyzerName === 'cusum_detector';
 
               return (
-                <div key={`${anomaly.analyzerName}-${anomaly.timestamp}-${idx}`} className="text-xs">
+                <div key={`${anomaly.analyzerName}-${anomaly.timestamp}`} className="text-xs">
                   {/* Compact header */}
                   <button
                     onClick={() => setExpandedIndex(isExpanded ? null : idx)}

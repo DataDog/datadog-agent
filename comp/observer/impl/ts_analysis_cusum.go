@@ -3,11 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build observer
+
 package observerimpl
 
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
@@ -61,6 +64,12 @@ func (c *CUSUMDetector) Name() string {
 // Analyze runs CUSUM on the series and returns an anomaly if a shift is detected.
 // The anomaly's Timestamp indicates when the shift was first detected (threshold crossing).
 func (c *CUSUMDetector) Analyze(series observer.Series) observer.TimeSeriesAnalysisResult {
+	// Skip :count metrics - these are cardinality counts that create noise
+	// when container counts change (e.g., 1 -> 2 pods)
+	if strings.HasSuffix(series.Name, ":count") {
+		return observer.TimeSeriesAnalysisResult{}
+	}
+
 	minPoints := c.MinPoints
 	if minPoints <= 0 {
 		minPoints = 5

@@ -86,8 +86,8 @@ type dependencies struct {
 	WMeta      option.Option[workloadmeta.Component]
 	Telemetry  telemetry.Component
 	Hostname   hostnameinterface.Component
-	FilterList filterlist.Component
 	Observer   option.Option[observer.Component]
+	FilterList filterlist.Component
 }
 
 type provides struct {
@@ -138,8 +138,8 @@ type server struct {
 	histToDistPrefix        string
 	extraTags               []string
 	Debug                   serverdebug.Component
-	filterList              filterlist.Component
 	observerHandle          observer.Handle
+	filterList              filterlist.Component
 
 	tCapture                replay.Component
 	pidMap                  pidmap.Component

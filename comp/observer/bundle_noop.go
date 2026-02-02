@@ -3,21 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build observer
+//go:build !observer
 
 // Package observer bundles the observer component.
 package observer
 
 import (
-	observerfx "github.com/DataDog/datadog-agent/comp/observer/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: agent-metric-pipelines
-
 // Bundle defines the fx options for the observer bundle.
+// This is a noop implementation when the observer build tag is not set.
 func Bundle() fxutil.BundleOptions {
-	return fxutil.Bundle(
-		observerfx.Module(),
-	)
+	return fxutil.Bundle()
 }

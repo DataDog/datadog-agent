@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build observer
+
 package observerimpl
 
 import (
@@ -382,7 +384,7 @@ func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, r *http.Reque
 		response[i] = correlationResponse{
 			Pattern:     c.Pattern,
 			Title:       c.Title,
-			Signals:     c.Signals,
+			Signals:     c.Sources,
 			Anomalies:   anomalies,
 			FirstSeen:   c.FirstSeen,
 			LastUpdated: c.LastUpdated,

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build observer
+
 package observerimpl
 
 import (
@@ -202,6 +204,68 @@ func (c *TimeClusterCorrelator) evictOldClusters() {
 	c.clusters = newClusters
 }
 
+// TimeClusterInfo represents a cluster for visualization.
+type TimeClusterInfo struct {
+	ID           int      `json:"id"`
+	Sources      []string `json:"sources"`
+	StartTime    int64    `json:"start_time"`
+	EndTime      int64    `json:"end_time"`
+	AnomalyCount int      `json:"anomaly_count"`
+}
+
+// GetClusters returns clusters that meet the minimum size threshold for visualization.
+func (c *TimeClusterCorrelator) GetClusters() []TimeClusterInfo {
+	var result []TimeClusterInfo
+	for _, cluster := range c.clusters {
+		// Only include clusters that meet minimum size
+		if len(cluster.anomalies) < c.config.MinClusterSize {
+			continue
+		}
+
+		sources := make([]string, 0, len(cluster.anomalies))
+		for source := range cluster.anomalies {
+			sources = append(sources, source)
+		}
+		sort.Strings(sources)
+		result = append(result, TimeClusterInfo{
+			ID:           cluster.id,
+			Sources:      sources,
+			StartTime:    cluster.minTimestamp,
+			EndTime:      cluster.maxTimestamp,
+			AnomalyCount: len(cluster.anomalies),
+		})
+	}
+	// Sort by size (largest first), then by time
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].AnomalyCount != result[j].AnomalyCount {
+			return result[i].AnomalyCount > result[j].AnomalyCount
+		}
+		return result[i].StartTime > result[j].StartTime // most recent first
+	})
+	return result
+}
+
+// GetStats returns statistics about the correlator state.
+func (c *TimeClusterCorrelator) GetStats() map[string]interface{} {
+	totalAnomalies := 0
+	maxClusterSize := 0
+	for _, cluster := range c.clusters {
+		totalAnomalies += len(cluster.anomalies)
+		if len(cluster.anomalies) > maxClusterSize {
+			maxClusterSize = len(cluster.anomalies)
+		}
+	}
+	return map[string]interface{}{
+		"total_clusters":       len(c.clusters),
+		"total_anomalies":      totalAnomalies,
+		"largest_cluster_size": maxClusterSize,
+		"proximity_seconds":    c.config.ProximitySeconds,
+		"window_seconds":       c.config.WindowSeconds,
+		"min_cluster_size":     c.config.MinClusterSize,
+		"current_data_time":    c.currentDataTime,
+	}
+}
+
 // ActiveCorrelations returns clusters that meet the minimum size threshold.
 // Implements CorrelationState interface.
 func (c *TimeClusterCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
@@ -224,7 +288,7 @@ func (c *TimeClusterCorrelator) ActiveCorrelations() []observer.ActiveCorrelatio
 		result = append(result, observer.ActiveCorrelation{
 			Pattern:     fmt.Sprintf("time_cluster_%d", cluster.id),
 			Title:       fmt.Sprintf("Correlated: %d anomalies in time window", len(cluster.anomalies)),
-			Signals:     sources,
+			Sources:     sources,
 			Anomalies:   anomalies,
 			FirstSeen:   cluster.minTimestamp,
 			LastUpdated: cluster.maxTimestamp,

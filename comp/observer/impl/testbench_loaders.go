@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build observer
+
 package observerimpl
 
 import (
@@ -240,42 +242,3 @@ func parseTimestamp(v interface{}) int64 {
 	return 0
 }
 
-// LoadEventFile loads events from a JSON file.
-// Expects a JSON array of EventSignal objects.
-func LoadEventFile(path string) ([]observerdef.EventSignal, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	// Try to parse as array first
-	var events []observerdef.EventSignal
-	if err := json.Unmarshal(data, &events); err == nil {
-		return events, nil
-	}
-
-	// Try to parse as JSON lines
-	var result []observerdef.EventSignal
-	scanner := bufio.NewScanner(strings.NewReader(string(data)))
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || line == "[" || line == "]" {
-			continue
-		}
-
-		// Remove trailing comma if present
-		line = strings.TrimSuffix(line, ",")
-
-		var event observerdef.EventSignal
-		if err := json.Unmarshal([]byte(line), &event); err != nil {
-			continue
-		}
-		result = append(result, event)
-	}
-
-	if len(result) > 0 {
-		return result, nil
-	}
-
-	return nil, fmt.Errorf("could not parse event file")
-}

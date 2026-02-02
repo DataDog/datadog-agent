@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build observer
+
 package observerimpl
 
 import (
@@ -35,8 +37,8 @@ func TestTimeClusterCorrelator_BasicClustering(t *testing.T) {
 	correlations := c.ActiveCorrelations()
 	require.Len(t, correlations, 1)
 	assert.Len(t, correlations[0].Anomalies, 2)
-	assert.Contains(t, correlations[0].Signals, "metric.a")
-	assert.Contains(t, correlations[0].Signals, "metric.b")
+	assert.Contains(t, correlations[0].Sources, "metric.a")
+	assert.Contains(t, correlations[0].Sources, "metric.b")
 }
 
 func TestTimeClusterCorrelator_ProximityWindow(t *testing.T) {
@@ -180,7 +182,7 @@ func TestTimeClusterCorrelator_Eviction(t *testing.T) {
 
 	correlations := c.ActiveCorrelations()
 	require.Len(t, correlations, 1)
-	assert.Equal(t, "metric.new", correlations[0].Signals[0])
+	assert.Equal(t, "metric.new", correlations[0].Sources[0])
 }
 
 func TestTimeClusterCorrelator_MinClusterSize(t *testing.T) {

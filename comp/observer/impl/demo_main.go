@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build observer
+
 package observerimpl
 
 import (
@@ -20,6 +22,11 @@ type DemoConfig struct {
 	// HTTPAddr is the address for the HTML reporter server (e.g., ":8080").
 	// If empty, HTML reporter is disabled and only stdout is used.
 	HTTPAddr string
+	// ParquetDir is the directory containing FGM parquet files for replay.
+	// If set, the demo will replay from parquet instead of generating synthetic data.
+	ParquetDir string
+	// Loop controls whether to loop parquet replay after reaching the end.
+	Loop bool
 }
 
 // RunDemo runs the full demo scenario and blocks until complete.
@@ -46,7 +53,7 @@ func RunDemoWithConfig(config DemoConfig) {
 	}
 	if useTimeBasedCorrelation {
 		correlator = NewTimeClusterCorrelator(TimeClusterConfig{
-			ProximitySeconds: 10, // anomalies within 10s of each other can cluster
+			ProximitySeconds: 1,  // Only 1 second proximity - anomalies must be nearly simultaneous
 			MinClusterSize:   2,  // need at least 2 anomalies to report
 			WindowSeconds:    60, // keep anomalies for 60s
 		})
@@ -84,6 +91,10 @@ func RunDemoWithConfig(config DemoConfig) {
 		tsAnalyses: []observerdef.TimeSeriesAnalysis{
 			NewCUSUMDetector(),
 		},
+		signalEmitters: []observerdef.SignalEmitter{
+			NewGraphSketchEmitter(DefaultGraphSketchConfig()),
+			NewLightESDEmitter(DefaultLightESDConfig()),
+		},
 		anomalyProcessors: []observerdef.AnomalyProcessor{
 			correlator,
 		},
@@ -92,7 +103,6 @@ func RunDemoWithConfig(config DemoConfig) {
 		obsCh:            make(chan observation, 1000),
 		rawAnomalyWindow: 120, // keep raw anomalies for 2 minutes
 	}
-	obs.handleFunc = obs.innerHandle
 	go obs.run()
 
 	// Wire raw anomaly state to reporters for test bench display
@@ -104,18 +114,47 @@ func RunDemoWithConfig(config DemoConfig) {
 	// Get a handle for the demo generator
 	handle := obs.GetHandle("demo")
 
-	// Synthetic data generation mode
-	generator := NewDataGenerator(handle, GeneratorConfig{
-		TimeScale:     config.TimeScale,
-		BaselineNoise: 0.1,
-	})
+	// Choose between parquet replay and synthetic data generation
+	var ctx context.Context
+	var cancel context.CancelFunc
 
-	// Run the generator with a timeout for the scenario duration (70s scaled)
-	scenarioDuration := time.Duration(float64(phaseTotalDuration) * float64(time.Second) * config.TimeScale)
-	ctx, cancel := context.WithTimeout(context.Background(), scenarioDuration)
-	defer cancel()
+	if config.ParquetDir != "" {
+		// Parquet replay mode
+		fmt.Printf("Using parquet replay from: %s\n", config.ParquetDir)
+		replayGen, err := NewParquetReplayGenerator(handle, ParquetReplayConfig{
+			ParquetDir: config.ParquetDir,
+			TimeScale:  config.TimeScale,
+			Loop:       config.Loop,
+		})
+		if err != nil {
+			fmt.Printf("Failed to create parquet replay generator: %v\n", err)
+			return
+		}
 
-	generator.Run(ctx)
+		// For parquet replay, use a long timeout or no timeout if looping
+		if config.Loop {
+			ctx, cancel = context.WithCancel(context.Background())
+		} else {
+			// Give enough time for the replay to complete
+			ctx, cancel = context.WithTimeout(context.Background(), 1*time.Hour)
+		}
+		defer cancel()
+
+		replayGen.Run(ctx)
+	} else {
+		// Synthetic data generation mode
+		generator := NewDataGenerator(handle, GeneratorConfig{
+			TimeScale:     config.TimeScale,
+			BaselineNoise: 0.1,
+		})
+
+		// Run the generator with a timeout for the scenario duration (70s scaled)
+		scenarioDuration := time.Duration(float64(phaseTotalDuration) * float64(time.Second) * config.TimeScale)
+		ctx, cancel = context.WithTimeout(context.Background(), scenarioDuration)
+		defer cancel()
+
+		generator.Run(ctx)
+	}
 
 	// Small buffer to let final events flush through the pipeline
 	time.Sleep(time.Duration(float64(500*time.Millisecond) * config.TimeScale))

@@ -3,7 +3,6 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 interface SeriesInfo {
   namespace: string;
   name: string;
-  displayName?: string;  // Optional display name (without aggregation suffix)
 }
 
 interface TreeNode {
@@ -33,21 +32,17 @@ function buildTree(series: SeriesInfo[], anomalousSources: Set<string>): TreeNod
 
   // Sort series: anomalous first, then alphabetically
   const sorted = [...series].sort((a, b) => {
-    const aName = a.displayName ?? a.name;
-    const bName = b.displayName ?? b.name;
-    const aHas = anomalousSources.has(a.name) || anomalousSources.has(aName);
-    const bHas = anomalousSources.has(b.name) || anomalousSources.has(bName);
+    const aHas = anomalousSources.has(a.name);
+    const bHas = anomalousSources.has(b.name);
     if (aHas && !bHas) return -1;
     if (!aHas && bHas) return 1;
-    return aName.localeCompare(bName);
+    return a.name.localeCompare(b.name);
   });
 
   for (const s of sorted) {
     const key = `${s.namespace}/${s.name}`;
-    // Use displayName if available, otherwise use name
-    const nameForTree = s.displayName ?? s.name;
-    // Split on . to create hierarchy (not on : since we stripped the suffix)
-    const parts = nameForTree.split('.');
+    // Split on . and : to create hierarchy
+    const parts = s.name.split(/[.:]/);
 
     let current = root;
     let pathSoFar = '';
@@ -90,7 +85,7 @@ interface TreeNodeComponentProps {
   onToggleNode: (keys: string[]) => void;
   expandedPaths: Set<string>;
   onToggleExpanded: (path: string) => void;
-  seriesNameMap: Map<string, string[]>; // key -> names (including displayName)
+  seriesNameMap: Map<string, string>; // key -> full name
 }
 
 function TreeNodeComponent({
@@ -113,8 +108,8 @@ function TreeNodeComponent({
 
   // Check if any series under this node has anomalies
   const hasAnomaly = keys.some((k) => {
-    const names = seriesNameMap.get(k);
-    return names && names.some((name) => anomalousSources.has(name));
+    const name = seriesNameMap.get(k);
+    return name && anomalousSources.has(name);
   });
 
   const childNodes = Array.from(node.children.values());
@@ -217,13 +212,11 @@ export function SeriesTree({
   // Build tree structure
   const tree = useMemo(() => buildTree(series, anomalousSources), [series, anomalousSources]);
 
-  // Map from key to series name for anomaly lookup (includes both name and displayName)
+  // Map from key to series name for anomaly lookup
   const seriesNameMap = useMemo(() => {
-    const map = new Map<string, string[]>();
+    const map = new Map<string, string>();
     for (const s of series) {
-      const names = [s.name];
-      if (s.displayName) names.push(s.displayName);
-      map.set(`${s.namespace}/${s.name}`, names);
+      map.set(`${s.namespace}/${s.name}`, s.name);
     }
     return map;
   }, [series]);
@@ -276,8 +269,7 @@ export function SeriesTree({
     for (const s of series) {
       const key = `${s.namespace}/${s.name}`;
       if (selectedSeries.has(key)) {
-        const nameForTree = s.displayName ?? s.name;
-        const parts = nameForTree.split('.');
+        const parts = s.name.split(/[.:]/);
         let pathSoFar = '';
         for (let i = 0; i < parts.length - 1; i++) {
           pathSoFar = pathSoFar ? `${pathSoFar}.${parts[i]}` : parts[i];
@@ -311,9 +303,8 @@ export function SeriesTree({
 
     // Find paths that lead to anomalous series
     for (const s of series) {
-      const nameForTree = s.displayName ?? s.name;
-      if (anomalousSources.has(s.name) || anomalousSources.has(nameForTree)) {
-        const parts = nameForTree.split('.');
+      if (anomalousSources.has(s.name)) {
+        const parts = s.name.split(/[.:]/);
         let pathSoFar = '';
         for (let i = 0; i < parts.length - 1; i++) {
           pathSoFar = pathSoFar ? `${pathSoFar}.${parts[i]}` : parts[i];

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build observer
+
 package observerimpl
 
 import (
@@ -33,10 +35,10 @@ type timestampedAnomaly struct {
 	anomaly  observer.AnomalyOutput
 }
 
-// timestampedEventSignal pairs an event signal with its timestamp for windowing.
-type timestampedEventSignal struct {
-	dataTime int64 // timestamp from the event signal
-	signal   observer.EventSignal
+// timestampedSignal pairs a signal with its timestamp for windowing.
+type timestampedSignal struct {
+	dataTime int64 // timestamp from the signal
+	signal   observer.Signal
 }
 
 // correlationPattern defines a known pattern of correlated signals.
@@ -70,18 +72,18 @@ var knownPatterns = []correlationPattern{
 	},
 }
 
-// CrossSignalCorrelator clusters anomalies from different signals within a time window
-// and detects known patterns. It implements CorrelationState to allow reporters to
-// read the current correlation state.
+// CrossSignalCorrelator clusters signals from different sources within a time window
+// and detects known patterns. It implements CorrelationState and AnomalyProcessor to allow
+// both old (AnomalyOutput) and new (Signal) inputs. Reporters read the current correlation state.
 //
-// Time is derived entirely from input data timestamps (anomaly.Timestamp), making
-// the correlator deterministic with respect to input data.
+// Time is derived entirely from input data timestamps (anomaly.TimeRange.End or Signal.Timestamp),
+// making the correlator deterministic with respect to input data.
 type CrossSignalCorrelator struct {
 	config             CorrelatorConfig
-	buffer             []timestampedAnomaly
-	eventSignals       []timestampedEventSignal // discrete event signals (OOM, restarts, etc.)
+	buffer             []timestampedAnomaly // OLD: for AnomalyOutput input (regions)
+	signalBuffer       []timestampedSignal  // NEW: for Signal input (points)
 	activeCorrelations map[string]*observer.ActiveCorrelation
-	currentDataTime    int64 // latest data timestamp seen (max of all Timestamp values)
+	currentDataTime    int64 // latest data timestamp seen
 }
 
 // NewCorrelator creates a new CrossSignalCorrelator with the given config.
@@ -93,6 +95,7 @@ func NewCorrelator(config CorrelatorConfig) *CrossSignalCorrelator {
 	return &CrossSignalCorrelator{
 		config:             config,
 		buffer:             nil,
+		signalBuffer:       nil,
 		activeCorrelations: make(map[string]*observer.ActiveCorrelation),
 		currentDataTime:    0,
 	}
@@ -103,8 +106,8 @@ func (c *CrossSignalCorrelator) Name() string {
 	return "cross_signal_correlator"
 }
 
-// Process adds an anomaly to the buffer using its data timestamp
-// and evicts entries older than WindowSeconds.
+// Process implements AnomalyProcessor (old interface). It adds an anomaly to the buffer
+// using its data timestamp (TimeRange.End) and evicts old entries.
 func (c *CrossSignalCorrelator) Process(anomaly observer.AnomalyOutput) {
 	dataTime := anomaly.Timestamp
 
@@ -123,7 +126,27 @@ func (c *CrossSignalCorrelator) Process(anomaly observer.AnomalyOutput) {
 	c.evictOldEntries()
 }
 
-// evictOldEntries removes entries older than WindowSeconds from the buffer.
+// ProcessSignal adds a Signal to the buffer using its timestamp and evicts old entries.
+// This enables the correlator to work with the new Signal-based system.
+func (c *CrossSignalCorrelator) ProcessSignal(signal observer.Signal) {
+	dataTime := signal.Timestamp
+
+	// Update current data time (monotonically advancing)
+	if dataTime > c.currentDataTime {
+		c.currentDataTime = dataTime
+	}
+
+	// Add the new signal with its timestamp
+	c.signalBuffer = append(c.signalBuffer, timestampedSignal{
+		dataTime: dataTime,
+		signal:   signal,
+	})
+
+	// Evict old entries based on data time
+	c.evictOldEntries()
+}
+
+// evictOldEntries removes entries older than WindowSeconds from both buffers.
 func (c *CrossSignalCorrelator) evictOldEntries() {
 	cutoff := c.currentDataTime - c.config.WindowSeconds
 
@@ -136,47 +159,29 @@ func (c *CrossSignalCorrelator) evictOldEntries() {
 	}
 	c.buffer = newBuffer
 
-	// Evict old event signals
-	newSignals := c.eventSignals[:0]
-	for _, entry := range c.eventSignals {
+	// Evict old signals
+	newSignalBuffer := c.signalBuffer[:0]
+	for _, entry := range c.signalBuffer {
 		if entry.dataTime >= cutoff {
-			newSignals = append(newSignals, entry)
+			newSignalBuffer = append(newSignalBuffer, entry)
 		}
 	}
-	c.eventSignals = newSignals
+	c.signalBuffer = newSignalBuffer
 }
 
-// AddEventSignal adds a discrete event signal (e.g., container OOM, restart) to the correlator.
-// Event signals are used as correlation evidence/annotations but are not analyzed with CUSUM.
-// They are included in active correlations to provide context about discrete events
-// that occurred within the correlation window.
-func (c *CrossSignalCorrelator) AddEventSignal(signal observer.EventSignal) {
-	// Update current data time if this signal is more recent
-	if signal.Timestamp > c.currentDataTime {
-		c.currentDataTime = signal.Timestamp
-	}
-
-	// Add the event signal with its timestamp
-	c.eventSignals = append(c.eventSignals, timestampedEventSignal{
-		dataTime: signal.Timestamp,
-		signal:   signal,
-	})
-
-	// Evict old entries (both anomalies and event signals)
-	c.evictOldEntries()
-}
-
-// Flush checks for known patterns in the buffered anomalies and updates activeCorrelations state.
-// It returns an empty slice since reporters now pull state via ActiveCorrelations() instead of
-// receiving pushed reports.
+// Flush implements AnomalyProcessor. It checks for known patterns in both old (anomaly) and new (signal)
+// buffers and updates activeCorrelations state. Returns empty slice since reporters pull state via ActiveCorrelations().
 func (c *CrossSignalCorrelator) Flush() []observer.ReportOutput {
 	// Evict old entries before checking patterns
 	c.evictOldEntries()
 
-	// Extract unique signal sources
+	// Extract unique signal sources from both anomalies and signals
 	sourceSet := make(map[string]struct{})
 	for _, entry := range c.buffer {
 		sourceSet[entry.anomaly.Source] = struct{}{}
+	}
+	for _, entry := range c.signalBuffer {
+		sourceSet[entry.signal.Source] = struct{}{}
 	}
 
 	// Track which patterns are currently active
@@ -187,28 +192,23 @@ func (c *CrossSignalCorrelator) Flush() []observer.ReportOutput {
 		if c.patternMatches(pattern, sourceSet) {
 			currentlyActive[pattern.name] = true
 
-			// Collect the anomalies that match this pattern's required sources
+			// Collect matching anomalies from old buffer for backward compatibility
 			matchingAnomalies := c.collectMatchingAnomalies(pattern)
-
-			// Collect all event signals within the window
-			currentEventSignals := c.collectEventSignalsInWindow()
 
 			if existing, ok := c.activeCorrelations[pattern.name]; ok {
 				// Pattern already active - update LastUpdated and Anomalies
 				existing.LastUpdated = c.currentDataTime
-				existing.Signals = c.getSortedSources(sourceSet)
+				existing.Sources = c.getSortedSources(sourceSet)
 				existing.Anomalies = matchingAnomalies
-				existing.EventSignals = currentEventSignals
 			} else {
 				// New pattern match - create ActiveCorrelation
 				c.activeCorrelations[pattern.name] = &observer.ActiveCorrelation{
-					Pattern:      pattern.name,
-					Title:        pattern.reportTitle,
-					Signals:      c.getSortedSources(sourceSet),
-					Anomalies:    matchingAnomalies,
-					EventSignals: currentEventSignals,
-					FirstSeen:    c.currentDataTime,
-					LastUpdated:  c.currentDataTime,
+					Pattern:     pattern.name,
+					Title:       pattern.reportTitle,
+					Sources:     c.getSortedSources(sourceSet),
+					Anomalies:   matchingAnomalies, // Populated from old buffer for backward compat
+					FirstSeen:   c.currentDataTime,
+					LastUpdated: c.currentDataTime,
 				}
 			}
 		}
@@ -233,23 +233,6 @@ func (c *CrossSignalCorrelator) patternMatches(pattern correlationPattern, sourc
 		}
 	}
 	return true
-}
-
-// collectEventSignalsInWindow returns all event signals currently in the window.
-// Event signals are sorted by timestamp (oldest first) for consistent output.
-func (c *CrossSignalCorrelator) collectEventSignalsInWindow() []observer.EventSignal {
-	if len(c.eventSignals) == 0 {
-		return nil
-	}
-	result := make([]observer.EventSignal, len(c.eventSignals))
-	for i, es := range c.eventSignals {
-		result[i] = es.signal
-	}
-	// Sort by timestamp for deterministic output
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].Timestamp < result[j].Timestamp
-	})
-	return result
 }
 
 // collectMatchingAnomalies returns anomalies from the buffer that match the pattern's required sources,
@@ -319,29 +302,14 @@ func (c *CrossSignalCorrelator) ActiveCorrelations() []observer.ActiveCorrelatio
 	result := make([]observer.ActiveCorrelation, 0, len(c.activeCorrelations))
 	for _, ac := range c.activeCorrelations {
 		// Return a copy to prevent external modification
-		anomaliesCopy := make([]observer.AnomalyOutput, len(ac.Anomalies))
-		copy(anomaliesCopy, ac.Anomalies)
-
-		var eventSignalsCopy []observer.EventSignal
-		if len(ac.EventSignals) > 0 {
-			eventSignalsCopy = make([]observer.EventSignal, len(ac.EventSignals))
-			copy(eventSignalsCopy, ac.EventSignals)
-		}
-
 		result = append(result, observer.ActiveCorrelation{
-			Pattern:      ac.Pattern,
-			Title:        ac.Title,
-			Signals:      append([]string(nil), ac.Signals...),
-			Anomalies:    anomaliesCopy,
-			EventSignals: eventSignalsCopy,
-			FirstSeen:    ac.FirstSeen,
-			LastUpdated:  ac.LastUpdated,
+			Pattern:     ac.Pattern,
+			Title:       ac.Title,
+			Sources:     append([]string(nil), ac.Sources...),
+			Anomalies:   ac.Anomalies, // Populated from old AnomalyOutput buffer for backward compat
+			FirstSeen:   ac.FirstSeen,
+			LastUpdated: ac.LastUpdated,
 		})
 	}
 	return result
-}
-
-// GetEventSignals returns the current event signals buffer (for testing).
-func (c *CrossSignalCorrelator) GetEventSignals() []timestampedEventSignal {
-	return c.eventSignals
 }

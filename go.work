@@ -49,6 +49,7 @@ use (
 	comp/forwarder/orchestrator/orchestratorinterface
 	comp/logs/agent/config
 	comp/netflow/payload
+	comp/observer/def
 	comp/otelcol/collector-contrib/def
 	comp/otelcol/collector-contrib/impl
 	comp/otelcol/converter/def
@@ -100,6 +101,7 @@ use (
 	pkg/fips
 	pkg/fleet/installer
 	pkg/gohai
+	pkg/linters/components/pkgconfigusage
 	pkg/logs/client
 	pkg/logs/diagnostic
 	pkg/logs/message
