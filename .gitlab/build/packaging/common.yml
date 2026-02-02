@@ -62,7 +62,7 @@
 
         echo "📊 Starting checking file inventories..."
         PARENT_REPORT=$(mktemp /tmp/parent-inventory-XXXX.yml)
-        dda -- inv quality-gates.get-parent-report "${CI_COMMIT_BRANCH}" "${STATIC_QUALITY_GATE_NAME}" "${PARENT_REPORT}"
+        dda -- inv quality-gates.get-parent-report "${CI_COMMIT_BRANCH}" "${REPORT_PREFIX}" "${PARENT_REPORT}"
 
         dda inv quality-gates.compare-inventory ${PARENT_REPORT} ${REPORT_FILENAME}
 
