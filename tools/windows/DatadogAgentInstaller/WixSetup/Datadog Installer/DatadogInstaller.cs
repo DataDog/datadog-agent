@@ -147,6 +147,11 @@ namespace WixSetup.Datadog_Installer
                 document
                     .Select("Wix/Package")
                     .Add(new XElement(WixExtension.Util.ToXName("FailWhenDeferred")));
+                // WiX 5 migration: SummaryInformation/Comments is a new element in WiX 5
+                // ControlPanelInfo.Comments doesn't generate this, so we add it manually
+                document
+                    .Select("Wix/Package")
+                    .AddElement("SummaryInformation", $"Comments={ProductComment}");
             };
             project.WixSourceFormated += (ref string content) => WixSourceFormated?.Invoke(content);
             project.WixSourceSaved += name => WixSourceSaved?.Invoke(name);
