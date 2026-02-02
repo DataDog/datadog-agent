@@ -103,6 +103,8 @@ modules:
     used_by_otel: true
   comp/otelcol/ddprofilingextension/impl:
     used_by_otel: true
+  comp/otelcol/dogtelextension/def: default
+  comp/otelcol/dogtelextension/impl: default
   comp/otelcol/logsagentpipeline:
     used_by_otel: true
   comp/otelcol/logsagentpipeline/logsagentpipelineimpl:
