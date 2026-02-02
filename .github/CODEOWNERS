@@ -461,6 +461,7 @@
 /pkg/clusteragent/                      @DataDog/container-platform
 /pkg/clusteragent/autoscaling/          @DataDog/container-autoscaling
 /pkg/clusteragent/admission/mutate/autoscaling          @DataDog/container-integrations
+/pkg/clusteragent/admission/mutate/appsec               @DataDog/container-platform @DataDog/asm-go
 /pkg/clusteragent/admission/mutate/autoinstrumentation/ @DataDog/container-platform @DataDog/injection-platform
 /pkg/clusteragent/admission/mutate/cwsinstrumentation    @DataDog/agent-security
 /pkg/clusteragent/appsec/               @DataDog/asm-go @DataDog/container-platform
@@ -799,8 +800,6 @@
 /test/otel/                                   @DataDog/opentelemetry-agent
 /test/static/                                 @DataDog/agent-build
 /test/static/static_quality_gates.yml        @DataDog/agent-build @cmourot @dd-ddamien
-/test/system/                                 @DataDog/agent-runtimes
-/test/system/dogstatsd/                       @DataDog/agent-metric-pipelines
 /test/benchmarks/apm_scripts/                 @DataDog/agent-apm
 /test/regression/                             @DataDog/single-machine-performance
 /test/regression/cases/docker_containers*     @DataDog/single-machine-performance @DataDog/container-integrations
