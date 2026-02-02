@@ -20,3 +20,7 @@ func GetEmbeddingsSize() (int, error) {
 func GetEmbeddings(text string) ([]float32, error) {
 	return nil, fmt.Errorf("deepinference requires cgo on linux or darwin")
 }
+
+func Benchmark() error {
+	return fmt.Errorf("deepinference requires cgo on linux or darwin")
+}

@@ -105,7 +105,23 @@ func Commands(_ *command.GlobalParams) []*cobra.Command {
 		},
 	}
 
-	return []*cobra.Command{embeddingCommand, similarityCommand}
+	benchmarkCommand := &cobra.Command{
+		Use:   "benchmark",
+		Short: "Benchmark the deepinference library",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			if err := deepinference.Init(); err != nil {
+				return err
+			}
+
+			if err := deepinference.Benchmark(); err != nil {
+				return err
+			}
+
+			return nil
+		},
+	}
+
+	return []*cobra.Command{embeddingCommand, similarityCommand, benchmarkCommand}
 }
 
 // cosineSimilarity calculates the cosine similarity between two embedding vectors.

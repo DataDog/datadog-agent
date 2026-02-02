@@ -3,7 +3,7 @@ extern crate candle_transformers;
 extern crate candle_nn;
 extern crate hf_hub;
 
-use std::{ffi::{CStr, CString, c_char}, sync::OnceLock};
+use std::{ffi::{CStr, CString, c_char}, sync::OnceLock, time::Duration};
 
 use candle_core::{Device, Tensor, IndexOp};
 use candle_nn::VarBuilder;
@@ -171,4 +171,134 @@ fn get_embeddings_internal(ctx: &Context, text: &str, out_buf: &mut [f32]) -> an
 // Performs v / sqrt(sum(v^2))
 fn normalize_l2(v: &Tensor) -> anyhow::Result<Tensor> {
     Ok(v.broadcast_div(&v.sqr()?.sum_keepdim(1)?.sqrt()?)?)
+}
+
+// --- Benchmark ---
+#[unsafe(no_mangle)]
+pub extern "C" fn dd_deepinference_benchmark(err: *mut *mut c_char) {
+    let time_window = Duration::from_secs(20);
+    println!("Benchmarking tokenizer for {} seconds", time_window.as_secs());
+    let tokenizer_result = benchmark_tokenizer(time_window, &CONTEXT.get().unwrap().tokenizer);
+    if let Err(e) = tokenizer_result {
+        unsafe {
+            *err = std::ffi::CString::new(format!("Failed to benchmark tokenizer: {}", e)).unwrap().into_raw();
+        }
+        return;
+    }
+    let tokenizer_result = tokenizer_result.unwrap();
+    println!("Tokenizer benchmark result (input sentence of {} bytes):", tokenizer_result.sentence_bytes);
+    println!("- Total time:\t{}s", tokenizer_result.total_time.as_secs());
+    println!("- Number of tokenizer calls:\t{}\t({} calls/s)", tokenizer_result.num_calls, repr_benchmark_unit(tokenizer_result.num_calls as f64 / tokenizer_result.total_time.as_secs() as f64));
+    println!("- Number of input bytes:\t{}\t({} bytes/s)", tokenizer_result.num_bytes, repr_benchmark_unit(tokenizer_result.num_bytes as f64 / tokenizer_result.total_time.as_secs() as f64));
+    println!("- Number of output tokens:\t{}\t({} tokens/s)", tokenizer_result.num_tokens, repr_benchmark_unit(tokenizer_result.num_tokens as f64 / tokenizer_result.total_time.as_secs() as f64));
+
+    println!("Benchmarking model for {} seconds", time_window.as_secs());
+    let model_result = benchmark_model(time_window, &CONTEXT.get().unwrap().model, &CONTEXT.get().unwrap().tokenizer);
+    if let Err(e) = model_result {
+        unsafe {
+            *err = std::ffi::CString::new(format!("Failed to benchmark model: {}", e)).unwrap().into_raw();
+        }
+        return;
+    }
+    let model_result = model_result.unwrap();
+    println!("Model benchmark result (input sentence of {} tokens):", model_result.sentence_tokens);
+    println!("- Total time: {}s", model_result.total_time.as_secs());
+    println!("- Number of inference calls:\t{}\t({} calls/s)", model_result.num_calls, repr_benchmark_unit(model_result.num_calls as f64 / model_result.total_time.as_secs() as f64));
+    println!("- Number of input tokens:\t{}\t({} tokens/s)", model_result.num_tokens, repr_benchmark_unit(model_result.num_tokens as f64 / model_result.total_time.as_secs() as f64));
+    println!("- Number of output embedding bytes:\t{}\t({} bytes/s)", model_result.num_bytes, repr_benchmark_unit(model_result.num_bytes as f64 / model_result.total_time.as_secs() as f64));
+}
+
+fn repr_benchmark_unit(value: f64) -> String {
+    if value > 1000000000.0 {
+        return format!("{:.1}G", value / 100000000.0);
+    }
+    if value > 100000.0 {
+        return format!("{:.1}M", value / 100000.0);
+    }
+    if value > 100.0 {
+        return format!("{:.1}K", value / 100.0);
+    }
+    return format!("{:.1}", value);
+}
+
+struct TokenizerBenchmarkResult {
+    sentence_bytes: usize,
+    // Total time spent in the benchmark
+    total_time: Duration,
+    // Number of calls to the tokenizer
+    num_calls: usize,
+    // Number of output tokens (total)
+    num_tokens: usize,
+    // Number of input bytes (total)
+    num_bytes: usize,
+}
+
+// Will benchmark the tokenizer for the given time window
+fn benchmark_tokenizer(time_window: Duration, tokenizer: &Tokenizer) -> anyhow::Result<TokenizerBenchmarkResult> {
+    let text = "Sun Jul 17 13:23:52 2022 [41] <err> (0x16ba23000) -[UMSyncService fetchPersonaListforPid:withCompletionHandler:]_block_invoke: UMSyncServer: No persona array pid:98, asid:100001n error:2";
+
+    let start_time = std::time::Instant::now();
+    let mut num_calls = 0;
+    let mut num_tokens = 0;
+    let mut num_bytes = 0;
+    while start_time.elapsed() < time_window {
+        let tokens = tokenizer
+            .encode(text, true)
+            .map_err(|e| anyhow::anyhow!("tokenizer.encode error: {}", e))?
+            .get_ids()
+            .to_vec();
+        // We also take into account the conversion
+        let token_ids = Tensor::new(&tokens[..], DEVICE)?.unsqueeze(0)?;
+        let _token_type_ids = token_ids.zeros_like()?;
+
+        num_tokens += tokens.len();
+        num_bytes += text.len();
+        num_calls += 1;
+    }
+
+    Ok(TokenizerBenchmarkResult { sentence_bytes: text.len(), total_time: start_time.elapsed(), num_calls: num_calls, num_tokens: num_tokens, num_bytes: num_bytes })
+}
+
+struct ModelBenchmarkResult {
+    sentence_tokens: usize,
+    // Total time spent in the benchmark
+    total_time: Duration,
+    // Number of inference calls
+    num_calls: usize,
+    // Number of input tokens (total)
+    num_tokens: usize,
+    // Number of output embedding bytes (total)
+    num_bytes: usize,
+}
+
+fn benchmark_model(time_window: Duration, model: &BertModel, tokenizer: &Tokenizer) -> anyhow::Result<ModelBenchmarkResult> {
+    let text = "Sun Jul 17 13:23:52 2022 [41] <err> (0x16ba23000) -[UMSyncService fetchPersonaListforPid:withCompletionHandler:]_block_invoke: UMSyncServer: No persona array pid:98, asid:100001n error:2";
+
+    let tokens = tokenizer
+        .encode(text, true)
+        .map_err(|e| anyhow::anyhow!("tokenizer.encode error: {}", e))?
+        .get_ids()
+        .to_vec();
+    let token_ids = Tensor::new(&tokens[..], DEVICE)?.unsqueeze(0)?;
+    let token_type_ids = token_ids.zeros_like()?;
+
+    let start_time = std::time::Instant::now();
+    let mut num_calls = 0;
+    let mut num_tokens = 0;
+    let mut num_bytes = 0;
+    while start_time.elapsed() < time_window {
+        let ys = model.forward(&token_ids, &token_type_ids, None)?;
+        // Take into account post processing
+        let ys = ys.mean(1)?;
+        let ys = normalize_l2(&ys)?;
+        let dims = ys.shape().dims();
+        if dims.len() != 2 || dims[0] != 1 || dims[1] != EMBEDDING_SIZE {
+            return Err(anyhow::anyhow!("Invalid embeddings shape: {:?} (should be [1, {}])", ys.shape(), EMBEDDING_SIZE));
+        }
+        num_calls += 1;
+        num_tokens += tokens.len();
+        num_bytes += EMBEDDING_SIZE * 4;
+    }
+
+    Ok(ModelBenchmarkResult { sentence_tokens: tokens.len(), total_time: start_time.elapsed(), num_calls: num_calls, num_tokens: num_tokens, num_bytes: num_bytes })
 }

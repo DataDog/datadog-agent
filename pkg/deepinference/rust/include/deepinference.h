@@ -18,6 +18,8 @@ size_t dd_deepinference_get_embeddings_size(void);
 
 void dd_deepinference_get_embeddings(const char *text, float *buffer, char **err);
 
+void dd_deepinference_benchmark(char **err);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

@@ -53,3 +53,12 @@ func GetEmbeddings(text string) ([]float32, error) {
 
 	return buffer, nil
 }
+
+func Benchmark() error {
+	var errPtr *C.char
+	C.dd_deepinference_benchmark(&errPtr)
+	if errPtr != nil {
+		return fmt.Errorf("failed to benchmark deepinference: %s", C.GoString(errPtr))
+	}
+	return nil
+}
