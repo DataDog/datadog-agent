@@ -77,7 +77,6 @@ func NewConnectionManager(config *checkconfig.CheckConfig, sessionFactory sessio
 
 // Connect establishes a connection and returns (session, deviceReachable, error).
 func (m *snmpConnectionManager) Connect() (session.Session, bool, error) {
-	log.Errorf("Connect called with mode: %d", m.mode)
 	if m.mode == modeUndecided {
 		return m.firstConnect()
 	}
@@ -114,10 +113,8 @@ func (m *snmpConnectionManager) Close() error {
 // firstConnect handles the initial connection attempt and mode decision.
 // This is the only place where fallback testing occurs.
 func (m *snmpConnectionManager) firstConnect() (session.Session, bool, error) {
-	log.Errorf("First connect called")
 	// Always try connected socket first
 	connectedSession, err := m.createSession(false)
-	log.Errorf("Connected session created")
 	if err != nil {
 		log.Errorf("Failed to create connected session: %s", err)
 		// Socket creation failed entirely - no point testing fallback
@@ -125,21 +122,16 @@ func (m *snmpConnectionManager) firstConnect() (session.Session, bool, error) {
 		return nil, false, err
 	}
 
-	log.Errorf("Connected session created")
 	reachErr := m.checkReachability(connectedSession)
 	if reachErr == nil {
-		log.Errorf("Connected socket works perfectly")
 		// Connected socket works perfectly - use it permanently
 		m.mode = modeConnected
 		m.session = connectedSession
 		return connectedSession, true, nil
 	}
 
-	log.Errorf("Connected socket does not work: %s", reachErr)
 	// Device unreachable - should we test unconnected mode?
 	if !isTimeoutError(reachErr) {
-		log.Errorf("Not a timeout (e.g., auth error) - fallback won't help")
-		log.Errorf("%+v", reachErr)
 		// Not a timeout (e.g., auth error) - fallback won't help
 		m.mode = modeConnected
 		m.session = connectedSession
