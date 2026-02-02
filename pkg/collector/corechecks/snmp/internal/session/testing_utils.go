@@ -89,9 +89,8 @@ func (s *MockSession) GetVersion() gosnmp.SnmpVersion {
 func (s *MockSession) IsUnconnectedUDP() bool {
 	// If no mock expectation is set, return false by default
 	defer func() {
-		if r := recover(); r != nil {
-			// Swallow panics from unexpected calls
-		}
+		// Swallow panics from unexpected calls
+		_ = recover()
 	}()
 
 	// Check if there's an expectation set
