@@ -12,7 +12,7 @@
   parallel:
     matrix: # See https://github.com/DataDog/datadog-agent/pull/45778
       - COMPRESSION: "zstd"
-        RELEASE_TAG_COMPRESSION_SUFFIX: ""
+        RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd"
       - COMPRESSION: "nydus"
         RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd-nydus"
   script:
