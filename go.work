@@ -84,6 +84,7 @@ use (
 	pkg/aggregator/ckey
 	pkg/api
 	pkg/collector/check/defaults
+	pkg/config/basic
 	pkg/config/create
 	pkg/config/env
 	pkg/config/helper
@@ -100,7 +101,6 @@ use (
 	pkg/fips
 	pkg/fleet/installer
 	pkg/gohai
-	pkg/linters/components/pkgconfigusage
 	pkg/logs/client
 	pkg/logs/diagnostic
 	pkg/logs/message

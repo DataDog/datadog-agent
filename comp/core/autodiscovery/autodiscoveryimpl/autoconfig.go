@@ -458,7 +458,7 @@ func (ac *AutoConfig) GetTelemetryStore() *acTelemetry.Store {
 }
 
 func (ac *AutoConfig) initializeConfiguration(config *integration.Config) error {
-	prg, celADID, compileErr, recErr := createMatchingProgram(config.CELSelector)
+	prg, celADID, compileErr, recErr := integration.CreateMatchingProgram(config.CELSelector)
 	if compileErr != nil {
 		return compileErr
 	}
@@ -633,7 +633,7 @@ func (ac *AutoConfig) getActiveServices() []integration.ServiceResponse {
 		containerPorts, err := svc.GetPorts()
 		ports := make([]string, 0)
 		if err == nil {
-			ports = slices.Map(containerPorts, func(port listeners.ContainerPort) string {
+			ports = slices.Map(containerPorts, func(port workloadmeta.ContainerPort) string {
 				return strconv.Itoa(port.Port)
 			})
 		}

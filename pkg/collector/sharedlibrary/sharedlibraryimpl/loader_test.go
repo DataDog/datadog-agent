@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build sharedlibrarycheck && test
+//go:build sharedlibrarycheck
 
 package sharedlibrarycheck
 
@@ -35,8 +35,9 @@ func TestLoad_FakeCheck(t *testing.T) {
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
+	sharedLibraryLoader := &ffi.NoopSharedLibraryLoader{}
 
-	loader, err := newCheckLoader(senderManager, logReceiver, tagger, filterStore, &ffi.NoopSharedLibraryLoader{})
+	loader, err := newCheckLoader(senderManager, logReceiver, tagger, filterStore, sharedLibraryLoader)
 	require.NoError(t, err)
 
 	check, err := loader.Load(senderManager, conf, conf.Instances[0], 1)
@@ -60,9 +61,8 @@ func TestLoad_WithoutLibrary(t *testing.T) {
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
-
-	// the library loader will search for shared libraries in a folder that doesn't exist, leading to a loading error
 	sharedLibraryLoader := ffi.NewSharedLibraryLoader("/library/folder/path/")
+
 	loader, err := newCheckLoader(senderManager, logReceiver, tagger, filterStore, sharedLibraryLoader)
 	require.NoError(t, err)
 
