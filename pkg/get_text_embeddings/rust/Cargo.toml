@@ -5,7 +5,9 @@ edition = "2024"
 license = "Apache-2.0"
 rust-version = "1.91"
 
+[target.x86_64-unknown-linux-gnu]
+linker = "/opt/toolchains/x86_64/bin/x86_64-unknown-linux-gnu-gcc"
+
 [lib]
 name = "get_text_embeddings"
 crate-type = ["cdylib"]
-

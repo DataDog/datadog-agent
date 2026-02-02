@@ -266,8 +266,9 @@ def build(
                 #     "RUSTFLAGS": ldflags,
                 # }
 
+                # TODO: Target
                 ctx.run(
-                    "cargo build --release",
+                    "cargo build --release --target x86_64-unknown-linux-gnu",
                     env=env,
                 )
 
