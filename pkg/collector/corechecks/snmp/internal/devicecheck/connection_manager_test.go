@@ -24,17 +24,8 @@ type mockSession struct {
 	mock.Mock
 }
 
-// mockTimeoutError implements net.Error for testing timeout scenarios
-type mockTimeoutError struct {
-	msg string
-}
-
-func (e *mockTimeoutError) Error() string   { return e.msg }
-func (e *mockTimeoutError) Timeout() bool   { return true }
-func (e *mockTimeoutError) Temporary() bool { return false }
-
-func newMockTimeoutError(msg string) error {
-	return &mockTimeoutError{msg: msg}
+func newMockTimeoutError() error {
+	return fmt.Errorf(".* timeout .*")
 }
 
 func (m *mockSession) Connect() error {
@@ -136,7 +127,7 @@ func TestConnectionManager_TimeoutTriggersFallback(t *testing.T) {
 	// Connected session fails with timeout on reachability check
 	connectedSess.On("Connect").Return(nil).Once()
 	connectedSess.On("GetNext", []string{coresnmp.DeviceReachableGetNextOid}).
-		Return(nil, newMockTimeoutError("timeout")).Once()
+		Return(nil, newMockTimeoutError()).Once()
 	connectedSess.On("Close").Return(nil).Once()
 
 	// Unconnected session succeeds
@@ -212,7 +203,7 @@ func TestConnectionManager_FallbackTestFails(t *testing.T) {
 	// Connected session fails with timeout
 	connectedSess.On("Connect").Return(nil).Once()
 	connectedSess.On("GetNext", []string{coresnmp.DeviceReachableGetNextOid}).
-		Return(nil, newMockTimeoutError("timeout")).Once()
+		Return(nil, newMockTimeoutError()).Once()
 
 	// Unconnected session connects but is also unreachable
 	unconnectedSess.On("Connect").Return(nil).Once()
@@ -376,7 +367,7 @@ func TestConnectionManager_SubsequentConnectUsesUnconnectedMode(t *testing.T) {
 	// First: connected times out
 	connectedSess.On("Connect").Return(nil).Once()
 	connectedSess.On("GetNext", []string{coresnmp.DeviceReachableGetNextOid}).
-		Return(nil, newMockTimeoutError("timeout")).Once()
+		Return(nil, newMockTimeoutError()).Once()
 	connectedSess.On("Close").Return(nil).Once()
 
 	// First: unconnected succeeds
@@ -487,7 +478,7 @@ func TestConnectionManager_UnconnectedSessionCreationFails(t *testing.T) {
 	// Connected session times out
 	connectedSess.On("Connect").Return(nil).Once()
 	connectedSess.On("GetNext", []string{coresnmp.DeviceReachableGetNextOid}).
-		Return(nil, newMockTimeoutError("timeout")).Once()
+		Return(nil, newMockTimeoutError()).Once()
 
 	callCount := 0
 	sessionFactory := func(cfg *checkconfig.CheckConfig) (session.Session, error) {
@@ -610,12 +601,12 @@ func TestIsTimeoutError(t *testing.T) {
 		},
 		{
 			name:     "network timeout error",
-			err:      newMockTimeoutError("timeout"),
+			err:      newMockTimeoutError(),
 			expected: true,
 		},
 		{
 			name:     "wrapped network timeout",
-			err:      fmt.Errorf("wrapped: %w", newMockTimeoutError("timeout")),
+			err:      fmt.Errorf("wrapped: %w", newMockTimeoutError()),
 			expected: true,
 		},
 		{

@@ -454,28 +454,12 @@ func TestFetchAllOIDsUsingGetNext_invalidZeroVariable(t *testing.T) {
 	assert.Equal(t, []string(nil), resultOIDs)
 }
 
-// mockTimeoutError implements net.Error with Timeout() returning true
-type mockTimeoutError struct {
-	msg string
-}
-
-func (e *mockTimeoutError) Error() string   { return e.msg }
-func (e *mockTimeoutError) Timeout() bool   { return true }
-func (e *mockTimeoutError) Temporary() bool { return true }
-
-// mockNonTimeoutError is a regular error that doesn't implement net.Error
-type mockNonTimeoutError struct {
-	msg string
-}
-
-func (e *mockNonTimeoutError) Error() string { return e.msg }
-
 // TestUseUnconnectedUDPSocketPropagation tests that UseUnconnectedUDPSocket config is applied to gosnmp
 func TestUseUnconnectedUDPSocketPropagation(t *testing.T) {
 	tests := []struct {
-		name                     string
-		useUnconnectedUDPSocket  bool
-		expectedGosnmpValue      bool
+		name                    string
+		useUnconnectedUDPSocket bool
+		expectedGosnmpValue     bool
 	}{
 		{
 			name:                    "UseUnconnectedUDPSocket true is propagated",
