@@ -275,7 +275,7 @@ def build(
             # Copy rust libraries to the output directory
             if embedded_path:
                 shutil.copy2(
-                    "pkg/get_text_embeddings/rust/target/release/libget_text_embeddings.so",
+                    "pkg/get_text_embeddings/rust/target/x86_64-unknown-linux-gnu/release/libget_text_embeddings.so",
                     os.path.join(embedded_path, "lib/libget_text_embeddings.so"),
                 )
 
