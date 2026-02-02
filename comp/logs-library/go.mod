@@ -6,6 +6,7 @@ require (
 	github.com/DataDog/agent-payload/v5 v5.0.179
 	github.com/DataDog/datadog-agent/comp/core/config v0.76.0-devel
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.73.0-devel.0.20251030121902-cd89eab046d6
+	github.com/DataDog/datadog-agent/comp/core/log/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.76.0-devel
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.76.0-devel
@@ -28,7 +29,6 @@ require (
 	github.com/benbjohnson/clock v1.3.5
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/atomic v1.11.0
-	go.uber.org/fx v1.24.0
 	golang.org/x/net v0.49.0
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -97,6 +97,7 @@ require (
 	github.com/tklauser/numcpus v0.11.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.uber.org/dig v1.19.0 // indirect
+	go.uber.org/fx v1.24.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.1 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect

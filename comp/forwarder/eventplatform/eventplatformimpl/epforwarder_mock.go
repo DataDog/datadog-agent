@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -24,6 +23,6 @@ func MockModule() fxutil.Module {
 	)
 }
 
-func newMockComponent(hostname hostname.Component, compression logscompression.Component) eventplatform.Component {
-	return option.NewPtr[eventplatform.Forwarder](NewNoopEventPlatformForwarder(hostname, compression))
+func newMockComponent(hostname hostname.Component) eventplatform.Component {
+	return option.NewPtr[eventplatform.Forwarder](NewNoopEventPlatformForwarder(hostname))
 }

@@ -21,7 +21,6 @@ import (
 
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
-	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -43,7 +42,7 @@ func CreateDefaultDemultiplexer() *aggregator.AgentDemultiplexer {
 	log := logimpl.NewTemporaryLoggerWithoutInit()
 	sharedForwarder := defaultforwarder.NoopForwarder{}
 	orchestratorForwarder := option.New[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
-	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostnameimpl.NewHostnameService(), logscompressionmock.NewMockCompressor()))
+	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostnameimpl.NewHostnameService()))
 	taggerComponent := nooptagger.NewComponent()
 	filterList := filterlist.NewNoopFilterList()
 	return aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventPlatformForwarder, haagentmock.NewMockHaAgent(), metricscompressionmock.NewMockCompressor(), taggerComponent, filterList, "")

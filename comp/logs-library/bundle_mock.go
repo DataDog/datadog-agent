@@ -1,9 +1,11 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2025-present Datadog, Inc.
 
-// Package logslibrary provides the logs library component bundle
+//go:build test
+
+// Package logslibrary provides the logs library component bundle with mock implementations
 package logslibrary
 
 import (
@@ -12,12 +14,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: agent-log-pipelines
-
-// Bundle defines the fx options for this bundle.
-func Bundle() fxutil.BundleOptions {
+func MockBundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
-		kubehealthfx.Module(),
-		batchsenderfx.Module(),
+		batchsenderfx.MockModule(),
+		kubehealthfx.MockModule(),
 	)
 }

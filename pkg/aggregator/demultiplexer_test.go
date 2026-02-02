@@ -29,6 +29,7 @@ import (
 	orchestratorForwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
+	logslibrary "github.com/DataDog/datadog-agent/comp/logs-library"
 	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	metricscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
@@ -295,6 +296,7 @@ func createDemuxDepsWithOrchestratorFwd(
 		orchestratorForwarderImpl.Module(orchestratorParams),
 		eventplatformimpl.Module(eventPlatformParams),
 		eventplatformreceiverimpl.Module(),
+		logslibrary.MockBundle(),
 		logscompressionmock.MockModule(),
 		metricscompressionmock.MockModule(),
 		filterlistfx.Module(),

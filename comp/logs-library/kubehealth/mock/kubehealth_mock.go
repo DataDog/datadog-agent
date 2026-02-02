@@ -3,12 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build test
+
 // Package mock provides a mock implementation of the KubeHealthRegistrar
 package mock
 
 import (
-	"go.uber.org/fx"
-
 	kubehealthdef "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/def"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
@@ -20,8 +20,6 @@ type Registrar struct {
 
 // Provides is the mock component output
 type Provides struct {
-	fx.Out
-
 	Comp kubehealthdef.Component
 }
 
