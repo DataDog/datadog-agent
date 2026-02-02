@@ -148,6 +148,7 @@ def build(
     agent_bin=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
     glibc=True,
+    target_arch=None,
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
@@ -171,9 +172,16 @@ def build(
         with gitlab_section("Build deepinference rust library", collapsed=True):
             with ctx.cd("pkg/deepinference/rust"):
                 # TODO: Profile based on development mode
+                target_arg = f"--target {target_arch}" if target_arch else ""
                 ctx.run(
-                    "cargo build --release",
+                    f"cargo build --release {target_arg}",
                 )
+        if embedded_path is not None:
+            target_dir = f"{target_arch}/" if target_arch else ""
+            shutil.move(
+                f"pkg/deepinference/rust/target/{target_dir}release/libdeepinference.so",
+                os.path.join(embedded_path, "lib", "libdeepinference.so"),
+            )
 
     ldflags, gcflags, env = get_build_flags(
         ctx,
