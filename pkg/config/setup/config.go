@@ -3132,27 +3132,8 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 		config.Set("software_inventory.enabled", true, pkgconfigmodel.SourceInfraMode)
 		config.Set("notable_events.enabled", true, pkgconfigmodel.SourceInfraMode)
 	} else if infraMode == "none" {
-		// APM Standalone mode: APM-only with no infrastructure monitoring
-
-		// Enable APM (needed for non-Linux platforms where default is false)
-		config.Set("apm_config.enabled", true, pkgconfigmodel.SourceInfraMode)
-
 		// Disable integrations (no host metrics collection)
 		config.Set("integration.enabled", false, pkgconfigmodel.SourceInfraMode)
-
-		// Disable all infrastructure payloads (events, series, service checks, sketches)
-		config.Set("enable_payloads.events", false, pkgconfigmodel.SourceInfraMode)
-		config.Set("enable_payloads.series", false, pkgconfigmodel.SourceInfraMode)
-		config.Set("enable_payloads.service_checks", false, pkgconfigmodel.SourceInfraMode)
-		config.Set("enable_payloads.sketches", false, pkgconfigmodel.SourceInfraMode)
-
-		// Disable container collection (process_config.process_collection.enabled is already false by default)
-		config.Set("process_config.container_collection.enabled", false, pkgconfigmodel.SourceInfraMode)
-
-		// Disable container metrics (no orchestrator visibility)
-		config.Set("orchestrator_explorer.enabled", false, pkgconfigmodel.SourceInfraMode)
-		config.Set("container_lifecycle.enabled", false, pkgconfigmodel.SourceInfraMode)
-		config.Set("container_image.enabled", false, pkgconfigmodel.SourceInfraMode)
 	}
 }
 
