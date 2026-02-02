@@ -192,6 +192,11 @@ func (c *Check) buildPayload(connections []discomodel.Connection) *model.Collect
 			laddrToContainer[addrKey{ip: laddrIP, port: laddrPort}] = containerID
 		}
 
+		// Add a temporary tag to allow the connections reported by this check to be
+		// distinguished from the normal connections reported by NPM.
+		// https://github.com/DataDog/dd-go/blob/86204157a1fe0ae967670ca72c433952896c8e6b/networks/apps/network-logger/encode/tag_encoder.go
+		connectionTags := []string{"http.iis.app_pool:service-map-experiment"}
+
 		// Get process tags from tagger
 		processEntityID := types.NewEntityID(types.Process, strconv.Itoa(int(conn.PID)))
 		processTags, err := c.tagger.Tag(processEntityID, types.HighCardinality)
@@ -200,11 +205,8 @@ func (c *Check) buildPayload(connections []discomodel.Connection) *model.Collect
 			processTags = nil
 		}
 
-		// Build connection tags
-		var tagsIdx int32 = -1
-		if len(processTags) > 0 {
-			tagsIdx = int32(tagsEncoder.Encode(processTags))
-		}
+		connectionTags = append(connectionTags, processTags...)
+		tagsIdx := int32(tagsEncoder.Encode(connectionTags))
 
 		// Convert direction
 		var direction model.ConnectionDirection
