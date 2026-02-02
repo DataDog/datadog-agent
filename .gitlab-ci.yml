@@ -139,7 +139,7 @@ variables:
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
   CI_IMAGE_GITLAB_AGENT_DEPLOY: v91623141-e13c2467
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v91623141-e13c2467
+  CI_IMAGE_LINUX: v93279297-c459726e
   CI_IMAGE_LINUX_SUFFIX: ""
   CI_IMAGE_RPM_X64: v91623141-e13c2467
   CI_IMAGE_RPM_X64_SUFFIX: ""
@@ -356,6 +356,8 @@ variables:
     - BUILD.bazel
     - MODULE.bazel
     - release.json
+    # SMP regression detector experiments
+    - test/regression/**
 
 .if_coverage_pipeline: &if_coverage_pipeline
   if: $E2E_COVERAGE_PIPELINE == "true"
