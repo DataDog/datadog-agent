@@ -12,8 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 )
 
-// SupportedConnections defines all connection types that can be auto-created
-var SupportedConnections = map[string]ConnectionDefinition{
+// supportedConnections defines all connection types that can be auto-created
+var supportedConnections = map[string]ConnectionDefinition{
 	"http": {
 		BundleID:        "com.datadoghq.http",
 		IntegrationType: "HTTP",
@@ -40,19 +40,6 @@ var SupportedConnections = map[string]ConnectionDefinition{
 			},
 		},
 	},
-}
-
-func GetConnectionDefinition(key string) (ConnectionDefinition, bool) {
-	def, ok := SupportedConnections[key]
-	return def, ok
-}
-
-func GetBundleKeys() []string {
-	keys := make([]string, 0, len(SupportedConnections))
-	for key := range SupportedConnections {
-		keys = append(keys, key)
-	}
-	return keys
 }
 
 func matchesPattern(pattern, bundleID string) bool {
@@ -94,7 +81,7 @@ func DetermineConnectionsToCreate(allowlist []string) []ConnectionDefinition {
 
 	result := []ConnectionDefinition{}
 
-	for _, definition := range SupportedConnections {
+	for _, definition := range supportedConnections {
 		if allowlistContainsBundle(allowlist, definition.BundleID) {
 			result = append(result, definition)
 		}
@@ -103,8 +90,8 @@ func DetermineConnectionsToCreate(allowlist []string) []ConnectionDefinition {
 	return result
 }
 
-func GenerateConnectionName(definition ConnectionDefinition, runnerID string) string {
-	return fmt.Sprintf("%s (%s)", definition.IntegrationType, runnerID)
+func GenerateConnectionName(definition ConnectionDefinition, runnerName string) string {
+	return fmt.Sprintf("%s (%s)", definition.IntegrationType, runnerName)
 }
 
 func extractRunnerIDFromURN(urn string) (string, error) {
