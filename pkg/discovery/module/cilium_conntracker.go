@@ -11,7 +11,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
-	"unsafe"
 
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
@@ -304,11 +303,4 @@ func (cc *ciliumConntracker) Close() error {
 // ntohs converts a uint16 from network byte order to host byte order.
 func ntohs(n uint16) uint16 {
 	return binary.BigEndian.Uint16([]byte{byte(n), byte(n >> 8)})
-}
-
-// htons converts a uint16 from host byte order to network byte order.
-func htons(n uint16) uint16 {
-	b := make([]byte, 2)
-	binary.BigEndian.PutUint16(b, n)
-	return *(*uint16)(unsafe.Pointer(&b[0]))
 }
