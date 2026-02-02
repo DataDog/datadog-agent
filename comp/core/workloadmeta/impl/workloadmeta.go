@@ -144,13 +144,13 @@ func (w *workloadmeta) writeResponse(writer http.ResponseWriter, r *http.Request
 
 		// Apply search filter if provided
 		if search != "" {
-			response = filterStructuredResponse(response.(wmdef.WorkloadDumpStructuredResponse), search)
+			response = FilterStructuredResponse(response.(wmdef.WorkloadDumpStructuredResponse), search)
 		}
 	} else {
 		response = w.Dump(verbose)
 		// Apply search filter if provided
 		if search != "" {
-			response = filterTextResponse(response.(wmdef.WorkloadDumpResponse), search)
+			response = FilterTextResponse(response.(wmdef.WorkloadDumpResponse), search)
 		}
 	}
 
@@ -163,8 +163,8 @@ func (w *workloadmeta) writeResponse(writer http.ResponseWriter, r *http.Request
 	writer.Write(jsonDump)
 }
 
-// filterStructuredResponse filters entities by kind or entity ID
-func filterStructuredResponse(response wmdef.WorkloadDumpStructuredResponse, search string) wmdef.WorkloadDumpStructuredResponse {
+// FilterStructuredResponse filters entities by kind or entity ID
+func FilterStructuredResponse(response wmdef.WorkloadDumpStructuredResponse, search string) wmdef.WorkloadDumpStructuredResponse {
 	filtered := wmdef.WorkloadDumpStructuredResponse{
 		Entities: make(map[string][]wmdef.Entity),
 	}
@@ -192,8 +192,8 @@ func filterStructuredResponse(response wmdef.WorkloadDumpStructuredResponse, sea
 	return filtered
 }
 
-// filterTextResponse filters text-formatted entities by kind or entity ID
-func filterTextResponse(response wmdef.WorkloadDumpResponse, search string) wmdef.WorkloadDumpResponse {
+// FilterTextResponse filters text-formatted entities by kind or entity ID
+func FilterTextResponse(response wmdef.WorkloadDumpResponse, search string) wmdef.WorkloadDumpResponse {
 	filtered := wmdef.WorkloadDumpResponse{
 		Entities: make(map[string]wmdef.WorkloadEntity),
 	}
