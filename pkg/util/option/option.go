@@ -43,6 +43,11 @@ func (o *Option[T]) Get() (T, bool) {
 	return o.value, o.set
 }
 
+// HasValue returns true if a value is set, otherwise it returns false.
+func (o *Option[T]) HasValue() bool {
+	return o.set
+}
+
 // Set sets a new value.
 func (o *Option[T]) Set(value T) {
 	o.value = value

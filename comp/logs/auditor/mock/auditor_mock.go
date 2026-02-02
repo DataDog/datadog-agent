@@ -11,15 +11,16 @@ package mock
 import (
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
+	"github.com/DataDog/datadog-agent/comp/logs-library/types"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // ProvidesMock is the mock component output
 type ProvidesMock struct {
-	Comp auditor.Component
+	Comp option.Option[auditor.Component]
 }
 
 // AuditorMockModule defines the fx options for the mock component.
@@ -31,7 +32,14 @@ func AuditorMockModule() fxutil.Module {
 
 func newMock() ProvidesMock {
 	return ProvidesMock{
-		Comp: NewMockAuditor(),
+		Comp: option.New[auditor.Component](NewMockAuditor()),
+	}
+}
+
+// NewProvidesNone returns a ProvidesMock with no auditor component
+func NewProvidesNone() ProvidesMock {
+	return ProvidesMock{
+		Comp: option.None[auditor.Component](),
 	}
 }
 

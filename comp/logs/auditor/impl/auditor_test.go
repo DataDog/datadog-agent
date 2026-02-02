@@ -17,10 +17,13 @@ import (
 
 	configmock "github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	kubehealthmock "github.com/DataDog/datadog-agent/comp/logs/kubehealth/mock"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"github.com/DataDog/datadog-agent/pkg/logs/types"
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
+	depvalidatormock "github.com/DataDog/datadog-agent/comp/logs-library/depvalidator/mock"
+	kubehealthdef "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/def"
+	kubehealthmock "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/mock"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
+	"github.com/DataDog/datadog-agent/comp/logs-library/types"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 var testpath = "testpath"
@@ -45,12 +48,13 @@ func (suite *AuditorTestSuite) SetupTest() {
 	configComponent.SetWithoutSource("logs_config.run_path", suite.testRunPathDir)
 
 	deps := Dependencies{
-		Config:     configComponent,
-		Log:        logComponent,
-		KubeHealth: kubeHealthRegistrar,
+		DepValidator: depvalidatormock.NewMock(),
+		Config:       configComponent,
+		Log:          logComponent,
+		KubeHealth:   option.New[kubehealthdef.Component](kubeHealthRegistrar),
 	}
 
-	suite.a = newAuditor(deps)
+	suite.a = newAuditor(deps, kubeHealthRegistrar)
 	suite.source = sources.NewLogSource("", &config.LogsConfig{Path: testpath})
 }
 
@@ -247,16 +251,20 @@ func (suite *AuditorTestSuite) TestAuditorLiveness() {
 }
 
 func (suite *AuditorTestSuite) TestAuditorRegistryWriterSelection() {
+	kubeHealthRegistrar := kubehealthmock.NewMockRegistrar()
+
 	// Test atomic write enabled
 	configComponent := configmock.NewMock(suite.T())
 	logComponent := logmock.New(suite.T())
 	configComponent.SetWithoutSource("logs_config.run_path", suite.testRunPathDir)
 	configComponent.SetWithoutSource("logs_config.atomic_registry_write", true)
 	deps := Dependencies{
-		Config: configComponent,
-		Log:    logComponent,
+		DepValidator: depvalidatormock.NewMock(),
+		Config:       configComponent,
+		Log:          logComponent,
+		KubeHealth:   option.New[kubehealthdef.Component](kubeHealthRegistrar),
 	}
-	auditor := newAuditor(deps)
+	auditor := newAuditor(deps, kubeHealthRegistrar)
 	suite.Equal("*auditorimpl.atomicRegistryWriter", fmt.Sprintf("%T", auditor.registryWriter))
 
 	// Test atomic write disabled
@@ -265,10 +273,12 @@ func (suite *AuditorTestSuite) TestAuditorRegistryWriterSelection() {
 	configComponent.SetWithoutSource("logs_config.run_path", suite.testRunPathDir)
 	configComponent.SetWithoutSource("logs_config.atomic_registry_write", false)
 	deps = Dependencies{
-		Config: configComponent,
-		Log:    logComponent,
+		DepValidator: depvalidatormock.NewMock(),
+		Config:       configComponent,
+		Log:          logComponent,
+		KubeHealth:   option.New[kubehealthdef.Component](kubeHealthRegistrar),
 	}
-	auditor = newAuditor(deps)
+	auditor = newAuditor(deps, kubeHealthRegistrar)
 	suite.Equal("*auditorimpl.nonAtomicRegistryWriter", fmt.Sprintf("%T", auditor.registryWriter))
 }
 

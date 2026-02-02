@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 )
 
 func FuzzParseDockerStream(f *testing.F) {

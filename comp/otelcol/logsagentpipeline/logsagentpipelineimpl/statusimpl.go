@@ -6,7 +6,7 @@
 package logsagentpipelineimpl
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
+	"github.com/DataDog/datadog-agent/comp/logs-library/status/statusinterface"
 )
 
 // StatusProvider is the type for logs agent status methods

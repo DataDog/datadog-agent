@@ -20,10 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
-	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -177,7 +176,7 @@ func (a *TestAgentDemultiplexer) Reset() {
 }
 
 // initTestAgentDemultiplexerWithFlushInterval inits a TestAgentDemultiplexer with the given flush interval.
-func initTestAgentDemultiplexerWithFlushInterval(log log.Component, hostname hostname.Component, logscompressor logscompression.Component, metricscompressor metricscompression.Component, flushInterval time.Duration) *TestAgentDemultiplexer {
+func initTestAgentDemultiplexerWithFlushInterval(log log.Component, hostname hostname.Component, metricscompressor metricscompression.Component, flushInterval time.Duration) *TestAgentDemultiplexer {
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = flushInterval
 	opts.DontStartForwarders = true
@@ -186,7 +185,7 @@ func initTestAgentDemultiplexerWithFlushInterval(log log.Component, hostname hos
 	sharedForwarder := defaultforwarder.NoopForwarder{}
 	filterList := filterlist.NewNoopFilterList()
 	orchestratorForwarder := option.New[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
-	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostname, logscompressor))
+	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostname))
 	demux := aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventPlatformForwarder, haagentmock.NewMockHaAgent(), metricscompressor, noopimpl.NewComponent(), filterList, "hostname")
 	return NewTestAgentDemultiplexer(demux)
 }

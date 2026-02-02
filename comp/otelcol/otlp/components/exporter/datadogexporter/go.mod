@@ -1,9 +1,10 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter
 
-go 1.24.0
+go 1.25.3
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.76.0-devel
+	github.com/DataDog/datadog-agent/comp/logs-library v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter v0.64.0-devel.0.20250218192636-64fdfe7ec366
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.59.0-rc.6
@@ -11,9 +12,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.76.0-devel
 	github.com/DataDog/datadog-agent/comp/trace/agent/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.64.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/logs/message v0.64.0-rc.12
-	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.64.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/logs/pipeline v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/proto v0.76.0-devel
@@ -65,7 +63,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.76.0-devel // indirect
-	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.64.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.64.0-rc.12 // indirect
 	github.com/DataDog/datadog-agent/comp/serializer/metricscompression v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.76.0-devel // indirect
@@ -84,14 +82,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.76.0-devel // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/client v0.64.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.64.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/processor v0.64.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/sender v0.64.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/sources v0.64.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.64.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.64.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/types v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/metrics v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs v0.74.0-devel.0.20251125141836-2ae7a968751c // indirect
@@ -126,8 +116,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/quantile v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.76.0-devel // indirect
-	github.com/DataDog/datadog-agent/pkg/util/startstop v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.64.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/startstop v0.70.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.64.0-rc.12 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.76.0-devel // indirect
@@ -306,6 +296,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/def => ../../../../../../comp/def
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../../../../../comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../../../../../comp/forwarder/orchestrator/orchestratorinterface
+	github.com/DataDog/datadog-agent/comp/logs-library => ../../../../../../comp/logs-library
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../../../../comp/logs/agent/config
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ../../../../../../comp/netflow/payload
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../../../../../../comp/otelcol/collector-contrib/def
@@ -352,18 +343,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/fips => ../../../../../../pkg/fips
 	github.com/DataDog/datadog-agent/pkg/fleet/installer => ../../../../../../pkg/fleet/installer
 	github.com/DataDog/datadog-agent/pkg/gohai => ../../../../../../pkg/gohai
-	github.com/DataDog/datadog-agent/pkg/logs/client => ../../../../../../pkg/logs/client
-	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../../../../../pkg/logs/diagnostic
-	github.com/DataDog/datadog-agent/pkg/logs/message => ../../../../../../pkg/logs/message
-	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../../../../../../pkg/logs/metrics
-	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ../../../../../../pkg/logs/pipeline
-	github.com/DataDog/datadog-agent/pkg/logs/processor => ../../../../../../pkg/logs/processor
-	github.com/DataDog/datadog-agent/pkg/logs/sender => ../../../../../../pkg/logs/sender
-	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../../../../pkg/logs/sources
-	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../../../../pkg/logs/status/statusinterface
-	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../../../../pkg/logs/status/utils
-	github.com/DataDog/datadog-agent/pkg/logs/types => ../../../../../../pkg/logs/types
-	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ../../../../../../pkg/logs/util/testutils
 	github.com/DataDog/datadog-agent/pkg/metrics => ../../../../../../pkg/metrics
 	github.com/DataDog/datadog-agent/pkg/network/driver => ../../../../../../pkg/network/driver
 	github.com/DataDog/datadog-agent/pkg/network/payload => ../../../../../../pkg/network/payload

@@ -20,10 +20,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	logconfig "github.com/DataDog/datadog-agent/comp/logs-library/config"
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 	auditormock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	publishermetadatacache "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/publishermetadatacache"

@@ -13,9 +13,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

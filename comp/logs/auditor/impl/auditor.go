@@ -16,11 +16,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	depvalidator "github.com/DataDog/datadog-agent/comp/logs-library/depvalidator/def"
+	kubehealthdef "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
+	"github.com/DataDog/datadog-agent/comp/logs-library/types"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
-	kubehealthdef "github.com/DataDog/datadog-agent/comp/logs/kubehealth/def"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const defaultFlushPeriod = 1 * time.Second
@@ -70,18 +72,19 @@ type registryAuditor struct {
 
 // Dependencies defines the dependencies of the auditor
 type Dependencies struct {
-	Log        log.Component
-	Config     config.Component
-	KubeHealth kubehealthdef.Component
+	DepValidator depvalidator.Component
+	Log          log.Component
+	Config       config.Component
+	KubeHealth   option.Option[kubehealthdef.Component]
 }
 
 // Provides contains the auditor component
 type Provides struct {
-	Comp auditor.Component
+	Comp option.Option[auditor.Component]
 }
 
-// NewAuditor is the public constructor for the auditor
-func newAuditor(deps Dependencies) *registryAuditor {
+// newAuditor is the internal constructor for the auditor
+func newAuditor(deps Dependencies, kubeHealth kubehealthdef.Component) *registryAuditor {
 	runPath := deps.Config.GetString("logs_config.run_path")
 	filename := defaultRegistryFilename
 	ttl := time.Duration(deps.Config.GetInt("logs_config.auditor_ttl")) * time.Hour
@@ -103,25 +106,29 @@ func newAuditor(deps Dependencies) *registryAuditor {
 		entryTTL:            ttl,
 		messageChannelSize:  messageChannelSize,
 		log:                 deps.Log,
-		kubeHealthRegistrar: deps.KubeHealth,
+		kubeHealthRegistrar: kubeHealth,
 		registryWriter:      registryWriter,
 	}
 
 	return registryAuditor
 }
 
-// NewProvides creates a new auditor component
+// NewProvides creates a new auditor component if logs are enabled and dependencies are available
 func NewProvides(deps Dependencies) Provides {
-	auditorImpl := newAuditor(deps)
+	if err := deps.DepValidator.ValidateIfEnabled(deps); err != nil {
+		return Provides{Comp: option.None[auditor.Component]()}
+	}
+
+	kubeHealth, _ := deps.KubeHealth.Get()
+	auditorImpl := newAuditor(deps, kubeHealth)
 	return Provides{
-		Comp: auditorImpl,
+		Comp: option.New[auditor.Component](auditorImpl),
 	}
 }
 
 // Start starts the Auditor
 func (a *registryAuditor) Start() {
 	a.health = a.kubeHealthRegistrar.RegisterLiveness("logs-agent")
-
 	a.createChannels()
 	a.registry = a.recoverRegistry()
 	go a.run()

@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
+	logslibrary "github.com/DataDog/datadog-agent/comp/logs-library"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/forwarderimpl"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
@@ -54,6 +55,7 @@ var testOptions = fx.Options(
 	defaultforwarder.MockModule(),
 	eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 	eventplatformreceiverimpl.Module(),
+	logslibrary.MockBundle(),
 	rdnsqueriermock.MockModule(),
 	logscompression.MockModule(),
 	telemetryimpl.MockModule(),

@@ -10,7 +10,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 

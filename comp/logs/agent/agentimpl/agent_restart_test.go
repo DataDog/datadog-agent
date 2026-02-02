@@ -31,24 +31,25 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/logs-library/client/http"
+	"github.com/DataDog/datadog-agent/comp/logs-library/client/mock"
+	"github.com/DataDog/datadog-agent/comp/logs-library/client/tcp"
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
+	depvalidatormock "github.com/DataDog/datadog-agent/comp/logs-library/depvalidator/mock"
+	kubehealthdef "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/def"
+	kubehealthmock "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/mock"
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditorfx "github.com/DataDog/datadog-agent/comp/logs/auditor/fx"
 	auditorimpl "github.com/DataDog/datadog-agent/comp/logs/auditor/impl"
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
-	kubehealthdef "github.com/DataDog/datadog-agent/comp/logs/kubehealth/def"
-	kubehealthmock "github.com/DataDog/datadog-agent/comp/logs/kubehealth/mock"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
-	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
-	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	logsStatus "github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -64,7 +65,7 @@ type RestartTestSuite struct {
 	source              *sources.LogSource
 	configOverrides     map[string]interface{}
 	tagger              tagger.Component
-	kubeHealthRegistrar kubehealthdef.Component
+	kubeHealthRegistrar option.Option[kubehealthdef.Component]
 }
 
 func (suite *RestartTestSuite) SetupTest() {
@@ -127,10 +128,15 @@ func createTestAgent(suite *RestartTestSuite, endpoints *config.Endpoints) (*log
 		inventoryagentimpl.MockModule(),
 		auditorfx.Module(),
 		fx.Provide(kubehealthmock.NewProvides),
+		fx.Provide(depvalidatormock.NewProvides),
 	))
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(suite.T())
 	suite.kubeHealthRegistrar = deps.KubeHealthRegistrar
+
+	// Auditor is now optional, extract it
+	auditorComp, ok := deps.Auditor.Get()
+	suite.Require().True(ok, "auditor should be present when logs are enabled")
 
 	agent := &logAgent{
 		log:              deps.Log,
@@ -139,7 +145,7 @@ func createTestAgent(suite *RestartTestSuite, endpoints *config.Endpoints) (*log
 		started:          atomic.NewUint32(0),
 		integrationsLogs: integrationsimpl.NewLogsIntegration(),
 
-		auditor:         deps.Auditor,
+		auditor:         auditorComp,
 		sources:         sources,
 		services:        services,
 		tracker:         tailers.NewTailerTracker(),

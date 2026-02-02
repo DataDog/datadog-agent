@@ -17,12 +17,12 @@ import (
 
 	"github.com/cenkalti/backoff/v5"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
+	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/processor"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"

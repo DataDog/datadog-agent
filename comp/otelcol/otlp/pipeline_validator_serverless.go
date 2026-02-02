@@ -11,8 +11,8 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 func checkAndUpdateCfg(cfg config.Component, pcfg PipelineConfig, logsAgentChannel chan *message.Message) error {

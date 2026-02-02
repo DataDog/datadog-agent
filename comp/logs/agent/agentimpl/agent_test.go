@@ -32,26 +32,27 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/mock"
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
+	depvalidatormock "github.com/DataDog/datadog-agent/comp/logs-library/depvalidator/mock"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	auditorfx "github.com/DataDog/datadog-agent/comp/logs/auditor/fx"
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/client/http"
+	"github.com/DataDog/datadog-agent/comp/logs-library/client/mock"
+	"github.com/DataDog/datadog-agent/comp/logs-library/client/tcp"
+	kubehealthdef "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/def"
+	kubehealthmock "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/mock"
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
-	kubehealthdef "github.com/DataDog/datadog-agent/comp/logs/kubehealth/def"
-	kubehealthmock "github.com/DataDog/datadog-agent/comp/logs/kubehealth/mock"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
-	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
-	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	logsStatus "github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -68,7 +69,7 @@ type AgentTestSuite struct {
 	source              *sources.LogSource
 	configOverrides     map[string]interface{}
 	tagger              tagger.Component
-	kubeHealthRegistrar kubehealthdef.Component
+	kubeHealthRegistrar option.Option[kubehealthdef.Component]
 }
 
 type testDeps struct {
@@ -77,8 +78,8 @@ type testDeps struct {
 	Config              configComponent.Component
 	Log                 log.Component
 	InventoryAgent      inventoryagent.Component
-	Auditor             auditor.Component
-	KubeHealthRegistrar kubehealthdef.Component
+	Auditor             option.Option[auditor.Component]
+	KubeHealthRegistrar option.Option[kubehealthdef.Component]
 }
 
 func (suite *AgentTestSuite) SetupTest() {
@@ -142,10 +143,15 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 		inventoryagentimpl.MockModule(),
 		auditorfx.Module(),
 		fx.Provide(kubehealthmock.NewProvides),
+		fx.Provide(depvalidatormock.NewProvides),
 	))
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(suite.T())
 	suite.kubeHealthRegistrar = deps.KubeHealthRegistrar
+
+	// Auditor is now optional, extract it
+	auditorComp, ok := deps.Auditor.Get()
+	suite.Require().True(ok, "auditor should be present when logs are enabled")
 
 	agent := &logAgent{
 		log:              deps.Log,
@@ -154,7 +160,7 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 		started:          atomic.NewUint32(0),
 		integrationsLogs: integrationsimpl.NewLogsIntegration(),
 
-		auditor:         deps.Auditor,
+		auditor:         auditorComp,
 		sources:         sources,
 		services:        services,
 		tracker:         tailers.NewTailerTracker(),
@@ -328,8 +334,11 @@ func (suite *AgentTestSuite) TestAgentLiveness() {
 
 	var count int
 	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 1*time.Second, func() bool {
-		count = suite.kubeHealthRegistrar.(*kubehealthmock.Registrar).CountRegistered("logs-agent")
-		return count > 0
+		if registrar, ok := suite.kubeHealthRegistrar.Get(); ok {
+			count = registrar.(*kubehealthmock.Registrar).CountRegistered("logs-agent")
+			return count > 0
+		}
+		return false
 	})
 
 	assert.Equal(suite.T(), 1, count, "logs-agent should be registered as healthy exactly once")
