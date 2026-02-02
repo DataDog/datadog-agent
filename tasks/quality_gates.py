@@ -1130,5 +1130,5 @@ def get_parent_report(ctx, branch, gate_name: str, output: str):
     """
     parent_sha = get_ancestor(ctx, branch)
     aws_cmd = "aws.exe" if sys.platform == 'win32' else "aws"
-    s3_url = f"s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/GATE_REPORTS/{parent_sha}/{gate_name}_size_report_${parent_sha[:8]}.yml"
+    s3_url = f"s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/GATE_REPORTS/{parent_sha}/{gate_name}_size_report_{parent_sha[:8]}.yml"
     ctx.run(f"{aws_cmd} s3 cp --only-show-errors {s3_url} {output}", warn=True)
