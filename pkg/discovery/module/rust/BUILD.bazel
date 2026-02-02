@@ -1,6 +1,7 @@
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_shared_library", "rust_test")
+load("//bazel/toolchains/rust:defs.bzl", "size_optimized_rust_binary")
 
 # ============================================================================
 # Library Targets (rlib + cdylib)
@@ -102,7 +103,7 @@ rust_shared_library(
 # ============================================================================
 
 # Main sd-agent service binary
-rust_binary(
+size_optimized_rust_binary(
     name = "sd-agent",
     srcs = [
         "src/cli.rs",

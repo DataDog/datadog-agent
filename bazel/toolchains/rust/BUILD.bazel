@@ -1,0 +1,64 @@
+"""Build settings for Rust size optimization configuration.
+
+These build settings control size optimization parameters for Rust binaries
+when rust_size_optimized=true. They can be set via command line or .bazelrc.
+
+The settings work in combination with the size_optimized_rust_binary wrapper
+rule and the size_optimized_transition to apply aggressive size optimizations
+to specific Rust binaries without affecting others.
+"""
+
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag")
+
+package(default_visibility = ["//visibility:public"])
+
+# Master toggle for size optimization mode
+# Set to true to enable size optimizations for binaries wrapped with size_optimized_rust_binary
+bool_flag(
+    name = "rust_size_optimized",
+    build_setting_default = False,
+)
+
+# Optimization level for size-optimized builds
+# "z" = optimize aggressively for size (recommended)
+# "s" = optimize for size
+# "3" = optimize for speed (not recommended for size optimization)
+string_flag(
+    name = "rust_opt_level",
+    build_setting_default = "z",
+)
+
+# Number of codegen units for size-optimized builds
+# "1" = maximum optimization (slower compilation, smaller binary)
+# Higher values = faster compilation, potentially larger binary
+string_flag(
+    name = "rust_codegen_units",
+    build_setting_default = "1",
+)
+
+# Panic strategy for size-optimized builds
+# "abort" = panic immediately without unwinding (smaller binary)
+# "unwind" = support stack unwinding (larger binary, better debugging)
+string_flag(
+    name = "rust_panic",
+    build_setting_default = "abort",
+)
+
+# Symbol stripping for size-optimized builds
+# "symbols" = strip debug symbols (recommended)
+# "debuginfo" = strip debug info but keep function symbols
+# "none" = no stripping
+string_flag(
+    name = "rust_strip",
+    build_setting_default = "symbols",
+)
+
+# Link-Time Optimization mode for size-optimized builds
+# "fat" = full LTO across all crates (slowest, smallest)
+# "thin" = thin LTO (faster, slightly larger)
+# "off" = no LTO
+# Note: rules_rust automatically configures the linker (lld/mold) for LTO
+string_flag(
+    name = "rust_lto",
+    build_setting_default = "fat",
+)
