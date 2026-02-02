@@ -74,9 +74,8 @@ type provider struct {
 	failoverEnabled    bool
 	failoverTimeoutMs  int
 	routerChannels     []chan *message.Message
-	routerMonitors     []*metrics.CapacityMonitor
 	forwarderWaitGroup sync.WaitGroup
-	routerMutex        sync.Mutex // Protects routerChannels and routerMonitors
+	routerMutex        sync.Mutex // Protects routerChannels
 }
 
 // NewProvider returns a new Provider
@@ -286,7 +285,6 @@ func (p *provider) Stop() {
 	p.sender.Stop()
 	p.pipelines = p.pipelines[:0]
 	p.routerChannels = p.routerChannels[:0]
-	p.routerMonitors = p.routerMonitors[:0]
 }
 
 // NextPipelineChan returns the next pipeline input channel
@@ -305,9 +303,10 @@ func (p *provider) NextPipelineChan() chan *message.Message {
 		return nextPipeline.InputChan
 	}
 
-	// Router channel for this tailer
+	// Router channel for this tailer and its primary pipeline to report to
 	channelSize := p.cfg.GetInt("logs_config.message_channel_size")
 	routerChannel := make(chan *message.Message, channelSize)
+    primaryPipelineIndex := p.currentPipelineIndex.Inc() % uint32(pipelinesLen)
 
 	// Thread-safe append to router channels slice
 	p.routerMutex.Lock()
@@ -315,7 +314,7 @@ func (p *provider) NextPipelineChan() chan *message.Message {
 	p.routerMutex.Unlock()
 
 	p.forwarderWaitGroup.Add(1)
-	go p.forwardWithFailover(routerChannel)
+	go p.forwardWithFailover(routerChannel, primaryPipelineIndex)
 
 	return routerChannel
 }
@@ -341,34 +340,27 @@ func (p *provider) NextPipelineChanWithMonitor() (chan *message.Message, *metric
 		return nextPipeline.InputChan, nextPipeline.pipelineMonitor.GetCapacityMonitor(metrics.ProcessorTlmName, strconv.Itoa(int(index)))
 	}
 
-	// Failover enabled: create router channel with its own monitor
+	// Failover enabled: create router channel with its own monitor and primary pipeline
 	channelSize := p.cfg.GetInt("logs_config.message_channel_size")
 	routerChannel := make(chan *message.Message, channelSize)
-
-	// Choose a primary pipeline for this routers monitor
-	// (The forwarder might send to different pipeline, but tailer doesnt know that)
-	primaryIndex := p.currentPipelineIndex.Inc() % uint32(pipelinesLen)
-	primaryPipeline := p.pipelines[primaryIndex]
-
-	// Get the primary pipelines monitor for tailer to report to
-	monitor := primaryPipeline.pipelineMonitor.GetCapacityMonitor(metrics.ProcessorTlmName, strconv.Itoa(int(primaryIndex)))
+	primaryPipelineIndex := p.currentPipelineIndex.Inc() % uint32(pipelinesLen)
 
 	// Thread-safe append to router channels and monitors slices
 	p.routerMutex.Lock()
 	p.routerChannels = append(p.routerChannels, routerChannel)
-	p.routerMonitors = append(p.routerMonitors, monitor)
 	p.routerMutex.Unlock()
 
 	// Start forwarder
 	p.forwarderWaitGroup.Add(1)
-	go p.forwardWithFailover(routerChannel)
+	go p.forwardWithFailover(routerChannel, primaryPipelineIndex)
 
-	return routerChannel, monitor
+	return routerChannel, nil
 }
 
 // forwardWithFailover reads messages from a router channel and forwards them
-// to healthy pipelines with automatic failover on blocking
-func (p *provider) forwardWithFailover(routerChannel chan *message.Message) {
+// to its primary pipeline unless its blocked, in which case 
+// it will find the next healthy pipeline with automatic failover
+func (p *provider) forwardWithFailover(routerChannel chan *message.Message, primaryPipelinesIndex uint32) {
 	defer p.forwarderWaitGroup.Done()
 
 	timeout := time.Duration(p.failoverTimeoutMs) * time.Millisecond
@@ -376,7 +368,7 @@ func (p *provider) forwardWithFailover(routerChannel chan *message.Message) {
 
 	for msg := range routerChannel {
 		sent := false
-		startIdx := p.currentPipelineIndex.Inc() % uint32(pipelinesLen)
+		startIdx := primaryPipelinesIndex
 
 		// Try each pipeline with timeout
 		for attempt := 0; attempt < pipelinesLen; attempt++ {
@@ -388,6 +380,11 @@ func (p *provider) forwardWithFailover(routerChannel chan *message.Message) {
 			select {
 			case pipeline.InputChan <- msg:
 				timer.Stop()
+
+				// Track ingress on the pipeline
+				monitor := pipeline.pipelineMonitor.GetCapacityMonitor(metrics.ProcessorTlmName, strconv.Itoa(int(idx)))
+				monitor.AddIngress(msg)
+
 				sent = true
 				goto done
 
@@ -399,9 +396,12 @@ func (p *provider) forwardWithFailover(routerChannel chan *message.Message) {
 
 	done:
 		// All pipelines blocked, apply backpressure via blocking
+		// and AddIngress on the primary pipeline
 		if !sent {
-			idx := startIdx % uint32(pipelinesLen)
-			p.pipelines[idx].InputChan <- msg // Blocks until pipeline accepts
+			p.pipelines[primaryPipelinesIndex].InputChan <- msg // Blocks until pipeline accepts
+
+			monitor := p.pipelines[primaryPipelinesIndex].pipelineMonitor.GetCapacityMonitor(metrics.ProcessorTlmName, strconv.Itoa(int(primaryPipelinesIndex)))
+			monitor.AddIngress(msg)
 		}
 	}
 }
