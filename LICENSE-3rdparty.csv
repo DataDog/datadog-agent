@@ -4129,6 +4129,7 @@ core,k8s.io/client-go/tools/record,Apache-2.0,Copyright 2014 The Kubernetes Auth
 core,k8s.io/client-go/tools/record/util,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/tools/reference,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/tools/remotecommand,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/tools/watch,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/transport,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/transport/spdy,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/transport/websocket,Apache-2.0,Copyright 2014 The Kubernetes Authors.
