@@ -10,17 +10,18 @@
   tags: ["arch:amd64", "specific:true"]
   timeout: 1h
   parallel:
-    matrix:
-      - COMPRESSION:
-          - "zstd"
-          - "zstd-nydus"
+    matrix: # See https://github.com/DataDog/datadog-agent/pull/45778
+      - COMPRESSION: "zstd"
+        RELEASE_TAG_COMPRESSION_SUFFIX: ""
+      - COMPRESSION: "nydus"
+        RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd-nydus"
   script:
     # Constant variables
     - export RELEASE_STAGING="true"
     - export DYNAMIC_BUILD_RENDER_RULES="agent-build-only"
     # Job specific variables
     - export BASE_RELEASE_TAG="${CI_COMMIT_REF_NAME//\//-}"
-    - export RELEASE_TAG="${BASE_RELEASE_TAG}${RELEASE_TAG_SUFFIX}-${COMPRESSION}"
+    - export RELEASE_TAG="${BASE_RELEASE_TAG}${RELEASE_TAG_SUFFIX}${RELEASE_TAG_COMPRESSION_SUFFIX}"
     - export TMPL_SRC_IMAGE="v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${TMPL_SRC_IMAGE_SUFFIX}"
     # Specify the compression
     - export IMAGE_VERSION="${IMAGE_VERSION}-${COMPRESSION}"
