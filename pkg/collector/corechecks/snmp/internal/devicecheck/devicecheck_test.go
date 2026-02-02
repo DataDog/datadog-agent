@@ -1041,6 +1041,7 @@ collect_topology: false
 	}, deviceCk.profileCache.scalarOIDs)
 	assert.Equal(t, []string{
 		"1.3.6.1.2.1.2.2.1.2",
+		"1.3.6.1.2.1.2.2.1.3",
 		"1.3.6.1.2.1.2.2.1.6",
 		"1.3.6.1.2.1.2.2.1.7",
 		"1.3.6.1.2.1.2.2.1.8",
@@ -1111,6 +1112,7 @@ collect_topology: false
 	}, deviceCk.profileCache.scalarOIDs)
 	assert.Equal(t, []string{
 		"1.3.6.1.2.1.2.2.1.2",
+		"1.3.6.1.2.1.2.2.1.3",
 		"1.3.6.1.2.1.2.2.1.6",
 		"1.3.6.1.2.1.2.2.1.7",
 		"1.3.6.1.2.1.2.2.1.8",

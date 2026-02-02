@@ -268,7 +268,11 @@ func setupCommonHostTags(s *common.Setup) {
 	// Set databricks_cluster resource tag based on whether we're on a job cluster
 	isJobCluster, _ := os.LookupEnv("DB_IS_JOB_CLUSTER")
 	if isJobCluster == "TRUE" && ok {
-		setHostTag(s, "dd.internal.resource:databricks_cluster", prefixWithWorkspace(normalizedWorkspace, jobID))
+		if sanitizedJobName != "" {
+			setHostTag(s, "dd.internal.resource:databricks_cluster", prefixWithWorkspace(normalizedWorkspace, sanitizedJobName))
+		} else {
+			setHostTag(s, "dd.internal.resource:databricks_cluster", prefixWithWorkspace(normalizedWorkspace, jobID))
+		}
 	} else {
 		if clusterID, ok := os.LookupEnv("DB_CLUSTER_ID"); ok {
 			setHostTag(s, "dd.internal.resource:databricks_cluster", prefixWithWorkspace(normalizedWorkspace, clusterID))
