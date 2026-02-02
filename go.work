@@ -58,6 +58,8 @@ use (
 	comp/otelcol/ddflareextension/types
 	comp/otelcol/ddprofilingextension/def
 	comp/otelcol/ddprofilingextension/impl
+	comp/otelcol/dogtelextension/def
+	comp/otelcol/dogtelextension/impl
 	comp/otelcol/logsagentpipeline
 	comp/otelcol/logsagentpipeline/logsagentpipelineimpl
 	comp/otelcol/otlp/components/exporter/datadogexporter
