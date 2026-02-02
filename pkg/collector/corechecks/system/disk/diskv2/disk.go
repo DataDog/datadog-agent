@@ -582,7 +582,7 @@ func (c *Check) clearInflight(mountpoint string) {
 // 2. Global semaphore: caps total concurrent disk usage calls across all mounts.
 func (c *Check) getDiskUsageWithTimeout(mountpoint string) (*gopsutil_disk.UsageStat, error) {
 	if !c.tryMarkInflight(mountpoint) {
-		return nil, fmt.Errorf("skipping: previous disk usage call still inflight (may be blocked in kernel)")
+		return nil, errors.New("skipping: previous disk usage call still inflight (may be blocked in kernel)")
 	}
 
 	select {
