@@ -135,9 +135,9 @@ func generateKillActionKey(ruleID string, scope string, signal string) string {
 }
 
 func generateNetworkIsolationActionKey(ruleID string, filter string) string {
-	// prefix + ruleID + sha256(filter)[:10]
+	// prefix + ruleID + sha256(filter)
 	hash := sha256.Sum256([]byte(filter))
-	return NetworkIsolationKeyPrefix + ruleID + hex.EncodeToString(hash[:10])
+	return NetworkIsolationKeyPrefix + ruleID + hex.EncodeToString(hash[:])
 
 }
 func generateRemediationActionKey(rule *rules.Rule) string {
