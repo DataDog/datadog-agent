@@ -1,0 +1,15 @@
+{
+  "best_score": 15.0,
+  "best_params": {
+    "cusum_baseline_fraction": 0.12323344486727979,
+    "cusum_slack_factor": 1.7457346769723767,
+    "cusum_threshold_factor": 5.606690070459253,
+    "ll_max_lag": 46,
+    "ll_min_obs": 2,
+    "ll_confidence": 0.8849549260809972
+  },
+  "scenario": "network-latency",
+  "detector": "cusum",
+  "correlator": "leadlag",
+  "total_trials": 5
+}

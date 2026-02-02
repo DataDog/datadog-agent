@@ -1,0 +1,15 @@
+{
+  "best_score": 78.0,
+  "best_params": {
+    "cusum-baseline-fraction": 0.249816047538945,
+    "cusum-slack-factor": 1.9063571821788405,
+    "cusum-threshold-factor": 6.391963650868431,
+    "leadlag-max-lag": 40,
+    "leadlag-min-obs": 3,
+    "leadlag-confidence": 0.47799726016810135
+  },
+  "scenario": "memory-exhaustion",
+  "detector": "cusum",
+  "correlator": "leadlag",
+  "total_trials": 5
+}

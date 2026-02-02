@@ -1,0 +1,15 @@
+{
+  "best_score": 15.0,
+  "best_params": {
+    "cusum_baseline_fraction": 0.249816047538945,
+    "cusum_slack_factor": 1.9063571821788405,
+    "cusum_threshold_factor": 6.391963650868431,
+    "ll_max_lag": 40,
+    "ll_min_obs": 3,
+    "ll_confidence": 0.47799726016810135
+  },
+  "scenario": "traffic-spike",
+  "detector": "cusum",
+  "correlator": "leadlag",
+  "total_trials": 5
+}

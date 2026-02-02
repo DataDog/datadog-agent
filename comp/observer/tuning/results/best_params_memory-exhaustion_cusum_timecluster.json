@@ -1,0 +1,13 @@
+{
+  "best_score": 78.0,
+  "best_params": {
+    "cusum_baseline_fraction": 0.2216968971838151,
+    "cusum_slack_factor": 1.097037220101252,
+    "cusum_threshold_factor": 4.591670111852695,
+    "tc_slack": 9
+  },
+  "scenario": "memory-exhaustion",
+  "detector": "cusum",
+  "correlator": "timecluster",
+  "total_trials": 5
+}

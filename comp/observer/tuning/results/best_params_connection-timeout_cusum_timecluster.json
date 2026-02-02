@@ -1,0 +1,13 @@
+{
+  "best_score": 15.0,
+  "best_params": {
+    "cusum_baseline_fraction": 0.34044600469728353,
+    "cusum_slack_factor": 1.4453378978124864,
+    "cusum_threshold_factor": 2.1235069657748147,
+    "tc_slack": 30
+  },
+  "scenario": "connection-timeout",
+  "detector": "cusum",
+  "correlator": "timecluster",
+  "total_trials": 5
+}

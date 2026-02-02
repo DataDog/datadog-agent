@@ -1,0 +1,13 @@
+{
+  "best_score": 85.0,
+  "best_params": {
+    "cusum_baseline_fraction": 0.4329770563201687,
+    "cusum_slack_factor": 0.5034443102887247,
+    "cusum_threshold_factor": 3.0909498032426037,
+    "tc_slack": 6
+  },
+  "scenario": "crash-loop",
+  "detector": "cusum",
+  "correlator": "timecluster",
+  "total_trials": 5
+}

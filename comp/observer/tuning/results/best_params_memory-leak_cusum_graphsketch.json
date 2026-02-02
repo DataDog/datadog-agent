@@ -1,0 +1,16 @@
+{
+  "best_score": 98.0,
+  "best_params": {
+    "cusum_baseline_fraction": 0.11375540844608736,
+    "cusum_slack_factor": 1.8277087639496858,
+    "cusum_threshold_factor": 3.5526798896001015,
+    "gs_cooccurrence": 40,
+    "gs_decay": 0.6527384272838114,
+    "gs_min_corr": 5.440646201189203,
+    "gs_edge_limit": 569
+  },
+  "scenario": "memory-leak",
+  "detector": "cusum",
+  "correlator": "graphsketch",
+  "total_trials": 20
+}

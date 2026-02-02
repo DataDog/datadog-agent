@@ -1,0 +1,15 @@
+{
+  "best_score": 92.0,
+  "best_params": {
+    "lightesd_min_window": 149,
+    "lightesd_alpha": 0.007916780159911093,
+    "lightesd_trend_frac": 0.10098715147229073,
+    "lightesd_period_sig": 0.011364695031944946,
+    "lightesd_max_periods": 3,
+    "tc_slack": 7
+  },
+  "scenario": "memory-leak",
+  "detector": "lightesd",
+  "correlator": "timecluster",
+  "total_trials": 20
+}
