@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -25,6 +26,7 @@ type Requires struct {
 	// AgentInternalLogTap provides optional overrides for capturing agent-internal logs.
 	// When fields are nil, values are read from configuration defaults.
 	AgentInternalLogTap AgentInternalLogTapConfig
+	Recorder            recorderdef.Component
 }
 
 type AgentInternalLogTapConfig struct {
@@ -103,35 +105,12 @@ func NewComponent(deps Requires) Provides {
 		maxEvents: 1000, // Keep last 1000 events for debugging
 	}
 
+	obs.handleFunc = deps.Recorder.GetHandle(obs.innerHandle)
+
 	cfg := pkgconfigsetup.Datadog()
 
-	// Initialize parquet writer only if both capture_metrics.enabled AND parquet_output_dir are configured.
-	// When capture_metrics.enabled is false, no metrics are recorded to parquet.
-	captureMetricsEnabled := cfg.GetBool("observer.capture_metrics.enabled")
-	if captureMetricsEnabled {
-		if parquetDir := cfg.GetString("observer.parquet_output_dir"); parquetDir != "" {
-			flushInterval := cfg.GetDuration("observer.parquet_flush_interval")
-			if flushInterval == 0 {
-				flushInterval = 60 * time.Second
-			}
-
-			retentionDuration := cfg.GetDuration("observer.parquet_retention")
-			// Default to 24 hours if not set or invalid
-			if retentionDuration <= 0 {
-				retentionDuration = 24 * time.Hour
-			}
-
-			writer, err := NewParquetWriter(parquetDir, flushInterval, retentionDuration)
-			if err != nil {
-				pkglog.Errorf("Failed to create parquet writer: %v", err)
-			} else {
-				obs.parquetWriter = writer
-				pkglog.Infof("Observer parquet writer enabled: dir=%s flush=%v retention=%v", parquetDir, flushInterval, retentionDuration)
-			}
-		}
-	} else {
-		pkglog.Debug("Observer parquet writer disabled (observer.capture_metrics.enabled is false)")
-	}
+	// Note: Parquet recording is now handled by the recorder component.
+	// The recorder intercepts metrics at the handle level and writes to parquet.
 
 	go obs.run()
 
@@ -260,6 +239,7 @@ type observerImpl struct {
 	reporters         []observerdef.Reporter
 	storage           *timeSeriesStorage
 	obsCh             chan observation
+	handleFunc        observerdef.HandleFunc
 	// eventBuffer stores recent events (markers) for debugging/dumping.
 	// Ring buffer with maxEvents capacity.
 	eventBuffer []observerdef.EventSignal
@@ -270,9 +250,6 @@ type observerImpl struct {
 	rawAnomalyMu     sync.RWMutex
 	rawAnomalyWindow int64 // seconds to keep raw anomalies (0 = unlimited)
 	currentDataTime  int64 // latest data timestamp seen
-
-	// Parquet writer for long-term storage of metrics
-	parquetWriter *ParquetWriter
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
@@ -296,10 +273,7 @@ func (o *observerImpl) processMetric(source string, m *metricObs) {
 	// Add to storage
 	o.storage.Add(source, m.name, m.value, m.timestamp, m.tags)
 
-	// Write to parquet if enabled
-	if o.parquetWriter != nil {
-		o.parquetWriter.WriteMetric(source, m.name, m.value, m.tags, m.timestamp)
-	}
+	// Note: Parquet recording is now handled by the recorder component at the handle level.
 
 	// Run time series analyses on multiple aggregations
 	for _, agg := range analysisAggregations {
@@ -489,6 +463,10 @@ func (o *observerImpl) flushAndReport() {
 
 // GetHandle returns a lightweight handle for a named source.
 func (o *observerImpl) GetHandle(name string) observerdef.Handle {
+	return o.handleFunc(name)
+}
+
+func (o *observerImpl) innerHandle(name string) observerdef.Handle {
 	return &handle{ch: o.obsCh, source: name}
 }
 

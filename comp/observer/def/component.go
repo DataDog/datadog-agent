@@ -31,6 +31,9 @@ type Handle interface {
 	ObserveLog(msg LogView)
 }
 
+// HandleFunc is a function that returns a handle for a named source.
+type HandleFunc func(name string) Handle
+
 // MetricView provides read-only access to a metric sample.
 //
 // This interface exists to prevent data races. The underlying metric data may be
@@ -98,17 +101,17 @@ type AnomalyOutput struct {
 // AnomalyDebugInfo provides detailed information about why an anomaly was detected.
 type AnomalyDebugInfo struct {
 	// Baseline statistics
-	BaselineStart   int64   // timestamp of baseline period start
-	BaselineEnd     int64   // timestamp of baseline period end
-	BaselineMean    float64 // mean of baseline (for CUSUM)
-	BaselineMedian  float64 // median of baseline (for robust z-score)
-	BaselineStddev  float64 // stddev of baseline (for CUSUM)
-	BaselineMAD     float64 // MAD of baseline (for robust z-score)
+	BaselineStart  int64   // timestamp of baseline period start
+	BaselineEnd    int64   // timestamp of baseline period end
+	BaselineMean   float64 // mean of baseline (for CUSUM)
+	BaselineMedian float64 // median of baseline (for robust z-score)
+	BaselineStddev float64 // stddev of baseline (for CUSUM)
+	BaselineMAD    float64 // MAD of baseline (for robust z-score)
 
 	// Detection parameters
-	Threshold     float64 // threshold that was crossed
-	SlackParam    float64 // k parameter (CUSUM only)
-	CurrentValue  float64 // value at detection time
+	Threshold      float64 // threshold that was crossed
+	SlackParam     float64 // k parameter (CUSUM only)
+	CurrentValue   float64 // value at detection time
 	DeviationSigma float64 // how many sigmas from baseline
 
 	// For CUSUM: the cumulative sum values leading up to detection
