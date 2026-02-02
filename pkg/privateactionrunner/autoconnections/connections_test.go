@@ -199,7 +199,7 @@ func TestAutoCreateConnections_AllBundlesSuccess(t *testing.T) {
 	cfg.SetWithoutSource("app_key", "test-app-key")
 	cfg.SetWithoutSource("dd_url", server.URL)
 
-	runnerURN := "us1:12345:runner-abc123"
+	runnerURN := "urn:dd:apps:on-prem-runner:us1:12345:runner-abc123"
 	allowlist := []string{"com.datadoghq.http.*", "com.datadoghq.kubernetes.*", "com.datadoghq.script"}
 
 	err := AutoCreateConnections(context.Background(), cfg, runnerURN, allowlist)
@@ -239,7 +239,7 @@ func TestAutoCreateConnections_PartialFailures(t *testing.T) {
 	cfg.SetWithoutSource("app_key", "test-app-key")
 	cfg.SetWithoutSource("dd_url", server.URL)
 
-	runnerURN := "us1:12345:runner-abc123"
+	runnerURN := "urn:dd:apps:on-prem-runner:us1:12345:runner-abc123"
 	allowlist := []string{"com.datadoghq.http.*", "com.datadoghq.kubernetes.*", "com.datadoghq.script"}
 
 	err := AutoCreateConnections(context.Background(), cfg, runnerURN, allowlist)
@@ -265,7 +265,7 @@ func TestAutoCreateConnections_NoRelevantBundles(t *testing.T) {
 	cfg.SetWithoutSource("app_key", "test-app-key")
 	cfg.SetWithoutSource("dd_url", server.URL)
 
-	runnerURN := "us1:12345:runner-abc123"
+	runnerURN := "urn:dd:apps:on-prem-runner:us1:12345:runner-abc123"
 	allowlist := []string{"com.datadoghq.gitlab.*"} // No matching bundles
 
 	err := AutoCreateConnections(context.Background(), cfg, runnerURN, allowlist)
@@ -292,7 +292,7 @@ func TestAutoCreateConnections_PartialAllowlist(t *testing.T) {
 	cfg.SetWithoutSource("app_key", "test-app-key")
 	cfg.SetWithoutSource("dd_url", server.URL)
 
-	runnerURN := "us1:12345:runner-abc123"
+	runnerURN := "urn:dd:apps:on-prem-runner:us1:12345:runner-abc123"
 	allowlist := []string{"com.datadoghq.http.*", "com.datadoghq.script"} // Only HTTP and Script
 
 	err := AutoCreateConnections(context.Background(), cfg, runnerURN, allowlist)
