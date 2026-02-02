@@ -663,11 +663,9 @@ func (p *EBPFLessProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				return
 			}
 			tryToKill, _ := p.processKiller.KillAndReport(action.Def.Kill, rule, ev)
-
 			if tryToKill {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
-
 		case action.Def.Hash != nil:
 			if p.fileHasher.HashAndReport(rule, action.Def.Hash, ev) {
 				p.probe.onRuleActionPerformed(rule, action.Def)

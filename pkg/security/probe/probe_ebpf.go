@@ -3403,13 +3403,11 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 			}
 
 			tryToKill, report := p.processKiller.KillAndReport(action.Def.Kill, rule, ev)
-
 			if tryToKill {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 			if report != nil {
 				p.HandleKillRemediation(rule, ev, report, action)
-
 			}
 
 		case action.Def.CoreDump != nil:

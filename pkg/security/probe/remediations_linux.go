@@ -161,7 +161,6 @@ func getRemediationKeyFromAction(rule *rules.Rule, action *rules.Action) string 
 		return generateNetworkIsolationActionKey(rule.ID, action.Def.NetworkFilter.BPFFilter)
 	}
 	return ""
-
 }
 
 // NewRemediationEvent creates a new Remediation event from the latest action report
@@ -263,7 +262,6 @@ func (p *EBPFProbe) HandleRemediationStatus(rs *rules.RuleSet) {
 					ruleTags:   getTagsFromRule(rule),
 				}
 			}
-
 		}
 	}
 	// After all the rule are loaded, check if some isolation actions were removed
@@ -314,7 +312,6 @@ func (p *EBPFProbe) HandleKillRemediation(rule *rules.Rule, ev *model.Event, rep
 	// Send custom event
 	killActionEvent := NewRemediationEvent(p, remediation, status, RemediationTypeKillStr)
 	p.SendRemediationEvent(killActionEvent)
-
 }
 
 func (p *EBPFProbe) HandleNetworkRemediation(rule *rules.Rule, ev *model.Event, report *RawPacketActionReport, action *rules.Action) {
