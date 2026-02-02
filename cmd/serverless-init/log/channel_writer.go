@@ -9,7 +9,7 @@ import (
 	"bytes"
 	"io"
 
-	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	logConfig "github.com/DataDog/datadog-agent/comp/logs-library/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

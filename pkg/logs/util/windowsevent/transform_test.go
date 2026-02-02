@@ -10,9 +10,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	logconfig "github.com/DataDog/datadog-agent/comp/logs-library/config"
 	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
-	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
 
 // richEvent carries rendered information to create a richer log
