@@ -549,6 +549,39 @@ document
 
 ---
 
+## Iteration 15: SummaryInformation Comments Not Generated
+
+### Issue
+After building the MSI, the Comments field in the MSI Details tab changed from:
+- **Before**: "Copyright 2015 - Present Datadog"
+- **After**: "This installer database contains the logic and data required to install Datadog Agent."
+
+### Root Cause
+In WiX 5, the `SummaryInformation` element has a new `Comments` attribute that must be explicitly set. WixSharp's `ControlPanelInfo.Comments` property does not generate this element in the WiX 5 output.
+
+The default comment ("This installer database...") is WiX's default when no `SummaryInformation/@Comments` is specified.
+
+### Fix Applied
+Manually add the `SummaryInformation` element with `Comments` attribute in `WixSourceGenerated`:
+
+**1. AgentInstaller.cs**
+```csharp
+// WiX 5 migration: SummaryInformation/Comments is a new element in WiX 5
+// ControlPanelInfo.Comments doesn't generate this, so we add it manually
+document
+    .Select("Wix/Package")
+    .AddElement("SummaryInformation", $"Comments={ProductComment}");
+```
+
+**2. DatadogInstaller.cs** - Same change
+
+### Technical Notes
+- WiX 5 documentation: https://wixtoolset.org/docs/schema/wxs/summaryinformation
+- The `Comments` attribute on `SummaryInformation` is explicitly noted as "New in WiX v5"
+- `ControlPanelInfo.Comments` still sets Add/Remove Programs metadata, but not the MSI file properties
+
+---
+
 ## Current Status
 
 The build should now proceed with MSI compilation. Additional issues may arise during:

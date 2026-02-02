@@ -324,6 +324,11 @@ namespace WixSetup.Datadog_Agent
                     .Select("Wix/Package")
                     .AddElement("MediaTemplate",
                         "CabinetTemplate=cab{0}.cab; CompressionLevel=high; EmbedCab=yes; MaximumUncompressedMediaSize=2");
+                // WiX 5 migration: SummaryInformation/Comments is a new element in WiX 5
+                // ControlPanelInfo.Comments doesn't generate this, so we add it manually
+                document
+                    .Select("Wix/Package")
+                    .AddElement("SummaryInformation", $"Comments={ProductComment}");
 
                 // Windows Installer (MSI.dll) calls the obsolete SetFileSecurityW function during CreateFolder rollback,
                 // this causes directories in the CreateFolder table to have their SE_DACL_AUTO_INHERITED flag removed.
