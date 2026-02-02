@@ -138,36 +138,41 @@ func (w *workloadmeta) writeResponse(writer http.ResponseWriter, r *http.Request
 
 // BuildWorkloadResponse builds a JSON response for workload-list with filtering
 func BuildWorkloadResponse(wmeta wmdef.Component, verbose, structured bool, search string) ([]byte, error) {
-	var response any
 	if structured {
 		// Use structured format for JSON
 		structuredResp := wmeta.DumpStructured(verbose)
 
 		// Filter entities based on verbose flag
 		// Non-verbose: only include fields shown in text output
-		// Verbose: include all fields
-		filteredResp := wmdef.WorkloadDumpStructuredResponse{
-			Entities: make(map[string][]wmdef.Entity),
+		// Verbose: include all fields (no filtering needed)
+		if !verbose {
+			// Non-verbose: filter out verbose-only fields
+			filteredResp := wmdef.WorkloadDumpStructuredResponse{
+				Entities: make(map[string][]wmdef.Entity, len(structuredResp.Entities)),
+			}
+			for kind, entities := range structuredResp.Entities {
+				filteredResp.Entities[kind] = FilterEntitiesForVerbose(entities, false)
+			}
+			structuredResp = filteredResp
 		}
-		for kind, entities := range structuredResp.Entities {
-			filteredResp.Entities[kind] = FilterEntitiesForVerbose(entities, verbose)
-		}
-
-		response = filteredResp
 
 		// Apply search filter if provided
 		if search != "" {
-			response = FilterStructuredResponse(response.(wmdef.WorkloadDumpStructuredResponse), search)
+			structuredResp = FilterStructuredResponse(structuredResp, search)
 		}
-	} else {
-		response = wmeta.Dump(verbose)
-		// Apply search filter if provided
-		if search != "" {
-			response = FilterTextResponse(response.(wmdef.WorkloadDumpResponse), search)
-		}
+
+		return json.Marshal(structuredResp)
 	}
 
-	return json.Marshal(response)
+	// Text format
+	textResp := wmeta.Dump(verbose)
+
+	// Apply search filter if provided
+	if search != "" {
+		textResp = FilterTextResponse(textResp, search)
+	}
+
+	return json.Marshal(textResp)
 }
 
 // FilterStructuredResponse filters entities by kind or entity ID
