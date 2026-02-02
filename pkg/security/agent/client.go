@@ -19,13 +19,14 @@ import (
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/mdlayher/vsock"
+	empty "google.golang.org/protobuf/types/known/emptypb"
+
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
-	"github.com/mdlayher/vsock"
-	empty "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // RuntimeSecurityCmdClient is used to send request to security module
@@ -120,7 +121,7 @@ func (c *RuntimeSecurityCmdClient) GetConfig() (*api.SecurityConfigMessage, erro
 // GetStatus returns the status of the module
 func (c *RuntimeSecurityCmdClient) GetStatus() (*api.Status, error) {
 	apiClient := api.NewSecurityModuleCmdClient(c.conn)
-	return apiClient.GetStatus(context.Background(), &api.GetStatusParams{IncludeSECLVariables: true})
+	return apiClient.GetStatus(context.Background(), &api.GetStatusParams{})
 }
 
 // RunSelfTest instructs the system probe to run a self test

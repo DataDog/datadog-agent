@@ -91,9 +91,7 @@ message SecuritySelfTestResultMessage {
     string Error = 2;
 }
 
-message GetStatusParams {
-    bool IncludeSECLVariables = 1;
-}
+message GetStatusParams {}
 
 message ConstantValueAndSource {
     string ID = 1;
