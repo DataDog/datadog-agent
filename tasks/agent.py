@@ -272,12 +272,12 @@ def build(
                     env=env,
                 )
 
-                # Copy rust libraries to the output directory
-                if embedded_path:
-                    shutil.copy2(
-                        "pkg/get_text_embeddings/rust/target/release/libget_text_embeddings.so",
-                        os.path.join(embedded_path, "lib"),
-                    )
+            # Copy rust libraries to the output directory
+            if embedded_path:
+                shutil.copy2(
+                    "pkg/get_text_embeddings/rust/target/release/libget_text_embeddings.so",
+                    os.path.join(embedded_path, "lib/libget_text_embeddings.so"),
+                )
 
     if not agent_bin:
         agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
