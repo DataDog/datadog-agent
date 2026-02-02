@@ -51,7 +51,7 @@ func TestCheckRightsMissingCurrentUser(t *testing.T) {
 	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
 
-	err = SetupACL(tmpfile.Name(), true, false, false, false)
+	err = SetACL(tmpfile.Name(), true, false, false, false)
 	require.NoError(t, err)
 	assert.NotNil(t, CheckRights(tmpfile.Name(), false))
 }
@@ -61,7 +61,7 @@ func TestCheckRightsMissingLocalSystem(t *testing.T) {
 	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
 
-	err = SetupACL(tmpfile.Name(), true, false, true, false)
+	err = SetACL(tmpfile.Name(), true, false, true, false)
 	require.NoError(t, err)
 	assert.NotNil(t, CheckRights(tmpfile.Name(), false))
 }
@@ -71,7 +71,7 @@ func TestCheckRightsMissingAdministrator(t *testing.T) {
 	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
 
-	err = SetupACL(tmpfile.Name(), true, true, false, false)
+	err = SetACL(tmpfile.Name(), true, true, false, false)
 	require.NoError(t, err)
 	assert.NotNil(t, CheckRights(tmpfile.Name(), false))
 }
@@ -82,7 +82,7 @@ func TestCheckRightsExtraRights(t *testing.T) {
 	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
 
-	err = SetupACL(tmpfile.Name(), false, false, false, true)
+	err = SetACL(tmpfile.Name(), false, false, false, true)
 	require.NoError(t, err)
 	assert.Nil(t, CheckRights(tmpfile.Name(), false))
 }
@@ -93,7 +93,7 @@ func TestCheckRightsMissingAdmingAndLocal(t *testing.T) {
 	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
 
-	err = SetupACL(tmpfile.Name(), true, false, false, true)
+	err = SetACL(tmpfile.Name(), true, false, false, true)
 	require.NoError(t, err)
 	assert.Nil(t, CheckRights(tmpfile.Name(), false))
 }

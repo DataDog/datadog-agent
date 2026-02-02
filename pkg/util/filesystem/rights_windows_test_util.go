@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2018-present Datadog, Inc.
 
 //go:build windows && test
 
@@ -20,8 +20,8 @@ func boolToString(b bool) string {
 	return "0"
 }
 
-// SetupACL modifies the permissions of the specified file
-func SetupACL(path string, removeAllUser bool, removeAdmin bool, removeLocalSystem bool, addDDUser bool) error {
+// SetACL modifies the permissions of the specified file
+func SetACL(path string, removeAllUser bool, removeAdmin bool, removeLocalSystem bool, addDDUser bool) error {
 	return exec.Command("powershell", "test/setAcl.ps1",
 		"-file", path,
 		"-removeAllUser", boolToString(removeAllUser),
@@ -31,9 +31,8 @@ func SetupACL(path string, removeAllUser bool, removeAdmin bool, removeLocalSyst
 	).Run()
 }
 
-func SetCorrectRight(path string) {
-	// output not checked
-	_ = SetupACL(path, true, false, false, true)
+func SetCorrectRight(path string) error {
+	return SetACL(path, true, false, false, true)
 }
 
 func TestCheckRightsStub() {
