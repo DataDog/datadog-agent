@@ -50,8 +50,6 @@ build do
         end
 
         if linux_target? || osx_target?
-            delete "#{install_dir}/embedded/lib/config_guess"
-
             # Delete .pc files which aren't needed after building
             delete "#{install_dir}/embedded/lib/pkgconfig"
             # Same goes for .cmake files
