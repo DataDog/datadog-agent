@@ -230,7 +230,6 @@ TRACE_AGENT_TAGS = {
     "docker",
     "containerd",
     "datadog.no_waf",
-    "kubeapiserver",
     "kubelet",
     "otlp",
     "netcgo",
@@ -353,7 +352,6 @@ build_tags = {
     },
     AgentFlavor.dogstatsd: {
         "dogstatsd": DOGSTATSD_TAGS,
-        "system-tests": AGENT_TAGS,
         "lint": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "unit-tests": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
     },
