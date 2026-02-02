@@ -6,6 +6,7 @@
 package processcheckimpl
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -28,10 +29,11 @@ import (
 
 func TestProcessChecksIsEnabled(t *testing.T) {
 	tests := []struct {
-		name            string
-		configs         map[string]interface{}
-		sysProbeConfigs map[string]interface{}
-		enabled         bool
+		name              string
+		configs           map[string]interface{}
+		sysProbeConfigs   map[string]interface{}
+		enabledOnLinux    bool
+		enabledOnNonLinux bool
 	}{
 		{
 			name: "check enabled: collection enabled, discovery enabled",
@@ -41,7 +43,8 @@ func TestProcessChecksIsEnabled(t *testing.T) {
 			sysProbeConfigs: map[string]interface{}{
 				"discovery.enabled": true,
 			},
-			enabled: true,
+			enabledOnLinux:    true,
+			enabledOnNonLinux: true,
 		},
 		{
 			name: "check enabled: collection enabled, discovery disabled",
@@ -51,7 +54,8 @@ func TestProcessChecksIsEnabled(t *testing.T) {
 			sysProbeConfigs: map[string]interface{}{
 				"discovery.enabled": false,
 			},
-			enabled: true,
+			enabledOnLinux:    true,
+			enabledOnNonLinux: true,
 		},
 		{
 			name: "check enabled: collection disabled, discovery enabled",
@@ -61,7 +65,10 @@ func TestProcessChecksIsEnabled(t *testing.T) {
 			sysProbeConfigs: map[string]interface{}{
 				"discovery.enabled": true,
 			},
-			enabled: true,
+			enabledOnLinux: true,
+			// Discovery is only supported on platforms which use the process collector and
+			// workloadmeta for process collection. Currently, that is only Linux.
+			enabledOnNonLinux: false,
 		},
 		{
 			name: "check disabled: collection disabled, discovery disabled",
@@ -71,7 +78,8 @@ func TestProcessChecksIsEnabled(t *testing.T) {
 			sysProbeConfigs: map[string]interface{}{
 				"discovery.enabled": false,
 			},
-			enabled: false,
+			enabledOnLinux:    false,
+			enabledOnNonLinux: false,
 		},
 	}
 
@@ -91,7 +99,14 @@ func TestProcessChecksIsEnabled(t *testing.T) {
 				fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 				Module(),
 			))
-			assert.Equal(t, tc.enabled, c.Object().IsEnabled())
+			actual := c.Object().IsEnabled()
+			var expected bool
+			if runtime.GOOS == "linux" {
+				expected = tc.enabledOnLinux
+			} else {
+				expected = tc.enabledOnNonLinux
+			}
+			assert.Equal(t, expected, actual)
 		})
 	}
 }
