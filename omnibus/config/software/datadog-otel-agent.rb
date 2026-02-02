@@ -78,6 +78,8 @@ build do
       else
         bin = "#{embedded_bin_dir}\\otel-agent.exe"
       end
-      fips_check_binary_for_expected_symbol(bin)
+      block do
+        fips_check_binary_for_expected_symbol(bin)
+      end
     end
 end

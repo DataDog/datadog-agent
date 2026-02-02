@@ -60,11 +60,6 @@ t did not")
     end
   }.curry
 
-  # Put the ruby code in a block to prevent omnibus from running it directly
-  # but rather at build step with the rest of the code above.
-  # If not in a block, it will search for binaries that have not been built yet.
-  block do
-    partially_applied_check = check_block.call(path)
-    GoSymbolsInspector.new(path, &partially_applied_check).inspect()
-  end
+  partially_applied_check = check_block.call(path)
+  GoSymbolsInspector.new(path, &partially_applied_check).inspect()
 end

@@ -293,20 +293,25 @@ build do
   end
 
   if fips_mode? && linux_target?
-    install_path = Pathname.new(install_dir)
+    # Put the ruby code in a block to prevent omnibus from running it directly
+    # but rather at build step with the rest of the code above.
+    # If not in a block, it will search for binaries that have not been built yet.
+    block do
+      install_path = Pathname.new(install_dir)
 
-    LINUX_BINARIES = [
-      "bin/agent/agent",
-      "embedded/bin/trace-agent",
-      "embedded/bin/process-agent",
-      "embedded/bin/security-agent",
-      "embedded/bin/system-probe",
-      "embedded/bin/installer",
-      "embedded/bin/secret-generic-connector",
-    ]
+      LINUX_BINARIES = [
+        "bin/agent/agent",
+        "embedded/bin/trace-agent",
+        "embedded/bin/process-agent",
+        "embedded/bin/security-agent",
+        "embedded/bin/system-probe",
+        "embedded/bin/installer",
+        "embedded/bin/secret-generic-connector",
+      ]
 
-    LINUX_BINARIES.each do |bin|
-      fips_check_binary_for_openssl_symbol(install_path + bin)
+      LINUX_BINARIES.each do |bin|
+        fips_check_binary_for_expected_symbol(install_path + bin)
+      end
     end
   end
 
