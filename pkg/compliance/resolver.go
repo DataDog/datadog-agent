@@ -85,6 +85,11 @@ type ResolverOptions struct {
 	// resolver (optional)
 	StatsdClient statsd.ClientInterface
 
+	// ReflectorStore contains kubernetes objects fetched using reflectors. This is
+	// used to avoid calling the kube API server with "list" operations that can
+	// return many objects and cause memory spikes.
+	ReflectorStore *ReflectorStore
+
 	DockerProvider
 	KubernetesProvider
 	LinuxAuditProvider
@@ -218,7 +223,7 @@ func (r *defaultResolver) ResolveInputs(ctx context.Context, rule *Rule) (Resolv
 			result, err = r.resolveDocker(ctx, *spec.Docker)
 		case spec.KubeApiserver != nil:
 			resultType = "kubernetes"
-			result, err = r.k8sapiserverResolver.resolveKubeApiserver(ctx, *spec.KubeApiserver)
+			result, err = r.k8sapiserverResolver.resolveKubeApiserver(ctx, rule.ID, *spec.KubeApiserver)
 			kubernetesCluster = r.k8sapiserverResolver.resolveKubeClusterID(ctx)
 		case spec.Package != nil:
 			resultType = "package"

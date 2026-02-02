@@ -28,8 +28,16 @@ func NewCommonRunner(
 	}
 }
 
-func (n *CommonRunner) Start(ctx context.Context) {
+func (n *CommonRunner) Start(ctx context.Context) error {
+	log.FromContext(ctx).Info("Starting Common runner")
 	go n.healthCheckLoop(ctx)
+	return nil
+}
+
+func (n *CommonRunner) Stop(ctx context.Context) error {
+	log.FromContext(ctx).Info("Stopping Common runner")
+	// Common runner does not have any resource to clean up
+	return nil
 }
 
 func (n *CommonRunner) healthCheckLoop(ctx context.Context) {

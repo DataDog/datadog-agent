@@ -50,9 +50,17 @@ dd_agent_expand_template(
     template = "upstart_redhat.data-plane.conf.in",
 )
 
+dd_agent_expand_template(
+    name = "upstart_redhat_action_conf_gen",
+    out = "etc/init/datadog-agent-action.conf",
+    attributes = pkg_attributes(mode = "0644"),
+    template = "upstart_redhat.action.conf.in",
+)
+
 pkg_filegroup(
     name = "all_files",
     srcs = [
+        ":upstart_redhat_action_conf_gen",
         ":upstart_redhat_conf_gen",
         ":upstart_redhat_data_plane_conf_gen",
         ":upstart_redhat_process_conf_gen",

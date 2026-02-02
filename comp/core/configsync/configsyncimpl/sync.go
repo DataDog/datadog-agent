@@ -17,8 +17,9 @@ import (
 )
 
 func (cs *configSync) updater() error {
+	csURL := cs.url.String()
 	cs.Log.Debugf("Pulling new configuration from agent-core at '%s'", cs.url.String())
-	cfg, err := fetchConfig(cs.ctx, cs.client, cs.url.String(), cs.timeout)
+	cfg, err := fetchConfig(cs.ctx, cs.client, csURL, cs.timeout)
 	if err != nil {
 		if cs.connected {
 			cs.Log.Warnf("Loosed connectivity to core-agent to fetch config: %v", err)

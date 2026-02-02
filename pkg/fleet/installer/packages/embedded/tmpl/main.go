@@ -131,6 +131,8 @@ func systemdUnits(stableData, expData, ddotStableData, ddotExpData systemdTempla
 		"datadog-agent-sysprobe-exp.service":   mustReadSystemdUnit("datadog-agent-sysprobe.service", expData, ambiantCapabilitiesSupported),
 		"datadog-agent-ddot.service":           mustReadSystemdUnit("datadog-agent-ddot.service", ddotStableData, ambiantCapabilitiesSupported),
 		"datadog-agent-ddot-exp.service":       mustReadSystemdUnit("datadog-agent-ddot.service", ddotExpData, ambiantCapabilitiesSupported),
+		"datadog-agent-action.service":         mustReadSystemdUnit("datadog-agent-action.service", stableData, ambiantCapabilitiesSupported),
+		"datadog-agent-action-exp.service":     mustReadSystemdUnit("datadog-agent-action.service", expData, ambiantCapabilitiesSupported),
 	}
 	return units
 }

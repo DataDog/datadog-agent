@@ -63,12 +63,15 @@ def _extract_gate_name_from_scope(scope: str) -> str | None:
 
 
 def _get_latest_value_from_pointlist(pointlist: list) -> float | None:
-    """Get the latest non-null value from a pointlist."""
+    """Get the latest non-null value from a pointlist of Point objects.
+
+    Point.value returns [timestamp, metric_value], so we access index 1.
+    """
     if not pointlist:
         return None
     for point in reversed(pointlist):
-        if point and len(point) >= 2 and point[1] is not None:
-            return point[1]
+        if point and point.value and point.value[1] is not None:
+            return point.value[1]
     return None
 
 
@@ -143,7 +146,7 @@ def fetch_main_headroom(failing_gates: list[str]) -> dict[str, dict[str, int]]:
 
     # Single query with all metrics for failing gates only
     queries = ",".join(
-        f"avg:datadog.agent.static_quality_gate.{m}{{git_ref:main,({gate_filter})}} by {{gate_name}}"
+        f"avg:datadog.agent.static_quality_gate.{m}{{git_ref:main AND ({gate_filter})}} by {{gate_name}}"
         for m in metric_map
     )
     result = query_metrics(queries, from_time="now-1d", to_time="now")
@@ -339,8 +342,8 @@ def get_change_metrics(
 
     # Build limit bounds string based on whether change is neutral
     if is_neutral:
-        # For neutral changes, just show the current size (bolded)
-        limit_bounds_str = f"**{current_mib:.3f}** MiB"
+        # For neutral changes, show the current size (bolded) → limit
+        limit_bounds_str = f"**{current_mib:.3f}** MiB → {max_mib:.3f}"
     elif baseline_mib is not None:
         # For meaningful changes, show: baseline → current (bold) → limit
         limit_bounds_str = f"{baseline_mib:.3f} → **{current_mib:.3f}** → {max_mib:.3f}"
@@ -447,6 +450,7 @@ def display_pr_comment(
     # Sort gates by error_types to group in between NoError, AssertionError and StackTrace
     for gate in sorted(gate_states, key=lambda x: x["error_type"] is None):
         gate_name = gate['name'].replace("static_quality_gate_", "")
+        gate_metrics = metric_handler.metrics.get(gate['name'], {})
 
         # Get change metrics for on-disk (delta with percentage and limit bounds)
         change_str, limit_bounds, is_neutral = get_change_metrics(gate['name'], metric_handler, metric_type="disk")
@@ -457,7 +461,6 @@ def display_pr_comment(
         if gate["error_type"] is None:
             if is_neutral:
                 # Neutral changes go to collapsed section (just show current size)
-                gate_metrics = metric_handler.metrics.get(gate['name'], {})
                 current_disk = gate_metrics.get("current_on_disk_size")
                 if current_disk is not None:
                     current_mib = current_disk / (1024 * 1024)
@@ -480,7 +483,12 @@ def display_pr_comment(
             is_blocking = gate.get("blocking", True)
             status_char = FAIL_CHAR if is_blocking else WARNING_CHAR
 
-            body_error += f"|{status_char}|{gate_name}|{change_str}|{limit_bounds}|\n"
+            # This is probably way more convoluted than it should be, but the best we can do
+            # without refactoring the data structures involved
+            if gate_metrics.get("current_on_wire_size", 0) > gate_metrics.get("max_on_wire_size", float('inf')):
+                body_error += f"|{status_char}|{gate_name} (on wire)|{wire_change_str}|{wire_limit_bounds}|\n"
+            if gate_metrics.get("current_on_disk_size", 0) > gate_metrics.get("max_on_disk_size", float('inf')):
+                body_error += f"|{status_char}|{gate_name} (on disk)|{change_str}|{limit_bounds}|\n"
 
             # Add to wire table for errors too
             body_wire += f"|{status_char}|{gate_name}|{wire_change_str}|{wire_limit_bounds}|\n"
@@ -678,7 +686,7 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     if ancestor == current_commit:
         ancestor = get_commit_sha(ctx, commit="HEAD~1")
         print(color_message(f"On main branch, using parent commit {ancestor} as ancestor", "cyan"))
-    metric_handler.generate_relative_size(ctx, ancestor=ancestor, report_path="ancestor_static_gate_report.json")
+    metric_handler.generate_relative_size(ancestor=ancestor)
 
     # Post-process gate failures: mark as non-blocking if delta <= 0
     # This means the size issue existed before this PR and wasn't introduced by current changes

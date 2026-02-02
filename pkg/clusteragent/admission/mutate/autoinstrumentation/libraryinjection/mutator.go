@@ -28,8 +28,9 @@ import (
 //
 // Returns an error if the injection fails.
 func InjectAPMLibraries(pod *corev1.Pod, cfg LibraryInjectionConfig) error {
-	// Create the provider
-	provider := NewInitContainerProvider(cfg)
+	// Select the provider based on the injection mode (annotation or default)
+	factory := NewProviderFactory(InjectionMode(cfg.InjectionMode))
+	provider := factory.GetProviderForPod(pod, cfg)
 
 	// Inject the APM injector
 	injectorResult := provider.InjectInjector(pod, cfg.Injector)
@@ -46,8 +47,8 @@ func InjectAPMLibraries(pod *corev1.Pod, cfg LibraryInjectionConfig) error {
 	}
 
 	// Set injector canonical version annotation if available
-	if cfg.Injector.CanonicalVersion != "" {
-		annotation.Set(pod, annotation.InjectorCanonicalVersion, cfg.Injector.CanonicalVersion)
+	if cfg.Injector.Package.CanonicalVersion != "" {
+		annotation.Set(pod, annotation.InjectorCanonicalVersion, cfg.Injector.Package.CanonicalVersion)
 	}
 
 	// Inject APM environment variables to application containers
@@ -56,6 +57,13 @@ func InjectAPMLibraries(pod *corev1.Pod, cfg LibraryInjectionConfig) error {
 	// Inject language-specific libraries
 	var lastError error
 	for _, lib := range cfg.Libraries {
+		// Validate language before injection
+		if !IsLanguageSupported(lib.Language) {
+			metrics.LibInjectionErrors.Inc(lib.Language, strconv.FormatBool(cfg.AutoDetected), cfg.InjectionType)
+			lastError = fmt.Errorf("language %s is not supported", lib.Language)
+			continue
+		}
+
 		// Copy the context from the injector result
 		lib.Context = injectorResult.Context
 
@@ -64,8 +72,8 @@ func InjectAPMLibraries(pod *corev1.Pod, cfg LibraryInjectionConfig) error {
 
 		metrics.LibInjectionAttempts.Inc(lib.Language, strconv.FormatBool(injected), strconv.FormatBool(cfg.AutoDetected), cfg.InjectionType)
 
-		if libResult.Status == MutationStatusInjected && lib.CanonicalVersion != "" {
-			annotation.Set(pod, annotation.LibraryCanonicalVersion.Format(lib.Language), lib.CanonicalVersion)
+		if libResult.Status == MutationStatusInjected && lib.Package.CanonicalVersion != "" {
+			annotation.Set(pod, annotation.LibraryCanonicalVersion.Format(lib.Language), lib.Package.CanonicalVersion)
 		}
 
 		if libResult.Status == MutationStatusError {

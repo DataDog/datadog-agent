@@ -8,6 +8,8 @@
 package modules
 
 import (
+	"context"
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
@@ -47,14 +49,22 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 		secmodule.DisableRuntimeSecurity(secconfig)
 	}
 
-	evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, deps.Ipc, opts)
+	hostname, err := deps.Hostname.Get(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get hostname: %w", err)
+	}
+	if hostname == "" {
+		return nil, errors.New("hostname from core agent is empty")
+	}
+
+	evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, hostname, opts)
 	if err != nil {
 		log.Errorf("error initializing event monitoring module: %v", err)
 		return nil, module.ErrNotEnabled
 	}
 
 	if secconfig.RuntimeSecurity.IsRuntimeEnabled() {
-		cws, err := secmodule.NewCWSConsumer(evm, secconfig.RuntimeSecurity, deps.WMeta, secmoduleOpts, deps.Compression, deps.Ipc)
+		cws, err := secmodule.NewCWSConsumer(evm, secconfig.RuntimeSecurity, deps.WMeta, deps.FilterStore, secmoduleOpts, deps.Compression, deps.Ipc, hostname)
 		if err != nil {
 			return nil, err
 		}

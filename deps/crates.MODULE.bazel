@@ -1,0 +1,7 @@
+crate = use_extension("@rules_rust//crate_universe:extension.bzl", "crate")
+crate.from_cargo(
+    name = "sdagent_crates",
+    cargo_lockfile = "//pkg/discovery/module/rust:Cargo.lock",
+    lockfile = "//pkg/discovery/module/rust:Cargo.Bazel.lock",
+    manifests = ["//pkg/discovery/module/rust:Cargo.toml"],
+)

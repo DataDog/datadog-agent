@@ -6,8 +6,6 @@
 package eks
 
 import (
-	"fmt"
-
 	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ec2"
 	awsEks "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/eks"
 	awsIam "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/iam"
@@ -15,6 +13,7 @@ import (
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	appsv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apps/v1"
 	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
+	helmv4 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/helm/v4"
 	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
 	v1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/rbac/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -33,7 +32,6 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("params: %+v\n", params)
 	return components.NewComponent(&e, name, func(comp *kubecomp.Cluster) error {
 		// Create Cluster SG
 		prefixLists := make([]string, 0, len(e.EKSAllowedInboundManagedPrefixListNames()))
@@ -262,9 +260,11 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 		}
 
 		// Create managed node groups
-		_, err = localEks.NewAL2023LinuxNodeGroup(e, cluster, linuxNodeRole, utils.PulumiDependsOn(nodeDeps...), pulumi.Parent(comp))
-		if err != nil {
-			return err
+		if params.LinuxNodeGroup {
+			_, err = localEks.NewAL2023LinuxNodeGroup(e, cluster, linuxNodeRole, utils.PulumiDependsOn(nodeDeps...), pulumi.Parent(comp))
+			if err != nil {
+				return err
+			}
 		}
 
 		if params.LinuxARMNodeGroup {
@@ -302,6 +302,66 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 
 			nodeDeps = append(nodeDeps, winCNIPatch)
 			_, err = localEks.NewWindowsNodeGroup(e, cluster, windowsNodeRole, utils.PulumiDependsOn(nodeDeps...), pulumi.Parent(comp))
+			if err != nil {
+				return err
+			}
+		}
+
+		if params.GPUNodeGroup {
+			// Create GPU node group first so the node exists for the device plugin to schedule on
+			gpuNodeGroup, err := localEks.NewGPULinuxNodeGroup(e, cluster, linuxNodeRole, params.GPUInstanceType, utils.PulumiDependsOn(nodeDeps...), pulumi.Parent(comp))
+			if err != nil {
+				return err
+			}
+
+			// Deploy NVIDIA device plugin for GPU support AFTER the GPU node group is created
+			// The EKS GPU AMI already has NVIDIA drivers pre-installed, so we only need the device plugin
+			// We set nvidia.com/gpu.present=true on GPU nodes to mimic NFD (Node Feature Discovery)
+			// This allows the device plugin to schedule on GPU nodes using standard GPU labels
+			_, err = helmv4.NewChart(e.Ctx(), e.Namer.ResourceName("nvidia-device-plugin"), &helmv4.ChartArgs{
+				Chart:     pulumi.String("nvidia-device-plugin"),
+				Namespace: pulumi.String("kube-system"),
+				RepositoryOpts: helmv4.RepositoryOptsArgs{
+					Repo: pulumi.String("https://nvidia.github.io/k8s-device-plugin"),
+				},
+				Values: pulumi.Map{
+					// Configure device plugin with default values:
+					// - failOnInitError: false (default) - Don't crash on non-GPU nodes
+					// - deviceListStrategy: envvar (default) - Sets NVIDIA_VISIBLE_DEVICES env var
+					//   in container specs, enabling GPU-to-container mapping for Datadog GPU monitoring
+					"config": pulumi.Map{
+						"default": pulumi.String("eks-gpu-config"),
+						"map": pulumi.Map{
+							"eks-gpu-config": pulumi.String(`version: v1
+flags:
+  failOnInitError: false
+  plugin:
+    deviceListStrategy:
+      - envvar
+`),
+						},
+					},
+					"affinity": pulumi.Map{
+						"nodeAffinity": pulumi.Map{
+							"requiredDuringSchedulingIgnoredDuringExecution": pulumi.Map{
+								"nodeSelectorTerms": pulumi.Array{
+									pulumi.Map{
+										"matchExpressions": pulumi.Array{
+											pulumi.Map{
+												"key":      pulumi.String("nvidia.com/gpu.present"),
+												"operator": pulumi.String("In"),
+												"values": pulumi.Array{
+													pulumi.String("true"),
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}, pulumi.Provider(eksKubeProvider), utils.PulumiDependsOn(gpuNodeGroup), pulumi.Parent(comp))
 			if err != nil {
 				return err
 			}

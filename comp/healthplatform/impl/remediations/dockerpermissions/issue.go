@@ -11,7 +11,9 @@ import (
 	"fmt"
 	"strings"
 
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	"github.com/DataDog/agent-payload/v5/healthplatform"
+	"google.golang.org/protobuf/types/known/structpb"
+
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 )
 
@@ -30,7 +32,7 @@ func NewDockerPermissionIssue() *DockerPermissionIssue {
 }
 
 // BuildIssue creates a complete issue with metadata and OS-specific remediation
-func (t *DockerPermissionIssue) BuildIssue(context map[string]string) *healthplatform.Issue {
+func (t *DockerPermissionIssue) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
 	dockerDir := context["dockerDir"]
 	if dockerDir == "" {
 		dockerDir = "/var/lib/docker" // fallback
@@ -41,8 +43,19 @@ func (t *DockerPermissionIssue) BuildIssue(context map[string]string) *healthpla
 		osName = "linux" // fallback
 	}
 
+	issueExtra, err := structpb.NewStruct(map[string]any{
+		"integration": "docker",
+		"dir_path":    dockerDir,
+		"os":          osName,
+		"impact":      "The agent will fall back to socket tailing, which may hit limits with high volume logs",
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create issue extra: %v", err)
+	}
+
 	return &healthplatform.Issue{
-		ID:          "docker-file-tailing-disabled",
+		Id:          "docker-file-tailing-disabled",
 		IssueName:   "docker_file_tailing_disabled",
 		Title:       "Host Agent Cannot Tail Docker Log Files",
 		Description: fmt.Sprintf("Docker file tailing is enabled by default but cannot work on this host install. The directory %s has restricted permissions, causing the agent to fall back to socket tailing. This becomes problematic with high volume Docker logs as socket tailing can hit limits.", dockerDir),
@@ -51,15 +64,10 @@ func (t *DockerPermissionIssue) BuildIssue(context map[string]string) *healthpla
 		Severity:    "medium",
 		DetectedAt:  "", // Will be filled by health platform
 		Source:      "logs",
-		Extra: map[any]any{
-			"integration": "docker",
-			"dir_path":    dockerDir,
-			"os":          osName,
-			"impact":      "The agent will fall back to socket tailing, which may hit limits with high volume logs",
-		},
+		Extra:       issueExtra,
 		Remediation: t.buildRemediation(dockerDir, osName),
 		Tags:        []string{"docker", "logs", "permissions", "file-tailing", "socket-tailing", "host-install", osName},
-	}
+	}, nil
 }
 
 // buildRemediation creates OS-specific remediation
@@ -78,11 +86,11 @@ func (t *DockerPermissionIssue) buildLinux(dockerDir string) *healthplatform.Rem
 
 	return &healthplatform.Remediation{
 		Summary: "Grant minimal access to Docker log files using ACLs (recommended) or add dd-agent to root group as last resort",
-		Steps: []healthplatform.RemediationStep{
+		Steps: []*healthplatform.RemediationStep{
 			{Order: 1, Text: "RECOMMENDED: Grant minimal access using ACLs (safer than root group):"},
-			{Order: 2, Text: fmt.Sprintf("sudo setfacl -Rm g:dd-agent:rx %s/containers", dockerDir)},
-			{Order: 3, Text: fmt.Sprintf("sudo setfacl -Rm g:dd-agent:r %s/containers/*/*.log", dockerDir)},
-			{Order: 4, Text: fmt.Sprintf("sudo setfacl -Rdm g:dd-agent:rx %s/containers", dockerDir)},
+			{Order: 2, Text: fmt.Sprintf("sudo setfacl -Rm g:dd-agent:rx '%s/containers'", strings.ReplaceAll(dockerDir, `'`, `'\''`))},
+			{Order: 3, Text: fmt.Sprintf("sudo setfacl -Rm g:dd-agent:r '%s/containers'/*/*.log", strings.ReplaceAll(dockerDir, `'`, `'\''`))},
+			{Order: 4, Text: fmt.Sprintf("sudo setfacl -Rdm g:dd-agent:rx '%s/containers'", strings.ReplaceAll(dockerDir, `'`, `'\''`))},
 			{Order: 5, Text: "Restart the datadog-agent service: systemctl restart datadog-agent"},
 			{Order: 6, Text: "Verify Docker file tailing is working by checking agent logs"},
 			{Order: 7, Text: "⚠️  LAST RESORT: If ACLs don't work, add dd-agent to root group (gives root privileges):"},
@@ -104,9 +112,9 @@ func (t *DockerPermissionIssue) buildWindows(dockerDir string) *healthplatform.R
 
 	return &healthplatform.Remediation{
 		Summary: "Grant read access to Docker log files for the ddagentuser account",
-		Steps: []healthplatform.RemediationStep{
+		Steps: []*healthplatform.RemediationStep{
 			{Order: 1, Text: "Open PowerShell as Administrator"},
-			{Order: 2, Text: fmt.Sprintf("Grant read permissions to ddagentuser: icacls \"%s\\containers\" /grant ddagentuser:(OI)(CI)RX /T", dockerDir)},
+			{Order: 2, Text: fmt.Sprintf("Grant read permissions to ddagentuser: icacls \"%s\\containers\" /grant ddagentuser:(OI)(CI)RX /T", strings.ReplaceAll(dockerDir, `"`, `""`))},
 			{Order: 3, Text: "Restart the Datadog Agent service: Restart-Service -Name datadogagent"},
 			{Order: 4, Text: "Verify Docker file tailing is working by checking agent logs"},
 			{Order: 5, Text: "Alternative: Use the Services management console (services.msc) to restart 'Datadog Agent'"},
@@ -122,6 +130,9 @@ func (t *DockerPermissionIssue) buildWindows(dockerDir string) *healthplatform.R
 }
 
 // renderTemplate renders a script template with the given dockerDir
+// Note: Go templates don't auto-escape for shell/PowerShell contexts, but since
+// dockerDir comes from config or defaults (not direct user input), and the templates
+// properly quote the variable usage, this is safe. The fallback also preserves quotes.
 func renderTemplate(templateStr, dockerDir string) string {
 	tmpl, err := template.New("script").Parse(templateStr)
 	if err != nil {

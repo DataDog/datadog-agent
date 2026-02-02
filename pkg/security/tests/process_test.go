@@ -115,7 +115,7 @@ func TestProcessEBPFLess(t *testing.T) {
 				return errors.New("not found")
 			}
 			return nil
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(10))
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
 		assert.NoError(t, err)
 	})
 }
@@ -1520,7 +1520,7 @@ func TestProcessExecExit(t *testing.T) {
 				return errors.New("the process cache entry was not deleted from the user space cache")
 			}
 			return nil
-		})
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
 	} else {
 		p, ok := test.probe.PlatformProbe.(*sprobe.EBPFLessProbe)
 		if !ok {
@@ -1532,7 +1532,7 @@ func TestProcessExecExit(t *testing.T) {
 				return errors.New("the process cache entry was not deleted from the user space cache")
 			}
 			return nil
-		})
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
 	}
 	if err != nil {
 		t.Error(err)

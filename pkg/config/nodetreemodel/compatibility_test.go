@@ -9,6 +9,7 @@ package nodetreemodel
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
@@ -21,6 +22,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -49,6 +51,9 @@ func constructBothConfigs(content string, dynamicSchema bool, setupFunc func(mod
 
 		ntmConf.SetConfigType("yaml")
 		ntmConf.ReadConfig(bytes.NewBuffer([]byte(content)))
+	} else {
+		viperConf.ReadInConfig()
+		ntmConf.ReadInConfig()
 	}
 
 	return viperConf, ntmConf
@@ -220,6 +225,24 @@ func TestCompareGetEnvVars(t *testing.T) {
 		sort.Strings(ntmEnvVars)
 
 		expected := []string{"DD_LOG_LEVEL"}
+		assert.Equal(t, viperEnvVars, expected, "viper should return only known env vars")
+		assert.Equal(t, ntmEnvVars, expected, "ntm should return only known env vars")
+	})
+
+	t.Run("Duplicate env vars", func(t *testing.T) {
+		viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
+			cfg.BindEnv("test", "ABC")  //nolint:forbidigo // testing behavior
+			cfg.BindEnv("test2", "ABC") //nolint:forbidigo // testing behavior
+			cfg.BindEnv("test3")        //nolint:forbidigo // testing behavior
+		})
+
+		viperEnvVars := viperConf.GetEnvVars()
+		ntmEnvVars := ntmConf.GetEnvVars()
+
+		sort.Strings(viperEnvVars)
+		sort.Strings(ntmEnvVars)
+
+		expected := []string{"ABC", "DD_TEST3"}
 		assert.Equal(t, viperEnvVars, expected, "viper should return only known env vars")
 		assert.Equal(t, ntmEnvVars, expected, "ntm should return only known env vars")
 	})
@@ -918,5 +941,49 @@ func TestGetViperCombineInvalidFileData(t *testing.T) {
 		// Test parent element as well
 		actual := helper.GetViperCombine(cfg, "network_path")
 		assert.Equal(t, expectNetworkPath, actual)
+	}
+}
+
+func TestUnsetForSourceWithFile(t *testing.T) {
+	yamlExample := []byte(`
+some:
+  setting: file_value
+`)
+
+	tempfile, err := os.CreateTemp("", "test-*.yaml")
+	require.NoError(t, err, "failed to create temporary file")
+	defer os.Remove(tempfile.Name())
+
+	tempfile.Write(yamlExample)
+
+	viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		cfg.SetDefault("some.setting", "default_value")
+		cfg.SetConfigFile(tempfile.Name())
+	})
+
+	for name, cfg := range map[string]model.BuildableConfig{"ntm": ntmConf, "viper": viperConf} {
+		t.Run(name, func(t *testing.T) {
+			fmt.Printf("%v\n", cfg.GetAllSources("some.setting"))
+			cfg.Set("some.setting", "runtime_value", model.SourceAgentRuntime)
+			cfg.Set("some.setting", "process_value", model.SourceLocalConfigProcess)
+			cfg.Set("some.setting", "RC_value", model.SourceRC)
+
+			assert.Equal(t, "RC_value", cfg.GetString("some.setting"))
+
+			cfg.UnsetForSource("some.setting", model.SourceRC)
+			assert.Equal(t, "process_value", cfg.GetString("some.setting"))
+
+			cfg.UnsetForSource("some.setting", model.SourceLocalConfigProcess)
+			assert.Equal(t, "runtime_value", cfg.GetString("some.setting"))
+
+			cfg.UnsetForSource("some.setting", model.SourceAgentRuntime)
+			assert.Equal(t, "file_value", cfg.GetString("some.setting"))
+
+			cfg.UnsetForSource("some.setting", model.SourceFile)
+			assert.Equal(t, "default_value", cfg.GetString("some.setting"))
+
+			cfg.UnsetForSource("some.setting", model.SourceDefault)
+			assert.Equal(t, "", cfg.GetString("some.setting"))
+		})
 	}
 }

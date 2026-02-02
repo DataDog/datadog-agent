@@ -45,6 +45,8 @@ type SafeDevice interface {
 	// GetGpuInstanceId returns the GPU instance ID for MIG devices
 	//nolint:revive // Maintaining consistency with go-nvml API naming
 	GetGpuInstanceId() (int, error)
+	// GetGpuInstanceProfileInfo returns the profile info for the given GPU instance profile ID
+	GetGpuInstanceProfileInfo(profile int) (nvml.GpuInstanceProfileInfo, error)
 	// GetIndex returns the index of the device
 	GetIndex() (int, error)
 	// GetMaxClockInfo returns the maximum clock speed for the given clock type
@@ -205,12 +207,30 @@ func NewPhysicalDevice(dev nvml.Device) (*PhysicalDevice, error) {
 			return nil, err
 		}
 
-		// If the device is MIG enabled, we need to sum the memory and core count of all its children
-		// because the corresponding APIs we use below return "UNKNOWN_ERROR"
-		for _, migChild := range device.MIGChildren {
-			device.Memory += migChild.Memory
-			device.CoreCount += migChild.CoreCount
+		// If the device is MIG enabled, we cannot know the memory and core
+		// count of the device directly. However, we can query one of the MIG
+		// profiles, and see how many of them fit into the device. An important
+		// thing to note is that this can return a lower number of cores than
+		// what the device without MIG reports, at least in A100 devices.
+		// There's no official documentation that mentions why this is, but
+		// there are references to some compute instances being "reserved" for
+		// other purposes in NVIDIA's official docs: For example,
+		// https://docs.nvidia.com/datacenter/tesla/mig-user-guide/concepts.html
+		// mentions that memory slices are "one eighth" of the total memory,
+		// while compute slices are "one seventh". In both cases, it's mentioned
+		// that it's "roughly" that partition.
+		//
+		// However, it's still a reasonable approximation, specially because
+		// using the instance profiles will give us the total capacity available
+		// to MIG instances, without reporting cores that can never be used when
+		// MIG is enabled.
+		profileInfo, err := device.SafeDevice.GetGpuInstanceProfileInfo(0)
+		if err != nil {
+			return nil, fmt.Errorf("error getting MIG device profile info: %w", err)
 		}
+
+		device.Memory = uint64(profileInfo.MemorySizeMB) * 1024 * 1024 * uint64(profileInfo.InstanceCount)
+		device.CoreCount = int(profileInfo.MultiprocessorCount) * int(profileInfo.InstanceCount) * coresPerMultiprocessor(device.Architecture)
 	} else {
 		cores, err := device.SafeDevice.GetNumGpuCores()
 		if err != nil {
@@ -256,6 +276,7 @@ func (d *PhysicalDevice) fillMigChildren() error {
 		migChildDevice.SMVersion = d.SMVersion
 		migChildDevice.Parent = d
 		migChildDevice.Architecture = d.Architecture
+		migChildDevice.CoreCount *= coresPerMultiprocessor(d.Architecture)
 
 		gpuInstanceID, err := migChildDevice.GetGpuInstanceId()
 		if err != nil {
@@ -336,4 +357,14 @@ func (d *DeviceInfo) fillPhysicalDeviceData(dev SafeDevice) error {
 	d.SMVersion = uint32(major*10 + minor)
 
 	return nil
+}
+
+// coresPerMultiprocessor returns the number of cores per multiprocessor for a given SM version. It's a fallback
+// for MIG-enabled devices where the API doesn't work. For that reason, it only returns values for SM versions
+// that support MIG
+func coresPerMultiprocessor(arch nvml.DeviceArchitecture) int {
+	if arch <= nvml.DEVICE_ARCH_AMPERE {
+		return 64
+	}
+	return 128
 }

@@ -1,0 +1,268 @@
+"""Build file for treetds to be overlaid into the freetds source tree."""
+
+load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "pkg_mklink")
+
+package(default_package_metadata = [":package_metadata", ":ship_source_offer"])
+
+VERSION = "1.1.36"
+
+# This is what the omnibus script did. It is slightly suspect, but
+# let's preserve behaviors for now.
+SO_VERSION = "0.0.0"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+        ":ship_source_offer",
+    ],
+    purl = purl_for_generic(
+        package = "freetds",
+        version = VERSION,
+        download_url = "https://www.freetds.org/files/stable/freetds-{version}.tar.gz",
+    ),
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:LGPL-2.1"],
+    license_text = "COPYING.LIB",
+    visibility = ["//visibility:public"],
+)
+
+ship_source_offer(name = "ship_source_offer")
+
+copy_file(
+    name = "copy_config_h",
+    src = select({
+        "@platforms//os:linux": "linux/include/config.h",
+    }),
+    out = "include/config.h",
+)
+
+cc_library(
+    name = "config_h",
+    hdrs = [
+        ":copy_config_h",
+    ],
+)
+
+dd_agent_expand_template(
+    name = "gen_version_h",
+    out = "include/freedts/version.h",
+    substitutions = {
+        "@PACKAGE@": "freetds",
+        "@VERSION@": VERSION,
+        "@MAJOR@": VERSION.split(".")[0],
+        "@MINOR@": VERSION.split(".")[1],
+        "@SUBVERSION@": VERSION.split(".")[2],
+        # This was based on date of build. That breaks caching.
+        # Let's use date of update of this file.
+        "@BUILD_NUMBER@": "20260121",
+    },
+    template = "include/freetds/version.h.in",
+)
+
+dd_agent_expand_template(
+    name = "gen_sysdep_h",
+    out = "include/tds_sysdep_public.h",
+    substitutions = {
+        "@dblib_define@": "#define SYBDBLIB 1",
+        "@tds_sysdep_intptr_type@": "int *",
+        "@tds_sysdep_int16_type@": "short",
+        "@tds_sysdep_int32_type@": "int",
+        "@tds_sysdep_int64_type@": "long",
+        "@tds_sysdep_real32_type@": "float",
+        "@tds_sysdep_real64_type@": "double",
+    },
+    template = "include/tds_sysdep_public.h.in",
+)
+
+_PUBLIC_HEADERS = [
+    "include/freetds/version.h",
+    "include/tds_sysdep_public.h",
+]
+
+cc_library(
+    name = "libtdsodbc",
+    srcs = [
+        ":gen_sysdep_h",
+        ":gen_version_h",
+        "include/freetds/alloca.h",
+        "include/freetds/bool.h",
+        "include/freetds/bytes.h",
+        "include/freetds/checks.h",
+        "include/freetds/configs.h",
+        "include/freetds/convert.h",
+        "include/freetds/data.h",
+        "include/freetds/enum_cap.h",
+        "include/freetds/iconv.h",
+        "include/freetds/macros.h",
+        "include/freetds/odbc.h",
+        "include/freetds/popvis.h",
+        "include/freetds/proto.h",
+        "include/freetds/pushvis.h",
+        "include/freetds/stream.h",
+        "include/freetds/sysdep_private.h",
+        "include/freetds/tds.h",
+        "include/freetds/thread.h",
+        "include/freetds/time.h",
+        "include/freetds/tls.h",
+        "include/freetds/utils.h",
+        "include/freetds/utils/des.h",
+        "include/freetds/utils/hmac_md5.h",
+        "include/freetds/utils/md4.h",
+        "include/freetds/utils/md5.h",
+        "include/freetds/utils/string.h",
+        "include/odbcss.h",
+        "include/replacements.h",
+        "include/replacements/readpassphrase.h",
+        "src/odbc/bcp.c",
+        "src/odbc/connectparams.c",
+        "src/odbc/convert_tds2sql.c",
+        "src/odbc/descriptor.c",
+        "src/odbc/error_export.h",
+        "src/odbc/error.c",
+        "src/odbc/native.c",
+        "src/odbc/odbc_checks.c",
+        "src/odbc/odbc_data.c",
+        "src/odbc/odbc_export.h",
+        "src/odbc/odbc_util.c",
+        "src/odbc/odbc.c",
+        "src/odbc/prepare_query.c",
+        "src/odbc/sql2tds.c",
+        "src/odbc/sqlwchar.c",
+        "src/odbc/sqlwparams.h",
+        "src/replacements/strlcpy.c",
+        "src/tds/bulk.c",
+        "src/tds/challenge.c",
+        "src/tds/config.c",
+        "src/tds/convert.c",
+        "src/tds/data.c",
+        "src/tds/encodings.h",
+        "src/tds/getmac.c",
+        "src/tds/iconv.c",
+        "src/tds/locale.c",
+        "src/tds/log.c",
+        "src/tds/login.c",
+        "src/tds/mem.c",
+        "src/tds/net.c",
+        "src/tds/num_limits.h",
+        "src/tds/numeric.c",
+        "src/tds/packet.c",
+        "src/tds/query.c",
+        "src/tds/random.c",
+        "src/tds/read.c",
+        "src/tds/sec_negotiate_openssl.h",
+        "src/tds/sec_negotiate.c",
+        "src/tds/stream.c",
+        "src/tds/tds_types.h",
+        "src/tds/tds_willconvert.h",
+        "src/tds/tls.c",
+        "src/tds/token.c",
+        "src/tds/util.c",
+        "src/tds/write.c",
+        "src/utils/des.c",
+        "src/utils/hmac_md5.c",
+        "src/utils/md4.c",
+        "src/utils/md5.c",
+        "src/utils/tds_cond.c",
+        "src/utils/tdsstring.c",
+        "src/utils/threadsafe.c",
+        "win32/freetds/sysconfdir.h",
+    ],
+    hdrs = _PUBLIC_HEADERS,
+    includes = [
+        ".",
+        "include",
+        "win32",
+    ],
+    copts = [
+        "-O2",
+        "-Wdeclaration-after-statement",
+        "-Wstrict-prototypes",
+        "-Wmissing-prototypes",
+        "-Wno-long-long",
+        "-Wpointer-arith",
+    ],
+    implementation_deps = [
+        ":config_h",
+    ],
+    local_defines = [
+        "HAVE_CONFIG_H",
+        "HAVE_CONFIG_H",
+        "UNIXODBC",
+        "_THREAD_SAFE",
+        'SYSCONFDIR=\\"/opt/datadog-agent/embedded/etc\\"',
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@unixodbc//:odbc",
+        "@openssl",
+    ],
+)
+
+cc_shared_library(
+    name = "tdsodbc_so",
+    deps = [":libtdsodbc"],
+    shared_lib_name = "libtdsodbc.so",
+    dynamic_deps = [
+        "@unixodbc//:libodbc_so",
+        "@openssl//:openssl_shared",
+    ],
+    user_link_flags = select({
+        "@platforms//os:linux": [
+            "-Wl,-rpath=/opt/datadog-agent/embedded/lib",
+        ],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:public"],
+)
+
+pkg_files(
+    name = "lib_file",
+    srcs = [":tdsodbc_so"],
+    prefix = "embedded/lib",
+)
+
+pkg_mklink(
+    name = "so_link",
+    attributes = pkg_attributes(mode = "755"),
+    link_name = "embedded/lib/libtdsodbc.so.%s" % SO_VERSION,
+    target = "libtdsodbc.so",
+)
+
+pkg_files(
+    name = "hdr_files",
+    srcs = _PUBLIC_HEADERS,
+    prefix = "embedded/include/tdsodbc/",
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        # The claim in freetds.rb is that headers are not needed.
+        # I'll leave this here for in case that turns out to be false.
+        # If datadog-agent-integrations-py3-dependencies works without
+        # the headers, lets' delete them.
+        # ":hdr_files",
+        ":lib_file",
+        ":so_link",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+    ],
+)

@@ -24,6 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/bmatcuk/doublestar/v4"
 )
 
 // OpenFilesLimitWarningType is the key of the message generated when too many
@@ -290,7 +292,15 @@ func (p *FileProvider) CollectFiles(source *sources.LogSource) ([]*tailer.File, 
 // filesMatchingSource returns all the files matching the source path pattern.
 func (p *FileProvider) filesMatchingSource(source *sources.LogSource) ([]*tailer.File, error) {
 	pattern := source.Config.Path
-	paths, err := filepath.Glob(pattern)
+	recursiveGlobEnabled := pkgconfigsetup.Datadog().GetBool("logs_config.enable_recursive_glob")
+
+	var paths []string
+	var err error
+	if recursiveGlobEnabled && strings.Contains(pattern, "**") {
+		paths, err = doublestar.FilepathGlob(pattern)
+	} else {
+		paths, err = filepath.Glob(pattern)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("malformed pattern, could not find any file: %s", pattern)
 	}
@@ -301,7 +311,13 @@ func (p *FileProvider) filesMatchingSource(source *sources.LogSource) ([]*tailer
 
 	excludedPaths := make(map[string]int)
 	for _, excludePattern := range source.Config.ExcludePaths {
-		excludedGlob, err := filepath.Glob(excludePattern)
+		var excludedGlob []string
+		var err error
+		if recursiveGlobEnabled && strings.Contains(excludePattern, "**") {
+			excludedGlob, err = doublestar.FilepathGlob(excludePattern)
+		} else {
+			excludedGlob, err = filepath.Glob(excludePattern)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("malformed exclusion pattern: %s, %s", excludePattern, err)
 		}
