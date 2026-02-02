@@ -563,6 +563,14 @@ func (mr *Resolver) SendStats() error {
 		return err
 	}
 
+	if err := mr.statsdClient.Count(metrics.MetricMountResolverProcfsHits, mr.procHitsStats.Swap(0), []string{metrics.CacheTag}, 1.0); err != nil {
+		return err
+	}
+
+	if err := mr.statsdClient.Count(metrics.MetricMountResolverProcfsMiss, mr.procMissStats.Swap(0), []string{metrics.CacheTag}, 1.0); err != nil {
+		return err
+	}
+
 	return mr.statsdClient.Gauge(metrics.MetricMountResolverCacheSize, float64(mr.mounts.Len()), []string{}, 1.0)
 }
 
