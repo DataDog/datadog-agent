@@ -477,3 +477,33 @@ todo-app-redis-memory-exhaustion.parquet        → --scenario memory-exhaustion
 todo-app-redis-network-high-latency.parquet     → --scenario network-latency
 todo-app-redis-traffic-spike.parquet            → --scenario traffic-spike
 ```
+
+---
+
+## Experimental Best Practices
+
+### Evaluation Matrix Rules
+
+1. **Run complete evaluation matrices** - Always test all configs on all scenarios. Never leave cells empty in the matrix.
+
+2. **No selective/sparse evaluation** - Don't skip running a config because it "seems unlikely to work." Run it anyway to get the data.
+
+3. **Ask before skipping** - If something truly seems fruitless (e.g., data-limited scenarios consistently scoring <10), raise the concern and get explicit permission before omitting from evaluation.
+
+4. **Document all results** - Even negative results (low scores) are valuable data. Record everything.
+
+5. **Tuning must be exhaustive** - If tuning one config, tune all configs. Sparse tuning leads to misleading conclusions about relative performance.
+
+### Data Integrity
+
+6. **Test set is sacred** - Never tune on test set. Only use it for final evaluation after all development is complete.
+
+7. **Train/test split is fixed** - Don't cherry-pick scenarios between sets based on results.
+
+8. **Preserve all artifacts** - Keep JSON outputs, diagnosis files, and tuning logs for reproducibility.
+
+### Communication
+
+9. **Report uncertainty** - If a result seems anomalous (e.g., score dropped 90 points after minor change), flag it and investigate before moving on.
+
+10. **No silent omissions** - If you can't run something (missing data, build error, etc.), report it explicitly rather than leaving it out of results.
