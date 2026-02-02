@@ -24,10 +24,6 @@ case "$1" in
         rm -rf $LOG_DIR
         rm -rf $CONFIG_DIR
     ;;
-    remove)
-        # Clean up runtime-created directories (sockets, pid files, etc.)
-        rm -rf "$INSTALL_DIR/run" || true
-    ;;
     *)
     ;;
 esac
