@@ -6,14 +6,14 @@
   # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
   # Thus, we move the artifacts at the end in a gitlab-friendly dir.
   - |
-    echo """
+    echo "
     [target.x86_64-unknown-linux-gnu]
-    cc = "opt/toolchains/x86_64/bin/x86_64-unknown-linux-gnu-gcc"
-    cxx = "opt/toolchains/x86_64/bin/x86_64-unknown-linux-gnu-g++"
-    linker = "/opt/toolchains/x86_64/bin/x86_64-unknown-linux-gnu-gcc"
-    ar = "/opt/toolchains/x86_64/bin/x86_64-unknown-linux-gnu-ar"
-    ranlib = "/opt/toolchains/x86_64/bin/x86_64-unknown-linux-gnu-ranlib"
-    """ >> ~/.cargo/config.toml
+    cc = \"opt/toolchains/x86_64/bin/x86_64-unknown-linux-gnu-gcc\"
+    cxx = \"opt/toolchains/x86_64/bin/x86_64-unknown-linux-gnu-g++\"
+    linker = \"/opt/toolchains/x86_64/bin/x86_64-unknown-linux-gnu-gcc\"
+    ar = \"/opt/toolchains/x86_64/bin/x86_64-unknown-linux-gnu-ar\"
+    ranlib = \"/opt/toolchains/x86_64/bin/x86_64-unknown-linux-gnu-ranlib\"
+    " >> ~/.cargo/config.toml
     echo Updated ~/.cargo/config.toml
     cat ~/.cargo/config.toml
   - tar -xf $CI_PROJECT_DIR/sysprobe-build-outputs.tar.xz
