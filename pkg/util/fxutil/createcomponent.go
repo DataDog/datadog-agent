@@ -53,6 +53,10 @@ func getComponentName() string {
 	if len(components) >= 5 && components[len(components)-5] == "comp" {
 		return fmt.Sprintf("comp/%s/%s", components[len(components)-4], components[len(components)-3])
 	}
+	// Handle comp/<bundle>/<subdir>/<comp>/fx pattern (e.g., comp/logs-library/api/batchsender/fx)
+	if len(components) >= 6 && components[len(components)-6] == "comp" {
+		return fmt.Sprintf("comp/%s/%s/%s", components[len(components)-5], components[len(components)-4], components[len(components)-3])
+	}
 
 	panic("must be called from a component (comp/<bundle>/<comp>/component.go)")
 }

@@ -58,7 +58,7 @@ func (f *fakeSamplerMock) Stop(flush bool) {
 }
 
 func newFakeSamplerMock(deps fakeSamplerMockDependencies) demultiplexerComp.FakeSamplerMock {
-	demux := initTestAgentDemultiplexerWithFlushInterval(deps.Log, deps.Hostname, deps.LogsCompression, deps.MetricsCompression, time.Hour)
+	demux := initTestAgentDemultiplexerWithFlushInterval(deps.Log, deps.Hostname, deps.MetricsCompression, time.Hour)
 	mock := &fakeSamplerMock{
 		TestAgentDemultiplexer: demux,
 	}

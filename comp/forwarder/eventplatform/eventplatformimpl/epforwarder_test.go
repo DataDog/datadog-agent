@@ -11,8 +11,12 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
+	batchsenderdef "github.com/DataDog/datadog-agent/comp/logs-library/api/batchsender/def"
+	batchsendermock "github.com/DataDog/datadog-agent/comp/logs-library/api/batchsender/mock"
 	laconfig "github.com/DataDog/datadog-agent/comp/logs-library/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfxmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
@@ -29,16 +33,20 @@ const (
 
 type EventPlatformForwarderTestSuite struct {
 	suite.Suite
-	config      config.Component
-	receiver    eventplatformreceiver.Component
-	compression logscompression.Component
+	config             config.Component
+	log                log.Component
+	receiver           eventplatformreceiver.Component
+	compression        logscompression.Component
+	batchSenderFactory batchsenderdef.FactoryComponent
 }
 
 func (suite *EventPlatformForwarderTestSuite) SetupTest() {
 	suite.config = config.NewMock(suite.T())
+	suite.log = logmock.New(suite.T())
 
 	suite.receiver = fxutil.Test[eventplatformreceiver.Component](suite.T(), eventplatformreceiverimpl.MockModule())
 	suite.compression = fxutil.Test[logscompression.Component](suite.T(), logscompressionfxmock.MockModule())
+	suite.batchSenderFactory = batchsendermock.NewMock().Comp
 }
 
 func TestEventPlatformForwarderTestSuite(t *testing.T) {
@@ -133,7 +141,7 @@ func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineComp
 			pipeline, err := newHTTPPassthroughPipeline(
 				suite.config,
 				nil,
-				suite.compression,
+				suite.batchSenderFactory,
 				desc,
 				nil,
 				0,

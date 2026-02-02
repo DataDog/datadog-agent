@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -22,18 +21,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
+	batchsenderdef "github.com/DataDog/datadog-agent/comp/logs-library/api/batchsender/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	logshttp "github.com/DataDog/datadog-agent/comp/logs-library/client/http"
 	"github.com/DataDog/datadog-agent/comp/logs-library/config"
 	"github.com/DataDog/datadog-agent/comp/logs-library/defaults"
 	"github.com/DataDog/datadog-agent/comp/logs-library/message"
-	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
-	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
-	httpsender "github.com/DataDog/datadog-agent/comp/logs-library/sender/http"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	compressioncommon "github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -460,9 +456,8 @@ func (s *defaultEventPlatformForwarder) Stop() {
 }
 
 type passthroughPipeline struct {
-	sender                *sender.Sender
-	strategy              sender.Strategy
-	in                    chan *message.Message
+	in                    chan *message.Message      // Always set - the input channel
+	batchSender           batchsenderdef.BatchSender // Handles sending (nil for noop)
 	eventPlatformReceiver eventplatformreceiver.Component
 }
 
@@ -488,7 +483,7 @@ type passthroughPipelineDesc struct {
 func newHTTPPassthroughPipeline(
 	coreConfig model.Reader,
 	eventPlatformReceiver eventplatformreceiver.Component,
-	compressor logscompression.Component,
+	batchSenderFactory batchsenderdef.FactoryComponent,
 	desc passthroughPipelineDesc,
 	destinationsContext *client.DestinationsContext,
 	pipelineID int,
@@ -527,99 +522,43 @@ func newHTTPPassthroughPipeline(
 		endpoints.InputChanSize = desc.defaultInputChanSize
 	}
 
-	pipelineMonitor := metrics.NewNoopPipelineMonitor(strconv.Itoa(pipelineID))
-
-	inputChan := make(chan *message.Message, endpoints.InputChanSize)
-
-	serverlessMeta := sender.NewServerlessMeta(false)
-	senderImpl := httpsender.NewHTTPSender(
-		coreConfig,
-		&sender.NoopSink{},
-		10, // Buffer Size
-		serverlessMeta,
+	// Delegate to factory for sender/strategy creation
+	disableBatching := desc.useStreamStrategy
+	batchSender := batchSenderFactory.NewBatchSender(
 		endpoints,
 		destinationsContext,
 		desc.eventType,
 		desc.contentType,
 		desc.category,
-		sender.DefaultQueuesCount,
-		sender.DefaultWorkersPerQueue,
-		endpoints.BatchMaxConcurrentSend,
-		endpoints.BatchMaxConcurrentSend,
+		disableBatching,
+		pipelineID,
 	)
 
-	var encoder compressioncommon.Compressor
-	encoder = compressor.NewCompressor("none", 0)
-	if endpoints.Main.UseCompression {
-		encoder = compressor.NewCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel)
-	}
-
-	var strategy sender.Strategy
-
-	if desc.useStreamStrategy || desc.contentType == logshttp.ProtobufContentType {
-		strategy = sender.NewStreamStrategy(inputChan, senderImpl.In(), encoder)
-	} else {
-		strategy = sender.NewBatchStrategy(
-			inputChan,
-			senderImpl.In(),
-			make(chan struct{}),
-			serverlessMeta,
-			endpoints.BatchWait,
-			endpoints.BatchMaxSize,
-			endpoints.BatchMaxContentSize,
-			desc.eventType,
-			encoder,
-			pipelineMonitor,
-			"0",
-		)
-	}
-
-	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d, input_chan_size=%d, compression_kind=%s, compression_level=%d",
-		desc.eventType,
-		joinHosts(endpoints.GetReliableEndpoints()),
-		joinHosts(endpoints.GetUnReliableEndpoints()),
-		endpoints.BatchMaxConcurrentSend,
-		endpoints.BatchMaxContentSize,
-		endpoints.BatchMaxSize,
-		endpoints.InputChanSize,
-		endpoints.Main.CompressionKind,
-		endpoints.Main.CompressionLevel)
 	return &passthroughPipeline{
-		sender:                senderImpl,
-		strategy:              strategy,
-		in:                    inputChan,
+		in:                    batchSender.GetInputChan(),
+		batchSender:           batchSender,
 		eventPlatformReceiver: eventPlatformReceiver,
 	}, nil
 }
 
 func (p *passthroughPipeline) Start() {
-	if p.strategy != nil {
-		p.strategy.Start()
-		p.sender.Start()
+	if p.batchSender != nil {
+		p.batchSender.Start()
 	}
 }
 
 func (p *passthroughPipeline) Stop() {
-	if p.strategy != nil {
-		p.strategy.Stop()
-		p.sender.Stop()
+	if p.batchSender != nil {
+		p.batchSender.Stop()
 	}
 }
 
-func joinHosts(endpoints []config.Endpoint) string {
-	var additionalHosts []string
-	for _, e := range endpoints {
-		additionalHosts = append(additionalHosts, e.Host)
-	}
-	return strings.Join(additionalHosts, ",")
-}
-
-func newDefaultEventPlatformForwarder(config model.Reader, eventPlatformReceiver eventplatformreceiver.Component, compression logscompression.Component) *defaultEventPlatformForwarder {
+func newDefaultEventPlatformForwarder(config model.Reader, eventPlatformReceiver eventplatformreceiver.Component, batchSenderFactory batchsenderdef.FactoryComponent) *defaultEventPlatformForwarder {
 	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
 	pipelines := make(map[string]*passthroughPipeline)
 	for i, desc := range getPassthroughPipelines() {
-		p, err := newHTTPPassthroughPipeline(config, eventPlatformReceiver, compression, desc, destinationsCtx, i)
+		p, err := newHTTPPassthroughPipeline(config, eventPlatformReceiver, batchSenderFactory, desc, destinationsCtx, i)
 		if err != nil {
 			log.Errorf("Failed to initialize event platform forwarder pipeline. eventType=%s, error=%s", desc.eventType, err.Error())
 			continue
@@ -640,6 +579,7 @@ type dependencies struct {
 	EventPlatformReceiver eventplatformreceiver.Component
 	Hostname              hostnameinterface.Component
 	Compression           logscompression.Component
+	BatchSenderFactory    batchsenderdef.FactoryComponent
 }
 
 // newEventPlatformForwarder creates a new EventPlatformForwarder
@@ -647,9 +587,9 @@ func newEventPlatformForwarder(deps dependencies) eventplatform.Component {
 	var forwarder *defaultEventPlatformForwarder
 
 	if deps.Params.UseNoopEventPlatformForwarder {
-		forwarder = newNoopEventPlatformForwarder(deps.Hostname, deps.Compression)
+		forwarder = newNoopEventPlatformForwarder(deps.Hostname)
 	} else if deps.Params.UseEventPlatformForwarder {
-		forwarder = newDefaultEventPlatformForwarder(deps.Config, deps.EventPlatformReceiver, deps.Compression)
+		forwarder = newDefaultEventPlatformForwarder(deps.Config, deps.EventPlatformReceiver, deps.BatchSenderFactory)
 	}
 	if forwarder == nil {
 		return option.NonePtr[eventplatform.Forwarder]()
@@ -669,16 +609,30 @@ func newEventPlatformForwarder(deps dependencies) eventplatform.Component {
 
 // NewNoopEventPlatformForwarder returns the standard event platform forwarder with sending disabled, meaning events
 // will build up in each pipeline channel without being forwarded to the intake
-func NewNoopEventPlatformForwarder(hostname hostnameinterface.Component, compression logscompression.Component) eventplatform.Forwarder {
-	return newNoopEventPlatformForwarder(hostname, compression)
+func NewNoopEventPlatformForwarder(hostname hostnameinterface.Component) eventplatform.Forwarder {
+	// compression parameter kept for API compatibility but not used in noop mode
+	return newNoopEventPlatformForwarder(hostname)
 }
 
-func newNoopEventPlatformForwarder(hostname hostnameinterface.Component, compression logscompression.Component) *defaultEventPlatformForwarder {
+func newNoopEventPlatformForwarder(hostname hostnameinterface.Component) *defaultEventPlatformForwarder {
 	config := pkgconfigsetup.Datadog()
-	f := newDefaultEventPlatformForwarder(config, eventplatformreceiverimpl.NewReceiver(hostname, config).Comp, compression)
-	// remove the senders
-	for _, p := range f.pipelines {
-		p.strategy = nil
+	eventPlatformReceiver := eventplatformreceiverimpl.NewReceiver(hostname, config).Comp
+
+	destinationsCtx := client.NewDestinationsContext()
+	// Don't start destinationsCtx for noop - nothing to send
+
+	pipelines := make(map[string]*passthroughPipeline)
+	for _, desc := range getPassthroughPipelines() {
+		// Create noop pipeline with just an input channel - no batch sender needed
+		pipelines[desc.eventType] = &passthroughPipeline{
+			in:                    make(chan *message.Message, desc.defaultInputChanSize),
+			batchSender:           nil, // No sender for noop mode
+			eventPlatformReceiver: eventPlatformReceiver,
+		}
 	}
-	return f
+
+	return &defaultEventPlatformForwarder{
+		pipelines:       pipelines,
+		destinationsCtx: destinationsCtx,
+	}
 }

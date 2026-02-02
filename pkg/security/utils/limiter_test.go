@@ -9,9 +9,10 @@
 package utils
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestLimiter_Allow(t *testing.T) {
