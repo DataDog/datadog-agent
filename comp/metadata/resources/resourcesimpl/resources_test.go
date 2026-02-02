@@ -32,10 +32,10 @@ import (
 
 func TestConfDisabled(t *testing.T) {
 	overrides := map[string]any{
-		"metadata_providers": []configUtils.MetadataProviders{
+		"metadata_providers": []map[string]interface{}{
 			{
-				Name:     "resources",
-				Interval: 0,
+				"name":     "resources",
+				"interval": 0,
 			},
 		},
 	}
@@ -56,10 +56,10 @@ func TestConfDisabled(t *testing.T) {
 
 func TestConfInterval(t *testing.T) {
 	overrides := map[string]any{
-		"metadata_providers": []configUtils.MetadataProviders{
+		"metadata_providers": []map[string]interface{}{
 			{
-				Name:     "resources",
-				Interval: 21,
+				"name":     "resources",
+				"interval": 21,
 			},
 		},
 	}

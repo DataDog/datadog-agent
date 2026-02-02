@@ -17,9 +17,6 @@ var allowlistCaller = []string{
 	// Fixing this test by updating its use of SetWithoutSources causes other failures
 	"comp/core/autodiscovery/listeners/snmp_test.go",
 
-	// Needs investigation: passes locally but fails on CI
-	"comp/metadata/resources/resourcesimpl/resources_test.go",
-
 	// Needs investigation
 	"comp/networkpath/npcollector/npcollectorimpl/config_test.go",
 	"comp/networkpath/npcollector/npcollectorimpl/npcollector_testutils.go",
