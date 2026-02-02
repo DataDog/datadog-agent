@@ -237,15 +237,13 @@ func (p *EBPFProbe) HandleRemediationStatus(rs *rules.RuleSet) {
 				// This is not a kill or network isolation action
 				continue
 			}
-			var actionType uint8
 			// We get the remediation key which must be unique per action and ruleID
 			remediationKey := getRemediationKeyFromAction(rule, action)
 			if action.Def.NetworkFilter != nil {
-				actionType = RemediationTypeNetworkIsolation
 				// If isolation is new, create a new entry in the map
 				if _, exists := p.activeRemediations[remediationKey]; !exists {
 					p.activeRemediations[remediationKey] = &Remediation{
-						actionType:   actionType,
+						actionType:   RemediationTypeNetworkIsolation,
 						triggered:    false,
 						isolationNew: true,
 						scope:        action.Def.NetworkFilter.Scope,
@@ -257,10 +255,9 @@ func (p *EBPFProbe) HandleRemediationStatus(rs *rules.RuleSet) {
 				}
 			} else if action.Def.Kill != nil && getRemediationTagBool(rule) {
 				// No need to create kill actions entries here if there is no remediation
-				actionType = RemediationTypeKill
 				// Create a new entry for kill actions
 				p.activeRemediations[remediationKey] = &Remediation{
-					actionType: actionType,
+					actionType: RemediationTypeKill,
 					triggered:  false,
 					scope:      action.Def.Kill.Scope,
 					ruleTags:   getTagsFromRule(rule),
