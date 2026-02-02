@@ -8,17 +8,13 @@
   - rm -f modcache.tar.xz
 
 .retrieve_linux_go_tools_deps:
-  - mkdir -p /tmp/cached_tools && tar xJf modcache_tools.tar.xz -C /tmp/cached_tools
-  - mkdir -p $GOPATH/bin && cp -r /tmp/cached_tools/bin/* $GOPATH/bin/
-  - mkdir -p $GOPATH/pkg/mod/cache && cp -r /tmp/cached_tools/pkg/mod/cache/* $GOPATH/pkg/mod/cache/
-  - rm -rf /tmp/cached_tools modcache_tools.tar.xz
+  - mkdir -p $GOPATH/bin $GOPATH/pkg/mod/cache && tar xJf modcache_tools.tar.xz -C $GOPATH
+  - rm -f modcache_tools.tar.xz
   - export PATH=$PATH:$GOPATH/bin
 
 .retrieve_linux_go_tools_deps_arm64:
-  - mkdir -p /tmp/cached_tools && tar xJf modcache_tools_arm64.tar.xz -C /tmp/cached_tools
-  - mkdir -p $GOPATH/bin && cp -r /tmp/cached_tools/bin/* $GOPATH/bin/
-  - mkdir -p $GOPATH/pkg/mod/cache && cp -r /tmp/cached_tools/pkg/mod/cache/* $GOPATH/pkg/mod/cache/
-  - rm -rf /tmp/cached_tools modcache_tools_arm64.tar.xz
+  - mkdir -p $GOPATH/bin $GOPATH/pkg/mod/cache && tar xJf modcache_tools_arm64.tar.xz -C $GOPATH
+  - rm -f modcache_tools_arm64.tar.xz
   - export PATH=$PATH:$GOPATH/bin
 
 .retrieve_linux_go_e2e_deps:
@@ -79,7 +75,8 @@ go_tools_deps:
   script:
     - if [ -f modcache_tools.tar.xz  ]; then exit 0; fi
     - dda inv -- -e install-tools
-    - cd $GOPATH && tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools.tar.xz bin/ pkg/mod/cache/
+    # Exclude datadog-package binary from the cache: it's already installed on all images and they don't have the same glibc version
+    - cd $GOPATH && tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools.tar.xz $(find bin/ -type f ! -name 'datadog-package') pkg/mod/cache/
   artifacts:
     expire_in: 1 day
     paths:
@@ -99,7 +96,8 @@ go_tools_deps_arm64:
   script:
     - if [ -f modcache_tools_arm64.tar.xz  ]; then exit 0; fi
     - dda inv -- -e install-tools
-    - cd $GOPATH/pkg/mod/cache/ && tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools_arm64.tar.xz .
+    # Exclude datadog-package binary from the cache: it's already installed on all images and they don't have the same glibc version
+    - cd $GOPATH && tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools_arm64.tar.xz $(find bin/ -type f ! -name 'datadog-package') pkg/mod/cache/
   artifacts:
     expire_in: 1 day
     paths:

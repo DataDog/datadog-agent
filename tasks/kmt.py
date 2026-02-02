@@ -949,7 +949,7 @@ def _prepare(
         # In CI, these binaries are always present
         llc_path = LLC_PATH_CI
         clang_path = CLANG_PATH_CI
-        gotestsum_path = Path(f"{os.getenv('GOPATH')}/install_tools/bin/gotestsum")
+        gotestsum_path = Path(f"{os.getenv('GOPATH')}/bin/gotestsum")
 
         # Copy the binaries to the target directory, CI will take them from those
         # paths as artifacts
