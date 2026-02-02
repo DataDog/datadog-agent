@@ -38,6 +38,7 @@ import (
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	ddextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl"
 	ddprofilingextension "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl"
+	dogtelextension "github.com/DataDog/datadog-agent/comp/otelcol/dogtelextension"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
@@ -197,6 +198,7 @@ func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.
 	factories.Connectors[datadogConnectorType] = apmstats.NewConnectorFactory(datadogConnectorType, tracesToTracesStability, tracesToMetricsStability, reqs.Tagger, reqs.Hostname.Get, nil)
 	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false), option.New(reqs.Ipc), byoc)
 	factories.Extensions[ddprofilingextension.Type] = ddprofilingextension.NewFactoryForAgent(reqs.TraceAgent, reqs.Log)
+	factories.Extensions[dogtelextension.Type] = dogtelextension.NewFactoryForAgent(reqs.Config, reqs.Log, reqs.Serializer, reqs.Hostname, reqs.Tagger, reqs.Ipc, reqs.Telemetry)
 }
 
 var buildInfo = component.BuildInfo{
