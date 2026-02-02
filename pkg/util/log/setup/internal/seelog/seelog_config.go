@@ -16,8 +16,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/cihub/seelog"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog"
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog/filewriter"
@@ -130,7 +128,7 @@ func (c *Config) SlogLogger() (types.LoggerInterface, error) {
 // %CustomSyslogHeader(20,<syslog-rfc>) <logger-name> | %LEVEL | (%ShortFilePath:%Line in %FuncShort) | %ExtraTextContext%Msg%n
 func (c *Config) commonSyslogFormatter(_ context.Context, r stdslog.Record) string {
 	syslogHeaderFormatter := syslog.HeaderFormatter(20, c.syslogRFC)
-	syslogHeader := syslogHeaderFormatter(seelog.LogLevel(types.FromSlogLevel(r.Level)))
+	syslogHeader := syslogHeaderFormatter(types.FromSlogLevel(r.Level))
 
 	frame := formatters.Frame(r)
 	level := formatters.UppercaseLevel(r.Level)
@@ -147,7 +145,7 @@ func (c *Config) commonSyslogFormatter(_ context.Context, r stdslog.Record) stri
 // %CustomSyslogHeader(20,<syslog-rfc>) {"agent":"<lowercase-logger-name>","level":"%LEVEL","relfile":"%ShortFilePath","line":"%Line","msg":"%Msg"%ExtraJSONContext}%n
 func (c *Config) jsonSyslogFormatter(_ context.Context, r stdslog.Record) string {
 	syslogHeaderFormatter := syslog.HeaderFormatter(20, c.syslogRFC)
-	syslogHeader := syslogHeaderFormatter(seelog.LogLevel(types.FromSlogLevel(r.Level)))
+	syslogHeader := syslogHeaderFormatter(types.FromSlogLevel(r.Level))
 
 	frame := formatters.Frame(r)
 	level := formatters.UppercaseLevel(r.Level)
