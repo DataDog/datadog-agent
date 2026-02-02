@@ -119,11 +119,17 @@ build do
     command "make install_sw install_ssldirs", env: env
 
     delete "#{install_dir}/embedded/bin/c_rehash"
-    unless windows?
+    if windows?
+      # Putting these in this folder is a "tactical" choice. The main reason we need these at all
+      # is to be able to build Python native extensions against the Agent's embedded OpenSSL.
+      # Since the OpenSSL DLLs will end up in that place (due to Python's expected installation layout)
+      mkdir "#{install_dir}/embedded3/DLLs"
+      move "#{install_dir}/embedded3/lib/libcrypto.dll.a", "#{install_dir}/embedded3/DLLs/libcrypto.lib"
+      move "#{install_dir}/embedded3/lib/libssl.dll.a", "#{install_dir}/embedded3/DLLs/libssl.lib"
+    else
       # Remove openssl static libraries here as we can't disable those at build time
       delete "#{install_dir}/embedded/lib/libcrypto.a"
       delete "#{install_dir}/embedded/lib/libssl.a"
-    else
-    end
     end
   end
+end

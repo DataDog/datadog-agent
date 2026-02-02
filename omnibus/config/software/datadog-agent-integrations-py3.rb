@@ -294,12 +294,6 @@ build do
       dll_folder = File.join(install_dir, "embedded3", "DLLS")
       include_folder = File.join(install_dir, "embedded3", "include")
 
-      # We first need create links to some files around such that cryptography finds .lib files
-      link File.join(lib_folder, "libssl.dll.a"),
-           File.join(dll_folder, "libssl-3-x64.lib")
-      link File.join(lib_folder, "libcrypto.dll.a"),
-           File.join(dll_folder, "libcrypto-3-x64.lib")
-
       block "Build cryptography library against Agent's OpenSSL" do
         cryptography_requirement = (shellout! "#{python} -m pip list --format=freeze").stdout[/cryptography==.*?$/]
 
@@ -307,7 +301,6 @@ build do
                 env: {
                   "OPENSSL_LIB_DIR" => dll_folder,
                   "OPENSSL_INCLUDE_DIR" => include_folder,
-                  "OPENSSL_LIBS" => "libssl-3-x64:libcrypto-3-x64",
                 }
       end
       # Python extensions on windows require this to find their DLL dependencies,
