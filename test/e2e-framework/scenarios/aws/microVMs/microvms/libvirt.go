@@ -227,12 +227,6 @@ func (vm *VMCollection) SetupCollectionNetwork(depends []pulumi.Resource) error 
 				},
 			}
 		}
-
-		// set iptable rules for allowing ports to access NFS server
-		_, err = allowNFSPortsForBridge(vm.instance.e.Ctx(), vm.instance.Arch == LocalVMSet, network.Bridge, vm.instance.runner, vm.instance.instanceNamer, vm.subnets[setID])
-		if err != nil {
-			return err
-		}
 	}
 
 	return nil
