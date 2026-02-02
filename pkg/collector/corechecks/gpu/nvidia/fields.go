@@ -126,7 +126,12 @@ func (c *fieldsCollector) Collect() ([]Metric, error) {
 			}
 
 			delta := currPoint.value - lastPoint.value
-			rate := float64(delta) / float64(now.Sub(lastPoint.timestamp).Seconds())
+			seconds := now.Sub(lastPoint.timestamp).Seconds()
+			if delta <= 0 || seconds <= 0 {
+				continue
+			}
+
+			rate := float64(delta) / float64(seconds)
 			value = rate
 		}
 
