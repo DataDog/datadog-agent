@@ -10,7 +10,7 @@ package cert
 import (
 	"crypto/x509"
 	"encoding/pem"
-	"fmt"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -22,22 +22,22 @@ import (
 func fetchClusterCAFromSecret(secretNamespace, secretName string) (*x509.Certificate, error) {
 	secretData, err := apiserver.GetKubeSecret(secretNamespace, secretName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch CA secret %s/%s: %w", secretNamespace, secretName, err)
+		return nil, errors.New("failed to fetch CA secret " + secretNamespace + "/" + secretName + ": " + err.Error())
 	}
 
 	caCertPEM, ok := secretData["tls.crt"]
 	if !ok {
-		return nil, fmt.Errorf("secret %s/%s does not contain 'tls.crt' key", secretNamespace, secretName)
+		return nil, errors.New("secret " + secretNamespace + "/" + secretName + " does not contain 'tls.crt' key")
 	}
 
 	block, _ := pem.Decode(caCertPEM)
 	if block == nil {
-		return nil, fmt.Errorf("failed to decode CA certificate PEM from secret")
+		return nil, errors.New("failed to decode CA certificate PEM from secret")
 	}
 
 	caCert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse CA certificate: %w", err)
+		return nil, errors.New("failed to parse CA certificate: " + err.Error())
 	}
 
 	log.Infof("Successfully loaded cluster CA from secret %s/%s", secretNamespace, secretName)
