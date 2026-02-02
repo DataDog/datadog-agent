@@ -8,7 +8,7 @@ package semantics
 import (
 	_ "embed" //nolint:revive
 	"encoding/json"
-	"sync"
+	"fmt"
 )
 
 //go:embed mappings.json
@@ -21,45 +21,48 @@ type registryData struct {
 }
 
 // EmbeddedRegistry is a Registry implementation that loads semantic mappings
-// from the embedded JSON configuration file. This registry is initialized
-// lazily on first access and is safe for concurrent use.
+// from the embedded JSON configuration file. The registry is loaded at
+// construction time and is safe for concurrent use.
 type EmbeddedRegistry struct {
-	once     sync.Once
 	version  string
 	mappings map[Concept][]TagInfo
-	loadErr  error
 }
 
 // globalRegistry is the default registry instance using embedded mappings.
-var globalRegistry = &EmbeddedRegistry{}
+// Initialized at package load time; panics if loading fails.
+var globalRegistry = mustLoadRegistry()
+
+func mustLoadRegistry() *EmbeddedRegistry {
+	r, err := NewEmbeddedRegistry()
+	if err != nil {
+		panic(fmt.Sprintf("failed to load semantic registry: %v", err))
+	}
+	return r
+}
 
 // DefaultRegistry returns the default semantic registry with embedded mappings.
-// The registry is initialized lazily on first access.
 func DefaultRegistry() Registry {
 	return globalRegistry
 }
 
 // NewEmbeddedRegistry creates a new EmbeddedRegistry from the embedded JSON mappings.
-func NewEmbeddedRegistry() *EmbeddedRegistry {
-	return &EmbeddedRegistry{}
+// Returns an error if the embedded mappings fail to load.
+func NewEmbeddedRegistry() (*EmbeddedRegistry, error) {
+	r := &EmbeddedRegistry{}
+	if err := r.loadFromJSON(mappingsJSON); err != nil {
+		return nil, fmt.Errorf("failed to load embedded mappings: %w", err)
+	}
+	return r, nil
 }
 
-// NewRegistryFromJSON creates a new EmbeddedRegistry from custom JSON data -- useful for testing or when loading mappings from an external source.
+// NewRegistryFromJSON creates a new EmbeddedRegistry from custom JSON data.
+// Useful for testing or when loading mappings from an external source.
 func NewRegistryFromJSON(data []byte) (*EmbeddedRegistry, error) {
 	r := &EmbeddedRegistry{}
 	if err := r.loadFromJSON(data); err != nil {
 		return nil, err
 	}
-	// Mark as already loaded to prevent the sync.Once from loading embedded data
-	r.once.Do(func() {})
 	return r, nil
-}
-
-// load initializes the registry from the embedded JSON mappings.
-func (r *EmbeddedRegistry) load() {
-	r.once.Do(func() {
-		r.loadErr = r.loadFromJSON(mappingsJSON)
-	})
 }
 
 // loadFromJSON parses JSON data and populates the registry.
@@ -89,22 +92,13 @@ func (r *EmbeddedRegistry) loadFromJSON(data []byte) error {
 
 // GetAttributePrecedence returns the ordered list of attribute keys to check for a given semantic concept.
 // First key in the list has highest precedence.
-// Returns nil if the concept is not found or if loading failed.
+// Returns nil if the concept is not found.
 func (r *EmbeddedRegistry) GetAttributePrecedence(concept Concept) []TagInfo {
-	r.load()
-	if r.loadErr != nil {
-		return nil
-	}
 	return r.mappings[concept]
 }
 
 // GetAllEquivalences returns all semantic equivalences as a map from concept to the ordered list of equivalent attribute keys.
-// Returns nil if loading failed.
 func (r *EmbeddedRegistry) GetAllEquivalences() map[Concept][]TagInfo {
-	r.load()
-	if r.loadErr != nil {
-		return nil
-	}
 	// Return a copy to prevent external modification
 	result := make(map[Concept][]TagInfo, len(r.mappings))
 	for k, v := range r.mappings {
@@ -115,30 +109,5 @@ func (r *EmbeddedRegistry) GetAllEquivalences() map[Concept][]TagInfo {
 
 // Version returns the semantic registry version string.
 func (r *EmbeddedRegistry) Version() string {
-	r.load()
-	if r.loadErr != nil {
-		return ""
-	}
 	return r.version
-}
-
-// LoadError returns any error that occurred during loading.
-// This is useful for debugging and logging.
-func (r *EmbeddedRegistry) LoadError() error {
-	r.load()
-	return r.loadErr
-}
-
-// GetTagNames returns just the attribute names (without metadata) for a concept.
-// This is a convenience method for simple lookups.
-func (r *EmbeddedRegistry) GetTagNames(concept Concept) []string {
-	tags := r.GetAttributePrecedence(concept)
-	if tags == nil {
-		return nil
-	}
-	names := make([]string, len(tags))
-	for i, t := range tags {
-		names[i] = t.Name
-	}
-	return names
 }

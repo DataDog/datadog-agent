@@ -13,13 +13,15 @@ import (
 )
 
 func TestEmbeddedRegistryLoads(t *testing.T) {
-	r := NewEmbeddedRegistry()
-	require.NoError(t, r.LoadError())
+	r, err := NewEmbeddedRegistry()
+	require.NoError(t, err)
+	require.NotNil(t, r)
 	assert.NotEmpty(t, r.Version())
 }
 
 func TestGetAttributePrecedence_KnownConcept(t *testing.T) {
-	r := NewEmbeddedRegistry()
+	r, err := NewEmbeddedRegistry()
+	require.NoError(t, err)
 
 	tests := []struct {
 		name     string
@@ -146,14 +148,16 @@ func TestGetAttributePrecedence_KnownConcept(t *testing.T) {
 }
 
 func TestGetAttributePrecedence_UnknownConcept(t *testing.T) {
-	r := NewEmbeddedRegistry()
+	r, err := NewEmbeddedRegistry()
+	require.NoError(t, err)
 
 	tags := r.GetAttributePrecedence(Concept("unknown.concept"))
 	assert.Nil(t, tags)
 }
 
 func TestGetAttributePrecedence_NoFallbacks(t *testing.T) {
-	r := NewEmbeddedRegistry()
+	r, err := NewEmbeddedRegistry()
+	require.NoError(t, err)
 
 	// Concepts with no fallbacks should return the canonical name with default datadog provider
 	tests := []struct {
@@ -213,7 +217,8 @@ func TestGetAttributePrecedence_NoFallbacks(t *testing.T) {
 }
 
 func TestGetAllEquivalences(t *testing.T) {
-	r := NewEmbeddedRegistry()
+	r, err := NewEmbeddedRegistry()
+	require.NoError(t, err)
 
 	all := r.GetAllEquivalences()
 	require.NotNil(t, all)
@@ -233,76 +238,17 @@ func TestGetAllEquivalences(t *testing.T) {
 }
 
 func TestVersion(t *testing.T) {
-	r := NewEmbeddedRegistry()
+	r, err := NewEmbeddedRegistry()
+	require.NoError(t, err)
 
 	version := r.Version()
 	assert.NotEmpty(t, version)
 	assert.Equal(t, "0.1.0", version)
 }
 
-func TestGetTagNames(t *testing.T) {
-	r := NewEmbeddedRegistry()
-
-	tests := []struct {
-		name     string
-		concept  Concept
-		expected []string
-	}{
-		{
-			name:    "db.query names",
-			concept: ConceptDBQuery,
-			expected: []string{
-				"db.query.text",
-				"db.statement",
-				"sql.query",
-				"mongodb.query",
-			},
-		},
-		{
-			name:    "http.status_code names",
-			concept: ConceptHTTPStatusCode,
-			expected: []string{
-				"http.status_code",
-				"http.status_code",
-				"http.response.status_code",
-			},
-		},
-		{
-			name:    "env names",
-			concept: ConceptEnv,
-			expected: []string{
-				"env",
-				"deployment.environment.name",
-				"deployment.environment",
-			},
-		},
-		{
-			name:    "peer.db.system names",
-			concept: ConceptPeerDBSystem,
-			expected: []string{
-				"db.system",
-				"active_record.db.vendor",
-				"db.type",
-				"sequel.db.vendor",
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			names := r.GetTagNames(tt.concept)
-			require.NotNil(t, names, "expected names for concept %s", tt.concept)
-			require.Len(t, names, len(tt.expected), "expected %d names for concept %s", len(tt.expected), tt.concept)
-
-			for i, expected := range tt.expected {
-				assert.Equal(t, expected, names[i], "name[%d] mismatch", i)
-			}
-		})
-	}
-}
-
 func TestTagInfoMetadata(t *testing.T) {
-	r := NewEmbeddedRegistry()
+	r, err := NewEmbeddedRegistry()
+	require.NoError(t, err)
 
 	t.Run("db.query metadata", func(t *testing.T) {
 		tags := r.GetAttributePrecedence(ConceptDBQuery)
@@ -342,7 +288,8 @@ func TestTagInfoMetadata(t *testing.T) {
 }
 
 func TestStorageMetadata(t *testing.T) {
-	r := NewEmbeddedRegistry()
+	r, err := NewEmbeddedRegistry()
+	require.NoError(t, err)
 
 	t.Run("http.status_code storage chain", func(t *testing.T) {
 		tags := r.GetAttributePrecedence(ConceptHTTPStatusCode)
@@ -430,7 +377,8 @@ func TestNewRegistryFromJSON_InvalidJSON(t *testing.T) {
 }
 
 func TestConcurrentAccess(t *testing.T) {
-	r := NewEmbeddedRegistry()
+	r, err := NewEmbeddedRegistry()
+	require.NoError(t, err)
 
 	done := make(chan bool)
 	for i := 0; i < 10; i++ {
@@ -451,9 +399,10 @@ func TestConcurrentAccess(t *testing.T) {
 
 // Benchmark tests
 func BenchmarkGetAttributePrecedence(b *testing.B) {
-	r := NewEmbeddedRegistry()
-	// Warm up
-	_ = r.GetAttributePrecedence(ConceptDBQuery)
+	r, err := NewEmbeddedRegistry()
+	if err != nil {
+		b.Fatal(err)
+	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -462,9 +411,10 @@ func BenchmarkGetAttributePrecedence(b *testing.B) {
 }
 
 func BenchmarkGetAllEquivalences(b *testing.B) {
-	r := NewEmbeddedRegistry()
-	// Warm up
-	_ = r.GetAllEquivalences()
+	r, err := NewEmbeddedRegistry()
+	if err != nil {
+		b.Fatal(err)
+	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
