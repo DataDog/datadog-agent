@@ -10,6 +10,8 @@ package collectorimpl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"context"
+	"fmt"
 	"log/slog"
 	"os"
 
@@ -125,7 +127,22 @@ func NewExtraFactoriesWithoutAgentCore() ExtraFactories {
 }
 
 func (e extraFactoriesWithoutAgentCore) GetZapCore() zapcore.Core {
-	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
+	// Create a formatter that matches the agent's text format
+	// Uses the same building blocks as the agent's commonFormatter
+	formatter := func(_ context.Context, r slog.Record) string {
+		date := formatters.Date(false)(r.Time)
+		level := formatters.UppercaseLevel(r.Level)
+
+		frame := formatters.Frame(r)
+		shortFilePath := formatters.ShortFilePath(frame)
+		funcShort := formatters.ShortFunction(frame)
+		extraContext := formatters.ExtraTextContext(r)
+
+		return fmt.Sprintf("%s | %s | (%s:%d in %s) | %s%s\n",
+			date, level, shortFilePath, frame.Line, funcShort, extraContext, r.Message)
+	}
+
+	handler := handlers.NewFormat(formatter, os.Stdout)
 	logLevel := "info"
 
 	if envLevel := os.Getenv("DD_LOG_LEVEL"); envLevel != "" {
