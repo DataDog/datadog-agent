@@ -28,8 +28,6 @@ replace (
 	go.opentelemetry.io/ebpf-profiler => github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20251209111023-a403a55f78da
 )
 
-replace github.com/DataDog/datadog-agent/pkg/config/viperconfig => github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.76.0-devel.0.20260202121911-3a7220c7fbe9
-
 require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
@@ -1327,7 +1325,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/remote => ./pkg/config/remote
 	github.com/DataDog/datadog-agent/pkg/config/setup => ./pkg/config/setup
 	github.com/DataDog/datadog-agent/pkg/config/structure => ./pkg/config/structure
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ./pkg/config/teeconfig
 	github.com/DataDog/datadog-agent/pkg/config/utils => ./pkg/config/utils
 	github.com/DataDog/datadog-agent/pkg/errors => ./pkg/errors
 	github.com/DataDog/datadog-agent/pkg/fips => ./pkg/fips
