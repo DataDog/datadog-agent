@@ -37,14 +37,12 @@ const (
 // bucket (similar to xperf at "windows-products/xperf-5.0.8169.zip") and downloaded
 // via host.HostArtifactClient.Get(). The Sysinternals download serves as a fallback.
 func SetupProcdump(host *components.RemoteHost) error {
-	cmd := fmt.Sprintf(`
-		if (-Not (Test-Path -Path '%s')) {
-			Invoke-WebRequest -Uri '%s' -OutFile '%s'
-			Expand-Archive -Path '%s' -DestinationPath '%s' -Force
-		}
-	`, ProcdumpPath, ProcdumpDownloadURL, ProcdumpZipPath, ProcdumpZipPath, ProcdumpPath)
+	err := host.HostArtifactClient.Get("windows-products/Procdump.zip", ProcdumpZipPath)
+	if err != nil {
+		return fmt.Errorf("failed to download procdump: %w", err)
+	}
 
-	_, err := host.Execute(cmd)
+	_, err = host.Execute(fmt.Sprintf(`if (-Not (Test-Path -Path '%s')) { Expand-Archive -Path '%s' -DestinationPath '%s' }`, ProcdumpPath, ProcdumpZipPath, ProcdumpPath))
 	if err != nil {
 		return fmt.Errorf("failed to setup procdump: %w", err)
 	}
