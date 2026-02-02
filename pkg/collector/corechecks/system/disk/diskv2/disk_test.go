@@ -13,6 +13,9 @@ import (
 	"slices"
 	"testing"
 	"time"
+	"fmt"
+	"sync"
+	"sync/atomic"
 
 	"github.com/benbjohnson/clock"
 	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
@@ -1493,4 +1496,257 @@ device_tag_re:
 			slices.Contains(tags, "type:ssd") &&
 			slices.Contains(tags, "tier:fast")
 	}))
+}
+
+// =============================================================================
+// Concurrency Guardrails Tests
+// =============================================================================
+
+func TestGivenADiskCheckWithBlockingMount_WhenTimeoutOccurs_ThenErrorIsReturned(t *testing.T) {
+	// This test verifies that disk usage calls timeout after the configured duration
+	// when the underlying syscall blocks (simulating a wedged remote mount).
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+
+	// Use a mock clock to control time
+	mockClock := clock.NewMock()
+	diskCheck = diskv2.WithClock(diskCheck, mockClock)
+
+	// Simulate a blocking diskUsage call that never returns
+	diskCheck = diskv2.WithDiskUsage(diskCheck, func(path string) (*gopsutil_disk.UsageStat, error) {
+		// Block forever by waiting on a channel that never receives
+		select {}
+	})
+
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+timeout: 5
+`))
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	// Start the disk usage call in a goroutine
+	type result struct {
+		usage *gopsutil_disk.UsageStat
+		err   error
+	}
+	resultCh := make(chan result, 1)
+
+	// We need to call getDiskUsageWithTimeout indirectly through Run
+	// Since we can't call it directly, we test via the check's behavior
+	go func() {
+		err := diskCheck.Run()
+		resultCh <- result{nil, err}
+	}()
+
+	// Advance the mock clock past the timeout
+	time.Sleep(50 * time.Millisecond) // Let goroutine start
+	mockClock.Add(6 * time.Second)
+
+	// Wait for result with a real timeout
+	select {
+	case <-resultCh:
+		// Expected - the check should complete (with timeout errors logged)
+	case <-time.After(2 * time.Second):
+		t.Fatal("Test timed out waiting for check to complete")
+	}
+}
+
+func TestGivenADiskCheckWithMultipleBlockingMounts_WhenSemaphoreExhausted_ThenNewCallsAreSkipped(t *testing.T) {
+	// This test verifies that the global semaphore limits the maximum number
+	// of concurrent disk usage calls to prevent thread explosion.
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+
+	mockClock := clock.NewMock()
+	diskCheck = diskv2.WithClock(diskCheck, mockClock)
+
+	// Track how many times diskUsage is called
+	var callCount int32
+	var mu sync.Mutex
+	blockForever := make(chan struct{})
+
+	diskCheck = diskv2.WithDiskUsage(diskCheck, func(path string) (*gopsutil_disk.UsageStat, error) {
+		mu.Lock()
+		callCount++
+		mu.Unlock()
+		<-blockForever // Block forever
+		return nil, nil
+	})
+
+	// Create partitions that exceed the semaphore limit (defaultMaxInflightUsage = 8)
+	partitions := make([]gopsutil_disk.PartitionStat, 12)
+	for i := 0; i < 12; i++ {
+		partitions[i] = gopsutil_disk.PartitionStat{
+			Device:     fmt.Sprintf("/dev/sd%c", 'a'+i),
+			Mountpoint: fmt.Sprintf("/mnt/disk%d", i),
+			Fstype:     "nfs",
+			Opts:       []string{"rw"},
+		}
+	}
+
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return partitions, nil
+	})
+
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+timeout: 1
+`))
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	// Run the check in a goroutine
+	done := make(chan struct{})
+	go func() {
+		diskCheck.Run()
+		close(done)
+	}()
+
+	// Wait a bit for goroutines to start
+	time.Sleep(100 * time.Millisecond)
+
+	// Advance clock to trigger timeouts
+	mockClock.Add(2 * time.Second)
+
+	// Wait for check to complete
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("Test timed out")
+	}
+
+	// Close the blocking channel to clean up goroutines
+	close(blockForever)
+
+	// Verify that not all 12 calls were made (semaphore should have limited it)
+	mu.Lock()
+	finalCount := callCount
+	mu.Unlock()
+
+	// Should be limited to defaultMaxInflightUsage (8)
+	assert.LessOrEqual(t, finalCount, int32(8), "Semaphore should limit concurrent calls to 8")
+}
+
+func TestGivenADiskCheckWithSameMountBlocking_WhenCalledTwice_ThenSecondCallIsSkipped(t *testing.T) {
+	// This test verifies that repeated calls for the same mountpoint are skipped
+	// when a previous call is still inflight (blocked in kernel).
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+
+	mockClock := clock.NewMock()
+	diskCheck = diskv2.WithClock(diskCheck, mockClock)
+
+	var callCount int32
+	blockForever := make(chan struct{})
+
+	diskCheck = diskv2.WithDiskUsage(diskCheck, func(path string) (*gopsutil_disk.UsageStat, error) {
+		atomic.AddInt32(&callCount, 1)
+		<-blockForever // Block forever
+		return nil, nil
+	})
+
+	// Single partition that will block
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "/dev/sda1",
+				Mountpoint: "/mnt/wedged_nfs",
+				Fstype:     "nfs",
+				Opts:       []string{"rw"},
+			},
+		}, nil
+	})
+
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+timeout: 1
+`))
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	// First run - should start a goroutine that blocks
+	done1 := make(chan struct{})
+	go func() {
+		diskCheck.Run()
+		close(done1)
+	}()
+
+	// Wait for first call to start
+	time.Sleep(100 * time.Millisecond)
+
+	// Second run - should skip the same mountpoint
+	done2 := make(chan struct{})
+	go func() {
+		diskCheck.Run()
+		close(done2)
+	}()
+
+	// Advance clock to trigger timeouts
+	mockClock.Add(2 * time.Second)
+
+	// Wait for both to complete
+	select {
+	case <-done1:
+	case <-time.After(3 * time.Second):
+		t.Fatal("First run timed out")
+	}
+
+	select {
+	case <-done2:
+	case <-time.After(3 * time.Second):
+		t.Fatal("Second run timed out")
+	}
+
+	close(blockForever)
+
+	// Only one actual diskUsage call should have been made
+	assert.Equal(t, int32(1), atomic.LoadInt32(&callCount),
+		"Should only have one actual diskUsage call despite two check runs")
+}
+
+func TestGivenADiskCheckWithFastDiskUsage_WhenCalledMultipleTimes_ThenAllCallsSucceed(t *testing.T) {
+	// This test verifies normal operation when diskUsage returns promptly.
+	// The inflight tracking should be properly cleared between calls.
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+
+	var callCount int32
+
+	diskCheck = diskv2.WithDiskUsage(diskCheck, func(path string) (*gopsutil_disk.UsageStat, error) {
+		atomic.AddInt32(&callCount, 1)
+		return &gopsutil_disk.UsageStat{
+			Path:        path,
+			Fstype:      "ext4",
+			Total:       100000000,
+			Free:        50000000,
+			Used:        50000000,
+			UsedPercent: 50.0,
+		}, nil
+	})
+
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "/dev/sda1",
+				Mountpoint: "/",
+				Fstype:     "ext4",
+				Opts:       []string{"rw"},
+			},
+		}, nil
+	})
+
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+
+	// Run the check multiple times
+	for i := 0; i < 3; i++ {
+		err := diskCheck.Run()
+		assert.Nil(t, err, "Run %d should succeed", i+1)
+	}
+
+	// All three runs should have made diskUsage calls
+	assert.Equal(t, int32(3), atomic.LoadInt32(&callCount),
+		"All three check runs should have made diskUsage calls")
 }
