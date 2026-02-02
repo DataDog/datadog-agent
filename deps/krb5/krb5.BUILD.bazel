@@ -5,6 +5,7 @@ load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 load("@rules_pkg//pkg:mappings.bzl", "strip_prefix")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
 
 package(default_package_metadata = [":license"])
 
@@ -152,11 +153,17 @@ pkg_files(
     attributes = pkg_attributes("0755"),
 )
 
+pkg_filegroup(
+    name = "all_libs",
+    srcs = [":_lib_" + libname for libname in SHARED_LIBS.keys()],
+)
+
 pkg_install(
     name = "install",
     srcs = [
         ":hdr_files",
         ":pc_files",
         ":bin_files",
-    ] + [":_lib_" + libname for libname in SHARED_LIBS.keys()],
+        ":all_libs",
+    ],
 )
