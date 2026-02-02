@@ -7,17 +7,20 @@
 package recorderimpl
 
 import (
-	"context"
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// Requires defines the dependencies for the recorder component
+type Requires struct {
+	Config config.Component
+}
 
 // Provides defines the output of the recorder component
 type Provides struct {
@@ -25,38 +28,29 @@ type Provides struct {
 }
 
 // NewComponent creates a new recorder component
-func NewComponent() (Provides, error) {
-	r := &recorderImpl{
-		handles: make(map[string]observer.Handle),
-	}
-	r.mode.Store(int32(recorderdef.ModePassthrough))
-
-	// Check configuration to start recording automatically if configured
-	cfg := pkgconfigsetup.Datadog()
+func NewComponent(req Requires) (Provides, error) {
+	r := &recorderImpl{}
 
 	// Initialize recording if both capture_metrics.enabled AND parquet_output_dir are configured.
-	captureMetricsEnabled := cfg.GetBool("observer.capture_metrics.enabled")
+	captureMetricsEnabled := req.Config.GetBool("observer.capture_metrics.enabled")
 	if captureMetricsEnabled {
-		if parquetDir := cfg.GetString("observer.parquet_output_dir"); parquetDir != "" {
-			flushInterval := cfg.GetDuration("observer.parquet_flush_interval")
+		if parquetDir := req.Config.GetString("observer.parquet_output_dir"); parquetDir != "" {
+			flushInterval := req.Config.GetDuration("observer.parquet_flush_interval")
 			if flushInterval == 0 {
 				flushInterval = 60 * time.Second
 			}
 
-			retentionDuration := cfg.GetDuration("observer.parquet_retention")
+			retentionDuration := req.Config.GetDuration("observer.parquet_retention")
 			if retentionDuration <= 0 {
 				retentionDuration = 24 * time.Hour
 			}
 
-			// Start recording automatically based on config
-			err := r.StartRecording(recorderdef.RecordingConfig{
-				OutputDir:         parquetDir,
-				FlushInterval:     flushInterval,
-				RetentionDuration: retentionDuration,
-			})
+			// Create parquet writer
+			writer, err := NewParquetWriter(parquetDir, flushInterval, retentionDuration)
 			if err != nil {
-				pkglog.Errorf("Failed to start recorder with config: %v", err)
+				pkglog.Errorf("Failed to create parquet writer: %v", err)
 			} else {
+				r.parquetWriter = writer
 				pkglog.Infof("Recorder started with parquet output: dir=%s flush=%v retention=%v", parquetDir, flushInterval, retentionDuration)
 			}
 		}
@@ -69,201 +63,81 @@ func NewComponent() (Provides, error) {
 
 // recorderImpl implements the recorder component
 type recorderImpl struct {
-	mode atomic.Int32 // recorderdef.Mode
-
-	// Recording state
 	parquetWriter *ParquetWriter
-	recordingMu   sync.Mutex
-
-	// Replay state
-	replayCtx    context.Context
-	replayCancel context.CancelFunc
-	replayMu     sync.Mutex
-
-	// Handle tracking for replay injection
-	handles   map[string]observer.Handle
-	handlesMu sync.RWMutex
+	mu            sync.Mutex
 }
 
-// GetHandle wraps the provided HandleFunc with recording/replay capability.
+// GetHandle wraps the provided HandleFunc with recording capability.
 func (r *recorderImpl) GetHandle(handleFunc observer.HandleFunc) observer.HandleFunc {
 	return func(name string) observer.Handle {
 		innerHandle := handleFunc(name)
 
-		// Store handle for potential replay injection
-		r.handlesMu.Lock()
-		r.handles[name] = innerHandle
-		r.handlesMu.Unlock()
-
-		mode := recorderdef.Mode(r.mode.Load())
-		switch mode {
-		case recorderdef.ModeRecording:
+		// If recording is enabled, wrap with recording handle
+		if r.parquetWriter != nil {
 			return &recordingHandle{
 				inner:    innerHandle,
 				recorder: r,
 				name:     name,
 			}
-		case recorderdef.ModeReplaying:
-			// In replay mode, we pass through but the replay goroutine injects metrics
-			return innerHandle
-		default:
-			// Passthrough mode
-			return innerHandle
 		}
+
+		// No recording, pass through
+		return innerHandle
 	}
 }
 
-// StartRecording starts recording observations to parquet files.
-func (r *recorderImpl) StartRecording(config recorderdef.RecordingConfig) error {
-	r.recordingMu.Lock()
-	defer r.recordingMu.Unlock()
-
-	currentMode := recorderdef.Mode(r.mode.Load())
-	if currentMode == recorderdef.ModeRecording {
-		return fmt.Errorf("recording already active")
-	}
-	if currentMode == recorderdef.ModeReplaying {
-		return fmt.Errorf("cannot start recording while replaying")
-	}
-
-	// Apply defaults
-	if config.FlushInterval == 0 {
-		config.FlushInterval = 60 * time.Second
-	}
-	if config.RetentionDuration == 0 {
-		config.RetentionDuration = 24 * time.Hour
-	}
-
-	// Create parquet writer
-	writer, err := NewParquetWriter(config.OutputDir, config.FlushInterval, config.RetentionDuration)
+// ReadAllMetrics reads all metrics from parquet files and returns them as a slice.
+// This is for batch loading scenarios where streaming via handles is not needed.
+func (r *recorderImpl) ReadAllMetrics(inputDir string) ([]recorderdef.MetricData, error) {
+	// Read all parquet files from the input directory
+	reader, err := NewParquetReader(inputDir)
 	if err != nil {
-		return fmt.Errorf("creating parquet writer: %w", err)
+		return nil, fmt.Errorf("creating parquet reader: %w", err)
 	}
 
-	r.parquetWriter = writer
-	r.mode.Store(int32(recorderdef.ModeRecording))
+	pkglog.Infof("ReadAllMetrics: loading %d metrics from %s", reader.Len(), inputDir)
 
-	pkglog.Infof("Recording started: dir=%s flush=%v retention=%v", config.OutputDir, config.FlushInterval, config.RetentionDuration)
-	return nil
-}
+	// Pre-allocate slice for efficiency
+	metrics := make([]recorderdef.MetricData, 0, reader.Len())
 
-// StopRecording stops the current recording session.
-func (r *recorderImpl) StopRecording() error {
-	r.recordingMu.Lock()
-	defer r.recordingMu.Unlock()
-
-	if recorderdef.Mode(r.mode.Load()) != recorderdef.ModeRecording {
-		return fmt.Errorf("not currently recording")
-	}
-
-	if r.parquetWriter != nil {
-		if err := r.parquetWriter.Close(); err != nil {
-			pkglog.Errorf("Error closing parquet writer: %v", err)
+	for {
+		metric := reader.Next()
+		if metric == nil {
+			break
 		}
-		r.parquetWriter = nil
-	}
 
-	r.mode.Store(int32(recorderdef.ModePassthrough))
-	pkglog.Info("Recording stopped")
-	return nil
-}
+		// Convert FGMMetric to MetricData
+		var value float64
+		if metric.ValueFloat != nil {
+			value = *metric.ValueFloat
+		} else if metric.ValueInt != nil {
+			value = float64(*metric.ValueInt)
+		}
 
-// IsRecording returns true if recording is currently active.
-func (r *recorderImpl) IsRecording() bool {
-	return recorderdef.Mode(r.mode.Load()) == recorderdef.ModeRecording
-}
+		// Convert tags map to slice
+		tags := make([]string, 0, len(metric.Tags))
+		for k, v := range metric.Tags {
+			if v != "" {
+				tags = append(tags, k+":"+v)
+			} else {
+				tags = append(tags, k)
+			}
+		}
 
-// StartReplay starts replaying observations from parquet files.
-func (r *recorderImpl) StartReplay(config recorderdef.PlaybackConfig) error {
-	r.replayMu.Lock()
-	defer r.replayMu.Unlock()
+		// Time is in milliseconds, convert to seconds
+		timestamp := metric.Time / 1000
 
-	currentMode := recorderdef.Mode(r.mode.Load())
-	if currentMode == recorderdef.ModeReplaying {
-		return fmt.Errorf("replay already active")
-	}
-	if currentMode == recorderdef.ModeRecording {
-		return fmt.Errorf("cannot start replay while recording")
-	}
-
-	// Apply defaults
-	if config.TimeScale <= 0 {
-		config.TimeScale = 1.0
-	}
-
-	// Get a handle to inject metrics into
-	r.handlesMu.RLock()
-	var replayHandle observer.Handle
-	for _, h := range r.handles {
-		replayHandle = h
-		break
-	}
-	r.handlesMu.RUnlock()
-
-	if replayHandle == nil {
-		return fmt.Errorf("no handles available for replay injection")
-	}
-
-	// Create replay context
-	ctx, cancel := context.WithCancel(context.Background())
-	r.replayCtx = ctx
-	r.replayCancel = cancel
-
-	// Start replay goroutine
-	go func() {
-		generator, err := NewParquetReplayGenerator(replayHandle, ParquetReplayConfig{
-			ParquetDir: config.InputDir,
-			TimeScale:  config.TimeScale,
-			Loop:       config.Loop,
+		metrics = append(metrics, recorderdef.MetricData{
+			Source:    metric.RunID,
+			Name:      metric.MetricName,
+			Value:     value,
+			Timestamp: timestamp,
+			Tags:      tags,
 		})
-		if err != nil {
-			pkglog.Errorf("Failed to create replay generator: %v", err)
-			r.mode.Store(int32(recorderdef.ModePassthrough))
-			return
-		}
-
-		generator.Run(ctx)
-
-		// Reset mode when replay completes
-		r.replayMu.Lock()
-		r.mode.Store(int32(recorderdef.ModePassthrough))
-		r.replayMu.Unlock()
-		pkglog.Info("Replay completed")
-	}()
-
-	r.mode.Store(int32(recorderdef.ModeReplaying))
-	pkglog.Infof("Replay started: dir=%s timescale=%.2f loop=%v", config.InputDir, config.TimeScale, config.Loop)
-	return nil
-}
-
-// StopReplay stops the current replay session.
-func (r *recorderImpl) StopReplay() error {
-	r.replayMu.Lock()
-	defer r.replayMu.Unlock()
-
-	if recorderdef.Mode(r.mode.Load()) != recorderdef.ModeReplaying {
-		return fmt.Errorf("not currently replaying")
 	}
 
-	if r.replayCancel != nil {
-		r.replayCancel()
-		r.replayCancel = nil
-		r.replayCtx = nil
-	}
-
-	r.mode.Store(int32(recorderdef.ModePassthrough))
-	pkglog.Info("Replay stopped")
-	return nil
-}
-
-// IsReplaying returns true if replay is currently active.
-func (r *recorderImpl) IsReplaying() bool {
-	return recorderdef.Mode(r.mode.Load()) == recorderdef.ModeReplaying
-}
-
-// Mode returns the current operating mode.
-func (r *recorderImpl) Mode() recorderdef.Mode {
-	return recorderdef.Mode(r.mode.Load())
+	pkglog.Infof("ReadAllMetrics: loaded %d metrics", len(metrics))
+	return metrics, nil
 }
 
 // recordingHandle wraps an observer handle to record observations.

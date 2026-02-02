@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 
+	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
@@ -20,6 +21,7 @@ import (
 type TestBenchConfig struct {
 	ScenariosDir string
 	HTTPAddr     string
+	Recorder     recorderdef.Component // Optional: for loading parquet scenarios
 }
 
 // TestBench is the main controller for the observer test bench.
@@ -251,41 +253,25 @@ func (tb *TestBench) LoadScenario(name string) error {
 	return nil
 }
 
-// loadParquetDir loads all parquet files from a directory.
+// loadParquetDir loads all parquet files from a directory using the recorder component.
+// Uses batch loading for efficiency - reads all metrics at once instead of streaming.
 func (tb *TestBench) loadParquetDir(dir string) error {
-	reader, err := NewParquetReader(dir)
-	if err != nil {
-		return err
+	if tb.config.Recorder == nil {
+		return fmt.Errorf("recorder component not configured - cannot load parquet files")
 	}
 
-	fmt.Printf("  Loading %d samples from parquet files\n", reader.Len())
+	// Use batch loading - get all metrics at once
+	metrics, err := tb.config.Recorder.ReadAllMetrics(dir)
+	if err != nil {
+		return fmt.Errorf("reading parquet metrics: %w", err)
+	}
 
-	for {
-		metric := reader.Next()
-		if metric == nil {
-			break
-		}
+	fmt.Printf("  Loading %d samples from parquet files\n", len(metrics))
 
-		// Convert FGMMetric to storage format
-		var value float64
-		if metric.ValueFloat != nil {
-			value = *metric.ValueFloat
-		} else if metric.ValueInt != nil {
-			value = float64(*metric.ValueInt)
-		}
-
-		// Convert tags map to slice
-		var tags []string
-		for k, v := range metric.Tags {
-			tags = append(tags, k+":"+v)
-		}
-
-		// Time is in milliseconds, convert to seconds
-		timestamp := metric.Time / 1000
-
+	// Batch add all metrics to storage
+	for _, m := range metrics {
 		// Strip aggregation suffix from metric name (e.g., ":avg", ":count")
-		// The storage handles aggregation internally
-		metricName := metric.MetricName
+		metricName := m.Name
 		if idx := strings.LastIndex(metricName, ":"); idx != -1 {
 			suffix := metricName[idx+1:]
 			if suffix == "avg" || suffix == "count" || suffix == "sum" || suffix == "min" || suffix == "max" {
@@ -296,9 +282,9 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 		tb.storage.Add(
 			"parquet", // namespace
 			metricName,
-			value,
-			timestamp,
-			tags,
+			m.Value,
+			m.Timestamp,
+			m.Tags,
 		)
 	}
 
@@ -433,7 +419,9 @@ func (tb *TestBench) runAnalyses() {
 
 	// Collect correlations from processors that support it
 	for _, proc := range tb.anomalyProcessors {
-		if cs, ok := proc.(interface{ ActiveCorrelations() []observerdef.ActiveCorrelation }); ok {
+		if cs, ok := proc.(interface {
+			ActiveCorrelations() []observerdef.ActiveCorrelation
+		}); ok {
 			tb.correlations = append(tb.correlations, cs.ActiveCorrelations()...)
 		}
 	}
