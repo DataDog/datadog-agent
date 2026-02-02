@@ -10,6 +10,7 @@ package marshal
 import (
 	"bytes"
 	"io"
+	"slices"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
@@ -38,7 +39,7 @@ func newKafkaEncoder(kafkaPayloads map[kafka.Key]*kafka.RequestStats) *kafkaEnco
 
 func (e *kafkaEncoder) EncodeConnectionDirect(c network.ConnectionStats, conn *model.Connection, buf *bytes.Buffer) (staticTags uint64, dynamicTags map[string]struct{}) {
 	staticTags = e.encodeData(c, buf)
-	conn.DataStreamsAggregations = buf.Bytes()
+	conn.DataStreamsAggregations = slices.Clone(buf.Bytes())
 	return
 }
 
