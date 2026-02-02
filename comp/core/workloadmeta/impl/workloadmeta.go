@@ -121,14 +121,27 @@ func NewWorkloadMeta(deps Dependencies) Provider {
 func (w *workloadmeta) writeResponse(writer http.ResponseWriter, r *http.Request) {
 	params := r.URL.Query()
 
-	verbose := params.Get("verbose") == "true"
-	structured := params.Get("format") == "json"
-	search := params.Get("search")
+	jsonDump, err := BuildWorkloadResponse(
+		w,
+		params.Get("verbose") == "true",
+		params.Get("format") == "json",
+		params.Get("search"),
+	)
+	if err != nil {
+		httputils.SetJSONError(writer, w.log.Errorf("Unable to build workload list response: %v", err), 500)
+		return
+	}
 
+	writer.Header().Set("Content-Type", "application/json")
+	writer.Write(jsonDump)
+}
+
+// BuildWorkloadResponse builds a JSON response for workload-list with filtering
+func BuildWorkloadResponse(wmeta wmdef.Component, verbose, structured bool, search string) ([]byte, error) {
 	var response any
 	if structured {
 		// Use structured format for JSON
-		structuredResp := w.DumpStructured(verbose)
+		structuredResp := wmeta.DumpStructured(verbose)
 
 		// Filter entities based on verbose flag
 		// Non-verbose: only include fields shown in text output
@@ -147,20 +160,14 @@ func (w *workloadmeta) writeResponse(writer http.ResponseWriter, r *http.Request
 			response = FilterStructuredResponse(response.(wmdef.WorkloadDumpStructuredResponse), search)
 		}
 	} else {
-		response = w.Dump(verbose)
+		response = wmeta.Dump(verbose)
 		// Apply search filter if provided
 		if search != "" {
 			response = FilterTextResponse(response.(wmdef.WorkloadDumpResponse), search)
 		}
 	}
 
-	jsonDump, err := json.Marshal(response)
-	if err != nil {
-		httputils.SetJSONError(writer, w.log.Errorf("Unable to marshal workload list response: %v", err), 500)
-		return
-	}
-
-	writer.Write(jsonDump)
+	return json.Marshal(response)
 }
 
 // FilterStructuredResponse filters entities by kind or entity ID
