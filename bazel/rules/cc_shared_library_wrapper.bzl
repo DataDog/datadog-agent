@@ -10,6 +10,10 @@ def _cc_shared_library_wrapper_impl(ctx):
     for linker_input in cc_info.linking_context.linker_inputs.to_list():
         if linker_input.owner == ctx.attr.input.label:
             selected_input = linker_input
+            break
+
+    if selected_input == None:
+        fail("No linker inputs found for input label `{}`".format(ctx.attr.input.label))
 
     return [
         # We could make this configurable by allowing the rule caller to control exports and dynamic_deps
