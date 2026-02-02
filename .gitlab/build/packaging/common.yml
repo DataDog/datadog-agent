@@ -43,7 +43,7 @@
 
     # Extract report prefix from gate name (e.g. static_quality_gate_agent_rpm_amd64 -> agent_rpm_amd64)
     REPORT_PREFIX="${STATIC_QUALITY_GATE_NAME#static_quality_gate_}"
-    REPORT_FILENAME="${REPORT_PREFIX}_size_report_${CI_COMMIT_SHA:0:8}.yml"
+    REPORT_FILENAME="${REPORT_PREFIX}_size_report_${CI_COMMIT_SHORT_SHA}.yml"
 
     for package_file in $PACKAGE_PATTERN; do
       if [[ -f "$package_file" ]]; then
