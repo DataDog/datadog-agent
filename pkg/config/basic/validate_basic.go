@@ -14,10 +14,6 @@ import (
 
 // TODO: Callers that are using SetWithoutSource improperly, need to be fixed
 var allowlistCaller = []string{
-	// This calls `cfg.SetWithoutSource(configName, make(chan int))`
-	// and expects it to be "not marshallable"
-	"comp/api/api/apiimpl/internal/config/endpoint_test.go",
-
 	// Fixable by updating test
 	"comp/autoscaling/datadogclient/impl/client_test.go",
 	"comp/autoscaling/datadogclient/impl/status_test.go",
