@@ -7,7 +7,6 @@
 package fx
 
 import (
-	dogtelextension "github.com/DataDog/datadog-agent/comp/otelcol/dogtelextension/def"
 	dogtelextensionimpl "github.com/DataDog/datadog-agent/comp/otelcol/dogtelextension/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
