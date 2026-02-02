@@ -52,7 +52,8 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 		{
 			name: "sysprobe",
 			configKeys: map[string]model.Reader{
-				"network_config.enabled":          sysprobeConf,
+				"network_config.enabled": sysprobeConf,
+				// NOTE: may be set at runtime if any modules are enabled (e.g. traceroute.enabled)
 				"system_probe_config.enabled":     sysprobeConf,
 				"windows_crash_detection.enabled": sysprobeConf,
 				"runtime_security_config.enabled": sysprobeConf,

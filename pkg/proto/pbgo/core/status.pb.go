@@ -7,10 +7,6 @@
 package core
 
 import (
-	context "context"
-	grpc "google.golang.org/grpc"
-	codes "google.golang.org/grpc/codes"
-	status "google.golang.org/grpc/status"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -239,86 +235,4 @@ func file_datadog_remoteagent_status_proto_init() {
 	File_datadog_remoteagent_status_proto = out.File
 	file_datadog_remoteagent_status_proto_goTypes = nil
 	file_datadog_remoteagent_status_proto_depIdxs = nil
-}
-
-// Reference imports to suppress errors if they are not otherwise used.
-var _ context.Context
-var _ grpc.ClientConnInterface
-
-// This is a compile-time assertion to ensure that this generated file
-// is compatible with the grpc package it is being compiled against.
-const _ = grpc.SupportPackageIsVersion6
-
-// StatusProviderClient is the client API for StatusProvider service.
-//
-// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
-type StatusProviderClient interface {
-	// Gets the status details of a remote agent.
-	GetStatusDetails(ctx context.Context, in *GetStatusDetailsRequest, opts ...grpc.CallOption) (*GetStatusDetailsResponse, error)
-}
-
-type statusProviderClient struct {
-	cc grpc.ClientConnInterface
-}
-
-func NewStatusProviderClient(cc grpc.ClientConnInterface) StatusProviderClient {
-	return &statusProviderClient{cc}
-}
-
-func (c *statusProviderClient) GetStatusDetails(ctx context.Context, in *GetStatusDetailsRequest, opts ...grpc.CallOption) (*GetStatusDetailsResponse, error) {
-	out := new(GetStatusDetailsResponse)
-	err := c.cc.Invoke(ctx, "/datadog.remoteagent.status.v1.StatusProvider/GetStatusDetails", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// StatusProviderServer is the server API for StatusProvider service.
-type StatusProviderServer interface {
-	// Gets the status details of a remote agent.
-	GetStatusDetails(context.Context, *GetStatusDetailsRequest) (*GetStatusDetailsResponse, error)
-}
-
-// UnimplementedStatusProviderServer can be embedded to have forward compatible implementations.
-type UnimplementedStatusProviderServer struct {
-}
-
-func (*UnimplementedStatusProviderServer) GetStatusDetails(context.Context, *GetStatusDetailsRequest) (*GetStatusDetailsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetStatusDetails not implemented")
-}
-
-func RegisterStatusProviderServer(s *grpc.Server, srv StatusProviderServer) {
-	s.RegisterService(&_StatusProvider_serviceDesc, srv)
-}
-
-func _StatusProvider_GetStatusDetails_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetStatusDetailsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(StatusProviderServer).GetStatusDetails(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/datadog.remoteagent.status.v1.StatusProvider/GetStatusDetails",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(StatusProviderServer).GetStatusDetails(ctx, req.(*GetStatusDetailsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-var _StatusProvider_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "datadog.remoteagent.status.v1.StatusProvider",
-	HandlerType: (*StatusProviderServer)(nil),
-	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "GetStatusDetails",
-			Handler:    _StatusProvider_GetStatusDetails_Handler,
-		},
-	},
-	Streams:  []grpc.StreamDesc{},
-	Metadata: "datadog/remoteagent/status.proto",
 }

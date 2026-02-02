@@ -852,6 +852,7 @@ func deepCopyMount(fieldToCopy Mount) Mount {
 func deepCopyMountReleasedEvent(fieldToCopy MountReleasedEvent) MountReleasedEvent {
 	copied := MountReleasedEvent{}
 	copied.MountID = fieldToCopy.MountID
+	copied.MountIDUnique = fieldToCopy.MountIDUnique
 	return copied
 }
 func deepCopyNetDeviceEvent(fieldToCopy NetDeviceEvent) NetDeviceEvent {

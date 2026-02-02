@@ -61,7 +61,10 @@ BINARIES: dict[str, dict] = {
         "entrypoint": "cmd/sbomgen",
         "platforms": ["linux/x64", "linux/arm64"],
     },
-    "system-probe": {"entrypoint": "cmd/system-probe", "platforms": ["linux/x64", "linux/arm64", "win32/x64"]},
+    "system-probe": {
+        "entrypoint": "cmd/system-probe",
+        "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64"],
+    },
     "cws-instrumentation": {
         "entrypoint": "cmd/cws-instrumentation",
         "platforms": ["linux/x64", "linux/arm64"],
@@ -91,6 +94,10 @@ BINARIES: dict[str, dict] = {
     "installer": {
         "entrypoint": "cmd/installer",
         "platforms": ["linux/x64", "linux/arm64", "win32/x64"],
+    },
+    "privateactionrunner": {
+        "entrypoint": "cmd/privateactionrunner",
+        "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64"],
     },
 }
 
@@ -144,6 +151,8 @@ def diff(
                 if branch_ref:
                     ctx.run(f"git checkout -q {branch_ref}")
 
+                # Run all go list commands in parallel for this branch
+                promises = []
                 for binary, details in BINARIES.items():
                     with ctx.cd(details.get("entrypoint")):
                         for combo in details["platforms"]:
@@ -162,7 +171,16 @@ def diff(
                                 "CGO_ENABLED": "1",
                                 "GOTOOLCHAIN": f"go{dot_go_version(ctx)}",
                             }
-                            ctx.run(f"{dep_cmd} -tags \"{' '.join(build_tags)}\" > {depsfile}", env=env)
+                            promise = ctx.run(
+                                f"{dep_cmd} -tags \"{' '.join(build_tags)}\" > {depsfile}",
+                                env=env,
+                                asynchronous=True,
+                            )
+                            promises.append(promise)
+
+                # Wait for all commands to complete
+                for promise in promises:
+                    promise.join()
         finally:
             ctx.run(f"git checkout -q {current_branch}")
 

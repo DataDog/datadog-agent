@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 )
 
 const (
@@ -122,7 +122,7 @@ func FromComponent(cfg config.Component, logger log.Component) Config {
 		// No namespace configured, default to the resources namespace
 		// This is the namespace where the Cluster Agent is deployed
 		// It is also the namespace where the processor service is deployed by default
-		processor.Namespace = common.GetResourcesNamespace()
+		processor.Namespace = namespace.GetResourcesNamespace()
 	}
 
 	staticLabels := map[string]string{
