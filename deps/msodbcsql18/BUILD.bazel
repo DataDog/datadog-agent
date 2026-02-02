@@ -16,6 +16,7 @@ SO_FILENAME = "libmsodbcsql-%s.so.%s" % (SO_VERSION, SO_FULL_VERSION)
 
 SO_LINK_NAME = "libmsodbcsql-%s.so" % SO_VERSION
 
+# Unified extraction command using bsdtar (handles both deb and rpm)
 EXTRACT_CMD = """
     set -e
     WORKDIR=$$(mktemp -d)
@@ -30,9 +31,11 @@ EXTRACT_CMD = """
     cp $$WORKDIR/usr/share/doc/msodbcsql18/LICENSE.txt $(location {variant}/LICENSE.txt)
 """
 
-DEB_EXTRACT = "dpkg-deb -R $(SRCS) $$WORKDIR"
+# deb is an ar archive containing data.tar.*
+DEB_EXTRACT = "$(location @libarchive//tar:tar) -xOf $(SRCS) 'data.tar.*' | $(location @libarchive//tar:tar) -xf - -C $$WORKDIR"
 
-RPM_EXTRACT = "rpm2cpio $(SRCS) | cpio -idm -D $$WORKDIR"
+# rpm can be extracted directly
+RPM_EXTRACT = "$(location @libarchive//tar:tar) -xf $(SRCS) -C $$WORKDIR"
 
 license_kind(
     name = "msodbcsql18_eula_license",
@@ -62,6 +65,12 @@ genrule(
         so_filename = SO_FILENAME,
         variant = "deb",
     ),
+    target_compatible_with = select({
+        "@platforms//os:macos": ["@platforms//:incompatible"],
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+    tools = ["@libarchive//tar"],
     visibility = ["//visibility:public"],
 )
 
@@ -81,6 +90,12 @@ genrule(
         so_filename = SO_FILENAME,
         variant = "rpm",
     ),
+    target_compatible_with = select({
+        "@platforms//os:macos": ["@platforms//:incompatible"],
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+    tools = ["@libarchive//tar"],
     visibility = ["//visibility:public"],
 )
 
@@ -97,6 +112,12 @@ genrule(
         so_filename = SO_FILENAME,
         variant = "sles",
     ),
+    target_compatible_with = select({
+        "@platforms//os:macos": ["@platforms//:incompatible"],
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+    tools = ["@libarchive//tar"],
     visibility = ["//visibility:public"],
 )
 
