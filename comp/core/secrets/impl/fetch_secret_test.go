@@ -76,17 +76,6 @@ func copyFileToBuildDir(t *testing.T, inFile, targetDir string) {
 	}
 }
 
-// TestMain runs before other tests in this package. It hooks the getDDAgentUserSID
-// function to make it work for Windows tests
-func TestMain(m *testing.M) {
-	// Windows-only fix for running on CI. Instead of checking the registry for
-	// permissions (the agent wasn't installed, so that wouldn't work), use a stub
-	// function that gets permissions info directly from the current User
-	filesystem.TestCheckRightsStub()
-
-	os.Exit(m.Run())
-}
-
 // getBackendCommandBinary compiles a binary from source, then sets the proper
 // permissions on it
 func getBackendCommandBinary(t *testing.T) (string, func()) {

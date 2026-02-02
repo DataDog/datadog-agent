@@ -40,7 +40,7 @@ func setupSecretCommmand(t *testing.T, resolver *secretResolver) {
 	require.NoError(t, err)
 	f.Close()
 
-	_ = filesystem.SetupACL(fmt.Sprintf("%q", resolver.backendCommand), false, false, false, true)
+	filesystem.SetACL(fmt.Sprintf("%q", resolver.backendCommand), false, false, false, true)
 }
 
 func TestGetExecutablePermissionsSuccess(t *testing.T) {
