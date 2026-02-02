@@ -9,7 +9,9 @@ build --verbose_failures
 # Do not leak local environment variables into the build context
 build --incompatible_strict_action_env
 build:linux --strategy=sandboxed
+build:linux --remote_local_fallback_strategy=sandboxed
 build:macos --strategy=sandboxed
+build:macos --remote_local_fallback_strategy=sandboxed
 build:windows --strategy=standalone # Valid values are: [dynamic_worker, standalone, dynamic, remote, worker, local]
 # For whatever reason if convenience symlinks are present, the build fails on Windows.
 # Disabling them for now.
@@ -23,9 +25,12 @@ build:macos --macos_minimum_os=11.0
 
 # datadog-agent virtually isolates caching instance from its parent (which is remote-caching).
 # If entry isn't found in datadog-agent, it will be searched in remote-caching.
+# Fallback doesn't work for --remote_cache, therefore, setting --remote_executor and --strategy to sandboxed
+# to use cache capabilities in combination with sandboxing.
+common:cache --remote_executor=grpc://bazel-buildbarn-frontend.ddbuild.io:443
 common:cache --remote_instance_name=remote-caching/datadog-agent
-common:cache --remote_cache=grpc://bazel-buildbarn-frontend.ddbuild.io:443
-common:cache --remote_timeout=60
+common:cache --remote_local_fallback # best-effort on transient connection errors (no such host)
 common:cache --remote_retries=1
+common:cache --remote_timeout=60
 
 try-import %workspace%/user.bazelrc
