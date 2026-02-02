@@ -325,7 +325,7 @@ func (p *provider) GetOutputChan() chan *message.Message {
 
 // NextPipelineChanWithMonitor returns the next pipeline input channel with it's monitor.
 // Used by file tailers which track capacity metrics
-// if failover is enabled, returns a router channel with a dedicated monitor
+// if failover is enabled, returns a router channel with a nil monitor. Monitor is tracked in forwarder.
 // if failover is disabled, returns direct pipeline channel with pipeline monitor (legacy)
 func (p *provider) NextPipelineChanWithMonitor() (chan *message.Message, *metrics.CapacityMonitor) {
 	pipelinesLen := len(p.pipelines)

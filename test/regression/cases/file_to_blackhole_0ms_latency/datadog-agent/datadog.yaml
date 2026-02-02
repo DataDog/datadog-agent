@@ -14,14 +14,6 @@ logs_config:
   logs_no_ssl: true
   force_use_http: true
 
-  # Pipeline failover settings
-  pipeline_failover_enabled: true
-  pipeline_failover_timeout_ms: 5
-
-  # settings to trigger failover
-  message_channel_size: 50
-  zstd_compression_level: 19
-
 process_config.process_dd_url: http://localhost:9093
 
 telemetry.enabled: true
