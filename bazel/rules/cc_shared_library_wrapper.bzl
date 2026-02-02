@@ -25,7 +25,7 @@ def _cc_shared_library_wrapper_impl(ctx):
 cc_shared_library_wrapper = rule(
     implementation = _cc_shared_library_wrapper_impl,
     attrs = {
-        "input": attr.label(),
+        "input": attr.label(providers=[CcInfo]),
     },
     doc = """
     Creates a `CcSharedLibraryInfo` provider out of a `CcInfo` one.
