@@ -29,8 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
-// IsEnabled checks if the private action runner is enabled in the configuration
-func IsEnabled(cfg config.Component) bool {
+// isEnabled checks if the private action runner is enabled in the configuration
+func isEnabled(cfg config.Component) bool {
 	return cfg.GetBool("privateactionrunner.enabled")
 }
 
@@ -55,11 +55,9 @@ type privateactionrunnerImpl struct {
 
 // NewComponent creates a new privateactionrunner component
 func NewComponent(reqs Requires) (Provides, error) {
-	if !IsEnabled(reqs.Config) {
-		// Return a no-op component when disabled
-		return Provides{
-			Comp: &privateactionrunnerImpl{},
-		}, nil
+	if !isEnabled(reqs.Config) {
+		reqs.Log.Info("private-action-runner is not enabled. Set privateactionrunner.enabled: true in your datadog.yaml file or set the environment variable DD_PRIVATEACTIONRUNNER_ENABLED=true.")
+		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
 	persistedIdentity, err := enrollment.GetIdentityFromPreviousEnrollment(reqs.Config)
 	if err != nil {

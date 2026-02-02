@@ -17,8 +17,8 @@ from tasks.libs.pipeline.notifications import (
 def ask_reviews(_, pr_id, team_slugs):
     gh = GithubAPI()
     pr = gh.repo.get_pull(int(pr_id))
-    if 'backport' in pr.title.casefold():
-        print("This is a backport PR, we don't need to ask for reviews.")
+    if pr.base.ref != 'main':
+        print("We don't ask for reviews on non main target PRs.")
         return
     if any(label.name == 'no-review' for label in pr.get_labels()):
         print("This PR has the no-review label, we don't need to ask for reviews.")
@@ -59,7 +59,7 @@ def ask_reviews(_, pr_id, team_slugs):
     last_event = events[-1]
     actor = last_event.actor.name or last_event.actor.login
     if "[bot]" in actor:
-        actor = pr.user.name
+        actor = pr.user.name or pr.user.login
     for channel, reviewers in channels.items():
         stop_updating = ""
         if (pr.user.login == "renovate[bot]" or pr.user.login == "mend[bot]") and pr.title.startswith(

@@ -1,0 +1,8 @@
+hostname Leaf2
+user admin group administrators password <secret hidden>
+cli-session
+    timeout 0
+!
+!
+!
+ssh server vrf mgmt

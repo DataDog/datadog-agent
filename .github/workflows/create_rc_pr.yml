@@ -80,9 +80,8 @@ jobs:
           fi
 
       - name: Create RC PR
-        if: ${{ steps.check_for_changes.outputs.CHANGES == 'true' || env.IS_QUALIFICATION == 'false') }}
+        if: ${{ steps.check_for_changes.outputs.CHANGES == 'true' || env.IS_QUALIFICATION == 'false' }}
         env:
           SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
           GITHUB_TOKEN: ${{ steps.octo-sts.outputs.token }}
         run: dda inv -- -e release.create-rc -r "6.53.x" --patch-version
-

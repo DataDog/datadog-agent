@@ -255,7 +255,7 @@ func TestMoveMountRecursiveNoPropagation(t *testing.T) {
 			p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 			mount, _, _, err := p.Resolvers.MountResolver.ResolveMount(event.Mount.MountID, 0)
 			assert.Equal(t, err, nil, "Error resolving mount")
-			assert.Equal(t, len(mount.Children), 2, "Wrong number of child mounts")
+			assert.Equal(t, 2, len(mount.Children), "Wrong number of child mounts")
 			assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Namespace inode not captured")
 
 			for _, childMountID := range mount.Children {
