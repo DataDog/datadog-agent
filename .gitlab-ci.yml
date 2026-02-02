@@ -1,8 +1,6 @@
 ---
 include:
-  - local: .adms/npm/gitlab.yaml
-  - local: .adms/go/gitlab.yaml
-  - local: .adms/python/gitlab.yaml
+  - local: .adms/**/*.yaml
   - local: .gitlab/.pre/**.yml
   - local: .gitlab/build/**.yml
   - local: .gitlab/deploy/**.yml
@@ -139,7 +137,7 @@ variables:
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
   CI_IMAGE_GITLAB_AGENT_DEPLOY: v91623141-e13c2467
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v91623141-e13c2467
+  CI_IMAGE_LINUX: v93279297-c459726e
   CI_IMAGE_LINUX_SUFFIX: ""
   CI_IMAGE_RPM_X64: v91623141-e13c2467
   CI_IMAGE_RPM_X64_SUFFIX: ""
@@ -357,7 +355,7 @@ variables:
     - MODULE.bazel
     - release.json
     # SMP regression detector experiments
-    - test/regression/**
+    - test/regression/**/*
 
 .if_coverage_pipeline: &if_coverage_pipeline
   if: $E2E_COVERAGE_PIPELINE == "true"
