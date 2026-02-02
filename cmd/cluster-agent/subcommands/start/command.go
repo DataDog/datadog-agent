@@ -75,6 +75,7 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	metadatarunner "github.com/DataDog/datadog-agent/comp/metadata/runner"
 	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	rcclientcomp "github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
 	rccomp "github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
@@ -206,6 +207,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				autodiscoveryimpl.Module(),
 				rcserviceimpl.Module(),
 				rcclientimpl.Module(),
+				fx.Supply(rcclientcomp.Params{AgentName: "cluster-agent", AgentVersion: version.AgentVersion}),
 				rctelemetryreporterimpl.Module(),
 				fx.Provide(func(config config.Component) healthprobe.Options {
 					return healthprobe.Options{
