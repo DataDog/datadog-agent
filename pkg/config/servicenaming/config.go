@@ -17,11 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/servicenaming/engine"
 )
 
-// Note: We previously cached the CEL environment using sync.Once, but this had a critical flaw:
-// if CreateCELEnvironment() failed on the first call, the error was cached permanently.
-// Since CreateCELEnvironment() is lightweight (just creates a CEL env with extensions),
-// we now create it fresh each time to avoid permanent error caching.
-
 // AgentServiceDiscoveryConfig is the global agent-level service discovery configuration.
 // This feature is opt-in: it only activates when Enabled is true and ServiceDefinitions are present.
 type AgentServiceDiscoveryConfig struct {
@@ -126,28 +121,28 @@ func parseServiceDefinitions(raw interface{}) ([]ServiceDefinition, error) {
 		// Query is required - check type and value separately for better error messages
 		queryVal, queryExists := m["query"]
 		if !queryExists {
-			return nil, fmt.Errorf("service_definitions[%d]: missing required field 'query'", i)
+			return nil, fmt.Errorf("service_definition[%d]: missing required field 'query'", i)
 		}
 		query, ok := queryVal.(string)
 		if !ok {
-			return nil, fmt.Errorf("service_definitions[%d]: query must be a string, got %T", i, queryVal)
+			return nil, fmt.Errorf("service_definition[%d]: query must be a string, got %T", i, queryVal)
 		}
 		if query == "" {
-			return nil, fmt.Errorf("service_definitions[%d]: query cannot be empty", i)
+			return nil, fmt.Errorf("service_definition[%d]: query cannot be empty", i)
 		}
 		def.Query = query
 
 		// Value is required - check type and value separately for better error messages
 		valueVal, valueExists := m["value"]
 		if !valueExists {
-			return nil, fmt.Errorf("service_definitions[%d]: missing required field 'value'", i)
+			return nil, fmt.Errorf("service_definition[%d]: missing required field 'value'", i)
 		}
 		value, ok := valueVal.(string)
 		if !ok {
-			return nil, fmt.Errorf("service_definitions[%d]: value must be a string, got %T", i, valueVal)
+			return nil, fmt.Errorf("service_definition[%d]: value must be a string, got %T", i, valueVal)
 		}
 		if value == "" {
-			return nil, fmt.Errorf("service_definitions[%d]: value cannot be empty", i)
+			return nil, fmt.Errorf("service_definition[%d]: value cannot be empty", i)
 		}
 		def.Value = value
 
@@ -158,9 +153,8 @@ func parseServiceDefinitions(raw interface{}) ([]ServiceDefinition, error) {
 }
 
 // normalizeSlice converts various slice types to []interface{}.
-// Handles []interface{}, []map[string]interface{}, and []map[interface{}]interface{}.
-// This is necessary because different config sources (YAML files, env vars, remote config)
-// may produce different slice types.
+// Different config sources (YAML, programmatic, Viper) produce different slice types
+// that need normalization before parsing service definitions.
 func normalizeSlice(raw interface{}) ([]interface{}, error) {
 	switch s := raw.(type) {
 	case []interface{}:
@@ -182,9 +176,8 @@ func normalizeSlice(raw interface{}) ([]interface{}, error) {
 	}
 }
 
-// toStringMap converts a map to map[string]interface{}, handling both
-// map[string]interface{} and map[interface{}]interface{} (YAML unmarshaling returns the latter).
-// This normalization is required because YAML parsers may use interface{} keys.
+// toStringMap converts map types to map[string]interface{}.
+// YAML parsers may produce map[interface{}]interface{} which needs normalization.
 func toStringMap(v interface{}) (map[string]interface{}, error) {
 	switch m := v.(type) {
 	case map[string]interface{}:
@@ -273,17 +266,15 @@ func (c *AgentServiceDiscoveryConfig) Validate() error {
 	return nil
 }
 
-// getCachedCELEnvironment creates a CEL environment for validation.
-// Note: Despite the name, this no longer caches the environment to avoid permanent error caching.
-// CreateCELEnvironment is lightweight and can be called repeatedly without performance issues.
-func getCachedCELEnvironment() (*cel.Env, error) {
+// createCELEnvironmentForValidation creates a CEL environment for validation.
+func createCELEnvironmentForValidation() (*cel.Env, error) {
 	return engine.CreateCELEnvironment()
 }
 
 // validateCELBooleanExpression validates that an expression compiles and returns boolean.
 // It accepts both BoolType and DynType (runtime validation ensures actual boolean value).
 func validateCELBooleanExpression(expr string) error {
-	env, err := getCachedCELEnvironment()
+	env, err := createCELEnvironmentForValidation()
 	if err != nil {
 		return err
 	}
@@ -305,7 +296,7 @@ func validateCELBooleanExpression(expr string) error {
 // validateCELStringExpression validates that an expression compiles and returns string.
 // It accepts both StringType and DynType (runtime validation ensures actual string value).
 func validateCELStringExpression(expr string) error {
-	env, err := getCachedCELEnvironment()
+	env, err := createCELEnvironmentForValidation()
 	if err != nil {
 		return err
 	}
