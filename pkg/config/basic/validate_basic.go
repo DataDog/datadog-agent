@@ -14,10 +14,6 @@ import (
 
 // TODO: Callers that are using SetWithoutSource improperly, need to be fixed
 var allowlistCaller = []string{
-	// Fixable by updating test
-	"comp/autoscaling/datadogclient/impl/client_test.go",
-	"comp/autoscaling/datadogclient/impl/status_test.go",
-
 	// Fixing this test by updating its use of SetWithoutSources causes other failures
 	"comp/core/autodiscovery/listeners/snmp_test.go",
 
