@@ -28,7 +28,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -1486,7 +1485,7 @@ func TestRemediationCustomEvents(t *testing.T) {
 					t.Errorf("event_type should be 'remediation_status': %s => %v", string(msg.Data), err)
 				}
 
-				if el, err := jsonpath.JsonPathLookup(obj, `$.remediation_action`); err != nil || el != probe.RemediationTypeNetworkIsolationStr {
+				if el, err := jsonpath.JsonPathLookup(obj, `$.remediation_action`); err != nil || el != sprobe.RemediationTypeNetworkIsolationStr {
 					t.Errorf("rule_action should be 'network_isolation': %s => %v", string(msg.Data), err)
 				}
 
