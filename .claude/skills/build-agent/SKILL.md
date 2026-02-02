@@ -21,6 +21,7 @@ The skill automatically:
 3. Executes the build
 
 This works seamlessly in both the main repo and worktrees.
+If you are working in a worktree, it must have been created [in relative mode](https://git-scm.com/docs/git-worktree#Documentation/git-worktree.txt---relative-paths).
 
 ## Arguments
 
