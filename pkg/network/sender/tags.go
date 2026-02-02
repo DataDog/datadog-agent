@@ -51,17 +51,6 @@ func formatTags(c network.ConnectionStats, tagsSet *indexedSet[string], connDyna
 	return tagsIdx, checksum
 }
 
-func mergeDynamicTags(dynamicTags ...map[string]struct{}) (out map[string]struct{}) {
-	for _, tags := range dynamicTags {
-		if out == nil {
-			out = tags
-			continue
-		}
-		maps.Copy(out, tags)
-	}
-	return
-}
-
 // getContainersForExplicitTagging returns all containers that are relevant for explicit tagging based on the current connections.
 // A container is relevant for explicit tagging if it appears as a local container in the given connections, and
 // it started less than `expected_tags_duration` ago, or the agent start time is within the `expected_tags_duration` window.
@@ -121,7 +110,7 @@ func (d *directSender) addTags(nc network.ConnectionStats, c *model.Connection, 
 		d.encodeBuf.Reset()
 		encoderStaticTags, encoderDynamicTags := encoder.EncodeConnectionDirect(nc, c, &d.encodeBuf)
 		staticTags |= encoderStaticTags
-		dynamicTags = mergeDynamicTags(dynamicTags, encoderDynamicTags)
+		maps.Copy(dynamicTags, encoderDynamicTags)
 	}
 
 	nc.StaticTags |= staticTags
