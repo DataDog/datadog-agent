@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    Experimental: support collection of force deleted pods in the orchestrator check via
+    Experimental: Adds support for collecting force-deleted pods in the orchestrator check using
     ``orchestrator_explorer.terminated_pods_improved.enabled``.
