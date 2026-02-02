@@ -1,33 +1,20 @@
-"""Build file for msodbcsql18 - Microsoft ODBC Driver 18 for SQL Server.
-
-This replicates the functionality of omnibus/config/software/msodbcsql18.rb
-by extracting pre-built binaries from Microsoft's deb/rpm packages.
-
-The build:
-1. Downloads platform-specific deb/rpm package
-2. Extracts it using dpkg-deb or rpm2cpio
-3. Copies lib64/, share/ to embedded/msodbcsql/
-4. Creates a symlink: lib/libmsodbcsql-18.3.so -> lib64/libmsodbcsql-18.3.so.3.1
-5. Copies license files
-
-Note: rpath patching is handled separately via replace_prefix.
-"""
-
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_license//rules:license_kind.bzl", "license_kind")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "pkg_mklink")
 
 package(
+    default_package_metadata = [":Microsoft-ODBC-EULA"],
     default_visibility = ["//visibility:public"],
 )
 
 SO_VERSION = "18.3"
-SO_FULL_VERSION = "3.1"
-SO_FILENAME = "libmsodbcsql-%s.so.%s" % (SO_VERSION, SO_FULL_VERSION)
-SO_LINK_NAME = "libmsodbcsql-%s.so" % SO_VERSION
 
-# ============================================================================
-# Extraction command templates
-# ============================================================================
+SO_FULL_VERSION = "3.1"
+
+SO_FILENAME = "libmsodbcsql-%s.so.%s" % (SO_VERSION, SO_FULL_VERSION)
+
+SO_LINK_NAME = "libmsodbcsql-%s.so" % SO_VERSION
 
 EXTRACT_CMD = """
     set -e
@@ -44,11 +31,20 @@ EXTRACT_CMD = """
 """
 
 DEB_EXTRACT = "dpkg-deb -R $(SRCS) $$WORKDIR"
+
 RPM_EXTRACT = "rpm2cpio $(SRCS) | cpio -idm -D $$WORKDIR"
 
-# ============================================================================
-# Extract the driver from deb/rpm packages
-# ============================================================================
+license_kind(
+    name = "msodbcsql18_eula_license",
+    conditions = [],
+)
+
+license(
+    name = "Microsoft-ODBC-EULA",
+    license_kinds = [":msodbcsql18_eula_license"],
+    license_text = "LICENSE.txt",
+    visibility = ["//visibility:public"],
+)
 
 genrule(
     name = "extract_deb",
@@ -63,8 +59,8 @@ genrule(
     ],
     cmd = EXTRACT_CMD.format(
         extract_cmd = DEB_EXTRACT,
-        variant = "deb",
         so_filename = SO_FILENAME,
+        variant = "deb",
     ),
     visibility = ["//visibility:public"],
 )
@@ -82,8 +78,8 @@ genrule(
     ],
     cmd = EXTRACT_CMD.format(
         extract_cmd = RPM_EXTRACT,
-        variant = "rpm",
         so_filename = SO_FILENAME,
+        variant = "rpm",
     ),
     visibility = ["//visibility:public"],
 )
@@ -98,17 +94,12 @@ genrule(
     ],
     cmd = EXTRACT_CMD.format(
         extract_cmd = RPM_EXTRACT,
-        variant = "sles",
         so_filename = SO_FILENAME,
+        variant = "sles",
     ),
     visibility = ["//visibility:public"],
 )
 
-# ============================================================================
-# Packaging - per-variant targets
-# ============================================================================
-
-# Symlink is shared across all variants
 pkg_mklink(
     name = "lib_symlink",
     attributes = pkg_attributes(mode = "0755"),
@@ -116,7 +107,6 @@ pkg_mklink(
     target = "../lib64/%s" % SO_FILENAME,
 )
 
-# --- deb ---
 pkg_files(
     name = "lib64_files_deb",
     srcs = ["deb/%s" % SO_FILENAME],
@@ -140,8 +130,8 @@ pkg_filegroup(
     srcs = [
         ":lib64_files_deb",
         ":lib_symlink",
-        ":resource_files_deb",
         ":license_files_deb",
+        ":resource_files_deb",
     ],
 )
 
@@ -150,7 +140,6 @@ pkg_install(
     srcs = [":all_files_deb"],
 )
 
-# --- rpm ---
 pkg_files(
     name = "lib64_files_rpm",
     srcs = ["rpm/%s" % SO_FILENAME],
@@ -174,8 +163,8 @@ pkg_filegroup(
     srcs = [
         ":lib64_files_rpm",
         ":lib_symlink",
-        ":resource_files_rpm",
         ":license_files_rpm",
+        ":resource_files_rpm",
     ],
 )
 
@@ -184,7 +173,6 @@ pkg_install(
     srcs = [":all_files_rpm"],
 )
 
-# --- sles ---
 pkg_files(
     name = "lib64_files_sles",
     srcs = ["sles/%s" % SO_FILENAME],
@@ -208,8 +196,8 @@ pkg_filegroup(
     srcs = [
         ":lib64_files_sles",
         ":lib_symlink",
-        ":resource_files_sles",
         ":license_files_sles",
+        ":resource_files_sles",
     ],
 )
 
