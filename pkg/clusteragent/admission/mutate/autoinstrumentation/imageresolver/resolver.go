@@ -236,9 +236,9 @@ func (r *bucketTagResolver) Resolve(registry string, repository string, tag stri
 
 	bucketTag := r.createBucketTag(tag)
 
-	resolvedImage, ok := r.cache.get(registry, repository, bucketTag)
-	if !ok {
-		log.Debugf("cache miss for %s/%s:%s", registry, repository, bucketTag)
+	resolvedImage, err := r.cache.get(registry, repository, bucketTag)
+	if err != nil {
+		log.Debugf("cache miss for %s/%s:%s - %v", registry, repository, bucketTag, err)
 		metrics.ImageResolutionAttempts.Inc(repository, bucketTag, tag)
 		return nil, false
 	}
