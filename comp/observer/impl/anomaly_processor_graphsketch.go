@@ -509,7 +509,7 @@ func (g *GraphSketchCorrelator) ActiveCorrelations() []observer.ActiveCorrelatio
 		result = append(result, observer.ActiveCorrelation{
 			Pattern:     fmt.Sprintf("graphsketch_cluster_%d", cluster.id),
 			Title:       title,
-			Signals:     sources,
+			SourceNames: sources,
 			Anomalies:   anomalies,
 			FirstSeen:   cluster.timeRange.Start,
 			LastUpdated: cluster.timeRange.End,

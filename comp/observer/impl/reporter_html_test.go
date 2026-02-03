@@ -404,9 +404,9 @@ func TestHTMLReporter_APICorrelations_ReturnsJSON(t *testing.T) {
 	r.SetCorrelationState(&mockCorrelationState{
 		correlations: []observer.ActiveCorrelation{
 			{
-				Pattern: "test_pattern",
-				Title:   "Test Correlation",
-				Signals: []string{"signal1", "signal2"},
+				Pattern:     "test_pattern",
+				Title:       "Test Correlation",
+				SourceNames: []string{"signal1", "signal2"},
 				Anomalies: []observer.AnomalyOutput{
 					{Source: "signal1", Title: "Anomaly 1", Description: "Description 1"},
 				},

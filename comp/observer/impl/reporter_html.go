@@ -1145,7 +1145,7 @@ func (r *HTMLReporter) handleAPICorrelations(w http.ResponseWriter, req *http.Re
 			correlations[i] = correlationOutput{
 				Pattern:     ac.Pattern,
 				Title:       ac.Title,
-				Signals:     ac.Signals,
+				Sources:     ac.SourceNames,
 				Anomalies:   anomalies,
 				FirstSeen:   ac.FirstSeen,
 				LastUpdated: ac.LastUpdated,

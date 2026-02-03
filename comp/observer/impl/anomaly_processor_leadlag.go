@@ -434,7 +434,7 @@ func (c *LeadLagCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
 			Pattern: fmt.Sprintf("lead_lag_%s_to_%s", edge.Leader, edge.Follower),
 			Title: fmt.Sprintf("Temporal: %s leads %s by ~%ds (%.0f%% confidence, %d observations)",
 				edge.Leader, edge.Follower, edge.TypicalLag, edge.Confidence*100, edge.Observations),
-			Signals:     sources,
+			SourceNames: sources,
 			Anomalies:   anomalies,
 			FirstSeen:   firstSeen,
 			LastUpdated: lastUpdated,

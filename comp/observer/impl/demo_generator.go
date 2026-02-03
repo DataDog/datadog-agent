@@ -25,11 +25,11 @@ type GeneratorConfig struct {
 // Total duration: 70s
 const (
 	// Phase boundaries
-	phaseBaselineEnd     = 25.0  // Baseline: 0-25s
-	phaseIncidentRampEnd = 30.0  // Incident ramp: 25-30s
-	phaseIncidentPeakEnd = 45.0  // Incident peak: 30-45s
-	phaseRecoveryEnd     = 50.0  // Recovery: 45-50s
-	phaseTotalDuration   = 70.0  // Post-incident: 50-70s
+	phaseBaselineEnd     = 25.0 // Baseline: 0-25s
+	phaseIncidentRampEnd = 30.0 // Incident ramp: 25-30s
+	phaseIncidentPeakEnd = 45.0 // Incident peak: 30-45s
+	phaseRecoveryEnd     = 50.0 // Recovery: 45-50s
+	phaseTotalDuration   = 70.0 // Post-incident: 50-70s
 
 	// Non-correlated spike timing (single metric spikes that recover quickly)
 	spikeGCStart      = 10.0 // Brief GC spike at 10-12s
@@ -39,11 +39,11 @@ const (
 
 	// Causal chain delays (seconds relative to phaseBaselineEnd)
 	// Story: heap pressure builds -> GC struggles -> latency degrades -> errors rise
-	heapLeadTime   = -3.0 // Heap starts growing 3s BEFORE GC issues (t=22s)
-	gcDelay        = 0.0  // GC pause time increases at t=25s
-	latencyDelay   = 1.0  // Latency degrades 1s after GC issues (t=26s)
-	errorDelay     = 2.0  // Errors start 2s after GC issues (t=27s)
-	cpuDelay       = 1.5  // CPU spikes slightly after GC (retries, GC work)
+	heapLeadTime = -3.0 // Heap starts growing 3s BEFORE GC issues (t=22s)
+	gcDelay      = 0.0  // GC pause time increases at t=25s
+	latencyDelay = 1.0  // Latency degrades 1s after GC issues (t=26s)
+	errorDelay   = 2.0  // Errors start 2s after GC issues (t=27s)
+	cpuDelay     = 1.5  // CPU spikes slightly after GC (retries, GC work)
 )
 
 // errorLogMessages contains various realistic error messages to rotate through during the demo.
@@ -66,7 +66,7 @@ type backgroundMetric struct {
 // Background metrics that show subtle effects during the incident.
 var defaultBackgroundMetrics = []backgroundMetric{
 	{name: "system.disk.read_ops", baseline: 150, incidentOffset: 0},
-	{name: "system.disk.write_ops", baseline: 80, incidentOffset: 20},  // slight increase from logging/swapping
+	{name: "system.disk.write_ops", baseline: 80, incidentOffset: 20}, // slight increase from logging/swapping
 	{name: "system.net.bytes_recv", baseline: 50000, incidentOffset: 0},
 	{name: "system.net.bytes_sent", baseline: 45000, incidentOffset: -10000}, // drops during incident (fewer successful responses)
 }
