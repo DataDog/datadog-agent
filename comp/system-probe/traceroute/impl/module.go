@@ -1,9 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2025-present Datadog, Inc.
 
-package modules
+package tracerouteimpl
 
 import (
 	"context"
@@ -22,32 +22,18 @@ import (
 	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	tracerouteutil "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type traceroute struct {
+type tracerouteImpl struct {
 	runner traceroutecomp.Component
 }
 
-var (
-	_ module.Module = &traceroute{}
-
-	tracerouteConfigNamespaces = []string{"traceroute"}
-)
-
-func createTracerouteModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
-	return &traceroute{
-		runner: deps.Traceroute,
-	}, nil
-}
-
-func (t *traceroute) GetStats() map[string]interface{} {
+func (t *tracerouteImpl) GetStats() map[string]interface{} {
 	return nil
 }
 
-func (t *traceroute) Register(httpMux types.SystemProbeRouter) error {
+func (t *tracerouteImpl) Register(httpMux types.SystemProbeRouter) error {
 	// Start platform-specific driver (Windows only, no-op on other platforms)
 	driverError := startPlatformDriver()
 
@@ -92,11 +78,11 @@ func (t *traceroute) Register(httpMux types.SystemProbeRouter) error {
 	return nil
 }
 
-func (t *traceroute) RegisterGRPC(_ grpc.ServiceRegistrar) error {
+func (t *tracerouteImpl) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 	return nil
 }
 
-func (t *traceroute) Close() {
+func (t *tracerouteImpl) Close() {
 	err := stopPlatformDriver()
 	if err != nil {
 		log.Errorf("failed to stop platform driver: %s", err)

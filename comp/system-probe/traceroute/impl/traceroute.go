@@ -7,12 +7,11 @@
 package tracerouteimpl
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	traceroutecomp "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
-	"github.com/DataDog/datadog-agent/comp/system-probe/module"
 	traceroute "github.com/DataDog/datadog-agent/comp/system-probe/traceroute/def"
 	"github.com/DataDog/datadog-agent/comp/system-probe/types"
-	sysmodule "github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 // Requires defines the dependencies for the traceroute component
@@ -28,12 +27,11 @@ type Provides struct {
 
 // NewComponent creates a new traceroute component
 func NewComponent(reqs Requires) (Provides, error) {
-	mc := &module.Component{
-		Factory: modules.Traceroute,
-		CreateFn: func() (types.SystemProbeModule, error) {
-			return modules.Traceroute.Fn(nil, sysmodule.FactoryDependencies{
-				Traceroute: reqs.Traceroute,
-			})
+	mc := &moduleFactory{
+		createFn: func() (types.SystemProbeModule, error) {
+			return &tracerouteImpl{
+				runner: reqs.Traceroute,
+			}, nil
 		},
 	}
 	provides := Provides{
@@ -41,4 +39,28 @@ func NewComponent(reqs Requires) (Provides, error) {
 		Comp:   mc,
 	}
 	return provides, nil
+}
+
+type moduleFactory struct {
+	createFn func() (types.SystemProbeModule, error)
+}
+
+func (m *moduleFactory) Name() sysconfigtypes.ModuleName {
+	return config.TracerouteModule
+}
+
+func (m *moduleFactory) ConfigNamespaces() []string {
+	return []string{"traceroute"}
+}
+
+func (m *moduleFactory) Create() (types.SystemProbeModule, error) {
+	return m.createFn()
+}
+
+func (m *moduleFactory) NeedsEBPF() bool {
+	return false
+}
+
+func (m *moduleFactory) OptionalEBPF() bool {
+	return false
 }
