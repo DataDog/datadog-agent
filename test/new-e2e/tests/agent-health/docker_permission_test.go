@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+// Package agenthealth contains E2E tests for the agent health reporting functionality.
 package agenthealth
 
 import (
