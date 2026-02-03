@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    APM: Add new health metric "datadog.trace_agent.receiver.payload_timeout" to track when an incoming trace payload timed out either from the client closing the connection or hitting the default middleware timeout.
+    APM: Added a new health metric, ``datadog.trace_agent.receiver.payload_timeout``, to track incoming trace payload timeouts caused by client connection closures or middleware timeouts.
 
