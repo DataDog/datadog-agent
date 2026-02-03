@@ -18,6 +18,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"k8s.io/apimachinery/pkg/api/equality"
 
 	v1 "k8s.io/api/core/v1"
 	discv1 "k8s.io/api/discovery/v1"
@@ -109,7 +110,6 @@ func (l *KubeEndpointSlicesListener) Listen(newSvc chan<- Service, delSvc chan<-
 		log.Errorf("cannot add event handler to service informer: %s", err)
 	}
 
-	// Initial fill
 	endpointSlices, err := l.endpointSliceLister.List(labels.Everything())
 	if err != nil {
 		log.Errorf("Cannot list Kubernetes endpointslices: %s", err)
@@ -165,7 +165,6 @@ func (l *KubeEndpointSlicesListener) endpointSliceDeleted(obj interface{}) {
 }
 
 func (l *KubeEndpointSlicesListener) endpointSliceUpdated(old, obj interface{}) {
-	// Cast the updated object or return on failure
 	slice, ok := obj.(*discv1.EndpointSlice)
 	if !ok {
 		log.Errorf("Expected an *discv1.EndpointSlice type, got: %T", obj)
@@ -254,7 +253,6 @@ func (l *KubeEndpointSlicesListener) processServiceUpdate(svc *v1.Service) {
 // endpointSlicesDiffer compares two endpointslices to only go forward
 // when relevant fields are changed.
 func (l *KubeEndpointSlicesListener) endpointSlicesDiffer(first, second *discv1.EndpointSlice) bool {
-	// Quick exit if resource version did not change
 	if first.ResourceVersion == second.ResourceVersion {
 		return false
 	}
@@ -286,29 +284,7 @@ func (l *KubeEndpointSlicesListener) endpointSlicesDiffer(first, second *discv1.
 		return true
 	}
 
-	// Check if endpoints themselves differ
-	return endpointSliceEndpointsDiffer(first, second)
-}
-
-// endpointSliceEndpointsDiffer compares the endpoints in two endpointslices
-func endpointSliceEndpointsDiffer(first, second *discv1.EndpointSlice) bool {
-	if len(first.Endpoints) != len(second.Endpoints) {
-		return true
-	}
-
-	// Simple comparison - could be optimized with a more sophisticated diff
-	for i := range first.Endpoints {
-		if len(first.Endpoints[i].Addresses) != len(second.Endpoints[i].Addresses) {
-			return true
-		}
-		for j := range first.Endpoints[i].Addresses {
-			if first.Endpoints[i].Addresses[j] != second.Endpoints[i].Addresses[j] {
-				return true
-			}
-		}
-	}
-
-	return false
+	return equality.Semantic.DeepEqual(first, second)
 }
 
 // isEndpointSlicesAnnotated looks for the corresponding service of a kubernetes endpointslice object
@@ -360,7 +336,6 @@ func (l *KubeEndpointSlicesListener) createServiceFromSlices(serviceKey string, 
 
 	l.m.Lock()
 	l.services[serviceKey] = eps
-	// Track all slices for this service
 	for _, slice := range slices {
 		l.sliceToService[slice.UID] = serviceKey
 	}
