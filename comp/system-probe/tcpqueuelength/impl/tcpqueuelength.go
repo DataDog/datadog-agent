@@ -9,12 +9,15 @@
 package tcpqueuelengthimpl
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/system-probe/module"
-	tcpqueuelength "github.com/DataDog/datadog-agent/comp/system-probe/tcpqueuelength/def"
+	tcpqueuelengthdef "github.com/DataDog/datadog-agent/comp/system-probe/tcpqueuelength/def"
 	"github.com/DataDog/datadog-agent/comp/system-probe/types"
-	sysmodule "github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength"
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 // Requires defines the dependencies for the tcpqueuelength component
@@ -24,16 +27,21 @@ type Requires struct {
 
 // Provides defines the output of the tcpqueuelength component
 type Provides struct {
-	Comp   tcpqueuelength.Component
+	Comp   tcpqueuelengthdef.Component
 	Module types.ProvidesSystemProbeModule
 }
 
 // NewComponent creates a new tcpqueuelength component
 func NewComponent(_ Requires) (Provides, error) {
-	mc := &module.Component{
-		Factory: modules.TCPQueueLength,
-		CreateFn: func() (types.SystemProbeModule, error) {
-			return modules.TCPQueueLength.Fn(nil, sysmodule.FactoryDependencies{})
+	mc := &moduleFactory{
+		createFn: func() (types.SystemProbeModule, error) {
+			t, err := tcpqueuelength.NewTracer(ebpf.NewConfig())
+			if err != nil {
+				return nil, fmt.Errorf("unable to start the TCP queue length tracer: %w", err)
+			}
+			return &tcpQueueLengthModule{
+				Tracer: t,
+			}, nil
 		},
 	}
 	provides := Provides{
@@ -41,4 +49,28 @@ func NewComponent(_ Requires) (Provides, error) {
 		Comp:   mc,
 	}
 	return provides, nil
+}
+
+type moduleFactory struct {
+	createFn func() (types.SystemProbeModule, error)
+}
+
+func (m *moduleFactory) Name() sysconfigtypes.ModuleName {
+	return config.TCPQueueLengthTracerModule
+}
+
+func (m *moduleFactory) ConfigNamespaces() []string {
+	return nil
+}
+
+func (m *moduleFactory) Create() (types.SystemProbeModule, error) {
+	return m.createFn()
+}
+
+func (m *moduleFactory) NeedsEBPF() bool {
+	return true
+}
+
+func (m *moduleFactory) OptionalEBPF() bool {
+	return false
 }

@@ -1,47 +1,21 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2025-present Datadog, Inc.
 
 //go:build linux && linux_bpf
 
-package modules
+package tcpqueuelengthimpl
 
 import (
-	"fmt"
 	"net/http"
 	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength"
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
-	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 )
-
-// TCPQueueLength Factory
-var TCPQueueLength = &module.Factory{
-	Name:             config.TCPQueueLengthTracerModule,
-	ConfigNamespaces: []string{},
-	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
-		t, err := tcpqueuelength.NewTracer(ebpf.NewConfig())
-		if err != nil {
-			return nil, fmt.Errorf("unable to start the TCP queue length tracer: %w", err)
-		}
-
-		return &tcpQueueLengthModule{
-			Tracer: t,
-		}, nil
-	},
-	NeedsEBPF: func() bool {
-		return true
-	},
-}
-
-var _ module.Module = &tcpQueueLengthModule{}
 
 type tcpQueueLengthModule struct {
 	*tcpqueuelength.Tracer
