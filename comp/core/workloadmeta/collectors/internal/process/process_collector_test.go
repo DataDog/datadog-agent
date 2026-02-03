@@ -722,10 +722,9 @@ func workloadmetaProcess(proc *procutil.Process, language *languagemodels.Langua
 	return wlmProc
 }
 
-// TestProcessCacheDifferenceExecScenario tests that processCacheDifference correctly detects
-// when a process has been replaced via exec (same PID, same CreateTime, different Cmdline).
-// This is a regression test for https://github.com/DataDog/datadog-agent/issues/43137
-func TestProcessCacheDifferenceExecScenario(t *testing.T) {
+// TestProcessCacheDifferentCmdlinetests that processCacheDifference correctly detects
+// when a process has a different cmdline (same PID, same CreateTime, different Cmdline).
+func TestProcessCacheDifferentCmdline(t *testing.T) {
 	createTime := time.Now().Unix()
 	pid := int32(12345)
 
