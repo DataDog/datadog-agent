@@ -166,23 +166,6 @@ def build(
             rtloader_make(ctx, install_prefix=embedded_path, cmake_options=cmake_options)
             rtloader_install(ctx)
 
-    # TODO: Windows support
-    target_os = os.getenv("GOOS") or sys.platform
-    if target_os not in ("windows", "win32"):
-        with gitlab_section("Build deepinference rust library", collapsed=True):
-            with ctx.cd("pkg/deepinference/rust"):
-                # TODO: Profile based on development mode
-                target_arg = f"--target {target_arch}" if target_arch else ""
-                ctx.run(
-                    f"cargo build --release {target_arg}",
-                )
-        if embedded_path is not None:
-            target_dir = f"{target_arch}/" if target_arch else ""
-            shutil.move(
-                f"pkg/deepinference/rust/target/{target_dir}release/libdeepinference.so",
-                os.path.join(embedded_path, "lib", "libdeepinference.so"),
-            )
-
     ldflags, gcflags, env = get_build_flags(
         ctx,
         install_path=install_path,
@@ -190,6 +173,35 @@ def build(
         rtloader_root=rtloader_root,
         python_home_3=python_home_3,
     )
+
+    # TODO: Windows support
+    target_os = os.getenv("GOOS") or sys.platform
+    if target_os not in ("windows", "win32"):
+        with gitlab_section("Build deepinference rust library", collapsed=True):
+            rustenv = env.copy()
+            if embedded_path is not None:
+                rustenv["OPENSSL_DIR"] = embedded_path
+                rustenv["OPENSSL_LIB_DIR"] = os.path.join(embedded_path, "lib")
+                rustenv["OPENSSL_INCLUDE_DIR"] = os.path.join(embedded_path, "include")
+                rustenv["PKG_CONFIG_PATH"] = os.path.join(embedded_path, "lib", "pkgconfig")
+                # TODO: Try without
+                rustenv["RUSTFLAGS"] = f"-C link-arg=-Wl,-rpath={os.path.join(embedded_path, 'lib')} -C link-arg=-L{os.path.join(embedded_path, 'lib')}"
+
+                print(f"Rust environment: {rustenv}")
+
+            with ctx.cd("pkg/deepinference/rust"):
+                # TODO: Profile based on development mode
+                target_arg = f"--target {target_arch}" if target_arch else ""
+                ctx.run(
+                    f"cargo build --release {target_arg}",
+                    env=rustenv,
+                )
+        if embedded_path is not None:
+            target_dir = f"{target_arch}/" if target_arch else ""
+            shutil.move(
+                f"pkg/deepinference/rust/target/{target_dir}release/libdeepinference.so",
+                os.path.join(embedded_path, "lib", "libdeepinference.so"),
+            )
 
     bundled_agents = ["agent"]
     if sys.platform == 'win32' or os.getenv("GOOS") == "windows":
