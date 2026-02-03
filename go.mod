@@ -168,7 +168,7 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.8.2
 	github.com/DataDog/datadog-operator/api v0.0.0-20251127112405-4be7033d5f47
 	github.com/DataDog/datadog-traceroute v1.0.3
-	github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251120091008-29f645374bec
+	github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20260123165136-9ed3effd2c0e
 	github.com/DataDog/ebpf-manager v0.7.15
 	github.com/DataDog/go-sqllexer v0.1.12
 	github.com/DataDog/gopsutil v1.2.3
@@ -348,7 +348,7 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4
 	go.etcd.io/bbolt v1.4.3
 	go.etcd.io/etcd/client/v2 v2.306.0-alpha.0
-	go.mongodb.org/mongo-driver/v2 v2.4.2
+	go.mongodb.org/mongo-driver/v2 v2.5.0
 	go.opentelemetry.io/collector/component v1.50.0
 	go.opentelemetry.io/collector/component/componenttest v0.144.0
 	go.opentelemetry.io/collector/config/configtelemetry v0.144.0
@@ -825,7 +825,7 @@ require (
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
-	github.com/xdg-go/scram v1.1.2 // indirect
+	github.com/xdg-go/scram v1.2.0 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
