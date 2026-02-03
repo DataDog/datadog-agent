@@ -273,7 +273,8 @@ func deletedProcessesToWorkloadmetaProcesses(deletedProcs []*procutil.Process) [
 	return wlmProcs
 }
 
-// processCacheDifference returns new processes that exist in procCacheA and not in procCacheB
+// processCacheDifference returns new processes that exist in procCacheA and not in procCacheB.
+// It uses PID, creation time, and command line hash to detect new processes
 func processCacheDifference(procCacheA map[int32]*procutil.Process, procCacheB map[int32]*procutil.Process) []*procutil.Process {
 	// attempt to pre-allocate right slice size to reduce number of slice growths
 	diffSize := 0
@@ -284,13 +285,16 @@ func processCacheDifference(procCacheA map[int32]*procutil.Process, procCacheB m
 	}
 	newProcs := make([]*procutil.Process, 0, diffSize)
 	for pid, procA := range procCacheA {
-		procB, exists := procCacheB[pid]
+		procB, pidExists := procCacheB[pid]
 
-		// new process
-		if !exists {
+		// New process - PID not in cache
+		if !pidExists {
 			newProcs = append(newProcs, procA)
-		} else if procB.Stats.CreateTime != procA.Stats.CreateTime {
-			// same process PID exists, but different process due to creation time
+			continue
+		}
+
+		// Same PID exists, but identity differs (different creation time or exec'd to new cmdline)
+		if procutil.ProcessIdentity(procA.Pid, procA.Stats.CreateTime, procA.Cmdline) != procutil.ProcessIdentity(procB.Pid, procB.Stats.CreateTime, procB.Cmdline) {
 			newProcs = append(newProcs, procA)
 		}
 	}

@@ -721,3 +721,67 @@ func workloadmetaProcess(proc *procutil.Process, language *languagemodels.Langua
 	}
 	return wlmProc
 }
+
+// TestProcessCacheDifferenceExecScenario tests that processCacheDifference correctly detects
+// when a process has been replaced via exec (same PID, same CreateTime, different Cmdline).
+// This is a regression test for https://github.com/DataDog/datadog-agent/issues/43137
+func TestProcessCacheDifferenceExecScenario(t *testing.T) {
+	createTime := time.Now().Unix()
+	pid := int32(12345)
+
+	// Original bash process
+	bashProc := &procutil.Process{
+		Pid:     pid,
+		Cmdline: []string{"bash"},
+		Stats:   &procutil.Stats{CreateTime: createTime},
+	}
+
+	// Same PID and createTime, but exec'd into htop
+	htopProc := &procutil.Process{
+		Pid:     pid,
+		Cmdline: []string{"htop"},
+		Stats:   &procutil.Stats{CreateTime: createTime},
+	}
+
+	// Cache A has htop (current state after exec)
+	cacheA := map[int32]*procutil.Process{
+		pid: htopProc,
+	}
+
+	// Cache B has bash (previous state before exec)
+	cacheB := map[int32]*procutil.Process{
+		pid: bashProc,
+	}
+
+	// processCacheDifference(A, B) should return htop as a "new" process because cmdline changed
+	diff := processCacheDifference(cacheA, cacheB)
+
+	assert.Len(t, diff, 1, "Expected one process in diff after exec cmdline change")
+	assert.Equal(t, pid, diff[0].Pid)
+	assert.Equal(t, []string{"htop"}, diff[0].Cmdline)
+}
+
+// TestProcessCacheDifferenceNoChangeWhenCmdlineSame tests that processCacheDifference
+// does not report a process as new when the cmdline stays the same.
+func TestProcessCacheDifferenceNoChangeWhenCmdlineSame(t *testing.T) {
+	createTime := time.Now().Unix()
+	pid := int32(12345)
+
+	proc := &procutil.Process{
+		Pid:     pid,
+		Cmdline: []string{"bash"},
+		Stats:   &procutil.Stats{CreateTime: createTime},
+	}
+
+	cacheA := map[int32]*procutil.Process{
+		pid: proc,
+	}
+
+	cacheB := map[int32]*procutil.Process{
+		pid: proc,
+	}
+
+	diff := processCacheDifference(cacheA, cacheB)
+
+	assert.Len(t, diff, 0, "Expected no processes in diff when cmdline is the same")
+}
