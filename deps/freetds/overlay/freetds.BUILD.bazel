@@ -92,7 +92,7 @@ _PUBLIC_HEADERS = [
 ]
 
 cc_library(
-    name = "tdsodbc_static",
+    name = "libtdsodbc",
     srcs = [
         ":gen_sysdep_h",
         ":gen_version_h",
@@ -206,20 +206,17 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "@unixodbc//:odbc",
-        "@openssl//:crypto",
-        "@openssl//:ssl",
-        "@openssl//:imported_ssl_headers",
+        "@openssl",
     ],
 )
 
 cc_shared_library(
     name = "tdsodbc_so",
-    deps = [":tdsodbc_static"],
+    deps = [":libtdsodbc"],
     shared_lib_name = "libtdsodbc.so",
     dynamic_deps = [
         "@unixodbc//:libodbc_so",
-        "@openssl//:crypto_shared",
-        "@openssl//:ssl_shared",
+        "@openssl//:openssl_shared",
     ],
     user_link_flags = select({
         "@platforms//os:linux": [
@@ -260,6 +257,7 @@ pkg_filegroup(
         ":lib_file",
         ":so_link",
     ],
+    visibility = ["//visibility:public"],
 )
 
 pkg_install(

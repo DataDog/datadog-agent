@@ -119,11 +119,14 @@ build do
     command "make install_sw install_ssldirs", env: env
 
     delete "#{install_dir}/embedded/bin/c_rehash"
-    unless windows?
+    if windows?
+      # Rename to more standard .lib suffix for windows import libraries
+      move "#{install_dir}/embedded3/lib/libcrypto.dll.a", "#{install_dir}/embedded3/lib/libcrypto.lib"
+      move "#{install_dir}/embedded3/lib/libssl.dll.a", "#{install_dir}/embedded3/lib/libssl.lib"
+    else
       # Remove openssl static libraries here as we can't disable those at build time
       delete "#{install_dir}/embedded/lib/libcrypto.a"
       delete "#{install_dir}/embedded/lib/libssl.a"
-    else
-    end
     end
   end
+end

@@ -33,6 +33,7 @@ var validMetadataResources = map[string]map[string]bool{
 		"mac_address":  true,
 		"admin_status": true,
 		"oper_status":  true,
+		"type":         true,
 	},
 }
 

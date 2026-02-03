@@ -9,13 +9,17 @@ package converters
 
 import (
 	"context"
+	"flag"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
+	"gopkg.in/yaml.v3"
 )
+
+var updateGolden = flag.Bool("update", false, "update golden test files")
 
 // converter is an interface that both converterWithAgent and converterWithoutAgent implement
 type converter interface {
@@ -54,6 +58,17 @@ func runSuccessTests(t *testing.T, conv converter, tests []testCase) {
 			// Run converter
 			err = conv.Convert(context.Background(), conf)
 			require.NoError(t, err, "converter failed for: %s", tc.provided)
+
+			// Update golden files if -update flag is set
+			if *updateGolden {
+				expectedPath := filepath.Join("td", tc.expected)
+				actualYAML, err := yaml.Marshal(conf.ToStringMap())
+				require.NoError(t, err, "failed to marshal output to YAML: %s", tc.provided)
+				err = os.WriteFile(expectedPath, actualYAML, 0644)
+				require.NoError(t, err, "failed to write golden file: %s", expectedPath)
+				t.Logf("Updated golden file: %s", expectedPath)
+				return
+			}
 
 			// Load expected output
 			expectedPath := filepath.Join("td", tc.expected)

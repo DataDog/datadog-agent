@@ -39,3 +39,4 @@ jobs:
           remote-repository-name: cla-signatures
           remote-organization-name: DataDog
           allowlist: "*[bot]"
+          lock-pullrequest-aftermerge: false

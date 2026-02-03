@@ -14,8 +14,6 @@ update_rc_build_links:
       artifacts: false
     - job: publish_internal_dca_container_image
       artifacts: false
-    - job: publish_internal_container_image-full
-      artifacts: false
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   script:

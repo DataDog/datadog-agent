@@ -88,9 +88,9 @@ func (t *DockerPermissionIssue) buildLinux(dockerDir string) *healthplatform.Rem
 		Summary: "Grant minimal access to Docker log files using ACLs (recommended) or add dd-agent to root group as last resort",
 		Steps: []*healthplatform.RemediationStep{
 			{Order: 1, Text: "RECOMMENDED: Grant minimal access using ACLs (safer than root group):"},
-			{Order: 2, Text: fmt.Sprintf("sudo setfacl -Rm g:dd-agent:rx %s/containers", dockerDir)},
-			{Order: 3, Text: fmt.Sprintf("sudo setfacl -Rm g:dd-agent:r %s/containers/*/*.log", dockerDir)},
-			{Order: 4, Text: fmt.Sprintf("sudo setfacl -Rdm g:dd-agent:rx %s/containers", dockerDir)},
+			{Order: 2, Text: fmt.Sprintf("sudo setfacl -Rm g:dd-agent:rx '%s/containers'", strings.ReplaceAll(dockerDir, `'`, `'\''`))},
+			{Order: 3, Text: fmt.Sprintf("sudo setfacl -Rm g:dd-agent:r '%s/containers'/*/*.log", strings.ReplaceAll(dockerDir, `'`, `'\''`))},
+			{Order: 4, Text: fmt.Sprintf("sudo setfacl -Rdm g:dd-agent:rx '%s/containers'", strings.ReplaceAll(dockerDir, `'`, `'\''`))},
 			{Order: 5, Text: "Restart the datadog-agent service: systemctl restart datadog-agent"},
 			{Order: 6, Text: "Verify Docker file tailing is working by checking agent logs"},
 			{Order: 7, Text: "⚠️  LAST RESORT: If ACLs don't work, add dd-agent to root group (gives root privileges):"},
@@ -114,7 +114,7 @@ func (t *DockerPermissionIssue) buildWindows(dockerDir string) *healthplatform.R
 		Summary: "Grant read access to Docker log files for the ddagentuser account",
 		Steps: []*healthplatform.RemediationStep{
 			{Order: 1, Text: "Open PowerShell as Administrator"},
-			{Order: 2, Text: fmt.Sprintf("Grant read permissions to ddagentuser: icacls \"%s\\containers\" /grant ddagentuser:(OI)(CI)RX /T", dockerDir)},
+			{Order: 2, Text: fmt.Sprintf("Grant read permissions to ddagentuser: icacls \"%s\\containers\" /grant ddagentuser:(OI)(CI)RX /T", strings.ReplaceAll(dockerDir, `"`, `""`))},
 			{Order: 3, Text: "Restart the Datadog Agent service: Restart-Service -Name datadogagent"},
 			{Order: 4, Text: "Verify Docker file tailing is working by checking agent logs"},
 			{Order: 5, Text: "Alternative: Use the Services management console (services.msc) to restart 'Datadog Agent'"},
@@ -130,6 +130,9 @@ func (t *DockerPermissionIssue) buildWindows(dockerDir string) *healthplatform.R
 }
 
 // renderTemplate renders a script template with the given dockerDir
+// Note: Go templates don't auto-escape for shell/PowerShell contexts, but since
+// dockerDir comes from config or defaults (not direct user input), and the templates
+// properly quote the variable usage, this is safe. The fallback also preserves quotes.
 func renderTemplate(templateStr, dockerDir string) string {
 	tmpl, err := template.New("script").Parse(templateStr)
 	if err != nil {

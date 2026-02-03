@@ -107,7 +107,7 @@ func NewContainerStore(maxContainers int) (*ContainerStore, error) {
 		errorLimit: errorLimit,
 		debugLimit: debugLimit,
 
-		containerReader: newContainerReader(makeResolvStripper(resolvConfInputMaxSizeBytes), debugLimit),
+		containerReader: newContainerReader(makeResolvStripper(resolvConfInputMaxSizeBytes)),
 	}
 	// this function is only ever replaced in tests for mocking purposes
 	cs.readContainerItem = cs.containerReader.readContainerItem

@@ -168,27 +168,6 @@ func (cr *Resolver) syncOrDeleteCaheEntry(cacheEntry *cgroupModel.CacheEntry, de
 		return todel == deletedPid
 	})
 	cacheEntry.SetPIDs(pids)
-
-	// then, ensure those pids are not part of other cgroups
-	cr.cleanupPidsWithMultipleCgroups(pids, cacheEntry)
-}
-
-// cleanupPidsWithMultipleCgroups removes the pids from the other cache entries.
-// A pid can't be part of multiple cgroups, so if a pid is part of another cgroup.
-func (cr *Resolver) cleanupPidsWithMultipleCgroups(pids []uint32, currentCacheEntry *cgroupModel.CacheEntry) {
-	cr.iterateCacheEntries(func(cacheEntry *cgroupModel.CacheEntry) bool {
-		if cacheEntry.CGroupContextEquals(currentCacheEntry) {
-			return false
-		}
-
-		if cacheEntry.RemovePIDs(pids) == 0 {
-			// No double check here to ensure that the cgroup is REALLY empty,
-			// because we already are in such a double check for another cgroup.
-			// No need to introduce a recursion here.
-			cr.removeCacheEntry(cacheEntry)
-		}
-		return false
-	})
 }
 
 func (cr *Resolver) pushNewCacheEntry(pid uint32, containerContext model.ContainerContext, cgroupContext model.CGroupContext) *cgroupModel.CacheEntry {
@@ -423,22 +402,22 @@ func (cr *Resolver) DelPID(pid uint32) {
 	cr.Lock()
 	defer cr.Unlock()
 
-	for _, workload := range cr.containerCacheEntries.Values() {
-		cr.deleteCacheEntryPID(pid, workload)
+	for _, cacheEntry := range cr.containerCacheEntries.Values() {
+		cr.deleteCacheEntryPID(pid, cacheEntry)
 	}
 
-	for _, workload := range cr.hostCacheEntries.Values() {
-		cr.deleteCacheEntryPID(pid, workload)
+	for _, cacheEntry := range cr.hostCacheEntries.Values() {
+		cr.deleteCacheEntryPID(pid, cacheEntry)
 	}
 }
 
-// deleteWorkloadPID removes a PID from a workload
+// deleteWorkloadPID removes a PID from a cacheEntry
 func (cr *Resolver) deleteCacheEntryPID(pid uint32, cacheEntry *cgroupModel.CacheEntry) {
 	if !cacheEntry.ContainsPID(pid) {
 		return
 	}
 
-	// check if the workload should be deleted
+	// check if the cacheEntry should be deleted
 	if cacheEntry.RemovePID(pid) == 0 {
 		cr.syncOrDeleteCaheEntry(cacheEntry, pid)
 	}

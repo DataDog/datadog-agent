@@ -76,7 +76,7 @@ func TestKubeletCreatePodService(t *testing.T) {
 					service: &WorkloadService{
 						entity:        pod,
 						adIdentifiers: []string{"kubernetes_pod://foobar"},
-						ports: []ContainerPort{
+						ports: []workloadmeta.ContainerPort{
 							{
 								Port: 22,
 								Name: "ssh",
@@ -262,7 +262,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 						hosts: map[string]string{
 							"pod": "127.0.0.1",
 						},
-						ports: []ContainerPort{},
+						ports: []workloadmeta.ContainerPort{},
 						extraConfig: map[string]string{
 							"namespace": podNamespace,
 							"pod_name":  podName,
@@ -295,7 +295,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 						hosts: map[string]string{
 							"pod": "127.0.0.1",
 						},
-						ports:           []ContainerPort{},
+						ports:           []workloadmeta.ContainerPort{},
 						metricsExcluded: true,
 						extraConfig: map[string]string{
 							"namespace": podNamespace,
@@ -352,7 +352,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 						hosts: map[string]string{
 							"pod": "127.0.0.1",
 						},
-						ports: []ContainerPort{},
+						ports: []workloadmeta.ContainerPort{},
 						extraConfig: map[string]string{
 							"namespace": podNamespace,
 							"pod_name":  podName,
@@ -385,7 +385,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 						hosts: map[string]string{
 							"pod": "127.0.0.1",
 						},
-						ports: []ContainerPort{
+						ports: []workloadmeta.ContainerPort{
 							{
 								Port: 22,
 								Name: "ssh",
@@ -428,7 +428,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 						hosts: map[string]string{
 							"pod": "127.0.0.1",
 						},
-						ports:      []ContainerPort{},
+						ports:      []workloadmeta.ContainerPort{},
 						checkNames: []string{"customcheck"},
 						extraConfig: map[string]string{
 							"namespace": podNamespace,
@@ -474,7 +474,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 						hosts: map[string]string{
 							"pod": "127.0.0.1",
 						},
-						ports:      []ContainerPort{},
+						ports:      []workloadmeta.ContainerPort{},
 						checkNames: []string{"customcheck"},
 						extraConfig: map[string]string{
 							"namespace": podNamespace,
@@ -510,7 +510,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 						hosts: map[string]string{
 							"pod": "127.0.0.1",
 						},
-						ports:      []ContainerPort{},
+						ports:      []workloadmeta.ContainerPort{},
 						checkNames: []string{"customcheck"},
 						extraConfig: map[string]string{
 							"namespace": podNamespace,
@@ -546,7 +546,7 @@ func TestKubeletCreateContainerService(t *testing.T) {
 						hosts: map[string]string{
 							"pod": "127.0.0.1",
 						},
-						ports:      []ContainerPort{},
+						ports:      []workloadmeta.ContainerPort{},
 						checkNames: []string{"customcheck"},
 						extraConfig: map[string]string{
 							"namespace": podNamespace,
@@ -636,7 +636,7 @@ func TestProcessPodWithEphemeralContainer(t *testing.T) {
 				hosts: map[string]string{
 					"pod": "127.0.0.1",
 				},
-				ports: []ContainerPort{},
+				ports: []workloadmeta.ContainerPort{},
 				extraConfig: map[string]string{
 					"namespace": podNamespace,
 					"pod_name":  podName,

@@ -138,18 +138,19 @@ func (c *Collector) Init(_ config.Component, _ option.Option[workloadmeta.Compon
 
 // Scan performs a scan
 func (c *Collector) Scan(_ context.Context, _ sbom.ScanRequest) sbom.ScanResult {
-
 	report := Report{version: c.version, platform: c.platform, family: c.family, build: c.build, arch: c.arch}
 	q := wmi.CreateQuery(&report.KBS, "")
 	err := wmi.Query(q, &report.KBS)
 	if err != nil {
 		return sbom.ScanResult{
-			Error: err,
+			GenerationMethod: "wmi",
+			Error:            err,
 		}
 	}
 
 	return sbom.ScanResult{
-		Error:  err,
-		Report: &report,
+		Error:            err,
+		Report:           &report,
+		GenerationMethod: "wmi",
 	}
 }

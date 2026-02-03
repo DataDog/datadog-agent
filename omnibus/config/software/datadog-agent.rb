@@ -253,10 +253,9 @@ build do
     copy 'bin/cws-instrumentation/cws-instrumentation', "#{install_dir}/embedded/bin"
   end
 
-  # Secret Generic Connector
-  # TODO: (next) fips support
-  if !fips_mode? && !heroku_target?
-    command "dda inv -- -e secret-generic-connector.build", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+# Secret Generic Connector
+  if !heroku_target?
+    command "dda inv -- -e secret-generic-connector.build #{fips_args}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
     if windows_target?
       copy 'bin/secret-generic-connector/secret-generic-connector.exe', "#{install_dir}/bin/agent"
     else
@@ -327,6 +326,7 @@ build do
         "#{install_dir}/embedded/bin/security-agent",
         "#{install_dir}/embedded/bin/system-probe",
         "#{install_dir}/embedded/bin/installer",
+        "#{install_dir}/embedded/bin/secret-generic-connector",
       ]
 
       symbol = "_Cfunc__mkcgo_OPENSSL"

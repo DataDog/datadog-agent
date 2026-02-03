@@ -261,12 +261,12 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg, retry bool) 
 
 		msgMaxRetry := msg.getMaxRetry()
 		if msg.retry >= msgMaxRetry {
-			seclog.Errorf("max retry reached: %dn, sending event anyway", msg.retry)
+			seclog.Warnf("max retry reached: %d, sending event anyway", msg.retry)
 
 			queueSize--
 			return true
 		}
-		seclog.Warnf("failed to sent event for rule `%s`, retry %d/%d, queue size: %d", msg.ruleID, msg.retry, msgMaxRetry, len(a.queue))
+		seclog.Warnf("failed to send event for rule `%s`, retry %d/%d, queue size: %d", msg.ruleID, msg.retry, msgMaxRetry, len(a.queue))
 
 		msg.sendAfter = now.Add(retryDelay)
 		msg.retry++
@@ -337,7 +337,7 @@ func (a *APIServer) start(ctx context.Context) {
 		case now := <-ticker.C:
 			a.dequeue(now, func(msg *pendingMsg, isRetryAllowed bool) bool {
 				if !isRetryAllowed {
-					seclog.Warnf("queue limit reached: %d, sending event anyway", len(a.queue))
+					seclog.Debugf("queue limit reached: %d, sending event anyway", len(a.queue))
 				}
 
 				if msg.extTagsCb != nil && isRetryAllowed {
@@ -712,47 +712,6 @@ func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.S
 		apiStatus.SelfTests = a.selfTester.GetStatus()
 	}
 	apiStatus.PoliciesStatus = a.policiesStatus
-
-	seclVariables := a.GetSECLVariables()
-
-	var globals []*api.SECLVariableState
-	for _, global := range seclVariables {
-		if !strings.Contains(global.Name, ".") {
-			globals = append(globals, global)
-		}
-	}
-	apiStatus.GlobalVariables = globals
-
-	scopedVariables := make(map[string]map[string][]*api.SECLVariableState)
-	for _, scoped := range seclVariables {
-		split := strings.SplitN(scoped.Name, ".", 3)
-		if len(split) < 3 {
-			continue
-		}
-		scope, name, key := split[0], split[1], split[2]
-		if scope != "" {
-			if _, found := scopedVariables[scope]; !found {
-				scopedVariables[scope] = make(map[string][]*api.SECLVariableState)
-			}
-
-			scopedVariables[scope][key] = append(scopedVariables[scope][key], &api.SECLVariableState{
-				Name:  name,
-				Value: scoped.Value,
-			})
-		}
-	}
-	apiStatus.ScopedVariables = make(map[string]*api.ScopedVariableStore)
-	for scope, vars := range scopedVariables {
-		store := &api.ScopedVariableStore{
-			KeyValues: make(map[string]*api.SECLVariableStateList),
-		}
-		for key, values := range vars {
-			store.KeyValues[key] = &api.SECLVariableStateList{
-				Variables: values,
-			}
-		}
-		apiStatus.ScopedVariables[scope] = store
-	}
 
 	if err := a.fillStatusPlatform(&apiStatus); err != nil {
 		return nil, err
