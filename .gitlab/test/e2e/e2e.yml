@@ -11,6 +11,7 @@
     - !reference [.retrieve_linux_go_e2e_deps]
     - !reference [.retrieve_linux_pulumi_plugins]
     - !reference [.retrieve_linux_go_tools_deps]
+    - dda inv -- -e install-tools
     # Setup AWS Credentials
     - mkdir -p ~/.aws
     - |
