@@ -9,9 +9,7 @@ package filtermodel
 import (
 	"reflect"
 
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 )
 
 // RuleFilterEventConfig holds the config used by the rule filter event
@@ -67,12 +65,4 @@ func (m *RuleFilterModel) ValidateRule(_ *eval.Rule) error {
 // GetFieldRestrictions returns the field event type restrictions
 func (m *RuleFilterModel) GetFieldRestrictions(_ eval.Field) []eval.EventType {
 	return nil
-}
-
-func getHostname(ipcComp ipc.Component) string {
-	hostname, err := hostnameutils.GetHostname(ipcComp)
-	if err != nil || hostname == "" {
-		hostname = "unknown"
-	}
-	return hostname
 }
