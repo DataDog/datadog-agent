@@ -626,8 +626,6 @@ func (s *BaseSuite) InstallWithDiagnostics(opts ...MsiOption) {
 	// Wait for service to be running
 	s.T().Log("Checking agent service status after MSI installation")
 	err = s.WaitForAgentService("Running")
-
-	s.T().Fail()
 	s.Require().NoError(err, "Agent service status check failed")
 	s.T().Log("MSI installation and service startup completed successfully")
 }
