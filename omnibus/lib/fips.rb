@@ -51,15 +51,12 @@ def fips_check_binary_for_expected_symbol(path)
     raise "Unsupported OS for FIPS"
   end
 
-  check_block = Proc.new { |binary, symbols|
-    count = symbols.scan(symbol).count
-    if count > 0
-      log.info(log_key) { "Symbol '#{symbol}' found #{count} times in binary '#{binary}'." }
-    else
-      raise FIPSSymbolsNotFound.new("Expected to find '#{symbol}' symbol in #{binary} but did not")
+  GoSymbolsInspector.new(path).inspect do |symbols|
+      count = symbols.scan(symbol).count
+      if count > 0
+        log.info(log_key) { "Symbol '#{symbol}' found #{count} times in binary '#{path}'." }
+      else
+        raise FIPSSymbolsNotFound.new("Expected to find '#{symbol}' symbol in #{path} but did not")
+      end
     end
-  }.curry
-
-  partially_applied_check = check_block.call(path)
-  GoSymbolsInspector.new(path, &partially_applied_check).inspect()
 end
