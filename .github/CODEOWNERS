@@ -23,6 +23,7 @@
 /.vscode/                               @DataDog/agent-devx
 
 # Bazel configuration
+/.adms/                                 @DataDog/agent-build
 /.bazel*                                @DataDog/agent-build
 /bazel/                                 @DataDog/agent-build
 /MODULE.bazel*                          @DataDog/agent-build
@@ -125,7 +126,6 @@
 /.gitlab/build/binary_build/cluster_agent_cloudfoundry.yml @DataDog/agent-integrations @DataDog/agent-build
 /.gitlab/build/binary_build/cluster_agent.yml              @DataDog/container-integrations @DataDog/agent-build
 /.gitlab/build/binary_build/fakeintake.yml                 @DataDog/agent-devx
-/.gitlab/build/binary_build/otel_agent.yml                 @DataDog/opentelemetry-agent @DataDog/agent-build
 /.gitlab/build/binary_build/host_profiler.yml              @DataDog/opentelemetry-agent @DataDog/profiling-full-host @DataDog/agent-build
 /.gitlab/build/binary_build/system_probe.yml               @DataDog/ebpf-platform @DataDog/agent-build
 /.gitlab/build/binary_build/windows.yml                    @DataDog/agent-build @DataDog/windows-products
@@ -461,6 +461,7 @@
 /pkg/clusteragent/                      @DataDog/container-platform
 /pkg/clusteragent/autoscaling/          @DataDog/container-autoscaling
 /pkg/clusteragent/admission/mutate/autoscaling          @DataDog/container-integrations
+/pkg/clusteragent/admission/mutate/appsec               @DataDog/container-platform @DataDog/asm-go
 /pkg/clusteragent/admission/mutate/autoinstrumentation/ @DataDog/container-platform @DataDog/injection-platform
 /pkg/clusteragent/admission/mutate/cwsinstrumentation    @DataDog/agent-security
 /pkg/clusteragent/appsec/               @DataDog/asm-go @DataDog/container-platform
@@ -575,6 +576,7 @@
 /pkg/util/prometheus                    @DataDog/container-integrations
 /pkg/util/quantile/                     @DataDog/opentelemetry-agent
 /pkg/util/tags/                         @DataDog/container-platform
+/pkg/util/tmplvar/                      @DataDog/container-platform
 /pkg/util/trivy/                        @DataDog/agent-security @DataDog/container-integrations
 /pkg/util/uuid/                         @DataDog/agent-runtimes
 /pkg/util/cgroups/                      @DataDog/container-integrations
@@ -798,8 +800,6 @@
 /test/otel/                                   @DataDog/opentelemetry-agent
 /test/static/                                 @DataDog/agent-build
 /test/static/static_quality_gates.yml        @DataDog/agent-build @cmourot @dd-ddamien
-/test/system/                                 @DataDog/agent-runtimes
-/test/system/dogstatsd/                       @DataDog/agent-metric-pipelines
 /test/benchmarks/apm_scripts/                 @DataDog/agent-apm
 /test/regression/                             @DataDog/single-machine-performance
 /test/regression/cases/docker_containers*     @DataDog/single-machine-performance @DataDog/container-integrations
