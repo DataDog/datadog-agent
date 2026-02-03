@@ -157,11 +157,6 @@ def build(
     Example invokation:
         dda inv agent.build --build-exclude=systemd
     """
-    print('CC: Build start')
-    import traceback
-    traceback.print_stack()
-    print('---')
-
     flavor = AgentFlavor[flavor]
 
     if not exclude_rtloader and not flavor.is_iot():
@@ -179,7 +174,6 @@ def build(
         python_home_3=python_home_3,
     )
 
-    print('CC: Build deepinference rust library')
     # TODO: Windows support
     target_os = os.getenv("GOOS") or sys.platform
     if target_os not in ("windows", "win32"):
@@ -190,9 +184,9 @@ def build(
                 rustenv["OPENSSL_LIB_DIR"] = os.path.join(embedded_path, "lib")
                 rustenv["OPENSSL_INCLUDE_DIR"] = os.path.join(embedded_path, "include")
                 rustenv["PKG_CONFIG_PATH"] = os.path.join(embedded_path, "lib", "pkgconfig")
-                rustenv["RUSTFLAGS"] = f"-C link-arg=-Wl,-rpath={os.path.join(embedded_path, 'lib')} -C link-arg=-L{os.path.join(embedded_path, 'lib')}"
-
-                print(f"Rust environment: {rustenv}")
+                rustenv["RUSTFLAGS"] = (
+                    f"-C link-arg=-Wl,-rpath={os.path.join(embedded_path, 'lib')} -C link-arg=-L{os.path.join(embedded_path, 'lib')}"
+                )
 
             with ctx.cd("pkg/deepinference/rust"):
                 # TODO: Profile based on development mode
@@ -201,7 +195,6 @@ def build(
                     f"cargo build --release {target_arg}",
                     env=rustenv,
                 )
-                print('Cargo build done')
 
         if embedded_path is not None:
             target_dir = f"{target_arch}/" if target_arch else ""
@@ -215,23 +208,6 @@ def build(
             if sys.platform.startswith("linux"):
                 openssl_lib_dir = os.path.join(embedded_path, "lib")
                 ctx.run(f"patchelf --add-rpath {openssl_lib_dir} {final_lib_path}")
-
-            import time
-            print(f'\n--- Cc Debug {time.time()} ---')
-            try:
-                print('\nReadelf')
-                ctx.run(f'readelf -d {final_lib_path}')
-                print('\nObjdump')
-                ctx.run(f'objdump -T {final_lib_path}')
-                # print('\nNm')
-                # ctx.run(f'nm {final_lib_path}')
-                print('\nLdd')
-                ctx.run(f'ldd {final_lib_path}')
-            except Exception as e:
-                print(f'CC warning: Got error while debug: {e}')
-            print('--- Cc End ---\n')
-
-    print('Deepinference library has been built and prepared')
 
     # Add OpenSSL library directory to linker search path for Go build
     # This is needed because libdeepinference.so depends on OpenSSL 3.0
@@ -293,7 +269,6 @@ def build(
     if not agent_bin:
         agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
 
-    print('CC: Build agent')
     flavor_cmd = "iot-agent" if flavor.is_iot() else "agent"
     with gitlab_section("Build agent", collapsed=True):
         go_build(
@@ -311,7 +286,6 @@ def build(
             coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
         )
 
-    print('CC: Build agent done')
     if embedded_path is None:
         embedded_path = get_embedded_path(ctx)
         assert embedded_path, "Failed to find embedded path"
@@ -329,7 +303,6 @@ def build(
 
         create_launcher(ctx, build, agent_fullpath, bundled_agent_bin)
 
-    print('CC: Generate configuration files')
     with gitlab_section("Generate configuration files", collapsed=True):
         render_config(
             ctx,
@@ -340,8 +313,7 @@ def build(
             development=development,
             windows_sysprobe=windows_sysprobe,
         )
-    print('CC: Generate configuration files done')
-    print('CC: Build done')
+
 
 def create_launcher(ctx, agent, src, dst):
     cc = get_goenv(ctx, "CC")
