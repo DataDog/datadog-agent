@@ -9,11 +9,11 @@
 package languagedetectionimpl
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	languagedetection "github.com/DataDog/datadog-agent/comp/system-probe/languagedetection/def"
-	"github.com/DataDog/datadog-agent/comp/system-probe/module"
 	"github.com/DataDog/datadog-agent/comp/system-probe/types"
-	sysmodule "github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 // Requires defines the dependencies for the languagedetection component
@@ -28,10 +28,11 @@ type Provides struct {
 
 // NewComponent creates a new languagedetection component
 func NewComponent(_ Requires) (Provides, error) {
-	mc := &module.Component{
-		Factory: modules.LanguageDetectionModule,
-		CreateFn: func() (types.SystemProbeModule, error) {
-			return modules.LanguageDetectionModule.Fn(nil, sysmodule.FactoryDependencies{})
+	mc := &moduleFactory{
+		createFn: func() (types.SystemProbeModule, error) {
+			return &languageDetectionModule{
+				languageDetector: privileged.NewLanguageDetector(),
+			}, nil
 		},
 	}
 	provides := Provides{
@@ -39,4 +40,28 @@ func NewComponent(_ Requires) (Provides, error) {
 		Comp:   mc,
 	}
 	return provides, nil
+}
+
+type moduleFactory struct {
+	createFn func() (types.SystemProbeModule, error)
+}
+
+func (m *moduleFactory) Name() sysconfigtypes.ModuleName {
+	return config.LanguageDetectionModule
+}
+
+func (m *moduleFactory) ConfigNamespaces() []string {
+	return []string{"language_detection"}
+}
+
+func (m *moduleFactory) Create() (types.SystemProbeModule, error) {
+	return m.createFn()
+}
+
+func (m *moduleFactory) NeedsEBPF() bool {
+	return false
+}
+
+func (m *moduleFactory) OptionalEBPF() bool {
+	return false
 }
