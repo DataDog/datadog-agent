@@ -1,10 +1,4 @@
 ---
 fixes:
   - |
-    Disk check: Added concurrency guardrails to prevent thread explosion when
-    remote mounts (NFS/CIFS) become unresponsive. When a remote filesystem
-    blocks in kernel uninterruptible sleep (D state), the disk check now limits
-    concurrent disk usage calls with a global semaphore (max 8) and per-mountpoint
-    inflight tracking. This prevents unbounded OS thread growth that could cause
-    Agent instability. Trade-off: if a mount wedges, usage metrics for that mount
-    are skipped, but the Agent remains healthy.
+    Disk check: Added guardrails to limit concurrency when remote filesystems (NFS/CIFS) become unresponsive. The disk check now caps concurrent disk usage calls to prevent unbounded thread growth, improving Agent stability. When a remote mount is stuck, usage metrics for that mount are skipped to keep the Agent healthy.
