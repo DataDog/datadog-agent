@@ -912,7 +912,7 @@ func TestOtelSpanToDDSpan_MessagingSemconv117Plus(t *testing.T) {
 			sattrs: map[string]interface{}{
 				"messaging.destination":                        "old-queue",
 				string(semconv117.MessagingDestinationNameKey): "new-topic",
-				"messaging.system": "kafka",
+				"messaging.system":                             "kafka",
 			},
 			expectedMeta: map[string]string{
 				"messaging.destination":                        "old-queue",

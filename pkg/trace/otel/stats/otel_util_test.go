@@ -787,7 +787,7 @@ func TestProcessOTLPTraces_Semconv123Plus(t *testing.T) {
 			name:     "deployment.environment.name (semconv 1.27+)",
 			spanName: "test-span",
 			rattrs: map[string]string{
-				"service.name":              "env-svc",
+				"service.name":                "env-svc",
 				"deployment.environment.name": "production-127",
 			},
 			sattrs:                           map[string]any{},
@@ -800,8 +800,8 @@ func TestProcessOTLPTraces_Semconv123Plus(t *testing.T) {
 			name:     "both deployment.environment.name (1.27) and deployment.environment (1.17) - newer takes precedence",
 			spanName: "test-span",
 			rattrs: map[string]string{
-				"service.name":                            "env-svc",
-				"deployment.environment.name":             "prod-127",
+				"service.name":                           "env-svc",
+				"deployment.environment.name":            "prod-127",
 				string(semconv.DeploymentEnvironmentKey): "prod-117",
 			},
 			sattrs:                           map[string]any{},
@@ -935,9 +935,9 @@ func TestProcessOTLPTraces_SemconvVersionMixing(t *testing.T) {
 			name:     "mixed env conventions - deployment.environment and deployment.environment.name",
 			spanName: "test-span",
 			rattrs: map[string]string{
-				"service.name":                            "mixed-env-svc",
+				"service.name":                           "mixed-env-svc",
 				string(semconv.DeploymentEnvironmentKey): "env-117",
-				"deployment.environment.name":             "env-127",
+				"deployment.environment.name":            "env-127",
 			},
 			sattrs:                           map[string]any{},
 			spanKind:                         ptrace.SpanKindServer,
@@ -948,9 +948,9 @@ func TestProcessOTLPTraces_SemconvVersionMixing(t *testing.T) {
 			name:     "datadog.env takes precedence over all OTel conventions",
 			spanName: "test-span",
 			rattrs: map[string]string{
-				"service.name":                            "dd-env-svc",
+				"service.name":                           "dd-env-svc",
 				string(semconv.DeploymentEnvironmentKey): "otel-env-117",
-				"deployment.environment.name":             "otel-env-127",
+				"deployment.environment.name":            "otel-env-127",
 				transform.KeyDatadogEnvironment:          "dd-env",
 			},
 			sattrs:                           map[string]any{},
