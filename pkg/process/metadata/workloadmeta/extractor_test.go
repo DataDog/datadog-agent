@@ -6,7 +6,6 @@
 package workloadmeta
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -250,24 +249,6 @@ func TestExtractor(t *testing.T) {
 			ContainerId:  ctrId1,
 		},
 	}, diff.Deletion)
-}
-
-func BenchmarkProcessIdentity(b *testing.B) {
-	cmdline := []string{"python", "myprogram.py", "--flag"}
-	b.Run("strconv", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			procutil.ProcessIdentity(0, 0, cmdline)
-		}
-	})
-	b.Run("sprintf", func(b *testing.B) {
-		processIdentity := func(pid int32, createTime int64, cmdline []string) string {
-			return fmt.Sprintf("%v|%v|%x", pid, createTime, 0) // simplified for benchmark
-		}
-
-		for i := 0; i < b.N; i++ {
-			processIdentity(0, 0, cmdline)
-		}
-	})
 }
 
 // Occasionally, WorkloadMeta will not have the ContainerID by the first time a process collection is executed. This test
