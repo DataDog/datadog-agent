@@ -1056,3 +1056,265 @@ func TestOtelSpanToDDSpan_NetworkSemconv117Plus(t *testing.T) {
 		})
 	}
 }
+
+// =============================================================================
+// FALLBACK INCONSISTENCY TESTS
+// These tests document the CURRENT behavior of hardcoded fallbacks.
+// Some of these behaviors may be inconsistent and are candidates for cleanup
+// when the new semantics library is introduced.
+// =============================================================================
+
+// TestFallbackInconsistency_HTTPStatusCodePrecedence documents that http.status_code (old)
+// takes precedence over http.response.status_code (new) in GetOTelStatusCode.
+// This is potentially inconsistent with HTTPMappings where http.response.status_code -> http.status_code.
+func TestFallbackInconsistency_HTTPStatusCodePrecedence(t *testing.T) {
+	tests := []struct {
+		name     string
+		sattrs   map[string]uint32
+		rattrs   map[string]uint32
+		expected uint32
+		note     string
+	}{
+		{
+			name: "CURRENT: old http.status_code takes precedence over new http.response.status_code in span",
+			sattrs: map[string]uint32{
+				string(semconv117.HTTPStatusCodeKey): 200,
+				"http.response.status_code":          500,
+			},
+			expected: 200,
+			note:     "Old convention wins when both are in span. May want new convention to win.",
+		},
+		{
+			name: "CURRENT: http.status_code in span wins over http.response.status_code in span",
+			sattrs: map[string]uint32{
+				"http.status_code":          201,
+				"http.response.status_code": 404,
+			},
+			expected: 201,
+			note:     "In GetOTelStatusCode, http.status_code is checked before http.response.status_code.",
+		},
+		{
+			name: "CURRENT: span http.response.status_code wins over resource http.status_code",
+			sattrs: map[string]uint32{
+				"http.response.status_code": 201,
+			},
+			rattrs: map[string]uint32{
+				string(semconv117.HTTPStatusCodeKey): 500,
+			},
+			expected: 201,
+			note:     "Span attributes take precedence over resource attributes.",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+			for k, v := range tt.sattrs {
+				span.Attributes().PutInt(k, int64(v))
+			}
+			res := pcommon.NewResource()
+			for k, v := range tt.rattrs {
+				res.Attributes().PutInt(k, int64(v))
+			}
+			actual := GetOTelStatusCode(span, res, false)
+			assert.Equal(t, tt.expected, actual, "Note: %s", tt.note)
+		})
+	}
+}
+
+// TestFallbackInconsistency_DBNamespacePrecedence documents that db.namespace lookup
+// uses GetOTelAttrValInResAndSpanAttrs which has RESOURCE precedence (opposite of most other lookups).
+func TestFallbackInconsistency_DBNamespacePrecedence(t *testing.T) {
+	cfg := &config.AgentConfig{}
+	cfg.OTLPReceiver = &config.OTLP{}
+	cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+
+	tests := []struct {
+		name         string
+		sattrs       map[string]string
+		rattrs       map[string]string
+		expectedName string
+		note         string
+	}{
+		{
+			name: "CURRENT: resource db.namespace takes precedence over span db.namespace",
+			sattrs: map[string]string{
+				string(semconv127.DBNamespaceKey): "span-db",
+			},
+			rattrs: map[string]string{
+				string(semconv127.DBNamespaceKey): "resource-db",
+			},
+			expectedName: "resource-db",
+			note:         "Uses GetOTelAttrValInResAndSpanAttrs which has resource-first precedence (inconsistent with most other lookups).",
+		},
+		{
+			name: "db.namespace only in span - works correctly",
+			sattrs: map[string]string{
+				string(semconv127.DBNamespaceKey): "span-only-db",
+			},
+			rattrs:       map[string]string{},
+			expectedName: "span-only-db",
+			note:         "Falls back to span when not in resource.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+			span.SetName("test-span")
+			span.SetTraceID([16]byte{1})
+			span.SetSpanID([8]byte{1})
+			for k, v := range tt.sattrs {
+				span.Attributes().PutStr(k, v)
+			}
+
+			res := pcommon.NewResource()
+			for k, v := range tt.rattrs {
+				res.Attributes().PutStr(k, v)
+			}
+
+			lib := pcommon.NewInstrumentationScope()
+			ddspan := OtelSpanToDDSpan(span, res, lib, cfg)
+
+			assert.Equal(t, tt.expectedName, ddspan.Meta["db.name"], "Note: %s", tt.note)
+		})
+	}
+}
+
+// TestFallbackInconsistency_ContainerIDFallback documents that container.id lookup
+// falls back to k8s.pod.uid but does NOT fall back to other potential container identifiers.
+func TestFallbackInconsistency_ContainerIDFallback(t *testing.T) {
+	tests := []struct {
+		name     string
+		sattrs   map[string]string
+		rattrs   map[string]string
+		expected string
+		note     string
+	}{
+		{
+			name:     "container.id only",
+			rattrs:   map[string]string{string(semconv117.ContainerIDKey): "container-123"},
+			expected: "container-123",
+			note:     "Primary key works.",
+		},
+		{
+			name:     "k8s.pod.uid fallback",
+			rattrs:   map[string]string{string(semconv117.K8SPodUIDKey): "pod-uid-456"},
+			expected: "pod-uid-456",
+			note:     "Falls back to k8s.pod.uid.",
+		},
+		{
+			name:     "container.id takes precedence over k8s.pod.uid",
+			rattrs:   map[string]string{string(semconv117.ContainerIDKey): "container-123", string(semconv117.K8SPodUIDKey): "pod-uid-456"},
+			expected: "container-123",
+			note:     "container.id wins over k8s.pod.uid.",
+		},
+		{
+			name:     "CURRENT: no fallback to container.runtime",
+			rattrs:   map[string]string{"container.runtime": "docker"},
+			expected: "",
+			note:     "container.runtime is NOT used as a fallback for container ID.",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+			for k, v := range tt.sattrs {
+				span.Attributes().PutStr(k, v)
+			}
+			res := pcommon.NewResource()
+			for k, v := range tt.rattrs {
+				res.Attributes().PutStr(k, v)
+			}
+			actual := GetOTelContainerID(span, res, false)
+			assert.Equal(t, tt.expected, actual, "Note: %s", tt.note)
+		})
+	}
+}
+
+// TestFallbackInconsistency_VersionNoFallback documents that version lookup
+// only checks service.version with NO fallback to other version attributes.
+func TestFallbackInconsistency_VersionNoFallback(t *testing.T) {
+	tests := []struct {
+		name     string
+		sattrs   map[string]string
+		rattrs   map[string]string
+		expected string
+		note     string
+	}{
+		{
+			name:     "service.version only",
+			rattrs:   map[string]string{string(semconv127.ServiceVersionKey): "1.2.3"},
+			expected: "1.2.3",
+			note:     "Primary key works.",
+		},
+		{
+			name:     "CURRENT: no fallback to telemetry.sdk.version",
+			rattrs:   map[string]string{"telemetry.sdk.version": "1.0.0"},
+			expected: "",
+			note:     "telemetry.sdk.version is NOT used as a fallback for version.",
+		},
+		{
+			name:     "CURRENT: no fallback to app.version",
+			rattrs:   map[string]string{"app.version": "2.0.0"},
+			expected: "",
+			note:     "app.version is NOT used as a fallback for version.",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+			for k, v := range tt.sattrs {
+				span.Attributes().PutStr(k, v)
+			}
+			res := pcommon.NewResource()
+			for k, v := range tt.rattrs {
+				res.Attributes().PutStr(k, v)
+			}
+			actual := GetOTelVersion(span, res, false)
+			assert.Equal(t, tt.expected, actual, "Note: %s", tt.note)
+		})
+	}
+}
+
+// TestFallbackInconsistency_Status2ErrorHTTPCodePrecedence documents that Status2Error
+// checks http.response.status_code BEFORE http.status_code (opposite of GetOTelStatusCode).
+func TestFallbackInconsistency_Status2ErrorHTTPCodePrecedence(t *testing.T) {
+	tests := []struct {
+		name        string
+		meta        map[string]string
+		expectedMsg string
+		note        string
+	}{
+		{
+			name: "CURRENT: http.response.status_code checked before http.status_code in Status2Error",
+			meta: map[string]string{
+				"http.response.status_code": "500",
+				"http.status_code":          "200",
+			},
+			expectedMsg: "500 Internal Server Error",
+			note:        "Status2Error uses http.response.status_code first - OPPOSITE of GetOTelStatusCode!",
+		},
+		{
+			name: "http.status_code used when http.response.status_code not present",
+			meta: map[string]string{
+				"http.status_code": "404",
+			},
+			expectedMsg: "404 Not Found",
+			note:        "Falls back to http.status_code when newer key not present.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			status := ptrace.NewStatus()
+			status.SetCode(ptrace.StatusCodeError)
+			events := ptrace.NewSpanEventSlice()
+			metaCopy := make(map[string]string)
+			for k, v := range tt.meta {
+				metaCopy[k] = v
+			}
+			Status2Error(status, events, metaCopy)
+			assert.Equal(t, tt.expectedMsg, metaCopy["error.msg"], "Note: %s", tt.note)
+		})
+	}
+}

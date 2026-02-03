@@ -1086,3 +1086,190 @@ func TestGetOTelAttrFromEitherMap_Precedence(t *testing.T) {
 		})
 	}
 }
+
+// =============================================================================
+// FALLBACK INCONSISTENCY TESTS
+// These tests document the CURRENT behavior of hardcoded fallbacks.
+// Some of these behaviors may be inconsistent and are candidates for cleanup
+// when the new semantics library is introduced.
+// =============================================================================
+
+// TestFallbackInconsistency_ResourceVsSpanPrecedence documents that two different
+// helper functions have OPPOSITE precedence rules for span vs resource attributes.
+func TestFallbackInconsistency_ResourceVsSpanPrecedence(t *testing.T) {
+	// Create test span and resource with same key, different values
+	span := ptrace.NewSpan()
+	span.Attributes().PutStr("test.key", "span-value")
+	span.Attributes().PutStr("db.system", "span-db")
+
+	res := pcommon.NewResource()
+	res.Attributes().PutStr("test.key", "resource-value")
+	res.Attributes().PutStr("db.system", "resource-db")
+
+	t.Run("GetOTelAttrFromEitherMap - span (map1) takes precedence", func(t *testing.T) {
+		// When called with (span.Attributes(), res.Attributes())
+		result := GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), false, "test.key")
+		assert.Equal(t, "span-value", result, "GetOTelAttrFromEitherMap: span attrs (map1) take precedence")
+	})
+
+	t.Run("GetOTelAttrValInResAndSpanAttrs - RESOURCE takes precedence (INCONSISTENT)", func(t *testing.T) {
+		// This function has resource-first precedence, which is OPPOSITE of GetOTelAttrFromEitherMap
+		result := GetOTelAttrValInResAndSpanAttrs(span, res, false, "test.key")
+		assert.Equal(t, "resource-value", result, "GetOTelAttrValInResAndSpanAttrs: RESOURCE takes precedence - INCONSISTENT!")
+	})
+
+	t.Run("SpanKind2Type uses GetOTelAttrValInResAndSpanAttrs - resource db.system wins", func(t *testing.T) {
+		span.SetKind(ptrace.SpanKindClient)
+		// SpanKind2Type calls GetOTelAttrValInResAndSpanAttrs for db.system
+		// So resource value should win
+		result := GetOTelAttrValInResAndSpanAttrs(span, res, true, string(semconv.DBSystemKey))
+		assert.Equal(t, "resource-db", result, "SpanKind2Type: resource db.system takes precedence")
+	})
+
+	t.Run("GetOTelSpanType uses GetOTelAttrFromEitherMap - span db.system wins", func(t *testing.T) {
+		span.SetKind(ptrace.SpanKindClient)
+		// GetOTelSpanType calls GetOTelAttrFromEitherMap for db.system
+		// So span value should win
+		result := GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, string(semconv.DBSystemKey))
+		assert.Equal(t, "span-db", result, "GetOTelSpanType: span db.system takes precedence")
+	})
+}
+
+// TestFallbackInconsistency_MessagingDestinationPrecedence documents that messaging.destination (old)
+// takes precedence over messaging.destination.name (new) in GetOTelResourceV1/V2.
+func TestFallbackInconsistency_MessagingDestinationPrecedence(t *testing.T) {
+	tests := []struct {
+		name       string
+		sattrs     map[string]string
+		expectedV1 string
+		expectedV2 string
+		note       string
+	}{
+		{
+			name: "CURRENT: messaging.destination (old) checked before messaging.destination.name (new)",
+			sattrs: map[string]string{
+				"messaging.operation":                          "send",
+				"messaging.destination":                        "old-destination",
+				string(semconv117.MessagingDestinationNameKey): "new-destination",
+			},
+			expectedV1: "send old-destination",
+			expectedV2: "send old-destination",
+			note:       "Old semconv key is checked first in the fallback list.",
+		},
+		{
+			name: "messaging.destination.name used when messaging.destination not present",
+			sattrs: map[string]string{
+				"messaging.operation":                          "receive",
+				string(semconv117.MessagingDestinationNameKey): "new-destination",
+			},
+			expectedV1: "receive new-destination",
+			expectedV2: "receive new-destination",
+			note:       "Falls back to newer key when old key not present.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+			span.SetName("span_name")
+			for k, v := range tt.sattrs {
+				span.Attributes().PutStr(k, v)
+			}
+			res := pcommon.NewResource()
+			assert.Equal(t, tt.expectedV1, GetOTelResourceV1(span, res), "V1: %s", tt.note)
+			assert.Equal(t, tt.expectedV2, GetOTelResourceV2(span, res), "V2: %s", tt.note)
+		})
+	}
+}
+
+// TestFallbackInconsistency_DBStatementVsQueryText documents that db.statement (old)
+// takes precedence over db.query.text (new) in GetOTelResourceV2.
+func TestFallbackInconsistency_DBStatementVsQueryText(t *testing.T) {
+	tests := []struct {
+		name     string
+		sattrs   map[string]string
+		expected string
+		note     string
+	}{
+		{
+			name: "CURRENT: db.statement (old) checked before db.query.text (new)",
+			sattrs: map[string]string{
+				"db.system":                       "postgresql",
+				"db.statement":                    "SELECT * FROM old_table",
+				string(semconv126.DBQueryTextKey): "SELECT * FROM new_table",
+			},
+			expected: "SELECT * FROM old_table",
+			note:     "Old db.statement is checked first, even though db.query.text is newer (semconv 1.26+).",
+		},
+		{
+			name: "db.query.text used when db.statement not present",
+			sattrs: map[string]string{
+				"db.system":                       "postgresql",
+				string(semconv126.DBQueryTextKey): "SELECT * FROM new_table",
+			},
+			expected: "SELECT * FROM new_table",
+			note:     "Falls back to db.query.text when db.statement not present.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+			span.SetName("span_name")
+			span.SetKind(ptrace.SpanKindClient)
+			for k, v := range tt.sattrs {
+				span.Attributes().PutStr(k, v)
+			}
+			res := pcommon.NewResource()
+			assert.Equal(t, tt.expected, GetOTelResourceV2(span, res), "Note: %s", tt.note)
+		})
+	}
+}
+
+// TestFallbackInconsistency_HTTPMethodPrecedence documents the http.request.method vs http.method precedence.
+func TestFallbackInconsistency_HTTPMethodPrecedence(t *testing.T) {
+	tests := []struct {
+		name       string
+		sattrs     map[string]string
+		spanKind   ptrace.SpanKind
+		expectedV1 string
+		expectedV2 string
+		note       string
+	}{
+		{
+			name: "http.request.method (new) checked BEFORE http.method (old) - CORRECT precedence",
+			sattrs: map[string]string{
+				"http.request.method":         "POST",
+				string(semconv.HTTPMethodKey): "GET",
+			},
+			spanKind:   ptrace.SpanKindServer,
+			expectedV1: "POST",
+			expectedV2: "POST",
+			note:       "http.request.method (1.23+) takes precedence - this is CORRECT newer-first behavior.",
+		},
+		{
+			name: "http.method used when http.request.method not present",
+			sattrs: map[string]string{
+				string(semconv.HTTPMethodKey): "DELETE",
+			},
+			spanKind:   ptrace.SpanKindServer,
+			expectedV1: "DELETE",
+			expectedV2: "DELETE",
+			note:       "Falls back to http.method when newer key not present.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+			span.SetName("span_name")
+			span.SetKind(tt.spanKind)
+			for k, v := range tt.sattrs {
+				span.Attributes().PutStr(k, v)
+			}
+			res := pcommon.NewResource()
+			assert.Equal(t, tt.expectedV1, GetOTelResourceV1(span, res), "V1: %s", tt.note)
+			assert.Equal(t, tt.expectedV2, GetOTelResourceV2(span, res), "V2: %s", tt.note)
+		})
+	}
+}

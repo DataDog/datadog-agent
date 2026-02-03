@@ -143,9 +143,9 @@
       "canonical": "http.status_code",
       "subsystems": ["stats", "normalization"],
       "fallbacks": [
-        {"name": "http.status_code", "provider": "datadog", "storage": "metrics"},
-        {"name": "http.status_code", "provider": "datadog", "storage": "meta"},
-        {"name": "http.response.status_code", "provider": "otel", "version": "1.23.0", "storage": "meta"}
+        {"name": "http.status_code", "provider": "datadog", "type": "int64"},
+        {"name": "http.status_code", "provider": "datadog", "type": "string"},
+        {"name": "http.response.status_code", "provider": "otel", "version": "1.23.0", "type": "int64"}
       ]
     },
     "http.method": {
@@ -167,12 +167,12 @@
       "canonical": "rpc.grpc.status_code",
       "subsystems": ["stats"],
       "fallbacks": [
-        {"name": "rpc.grpc.status_code", "provider": "otel", "storage": "metrics"},
-        {"name": "grpc.code", "provider": "datadog", "storage": "metrics"},
-        {"name": "rpc.grpc.status.code", "provider": "otel", "storage": "metrics"},
-        {"name": "grpc.status.code", "provider": "datadog", "storage": "metrics"},
-        {"name": "rpc.grpc.status_code", "provider": "otel", "storage": "meta"},
-        {"name": "grpc.code", "provider": "datadog", "storage": "meta"}
+        {"name": "rpc.grpc.status_code", "provider": "otel", "type": "int64"},
+        {"name": "grpc.code", "provider": "datadog", "type": "int64"},
+        {"name": "rpc.grpc.status.code", "provider": "otel", "type": "int64"},
+        {"name": "grpc.status.code", "provider": "datadog", "type": "int64"},
+        {"name": "rpc.grpc.status_code", "provider": "otel", "type": "string"},
+        {"name": "grpc.code", "provider": "datadog", "type": "string"}
       ]
     },
     "span.kind": {
@@ -383,4 +383,3 @@
     }
   }
 }
-

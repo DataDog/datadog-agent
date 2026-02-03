@@ -42,9 +42,9 @@ func TestGetAttributePrecedence_KnownConcept(t *testing.T) {
 			name:    "http.status_code chain",
 			concept: ConceptHTTPStatusCode,
 			expected: []TagInfo{
-				{Name: "http.status_code", Provider: ProviderDatadog, Storage: StorageMetrics},
-				{Name: "http.status_code", Provider: ProviderDatadog, Storage: StorageMeta},
-				{Name: "http.response.status_code", Provider: ProviderOTel, Version: "1.23.0", Storage: StorageMeta},
+				{Name: "http.status_code", Provider: ProviderDatadog, Type: ValueTypeInt64},
+				{Name: "http.status_code", Provider: ProviderDatadog, Type: ValueTypeString},
+				{Name: "http.response.status_code", Provider: ProviderOTel, Version: "1.23.0", Type: ValueTypeInt64},
 			},
 		},
 		{
@@ -69,12 +69,12 @@ func TestGetAttributePrecedence_KnownConcept(t *testing.T) {
 			name:    "rpc.grpc.status_code chain",
 			concept: ConceptGRPCStatusCode,
 			expected: []TagInfo{
-				{Name: "rpc.grpc.status_code", Provider: ProviderOTel, Storage: StorageMetrics},
-				{Name: "grpc.code", Provider: ProviderDatadog, Storage: StorageMetrics},
-				{Name: "rpc.grpc.status.code", Provider: ProviderOTel, Storage: StorageMetrics},
-				{Name: "grpc.status.code", Provider: ProviderDatadog, Storage: StorageMetrics},
-				{Name: "rpc.grpc.status_code", Provider: ProviderOTel, Storage: StorageMeta},
-				{Name: "grpc.code", Provider: ProviderDatadog, Storage: StorageMeta},
+				{Name: "rpc.grpc.status_code", Provider: ProviderOTel, Type: ValueTypeInt64},
+				{Name: "grpc.code", Provider: ProviderDatadog, Type: ValueTypeInt64},
+				{Name: "rpc.grpc.status.code", Provider: ProviderOTel, Type: ValueTypeInt64},
+				{Name: "grpc.status.code", Provider: ProviderDatadog, Type: ValueTypeInt64},
+				{Name: "rpc.grpc.status_code", Provider: ProviderOTel, Type: ValueTypeString},
+				{Name: "grpc.code", Provider: ProviderDatadog, Type: ValueTypeString},
 			},
 		},
 		{
@@ -141,7 +141,7 @@ func TestGetAttributePrecedence_KnownConcept(t *testing.T) {
 				assert.Equal(t, expected.Name, actual.Name, "tag[%d].Name mismatch", i)
 				assert.Equal(t, expected.Provider, actual.Provider, "tag[%d].Provider mismatch for %s", i, expected.Name)
 				assert.Equal(t, expected.Version, actual.Version, "tag[%d].Version mismatch for %s", i, expected.Name)
-				assert.Equal(t, expected.Storage, actual.Storage, "tag[%d].Storage mismatch for %s", i, expected.Name)
+				assert.Equal(t, expected.Type, actual.Type, "tag[%d].Type mismatch for %s", i, expected.Name)
 			}
 		})
 	}
@@ -166,39 +166,39 @@ func TestGetAttributePrecedence_NoFallbacks(t *testing.T) {
 	}{
 		{
 			concept:  ConceptPeerService,
-			expected: TagInfo{Name: "peer.service", Provider: ProviderDatadog, Version: "", Storage: ""},
+			expected: TagInfo{Name: "peer.service", Provider: ProviderDatadog, Version: "", Type: ""},
 		},
 		{
 			concept:  ConceptDDMeasured,
-			expected: TagInfo{Name: "_dd.measured", Provider: ProviderDatadog, Version: "", Storage: ""},
+			expected: TagInfo{Name: "_dd.measured", Provider: ProviderDatadog, Version: "", Type: ""},
 		},
 		{
 			concept:  ConceptMongoDBQuery,
-			expected: TagInfo{Name: "mongodb.query", Provider: ProviderDatadog, Version: "", Storage: ""},
+			expected: TagInfo{Name: "mongodb.query", Provider: ProviderDatadog, Version: "", Type: ""},
 		},
 		{
 			concept:  ConceptElasticsearchBody,
-			expected: TagInfo{Name: "elasticsearch.body", Provider: ProviderDatadog, Version: "", Storage: ""},
+			expected: TagInfo{Name: "elasticsearch.body", Provider: ProviderDatadog, Version: "", Type: ""},
 		},
 		{
 			concept:  ConceptRedisRawCommand,
-			expected: TagInfo{Name: "redis.raw_command", Provider: ProviderDatadog, Version: "", Storage: ""},
+			expected: TagInfo{Name: "redis.raw_command", Provider: ProviderDatadog, Version: "", Type: ""},
 		},
 		{
 			concept:  ConceptComponent,
-			expected: TagInfo{Name: "component", Provider: ProviderDatadog, Version: "", Storage: ""},
+			expected: TagInfo{Name: "component", Provider: ProviderDatadog, Version: "", Type: ""},
 		},
 		{
 			concept:  ConceptLinkName,
-			expected: TagInfo{Name: "link.name", Provider: ProviderDatadog, Version: "", Storage: ""},
+			expected: TagInfo{Name: "link.name", Provider: ProviderDatadog, Version: "", Type: ""},
 		},
 		{
 			concept:  ConceptDDBaseService,
-			expected: TagInfo{Name: "_dd.base_service", Provider: ProviderDatadog, Version: "", Storage: ""},
+			expected: TagInfo{Name: "_dd.base_service", Provider: ProviderDatadog, Version: "", Type: ""},
 		},
 		{
 			concept:  ConceptSamplingPriority,
-			expected: TagInfo{Name: "_sampling_priority_v1", Provider: ProviderDatadog, Version: "", Storage: ""},
+			expected: TagInfo{Name: "_sampling_priority_v1", Provider: ProviderDatadog, Version: "", Type: ""},
 		},
 	}
 
@@ -211,7 +211,7 @@ func TestGetAttributePrecedence_NoFallbacks(t *testing.T) {
 			assert.Equal(t, tt.expected.Name, tags[0].Name)
 			assert.Equal(t, tt.expected.Provider, tags[0].Provider)
 			assert.Equal(t, tt.expected.Version, tags[0].Version)
-			assert.Equal(t, tt.expected.Storage, tags[0].Storage)
+			assert.Equal(t, tt.expected.Type, tags[0].Type)
 		})
 	}
 }
@@ -287,41 +287,41 @@ func TestTagInfoMetadata(t *testing.T) {
 	})
 }
 
-func TestStorageMetadata(t *testing.T) {
+func TestTypeMetadata(t *testing.T) {
 	r, err := NewEmbeddedRegistry()
 	require.NoError(t, err)
 
-	t.Run("http.status_code storage chain", func(t *testing.T) {
+	t.Run("http.status_code type chain", func(t *testing.T) {
 		tags := r.GetAttributePrecedence(ConceptHTTPStatusCode)
 		require.NotNil(t, tags)
 		require.Len(t, tags, 3)
 
-		// First: metrics storage
+		// First: int64 type (numeric)
 		assert.Equal(t, "http.status_code", tags[0].Name)
-		assert.Equal(t, StorageMetrics, tags[0].Storage)
+		assert.Equal(t, ValueTypeInt64, tags[0].Type)
 
-		// Second: meta storage
+		// Second: string type
 		assert.Equal(t, "http.status_code", tags[1].Name)
-		assert.Equal(t, StorageMeta, tags[1].Storage)
+		assert.Equal(t, ValueTypeString, tags[1].Type)
 
-		// Third: OTel meta storage
+		// Third: OTel int64 type
 		assert.Equal(t, "http.response.status_code", tags[2].Name)
-		assert.Equal(t, StorageMeta, tags[2].Storage)
+		assert.Equal(t, ValueTypeInt64, tags[2].Type)
 	})
 
-	t.Run("rpc.grpc.status_code storage chain", func(t *testing.T) {
+	t.Run("rpc.grpc.status_code type chain", func(t *testing.T) {
 		tags := r.GetAttributePrecedence(ConceptGRPCStatusCode)
 		require.NotNil(t, tags)
 		require.Len(t, tags, 6)
 
-		// First 4 should be metrics storage
+		// First 4 should be int64 type
 		for i := 0; i < 4; i++ {
-			assert.Equal(t, StorageMetrics, tags[i].Storage, "tag[%d] should be metrics storage", i)
+			assert.Equal(t, ValueTypeInt64, tags[i].Type, "tag[%d] should be int64 type", i)
 		}
 
-		// Last 2 should be meta storage
+		// Last 2 should be string type
 		for i := 4; i < 6; i++ {
-			assert.Equal(t, StorageMeta, tags[i].Storage, "tag[%d] should be meta storage", i)
+			assert.Equal(t, ValueTypeString, tags[i].Type, "tag[%d] should be string type", i)
 		}
 	})
 }

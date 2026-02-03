@@ -117,7 +117,7 @@ type TagInfo struct {
 	// Version is the semantic convention version (e.g., "1.26.0" for OTel). Empty if not versioned.
 	Version string `json:"version,omitempty"`
 
-	// Storage indicates where the attribute is stored (meta or metrics). If empty, defaults to "meta" (string tags).
+	// Type indicates the value type of the attribute (string, float64, int64). If empty, defaults to "string".
 	Type ValueType `json:"type,omitempty"`
 }
 
