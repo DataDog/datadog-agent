@@ -196,12 +196,32 @@ def build(
                     f"cargo build --release {target_arg}",
                     env=rustenv,
                 )
+                print('Cargo build done')
+
         if embedded_path is not None:
             target_dir = f"{target_arch}/" if target_arch else ""
+            final_lib_path = os.path.join(embedded_path, "lib", "libdeepinference.so")
             shutil.move(
                 f"pkg/deepinference/rust/target/{target_dir}release/libdeepinference.so",
-                os.path.join(embedded_path, "lib", "libdeepinference.so"),
+                final_lib_path,
             )
+
+            print('\n--- Cc Debug ---')
+            print('\nReadelf')
+            ctx.run(f'readelf -d {final_lib_path}', warn=True)
+            print('\nObjdump')
+            ctx.run(f'objdump -T {final_lib_path}', warn=True)
+            print('\nNm')
+            ctx.run(f'nm {final_lib_path}', warn=True)
+            print('\nLdd')
+            ctx.run(f'ldd {final_lib_path}', warn=True)
+            print('--- Cc End ---\n')
+
+            # On Linux, use patchelf to set rpath so the library can find OpenSSL at runtime
+            if sys.platform.startswith("linux"):
+                openssl_lib_dir = os.path.join(embedded_path, "lib")
+                ctx.run(f"patchelf --set-rpath {openssl_lib_dir} {final_lib_path}")
+    print('Deepinference library has been built and prepared')
 
     bundled_agents = ["agent"]
     if sys.platform == 'win32' or os.getenv("GOOS") == "windows":
