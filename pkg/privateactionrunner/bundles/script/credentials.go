@@ -30,7 +30,9 @@ type RunPredefinedScriptConfig struct {
 }
 
 type RunPredefinedPowershellScriptConfig struct {
-	Command         []string               `yaml:"command"`
+	Script string `yaml:"script,omitempty"`
+	File string `yaml:"file,omitempty"`
+	Arguments []string `yaml:"arguments,omitempty"`
 	ParameterSchema map[string]interface{} `yaml:"parameterSchema,omitempty"`
 	AllowedEnvVars  []string               `yaml:"allowedEnvVars,omitempty"`
 }
