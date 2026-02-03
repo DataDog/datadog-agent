@@ -76,7 +76,7 @@ func (p *Process) GetCmdline() []string {
 // and command line hash. This allows detection of exec scenarios where the PID and creation time
 // remain the same but the command line changes.
 func ProcessIdentity(pid int32, createTime int64, cmdline []string) string {
-	return "pid:" + strconv.Itoa(int(pid)) + "|createTime:" + strconv.FormatInt(createTime, 10) + "|cmdHash:" + strconv.FormatUint(hashCmdline(cmdline), 16)
+	return "pid:" + strconv.FormatInt(int64(pid), 10) + "|createTime:" + strconv.FormatInt(createTime, 10) + "|cmdHash:" + strconv.FormatUint(hashCmdline(cmdline), 16)
 }
 
 // hashCmdline computes a fast FNV-1a hash of the command line arguments.
