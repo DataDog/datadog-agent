@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ExtensionsDBDir is the path to the extensions database, overridden in tests
@@ -105,8 +106,20 @@ func Install(ctx context.Context, downloader *oci.Downloader, url string, extens
 		dbPkg.Extensions = make(map[string]struct{})
 	}
 
+	// Track successfully installed extensions for rollback
+	var installedExtensions []string
+
+	// Rollback function
+	rollback := func() {
+		for _, ext := range installedExtensions {
+			log.Warnf("Rolling back extension %s due to installation failure", ext)
+			if removeErr := removeSingle(ctx, pkg.Name, pkg.Version, ext, hooks); removeErr != nil {
+				log.Errorf("Failed to rollback extension %s: %v", ext, removeErr)
+			}
+		}
+	}
+
 	// Process each extension
-	var installErrors []error
 	for _, extension := range extensions {
 		// Check if extension is already installed with the same package version
 		if _, exists := dbPkg.Extensions[extension]; exists {
@@ -116,20 +129,26 @@ func Install(ctx context.Context, downloader *oci.Downloader, url string, extens
 
 		err := installSingle(ctx, pkg, extension, hooks)
 		if err != nil {
-			installErrors = append(installErrors, err)
-			continue
+			// Rollback all successfully installed extensions
+			rollback()
+			return fmt.Errorf("failed to install extension %s: %w", extension, err)
 		}
 
+		// Track for potential rollback
+		installedExtensions = append(installedExtensions, extension)
 		// Mark as installed
 		dbPkg.Extensions[extension] = struct{}{}
 	}
 
+	// Update DB now that all extensions installed successfully
 	err = db.SetPackage(dbPkg, isExperiment)
 	if err != nil {
+		// Rollback on DB update failure
+		rollback()
 		return fmt.Errorf("could not update package in db: %w", err)
 	}
 
-	return errors.Join(installErrors...)
+	return nil
 }
 
 // installSingle installs a single extension for a package.
@@ -170,10 +189,28 @@ func installSingle(ctx context.Context, pkg *oci.DownloadedPackage, extension st
 		return fmt.Errorf("could not create directory for %s: %w", extension, err)
 	}
 	extensionPath := filepath.Join(extensionsPath, extension)
+
+	// Track whether we've moved files to final location
+	moved := false
+
+	// Defer cleanup of final location if we fail after moving
+	defer func() {
+		if err != nil && moved {
+			log.Warnf("Installation failed for %s, cleaning up files at %s", extension, extensionPath)
+			if cleanupErr := os.RemoveAll(extensionPath); cleanupErr != nil {
+				log.Errorf("Failed to cleanup extension files at %s: %v", extensionPath, cleanupErr)
+				// Add cleanup error to the returned error
+				err = fmt.Errorf("%w; cleanup failed: %v", err, cleanupErr)
+			}
+		}
+	}()
+
 	err = os.Rename(tmpDir, extensionPath)
 	if err != nil {
 		return fmt.Errorf("could not move %s to final location: %w", extension, err)
 	}
+	moved = true // Track that files are now in final location
+
 	if err := os.Chmod(extensionPath, 0755); err != nil {
 		return fmt.Errorf("could not set permissions on extension directory %s: %w", extensionPath, err)
 	}
