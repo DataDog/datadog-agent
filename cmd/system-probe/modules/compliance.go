@@ -50,7 +50,10 @@ func newComplianceModule(_ *sysconfigtypes.Config, deps module.FactoryDependenci
 
 	var complianceAgent *compliance.Agent
 
-	if deps.CoreConfig.GetBool("compliance_config.enabled") {
+	enabled := deps.CoreConfig.GetBool("compliance_config.enabled")
+	runInSystemProbe := deps.CoreConfig.GetBool("compliance_config.run_in_system_probe")
+
+	if enabled && runInSystemProbe {
 		hostnameDetected, err := deps.Hostname.Get(context.Background())
 		if err != nil {
 			return nil, err

@@ -82,6 +82,18 @@ config_setting(
     ],
     flag_values = {
         ":fips_mode": "true",
+    }
+)
+
+# Configuration value to determine if we are using the standard install path.
+# This can be used to detect custom builds, where we might not to create some pieces.
+# Currently this is used only for installer symlinks. It is likely that we should not
+# continue to do that. My hunch is that it was only done to prevent disk stomping in
+# developer builds.
+config_setting(
+    name = "is_standard_install",
+    flag_values = {
+        "//:install_dir": "/opt/datadog-agent",
     },
 )
 
