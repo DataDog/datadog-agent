@@ -1,0 +1,48 @@
+"""toolchain to wrap the otool binary.
+
+Type: @@//bazel/toolchains/otool:otool_toolchain_type
+
+Toolchains:
+- otool_missing_toolchain: provides a fallback toolchain for exec platforms
+  where otool might not be available.
+
+- otool_auto_toolchain: a toolchain that uses the installed otool. See
+  otool_configure.bzl%find_system_otool for usage.
+"""
+
+load("@@//bazel/toolchains/otool:otool.bzl", "is_otool_available", "otool_toolchain")
+
+# Expose the availability of an actual otool as a config_setting, so we can
+# select() on it.
+config_setting(
+    name = "have_otool",
+    flag_values = {
+        ":is_otool_available": "1",
+    },
+    visibility = ["//visibility:public"],
+)
+
+# Expose the availability of an actual otool as a feature flag, so we can
+# create a config_setting from it.
+is_otool_available(
+    name = "is_otool_available",
+)
+
+toolchain_type(
+    name = "otool_toolchain_type",
+    visibility = ["//visibility:public"],
+)
+
+# otool_missing_toolchain provides a fallback toolchain so that toolchain
+# resolution can succeed even on platforms that do not have a working otool.
+# If this toolchain is selected, the constraint ":have_otool" will not be
+# satistifed.
+otool_toolchain(
+    name = "no_otool",
+)
+
+toolchain(
+    name = "otool_missing_toolchain",
+    toolchain = ":no_otool",
+    toolchain_type = ":otool_toolchain_type",
+)

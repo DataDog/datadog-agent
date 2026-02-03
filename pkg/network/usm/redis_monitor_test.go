@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
@@ -116,7 +117,7 @@ func (s *redisProtocolParsingSuite) TestDecoding() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.isTLS && !gotlstestutil.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
+			if tt.isTLS && !gotlstestutil.GoTLSSupported(t, NewUSMEmptyConfig()) {
 				t.Skip("GoTLS not supported for this setup")
 			}
 			testRedisDecoding(t, tt.isTLS, tt.protocolVersion, tt.trackResources)
@@ -132,7 +133,7 @@ func waitForRedisServer(t *testing.T, serverAddress string, enableTLS bool, vers
 	defer redisClient.Close()
 	require.Eventually(t, func() bool {
 		return redisClient.Ping(context.Background()).Err() == nil
-	}, 5*time.Second, 100*time.Millisecond, "couldn't connect to redis server")
+	}, 10*time.Second, 100*time.Millisecond, "couldn't connect to redis server")
 }
 
 func testRedisDecoding(t *testing.T, isTLS bool, version int, trackResources bool) {
@@ -182,16 +183,86 @@ func testRedisDecoding(t *testing.T, isTLS bool, version int, trackResources boo
 				if trackResources {
 					keyName = "test-key"
 				}
-				validateRedis(t, monitor, map[string]map[redis.CommandType]int{
+				expected := map[string]map[redis.CommandType]int{
 					keyName: {
 						redis.GetCommand: adjustCount(1),
 						redis.SetCommand: adjustCount(1),
 					},
-				}, isTLS)
+				}
+				// Add warmup PING - merge into same key if trackResources=false
+				if keyName == "" {
+					expected[""][redis.PingCommand] = adjustCount(1)
+				} else {
+					expected[""] = map[redis.CommandType]int{
+						redis.PingCommand: adjustCount(1),
+					}
+				}
+				validateRedis(t, monitor, expected, isTLS)
 			},
 		},
 	}
 
+	// PING tests should only run when trackResources=false since PING doesn't have keys
+	if !trackResources {
+		tests = append(tests, redisParsingTestAttributes{
+			name: "ping command",
+			preMonitorSetup: func(t *testing.T, ctx redisTestContext) {
+				dialer := &net.Dialer{}
+				redisClient, err := redis.NewClient(ctx.serverAddress, dialer, isTLS, version)
+				require.NoError(t, err)
+				require.NotNil(t, redisClient)
+				require.NoError(t, redisClient.Ping(context.Background()).Err())
+				ctx.extras["redis"] = redisClient
+			},
+			postMonitorSetup: func(t *testing.T, ctx redisTestContext) {
+				redisClient := ctx.extras["redis"].(*redisv9.Client)
+				// Execute multiple PING commands
+				for i := 0; i < 5; i++ {
+					require.NoError(t, redisClient.Ping(context.Background()).Err())
+				}
+			},
+			validation: func(t *testing.T, _ redisTestContext, monitor *Monitor) {
+				// PING doesn't have a key, so keyName is always empty
+				// Count includes: 1 PING from line 286 + 5 PINGs from postMonitorSetup = 6 total
+				validateRedis(t, monitor, map[string]map[redis.CommandType]int{
+					"": {
+						redis.PingCommand: adjustCount(6),
+					},
+				}, isTLS)
+			},
+		})
+
+		tests = append(tests, redisParsingTestAttributes{
+			name: "ping command with message (bulk string response)",
+			preMonitorSetup: func(t *testing.T, ctx redisTestContext) {
+				dialer := &net.Dialer{}
+				redisClient, err := redis.NewClient(ctx.serverAddress, dialer, isTLS, version)
+				require.NoError(t, err)
+				require.NotNil(t, redisClient)
+				require.NoError(t, redisClient.Ping(context.Background()).Err())
+				ctx.extras["redis"] = redisClient
+			},
+			postMonitorSetup: func(t *testing.T, ctx redisTestContext) {
+				redisClient := ctx.extras["redis"].(*redisv9.Client)
+				// PING with message argument returns bulk string instead of simple string
+				// This tests that all RESP response types are accepted
+				for i := 0; i < 3; i++ {
+					result, err := redisClient.Do(context.Background(), "PING", "hello").Result()
+					require.NoError(t, err)
+					require.Equal(t, "hello", result)
+				}
+			},
+			validation: func(t *testing.T, _ redisTestContext, monitor *Monitor) {
+				// PING doesn't have a key, so keyName is always empty
+				// Count includes: 1 PING from line 287 + 3 PINGs with message from postMonitorSetup = 4 total
+				validateRedis(t, monitor, map[string]map[redis.CommandType]int{
+					"": {
+						redis.PingCommand: adjustCount(4),
+					},
+				}, isTLS)
+			},
+		})
+	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.context = redisTestContext{
@@ -215,6 +286,9 @@ func testRedisDecoding(t *testing.T, isTLS bool, version int, trackResources boo
 			}
 			require.NoError(t, monitor.Resume())
 
+			// Give monitor time to fully start before sending traffic
+			time.Sleep(100 * time.Millisecond)
+
 			obj, ok := tt.context.extras["redis"]
 			require.True(t, ok)
 			redisClient := obj.(*redisv9.Client)
@@ -227,7 +301,7 @@ func testRedisDecoding(t *testing.T, isTLS bool, version int, trackResources boo
 }
 
 func getRedisDefaultTestConfiguration(enableTLS bool) *config.Config {
-	cfg := utils.NewUSMEmptyConfig()
+	cfg := NewUSMEmptyConfig()
 	cfg.EnableRedisMonitoring = true
 	cfg.RedisTrackResources = true // Enable resource tracking for tests
 	cfg.MaxTrackedConnections = 1000
@@ -239,16 +313,17 @@ func getRedisDefaultTestConfiguration(enableTLS bool) *config.Config {
 
 func validateRedis(t *testing.T, monitor *Monitor, expectedStats map[string]map[redis.CommandType]int, tls bool) {
 	found := make(map[string]map[redis.CommandType]int)
-	require.Eventually(t, func() bool {
+	assert.Eventually(t, func() bool {
 		statsObj, cleaners := monitor.GetProtocolStats()
-		t.Cleanup(cleaners)
+		defer cleaners()
 		redisProtocolStats, exists := statsObj[protocols.Redis]
 		if !exists {
 			return false
 		}
 		currentStats := redisProtocolStats.(map[redis.Key]*redis.RequestStats)
+
 		for key, stats := range currentStats {
-			// Check all error states for TLS tag and sum counts
+			// Check all error states for TLS tag
 			var hasTLSTag bool
 			for _, stat := range stats.ErrorToStats {
 				if stat.StaticTags&ebpftls.ConnTagGo != 0 {

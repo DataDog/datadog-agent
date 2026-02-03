@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -54,10 +55,10 @@ type KubeEndpointsListener struct {
 // KubeEndpointService represents an endpoint in a Kubernetes Endpoints
 type KubeEndpointService struct {
 	entity          string
-	metadata        *workloadfilter.Endpoint
+	metadata        *workloadfilter.KubeEndpoint
 	tags            []string
 	hosts           map[string]string
-	ports           []ContainerPort
+	ports           []workloadmeta.ContainerPort
 	metricsExcluded bool
 	globalExcluded  bool
 	namespace       string
@@ -334,15 +335,15 @@ func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, checkServiceAnn
 func processEndpoints(kep *v1.Endpoints, tags []string, filterStore workloadfilter.Component) []*KubeEndpointService {
 	var eps []*KubeEndpointService
 
-	filterableEndpoint := workloadfilter.CreateEndpoint(kep.Name, kep.Namespace, kep.GetAnnotations())
-	metricsExcluded := filterStore.GetEndpointAutodiscoveryFilters(workloadfilter.MetricsFilter).IsExcluded(filterableEndpoint)
-	globalExcluded := filterStore.GetEndpointAutodiscoveryFilters(workloadfilter.GlobalFilter).IsExcluded(filterableEndpoint)
+	filterableEndpoint := workloadfilter.CreateKubeEndpoint(kep.Name, kep.Namespace, kep.GetAnnotations())
+	metricsExcluded := filterStore.GetKubeEndpointAutodiscoveryFilters(workloadfilter.MetricsFilter).IsExcluded(filterableEndpoint)
+	globalExcluded := filterStore.GetKubeEndpointAutodiscoveryFilters(workloadfilter.GlobalFilter).IsExcluded(filterableEndpoint)
 
 	for i := range kep.Subsets {
-		ports := []ContainerPort{}
+		ports := []workloadmeta.ContainerPort{}
 		// Ports
 		for _, port := range kep.Subsets[i].Ports {
-			ports = append(ports, ContainerPort{int(port.Port), port.Name})
+			ports = append(ports, workloadmeta.ContainerPort{Port: int(port.Port), Name: port.Name})
 		}
 		// Hosts
 		for _, host := range kep.Subsets[i].Addresses {
@@ -455,9 +456,9 @@ func (s *KubeEndpointService) GetPid() (int, error) {
 }
 
 // GetPorts returns the endpoint's ports
-func (s *KubeEndpointService) GetPorts() ([]ContainerPort, error) {
+func (s *KubeEndpointService) GetPorts() ([]workloadmeta.ContainerPort, error) {
 	if s.ports == nil {
-		return []ContainerPort{}, nil
+		return []workloadmeta.ContainerPort{}, nil
 	}
 	return s.ports, nil
 }

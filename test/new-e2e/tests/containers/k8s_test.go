@@ -16,8 +16,9 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/agent-payload/v5/sbom"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"gopkg.in/zorkian/go-datadog-api.v2"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -514,9 +515,9 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 			suite.T().Logf("Output:\n%s", stdout)
 
 			validEntryCount := 0
-			lines := strings.Split(stdout, "\n")
+			lines := strings.SplitSeq(stdout, "\n")
 
-			for _, line := range lines {
+			for line := range lines {
 				line = strings.TrimSpace(line)
 				if line == "" {
 					continue
@@ -535,6 +536,14 @@ func (suite *k8sSuite) testClusterAgentCLI() {
 			suite.T().Logf("Found %d workload metric entries in local store", validEntryCount)
 			assert.GreaterOrEqual(c, validEntryCount, 10, "Should have at least 10 workload entries in local store, but got %d", validEntryCount)
 		}, 3*time.Minute, 10*time.Second, "Failed to get workload metrics from local store")
+	})
+
+	suite.Run("cluster-agent CRD collector", func() {
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", leaderDcaPodName, "cluster-agent", []string{"agent", "workload-list"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `agent workload-list` should be empty")
+		suite.Contains(stdout, "=== Entity crd sources(merged):[kubeapiserver] id: datadogmetrics.datadoghq.com ===")
+
 	})
 }
 
@@ -736,6 +745,9 @@ func (suite *k8sSuite) TestRedis() {
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "redis.net.instantaneous_ops_per_sec",
+			Tags: []string{
+				`^kube_namespace:workload-redis$`,
+			},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
@@ -793,6 +805,9 @@ func (suite *k8sSuite) TestRedis() {
 	suite.testLog(&testLogArgs{
 		Filter: testLogFilterArgs{
 			Service: "redis",
+			Tags: []string{
+				`^kube_namespace:workload-redis$`,
+			},
 		},
 		Expect: testLogExpectArgs{
 			Tags: &[]string{
@@ -1586,6 +1601,7 @@ func (suite *k8sSuite) TestSBOM() {
 				regexp.MustCompile(`^image_name:ghcr\.io/datadog/apps-nginx-server$`),
 				regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`),
 				regexp.MustCompile(`^os_name:linux$`),
+				regexp.MustCompile(`^scan_method:(filesystem|tarball|overlayfs)$`),
 				regexp.MustCompile(`^short_image:apps-nginx-server$`),
 			}
 			err = assertTags(image.GetTags(), expectedTags, []*regexp.Regexp{}, false)

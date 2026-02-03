@@ -155,7 +155,7 @@ def run(
     e2e_tests=True,
     kmt_tests=True,
     rc_build=False,
-    rc_k8s_deployments=False,
+    run_flaky_tests=False,
 ):
     """
     Run a pipeline on the given git ref (--git-ref <git ref>), or on the current branch if --here is given.
@@ -165,10 +165,10 @@ def run(
     Use --no-all-builds to not run builds for all architectures (only a subset of jobs will run. No effect on pipelines on the default branch).
     Use --no-kmt-tests to not run all Kernel Matrix Tests on the pipeline.
     Use --e2e-tests to run all e2e tests on the pipeline.
+    Use --run-flaky-tests to run tests that are marked as flaky (by default, known flaky tests are skipped).
 
     Release Candidate related flags:
-    Use --rc-build to mark the build as Release Candidate.
-    Use --rc-k8s-deployments to trigger a child pipeline that will deploy Release Candidate build to staging k8s clusters.
+    Use --rc-build to mark the build as Release Candidate. Staging k8s deployment PR will be created during the build pipeline.
 
     By default, the pipeline builds both Agent 6 and Agent 7.
     Use the --major-versions option to specify a comma-separated string of the major Agent versions to build
@@ -191,6 +191,9 @@ def run(
 
     Run a pipeline with e2e tets on the current branch:
       dda inv pipeline.run --here --e2e-tests
+
+    Run a pipeline that includes flaky tests on the current branch:
+      dda inv pipeline.run --here --run-flaky-tests
 
     Run a deploy pipeline on the 7.32.0 tag, uploading the artifacts to the stable branch of the staging repositories:
       dda inv pipeline.run --deploy --major-versions "6,7" --git-ref "7.32.0" --repo-branch "stable"
@@ -248,7 +251,7 @@ def run(
             e2e_tests=e2e_tests,
             kmt_tests=kmt_tests,
             rc_build=rc_build,
-            rc_k8s_deployments=rc_k8s_deployments,
+            run_flaky_tests=run_flaky_tests,
         )
     except FilteredOutException:
         print(color_message(f"ERROR: pipeline does not match any workflow rule. Rules:\n{workflow_rules()}", "red"))

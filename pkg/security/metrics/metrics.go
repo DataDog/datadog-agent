@@ -39,6 +39,10 @@ var (
 	// Tags: rule_id
 	MetricRulesSuppressed = newRuntimeMetric(".rules.suppressed")
 
+	// MetricRulesNoMatch is the number of events that reached userspace but didn't match any rule
+	// Tags: event_type, category
+	MetricRulesNoMatch = newRuntimeMetric(".rules.no_match")
+
 	// Rule action metrics
 
 	// MetricRuleActionPerformed is the name of the metric used to count actions performed after a rule was matched
@@ -161,10 +165,6 @@ var (
 	// process cache
 	// Tags: -
 	MetricProcessResolverCacheSize = newRuntimeMetric(".process_resolver.cache_size")
-	// MetricProcessResolverReferenceCount is the name of the metric used to report the number of entry cache still
-	// referenced in the process tree
-	// Tags: -
-	MetricProcessResolverReferenceCount = newRuntimeMetric(".process_resolver.reference_count")
 	// MetricProcessResolverMiss is the name of the metric used to report process resolver cache misses
 	// Tags: -
 	MetricProcessResolverMiss = newRuntimeMetric(".process_resolver.miss")
@@ -211,6 +211,12 @@ var (
 	// MetricMountResolverMiss is the counter of unsuccessful mount resolution
 	// Tags: cache, procfs
 	MetricMountResolverMiss = newRuntimeMetric(".mount_resolver.miss")
+	// MetricMountResolverMiss is the counter of unsuccessful procfs mount resolution
+	// Tags: cache, procfs
+	MetricMountResolverProcfsMiss = newRuntimeMetric(".mount_resolver.procfs_miss")
+	// MetricMountResolverProcfsHits is the counter of successful procfs mount resolution
+	// Tags: cache, procfs
+	MetricMountResolverProcfsHits = newRuntimeMetric(".mount_resolver.procfs_hits")
 
 	// Activity dump metrics
 
@@ -310,12 +316,6 @@ var (
 	// MetricCGroupResolverFallbackFailed is the name of the metric used to report the number of failed fallbacks
 	// Tags: -
 	MetricCGroupResolverFallbackFailed = newRuntimeMetric(".cgroup_resolver.fallback_failed")
-	// MetricCGroupResolverAddPIDCgroupPresent is the name of the metric used to report the number of calls of ADDPid() with an cgroup context
-	// Tags: -
-	MetricCGroupResolverAddPIDCgroupPresent = newRuntimeMetric(".cgroup_resolver.addpid_cgroup_present")
-	// MetricCGroupResolverAddPIDCgroupAbsent is the name of the metric used to report the number of calls of ADDPid() with no cgroup context
-	// Tags: -
-	MetricCGroupResolverAddPIDCgroupAbsent = newRuntimeMetric(".cgroup_resolver.addpid_cgroup_absent")
 
 	// Security Profile metrics
 

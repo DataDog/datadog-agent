@@ -12,8 +12,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/prometheus/common/model"
-
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -22,6 +20,7 @@ import (
 	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/prometheus"
 )
 
 var (
@@ -154,18 +153,18 @@ func (p *PodUtils) IsHostNetworkedPod(podUID string) bool {
 // GetContainerID returns the container ID from the workloadmeta.Component for a given set of metric labels.
 // It should only be called on a container-scoped metric. It returns an empty string if the container could not be
 // found, or if the container should be filtered out.
-func GetContainerID(store workloadmeta.Component, metric model.Metric, containerFilter workloadfilter.FilterBundle) (string, error) {
-	namespace := string(metric["namespace"])
-	podUID := string(metric["pod_uid"])
+func GetContainerID(store workloadmeta.Component, metric prometheus.Metric, containerFilter workloadfilter.FilterBundle) (string, error) {
+	namespace := metric["namespace"]
+	podUID := metric["pod_uid"]
 	// k8s >= 1.16
-	containerName := string(metric["container"])
-	podName := string(metric["pod"])
+	containerName := metric["container"]
+	podName := metric["pod"]
 	// k8s < 1.16
 	if containerName == "" {
-		containerName = string(metric["container_name"])
+		containerName = metric["container_name"]
 	}
 	if podName == "" {
-		podName = string(metric["pod_name"])
+		podName = metric["pod_name"]
 	}
 
 	pod, err := store.GetKubernetesPod(podUID)

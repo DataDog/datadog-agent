@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net"
 	"reflect"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -27,6 +28,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/validators"
 )
+
+var (
+	arrayIndexRE = regexp.MustCompile(`^(.+)\[(\d+)\]$`)
+)
+
+// parseArrayFieldAccess parses a field like "open.file.hashes[0]" and returns the base field and index
+func parseArrayFieldAccess(field string) (baseField string, index int, isArray bool) {
+	matches := arrayIndexRE.FindStringSubmatch(field)
+	if len(matches) == 3 {
+		baseField = matches[1]
+		index, _ = strconv.Atoi(matches[2])
+		return baseField, index, true
+	}
+	return field, 0, false
+}
 
 // Rule presents a rule in a ruleset
 type Rule struct {
@@ -68,6 +84,8 @@ type RuleSet struct {
 	listeners        []RuleSetListener
 	globalVariables  *eval.Variables
 	scopedVariables  map[Scope]VariableProvider
+	parsingContext   *ast.ParsingContext
+
 	// fields holds the list of event field queries (like "process.uid") used by the entire set of rules
 	fields []eval.Field
 	logger log.Logger
@@ -272,12 +290,12 @@ func (rs *RuleSet) GetVariables() map[string]eval.SECLVariable {
 }
 
 // AddMacros parses the macros AST and adds them to the list of macros of the ruleset
-func (rs *RuleSet) AddMacros(parsingContext *ast.ParsingContext, macros []*PolicyMacro) *multierror.Error {
+func (rs *RuleSet) AddMacros(macros []*PolicyMacro) *multierror.Error {
 	var result *multierror.Error
 
 	// Build the list of macros for the ruleset
 	for _, macroDef := range macros {
-		if _, err := rs.AddMacro(parsingContext, macroDef); err != nil {
+		if _, err := rs.AddMacro(macroDef); err != nil {
 			result = multierror.Append(result, err)
 		}
 	}
@@ -286,7 +304,7 @@ func (rs *RuleSet) AddMacros(parsingContext *ast.ParsingContext, macros []*Polic
 }
 
 // AddMacro parses the macro AST and adds it to the list of macros of the ruleset
-func (rs *RuleSet) AddMacro(parsingContext *ast.ParsingContext, pMacro *PolicyMacro) (*eval.Macro, error) {
+func (rs *RuleSet) AddMacro(pMacro *PolicyMacro) (*eval.Macro, error) {
 	var err error
 
 	if rs.evalOpts.MacroStore.Contains(pMacro.Def.ID) {
@@ -303,7 +321,7 @@ func (rs *RuleSet) AddMacro(parsingContext *ast.ParsingContext, pMacro *PolicyMa
 			return nil, &ErrMacroLoad{Macro: pMacro, Err: errors.New("macro expression cannot contain 'fim.write.file.' event types")}
 		}
 
-		if macro, err = eval.NewMacro(pMacro.Def.ID, pMacro.Def.Expression, rs.model, parsingContext, rs.evalOpts); err != nil {
+		if macro, err = eval.NewMacro(pMacro.Def.ID, pMacro.Def.Expression, rs.model, rs.parsingContext, rs.evalOpts); err != nil {
 			return nil, &ErrMacroLoad{Macro: pMacro, Err: err}
 		}
 	default:
@@ -318,11 +336,11 @@ func (rs *RuleSet) AddMacro(parsingContext *ast.ParsingContext, pMacro *PolicyMa
 }
 
 // AddRules adds rules to the ruleset and generate their partials
-func (rs *RuleSet) AddRules(parsingContext *ast.ParsingContext, pRules []*PolicyRule) *multierror.Error {
+func (rs *RuleSet) AddRules(pRules []*PolicyRule) *multierror.Error {
 	var result *multierror.Error
 
 	for _, pRule := range pRules {
-		if _, err := rs.AddRule(parsingContext, pRule); err != nil {
+		if _, err := rs.AddRule(pRule); err != nil {
 			result = multierror.Append(result, err)
 		}
 	}
@@ -433,10 +451,22 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 					}
 
 					if actionDef.Set.Field != "" {
-						_, kind, _, fieldIsArray, err := rs.eventCtor().GetFieldMetadata(actionDef.Set.Field)
+						// Check if this is an array access like "field[index]"
+						baseField, _, isArrayAccess := parseArrayFieldAccess(actionDef.Set.Field)
+						fieldToValidate := actionDef.Set.Field
+						if isArrayAccess {
+							fieldToValidate = baseField
+						}
+
+						_, kind, _, fieldIsArray, err := rs.eventCtor().GetFieldMetadata(fieldToValidate)
 						if err != nil {
-							errs = multierror.Append(errs, fmt.Errorf("failed to get field '%s': %w", actionDef.Set.Field, err))
+							errs = multierror.Append(errs, fmt.Errorf("failed to get field '%s': %w", fieldToValidate, err))
 							continue
+						}
+
+						// If accessing array by index, the field is not an array from the variable's perspective
+						if isArrayAccess {
+							fieldIsArray = false
 						}
 
 						var valueIsArray bool
@@ -456,10 +486,32 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 						}
 					}
 				} else if actionDef.Set.Field != "" {
-					_, kind, goType, _, err := rs.eventCtor().GetFieldMetadata(actionDef.Set.Field)
+					// Check if this is an array access like "field[index]"
+					baseField, _, isArrayAccess := parseArrayFieldAccess(actionDef.Set.Field)
+					fieldToValidate := actionDef.Set.Field
+					if isArrayAccess {
+						fieldToValidate = baseField
+					}
+
+					_, kind, goType, isArray, err := rs.eventCtor().GetFieldMetadata(fieldToValidate)
 					if err != nil {
-						errs = multierror.Append(errs, fmt.Errorf("failed to get field '%s': %w", actionDef.Set.Field, err))
+						errs = multierror.Append(errs, fmt.Errorf("failed to get field '%s': %w", fieldToValidate, err))
 						continue
+					}
+
+					// If accessing array by index, validate that the base field is actually an array
+					if isArrayAccess {
+						if !isArray {
+							errs = multierror.Append(errs, fmt.Errorf("field '%s' is not an array, cannot use index access", baseField))
+							continue
+						}
+						// When accessing by index, we treat it as a scalar value (no further validation needed)
+					} else {
+						// Check if the field is an array and append is not set
+						if isArray && !actionDef.Set.Append {
+							errs = multierror.Append(errs, fmt.Errorf("field '%s' is an array and can only be used with 'append: yes' in set action for variable '%s'", actionDef.Set.Field, actionDef.Set.Name))
+							continue
+						}
 					}
 
 					switch kind {
@@ -573,7 +625,7 @@ func (rs *RuleSet) WithExcludedRuleFromDiscarders(excludedRuleFromDiscarders map
 }
 
 // AddRule creates the rule evaluator and adds it to the bucket of its events
-func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule) (model.EventCategory, error) {
+func (rs *RuleSet) AddRule(pRule *PolicyRule) (model.EventCategory, error) {
 	if pRule.Def.Disabled {
 		return model.UnknownCategory, nil
 	}
@@ -596,7 +648,7 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule
 
 	categories := make([]model.EventCategory, 0)
 	for _, er := range expandedRules {
-		category, err := rs.innerAddExpandedRule(parsingContext, pRule, er, tags)
+		category, err := rs.innerAddExpandedRule(pRule, er, tags)
 		if err != nil {
 			return model.UnknownCategory, err
 		}
@@ -609,8 +661,8 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule
 	return categories[0], nil
 }
 
-func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRule *PolicyRule, exRule expandedRule, tags []string) (model.EventCategory, error) {
-	evalRule, err := eval.NewRule(exRule.id, exRule.expr, parsingContext, rs.evalOpts, tags...)
+func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, tags []string) (model.EventCategory, error) {
+	evalRule, err := eval.NewRule(exRule.id, exRule.expr, rs.parsingContext, rs.evalOpts, tags...)
 	if err != nil {
 		return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: &ErrRuleSyntax{Err: err}}
 	}
@@ -622,6 +674,11 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 
 	if err := rule.GenEvaluator(rs.model); err != nil {
 		return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: err}
+	}
+
+	// call an extra layer of validation
+	if err := evalRule.Model.ValidateRule(evalRule); err != nil {
+		return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: &ErrRuleSyntax{Err: err}}
 	}
 
 	eventType, err := GetRuleEventType(rule.Rule)
@@ -652,7 +709,7 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 	for _, action := range rule.PolicyRule.Actions {
 		if action.Def.Filter != nil {
 			// compile action filter
-			if err := action.CompileFilter(parsingContext, rs.model, rs.evalOpts); err != nil {
+			if err := action.CompileFilter(rs.parsingContext, rs.model, rs.evalOpts); err != nil {
 				return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: err}
 			}
 		}
@@ -674,9 +731,18 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 					return model.UnknownCategory, fmt.Errorf("failed to compile action expression: %w", err)
 				}
 
-				fieldEventType, _, _, _, err := ev.GetFieldMetadata(field)
+				// Check if this is an array access like "field[index]"
+				baseField, _, isArrayAccess := parseArrayFieldAccess(field)
+
+				// Validate using the base field if this is an array access
+				fieldToValidate := field
+				if isArrayAccess {
+					fieldToValidate = baseField
+				}
+
+				fieldEventType, _, _, _, err := ev.GetFieldMetadata(fieldToValidate)
 				if err != nil {
-					return model.UnknownCategory, fmt.Errorf("failed to get event type for field '%s': %w", field, err)
+					return model.UnknownCategory, fmt.Errorf("failed to get event type for field '%s': %w", fieldToValidate, err)
 				}
 				if fieldEventType != "" && fieldEventType != ruleEventType {
 					return model.UnknownCategory, fmt.Errorf("field '%s' with event type `%s` is not compatible with '%s' rules", field, fieldEventType, ruleEventType)
@@ -691,6 +757,7 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 				}
 
 				if _, found := rs.fieldEvaluators[field]; !found {
+					// GetEvaluator now handles array index access automatically
 					evaluator, err := rs.model.GetEvaluator(mappedField, "", 0)
 					if err != nil {
 						return model.UnknownCategory, err
@@ -698,7 +765,7 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 					rs.fieldEvaluators[field] = evaluator
 				}
 			} else if expression := action.Def.Set.Expression; expression != "" {
-				astRule, err := parsingContext.ParseExpression(expression)
+				astRule, err := rs.parsingContext.ParseExpression(expression)
 				if err != nil {
 					return model.UnknownCategory, fmt.Errorf("failed to parse action expression: %w", err)
 				}
@@ -1150,8 +1217,6 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) ([]
 		rulesIndex    = make(map[string]*PolicyRule)
 	)
 
-	parsingContext := ast.NewParsingContext(false)
-
 	policies, err := loader.LoadPolicies(opts)
 	if err != nil {
 		errs = multierror.Append(errs, err)
@@ -1201,7 +1266,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) ([]
 		}
 	}
 
-	if err := rs.AddMacros(parsingContext, allMacros); err.ErrorOrNil() != nil {
+	if err := rs.AddMacros(allMacros); err.ErrorOrNil() != nil {
 		errs = multierror.Append(errs, err)
 	}
 
@@ -1209,7 +1274,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) ([]
 		errs = multierror.Append(errs, err)
 	}
 
-	if err := rs.AddRules(parsingContext, allRules); err.ErrorOrNil() != nil {
+	if err := rs.AddRules(allRules); err.ErrorOrNil() != nil {
 		errs = multierror.Append(errs, err)
 	}
 
@@ -1276,6 +1341,7 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalO
 		fieldEvaluators:  make(map[string]eval.Evaluator),
 		scopedVariables:  make(map[Scope]VariableProvider),
 		globalVariables:  eval.NewVariables(),
+		parsingContext:   ast.NewParsingContext(opts.RuleCacheEnabled),
 	}
 }
 

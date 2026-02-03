@@ -5,7 +5,8 @@ kind: Deployment
 metadata:
   name: datadog-cluster-agent
   namespace: default
-  labels: {}
+  labels:
+    agent.datadoghq.com/component: cluster-agent
 spec:
   replicas: 1
   revisionHistoryLimit: 10
@@ -21,11 +22,13 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: "datadog"
-        app.kubernetes.io/instance: "datadog"
+        app.kubernetes.io/instance: datadog-cluster-agent
         app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/part-of: default-datadog
         app.kubernetes.io/component: cluster-agent
         admission.datadoghq.com/enabled: "false"
         app: datadog-cluster-agent
+        agent.datadoghq.com/component: cluster-agent
       name: datadog-cluster-agent
       annotations: {}
     spec:
@@ -33,7 +36,7 @@ spec:
       automountServiceAccountToken: true
       initContainers:
         - name: init-volume
-          image: "gcr.io/datadoghq/cluster-agent:7.59.0"
+          image: "gcr.io/datadoghq/cluster-agent:7.73.0"
           imagePullPolicy: IfNotPresent
           command:
             - cp
@@ -46,7 +49,7 @@ spec:
               mountPath: /opt/datadog-agent
       containers:
         - name: cluster-agent
-          image: "gcr.io/datadoghq/cluster-agent:7.59.0"
+          image: "gcr.io/datadoghq/cluster-agent:7.73.0"
           imagePullPolicy: IfNotPresent
           resources: {}
           ports:
@@ -67,6 +70,10 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+            - name: DD_CLUSTER_AGENT_SERVICE_ACCOUNT_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.serviceAccountName
             - name: DD_HEALTH_PORT
               value: "5556"
             - name: DD_API_KEY
@@ -77,15 +84,12 @@ spec:
                   optional: true
             - name: KUBERNETES
               value: "yes"
+            - name: DD_CSI_ENABLED
+              value: "false"
             - name: DD_LANGUAGE_DETECTION_ENABLED
               value: "false"
             - name: DD_LANGUAGE_DETECTION_REPORTING_ENABLED
               value: "false"
-            - name: DD_APP_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: "datadog-appkey"
-                  key: app-key
             - name: DD_EXTERNAL_METRICS_PROVIDER_ENABLED
               value: "true"
             - name: DD_EXTERNAL_METRICS_PROVIDER_PORT
@@ -98,6 +102,18 @@ spec:
               value: "avg"
             - name: DD_ADMISSION_CONTROLLER_ENABLED
               value: "true"
+            - name: DD_ADMISSION_CONTROLLER_VALIDATION_ENABLED
+              value: "true"
+            - name: DD_ADMISSION_CONTROLLER_MUTATION_ENABLED
+              value: "true"
+            - name: DD_TRACE_AGENT_HOST_SOCKET_PATH
+              value: "/var/run/datadog"
+            - name: DD_DOGSTATSD_HOST_SOCKET_PATH
+              value: "/var/run/datadog"
+            - name: DD_DOGSTATSD_SOCKET
+              value: "/var/run/datadog/dsd.socket"
+            - name: DD_APM_RECEIVER_SOCKET
+              value: "/var/run/datadog/apm.socket"
             - name: DD_ADMISSION_CONTROLLER_WEBHOOK_NAME
               value: "datadog-webhook"
             - name: DD_ADMISSION_CONTROLLER_MUTATE_UNLABELLED
@@ -134,6 +150,10 @@ spec:
               value: datadogtoken
             - name: DD_COLLECT_KUBERNETES_EVENTS
               value: "true"
+            - name: DD_KUBERNETES_USE_ENDPOINT_SLICES
+              value: "false"
+            - name: DD_KUBERNETES_KUBE_SERVICE_IGNORE_READINESS
+              value: "false"
             - name: DD_KUBERNETES_EVENTS_SOURCE_DETECTION_ENABLED
               value: "false"
             - name: DD_CLUSTER_AGENT_KUBERNETES_SERVICE_NAME
@@ -239,11 +259,6 @@ spec:
         - name: confd
           configMap:
             name: datadog-cluster-agent-confd
-            items:
-              - key: kubernetes_state_core.yaml.default
-                path: kubernetes_state_core.yaml.default
-              - key: kubernetes_apiserver.yaml
-                path: kubernetes_apiserver.yaml
         - name: config
           emptyDir: {}
       affinity:

@@ -40,9 +40,9 @@ func getLegacyFilterValues(entity workloadfilter.Filterable) (annotations map[st
 		return o.GetAnnotations(), o.GetName(), o.GetImage().GetReference(), o.GetPod().GetNamespace()
 	case *workloadfilter.Pod:
 		return o.GetAnnotations(), "", "", o.GetNamespace()
-	case *workloadfilter.Service:
+	case *workloadfilter.KubeService:
 		return o.GetAnnotations(), o.GetName(), "", o.GetNamespace()
-	case *workloadfilter.Endpoint:
+	case *workloadfilter.KubeEndpoint:
 		return o.GetAnnotations(), o.GetName(), "", o.GetNamespace()
 	default:
 		return nil, "", "", ""

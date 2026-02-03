@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -24,8 +23,6 @@ const (
 
 type metricsClient struct {
 	meter  metric.Meter
-	gauges map[string]float64
-	mutex  sync.Mutex
 	source string
 }
 
@@ -39,33 +36,21 @@ func InitializeMetricClient(mp metric.MeterProvider, source string) (statsd.Clie
 	}
 	return &metricsClient{
 		meter:  meter,
-		gauges: make(map[string]float64),
 		source: source,
 	}, nil
 }
 
 // Gauge implements the Statsd Gauge interface
 func (m *metricsClient) Gauge(name string, value float64, tags []string, _ float64) error {
-	// The last parameter is rate, but we're omitting it because rate does not have effect for gauge points: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/dedd44436ae064f5a0b43769d24adf897533957b/receiver/statsdreceiver/internal/protocol/metric_translator.go#L153-L156
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	if _, ok := m.gauges[name]; ok {
-		m.gauges[name] = value
-		return nil
-	}
-	m.gauges[name] = value
-	_, err := m.meter.Float64ObservableGauge(name, metric.WithFloat64Callback(func(_ context.Context, f metric.Float64Observer) error {
-		attr := m.attributeFromTags(tags)
-		m.mutex.Lock()
-		defer m.mutex.Unlock()
-		if v, ok := m.gauges[name]; ok {
-			f.Observe(v, metric.WithAttributeSet(attr))
-		}
-		return nil
-	}))
+	// The last parameter is rate, but we're omitting it because rate does not have effect for gauge points:
+	// https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/dedd44436ae064f5a0b43769d24adf897533957b/receiver/statsdreceiver/internal/protocol/metric_translator.go#L153-L156
+
+	gauge, err := m.meter.Float64Gauge(name)
 	if err != nil {
 		return err
 	}
+	attr := m.attributeFromTags(tags)
+	gauge.Record(context.Background(), value, metric.WithAttributeSet(attr))
 	return nil
 }
 

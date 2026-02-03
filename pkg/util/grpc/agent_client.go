@@ -49,7 +49,7 @@ func getGRPCClientConn(ctx context.Context, ipcAddress string, cmdPort string, t
 			return nil, err
 		}
 
-		port, err := strconv.Atoi(cmdPort)
+		port, err := strconv.ParseUint(cmdPort, 10, 16)
 		if err != nil {
 			return nil, fmt.Errorf("invalid cmd_port %s", cmdPort)
 		}

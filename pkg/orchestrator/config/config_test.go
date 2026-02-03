@@ -18,13 +18,13 @@ import (
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	model "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
+	"github.com/DataDog/datadog-agent/pkg/redact"
 )
 
 type YamlConfigTestSuite struct {
 	suite.Suite
-	config model.Config
+	config model.BuildableConfig
 }
 
 func (suite *YamlConfigTestSuite) SetupTest() {
@@ -150,6 +150,7 @@ func (suite *YamlConfigTestSuite) TestEnvConfigDDURL() {
 
 func (suite *YamlConfigTestSuite) TestEnvConfigAdditionalEndpoints() {
 	suite.T().Setenv("DD_ORCHESTRATOR_ADDITIONAL_ENDPOINTS", `{"https://process1.com": ["key1"], "https://process2.com": ["key2"]}`)
+	suite.config.BuildSchema()
 
 	expected := map[string]string{
 		"key1": "process1.com",
@@ -219,7 +220,7 @@ func (suite *YamlConfigTestSuite) TestEnvConfigSensitiveWords() {
 	err := orchestratorCfg.Load()
 	suite.NoError(err)
 
-	for _, val := range strings.Split(expectedValue, " ") {
+	for val := range strings.SplitSeq(expectedValue, " ") {
 		suite.Contains(orchestratorCfg.Scrubber.LiteralSensitivePatterns, val)
 	}
 }
@@ -233,7 +234,7 @@ func (suite *YamlConfigTestSuite) TestEnvConfigSensitiveAnnotationsAndLabels() {
 	err := orchestratorCfg.Load()
 	suite.NoError(err)
 
-	for _, val := range strings.Split(expectedValue, " ") {
+	for val := range strings.SplitSeq(expectedValue, " ") {
 		suite.Contains(redact.GetSensitiveAnnotationsAndLabels(), val)
 	}
 }
@@ -337,7 +338,6 @@ func (suite *YamlConfigTestSuite) TestLoadFunction() {
 	// Check default values
 	suite.Equal(100, orchestratorCfg.MaxPerMessage)
 	suite.Equal(10000000, orchestratorCfg.MaxWeightPerMessageBytes)
-	suite.Equal(15*1000*1000, orchestratorCfg.PodQueueBytes)
 }
 
 func (suite *YamlConfigTestSuite) TestLoadWithAPIKey() {
@@ -418,28 +418,6 @@ func (suite *YamlConfigTestSuite) TestLoadWithCustomMaxMessageBytes() {
 	suite.NoError(err)
 
 	suite.Equal(25000000, orchestratorCfg.MaxWeightPerMessageBytes)
-}
-
-func (suite *YamlConfigTestSuite) TestLoadWithCustomPodQueueBytes() {
-	suite.config.SetWithoutSource("process_config.pod_queue_bytes", 20*1000*1000)
-
-	orchestratorCfg := NewDefaultOrchestratorConfig(nil)
-	err := orchestratorCfg.Load()
-	suite.NoError(err)
-
-	suite.Equal(20*1000*1000, orchestratorCfg.PodQueueBytes)
-}
-
-func (suite *YamlConfigTestSuite) TestLoadWithInvalidPodQueueBytes() {
-	// Test with invalid value (≤ 0)
-	suite.config.SetWithoutSource("process_config.pod_queue_bytes", -100)
-
-	orchestratorCfg := NewDefaultOrchestratorConfig(nil)
-	err := orchestratorCfg.Load()
-	suite.NoError(err)
-
-	// Should remain at default value
-	suite.Equal(15*1000*1000, orchestratorCfg.PodQueueBytes)
 }
 
 func (suite *YamlConfigTestSuite) TestLoadWithOrchestratorEnabled() {
@@ -523,7 +501,6 @@ func (suite *YamlConfigTestSuite) TestLoadComprehensive() {
 	suite.config.SetWithoutSource("orchestrator_explorer.manifest_collection.enabled", true)
 	suite.config.SetWithoutSource("orchestrator_explorer.max_per_message", 75)
 	suite.config.SetWithoutSource("orchestrator_explorer.max_message_bytes", 30000000)
-	suite.config.SetWithoutSource("process_config.pod_queue_bytes", 25*1000*1000)
 	suite.config.SetWithoutSource("orchestrator_explorer.custom_sensitive_words", []string{"token", "secret"})
 
 	orchestratorCfg := NewDefaultOrchestratorConfig([]string{"env:comprehensive"})
@@ -541,7 +518,6 @@ func (suite *YamlConfigTestSuite) TestLoadComprehensive() {
 	suite.True(orchestratorCfg.IsManifestCollectionEnabled)
 	suite.Equal(75, orchestratorCfg.MaxPerMessage)
 	suite.Equal(30000000, orchestratorCfg.MaxWeightPerMessageBytes)
-	suite.Equal(25*1000*1000, orchestratorCfg.PodQueueBytes)
 	suite.Contains(orchestratorCfg.Scrubber.LiteralSensitivePatterns, "token")
 	suite.Contains(orchestratorCfg.Scrubber.LiteralSensitivePatterns, "secret")
 }

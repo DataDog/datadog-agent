@@ -418,12 +418,12 @@ func (fh *EBPFLessFieldHandlers) ResolveXAttrNamespace(_ *model.Event, e *model.
 
 // ResolveHashes resolves the hash of the provided file
 func (fh *EBPFLessFieldHandlers) ResolveHashes(eventType model.EventType, process *model.Process, file *model.FileEvent) []string {
-	return fh.resolvers.HashResolver.ComputeHashes(eventType, process, file)
+	return fh.resolvers.HashResolver.ComputeHashes(eventType, process, file, 0)
 }
 
 // ResolveHashesFromEvent resolves the hashes of the requested event
 func (fh *EBPFLessFieldHandlers) ResolveHashesFromEvent(ev *model.Event, f *model.FileEvent) []string {
-	return fh.resolvers.HashResolver.ComputeHashesFromEvent(ev, f)
+	return fh.resolvers.HashResolver.ComputeHashesFromEvent(ev, f, 0)
 }
 
 // ResolveK8SUserSessionContext resolves and updates the provided user session context
@@ -634,4 +634,14 @@ func (fh *EBPFLessFieldHandlers) ResolveSessionID(_ *model.Event, _ *model.UserS
 // ResolveSessionIdentity resolves the user of the event
 func (fh *EBPFLessFieldHandlers) ResolveSessionIdentity(_ *model.Event, _ *model.UserSessionContext) string {
 	return ""
+}
+
+// ResolveSignature resolves the event signature
+func (fh *EBPFLessFieldHandlers) ResolveSignature(e *model.Event) string {
+	if e.Signature == "" && e.ProcessContext != nil {
+		if sign, err := fh.resolvers.SignatureResolver.Sign(e.ProcessContext); err != nil && sign != "" {
+			e.Signature = sign
+		}
+	}
+	return e.Signature
 }

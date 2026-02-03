@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build test
+
 package healthplatformimpl
 
 import (
@@ -14,7 +16,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -67,11 +72,14 @@ func testRequires(t *testing.T, lifecycle *mockLifecycle) Requires {
 		lifecycle = newMockLifecycle()
 	}
 
+	hostnameMock, _ := hostnameinterface.NewMock("test-hostname")
+
 	return Requires{
 		Lifecycle: lifecycle,
 		Config:    cfg,
 		Log:       logmock.New(t),
 		Telemetry: nooptelemetry.GetCompatComponent(),
+		Hostname:  hostnameMock,
 	}
 }
 
@@ -104,8 +112,8 @@ func TestReportIssue(t *testing.T) {
 	err = comp.ReportIssue(
 		"logs-docker-file-permissions",
 		"Docker File Tailing Permissions",
-		&healthplatform.IssueReport{
-			IssueID: "docker-file-tailing-disabled",
+		&healthplatformpayload.IssueReport{
+			IssueId: "docker-file-tailing-disabled",
 			Context: map[string]string{
 				"dockerDir": "/var/lib/docker",
 				"os":        "linux",
@@ -123,7 +131,7 @@ func TestReportIssue(t *testing.T) {
 	// Test GetIssueForCheck
 	issueForCheck := comp.GetIssueForCheck("logs-docker-file-permissions")
 	assert.NotNil(t, issueForCheck)
-	assert.Equal(t, "docker-file-tailing-disabled", issueForCheck.ID)
+	assert.Equal(t, "docker-file-tailing-disabled", issueForCheck.Id)
 
 	// Test GetIssueForCheck with non-existent check
 	nonExistentIssue := comp.GetIssueForCheck("non-existent")
@@ -151,8 +159,8 @@ func TestIssueResolution(t *testing.T) {
 	err = comp.ReportIssue(
 		"test-check-1",
 		"Test Check",
-		&healthplatform.IssueReport{
-			IssueID: "docker-file-tailing-disabled",
+		&healthplatformpayload.IssueReport{
+			IssueId: "docker-file-tailing-disabled",
 			Context: map[string]string{
 				"dockerDir": "/var/lib/docker",
 				"os":        "linux",
@@ -194,8 +202,8 @@ func TestClearMethods(t *testing.T) {
 	err = comp.ReportIssue(
 		"check-1",
 		"Check 1",
-		&healthplatform.IssueReport{
-			IssueID: "docker-file-tailing-disabled",
+		&healthplatformpayload.IssueReport{
+			IssueId: "docker-file-tailing-disabled",
 			Context: map[string]string{
 				"dockerDir": "/var/lib/docker",
 				"os":        "linux",
@@ -207,8 +215,8 @@ func TestClearMethods(t *testing.T) {
 	err = comp.ReportIssue(
 		"check-2",
 		"Check 2",
-		&healthplatform.IssueReport{
-			IssueID: "docker-file-tailing-disabled",
+		&healthplatformpayload.IssueReport{
+			IssueId: "docker-file-tailing-disabled",
 			Context: map[string]string{
 				"dockerDir": "/var/lib/docker",
 				"os":        "linux",
@@ -242,22 +250,22 @@ func TestReportIssueErrors(t *testing.T) {
 	comp := provides.Comp
 
 	// Test empty check ID
-	err = comp.ReportIssue("", "Test", &healthplatform.IssueReport{
-		IssueID: "docker-file-tailing-disabled",
+	err = comp.ReportIssue("", "Test", &healthplatformpayload.IssueReport{
+		IssueId: "docker-file-tailing-disabled",
 	})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "check ID cannot be empty")
 
 	// Test empty issue ID
-	err = comp.ReportIssue("check-1", "Test", &healthplatform.IssueReport{
-		IssueID: "",
+	err = comp.ReportIssue("check-1", "Test", &healthplatformpayload.IssueReport{
+		IssueId: "",
 	})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "issue ID cannot be empty")
 
 	// Test unknown issue ID
-	err = comp.ReportIssue("check-1", "Test", &healthplatform.IssueReport{
-		IssueID: "unknown-issue",
+	err = comp.ReportIssue("check-1", "Test", &healthplatformpayload.IssueReport{
+		IssueId: "unknown-issue",
 	})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to build issue")
@@ -283,8 +291,8 @@ func TestConcurrentReporting(t *testing.T) {
 			_ = comp.ReportIssue(
 				checkID,
 				"Concurrent Check",
-				&healthplatform.IssueReport{
-					IssueID: "docker-file-tailing-disabled",
+				&healthplatformpayload.IssueReport{
+					IssueId: "docker-file-tailing-disabled",
 					Context: map[string]string{
 						"dockerDir": "/var/lib/docker",
 						"os":        "linux",
@@ -324,8 +332,8 @@ func TestLifecycle(t *testing.T) {
 	err = comp.ReportIssue(
 		"lifecycle-check-1",
 		"Lifecycle Check",
-		&healthplatform.IssueReport{
-			IssueID: "docker-file-tailing-disabled",
+		&healthplatformpayload.IssueReport{
+			IssueId: "docker-file-tailing-disabled",
 			Context: map[string]string{
 				"dockerDir": "/var/lib/docker",
 				"os":        "linux",
@@ -356,8 +364,8 @@ func TestIssueTimestamp(t *testing.T) {
 	err = comp.ReportIssue(
 		"timestamp-check-1",
 		"Timestamp Check",
-		&healthplatform.IssueReport{
-			IssueID: "docker-file-tailing-disabled",
+		&healthplatformpayload.IssueReport{
+			IssueId: "docker-file-tailing-disabled",
 			Context: map[string]string{
 				"dockerDir": "/var/lib/docker",
 				"os":        "linux",
@@ -385,11 +393,14 @@ func TestComponentDisabled(t *testing.T) {
 	cfg := config.NewMock(t)
 	cfg.SetWithoutSource("health_platform.enabled", false)
 
+	hostnameMock, _ := hostnameinterface.NewMock("test-hostname")
+
 	reqs := Requires{
 		Lifecycle: newMockLifecycle(),
 		Config:    cfg,
 		Log:       logmock.New(t),
 		Telemetry: nooptelemetry.GetCompatComponent(),
+		Hostname:  hostnameMock,
 	}
 
 	provides, err := NewComponent(reqs)
@@ -401,8 +412,8 @@ func TestComponentDisabled(t *testing.T) {
 	assert.True(t, ok, "Expected noopHealthPlatform when disabled")
 
 	// Verify all methods work but do nothing
-	err = provides.Comp.ReportIssue("test-check", "Test Check", &healthplatform.IssueReport{
-		IssueID: "docker-file-tailing-disabled",
+	err = provides.Comp.ReportIssue("test-check", "Test Check", &healthplatformpayload.IssueReport{
+		IssueId: "docker-file-tailing-disabled",
 		Context: map[string]string{"dockerDir": "/var/lib/docker"},
 	})
 	assert.NoError(t, err)

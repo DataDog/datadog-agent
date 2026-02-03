@@ -7,6 +7,7 @@
 package processor
 
 import (
+	"bytes"
 	"strings"
 	"unicode/utf8"
 
@@ -16,6 +17,36 @@ import (
 // Encoder turns a message into a raw byte array ready to be sent.
 type Encoder interface {
 	Encode(msg *message.Message, hostname string) error
+}
+
+type ValidUtf8Bytes []byte
+
+func (msg ValidUtf8Bytes) MarshalText() (text []byte, err error) {
+	if utf8.Valid(msg) {
+		return msg, nil
+	}
+
+	var buf bytes.Buffer
+	buf.Grow(len(msg))
+
+	for len(msg) > 0 {
+		r, size := utf8.DecodeRune(msg)
+		// in case of invalid utf-8, DecodeRune returns (utf8.RuneError, 1)
+		// and since RuneError is the same as unicode.ReplacementChar
+		// no need to handle the error explicitly
+		buf.WriteRune(r)
+		msg = msg[size:]
+	}
+	return buf.Bytes(), nil
+}
+
+func (msg *ValidUtf8Bytes) UnmarshalText(text []byte) error {
+	*msg = bytes.Clone(text)
+	return nil
+}
+
+func (msg ValidUtf8Bytes) String() string {
+	return string(msg)
 }
 
 // toValidUtf8 ensures all characters are UTF-8.

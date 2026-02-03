@@ -58,6 +58,11 @@ const OTelCollectorIntakeOrigin IntakeOrigin = "otel-collector"
 
 // logs-intake endpoints depending on the site and environment.
 var logsEndpoints = map[string]int{
+	"agent-intake.logs.datadoghq.com.": 10516,
+	"agent-intake.logs.datadoghq.eu.":  443,
+	"agent-intake.logs.datad0g.com.":   10516,
+	"agent-intake.logs.datad0g.eu.":    443,
+
 	"agent-intake.logs.datadoghq.com": 10516,
 	"agent-intake.logs.datadoghq.eu":  443,
 	"agent-intake.logs.datad0g.com":   10516,
@@ -124,7 +129,7 @@ func BuildEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *Logs
 	if logsDDURL, defined := logsConfig.logsDDURL(); defined {
 		haveHTTPProxy = strings.HasPrefix(logsDDURL, "http://") || strings.HasPrefix(logsDDURL, "https://")
 	}
-	if logsConfig.isForceHTTPUse() || haveHTTPProxy || logsConfig.obsPipelineWorkerEnabled() || (bool(httpConnectivity) && !(logsConfig.isForceTCPUse() || logsConfig.isSocks5ProxySet() || logsConfig.hasAdditionalEndpoints())) {
+	if logsConfig.isForceHTTPUse() || haveHTTPProxy || logsConfig.obsPipelineWorkerEnabled() || (bool(httpConnectivity) && !logsConfig.shouldUseTCP()) {
 		return BuildHTTPEndpointsWithConfig(coreConfig, logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
 	}
 	log.Warnf("You are currently sending Logs to Datadog through TCP (either because %s or %s is set or the HTTP connectivity test has failed) "+
@@ -137,6 +142,16 @@ func BuildEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *Logs
 // BuildServerlessEndpoints returns the endpoints to send logs for the Serverless agent.
 func BuildServerlessEndpoints(coreConfig pkgconfigmodel.Reader, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol) (*Endpoints, error) {
 	return BuildHTTPEndpointsWithConfig(coreConfig, defaultLogsConfigKeysWithVectorOverride(coreConfig), serverlessHTTPEndpointPrefix, intakeTrackType, intakeProtocol, ServerlessIntakeOrigin)
+}
+
+// ShouldUseTCP returns true if the configuration should use TCP.
+func ShouldUseTCP(coreConfig pkgconfigmodel.Reader) bool {
+	return defaultLogsConfigKeys(coreConfig).shouldUseTCP()
+}
+
+// HTTPConnectivityRetryIntervalMax returns the maximum interval for HTTP connectivity retry attempts.
+func HTTPConnectivityRetryIntervalMax(coreConfig pkgconfigmodel.Reader) time.Duration {
+	return defaultLogsConfigKeys(coreConfig).httpConnectivityRetryIntervalMax()
 }
 
 // ExpectedTagsDuration returns a duration of the time expected tags will be submitted for.

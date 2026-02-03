@@ -19,6 +19,7 @@ import (
 
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -42,7 +43,7 @@ func newDefaultConfig() component.Config {
 		// Disable timeout; we don't really do HTTP requests on the ConsumeMetrics call.
 		TimeoutConfig: exporterhelper.TimeoutConfig{Timeout: 0},
 		// TODO (AP-1294): Fine-tune queue settings and look into retry settings.
-		QueueBatchConfig: exporterhelper.NewDefaultQueueConfig(),
+		QueueBatchConfig: configoptional.Some(exporterhelper.NewDefaultQueueConfig()),
 
 		Metrics:      mcfg,
 		API:          pkgmcfg.API,
@@ -86,6 +87,7 @@ type Exporter struct {
 	gatewayUsage      otel.GatewayUsage
 	coatUsageMetric   telemetry.Gauge
 	coatGWUsageMetric telemetry.Gauge
+	ipath             ingestionPath
 }
 
 // TODO: expose the same function in OSS exporter and remove this
@@ -154,6 +156,7 @@ func NewExporter(
 	gatewayUsage otel.GatewayUsage,
 	coatUsageMetric telemetry.Gauge,
 	coatGWUsageMetric telemetry.Gauge,
+	ipath ingestionPath,
 ) (*Exporter, error) {
 	var extraTags []string
 	if cfg.Metrics.Tags != "" {
@@ -176,11 +179,22 @@ func NewExporter(
 		gatewayUsage:      gatewayUsage,
 		coatUsageMetric:   coatUsageMetric,
 		coatGWUsageMetric: coatGWUsageMetric,
+		ipath:             ipath,
 	}, nil
 }
 
 // ConsumeMetrics translates OTLP metrics into the Datadog format and sends
 func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error {
+
+	// Track requests based on ingestion path
+	switch e.ipath {
+	case agentOTLPIngest:
+		OTLPIngestAgentMetricsRequests.Inc()
+		OTLPIngestAgentMetricsEvents.Add(float64(ld.MetricCount()))
+	case ddot:
+		OTLPIngestDDOTMetricsRequests.Inc()
+		OTLPIngestDDOTMetricsEvents.Add(float64(ld.MetricCount()))
+	}
 	if e.hostmetadata.Enabled {
 		// Consume resources for host metadata
 		for i := 0; i < ld.ResourceMetrics().Len(); i++ {

@@ -33,13 +33,14 @@ Comment = ("#" | "//") { "\u0000"…"\uffff"-"\n" } .
 CIDR = IP "/" digit { digit } .
 IP = (ipv4 | ipv6) .
 Variable = "${" (alpha | "_") { "_" | alpha | digit | "." } "}" .
+FieldReference = "%{" (alpha | "_") { "_" | alpha | digit | "." | "[" | "]" } "}" .
 Duration = digit { digit } ("m" | "s" | "m" | "h") { "s" } .
 Regexp = "r\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
 Ident = (alpha | "_") { "_" | alpha | digit | "." | "[" | "]" } .
 String = "\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
 Pattern = "~\"" { "\u0000"…"\uffff"-"\""-"\\" | "\\" any } "\"" .
 Int = [ "-" | "+" ] digit { digit } .
-Punct = ( "!" | "=" | "<" | ">" | "+" | "-" | "[" | "]" | "(" | ")" | "," | "&" | "|" | "~" | "^" ).
+Punct = ( "!" | "=" | "<" | ">" | "+" | "-" | "[" | "]" | "(" | ")" | "," | "&" | "|" | "~" | "^" | "%" ).
 Whitespace = ( " " | "\t" | "\n" ) { " " | "\t" | "\n" } .
 ipv4 = (digit { digit } "." digit { digit } "." digit { digit } "." digit { digit }) .
 ipv6 = ( [hex { hex }] ":" [hex { hex }] ":" [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }] [":" | "."] [hex { hex }]) .
@@ -247,16 +248,17 @@ type UnaryWithOp struct {
 type Primary struct {
 	Pos lexer.Position
 
-	Ident         *string     `parser:"@Ident"`
-	CIDR          *string     `parser:"| @CIDR"`
-	IP            *string     `parser:"| @IP"`
-	Number        *int        `parser:"| @Int"`
-	Variable      *string     `parser:"| @Variable"`
-	String        *string     `parser:"| @String"`
-	Pattern       *string     `parser:"| @Pattern"`
-	Regexp        *string     `parser:"| @Regexp"`
-	Duration      *int        `parser:"| @Duration"`
-	SubExpression *Expression `parser:"| \"(\" @@ \")\""`
+	Ident          *string     `parser:"@Ident"`
+	CIDR           *string     `parser:"| @CIDR"`
+	IP             *string     `parser:"| @IP"`
+	Number         *int        `parser:"| @Int"`
+	Variable       *string     `parser:"| @Variable"`
+	FieldReference *string     `parser:"| @FieldReference"`
+	String         *string     `parser:"| @String"`
+	Pattern        *string     `parser:"| @Pattern"`
+	Regexp         *string     `parser:"| @Regexp"`
+	Duration       *int        `parser:"| @Duration"`
+	SubExpression  *Expression `parser:"| \"(\" @@ \")\""`
 }
 
 // StringMember describes a String based array member
@@ -280,11 +282,12 @@ type CIDRMember struct {
 type Array struct {
 	Pos lexer.Position
 
-	CIDR          *string        `parser:"@CIDR"`
-	Variable      *string        `parser:"| @Variable"`
-	Ident         *string        `parser:"| @Ident"`
-	StringMembers []StringMember `parser:"| \"[\" @@ { \",\" @@ } \"]\""`
-	CIDRMembers   []CIDRMember   `parser:"| \"[\" @@ { \",\" @@ } \"]\""`
-	Numbers       []int          `parser:"| \"[\" @Int { \",\" @Int } \"]\""`
-	Idents        []string       `parser:"| \"[\" @Ident { \",\" @Ident } \"]\""`
+	CIDR           *string        `parser:"@CIDR"`
+	Variable       *string        `parser:"| @Variable"`
+	FieldReference *string        `parser:"| @FieldReference"`
+	Ident          *string        `parser:"| @Ident"`
+	StringMembers  []StringMember `parser:"| \"[\" @@ { \",\" @@ } \"]\""`
+	CIDRMembers    []CIDRMember   `parser:"| \"[\" @@ { \",\" @@ } \"]\""`
+	Numbers        []int          `parser:"| \"[\" @Int { \",\" @Int } \"]\""`
+	Idents         []string       `parser:"| \"[\" @Ident { \",\" @Ident } \"]\""`
 }

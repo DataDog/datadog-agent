@@ -17,6 +17,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"unicode/utf16"
 )
@@ -165,12 +166,7 @@ func parseFormData(params map[string]string, data []byte) ([]FormDataField, erro
 }
 
 func isEncoding(encoding string) bool {
-	for _, e := range Encoding {
-		if encoding == e {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(Encoding, encoding)
 }
 
 func getEncodingFromMIME(params map[string]string) string {

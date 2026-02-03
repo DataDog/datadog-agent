@@ -10,7 +10,9 @@ package nvml
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"go.uber.org/fx"
@@ -32,6 +34,14 @@ const (
 )
 
 var logLimiter = log.NewLogLimit(20, 10*time.Minute)
+
+// this regex matches device names from NVML and extracts the GPU type. For example, from "nvidia_a100-80gb" it will extract "a100". The groups are as follows:
+// 1. The optional prefix "nvidia" or "tesla" (T4 GPUs are named "tesla_t4" despite being NVIDIA GPUs)
+// 2. The optional prefix "geforce_" which we ignore
+// 3. The optional prefix "rtx_pro_" or "rtx_", which we use it as it's part of the GPU type
+// 4. The GPU type, which is the next alphanumeric part of the device name. Anything behind it (such as the memory size or whether it's PCI or SXM) is ignored.
+var gpuTypeRegex = regexp.MustCompile(`^(?:nvidia|tesla)_(?:geforce_)?(rtx_pro_|rtx_)?([a-z\d]+)`)
+var gpuNameSeparatorRegex = regexp.MustCompile(`[^a-z\d]+`)
 
 type collector struct {
 	id                                 string
@@ -55,22 +65,30 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: devInfo.Name,
 		},
-		Vendor: nvidiaVendor,
-		Device: devInfo.Name,
-		Index:  devInfo.Index,
+		Vendor:  nvidiaVendor,
+		Device:  devInfo.Name,
+		GPUType: extractGPUType(devInfo.Name),
+		Index:   devInfo.Index,
 		ComputeCapability: workloadmeta.GPUComputeCapability{
 			Major: int(devInfo.SMVersion / 10),
 			Minor: int(devInfo.SMVersion % 10),
 		},
-		TotalCores:  devInfo.CoreCount,
-		TotalMemory: devInfo.Memory,
+		TotalCores:   devInfo.CoreCount,
+		TotalMemory:  devInfo.Memory,
+		Architecture: gpuArchToString(devInfo.Architecture),
 	}
 
-	switch device.(type) {
+	switch d := device.(type) {
 	case *ddnvml.PhysicalDevice:
 		gpuDeviceInfo.DeviceType = workloadmeta.GPUDeviceTypePhysical
+		for _, child := range d.MIGChildren {
+			gpuDeviceInfo.ChildrenGPUUUIDs = append(gpuDeviceInfo.ChildrenGPUUUIDs, child.GetDeviceInfo().UUID)
+		}
 	case *ddnvml.MIGDevice:
 		gpuDeviceInfo.DeviceType = workloadmeta.GPUDeviceTypeMIG
+		if d.Parent != nil {
+			gpuDeviceInfo.ParentGPUUUID = d.Parent.UUID
+		}
 	default:
 		gpuDeviceInfo.DeviceType = workloadmeta.GPUDeviceTypeUnknown
 	}
@@ -83,16 +101,13 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 
 // fillNVMLAttributes fills the attributes of the GPU device by querying NVML API
 func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) {
-	arch, err := device.GetArchitecture()
-	if err != nil {
-		if logLimiter.ShouldLog() {
-			log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
-		}
-	} else {
-		gpuDeviceInfo.Architecture = gpuArchToString(arch)
+	migDevice, isMig := device.(*ddnvml.MIGDevice)
+	deviceForVirtMode := device
+	if isMig {
+		deviceForVirtMode = migDevice.Parent
 	}
 
-	virtMode, err := device.GetVirtualizationMode()
+	virtMode, err := deviceForVirtMode.GetVirtualizationMode()
 	if err != nil {
 		if logLimiter.ShouldLog() {
 			log.Warnf("cannot get virtualization mode: %v for %d", err, gpuDeviceInfo.Index)
@@ -225,7 +240,7 @@ func (c *collector) Pull(ctx context.Context) error {
 
 	// attempt getting list of unhealthy devices (if available)
 	unhealthyDevices, err := c.getUnhealthyDevices(ctx)
-	if (err != nil || unhealthyDevices == nil) && logLimiter.ShouldLog() {
+	if err != nil && logLimiter.ShouldLog() {
 		log.Warnf("failed getting unhealthy devices: %v", err)
 	}
 
@@ -383,6 +398,28 @@ func gpuArchToString(nvmlArch nvml.DeviceArchitecture) string {
 		// to add a new case for a new architecture.
 		return "invalid"
 	}
+}
+
+func extractGPUType(deviceName string) string {
+	if deviceName == "" {
+		return ""
+	}
+
+	// Normalize case/whitespace and remove leading/trailing noise so regex matching is stable.
+	normalizedName := strings.ToLower(strings.TrimSpace(deviceName))
+	// Collapse any non-alphanumeric separators (spaces, dashes, quotes, punctuation) into underscores.
+	normalizedName = gpuNameSeparatorRegex.ReplaceAllString(normalizedName, "_")
+	// Trim underscores added by leading/trailing separators.
+	normalizedName = strings.Trim(normalizedName, "_")
+
+	// Extract the optional RTX prefix and the GPU model token.
+	matches := gpuTypeRegex.FindStringSubmatch(normalizedName)
+	if len(matches) == 0 {
+		return ""
+	}
+
+	// Combine optional RTX prefix with the model token (e.g., rtx_3090).
+	return matches[1] + matches[2]
 }
 
 func gpuVirtModeToString(nvmlVirtMode nvml.GpuVirtualizationMode) string {

@@ -69,7 +69,7 @@ func TestSELinux(t *testing.T) {
 	defer test.Close()
 
 	t.Run("setenforce", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if err := setEnforceStatus("permissive"); err != nil {
 				return fmt.Errorf("failed to run setenforce: %w", err)
 			}
@@ -80,7 +80,7 @@ func TestSELinux(t *testing.T) {
 			assertFieldEqual(t, event, "selinux.enforce.status", "permissive", "wrong enforce value")
 
 			test.validateSELinuxSchema(t, event)
-		})
+		}, "test_selinux_enforce")
 	})
 
 	t.Run("sel_disable", func(t *testing.T) {
@@ -88,7 +88,7 @@ func TestSELinux(t *testing.T) {
 			return kv.Code >= kernel.Kernel5_10
 		})
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if err := rawSudoWrite("/sys/fs/selinux/disable", "0", false); err != nil {
 				return fmt.Errorf("failed to write to selinuxfs: %w", err)
 			}
@@ -98,11 +98,11 @@ func TestSELinux(t *testing.T) {
 			assert.Equal(t, "selinux", event.GetType(), "wrong event type")
 
 			test.validateSELinuxSchema(t, event)
-		})
+		}, "test_selinux_enforce")
 	})
 
 	t.Run("setsebool_true_value", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if err := setBoolValue(TestBoolName, true); err != nil {
 				return fmt.Errorf("failed to run setsebool: %w", err)
 			}
@@ -114,11 +114,11 @@ func TestSELinux(t *testing.T) {
 			assertFieldEqual(t, event, "selinux.bool.state", "on", "wrong bool value")
 
 			test.validateSELinuxSchema(t, event)
-		})
+		}, "test_selinux_write_bool_true")
 	})
 
 	t.Run("setsebool_false_value", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if err := setBoolValue(TestBoolName, false); err != nil {
 				return fmt.Errorf("failed to run setsebool: %w", err)
 			}
@@ -130,7 +130,7 @@ func TestSELinux(t *testing.T) {
 			assertFieldEqual(t, event, "selinux.bool.state", "off", "wrong bool value")
 
 			test.validateSELinuxSchema(t, event)
-		})
+		}, "test_selinux_write_bool_false")
 	})
 
 	t.Run("setsebool_error_value", func(t *testing.T) {
@@ -178,7 +178,7 @@ func TestSELinuxCommitBools(t *testing.T) {
 	defer setBoolValue(TestBoolName, savedBoolValue)
 
 	t.Run("sel_commit_bools", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if err := setBoolValue(TestBoolName, true); err != nil {
 				return fmt.Errorf("failed to run setsebool: %w", err)
 			}
@@ -189,7 +189,7 @@ func TestSELinuxCommitBools(t *testing.T) {
 			assertFieldEqual(t, event, "selinux.bool_commit.state", true, "wrong bool value")
 
 			test.validateSELinuxSchema(t, event)
-		})
+		}, "test_selinux_commit_bools")
 	})
 }
 

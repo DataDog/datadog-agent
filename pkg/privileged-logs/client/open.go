@@ -82,7 +82,7 @@ func OpenPrivileged(socketPath string, filePath string) (*os.File, error) {
 	}
 
 	if !response.Success {
-		return nil, fmt.Errorf("file descriptor transfer failed: %s", response.Error)
+		return nil, fmt.Errorf("module error: %s", response.Error)
 	}
 
 	// Parse the file descriptor from the control message

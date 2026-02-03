@@ -11,30 +11,31 @@ package model
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestHasValidLineage(t *testing.T) {
-	newPCE := func(pid uint32, parent *ProcessCacheEntry, isParentMissing bool) *ProcessCacheEntry {
-		pce := &ProcessCacheEntry{
-			ProcessContext: ProcessContext{
-				Process: Process{
-					PIDContext: PIDContext{
-						Pid: pid,
-					},
-
-					IsParentMissing: isParentMissing,
+func newPCE(pid uint32, parent *ProcessCacheEntry, isParentMissing bool) *ProcessCacheEntry {
+	pce := &ProcessCacheEntry{
+		ProcessContext: ProcessContext{
+			Process: Process{
+				PIDContext: PIDContext{
+					Pid: pid,
 				},
-				Ancestor: parent,
-			},
-		}
-		if parent != nil {
-			pce.PPid = parent.Pid
-		}
 
-		return pce
+				IsParentMissing: isParentMissing,
+			},
+			Ancestor: parent,
+		},
+	}
+	if parent != nil {
+		pce.PPid = parent.Pid
 	}
 
+	return pce
+}
+
+func TestHasValidLineage(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		pid1 := newPCE(1, nil, false)
 		child1 := newPCE(2, pid1, false)
@@ -89,7 +90,7 @@ func TestHasValidLineage(t *testing.T) {
 		child2 := newPCE(4, child1, false)
 
 		// create cycle
-		pid1.SetAncestor(child2)
+		pid1.setAncestor(child2)
 
 		isValid, err := child2.HasValidLineage()
 		assert.False(t, isValid)
@@ -100,9 +101,9 @@ func TestHasValidLineage(t *testing.T) {
 }
 
 func TestEntryEquals(t *testing.T) {
-	e1 := NewProcessCacheEntry(nil)
+	e1 := NewProcessCacheEntry()
 	e1.Pid = 2
-	e2 := NewProcessCacheEntry(nil)
+	e2 := NewProcessCacheEntry()
 	e2.Pid = 3
 	assert.True(t, e1.Equals(e2))
 
@@ -122,4 +123,74 @@ func TestEntryEquals(t *testing.T) {
 	// same args
 	e1.ArgsEntry = &ArgsEntry{Values: []string{"aaa"}}
 	assert.True(t, e1.Equals(e2))
+}
+
+func TestCopyProcessContextFromParent(t *testing.T) {
+	parent := newPCE(1, nil, false)
+
+	parent.CGroup = CGroupContext{
+		CGroupPathKey: PathKey{
+			MountID: 1234,
+			Inode:   5678,
+		},
+		CGroupID: "1234",
+	}
+	parent.ContainerContext = ContainerContext{
+		ContainerID: "1234",
+	}
+	parent.NetNS = 5678
+	parent.UserSession = UserSessionContext{
+		ID:          "abc",
+		SessionType: int(usersession.UserSessionTypeSSH),
+		SSHSessionContext: SSHSessionContext{
+			SSHSessionID: 9876,
+		},
+	}
+	parent.Credentials = Credentials{
+		AUID: 1234,
+	}
+
+	t.Run("fork", func(t *testing.T) {
+		child := newPCE(2, nil, false)
+		parent.Fork(child)
+
+		assert.Equal(t, parent.CGroup, child.CGroup)
+		assert.Equal(t, parent.ContainerContext, child.ContainerContext)
+		assert.Equal(t, parent.NetNS, child.NetNS)
+		assert.Equal(t, parent.UserSession, child.UserSession)
+		assert.Equal(t, parent.Credentials, child.Credentials)
+	})
+
+	t.Run("exec", func(t *testing.T) {
+		child := newPCE(2, nil, false)
+		parent.Exec(child)
+
+		assert.Equal(t, parent.CGroup, child.CGroup)
+		assert.Equal(t, parent.ContainerContext, child.ContainerContext)
+		assert.Equal(t, parent.NetNS, child.NetNS)
+		assert.Equal(t, parent.UserSession, child.UserSession)
+		assert.Equal(t, parent.Credentials, child.Credentials)
+	})
+
+	t.Run("set-fork-parent", func(t *testing.T) {
+		child := newPCE(2, nil, false)
+		child.SetForkParent(parent)
+
+		assert.Equal(t, parent.CGroup, child.CGroup)
+		assert.Equal(t, parent.ContainerContext, child.ContainerContext)
+		assert.Equal(t, parent.NetNS, child.NetNS)
+		assert.Equal(t, parent.UserSession, child.UserSession)
+		assert.Equal(t, parent.Credentials, child.Credentials)
+	})
+
+	t.Run("set-exec-parent", func(t *testing.T) {
+		child := newPCE(2, nil, false)
+		child.SetExecParent(parent)
+
+		assert.Equal(t, parent.CGroup, child.CGroup)
+		assert.Equal(t, parent.ContainerContext, child.ContainerContext)
+		assert.Equal(t, parent.NetNS, child.NetNS)
+		assert.Equal(t, parent.UserSession, child.UserSession)
+		assert.Equal(t, parent.Credentials, child.Credentials)
+	})
 }

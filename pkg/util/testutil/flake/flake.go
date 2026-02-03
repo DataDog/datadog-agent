@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.Datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 // Package flake marks an instance of [testing.TB](https://pkg.go.dev/testing#TB) as flake.
 // Use [flake.Mark] to mark a known flake test.
 // Use `skip-flake` to control the behavior, or set the environment variable `SKIP_FLAKE`.
@@ -14,13 +16,12 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
-
-	"regexp"
 
 	"gopkg.in/yaml.v3"
 )
@@ -39,6 +40,22 @@ func Mark(t testing.TB) {
 	if shouldSkipFlake() {
 		t.Skip("flakytest: skip known flaky test")
 		return
+	}
+}
+
+// MarkOnJobName marks the test as flaky if the CI_JOB_NAME environment variable exists and
+// contains any of the job names provided. A partial match is considered a match.
+func MarkOnJobName(t testing.TB, jobNames ...string) {
+	t.Helper()
+	jobName := os.Getenv("CI_JOB_NAME")
+	if jobName == "" {
+		return
+	}
+	for _, jobNamePartial := range jobNames {
+		if strings.Contains(jobName, jobNamePartial) {
+			Mark(t)
+			return
+		}
 	}
 }
 

@@ -22,6 +22,7 @@ const defaultMaxVariables = 100
 
 var (
 	variableRegex         = regexp.MustCompile(`\${[^}]*}`)
+	fieldReferenceRegex   = regexp.MustCompile(`%{[^}]*}`)
 	errAppendNotSupported = errors.New("append is not supported")
 )
 
@@ -1099,13 +1100,14 @@ func (v *ScopedVariables) Len() int {
 // NewSECLVariable returns new variable of the type of the specified value
 func (v *ScopedVariables) NewSECLVariable(name string, value any, scopeName string, opts VariableOpts) (SECLVariable, error) {
 	getVariable := func(ctx *Context, noFollowInheritance bool) MutableSECLVariable {
-		v.varsLock.RLock()
-		defer v.varsLock.RUnlock()
 		scope := v.scoper(ctx)
 		if scope == nil {
 			return nil
 		}
 		key := scope.Hash()
+
+		v.varsLock.RLock()
+		defer v.varsLock.RUnlock()
 		vars := v.vars[key]
 		if (vars == nil || vars[name] == nil) && opts.Inherited && !noFollowInheritance {
 			var ok bool
@@ -1120,14 +1122,14 @@ func (v *ScopedVariables) NewSECLVariable(name string, value any, scopeName stri
 	}
 
 	setVariable := func(ctx *Context, value any) error {
-		v.varsLock.Lock()
-		defer v.varsLock.Unlock()
 		scope := v.scoper(ctx)
 		if scope == nil {
 			return fmt.Errorf("`%s` scoper failed to scope variable '%s'", v.scoperName, name)
 		}
-
 		key := scope.Hash()
+
+		v.varsLock.Lock()
+		defer v.varsLock.Unlock()
 		vars := v.vars[key]
 		varType := getVariableType(value)
 

@@ -96,7 +96,7 @@ func (r *secretNoop) Configure(_ secrets.ConfigParams) {}
 func (r *secretNoop) SubscribeToChanges(_ secrets.SecretChangeCallback) {}
 
 // Resolve does nothing
-func (r *secretNoop) Resolve(data []byte, _ string, _ string, _ string) ([]byte, error) {
+func (r *secretNoop) Resolve(data []byte, _ string, _ string, _ string, _ bool) ([]byte, error) {
 	return data, nil
 }
 
@@ -104,3 +104,6 @@ func (r *secretNoop) Resolve(data []byte, _ string, _ string, _ string) ([]byte,
 func (r *secretNoop) Refresh(_ bool) (string, error) {
 	return "", nil
 }
+
+// RemoveOrigin
+func (r *secretNoop) RemoveOrigin(_ string) {}

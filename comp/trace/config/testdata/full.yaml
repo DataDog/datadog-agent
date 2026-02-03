@@ -98,3 +98,6 @@ apm_config:
       max_size: 5555555
 
   mode: edge
+  additional_profile_tags:
+    _dd.origin: appservice
+    env: staging

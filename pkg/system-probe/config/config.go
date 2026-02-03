@@ -98,6 +98,7 @@ func newSysprobeConfig(configPath string, fleetPoliciesDirPath string) (*types.C
 
 func load() (*types.Config, error) {
 	cfg := pkgconfigsetup.GlobalSystemProbeConfigBuilder()
+	coreCfg := pkgconfigsetup.Datadog()
 
 	Adjust(cfg)
 
@@ -122,7 +123,7 @@ func load() (*types.Config, error) {
 	csmEnabled := cfg.GetBool(secNS("enabled"))
 	gpuEnabled := cfg.GetBool(gpuNS("enabled"))
 	diEnabled := cfg.GetBool(diNS("enabled"))
-	swEnabled := pkgconfigsetup.Datadog().GetBool(swNS("enabled"))
+	swEnabled := coreCfg.GetBool(swNS("enabled"))
 
 	if npmEnabled || usmEnabled || ccmEnabled || (csmEnabled && cfg.GetBool(secNS("network_monitoring.enabled"))) {
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
@@ -141,6 +142,20 @@ func load() (*types.Config, error) {
 		gpuEnabled ||
 		diEnabled {
 		c.EnabledModules[EventMonitorModule] = struct{}{}
+	}
+	complianceEnabled := coreCfg.GetBool(compNS("enabled"))
+	complianceRunInSystemProbe := coreCfg.GetBool(compNS("run_in_system_probe"))
+	complianceDBBenchmarksEnabled := cfg.GetBool(compNS("database_benchmarks.enabled"))
+	complianceLegacyCWSEnabled := cfg.GetBool(secNS("enabled")) && cfg.GetBool(secNS("compliance_module.enabled"))
+
+	// Enable compliance module if:
+	// 1. Full compliance is enabled AND should run in system-probe, OR
+	// 2. Only DB benchmarks handler is needed (regardless of run_in_system_probe), OR
+	// 3. Legacy CWS config enables compliance module
+	shouldEnableComplianceModule := (complianceEnabled && complianceRunInSystemProbe) || complianceDBBenchmarksEnabled || complianceLegacyCWSEnabled
+
+	if shouldEnableComplianceModule {
+		c.EnabledModules[ComplianceModule] = struct{}{}
 	}
 	if cfg.GetBool(spNS("process_config.enabled")) {
 		c.EnabledModules[ProcessModule] = struct{}{}

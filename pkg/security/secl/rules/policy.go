@@ -191,6 +191,8 @@ const (
 	DefaultPolicyType InternalPolicyType = "default"
 	// CustomPolicyType is the custom policy type
 	CustomPolicyType InternalPolicyType = "custom"
+	// RemediationPolicyType is the remediation policy type
+	RemediationPolicyType InternalPolicyType = "remediation"
 	// BundledPolicyType is the policy for internal use (bundled_policy_provider)
 	BundledPolicyType InternalPolicyType = "internal"
 	// SelftestPolicyType is the policy for self tests

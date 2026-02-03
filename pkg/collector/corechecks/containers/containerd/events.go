@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -511,9 +512,7 @@ func (s *subscriber) GetImageSizes() map[string]map[string]int64 {
 	snapshot := make(map[string]map[string]int64)
 	for namespace, images := range s.imageSizeCache {
 		snapshot[namespace] = make(map[string]int64)
-		for imageName, size := range images {
-			snapshot[namespace][imageName] = size
-		}
+		maps.Copy(snapshot[namespace], images)
 	}
 
 	return snapshot

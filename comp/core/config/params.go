@@ -5,6 +5,10 @@
 
 package config
 
+import (
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
+)
+
 // Params defines the parameters for the config component.
 type Params struct {
 	// ConfFilePath is the path at which to look for configuration, usually
@@ -61,6 +65,7 @@ func NewParams(defaultConfPath string, options ...func(*Params)) Params {
 func NewAgentParams(confFilePath string, options ...func(*Params)) Params {
 	params := NewParams(DefaultConfPath, options...)
 	params.ConfFilePath = confFilePath
+	setup.InitConfigObjects(params.ConfFilePath, params.defaultConfPath)
 	return params
 }
 

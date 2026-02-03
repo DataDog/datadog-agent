@@ -48,7 +48,7 @@ func NewClient(authToken string, clientTLSConfig *tls.Config, config pkgconfigmo
 				return nil, err
 			}
 
-			port, err := strconv.Atoi(sPort)
+			port, err := strconv.ParseUint(sPort, 10, 16)
 			if err != nil {
 				return nil, fmt.Errorf("invalid port for vsock listener: %v", err)
 			}
@@ -65,6 +65,14 @@ func NewClient(authToken string, clientTLSConfig *tls.Config, config pkgconfigmo
 
 			return conn, err
 		}
+	} else {
+		clone := tr.Clone()
+		clone.DialContext = func(_ context.Context, _, _ string) (net.Conn, error) {
+			return net.Dial("unix", config.GetString("agent_ipc.socket_path"))
+		}
+		udsRoundTripper := roundTripAdapter(clone)
+
+		tr.RegisterProtocol("https+unix", udsRoundTripper)
 	}
 
 	return &ipcClient{
@@ -72,6 +80,30 @@ func NewClient(authToken string, clientTLSConfig *tls.Config, config pkgconfigmo
 		authToken:   authToken,
 		config:      config,
 	}
+}
+
+type roundTripWrapper (func(req *http.Request) (*http.Response, error))
+
+func (f roundTripWrapper) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+func roundTripAdapter(next http.RoundTripper) http.RoundTripper {
+	return roundTripWrapper(func(req *http.Request) (*http.Response, error) {
+		if req.URL == nil {
+			return nil, errors.New("ipc client: unix socket: no request URL")
+		}
+
+		scheme, found := strings.CutSuffix(req.URL.Scheme, "+unix")
+		if !found {
+			return nil, fmt.Errorf("ipc client: unix socket: : missing '+unix' suffix in scheme %s", req.URL.Scheme)
+		}
+
+		req = req.Clone(req.Context())
+		req.URL.Scheme = scheme
+
+		return next.RoundTrip(req)
+	})
 }
 
 func (s *ipcClient) Get(url string, opts ...ipc.RequestOption) (resp []byte, err error) {

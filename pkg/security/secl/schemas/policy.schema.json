@@ -111,6 +111,9 @@
       "properties": {
         "field": {
           "type": "string"
+        },
+        "max_file_size": {
+          "type": "integer"
         }
       },
       "additionalProperties": false,
@@ -131,7 +134,8 @@
           "type": "string",
           "enum": [
             "process",
-            "container"
+            "container",
+            "cgroup"
           ]
         },
         "disable_container_disarmer": {

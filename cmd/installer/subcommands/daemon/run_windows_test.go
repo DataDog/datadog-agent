@@ -97,7 +97,7 @@ func createConfigDir(t *testing.T) {
 			_ = os.RemoveAll(paths.DatadogInstallerData)
 		}
 	})
-	err := paths.EnsureInstallerDataDir()
+	err := paths.SetupInstallerDataDir()
 	require.NoError(t, err)
 	err = paths.IsInstallerDataDirSecure()
 	require.NoError(t, err)

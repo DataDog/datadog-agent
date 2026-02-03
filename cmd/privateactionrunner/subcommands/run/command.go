@@ -7,7 +7,8 @@
 package run
 
 import (
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
+	"errors"
+
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -19,10 +20,13 @@ import (
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
+	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	privateactionrunnerfx "github.com/DataDog/datadog-agent/comp/privateactionrunner/fx"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -42,10 +46,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Run the Private Action Runner",
 		Long:  `Runs the private-action-runner in the foreground`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return fxutil.Run(
+			err := fxutil.Run(
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(cliParams.ExtraConfFilePath)),
-					LogParams:    log.ForOneShot("PRIV-ACTION", "info", true)}),
+					LogParams:    log.ForDaemon(command.LoggerName, "privateactionrunner.log_file", pkgconfigsetup.DefaultPrivateActionRunnerLogFile)}),
 				core.Bundle(),
 				secretsnoopfx.Module(),
 				fx.Provide(func(c config.Component) settings.Params {
@@ -63,6 +67,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(rcclient.Params{AgentName: "private-action-runner", AgentVersion: version.AgentVersion}),
 				privateactionrunnerfx.Module(),
 			)
+			if errors.Is(err, privateactionrunner.ErrNotEnabled) {
+				return nil
+			}
+			return err
 		},
 	}
 

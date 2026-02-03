@@ -28,6 +28,7 @@ func newCCObfuscator(config *CreditCardsConfig) *creditCard {
 
 // ObfuscateCreditCardNumber obfuscates any "credit card like" numbers in value for keys not in the allow-list
 func (o *Obfuscator) ObfuscateCreditCardNumber(key, val string) string {
+	// These tags are known to not be credit card numbers
 	switch key {
 	case "_sample_rate",
 		"_sampling_priority_v1",
@@ -56,8 +57,13 @@ func (o *Obfuscator) ObfuscateCreditCardNumber(key, val string) string {
 		"service.name",
 		"service",
 		"sql.query",
-		"version":
-		// these tags are known to not be credit card numbers
+		"version",
+		// Data Job Monitoring tags - these values are frequently similar to credit card numbers
+		"databricks_job_id",
+		"databricks_job_run_id",
+		"databricks_task_run_id",
+		"config.spark_app_startTime",
+		"config.spark_databricks_job_parentRunId":
 		return val
 	}
 	if strings.HasPrefix(key, "_") {

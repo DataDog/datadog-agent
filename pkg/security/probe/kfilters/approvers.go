@@ -53,8 +53,9 @@ func newInUpperLayerKFilter(tableName string, eventType model.EventType) (kFilte
 	return &eventMaskKFilter{
 		approverType: InUpperLayerApproverType,
 		tableName:    tableName,
-		tableKey:     uint32(0),
+		tableKey:     ebpf.Uint32MapItem(0),
 		eventMask:    uint64(1 << (eventType - 1)),
+		isArrayMap:   true,
 	}, nil
 }
 
@@ -104,6 +105,21 @@ func newKFilterWithUInt64FlagsAndIndex(tableName string, index uint32, flags ...
 		index:        index,
 		value:        ebpf.NewUint64FlagsMapItem(bitmask),
 		zeroValue:    ebpf.Uint64FlagsZeroMapItem,
+	}, nil
+}
+
+func newKFilterZeroFlagValue(tableName string, approve bool) (kFilter, error) {
+	mapValue := ebpf.BoolFalseMapItem
+	if approve {
+		mapValue = ebpf.BoolTrueMapItem
+	}
+
+	return &arrayKFilter{
+		approverType: FlagApproverType,
+		tableName:    tableName,
+		index:        uint32(0),
+		value:        mapValue,
+		zeroValue:    ebpf.BoolFalseMapItem,
 	}, nil
 }
 

@@ -154,4 +154,24 @@ func TestCut(t *testing.T) {
 			Chunks:          []*TraceChunk{},
 		})
 	})
+
+	t.Run("tags-deep-copy", func(t *testing.T) {
+		tp := &TracerPayload{
+			Tags: map[string]string{
+				"original": "value",
+			},
+			Chunks: []*TraceChunk{
+				{Origin: "chunk-0"},
+				{Origin: "chunk-1"},
+			},
+		}
+		tp1 := tp.Cut(1)
+
+		tp.Tags["new-key"] = "new-value"
+		assert.NotContains(t, tp1.Tags, "new-value", "Cut payload should have independent Tags map")
+		assert.Equal(t, map[string]string{"original": "value"}, tp1.Tags)
+
+		tp1.Tags["cut-key"] = "cut-value"
+		assert.NotContains(t, tp.Tags, "cut-key", "Original payload should have independent Tags map")
+	})
 }

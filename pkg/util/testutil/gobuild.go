@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package testutil provides utilities for testing.
+//go:build test
+
 package testutil
 
 import (

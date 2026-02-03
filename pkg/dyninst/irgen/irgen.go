@@ -25,7 +25,6 @@ import (
 	"cmp"
 	"container/heap"
 	"debug/dwarf"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -289,10 +288,10 @@ func generateIR(
 				pcRange: pcRange,
 			})
 		}
-		for _, inlined := range sp.inlinePCRanges {
-			for _, pcRange := range inlined.RootRanges {
+		for _, inlined := range sp.inlined {
+			for _, pcRange := range inlined.inlinedPCRanges.RootRanges {
 				lineSearchRanges = append(lineSearchRanges, lineSearchRange{
-					unit:    sp.unit,
+					unit:    inlined.unit,
 					pcRange: pcRange,
 				})
 			}
@@ -1318,7 +1317,12 @@ func materializePending(
 			ID:                p.id,
 			Name:              p.name,
 			OutOfLinePCRanges: p.outOfLinePCRanges,
-			InlinePCRanges:    p.inlinePCRanges,
+		}
+		for _, inlined := range p.inlined {
+			if len(inlined.inlinedPCRanges.Ranges) == 0 {
+				continue
+			}
+			sp.InlinePCRanges = append(sp.InlinePCRanges, inlined.inlinedPCRanges)
 		}
 		// First, create variables defined directly under the subprogram/abstract DIEs.
 		variableByOffset := make(map[dwarf.Offset]*ir.Variable, len(p.variables))
@@ -1672,7 +1676,6 @@ type pendingSubprogram struct {
 	variables         []*dwarf.Entry
 	name              string
 	outOfLinePCRanges []ir.PCRange
-	inlinePCRanges    []ir.InlinePCRanges
 
 	// Inlined instances associated with this (abstract) subprogram.
 	inlined    []*inlinedSubprogram
@@ -2070,7 +2073,6 @@ type abstractSubprogram struct {
 	name       string
 	// Aggregated ranges from out-of-line and inlined instances.
 	outOfLinePCRanges []ir.PCRange
-	inlinePCRanges    []ir.InlinePCRanges
 	// Variables defined under the abstract DIE keyed by DIE offset.
 	variables map[dwarf.Offset]*dwarf.Entry
 	// Inlined instances discovered for this abstract subprogram.
@@ -2102,6 +2104,7 @@ func (v *abstractSubprogramVisitor) pop(_ *dwarf.Entry, _ visitor) error {
 }
 
 type inlinedSubprogram struct {
+	unit           *dwarf.Entry
 	abstractOrigin dwarf.Offset
 	// Exactly one of the following is non-nil. If this is an out-of-line instance,
 	// outOfLinePCRanges are set. Otherwise, inlinedPCRanges are set.
@@ -2197,11 +2200,11 @@ func convertAbstractSubprogramsToPending(
 			RootRanges: ctx.rootRanges,
 		}
 		abs.inlined = append(abs.inlined, &inlinedSubprogram{
+			unit:            ctx.unitEntry,
 			abstractOrigin:  ctx.abstractOrigin,
 			inlinedPCRanges: ranges,
 			variables:       ctx.variables,
 		})
-		abs.inlinePCRanges = append(abs.inlinePCRanges, ranges)
 	}
 
 	for ctx, err := range iterConcreteSubprograms(
@@ -2232,6 +2235,7 @@ func convertAbstractSubprogramsToPending(
 			continue
 		}
 		outOfLine := &inlinedSubprogram{
+			unit:              ctx.unitEntry,
 			abstractOrigin:    ctx.abstractOrigin,
 			outOfLinePCRanges: ctx.entryRanges,
 			variables:         ctx.variables,
@@ -2261,7 +2265,6 @@ func convertAbstractSubprogramsToPending(
 			subprogramEntry:   nil,
 			name:              abs.name,
 			outOfLinePCRanges: abs.outOfLinePCRanges,
-			inlinePCRanges:    abs.inlinePCRanges,
 			inlined:           abs.inlined,
 			variables:         varVars,
 			probesCfgs:        abs.probesCfgs,
@@ -2281,6 +2284,7 @@ func convertAbstractSubprogramsToPending(
 // contains it.
 type concreteSubprogramContext struct {
 	abstractOrigin dwarf.Offset
+	unitEntry      *dwarf.Entry
 	entry          *dwarf.Entry
 	entryRanges    []ir.PCRange
 	reader         *dwarf.Reader
@@ -2338,6 +2342,7 @@ func iterConcreteSubprograms(
 ) iter.Seq2[concreteSubprogramContext, error] {
 	var (
 		unitIdx               int
+		unitEntry             *dwarf.Entry
 		concreteSubprogramIdx int
 		currentSubprogram     struct {
 			offset dwarf.Offset
@@ -2358,6 +2363,7 @@ func iterConcreteSubprograms(
 			(unitIdx+1 >= len(units) || units[unitIdx+1] > refOffset) {
 			return nil // no advancement needed
 		}
+		unitEntry = nil
 		found, _ := slices.BinarySearch(units[unitIdx:], refOffset)
 		if found == 0 {
 			return fmt.Errorf("ref %#x precedes first unit", refOffset)
@@ -2365,7 +2371,8 @@ func iterConcreteSubprograms(
 		unitIdx += found - 1
 		reader = d.Reader()
 		reader.Seek(units[unitIdx])
-		if _, err := reader.Next(); err != nil {
+		var err error
+		if unitEntry, err = reader.Next(); err != nil {
 			return fmt.Errorf("failed to get next entry: %w", err)
 		}
 		return nil
@@ -2489,6 +2496,7 @@ func iterConcreteSubprograms(
 				entry:          entry,
 				entryRanges:    inlinedPCRanges,
 				variables:      variableVisitor.variableEntries,
+				unitEntry:      unitEntry,
 			}, nil) {
 				return
 			}
@@ -3559,6 +3567,7 @@ func pickInjectionPoint(
 				PC:                  ranges[0][0],
 				Frameless:           frameless,
 				HasAssociatedReturn: false,
+				NoReturnReason:      ir.NoReturnReasonInlined,
 			})
 		} else {
 			call, err := pickCallInjectionPoint(arch, addr, frameless, lines)
@@ -3580,21 +3589,30 @@ func pickInjectionPoint(
 				return buf, nil, issue, nil
 			}
 
-			// Add a workaround for the fact that single-instruction functions
-			// would have the same entry and exit probes, but the ordering between
-			// them would not be well-defined, so in this extremely uncommon case
-			// the user doesn't get to see the return probe. It's okay because
-			// there literally cannot be a return value.
-			hasAssociatedReturn := !skipReturnEvents
-			if len(returnLocations) == 1 && returnLocations[0].PC == call.pc {
+			var hasAssociatedReturn bool
+			var noReturnReason ir.NoReturnReason
+			if skipReturnEvents {
 				hasAssociatedReturn = false
+				noReturnReason = ir.NoReturnReasonReturnsDisabled
+			} else if len(returnLocations) == 1 && returnLocations[0].PC == call.pc {
+				// Add a workaround for the fact that single-instruction
+				// functions would have the same entry and exit probes, but the
+				// ordering between them would not be well-defined, so in this
+				// extremely uncommon case the user doesn't get to see the
+				// return probe. It's okay because there literally cannot be a
+				// return value.
+				hasAssociatedReturn = false
+				noReturnReason = ir.NoReturnReasonNoBody
 				returnLocations = returnLocations[:0]
+			} else {
+				hasAssociatedReturn = true
 			}
 
 			buf = append(buf, ir.InjectionPoint{
 				PC:                  call.pc,
 				Frameless:           call.frameless,
 				HasAssociatedReturn: hasAssociatedReturn,
+				NoReturnReason:      noReturnReason,
 				TopPCOffset:         call.topPCOffset,
 			})
 			if hasAssociatedReturn {
@@ -3635,6 +3653,7 @@ func pickInjectionPoint(
 			PC:                  injectionPC,
 			Frameless:           frameless,
 			HasAssociatedReturn: false,
+			NoReturnReason:      ir.NoReturnReasonLineProbe,
 		})
 	}
 	return buf, returnEvent, ir.Issue{}, nil
@@ -3826,6 +3845,7 @@ func disassembleAmd64Function(
 					PC:                  epilogueStart,
 					Frameless:           frameless,
 					HasAssociatedReturn: false,
+					NoReturnReason:      ir.NoReturnReasonIsReturn,
 				})
 			}
 		}
@@ -3834,6 +3854,7 @@ func disassembleAmd64Function(
 				PC:                  addr + uint64(offset),
 				Frameless:           frameless,
 				HasAssociatedReturn: false,
+				NoReturnReason:      ir.NoReturnReasonIsReturn,
 			})
 		}
 		offset += instruction.Len
@@ -3848,7 +3869,9 @@ func disassembleAmd64Function(
 	return returnLocations, ir.Issue{}
 }
 
-// disassembleAmd64Function implemented disassembleFunction for arm64.
+const Arm64InstructionByteLength = 4
+
+// disassembleArm64Function implements disassembleFunction for arm64.
 func disassembleArm64Function(
 	addr uint64,
 	injectionPC uint64,
@@ -3868,18 +3891,17 @@ func disassembleArm64Function(
 	for offset := 0; offset < len(body); {
 		instBytes := body[offset : offset+4]
 		instruction, err := arm64asm.Decode(instBytes)
-		// All-zero instruction fails to parse, but is used as padding and valid.
-		if err != nil && binary.LittleEndian.Uint32(instBytes) != 0 {
-			return nil, ir.Issue{
-				Kind: ir.IssueKindDisassemblyFailed,
-				Message: fmt.Sprintf(
-					"failed to decode arm64 instruction: at offset %d of %#x %#x: %v",
-					offset, addr+uint64(offset), body[offset:min(offset+4, len(body))], err,
-				),
-			}
-		}
 		if offset == int(injectionPC)-int(addr) {
 			validInjectionPC = true
+		}
+		if err != nil {
+			// Skip instructions we can't decode. The arm64asm package doesn't
+			// support all instructions (e.g. arm LSE atomics)
+			// Since we only care about the epilouge, unknown instructions
+			// or padding are skipped. Every instruction is exactly 4 bytes
+			// so we can do this safely, unlike x86.
+			offset += Arm64InstructionByteLength
+			continue
 		}
 		if instruction.Op == arm64asm.RET {
 			retPC := addr + uint64(offset)
@@ -3916,22 +3938,41 @@ func collectLineDataForRange(
 	lineReader *dwarf.LineReader, r ir.PCRange,
 ) lineData {
 	var lineEntry dwarf.LineEntry
+	// Save position before seeking. Line tables are state-machine encoded and
+	// only support efficient forward iteration; seeking backward requires
+	// restarting from the beginning. By saving our position (which is already
+	// in the correct compile unit), we can restore it cheaply if SeekPC fails.
 	prevPos := lineReader.Tell()
-	// In general, SeekPC is not the function we're looking for.  We
-	// want to seek to the next line entry that's in the range but
-	// not necessarily the first one. We add some hacks here that
-	// work unless we're at the beginning of a sequence.
+	// SeekPC finds the line table entry covering a given PC, but we need the
+	// first entry whose address is >= r[0], which may be different. SeekPC
+	// also fails for PCs in "holes" - addresses not covered by any line table
+	// sequence.
 	//
-	// TODO: Find a way to seek to the first entry in a range rather
-	// than just
+	// DWARF line tables consist of sequences, each covering a contiguous PC
+	// range. A sequence is a state-machine-encoded log mapping PCs to source
+	// locations (file, line, column). Holes exist between sequences or at
+	// their boundaries.
+	//
+	// TODO: Find a way to seek to the first entry in a range rather than just
+	// the entry that covers this PC. See https://github.com/golang/go/issues/73996.
 	err := lineReader.SeekPC(r[0], &lineEntry)
-	// If we find that we have a hole, then we'll have our hands on
-	// a reader that's positioned after our PC. We can then seek to
-	// the instruction prior to that which should be in range of a
-	// real sequence. This is grossly inefficient.
+	// Workaround for holes: When SeekPC fails with ErrUnknownPC, the reader
+	// is experimentally observed to be left positioned at a preceding
+	// end_sequence marker. If that marker's address is at or before r[0],
+	// we can recover by:
+	//   1. Reading the next entry to find where the next sequence starts
+	//   2. Restoring the reader to prevPos (since seeking backward through
+	//      line tables is very inefficient - it requires restarting from
+	//      the beginning of the table)
+	//   3. Seeking to (next_address - 1) to land within the prior entry
+	//   4. If that puts us at an address >= r[0], we've found valid data
+	//
+	// The -1 works because lineEntry.Address marks an entry's start, so
+	// (address - 1) falls within the previous entry's range, and SeekPC
+	// will position us at that entry's start (a valid instruction boundary).
 	if err != nil &&
 		errors.Is(err, dwarf.ErrUnknownPC) &&
-		lineEntry.Address < r[0] {
+		lineEntry.Address <= r[0] {
 		nextErr := lineReader.Next(&lineEntry)
 		if nextErr == nil {
 			lineReader.Seek(prevPos)
@@ -3942,9 +3983,9 @@ func collectLineDataForRange(
 		}
 	}
 	if err != nil {
-		// Reset the reader to the previous position which is more efficient
-		// than starting from 0 for the next seek given the caller is exploring
-		// in PC order.
+		// Restore the reader to prevPos so the next call to this function
+		// can seek forward efficiently. The caller explores ranges in PC
+		// order, so prevPos is likely close to the next range we'll query.
 		lineReader.Seek(prevPos)
 		return lineData{err: err}
 	}

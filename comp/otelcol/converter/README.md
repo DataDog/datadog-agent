@@ -17,8 +17,8 @@ The converter supports selective enabling and disabling of features through the 
 - **`pprof`**: Adds the pprof extension for profiling capabilities
 - **`zpages`**: Adds the zpages extension for debugging information
 - **`health_check`**: Adds the health check extension for health monitoring
-- **`ddflare`**: Adds the Datadog flare extension for diagnostic information, it should not be used together with `datadog`
-- **`datadog`**: Adds the OSS Datadog extension to send Fleet Automation data, it should not be used together with `ddflare`
+- **`ddflare`**: Adds the Datadog flare extension for diagnostic information
+- **`datadog`**: Adds the OSS Datadog extension to send Fleet Automation data
 
 ### Configuration Examples
 

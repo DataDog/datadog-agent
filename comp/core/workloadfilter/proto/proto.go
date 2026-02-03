@@ -26,9 +26,9 @@ func NewEvaluateRequest(name string, entity workloadfilter.Filterable) (*pb.Work
 		req.Workload = &pb.WorkloadFilterEvaluateRequest_Pod{Pod: e.FilterPod}
 	case *workloadfilter.Process:
 		req.Workload = &pb.WorkloadFilterEvaluateRequest_Process{Process: e.FilterProcess}
-	case *workloadfilter.Service:
+	case *workloadfilter.KubeService:
 		req.Workload = &pb.WorkloadFilterEvaluateRequest_KubeService{KubeService: e.FilterKubeService}
-	case *workloadfilter.Endpoint:
+	case *workloadfilter.KubeEndpoint:
 		req.Workload = &pb.WorkloadFilterEvaluateRequest_KubeEndpoint{KubeEndpoint: e.FilterKubeEndpoint}
 	case nil:
 		return nil, errors.New("nil entity is not supported workload type")
@@ -61,12 +61,12 @@ func ExtractFilterable(req *pb.WorkloadFilterEvaluateRequest) (workloadfilter.Fi
 		if payload.KubeService == nil {
 			return nil, errors.New("missing kube_service payload")
 		}
-		return &workloadfilter.Service{FilterKubeService: payload.KubeService}, nil
+		return &workloadfilter.KubeService{FilterKubeService: payload.KubeService}, nil
 	case *pb.WorkloadFilterEvaluateRequest_KubeEndpoint:
 		if payload.KubeEndpoint == nil {
 			return nil, errors.New("missing kube_endpoint payload")
 		}
-		return &workloadfilter.Endpoint{FilterKubeEndpoint: payload.KubeEndpoint}, nil
+		return &workloadfilter.KubeEndpoint{FilterKubeEndpoint: payload.KubeEndpoint}, nil
 	default:
 		return nil, errors.New("unsupported workload payload")
 	}

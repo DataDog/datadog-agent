@@ -44,6 +44,13 @@ copy_file(
     out = "config.h",
 )
 
+cc_library(
+    name = "config_h",
+    hdrs = [
+        ":copy_config_h",
+    ],
+)
+
 _PUBLIC_HEADERS = [
     "include/libattr.h",
     "include/attributes.h",
@@ -53,7 +60,6 @@ _PUBLIC_HEADERS = [
 cc_library(
     name = "libattr",
     srcs = [
-        ":copy_config_h",
         "libattr/attr_copy_action.c",
         "libattr/attr_copy_check.c",
         "libattr/attr_copy_fd.c",
@@ -72,6 +78,9 @@ cc_library(
     copts = [
         "-include $(location libattr/libattr.h)",
         "-O2",
+    ],
+    implementation_deps = [
+        ":config_h",
     ],
     local_defines = [
         "HAVE_CONFIG_H",

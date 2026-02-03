@@ -1,0 +1,17 @@
+"""Fetch the windows drives based on the current values in //relase.json."""
+
+get_file_using_release_constants = use_repo_rule("//deps/windows:module_utils.bzl", "get_file_using_release_constants")
+
+get_file_using_release_constants(
+    name = "windows_npm_driver",
+    sha256 = "WINDOWS_DDNPM_SHASUM",
+    target_filename = "DDNPM.msm",
+    url = "https://s3.amazonaws.com/dd-windowsfilter/builds/{WINDOWS_DDNPM_DRIVER}/ddnpminstall-{WINDOWS_DDNPM_VERSION}.msm",
+)
+
+get_file_using_release_constants(
+    name = "windows_procmon_driver",
+    sha256 = "WINDOWS_DDPROCMON_SHASUM",
+    target_filename = "DDPROCMON.msm",
+    url = "https://s3.amazonaws.com/dd-windowsfilter/builds/{WINDOWS_DDPROCMON_DRIVER}/ddprocmoninstall-{WINDOWS_DDPROCMON_VERSION}.msm",
+)

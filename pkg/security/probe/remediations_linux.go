@@ -1,0 +1,366 @@
+//go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=readonly -no_std_marshalers -build_tags linux $GOFILE
+
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+// Package probe holds probe related files
+package probe
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/security/events"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/version"
+)
+
+// Remediation tracks the state of an applied remediation
+type Remediation struct {
+	actionType         uint8
+	scope              string
+	triggered          bool
+	containerContext   RemediationContainerContext
+	processContext     RemediationProcessContext
+	policy             string
+	isolationReApplied bool
+	isolationNew       bool
+	ruleTags           RuleTags
+}
+
+const (
+	// RemediationTypeKill
+	RemediationTypeKill uint8 = iota
+
+	// RemediationTypeNetworkIsolation
+	RemediationTypeNetworkIsolation
+)
+
+type RuleTags map[string]string
+
+// RemediationProcessContext represents the process context for remediation events
+// easyjson:json
+type RemediationProcessContext struct {
+	PID uint32 `json:"pid,omitempty"`
+}
+
+// RemediationContainerContext represents the container context for remediation events
+// easyjson:json
+type RemediationContainerContext struct {
+	CreatedAt uint64 `json:"created_at,omitempty"`
+	ID        string `json:"id,omitempty"`
+}
+
+// RemediationAgentContext represents the agent context for remediation events
+// easyjson:json
+type RemediationAgentContext struct {
+	RuleID        string `json:"rule_id"`
+	OS            string `json:"os"`
+	KernelVersion string `json:"kernel_version"`
+	Origin        string `json:"origin"`
+	Arch          string `json:"arch"`
+	Distribution  string `json:"distribution"`
+	Version       string `json:"version"`
+}
+
+// RemediationEvent defines a custom remediation event
+// easyjson:json
+type RemediationEvent struct {
+	Date        string                      `json:"date"`
+	Process     RemediationProcessContext   `json:"process,omitempty"`
+	Container   RemediationContainerContext `json:"container,omitempty"`
+	Agent       RemediationAgentContext     `json:"agent"`
+	EventType   string                      `json:"event_type"`
+	Service     string                      `json:"service"`
+	Scope       string                      `json:"scope"`
+	Remediation string                      `json:"remediation_action"`
+	Status      string                      `json:"status"`
+	Timestamp   int64                       `json:"timestamp"`
+	RuleTags    RuleTags                    `json:"rule_tags,omitempty"`
+}
+
+// ToJSON marshals the remediation event to JSON
+func (k RemediationEvent) ToJSON() ([]byte, error) {
+	return utils.MarshalEasyJSON(k)
+}
+
+func getAgentEventID(rule *rules.Rule) string {
+	for _, tag := range rule.Tags {
+		if strings.HasPrefix(tag, "agent_event_id:") {
+			return tag[len("agent_event_id:"):]
+		}
+	}
+	return ""
+}
+
+func getRemediationTagBool(rule *rules.Rule) bool {
+	for _, tag := range rule.Tags {
+		if strings.HasPrefix(tag, "remediation_rule:") {
+			if tag[len("remediation_rule:"):] == "true" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func generateKillActionKey(ruleID string, scope string, signal string) string {
+	return "kill_" + ruleID + scope + signal
+}
+
+func generateNetworkIsolationActionKey(ruleID string, filter string) string {
+	hash := sha256.Sum256([]byte(filter))
+	return "net_" + ruleID + hex.EncodeToString(hash[:10])
+
+}
+
+func getRemediationKeys(rule *rules.Rule) []string {
+	keys := []string{}
+	if getRemediationTagBool(rule) {
+		// Should not have multiple remediation actions
+		keys = append(keys, "rem_"+getAgentEventID(rule))
+	}
+	for _, action := range rule.Actions {
+		if action.Def.Kill != nil {
+			// We assume this combination unique
+			scope := action.Def.Kill.Scope
+			signal := action.Def.Kill.Signal
+
+			keys = append(keys, generateKillActionKey(rule.ID, scope, signal))
+		}
+		if action.Def.NetworkFilter != nil {
+			filter := action.Def.NetworkFilter.BPFFilter
+			keys = append(keys, generateNetworkIsolationActionKey(rule.ID, filter))
+		}
+	}
+	return keys
+}
+
+// NewRemediationEvent creates a new Remediation event from the latest action report
+// activeRemediationsLock must be held
+func NewRemediationEvent(p *EBPFProbe, remediationKey string, status string, remediationType string) *RemediationEvent {
+	remediation, ok := p.activeRemediations[remediationKey]
+	if !ok || remediation == nil {
+		return nil
+	}
+
+	now := time.Now()
+
+	// Build agent context
+	kernelVersion := p.GetKernelVersion()
+	distribution := fmt.Sprintf("%s - %s", kernelVersion.OsRelease["ID"], kernelVersion.OsRelease["VERSION_ID"])
+
+	agentContext := RemediationAgentContext{
+		RuleID:        events.RemediationStatusRuleID,
+		OS:            "linux",
+		KernelVersion: kernelVersion.Code.String(),
+		Origin:        p.probe.Origin(),
+		Arch:          utils.RuntimeArch(),
+		Distribution:  distribution,
+		Version:       version.AgentVersion,
+	}
+
+	return &RemediationEvent{
+		Date:        now.Format(time.RFC3339Nano),
+		Container:   remediation.containerContext,
+		Process:     remediation.processContext,
+		Agent:       agentContext,
+		EventType:   "remediation_status",
+		Service:     "runtime-security-agent",
+		Scope:       remediation.scope,
+		Status:      status,
+		Timestamp:   now.UnixMilli(),
+		Remediation: remediationType,
+		RuleTags:    remediation.ruleTags,
+	}
+}
+
+func getTagsFromRule(rule *rules.Rule) RuleTags {
+	ruleTags := make(RuleTags)
+
+	for _, tag := range rule.Tags {
+		// Extract key:value from "key:value"
+		if before, after, ok := strings.Cut(tag, ":"); ok {
+			key := before
+			value := after
+			ruleTags[key] = value
+		}
+	}
+	return ruleTags
+}
+
+// HandleRemediationStatus is called when a new ruleset is loaded
+// It cleans up the activeRemediations map from the kill actions and network isolation actions that are not persistent
+func (p *EBPFProbe) HandleRemediationStatus(rs *rules.RuleSet) {
+	p.activeRemediationsLock.Lock()
+	defer p.activeRemediationsLock.Unlock()
+	// First, remove all the previous actions because only network isolation actions can be persistent
+	for key, state := range p.activeRemediations {
+		if state.actionType != RemediationTypeNetworkIsolation {
+			delete(p.activeRemediations, key)
+		}
+	}
+
+	// When a new ruleset is loaded, reset all flags
+	for _, state := range p.activeRemediations {
+		state.triggered = false
+		state.isolationReApplied = false
+		state.isolationNew = false
+	}
+
+	for _, rule := range rs.GetRules() {
+		for _, action := range rule.Actions {
+			if action.Def.NetworkFilter == nil && action.Def.Kill == nil {
+				// This is not a kill or network isolation action
+				continue
+			}
+
+			var actionType uint8
+			remediationKeys := getRemediationKeys(rule)
+
+			for _, remediationKey := range remediationKeys {
+				if action.Def.NetworkFilter != nil {
+					actionType = RemediationTypeNetworkIsolation
+					// If isolation is new, create a new entry in the map
+					if _, exists := p.activeRemediations[remediationKey]; !exists {
+						p.activeRemediations[remediationKey] = &Remediation{
+							actionType:   actionType,
+							triggered:    false,
+							isolationNew: true,
+							scope:        action.Def.NetworkFilter.Scope,
+							ruleTags:     getTagsFromRule(rule),
+						}
+					} else {
+						// Otherwise, update the entry
+						p.activeRemediations[remediationKey].isolationReApplied = true
+					}
+				} else if action.Def.Kill != nil && getRemediationTagBool(rule) {
+					// No need to create kill actions entries here if there is no remediation
+					actionType = RemediationTypeKill
+					// Create a new entry for kill actions
+					p.activeRemediations[remediationKey] = &Remediation{
+						actionType: actionType,
+						triggered:  false,
+						scope:      action.Def.Kill.Scope,
+						ruleTags:   getTagsFromRule(rule),
+					}
+				}
+			}
+		}
+	}
+	// After all the rule are laoded, check if some isolation actions were removed
+	for remediationKey, state := range p.activeRemediations {
+		if state.actionType == RemediationTypeNetworkIsolation && !state.isolationReApplied && !state.isolationNew {
+			networkFilterEvent := NewRemediationEvent(p, remediationKey, "removed", "cancel_network_isolation")
+			p.SendRemediationEvent(networkFilterEvent)
+			delete(p.activeRemediations, remediationKey)
+		}
+	}
+}
+
+func (p *EBPFProbe) HandleKillRemediation(rule *rules.Rule, ev *model.Event) {
+	if killReport, ok := ev.ActionReports[len(ev.ActionReports)-1].(*KillActionReport); ok {
+		remediationKey := generateKillActionKey(rule.ID, killReport.Scope, killReport.Signal)
+		p.activeRemediationsLock.Lock()
+		defer p.activeRemediationsLock.Unlock()
+		remediation, found := p.activeRemediations[remediationKey]
+
+		// Record that the kill action was triggered for remediation
+		if found && getRemediationTagBool(rule) {
+			remediation.triggered = true
+			remediation.processContext.PID = ev.ProcessContext.Process.Pid
+			remediation.containerContext.ID = string(ev.ProcessContext.Process.ContainerContext.ContainerID)
+			remediation.containerContext.CreatedAt = ev.ProcessContext.Process.ContainerContext.CreatedAt
+			remediation.policy = ""
+			remediation.ruleTags = getTagsFromRule(rule)
+
+		} else {
+			// Create new entries for kill actions that are not remediation
+			// It will only be used to send an event
+			p.activeRemediations[remediationKey] = &Remediation{
+				actionType: RemediationTypeKill,
+				triggered:  true,
+				processContext: RemediationProcessContext{
+					PID: ev.ProcessContext.Process.Pid,
+				},
+				containerContext: RemediationContainerContext{
+					ID:        string(ev.ProcessContext.Process.ContainerContext.ContainerID),
+					CreatedAt: ev.ProcessContext.Process.ContainerContext.CreatedAt,
+				},
+				scope: rule.Actions[0].Def.Kill.Scope,
+			}
+		}
+
+		// Get kill status
+		killReport.RLock()
+		status := string(killReport.Status)
+		killReport.RUnlock()
+		// Send custom event
+		killActionEvent := NewRemediationEvent(p, remediationKey, status, "kill")
+		p.SendRemediationEvent(killActionEvent)
+	}
+}
+
+func (p *EBPFProbe) HandleNetworkRemediation(rule *rules.Rule, ev *model.Event, report *RawPacketActionReport) {
+	remediationKey := generateNetworkIsolationActionKey(rule.ID, report.Filter)
+	p.activeRemediationsLock.Lock()
+	defer p.activeRemediationsLock.Unlock()
+
+	remediation, found := p.activeRemediations[remediationKey]
+
+	if found {
+		// New isolation: apply it and send the event
+		remediation.triggered = true
+		if remediation.isolationReApplied {
+			// We already re-applied the isolation, no need to send the event
+			return
+		}
+
+		remediation.processContext.PID = ev.ProcessContext.Process.Pid
+		remediation.containerContext.ID = string(ev.ProcessContext.Process.ContainerContext.ContainerID)
+		remediation.containerContext.CreatedAt = ev.ProcessContext.Process.ContainerContext.CreatedAt
+		remediation.policy = string(report.Policy)
+	}
+	// Send an event
+	networkFilterEvent := NewRemediationEvent(p, remediationKey, string(report.Status), "network_isolation")
+	p.SendRemediationEvent(networkFilterEvent)
+
+}
+
+func (p *EBPFProbe) SendRemediationEvent(re *RemediationEvent) {
+	if re == nil {
+		return
+	}
+	customRule := events.NewCustomRule(events.RemediationStatusRuleID, events.RemediationStatusRuleDesc)
+	customEvent := events.NewCustomEvent(model.CustomEventType, re)
+	p.probe.DispatchCustomEvent(customRule, customEvent)
+
+}
+func (p *EBPFProbe) HandleRemediationNotTriggered() {
+	p.activeRemediationsLock.Lock()
+	for remediationKey, state := range p.activeRemediations {
+		if len(remediationKey) > 4 && remediationKey[0:4] != "rem_" {
+			// Only send events for remediation rules
+			continue
+		}
+		var remediation string
+		if !state.triggered {
+			if state.actionType == RemediationTypeNetworkIsolation {
+				remediation = "network_isolation"
+			} else if state.actionType == RemediationTypeKill {
+				remediation = "kill"
+			}
+			re := NewRemediationEvent(p, remediationKey, "not_triggered", remediation)
+			p.SendRemediationEvent(re)
+		}
+	}
+	p.activeRemediationsLock.Unlock()
+
+}

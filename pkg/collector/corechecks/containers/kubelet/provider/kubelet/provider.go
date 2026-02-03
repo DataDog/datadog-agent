@@ -13,8 +13,6 @@ package kubelet
 import (
 	"net/url"
 
-	"github.com/prometheus/common/model"
-
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
@@ -166,9 +164,10 @@ func (p *Provider) sendAlwaysCounter(metricFam *prom.MetricFamily, sender sender
 	metricName := metricFam.Name
 	nameWithNamespace := common.KubeletMetricsPrefix + counterMetrics[metricName]
 
-	for _, metric := range metricFam.Samples {
+	for i := range metricFam.Samples {
+		metric := &metricFam.Samples[i]
 		tags := p.MetricTags(metric)
-		sender.MonotonicCountWithFlushFirstValue(nameWithNamespace, float64(metric.Value), "", tags, !p.firstRun)
+		sender.MonotonicCountWithFlushFirstValue(nameWithNamespace, metric.Value, "", tags, !p.firstRun)
 	}
 }
 
@@ -179,19 +178,20 @@ func (p *Provider) appendPodTagsToVolumeMetrics(metricFam *prom.MetricFamily, se
 
 	metricName := metricFam.Name
 	metricNameWithNamespace := common.KubeletMetricsPrefix + volumeMetrics[metricName]
-	for _, metric := range metricFam.Samples {
+	for i := range metricFam.Samples {
+		metric := &metricFam.Samples[i]
 		pvcName := metric.Metric["persistentvolumeclaim"]
 		namespace := metric.Metric["namespace"]
-		filterablePod := workloadmetafilter.CreatePod(&workloadmeta.KubernetesPod{EntityMeta: workloadmeta.EntityMeta{Namespace: string(namespace)}})
+		filterablePod := workloadmetafilter.CreatePod(&workloadmeta.KubernetesPod{EntityMeta: workloadmeta.EntityMeta{Namespace: namespace}})
 		if pvcName == "" || namespace == "" || p.podFilter.IsExcluded(filterablePod) {
 			continue
 		}
 
 		tags := p.MetricTags(metric)
-		if podTags := p.podUtils.GetPodTagsByPVC(string(namespace), string(pvcName)); len(podTags) > 0 {
+		if podTags := p.podUtils.GetPodTagsByPVC(namespace, pvcName); len(podTags) > 0 {
 			tags = utils.ConcatenateTags(tags, podTags)
 		}
-		sender.Gauge(metricNameWithNamespace, float64(metric.Value), "", tags)
+		sender.Gauge(metricNameWithNamespace, metric.Value, "", tags)
 	}
 }
 
@@ -211,7 +211,7 @@ func (p *Provider) kubeletContainerLogFilesystemUsedBytes(metricFam *prom.Metric
 		}
 		tags = utils.ConcatenateTags(tags, p.Config.Tags)
 
-		sender.Gauge(metricName, float64(metric.Value), "", tags)
+		sender.Gauge(metricName, metric.Value, "", tags)
 	}
 }
 
@@ -219,11 +219,11 @@ func (p *Provider) restClientLatency(metricFam *prom.MetricFamily, sender sender
 	metricName := metricFam.Name
 	for _, metric := range metricFam.Samples {
 		if u, ok := metric.Metric["url"]; ok {
-			parsed, err := url.Parse(string(u))
+			parsed, err := url.Parse(u)
 			if err != nil {
 				log.Errorf("Unable to parse URL %s for given metric %s: %s", u, metricName, err)
 			} else if parsed != nil {
-				metric.Metric["url"] = model.LabelValue(parsed.Path)
+				metric.Metric["url"] = parsed.Path
 			}
 		}
 	}

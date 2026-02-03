@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/netip"
 	"reflect"
+	"runtime"
 	"sync"
 	"time"
 
@@ -62,6 +63,7 @@ func GetDefaultLegacyFieldsKeys() []eval.Field {
 // Model describes the data model for the runtime security agent events
 type Model struct {
 	ExtraValidateFieldFnc func(field eval.Field, fieldValue eval.FieldValue) error
+	ExtraValidateRule     func(rule *eval.Rule) error
 	legacyFields          map[eval.Field]eval.Field
 }
 
@@ -93,11 +95,10 @@ func (r *Releasable) AppendReleaseCallback(callback func()) {
 
 // ContainerContext holds the container context of an event
 type ContainerContext struct {
-	Releasable
-	ContainerID containerutils.ContainerID `field:"id,handler:ResolveContainerID,opts:gen_getters"`                // SECLDoc[id] Definition:`ID of the container`
-	CreatedAt   uint64                     `field:"created_at,handler:ResolveContainerCreatedAt,opts:gen_getters"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
-	Tags        []string                   `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"`    // SECLDoc[tags] Definition:`Tags of the container`
-	Resolved    bool                       `field:"-"`
+	*Releasable
+	ContainerID containerutils.ContainerID `field:"id,opts:gen_getters"`                                        // SECLDoc[id] Definition:`ID of the container`
+	CreatedAt   uint64                     `field:"created_at,opts:gen_getters"`                                // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
+	Tags        []string                   `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
 }
 
 // Hash returns a unique key for the entity
@@ -105,6 +106,11 @@ func (c *ContainerContext) Hash() eval.ScopeHashKey {
 	return eval.ScopeHashKey{
 		String: string(c.ContainerID),
 	}
+}
+
+// IsNull returns true if the container context is null
+func (c *ContainerContext) IsNull() bool {
+	return c.ContainerID == ""
 }
 
 // ParentScope returns the parent entity scope
@@ -394,11 +400,16 @@ type MatchedRule struct {
 	PolicyVersion string
 }
 
+type DelayabledEvent interface {
+	IsResolved() error
+	MaxRetry() int
+}
+
 // ActionReport defines an action report
 type ActionReport interface {
+	DelayabledEvent
 	ToJSON() ([]byte, error)
 	IsMatchingRule(ruleID eval.RuleID) bool
-	IsResolved() error
 }
 
 // NewMatchedRule return a new MatchedRule instance
@@ -505,10 +516,6 @@ var zeroProcessContext ProcessContext
 // ProcessCacheEntry this struct holds process context kept in the process tree
 type ProcessCacheEntry struct {
 	ProcessContext
-
-	refCount    uint64                     `field:"-"`
-	coreRelease func(_ *ProcessCacheEntry) `field:"-"`
-	onRelease   []func()                   `field:"-"`
 }
 
 // IsContainerRoot returns whether this is a top level process in the container ID
@@ -519,46 +526,22 @@ func (pc *ProcessCacheEntry) IsContainerRoot() bool {
 // Reset the entry
 func (pc *ProcessCacheEntry) Reset() {
 	pc.ProcessContext = zeroProcessContext
-	pc.refCount = 0
-	// `coreRelease` function should not be cleared on reset
-	// it's used for pool and cache size management
-	pc.onRelease = nil
 }
 
-// Retain increment ref counter
-func (pc *ProcessCacheEntry) Retain() {
-	pc.refCount++
-}
+type cleanupKey struct{}
 
 // AppendReleaseCallback set the callback called when the entry is released
 func (pc *ProcessCacheEntry) AppendReleaseCallback(callback func()) {
 	if callback != nil {
-		pc.onRelease = append(pc.onRelease, callback)
+		runtime.AddCleanup(pc, func(_ cleanupKey) {
+			callback()
+		}, cleanupKey{})
 	}
-}
-
-func (pc *ProcessCacheEntry) callReleaseCallbacks() {
-	for _, cb := range pc.onRelease {
-		cb()
-	}
-	if pc.coreRelease != nil {
-		pc.coreRelease(pc)
-	}
-}
-
-// Release decrement and eventually release the entry
-func (pc *ProcessCacheEntry) Release() {
-	if pc.refCount > 1 {
-		pc.refCount--
-		return
-	}
-
-	pc.callReleaseCallbacks()
 }
 
 // NewProcessCacheEntry returns a new process cache entry
-func NewProcessCacheEntry(coreRelease func(_ *ProcessCacheEntry)) *ProcessCacheEntry {
-	return &ProcessCacheEntry{coreRelease: coreRelease}
+func NewProcessCacheEntry() *ProcessCacheEntry {
+	return &ProcessCacheEntry{}
 }
 
 // ProcessAncestorsIterator defines an iterator of ancestors
@@ -712,7 +695,6 @@ type AWSSecurityCredentials struct {
 type BaseExtraFieldHandlers interface {
 	ResolveProcessCacheEntry(ev *Event, newEntryCb func(*ProcessCacheEntry, error)) (*ProcessCacheEntry, bool)
 	ResolveProcessCacheEntryFromPID(pid uint32) *ProcessCacheEntry
-	ResolveContainerContext(ev *Event) (*ContainerContext, bool)
 }
 
 // ResolveProcessCacheEntry stub implementation
@@ -720,11 +702,6 @@ func (dfh *FakeFieldHandlers) ResolveProcessCacheEntry(ev *Event, _ func(*Proces
 	if ev.ProcessCacheEntry != nil {
 		return ev.ProcessCacheEntry, true
 	}
-	return nil, false
-}
-
-// ResolveContainerContext stub implementation
-func (dfh *FakeFieldHandlers) ResolveContainerContext(_ *Event) (*ContainerContext, bool) {
 	return nil, false
 }
 

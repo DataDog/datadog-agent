@@ -23,11 +23,11 @@ skip_transitive_dependency_licensing true
 dependency "zlib" unless windows?
 dependency "cacerts"
 
-default_version "3.5.4"
+default_version "3.5.5"
 
 source url: "https://www.openssl.org/source/openssl-#{version}.tar.gz", extract: :lax_tar
 
-version("3.5.4") { source sha256: "967311f84955316969bdb1d8d4b983718ef42338639c621ec4c34fddef355e99" }
+version("3.5.5") { source sha256: "b28c91532a8b65a1f983b4c28b7488174e4a01008e29ce8e69bd789f28bc2a89" }
 
 relative_path "openssl-#{version}"
 
@@ -36,11 +36,20 @@ build do
     # OpenSSL on Windows now gets installed as part of the Python install, so we don't need to do anything here
     if !windows?
       command_on_repo_root "bazelisk run -- @openssl//:install --destdir=#{install_dir}/embedded"
+      # build_agent_dmg.sh sets INSTALL_DIR to some temporary folder.
+      # This messes up openssl's internal paths. So we have to use another variable
+      # so that replace_prefix and fix_openssl_paths set path correctly inside of the
+      # openssl binaries on macos
+      real_install_dir = if mac_os_x? then "/opt/datadog-agent" else install_dir end
       lib_extension = if linux_target? then ".so" else ".dylib" end
-      command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{install_dir}/embedded" \
+      command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{real_install_dir}/embedded" \
         " #{install_dir}/embedded/lib/libssl#{lib_extension}" \
         " #{install_dir}/embedded/lib/libcrypto#{lib_extension}" \
-        " #{install_dir}/embedded/lib/pkgconfig/*.pc"
+        " #{install_dir}/embedded/lib/pkgconfig/*.pc" \
+        " #{install_dir}/embedded/bin/openssl"
+      command_on_repo_root "bazelisk run -- //deps/openssl:fix_openssl_paths --destdir #{real_install_dir}/embedded" \
+        " #{install_dir}/embedded/lib/libssl#{lib_extension}" \
+        " #{install_dir}/embedded/lib/libcrypto#{lib_extension}" \
     end
   else
 
@@ -52,7 +61,7 @@ build do
       # Do not enable SSE2 generally because the hand optimized assembly will
       # overwrite registers that mingw expects to get preserved.
       env["CFLAGS"] = "-I#{install_dir}/embedded/include"
-      env["CPPFLAGS"] = env["CFLAGS"]
+      env["CPPFLAGS"] = "#{env["CFLAGS"]} -DSIO_UDP_NETRESET=_WSAIOW\\(IOC_VENDOR,15\\)"
       env["CXXFLAGS"] = env["CFLAGS"]
     end
 
@@ -110,11 +119,14 @@ build do
     command "make install_sw install_ssldirs", env: env
 
     delete "#{install_dir}/embedded/bin/c_rehash"
-    unless windows?
+    if windows?
+      # Rename to more standard .lib suffix for windows import libraries
+      move "#{install_dir}/embedded3/lib/libcrypto.dll.a", "#{install_dir}/embedded3/lib/libcrypto.lib"
+      move "#{install_dir}/embedded3/lib/libssl.dll.a", "#{install_dir}/embedded3/lib/libssl.lib"
+    else
       # Remove openssl static libraries here as we can't disable those at build time
       delete "#{install_dir}/embedded/lib/libcrypto.a"
       delete "#{install_dir}/embedded/lib/libssl.a"
-    else
-    end
     end
   end
+end

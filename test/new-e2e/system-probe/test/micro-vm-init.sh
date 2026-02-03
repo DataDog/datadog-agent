@@ -15,6 +15,16 @@ if command -v docker ; then
 else
     echo "Docker not available, skipping docker provisioning"
 fi
+
+## Increase tracing buffer size a tad, the default is 64KiB.
+if [[ -f /sys/kernel/debug/tracing/buffer_size_kb ]]; then
+    echo "Setting tracing buffer size to 1024 KB"
+    echo 1024 > /sys/kernel/debug/tracing/buffer_size_kb || \
+        echo "Failed to set tracing buffer size, continuing anyway"
+else
+    echo "Tracing buffer size file not found, skipping"
+fi
+
 # VM provisioning end !
 
 # Start tests

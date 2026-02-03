@@ -12,8 +12,8 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -44,7 +44,7 @@ func (c *collector) parseTasksFromV1Endpoint(ctx context.Context) ([]workloadmet
 		arnParts := strings.Split(task.Arn, "/")
 		taskID := arnParts[len(arnParts)-1]
 		taskContainers, containerEvents := c.parseTaskContainers(task, seen)
-		taskRegion, taskAccountID := util.ParseRegionAndAWSAccountID(task.Arn)
+		taskRegion, taskAccountID := ecs.ParseRegionAndAWSAccountID(task.Arn)
 
 		entity := &workloadmeta.ECSTask{
 			EntityID: entityID,

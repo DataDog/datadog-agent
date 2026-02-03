@@ -10,7 +10,7 @@
 // Package sharedlibrarycheck implements the layer to interact shared library-based checks
 package sharedlibrarycheck
 
-// InitSharedLibraryChecksLoader adds the shared library checks loader to the scheduler
+// InitSharedLibraryChecksLoader does nothing
 func InitSharedLibraryChecksLoader() {
 	// does nothing
 }

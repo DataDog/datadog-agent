@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
@@ -90,6 +91,12 @@ func (p *dockerFileFormat) Parse(msg *message.Message) (*message.Message, error)
 	msg.Status = status
 	msg.ParsingExtra.IsPartial = partial
 	msg.ParsingExtra.Timestamp = log.Time
+	// Tag the stream (stdout/stderr) for container logs parsed from docker JSON files
+	if pkgconfigsetup.Datadog().GetBool("logs_config.add_logsource_tag") {
+		if log.Stream == "stdout" || log.Stream == "stderr" {
+			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.LogSourceTag(log.Stream))
+		}
+	}
 	return msg, nil
 }
 

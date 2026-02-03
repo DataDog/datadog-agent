@@ -34,8 +34,8 @@ exporters:
         initial_cumulative_monotonic_value: auto
     only_metadata: false
     orchestrator_explorer:
-      cluster_name: ""
       enabled: false
+      endpoint: https://orchestrator.datadoghq.com/api/v2/orchmanif
     retry_on_failure:
       enabled: true
       initial_interval: 5s
@@ -46,7 +46,6 @@ exporters:
     sending_queue:
       batch:
       block_on_overflow: false
-      enabled: true
       num_consumers: 10
       queue_size: 1000
       sizer: {}
@@ -67,15 +66,7 @@ exporters:
     sampling_initial: 2
     sampling_thereafter: 1
     use_internal_logger: true
-    sending_queue:
-      batch: null
-      block_on_overflow: false
-      enabled: false
-      num_consumers: 10
-      queue_size: 1000
-      sizer: {}
-      storage: null
-      wait_for_result: false
+    sending_queue: null
     verbosity: Detailed
 extensions: {}
 processors: {}
@@ -99,6 +90,7 @@ receivers:
         read_header_timeout: 0s
         tls: null
         traces_url_path: /v1/traces
+        transport: tcp
         write_timeout: 0s
 service:
   pipelines:

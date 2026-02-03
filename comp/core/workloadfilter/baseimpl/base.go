@@ -29,7 +29,7 @@ import (
 type FilterProgramFactory struct {
 	once    sync.Once
 	program program.FilterProgram
-	factory func(filterConfig *catalog.FilterConfig, logger logcomp.Component) program.FilterProgram
+	factory func(builder *catalog.ProgramBuilder) program.FilterProgram
 }
 
 // ProgramFactory is an interface for creating filter programs
@@ -44,6 +44,7 @@ type BaseFilterStore struct {
 	Log                 logcomp.Component
 	ProgramFactoryStore map[workloadfilter.ResourceType]map[string]*FilterProgramFactory
 	TelemetryStore      *telemetry.Store
+	Builder             *catalog.ProgramBuilder
 	// Pre-built filter configuration with all parsed values
 	selection    *filterSelection
 	FilterConfig *catalog.FilterConfig
@@ -58,35 +59,40 @@ func NewBaseFilterStore(cfg config.Component, logger logcomp.Component, telemetr
 		os.Exit(1)
 	}
 
+	telemetryStore := telemetry.NewStore(telemetryComp)
+	builder := catalog.NewProgramBuilder(filterConfig, logger, telemetryStore)
+
 	baseFilter := &BaseFilterStore{
 		Config:              cfg,
 		Log:                 logger,
 		ProgramFactoryStore: make(map[workloadfilter.ResourceType]map[string]*FilterProgramFactory),
 		selection:           newFilterSelection(cfg),
 		FilterConfig:        filterConfig,
-		TelemetryStore:      telemetry.NewStore(telemetryComp),
+		TelemetryStore:      telemetryStore,
+		Builder:             builder,
 	}
 
-	genericADProgram := catalog.AutodiscoveryAnnotations()
-	genericADMetricsProgram := catalog.AutodiscoveryMetricsAnnotations()
-	genericADLogsProgram := catalog.AutodiscoveryLogsAnnotations()
-	genericADProgramFactory := func(_ *catalog.FilterConfig, _ logcomp.Component) program.FilterProgram { return genericADProgram }
-	genericADMetricsProgramFactory := func(_ *catalog.FilterConfig, _ logcomp.Component) program.FilterProgram {
+	// Pre-compute shared annotation programs
+	genericADProgram := catalog.AutodiscoveryAnnotations(builder)
+	genericADMetricsProgram := catalog.AutodiscoveryMetricsAnnotations(builder)
+	genericADLogsProgram := catalog.AutodiscoveryLogsAnnotations(builder)
+	genericADProgramFactory := func(_ *catalog.ProgramBuilder) program.FilterProgram { return genericADProgram }
+	genericADMetricsProgramFactory := func(_ *catalog.ProgramBuilder) program.FilterProgram {
 		return genericADMetricsProgram
 	}
-	genericADLogsProgramFactory := func(_ *catalog.FilterConfig, _ logcomp.Component) program.FilterProgram { return genericADLogsProgram }
+	genericADLogsProgramFactory := func(_ *catalog.ProgramBuilder) program.FilterProgram { return genericADLogsProgram }
 
 	// Pre-compute legacy programs via `DD_CONTAINER_EXCLUDE*` that can be shared across entity types
-	legacyGlobalPrg := catalog.LegacyContainerGlobalProgram(filterConfig, logger)
-	legacyMetricsPrg := catalog.LegacyContainerMetricsProgram(filterConfig, logger)
-	legacyLogsPrg := catalog.LegacyContainerLogsProgram(filterConfig, logger)
-	legacyACIncludePrg := catalog.LegacyContainerACIncludeProgram(filterConfig, logger)
-	legacyACExcludePrg := catalog.LegacyContainerACExcludeProgram(filterConfig, logger)
-	legacyGlobalPrgFactory := func(_ *catalog.FilterConfig, _ logcomp.Component) program.FilterProgram { return legacyGlobalPrg }
-	legacyMetricsPrgFactory := func(_ *catalog.FilterConfig, _ logcomp.Component) program.FilterProgram { return legacyMetricsPrg }
-	legacyLogsPrgFactory := func(_ *catalog.FilterConfig, _ logcomp.Component) program.FilterProgram { return legacyLogsPrg }
-	legacyACIncludePrgFactory := func(_ *catalog.FilterConfig, _ logcomp.Component) program.FilterProgram { return legacyACIncludePrg }
-	legacyACExcludePrgFactory := func(_ *catalog.FilterConfig, _ logcomp.Component) program.FilterProgram { return legacyACExcludePrg }
+	legacyGlobalPrg := catalog.LegacyContainerGlobalProgram(builder)
+	legacyMetricsPrg := catalog.LegacyContainerMetricsProgram(builder)
+	legacyLogsPrg := catalog.LegacyContainerLogsProgram(builder)
+	legacyACIncludePrg := catalog.LegacyContainerACIncludeProgram(builder)
+	legacyACExcludePrg := catalog.LegacyContainerACExcludeProgram(builder)
+	legacyGlobalPrgFactory := func(_ *catalog.ProgramBuilder) program.FilterProgram { return legacyGlobalPrg }
+	legacyMetricsPrgFactory := func(_ *catalog.ProgramBuilder) program.FilterProgram { return legacyMetricsPrg }
+	legacyLogsPrgFactory := func(_ *catalog.ProgramBuilder) program.FilterProgram { return legacyLogsPrg }
+	legacyACIncludePrgFactory := func(_ *catalog.ProgramBuilder) program.FilterProgram { return legacyACIncludePrg }
+	legacyACExcludePrgFactory := func(_ *catalog.ProgramBuilder) program.FilterProgram { return legacyACExcludePrg }
 
 	// Container Filters
 	baseFilter.RegisterFactory(workloadfilter.ContainerLegacyMetrics, legacyMetricsPrgFactory)
@@ -104,16 +110,16 @@ func NewBaseFilterStore(cfg config.Component, logger logcomp.Component, telemetr
 	baseFilter.RegisterFactory(workloadfilter.ContainerPaused, catalog.ContainerPausedProgram)
 
 	// Service Filters
-	baseFilter.RegisterFactory(workloadfilter.ServiceLegacyGlobal, legacyGlobalPrgFactory)
-	baseFilter.RegisterFactory(workloadfilter.ServiceLegacyMetrics, legacyMetricsPrgFactory)
-	baseFilter.RegisterFactory(workloadfilter.ServiceADAnnotations, genericADProgramFactory)
-	baseFilter.RegisterFactory(workloadfilter.ServiceADAnnotationsMetrics, genericADMetricsProgramFactory)
+	baseFilter.RegisterFactory(workloadfilter.KubeServiceLegacyGlobal, legacyGlobalPrgFactory)
+	baseFilter.RegisterFactory(workloadfilter.KubeServiceLegacyMetrics, legacyMetricsPrgFactory)
+	baseFilter.RegisterFactory(workloadfilter.KubeServiceADAnnotations, genericADProgramFactory)
+	baseFilter.RegisterFactory(workloadfilter.KubeServiceADAnnotationsMetrics, genericADMetricsProgramFactory)
 
 	// Endpoints Filters
-	baseFilter.RegisterFactory(workloadfilter.EndpointLegacyGlobal, legacyGlobalPrgFactory)
-	baseFilter.RegisterFactory(workloadfilter.EndpointLegacyMetrics, legacyMetricsPrgFactory)
-	baseFilter.RegisterFactory(workloadfilter.EndpointADAnnotations, genericADProgramFactory)
-	baseFilter.RegisterFactory(workloadfilter.EndpointADAnnotationsMetrics, genericADMetricsProgramFactory)
+	baseFilter.RegisterFactory(workloadfilter.KubeEndpointLegacyGlobal, legacyGlobalPrgFactory)
+	baseFilter.RegisterFactory(workloadfilter.KubeEndpointLegacyMetrics, legacyMetricsPrgFactory)
+	baseFilter.RegisterFactory(workloadfilter.KubeEndpointADAnnotations, genericADProgramFactory)
+	baseFilter.RegisterFactory(workloadfilter.KubeEndpointADAnnotationsMetrics, genericADMetricsProgramFactory)
 
 	// Pod Filters
 	baseFilter.RegisterFactory(workloadfilter.PodLegacyMetrics, legacyMetricsPrgFactory)
@@ -128,7 +134,7 @@ func NewBaseFilterStore(cfg config.Component, logger logcomp.Component, telemetr
 }
 
 // RegisterFactory registers a factory function for a given resource type and program ID
-func (f *BaseFilterStore) RegisterFactory(id workloadfilter.FilterIdentifier, factory func(filterConfig *catalog.FilterConfig, logger logcomp.Component) program.FilterProgram) {
+func (f *BaseFilterStore) RegisterFactory(id workloadfilter.FilterIdentifier, factory func(builder *catalog.ProgramBuilder) program.FilterProgram) {
 	resourceType := id.TargetResource()
 	programID := id.GetFilterName()
 	if f.ProgramFactoryStore[resourceType] == nil {
@@ -156,7 +162,7 @@ func (f *BaseFilterStore) GetProgram(resourceType workloadfilter.ResourceType, p
 	}
 
 	factory.once.Do(func() {
-		factory.program = factory.factory(f.FilterConfig, f.Log)
+		factory.program = factory.factory(f.Builder)
 	})
 
 	return factory.program
@@ -167,14 +173,14 @@ func (f *BaseFilterStore) GetContainerAutodiscoveryFilters(filterScope workloadf
 	return f.GetContainerFilters(f.selection.GetContainerAutodiscoveryFilters(filterScope))
 }
 
-// GetServiceAutodiscoveryFilters returns the pre-computed service autodiscovery filters
-func (f *BaseFilterStore) GetServiceAutodiscoveryFilters(filterScope workloadfilter.Scope) workloadfilter.FilterBundle {
-	return f.GetServiceFilters(f.selection.GetServiceAutodiscoveryFilters(filterScope))
+// GetKubeServiceAutodiscoveryFilters returns the pre-computed service autodiscovery filters
+func (f *BaseFilterStore) GetKubeServiceAutodiscoveryFilters(filterScope workloadfilter.Scope) workloadfilter.FilterBundle {
+	return f.GetKubeServiceFilters(f.selection.GetServiceAutodiscoveryFilters(filterScope))
 }
 
-// GetEndpointAutodiscoveryFilters returns the pre-computed endpoint autodiscovery filters
-func (f *BaseFilterStore) GetEndpointAutodiscoveryFilters(filterScope workloadfilter.Scope) workloadfilter.FilterBundle {
-	return f.GetEndpointFilters(f.selection.GetEndpointAutodiscoveryFilters(filterScope))
+// GetKubeEndpointAutodiscoveryFilters returns the pre-computed endpoint autodiscovery filters
+func (f *BaseFilterStore) GetKubeEndpointAutodiscoveryFilters(filterScope workloadfilter.Scope) workloadfilter.FilterBundle {
+	return f.GetKubeEndpointFilters(f.selection.GetEndpointAutodiscoveryFilters(filterScope))
 }
 
 // GetContainerSharedMetricFilters returns the pre-computed container shared metric filters
@@ -217,14 +223,14 @@ func (f *BaseFilterStore) GetPodFilters(podFilters [][]workloadfilter.PodFilter)
 	return getFilterBundle(f, workloadfilter.PodType, podFilters)
 }
 
-// GetServiceFilters returns the filter bundle for the given service filters
-func (f *BaseFilterStore) GetServiceFilters(serviceFilters [][]workloadfilter.ServiceFilter) workloadfilter.FilterBundle {
-	return getFilterBundle(f, workloadfilter.ServiceType, serviceFilters)
+// GetKubeServiceFilters returns the filter bundle for the given service filters
+func (f *BaseFilterStore) GetKubeServiceFilters(serviceFilters [][]workloadfilter.KubeServiceFilter) workloadfilter.FilterBundle {
+	return getFilterBundle(f, workloadfilter.KubeServiceType, serviceFilters)
 }
 
-// GetEndpointFilters returns the filter bundle for the given endpoint filters
-func (f *BaseFilterStore) GetEndpointFilters(endpointFilters [][]workloadfilter.EndpointFilter) workloadfilter.FilterBundle {
-	return getFilterBundle(f, workloadfilter.EndpointType, endpointFilters)
+// GetKubeEndpointFilters returns the filter bundle for the given endpoint filters
+func (f *BaseFilterStore) GetKubeEndpointFilters(endpointFilters [][]workloadfilter.KubeEndpointFilter) workloadfilter.FilterBundle {
+	return getFilterBundle(f, workloadfilter.KubeEndpointType, endpointFilters)
 }
 
 // GetProcessFilters returns the filter bundle for the given process filters
@@ -253,14 +259,14 @@ func (f *BaseFilterStore) String(useColor bool) string {
 	// Service Autodiscovery Filters
 	fmt.Fprintln(&buffer)
 	printSectionHeader(&buffer, "-------- Kube Service Autodiscovery Filters --------", useColor)
-	printFilter(&buffer, fmt.Sprintf("  %-16s", "Global:"), f.GetServiceAutodiscoveryFilters(workloadfilter.GlobalFilter), useColor)
-	printFilter(&buffer, fmt.Sprintf("  %-16s", "Metrics:"), f.GetServiceAutodiscoveryFilters(workloadfilter.MetricsFilter), useColor)
+	printFilter(&buffer, fmt.Sprintf("  %-16s", "Global:"), f.GetKubeServiceAutodiscoveryFilters(workloadfilter.GlobalFilter), useColor)
+	printFilter(&buffer, fmt.Sprintf("  %-16s", "Metrics:"), f.GetKubeServiceAutodiscoveryFilters(workloadfilter.MetricsFilter), useColor)
 
 	// Endpoint Autodiscovery Filters
 	fmt.Fprintln(&buffer)
 	printSectionHeader(&buffer, "-------- Kube Endpoint Autodiscovery Filters --------", useColor)
-	printFilter(&buffer, fmt.Sprintf("  %-16s", "Global:"), f.GetEndpointAutodiscoveryFilters(workloadfilter.GlobalFilter), useColor)
-	printFilter(&buffer, fmt.Sprintf("  %-16s", "Metrics:"), f.GetEndpointAutodiscoveryFilters(workloadfilter.MetricsFilter), useColor)
+	printFilter(&buffer, fmt.Sprintf("  %-16s", "Global:"), f.GetKubeEndpointAutodiscoveryFilters(workloadfilter.GlobalFilter), useColor)
+	printFilter(&buffer, fmt.Sprintf("  %-16s", "Metrics:"), f.GetKubeEndpointAutodiscoveryFilters(workloadfilter.MetricsFilter), useColor)
 
 	// Pod Shared Metric Filters
 	fmt.Fprintln(&buffer)

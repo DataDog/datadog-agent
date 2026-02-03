@@ -176,6 +176,17 @@ build do
     copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
   end
 
+  # Private action runner
+  if not heroku_target? and not fips_mode?
+    command "dda inv -- -e privateactionrunner.build --install-path=#{install_dir} --flavor #{flavor_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+
+    if windows_target?
+      copy 'bin/privateactionrunner/privateactionrunner.exe', "#{install_dir}/bin/agent"
+    elsif not heroku_target?
+      copy 'bin/privateactionrunner/privateactionrunner', "#{install_dir}/embedded/bin"
+    end
+  end
+
   # System-probe
   if sysprobe_enabled? || osx_target? || (windows_target? && do_windows_sysprobe != "")
     if linux_target?
@@ -242,12 +253,16 @@ build do
     copy 'bin/cws-instrumentation/cws-instrumentation', "#{install_dir}/embedded/bin"
   end
 
-  # APM Injection agent
-  if windows_target?
-    if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
-      command "dda inv -- -e agent.generate-config --build-type apm-injection --output-file ./bin/agent/dist/apm-inject.yaml", :env => env
-      move 'bin/agent/dist/apm-inject.yaml', "#{conf_dir}/apm-inject.yaml.example"
+# Secret Generic Connector
+  if !heroku_target?
+    command "dda inv -- -e secret-generic-connector.build #{fips_args}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    if windows_target?
+      copy 'bin/secret-generic-connector/secret-generic-connector.exe', "#{install_dir}/bin/agent"
+    else
+      copy 'bin/secret-generic-connector/secret-generic-connector', "#{install_dir}/embedded/bin"
     end
+    mkdir "#{install_dir}/LICENSES"
+    copy 'cmd/secret-generic-connector/LICENSE', "#{install_dir}/LICENSES/secret-generic-connector-LICENSE"
   end
 
   if osx_target?
@@ -269,7 +284,12 @@ build do
 
     erb source: "gui.launchd.plist.erb",
         dest: "#{conf_dir}/com.datadoghq.gui.plist.example",
-        mode: 0644
+        mode: 0644,
+        vars: {
+          # Due to how install_dir actually matches where the Agent is built rather than
+          # its actual final destination, we hardcode here the currently sole supported install location
+          install_dir: "/opt/datadog-agent",
+        }
 
     # Systray GUI
     app_temp_dir = "#{install_dir}/Datadog Agent.app/Contents"
@@ -306,6 +326,7 @@ build do
         "#{install_dir}/embedded/bin/security-agent",
         "#{install_dir}/embedded/bin/system-probe",
         "#{install_dir}/embedded/bin/installer",
+        "#{install_dir}/embedded/bin/secret-generic-connector",
       ]
 
       symbol = "_Cfunc__mkcgo_OPENSSL"

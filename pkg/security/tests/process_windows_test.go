@@ -32,13 +32,13 @@ func TestBasicTest(t *testing.T) {
 
 	t.Run("basic process", func(t *testing.T) {
 		executable := "schtasks.exe"
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := exec.Command(executable)
 			return cmd.Run()
 		}, test.validateExecEvent(t, noWrapperType, func(event *model.Event, _ *rules.Rule) {
 			assertFieldEqualCaseInsensitve(t, event, "exec.file.path", `c:\windows\system32\schtasks.exe`, "wrong exec file path")
 			assertFieldIsOneOf(t, event, "process.parent.file.name", []string{"testsuite.exe"}, "wrong process parent file name")
-		}))
+		}), "test_basic_rule")
 	})
 
 	test.RunMultiMode(t, "arg scrubbing", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
@@ -52,7 +52,7 @@ func TestBasicTest(t *testing.T) {
 			"/tr", "c:\\windows\\system32\\calc.exe",
 		}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc("schtasks.exe", inputargs, nil)
 
 			// we will ignore the error.  The username & password arguments are invalid
@@ -91,7 +91,7 @@ func TestBasicTest(t *testing.T) {
 			if strings.Contains(str, "execpassword") || strings.Contains(str, "runaspassword") {
 				t.Error("args not scrubbed")
 			}
-		}))
+		}), "test_basic_rule")
 	})
 }
 

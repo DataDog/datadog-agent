@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
@@ -19,14 +20,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
+const computeRate = true
+const noComputeRate = false
+
+type lastPoint struct {
+	value     float64
+	timestamp time.Time
+}
+
 type fieldsCollector struct {
 	device       ddnvml.Device
 	fieldMetrics []fieldValueMetric
+	lastPoints   map[string]lastPoint
 }
 
 func newFieldsCollector(device ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
 	c := &fieldsCollector{
-		device: device,
+		device:     device,
+		lastPoints: make(map[string]lastPoint),
 	}
 	c.fieldMetrics = append(c.fieldMetrics, metricNameToFieldID...) // copy all metrics to avoid modifying the original slice
 
@@ -48,7 +59,7 @@ func (c *fieldsCollector) removeUnsupportedMetrics() {
 	fieldValues, err := c.getFieldValues()
 	if err != nil {
 		// If the entire field values API is unsupported, remove all metrics
-		if ddnvml.IsUnsupported(err) {
+		if ddnvml.IsAPIUnsupportedOnDevice(err, c.device) {
 			c.fieldMetrics = nil
 		}
 		// Otherwise, do nothing and keep all metrics
@@ -82,6 +93,7 @@ func (c *fieldsCollector) getFieldValues() ([]nvml.FieldValue, error) {
 
 // Collect collects all the metrics from the given NVML device.
 func (c *fieldsCollector) Collect() ([]Metric, error) {
+	now := time.Now()
 	fields, err := c.getFieldValues()
 	if err != nil {
 		return nil, err
@@ -98,6 +110,29 @@ func (c *fieldsCollector) Collect() ([]Metric, error) {
 		value, convErr := fieldValueToNumber[float64](nvml.ValueType(val.ValueType), val.Value)
 		if convErr != nil {
 			err = multierror.Append(err, fmt.Errorf("failed to convert field value %s: %w", name, convErr))
+		}
+
+		if c.fieldMetrics[i].computeRate {
+			currPoint := lastPoint{
+				value:     value,
+				timestamp: now,
+			}
+
+			lastPoint, ok := c.lastPoints[name]
+			c.lastPoints[name] = currPoint
+			if !ok {
+				// Compute rate only when we have a previous point
+				continue
+			}
+
+			delta := currPoint.value - lastPoint.value
+			seconds := now.Sub(lastPoint.timestamp).Seconds()
+			if delta <= 0 || seconds <= 0 {
+				continue
+			}
+
+			rate := float64(delta) / float64(seconds)
+			value = rate
 		}
 
 		metrics = append(metrics, Metric{
@@ -122,26 +157,28 @@ type fieldValueMetric struct {
 	fieldValueID uint32 // No specific type, but these are constants prefixed with FI_DEV in the nvml package
 	// some fields require scopeID to be filled for the GetFieldValues to work properly
 	// (e.g: https://github.com/NVIDIA/nvidia-settings/blob/main/src/nvml.h#L2175-L2177)
-	scopeID    uint32
-	metricType metrics.MetricType
+	scopeID     uint32
+	metricType  metrics.MetricType
+	computeRate bool
 }
 
 var metricNameToFieldID = []fieldValueMetric{
-	{"memory.temperature", nvml.FI_DEV_MEMORY_TEMP, 0, metrics.GaugeType},
+	{"memory.temperature", nvml.FI_DEV_MEMORY_TEMP, 0, metrics.GaugeType, noComputeRate},
 	// we don't want to use bandwidth fields as they are deprecated:
 	// https://github.com/NVIDIA/nvidia-settings/blob/main/src/nvml.h#L2049-L2057
 	// uint_max to collect the aggregated value summed up across all links (ref: https://github.com/NVIDIA/nvidia-settings/blob/main/src/nvml.h#L2175-L2177)
-	{"nvlink.throughput.data.rx", nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX, math.MaxUint32, metrics.GaugeType},
-	{"nvlink.throughput.data.tx", nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_TX, math.MaxUint32, metrics.GaugeType},
-	{"nvlink.throughput.raw.rx", nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX, math.MaxUint32, metrics.GaugeType},
-	{"nvlink.throughput.raw.tx", nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX, math.MaxUint32, metrics.GaugeType},
-	{"nvlink.speed", nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON, 0, metrics.GaugeType},
-	{"nvlink.nvswitch_connected", nvml.FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT, 0, metrics.GaugeType},
-	{"nvlink.errors.crc.data", nvml.FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL, 0, metrics.CountType},
-	{"nvlink.errors.crc.flit", nvml.FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL, 0, metrics.CountType},
-	{"nvlink.errors.ecc", nvml.FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL, 0, metrics.CountType},
-	{"nvlink.errors.recovery", nvml.FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL, 0, metrics.CountType},
-	{"nvlink.errors.replay", nvml.FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL, 0, metrics.CountType},
-	{"pci.replay_counter", nvml.FI_DEV_PCIE_REPLAY_COUNTER, 0, metrics.CountType},
-	{"slowdown_temperature", nvml.FI_DEV_PERF_POLICY_THERMAL, 0, metrics.GaugeType},
+	// Also, despite NVIDIA calling this a "throughput", it's actually the number of bytes transferred. That's why we compute the rate in the code.
+	{"nvlink.throughput.data.rx", nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX, math.MaxUint32, metrics.GaugeType, computeRate},
+	{"nvlink.throughput.data.tx", nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_TX, math.MaxUint32, metrics.GaugeType, computeRate},
+	{"nvlink.throughput.raw.rx", nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX, math.MaxUint32, metrics.GaugeType, computeRate},
+	{"nvlink.throughput.raw.tx", nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX, math.MaxUint32, metrics.GaugeType, computeRate},
+	{"nvlink.speed", nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON, 0, metrics.GaugeType, noComputeRate},
+	{"nvlink.nvswitch_connected", nvml.FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT, 0, metrics.GaugeType, noComputeRate},
+	{"nvlink.errors.crc.data", nvml.FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL, 0, metrics.GaugeType, noComputeRate},
+	{"nvlink.errors.crc.flit", nvml.FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL, 0, metrics.GaugeType, noComputeRate},
+	{"nvlink.errors.ecc", nvml.FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL, 0, metrics.GaugeType, noComputeRate},
+	{"nvlink.errors.recovery", nvml.FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL, 0, metrics.GaugeType, noComputeRate},
+	{"nvlink.errors.replay", nvml.FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL, 0, metrics.GaugeType, noComputeRate},
+	{"pci.replay_counter", nvml.FI_DEV_PCIE_REPLAY_COUNTER, 0, metrics.GaugeType, noComputeRate},
+	{"slowdown_temperature", nvml.FI_DEV_PERF_POLICY_THERMAL, 0, metrics.GaugeType, noComputeRate},
 }

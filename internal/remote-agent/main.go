@@ -71,11 +71,40 @@ func (s *remoteAgentServer) GetFlareFiles(_ context.Context, req *pbcore.GetFlar
 func (s *remoteAgentServer) GetTelemetry(_ context.Context, req *pbcore.GetTelemetryRequest) (*pbcore.GetTelemetryResponse, error) {
 	log.Printf("Got request for telemetry: %v", req)
 
+	// Testing histogram support in RAR telemetry service
+	// This includes multiple scenarios to test bucket mismatch behavior:
+	//
+	// Scenario 1: Unique histogram name (should work fine)
+	// Scenario 2: Same name as internal Agent histogram (remote_agent_registry_action_duration_seconds)
+	//             but with DIFFERENT bucket boundaries - tests for potential conflicts
+	// Scenario 3: Histogram with labels that might match internal histogram labels
 	var prometheusText = `
 # TYPE remote_agent_test_foo counter
 remote_agent_test_foo 62
 # TYPE remote_agent_test_bar gauge
 remote_agent_test_bar{tag_one="1",tag_two="two"} 3
+# HELP my_custom_histogram A unique histogram from remote agent (Scenario 1)
+# TYPE my_custom_histogram histogram
+my_custom_histogram_bucket{le="0.1"} 10
+my_custom_histogram_bucket{le="0.5"} 25
+my_custom_histogram_bucket{le="1.0"} 30
+my_custom_histogram_bucket{le="+Inf"} 35
+my_custom_histogram_sum 15.5
+my_custom_histogram_count 35
+# HELP remote_agent_registry_action_duration_seconds Conflicting histogram - same name as internal Agent metric but different buckets (Scenario 2)
+# TYPE remote_agent_registry_action_duration_seconds histogram
+remote_agent_registry_action_duration_seconds_bucket{le="1"} 5
+remote_agent_registry_action_duration_seconds_bucket{le="10"} 15
+remote_agent_registry_action_duration_seconds_bucket{le="+Inf"} 20
+remote_agent_registry_action_duration_seconds_sum 50.0
+remote_agent_registry_action_duration_seconds_count 20
+# HELP remote_agent_registry_action_duration_seconds_with_labels Histogram with labels matching internal metric (Scenario 3)
+# TYPE remote_agent_registry_action_duration_seconds_with_labels histogram
+remote_agent_registry_action_duration_seconds_with_labels_bucket{name="test-agent",action="query",le="0.5"} 10
+remote_agent_registry_action_duration_seconds_with_labels_bucket{name="test-agent",action="query",le="2.0"} 25
+remote_agent_registry_action_duration_seconds_with_labels_bucket{name="test-agent",action="query",le="+Inf"} 30
+remote_agent_registry_action_duration_seconds_with_labels_sum{name="test-agent",action="query"} 12.5
+remote_agent_registry_action_duration_seconds_with_labels_count{name="test-agent",action="query"} 30
 `
 	return &pbcore.GetTelemetryResponse{
 		Payload: &pbcore.GetTelemetryResponse_PromText{

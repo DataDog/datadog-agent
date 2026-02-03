@@ -9,21 +9,35 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Masterminds/semver"
+	"github.com/Masterminds/semver/v3"
 )
 
 // KindConfig contains the kind version and the kind node image to use
 type KindConfig struct {
-	KindVersion      string
-	NodeImageVersion string
+	KindVersion            string
+	NodeImageVersion       string
+	UseNewContainerdConfig bool
 }
 
 // Source: https://github.com/kubernetes-sigs/kind/releases
 var kubeToKindVersion = map[string]KindConfig{
-	"1.32": {
-		KindVersion:      "v0.26.0",
-		NodeImageVersion: "v1.32.0@sha256:c48c62eac5da28cdadcf560d1d8616cfa6783b58f0d94cf63ad1bf49600cb027",
+	"1.34": {
+		KindVersion:            "v0.30.0",
+		NodeImageVersion:       "v1.34.0@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a",
+		UseNewContainerdConfig: true,
 	},
+	"1.33": {
+		KindVersion:            "v0.28.0",
+		NodeImageVersion:       "v1.33.0@sha256:91e9ed777db80279c22d1d1068c091b899b2078506e4a0f797fbf6e397c0b0b2",
+		UseNewContainerdConfig: true,
+	},
+	"1.32": {
+		KindVersion:            "v0.27.0",
+		NodeImageVersion:       "v1.32.0@sha256:c48c62eac5da28cdadcf560d1d8616cfa6783b58f0d94cf63ad1bf49600cb027",
+		UseNewContainerdConfig: true,
+	},
+	// kind versions bellow this line will use containerd <= 2.x and so will need a different containerd docker.io registry mirror config format
+	// we can leave the UseNewContainerdConfig to false as its default value is false
 	"1.31": {
 		KindVersion:      "v0.26.0",
 		NodeImageVersion: "v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30",

@@ -57,7 +57,10 @@ cc_library(
         "lib/ttyutils.c",
         "lib/xxhash.c",
     ] + ["generated/config.h"],
-    hdrs = glob(["include/*.h"]),
+    hdrs = glob(["include/*.h"]) + [
+        ":blkid_h",
+    ],
+    include_prefix = "blkid",
     includes = [
         "include",
     ],
@@ -89,11 +92,13 @@ cc_library(
     local_defines = [
         "_GNU_SOURCE",
     ],
+    visibility = ["//visibility:public"],
 )
 
 cc_shared_library(
     name = "blkid",
     deps = [":libblkid"],
+    visibility = ["//visibility:public"],
 )
 
 expand_template(

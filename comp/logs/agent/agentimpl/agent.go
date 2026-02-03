@@ -134,6 +134,11 @@ type logAgent struct {
 
 	// make restart thread safe
 	restartMutex sync.Mutex
+
+	// HTTP retry state for TCP fallback recovery
+	httpRetryCtx    context.Context
+	httpRetryCancel context.CancelFunc
+	httpRetryMutex  sync.Mutex
 }
 
 func newLogsAgent(deps dependencies) provides {
@@ -212,6 +217,11 @@ func (a *logAgent) start(context.Context) error {
 	}
 
 	a.startPipeline()
+
+	// If we're currently sending over TCP, attempt restart over HTTP
+	if !endpoints.UseHTTP {
+		a.smartHTTPRestart()
+	}
 	return nil
 }
 
@@ -237,7 +247,6 @@ func (a *logAgent) configureAgent() ([]*config.ProcessingRule, *types.Fingerprin
 
 	// The severless agent doesn't use FX for now. This means that the logs agent will not have 'inventoryAgent'
 	// initialized for serverless. This is ok since metadata is not enabled for serverless.
-	// TODO: (components) - This condition should be removed once the serverless agent use FX.
 	if a.inventoryAgent != nil {
 		a.inventoryAgent.Set(logsTransport, string(status.GetCurrentTransport()))
 	}
@@ -302,6 +311,9 @@ func (a *logAgent) stop(context.Context) error {
 
 	a.log.Info("Stopping logs-agent")
 
+	// Stop HTTP retry loop if running
+	a.stopHTTPRetry()
+
 	status.Clear()
 
 	toStop := []startstop.Stoppable{
@@ -332,7 +344,6 @@ func (a *logAgent) stopComponents(components []startstop.Stoppable, forceClose f
 	// parts like the sender. After StopTimeout it will just stop the last part of the
 	// pipeline, disconnecting it from the auditor, to make sure that the pipeline is
 	// flushed before stopping.
-	// TODO: Add this feature in the stopper.
 	c := make(chan struct{})
 	go func() {
 		stopper.Stop()

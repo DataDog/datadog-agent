@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    The datadog-installer `setup` command now prints human-readable errors instead of mixing JSON and text.
