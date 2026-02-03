@@ -216,7 +216,8 @@ def build(
                 openssl_lib_dir = os.path.join(embedded_path, "lib")
                 ctx.run(f"patchelf --add-rpath {openssl_lib_dir} {final_lib_path}")
 
-            print('\n--- Cc Debug ---')
+            import time
+            print(f'\n--- Cc Debug {time.time()} ---')
             try:
                 print('\nReadelf')
                 ctx.run(f'readelf -d {final_lib_path}')
@@ -231,6 +232,21 @@ def build(
             print('--- Cc End ---\n')
 
     print('Deepinference library has been built and prepared')
+
+    # Add OpenSSL library directory to linker search path for Go build
+    # This is needed because libdeepinference.so depends on OpenSSL 3.0
+    if embedded_path is not None and target_os not in ("windows", "win32"):
+        openssl_lib_dir = os.path.join(embedded_path, "lib")
+        # Add to CGO_LDFLAGS so the linker can find OpenSSL libraries
+        if 'CGO_LDFLAGS' in env:
+            env['CGO_LDFLAGS'] += f" -L{openssl_lib_dir} -Wl,-rpath-link={openssl_lib_dir}"
+        else:
+            env['CGO_LDFLAGS'] = f"-L{openssl_lib_dir} -Wl,-rpath-link={openssl_lib_dir}"
+        # Add to LD_LIBRARY_PATH for runtime library resolution
+        if 'LD_LIBRARY_PATH' in env:
+            env['LD_LIBRARY_PATH'] = f"{openssl_lib_dir}:{env['LD_LIBRARY_PATH']}"
+        else:
+            env['LD_LIBRARY_PATH'] = openssl_lib_dir
 
     bundled_agents = ["agent"]
     if sys.platform == 'win32' or os.getenv("GOOS") == "windows":

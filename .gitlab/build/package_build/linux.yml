@@ -36,12 +36,9 @@
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
   artifacts:
-    when: always
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
-      - /opt/datadog-agent/embedded/lib/libssl.so.3
-      - /opt/datadog-agent/embedded/lib/libdeepinference.so
 
 .agent_build_x86:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
