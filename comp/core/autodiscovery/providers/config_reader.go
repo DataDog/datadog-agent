@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 
 	cache "github.com/patrickmn/go-cache"
 	"gopkg.in/yaml.v2"
@@ -506,8 +507,8 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, Confi
 	// Interpolate env vars. Returns an error a variable wasn't substituted, ignore it.
 	e := configresolver.SubstituteTemplateEnvVars(&conf)
 	if e != nil {
-		// Ignore NoServiceError since service is always nil for integration configs from files.
-		if _, ok := e.(*configresolver.NoServiceError); !ok {
+		// Ignore NoResolverError since service is always nil for integration configs from files.
+		if _, ok := e.(*tmplvar.NoResolverError); !ok {
 			log.Errorf("Failed to substitute template var %s", e)
 		}
 	}

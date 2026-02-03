@@ -101,7 +101,13 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 
 // fillNVMLAttributes fills the attributes of the GPU device by querying NVML API
 func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) {
-	virtMode, err := device.GetVirtualizationMode()
+	migDevice, isMig := device.(*ddnvml.MIGDevice)
+	deviceForVirtMode := device
+	if isMig {
+		deviceForVirtMode = migDevice.Parent
+	}
+
+	virtMode, err := deviceForVirtMode.GetVirtualizationMode()
 	if err != nil {
 		if logLimiter.ShouldLog() {
 			log.Warnf("cannot get virtualization mode: %v for %d", err, gpuDeviceInfo.Index)

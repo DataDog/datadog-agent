@@ -75,6 +75,10 @@ def junit_upload_from_tgz(junit_tgz, result_json, codeowners_path=".github/CODEO
     with open(codeowners_path) as f:
         codeowners = CodeOwners(f.read())
 
+    if not os.path.exists(junit_tgz):
+        print(color_message(f"Skipping JUnit upload: {junit_tgz} is missing from earlier step", "orange"))
+        return
+
     junit_tgz = find_tarball(junit_tgz)
 
     with (

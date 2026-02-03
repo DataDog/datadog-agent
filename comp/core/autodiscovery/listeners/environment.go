@@ -8,6 +8,7 @@ package listeners
 import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -96,7 +97,7 @@ func (s *EnvironmentService) GetHosts() (map[string]string, error) {
 }
 
 // GetPorts returns nil and an error because port is not supported in this listener
-func (s *EnvironmentService) GetPorts() ([]ContainerPort, error) {
+func (s *EnvironmentService) GetPorts() ([]workloadmeta.ContainerPort, error) {
 	return nil, ErrNotSupported
 }
 

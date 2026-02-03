@@ -536,6 +536,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_devices.autodiscovery.timeout", 5)
 	config.BindEnvAndSetDefault("network_devices.autodiscovery.retries", 3)
 
+	config.BindEnvAndSetDefault("network_devices.default_scan.enabled", false)
+
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.snmp_traps.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.enabled", false)
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.port", 9162)
@@ -643,7 +645,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// language annotation cleanup period
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.cleanup.period", "10m")
 
-	// AppSec Injector in the cluster agent ( Experimental )
+	// AppSec Injector in the cluster agent ( Preview )
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.enabled", false)
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.base_backoff", "5m")
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.max_backoff", "1h")
@@ -652,6 +654,18 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.processor.service.name", "")
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.processor.service.namespace", "")
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.istio.namespace", "istio-system")
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.mode", "sidecar")
+
+	// Processor mode and sidecar configuration
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.image", "ghcr.io/datadog/dd-trace-go/service-extensions-callout")
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.image_tag", "latest")
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.port", 8080)
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.health_port", 8081)
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.resources.requests.cpu", "10m")
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.resources.requests.memory", "128Mi")
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.resources.limits.cpu", "")
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.resources.limits.memory", "")
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.body_parsing_size_limit", "")
 
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.enabled", false)
 	// list of kubernetes resources for which we collect metadata
@@ -1143,6 +1157,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
+	config.BindEnvAndSetDefault("compliance_config.run_in_system_probe", false)
 	config.BindEnvAndSetDefault("compliance_config.xccdf.enabled", false) // deprecated, use host_benchmarks instead
 	config.BindEnvAndSetDefault("compliance_config.host_benchmarks.enabled", true)
 	config.BindEnvAndSetDefault("compliance_config.database_benchmarks.enabled", false)
@@ -1234,6 +1249,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("appsec.proxy.proxies", []string{})
 
 	setupProcesses(config)
+
+	// Private Action Runner configuration
+	setupPrivateActionRunner(config)
 
 	// Installer configuration
 	config.BindEnvAndSetDefault("remote_updates", true)
@@ -1343,7 +1361,6 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("log_to_console", true)
 	config.BindEnvAndSetDefault("log_format_rfc3339", false)
 	config.BindEnvAndSetDefault("log_all_goroutines_when_unhealthy", false)
-	config.BindEnvAndSetDefault("log_use_slog", true)
 	config.BindEnvAndSetDefault("logging_frequency", int64(500))
 	config.BindEnvAndSetDefault("disable_file_logging", false)
 	config.BindEnvAndSetDefault("syslog_uri", "")

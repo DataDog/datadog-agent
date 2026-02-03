@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/cilium/ebpf"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -82,11 +83,6 @@ type SSHSessionValue struct {
 	PublicKey            string
 }
 
-type sshSessionParsed struct {
-	Mu  sync.Mutex
-	Lru *simplelru.LRU[SSHSessionKey, SSHSessionValue]
-}
-
 // Resolver is used to resolve the user sessions context
 type Resolver struct {
 	sync.RWMutex
@@ -94,12 +90,13 @@ type Resolver struct {
 
 	userSessionsMap *ebpf.Map
 
+	sshEnabled       bool
 	sshLogReader     *incrementalFileReader
-	SSHSessionParsed sshSessionParsed
+	sshSessionParsed *lru.Cache[SSHSessionKey, SSHSessionValue]
 }
 
 // NewResolver returns a new instance of Resolver
-func NewResolver(cacheSize int) (*Resolver, error) {
+func NewResolver(cacheSize int, sshEnabled bool) (*Resolver, error) {
 	lru, err := simplelru.NewLRU[uint64, *model.K8SSessionContext](cacheSize, nil)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create User Session resolver cache: %v", err)
@@ -107,6 +104,7 @@ func NewResolver(cacheSize int) (*Resolver, error) {
 
 	return &Resolver{
 		k8suserSessions: lru,
+		sshEnabled:      sshEnabled,
 	}, nil
 }
 
@@ -121,10 +119,12 @@ func (r *Resolver) Start(manager *manager.Manager) error {
 	}
 	r.userSessionsMap = m
 
-	// start the resolver for ssh sessions
-	err = r.StartSSHUserSessionResolver()
-	if err != nil {
-		return err
+	// start the resolver for ssh sessions only if enabled
+	if r.sshEnabled {
+		err = r.StartSSHUserSessionResolver()
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -181,6 +181,14 @@ func (r *Resolver) ResolveK8SUserSession(id uint64) *model.K8SSessionContext {
 	return ctx
 }
 
+// GetSSHSession retrieves SSH session information from the cache
+func (r *Resolver) GetSSHSession(key SSHSessionKey) (SSHSessionValue, bool) {
+	if r.sshSessionParsed == nil {
+		return SSHSessionValue{}, false
+	}
+	return r.sshSessionParsed.Get(key)
+}
+
 // Init opens the file and sets the initial offset
 func (ifr *incrementalFileReader) Init(f *os.File) error {
 	if ifr.f != nil {
@@ -220,7 +228,7 @@ func (r *Resolver) startReading() {
 				return
 			case <-ticker.C:
 				r.sshLogReader.mu.Lock()
-				err := r.sshLogReader.resolveFromLogFile(&r.SSHSessionParsed)
+				err := r.sshLogReader.resolveFromLogFile(r.sshSessionParsed)
 				if err != nil {
 					seclog.Errorf("failed to read ssh log lines: %v", err)
 				}
@@ -233,7 +241,7 @@ func (r *Resolver) startReading() {
 
 // parseSSHLogLine parse the ssh log line
 // Does not return any error and just automatically updates the LRU when a new session is found
-func parseSSHLogLine(line string, sshSessionParsed *sshSessionParsed) {
+func parseSSHLogLine(line string, sshSessionParsed *lru.Cache[SSHSessionKey, SSHSessionValue]) {
 	type SSHLogLine struct {
 		Date      string
 		Hostname  string
@@ -321,16 +329,13 @@ func parseSSHLogLine(line string, sshSessionParsed *sshSessionParsed) {
 			AuthenticationMethod: int(authType),
 			PublicKey:            publicKey,
 		}
-		sshSessionParsed.Mu.Lock()
-
-		sshSessionParsed.Lru.Add(key, value)
-		sshSessionParsed.Mu.Unlock()
+		sshSessionParsed.Add(key, value)
 	}
 }
 
 // resolveFromLogFile read all the lines that have been added since the last call without reopening the file.
 // Return new lines, the byte offsets at the end of each line, and an error.
-func (ifr *incrementalFileReader) resolveFromLogFile(sshSessionParsed *sshSessionParsed) error {
+func (ifr *incrementalFileReader) resolveFromLogFile(sshSessionParsed *lru.Cache[SSHSessionKey, SSHSessionValue]) error {
 	if err := ifr.reloadIfRotated(); err != nil {
 		return err
 	}
@@ -428,7 +433,7 @@ func (r *Resolver) StartSSHUserSessionResolver() error {
 	var err error
 
 	// Initialize the SSH session LRU cache (needed in all cases)
-	r.SSHSessionParsed.Lru, err = simplelru.NewLRU[SSHSessionKey, SSHSessionValue](100, nil)
+	r.sshSessionParsed, err = lru.New[SSHSessionKey, SSHSessionValue](100)
 	if err != nil {
 		seclog.Errorf("couldn't create SSH Session LRU cache: %v", err)
 		return err
