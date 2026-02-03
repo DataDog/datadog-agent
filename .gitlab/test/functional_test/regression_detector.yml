@@ -331,6 +331,7 @@ single-machine-performance-metal-runners-regression_detector:
       optional: true
     - job: single_machine_performance-full-amd64-a7
       artifacts: false
+      optional: true
   rules:
     - !reference [.except_coverage_pipeline] # Coverage pipeline creates a duplicate, specialized artifact that is not useful to run through SMP on every PR
     - !reference [.manual]
