@@ -4,7 +4,7 @@ This module implements configuration transitions that apply size optimization
 flags specifically to Rust binaries without affecting the entire build graph.
 """
 
-def _size_optimized_transition_impl(settings, attr):
+def _size_optimized_transition_impl(settings, _attr):
     """Transition implementation for size-optimized Rust binaries.
 
     This transition modifies rules_rust build settings to apply aggressive
@@ -18,6 +18,7 @@ def _size_optimized_transition_impl(settings, attr):
     Returns:
         Dict mapping build settings to their new values
     """
+
     # Read custom build settings
     size_optimized = settings["//bazel/toolchains/rust:rust_size_optimized"]
 

@@ -20,6 +20,7 @@ def _size_optimized_rust_binary_impl(ctx):
     Returns:
         Providers from the wrapped rust_binary target
     """
+
     # Transitions produce a list of targets (one per configuration)
     # In our case, we always have exactly one configuration, so we take the first element
     actual = ctx.attr.actual[0] if type(ctx.attr.actual) == type([]) else ctx.attr.actual
