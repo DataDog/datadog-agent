@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	v1 "k8s.io/api/core/v1"
 	discv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -26,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -60,7 +60,7 @@ type configInfoSlices struct {
 
 // NewKubeEndpointSlicesConfigProvider returns a new ConfigProvider connected to apiserver using EndpointSlices.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewKubeEndpointSlicesConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
+func NewKubeEndpointSlicesConfigProvider(telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -98,13 +98,6 @@ func NewKubeEndpointSlicesConfigProvider(_ *pkgconfigsetup.ConfigurationProvider
 		UpdateFunc: p.invalidateOnEndpointSliceUpdate,
 	}); err != nil {
 		return nil, fmt.Errorf("cannot add event handler to endpointslice informer: %s", err)
-	}
-
-	if pkgconfigsetup.Datadog().GetBool("cluster_checks.support_hybrid_ignore_ad_tags") {
-		log.Warnf("The `cluster_checks.support_hybrid_ignore_ad_tags` flag is" +
-			" deprecated and will be removed in a future version. Please replace " +
-			"`ad.datadoghq.com/endpoints.ignore_autodiscovery_tags` in your service annotations" +
-			"using adv2 for check specification and adv1 for `ignore_autodiscovery_tags`.")
 	}
 
 	return p, nil
