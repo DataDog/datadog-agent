@@ -20,12 +20,14 @@ const (
 	ProviderOTel    Provider = "otel"
 )
 
-// Storage indicates where the attribute value is stored in the span.
-type Storage string
+// ValueType indicates the type of the attribute value.
+type ValueType string
 
 const (
-	StorageMeta    Storage = "meta"
-	StorageMetrics Storage = "metrics"
+	ValueTypeString  ValueType = "string"
+	ValueTypeFloat64 ValueType = "float64"
+	ValueTypeInt64   ValueType = "int64"
+	// Could add more later: bool, int64, bytes...
 )
 
 // Concept represents a semantic concept identifier (e.g., "db.query", "http.status_code").
@@ -116,7 +118,7 @@ type TagInfo struct {
 	Version string `json:"version,omitempty"`
 
 	// Storage indicates where the attribute is stored (meta or metrics). If empty, defaults to "meta" (string tags).
-	Storage Storage `json:"storage,omitempty"`
+	Type ValueType `json:"type,omitempty"`
 }
 
 // ConceptMapping represents a semantic concept and all its equivalent attributes.
