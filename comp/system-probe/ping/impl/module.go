@@ -1,11 +1,11 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2025-present Datadog, Inc.
 
 //go:build linux
 
-package modules
+package pingimpl
 
 import (
 	"encoding/json"
@@ -18,9 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	pingcheck "github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
-	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -32,20 +29,6 @@ const (
 )
 
 type pinger struct{}
-
-// Pinger is a factory for NDMs Ping module
-var Pinger = &module.Factory{
-	Name:             config.PingModule,
-	ConfigNamespaces: []string{"ping"},
-	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
-		return &pinger{}, nil
-	},
-	NeedsEBPF: func() bool {
-		return false
-	},
-}
-
-var _ module.Module = &pinger{}
 
 func (p *pinger) GetStats() map[string]interface{} {
 	return nil

@@ -9,11 +9,10 @@
 package pingimpl
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
-	"github.com/DataDog/datadog-agent/comp/system-probe/module"
 	ping "github.com/DataDog/datadog-agent/comp/system-probe/ping/def"
 	"github.com/DataDog/datadog-agent/comp/system-probe/types"
-	sysmodule "github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 // Requires defines the dependencies for the ping component
@@ -27,10 +26,9 @@ type Provides struct {
 
 // NewComponent creates a new ping component
 func NewComponent(_ Requires) (Provides, error) {
-	mc := &module.Component{
-		Factory: modules.Pinger,
-		CreateFn: func() (types.SystemProbeModule, error) {
-			return modules.Pinger.Fn(nil, sysmodule.FactoryDependencies{})
+	mc := &moduleFactory{
+		createFn: func() (types.SystemProbeModule, error) {
+			return &pinger{}, nil
 		},
 	}
 	provides := Provides{
@@ -38,4 +36,28 @@ func NewComponent(_ Requires) (Provides, error) {
 		Comp:   mc,
 	}
 	return provides, nil
+}
+
+type moduleFactory struct {
+	createFn func() (types.SystemProbeModule, error)
+}
+
+func (m *moduleFactory) Name() sysconfigtypes.ModuleName {
+	return config.PingModule
+}
+
+func (m *moduleFactory) ConfigNamespaces() []string {
+	return []string{"ping"}
+}
+
+func (m *moduleFactory) Create() (types.SystemProbeModule, error) {
+	return m.createFn()
+}
+
+func (m *moduleFactory) NeedsEBPF() bool {
+	return false
+}
+
+func (m *moduleFactory) OptionalEBPF() bool {
+	return false
 }
