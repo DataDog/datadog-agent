@@ -254,4 +254,4 @@ include("//deps/windows:drivers.MODULE.bazel")
 # to the build command to enable it.
 bazel_dep(name = "apple_support", version = "1.24.1")
 
-use_repo_rule("//bazel/tools:check_bazel_version.bzl", "check_bazel_version")(name = "check_bazel_version")
+use_repo_rule("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")(name = "bazelisk_check")
