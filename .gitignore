@@ -229,7 +229,6 @@ go.work.sum
 # CLAUDE override file for personal use
 CLAUDE_PERSONAL.md
 
-# Claude local settings, overrides, agents & skills
-**/.claude/*
+# Claude local settings and overrides
 **/.claude/settings.local.json
 **/CLAUDE.local.md
