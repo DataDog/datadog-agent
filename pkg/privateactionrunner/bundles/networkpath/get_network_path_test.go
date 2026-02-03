@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package com_datadoghq_networkpath
+package com_datadoghq_ddagent_networkpath
 
 import (
 	"context"

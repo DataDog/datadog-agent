@@ -36,7 +36,7 @@ import (
 	com_datadoghq_kubernetes_core "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/core"
 	com_datadoghq_kubernetes_customresources "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/customresources"
 	com_datadoghq_mongodb "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/mongodb"
-	com_datadoghq_networkpath "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/networkpath"
+	com_datadoghq_ddagent_networkpath "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/networkpath"
 	com_datadoghq_postgresql "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/postgresql"
 	com_datadoghq_script "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/script"
 	com_datadoghq_temporal "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/temporal"
@@ -78,7 +78,7 @@ func NewRegistry(configuration *config.Config, traceroute traceroute.Component) 
 			"com.datadoghq.kubernetes.core":            com_datadoghq_kubernetes_core.NewKubernetesCore(),
 			"com.datadoghq.kubernetes.customresources": com_datadoghq_kubernetes_customresources.NewKubernetesCustomResources(),
 			"com.datadoghq.mongodb":                    com_datadoghq_mongodb.NewMongoDB(),
-			"com.datadoghq.networkpath":                com_datadoghq_networkpath.NewNetworkPath(traceroute),
+			"com.datadoghq.ddagent.networkpath":        com_datadoghq_ddagent_networkpath.NewNetworkPath(traceroute),
 			"com.datadoghq.postgresql":                 com_datadoghq_postgresql.NewPostgreSQL(),
 			"com.datadoghq.script":                     com_datadoghq_script.NewScript(),
 			"com.datadoghq.temporal":                   com_datadoghq_temporal.NewTemporal(),
