@@ -39,7 +39,11 @@ build do
 
   unless windows_target?
     env['CGO_CFLAGS'] = "-I#{install_dir}/embedded/include"
+    env['CGO_LDFLAGS'] = "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
   end
+
+  # Clean Rust target directory to avoid CMake cache path conflicts
+  delete "pkg/deepinference/rust/target"
 
   if linux_target?
     command "invoke agent.build --flavor iot --no-development", env: env, :live_stream => Omnibus.logger.live_stream(:info)

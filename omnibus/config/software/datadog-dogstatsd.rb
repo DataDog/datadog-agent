@@ -29,8 +29,15 @@ build do
     env["GOMODCACHE"] = gomodcache.to_path
   end
 
+  unless windows_target?
+    env['CGO_LDFLAGS'] = "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
+  end
+
   # we assume the go deps are already installed before running omnibus
   command "invoke dogstatsd.build", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+
+  # Clean Rust target directory to avoid CMake cache path conflicts
+  delete "pkg/deepinference/rust/target"
 
   mkdir "#{install_dir}/etc/datadog-dogstatsd"
   unless windows_target?

@@ -39,6 +39,10 @@ build do
     env["GOMODCACHE"] = gomodcache.to_path
   end
 
+  unless windows_target?
+    env['CGO_LDFLAGS'] = "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
+  end
+
   if linux_target?
     command "invoke installer.build --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     mkdir "#{install_dir}/bin"
@@ -47,4 +51,7 @@ build do
     command "dda inv -- -e installer.build --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     copy 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
   end
+
+  # Clean Rust target directory to avoid CMake cache path conflicts
+  delete "pkg/deepinference/rust/target"
 end
