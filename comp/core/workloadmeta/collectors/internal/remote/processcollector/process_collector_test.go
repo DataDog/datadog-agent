@@ -292,6 +292,7 @@ func TestCollection(t *testing.T) {
 				StreamHandler: &streamHandler{
 					Reader: mockStore.GetConfig(),
 					port:   port,
+					ipc:    ipcComp,
 				},
 				IPC: ipcComp,
 			}
