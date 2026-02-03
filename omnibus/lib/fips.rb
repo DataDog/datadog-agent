@@ -5,11 +5,9 @@ def add_msgo_to_env(env)
   if linux_target?
     msgo_root = '/usr/local/msgo'
     binary_name = 'go'
-    delim = ':'
   elsif windows_target?
     msgo_root = ENV['MSGO_ROOT']
     binary_name = 'go.exe'
-    delim = ';'
 
     if msgo_root.nil? || msgo_root.empty?
       raise "MSGO_ROOT not set"
@@ -25,10 +23,10 @@ def add_msgo_to_env(env)
   end
 
   env['GOROOT'] = msgo_root
-  env['PATH'] = "#{msgo_path}#{delim}#{env['PATH']}"
+  env['PATH'] = [msgo_path, env['PATH']].join(File::PATH_SEPARATOR)
   # also update the global env so that the symbol inspector use the correct go version
   ENV['GOROOT'] = msgo_root
-  ENV['PATH'] = "#{msgo_path}#{delim}#{ENV['PATH']}"
+  ENV['PATH'] = [msgo_path, ENV['PATH']].join(File::PATH_SEPARATOR)
 end
 
 # Check that the build tags had an actual effect:
@@ -48,12 +46,13 @@ def fips_check_binary_for_expected_symbol(path)
     raise "Unsupported OS for FIPS"
   end
 
-  GoSymbolsInspector.new(path).inspect do |symbols|
-      count = symbols.scan(symbol).count
-      if count > 0
-        log.info(log_key) { "Symbol '#{symbol}' found #{count} times in binary '#{path}'." }
-      else
-        raise FIPSSymbolsNotFound.new("Expected to find '#{symbol}' symbol in #{path} but did not")
-      end
+  inspector = Proc.new{ |symbols|
+    count = symbols.scan(symbol).count
+    if count > 0
+      log.info(log_key) { "Symbol '#{symbol}' found #{count} times in binary '#{path}'." }
+    else
+      raise FIPSSymbolsNotFound.new("Expected to find '#{symbol}' symbol in '#{path}' but did not")
     end
+  }
+  GoSymbolsInspector.new(path, &inspector).inspect()
 end
