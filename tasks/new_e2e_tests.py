@@ -1130,35 +1130,33 @@ def _get_agent_qa_ecr_password(ctx: Context) -> str:
     return ecr_password_res.stdout.strip()
 
 
-def _find_recent_successful_pipeline(ctx: Context, branch: str | None = None) -> tuple[str, str] | None:
+def _find_recent_successful_pipeline(ctx: Context, branch: str | None = None) -> str | None:
     """
-    Find the most recent successful pipeline on the given branch (or current branch if not specified).
-    Returns (pipeline_id, commit_sha) or None if not found.
+    Find the most recent successful pipeline on the given branch or current branch if not specified.
+    Returns pipeline_id or None if not found.
     """
     try:
-        # Explicitly use GITLAB_TOKEN if set, to avoid ddtool OAuth issues
+        # Explicitly use GITLAB_TOKEN if set
         token = os.environ.get('GITLAB_TOKEN')
         repo = get_gitlab_repo(token=token)
 
-        # Try the specified branch, current branch, then main
-        branches_to_try = []
+        # Try the specified branch or current branch
+        branch_to_try = ""
         if branch:
-            branches_to_try.append(branch)
+            branch_to_try = branch
         else:
             try:
                 current = get_current_branch(ctx)
                 if current:
-                    branches_to_try.append(current)
+                    branch_to_try = current
             except Exception:
-                pass
-        branches_to_try.append("main")
+                raise Exit(f"Could not get current branch: {e}", code=1) from e
 
-        for ref in branches_to_try:
-            # Get pipelines on this branch, ordered by most recent
-            pipelines = repo.pipelines.list(ref=ref, per_page=10, order_by='updated_at', get_all=False)
-            for pipeline in pipelines:
-                if pipeline.status == "success":
-                    return str(pipeline.id), pipeline.sha[:8]
+        # Get pipelines on this branch, ordered by most recent
+        pipelines = repo.pipelines.list(ref=branch_to_try, per_page=10, order_by='updated_at', get_all=False)
+        for pipeline in pipelines:
+            if pipeline.status == "success":
+                return str(pipeline.id)
 
         return None
     except Exception as e:
@@ -1184,9 +1182,9 @@ def _find_local_msi_build(pkg: str | None = None) -> str | None:
     import glob
 
     # Standard output directory for local MSI builds
-    output_dir = os.path.join(os.getcwd(), "omnibus", "pkg")
+    output_dir = Path.cwd() / "omnibus" / "pkg"
 
-    if not os.path.isdir(output_dir):
+    if not output_dir.is_dir():
         return None
 
     if pkg:
@@ -1224,7 +1222,7 @@ def _find_local_msi_build(pkg: str | None = None) -> str | None:
     return max(msi_files, key=os.path.getmtime)
 
 
-def _parse_version_from_msi_filename(msi_path: str) -> tuple[str, str] | None:
+def _parse_version_from_msi_filename(ctx, msi_path: str) -> tuple[str, str] | None:
     """
     Parse version information from MSI filename.
 
@@ -1238,6 +1236,26 @@ def _parse_version_from_msi_filename(msi_path: str) -> tuple[str, str] | None:
     import re
 
     filename = os.path.basename(msi_path)
+
+    # Try to use cached agent.version first
+    try:
+        expected_version = f"{get_version(ctx, include_git=True, url_safe=True)}-1"
+        if expected_version in filename:
+            # Version matches what we expect from git state
+            package_version = expected_version
+            
+            # Extract display version
+            if '.git.' in package_version:
+                display_version = package_version.split('.git.')[0]
+            elif package_version.endswith('-1'):
+                display_version = package_version[:-2]
+            else:
+                display_version = package_version
+                
+            return display_version, package_version
+    except Exception:
+        print(f"Warning: Could not determine version from cached agent.version. Falling back to regex parsing")
+        pass
 
     # Pattern to match: datadog-agent-{version}-{arch}.msi or datadog-fips-agent-{version}-{arch}.msi
     # Version format: 7.75.0-devel.git.59.ac0523a-1
@@ -1327,7 +1345,7 @@ def setup_env(ctx, fmt="bash", build="pipeline", pkg=None, branch=None, pipeline
             print(f"# Found local MSI: {msi_path}", file=sys.stderr)
 
             # Extract version from MSI filename
-            version_info = _parse_version_from_msi_filename(msi_path)
+            version_info = _parse_version_from_msi_filename(ctx, msi_path)
             if version_info:
                 display_version, package_version = version_info
                 env_vars["CURRENT_AGENT_VERSION"] = display_version
@@ -1364,17 +1382,13 @@ def setup_env(ctx, fmt="bash", build="pipeline", pkg=None, branch=None, pipeline
         else:
             result = _find_recent_successful_pipeline(ctx, branch)
             if result:
-                env_vars["E2E_PIPELINE_ID"], _ = result
+                env_vars["E2E_PIPELINE_ID"] = result
                 print(f"# Found pipeline: {env_vars['E2E_PIPELINE_ID']}", file=sys.stderr)
             else:
                 raise Exit("Could not find a recent successful pipeline.", code=1)
 
-        # Get base version from git (e.g., "7.77.0-devel") - this is needed by the E2E tests
-        # Note: We don't set CURRENT_AGENT_VERSION_PACKAGE because the full package version
-        # (which includes git commit info) must come from the pipeline, not local git.
-        # The E2E tests will derive the package version from the pipeline artifacts.
         try:
-            current_version = get_version(ctx, include_git=False, include_pre=True)
+            current_version = get_version(ctx, include_git=False, include_pre=True, pipeline_id=pipeline_id)
             env_vars["CURRENT_AGENT_VERSION"] = current_version
         except Exception as e:
             raise Exit(f"Could not determine current agent version: {e}", code=1) from e

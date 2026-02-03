@@ -726,7 +726,7 @@ def package_oci(
 
     Requires:
         datadog-package: Install from https://github.com/DataDog/datadog-package
-            go install github.com/DataDog/datadog-package@latest
+            go install github.com/DataDog/datadog-packages/cmd/datadog-package@latest
     """
     import tempfile
     from pathlib import Path
@@ -738,7 +738,16 @@ def package_oci(
     # Determine package version
     package_version = None
 
-    if msi_path is None:
+    # Verify datadog-package is in PATH
+    datadog_package_path = shutil.which("datadog-package")
+    if datadog_package_path is None:
+        print("datadog-package not found in PATH")
+        print("To install datadog-package, run:")
+        print("  go install github.com/DataDog/datadog-packages/cmd/datadog-package@latest")
+        print("Or see: https://github.com/DataDog/datadog-packages")
+        raise Exit(code=1)
+
+    if msi_path is None and source_type == "msi":
         # Auto-detect: Get version from git and find matching MSI
         package_version = get_version(ctx, include_git=True, url_safe=True, include_pipeline_id=True)
         msi_pattern = f"datadog-agent-{package_version}-1-x86_64.msi"
@@ -748,22 +757,39 @@ def package_oci(
             raise Exit(code=1)
         msi_path = str(msi_files[0])
         print(f"Found MSI: {msi_path}")
-    else:
+    elif msi_path is None and source_type == "zip":
+        print("When source_type='zip', msi_path must be explicitly provided.")
+        raise Exit(code=1)
+    elif msi_path is not None:
         # MSI path provided: Extract version from filename
+        if not os.path.exists(msi_path):
+            print(f"MSI file not found: {msi_path}")
+            raise Exit(code=1)
+        # Verify file extension matches source type
+        msi_file = Path(msi_path)
+        file_ext = msi_file.suffix.lower()
+        if source_type == "zip":
+            expected_ext = ".zip"
+        else:
+            expected_ext = ".msi"
+
+        if file_ext != expected_ext:
+            print(f"Error: source_type='{source_type}' but file has extension '{file_ext}'")
+            print(f"Expected a '{expected_ext}' file.")
+            raise Exit(code=1)
+
         # Expected format: datadog-agent-{VERSION}-1-x86_64.msi
         msi_filename = os.path.basename(msi_path)
-        version_match = re.search(r'datadog-agent-(.+?)-1-x86_64\.msi$', msi_filename)
+        pattern = rf'datadog-agent-(.+)-1-x86_64\{file_ext}$'
+        version_match = re.search(pattern, msi_filename)
+
         if not version_match:
-            print(f"Could not extract version from MSI filename: {msi_filename}")
-            print("Expected format: datadog-agent-{{VERSION}}-1-x86_64.msi")
+            print(f"Could not extract version from filename: {msi_filename}")
+            print(f"Expected format: datadog-agent-{{VERSION}}-1-x86_64{file_ext}")
             raise Exit(code=1)
+
         package_version = version_match.group(1)
         print(f"Extracted version from MSI filename: {package_version}")
-
-    # Verify MSI exists
-    if not os.path.exists(msi_path):
-        print(f"MSI file not found: {msi_path}")
-        raise Exit(code=1)
 
     # Create temporary directory for input
     with tempfile.TemporaryDirectory() as src_dir:
@@ -792,13 +818,9 @@ def package_oci(
         # Construct output path
         oci_output_path = os.path.join(output_dir, f"datadog-agent-{package_version}-1-windows-amd64.oci.tar")
 
-        # Ensure datadog-package is in PATH
-        gopath = ctx.run("go env GOPATH", hide=True).stdout.strip()
-        gobin = os.path.join(gopath, "bin")
-
         # Build the command
         cmd = (
-            f'"{os.path.join(gobin, "datadog-package")}" create '
+            f'"{datadog_package_path}" create '
             f'--version "{package_version}-1" '
             f'--package "datadog-agent" '
             f'--os windows '
@@ -811,8 +833,6 @@ def package_oci(
             cmd += f'{extra_flags} '
 
         cmd += f'"{src_dir}"'
-
-        print(f"Running: {cmd}")
         result = ctx.run(cmd, warn=True)
 
         if not result:
