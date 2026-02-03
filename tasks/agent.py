@@ -25,6 +25,7 @@ from tasks.gointegrationtest import (
     CORE_AGENT_WINDOWS_IT_CONF,
     containerized_integration_tests,
 )
+from tasks.libs.build.rust import build_rust_lib
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
@@ -174,55 +175,15 @@ def build(
         python_home_3=python_home_3,
     )
 
-    # TODO: Windows support
-    target_os = os.getenv("GOOS") or sys.platform
-    if target_os not in ("windows", "win32"):
-        with gitlab_section("Build deepinference rust library", collapsed=True):
-            rustenv = env.copy()
-            if embedded_path is not None:
-                rustenv["OPENSSL_DIR"] = embedded_path
-                rustenv["OPENSSL_LIB_DIR"] = os.path.join(embedded_path, "lib")
-                rustenv["OPENSSL_INCLUDE_DIR"] = os.path.join(embedded_path, "include")
-                rustenv["PKG_CONFIG_PATH"] = os.path.join(embedded_path, "lib", "pkgconfig")
-                rustenv["RUSTFLAGS"] = (
-                    f"-C link-arg=-Wl,-rpath={os.path.join(embedded_path, 'lib')} -C link-arg=-L{os.path.join(embedded_path, 'lib')}"
-                )
-
-            with ctx.cd("pkg/deepinference/rust"):
-                # TODO: Profile based on development mode
-                target_arg = f"--target {target_arch}" if target_arch else ""
-                ctx.run(
-                    f"cargo build --release {target_arg}",
-                    env=rustenv,
-                )
-
-        if embedded_path is not None:
-            target_dir = f"{target_arch}/" if target_arch else ""
-            final_lib_path = os.path.join(embedded_path, "lib", "libdeepinference.so")
-            shutil.move(
-                f"pkg/deepinference/rust/target/{target_dir}release/libdeepinference.so",
-                final_lib_path,
-            )
-
-            # On Linux, use patchelf to set rpath so the library can find OpenSSL at runtime
-            if sys.platform.startswith("linux"):
-                openssl_lib_dir = os.path.join(embedded_path, "lib")
-                ctx.run(f"patchelf --add-rpath {openssl_lib_dir} {final_lib_path}")
-
-    # Add OpenSSL library directory to linker search path for Go build
-    # This is needed because libdeepinference.so depends on OpenSSL 3.0
-    if embedded_path is not None and target_os not in ("windows", "win32"):
-        openssl_lib_dir = os.path.join(embedded_path, "lib")
-        # Add to CGO_LDFLAGS so the linker can find OpenSSL libraries
-        if 'CGO_LDFLAGS' in env:
-            env['CGO_LDFLAGS'] += f" -L{openssl_lib_dir} -Wl,-rpath-link={openssl_lib_dir}"
-        else:
-            env['CGO_LDFLAGS'] = f"-L{openssl_lib_dir} -Wl,-rpath-link={openssl_lib_dir}"
-        # Add to LD_LIBRARY_PATH for runtime library resolution
-        if 'LD_LIBRARY_PATH' in env:
-            env['LD_LIBRARY_PATH'] = f"{openssl_lib_dir}:{env['LD_LIBRARY_PATH']}"
-        else:
-            env['LD_LIBRARY_PATH'] = openssl_lib_dir
+    build_rust_lib(
+        ctx,
+        "pkg/deepinference/rust",
+        "deepinference",
+        env,
+        embedded_path,
+        target_arch,
+        "release" if development else "debug",
+    )
 
     bundled_agents = ["agent"]
     if sys.platform == 'win32' or os.getenv("GOOS") == "windows":
