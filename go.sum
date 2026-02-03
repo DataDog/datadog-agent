@@ -284,8 +284,8 @@ github.com/Microsoft/go-winio v0.5.0/go.mod h1:JPGBdM1cNvN/6ISo+n8V5iA4v8pBzdOpz
 github.com/Microsoft/go-winio v0.5.2/go.mod h1:WpS1mjBmmwHBEWmogvA2mj8546UReBk4v8QkMxJ6pZY=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
 github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
-github.com/Microsoft/hcsshim v0.12.9 h1:2zJy5KA+l0loz1HzEGqyNnjd3fyZA31ZBCGKacp6lLg=
-github.com/Microsoft/hcsshim v0.12.9/go.mod h1:fJ0gkFAna6ukt0bLdKB8djt4XIJhF/vEPuoIWYVvZ8Y=
+github.com/Microsoft/hcsshim v0.13.0 h1:/BcXOiS6Qi7N9XqUcv27vkIuVOkBEcWstd2pMlWSeaA=
+github.com/Microsoft/hcsshim v0.13.0/go.mod h1:9KWJ/8DgU+QzYGupX4tzMhRQE8h6w90lH6HAaclpEok=
 github.com/NVIDIA/go-nvml v0.12.4-0 h1:4tkbB3pT1O77JGr0gQ6uD8FrsUPqP1A/EOEm2wI1TUg=
 github.com/NVIDIA/go-nvml v0.12.4-0/go.mod h1:8Llmj+1Rr+9VGGwZuRer5N/aCjxGuR5nPb/9ebBiIEQ=
 github.com/NYTimes/gziphandler v1.1.1 h1:ZUDjpQae29j0ryrS0u/B8HZfJBtBQHjqw2rQ2cqUQ3I=
@@ -788,8 +788,8 @@ github.com/emicklei/go-restful/v3 v3.12.2 h1:DhwDP0vY3k8ZzE0RunuJy8GhNpPL6zqLkDf
 github.com/emicklei/go-restful/v3 v3.12.2/go.mod h1:6n3XBCmQQb25CM2LCACGz8ukIrRry+4bhvbpWn3mrbc=
 github.com/emirpasic/gods v1.18.1 h1:FXtiHYKDGKCW2KzwZKx0iC0PQmdlorYgdFG9jPXJ1Bc=
 github.com/emirpasic/gods v1.18.1/go.mod h1:8tpGGwCnJ5H4r6BWwaV6OrWmMoPhUl5jm/FMNAnJvWQ=
-github.com/envoyproxy/gateway v1.3.3 h1:b8LX1eH4vFpvaSEsU7uOnXGvQkMZ3ysQ3M9JNlwD6Wc=
-github.com/envoyproxy/gateway v1.3.3/go.mod h1:O8bWdOd8GNBGoxPomNnh5u19zpNYkXly3iz8KZTm0d4=
+github.com/envoyproxy/gateway v1.5.7 h1:41ZerUfu/aFb1vLOWIkAQ89eChUOolZTSIp11rxNBnc=
+github.com/envoyproxy/gateway v1.5.7/go.mod h1:1clu3bLXvhpEWQg6A0PCwJfJFhFPbDxqFSMmZj2NiF4=
 github.com/envoyproxy/go-control-plane v0.9.0/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
 github.com/envoyproxy/go-control-plane v0.9.1-0.20191026205805-5f8ba28d4473/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
 github.com/envoyproxy/go-control-plane v0.9.4/go.mod h1:6rpuAdCZL397s3pYoYcLgu1mIlRU8Am5FuJP05cCM98=
@@ -1782,8 +1782,8 @@ github.com/mediocregopher/radix/v4 v4.1.4 h1:Uze6DEbEAvL+VHXUEu/EDBTkUk5CLct5h3n
 github.com/mediocregopher/radix/v4 v4.1.4/go.mod h1:ajchozX/6ELmydxWeWM6xCFHVpZ4+67LXHOTOVR0nCE=
 github.com/michaelklishin/rabbit-hole/v2 v2.12.0 h1:946p6jOYFcVJdtBBX8MwXvuBkpPjwm1Nm2Qg8oX+uFk=
 github.com/michaelklishin/rabbit-hole/v2 v2.12.0/go.mod h1:AN/3zyz7d++OHf+4WUo/LR0+Q5nlPHMaXasIsG/mPY0=
-github.com/microsoft/go-mssqldb v1.7.2 h1:CHkFJiObW7ItKTJfHo1QX7QBBD1iV+mn1eOyRP3b/PA=
-github.com/microsoft/go-mssqldb v1.7.2/go.mod h1:kOvZKUdrhhFQmxLZqbwUV0rHkNkZpthMITIb2Ko1IoA=
+github.com/microsoft/go-mssqldb v1.9.2 h1:nY8TmFMQOHpm2qVWo6y4I2mAmVdZqlGiMGAYt64Ibbs=
+github.com/microsoft/go-mssqldb v1.9.2/go.mod h1:GBbW9ASTiDC+mpgWDGKdm3FnFLTUsLYN3iFL90lQ+PA=
 github.com/microsoft/kiota-abstractions-go v1.9.3 h1:cqhbqro+VynJ7kObmo7850h3WN2SbvoyhypPn8uJ1SE=
 github.com/microsoft/kiota-abstractions-go v1.9.3/go.mod h1:f06pl3qSyvUHEfVNkiRpXPkafx7khZqQEb71hN/pmuU=
 github.com/microsoft/kiota-authentication-azure-go v1.3.1 h1:AGta92S6IL1E6ZMDb8YYB7NVNTIFUakbtLKUdY5RTuw=
@@ -3004,8 +3004,8 @@ golang.org/x/exp v0.0.0-20200207192155-f17229e696bd/go.mod h1:J/WKrq2StrnmMY6+EH
 golang.org/x/exp v0.0.0-20200224162631-6cc2880d07d6/go.mod h1:3jZMyOhIsHpP37uCMkUooju7aAi5cS1Q23tOzKc+0MU=
 golang.org/x/exp v0.0.0-20251209150349-8475f28825e9 h1:MDfG8Cvcqlt9XXrmEiD4epKn7VJHZO84hejP9Jmp0MM=
 golang.org/x/exp v0.0.0-20251209150349-8475f28825e9/go.mod h1:EPRbTFwzwjXj9NpYyyrvenVh9Y+GFeEvMNh7Xuz7xgU=
-golang.org/x/exp/typeparams v0.0.0-20240314144324-c7f7c6466f7f h1:phY1HzDcf18Aq9A8KkmRtY9WvOFIxN8wgfvy6Zm1DV8=
-golang.org/x/exp/typeparams v0.0.0-20240314144324-c7f7c6466f7f/go.mod h1:AbB0pIl9nAr9wVwH+Z2ZpaocVmF5I4GyWCDIsVjR0bk=
+golang.org/x/exp/typeparams v0.0.0-20250620022241-b7579e27df2b h1:KdrhdYPDUvJTvrDK9gdjfFd6JTk8vA1WJoldYSi0kHo=
+golang.org/x/exp/typeparams v0.0.0-20250620022241-b7579e27df2b/go.mod h1:LKZHyeOpPuZcMgxeHjJp4p5yvxrCX1xDvH10zYHhjjQ=
 golang.org/x/image v0.0.0-20180708004352-c73c2afc3b81/go.mod h1:ux5Hcp/YLpHSI86hEcLt0YII63i6oz57MZXIpbrjZUs=
 golang.org/x/image v0.0.0-20190227222117-0694c2d4d067/go.mod h1:kZ7UVZpmo3dzQBMxlp+ypCbDeSB+sBbTgSJuh5dn5js=
 golang.org/x/image v0.0.0-20190802002840-cff245a6509b/go.mod h1:FeLwcggjj3mMvU+oOTbSwawSJRM1uh48EjtB4UJZlP0=
@@ -3537,8 +3537,8 @@ honnef.co/go/tools v0.0.0-20190523083050-ea95bdfd59fc/go.mod h1:rf3lG4BRIbNafJWh
 honnef.co/go/tools v0.0.1-2019.2.3/go.mod h1:a3bituU0lyd329TUQxRnasdCoJDkEUEAqEt0JzvZhAg=
 honnef.co/go/tools v0.0.1-2020.1.3/go.mod h1:X/FiERA/W4tHapMX5mGpAtMSVEeEUOyHaw9vFzvIQ3k=
 honnef.co/go/tools v0.0.1-2020.1.4/go.mod h1:X/FiERA/W4tHapMX5mGpAtMSVEeEUOyHaw9vFzvIQ3k=
-honnef.co/go/tools v0.5.1 h1:4bH5o3b5ZULQ4UrBmP+63W9r7qIkqJClEA9ko5YKx+I=
-honnef.co/go/tools v0.5.1/go.mod h1:e9irvo83WDG9/irijV44wr3tbhcFeRnfpVlRqVwpzMs=
+honnef.co/go/tools v0.6.1 h1:R094WgE8K4JirYjBaOpz/AvTyUu/3wbmAoskKN/pxTI=
+honnef.co/go/tools v0.6.1/go.mod h1:3puzxxljPCe8RGJX7BIy1plGbxEOZni5mR2aXe3/uk4=
 istio.io/api v1.27.3 h1:Ek00/+kB0wepYuevSfE0Edh2o5ndEtekmo/Nkx5LIYA=
 istio.io/api v1.27.3/go.mod h1:DTVGH6CLXj5W8FF9JUD3Tis78iRgT1WeuAnxfTz21Wg=
 istio.io/client-go v1.27.3 h1:rBeEs0qAtdyyrjW73ml5ayLVY28KRDm2ohmyRXOnVRk=
@@ -3611,8 +3611,8 @@ sigs.k8s.io/controller-runtime v0.22.4 h1:GEjV7KV3TY8e+tJ2LCTxUTanW4z/FmNB7l327U
 sigs.k8s.io/controller-runtime v0.22.4/go.mod h1:+QX1XUpTXN4mLoblf4tqr5CQcyHPAki2HLXqQMY6vh8=
 sigs.k8s.io/custom-metrics-apiserver v1.33.0 h1:9uHgBT8ah8PZG+iMAhkXH25kIOmWs7JcrasFA0d83rI=
 sigs.k8s.io/custom-metrics-apiserver v1.33.0/go.mod h1:7lxzUW4z5aEaXOtqOdzh8+pzJ/gT/E3B6LooxIP3tKc=
-sigs.k8s.io/gateway-api v1.3.0 h1:q6okN+/UKDATola4JY7zXzx40WO4VISk7i9DIfOvr9M=
-sigs.k8s.io/gateway-api v1.3.0/go.mod h1:d8NV8nJbaRbEKem+5IuxkL8gJGOZ+FJ+NvOIltV8gDk=
+sigs.k8s.io/gateway-api v1.3.1-0.20250527223622-54df0a899c1c h1:GS4VnGRV90GEUjrgQ2GT5ii6yzWj3KtgUg+sVMdhs5c=
+sigs.k8s.io/gateway-api v1.3.1-0.20250527223622-54df0a899c1c/go.mod h1:d8NV8nJbaRbEKem+5IuxkL8gJGOZ+FJ+NvOIltV8gDk=
 sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8 h1:gBQPwqORJ8d8/YNZWEjoZs7npUVDpVXUUOFfW6CgAqE=
 sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8/go.mod h1:mdzfpAEoE6DHQEN0uh9ZbOCuHbLK5wOm7dK4ctXE9Tg=
 sigs.k8s.io/karpenter v1.8.0 h1:AmTHUPtnuL8IX9mbcD3NOohyk62idrBCBtM+8Wn6Jvk=
