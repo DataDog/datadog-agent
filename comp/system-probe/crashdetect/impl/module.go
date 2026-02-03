@@ -1,42 +1,20 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2025-present Datadog, Inc.
 
 //go:build windows
 
-package modules
+package crashdetectimpl
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect/probe"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
-	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// WinCrashProbe Factory
-var WinCrashProbe = &module.Factory{
-	Name:             config.WindowsCrashDetectModule,
-	ConfigNamespaces: []string{"windows_crash_detection"},
-	Fn: func(cfg *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
-		log.Infof("Starting the WinCrashProbe probe")
-		cp, err := probe.NewWinCrashProbe(cfg)
-		if err != nil {
-			return nil, fmt.Errorf("unable to start the Windows Crash Detection probe: %w", err)
-		}
-		return &winCrashDetectModule{
-			WinCrashProbe: cp,
-		}, nil
-	},
-}
-
-var _ module.Module = &winCrashDetectModule{}
 
 type winCrashDetectModule struct {
 	*probe.WinCrashProbe
