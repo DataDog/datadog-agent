@@ -348,8 +348,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("observer.debug_dump_interval", 0)
 	config.BindEnvAndSetDefault("observer.debug_events_dump_path", "")
 
-	// Observer trace/profile fetching from remote trace-agents via gRPC
+	// Observer recording: enables fetching traces/profiles from remote trace-agents via gRPC
 	// Requires remote_agent_registry.enabled=true
+	config.BindEnvAndSetDefault("observer.recording", false)
 	config.BindEnvAndSetDefault("observer.traces.enabled", true)
 	config.BindEnvAndSetDefault("observer.traces.fetch_interval", 5*time.Second)
 	config.BindEnvAndSetDefault("observer.traces.max_fetch_batch", 100)

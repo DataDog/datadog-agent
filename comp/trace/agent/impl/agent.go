@@ -31,6 +31,7 @@ import (
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
+	observerbuffer "github.com/DataDog/datadog-agent/comp/trace/observerbuffer/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
@@ -70,6 +71,10 @@ type dependencies struct {
 	Compressor            compression.Component
 	IPC                   ipc.Component
 	TracerPayloadModifier pkgagent.TracerPayloadModifier
+
+	// ObserverBuffer is a buffer for storing traces/profiles
+	// to be fetched by the core-agent's observer component.
+	ObserverBuffer observerbuffer.Component
 }
 
 var _ traceagent.Component = (*component)(nil)
@@ -143,6 +148,7 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 		c.telemetryCollector,
 		statsdCl,
 		deps.Compressor,
+		deps.ObserverBuffer,
 	)
 	c.Agent.TracerPayloadModifier = deps.TracerPayloadModifier
 
