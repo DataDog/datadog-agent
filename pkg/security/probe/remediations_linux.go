@@ -359,7 +359,7 @@ func (p *EBPFProbe) HandleRemediationNotTriggered() {
 	p.activeRemediationsLock.Lock()
 	defer p.activeRemediationsLock.Unlock()
 	for remediationKey, remediation := range p.activeRemediations {
-		if len(remediationKey) > 4 && remediationKey[0:4] != RemediationKeyPrefix {
+		if len(remediationKey) > 4 && strings.HasPrefix(remediationKey, RemediationKeyPrefix) {
 			// Only send events for remediation rules
 			continue
 		}
