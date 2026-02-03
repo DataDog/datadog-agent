@@ -54,32 +54,25 @@ build do
     end
 
     if windows_target?
-      conf_dir = "#{install_dir}/etc/datadog-agent"
+      conf_dir = File.join(install_dir, 'etc', 'datadog-agent')
+      binary_name = 'otel-agent.exe'
     else
       conf_dir = "/etc/datadog-agent"
+      binary_name = 'otel-agent'
     end
-    embedded_bin_dir = "#{install_dir}/embedded/bin"
+    embedded_bin_dir = File.join(install_dir, 'embedded', 'bin')
 
     mkdir conf_dir
     mkdir embedded_bin_dir
 
     command "dda inv -- -e otel-agent.build --flavor #{flavor_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
 
-    if windows_target?
-      copy 'bin/otel-agent/otel-agent.exe', embedded_bin_dir
-    else
-      copy 'bin/otel-agent/otel-agent', embedded_bin_dir
-    end
-    move 'bin/otel-agent/dist/otel-config.yaml', "#{conf_dir}/otel-config.yaml.example"
+    copy File.join('bin', 'otel-agent', binary_name), embedded_bin_dir
+    move 'bin/otel-agent/dist/otel-config.yaml', File.join(conf_dir, 'otel-config.yaml.example')
 
     if fips_mode?
-      if linux_target?
-        bin = "#{embedded_bin_dir}/otel-agent"
-      else
-        bin = "#{embedded_bin_dir}\\otel-agent.exe"
-      end
       block do
-        fips_check_binary_for_expected_symbol(bin)
+        fips_check_binary_for_expected_symbol(File.join(embedded_bin_dir, binary_name))
       end
     end
 end
