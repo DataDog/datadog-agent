@@ -1,17 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2025-present Datadog, Inc.
 
 //go:build linux
 
-package modules
+package processimpl
 
 import (
 	"io"
 	"net/http"
-	"os"
-	"path/filepath"
 	"sync/atomic"
 	"time"
 
@@ -19,31 +17,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/encoding"
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
-	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// Process is a module that fetches process level data
-var Process = &module.Factory{
-	Name:             config.ProcessModule,
-	ConfigNamespaces: []string{},
-	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
-		log.Infof("Creating process module for: %s", filepath.Base(os.Args[0]))
-
-		// we disable returning zero values for stats to reduce parsing work on process-agent side
-		p := procutil.NewProcessProbe(procutil.WithReturnZeroPermStats(false))
-		return &process{
-			probe: p,
-		}, nil
-	},
-	NeedsEBPF: func() bool {
-		return false
-	},
-}
-
-var _ module.Module = &process{}
 
 type process struct {
 	probe           procutil.Probe

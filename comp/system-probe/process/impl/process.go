@@ -9,29 +9,39 @@
 package processimpl
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
-	"github.com/DataDog/datadog-agent/comp/system-probe/module"
-	process "github.com/DataDog/datadog-agent/comp/system-probe/process/def"
+	"os"
+	"path/filepath"
+
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	processdef "github.com/DataDog/datadog-agent/comp/system-probe/process/def"
 	"github.com/DataDog/datadog-agent/comp/system-probe/types"
-	sysmodule "github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 // Requires defines the dependencies for the process component
 type Requires struct {
+	Log log.Component
 }
 
 // Provides defines the output of the process component
 type Provides struct {
-	Comp   process.Component
+	Comp   processdef.Component
 	Module types.ProvidesSystemProbeModule
 }
 
 // NewComponent creates a new process component
-func NewComponent(_ Requires) (Provides, error) {
-	mc := &module.Component{
-		Factory: modules.Process,
-		CreateFn: func() (types.SystemProbeModule, error) {
-			return modules.Process.Fn(nil, sysmodule.FactoryDependencies{})
+func NewComponent(reqs Requires) (Provides, error) {
+	mc := &moduleFactory{
+		createFn: func() (types.SystemProbeModule, error) {
+			reqs.Log.Infof("Creating process module for: %s", filepath.Base(os.Args[0]))
+
+			// we disable returning zero values for stats to reduce parsing work on process-agent side
+			p := procutil.NewProcessProbe(procutil.WithReturnZeroPermStats(false))
+			return &process{
+				probe: p,
+			}, nil
 		},
 	}
 	provides := Provides{
@@ -39,4 +49,28 @@ func NewComponent(_ Requires) (Provides, error) {
 		Comp:   mc,
 	}
 	return provides, nil
+}
+
+type moduleFactory struct {
+	createFn func() (types.SystemProbeModule, error)
+}
+
+func (m *moduleFactory) Name() sysconfigtypes.ModuleName {
+	return config.ProcessModule
+}
+
+func (m *moduleFactory) ConfigNamespaces() []string {
+	return nil
+}
+
+func (m *moduleFactory) Create() (types.SystemProbeModule, error) {
+	return m.createFn()
+}
+
+func (m *moduleFactory) NeedsEBPF() bool {
+	return false
+}
+
+func (m *moduleFactory) OptionalEBPF() bool {
+	return false
 }
