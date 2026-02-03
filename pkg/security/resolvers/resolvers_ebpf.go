@@ -91,7 +91,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	var sbomResolver *sbom.Resolver
 
 	if config.RuntimeSecurity.SBOMResolverEnabled {
-		sbomResolver, err = sbom.NewSBOMResolver(config.RuntimeSecurity, statsdClient)
+		sbomResolver, err = sbom.NewSBOMResolver(config.RuntimeSecurity, statsdClient, opts.WorkloadMeta)
 		if err != nil {
 			return nil, err
 		}

@@ -223,6 +223,7 @@ func TestCollection(t *testing.T) {
 		Catalog:     workloadmeta.Remote,
 		StreamHandler: &streamHandler{
 			port: port,
+			ipc:  ipcComp,
 		},
 		IPC: ipcComp,
 	}
