@@ -91,7 +91,34 @@ func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 		tags.WriteString(fmt.Sprintf(",%s:%s", k, v))
 	}
 
-	return newProfileProxy(r.conf, targets, keys, tags.String(), r.statsd)
+	proxy := newProfileProxy(r.conf, targets, keys, tags.String(), r.statsd)
+
+	// If no capture function is set, return the proxy directly
+	if r.ProfileCaptureFunc == nil {
+		return proxy
+	}
+
+	// Wrap the proxy to capture profile data before forwarding
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		// Read the request body for capture
+		body, err := io.ReadAll(req.Body)
+		req.Body.Close()
+		if err != nil {
+			log.Errorf("Failed to read profile request body for capture: %v", err)
+			http.Error(w, "Failed to read request body", http.StatusBadRequest)
+			return
+		}
+
+		// Call the capture function with the body and headers
+		r.ProfileCaptureFunc(body, req.Header)
+
+		// Restore the body for the proxy
+		req.Body = io.NopCloser(bytes.NewReader(body))
+		req.ContentLength = int64(len(body))
+
+		// Forward to the proxy
+		proxy.ServeHTTP(w, req)
+	})
 }
 
 func errorHandler(err error) http.Handler {

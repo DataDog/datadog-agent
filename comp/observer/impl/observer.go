@@ -15,10 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"google.golang.org/grpc/credentials"
-
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -36,12 +33,9 @@ type Requires struct {
 	// If nil, handles operate without recording.
 	Recorder recorderdef.Component
 
-	// RemoteAgentRegistry is optional - when provided, enables fetching traces/profiles
+	// RemoteAgentRegistry enables fetching traces/profiles
 	// from remote trace-agents via the ObserverProvider gRPC service.
-	RemoteAgentRegistry remoteagentregistry.Component `optional:"true"`
-
-	// IPC is optional - when provided, enables secure gRPC connections to remote agents.
-	IPC ipc.Component `optional:"true"`
+	RemoteAgentRegistry remoteagentregistry.Component
 }
 
 type AgentInternalLogTapConfig struct {
@@ -282,38 +276,32 @@ func NewComponent(deps Requires) Provides {
 		})
 	}
 
-	// Start trace/profile fetcher if remoteAgentRegistry is available
-	if deps.RemoteAgentRegistry != nil && deps.IPC != nil {
-		fetcherConfig := DefaultFetcherConfig()
-		fetcherConfig.Enabled = cfg.GetBool("observer.traces.enabled") || cfg.GetBool("observer.profiles.enabled")
+	// Start trace/profile fetcher if traces or profiles collection is enabled
+	fetcherConfig := DefaultFetcherConfig()
+	fetcherConfig.Enabled = cfg.GetBool("observer.traces.enabled") || cfg.GetBool("observer.profiles.enabled")
 
-		if fetcherConfig.Enabled {
-			if interval := cfg.GetDuration("observer.traces.fetch_interval"); interval > 0 {
-				fetcherConfig.TraceFetchInterval = interval
-			}
-			if interval := cfg.GetDuration("observer.profiles.fetch_interval"); interval > 0 {
-				fetcherConfig.ProfileFetchInterval = interval
-			}
-			if batch := cfg.GetInt("observer.traces.max_fetch_batch"); batch > 0 {
-				fetcherConfig.MaxTraceBatch = uint32(batch)
-			}
-			if batch := cfg.GetInt("observer.profiles.max_fetch_batch"); batch > 0 {
-				fetcherConfig.MaxProfileBatch = uint32(batch)
-			}
-
-			fetchHandle := obs.GetHandle("trace-agent")
-			obs.fetcher = newObserverFetcher(
-				deps.RemoteAgentRegistry,
-				fetchHandle,
-				fetcherConfig,
-				deps.IPC.GetAuthToken,
-				func() credentials.TransportCredentials {
-					return credentials.NewTLS(deps.IPC.GetTLSClientConfig())
-				},
-			)
-			obs.fetcher.Start()
-			pkglog.Info("[observer] trace/profile fetcher started")
+	if fetcherConfig.Enabled {
+		if interval := cfg.GetDuration("observer.traces.fetch_interval"); interval > 0 {
+			fetcherConfig.TraceFetchInterval = interval
 		}
+		if interval := cfg.GetDuration("observer.profiles.fetch_interval"); interval > 0 {
+			fetcherConfig.ProfileFetchInterval = interval
+		}
+		if batch := cfg.GetInt("observer.traces.max_fetch_batch"); batch > 0 {
+			fetcherConfig.MaxTraceBatch = uint32(batch)
+		}
+		if batch := cfg.GetInt("observer.profiles.max_fetch_batch"); batch > 0 {
+			fetcherConfig.MaxProfileBatch = uint32(batch)
+		}
+
+		fetchHandle := obs.GetHandle("trace-agent")
+		obs.fetcher = newObserverFetcher(
+			deps.RemoteAgentRegistry,
+			fetchHandle,
+			fetcherConfig,
+		)
+		obs.fetcher.Start()
+		pkglog.Info("[observer] trace/profile fetcher started")
 	}
 
 	return Provides{Comp: obs}
