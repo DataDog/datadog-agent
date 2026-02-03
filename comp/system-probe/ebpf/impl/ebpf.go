@@ -9,17 +9,22 @@
 package ebpfimpl
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
+	"fmt"
+
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	ebpf "github.com/DataDog/datadog-agent/comp/system-probe/ebpf/def"
-	"github.com/DataDog/datadog-agent/comp/system-probe/module"
 	"github.com/DataDog/datadog-agent/comp/system-probe/types"
-	sysmodule "github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 // Requires defines the dependencies for the ebpf component
 type Requires struct {
 	SysprobeConfig sysprobeconfig.Component
+	Log            log.Component
 }
 
 // Provides defines the output of the ebpf component
@@ -29,11 +34,17 @@ type Provides struct {
 }
 
 // NewComponent creates a new ebpf component
-func NewComponent(_ Requires) (Provides, error) {
-	mc := &module.Component{
-		Factory: modules.EBPFProbe,
-		CreateFn: func() (types.SystemProbeModule, error) {
-			return modules.EBPFProbe.Fn(nil, sysmodule.FactoryDependencies{})
+func NewComponent(reqs Requires) (Provides, error) {
+	mc := &moduleFactory{
+		createFn: func() (types.SystemProbeModule, error) {
+			reqs.Log.Infof("Starting the ebpf probe")
+			okp, err := ebpfcheck.NewProbe(ddebpf.NewConfig())
+			if err != nil {
+				return nil, fmt.Errorf("unable to start the ebpf probe: %w", err)
+			}
+			return &ebpfModule{
+				Probe: okp,
+			}, nil
 		},
 	}
 	provides := Provides{
@@ -41,4 +52,28 @@ func NewComponent(_ Requires) (Provides, error) {
 		Comp:   mc,
 	}
 	return provides, nil
+}
+
+type moduleFactory struct {
+	createFn func() (types.SystemProbeModule, error)
+}
+
+func (m *moduleFactory) Name() sysconfigtypes.ModuleName {
+	return config.EBPFModule
+}
+
+func (m *moduleFactory) ConfigNamespaces() []string {
+	return nil
+}
+
+func (m *moduleFactory) Create() (types.SystemProbeModule, error) {
+	return m.createFn()
+}
+
+func (m *moduleFactory) NeedsEBPF() bool {
+	return true
+}
+
+func (m *moduleFactory) OptionalEBPF() bool {
+	return false
 }
