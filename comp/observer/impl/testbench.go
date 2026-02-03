@@ -350,7 +350,14 @@ func (tb *TestBench) loadEventsDir(dir string) error {
 			continue
 		}
 
-		// Events are loaded but routing to processors is handled elsewhere
+		// Send events to anomaly processors that support them
+		for _, event := range events {
+			for _, proc := range tb.anomalyProcessors {
+				if receiver, ok := proc.(observerdef.EventSignalReceiver); ok {
+					receiver.AddEventSignal(event)
+				}
+			}
+		}
 		totalEvents += len(events)
 	}
 

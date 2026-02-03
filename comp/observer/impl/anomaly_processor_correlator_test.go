@@ -418,6 +418,7 @@ func TestCorrelator_DedupesBySourceKeepingMostRecent(t *testing.T) {
 	correlator.Process(observer.AnomalyOutput{
 		Source:      "network.retransmits:avg",
 		Description: "newest retransmits",                       // should be kept
+		Timestamp:   1025,                                       // latest timestamp
 		TimeRange:   observer.TimeRange{Start: 1010, End: 1025}, // latest End
 	})
 	correlator.Process(observer.AnomalyOutput{

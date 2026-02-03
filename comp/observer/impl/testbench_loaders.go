@@ -241,21 +241,21 @@ func parseTimestamp(v interface{}) int64 {
 }
 
 // LoadEventFile loads events from a JSON file.
-// Expects a JSON array of Signal objects.
-func LoadEventFile(path string) ([]observerdef.Signal, error) {
+// Expects a JSON array of EventSignal objects.
+func LoadEventFile(path string) ([]observerdef.EventSignal, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 
 	// Try to parse as array first
-	var events []observerdef.Signal
+	var events []observerdef.EventSignal
 	if err := json.Unmarshal(data, &events); err == nil {
 		return events, nil
 	}
 
 	// Try to parse as JSON lines
-	var result []observerdef.Signal
+	var result []observerdef.EventSignal
 	scanner := bufio.NewScanner(strings.NewReader(string(data)))
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -266,7 +266,7 @@ func LoadEventFile(path string) ([]observerdef.Signal, error) {
 		// Remove trailing comma if present
 		line = strings.TrimSuffix(line, ",")
 
-		var event observerdef.Signal
+		var event observerdef.EventSignal
 		if err := json.Unmarshal([]byte(line), &event); err != nil {
 			continue
 		}

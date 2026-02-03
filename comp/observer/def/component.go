@@ -196,6 +196,24 @@ type SignalProcessor interface {
 	Flush()
 }
 
+// EventSignalReceiver is an optional interface for processors that accept discrete event signals.
+// Events like container OOMs, restarts, and lifecycle transitions are routed here
+// instead of being processed as logs (no metric derivation).
+type EventSignalReceiver interface {
+	// AddEventSignal adds a discrete event signal for correlation context.
+	AddEventSignal(signal EventSignal)
+}
+
+// EventSignal represents a discrete event used as correlation evidence or annotation.
+// Unlike anomalies (which are detected from time series analysis), event signals are
+// explicit events such as container OOMs, restarts, or lifecycle transitions.
+type EventSignal struct {
+	Source    string   // event source, e.g., "container_oom", "container_restart", "agent_startup"
+	Timestamp int64    // when the event occurred (unix seconds)
+	Tags      []string // event tags for filtering/grouping
+	Message   string   // optional human-readable description
+}
+
 // Reporter receives reports and displays or delivers them.
 type Reporter interface {
 	// Name returns the reporter name for debugging.
@@ -213,13 +231,13 @@ type CorrelationState interface {
 
 // ActiveCorrelation represents a detected correlation pattern.
 type ActiveCorrelation struct {
-	Pattern     string          // pattern name, e.g. "kernel_bottleneck"
-	Title       string          // display title, e.g. "Correlated: Kernel network bottleneck"
-	SourceNames []string        // names of sources that contributed to this correlation
-	Anomalies   []AnomalyOutput // the actual anomalies that triggered this correlation
-	Events      []Signal        // discrete events relevant to this correlation (e.g., OOMs, restarts)
-	FirstSeen   int64           // when pattern first matched (unix seconds, from data)
-	LastUpdated int64           // most recent contributing signal (unix seconds, from data)
+	Pattern      string          // pattern name, e.g. "kernel_bottleneck"
+	Title        string          // display title, e.g. "Correlated: Kernel network bottleneck"
+	SourceNames  []string        // names of sources that contributed to this correlation
+	Anomalies    []AnomalyOutput // the actual anomalies that triggered this correlation
+	EventSignals []EventSignal   // discrete events (EventSignal-based, for processors using AddEventSignal)
+	FirstSeen    int64           // when pattern first matched (unix seconds, from data)
+	LastUpdated  int64           // most recent contributing signal (unix seconds, from data)
 }
 
 // ClusterState provides read access to clustered signal regions.
@@ -256,3 +274,4 @@ type RawAnomalyState interface {
 	// RawAnomalies returns all anomalies detected by TimeSeriesAnalysis implementations.
 	RawAnomalies() []AnomalyOutput
 }
+
