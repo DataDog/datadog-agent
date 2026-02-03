@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	ec2docker "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -97,10 +98,12 @@ func TestJMXFetchNixFIPS(t *testing.T) {
 }
 
 func TestJMXFetchNixMtls(t *testing.T) {
+	flake.Mark(t)
 	testJMXFetchNix(t, true, false)
 }
 
 func TestJMXFetchNixMtlsFIPS(t *testing.T) {
+	flake.Mark(t)
 	testJMXFetchNix(t, true, true)
 }
 
