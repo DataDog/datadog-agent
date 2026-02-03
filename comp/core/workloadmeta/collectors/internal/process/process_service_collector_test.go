@@ -569,7 +569,7 @@ func TestServiceStoreLifetime(t *testing.T) {
 					},
 				})
 
-				c.collector.lastCollectedProcesses[process.Pid] = &procutil.Processe{
+				c.collector.lastCollectedProcesses[process.Pid] = &procutil.Process{
 					Pid:     process.Pid,
 					Cmdline: []string{"python3", "--version"},
 					Stats:   &procutil.Stats{CreateTime: process.CreationTime.UnixMilli()},
