@@ -9,14 +9,23 @@
 package dynamicinstrumentationimpl
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
+	"context"
+	"errors"
+	"fmt"
+
+	"google.golang.org/grpc"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	dynamicinstrumentation "github.com/DataDog/datadog-agent/comp/system-probe/dynamicinstrumentation/def"
-	"github.com/DataDog/datadog-agent/comp/system-probe/module"
 	"github.com/DataDog/datadog-agent/comp/system-probe/types"
-	sysmodule "github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	dimod "github.com/DataDog/datadog-agent/pkg/dyninst/module"
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
 // Requires defines the dependencies for the dynamicinstrumentation component
@@ -34,13 +43,36 @@ type Provides struct {
 
 // NewComponent creates a new dynamicinstrumentation component
 func NewComponent(reqs Requires) (Provides, error) {
-	mc := &module.Component{
-		Factory: modules.DynamicInstrumentation,
-		CreateFn: func() (types.SystemProbeModule, error) {
-			return modules.DynamicInstrumentation.Fn(reqs.SysprobeConfig.SysProbeObject(), sysmodule.FactoryDependencies{
-				CoreConfig: reqs.CoreConfig,
-				Ipc:        reqs.Ipc,
-			})
+	mc := &moduleFactory{
+		createFn: func() (types.SystemProbeModule, error) {
+			config, err := dimod.NewConfig(reqs.SysprobeConfig.SysProbeObject())
+			if err != nil {
+				return nil, fmt.Errorf("invalid dynamic instrumentation module configuration: %w", err)
+			}
+			ipcAddress, err := pkgconfigsetup.GetIPCAddress(reqs.CoreConfig)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get ipc address: %w", err)
+			}
+			client, err := ddgrpc.GetDDAgentSecureClient(
+				context.Background(),
+				ipcAddress,
+				pkgconfigsetup.GetIPCPort(),
+				reqs.Ipc.GetTLSClientConfig().Clone(),
+				grpc.WithPerRPCCredentials(ddgrpc.NewBearerTokenAuth(reqs.Ipc.GetAuthToken())),
+			)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create gRPC client for RC subscription: %w", err)
+			}
+
+			m, err := dimod.NewModule(config, client)
+			if err != nil {
+				if errors.Is(err, ebpf.ErrNotImplemented) {
+					return nil, types.ErrNotEnabled
+				}
+				return nil, err
+			}
+
+			return m, nil
 		},
 	}
 	provides := Provides{
@@ -48,4 +80,28 @@ func NewComponent(reqs Requires) (Provides, error) {
 		Comp:   mc,
 	}
 	return provides, nil
+}
+
+type moduleFactory struct {
+	createFn func() (types.SystemProbeModule, error)
+}
+
+func (m *moduleFactory) Name() sysconfigtypes.ModuleName {
+	return sysconfig.DynamicInstrumentationModule
+}
+
+func (m *moduleFactory) ConfigNamespaces() []string {
+	return nil
+}
+
+func (m *moduleFactory) Create() (types.SystemProbeModule, error) {
+	return m.createFn()
+}
+
+func (m *moduleFactory) NeedsEBPF() bool {
+	return true
+}
+
+func (m *moduleFactory) OptionalEBPF() bool {
+	return false
 }

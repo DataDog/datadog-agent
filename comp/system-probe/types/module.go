@@ -7,11 +7,16 @@
 package types
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gorilla/mux"
 	"go.uber.org/fx"
 )
+
+// ErrNotEnabled is a special error type that should be returned by a Factory
+// when the associated Module is not enabled.
+var ErrNotEnabled = errors.New("module is not enabled")
 
 type SystemProbeModule interface {
 	GetStats() map[string]interface{}
