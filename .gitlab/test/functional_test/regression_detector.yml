@@ -89,7 +89,6 @@ single_machine_performance-regression_detector-merge_base_check:
       - outputs/decision_record.md # for posterity, this is appended to final PR comment
     when: always
   # See 'decision_record.md' for the determination of whether this job passes or fails.
-  allow_failure: false
   retry: !reference [.retry_only_infra_failure, retry]
   script:
     # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
