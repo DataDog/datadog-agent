@@ -1,11 +1,11 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2023-present Datadog, Inc.
+// Copyright 2025-present Datadog, Inc.
 
 //go:build linux
 
-package modules
+package complianceimpl
 
 import (
 	"context"
@@ -16,18 +16,21 @@ import (
 	"sync/atomic"
 	"time"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
+	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
-	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
-
-var complianceConfigNamespaces = []string{"compliance_config", "runtime_security_config"}
 
 // ComplianceModule is a system-probe module that exposes an HTTP api to
 // perform compliance checks that require more privileges than security-agent
@@ -35,16 +38,18 @@ var complianceConfigNamespaces = []string{"compliance_config", "runtime_security
 //
 // For instance, being able to run cross-container checks at runtime by directly
 // accessing the /proc/<pid>/root mount point.
-var ComplianceModule = &module.Factory{
-	Name:             config.ComplianceModule,
-	ConfigNamespaces: complianceConfigNamespaces,
-	Fn:               newComplianceModule,
-	NeedsEBPF: func() bool {
-		return false
-	},
+
+type dependencies struct {
+	CoreConfig  config.Component
+	Log         logdef.Component
+	WMeta       workloadmeta.Component
+	FilterStore workloadfilter.Component
+	Compression logscompression.Component
+	Statsd      ddgostatsd.ClientInterface
+	Hostname    hostname.Component
 }
 
-func newComplianceModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
+func newComplianceModule(deps dependencies) (types.SystemProbeModule, error) {
 	stopper := startstop.NewSerialStopper()
 
 	var complianceAgent *compliance.Agent
