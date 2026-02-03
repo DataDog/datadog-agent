@@ -553,8 +553,8 @@ func exportResults(config DemoV2Config, obs *observerImpl, correlationState obse
 			results.Correlations = append(results.Correlations, CorrelationResult{
 				Pattern:     c.Pattern,
 				Title:       c.Title,
-				SourceCount: len(c.Sources),
-				Sources:     c.Sources, // All sources, not truncated
+				SourceCount: len(c.Signals),
+				Signals:     c.Signals, // All sources, not truncated
 				FirstSeen:   c.FirstSeen,
 				LastUpdated: c.LastUpdated,
 			})

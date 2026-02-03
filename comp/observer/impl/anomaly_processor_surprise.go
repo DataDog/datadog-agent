@@ -356,7 +356,7 @@ func (c *SurpriseCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
 		result = append(result, observer.ActiveCorrelation{
 			Pattern:     pattern,
 			Title:       title,
-			Sources:     sources,
+			Signals:     sources,
 			Anomalies:   anomalies,
 			FirstSeen:   firstSeen,
 			LastUpdated: lastUpdated,

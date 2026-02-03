@@ -31,6 +31,9 @@ type Handle interface {
 	ObserveLog(msg LogView)
 }
 
+// HandleFunc is a function that returns a handle for a named source.
+type HandleFunc func(name string) Handle
+
 // MetricView provides read-only access to a metric sample.
 //
 // This interface exists to prevent data races. The underlying metric data may be
@@ -105,17 +108,17 @@ type AnomalyOutput struct {
 // AnomalyDebugInfo provides detailed information about why an anomaly was detected.
 type AnomalyDebugInfo struct {
 	// Baseline statistics
-	BaselineStart   int64   // timestamp of baseline period start
-	BaselineEnd     int64   // timestamp of baseline period end
-	BaselineMean    float64 // mean of baseline (for CUSUM)
-	BaselineMedian  float64 // median of baseline (for robust z-score)
-	BaselineStddev  float64 // stddev of baseline (for CUSUM)
-	BaselineMAD     float64 // MAD of baseline (for robust z-score)
+	BaselineStart  int64   // timestamp of baseline period start
+	BaselineEnd    int64   // timestamp of baseline period end
+	BaselineMean   float64 // mean of baseline (for CUSUM)
+	BaselineMedian float64 // median of baseline (for robust z-score)
+	BaselineStddev float64 // stddev of baseline (for CUSUM)
+	BaselineMAD    float64 // MAD of baseline (for robust z-score)
 
 	// Detection parameters
-	Threshold     float64 // threshold that was crossed
-	SlackParam    float64 // k parameter (CUSUM only)
-	CurrentValue  float64 // value at detection time
+	Threshold      float64 // threshold that was crossed
+	SlackParam     float64 // k parameter (CUSUM only)
+	CurrentValue   float64 // value at detection time
 	DeviationSigma float64 // how many sigmas from baseline
 
 	// For CUSUM: the cumulative sum values leading up to detection
@@ -193,6 +196,14 @@ type SignalProcessor interface {
 	Flush()
 }
 
+// EventSignalReceiver is an optional interface for processors that accept discrete event signals.
+// Events like container OOMs, restarts, and lifecycle transitions are routed here
+// instead of being processed as logs (no metric derivation).
+type EventSignalReceiver interface {
+	// AddEventSignal adds a discrete event signal for correlation context.
+	AddEventSignal(signal EventSignal)
+}
+
 // Reporter receives reports and displays or delivers them.
 type Reporter interface {
 	// Name returns the reporter name for debugging.
@@ -210,12 +221,13 @@ type CorrelationState interface {
 
 // ActiveCorrelation represents a detected correlation pattern.
 type ActiveCorrelation struct {
-	Pattern     string          // pattern name, e.g. "kernel_bottleneck"
-	Title       string          // display title, e.g. "Correlated: Kernel network bottleneck"
-	Sources     []string        // source identifiers that matched the pattern (e.g., "metric:cpu.usage", "event:oom_killed")
-	Anomalies   []AnomalyOutput // the actual anomalies that triggered this correlation (legacy, for backward compat)
-	FirstSeen   int64           // when pattern first matched (unix seconds, from data)
-	LastUpdated int64           // most recent contributing signal (unix seconds, from data)
+	Pattern      string          // pattern name, e.g. "kernel_bottleneck"
+	Title        string          // display title, e.g. "Correlated: Kernel network bottleneck"
+	Signals      []string        // contributing signal sources
+	Anomalies    []AnomalyOutput // the actual anomalies that triggered this correlation
+	EventSignals []EventSignal   // discrete event signals relevant to this correlation
+	FirstSeen    int64           // when pattern first matched (unix seconds, from data)
+	LastUpdated  int64           // most recent contributing signal (unix seconds, from data)
 }
 
 // ClusterState provides read access to clustered signal regions.
@@ -244,6 +256,17 @@ type Signal struct {
 	// Optional fields (algorithm-dependent)
 	Value float64  // current metric value (if applicable)
 	Score *float64 // confidence/severity (nil if algorithm doesn't provide)
+}
+
+// EventSignal represents a discrete event used as correlation evidence or annotation.
+// Unlike anomalies (which are detected from time series analysis), event signals are
+// explicit events such as container OOMs, restarts, or lifecycle transitions.
+// They are not analyzed with CUSUM but serve as context for understanding correlations.
+type EventSignal struct {
+	Source    string   // event source, e.g., "container_oom", "container_restart", "agent_startup"
+	Timestamp int64    // when the event occurred (unix seconds)
+	Tags      []string // event tags for filtering/grouping
+	Message   string   // optional human-readable description
 }
 
 // RawAnomalyState provides read access to raw anomalies before correlation processing.

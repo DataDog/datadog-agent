@@ -143,7 +143,7 @@ func TestCorrelator_ActiveCorrelationListsAllSignals(t *testing.T) {
 	require.NotNil(t, found)
 
 	// Sources should contain all three sources (sorted alphabetically)
-	sources := found.Sources
+	sources := found.Signals
 	require.Len(t, sources, 3)
 	assert.Contains(t, sources, "network.retransmits:avg")
 	assert.Contains(t, sources, "ebpf.lock_contention_ns:avg")

@@ -227,7 +227,7 @@ func (c *TimeClusterCorrelator) GetClusters() []TimeClusterInfo {
 		sort.Strings(sources)
 		result = append(result, TimeClusterInfo{
 			ID:           cluster.id,
-			Sources:      sources,
+			Signals:      sources,
 			StartTime:    cluster.minTimestamp,
 			EndTime:      cluster.maxTimestamp,
 			AnomalyCount: len(cluster.anomalies),
@@ -286,7 +286,7 @@ func (c *TimeClusterCorrelator) ActiveCorrelations() []observer.ActiveCorrelatio
 		result = append(result, observer.ActiveCorrelation{
 			Pattern:     fmt.Sprintf("time_cluster_%d", cluster.id),
 			Title:       fmt.Sprintf("Correlated: %d anomalies in time window", len(cluster.anomalies)),
-			Sources:     sources,
+			Signals:     sources,
 			Anomalies:   anomalies,
 			FirstSeen:   cluster.minTimestamp,
 			LastUpdated: cluster.maxTimestamp,

@@ -406,7 +406,7 @@ func TestHTMLReporter_APICorrelations_ReturnsJSON(t *testing.T) {
 			{
 				Pattern: "test_pattern",
 				Title:   "Test Correlation",
-				Sources: []string{"signal1", "signal2"},
+				Signals: []string{"signal1", "signal2"},
 				Anomalies: []observer.AnomalyOutput{
 					{Source: "signal1", Title: "Anomaly 1", Description: "Description 1"},
 				},

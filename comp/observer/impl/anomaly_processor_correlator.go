@@ -53,19 +53,19 @@ var knownPatterns = []correlationPattern{
 	{
 		// Most specific: all 3 signals indicate kernel-level issue
 		name:            "kernel_bottleneck",
-		requiredSources: []string{"network.retransmits:avg", "ebpf.lock_contention_ns:avg", "connection.errors:count"},
+		requiredSignals: []string{"network.retransmits:avg", "ebpf.lock_contention_ns:avg", "connection.errors:count"},
 		reportTitle:     "Correlated: Kernel network bottleneck",
 	},
 	{
 		// Less specific: network issues without clear kernel involvement
 		name:            "network_degradation",
-		requiredSources: []string{"network.retransmits:avg", "connection.errors:count"},
+		requiredSignals: []string{"network.retransmits:avg", "connection.errors:count"},
 		reportTitle:     "Correlated: Network degradation",
 	},
 	{
 		// Lock contention causing downstream failures
 		name:            "lock_contention_cascade",
-		requiredSources: []string{"ebpf.lock_contention_ns:avg", "connection.errors:count"},
+		requiredSignals: []string{"ebpf.lock_contention_ns:avg", "connection.errors:count"},
 		reportTitle:     "Correlated: Lock contention cascade",
 	},
 }
@@ -196,14 +196,14 @@ func (c *CrossSignalCorrelator) Flush() []observer.ReportOutput {
 			if existing, ok := c.activeCorrelations[pattern.name]; ok {
 				// Pattern already active - update LastUpdated and Anomalies
 				existing.LastUpdated = c.currentDataTime
-				existing.Sources = c.getSortedSources(sourceSet)
+				existing.Signals = c.getSortedSources(sourceSet)
 				existing.Anomalies = matchingAnomalies
 			} else {
 				// New pattern match - create ActiveCorrelation
 				c.activeCorrelations[pattern.name] = &observer.ActiveCorrelation{
 					Pattern:     pattern.name,
 					Title:       pattern.reportTitle,
-					Sources:     c.getSortedSources(sourceSet),
+					Signals:     c.getSortedSources(sourceSet),
 					Anomalies:   matchingAnomalies, // Populated from old buffer for backward compat
 					FirstSeen:   c.currentDataTime,
 					LastUpdated: c.currentDataTime,
@@ -303,7 +303,7 @@ func (c *CrossSignalCorrelator) ActiveCorrelations() []observer.ActiveCorrelatio
 		result = append(result, observer.ActiveCorrelation{
 			Pattern:     ac.Pattern,
 			Title:       ac.Title,
-			Sources:     append([]string(nil), ac.Sources...),
+			Signals:     append([]string(nil), ac.Signals...),
 			Anomalies:   ac.Anomalies, // Populated from old AnomalyOutput buffer for backward compat
 			FirstSeen:   ac.FirstSeen,
 			LastUpdated: ac.LastUpdated,
