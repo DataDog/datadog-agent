@@ -31,31 +31,53 @@ type Provides struct {
 func NewComponent(req Requires) (Provides, error) {
 	r := &recorderImpl{}
 
-	// Initialize recording if both capture_metrics.enabled AND parquet_output_dir are configured.
-	captureMetricsEnabled := req.Config.GetBool("observer.capture_metrics.enabled")
-	if captureMetricsEnabled {
-		if parquetDir := req.Config.GetString("observer.parquet_output_dir"); parquetDir != "" {
-			flushInterval := req.Config.GetDuration("observer.parquet_flush_interval")
-			if flushInterval == 0 {
-				flushInterval = 60 * time.Second
-			}
+	parquetDir := req.Config.GetString("observer.parquet_output_dir")
+	if parquetDir == "" {
+		pkglog.Debug("Recorder parquet writers disabled (observer.parquet_output_dir not set)")
+		return Provides{Comp: r}, nil
+	}
 
-			retentionDuration := req.Config.GetDuration("observer.parquet_retention")
-			if retentionDuration <= 0 {
-				retentionDuration = 24 * time.Hour
-			}
+	flushInterval := req.Config.GetDuration("observer.parquet_flush_interval")
+	if flushInterval == 0 {
+		flushInterval = 60 * time.Second
+	}
 
-			// Create parquet writer
-			writer, err := NewParquetWriter(parquetDir, flushInterval, retentionDuration)
-			if err != nil {
-				pkglog.Errorf("Failed to create parquet writer: %v", err)
-			} else {
-				r.parquetWriter = writer
-				pkglog.Infof("Recorder started with parquet output: dir=%s flush=%v retention=%v", parquetDir, flushInterval, retentionDuration)
-			}
+	retentionDuration := req.Config.GetDuration("observer.parquet_retention")
+	if retentionDuration <= 0 {
+		retentionDuration = 24 * time.Hour
+	}
+
+	// Initialize metrics writer if enabled
+	if req.Config.GetBool("observer.capture_metrics.enabled") {
+		writer, err := NewParquetWriter(parquetDir, flushInterval, retentionDuration)
+		if err != nil {
+			pkglog.Errorf("Failed to create metrics parquet writer: %v", err)
+		} else {
+			r.parquetWriter = writer
+			pkglog.Infof("Recorder metrics writer started: dir=%s", parquetDir)
 		}
-	} else {
-		pkglog.Debug("Recorder parquet writer disabled (observer.capture_metrics.enabled is false)")
+	}
+
+	// Initialize traces writer if enabled
+	if req.Config.GetBool("observer.capture_traces.enabled") {
+		writer, err := NewTraceParquetWriter(parquetDir, flushInterval, retentionDuration)
+		if err != nil {
+			pkglog.Errorf("Failed to create trace parquet writer: %v", err)
+		} else {
+			r.traceParquetWriter = writer
+			pkglog.Infof("Recorder trace writer started: dir=%s", parquetDir)
+		}
+	}
+
+	// Initialize profiles writer if enabled
+	if req.Config.GetBool("observer.capture_profiles.enabled") {
+		writer, err := NewProfileParquetWriter(parquetDir, flushInterval, retentionDuration)
+		if err != nil {
+			pkglog.Errorf("Failed to create profile parquet writer: %v", err)
+		} else {
+			r.profileParquetWriter = writer
+			pkglog.Infof("Recorder profile writer started: dir=%s", parquetDir)
+		}
 	}
 
 	return Provides{Comp: r}, nil
@@ -63,8 +85,10 @@ func NewComponent(req Requires) (Provides, error) {
 
 // recorderImpl implements the recorder component
 type recorderImpl struct {
-	parquetWriter *ParquetWriter
-	mu            sync.Mutex
+	parquetWriter        *ParquetWriter
+	traceParquetWriter   *TraceParquetWriter
+	profileParquetWriter *ProfileParquetWriter
+	mu                   sync.Mutex
 }
 
 // GetHandle wraps the provided HandleFunc with recording capability.
@@ -72,8 +96,8 @@ func (r *recorderImpl) GetHandle(handleFunc observer.HandleFunc) observer.Handle
 	return func(name string) observer.Handle {
 		innerHandle := handleFunc(name)
 
-		// If recording is enabled, wrap with recording handle
-		if r.parquetWriter != nil {
+		// If any recording is enabled, wrap with recording handle
+		if r.parquetWriter != nil || r.traceParquetWriter != nil || r.profileParquetWriter != nil {
 			return &recordingHandle{
 				inner:    innerHandle,
 				recorder: r,
@@ -140,6 +164,37 @@ func (r *recorderImpl) ReadAllMetrics(inputDir string) ([]recorderdef.MetricData
 	return metrics, nil
 }
 
+// ReadAllTraces reads all traces from parquet files and returns them as a slice.
+// Traces are reconstructed from denormalized span rows grouped by trace ID.
+func (r *recorderImpl) ReadAllTraces(inputDir string) ([]recorderdef.TraceData, error) {
+	reader, err := NewTraceParquetReader(inputDir)
+	if err != nil {
+		return nil, fmt.Errorf("creating trace parquet reader: %w", err)
+	}
+
+	pkglog.Infof("ReadAllTraces: loading traces from %s", inputDir)
+
+	traces := reader.ReadAll()
+
+	pkglog.Infof("ReadAllTraces: loaded %d traces", len(traces))
+	return traces, nil
+}
+
+// ReadAllProfiles reads all profiles from parquet files and returns them as a slice.
+func (r *recorderImpl) ReadAllProfiles(inputDir string) ([]recorderdef.ProfileData, error) {
+	reader, err := NewProfileParquetReader(inputDir)
+	if err != nil {
+		return nil, fmt.Errorf("creating profile parquet reader: %w", err)
+	}
+
+	pkglog.Infof("ReadAllProfiles: loading profiles from %s", inputDir)
+
+	profiles := reader.ReadAll()
+
+	pkglog.Infof("ReadAllProfiles: loaded %d profiles", len(profiles))
+	return profiles, nil
+}
+
 // recordingHandle wraps an observer handle to record observations.
 type recordingHandle struct {
 	inner    observer.Handle
@@ -175,16 +230,78 @@ func (h *recordingHandle) ObserveLog(msg observer.LogView) {
 	// TODO: Optionally record logs to parquet (future enhancement)
 }
 
-// ObserveTrace forwards the trace to the inner handle.
-// Trace recording is not implemented yet but the hook is in place.
+// ObserveTrace forwards the trace to the inner handle and records it.
 func (h *recordingHandle) ObserveTrace(trace observer.TraceView) {
 	h.inner.ObserveTrace(trace)
-	// TODO: Optionally record traces to parquet (future enhancement)
+
+	// Record to parquet if writer is available
+	if h.recorder.traceParquetWriter != nil {
+		traceIDHigh, traceIDLow := trace.GetTraceID()
+		traceService := trace.GetService()
+		traceTags := mapToTagSlice(trace.GetTags())
+
+		// Iterate over all spans and write each one with trace context
+		iter := trace.GetSpans()
+		for iter.Next() {
+			span := iter.Span()
+			h.recorder.traceParquetWriter.WriteSpan(
+				h.name,
+				traceIDHigh, traceIDLow,
+				trace.GetEnv(), traceService, trace.GetHostname(), trace.GetContainerID(),
+				trace.GetTimestamp(), trace.GetDuration(),
+				trace.GetPriority(), trace.IsError(), traceTags,
+				span.GetSpanID(), span.GetParentID(),
+				span.GetService(), span.GetName(), span.GetResource(), span.GetType(),
+				span.GetStart(), span.GetDuration(), span.GetError(),
+				mapToTagSlice(span.GetMeta()), mapToMetricSlice(span.GetMetrics()),
+			)
+		}
+	}
 }
 
-// ObserveProfile forwards the profile to the inner handle.
-// Profile recording is not implemented yet but the hook is in place.
+// ObserveProfile forwards the profile to the inner handle and records it.
 func (h *recordingHandle) ObserveProfile(profile observer.ProfileView) {
 	h.inner.ObserveProfile(profile)
-	// TODO: Optionally record profiles to parquet (future enhancement)
+
+	// Record to parquet if writer is available
+	if h.recorder.profileParquetWriter != nil {
+		h.recorder.profileParquetWriter.WriteProfile(
+			h.name,
+			profile.GetProfileID(), profile.GetProfileType(),
+			profile.GetService(), profile.GetEnv(), profile.GetVersion(),
+			profile.GetHostname(), profile.GetContainerID(),
+			profile.GetTimestamp(), profile.GetDuration(),
+			profile.GetContentType(),
+			profile.GetRawData(),
+			mapToTagSlice(profile.GetTags()),
+		)
+	}
+}
+
+// mapToTagSlice converts a map to a slice of "key:value" strings.
+func mapToTagSlice(m map[string]string) []string {
+	if m == nil {
+		return nil
+	}
+	result := make([]string, 0, len(m))
+	for k, v := range m {
+		if v != "" {
+			result = append(result, k+":"+v)
+		} else {
+			result = append(result, k)
+		}
+	}
+	return result
+}
+
+// mapToMetricSlice converts a float64 map to a slice of "key:value" strings.
+func mapToMetricSlice(m map[string]float64) []string {
+	if m == nil {
+		return nil
+	}
+	result := make([]string, 0, len(m))
+	for k, v := range m {
+		result = append(result, fmt.Sprintf("%s:%g", k, v))
+	}
+	return result
 }
