@@ -9,11 +9,9 @@
 package softwareinventoryimpl
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
-	"github.com/DataDog/datadog-agent/comp/system-probe/module"
 	softwareinventory "github.com/DataDog/datadog-agent/comp/system-probe/softwareinventory/def"
 	"github.com/DataDog/datadog-agent/comp/system-probe/types"
-	sysmodule "github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 )
 
 // Requires defines the dependencies for the softwareinventory component
@@ -28,10 +26,9 @@ type Provides struct {
 
 // NewComponent creates a new softwareinventory component
 func NewComponent(_ Requires) (Provides, error) {
-	mc := &module.Component{
-		Factory: modules.SoftwareInventory,
-		CreateFn: func() (types.SystemProbeModule, error) {
-			return modules.SoftwareInventory.Fn(nil, sysmodule.FactoryDependencies{})
+	mc := &moduleFactory{
+		createFn: func() (types.SystemProbeModule, error) {
+			return &softwareInventoryModule{}, nil
 		},
 	}
 	provides := Provides{
@@ -39,4 +36,20 @@ func NewComponent(_ Requires) (Provides, error) {
 		Comp:   mc,
 	}
 	return provides, nil
+}
+
+type moduleFactory struct {
+	createFn func() (types.SystemProbeModule, error)
+}
+
+func (m *moduleFactory) Name() sysconfigtypes.ModuleName {
+	return config.SoftwareInventoryModule
+}
+
+func (m *moduleFactory) ConfigNamespaces() []string {
+	return []string{"software_inventory"}
+}
+
+func (m *moduleFactory) Create() (types.SystemProbeModule, error) {
+	return m.createFn()
 }
