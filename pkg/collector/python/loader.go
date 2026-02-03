@@ -230,7 +230,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 		if loadedName == "" {
 			loadedName = moduleName // config.Name (the original check name)
 		}
-		go reportPy3Warnings(checkReadyCheckNameTagValue(moduleName, loadedName), goCheckFilePath)
+		go reportPy3Warnings(loadedName, goCheckFilePath)
 	}
 
 	var goHASupported bool
@@ -314,13 +314,6 @@ func expvarPy3Warnings() interface{} {
 
 // reportPy3Warnings runs the a7 linter and exports the result in both expvar
 // and the aggregator (as extra series)
-
-func checkReadyCheckNameTagValue(moduleName, loadedName string) string {
-	if loadedName != "" {
-		return loadedName
-	}
-	return moduleName
-}
 
 func reportPy3Warnings(checkName string, checkFilePath string) {
 	// check if the check has already been linted
