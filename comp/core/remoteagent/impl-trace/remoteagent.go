@@ -26,7 +26,7 @@ type Requires struct {
 	Log            log.Component
 	IPC            ipc.Component
 	Config         config.Component
-	ObserverBuffer observerbuffer.Component `optional:"true"`
+	ObserverBuffer observerbuffer.Component
 }
 
 // Provides defines the output of the remoteagent component

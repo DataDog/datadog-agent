@@ -8,12 +8,8 @@ package observerimpl
 
 import (
 	"context"
-	"slices"
 	"sync"
 	"time"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
@@ -21,9 +17,6 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// ObserverServiceName is the gRPC service name for the ObserverProvider service.
-const ObserverServiceName = "datadog.remoteagent.observer.v1.ObserverProvider"
 
 // FetcherConfig contains configuration for the observer fetcher.
 type FetcherConfig struct {
@@ -37,8 +30,6 @@ type FetcherConfig struct {
 	MaxTraceBatch uint32
 	// MaxProfileBatch is the maximum number of profiles to fetch per request.
 	MaxProfileBatch uint32
-	// QueryTimeout is the timeout for gRPC calls.
-	QueryTimeout time.Duration
 }
 
 // DefaultFetcherConfig returns the default fetcher configuration.
@@ -49,27 +40,19 @@ func DefaultFetcherConfig() FetcherConfig {
 		ProfileFetchInterval: 10 * time.Second,
 		MaxTraceBatch:        100,
 		MaxProfileBatch:      50,
-		QueryTimeout:         10 * time.Second,
 	}
 }
 
-// observerFetcher periodically fetches traces and profiles from remote trace-agents.
+// observerFetcher periodically fetches traces and profiles from remote trace-agents
+// using the remoteAgentRegistry's GetObserverTraces and GetObserverProfiles methods.
 type observerFetcher struct {
 	registry remoteagentregistry.Component
 	handle   observerdef.Handle
 	config   FetcherConfig
-	authFunc func() string // Function to get auth token
-
-	// TLS config for connecting to remote agents
-	tlsConfigFunc func() credentials.TransportCredentials
 
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
-
-	// Cache of gRPC connections to remote agents
-	connMu sync.Mutex
-	conns  map[string]*grpc.ClientConn
 }
 
 // newObserverFetcher creates a new observer fetcher.
@@ -77,16 +60,11 @@ func newObserverFetcher(
 	registry remoteagentregistry.Component,
 	handle observerdef.Handle,
 	config FetcherConfig,
-	authFunc func() string,
-	tlsConfigFunc func() credentials.TransportCredentials,
 ) *observerFetcher {
 	return &observerFetcher{
-		registry:      registry,
-		handle:        handle,
-		config:        config,
-		authFunc:      authFunc,
-		tlsConfigFunc: tlsConfigFunc,
-		conns:         make(map[string]*grpc.ClientConn),
+		registry: registry,
+		handle:   handle,
+		config:   config,
 	}
 }
 
@@ -110,21 +88,12 @@ func (f *observerFetcher) Start() {
 	pkglog.Info("[observer] fetcher started")
 }
 
-// Stop stops the fetcher and closes all connections.
+// Stop stops the fetcher.
 func (f *observerFetcher) Stop() {
 	if f.cancel != nil {
 		f.cancel()
 	}
 	f.wg.Wait()
-
-	// Close all cached connections
-	f.connMu.Lock()
-	for _, conn := range f.conns {
-		conn.Close()
-	}
-	f.conns = make(map[string]*grpc.ClientConn)
-	f.connMu.Unlock()
-
 	pkglog.Info("[observer] fetcher stopped")
 }
 
@@ -162,36 +131,22 @@ func (f *observerFetcher) runProfileFetcher() {
 	}
 }
 
-// fetchTraces fetches traces from all registered trace-agents that support ObserverProvider.
+// fetchTraces fetches traces from all registered trace-agents using the registry.
 func (f *observerFetcher) fetchTraces() {
-	agents := f.getObserverAgents()
-	if len(agents) == 0 {
-		return
-	}
+	results := f.registry.GetObserverTraces(f.config.MaxTraceBatch)
 
-	for _, agent := range agents {
-		client, err := f.getClient(agent)
-		if err != nil {
-			pkglog.Warnf("[observer] failed to get client for agent %s: %v", agent.DisplayName, err)
+	hasMore := false
+	for _, result := range results {
+		if result.FailureReason != "" {
+			pkglog.Warnf("[observer] failed to fetch traces from %s: %s", result.DisplayName, result.FailureReason)
 			continue
 		}
 
-		ctx, cancel := context.WithTimeout(f.ctx, f.config.QueryTimeout)
-		resp, err := client.GetTraces(ctx, &pbcore.GetTracesRequest{
-			MaxItems: f.config.MaxTraceBatch,
-		})
-		cancel()
-
-		if err != nil {
-			pkglog.Warnf("[observer] failed to fetch traces from %s: %v", agent.DisplayName, err)
-			continue
+		if result.DroppedCount > 0 {
+			pkglog.Warnf("[observer] %d traces were dropped in %s buffer", result.DroppedCount, result.DisplayName)
 		}
 
-		if resp.DroppedCount > 0 {
-			pkglog.Warnf("[observer] %d traces were dropped in %s buffer", resp.DroppedCount, agent.DisplayName)
-		}
-
-		for _, traceData := range resp.Traces {
+		for _, traceData := range result.Traces {
 			if len(traceData.PayloadData) > 0 {
 				// Deserialize the msgpack-encoded TracerPayload
 				var payload pb.TracerPayload
@@ -203,86 +158,45 @@ func (f *observerFetcher) fetchTraces() {
 			}
 		}
 
-		// If there's more data, immediately fetch again
-		if resp.HasMore {
-			go f.fetchTraces()
+		if result.HasMore {
+			hasMore = true
 		}
+	}
+
+	// If there's more data, immediately fetch again
+	if hasMore {
+		go f.fetchTraces()
 	}
 }
 
-// fetchProfiles fetches profiles from all registered trace-agents that support ObserverProvider.
+// fetchProfiles fetches profiles from all registered trace-agents using the registry.
 func (f *observerFetcher) fetchProfiles() {
-	agents := f.getObserverAgents()
-	if len(agents) == 0 {
-		return
-	}
+	results := f.registry.GetObserverProfiles(f.config.MaxProfileBatch)
 
-	for _, agent := range agents {
-		client, err := f.getClient(agent)
-		if err != nil {
-			pkglog.Warnf("[observer] failed to get client for agent %s: %v", agent.DisplayName, err)
+	hasMore := false
+	for _, result := range results {
+		if result.FailureReason != "" {
+			pkglog.Warnf("[observer] failed to fetch profiles from %s: %s", result.DisplayName, result.FailureReason)
 			continue
 		}
 
-		ctx, cancel := context.WithTimeout(f.ctx, f.config.QueryTimeout)
-		resp, err := client.GetProfiles(ctx, &pbcore.GetProfilesRequest{
-			MaxItems: f.config.MaxProfileBatch,
-		})
-		cancel()
-
-		if err != nil {
-			pkglog.Warnf("[observer] failed to fetch profiles from %s: %v", agent.DisplayName, err)
-			continue
+		if result.DroppedCount > 0 {
+			pkglog.Warnf("[observer] %d profiles were dropped in %s buffer", result.DroppedCount, result.DisplayName)
 		}
 
-		if resp.DroppedCount > 0 {
-			pkglog.Warnf("[observer] %d profiles were dropped in %s buffer", resp.DroppedCount, agent.DisplayName)
-		}
-
-		for _, profileData := range resp.Profiles {
+		for _, profileData := range result.Profiles {
 			f.handle.ObserveProfile(&profileDataView{data: profileData})
 		}
 
-		// If there's more data, immediately fetch again
-		if resp.HasMore {
-			go f.fetchProfiles()
+		if result.HasMore {
+			hasMore = true
 		}
 	}
-}
 
-// getObserverAgents returns registered agents that support the ObserverProvider service.
-func (f *observerFetcher) getObserverAgents() []remoteagentregistry.RegisteredAgent {
-	// Note: The registry doesn't expose service information directly,
-	// so we'll need to try all agents or the registry needs to be extended.
-	// For now, we return all agents and let the gRPC call fail gracefully
-	// if the agent doesn't support the service.
-	return f.registry.GetRegisteredAgents()
-}
-
-// getClient returns a gRPC client for the given agent, creating a connection if needed.
-func (f *observerFetcher) getClient(agent remoteagentregistry.RegisteredAgent) (pbcore.ObserverProviderClient, error) {
-	f.connMu.Lock()
-	defer f.connMu.Unlock()
-
-	// Use SessionID as key since it's unique per connection
-	key := agent.SessionID
-	if conn, ok := f.conns[key]; ok {
-		return pbcore.NewObserverProviderClient(conn), nil
+	// If there's more data, immediately fetch again
+	if hasMore {
+		go f.fetchProfiles()
 	}
-
-	// Create new connection
-	// Note: In production, we'd need the agent's endpoint address.
-	// This is available in the RegistrationData but not exposed in RegisteredAgent.
-	// For now, we'll skip agents where we can't determine the endpoint.
-	pkglog.Debugf("[observer] creating connection to agent %s (session %s)", agent.DisplayName, agent.SessionID)
-
-	// TODO: The RegisteredAgent doesn't expose the API endpoint.
-	// We need to either:
-	// 1. Extend RegisteredAgent to include the endpoint
-	// 2. Use a different approach to discover endpoints
-	// 3. Have the remoteAgentRegistry provide a method to call services
-
-	return nil, nil
 }
 
 // tracerPayloadView adapts a TracerPayload to the TraceView interface.
@@ -388,11 +302,3 @@ func (v *profileDataView) GetTags() map[string]string { return v.data.Tags }
 func (v *profileDataView) GetContentType() string     { return v.data.ContentType }
 func (v *profileDataView) GetRawData() []byte         { return v.data.InlineData }
 func (v *profileDataView) GetExternalPath() string    { return "" }
-
-// filterAgentsByService filters agents to only those supporting the given service.
-func filterAgentsByService(agents []remoteagentregistry.RegisteredAgent, serviceName string) []remoteagentregistry.RegisteredAgent {
-	// Note: RegisteredAgent doesn't expose the list of services it supports.
-	// This is a limitation that needs to be addressed in the remoteAgentRegistry component.
-	// For now, return all agents.
-	return slices.Clone(agents)
-}
