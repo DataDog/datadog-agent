@@ -32,7 +32,7 @@ import (
 )
 
 const (
-	kubeEndpointSlicesID       = "endpointslices"
+	kubeEndpointSlicesID       = "endpoints"
 	kubeEndpointSlicesName     = "kube_endpointslices"
 	kubernetesServiceNameLabel = "kubernetes.io/service-name"
 )
@@ -44,9 +44,10 @@ type KubeEndpointSlicesListener struct {
 	serviceInformer       infov1.ServiceInformer
 	serviceLister         listv1.ServiceLister
 
-	// Storage: Key is "namespace/serviceName" to aggregate all slices per service
-	services map[string][]*KubeEndpointService
-	// Helper to map slice UID to service key for deletion handling
+	// Storage: Track endpoints per slice (not per service) for granular updates
+	// Key is EndpointSlice UID -> endpoints from that specific slice
+	endpointsBySlice map[k8stypes.UID][]*KubeEndpointService
+	// Helper to map slice UID to service key for service-level operations
 	sliceToService map[k8stypes.UID]string
 
 	promInclAnnot      types.PrometheusAnnotations
@@ -77,7 +78,7 @@ func NewKubeEndpointSlicesListener(options ServiceListernerDeps) (ServiceListene
 	}
 
 	return &KubeEndpointSlicesListener{
-		services:              make(map[string][]*KubeEndpointService),
+		endpointsBySlice:      make(map[k8stypes.UID][]*KubeEndpointService),
 		sliceToService:        make(map[k8stypes.UID]string),
 		endpointSliceInformer: endpointSliceInformer,
 		endpointSliceLister:   endpointSliceInformer.Lister(),
@@ -115,23 +116,11 @@ func (l *KubeEndpointSlicesListener) Listen(newSvc chan<- Service, delSvc chan<-
 		log.Errorf("Cannot list Kubernetes endpointslices: %s", err)
 	}
 
-	// Group slices by service and process
-	serviceSlices := make(map[string][]*discv1.EndpointSlice)
 	for _, slice := range endpointSlices {
-		serviceName, ok := slice.Labels[kubernetesServiceNameLabel]
-		if !ok || serviceName == "" {
-			continue
-		}
-		serviceKey := fmt.Sprintf("%s/%s", slice.Namespace, serviceName)
-		serviceSlices[serviceKey] = append(serviceSlices[serviceKey], slice)
-	}
-
-	for serviceKey, slices := range serviceSlices {
-		l.createServiceFromSlices(serviceKey, slices, true)
+		l.createServiceFromSlice(slice, true)
 	}
 }
 
-// Stop is a stub
 func (l *KubeEndpointSlicesListener) Stop() {
 	// We cannot deregister from the informer
 }
@@ -142,7 +131,7 @@ func (l *KubeEndpointSlicesListener) endpointSliceAdded(obj interface{}) {
 		log.Errorf("Expected an *discv1.EndpointSlice type, got: %T", obj)
 		return
 	}
-	l.processEndpointSliceChange(slice)
+	l.createServiceFromSlice(slice, true)
 }
 
 func (l *KubeEndpointSlicesListener) endpointSliceDeleted(obj interface{}) {
@@ -161,7 +150,7 @@ func (l *KubeEndpointSlicesListener) endpointSliceDeleted(obj interface{}) {
 			return
 		}
 	}
-	l.processEndpointSliceChange(slice)
+	l.removeServiceFromSlice(slice)
 }
 
 func (l *KubeEndpointSlicesListener) endpointSliceUpdated(old, obj interface{}) {
@@ -175,12 +164,13 @@ func (l *KubeEndpointSlicesListener) endpointSliceUpdated(old, obj interface{}) 
 	oldSlice, ok := old.(*discv1.EndpointSlice)
 	if !ok {
 		log.Errorf("Expected an *discv1.EndpointSlice type, got: %T", old)
-		l.processEndpointSliceChange(slice)
+		l.createServiceFromSlice(slice, true)
 		return
 	}
 
 	if l.endpointSlicesDiffer(slice, oldSlice) {
-		l.processEndpointSliceChange(slice)
+		l.removeServiceFromSlice(oldSlice)
+		l.createServiceFromSlice(slice, true)
 	}
 }
 
@@ -211,43 +201,104 @@ func (l *KubeEndpointSlicesListener) serviceUpdated(old, obj interface{}) {
 	}
 }
 
-// processEndpointSliceChange handles add/update/delete events for a single endpointslice
-// by fetching all slices for the service and regenerating the service
-func (l *KubeEndpointSlicesListener) processEndpointSliceChange(slice *discv1.EndpointSlice) {
+// createServiceFromSlice processes a single EndpointSlice and creates KubeEndpointServices for its endpoints
+func (l *KubeEndpointSlicesListener) createServiceFromSlice(slice *discv1.EndpointSlice, checkServiceAnnotations bool) {
+	if slice == nil {
+		return
+	}
+
 	serviceName, ok := slice.Labels[kubernetesServiceNameLabel]
 	if !ok || serviceName == "" {
 		log.Tracef("EndpointSlice %s/%s missing %s label; skipping", slice.Namespace, slice.Name, kubernetesServiceNameLabel)
 		return
 	}
 
-	serviceKey := fmt.Sprintf("%s/%s", slice.Namespace, serviceName)
-
-	allSlices, err := l.endpointSliceLister.EndpointSlices(slice.Namespace).List(
-		labels.Set{kubernetesServiceNameLabel: serviceName}.AsSelector(),
-	)
-	if err != nil {
-		log.Errorf("Cannot list EndpointSlices for service %s: %s", serviceKey, err)
+	if checkServiceAnnotations && l.shouldIgnore(slice) {
+		// Ignore endpointslices with no AD annotation on their corresponding service
 		return
 	}
 
-	l.removeServiceByKey(serviceKey)
-	l.createServiceFromSlices(serviceKey, allSlices, true)
+	serviceKey := fmt.Sprintf("%s/%s", slice.Namespace, serviceName)
+
+	// Look for standard tags from the service
+	tags, err := l.getStandardTagsForService(slice.Namespace, serviceName)
+	if err != nil {
+		log.Debugf("Couldn't get standard tags for %s: %v", serviceKey, err)
+		tags = []string{}
+	}
+
+	eps := processEndpointSlice(slice, tags, l.filterStore)
+
+	l.m.Lock()
+	// Store endpoints by slice UID for granular updates
+	oldEps := l.endpointsBySlice[slice.UID]
+	l.endpointsBySlice[slice.UID] = eps
+	l.sliceToService[slice.UID] = serviceKey
+	l.m.Unlock()
+
+	telemetryStorePresent := l.telemetryStore != nil
+
+	// Only increment service counter if this is the first slice for this service
+	if len(oldEps) == 0 && len(eps) > 0 && telemetryStorePresent {
+		l.telemetryStore.WatchedResources.Inc(kubeEndpointSlicesName, telemetry.ResourceKubeService)
+	}
+
+	for _, ep := range eps {
+		log.Debugf("Creating a new AD service: %s", ep.entity)
+		l.newService <- ep
+		if telemetryStorePresent {
+			l.telemetryStore.WatchedResources.Inc(kubeEndpointSlicesName, telemetry.ResourceKubeEndpoint)
+		}
+	}
 }
 
-// processServiceUpdate handles service update events by regenerating endpoints
-func (l *KubeEndpointSlicesListener) processServiceUpdate(svc *v1.Service) {
-	serviceKey := fmt.Sprintf("%s/%s", svc.Namespace, svc.Name)
+// removeServiceFromSlice removes all endpoints from a specific slice
+func (l *KubeEndpointSlicesListener) removeServiceFromSlice(slice *discv1.EndpointSlice) {
+	if slice == nil {
+		return
+	}
 
+	l.m.RLock()
+	eps, ok := l.endpointsBySlice[slice.UID]
+	l.m.RUnlock()
+
+	if ok {
+		l.m.Lock()
+		delete(l.endpointsBySlice, slice.UID)
+		delete(l.sliceToService, slice.UID)
+		l.m.Unlock()
+
+		telemetryStorePresent := l.telemetryStore != nil
+
+		for _, ep := range eps {
+			log.Debugf("Deleting AD service from slice deletion: %s", ep.entity)
+			l.delService <- ep
+			if telemetryStorePresent {
+				l.telemetryStore.WatchedResources.Dec(kubeEndpointSlicesName, telemetry.ResourceKubeEndpoint)
+			}
+		}
+	} else {
+		log.Debugf("EndpointSlice %s not found, not removing", slice.UID)
+	}
+}
+
+// processServiceUpdate handles service update events by regenerating all endpoints for the service
+// This is only called when service annotations/labels change, which affects ALL endpoints
+func (l *KubeEndpointSlicesListener) processServiceUpdate(svc *v1.Service) {
 	allSlices, err := l.endpointSliceLister.EndpointSlices(svc.Namespace).List(
 		labels.Set{kubernetesServiceNameLabel: svc.Name}.AsSelector(),
 	)
 	if err != nil {
-		log.Warnf("Cannot get Kubernetes endpointslices - EndpointSlice services won't be created - error: %s", err)
+		log.Warnf("Cannot get Kubernetes endpointslices - EndpointSlice services won't be updated - error: %s", err)
 		return
 	}
 
-	l.removeServiceByKey(serviceKey)
-	l.createServiceFromSlices(serviceKey, allSlices, false)
+	// When service metadata changes, we need to update ALL slices
+	// Remove and recreate all endpoints for this service
+	for _, slice := range allSlices {
+		l.removeServiceFromSlice(slice)
+		l.createServiceFromSlice(slice, false)
+	}
 }
 
 // endpointSlicesDiffer compares two endpointslices to only go forward
@@ -311,132 +362,92 @@ func (l *KubeEndpointSlicesListener) shouldIgnore(slice *discv1.EndpointSlice) b
 	return !l.isEndpointSlicesAnnotated(slice)
 }
 
-func (l *KubeEndpointSlicesListener) createServiceFromSlices(serviceKey string, slices []*discv1.EndpointSlice, checkServiceAnnotations bool) {
-	if len(slices) == 0 {
-		return
-	}
-
-	// All slices for a service share namespace and service name
-	namespace := slices[0].Namespace
-	serviceName := slices[0].Labels[kubernetesServiceNameLabel]
-
-	if checkServiceAnnotations && l.shouldIgnore(slices[0]) {
-		// Ignore endpointslices with no AD annotation on their corresponding service if checkServiceAnnotations
-		return
-	}
-
-	// Look for standard tags from the service
-	tags, err := l.getStandardTagsForService(namespace, serviceName)
-	if err != nil {
-		log.Debugf("Couldn't get standard tags for %s: %v", serviceKey, err)
-		tags = []string{}
-	}
-
-	eps := processEndpointSlices(slices, tags, l.filterStore)
-
-	l.m.Lock()
-	l.services[serviceKey] = eps
-	for _, slice := range slices {
-		l.sliceToService[slice.UID] = serviceKey
-	}
-	l.m.Unlock()
-
-	telemetryStorePresent := l.telemetryStore != nil
-
-	if telemetryStorePresent {
-		l.telemetryStore.WatchedResources.Inc(kubeEndpointSlicesName, telemetry.ResourceKubeService)
-	}
-
-	for _, ep := range eps {
-		log.Debugf("Creating a new AD service: %s", ep.entity)
-		l.newService <- ep
-		if telemetryStorePresent {
-			l.telemetryStore.WatchedResources.Inc(kubeEndpointSlicesName, telemetry.ResourceKubeEndpoint)
-		}
-	}
-}
-
-// processEndpointSlices parses kubernetes EndpointSlice objects
+// processEndpointSlice parses a single kubernetes EndpointSlice object
 // and returns a slice of KubeEndpointService per endpoint IP
-func processEndpointSlices(slices []*discv1.EndpointSlice, tags []string, filterStore workloadfilter.Component) []*KubeEndpointService {
+func processEndpointSlice(slice *discv1.EndpointSlice, tags []string, filterStore workloadfilter.Component) []*KubeEndpointService {
 	var eps []*KubeEndpointService
 
-	if len(slices) == 0 {
+	if slice == nil {
 		return eps
 	}
 
-	// Extract service name and namespace from first slice (same for all)
-	serviceName := slices[0].Labels[kubernetesServiceNameLabel]
-	namespace := slices[0].Namespace
+	// Extract service name and namespace
+	serviceName := slice.Labels[kubernetesServiceNameLabel]
+	namespace := slice.Namespace
 
-	filterableEndpoint := workloadfilter.CreateKubeEndpoint(serviceName, namespace, slices[0].GetAnnotations())
+	if serviceName == "" {
+		return eps
+	}
+
+	filterableEndpoint := workloadfilter.CreateKubeEndpoint(serviceName, namespace, slice.GetAnnotations())
 	metricsExcluded := filterStore.GetKubeEndpointAutodiscoveryFilters(workloadfilter.MetricsFilter).IsExcluded(filterableEndpoint)
 	globalExcluded := filterStore.GetKubeEndpointAutodiscoveryFilters(workloadfilter.GlobalFilter).IsExcluded(filterableEndpoint)
 
-	for _, slice := range slices {
-		ports := []workloadmeta.ContainerPort{}
-		for _, port := range slice.Ports {
-			if port.Port != nil && port.Name != nil {
-				ports = append(ports, workloadmeta.ContainerPort{Port: int(*port.Port), Name: *port.Name})
-			}
+	// Ports are at the slice level
+	ports := []workloadmeta.ContainerPort{}
+	for _, port := range slice.Ports {
+		if port.Port != nil && port.Name != nil {
+			ports = append(ports, workloadmeta.ContainerPort{
+				Port: int(*port.Port),
+				Name: *port.Name,
+			})
 		}
+	}
 
-		// Iterate through endpoints (IP addresses)
-		for _, endpoint := range slice.Endpoints {
-			for _, ip := range endpoint.Addresses {
-				ep := &KubeEndpointService{
-					entity:   apiserver.EntityForEndpoints(namespace, serviceName, ip),
-					metadata: filterableEndpoint,
-					hosts:    map[string]string{"endpoint": ip},
-					ports:    ports,
-					tags: []string{
-						"kube_service:" + serviceName,
-						"kube_namespace:" + namespace,
-						"kube_endpoint_ip:" + ip,
-					},
-					metricsExcluded: metricsExcluded,
-					globalExcluded:  globalExcluded,
-					namespace:       namespace,
-				}
-				ep.tags = append(ep.tags, tags...)
-				eps = append(eps, ep)
+	// Iterate through endpoints (IP addresses)
+	for _, endpoint := range slice.Endpoints {
+		for _, ip := range endpoint.Addresses {
+			// Create a separate AD service per IP
+			ep := &KubeEndpointService{
+				entity:   apiserver.EntityForEndpoints(namespace, serviceName, ip),
+				metadata: filterableEndpoint,
+				hosts:    map[string]string{"endpoint": ip},
+				ports:    ports,
+				tags: []string{
+					"kube_service:" + serviceName,
+					"kube_namespace:" + namespace,
+					"kube_endpoint_ip:" + ip,
+				},
+				metricsExcluded: metricsExcluded,
+				globalExcluded:  globalExcluded,
+				namespace:       namespace,
 			}
+			ep.tags = append(ep.tags, tags...)
+			eps = append(eps, ep)
 		}
 	}
 	return eps
 }
 
-func (l *KubeEndpointSlicesListener) removeServiceByKey(serviceKey string) {
-	l.m.RLock()
-	eps, ok := l.services[serviceKey]
-	l.m.RUnlock()
+// diffKubeEndpointServices compares two slices of KubeEndpointService and returns what was removed and added
+func diffKubeEndpointServices(old, new []*KubeEndpointService) (toRemove, toAdd []*KubeEndpointService) {
+	// Build maps for quick lookup by entity ID
+	oldMap := make(map[string]*KubeEndpointService)
+	newMap := make(map[string]*KubeEndpointService)
 
-	if ok {
-		l.m.Lock()
-		delete(l.services, serviceKey)
-		for sliceUID, svcKey := range l.sliceToService {
-			if svcKey == serviceKey {
-				delete(l.sliceToService, sliceUID)
-			}
-		}
-		l.m.Unlock()
-
-		telemetryStorePresent := l.telemetryStore != nil
-
-		if telemetryStorePresent {
-			l.telemetryStore.WatchedResources.Dec(kubeEndpointSlicesName, telemetry.ResourceKubeService)
-		}
-
-		for _, ep := range eps {
-			log.Debugf("Deleting AD service: %s", ep.entity)
-			l.delService <- ep
-			if telemetryStorePresent {
-				l.telemetryStore.WatchedResources.Dec(kubeEndpointSlicesName, telemetry.ResourceKubeEndpoint)
-			}
-		}
-	} else {
-		log.Debugf("Service %s not found, not removing", serviceKey)
+	for _, ep := range old {
+		oldMap[ep.entity] = ep
 	}
+
+	for _, ep := range new {
+		newMap[ep.entity] = ep
+	}
+
+	// Find removed endpoints (in old but not in new)
+	for _, ep := range old {
+		if _, exists := newMap[ep.entity]; !exists {
+			toRemove = append(toRemove, ep)
+		}
+	}
+
+	// Find added endpoints (in new but not in old)
+	for _, ep := range new {
+		if _, exists := oldMap[ep.entity]; !exists {
+			toAdd = append(toAdd, ep)
+		}
+	}
+
+	return toRemove, toAdd
 }
 
 // getStandardTagsForService returns the standard tags defined in the labels
