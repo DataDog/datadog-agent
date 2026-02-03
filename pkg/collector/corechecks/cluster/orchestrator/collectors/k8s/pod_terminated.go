@@ -29,11 +29,10 @@ import (
 
 // NewTerminatedPodCollectorVersions builds the group of collector versions.
 func NewTerminatedPodCollectorVersions(cfg config.Component, store workloadmeta.Component, tagger tagger.Component, metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
-	var collector collectors.K8sCollector = NewTerminatedPodCollector(cfg, store, tagger, metadataAsTags)
 	if pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.terminated_pods_improved.enabled") {
-		collector = NewImprovedTerminatedPodCollector(cfg, store, tagger, metadataAsTags)
+		return collectors.NewCollectorVersions(NewImprovedTerminatedPodCollector(cfg, store, tagger, metadataAsTags))
 	}
-	return collectors.NewCollectorVersions(collector)
+	return collectors.NewCollectorVersions(NewTerminatedPodCollector(cfg, store, tagger, metadataAsTags))
 }
 
 // TerminatedPodCollector is a collector for Kubernetes Pods that have been deleted.
