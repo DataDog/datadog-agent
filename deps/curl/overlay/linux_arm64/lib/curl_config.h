@@ -44,6 +44,7 @@
 
 /* to disable digest authentication */
 /* #undef CURL_DISABLE_DIGEST_AUTH */
+#define CURL_DISABLE_DIGEST_AUTH 1
 
 /* disable DoH */
 /* #undef CURL_DISABLE_DOH */
@@ -53,6 +54,7 @@
 
 /* disable form API */
 /* #undef CURL_DISABLE_FORM_API */
+#define CURL_DISABLE_FORM_API 1
 
 /* to disable FTP */
 /* #undef CURL_DISABLE_FTP */
@@ -62,6 +64,7 @@
 
 /* to disable Gopher */
 /* #undef CURL_DISABLE_GOPHER */
+#define CURL_DISABLE_GOPHER 1
 
 /* disable headers-api */
 /* #undef CURL_DISABLE_HEADERS_API */
@@ -77,6 +80,7 @@
 
 /* to disable IMAP */
 /* #undef CURL_DISABLE_IMAP */
+#define CURL_DISABLE_IMAP 1
 
 /* to disable IPFS */
 /* #undef CURL_DISABLE_IPFS */
@@ -107,6 +111,7 @@
 
 /* to disable NTLM support */
 /* #undef CURL_DISABLE_NTLM */
+#define CURL_DISABLE_NTLM 1
 
 /* if the OpenSSL configuration will not be loaded automatically */
 /* #undef CURL_DISABLE_OPENSSL_AUTO_LOAD_CONFIG */
