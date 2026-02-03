@@ -10,7 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
+	"net/url"
 
 	"go.uber.org/fx"
 
@@ -160,28 +160,28 @@ func workloadURL(verbose bool, structuredFormat bool, search string) (string, er
 		return "", err
 	}
 
-	var prefix string
+	var baseURL string
 	if flavor.GetFlavor() == flavor.ClusterAgent {
-		prefix = fmt.Sprintf("https://%v:%v/workload-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
+		baseURL = fmt.Sprintf("https://%v:%v/workload-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
 	} else {
-		prefix = fmt.Sprintf("https://%v:%v/agent/workload-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
+		baseURL = fmt.Sprintf("https://%v:%v/agent/workload-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
 	}
 
-	// Build query parameters
-	params := []string{}
+	// Build query parameters using url.Values for proper encoding
+	params := url.Values{}
 	if verbose {
-		params = append(params, "verbose=true")
+		params.Set("verbose", "true")
 	}
 	if structuredFormat {
-		params = append(params, "format=json")
+		params.Set("format", "json")
 	}
 	if search != "" {
-		params = append(params, "search="+search)
+		params.Set("search", search)
 	}
 
 	if len(params) > 0 {
-		return prefix + "?" + strings.Join(params, "&"), nil
+		return baseURL + "?" + params.Encode(), nil
 	}
 
-	return prefix, nil
+	return baseURL, nil
 }
