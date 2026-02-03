@@ -29,6 +29,10 @@ func NewImageVolumeProvider(cfg LibraryInjectionConfig) *ImageVolumeProvider {
 
 func (p *ImageVolumeProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig) MutationResult {
 
+	// // temporarily use InitContainerProvider to inject the injector
+	// initContainerProvider := NewInitContainerProvider(p.cfg)
+	// return initContainerProvider.InjectInjector(pod, cfg)
+
 	patcher := NewPodPatcher(pod, p.cfg.ContainerFilter)
 
 	// Image volume for the injector image contents
@@ -41,21 +45,58 @@ func (p *ImageVolumeProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig
 			},
 		},
 	})
-	patcher.AddVolumeMount(corev1.VolumeMount{
+
+	// Volume mount for the injector files
+	injectorMount := corev1.VolumeMount{
 		Name:      InstrumentationVolumeName,
 		MountPath: asAbsPath(injectPackageDir),
 		SubPath:   injectPackageDir,
 		ReadOnly:  true,
-	})
+	}
+	patcher.AddVolumeMount(injectorMount)
+
+	// Shared volume for ld.so.preload
+	etcVolume := newEmptyDirVolume(EtcVolumeName)
+	patcher.AddVolume(etcVolume)
+
+	// Volume mount for /etc directory in init container
+	etcMountInitContainer := corev1.VolumeMount{
+		Name:      EtcVolumeName,
+		MountPath: "/datadog-etc",
+	}
+
+	// Copy the ld.so.preload file into /etc/ld.so.preload.
+	patcher.AddInitContainer(corev1.Container{
+		Name:    "copy-ld-so-preload",
+		Image:   cfg.Package.FullRef(),
+		Command: []string{"cp"},
+		// TODO: Define constants for the source and dest paths.
+		Args: []string{
+			injectorMount.MountPath + "/stable/inject/ld.so.preload", etcMountInitContainer.MountPath + "/ld.so.preload",
+		},
+		VolumeMounts: []corev1.VolumeMount{
+			etcMountInitContainer,
+			injectorMount,
+		},
+	}) // TODO: Decide whether to include the ts file for tracking the completion of the init container.
+
+	// Volume mount for /etc/ld.so.preload in app containers
+	etcMountAppContainer := corev1.VolumeMount{
+		Name:      EtcVolumeName,
+		MountPath: "/etc/ld.so.preload",
+		SubPath:   "ld.so.preload",
+		ReadOnly:  true,
+	}
+	patcher.AddVolumeMount(etcMountAppContainer)
 
 	// Mount the injector-provided ld.so.preload file into /etc/ld.so.preload.
 	// Note: this relies on the injector package layout inside the image.
-	patcher.AddVolumeMount(corev1.VolumeMount{
-		Name:      InstrumentationVolumeName,
-		MountPath: "/etc/ld.so.preload",
-		SubPath:   injectPackageDir + "/stable/inject/ld.so.preload",
-		ReadOnly:  true,
-	})
+	// patcher.AddVolumeMount(corev1.VolumeMount{
+	// 	Name:      InstrumentationVolumeName,
+	// 	MountPath: "/etc/ld.so.preload",
+	// 	SubPath:   injectPackageDir + "/stable/inject/ld.so.preload",
+	// 	ReadOnly:  true,
+	// })
 
 	// Is it possible for any of the patcher operations to fail? If so, how do we report it?
 	return MutationResult{
