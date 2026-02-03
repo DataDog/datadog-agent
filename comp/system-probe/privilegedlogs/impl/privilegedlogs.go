@@ -9,11 +9,11 @@
 package privilegedlogsimpl
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
-	"github.com/DataDog/datadog-agent/comp/system-probe/module"
 	privilegedlogs "github.com/DataDog/datadog-agent/comp/system-probe/privilegedlogs/def"
 	"github.com/DataDog/datadog-agent/comp/system-probe/types"
-	sysmodule "github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	privilegedlogsmodule "github.com/DataDog/datadog-agent/pkg/privileged-logs/module"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 // Requires defines the dependencies for the privilegedlogs component
@@ -27,10 +27,9 @@ type Provides struct {
 
 // NewComponent creates a new privilegedlogs component
 func NewComponent(_ Requires) (Provides, error) {
-	mc := &module.Component{
-		Factory: modules.PrivilegedLogs,
-		CreateFn: func() (types.SystemProbeModule, error) {
-			return modules.PrivilegedLogs.Fn(nil, sysmodule.FactoryDependencies{})
+	mc := &moduleFactory{
+		createFn: func() (types.SystemProbeModule, error) {
+			return privilegedlogsmodule.NewPrivilegedLogsModule(), nil
 		},
 	}
 	provides := Provides{
@@ -38,4 +37,28 @@ func NewComponent(_ Requires) (Provides, error) {
 		Comp:   mc,
 	}
 	return provides, nil
+}
+
+type moduleFactory struct {
+	createFn func() (types.SystemProbeModule, error)
+}
+
+func (m *moduleFactory) Name() sysconfigtypes.ModuleName {
+	return config.PrivilegedLogsModule
+}
+
+func (m *moduleFactory) ConfigNamespaces() []string {
+	return nil
+}
+
+func (m *moduleFactory) Create() (types.SystemProbeModule, error) {
+	return m.createFn()
+}
+
+func (m *moduleFactory) NeedsEBPF() bool {
+	return false
+}
+
+func (m *moduleFactory) OptionalEBPF() bool {
+	return false
 }
