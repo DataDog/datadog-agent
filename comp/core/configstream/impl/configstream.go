@@ -53,7 +53,6 @@ type configStream struct {
 	// Cached origin (set once at initialization to avoid lock contention)
 	origin string
 
-	// Telemetry metrics
 	subscribersGauge     telemetry.Gauge
 	snapshotsSent        telemetry.Counter
 	updatesSent          telemetry.Counter
@@ -79,7 +78,6 @@ func NewComponent(reqs Requires) Provides {
 		stopChan:        make(chan struct{}),
 	}
 
-	// Initialize telemetry metrics
 	cs.subscribersGauge = reqs.Telemetry.NewGauge("configstream", "subscribers", []string{}, "Number of active config stream subscribers")
 	cs.snapshotsSent = reqs.Telemetry.NewCounter("configstream", "snapshots_sent", []string{}, "Number of config snapshots sent")
 	cs.updatesSent = reqs.Telemetry.NewCounter("configstream", "updates_sent", []string{}, "Number of config updates sent")

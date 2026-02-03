@@ -47,7 +47,6 @@ func main() {
 	fmt.Printf("Client Name: %s\n", *clientName)
 	fmt.Printf("Duration: %v\n\n", *duration)
 
-	// Create gRPC client with mTLS
 	tlsCreds := credentials.NewTLS(&tls.Config{
 		InsecureSkipVerify: true, // For testing only
 	})
@@ -81,7 +80,6 @@ func main() {
 	md := metadata.New(map[string]string{"session_id": sessionID})
 	ctxWithMetadata := metadata.NewOutgoingContext(ctx, md)
 
-	// Subscribe to config stream
 	fmt.Printf("Subscribing to config stream...\n\n")
 	stream, err := client.StreamConfigEvents(ctxWithMetadata, &pb.ConfigStreamRequest{
 		Name: *clientName,
@@ -166,9 +164,8 @@ func main() {
 	fmt.Printf("  Total updates: %d\n", updateCount)
 	fmt.Printf("  Last sequence ID: %d\n", lastSeqID)
 
-	// Verify exit criteria for Phase 0
 	fmt.Printf("\n=========================\n")
-	fmt.Printf("Phase 0 Exit Criteria\n")
+	fmt.Printf("Verification of config stream functionality\n")
 	fmt.Printf("=========================\n")
 
 	allPassed := true
@@ -189,9 +186,9 @@ func main() {
 
 	fmt.Println()
 	if allPassed {
-		fmt.Printf("✓✓✓ Phase 0 COMPLETE: All exit criteria met! ✓✓✓\n")
+		fmt.Printf("✓✓✓ All streaming functionality criteria met! ✓✓✓\n")
 	} else {
-		fmt.Printf("✗✗✗ Phase 0 INCOMPLETE: Some criteria not met ✗✗✗\n")
+		fmt.Printf("✗✗✗ Some streaming functionality criteria not met ✗✗✗\n")
 		os.Exit(1)
 	}
 }

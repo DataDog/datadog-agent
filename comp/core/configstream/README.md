@@ -131,7 +131,7 @@ cd comp/core/configstream/impl
 go test -tags test -v
 
 # Run specific test
-go test -tags test -v -run TestPhase0ExitCriteria
+go test -tags test -v -run TestClientConnectsAndReceivesStream
 ```
 
 **Test coverage:**

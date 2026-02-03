@@ -41,13 +41,11 @@ func NewServer(cfg config.Component, comp configstream.Component, registry remot
 // StreamConfigEvents handles the gRPC streaming logic.
 // It requires the caller to be a registered remote agent (RAR-gated).
 func (s *Server) StreamConfigEvents(req *pb.ConfigStreamRequest, stream pb.AgentSecure_StreamConfigEventsServer) error {
-	// Phase 0: RAR-gated authorization
-	// Only registered remote agents can subscribe to the config stream
 	if s.registry == nil {
 		return status.Error(codes.Unimplemented, "remote agent registry not enabled")
 	}
 
-	// Extract session_id from gRPC metadata (per RemoteAgentRegistry RFC)
+	// Extract session_id from gRPC metadata
 	md, ok := metadata.FromIncomingContext(stream.Context())
 	if !ok {
 		return status.Error(codes.Unauthenticated, "missing gRPC metadata")
@@ -63,14 +61,12 @@ func (s *Server) StreamConfigEvents(req *pb.ConfigStreamRequest, stream pb.Agent
 		return status.Error(codes.Unauthenticated, "session_id cannot be empty: remote agent must register with RAR before subscribing to config stream")
 	}
 
-	// Verify the session ID is valid and registered
 	if !s.registry.RefreshRemoteAgent(sessionID) {
 		return status.Errorf(codes.PermissionDenied, "session_id '%s' not found: remote agent must register with RAR before subscribing to config stream", sessionID)
 	}
 
 	log.Infof("Config stream authorized for remote agent with session_id: %s (name: %s)", sessionID, req.Name)
 
-	// Subscribe to config events
 	eventsCh, unsubscribe := s.comp.Subscribe(req)
 	defer unsubscribe()
 

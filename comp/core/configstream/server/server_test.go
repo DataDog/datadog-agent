@@ -83,12 +83,10 @@ func setupTest(ctx context.Context, t *testing.T, sessionID string) (*Server, *m
 
 	comp := &mockComp{}
 
-	// Add session_id to context metadata
 	md := metadata.New(map[string]string{"session_id": sessionID})
 	ctxWithMetadata := metadata.NewIncomingContext(ctx, md)
 	stream := &mockStream{ctx: ctxWithMetadata}
 
-	// Create a mock RAR that always returns true for RefreshRemoteAgent
 	mockRAR := &mockRemoteAgentRegistry{}
 
 	server := NewServer(cfg, comp, mockRAR)

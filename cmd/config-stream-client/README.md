@@ -168,7 +168,7 @@ For automated testing without a running agent, use the unit tests:
 
 ```bash
 cd comp/core/configstream/impl
-go test -tags test -v -run TestPhase0ExitCriteria
+go test -tags test -v -run TestClientConnectsAndReceivesStream
 ```
 
 ## What This Client Tests

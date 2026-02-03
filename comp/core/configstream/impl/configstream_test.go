@@ -25,12 +25,11 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
-// TestPhase0ExitCriteria verifies all Phase 0 exit criteria are met:
+// TestClientConnectsAndReceivesStream verifies the following are met:
 // 1. A client can connect and receive snapshot then updates
 // 2. Ordered sequence IDs
 // 3. Correct typed values
-func TestPhase0ExitCriteria(t *testing.T) {
-	// Setup
+func TestClientConnectsAndReceivesStream(t *testing.T) {
 	cfg := configmock.New(t)
 
 	// Register keys first (required for nodetreemodel config library)
@@ -39,7 +38,7 @@ func TestPhase0ExitCriteria(t *testing.T) {
 	cfg.BindEnvAndSetDefault("test_bool", false)
 	cfg.BindEnvAndSetDefault("typed_string", "")
 	cfg.BindEnvAndSetDefault("typed_int", 0)
-	cfg.BindEnvAndSetDefault("typed_bool", true) // Different from test value (false)
+	cfg.BindEnvAndSetDefault("typed_bool", true)
 	cfg.BindEnvAndSetDefault("typed_float", 0.0)
 
 	// Now set initial values using Set() to trigger OnUpdate callbacks
@@ -48,8 +47,6 @@ func TestPhase0ExitCriteria(t *testing.T) {
 	cfg.Set("test_bool", true, model.SourceFile)
 
 	mockLog := logmock.New(t)
-
-	// Create the config stream component
 	cs := newConfigStreamForTest(cfg, mockLog)
 
 	// Subscribe to the stream
@@ -59,7 +56,6 @@ func TestPhase0ExitCriteria(t *testing.T) {
 	eventChan, unsubscribe := cs.Subscribe(req)
 	defer unsubscribe()
 
-	// Phase 0 Exit Criteria Verification
 	t.Run("1. Snapshot received first", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
@@ -69,13 +65,8 @@ func TestPhase0ExitCriteria(t *testing.T) {
 			snapshot := event.GetSnapshot()
 			require.NotNil(t, snapshot, "First event should be a snapshot")
 
-			// Verify snapshot has sequence ID
 			assert.Greater(t, snapshot.SequenceId, int32(0), "Snapshot should have sequence ID > 0")
-
-			// Verify origin field is populated
 			assert.NotEmpty(t, snapshot.Origin, "Snapshot should have origin field populated")
-
-			// Verify snapshot contains settings
 			assert.NotEmpty(t, snapshot.Settings, "Snapshot should contain settings")
 
 			// Verify we can find our test settings
@@ -107,17 +98,13 @@ func TestPhase0ExitCriteria(t *testing.T) {
 	})
 
 	t.Run("2. Updates received with ordered sequence IDs", func(t *testing.T) {
-		// Make config changes
 		cfg.Set("test_string", "updated_value_1", model.SourceAgentRuntime)
 		time.Sleep(50 * time.Millisecond) // Allow update to propagate
-
 		cfg.Set("test_string", "updated_value_2", model.SourceAgentRuntime)
 		time.Sleep(50 * time.Millisecond)
-
 		cfg.Set("test_int", 100, model.SourceAgentRuntime)
 		time.Sleep(50 * time.Millisecond)
 
-		// Collect updates
 		updates := make([]*pb.ConfigUpdate, 0)
 		timeout := time.After(2 * time.Second)
 
@@ -133,15 +120,11 @@ func TestPhase0ExitCriteria(t *testing.T) {
 			}
 		}
 
-		// Verify we got updates
 		assert.GreaterOrEqual(t, len(updates), 1, "Should receive at least one update")
-
-		// Verify origin field is populated in all updates
 		for _, update := range updates {
 			assert.NotEmpty(t, update.Origin, "Update should have origin field populated")
 		}
 
-		// Verify sequence IDs are ordered
 		for i := 1; i < len(updates); i++ {
 			prevSeqID := updates[i-1].SequenceId
 			currSeqID := updates[i].SequenceId
@@ -149,7 +132,6 @@ func TestPhase0ExitCriteria(t *testing.T) {
 				"Sequence IDs should be strictly increasing: prev=%d, curr=%d", prevSeqID, currSeqID)
 		}
 
-		// Verify update contains correct key and value
 		found := false
 		for _, update := range updates {
 			if update.Setting.Key == "test_int" && update.Setting.Value.GetNumberValue() == 100 {
@@ -161,7 +143,6 @@ func TestPhase0ExitCriteria(t *testing.T) {
 	})
 
 	t.Run("3. Correct typed values", func(t *testing.T) {
-		// Set various types
 		cfg.Set("typed_string", "hello", model.SourceAgentRuntime)
 		cfg.Set("typed_int", 999, model.SourceAgentRuntime)
 		cfg.Set("typed_bool", false, model.SourceAgentRuntime)
@@ -169,7 +150,6 @@ func TestPhase0ExitCriteria(t *testing.T) {
 
 		time.Sleep(100 * time.Millisecond)
 
-		// Collect updates with types
 		timeout := time.After(2 * time.Second)
 		typedValues := make(map[string]interface{})
 
@@ -196,7 +176,6 @@ func TestPhase0ExitCriteria(t *testing.T) {
 			}
 		}
 
-		// Verify types are preserved
 		if val, ok := typedValues["typed_string"]; ok {
 			assert.Equal(t, "hello", val)
 		}
@@ -278,12 +257,10 @@ func TestDiscontinuityResync(t *testing.T) {
 	mockLog := logmock.New(t)
 	cs := newConfigStreamForTest(cfg, mockLog)
 
-	// Subscribe
 	req := &pb.ConfigStreamRequest{Name: "test-client"}
 	eventChan, unsubscribe := cs.Subscribe(req)
 	defer unsubscribe()
 
-	// Receive initial snapshot
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
@@ -347,7 +324,6 @@ func newConfigStreamForTest(cfg config.Component, logger log.Component) *configS
 	cs.discontinuitiesCount = telemetryComp.NewCounter("configstream", "discontinuities", []string{}, "Number of discontinuities detected")
 	cs.droppedUpdates = telemetryComp.NewCounter("configstream", "dropped_updates", []string{}, "Number of dropped config updates due to full channels")
 
-	// Cache origin once at initialization (same as NewComponent)
 	cs.origin = cs.getConfigOrigin()
 
 	// Start the run loop in the background
