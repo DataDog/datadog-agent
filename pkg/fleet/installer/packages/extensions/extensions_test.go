@@ -24,15 +24,15 @@ type mockHooks struct {
 	preRemoveErr   error
 }
 
-func (m *mockHooks) PreInstallExtension(ctx context.Context, pkg string, extension string) error {
+func (m *mockHooks) PreInstallExtension(_ context.Context, _ string, _ string) error {
 	return m.preInstallErr
 }
 
-func (m *mockHooks) PostInstallExtension(ctx context.Context, pkg string, extension string) error {
+func (m *mockHooks) PostInstallExtension(_ context.Context, _ string, _ string) error {
 	return m.postInstallErr
 }
 
-func (m *mockHooks) PreRemoveExtension(ctx context.Context, pkg string, extension string) error {
+func (m *mockHooks) PreRemoveExtension(_ context.Context, _ string, _ string) error {
 	return m.preRemoveErr
 }
 
