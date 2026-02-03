@@ -31,7 +31,6 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor"
-	"go.uber.org/zap/exp/zapslog"
 	"go.uber.org/zap/zapcore"
 
 	"go.opentelemetry.io/collector/confmap"
@@ -43,10 +42,6 @@ import (
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
 )
-
-func SetSlogLogger(core zapcore.Core) {
-	slog.SetDefault(slog.New(zapslog.NewHandler(core)))
-}
 
 // ExtraFactories is an interface that provides extra factories for the collector.
 // It is used to provide extra factories for the collector when the Agent Core is available or not.
