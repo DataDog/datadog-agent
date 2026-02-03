@@ -460,6 +460,31 @@ func postPromoteConfigExperimentDatadogAgent(ctx HookContext) error {
 	return nil
 }
 
+func postInstallExtensionDatadogAgent(ctx HookContext) (err error) {
+	span, ctx := ctx.StartSpan("setup_extension_permissions")
+	defer func() {
+		span.Finish(err)
+	}()
+
+	// Reconstruct the extension path
+	extensionPath := filepath.Join(ctx.PackagePath, "ext", ctx.Extension)
+	if _, err := os.Stat(extensionPath); os.IsNotExist(err) {
+		// Extension might be at system path for DEB/RPM installations
+		extensionPath = filepath.Join("/opt/datadog-agent", "ext", ctx.Extension)
+	}
+
+	// Set ownership recursively to dd-agent:dd-agent
+	extensionPermissions := file.Permissions{
+		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
+	}
+
+	if err := extensionPermissions.Ensure(ctx, extensionPath); err != nil {
+		return fmt.Errorf("failed to set extension ownership: %w", err)
+	}
+
+	return nil
+}
+
 type datadogAgentConfig struct {
 	Installer installerConfig `yaml:"installer"`
 }
