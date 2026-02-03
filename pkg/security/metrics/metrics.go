@@ -475,11 +475,11 @@ var (
 	// Event Processing metrics
 
 	// MetricSecurityProfileV2EventsReceived is the name of the metric used to report events received by ProcessEvent (after filters)
-	// Tags: source (runtime or replay)
+	// Tags: source (runtime or replay), event_type (exec, open, dns, etc.)
 	MetricSecurityProfileV2EventsReceived = newRuntimeMetric(".security_profile_v2.events.received")
 
 	// MetricSecurityProfileV2EventsImmediate is the name of the metric used to report events processed immediately (tags already resolved)
-	// Tags: source (runtime or replay)
+	// Tags: source (runtime or replay), event_type (exec, open, dns, etc.)
 	MetricSecurityProfileV2EventsImmediate = newRuntimeMetric(".security_profile_v2.events.immediate")
 
 	// Tag Resolution metrics
@@ -500,8 +500,8 @@ var (
 	// Tags: - (Gauge)
 	MetricSecurityProfileV2TagResolutionCgroupsResolved = newRuntimeMetric(".security_profile_v2.tag_resolution.cgroups_resolved")
 
-	// MetricSecurityProfileV2TagResolutionEventsDropped is the name of the metric used to report events dropped due to 10s stale timeout
-	// Tags: source (runtime or replay)
+	// MetricSecurityProfileV2TagResolutionEventsDropped is the name of the metric used to report events dropped due to 10s stale timeout or 60s cgroup expiry
+	// Tags: source (runtime or replay), event_type (exec, open, dns, etc.) - when available
 	MetricSecurityProfileV2TagResolutionEventsDropped = newRuntimeMetric(".security_profile_v2.tag_resolution.events_dropped")
 
 	// MetricSecurityProfileV2TagResolutionCgroupsExpired is the name of the metric used to report cgroups cleaned up after 60s without ever resolving tags
@@ -543,6 +543,16 @@ var (
 	// MetricSecurityProfileV2CleanupProfilesRemoved is the name of the metric used to report profiles removed after cleanup delay
 	// Tags: -
 	MetricSecurityProfileV2CleanupProfilesRemoved = newRuntimeMetric(".security_profile_v2.cleanup.profiles_removed")
+
+	// Activity dump sampling metrics (kernel-side)
+
+	// MetricSecurityProfileV2ADSampleTotal is the name of the metric used to report total events that hit the sampling logic in kernel
+	// Tags: event_type
+	MetricSecurityProfileV2ADSampleTotal = newRuntimeMetric(".security_profile_v2.ad_sample.total")
+
+	// MetricSecurityProfileV2ADSampleSampled is the name of the metric used to report events that were sampled for activity dump in kernel
+	// Tags: event_type
+	MetricSecurityProfileV2ADSampleSampled = newRuntimeMetric(".security_profile_v2.ad_sample.sampled")
 )
 
 var (
