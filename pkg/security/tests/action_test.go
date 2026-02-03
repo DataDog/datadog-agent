@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 func TestActionKill(t *testing.T) {
@@ -749,6 +750,7 @@ func TestActionHash(t *testing.T) {
 	})
 
 	t.Run("exec", func(t *testing.T) {
+		flake.MarkOnJobName(t, "ubuntu_25.10")
 		test.msgSender.flush()
 		test.WaitSignalFromRule(t, func() error {
 			cmd := exec.Command(testExecutable, "/tmp/aaa")
@@ -950,6 +952,7 @@ func TestActionKillWithSignature(t *testing.T) {
 
 func TestActionKillContainerWithSignature(t *testing.T) {
 	SkipIfNotAvailable(t)
+	flake.MarkOnJobName(t, "cws_host")
 
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
@@ -1156,6 +1159,7 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 
 func TestActionKillContainerWithSignatureBroadRule(t *testing.T) {
 	SkipIfNotAvailable(t)
+	flake.MarkOnJobName(t, "cws_host")
 
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
