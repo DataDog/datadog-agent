@@ -7,11 +7,13 @@ package module
 
 import (
 	"bufio"
+	"bytes"
 	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"regexp"
@@ -325,16 +327,18 @@ func getNsInfo(pid int) (*namespaceInfo, error) {
 // parsingContext holds temporary context not preserved between invocations of
 // the endpoint.
 type parsingContext struct {
-	procRoot       string
-	netNsInfo      map[uint32]*namespaceInfo
-	readlinkBuffer []byte
+	procRoot             string
+	netNsInfo            map[uint32]*namespaceInfo
+	establishedConnsInfo map[uint32]*establishedConnsNsInfo
+	readlinkBuffer       []byte
 }
 
 func newParsingContext() parsingContext {
 	return parsingContext{
-		procRoot:       kernel.ProcFSRoot(),
-		netNsInfo:      make(map[uint32]*namespaceInfo),
-		readlinkBuffer: make([]byte, readlinkBufferSize),
+		procRoot:             kernel.ProcFSRoot(),
+		netNsInfo:            make(map[uint32]*namespaceInfo),
+		establishedConnsInfo: make(map[uint32]*establishedConnsNsInfo),
+		readlinkBuffer:       make([]byte, readlinkBufferSize),
 	}
 }
 
@@ -634,124 +638,234 @@ type establishedConnInfo struct {
 	family     string // "v4" or "v6"
 }
 
-// parseEstablishedConnLine parses a single line from /proc/net/tcp{,6} for ESTABLISHED connections.
-// It returns connection info including local/remote addresses.
-func parseEstablishedConnLine(fields []string, family string) (*establishedConnInfo, uint64, error) {
-	if len(fields) < 10 {
-		return nil, 0, errInvalidLine
-	}
-
-	state, err := strconv.ParseUint(fields[3], 16, 64)
-	if err != nil {
-		return nil, 0, errInvalidState
-	}
-	if state != tcpEstablished {
-		return nil, 0, errUnsupportedState
-	}
-
-	// Parse local address (fields[1] is "IP:PORT")
-	localParts := strings.Split(fields[1], ":")
-	if len(localParts) != 2 {
-		return nil, 0, errInvalidLocalIP
-	}
-	localIP, localFamily, err := parseHexIP(localParts[0], family)
-	if err != nil {
-		return nil, 0, errInvalidLocalIP
-	}
-	localPort, err := strconv.ParseUint(localParts[1], 16, 16)
-	if err != nil {
-		return nil, 0, errInvalidLocalPort
-	}
-
-	// Parse remote address (fields[2] is "IP:PORT")
-	remoteParts := strings.Split(fields[2], ":")
-	if len(remoteParts) != 2 {
-		return nil, 0, errors.New("invalid remote ip format")
-	}
-	remoteIP, remoteFamily, err := parseHexIP(remoteParts[0], family)
-	if err != nil {
-		return nil, 0, errors.New("invalid remote ip format")
-	}
-	remotePort, err := strconv.ParseUint(remoteParts[1], 16, 16)
-	if err != nil {
-		return nil, 0, errors.New("invalid remote port format")
-	}
-
-	inode, err := strconv.ParseUint(fields[9], 0, 64)
-	if err != nil {
-		return nil, 0, errInvalidInode
-	}
-
-	// Use the local address family (it determines the socket type)
-	// Both should be the same after normalization, but use local as canonical
-	actualFamily := localFamily
-
-	// Sanity check: if families differ after normalization, log a warning
-	if localFamily != remoteFamily {
-		// This shouldn't happen for established connections, but log if it does
-		log.Debugf("Family mismatch in connection: local=%s, remote=%s", localFamily, remoteFamily)
-	}
-
-	return &establishedConnInfo{
-		localIP:    localIP,
-		localPort:  uint16(localPort),
-		remoteIP:   remoteIP,
-		remotePort: uint16(remotePort),
-		family:     actualFamily,
-	}, inode, nil
+// establishedConnsNsInfo caches established connections per network namespace.
+// Since /proc/<pid>/net/tcp{,6} is shared across all processes in the same
+// network namespace, we only need to read it once per namespace.
+type establishedConnsNsInfo struct {
+	v4 map[uint64]*establishedConnInfo
+	v6 map[uint64]*establishedConnInfo
 }
 
-// parseHexIP converts a hexadecimal IP address from /proc/net/tcp{,6} to a human-readable string.
+// byteFieldIterator provides zero-allocation field iteration over a byte slice.
+// It yields fields separated by whitespace without allocating new strings.
+type byteFieldIterator struct {
+	data []byte
+}
+
+// nextField returns the next whitespace-separated field from the data.
+// Returns nil when no more fields are available.
+func (iter *byteFieldIterator) nextField() []byte {
+	// Skip any leading whitespace
+	for len(iter.data) > 0 && iter.data[0] == ' ' {
+		iter.data = iter.data[1:]
+	}
+	if len(iter.data) == 0 {
+		return nil
+	}
+
+	// Read field up until the first whitespace char or end
+	for i, b := range iter.data {
+		if b == ' ' || b == '\n' {
+			result := iter.data[:i]
+			iter.data = iter.data[i:]
+			return result
+		}
+	}
+
+	// No whitespace found, return remainder
+	result := iter.data
+	iter.data = nil
+	return result
+}
+
+// parseHexIPBytes converts a hexadecimal IP address from /proc/net/tcp{,6} to a human-readable string.
+// This is a zero-allocation version that works with byte slices directly.
 // Returns the IP string, the actual family (which may differ from input for IPv6-mapped IPv4), and an error.
-func parseHexIP(hexIP string, family string) (string, string, error) {
+func parseHexIPBytes(hexIP []byte, family string) (string, string, error) {
 	if family == "v6" {
-		// IPv6 is 32 hex chars (128 bits), stored in network byte order per 32-bit word
+		// IPv6 is 32 hex chars (128 bits)
 		if len(hexIP) != 32 {
 			return "", "", errors.New("invalid IPv6 length")
 		}
-		// IPv6 in /proc/net/tcp6 is stored as 4 little-endian 32-bit words
-		var parts [8]uint16
+		// IPv6 in /proc/net/tcp6 is stored as 4 little-endian 32-bit words.
+		var ipBytes [16]byte
 		for i := 0; i < 4; i++ {
 			word := hexIP[i*8 : (i+1)*8]
 			// Reverse byte order within each 32-bit word
-			b0, _ := strconv.ParseUint(word[6:8], 16, 8)
-			b1, _ := strconv.ParseUint(word[4:6], 16, 8)
-			b2, _ := strconv.ParseUint(word[2:4], 16, 8)
-			b3, _ := strconv.ParseUint(word[0:2], 16, 8)
-			parts[i*2] = uint16(b0<<8 | b1)
-			parts[i*2+1] = uint16(b2<<8 | b3)
+			b0 := hexByteToUint8(word[6], word[7])
+			b1 := hexByteToUint8(word[4], word[5])
+			b2 := hexByteToUint8(word[2], word[3])
+			b3 := hexByteToUint8(word[0], word[1])
+			ipBytes[i*4] = b0
+			ipBytes[i*4+1] = b1
+			ipBytes[i*4+2] = b2
+			ipBytes[i*4+3] = b3
 		}
 
 		// Check if this is an IPv6-mapped IPv4 address (::ffff:x.x.x.x)
-		// IPv6-mapped format: 0:0:0:0:0:ffff:xxxx:xxxx
-		if parts[0] == 0 && parts[1] == 0 && parts[2] == 0 &&
-			parts[3] == 0 && parts[4] == 0 && parts[5] == 0xFFFF {
-			// Extract IPv4 address from last two parts (parts[6] and parts[7])
-			// parts[6] contains first two octets, parts[7] contains last two octets
-			ipv4 := fmt.Sprintf("%d.%d.%d.%d",
-				(parts[6]>>8)&0xFF, // First octet
-				parts[6]&0xFF,      // Second octet
-				(parts[7]>>8)&0xFF, // Third octet
-				parts[7]&0xFF)      // Fourth octet
-			return ipv4, "v4", nil // Return as v4 family
+		if ipBytes[0] == 0 && ipBytes[1] == 0 && ipBytes[2] == 0 && ipBytes[3] == 0 &&
+			ipBytes[4] == 0 && ipBytes[5] == 0 && ipBytes[6] == 0 && ipBytes[7] == 0 &&
+			ipBytes[8] == 0 && ipBytes[9] == 0 && ipBytes[10] == 0xff && ipBytes[11] == 0xff {
+			ip := net.IPv4(ipBytes[12], ipBytes[13], ipBytes[14], ipBytes[15])
+			return ip.String(), "v4", nil
 		}
 
-		// Not mapped - return as regular IPv6
-		ipv6Str := fmt.Sprintf("%x:%x:%x:%x:%x:%x:%x:%x",
-			parts[0], parts[1], parts[2], parts[3],
-			parts[4], parts[5], parts[6], parts[7])
-		return ipv6Str, "v6", nil
+		ip := net.IP(ipBytes[:])
+		return ip.String(), "v6", nil
 	}
 
 	// IPv4 is 8 hex chars (32 bits), stored in little-endian
 	if len(hexIP) != 8 {
 		return "", "", errors.New("invalid IPv4 length")
 	}
-	b0, _ := strconv.ParseUint(hexIP[6:8], 16, 8)
-	b1, _ := strconv.ParseUint(hexIP[4:6], 16, 8)
-	b2, _ := strconv.ParseUint(hexIP[2:4], 16, 8)
-	b3, _ := strconv.ParseUint(hexIP[0:2], 16, 8)
-	return fmt.Sprintf("%d.%d.%d.%d", b0, b1, b2, b3), "v4", nil
+	b0 := hexByteToUint8(hexIP[6], hexIP[7])
+	b1 := hexByteToUint8(hexIP[4], hexIP[5])
+	b2 := hexByteToUint8(hexIP[2], hexIP[3])
+	b3 := hexByteToUint8(hexIP[0], hexIP[1])
+	ip := net.IPv4(b0, b1, b2, b3)
+	return ip.String(), "v4", nil
+}
+
+// hexByteToUint8 converts two hex characters to a uint8.
+// Assumes valid hex input (0-9, A-F, a-f).
+func hexByteToUint8(high, low byte) byte {
+	return hexCharToNibble(high)<<4 | hexCharToNibble(low)
+}
+
+// hexCharToNibble converts a hex character to its 4-bit value.
+func hexCharToNibble(c byte) byte {
+	if c >= '0' && c <= '9' {
+		return c - '0'
+	}
+	if c >= 'A' && c <= 'F' {
+		return c - 'A' + 10
+	}
+	if c >= 'a' && c <= 'f' {
+		return c - 'a' + 10
+	}
+	return 0
+}
+
+// parseHexPortBytes parses a hex port from a byte slice.
+func parseHexPortBytes(b []byte) (uint16, error) {
+	if len(b) == 0 || len(b) > 4 {
+		return 0, errors.New("invalid port length")
+	}
+	var port uint16
+	for _, c := range b {
+		port = port<<4 | uint16(hexCharToNibble(c))
+	}
+	return port, nil
+}
+
+// parseEstablishedConnLineBytes parses a single line from /proc/net/tcp{,6} for ESTABLISHED connections.
+// This is a zero-allocation version that works with byte slices directly.
+func parseEstablishedConnLineBytes(line []byte, family string) (*establishedConnInfo, uint64, error) {
+	iter := byteFieldIterator{data: line}
+
+	// Field 0: sl (slot number, skip)
+	if iter.nextField() == nil {
+		return nil, 0, errInvalidLine
+	}
+
+	// Field 1: local_address (IP:PORT)
+	localAddr := iter.nextField()
+	if localAddr == nil {
+		return nil, 0, errInvalidLine
+	}
+
+	// Field 2: rem_address (IP:PORT)
+	remAddr := iter.nextField()
+	if remAddr == nil {
+		return nil, 0, errInvalidLine
+	}
+
+	// Field 3: st (state)
+	stateField := iter.nextField()
+	if stateField == nil {
+		return nil, 0, errInvalidLine
+	}
+
+	// Parse state - only want ESTABLISHED (01)
+	if len(stateField) != 2 || stateField[0] != '0' || stateField[1] != '1' {
+		return nil, 0, errUnsupportedState
+	}
+
+	// Skip fields 4-8 (tx_queue:rx_queue, tr:tm->when, retrnsmt, uid, timeout)
+	for i := 0; i < 5; i++ {
+		if iter.nextField() == nil {
+			return nil, 0, errInvalidLine
+		}
+	}
+
+	// Field 9: inode
+	inodeField := iter.nextField()
+	if inodeField == nil {
+		return nil, 0, errInvalidLine
+	}
+
+	// Parse local address
+	colonIdx := bytes.IndexByte(localAddr, ':')
+	if colonIdx == -1 {
+		return nil, 0, errInvalidLocalIP
+	}
+	localIP, localFamily, err := parseHexIPBytes(localAddr[:colonIdx], family)
+	if err != nil {
+		return nil, 0, errInvalidLocalIP
+	}
+	localPort, err := parseHexPortBytes(localAddr[colonIdx+1:])
+	if err != nil {
+		return nil, 0, errInvalidLocalPort
+	}
+
+	// Parse remote address
+	colonIdx = bytes.IndexByte(remAddr, ':')
+	if colonIdx == -1 {
+		return nil, 0, errors.New("invalid remote ip format")
+	}
+	remoteIP, remoteFamily, err := parseHexIPBytes(remAddr[:colonIdx], family)
+	if err != nil {
+		return nil, 0, errors.New("invalid remote ip format")
+	}
+	remotePort, err := parseHexPortBytes(remAddr[colonIdx+1:])
+	if err != nil {
+		return nil, 0, errors.New("invalid remote port format")
+	}
+
+	// Parse inode
+	inode, err := parseUint64Bytes(inodeField)
+	if err != nil {
+		return nil, 0, errInvalidInode
+	}
+
+	// Use the local address family
+	actualFamily := localFamily
+	if localFamily != remoteFamily {
+		log.Debugf("Family mismatch in connection: local=%s, remote=%s", localFamily, remoteFamily)
+	}
+
+	return &establishedConnInfo{
+		localIP:    localIP,
+		localPort:  localPort,
+		remoteIP:   remoteIP,
+		remotePort: remotePort,
+		family:     actualFamily,
+	}, inode, nil
+}
+
+// parseUint64Bytes parses a decimal uint64 from a byte slice.
+func parseUint64Bytes(b []byte) (uint64, error) {
+	if len(b) == 0 {
+		return 0, errors.New("empty input")
+	}
+	var result uint64
+	for _, c := range b {
+		if c < '0' || c > '9' {
+			return 0, errors.New("invalid digit")
+		}
+		result = result*10 + uint64(c-'0')
+	}
+	return result, nil
 }
 
 // getEstablishedConnections reads established TCP connections from /proc/net/tcp{,6}.
@@ -770,20 +884,42 @@ func getEstablishedConnections(pid int, family string) (map[uint64]*establishedC
 	}
 	defer f.Close()
 
-	connections := make(map[uint64]*establishedConnInfo)
+	// Pre-size map to reduce rehashing (typical connection count)
+	connections := make(map[uint64]*establishedConnInfo, 64)
 	lr := io.LimitReader(f, readLimit)
-	scanner := bufio.NewScanner(lr)
-	scanner.Scan() // skip header line
-	for scanner.Scan() {
-		fields := strings.Fields(scanner.Text())
-		connInfo, inode, err := parseEstablishedConnLine(fields, family)
+	reader := bufio.NewReader(lr)
+
+	// Skip header line
+	_, err = reader.ReadSlice('\n')
+	if err != nil {
+		return connections, nil // empty file or just header
+	}
+
+	for {
+		line, err := reader.ReadSlice('\n')
 		if err != nil {
+			if err == io.EOF {
+				// Process final line if it doesn't end with newline
+				if len(line) > 0 {
+					connInfo, inode, parseErr := parseEstablishedConnLineBytes(line, family)
+					if parseErr == nil {
+						connections[inode] = connInfo
+					}
+				}
+				break
+			}
+			// For other errors, return what we have
+			return connections, err
+		}
+
+		connInfo, inode, parseErr := parseEstablishedConnLineBytes(line, family)
+		if parseErr != nil {
 			continue
 		}
 		connections[inode] = connInfo
 	}
 
-	return connections, scanner.Err()
+	return connections, nil
 }
 
 // dockerProxyTarget represents the target address of a docker-proxy instance.
@@ -1115,21 +1251,43 @@ func (s *discovery) getConnections() (*model.ConnectionsResponse, error) {
 			}
 		}
 
-		// Get established connections for IPv4 and IPv6
-		for _, family := range []string{"v4", "v6"} {
-			establishedConns, err := getEstablishedConnections(pid, family)
+		// Cache established connections per namespace (similar to getNsInfo caching above).
+		// /proc/<pid>/net/tcp{,6} is shared across all processes in the same network namespace,
+		// so we only need to read it once per namespace.
+		establishedInfo, ok := pctx.establishedConnsInfo[ns]
+		if !ok {
+			v4Conns, err := getEstablishedConnections(pid, "v4")
 			if err != nil {
-				if errors.Is(err, os.ErrNotExist) && family == "v6" {
-					// IPv6 may be disabled
-					continue
-				}
-				log.Debugf("couldn't get established connections for pid %d family %s: %v", pid, family, err)
-				continue
+				log.Debugf("couldn't get established connections for pid %d family v4: %v", pid, err)
+				v4Conns = nil
 			}
-
-			// Get the socket inodes owned by this process
-			openFileInfo, err := getOpenFilesInfo(int32(pid), pctx.readlinkBuffer)
+			v6Conns, err := getEstablishedConnections(pid, "v6")
 			if err != nil {
+				// IPv6 may be disabled, not an error
+				if !errors.Is(err, os.ErrNotExist) {
+					log.Debugf("couldn't get established connections for pid %d family v6: %v", pid, err)
+				}
+				v6Conns = nil
+			}
+			establishedInfo = &establishedConnsNsInfo{v4: v4Conns, v6: v6Conns}
+			pctx.establishedConnsInfo[ns] = establishedInfo
+		}
+
+		// Get the socket inodes owned by this process
+		openFileInfo, err := getOpenFilesInfo(int32(pid), pctx.readlinkBuffer)
+		if err != nil {
+			continue
+		}
+
+		// Use cached data to match socket inodes to established connections
+		for _, family := range []string{"v4", "v6"} {
+			var establishedConns map[uint64]*establishedConnInfo
+			if family == "v4" {
+				establishedConns = establishedInfo.v4
+			} else {
+				establishedConns = establishedInfo.v6
+			}
+			if establishedConns == nil {
 				continue
 			}
 

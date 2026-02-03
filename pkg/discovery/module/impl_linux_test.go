@@ -482,7 +482,7 @@ func TestParseHexIP(t *testing.T) {
 			name:           "Regular IPv6 address (2001:db8::1)",
 			hexIP:          "B80D0120000000000000000001000000",
 			inputFamily:    "v6",
-			expectedIP:     "2001:db8:0:0:0:0:0:1",
+			expectedIP:     "2001:db8::1",
 			expectedFamily: "v6",
 			expectError:    false,
 		},
@@ -490,7 +490,7 @@ func TestParseHexIP(t *testing.T) {
 			name:           "Regular IPv6 address (fe80::1)",
 			hexIP:          "000080FE000000000000000001000000",
 			inputFamily:    "v6",
-			expectedIP:     "fe80:0:0:0:0:0:0:1",
+			expectedIP:     "fe80::1",
 			expectedFamily: "v6",
 			expectError:    false,
 		},
@@ -514,7 +514,7 @@ func TestParseHexIP(t *testing.T) {
 			name:           "IPv6 zero address (::)",
 			hexIP:          "00000000000000000000000000000000",
 			inputFamily:    "v6",
-			expectedIP:     "0:0:0:0:0:0:0:0",
+			expectedIP:     "::",
 			expectedFamily: "v6",
 			expectError:    false,
 		},
@@ -542,7 +542,7 @@ func TestParseHexIP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ip, family, err := parseHexIP(tt.hexIP, tt.inputFamily)
+			ip, family, err := parseHexIPBytes([]byte(tt.hexIP), tt.inputFamily)
 			if tt.expectError {
 				require.Error(t, err)
 				return
@@ -555,23 +555,12 @@ func TestParseHexIP(t *testing.T) {
 }
 
 func TestParseEstablishedConnLineIPv6Mapped(t *testing.T) {
-	// Test that parseEstablishedConnLine correctly normalizes IPv6-mapped IPv4 addresses
+	// Test that parseEstablishedConnLineBytes correctly normalizes IPv6-mapped IPv4 addresses
 	// This simulates a line from /proc/net/tcp6 with IPv6-mapped IPv4 addresses
 	// Example: cluster-agent listening on 10.244.1.11:5005, agent connecting from 10.244.1.12:46538
-	fields := []string{
-		"0:",                                    // sl
-		"0000000000000000FFFF00000B01F40A:138D", // local_address (10.244.1.11:5005)
-		"0000000000000000FFFF00000C01F40A:B5CA", // rem_address (10.244.1.12:46538)
-		"01",                                    // st (ESTABLISHED)
-		"00000000:00000000",                     // tx_queue:rx_queue
-		"00:00000000",                           // tr:tm->when
-		"00000000",                              // retrnsmt
-		"1000",                                  // uid
-		"0",                                     // timeout
-		"12345",                                 // inode
-	}
-
-	connInfo, inode, err := parseEstablishedConnLine(fields, "v6")
+	// Line format: sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode ...
+	line := []byte("   0: 0000000000000000FFFF00000B01F40A:138D 0000000000000000FFFF00000C01F40A:B5CA 01 00000000:00000000 00:00000000 00000000  1000        0 12345 1 0000000000000000 100 0 0 10 0")
+	connInfo, inode, err := parseEstablishedConnLineBytes(line, "v6")
 	require.NoError(t, err)
 	require.NotNil(t, connInfo)
 
