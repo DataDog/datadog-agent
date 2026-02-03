@@ -7,11 +7,8 @@
 struct mount_released_event_t {
     struct kevent_t event;
     u32 mount_id;
-};
-
-struct mount_ref_t {
-    u32 umounted;
-    s32 counter;
+    u32 __pad;
+    u64 mount_id_unique;
 };
 
 struct mount_fields_t {

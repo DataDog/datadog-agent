@@ -27,6 +27,9 @@ const (
 	// EnableDebug adds debug environment variables to the pod during mutation.
 	// Example value: true
 	EnableDebug = "admission.datadoghq.com/apm-inject.debug"
+	// InjectionMode specifies the injection mode (e.g. init_container, csi).
+	// Example value: csi
+	InjectionMode = "admission.datadoghq.com/apm-inject.injection-mode"
 	// LibraryVersion sets the library to use during Local SDK Injection.
 	// Example annotation: admission.datadoghq.com/python-lib.version
 	// Example value: v3

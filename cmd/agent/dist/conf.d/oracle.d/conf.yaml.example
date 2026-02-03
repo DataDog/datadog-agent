@@ -136,7 +136,7 @@ instances:
         ## - server: The provided server of the instance.
         ## - port: The port number of the instance.
         ## - service_name: The provided service name of the instance.
-        ## - cbd_name: The resolved CBD name of the instance.
+        ## - cdb_name: The resolved CDB name of the instance.
         ## In addition, you can use any key from the `tags` section of the configuration.
         #
         # template: <DATABASE_IDENTIFIER_TEMPLATE>
@@ -283,6 +283,59 @@ instances:
       ## Requires `collect_metadata: true`.
       #
       # collect_comments: true
+
+      ## @param keep_sql_alias - boolean - optional - default: false
+      ## Set to `true` to keep SQL aliases (AS clauses) in obfuscated queries instead of removing them.
+      #
+      # keep_sql_alias: false
+
+      ## @param obfuscation_mode - string - optional
+      ## Specifies the obfuscation mode for SQL queries. When set, the obfuscator uses an advanced
+      ## SQL lexer for more precise obfuscation and normalization.
+      ##
+      ## Valid values:
+      ##   - `normalize_only`: Normalizes queries without obfuscating values
+      ##   - `obfuscate_only`: Obfuscates sensitive values without normalization
+      ##   - `obfuscate_and_normalize`: Performs both obfuscation and normalization
+      #
+      # obfuscation_mode: <OBFUSCATION_MODE>
+
+      ## @param remove_space_between_parentheses - boolean - optional - default: false
+      ## Set to `true` to remove spaces between parentheses during query normalization.
+      ## By default, spaces are added for readability. Only applies when `obfuscation_mode`
+      ## is set to `normalize_only` or `obfuscate_and_normalize`.
+      #
+      # remove_space_between_parentheses: false
+
+      ## @param keep_null - boolean - optional - default: false
+      ## Set to `true` to preserve NULL values in queries instead of replacing them with `?`.
+      ## Only applies when `obfuscation_mode` is set to `obfuscate_only` or `obfuscate_and_normalize`.
+      #
+      # keep_null: false
+
+      ## @param keep_boolean - boolean - optional - default: false
+      ## Set to `true` to preserve boolean values (TRUE/FALSE) in queries instead of replacing them with `?`.
+      ## Only applies when `obfuscation_mode` is set to `obfuscate_only` or `obfuscate_and_normalize`.
+      #
+      # keep_boolean: false
+
+      ## @param keep_trailing_semicolon - boolean - optional - default: false
+      ## Set to `true` to keep trailing semicolons in queries. By default, trailing semicolons are removed
+      ## during normalization. Only applies when `obfuscation_mode` is set to `normalize_only` or `obfuscate_and_normalize`.
+      #
+      # keep_trailing_semicolon: false
+
+      ## @param keep_identifier_quotation - boolean - optional - default: false
+      ## Set to `true` to preserve identifier quotation marks (e.g., "my_table" or [my_table]) in queries.
+      ## By default, identifier quotation is removed during normalization. Only applies when `obfuscation_mode`
+      ## is set to `normalize_only` or `obfuscate_and_normalize`.
+      #
+      # keep_identifier_quotation: false
+
+      ## @param replace_bind_parameter - boolean - optional - default: false
+      ## Set to `true` to replace SQL bind parameters (e.g., @P1, :param1) with `?` for better query grouping.
+      #
+      # replace_bind_parameter: false
 
     ## @param use_global_custom_queries - string - optional - default: 'true'
     ## How `global_custom_queries` should be used for this instance. There are 3 options:

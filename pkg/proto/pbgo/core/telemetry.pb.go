@@ -7,10 +7,6 @@
 package core
 
 import (
-	context "context"
-	grpc "google.golang.org/grpc"
-	codes "google.golang.org/grpc/codes"
-	status "google.golang.org/grpc/status"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -196,86 +192,4 @@ func file_datadog_remoteagent_telemetry_proto_init() {
 	File_datadog_remoteagent_telemetry_proto = out.File
 	file_datadog_remoteagent_telemetry_proto_goTypes = nil
 	file_datadog_remoteagent_telemetry_proto_depIdxs = nil
-}
-
-// Reference imports to suppress errors if they are not otherwise used.
-var _ context.Context
-var _ grpc.ClientConnInterface
-
-// This is a compile-time assertion to ensure that this generated file
-// is compatible with the grpc package it is being compiled against.
-const _ = grpc.SupportPackageIsVersion6
-
-// TelemetryProviderClient is the client API for TelemetryProvider service.
-//
-// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
-type TelemetryProviderClient interface {
-	// Gets the telemetry data of a remote agent.
-	GetTelemetry(ctx context.Context, in *GetTelemetryRequest, opts ...grpc.CallOption) (*GetTelemetryResponse, error)
-}
-
-type telemetryProviderClient struct {
-	cc grpc.ClientConnInterface
-}
-
-func NewTelemetryProviderClient(cc grpc.ClientConnInterface) TelemetryProviderClient {
-	return &telemetryProviderClient{cc}
-}
-
-func (c *telemetryProviderClient) GetTelemetry(ctx context.Context, in *GetTelemetryRequest, opts ...grpc.CallOption) (*GetTelemetryResponse, error) {
-	out := new(GetTelemetryResponse)
-	err := c.cc.Invoke(ctx, "/datadog.remoteagent.telemetry.v1.TelemetryProvider/GetTelemetry", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// TelemetryProviderServer is the server API for TelemetryProvider service.
-type TelemetryProviderServer interface {
-	// Gets the telemetry data of a remote agent.
-	GetTelemetry(context.Context, *GetTelemetryRequest) (*GetTelemetryResponse, error)
-}
-
-// UnimplementedTelemetryProviderServer can be embedded to have forward compatible implementations.
-type UnimplementedTelemetryProviderServer struct {
-}
-
-func (*UnimplementedTelemetryProviderServer) GetTelemetry(context.Context, *GetTelemetryRequest) (*GetTelemetryResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetTelemetry not implemented")
-}
-
-func RegisterTelemetryProviderServer(s *grpc.Server, srv TelemetryProviderServer) {
-	s.RegisterService(&_TelemetryProvider_serviceDesc, srv)
-}
-
-func _TelemetryProvider_GetTelemetry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetTelemetryRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TelemetryProviderServer).GetTelemetry(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/datadog.remoteagent.telemetry.v1.TelemetryProvider/GetTelemetry",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TelemetryProviderServer).GetTelemetry(ctx, req.(*GetTelemetryRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-var _TelemetryProvider_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "datadog.remoteagent.telemetry.v1.TelemetryProvider",
-	HandlerType: (*TelemetryProviderServer)(nil),
-	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "GetTelemetry",
-			Handler:    _TelemetryProvider_GetTelemetry_Handler,
-		},
-	},
-	Streams:  []grpc.StreamDesc{},
-	Metadata: "datadog/remoteagent/telemetry.proto",
 }

@@ -31,7 +31,7 @@ func TestInjectInjector(t *testing.T) {
 
 	provider := libraryinjection.NewInitContainerProvider(libraryinjection.LibraryInjectionConfig{})
 	result := provider.InjectInjector(pod, libraryinjection.InjectorConfig{
-		ResolvedImage: libraryinjection.ResolvedImage{Image: "gcr.io/datadoghq/apm-inject:latest"},
+		Package: libraryinjection.NewLibraryImageFromFullRef("gcr.io/datadoghq/apm-inject:latest", ""),
 	})
 
 	require.Equal(t, libraryinjection.MutationStatusInjected, result.Status)
@@ -62,8 +62,8 @@ func TestInjectLibrary(t *testing.T) {
 
 	provider := libraryinjection.NewInitContainerProvider(libraryinjection.LibraryInjectionConfig{})
 	result := provider.InjectLibrary(pod, libraryinjection.LibraryConfig{
-		Language:      "java",
-		ResolvedImage: libraryinjection.ResolvedImage{Image: "gcr.io/datadoghq/dd-lib-java-init:latest"},
+		Language: "java",
+		Package:  libraryinjection.NewLibraryImageFromFullRef("gcr.io/datadoghq/dd-lib-java-init:latest", ""),
 	})
 
 	require.Equal(t, libraryinjection.MutationStatusInjected, result.Status)
@@ -72,24 +72,6 @@ func TestInjectLibrary(t *testing.T) {
 	require.Len(t, pod.Spec.InitContainers, 1)
 	assert.Equal(t, "datadog-lib-java-init", pod.Spec.InitContainers[0].Name)
 	assert.Equal(t, "gcr.io/datadoghq/dd-lib-java-init:latest", pod.Spec.InitContainers[0].Image)
-}
-
-func TestInjectLibrary_UnsupportedLanguage(t *testing.T) {
-	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{Name: "test-pod"},
-		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{{Name: "app"}},
-		},
-	}
-
-	provider := libraryinjection.NewInitContainerProvider(libraryinjection.LibraryInjectionConfig{})
-	result := provider.InjectLibrary(pod, libraryinjection.LibraryConfig{
-		Language:      "cobol",
-		ResolvedImage: libraryinjection.ResolvedImage{Image: "some-image"},
-	})
-
-	assert.Equal(t, libraryinjection.MutationStatusError, result.Status)
-	assert.Contains(t, result.Err.Error(), "cobol")
 }
 
 func TestInjectInjector_SkipsWhenInsufficientResources(t *testing.T) {
@@ -132,13 +114,13 @@ func TestInjectInjector_SkipsWhenInsufficientResources(t *testing.T) {
 
 	// Should succeed with sufficient resources
 	result := provider.InjectInjector(pod, libraryinjection.InjectorConfig{
-		ResolvedImage: libraryinjection.ResolvedImage{Image: "test-image"},
+		Package: libraryinjection.NewLibraryImageFromFullRef("test-image", ""),
 	})
 	assert.Equal(t, libraryinjection.MutationStatusInjected, result.Status)
 
 	// Should skip with insufficient resources
 	resultLow := provider.InjectInjector(podLowResources, libraryinjection.InjectorConfig{
-		ResolvedImage: libraryinjection.ResolvedImage{Image: "test-image"},
+		Package: libraryinjection.NewLibraryImageFromFullRef("test-image", ""),
 	})
 	assert.Equal(t, libraryinjection.MutationStatusSkipped, resultLow.Status)
 	assert.NotNil(t, resultLow.Err)

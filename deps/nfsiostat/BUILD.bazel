@@ -1,0 +1,37 @@
+"""nfsiostat"""
+
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
+
+package(default_visibility = [
+    "//compliance:__pkg__",
+    "//packages:__subpackages__",
+])
+
+genrule(
+    name = "fix_shebang",
+    srcs = ["@nfsiostat//:nfsiostat_py"],
+    outs = ["nfsiosat"],
+    cmd = "sed 's@#!/usr/bin/python@#!/opt/datadog-agent/embedded/bin/python@' $(location  @nfsiostat//:nfsiostat_py) >$@",
+)
+
+pkg_files(
+    name = "bin_files",
+    srcs = [":fix_shebang"],
+    attributes = pkg_attributes(mode = "0755"),
+    prefix = "embedded/sbin",
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":bin_files",
+    ],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+    ],
+)

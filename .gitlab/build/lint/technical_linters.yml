@@ -9,9 +9,13 @@ lint_licenses:
   script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
-    - dda inv -- -e install-tools
     - dda inv -- -e lint-licenses
-  needs: ["go_tools_deps", "go_deps"]
+  needs: ["go_deps", "go_tools_deps"]
+
+lint_rust_licenses:
+  extends: .lint
+  script:
+    - dda inv -- -e lint-rust-licenses
 
 lint_shell:
   extends: .lint
@@ -71,3 +75,9 @@ validate_experiment_systemd_units:
   rules: !reference [.on_installer_systemd_changes]
   script:
     - dda inv -- -e installer.generate-experiment-units --check
+
+lint_releasenotes_rst:
+  extends: .lint
+  rules: !reference [.on_releasenotes_changes]
+  script:
+    - dda inv -- -e linter.rst-releasenotes --only-changed

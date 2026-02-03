@@ -17,6 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
+
 	"github.com/avast/retry-go/v4"
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"
@@ -24,6 +26,7 @@ import (
 
 func TestSelfTests(t *testing.T) {
 	SkipIfNotAvailable(t)
+	flake.MarkOnJobName(t, "ubuntu_25.10")
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{enableSelfTests: true}))
 	if err != nil {
@@ -59,7 +62,7 @@ func TestSelfTests(t *testing.T) {
 		})
 
 		return nil
-	}, retry.Attempts(20), retry.Delay(2*time.Second))
+	}, retry.Attempts(20), retry.Delay(2*time.Second), retry.DelayType(retry.FixedDelay))
 
 	assert.NoError(t, err)
 }

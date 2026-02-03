@@ -13,6 +13,7 @@ import (
 	gorilla "github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/agent"
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/listener"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	"github.com/DataDog/datadog-agent/comp/api/grpcserver/helpers"
 )
@@ -25,7 +26,7 @@ func (server *apiServer) startCMDServer(
 	tmf observability.TelemetryMiddlewareFactory,
 ) (err error) {
 	// get the transport we're going to use under HTTP
-	server.cmdListener, err = getListener(cmdAddr)
+	server.cmdListener, err = listener.GetListener(cmdAddr)
 	if err != nil {
 		// we use the listener to handle commands for the Agent, there's
 		// no way we can recover from this error

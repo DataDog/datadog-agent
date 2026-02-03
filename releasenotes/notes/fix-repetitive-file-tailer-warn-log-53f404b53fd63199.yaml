@@ -1,0 +1,6 @@
+fixes:
+  - |
+    Fixes repetitive 'Could not make file tailer' warning logs when short lived
+    pods are terminated and the Agent attempts to create a file tailer for the
+    deleted containers in a pod. Now the Agent will not create container services
+    for pods that have been deleted and no-longer have containers to tail.

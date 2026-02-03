@@ -29,17 +29,6 @@ offset_ct(status)
 offset_ct(netns)
 offset_ct(ino)
 
-#define RETURN_IF_NOT_NAT(orig, reply)                      \
-    if (!is_conn_nat(orig, reply)) {                        \
-        return 0;                                           \
-    }
-
-static __always_inline bool is_conn_nat(const conntrack_tuple_t* orig, const conntrack_tuple_t* reply) {
-    return orig->daddr_l != reply->saddr_l || orig->dport != reply->sport || 
-        orig->saddr_l != reply->daddr_l || orig->sport != reply->dport || 
-        orig->daddr_h != reply->saddr_h;
-}
-
 static __always_inline u32 get_netns(struct nf_conn *ct) {
     void* ct_net = NULL;
     u32 net_ns_inum = 0;

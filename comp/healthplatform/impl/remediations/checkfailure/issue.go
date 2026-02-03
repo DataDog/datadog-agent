@@ -7,7 +7,10 @@
 package checkfailure
 
 import (
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	"fmt"
+
+	"github.com/DataDog/agent-payload/v5/healthplatform"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 const (
@@ -31,7 +34,7 @@ func NewCheckFailureIssue() *CheckFailureIssue {
 }
 
 // BuildIssue creates a complete issue with metadata and remediation for check failures
-func (t *CheckFailureIssue) BuildIssue(context map[string]string) *healthplatform.Issue {
+func (t *CheckFailureIssue) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
 	checkName := context["checkName"]
 	if checkName == "" {
 		checkName = unknownVal
@@ -73,31 +76,44 @@ func (t *CheckFailureIssue) BuildIssue(context map[string]string) *healthplatfor
 	title = append(title, "' Failed"...)
 
 	// Build remediation steps
-	steps := make([]healthplatform.RemediationStep, 0, 7)
+	steps := make([]*healthplatform.RemediationStep, 0, 7)
 	steps = append(steps,
-		healthplatform.RemediationStep{Order: 1, Text: "Check logs: 'datadog-agent status' or 'tail -f /var/log/datadog/agent.log'"},
-		healthplatform.RemediationStep{Order: 2, Text: "Review config at: " + configSource},
-		healthplatform.RemediationStep{Order: 3, Text: "Verify permissions and dependencies"},
-		healthplatform.RemediationStep{Order: 4, Text: "Verify monitored service is accessible"},
-		healthplatform.RemediationStep{Order: 5, Text: "See docs: https://docs.datadoghq.com/integrations/"},
+		&healthplatform.RemediationStep{Order: 1, Text: "Check logs: 'datadog-agent status' or 'tail -f /var/log/datadog/agent.log'"},
+		&healthplatform.RemediationStep{Order: 2, Text: "Review config at: " + configSource},
+		&healthplatform.RemediationStep{Order: 3, Text: "Verify permissions and dependencies"},
+		&healthplatform.RemediationStep{Order: 4, Text: "Verify monitored service is accessible"},
+		&healthplatform.RemediationStep{Order: 5, Text: "See docs: https://docs.datadoghq.com/integrations/"},
 	)
 
 	if checkVersion != "" {
 		// Build version step string directly without intermediate byte slice
 		verStepText := "Check known issues for version " + checkVersion
-		steps = append(steps, healthplatform.RemediationStep{
-			Order: len(steps) + 1,
+		steps = append(steps, &healthplatform.RemediationStep{
+			Order: int32(len(steps) + 1),
 			Text:  verStepText,
 		})
 	}
 
-	steps = append(steps, healthplatform.RemediationStep{
-		Order: len(steps) + 1,
+	steps = append(steps, &healthplatform.RemediationStep{
+		Order: int32(len(steps) + 1),
 		Text:  "Enable debug: set 'log_level: debug' in datadog.yaml and restart",
 	})
 
+	extra, err := structpb.NewStruct(map[string]any{
+		"check_name":    checkName,
+		"error_message": errorMessage,
+		"total_errors":  totalErrors,
+		"config_source": configSource,
+		"check_version": checkVersion,
+		"impact":        impactMsg,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create extra: %v", err)
+	}
+
 	return &healthplatform.Issue{
-		ID:          issueID,
+		Id:          issueID,
 		IssueName:   issueName,
 		Title:       string(title),
 		Description: string(desc),
@@ -106,18 +122,11 @@ func (t *CheckFailureIssue) BuildIssue(context map[string]string) *healthplatfor
 		Severity:    severity,
 		DetectedAt:  "",
 		Source:      source,
-		Extra: map[any]any{
-			"check_name":    checkName,
-			"error_message": errorMessage,
-			"total_errors":  totalErrors,
-			"config_source": configSource,
-			"check_version": checkVersion,
-			"impact":        impactMsg,
-		},
+		Extra:       extra,
 		Remediation: &healthplatform.Remediation{
 			Summary: "Review config and logs to diagnose",
 			Steps:   steps,
 		},
 		Tags: []string{"check-failure", "collector", checkName},
-	}
+	}, nil
 }

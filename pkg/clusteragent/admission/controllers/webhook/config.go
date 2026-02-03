@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 )
 
 // Config contains config parameters
@@ -41,7 +41,7 @@ func NewConfig(admissionV1Enabled, namespaceSelectorEnabled, matchConditionsSupp
 		secretName:               datadogConfig.GetString("admission_controller.certificate.secret_name"),
 		validationEnabled:        datadogConfig.GetBool("admission_controller.validation.enabled"),
 		mutationEnabled:          datadogConfig.GetBool("admission_controller.mutation.enabled"),
-		namespace:                common.GetResourcesNamespace(),
+		namespace:                namespace.GetResourcesNamespace(),
 		admissionV1Enabled:       admissionV1Enabled,
 		namespaceSelectorEnabled: namespaceSelectorEnabled,
 		matchConditionsSupported: matchConditionsSupported,
