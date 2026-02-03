@@ -97,6 +97,11 @@ func (r *HTTPReceiver) reserveBodySize(buf *bytes.Buffer, req *http.Request) err
 }
 
 // HTTPReceiver is a collector that uses HTTP protocol and just holds
+// ProfileCaptureFunc is called when a profile is received, before forwarding to the intake.
+// The function receives the raw body data and HTTP headers for optional processing.
+// This is used by the observer to capture profiles for buffering.
+type ProfileCaptureFunc func(body []byte, headers http.Header)
+
 // a chan where the spans received are sent one by one
 type HTTPReceiver struct {
 	Stats *info.ReceiverStats
@@ -131,6 +136,10 @@ type HTTPReceiver struct {
 	timing   timing.Reporter
 	info     *watchdog.CurrentInfo
 	Handlers map[string]http.Handler
+
+	// ProfileCaptureFunc is an optional callback invoked when a profile is received.
+	// It allows the observer to capture profiles for buffering before they are forwarded.
+	ProfileCaptureFunc ProfileCaptureFunc
 }
 
 // NewHTTPReceiver returns a pointer to a new HTTPReceiver

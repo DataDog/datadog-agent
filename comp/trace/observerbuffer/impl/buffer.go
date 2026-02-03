@@ -7,13 +7,20 @@
 package observerbufferimpl
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
+	"mime"
+	"mime/multipart"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	observerbuffer "github.com/DataDog/datadog-agent/comp/trace/observerbuffer/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Config holds configuration for the observer buffer.
@@ -39,6 +46,7 @@ func DefaultConfig() Config {
 type Requires struct {
 	// Cfg is the agent config component.
 	Cfg config.Component
+	Log logdef.Component
 }
 
 // Provides defines the output of the observer buffer component.
@@ -51,15 +59,15 @@ func NewComponent(reqs Requires) Provides {
 	cfg := DefaultConfig()
 
 	// Read configuration from apm_config.observer.*
-	if reqs.Cfg != nil {
-		cfg.Enabled = reqs.Cfg.GetBool("apm_config.observer.enabled")
-		if traceSize := reqs.Cfg.GetInt("apm_config.observer.trace_buffer_size"); traceSize > 0 {
-			cfg.TraceBufferSize = traceSize
-		}
-		if profileSize := reqs.Cfg.GetInt("apm_config.observer.profile_buffer_size"); profileSize > 0 {
-			cfg.ProfileBufferSize = profileSize
-		}
+	cfg.Enabled = reqs.Cfg.GetBool("apm_config.observer.enabled")
+	if traceSize := reqs.Cfg.GetInt("apm_config.observer.trace_buffer_size"); traceSize > 0 {
+		cfg.TraceBufferSize = traceSize
 	}
+	if profileSize := reqs.Cfg.GetInt("apm_config.observer.profile_buffer_size"); profileSize > 0 {
+		cfg.ProfileBufferSize = profileSize
+	}
+
+	reqs.Log.Infof("Observer buffer configured: enabled=%v, trace_buffer_size=%d, profile_buffer_size=%d", cfg.Enabled, cfg.TraceBufferSize, cfg.ProfileBufferSize)
 
 	if !cfg.Enabled {
 		return Provides{Comp: &noopBuffer{}}
@@ -133,6 +141,179 @@ func (b *bufferImpl) AddProfile(profile observerbuffer.ProfileData) {
 
 	profile.ReceivedAtNs = time.Now().UnixNano()
 	b.profileBuffer = append(b.profileBuffer, profile)
+}
+
+// AddRawProfile adds a raw profile from an HTTP request to the buffer.
+// This method extracts metadata from headers and stores the raw body.
+// Note: Parsing multipart form data is deferred to the core-agent to avoid complexity here.
+func (b *bufferImpl) AddRawProfile(body []byte, headers map[string][]string) {
+	if len(body) == 0 {
+		return
+	}
+
+	profile := observerbuffer.ProfileData{
+		ContentType:  getFirstHeader(headers, "Content-Type"),
+		InlineData:   make([]byte, len(body)),
+		ReceivedAtNs: time.Now().UnixNano(),
+		Tags:         make(map[string]string),
+	}
+	copy(profile.InlineData, body)
+
+	// Try to parse multipart form data to extract metadata
+	contentType := getFirstHeader(headers, "Content-Type")
+	log.Debugf("[observerbuffer] Profile Content-Type: %s", contentType)
+	if mediaType, params, err := mime.ParseMediaType(contentType); err == nil && mediaType == "multipart/form-data" {
+		boundary := params["boundary"]
+		log.Debugf("[observerbuffer] Parsed boundary: %s", boundary)
+		if boundary != "" {
+			if metadata := parseProfileMetadata(body, boundary); metadata != nil {
+				log.Debugf("[observerbuffer] Extracted metadata - Service: %s, Type: %s, Env: %s",
+					metadata.Service, metadata.ProfileType, metadata.Env)
+				profile.ProfileID = metadata.ProfileID
+				profile.ProfileType = metadata.ProfileType
+				profile.Service = metadata.Service
+				profile.Env = metadata.Env
+				profile.Version = metadata.Version
+				profile.Hostname = metadata.Hostname
+				profile.DurationNs = metadata.DurationNs
+				// Merge metadata tags with profile tags
+				for k, v := range metadata.Tags {
+					profile.Tags[k] = v
+				}
+			} else {
+				log.Debugf("[observerbuffer] parseProfileMetadata returned nil")
+			}
+		}
+	} else if err != nil {
+		log.Debugf("[observerbuffer] Failed to parse Content-Type: %v", err)
+	}
+
+	// Extract container tags from headers
+	if containerTags := getFirstHeader(headers, "X-Datadog-Container-Tags"); containerTags != "" {
+		profile.Tags["_container_tags"] = containerTags
+	}
+
+	// Extract additional tags from headers
+	if additionalTags := getFirstHeader(headers, "X-Datadog-Additional-Tags"); additionalTags != "" {
+		profile.Tags["_additional_tags"] = additionalTags
+	}
+
+	b.AddProfile(profile)
+}
+
+// getFirstHeader returns the first value for a header key, or empty string if not found.
+func getFirstHeader(headers map[string][]string, key string) string {
+	if values, ok := headers[key]; ok && len(values) > 0 {
+		return values[0]
+	}
+	return ""
+}
+
+// profileMetadata holds extracted profile metadata from the multipart form event field.
+type profileMetadata struct {
+	ProfileID   string
+	ProfileType string
+	Service     string
+	Env         string
+	Version     string
+	Hostname    string
+	DurationNs  int64
+	Tags        map[string]string
+}
+
+// parseProfileMetadata extracts profile metadata from multipart form data.
+// The Datadog profiling intake expects an "event" field with JSON metadata.
+func parseProfileMetadata(body []byte, boundary string) *profileMetadata {
+	reader := multipart.NewReader(bytes.NewReader(body), boundary)
+	log.Debugf("[observerbuffer] Starting multipart parse with boundary: %s, body size: %d", boundary, len(body))
+
+	partCount := 0
+	for {
+		part, err := reader.NextPart()
+		if err == io.EOF {
+			log.Debugf("[observerbuffer] Reached EOF after %d parts, no 'event' field found", partCount)
+			break
+		}
+		if err != nil {
+			log.Debugf("[observerbuffer] Failed to read multipart part: %v", err)
+			return nil
+		}
+		partCount++
+
+		formName := part.FormName()
+		log.Debugf("[observerbuffer] Found multipart part #%d: '%s'", partCount, formName)
+
+		// Look for the "event" field which contains JSON metadata
+		if formName == "event" {
+			data, err := io.ReadAll(part)
+			part.Close()
+			if err != nil {
+				log.Debugf("Failed to read event field: %v", err)
+				return nil
+			}
+
+			// Parse the JSON event data
+			var event struct {
+				Version     string   `json:"version"`
+				Family      string   `json:"family"`        // profile type: cpu, heap, etc.
+				Tags        string   `json:"tags_profiler"` // comma-separated string
+				Start       string   `json:"start"`
+				End         string   `json:"end"`
+				Attachments []string `json:"attachments"`
+			}
+
+			if err := json.Unmarshal(data, &event); err != nil {
+				log.Debugf("Failed to unmarshal profile event JSON: %v", err)
+				return nil
+			}
+
+			metadata := &profileMetadata{
+				ProfileType: event.Family,
+				Version:     event.Version,
+				Tags:        make(map[string]string),
+			}
+
+			// Parse tags - tags_profiler is a comma-separated string like "service:myapp,env:prod,host:hostname"
+			if event.Tags != "" {
+				tagParts := bytes.Split([]byte(event.Tags), []byte(","))
+				for _, tagPart := range tagParts {
+					// Each tag is in format "key:value"
+					if idx := bytes.IndexByte(tagPart, ':'); idx > 0 {
+						key := string(bytes.TrimSpace(tagPart[:idx]))
+						value := string(bytes.TrimSpace(tagPart[idx+1:]))
+
+						switch key {
+						case "service":
+							metadata.Service = value
+						case "env":
+							metadata.Env = value
+						case "host":
+							metadata.Hostname = value
+						case "profile_id":
+							metadata.ProfileID = value
+						default:
+							metadata.Tags[key] = value
+						}
+					}
+				}
+			}
+
+			// Calculate duration from start/end if available
+			if event.Start != "" && event.End != "" {
+				// Timestamps are typically in RFC3339 format
+				if startTime, err := time.Parse(time.RFC3339Nano, event.Start); err == nil {
+					if endTime, err := time.Parse(time.RFC3339Nano, event.End); err == nil {
+						metadata.DurationNs = endTime.Sub(startTime).Nanoseconds()
+					}
+				}
+			}
+
+			return metadata
+		}
+		part.Close()
+	}
+
+	return nil
 }
 
 // DrainTraces removes and returns up to maxItems traces from the buffer.
@@ -219,8 +400,9 @@ func (b *bufferImpl) Stats() observerbuffer.BufferStats {
 // noopBuffer is a no-op implementation when buffering is disabled.
 type noopBuffer struct{}
 
-func (n *noopBuffer) AddTrace(_ *pb.TracerPayload)        {}
-func (n *noopBuffer) AddProfile(_ observerbuffer.ProfileData) {}
+func (n *noopBuffer) AddTrace(_ *pb.TracerPayload)                  {}
+func (n *noopBuffer) AddProfile(_ observerbuffer.ProfileData)       {}
+func (n *noopBuffer) AddRawProfile(_ []byte, _ map[string][]string) {}
 
 func (n *noopBuffer) DrainTraces(_ uint32) ([]observerbuffer.BufferedTrace, uint64, bool) {
 	return nil, 0, false

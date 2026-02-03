@@ -24,6 +24,11 @@ type Component interface {
 	// If the buffer is full, the oldest profile is dropped.
 	AddProfile(profile ProfileData)
 
+	// AddRawProfile adds a raw profile from an HTTP request to the buffer.
+	// body is the raw request body, headers contains the HTTP headers.
+	// This method parses the multipart form data to extract profile metadata and binary data.
+	AddRawProfile(body []byte, headers map[string][]string)
+
 	// DrainTraces removes and returns up to maxItems traces from the buffer.
 	// If maxItems is 0, all buffered traces are returned.
 	// Returns the traces, count of dropped traces since last drain, and whether more data is available.
