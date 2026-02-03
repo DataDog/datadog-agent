@@ -8,6 +8,7 @@ package softwareinventoryimpl
 import (
 	"embed"
 	"io"
+	"sort"
 	"strings"
 	"time"
 
@@ -70,6 +71,8 @@ func formatYYYYMMDD(ts string) (string, error) {
 // This method processes the cached inventory data and formats it for display
 // in the status output. It handles date formatting, computes statistics by
 // software type, and organizes the data by software ID for easy lookup.
+// Entries are sorted by Source (software type) and then by DisplayName for
+// easier navigation in the GUI and status output.
 // Note: Stats are computed from deduplicated entries to ensure consistency
 // between the total count and the breakdown by type.
 func (is *softwareInventory) populateStatus(status map[string]interface{}) {
@@ -84,21 +87,34 @@ func (is *softwareInventory) populateStatus(status map[string]interface{}) {
 		data[inventory.GetID()] = inventory
 	}
 
+	// Convert to slice and sort by Source (category), then DisplayName
+	sortedEntries := make([]software.Entry, 0, len(data))
+	for _, v := range data {
+		sortedEntries = append(sortedEntries, v.(software.Entry))
+	}
+	sort.Slice(sortedEntries, func(i, j int) bool {
+		// First sort by Source (software type)
+		if sortedEntries[i].Source != sortedEntries[j].Source {
+			return sortedEntries[i].Source < sortedEntries[j].Source
+		}
+		// Then sort by DisplayName within each category
+		return sortedEntries[i].DisplayName < sortedEntries[j].DisplayName
+	})
+
 	// Second pass: compute stats from deduplicated entries
 	// This ensures stats sum matches the total count
 	stats := map[string]int{}
 	brokenCount := 0
-	for _, v := range data {
-		inventory := v.(software.Entry)
+	for _, inventory := range sortedEntries {
 		stats[inventory.Source]++
 		if strings.Contains(inventory.Status, "broken") {
 			brokenCount++
 		}
 	}
 
-	status["software_inventory_metadata"] = data
+	status["software_inventory_metadata"] = sortedEntries
 	status["software_inventory_stats"] = stats
-	status["software_inventory_total"] = len(data)
+	status["software_inventory_total"] = len(sortedEntries)
 	// Only include broken count if there are broken entries
 	if brokenCount > 0 {
 		status["software_inventory_broken"] = brokenCount

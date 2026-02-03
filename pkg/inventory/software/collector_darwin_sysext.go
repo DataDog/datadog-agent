@@ -193,7 +193,7 @@ func (c *systemExtensionsCollector) Collect() ([]*Entry, []*Warning, error) {
 		var installDate string
 		if sysExt.OriginPath != "" {
 			if info, err := os.Stat(sysExt.OriginPath); err == nil {
-				installDate = info.ModTime().UTC().Format(time.RFC3339Nano)
+				installDate = info.ModTime().UTC().Format(time.RFC3339)
 			}
 		}
 

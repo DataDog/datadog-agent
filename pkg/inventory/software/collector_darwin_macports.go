@@ -113,7 +113,7 @@ func (c *macPortsCollector) Collect() ([]*Entry, []*Warning, error) {
 			// Convert Unix timestamp to RFC3339
 			var installDateStr string
 			if installDate > 0 {
-				installDateStr = time.Unix(installDate, 0).UTC().Format(time.RFC3339Nano)
+				installDateStr = time.Unix(installDate, 0).UTC().Format(time.RFC3339)
 			}
 
 			// Determine status

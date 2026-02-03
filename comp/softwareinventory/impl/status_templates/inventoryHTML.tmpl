@@ -1,11 +1,11 @@
 <div class="stat">
   <span class="stat_title">Software Inventory Metadata</span>
-  {{- $swMap := index . "software_inventory_metadata" }}
-  {{- $total := index . "software_inventory_total" }}
-  {{- $stats := index . "software_inventory_stats" }}
-  {{- $broken := index . "software_inventory_broken" }}
-  {{- if index $swMap "error" }}
-    <div>Error refreshing software inventory: {{ index $swMap "error" }}</div>
+  {{- $swSlice := .software_inventory_metadata }}
+  {{- $total := .software_inventory_total }}
+  {{- $stats := .software_inventory_stats }}
+  {{- $broken := .software_inventory_broken }}
+  {{- if .error }}
+    <div>Error refreshing software inventory: {{ .error }}</div>
   {{- else }}
   <div style="margin-bottom: 1em; padding: 0.5em; background: #f5f5f5; border-radius: 4px;">
     <strong>Summary:</strong> {{ $total }} entries{{- if $broken }} (<span style="color: #d00;">{{ $broken }} broken</span>){{- end }}
@@ -28,7 +28,7 @@
     <span id="sw-filter-count" style="margin-left: 1em; color: #666;"></span>
   </div>
   <div id="sw-entries-container" class="stat_data inventory-scrollbox" style="max-height: 400px; overflow-y: auto;">
-    {{- range $productCode, $meta := $swMap }}
+    {{- range $meta := $swSlice }}
       <details class="sw-entry" data-sw-type="{{ $meta.Source }}">
         <summary>
         {{- if $meta.DisplayName }}{{ $meta.DisplayName }}{{ if $meta.Version }} {{ $meta.Version }}{{ end }}{{- else }}{{ $meta.ProductCode }}{{- end }}

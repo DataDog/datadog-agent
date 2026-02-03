@@ -63,8 +63,10 @@ type Entry struct {
 	Version string `json:"version"`
 
 	// InstallDate is the date when the software was installed on the system.
-	// The format may vary by platform but is typically in ISO 8601 format
-	// or a platform-specific date format (e.g., "2023-01-15T10:30:00Z").
+	// The format is RFC3339 (ISO 8601): "2006-01-02T15:04:05Z07:00"
+	// For example: "2023-01-15T10:30:00Z"
+	// All timestamps are in UTC (indicated by the Z suffix).
+	// When displayed in the GUI/status output, it is formatted as "YYYY/MM/DD" (date only).
 	// This field is optional and may be empty if the installation date
 	// cannot be determined.
 	InstallDate string `json:"deployment_time,omitempty"`

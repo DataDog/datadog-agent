@@ -177,7 +177,7 @@ func (c *applicationsCollector) Collect() ([]*Entry, []*Warning, error) {
 			// Get install date from file modification time
 			var installDate string
 			if info, err := os.Stat(appPath); err == nil {
-				installDate = info.ModTime().UTC().Format(time.RFC3339Nano)
+				installDate = info.ModTime().UTC().Format(time.RFC3339)
 			}
 
 			// Determine the software type and installation source

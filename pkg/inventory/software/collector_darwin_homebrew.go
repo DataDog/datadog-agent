@@ -166,13 +166,13 @@ func (c *homebrewCollector) Collect() ([]*Entry, []*Warning, error) {
 				receiptPath := filepath.Join(versionPath, "INSTALL_RECEIPT.json")
 				if receipt, err := parseHomebrewReceipt(receiptPath); err == nil {
 					if receipt.Time > 0 {
-						installDate = time.Unix(receipt.Time, 0).UTC().Format(time.RFC3339Nano)
+						installDate = time.Unix(receipt.Time, 0).UTC().Format(time.RFC3339)
 					}
 					installedOnRequest = receipt.InstalledOnRequest
 				} else {
 					// Fall back to directory modification time
 					if info, err := os.Stat(versionPath); err == nil {
-						installDate = info.ModTime().UTC().Format(time.RFC3339Nano)
+						installDate = info.ModTime().UTC().Format(time.RFC3339)
 					}
 				}
 
@@ -273,7 +273,7 @@ func (c *homebrewCollector) Collect() ([]*Entry, []*Warning, error) {
 						// Get install date from directory
 						var installDate string
 						if info, err := os.Stat(versionPath); err == nil {
-							installDate = info.ModTime().UTC().Format(time.RFC3339Nano)
+							installDate = info.ModTime().UTC().Format(time.RFC3339)
 						}
 
 						entry := &Entry{

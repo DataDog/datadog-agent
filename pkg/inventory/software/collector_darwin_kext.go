@@ -79,7 +79,7 @@ func (c *kernelExtensionsCollector) Collect() ([]*Entry, []*Warning, error) {
 			// Get install date from file modification time
 			var installDate string
 			if info, err := os.Stat(kextPath); err == nil {
-				installDate = info.ModTime().UTC().Format(time.RFC3339Nano)
+				installDate = info.ModTime().UTC().Format(time.RFC3339)
 			}
 
 			// Determine architecture
