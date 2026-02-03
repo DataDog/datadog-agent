@@ -425,10 +425,11 @@ func TestFdBySSLBioMapLeak(t *testing.T) {
 func runBioLeakHelperDocker(t *testing.T, host, port string, numEntries int) {
 	t.Helper()
 
-	// Get the testdata directory path
-	_, thisFile, _, ok := runtime.Caller(0)
-	require.True(t, ok, "Failed to get current file path")
-	testDataDir := filepath.Join(filepath.Dir(thisFile), "testdata", "bio_leak_test")
+	// Get the testdata directory path using CurDir() which handles
+	// the difference between build-time and runtime paths in CI
+	curDir, err := testutil.CurDir()
+	require.NoError(t, err, "Failed to get current directory")
+	testDataDir := filepath.Join(curDir, "testdata", "bio_leak_test")
 
 	env := []string{
 		"TESTDIR=" + testDataDir,
