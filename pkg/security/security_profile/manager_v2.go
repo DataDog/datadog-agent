@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -81,10 +82,6 @@ type ManagerV2 struct {
 	resolvedCgroups     map[containerutils.CGroupID]struct{}
 	resolvedCgroupsLock sync.Mutex
 
-	// Track cgroup to selector mapping for delayed cleanup
-	cgroupToSelector     map[containerutils.CGroupID]cgroupModel.WorkloadSelector
-	cgroupToSelectorLock sync.RWMutex
-
 	// Pending profile removals (selector -> time when removal was queued)
 	pendingProfileRemovals     map[cgroupModel.WorkloadSelector]time.Time
 	pendingProfileRemovalsLock sync.Mutex
@@ -138,7 +135,6 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		eventFiltering:            make(map[eventFilteringEntry]*atomic.Uint64),
 		allSeenCgroups:            make(map[containerutils.CGroupID]struct{}),
 		resolvedCgroups:           make(map[containerutils.CGroupID]struct{}),
-		cgroupToSelector:          make(map[containerutils.CGroupID]cgroupModel.WorkloadSelector),
 		pendingProfileRemovals:    make(map[cgroupModel.WorkloadSelector]time.Time),
 	}, nil
 }
@@ -209,37 +205,28 @@ func (m *ManagerV2) onCGroupDeleted(cgce *cgroupModel.CacheEntry) {
 	delete(m.resolvedCgroups, cgroupID)
 	m.resolvedCgroupsLock.Unlock()
 
-	// Get the selector for this cgroup and remove the mapping
-	m.cgroupToSelectorLock.Lock()
-	selector, exists := m.cgroupToSelector[cgroupID]
-	if exists {
-		delete(m.cgroupToSelector, cgroupID)
-	}
-	m.cgroupToSelectorLock.Unlock()
+	// Find and unlink this workload from its profile
+	m.profilesLock.Lock()
+	defer m.profilesLock.Unlock()
 
-	if !exists {
-		return
-	}
+	for selector, prof := range m.profiles {
+		if m.unlinkWorkloadFromProfile(prof, cgce) {
+			// Check if the profile has no more instances
+			prof.InstancesLock.Lock()
+			hasNoInstances := len(prof.Instances) == 0
+			prof.InstancesLock.Unlock()
 
-	// Check if any other cgroups are using this selector
-	m.cgroupToSelectorLock.RLock()
-	hasOtherCgroups := false
-	for _, s := range m.cgroupToSelector {
-		if s == selector {
-			hasOtherCgroups = true
+			if hasNoInstances {
+				// Queue for delayed removal
+				m.pendingProfileRemovalsLock.Lock()
+				if _, alreadyPending := m.pendingProfileRemovals[selector]; !alreadyPending {
+					m.pendingProfileRemovals[selector] = time.Now()
+					seclog.Debugf("queued profile [%s] for delayed removal", selector.String())
+				}
+				m.pendingProfileRemovalsLock.Unlock()
+			}
 			break
 		}
-	}
-	m.cgroupToSelectorLock.RUnlock()
-
-	// If no other cgroups use this selector, queue for delayed removal
-	if !hasOtherCgroups {
-		m.pendingProfileRemovalsLock.Lock()
-		if _, alreadyPending := m.pendingProfileRemovals[selector]; !alreadyPending {
-			m.pendingProfileRemovals[selector] = time.Now()
-			seclog.Debugf("queued profile [%s] for delayed removal", selector.String())
-		}
-		m.pendingProfileRemovalsLock.Unlock()
 	}
 }
 
@@ -355,12 +342,13 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 		return
 	}
 
-	// Resolve event source (runtime or replay)
+	// Resolve event source (runtime or replay) and event type
 	source := event.FieldHandlers.ResolveSource(event, &event.BaseEvent)
-	sourceTags := []string{"source:" + source}
+	eventType := event.GetType()
+	tags := []string{"source:" + source, "event_type:" + eventType}
 
 	// Emit metric for events that pass initial filters
-	if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsReceived, 1, sourceTags, 1.0); err != nil {
+	if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsReceived, 1, tags, 1.0); err != nil {
 		seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2EventsReceived, err)
 	}
 
@@ -378,12 +366,12 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 	tagsResolved := len(event.ProcessContext.Process.ContainerContext.Tags) != 0
 
 	if tagsResolved {
-		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsImmediate, 1, sourceTags, 1.0); err != nil {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsImmediate, 1, tags, 1.0); err != nil {
 			seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2EventsImmediate, err)
 		}
 		m.processEventWithResolvedTags(event)
 	} else {
-		m.queueEventForTagResolution(event, sourceTags)
+		m.queueEventForTagResolution(event, tags)
 	}
 }
 
@@ -447,7 +435,7 @@ func (m *ManagerV2) processEventWithResolvedTags(event *model.Event) {
 }
 
 // queueEventForTagResolution queues an event while waiting for tag resolution
-func (m *ManagerV2) queueEventForTagResolution(event *model.Event, sourceTags []string) {
+func (m *ManagerV2) queueEventForTagResolution(event *model.Event, tags []string) {
 	cgroupID := event.ProcessContext.Process.CGroup.CGroupID
 	pendingEvents := m.profilePendingEvents[cgroupID]
 
@@ -470,8 +458,8 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, sourceTags []
 			// Decrement queue size BEFORE clearing the list
 			m.queueSize.Sub(uint64(eventsLen))
 			pendingEvents.events.Init()
-			// Emit dropped metric with source tag
-			if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionEventsDropped, int64(eventsLen), sourceTags, 1.0); err != nil {
+			// Emit dropped metric
+			if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionEventsDropped, int64(eventsLen), tags, 1.0); err != nil {
 				seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2TagResolutionEventsDropped, err)
 			}
 		}
@@ -566,13 +554,6 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		return nil, false
 	}
 
-	cgroupID := event.ProcessContext.Process.CGroup.CGroupID
-
-	// Track cgroup-to-selector mapping for delayed cleanup
-	m.cgroupToSelectorLock.Lock()
-	m.cgroupToSelector[cgroupID] = selector
-	m.cgroupToSelectorLock.Unlock()
-
 	// Cancel any pending removal for this selector (it's back!)
 	m.pendingProfileRemovalsLock.Lock()
 	if _, pending := m.pendingProfileRemovals[selector]; pending {
@@ -586,6 +567,10 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	if err != nil {
 		return nil, false
 	}
+
+	// Link this workload to the profile (tracks in profile.Instances)
+	workload := m.getOrCreateWorkload(event, selector)
+	m.linkWorkloadToProfile(secprof, workload)
 
 	// Check if profile has reached max size
 	if secprof.ActivityTree.Stats.ApproximateSize() >= int64(m.config.RuntimeSecurity.ActivityDumpMaxDumpSize()) {
@@ -611,6 +596,71 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 func (m *ManagerV2) buildWorkloadSelector(event *model.Event) (cgroupModel.WorkloadSelector, error) {
 	imageName := utils.GetTagValue("image_name", event.ProcessContext.Process.ContainerContext.Tags)
 	return cgroupModel.NewWorkloadSelector(imageName, "*")
+}
+
+// getOrCreateWorkload creates a workload object from an event for tracking in profile Instances
+func (m *ManagerV2) getOrCreateWorkload(event *model.Event, selector cgroupModel.WorkloadSelector) *tags.Workload {
+	cgroupID := event.ProcessContext.Process.CGroup.CGroupID
+
+	// Get the cache entry from the CGroup resolver
+	cacheEntry := m.resolvers.CGroupResolver.GetCacheEntryByCgroupID(cgroupID)
+	if cacheEntry == nil {
+		// Try by container ID if cgroup lookup fails
+		containerID := event.ProcessContext.Process.ContainerContext.ContainerID
+		if containerID != "" {
+			cacheEntry = m.resolvers.CGroupResolver.GetCacheEntryContainerID(containerID)
+		}
+	}
+
+	if cacheEntry == nil {
+		return nil
+	}
+
+	return &tags.Workload{
+		GCroupCacheEntry: cacheEntry,
+		Selector:         selector,
+		Tags:             event.ProcessContext.Process.ContainerContext.Tags,
+	}
+}
+
+// linkWorkloadToProfile adds a workload to a profile's Instances if not already tracked
+func (m *ManagerV2) linkWorkloadToProfile(prof *profile.Profile, workload *tags.Workload) {
+	if workload == nil {
+		return
+	}
+
+	prof.InstancesLock.Lock()
+	defer prof.InstancesLock.Unlock()
+
+	// Check if already tracked
+	workloadID := workload.GetWorkloadID()
+	for _, w := range prof.Instances {
+		if w.GetWorkloadID() == workloadID {
+			return
+		}
+	}
+
+	prof.Instances = append(prof.Instances, workload)
+}
+
+// unlinkWorkloadFromProfile removes a workload from a profile's Instances
+// Returns true if the workload was found and removed
+func (m *ManagerV2) unlinkWorkloadFromProfile(prof *profile.Profile, cgce *cgroupModel.CacheEntry) bool {
+	prof.InstancesLock.Lock()
+	defer prof.InstancesLock.Unlock()
+
+	workloadID := cgce.GetContainerID()
+	if workloadID == "" {
+		workloadID = containerutils.ContainerID(cgce.GetCGroupID())
+	}
+
+	for i, w := range prof.Instances {
+		if w.GetWorkloadID() == workloadID {
+			prof.Instances = append(prof.Instances[:i], prof.Instances[i+1:]...)
+			return true
+		}
+	}
+	return false
 }
 
 // getOrCreateProfile retrieves an existing profile or creates a new one for the given selector.
@@ -782,20 +832,23 @@ func (m *ManagerV2) FillProfileContextFromWorkloadID(id containerutils.WorkloadI
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 
-	for _, profile := range m.profiles {
-		profile.InstancesLock.Lock()
-		for _, instance := range profile.Instances {
+	// Iterate through profiles and their instances to find matching workload
+	for _, prof := range m.profiles {
+		prof.InstancesLock.Lock()
+		for _, instance := range prof.Instances {
 			instance.Lock()
 			if instance.GetWorkloadID() == id {
-				ctx.Name = profile.Metadata.Name
-				profileContext, ok := profile.GetVersionContext(imageTag)
-				if ok { // should always be the case
+				ctx.Name = prof.Metadata.Name
+				if profileContext, ok := prof.GetVersionContext(imageTag); ok {
 					ctx.Tags = profileContext.Tags
 				}
+				instance.Unlock()
+				prof.InstancesLock.Unlock()
+				return
 			}
 			instance.Unlock()
 		}
-		profile.InstancesLock.Unlock()
+		prof.InstancesLock.Unlock()
 	}
 }
 
