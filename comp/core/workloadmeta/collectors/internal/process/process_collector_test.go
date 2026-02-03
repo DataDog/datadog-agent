@@ -722,7 +722,7 @@ func workloadmetaProcess(proc *procutil.Process, language *languagemodels.Langua
 	return wlmProc
 }
 
-// TestProcessCacheDifferentCmdlinetests that processCacheDifference correctly detects
+// TestProcessCacheDifferentCmdline tests that processCacheDifference correctly detects
 // when a process has a different cmdline (same PID, same CreateTime, different Cmdline).
 func TestProcessCacheDifferentCmdline(t *testing.T) {
 	createTime := time.Now().Unix()
