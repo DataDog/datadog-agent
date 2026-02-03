@@ -1562,6 +1562,7 @@ type SBOM struct {
 	CycloneDXBOM       *cyclonedx_v1_4.Bom
 	GenerationTime     time.Time
 	GenerationDuration time.Duration
+	GenerationMethod   string // method used to generate the SBOM. Can be one of tarball, filesystem or overlayfs. This is reported by the collector for the used container runtime (docker, containerd ir cri-o) and converted to the `scan_method` tag.
 	Status             SBOMStatus
 	Error              string // needs to be stored as a string otherwise the merge() will favor the nil value
 }
@@ -1571,6 +1572,7 @@ type CompressedSBOM struct {
 	Bom                []byte
 	GenerationTime     time.Time
 	GenerationDuration time.Duration
+	GenerationMethod   string
 	Status             SBOMStatus
 	Error              string
 }
@@ -1627,6 +1629,7 @@ func (i ContainerImageMetadata) String(verbose bool) string {
 				_, _ = fmt.Fprintf(&sb, "Error: %s\n", i.SBOM.Error)
 			default:
 			}
+			_, _ = fmt.Fprintln(&sb, "Method:", i.SBOM.GenerationMethod)
 		} else {
 			fmt.Fprintln(&sb, "SBOM is nil")
 		}

@@ -1,9 +1,11 @@
+load("@//bazel/rules:cc_shared_library_wrapper.bzl", "cc_shared_library_wrapper")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
-load("@bazel_skylib//lib:selects.bzl", "selects")
+load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 
+# This should be private. We can fix it in another PR
 package(default_visibility = ["//visibility:public"])
 
 filegroup(
@@ -156,7 +158,10 @@ configure_make(
         ],
         "@platforms//os:windows": [],
     }),
-    copts = ["-O2"],
+    copts = ["-O2"] + select({
+        "@platforms//os:windows": ["-DSIO_UDP_NETRESET=_WSAIOW\\(IOC_VENDOR,15\\)"],
+        "//conditions:default": [],
+    }),
     targets = ["depend", "", "install_sw", "install_ssldirs"],
     # Fix install names, as openssl's build system might not get them right
     postfix_script = select({
@@ -178,8 +183,24 @@ configure_make(
     }),
 )
 
+cc_shared_library_wrapper(
+    name = "openssl_shared",
+    input = ":openssl",
+)
+
+########################################################################
+
 filegroup(
-    name = "libssl",
+    name = "headers",
+    srcs = [":openssl"],
+    output_group = "include",
+)
+
+# The dynamic library built with configure/make. Even though the name
+# is libssl.so, it is not actually the same folder, so we can have our
+# own libssl.so shadow it.
+filegroup(
+    name = "libssl_shared_file",
     srcs = [":openssl"],
     output_group = select({
         "@platforms//os:windows": WIN_LIBSSL,
@@ -189,7 +210,7 @@ filegroup(
 )
 
 filegroup(
-    name = "libcrypto",
+    name = "libcrypto_shared_file",
     srcs = [":openssl"],
     output_group = select({
         "@platforms//os:windows": WIN_LIBCRYPTO,
@@ -198,24 +219,24 @@ filegroup(
     }),
 )
 
+#####
+#
+# Packaging
+#
+#####
+
 so_symlink(
     name = "libssl_with_symlink",
-    src = ":libssl",
+    src = ":libssl_shared_file",
     libname = "libssl",
-    version = "3.5.4",
+    version = OPENSSL_VERSION,
 )
 
 so_symlink(
     name = "libcrypto_with_symlink",
-    src = ":libcrypto",
+    src = ":libcrypto_shared_file",
     libname = "libcrypto",
-    version = "3.5.4",
-)
-
-filegroup(
-    name = "headers",
-    srcs = [":openssl"],
-    output_group = "include",
+    version = OPENSSL_VERSION,
 )
 
 pkg_files(
@@ -292,6 +313,7 @@ pkg_files(
         "@platforms//os:windows": ["@platforms//:incompatible"],
         "//conditions:default": [],
     }),
+    visibility = ["//visibility:public"],
 )
 
 pkg_install(
