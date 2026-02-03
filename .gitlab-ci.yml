@@ -563,6 +563,7 @@ workflow:
   - test/new-e2e/scenarios/system-probe/**/*
   - test/e2e-framework/testing/runner/**/*
   - test/e2e-framework/testing/utils/**/*
+  - test/e2e-framework/scenarios/aws/microVMs/**/*
   - test/new-e2e/go.mod
   - go.mod
   - tasks/security_agent.py
@@ -618,6 +619,7 @@ workflow:
   - test/new-e2e/scenarios/system-probe/**/*
   - test/e2e-framework/testing/runner/**/*
   - test/e2e-framework/testing/utils/**/*
+  - test/e2e-framework/scenarios/aws/microVMs/**/*
   - test/new-e2e/go.mod
   - go.mod
   - tasks/system_probe.py
