@@ -82,3 +82,7 @@ func (mr *NoOpResolver) ToJSON() ([]byte, error) {
 func (mr *NoOpResolver) InsertMoved(_ model.Mount) error {
 	return nil
 }
+
+// Iterate iterates over all the mounts in the cache and calls the callback function for each mount
+func (mr *NoOpResolver) Iterate(_ func(*model.Mount)) {
+}

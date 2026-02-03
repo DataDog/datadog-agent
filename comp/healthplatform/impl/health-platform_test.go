@@ -9,6 +9,9 @@ package healthplatformimpl
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
@@ -430,4 +433,123 @@ func TestComponentDisabled(t *testing.T) {
 	// Verify clear methods work without error
 	provides.Comp.ClearIssuesForCheck("test-check")
 	provides.Comp.ClearAllIssues()
+}
+
+// TestGetIssuesHandlerEmpty tests the HTTP handler returns empty list when no issues
+func TestGetIssuesHandlerEmpty(t *testing.T) {
+	lifecycle := newMockLifecycle()
+	reqs := testRequires(t, lifecycle)
+
+	provides, err := NewComponent(reqs)
+	require.NoError(t, err)
+
+	// Get the implementation to access the handler
+	impl, ok := provides.Comp.(*healthPlatformImpl)
+	require.True(t, ok, "Expected healthPlatformImpl")
+
+	// Create a test request
+	req := httptest.NewRequest(http.MethodGet, "/health-platform/issues", nil)
+	w := httptest.NewRecorder()
+
+	// Call the handler
+	impl.getIssuesHandler(w, req)
+
+	// Check the response
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
+
+	// Parse the response
+	var response struct {
+		Count  int                                     `json:"count"`
+		Issues map[string]*healthplatformpayload.Issue `json:"issues"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	require.NoError(t, err)
+
+	assert.Equal(t, 0, response.Count)
+	assert.Empty(t, response.Issues)
+}
+
+// TestGetIssuesHandlerWithIssues tests the HTTP handler returns issues correctly
+func TestGetIssuesHandlerWithIssues(t *testing.T) {
+	lifecycle := newMockLifecycle()
+	reqs := testRequires(t, lifecycle)
+
+	provides, err := NewComponent(reqs)
+	require.NoError(t, err)
+
+	// Start the component
+	err = lifecycle.Start(context.Background())
+	require.NoError(t, err)
+
+	// Get the implementation to access the handler
+	impl, ok := provides.Comp.(*healthPlatformImpl)
+	require.True(t, ok, "Expected healthPlatformImpl")
+
+	// Report some issues
+	err = provides.Comp.ReportIssue(
+		"check-1",
+		"Check 1",
+		&healthplatformpayload.IssueReport{
+			IssueId: "docker-file-tailing-disabled",
+			Context: map[string]string{
+				"dockerDir": "/var/lib/docker",
+				"os":        "linux",
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	err = provides.Comp.ReportIssue(
+		"check-2",
+		"Check 2",
+		&healthplatformpayload.IssueReport{
+			IssueId: "docker-file-tailing-disabled",
+			Context: map[string]string{
+				"dockerDir": "/var/lib/docker",
+				"os":        "windows",
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	// Create a test request
+	req := httptest.NewRequest(http.MethodGet, "/health-platform/issues", nil)
+	w := httptest.NewRecorder()
+
+	// Call the handler
+	impl.getIssuesHandler(w, req)
+
+	// Check the response
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
+
+	// Parse the response
+	var response struct {
+		Count  int                                     `json:"count"`
+		Issues map[string]*healthplatformpayload.Issue `json:"issues"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	require.NoError(t, err)
+
+	assert.Equal(t, 2, response.Count)
+	assert.Len(t, response.Issues, 2)
+	assert.Contains(t, response.Issues, "check-1")
+	assert.Contains(t, response.Issues, "check-2")
+
+	// Verify issue details
+	issue1 := response.Issues["check-1"]
+	assert.Equal(t, "docker-file-tailing-disabled", issue1.Id)
+	assert.NotEmpty(t, issue1.Title)
+	assert.NotEmpty(t, issue1.DetectedAt)
+
+	// Stop the component
+	err = lifecycle.Stop(context.Background())
+	require.NoError(t, err)
 }

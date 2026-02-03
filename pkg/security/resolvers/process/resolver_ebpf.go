@@ -369,13 +369,34 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 	// Get the file fields of the process binary
 	info, err := p.RetrieveFileFieldsFromProcfs(procExecPath)
 	if err != nil {
-		if !os.IsNotExist(err) {
-			seclog.Errorf("snapshot failed for %d: couldn't retrieve file info: %s", proc.Pid, err)
+		if os.IsNotExist(err) {
+			return fmt.Errorf("snapshot failed for %d: couldn't retrieve file info of `%s`: %w", proc.Pid, procExecPath, err)
 		}
-		return fmt.Errorf("snapshot failed for %d: couldn't retrieve file info: %w", proc.Pid, err)
+
+		// log the error and insert anyway the entry with the pathnameStr. This will avoid later broken lineage detection.
+		seclog.Errorf("snapshot failed for %d: couldn't retrieve file info of `%s`(%s): %s ", proc.Pid, procExecPath, pathnameStr, err)
+
+		// try to collect more information about the mount point
+		if seclog.DefaultLogger.IsDebugging() || seclog.DefaultLogger.IsTracing() {
+			var (
+				bestPrefix string
+				bestFS     string
+			)
+			p.mountResolver.Iterate(func(mount *model.Mount) {
+				if strings.HasPrefix(pathnameStr, mount.MountPointStr) {
+					if len(mount.MountPointStr) > len(bestPrefix) {
+						bestPrefix = mount.MountPointStr
+						bestFS = mount.FSType
+					}
+				}
+			})
+
+			seclog.Debugf("potential mount info for %s: %s (%s)", procExecPath, bestPrefix, bestFS)
+		}
+	} else {
+		entry.FileEvent.FileFields = *info
 	}
 
-	entry.FileEvent.FileFields = *info
 	setPathname(&entry.FileEvent, pathnameStr)
 
 	// force mount from procfs/snapshot
@@ -387,7 +408,7 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 		entry.FileEvent.MountVisible = false
 		entry.FileEvent.MountDetached = true
 		entry.FileEvent.Filesystem = model.TmpFS
-	} else {
+	} else if entry.Process.FileEvent.MountID != 0 {
 		entry.FileEvent.MountVisible = true
 		entry.FileEvent.MountDetached = false
 		// resolve container path with the MountEBPFResolver

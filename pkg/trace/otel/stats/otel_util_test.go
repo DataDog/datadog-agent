@@ -67,6 +67,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 		enableObfuscation                bool
 		enableReceiveResourceSpansV2     bool
 		enableOperationAndResourceNameV2 bool
+		enableContainerTagsV2            bool
 		ignoreMissingDatadogFields       bool
 	}{
 		{
@@ -515,6 +516,53 @@ func TestProcessOTLPTraces(t *testing.T) {
 				false,
 			),
 		},
+		{
+			name: "k8s.pod.uid used as a fallback for container.id by default",
+			rattrs: map[string]string{
+				"k8s.pod.uid": "test_pod_uid",
+			},
+			expected: createStatsPayload(
+				agentEnv,
+				agentHost,
+				"otlpresourcenoservicename",
+				"opentelemetry.unspecified",
+				"custom",
+				"unspecified",
+				"",
+				agentHost,
+				agentEnv,
+				"test_pod_uid",
+				"",
+				nil,
+				nil,
+				true,
+				false,
+			),
+		},
+		{
+			name: "k8s.pod.uid not used as a fallback for container.id with container tags v2",
+			rattrs: map[string]string{
+				"k8s.pod.uid": "test_pod_uid",
+			},
+			enableContainerTagsV2: true,
+			expected: createStatsPayload(
+				agentEnv,
+				agentHost,
+				"otlpresourcenoservicename",
+				"opentelemetry.unspecified",
+				"custom",
+				"unspecified",
+				"",
+				agentHost,
+				agentEnv,
+				"",
+				"",
+				nil,
+				nil,
+				true,
+				false,
+			),
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			traces := ptrace.NewTraces()
@@ -578,6 +626,9 @@ func TestProcessOTLPTraces(t *testing.T) {
 				return nil, nil
 			}
 			conf.OTLPReceiver.IgnoreMissingDatadogFields = tt.ignoreMissingDatadogFields
+			if tt.enableContainerTagsV2 {
+				conf.Features["enable_otlp_container_tags_v2"] = struct{}{}
+			}
 
 			concentrator := newTestConcentratorWithCfg(time.Now(), conf)
 			var obfuscator *obfuscate.Obfuscator
