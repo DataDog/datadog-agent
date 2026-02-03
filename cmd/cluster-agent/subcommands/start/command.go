@@ -686,16 +686,16 @@ func startPrivateActionRunner(ctx context.Context, config config.Component, rcCl
 	if rcClient == nil {
 		return nil, errors.New("Remote config is disabled or failed to initialize, remote config is a required dependency for private action runner")
 	}
-	parApp, err := parapp.NewApp(config, rcClient)
+	app, err := parapp.NewApp(config, rcClient)
 	if err != nil {
 		return nil, err
 	}
-	err = parApp.Start(ctx)
+	err = app.Start(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return func() {
-		if err := parApp.Stop(context.Background()); err != nil {
+		if err := app.Stop(context.Background()); err != nil {
 			log.Errorf("Error stopping private action runner: %v", err)
 		}
 	}, nil
