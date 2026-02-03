@@ -3,7 +3,6 @@
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
 # Copyright 2016-present Datadog, Inc.
 require "./lib/ostools.rb"
-require "./lib/fips.rb"
 require "./lib/project_helpers.rb"
 require "./lib/omnibus/packagers/tarball.rb"
 flavor = ENV['AGENT_FLAVOR']
@@ -333,12 +332,20 @@ if windows_target?
     GO_BINARIES << "#{install_dir}\\bin\\agent\\security-agent.exe"
   end
 
+  raise_if_fips_symbol_not_found = Proc.new { |symbols|
+    count = symbols.scan("github.com/microsoft/go-crypto-winnative").count()
+    if count == 0
+      raise FIPSSymbolsNotFound.new("Expected to find symbol 'github.com/microsoft/go-crypto-winnative' but no symbol was found.")
+    end
+  }
+
   GO_BINARIES.each do |bin|
     # Check the exported symbols from the binary
     inspect_binary(bin, &raise_if_forbidden_symbol_found)
 
     if fips_mode?
-      fips_check_binary_for_expected_symbol(bin)
+      # Check that CNG symbols are present
+      inspect_binary(bin, &raise_if_fips_symbol_not_found)
     end
 
     # strip the binary of debug symbols
