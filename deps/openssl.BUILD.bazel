@@ -291,10 +291,7 @@ pkg_files(
         ":libcrypto_import_lib",
         ":libssl_import_lib",
     ],
-    # Putting these in this folder is a "tactical" choice. The main reason we need these at all
-    # is to be able to build Python native extensions against the Agent's embedded OpenSSL.
-    # Since the OpenSSL DLLs will end up in that place (due to Python's expected installation layout)
-    prefix = "DLLs",
+    prefix = "lib",
     target_compatible_with = ["@platforms//os:windows"],
 )
 

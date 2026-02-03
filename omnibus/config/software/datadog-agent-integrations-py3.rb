@@ -291,7 +291,6 @@ build do
     elsif windows_target?
       # Build the cryptography library in this case so that it gets linked to Agent's OpenSSL
       lib_folder = File.join(install_dir, "embedded3", "lib")
-      dll_folder = File.join(install_dir, "embedded3", "DLLS")
       include_folder = File.join(install_dir, "embedded3", "include")
 
       block "Build cryptography library against Agent's OpenSSL" do
@@ -299,7 +298,7 @@ build do
 
         shellout! "#{python} -m pip install --force-reinstall --no-deps --no-binary cryptography #{cryptography_requirement}",
                 env: {
-                  "OPENSSL_LIB_DIR" => dll_folder,
+                  "OPENSSL_LIB_DIR" => lib_folder,
                   "OPENSSL_INCLUDE_DIR" => include_folder,
                 }
       end
