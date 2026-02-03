@@ -19,15 +19,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-// Client is an HTTP client for creating connections via the Datadog API.
-type Client struct {
+// ConnectionsClient is an HTTP client for creating connections via the Datadog API.
+type ConnectionsClient struct {
 	httpClient *http.Client
 	baseUrl    string
 	apiKey     string
 	appKey     string
 }
 
-func NewConnectionAPIClient(cfg model.Reader, ddSite, apiKey, appKey string) (*Client, error) {
+func NewConnectionsAPIClient(cfg model.Reader, ddSite, apiKey, appKey string) (*ConnectionsClient, error) {
 	baseUrl := "https://api." + ddSite
 
 	transport := httputils.CreateHTTPTransport(cfg)
@@ -36,7 +36,7 @@ func NewConnectionAPIClient(cfg model.Reader, ddSite, apiKey, appKey string) (*C
 		Transport: transport,
 	}
 
-	return &Client{
+	return &ConnectionsClient{
 		httpClient: httpClient,
 		baseUrl:    baseUrl,
 		apiKey:     apiKey,
@@ -90,7 +90,7 @@ func buildConnectionRequest(definition ConnectionDefinition, runnerID, runnerNam
 	}
 }
 
-func (c *Client) CreateConnection(ctx context.Context, definition ConnectionDefinition, runnerID, runnerName string) error {
+func (c *ConnectionsClient) CreateConnection(ctx context.Context, definition ConnectionDefinition, runnerID, runnerName string) error {
 	reqBody := buildConnectionRequest(definition, runnerID, runnerName)
 
 	body, err := json.Marshal(reqBody)

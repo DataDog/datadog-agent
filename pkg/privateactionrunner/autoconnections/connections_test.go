@@ -18,15 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// mockResetClient wraps an http.Client to implement the ResetClient interface for testing
-type mockResetClient struct {
-	client *http.Client
-}
-
-func (m *mockResetClient) Do(req *http.Request) (*http.Response, error) {
-	return m.client.Do(req)
-}
-
 func TestCreateConnection_CorrectHTTPRequest(t *testing.T) {
 	var receivedHeaders http.Header
 	var receivedBody string
@@ -49,9 +40,9 @@ func TestCreateConnection_CorrectHTTPRequest(t *testing.T) {
 	defer server.Close()
 
 	// Create client with mock server endpoint
-	client := &Client{
-		httpClient: &mockResetClient{client: &http.Client{}},
-		endpoint:   server.URL,
+	client := &ConnectionsClient{
+		httpClient: &http.Client{},
+		baseUrl:    server.URL,
 		apiKey:     "test-api-key",
 		appKey:     "test-app-key",
 	}
@@ -65,7 +56,7 @@ func TestCreateConnection_CorrectHTTPRequest(t *testing.T) {
 		},
 	}
 
-	err := client.CreateConnection(context.Background(), httpDef, "runner-abc123")
+	err := client.CreateConnection(context.Background(), httpDef, "runner-id-abc123", "runner-name-abc123")
 
 	require.NoError(t, err, "CreateConnection should not return error for 201 response")
 
@@ -76,7 +67,7 @@ func TestCreateConnection_CorrectHTTPRequest(t *testing.T) {
 	assert.Equal(t, "test-app-key", receivedHeaders.Get("DD-APPLICATION-KEY"), "DD-APPLICATION-KEY header should match")
 	assert.Equal(t, "application/json", receivedHeaders.Get("Content-Type"), "Content-Type should be application/json")
 	assert.Contains(t, receivedHeaders.Get("User-Agent"), "datadog-agent/", "User-Agent should contain datadog-agent/")
-	assert.Contains(t, receivedBody, `"name":"HTTP (runner-abc123)"`, "Body should contain connection name")
+	assert.Contains(t, receivedBody, `"name":"HTTP (runner-name-abc123)"`, "Body should contain connection name")
 }
 
 func TestCreateConnection_StatusCodeHandling(t *testing.T) {
@@ -126,9 +117,9 @@ func TestCreateConnection_StatusCodeHandling(t *testing.T) {
 			defer server.Close()
 
 			// Create client with mock server endpoint
-			client := &Client{
-				httpClient: &mockResetClient{client: &http.Client{}},
-				endpoint:   server.URL,
+			client := &ConnectionsClient{
+				httpClient: &http.Client{},
+				baseUrl:    server.URL,
 				apiKey:     "test-api-key",
 				appKey:     "test-app-key",
 			}
@@ -142,7 +133,7 @@ func TestCreateConnection_StatusCodeHandling(t *testing.T) {
 				},
 			}
 
-			err := client.CreateConnection(context.Background(), httpDef, "runner-abc123")
+			err := client.CreateConnection(context.Background(), httpDef, "runner-id-abc123", "runner-name-abc123")
 
 			if tt.expectedError {
 				require.Error(t, err, "Should return error for non-2xx status")
@@ -184,8 +175,8 @@ func TestGetBundleKeyForDefinition(t *testing.T) {
 func TestAutoCreateConnections_AllBundlesSuccess(t *testing.T) {
 	createdConnections := []string{}
 
-	// Mock HTTP server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// Mock HTTPS server
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		createdConnections = append(createdConnections, string(body))
 
@@ -195,14 +186,28 @@ func TestAutoCreateConnections_AllBundlesSuccess(t *testing.T) {
 	defer server.Close()
 
 	cfg := mock.New(t)
-	cfg.SetWithoutSource("api_key", "test-api-key")
-	cfg.SetWithoutSource("app_key", "test-app-key")
-	cfg.SetWithoutSource("dd_url", server.URL)
-
-	runnerURN := "urn:dd:apps:on-prem-runner:us1:12345:runner-abc123"
 	allowlist := []string{"com.datadoghq.http.*", "com.datadoghq.kubernetes.*", "com.datadoghq.script"}
 
-	err := AutoCreateConnections(context.Background(), cfg, runnerURN, allowlist)
+	// Use server's client which is pre-configured for TLS
+	testClient := &ConnectionsClient{
+		httpClient: server.Client(),
+		baseUrl:    server.URL,
+		apiKey:     "test-api-key",
+		appKey:     "test-app-key",
+	}
+
+	input := AutoCreateConnectionsInput{
+		cfg:        cfg,
+		ddSite:     "datadoghq.com",
+		runnerID:   "144500f1-474a-4856-aa0a-6fd22e005893",
+		runnerName: "runner-abc123",
+		apiKey:     "test-api-key",
+		appKey:     "test-app-key",
+		allowlist:  allowlist,
+		client:     testClient,
+	}
+
+	err := AutoCreateConnections(context.Background(), input)
 
 	require.NoError(t, err, "AutoCreateConnections should return nil")
 	assert.Len(t, createdConnections, 3, "Should create 3 connections")
@@ -217,8 +222,8 @@ func TestAutoCreateConnections_AllBundlesSuccess(t *testing.T) {
 func TestAutoCreateConnections_PartialFailures(t *testing.T) {
 	requestCount := 0
 
-	// Mock HTTP server - fail HTTP, succeed others
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// Mock HTTPS server - fail HTTP, succeed others
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestCount++
 		body, _ := io.ReadAll(r.Body)
 
@@ -235,14 +240,28 @@ func TestAutoCreateConnections_PartialFailures(t *testing.T) {
 	defer server.Close()
 
 	cfg := mock.New(t)
-	cfg.SetWithoutSource("api_key", "test-api-key")
-	cfg.SetWithoutSource("app_key", "test-app-key")
-	cfg.SetWithoutSource("dd_url", server.URL)
-
-	runnerURN := "urn:dd:apps:on-prem-runner:us1:12345:runner-abc123"
 	allowlist := []string{"com.datadoghq.http.*", "com.datadoghq.kubernetes.*", "com.datadoghq.script"}
 
-	err := AutoCreateConnections(context.Background(), cfg, runnerURN, allowlist)
+	// Use server's client which is pre-configured for TLS
+	testClient := &ConnectionsClient{
+		httpClient: server.Client(),
+		baseUrl:    server.URL,
+		apiKey:     "test-api-key",
+		appKey:     "test-app-key",
+	}
+
+	input := AutoCreateConnectionsInput{
+		cfg:        cfg,
+		ddSite:     "datadoghq.com",
+		runnerID:   "144500f1-474a-4856-aa0a-6fd22e005893",
+		runnerName: "runner-abc123",
+		apiKey:     "test-api-key",
+		appKey:     "test-app-key",
+		allowlist:  allowlist,
+		client:     testClient,
+	}
+
+	err := AutoCreateConnections(context.Background(), input)
 
 	// Should return nil even with failures (non-blocking)
 	require.NoError(t, err, "AutoCreateConnections should not propagate errors")
@@ -252,8 +271,8 @@ func TestAutoCreateConnections_PartialFailures(t *testing.T) {
 func TestAutoCreateConnections_NoRelevantBundles(t *testing.T) {
 	requestCount := 0
 
-	// Mock HTTP server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// Mock HTTPS server
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestCount++
 		w.WriteHeader(http.StatusCreated)
 		w.Write([]byte(`{"data": {"id": "conn-123"}}`))
@@ -261,14 +280,28 @@ func TestAutoCreateConnections_NoRelevantBundles(t *testing.T) {
 	defer server.Close()
 
 	cfg := mock.New(t)
-	cfg.SetWithoutSource("api_key", "test-api-key")
-	cfg.SetWithoutSource("app_key", "test-app-key")
-	cfg.SetWithoutSource("dd_url", server.URL)
-
-	runnerURN := "urn:dd:apps:on-prem-runner:us1:12345:runner-abc123"
 	allowlist := []string{"com.datadoghq.gitlab.*"} // No matching bundles
 
-	err := AutoCreateConnections(context.Background(), cfg, runnerURN, allowlist)
+	// Use server's client which is pre-configured for TLS
+	testClient := &ConnectionsClient{
+		httpClient: server.Client(),
+		baseUrl:    server.URL,
+		apiKey:     "test-api-key",
+		appKey:     "test-app-key",
+	}
+
+	input := AutoCreateConnectionsInput{
+		cfg:        cfg,
+		ddSite:     "datadoghq.com",
+		runnerID:   "144500f1-474a-4856-aa0a-6fd22e005893",
+		runnerName: "runner-abc123",
+		apiKey:     "test-api-key",
+		appKey:     "test-app-key",
+		allowlist:  allowlist,
+		client:     testClient,
+	}
+
+	err := AutoCreateConnections(context.Background(), input)
 
 	require.NoError(t, err, "AutoCreateConnections should return nil")
 	assert.Equal(t, 0, requestCount, "Should not make any HTTP requests")
@@ -277,8 +310,8 @@ func TestAutoCreateConnections_NoRelevantBundles(t *testing.T) {
 func TestAutoCreateConnections_PartialAllowlist(t *testing.T) {
 	createdConnections := []string{}
 
-	// Mock HTTP server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// Mock HTTPS server
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		createdConnections = append(createdConnections, string(body))
 
@@ -288,14 +321,28 @@ func TestAutoCreateConnections_PartialAllowlist(t *testing.T) {
 	defer server.Close()
 
 	cfg := mock.New(t)
-	cfg.SetWithoutSource("api_key", "test-api-key")
-	cfg.SetWithoutSource("app_key", "test-app-key")
-	cfg.SetWithoutSource("dd_url", server.URL)
-
-	runnerURN := "urn:dd:apps:on-prem-runner:us1:12345:runner-abc123"
 	allowlist := []string{"com.datadoghq.http.*", "com.datadoghq.script"} // Only HTTP and Script
 
-	err := AutoCreateConnections(context.Background(), cfg, runnerURN, allowlist)
+	// Use server's client which is pre-configured for TLS
+	testClient := &ConnectionsClient{
+		httpClient: server.Client(),
+		baseUrl:    server.URL,
+		apiKey:     "test-api-key",
+		appKey:     "test-app-key",
+	}
+
+	input := AutoCreateConnectionsInput{
+		cfg:        cfg,
+		ddSite:     "datadoghq.com",
+		runnerID:   "144500f1-474a-4856-aa0a-6fd22e005893",
+		runnerName: "runner-abc123",
+		apiKey:     "test-api-key",
+		appKey:     "test-app-key",
+		allowlist:  allowlist,
+		client:     testClient,
+	}
+
+	err := AutoCreateConnections(context.Background(), input)
 
 	require.NoError(t, err, "AutoCreateConnections should return nil")
 	assert.Len(t, createdConnections, 2, "Should create 2 connections")

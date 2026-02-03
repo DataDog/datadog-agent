@@ -7,16 +7,15 @@ package autoconnections
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // getBundleKeyForDefinition returns the bundle key for a given definition
-// Used for metric tagging
+// TODO: Used for metric tagging
 func getBundleKeyForDefinition(def ConnectionDefinition) string {
-	for key, definition := range SupportedConnections {
+	for key, definition := range supportedConnections {
 		if definition.BundleID == def.BundleID {
 			return key
 		}
@@ -24,32 +23,31 @@ func getBundleKeyForDefinition(def ConnectionDefinition) string {
 	return "unknown"
 }
 
-func AutoCreateConnections(ctx context.Context, cfg model.Reader, runnerURN string, allowlist []string) error {
-	runnerID, err := extractRunnerIDFromURN(runnerURN)
-	if err != nil {
-		return fmt.Errorf("failed to extract runner ID: %w", err)
-	}
+type AutoCreateConnectionsInput struct {
+	cfg        model.Reader
+	ddSite     string
+	runnerID   string
+	runnerName string
+	apiKey     string
+	appKey     string
+	allowlist  []string
+	client     *ConnectionsClient
+}
 
-	definitions := DetermineConnectionsToCreate(allowlist)
+func AutoCreateConnections(ctx context.Context, input AutoCreateConnectionsInput) error {
+	definitions := DetermineConnectionsToCreate(input.allowlist)
 	if len(definitions) == 0 {
 		log.Info("No bundles in allowlist for auto-connection creation")
 		return nil
 	}
 
-	client, err := NewConnectionAPIClient(cfg)
-	if err != nil {
-		return fmt.Errorf("failed to create API client: %w", err)
-	}
-
 	for _, definition := range definitions {
-		_ = getBundleKeyForDefinition(definition)
-
-		err := client.CreateConnection(ctx, definition, runnerID)
+		err := input.client.CreateConnection(ctx, definition, input.runnerID, input.runnerName)
 		if err != nil {
 			log.Warnf("Failed to create %s connection: %v", definition.IntegrationType, err)
 		} else {
 			log.Infof("Successfully created %s connection: %s (%s)",
-				definition.IntegrationType, definition.IntegrationType, runnerID)
+				definition.IntegrationType, definition.IntegrationType, input.runnerID)
 		}
 	}
 
