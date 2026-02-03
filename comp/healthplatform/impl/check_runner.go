@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
+
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 )
@@ -31,7 +33,7 @@ type registeredCheck struct {
 
 // issueReporter is the interface for reporting issues (satisfied by healthPlatformImpl)
 type issueReporter interface {
-	ReportIssue(checkID string, checkName string, report *healthplatform.IssueReport) error
+	ReportIssue(checkID string, checkName string, report *healthplatformpayload.IssueReport) error
 }
 
 // checkRunner manages periodic health checks

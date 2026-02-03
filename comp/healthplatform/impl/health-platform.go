@@ -246,7 +246,7 @@ func (h *healthPlatformImpl) ReportIssue(checkID string, checkName string, repor
 // RegisterCheck registers a periodic health check function
 // The check function will be called at the specified interval
 // If interval is 0 or negative, uses default of 15 minutes
-func (h *healthPlatformImpl) RegisterCheck(checkID string, checkName string, checkFn healthplatform.HealthCheckFunc, interval time.Duration) error {
+func (h *healthPlatformImpl) RegisterCheck(checkID string, checkName string, checkFn healthplatformdef.HealthCheckFunc, interval time.Duration) error {
 	return h.checkRunner.RegisterCheck(checkID, checkName, checkFn, interval)
 }
 

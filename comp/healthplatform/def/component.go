@@ -9,18 +9,18 @@
 // and a list of issues.
 package healthplatform
 
-import "time"
-
 // team: agent-health
 
 import (
+	"time"
+
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 )
 
 // HealthCheckFunc is a function that checks for health issues
 // Returns an IssueReport if an issue is detected, nil if healthy
 // The function should be idempotent and safe to call repeatedly
-type HealthCheckFunc func() (*IssueReport, error)
+type HealthCheckFunc func() (*healthplatformpayload.IssueReport, error)
 
 // Component is the health platform component interface
 type Component interface {

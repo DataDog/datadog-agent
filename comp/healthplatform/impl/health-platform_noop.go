@@ -8,10 +8,12 @@ package healthplatformimpl
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
-	"github.com/DataDog/agent-payload/v5/healthplatform"
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 )
 
 // noopHealthPlatform is a no-op implementation of the health platform component
@@ -19,7 +21,7 @@ import (
 type noopHealthPlatform struct{}
 
 // ReportIssue does nothing when the health platform is disabled
-func (n *noopHealthPlatform) ReportIssue(_ string, _ string, _ *healthplatform.IssueReport) error {
+func (n *noopHealthPlatform) ReportIssue(_ string, _ string, _ *healthplatformpayload.IssueReport) error {
 	return nil
 }
 
@@ -29,12 +31,12 @@ func (n *noopHealthPlatform) RegisterCheck(_ string, _ string, _ healthplatform.
 }
 
 // GetAllIssues returns empty results when the health platform is disabled
-func (n *noopHealthPlatform) GetAllIssues() (int, map[string]*healthplatform.Issue) {
-	return 0, make(map[string]*healthplatform.Issue)
+func (n *noopHealthPlatform) GetAllIssues() (int, map[string]*healthplatformpayload.Issue) {
+	return 0, make(map[string]*healthplatformpayload.Issue)
 }
 
 // GetIssueForCheck returns nil when the health platform is disabled
-func (n *noopHealthPlatform) GetIssueForCheck(_ string) *healthplatform.Issue {
+func (n *noopHealthPlatform) GetIssueForCheck(_ string) *healthplatformpayload.Issue {
 	return nil
 }
 
@@ -55,11 +57,11 @@ func (n *noopHealthPlatform) getIssuesHandler(w http.ResponseWriter, _ *http.Req
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	response := struct {
-		Count  int                              `json:"count"`
-		Issues map[string]*healthplatform.Issue `json:"issues"`
+		Count  int                                     `json:"count"`
+		Issues map[string]*healthplatformpayload.Issue `json:"issues"`
 	}{
 		Count:  0,
-		Issues: make(map[string]*healthplatform.Issue),
+		Issues: make(map[string]*healthplatformpayload.Issue),
 	}
 	_ = json.NewEncoder(w).Encode(response)
 }
