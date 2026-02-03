@@ -13,7 +13,7 @@ def _size_optimized_transition_impl(settings, _attr):
 
     Args:
         settings: Dict of current build setting values
-        attr: Attributes of the rule invoking the transition
+        _attr: Attributes of the rule invoking the transition (unused)
 
     Returns:
         Dict mapping build settings to their new values
