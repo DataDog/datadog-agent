@@ -31,8 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/discovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
@@ -48,8 +46,8 @@ var (
 	apmInjectorRegex = regexp.MustCompile(`/opt/datadog-packages/datadog-apm-inject/[^/]+/inject/launcher\.preload\.so`)
 )
 
-// Ensure discovery implements the module.Module interface.
-var _ module.Module = &discovery{}
+// Ensure discovery implements the types.SystemProbeModule interface.
+var _ types.SystemProbeModule = &discovery{}
 
 // discovery is an implementation of the Module interface for the discovery module.
 type discovery struct {
@@ -64,7 +62,7 @@ type discovery struct {
 }
 
 // NewDiscoveryModule creates a new discovery system probe module.
-func NewDiscoveryModule(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
+func NewDiscoveryModule() (types.SystemProbeModule, error) {
 	cfg := core.NewConfig()
 
 	d := &discovery{

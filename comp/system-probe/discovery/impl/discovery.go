@@ -9,12 +9,12 @@
 package discoveryimpl
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	discovery "github.com/DataDog/datadog-agent/comp/system-probe/discovery/def"
-	"github.com/DataDog/datadog-agent/comp/system-probe/module"
 	"github.com/DataDog/datadog-agent/comp/system-probe/types"
-	sysmodule "github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	discoverymodule "github.com/DataDog/datadog-agent/pkg/discovery/module"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 // Requires defines the dependencies for the discovery component
@@ -30,15 +30,36 @@ type Provides struct {
 
 // NewComponent creates a new discovery component
 func NewComponent(_ Requires) (Provides, error) {
-	mc := &module.Component{
-		Factory: modules.DiscoveryModule,
-		CreateFn: func() (types.SystemProbeModule, error) {
-			return modules.DiscoveryModule.Fn(nil, sysmodule.FactoryDependencies{})
-		},
+	mc := &moduleFactory{
+		createFn: discoverymodule.NewDiscoveryModule,
 	}
 	provides := Provides{
 		Module: types.ProvidesSystemProbeModule{Component: mc},
 		Comp:   mc,
 	}
 	return provides, nil
+}
+
+type moduleFactory struct {
+	createFn func() (types.SystemProbeModule, error)
+}
+
+func (m *moduleFactory) Name() sysconfigtypes.ModuleName {
+	return sysconfig.DiscoveryModule
+}
+
+func (m *moduleFactory) ConfigNamespaces() []string {
+	return []string{"discovery"}
+}
+
+func (m *moduleFactory) Create() (types.SystemProbeModule, error) {
+	return m.createFn()
+}
+
+func (m *moduleFactory) NeedsEBPF() bool {
+	return false
+}
+
+func (m *moduleFactory) OptionalEBPF() bool {
+	return true
 }
