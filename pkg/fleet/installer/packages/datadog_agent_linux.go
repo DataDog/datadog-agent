@@ -475,7 +475,7 @@ type installerRegistryConfig struct {
 
 // setRegistryConfig is a best effort to get the `installer` block from `datadog.yaml` and update the env.
 func setRegistryConfig(env *env.Env) {
-	configPath := "/etc/datadog-agent/datadog.yaml"
+	configPath := filepath.Join(paths.AgentConfigDir, "datadog.yaml")
 	rawConfig, err := os.ReadFile(configPath)
 	if err != nil {
 		return
