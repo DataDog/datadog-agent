@@ -603,17 +603,6 @@ func (s *BaseSuite) InstallWithXperf(opts ...MsiOption) {
 // InstallWithDiagnostics installs the MSI with comprehensive diagnostics collection:
 // - xperf tracing for system-wide performance analysis
 // - procdump collection to capture agent memory dump during startup
-//
-// The procdump collector monitors for the "StartPending" service state, waits 10 seconds,
-// then captures a full memory dump of the agent process. This helps diagnose slow startup issues.
-//
-// Usage:
-//
-//	s.InstallWithDiagnostics(
-//	    installerwindows.WithMSILogFile("install.log"),
-//	)
-//
-// Diagnostics are collected automatically - xperf on test failure, procdump always when StartPending is detected.
 func (s *BaseSuite) InstallWithDiagnostics(opts ...MsiOption) {
 	s.T().Helper()
 
@@ -637,6 +626,8 @@ func (s *BaseSuite) InstallWithDiagnostics(opts ...MsiOption) {
 	// Wait for service to be running
 	s.T().Log("Checking agent service status after MSI installation")
 	err = s.WaitForAgentService("Running")
+
+	s.T().Fail()
 	s.Require().NoError(err, "Agent service status check failed")
 	s.T().Log("MSI installation and service startup completed successfully")
 }

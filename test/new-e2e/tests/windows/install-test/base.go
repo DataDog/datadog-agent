@@ -220,11 +220,6 @@ func (s *baseAgentMSISuite) collectXperf(vm *components.RemoteHost) {
 	}
 }
 
-// procdumpFolder is the directory where procdump captures are stored.
-// This is separate from the WER dump folder (s.dumpFolder) to avoid
-// procdump files being detected as crash dumps.
-const procdumpFolder = `C:\procdumps`
-
 // startStartupDumpCollector sets up procdump and starts a background goroutine that
 // monitors the agent service for the "StartPending" state. When detected, it waits
 // 10 seconds then captures a memory dump of the service process.
@@ -237,11 +232,11 @@ func (s *baseAgentMSISuite) startStartupDumpCollector(ctx context.Context, vm *c
 	s.Require().NoError(err, "should setup procdump")
 
 	// Create the procdump output directory (separate from WER dumps)
-	_, err = vm.Execute(fmt.Sprintf(`New-Item -ItemType Directory -Path '%s' -Force`, procdumpFolder))
+	_, err = vm.Execute(fmt.Sprintf(`New-Item -ItemType Directory -Path '%s' -Force`, windowsCommon.ProcdumpsPath))
 	s.Require().NoError(err, "should create procdump output directory")
 
 	// Create and start collector - dumps will be written to a separate folder from WER dumps
-	collector := windowsCommon.NewStartupDumpCollector(vm, "datadogagent", procdumpFolder)
+	collector := windowsCommon.NewStartupDumpCollector(vm, "datadogagent", windowsCommon.ProcdumpsPath)
 	collector.Start(ctx)
 
 	return collector

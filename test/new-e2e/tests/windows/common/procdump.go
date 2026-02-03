@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2024-present Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 package common
 
@@ -18,8 +18,8 @@ import (
 const (
 	// ProcdumpPath is the directory where procdump is installed
 	ProcdumpPath = "C:/procdump"
-	// ProcdumpExe is the path to the procdump64 executable
-	ProcdumpExe = "C:/procdump/procdump64.exe"
+	// ProcdumpExe is the path to the procdump executable
+	ProcdumpExe = "C:/procdump/procdump.exe"
 	// ProcdumpZipPath is the path where the procdump zip file is downloaded
 	ProcdumpZipPath = "C:/procdump.zip"
 	// ProcdumpDownloadURL is the URL to download procdump from Sysinternals
@@ -29,13 +29,6 @@ const (
 )
 
 // SetupProcdump downloads and extracts procdump to the remote host if not already present.
-//
-// The function downloads procdump directly from Microsoft Sysinternals. This approach
-// provides a reliable fallback that doesn't require pre-populating an artifact bucket.
-//
-// Note: For improved reliability/speed in CI, procdump could be added to the artifact
-// bucket (similar to xperf at "windows-products/xperf-5.0.8169.zip") and downloaded
-// via host.HostArtifactClient.Get(). The Sysinternals download serves as a fallback.
 func SetupProcdump(host *components.RemoteHost) error {
 	err := host.HostArtifactClient.Get("windows-products/Procdump.zip", ProcdumpZipPath)
 	if err != nil {
@@ -57,14 +50,6 @@ func SetupProcdump(host *components.RemoteHost) error {
 }
 
 // CaptureProcdump captures a full memory dump of a process by PID
-//
-// The dump file is written to outputDir with the format <processName>.<pid>.dmp
-// This format matches the WER dump naming convention so both can coexist in the
-// same directory and be parsed by parseWERDumpFilePath.
-//
-// Note: procdump returns exit code 1 when "Dump count reached", which is expected
-// behavior after successfully capturing a dump. This function parses the output
-// to determine success rather than relying on the exit code.
 func CaptureProcdump(host *components.RemoteHost, pid int, outputDir string, processName string) (string, error) {
 	dumpFileName := fmt.Sprintf("%s.%d.dmp", processName, pid)
 	dumpPath := filepath.Join(outputDir, dumpFileName)
@@ -197,7 +182,6 @@ func (c *StartupDumpCollector) Wait() {
 }
 
 // Results returns the collected dump paths and any error that occurred.
-// This should be called after Wait() returns.
 func (c *StartupDumpCollector) Results() ([]string, error) {
 	return c.dumpPaths, c.err
 }
