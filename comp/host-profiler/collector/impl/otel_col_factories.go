@@ -10,8 +10,6 @@ package collectorimpl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"context"
-	"fmt"
 	"log/slog"
 	"os"
 
@@ -27,8 +25,6 @@ import (
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	logAgent "github.com/DataDog/datadog-agent/pkg/util/log"
 	slogWrapper "github.com/DataDog/datadog-agent/pkg/util/log/slog"
-	"github.com/DataDog/datadog-agent/pkg/util/log/slog/formatters"
-	"github.com/DataDog/datadog-agent/pkg/util/log/slog/handlers"
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor"
@@ -127,22 +123,7 @@ func NewExtraFactoriesWithoutAgentCore() ExtraFactories {
 }
 
 func (e extraFactoriesWithoutAgentCore) GetZapCore() zapcore.Core {
-	// Create a formatter that matches the agent's text format
-	// Uses the same building blocks as the agent's commonFormatter
-	formatter := func(_ context.Context, r slog.Record) string {
-		date := formatters.Date(false)(r.Time)
-		level := formatters.UppercaseLevel(r.Level)
-
-		frame := formatters.Frame(r)
-		shortFilePath := formatters.ShortFilePath(frame)
-		funcShort := formatters.ShortFunction(frame)
-		extraContext := formatters.ExtraTextContext(r)
-
-		return fmt.Sprintf("%s | %s | (%s:%d in %s) | %s%s\n",
-			date, level, shortFilePath, frame.Line, funcShort, extraContext, r.Message)
-	}
-
-	handler := handlers.NewFormat(formatter, os.Stdout)
+	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
 	logLevel := "info"
 
 	if envLevel := os.Getenv("DD_LOG_LEVEL"); envLevel != "" {
