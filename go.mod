@@ -223,7 +223,7 @@ require (
 	github.com/dustin/go-humanize v1.0.1
 	github.com/elastic/go-libaudit/v2 v2.6.2
 	github.com/elastic/go-seccomp-bpf v1.6.0
-	github.com/envoyproxy/gateway v1.5.7
+	github.com/envoyproxy/gateway v1.6.3
 	github.com/evanphx/json-patch v5.9.11+incompatible
 	github.com/fatih/color v1.18.0
 	github.com/fatih/structtag v1.2.0
@@ -319,7 +319,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/skydive-project/go-debouncer v1.0.1
 	github.com/smira/go-xz v0.1.0
-	github.com/spf13/afero v1.14.0
+	github.com/spf13/afero v1.15.0
 	github.com/spf13/cast v1.10.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
@@ -426,7 +426,7 @@ require (
 	k8s.io/utils v0.0.0-20251002143259-bc988d571ff4
 	pgregory.net/rapid v1.2.0
 	sigs.k8s.io/custom-metrics-apiserver v1.33.0
-	sigs.k8s.io/gateway-api v1.3.1-0.20250527223622-54df0a899c1c
+	sigs.k8s.io/gateway-api v1.4.1
 	sigs.k8s.io/karpenter v1.8.2
 	sigs.k8s.io/yaml v1.6.0
 )
@@ -568,7 +568,7 @@ require (
 	github.com/elastic/go-licenser v0.4.2 // indirect
 	github.com/elastic/go-perf v0.0.0-20241029065020-30bec95324b8 // indirect
 	github.com/elastic/lunes v0.2.0 // indirect
-	github.com/emicklei/go-restful/v3 v3.12.2 // indirect
+	github.com/emicklei/go-restful/v3 v3.13.0 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.36.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.3.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
@@ -580,7 +580,7 @@ require (
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
 	github.com/glebarez/go-sqlite v1.22.0 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
-	github.com/go-logfmt/logfmt v0.6.0 // indirect
+	github.com/go-logfmt/logfmt v0.6.1 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/analysis v0.24.1 // indirect
@@ -937,7 +937,7 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251222181119-0a764e51fe1b // indirect
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/cheggaaa/pb.v1 v1.0.28 // indirect
-	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
+	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
@@ -947,13 +947,13 @@ require (
 	k8s.io/component-helpers v0.34.1 // indirect
 	k8s.io/csi-translation-lib v0.34.1 // indirect
 	k8s.io/kms v0.35.0-alpha.0 // indirect
-	k8s.io/kube-openapi v0.0.0-20250710124328-f3f2b991d03b // indirect
+	k8s.io/kube-openapi v0.0.0-20250814151709-d7b6acb124c3 // indirect
 	k8s.io/sample-controller v0.34.1 // indirect
 	mellium.im/sasl v0.3.2 // indirect
 	modernc.org/sqlite v1.36.2 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.34.0 // indirect
 	sigs.k8s.io/controller-runtime v0.22.4 // indirect
-	sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8 // indirect
+	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
 )
