@@ -26,17 +26,17 @@ type httpDigestCache struct {
 	fetcher *httpDigestFetcher
 }
 
-func (c *httpDigestCache) get(registry string, repository string, tag string) (*ResolvedImage, error) {
+func (c *httpDigestCache) get(registry string, repository string, tag string) (*ResolvedImage, bool) {
 	if resolved := c.checkCache(repository, tag); resolved != nil {
-		return resolved, nil
+		return resolved, true
 	}
 
 	digest, err := c.fetcher.digest(registry + "/" + repository + ":" + tag)
 	if err != nil {
-		return nil, err
+		return nil, false
 	}
 
-	return c.store(registry, repository, tag, digest), nil
+	return c.store(registry, repository, tag, digest), true
 }
 
 func (c *httpDigestCache) checkCache(repository, tag string) *ResolvedImage {
