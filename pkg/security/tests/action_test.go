@@ -1321,10 +1321,17 @@ func TestRemediationCustomEvents(t *testing.T) {
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
-			ID:         "kill_remediation",
-			Expression: `process.file.name == "syscall_tester" && open.file.path == "{{.Root}}/test-kill-remediation"`,
+			ID: "kill_remediation",
+			Expression: `process.file.name == "syscall_tester" && open.file.path == "{{.Root}}/test-kill-remediation" 
+			&& ${process.kill_remediation_performed} != "done"`,
 			Actions: []*rules.ActionDefinition{
 				{
+					Set: &rules.SetDefinition{
+						Scope: "process",
+						Name:  "kill_remediation_performed",
+						Value: "done",
+					},
+				}, {
 					Kill: &rules.KillDefinition{
 						Signal: "SIGKILL",
 						Scope:  "process",
@@ -1341,8 +1348,15 @@ func TestRemediationCustomEvents(t *testing.T) {
 		},
 		{
 			ID:         "network_remediation",
-			Expression: `exec.file.name == "sleep" && exec.args in ["123"]`,
+			Expression: `exec.file.name == "sleep" && exec.args in ["123"] && ${process.network_remediation_performed} != "done"`,
 			Actions: []*rules.ActionDefinition{
+				{
+					Set: &rules.SetDefinition{
+						Scope: "process",
+						Name:  "network_remediation_performed",
+						Value: "done",
+					},
+				},
 				{
 					NetworkFilter: &rules.NetworkFilterDefinition{
 						BPFFilter: "port 53",
