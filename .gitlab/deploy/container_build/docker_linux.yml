@@ -256,6 +256,25 @@ docker_build_fips_agent7_arm64_jmx:
     TAG_SUFFIX: -7-fips-jmx
     BUILD_ARG: --build-arg WITH_JMX=true --build-arg WITH_JMX_FIPS=true --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent-7*-arm64.tar.xz
 
+# build agent7 read-only root filesystem image
+docker_build_agent7_readonly_rfs:
+  extends: [.docker_build_amd64, .docker_build_agent7]
+  needs:
+    - job: datadog-agent-7-x64
+  variables:
+    TAG_SUFFIX: -7-rofs
+    TARGET_ARG: --target release-readonly-rfs
+    BUILD_ARG: --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-amd64.tar.xz
+
+docker_build_agent7_readonly_rfs_arm64:
+  extends: [.docker_build_arm64, .docker_build_agent7]
+  needs:
+    - job: datadog-agent-7-arm64
+  variables:
+    TAG_SUFFIX: -7-rofs
+    TARGET_ARG: --target release-readonly-rfs
+    BUILD_ARG: --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-arm64.tar.xz
+
 # agent base image: future agent images will be based on this image
 .docker_build_base_image:
   extends: .docker_build_job_definition

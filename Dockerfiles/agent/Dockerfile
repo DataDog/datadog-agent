@@ -255,6 +255,11 @@ COPY --chmod=755 entrypoint.d /opt/entrypoints
 
 CMD ["/bin/entrypoint.sh"]
 
+FROM release AS release-readonly-rfs
+# Extended release with additional volumes for read-only root filesystem support.
+# This variant declares additional writable directories as volumes to support
+VOLUME ["/var/run/s6", "/var/log/datadog", "/etc/datadog-agent", "/tmp", "/opt/datadog-agent/run"]
+
 FROM release AS test
 COPY --chmod=755 test_image_contents.py /tmp/test_image_contents.py
 RUN ./tmp/test_image_contents.py && rm -f ./tmp/test_image_contents.py
