@@ -6,6 +6,7 @@ mod aggregator;
 pub use aggregator::{Aggregator, MetricType, ServiceCheckStatus, Event};
 
 mod config;
+pub use config::Config;
 
 // FFI using the C-ABI
 mod ffi;

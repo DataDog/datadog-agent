@@ -9,18 +9,19 @@ pub struct AgentCheck {
     check_id: String,           // corresponding id in the Agent
     aggregator: Aggregator,     // submit callbacks
     
-    // these fields are made public to mimic the way configurations are used in Python checks
-    pub init_config: Config,    // common check configuration
+    // configuration fields are made public to mimic their uses in Python checks
+    pub init_config: Config,    // common configuration for each instance
     pub instance: Config,       // instance specific configuration
 }
 
 impl AgentCheck {
-    pub fn new(check_id: &str, init_config_str: &str, instance_config_str: &str, aggregator: Aggregator) -> Result<Self> {
-        let init_config = Config::new(&init_config_str)?;
-        let instance = Config::new(&instance_config_str)?;
-
-        let agent_check = Self { check_id: check_id.to_string(), aggregator, init_config, instance };
-        Ok(agent_check)
+    pub fn new(check_id: String, init_config: Config, instance_config: Config, aggregator: Aggregator) -> Self {
+        Self { 
+            check_id,
+            aggregator,
+            init_config,
+            instance: instance_config
+        }
     }
 
     /// Send Gauge metric
@@ -58,7 +59,7 @@ impl AgentCheck {
         self.aggregator.submit_metric(&self.check_id, MetricType::Historate, name, value, tags, hostname, flush_first_value)
     }
 
-    /// Send Servive Check
+    /// Send Service Check
     pub fn service_check(&self, name: &str, status: ServiceCheckStatus, tags: &[String], hostname: &str, message: &str) -> Result<()> {
         self.aggregator.submit_service_check(&self.check_id, name, status, tags, hostname, message)
     }

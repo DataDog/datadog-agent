@@ -6,7 +6,6 @@ use anyhow::Result;
 
 /// Replica of the Agent metric type enum
 #[repr(C)]
-#[derive(Debug)]
 pub enum MetricType {
     Gauge = 0,
     Rate = 1,

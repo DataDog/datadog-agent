@@ -1,4 +1,4 @@
-use anyhow::{Result, bail};
+use anyhow::{Ok, Result, bail};
 
 use std::ffi::{c_char, CStr, CString};
 
@@ -8,7 +8,10 @@ pub fn to_rust_string(ptr: *const c_char) -> Result<String> {
         bail!("pointer to C-String is null, can't convert to Rust String")
     }
 
-    let rust_str = unsafe { CStr::from_ptr(ptr) }.to_str()?;
+    let rust_str = unsafe {
+        CStr::from_ptr(ptr)
+    }.to_str()?;
+
     Ok(rust_str.to_string())
 }
 
@@ -19,15 +22,15 @@ pub fn to_cstring(string: &str) -> Result<*mut c_char> {
 }
 
 /// Convert Rust vector of Strings to an array of C-String pointers
-pub fn to_cstring_array(vec: &[String]) -> Result<*mut *mut c_char> {
-    let mut c_vec: Vec<*mut c_char> = vec.iter()
+pub fn to_cstring_array(arr: &[String]) -> Result<*mut *mut c_char> {
+    let mut c_arr: Vec<*mut c_char> = arr.iter()
         .map(|s| to_cstring(s))
         .collect::<Result<Vec<_>, _>>()?;
     
-    c_vec.push(std::ptr::null_mut()); // null-terminate the array
+    c_arr.push(std::ptr::null_mut()); // null-terminate the array
 
-    let vec_ptr = c_vec.as_mut_ptr();
-    std::mem::forget(c_vec); // prevent Rust runtime from freeing the vector
+    let vec_ptr = c_arr.as_mut_ptr();
+    std::mem::forget(c_arr); // prevent Rust runtime from freeing the vector
     
     Ok(vec_ptr)
 }
@@ -37,7 +40,10 @@ pub fn free_cstring(ptr: *mut c_char) {
     if ptr.is_null() {
         return;
     }
-    unsafe { drop(CString::from_raw(ptr)) };
+
+    unsafe {
+        drop(CString::from_raw(ptr))
+    };
 }
 
 /// Free an array of C-Strings
