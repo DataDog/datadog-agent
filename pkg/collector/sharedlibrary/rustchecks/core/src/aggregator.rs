@@ -1,4 +1,4 @@
-use crate::cstring::{CStringGuard, CStringArrayGuard};
+use crate::cstring::{CStringArrayGuard, CStringGuard};
 
 use std::ffi::{c_char, c_double, c_float, c_int, c_long, c_longlong};
 
@@ -42,42 +42,42 @@ pub struct Event {
 
 /// Signature of the submit metric function
 type SubmitMetric = extern "C" fn(
-    *mut c_char,        // check id
-    MetricType,         // metric type
-    *mut c_char,        // name
-    c_double,           // value
-    *mut *mut c_char,   // tags
-    *mut c_char,        // hostname
-    bool,               // flush first value
+    *mut c_char,      // check id
+    MetricType,       // metric type
+    *mut c_char,      // name
+    c_double,         // value
+    *mut *mut c_char, // tags
+    *mut c_char,      // hostname
+    bool,             // flush first value
 );
 
 /// Signature of the submit service check function
 type SubmitServiceCheck = extern "C" fn(
-    *mut c_char,        // check id
-    *mut c_char,        // name
-    c_int,              // status
-    *mut *mut c_char,   // tags
-    *mut c_char,        // hostname
-    *mut c_char,        // message
+    *mut c_char,      // check id
+    *mut c_char,      // name
+    c_int,            // status
+    *mut *mut c_char, // tags
+    *mut c_char,      // hostname
+    *mut c_char,      // message
 );
 
 /// Signature of the submit event function
 type SubmitEvent = extern "C" fn(
-    *mut c_char,        // check_id
-    *const Event,       // event
+    *mut c_char,  // check_id
+    *const Event, // event
 );
 
 /// Signature of the submit histogram bucket function
 type SubmitHistogramBucket = extern "C" fn(
-    *mut c_char,        // check_id
-    *mut c_char,        // metric name
-    c_longlong,         // value
-    c_float,            // lower bound
-    c_float,            // upper bound
-    c_int,              // monotonic
-    *mut c_char,        // hostname
-    *mut *mut c_char,   // tags
-    bool,               // flush first value
+    *mut c_char,      // check_id
+    *mut c_char,      // metric name
+    c_longlong,       // value
+    c_float,          // lower bound
+    c_float,          // upper bound
+    c_int,            // monotonic
+    *mut c_char,      // hostname
+    *mut *mut c_char, // tags
+    bool,             // flush first value
 );
 
 /// Signature of the submit event platform event function
@@ -89,7 +89,7 @@ type SubmitEventPlatformEvent = extern "C" fn(
 );
 
 /// Aggregator stores Go callbacks for submissions
-/// 
+///
 /// The check stores a pointer to the Aggregator structure declared in Cgo
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -107,14 +107,14 @@ impl Aggregator {
         cb_submit_service_check: SubmitServiceCheck,
         cb_submit_event: SubmitEvent,
         cb_submit_histogram_bucket: SubmitHistogramBucket,
-        cb_submit_event_platform_event: SubmitEventPlatformEvent
+        cb_submit_event_platform_event: SubmitEventPlatformEvent,
     ) -> Self {
         Self {
             cb_submit_metric,
             cb_submit_service_check,
             cb_submit_event,
             cb_submit_histogram_bucket,
-            cb_submit_event_platform_event
+            cb_submit_event_platform_event,
         }
     }
 
@@ -122,7 +122,16 @@ impl Aggregator {
         unsafe { *ptr }.clone()
     }
 
-    pub fn submit_metric(&self, check_id: &str, metric_type: MetricType, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) -> Result<()> {
+    pub fn submit_metric(
+        &self,
+        check_id: &str,
+        metric_type: MetricType,
+        name: &str,
+        value: f64,
+        tags: &[String],
+        hostname: &str,
+        flush_first_value: bool,
+    ) -> Result<()> {
         // create C strings guards to automatically free the underlying C strings
         let cstr_check_id = CStringGuard::new(check_id)?;
         let cstr_name = CStringGuard::new(name)?;
@@ -143,7 +152,15 @@ impl Aggregator {
         Ok(())
     }
 
-    pub fn submit_service_check(&self, check_id: &str, name: &str, status: ServiceCheckStatus, tags: &[String], hostname: &str, message: &str) -> Result<()> {
+    pub fn submit_service_check(
+        &self,
+        check_id: &str,
+        name: &str,
+        status: ServiceCheckStatus,
+        tags: &[String],
+        hostname: &str,
+        message: &str,
+    ) -> Result<()> {
         // create C strings guards to automatically free the underlying C strings
         let cstr_check_id = CStringGuard::new(check_id)?;
         let cstr_name = CStringGuard::new(name)?;
@@ -162,12 +179,24 @@ impl Aggregator {
         );
 
         Ok(())
-
     }
-    pub fn submit_event(&self, check_id: &str, title: &str, text: &str, timestamp: c_long, priority: &str, host: &str, tags: &[String], alert_type: &str, aggregation_key: &str, source_type_name: &str, event_type: &str) -> Result<()> {
+    pub fn submit_event(
+        &self,
+        check_id: &str,
+        title: &str,
+        text: &str,
+        timestamp: c_long,
+        priority: &str,
+        host: &str,
+        tags: &[String],
+        alert_type: &str,
+        aggregation_key: &str,
+        source_type_name: &str,
+        event_type: &str,
+    ) -> Result<()> {
         // create C strings guards to automatically free the underlying C strings
         let cstr_check_id = CStringGuard::new(check_id)?;
-        
+
         let cstr_title = CStringGuard::new(title)?;
         let cstr_text = CStringGuard::new(text)?;
         let cstr_priority = CStringGuard::new(priority)?;
@@ -192,15 +221,23 @@ impl Aggregator {
         };
 
         // submit the event
-        (self.cb_submit_event)(
-            cstr_check_id.as_ptr(),
-            &event,
-        );
+        (self.cb_submit_event)(cstr_check_id.as_ptr(), &event);
 
         Ok(())
     }
 
-    pub fn submit_histogram_bucket(&self, check_id: &str, metric_name: &str, value: c_longlong, lower_bound: f32, upper_bound: f32, monotonic: c_int, hostname: &str, tags: &[String], flush_first_value: bool) -> Result<()> {
+    pub fn submit_histogram_bucket(
+        &self,
+        check_id: &str,
+        metric_name: &str,
+        value: c_longlong,
+        lower_bound: f32,
+        upper_bound: f32,
+        monotonic: c_int,
+        hostname: &str,
+        tags: &[String],
+        flush_first_value: bool,
+    ) -> Result<()> {
         // create C strings guards to automatically free the underlying C strings
         let cstr_check_id = CStringGuard::new(check_id)?;
         let cstr_metric_name = CStringGuard::new(metric_name)?;
@@ -223,7 +260,13 @@ impl Aggregator {
         Ok(())
     }
 
-    pub fn submit_event_platform_event(&self, check_id: &str, raw_event: &str, raw_event_size: c_int, event_type: &str) -> Result<()> {
+    pub fn submit_event_platform_event(
+        &self,
+        check_id: &str,
+        raw_event: &str,
+        raw_event_size: c_int,
+        event_type: &str,
+    ) -> Result<()> {
         // create C strings guards to automatically free the underlying C strings
         let cstr_check_id = CStringGuard::new(check_id)?;
         let cstr_raw_event = CStringGuard::new(raw_event)?;

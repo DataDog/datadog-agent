@@ -6,32 +6,46 @@ macro_rules! generate_ffi {
 
         /// Entrypoint of the check
         #[unsafe(no_mangle)]
-        pub extern "C" fn Run(check_id_cstr: *const ffi::c_char, init_config_cstr: *const ffi::c_char, instance_config_cstr: *const ffi::c_char, aggregator_ptr: *const core::Aggregator, error_handler: *mut *mut ffi::c_char) {
-            if let Err(e) = create_and_run_check(check_id_cstr, init_config_cstr, instance_config_cstr, aggregator_ptr) {
-                let cstr_ptr = core::to_cstring(&e.to_string())
-                    .unwrap_or(std::ptr::null_mut());
+        pub extern "C" fn Run(
+            check_id_cstr: *const ffi::c_char,
+            init_config_cstr: *const ffi::c_char,
+            instance_config_cstr: *const ffi::c_char,
+            aggregator_ptr: *const core::Aggregator,
+            error_handler: *mut *mut ffi::c_char,
+        ) {
+            if let Err(e) = create_and_run_check(
+                check_id_cstr,
+                init_config_cstr,
+                instance_config_cstr,
+                aggregator_ptr,
+            ) {
+                let cstr_ptr = core::to_cstring(&e.to_string()).unwrap_or(std::ptr::null_mut());
 
-                unsafe {
-                    *error_handler = cstr_ptr
-                };
+                unsafe { *error_handler = cstr_ptr };
             }
         }
 
         /// Build the check structure and execute its custom implementation
-        fn create_and_run_check(check_id_cstr: *const ffi::c_char, init_config_cstr: *const ffi::c_char, instance_config_cstr: *const ffi::c_char, aggregator_ptr: *const core::Aggregator) -> anyhow::Result<()> {
+        fn create_and_run_check(
+            check_id_cstr: *const ffi::c_char,
+            init_config_cstr: *const ffi::c_char,
+            instance_config_cstr: *const ffi::c_char,
+            aggregator_ptr: *const core::Aggregator,
+        ) -> anyhow::Result<()> {
             // convert C args to Rust structs
             let check_id = core::to_rust_string(check_id_cstr)?;
 
             let init_config_str = core::to_rust_string(init_config_cstr)?;
             let init_config = core::Config::from_str(&init_config_str)?;
-            
+
             let instance_config_str = core::to_rust_string(instance_config_cstr)?;
             let instance_config = core::Config::from_str(&instance_config_str)?;
 
             let aggregator = core::Aggregator::from_ptr(aggregator_ptr);
 
             // create the check instance
-            let agent_check = core::AgentCheck::new(check_id, init_config, instance_config, aggregator);
+            let agent_check =
+                core::AgentCheck::new(check_id, init_config, instance_config, aggregator);
 
             // run the custom implementation
             $check_function(&agent_check)
@@ -42,5 +56,5 @@ macro_rules! generate_ffi {
         pub extern "C" fn Version() -> *const ffi::c_char {
             $version.as_ptr()
         }
-    }
+    };
 }

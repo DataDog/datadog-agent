@@ -1,6 +1,6 @@
 use anyhow::{Ok, Result, bail};
 
-use std::ffi::{c_char, CStr, CString};
+use std::ffi::{CStr, CString, c_char};
 
 /// Convert C-String pointer to Rust String
 pub fn to_rust_string(ptr: *const c_char) -> Result<String> {
@@ -8,9 +8,7 @@ pub fn to_rust_string(ptr: *const c_char) -> Result<String> {
         bail!("pointer to C-String is null, can't convert to Rust String")
     }
 
-    let rust_str = unsafe {
-        CStr::from_ptr(ptr)
-    }.to_str()?;
+    let rust_str = unsafe { CStr::from_ptr(ptr) }.to_str()?;
 
     Ok(rust_str.to_string())
 }
@@ -23,15 +21,16 @@ pub fn to_cstring(string: &str) -> Result<*mut c_char> {
 
 /// Convert Rust vector of Strings to an array of C-String pointers
 pub fn to_cstring_array(arr: &[String]) -> Result<*mut *mut c_char> {
-    let mut c_arr: Vec<*mut c_char> = arr.iter()
+    let mut c_arr: Vec<*mut c_char> = arr
+        .iter()
         .map(|s| to_cstring(s))
         .collect::<Result<Vec<_>, _>>()?;
-    
+
     c_arr.push(std::ptr::null_mut()); // null-terminate the array
 
     let vec_ptr = c_arr.as_mut_ptr();
     std::mem::forget(c_arr); // prevent Rust runtime from freeing the vector
-    
+
     Ok(vec_ptr)
 }
 
@@ -41,9 +40,7 @@ pub fn free_cstring(ptr: *mut c_char) {
         return;
     }
 
-    unsafe {
-        drop(CString::from_raw(ptr))
-    };
+    unsafe { drop(CString::from_raw(ptr)) };
 }
 
 /// Free an array of C-Strings
@@ -53,7 +50,7 @@ pub fn free_cstring_array(ptr: *mut *mut c_char) {
     }
 
     let mut current = ptr;
-    unsafe {   
+    unsafe {
         while !(*current).is_null() {
             drop(CString::from_raw(*current));
             current = current.add(1);
@@ -68,7 +65,7 @@ pub fn free_cstring_array(ptr: *mut *mut c_char) {
 
 /// CStringGuard follows the RAII idiom to avoid freeing C-Strings manually when it's necessary
 pub struct CStringGuard {
-    ptr: *mut c_char
+    ptr: *mut c_char,
 }
 
 impl CStringGuard {
@@ -89,7 +86,7 @@ impl Drop for CStringGuard {
 }
 
 pub struct CStringArrayGuard {
-    ptr: *mut *mut c_char
+    ptr: *mut *mut c_char,
 }
 
 impl CStringArrayGuard {
