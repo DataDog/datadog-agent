@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build cel && test
+//go:build cel && servicenaming && test
 
-// Build tags: "cel" (requires CEL support) + "test" (standard agent test tag).
+// Build tags: "cel" (requires CEL support) + "servicenaming" (servicenaming feature) + "test" (standard agent test tag).
 // This pattern is used for feature-specific tests throughout the agent.
 
 package subscriber
