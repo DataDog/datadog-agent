@@ -52,6 +52,46 @@ func Test_DefaultProfiles_Running(t *testing.T) {
 			fixture:                   loadFixture("aosw", Running),
 			expectedExtractedMetadata: &ExtractedMetadata{},
 		},
+		{
+			name:    "NXOS",
+			profile: DefaultProfile("nxos"),
+			fixture: loadFixture("nxos", Running),
+			expectedExtractedMetadata: &ExtractedMetadata{
+				Timestamp: 1767709263,
+			},
+		},
+		{
+			name:                      "TMOS",
+			profile:                   DefaultProfile("tmos"),
+			fixture:                   loadFixture("tmos", Running),
+			expectedExtractedMetadata: &ExtractedMetadata{},
+		},
+		{
+			name:                      "AOSCX",
+			profile:                   DefaultProfile("aoscx"),
+			fixture:                   loadFixture("aoscx", Running),
+			expectedExtractedMetadata: &ExtractedMetadata{},
+		},
+		{
+			name:                      "EOS",
+			profile:                   DefaultProfile("eos"),
+			fixture:                   loadFixture("eos", Running),
+			expectedExtractedMetadata: &ExtractedMetadata{},
+		},
+		{
+			name:                      "fortios",
+			profile:                   DefaultProfile("fortios"),
+			fixture:                   loadFixture("fortios", Running),
+			expectedExtractedMetadata: &ExtractedMetadata{},
+		},
+		{
+			name:    "DellOS10",
+			profile: DefaultProfile("dellos10"),
+			fixture: loadFixture("dellos10", Running),
+			expectedExtractedMetadata: &ExtractedMetadata{
+				Timestamp: 1491873902,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -82,6 +122,35 @@ func Test_DefaultProfiles_Startup(t *testing.T) {
 				Timestamp:  1765307830,
 				ConfigSize: 3163,
 			},
+		},
+		{
+			name:    "NXOS",
+			profile: DefaultProfile("nxos"),
+			fixture: loadFixture("nxos", Startup),
+			expectedExtractedMetadata: &ExtractedMetadata{
+				Timestamp: 1767899167,
+			},
+		},
+		{
+			name:                      "AOSCX",
+			profile:                   DefaultProfile("aoscx"),
+			fixture:                   loadFixture("aoscx", Startup),
+			expectedExtractedMetadata: &ExtractedMetadata{},
+		},
+		{
+			name:    "EOS",
+			profile: DefaultProfile("eos"),
+			fixture: loadFixture("eos", Startup),
+			expectedExtractedMetadata: &ExtractedMetadata{
+				Timestamp: 1392798871,
+				Author:    "admin",
+			},
+		},
+		{
+			name:                      "dellos10",
+			profile:                   DefaultProfile("dellos10"),
+			fixture:                   loadFixture("dellos10", Startup),
+			expectedExtractedMetadata: &ExtractedMetadata{},
 		},
 	}
 	for _, tt := range tests {

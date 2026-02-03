@@ -16,7 +16,7 @@ env DD_LOG_TO_CONSOLE=false
 setuid dd-agent
 
 script
-  exec {install_dir}/embedded/bin/agent-data-plane run --config {etc_dir}/datadog.yaml --pidfile {install_dir}/run/agent-data-plane.pid
+  exec {install_dir}/embedded/bin/agent-data-plane --config {etc_dir}/datadog.yaml run --pidfile {install_dir}/run/agent-data-plane.pid
 end script
 
 post-stop script

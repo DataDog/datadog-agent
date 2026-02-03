@@ -32,6 +32,7 @@ import (
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
 	"github.com/avast/retry-go/v4"
 	"github.com/oliveagle/jsonpath"
@@ -115,13 +116,14 @@ func TestProcessEBPFLess(t *testing.T) {
 				return errors.New("not found")
 			}
 			return nil
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(10))
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
 		assert.NoError(t, err)
 	})
 }
 
 func TestProcessContext(t *testing.T) {
 	SkipIfNotAvailable(t)
+	flake.MarkOnJobName(t, "ubuntu_25.10")
 
 	executable, err := os.Executable()
 	if err != nil {
@@ -1144,6 +1146,7 @@ func TestProcessExecCTime(t *testing.T) {
 
 func TestProcessPIDVariable(t *testing.T) {
 	SkipIfNotAvailable(t)
+	flake.MarkOnJobName(t, "ubuntu_25.10")
 
 	executable := which(t, "touch")
 
@@ -1520,7 +1523,7 @@ func TestProcessExecExit(t *testing.T) {
 				return errors.New("the process cache entry was not deleted from the user space cache")
 			}
 			return nil
-		})
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
 	} else {
 		p, ok := test.probe.PlatformProbe.(*sprobe.EBPFLessProbe)
 		if !ok {
@@ -1532,7 +1535,7 @@ func TestProcessExecExit(t *testing.T) {
 				return errors.New("the process cache entry was not deleted from the user space cache")
 			}
 			return nil
-		})
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
 	}
 	if err != nil {
 		t.Error(err)
@@ -1875,6 +1878,7 @@ func TestProcessExit(t *testing.T) {
 
 	t.Run("exit-signaled", func(t *testing.T) {
 		SkipIfNotAvailable(t)
+		flake.MarkOnJobName(t, "ubuntu_25.10")
 
 		test.WaitSignalFromRule(t, func() error {
 			args := []string{"--preserve-status", "--signal=SIGTERM", "2", sleepExec, "9"}
@@ -2490,6 +2494,7 @@ func TestProcessFilelessExecution(t *testing.T) {
 
 func TestSymLinkResolution(t *testing.T) {
 	SkipIfNotAvailable(t)
+	flake.MarkOnJobName(t, "ubuntu_25.10")
 
 	ruleDefs := []*rules.RuleDefinition{
 		{

@@ -176,6 +176,17 @@ build do
     copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
   end
 
+  # Private action runner
+  if not heroku_target? and not fips_mode?
+    command "dda inv -- -e privateactionrunner.build --install-path=#{install_dir} --flavor #{flavor_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+
+    if windows_target?
+      copy 'bin/privateactionrunner/privateactionrunner.exe', "#{install_dir}/bin/agent"
+    elsif not heroku_target?
+      copy 'bin/privateactionrunner/privateactionrunner', "#{install_dir}/embedded/bin"
+    end
+  end
+
   # System-probe
   if sysprobe_enabled? || osx_target? || (windows_target? && do_windows_sysprobe != "")
     if linux_target?
@@ -242,6 +253,18 @@ build do
     copy 'bin/cws-instrumentation/cws-instrumentation', "#{install_dir}/embedded/bin"
   end
 
+# Secret Generic Connector
+  if !heroku_target?
+    command "dda inv -- -e secret-generic-connector.build #{fips_args}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    if windows_target?
+      copy 'bin/secret-generic-connector/secret-generic-connector.exe', "#{install_dir}/bin/agent"
+    else
+      copy 'bin/secret-generic-connector/secret-generic-connector', "#{install_dir}/embedded/bin"
+    end
+    mkdir "#{install_dir}/LICENSES"
+    copy 'cmd/secret-generic-connector/LICENSE', "#{install_dir}/LICENSES/secret-generic-connector-LICENSE"
+  end
+
   if osx_target?
     # Launchd service definition
     erb source: "launchd.plist.example.erb",
@@ -303,6 +326,7 @@ build do
         "#{install_dir}/embedded/bin/security-agent",
         "#{install_dir}/embedded/bin/system-probe",
         "#{install_dir}/embedded/bin/installer",
+        "#{install_dir}/embedded/bin/secret-generic-connector",
       ]
 
       symbol = "_Cfunc__mkcgo_OPENSSL"

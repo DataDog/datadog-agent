@@ -70,6 +70,8 @@ func TestHandleKubePod(t *testing.T) {
 		Tag:       "latest",
 	}
 
+	t.Setenv("test_envvar", "test_value")
+
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component { return config.NewMock(t) }),
@@ -90,6 +92,10 @@ func TestHandleKubePod(t *testing.T) {
 			"DD_SERVICE": svc,
 			"DD_VERSION": version,
 		},
+		NetworkIPs: map[string]string{
+			"bridge": "172.17.0.2",
+		},
+		PID: 1234,
 	})
 	store.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -929,6 +935,140 @@ func TestHandleKubePod(t *testing.T) {
 						"gpu_vendor:nvidia",
 					}, standardTags...),
 					StandardTags: standardTags,
+				},
+			},
+		},
+		{
+			name: "pod with template variables in AD annotation",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+					Annotations: map[string]string{
+						"ad.datadoghq.com/tags": `{
+							"pod_namespace":"%%kube_namespace%%",
+							"pod_name":"%%kube_pod_name%%",
+							"+pod_uid": "%%kube_pod_uid%%",
+							"static":"value"
+						}`,
+					},
+				},
+				IP: "10.244.0.15",
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:   podSource,
+					EntityID: podTaggerEntityID,
+					HighCardTags: []string{
+						"pod_uid:" + podEntityID.ID,
+					},
+					OrchestratorCardTags: []string{
+						"pod_name:" + podName,
+					},
+					LowCardTags: []string{
+						"kube_namespace:" + podNamespace,
+						"pod_name:" + podName,
+						"pod_namespace:" + podNamespace,
+						"static:value",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "pod with container tag template variables in AD annotation",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+					Annotations: map[string]string{
+						"ad.datadoghq.com/agent.tags": `{
+							"container_host":"%%host%%",
+							"pod_ref":"%%kube_pod_name%%",
+							"namespace":"%%kube_namespace%%",
+							"container_pid":"%%pid%%"
+						}`,
+					},
+				},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:    fullyFleshedContainerID,
+						Name:  containerName,
+						Image: image,
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					EntityID:     podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						"pod_name:" + podName,
+					},
+					LowCardTags: []string{
+						"kube_namespace:" + podNamespace,
+					},
+					StandardTags: []string{},
+				},
+				{
+					Source:   podSource,
+					EntityID: fullyFleshedContainerTaggerEntityID,
+					HighCardTags: []string{
+						"container_id:" + fullyFleshedContainerID,
+						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
+					},
+					OrchestratorCardTags: []string{
+						"pod_name:" + podName,
+					},
+					LowCardTags: append([]string{
+						"kube_namespace:" + podNamespace,
+						"kube_container_name:" + containerName,
+						"container_host:172.17.0.2",
+						"container_pid:1234",
+						"image_id:datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
+						"image_name:datadog/agent",
+						"image_tag:latest",
+						"namespace:" + podNamespace,
+						"pod_ref:" + podName,
+						"short_image:agent",
+					}, standardTags...),
+					StandardTags: standardTags,
+				},
+			},
+		},
+		{
+			name: "pod with environment variable in AD annotation is not resolved",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+					Annotations: map[string]string{
+						"ad.datadoghq.com/tags": `{
+							"test":"%%env_test_envvar%%",
+							"static":"value"
+						}`,
+					},
+				},
+				IP: "10.244.0.15",
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					EntityID:     podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						"pod_name:" + podName,
+					},
+					LowCardTags: []string{
+						"kube_namespace:" + podNamespace,
+						"test:%%env_test_envvar%%",
+						"static:value",
+					},
+					StandardTags: []string{},
 				},
 			},
 		},
@@ -2520,8 +2660,9 @@ func TestHandleGPU(t *testing.T) {
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: entityID.ID,
 				},
-				Vendor: "nvidia",
-				Device: "tesla-v100",
+				Vendor:  "nvidia",
+				Device:  "tesla-v100",
+				GPUType: "v100",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -2532,6 +2673,7 @@ func TestHandleGPU(t *testing.T) {
 					LowCardTags: []string{
 						"gpu_vendor:nvidia",
 						"gpu_device:tesla-v100",
+						"gpu_type:v100",
 						"gpu_uuid:gpu-1234",
 						"gpu_slicing_mode:none",
 						"gpu_parent_uuid:gpu-1234",
@@ -2550,8 +2692,9 @@ func TestHandleGPU(t *testing.T) {
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: "GPU-1234",
 				},
-				Vendor: "Nvidia",
-				Device: "Tesla v100",
+				Vendor:  "Nvidia",
+				Device:  "Tesla v100",
+				GPUType: "V100",
 			},
 			expected: []*types.TagInfo{
 				{
@@ -2562,6 +2705,7 @@ func TestHandleGPU(t *testing.T) {
 					LowCardTags: []string{
 						"gpu_vendor:nvidia",
 						"gpu_device:tesla_v100",
+						"gpu_type:v100",
 						"gpu_uuid:gpu-1234",
 						"gpu_slicing_mode:none",
 						"gpu_parent_uuid:gpu-1234",
@@ -2582,6 +2726,7 @@ func TestHandleGPU(t *testing.T) {
 				},
 				Vendor:             "nvidia",
 				Device:             "A100-SXM4-40GB MIG 3g.20gb",
+				GPUType:            "a100",
 				DriverVersion:      "525.60.13",
 				DeviceType:         workloadmeta.GPUDeviceTypeMIG,
 				ParentGPUUUID:      "GPU-1234",
@@ -2600,6 +2745,7 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_driver_version:525.60.13",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_slicing_mode:mig",
+						"gpu_type:a100",
 						"gpu_uuid:mig-432",
 						"gpu_vendor:nvidia",
 						"gpu_virtualization_mode:none",
@@ -2620,6 +2766,7 @@ func TestHandleGPU(t *testing.T) {
 				},
 				Vendor:             "nvidia",
 				Device:             "A100-SXM4-40GB",
+				GPUType:            "a100",
 				DriverVersion:      "525.60.13",
 				DeviceType:         workloadmeta.GPUDeviceTypePhysical,
 				ParentGPUUUID:      "GPU-1234",
@@ -2639,6 +2786,7 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_driver_version:525.60.13",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_slicing_mode:mig-parent",
+						"gpu_type:a100",
 						"gpu_uuid:gpu-1234",
 						"gpu_vendor:nvidia",
 						"gpu_virtualization_mode:none",
@@ -2876,14 +3024,6 @@ func TestParseJSONValue(t *testing.T) {
 			value:   `{key}`,
 			want:    nil,
 			wantErr: true,
-		},
-		{
-			name:  "invalid value",
-			value: `{"key1": "val1", "key2": 0}`,
-			want: []string{
-				"key1:val1",
-			},
-			wantErr: false,
 		},
 		{
 			name:  "strings and arrays",

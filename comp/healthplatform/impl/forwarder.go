@@ -14,8 +14,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/DataDog/agent-payload/v5/healthplatform"
+
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -152,7 +153,7 @@ func (f *forwarder) buildReport(issues map[string]*healthplatform.Issue) *health
 	return &healthplatform.HealthReport{
 		EventType: eventType,
 		EmittedAt: time.Now().UTC().Format(time.RFC3339),
-		Host: healthplatform.HostInfo{
+		Host: &healthplatform.HostInfo{
 			Hostname:     f.hostname,
 			AgentVersion: version.AgentVersion,
 		},

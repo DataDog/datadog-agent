@@ -28,6 +28,7 @@ func TestFillFlare(t *testing.T) {
 	testDir := t.TempDir()
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("run_path", testDir)
+	mockConfig.SetWithoutSource("network_devices.default_scan.enabled", true)
 
 	mockLifecycle := compdef.NewTestLifecycle(t)
 	mockLogger := logmock.New(t)

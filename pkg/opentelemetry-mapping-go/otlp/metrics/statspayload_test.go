@@ -19,9 +19,9 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/sketches-go/ddsketch"
-	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/proto"
 )
 
 // The sketch's relative accuracy and maximum number of bins is identical

@@ -57,6 +57,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	filterlistfx "github.com/DataDog/datadog-agent/comp/filterlist/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
@@ -106,6 +107,7 @@ type cliParams struct {
 	checkDelay                int
 	checkConfig               string
 	instanceFilter            string
+	instanceID                string
 	logLevel                  string
 	formatJSON                bool
 	formatTable               bool
@@ -187,6 +189,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				inventorychecksimpl.Module(),
 				logscompression.Module(),
 				metricscompression.Module(),
+				filterlistfx.Module(),
 				// inventorychecksimpl depends on a collector and serializer when created to send payload.
 				// Here we just want to collect metadata to be displayed, so we don't need a collector.
 				collector.NoneModule(),
@@ -225,6 +228,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cmd.Flags().StringVarP(&cliParams.logLevel, "log-level", "l", "", "set the log level (default 'off') (deprecated, use the env var DD_LOG_LEVEL instead)")
 	cmd.Flags().IntVarP(&cliParams.checkDelay, "delay", "d", 100, "delay between running the check and grabbing the metrics in milliseconds")
 	cmd.Flags().StringVarP(&cliParams.instanceFilter, "instance-filter", "", "", "filter instances using jq style syntax, example: --instance-filter '.ip_address == \"127.0.0.51\"'")
+	cmd.Flags().StringVarP(&cliParams.instanceID, "instance-id", "", "", "filter instances by the hash associated with the ID referenced in the agent-status, example: --instance-id == \"2a9be2f806a5923e\"'")
 	cmd.Flags().BoolVarP(&cliParams.formatJSON, "json", "", false, "format aggregator and check runner output as json")
 	cmd.Flags().BoolVarP(&cliParams.formatTable, "table", "", false, "format aggregator and check runner output as an ascii table")
 	cmd.Flags().StringVarP(&cliParams.breakPoint, "breakpoint", "b", "", "set a breakpoint at a particular line number (Python checks only)")
@@ -443,6 +447,22 @@ func run(
 
 	cs := pkgcollector.GetChecksByNameForConfigs(cliParams.checkName, allConfigs)
 
+	// Filter by instance ID if specified
+	if cliParams.instanceID != "" {
+		var filtered []check.Check
+		for _, c := range cs {
+			parts := strings.Split(string(c.ID()), ":")
+			hash := parts[len(parts)-1]
+
+			if strings.Contains(hash, cliParams.instanceID) {
+				filtered = append(filtered, c)
+			}
+		}
+		if len(filtered) == 0 {
+			return fmt.Errorf("no check instance found matching '%s'", cliParams.instanceID)
+		}
+		cs = filtered
+	}
 	// something happened while getting the check(s), display some info.
 	if len(cs) == 0 {
 		for check, error := range autodiscoveryimpl.GetConfigErrors() {

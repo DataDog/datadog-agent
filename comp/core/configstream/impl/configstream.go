@@ -227,27 +227,30 @@ func (cs *configStream) handleConfigUpdate(event *pb.ConfigEvent) {
 }
 
 func (cs *configStream) createConfigSnapshot() (*pb.ConfigEvent, uint64, error) {
-	allSettings, sequenceID := cs.config.AllSettingsWithSequenceID()
+	allSettings, sequenceID := cs.config.AllFlattenedSettingsWithSequenceID()
 
-	// Sanitize all settings to ensure compatibility with structpb.NewValue
-	sanitizedSettings, err := sanitizeValue(allSettings)
-	if err != nil {
-		cs.log.Errorf("Failed to sanitize config settings while creating snapshot: %v", err)
-		return nil, 0, err
-	}
-
-	intermediateMap := sanitizedSettings.(map[string]interface{})
-	settings := make([]*pb.ConfigSetting, 0, len(intermediateMap))
-	for setting, value := range intermediateMap {
-		pbValue, err := structpb.NewValue(value)
-		if err != nil {
-			cs.log.Errorf("Failed to convert setting '%s' to structpb.Value: %v", setting, err)
+	settings := make([]*pb.ConfigSetting, 0, len(allSettings))
+	for key, value := range allSettings {
+		if value == nil {
 			continue
 		}
-		source := cs.config.GetSource(setting).String()
+
+		sanitizedValue, err := sanitizeValue(value)
+		if err != nil {
+			cs.log.Errorf("Failed to sanitize setting '%s': %v", key, err)
+			continue
+		}
+
+		pbValue, err := structpb.NewValue(sanitizedValue)
+		if err != nil {
+			cs.log.Errorf("Failed to convert setting '%s' to structpb.Value: %v", key, err)
+			continue
+		}
+
+		source := cs.config.GetSource(key).String()
 		settings = append(settings, &pb.ConfigSetting{
 			Source: source,
-			Key:    setting,
+			Key:    key,
 			Value:  pbValue,
 		})
 	}

@@ -41,7 +41,7 @@ cc_library(
     ]),
     deps = [
         "@libsepol//:libsepol",
-        "@pcre2//:pcre2",
+        "@pcre2//:libpcre2",
     ],
     local_defines = [
         "_LARGEFILE_SOURCE",
@@ -65,6 +65,10 @@ cc_shared_library(
     name = "selinux",
     deps = [
         ":libselinux",
+    ],
+    dynamic_deps = [
+        "@libsepol//:sepol",
+        "@pcre2//:pcre2-8",
     ],
     additional_linker_inputs = [
         "src/libselinux.map",

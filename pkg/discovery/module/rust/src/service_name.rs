@@ -97,7 +97,7 @@ pub fn get(
             Language::Python => python::extract_name(cmdline, ctx),
             Language::Ruby => ruby::extract_name(cmdline),
             Language::Java => java::extract_name(cmdline, ctx),
-            Language::Node => nodejs::extract_name(cmdline, ctx),
+            Language::NodeJS => nodejs::extract_name(cmdline, ctx),
             Language::DotNet => dotnet::extract_name(cmdline),
             Language::PHP => php::extract_name(cmdline, ctx),
             _ => {
@@ -272,7 +272,7 @@ mod tests {
         let mut ctx = DetectionContext::new(0, envs, fs.as_ref());
         assert_eq!(
             get_name(
-                &Language::Node,
+                &Language::NodeJS,
                 &cmdline!["/usr/bin/node", "./testdata/index.js"],
                 &mut ctx
             ),

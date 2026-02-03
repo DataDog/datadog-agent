@@ -25,6 +25,7 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -51,7 +52,7 @@ var (
 		php:    "registry/dd-lib-php-init:" + defaultLibraries["php"],
 	}
 
-	imageResolver = newNoOpImageResolver()
+	imageResolver = imageresolver.NewNoOpResolver()
 )
 
 func TestNewTargetMutator(t *testing.T) {
@@ -214,7 +215,7 @@ func TestMutatePod(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver())
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver())
 			require.NoError(t, err)
 
 			input := test.in.DeepCopy()
@@ -319,7 +320,7 @@ func TestShouldMutatePod(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver())
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver())
 			require.NoError(t, err)
 
 			// Determine if the pod should be mutated.
@@ -405,7 +406,7 @@ func TestIsNamespaceEligible(t *testing.T) {
 			}
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver())
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver())
 			require.NoError(t, err)
 
 			// Determine if the namespace is eligible.
@@ -485,7 +486,7 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 			))
 
 			// Create the mutator.
-			f, err := NewTargetMutator(config, wmeta, newNoOpImageResolver())
+			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver())
 			require.NoError(t, err)
 
 			// Get the target from the annotation.
@@ -503,7 +504,7 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 }
 
 func TestGetTargetLibraries(t *testing.T) {
-	imageResolver := newNoOpImageResolver()
+	imageResolver := imageresolver.NewNoOpResolver()
 
 	tests := map[string]struct {
 		configPath string
