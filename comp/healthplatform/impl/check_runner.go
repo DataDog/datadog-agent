@@ -36,7 +36,9 @@ type issueReporter interface {
 	ReportIssue(checkID string, checkName string, report *healthplatformpayload.IssueReport) error
 }
 
-// checkRunner manages periodic health checks
+// checkRunner manages periodic health checks.
+// Each registered check runs in its own goroutine with an independent ticker.
+// This design allows per-check intervals and prevents slow checks from blocking others.
 type checkRunner struct {
 	log      log.Component
 	reporter issueReporter
@@ -132,11 +134,11 @@ func (r *checkRunner) RegisterCheck(checkID, checkName string, checkFn healthpla
 // startCheck launches a goroutine to run the check at its interval
 func (r *checkRunner) startCheck(check *registeredCheck) {
 	r.wg.Add(1)
-	go r.runCheck(check)
+	go r.runAndScheduleCheck(check)
 }
 
-// runCheck runs a single check in a loop at its configured interval
-func (r *checkRunner) runCheck(check *registeredCheck) {
+// runAndScheduleCheck runs a check immediately and schedules it to run periodically
+func (r *checkRunner) runAndScheduleCheck(check *registeredCheck) {
 	defer r.wg.Done()
 
 	// Run immediately on start
