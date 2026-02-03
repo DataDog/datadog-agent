@@ -21,33 +21,3 @@ http_file(
         "https://packages.microsoft.com/debian/11/prod/pool/main/m/msodbcsql18/msodbcsql18_{}_arm64.deb".format(VERSION),
     ],
 )
-
-# RHEL x86_64 build
-http_file(
-    name = "msodbcsql18_rpm_amd64",
-    sha256 = "8914b1e64c37f3740dff96f7e5db57f40f9564979617ad38acf3d38b958b7cb7",
-    urls = [
-        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/msodbcsql18/msodbcsql18-{}.x86_64.rpm".format(VERSION),
-        "https://packages.microsoft.com/rhel/7/prod/Packages/m/msodbcsql18-{}.x86_64.rpm".format(VERSION),
-    ],
-)
-
-# RHEL aarch64 build
-http_file(
-    name = "msodbcsql18_rpm_arm64",
-    sha256 = "ffbdede1d6af1245ce02cb77d3d5d37648b9121900632d3c6de56fe60d436b12",
-    urls = [
-        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/msodbcsql18/msodbcsql18-{}.aarch64.rpm".format(VERSION),
-        "https://packages.microsoft.com/rhel/8/prod/Packages/m/msodbcsql18-{}.aarch64.rpm".format(VERSION),
-    ],
-)
-
-# SLES x86_64 build
-http_file(
-    name = "msodbcsql18_rpm_sles",
-    sha256 = "fc25b9f52aef7a8814667045185103ab967f02301d875d4236e9a6c1493b298a",
-    urls = [
-        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/msodbcsql18/sles/msodbcsql18-{}.x86_64.rpm".format(VERSION),
-        "https://packages.microsoft.com/sles/12/prod/Packages/m/msodbcsql18-{}.x86_64.rpm".format(VERSION),
-    ],
-)

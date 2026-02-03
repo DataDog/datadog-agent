@@ -9,18 +9,8 @@ license_file "doc/msodbcsql18/LICENSE.txt"
 skip_transitive_dependency_licensing true
 
 build do
-  # Select the appropriate Bazel install target based on the platform
-  if debian_target?
-    install_target = "//deps/msodbcsql18:install_deb"
-  elsif redhat_target?
-    install_target = "//deps/msodbcsql18:install_rpm"
-  else
-    # SLES
-    install_target = "//deps/msodbcsql18:install_rpm_sles"
-  end
-
-  # Install the extracted files
-  command_on_repo_root "bazelisk run -- #{install_target} --destdir='#{install_dir}'"
+  # Install the extracted files from deb package
+  command_on_repo_root "bazelisk run -- //deps/msodbcsql18:install --destdir='#{install_dir}'"
 
   # Fix rpath to point to the embedded lib directory
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
