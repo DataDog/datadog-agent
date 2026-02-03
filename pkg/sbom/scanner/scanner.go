@@ -16,6 +16,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
@@ -248,11 +249,12 @@ func (s *Scanner) handleScanRequest(ctx context.Context, request sbom.ScanReques
 
 	var imgMeta *workloadmeta.ContainerImageMetadata
 	if collector.Type() == collectors.ContainerImageScanType {
-		imgMeta = s.getImageMetadata(request)
-		if imgMeta == nil {
+		if imgMeta = s.getImageMetadata(request); imgMeta == nil {
+			s.scanQueue.Forget(request)
 			return
 		}
 	}
+
 	s.processScan(ctx, request, imgMeta, collector)
 }
 
@@ -333,6 +335,25 @@ func (s *Scanner) handleScanResult(scanResult *sbom.ScanResult, collector collec
 
 	telemetry.SBOMGenerationDuration.Observe(scanResult.Duration.Seconds(), request.Collector(), request.Type(collector.Options()))
 	s.scanQueue.Forget(request)
+
+	if imgMeta := scanResult.ImgMeta; imgMeta != nil {
+		sbom, err := sbomutil.UncompressSBOM(imgMeta.SBOM)
+		if err != nil {
+			log.Warnf("could not uncompress SBOM for '%s': %v", request.ID(), err)
+			return
+		}
+
+		if sbom.CycloneDXBOM == nil || sbom.CycloneDXBOM.Components == nil {
+			imgMeta = s.getImageMetadata(request)
+		}
+
+		if imgMeta.SBOM == nil || sbom.CycloneDXBOM == nil || sbom.CycloneDXBOM.Components == nil {
+			log.Warnf("invalid scan result for '%s'", request.ID())
+			return
+		}
+
+		// telemetry.SBOMComponentsFound.Set(float64(len(*sbom.CycloneDXBOM.Components)), request.Collector(), request.Type(collector.Options()))
+	}
 }
 
 func waitAfterScanIfNecessary(ctx context.Context, collector collectors.Collector) {
