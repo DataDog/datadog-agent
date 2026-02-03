@@ -684,7 +684,7 @@ func runCheck(cliParams *cliParams, c check.Check, _ aggregator.Demultiplexer) *
 }
 
 func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
-	_ = os.Mkdir(defaultpaths.CheckFlareDirectory, os.ModeDir)
+	_ = os.MkdirAll(defaultpaths.CheckFlareDirectory, 0750)
 
 	// Windows cannot accept ":" in file names
 	filenameSafeTimeStamp := strings.ReplaceAll(time.Now().UTC().Format(time.RFC3339), ":", "-")
