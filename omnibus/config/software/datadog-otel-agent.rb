@@ -50,7 +50,7 @@ build do
     env = with_standard_compiler_flags(env)
 
     if fips_mode?
-      fips_add_msgo_to_env(env)
+      add_msgo_to_env(env)
     end
 
     if windows_target?

@@ -1,11 +1,7 @@
 require './lib/ostools.rb'
 
-# Use msgo toolchain when fips mode is enabled
-def fips_add_msgo_to_env(env)
-  if !fips_mode?
-    return
-  end
-
+# Use microsoft go toolchain, a requirement for FIPS mode
+def add_msgo_to_env(env)
   if linux_target?
     msgo_root = '/usr/local/msgo'
     binary_name = 'go'
@@ -22,17 +18,17 @@ def fips_add_msgo_to_env(env)
     raise "Unsupported OS for FIPS"
   end
 
-  msgo_path = Pathname.new(msgo_root) + 'bin'
-  msgo_bin_path = msgo_path + binary_name
+  msgo_path = Pathname.new(msgo_root).join('bin')
+  msgo_bin_path = msgo_path.join(binary_name)
   if !File.exist?(msgo_bin_path)
     raise "msgo #{binary_name} not found in #{msgo_path}"
   end
 
   env['GOROOT'] = msgo_root
-  env['PATH'] = "#{msgo_path.realpath()}#{delim}#{env['PATH']}"
+  env['PATH'] = "#{msgo_path}#{delim}#{env['PATH']}"
   # also update the global env so that the symbol inspector use the correct go version
   ENV['GOROOT'] = msgo_root
-  ENV['PATH'] = "#{msgo_path.realpath()}#{delim}#{ENV['PATH']}"
+  ENV['PATH'] = "#{msgo_path}#{delim}#{ENV['PATH']}"
 end
 
 # Check that the build tags had an actual effect:
@@ -46,6 +42,7 @@ def fips_check_binary_for_expected_symbol(path)
   if linux_target?
     symbol = "_Cfunc__mkcgo_OPENSSL" # since Go 1.25
   elsif windows_target?
+    # This is currently deadcode, see omnibus/config/projects/agent.rb
     symbol = "github.com/microsoft/go-crypto-winnative"
   else
     raise "Unsupported OS for FIPS"

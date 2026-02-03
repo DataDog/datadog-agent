@@ -61,7 +61,7 @@ build do
 
   env = with_standard_compiler_flags(env)
   if fips_mode?
-    fips_add_msgo_to_env(env)
+    add_msgo_to_env(env)
   end
 
   # we assume the go deps are already installed before running omnibus
@@ -297,8 +297,6 @@ build do
     # but rather at build step with the rest of the code above.
     # If not in a block, it will search for binaries that have not been built yet.
     block do
-      install_path = Pathname.new(install_dir)
-
       LINUX_BINARIES = [
         "bin/agent/agent",
         "embedded/bin/trace-agent",
@@ -310,7 +308,7 @@ build do
       ]
 
       LINUX_BINARIES.each do |bin|
-        fips_check_binary_for_expected_symbol(install_path + bin)
+        fips_check_binary_for_expected_symbol(File.join(install_dir, bin))
       end
     end
   end
