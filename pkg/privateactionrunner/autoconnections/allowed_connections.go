@@ -7,6 +7,7 @@ package autoconnections
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 )
 
@@ -34,7 +35,7 @@ var supportedConnections = map[string]ConnectionDefinition{
 		Credentials: CredentialConfig{
 			Type: "Script",
 			AdditionalFields: map[string]interface{}{
-				"configFileLocation": "/etc/dd-action-runner/config/credentials/script.yaml",
+				"configFileLocation": filepath.Join(PrivateActionRunnerBaseDir, ScriptConfigFileName),
 			},
 		},
 	},
