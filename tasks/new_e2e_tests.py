@@ -1149,7 +1149,7 @@ def _find_recent_successful_pipeline(ctx: Context, branch: str | None = None) ->
                 current = get_current_branch(ctx)
                 if current:
                     branch_to_try = current
-            except Exception:
+            except Exception as e:
                 raise Exit(f"Could not get current branch: {e}", code=1) from e
 
         # Get pipelines on this branch, ordered by most recent
@@ -1243,7 +1243,7 @@ def _parse_version_from_msi_filename(ctx, msi_path: str) -> tuple[str, str] | No
         if expected_version in filename:
             # Version matches what we expect from git state
             package_version = expected_version
-            
+
             # Extract display version
             if '.git.' in package_version:
                 display_version = package_version.split('.git.')[0]
@@ -1251,10 +1251,10 @@ def _parse_version_from_msi_filename(ctx, msi_path: str) -> tuple[str, str] | No
                 display_version = package_version[:-2]
             else:
                 display_version = package_version
-                
+
             return display_version, package_version
     except Exception:
-        print(f"Warning: Could not determine version from cached agent.version. Falling back to regex parsing")
+        print("Warning: Could not determine version from cached agent.version. Falling back to regex parsing")
         pass
 
     # Pattern to match: datadog-agent-{version}-{arch}.msi or datadog-fips-agent-{version}-{arch}.msi
