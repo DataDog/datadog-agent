@@ -12,6 +12,7 @@
 package model
 
 import (
+	"math"
 	"net"
 	"net/netip"
 	"runtime"
@@ -900,8 +901,19 @@ type PathKey struct {
 }
 
 // MountEquals returns true if the mount ID is the same as the other mount ID taking the path ID into account
+// See the increment of the path ID when the mount is updated kernel side
 func (p *PathKey) MountEquals(other PathKey) bool {
-	return p.MountID == other.MountID && (p.PathID == 0 || other.PathID == 0 || p.PathID&0xFFFF == other.PathID&0xFFFF)
+	pathID, otherPathID := uint16(p.PathID&math.MaxUint16), uint16(other.PathID&math.MaxUint16)
+
+	diff := pathID - otherPathID // unsigned wrap-around
+	if diff > 0x8000 {
+		diff = ^diff + 1 // equivalent to 65536 - diff
+	}
+
+	// see kernel side definition of MOUNT_REVISION_BUMP_VALUE
+	const mountRevisionBumpValue = 30
+
+	return p.MountID == other.MountID && (p.PathID == 0 || other.PathID == 0 || diff < mountRevisionBumpValue)
 }
 
 // OnDemandPerArgSize is the size of each argument in Data in the on-demand event

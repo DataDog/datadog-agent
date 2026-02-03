@@ -532,7 +532,8 @@ func (mr *Resolver) resolveMount(pathKey model.PathKey, pid uint32) (*model.Moun
 
 	mount, source, origin := mr.lookupMount(pathKey)
 	if mount != nil && pathKey.MountEquals(mount.RootPathKey) {
-		fmt.Printf(">>> cache hit %v == %v\n", pathKey.PathID&0xFFFF, mount.RootPathKey.PathID&0xFFFF)
+		// update the path ID to the latest one
+		mount.RootPathKey.PathID = pathKey.PathID
 
 		mr.cacheHitsStats.Inc()
 		return mount, source, origin, nil
@@ -544,7 +545,9 @@ func (mr *Resolver) resolveMount(pathKey model.PathKey, pid uint32) (*model.Moun
 	}
 
 	if mount, ok := mr.mounts.Get(pathKey.MountID); ok && pathKey.MountEquals(mount.RootPathKey) {
-		fmt.Printf(">>> procfs cache hit %v == %v\n", pathKey, mount.RootPathKey)
+		// update the path ID to the latest one
+		mount.RootPathKey.PathID = pathKey.PathID
+
 		mr.procHitsStats.Inc()
 		return mount, model.MountSourceMountID, mount.Origin, nil
 	}
