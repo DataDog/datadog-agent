@@ -12,6 +12,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"google.golang.org/grpc"
@@ -70,7 +71,7 @@ func main() {
 	// Register with RAR to get a valid session_id
 	fmt.Printf("Registering with Remote Agent Registry...\n")
 	registerReq := &pb.RegisterRemoteAgentRequest{
-		Pid:            fmt.Sprintf("%d", os.Getpid()),
+		Pid:            strconv.Itoa(os.Getpid()),
 		Flavor:         "config-stream-test-client",
 		DisplayName:    *clientName,
 		ApiEndpointUri: "localhost:50051", // Dummy address for test client
