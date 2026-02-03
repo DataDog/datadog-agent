@@ -68,15 +68,12 @@ import (
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
-	privateactionrunnerfx "github.com/DataDog/datadog-agent/comp/privateactionrunner/fx"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/mcp"
 
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	metadatarunner "github.com/DataDog/datadog-agent/comp/metadata/runner"
 	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
-	rcclientcomp "github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
 	rccomp "github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
@@ -98,6 +95,7 @@ import (
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
+	parapp "github.com/DataDog/datadog-agent/pkg/privateactionrunner/app"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	hostnameStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent/hostname"
@@ -206,8 +204,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				autodiscoveryimpl.Module(),
 				rcserviceimpl.Module(),
-				rcclientimpl.Module(),
-				fx.Supply(rcclientcomp.Params{AgentName: "cluster-agent", AgentVersion: version.AgentVersion}),
 				rctelemetryreporterimpl.Module(),
 				fx.Provide(func(config config.Component) healthprobe.Options {
 					return healthprobe.Options{
@@ -250,7 +246,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 				clusterchecksmetadatafx.Module(),
 				ipcfx.ModuleReadWrite(),
-				privateactionrunnerfx.Module(),
 			)
 		},
 	}
@@ -433,6 +428,10 @@ func start(log log.Component,
 		if config.GetBool("admission_controller.auto_instrumentation.enabled") || config.GetBool("apm_config.instrumentation.enabled") {
 			products = append(products, state.ProductGradualRollout)
 		}
+		// Add private action runner product if enabled
+		if config.GetBool("privateactionrunner.enabled") {
+			products = append(products, state.ProductActionPlatformRunnerKeys)
+		}
 
 		if len(products) > 0 {
 			var err error
@@ -548,6 +547,17 @@ func start(log log.Component,
 		}
 	} else {
 		appsec.Cleanup(mainCtx, log, config, le.Subscribe)
+	}
+
+	if config.GetBool("privateactionrunner.enabled") {
+		drainPAR, err := startPrivateActionRunner(mainCtx, config, rcClient, log)
+		if err != nil {
+			log.Errorf("Cannot start private action runner: %v", err)
+		} else {
+			defer drainPAR()
+		}
+	} else {
+		log.Info("Private action runner is disabled")
 	}
 
 	if config.GetBool("admission_controller.enabled") {
@@ -670,6 +680,25 @@ func setupClusterCheck(ctx context.Context, ac autodiscovery.Component, tagger t
 
 	pkglog.Info("Started cluster check Autodiscovery")
 	return handler, nil
+}
+
+func startPrivateActionRunner(ctx context.Context, config config.Component, rcClient *rcclient.Client, log log.Component) (func(), error) {
+	if rcClient == nil {
+		return nil, errors.New("Remote config is disabled or failed to initialize, remote config is a required dependency for private action runner")
+	}
+	parApp, err := parapp.NewApp(config, rcClient)
+	if err != nil {
+		return nil, err
+	}
+	err = parApp.Start(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return func() {
+		if err := parApp.Stop(context.Background()); err != nil {
+			log.Errorf("Error stopping private action runner: %v", err)
+		}
+	}, nil
 }
 
 func initializeRemoteConfigClient(rcService rccomp.Component, config config.Component, clusterName, clusterID string, products ...string) (*rcclient.Client, error) {

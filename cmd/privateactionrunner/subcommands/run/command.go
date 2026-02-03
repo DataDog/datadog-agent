@@ -20,13 +20,13 @@ import (
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
-	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
-	privateactionrunnerfx "github.com/DataDog/datadog-agent/comp/privateactionrunner/fx"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgrcclient "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
+	parapp "github.com/DataDog/datadog-agent/pkg/privateactionrunner/app"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -65,9 +65,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				rcserviceimpl.Module(),
 				rcclientimpl.Module(),
 				fx.Supply(rcclient.Params{AgentName: "private-action-runner", AgentVersion: version.AgentVersion}),
-				privateactionrunnerfx.Module(),
+				fx.Invoke(runPrivateActionRunner),
 			)
-			if errors.Is(err, privateactionrunner.ErrNotEnabled) {
+			if errors.Is(err, parapp.ErrNotEnabled) {
 				return nil
 			}
 			return err
@@ -75,4 +75,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	}
 
 	return []*cobra.Command{runCmd}
+}
+
+// runPrivateActionRunner creates the private action runner app and registers lifecycle hooks
+func runPrivateActionRunner(lc fx.Lifecycle, log log.Component, config config.Component, rcClient rcclient.Component) error {
+	app, err := parapp.NewApp(config, pkgrcclient.NewAdapter(rcClient))
+	if err != nil {
+		return err
+	}
+	lc.Append(fx.Hook{OnStart: app.Start, OnStop: app.Stop})
+	return nil
 }
