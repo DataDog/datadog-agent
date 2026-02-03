@@ -267,8 +267,14 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_by_flags(struct s
     return DISCARDED;
 }
 
-enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct file_t *file) {
+enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct dentry *dentry, struct file_t *file) {
     u32 pid = bpf_get_current_pid_tgid() >> 32;
+
+    // Discard sampled open events from procfs, sysfs, cgroupfs, or devpts
+    if (is_procfs(dentry) || is_sysfs(dentry) || is_cgroupfs(dentry) || is_cgroup2fs(dentry) || is_devpts(dentry)) {
+        return DISCARDED;
+    }
+
     struct pid_path_key_t key = {
         .pid = pid,
         .path_key = file->path_key,
@@ -301,7 +307,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) open_approvers(struct syscall_
 
     // can return DISCARDED or SAMPLED
     if (state == DISCARDED) {
-        state = approve_open_sample(&syscall->open.file);
+        state = approve_open_sample(syscall->open.dentry, &syscall->open.file);
     }
 
     return state;
