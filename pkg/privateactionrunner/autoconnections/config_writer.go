@@ -6,15 +6,16 @@
 package autoconnections
 
 import (
-	"bytes"
+	_ "embed"
 	"fmt"
 	"os"
 	"path/filepath"
 
-	"gopkg.in/yaml.v3"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+//go:embed script-config.yaml
+var defaultScriptConfig []byte
 
 // ConfigWriter handles creation of script configuration files
 type ConfigWriter struct {
@@ -43,26 +44,8 @@ func (w ConfigWriter) EnsureScriptBundleConfig() (bool, error) {
 		return false, fmt.Errorf("failed to create config directory %s: %w", w.BaseDir, err)
 	}
 
-	defaultConfig := map[string]interface{}{
-		"schemaId": "script-credentials-v1",
-		"runPredefinedScript": map[string]interface{}{
-			"echo": map[string]interface{}{
-				"command": []string{"echo", "Hello World!"},
-			},
-			"echo-parametrized": map[string]interface{}{
-				"command": []string{"echo", "{{ parameters.echoValue }}"},
-			},
-		},
-	}
-
-	var buf bytes.Buffer
-	enc := yaml.NewEncoder(&buf)
-	enc.SetIndent(2)
-	if err := enc.Encode(defaultConfig); err != nil {
-		return false, fmt.Errorf("failed to marshal config: %w", err)
-	}
-
-	if err := os.WriteFile(configPath, buf.Bytes(), ConfigFilePermissions); err != nil {
+	// Write the embedded static config file
+	if err := os.WriteFile(configPath, defaultScriptConfig, ConfigFilePermissions); err != nil {
 		return false, fmt.Errorf("failed to write config file %s: %w", configPath, err)
 	}
 
