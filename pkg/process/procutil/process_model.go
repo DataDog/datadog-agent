@@ -6,6 +6,10 @@
 package procutil
 
 import (
+	"hash/fnv"
+	"strconv"
+	"strings"
+
 	"github.com/DataDog/gopsutil/cpu"
 
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
@@ -66,6 +70,27 @@ func (p *Process) GetCommand() string {
 //nolint:revive // TODO(PROC) Fix revive linter
 func (p *Process) GetCmdline() []string {
 	return p.Cmdline
+}
+
+// ProcessIdentity generates a unique identity string for a process based on PID, creation time,
+// and command line hash. This allows detection of exec scenarios where the PID and creation time
+// remain the same but the command line changes.
+// See https://github.com/DataDog/datadog-agent/issues/43137
+func ProcessIdentity(pid int32, createTime int64, cmdline []string) string {
+	return "pid:" + strconv.Itoa(int(pid)) + "|createTime:" + strconv.FormatInt(createTime, 10) + "|cmdHash:" + strconv.FormatUint(hashCmdline(cmdline), 16)
+}
+
+// hashCmdline computes a fast FNV-1a hash of the command line arguments.
+// Only hashes first 100 args to bound work for processes with huge cmdlines (some have 70K+ args).
+// 100 args covers ~p99.9 of real-world processes (per process_discovery.command_args_per_process metric).
+func hashCmdline(cmdline []string) uint64 {
+	const maxArgs = 100
+	if len(cmdline) > maxArgs {
+		cmdline = cmdline[:maxArgs]
+	}
+	h := fnv.New64a()
+	h.Write([]byte(strings.Join(cmdline, "\x00")))
+	return h.Sum64()
 }
 
 // DeepCopy creates a deep copy of Process
