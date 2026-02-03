@@ -1038,8 +1038,9 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 			Actions: []*rules.ActionDefinition{
 				{
 					Kill: &rules.KillDefinition{
-						Signal:                    "SIGKILL",
-						Scope:                     "container",
+						Signal: "SIGKILL",
+						// Scope cgroup is the scope that will be sent from the BE for remediation actions
+						Scope:                     "cgroup",
 						DisableContainerDisarmer:  true,
 						DisableExecutableDisarmer: true,
 					},
@@ -1072,7 +1073,7 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 			report := event.ActionReports[0]
 			if killReport, ok := report.(*sprobe.KillActionReport); ok {
 				assert.Equal(t, "SIGKILL", killReport.Signal, "unexpected signal")
-				assert.Equal(t, "container", killReport.Scope, "unexpected scope")
+				assert.Equal(t, "cgroup", killReport.Scope, "unexpected scope")
 				assert.Equal(t, sprobe.KillActionStatusPerformed, killReport.Status, "unexpected status")
 			}
 		}
