@@ -337,6 +337,7 @@ func TestApplicationsCollectorUserSID(t *testing.T) {
 func TestSoftwareTypeConstants(t *testing.T) {
 	types := []string{
 		softwareTypeApp,
+		softwareTypeSystemApp,
 		softwareTypePkg,
 		softwareTypeMAS,
 		softwareTypeKext,
@@ -355,6 +356,7 @@ func TestSoftwareTypeConstants(t *testing.T) {
 
 	// Verify expected values
 	assert.Equal(t, "app", softwareTypeApp)
+	assert.Equal(t, "system_app", softwareTypeSystemApp)
 	assert.Equal(t, "pkg", softwareTypePkg)
 	assert.Equal(t, "mas", softwareTypeMAS)
 	assert.Equal(t, "kext", softwareTypeKext)

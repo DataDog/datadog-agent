@@ -24,6 +24,8 @@ import (
 const (
 	// softwareTypeApp represents applications from /Applications
 	softwareTypeApp = "app"
+	// softwareTypeSystemApp represents Apple system applications from /System/Applications
+	softwareTypeSystemApp = "system_app"
 	// softwareTypePkg represents software installed via PKG installer
 	softwareTypePkg = "pkg"
 	// softwareTypeMAS represents applications from the Mac App Store

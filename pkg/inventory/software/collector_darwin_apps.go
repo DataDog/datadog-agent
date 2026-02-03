@@ -102,7 +102,9 @@ func (c *applicationsCollector) Collect() ([]*Entry, []*Warning, error) {
 
 	// Build list of application directories to scan
 	appDirs := []userAppDir{
-		{path: "/Applications", username: ""}, // System-wide applications
+		{path: "/Applications", username: ""},                  // System-wide applications
+		{path: "/System/Applications", username: ""},           // Apple system applications
+		{path: "/System/Applications/Utilities", username: ""}, // Apple system utilities
 	}
 
 	// Get all local users and add their ~/Applications directories
@@ -181,20 +183,26 @@ func (c *applicationsCollector) Collect() ([]*Entry, []*Warning, error) {
 			}
 
 			// Determine the software type and installation source
-			// Priority: 1) Mac App Store, 2) PKG installer, 3) Manual (drag-and-drop)
+			// Priority: 1) System app, 2) Mac App Store, 3) PKG installer, 4) Manual (drag-and-drop)
 			source := softwareTypeApp
 			installSource := installSourceManual
 			needsPkgLookup := false
 
-			// Check if this is a Mac App Store app by looking for _MASReceipt folder
-			// MAS apps store their receipt inside the bundle, not in /var/db/receipts
-			masReceiptPath := filepath.Join(appPath, "Contents", "_MASReceipt", "receipt")
-			if _, err := os.Stat(masReceiptPath); err == nil {
-				source = softwareTypeMAS
-				installSource = installSourceMAS
+			// Check if this is an Apple system app (from /System/Applications)
+			if strings.HasPrefix(appPath, "/System/Applications/") {
+				source = softwareTypeSystemApp
+				installSource = installSourceManual // System apps are pre-installed
 			} else {
-				// Not a MAS app - will need to check pkgutil later (in parallel)
-				needsPkgLookup = true
+				// Check if this is a Mac App Store app by looking for _MASReceipt folder
+				// MAS apps store their receipt inside the bundle, not in /var/db/receipts
+				masReceiptPath := filepath.Join(appPath, "Contents", "_MASReceipt", "receipt")
+				if _, err := os.Stat(masReceiptPath); err == nil {
+					source = softwareTypeMAS
+					installSource = installSourceMAS
+				} else {
+					// Not a MAS app or system app - will need to check pkgutil later (in parallel)
+					needsPkgLookup = true
+				}
 			}
 
 			// Determine architecture
