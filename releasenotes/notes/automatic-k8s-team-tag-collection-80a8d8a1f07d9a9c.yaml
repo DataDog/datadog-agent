@@ -8,4 +8,5 @@
 ---
 enhancements:
   - |
-    Automatically collect the team tag when a Kubernetes resource has a `team` label or annotation and explicit team tag extraction is not configured.
+    Automatically collect the team tag when a Kubernetes resource has a ``team``
+    label or annotation and explicit team tag extraction is not configured.
