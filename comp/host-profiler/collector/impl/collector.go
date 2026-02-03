@@ -10,6 +10,7 @@ package collectorimpl
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -26,6 +27,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.uber.org/zap"
+	"go.uber.org/zap/exp/zapslog"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -103,7 +105,7 @@ func newCollectorSettings(uri string, extraFactories ExtraFactories) (otelcol.Co
 		}),
 	}
 
-	SetSlogLogger(zapCore)
+	slog.SetDefault(slog.New(zapslog.NewHandler(zapCore)))
 
 	return otelcol.CollectorSettings{
 		BuildInfo: component.BuildInfo{
