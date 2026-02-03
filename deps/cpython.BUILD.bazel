@@ -339,10 +339,10 @@ pkg_files(
 
 pkg_install(
     name = "install",
-    srcs = [
-        ":install_files",
-    ] + select({
-        "@platforms//os:windows": [],
+    srcs = select({
+        "@platforms//os:windows": [
+            ":install_files_win",
+        ],
         "//conditions:default": [
             ":install_libs_unix",
             ":install_headers_unix",

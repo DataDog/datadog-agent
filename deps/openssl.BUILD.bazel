@@ -1,7 +1,6 @@
 load("@//bazel/rules:cc_shared_library_wrapper.bzl", "cc_shared_library_wrapper")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
-load("@bazel_skylib//rules:select_file.bzl", "select_file")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
@@ -182,14 +181,6 @@ configure_make(
             "lib/engines-3",
         ],
         "//conditions:default": [],
-    }) + select({
-        # `dll.a` files are "import libraries" on windows, used for linking against them,
-        # but they fall neither in the "static libs" nor "dynamic libs" category.
-        "@platforms//os:windows": [
-            "lib/libssl.dll.a",
-            "lib/libcrypto.dll.a",
-        ],
-        "//conditions:default": [],
     }),
     # For whatever reason rules_foreign_cc does not respect
     # out_dll_dir parameter and tries to find Windows DLLs in
@@ -267,12 +258,6 @@ filegroup(
     }),
 )
 
-#####
-#
-# Packaging
-#
-#####
-
 so_symlink(
     name = "libssl_with_symlink",
     src = ":libssl_shared_file",
@@ -287,14 +272,13 @@ so_symlink(
     version = OPENSSL_VERSION,
 )
 
-select_file(
+filegroup(
     name = "openssl_binary",
-    srcs = ":openssl",
-    subpath = select({
-        "@platforms//os:windows": "openssl/bin/openssl.exe",
-        "//conditions:default": "openssl/bin/openssl",
+    srcs = [":openssl"],
+    output_group = select({
+        "@platforms//os:windows": "openssl.exe",
+        "//conditions:default": "openssl",
     }),
-    visibility = ["//visibility:public"],
 )
 
 pkg_files(
