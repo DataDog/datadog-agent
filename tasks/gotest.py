@@ -695,7 +695,7 @@ def create_dependencies(ctx, build_tags=None):
         for module in batch_modules:
             with ctx.cd(module):
                 cmd = (
-                    'go list -buildvcs=false'
+                    'go list -buildvcs=false '
                     + f'-tags "{" ".join(build_tags)}" '
                     + '-f "{{.ImportPath}} {{.Imports}} {{.TestImports}}" ./...'
                 )
