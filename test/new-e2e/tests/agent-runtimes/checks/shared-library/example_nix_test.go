@@ -35,6 +35,6 @@ func TestLinuxSharedLibraryCheckSuite(t *testing.T) {
 }
 
 func (v *linuxSharedLibrarySuite) TestCheckExample() {
-	v.updateEnvWithCheckConfigAndSharedLibrary("example", exampleCheckConfig, linuxDefaultPermissions)
+	v.updateEnvWithCheckConfigAndSharedLibrary("example", checkMinimalConfig, linuxDefaultPermissions)
 	v.testExampleRunAndMetrics()
 }

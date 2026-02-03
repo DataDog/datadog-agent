@@ -38,6 +38,6 @@ func TestWindowsSharedLibraryCheckSuite(t *testing.T) {
 }
 
 func (v *windowsSharedLibrarySuite) TestCheckExample() {
-	v.updateEnvWithCheckConfigAndSharedLibrary("example", exampleCheckConfig, windowsDefaultPermissions)
+	v.updateEnvWithCheckConfigAndSharedLibrary("example", checkMinimalConfig, windowsDefaultPermissions)
 	v.testExampleRunAndMetrics()
 }

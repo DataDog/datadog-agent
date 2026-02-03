@@ -29,8 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
-//go:embed files/example.yaml
-var exampleCheckConfig string
+//go:embed files/minimal_conf.yaml
+var checkMinimalConfig string
 
 const libraryPrefix = "libdatadog-agent-"
 
@@ -45,8 +45,10 @@ func (v *sharedLibrarySuite) newProvisionerWithAgentOptions(agentOptions ...agen
   enabled: true
   library_folder_path: ` + v.checksdPath
 
-	var allAgentOptions []agentparams.Option
-	allAgentOptions = append(allAgentOptions, agentparams.WithAgentConfig(agentConfig))
+	// default option - enable shared library checks
+	allAgentOptions := []agentparams.Option{agentparams.WithAgentConfig(agentConfig)}
+
+	// additional options
 	allAgentOptions = append(allAgentOptions, agentOptions...)
 
 	return awshost.ProvisionerNoFakeIntake(
@@ -80,19 +82,20 @@ func (v *sharedLibrarySuite) resolveSharedLibraryFileName(name string) string {
 }
 
 func (v *sharedLibrarySuite) updateEnvWithCheckConfigAndSharedLibrary(name string, config string, permissions option.Option[perms.FilePermissions]) {
-	// find the corresponding local shared library and use it on the remote host
+	// get the content of the local shared library
 	libraryName := v.resolveSharedLibraryFileName(name)
 	libraryContent, err := os.ReadFile(path.Join("files", libraryName))
 	require.NoError(v.T(), err)
 
+	// option to copy the shared library to the remote host
 	libraryPath := path.Join(v.checksdPath, libraryName)
-	file := agentparams.WithFileWithPermissions(libraryPath, string(libraryContent), true, permissions)
+	fileOption := agentparams.WithFileWithPermissions(libraryPath, string(libraryContent), true, permissions)
 
-	// give the corresponding configuration to the Agent
-	integration := agentparams.WithIntegration(name+".d", config)
+	// option to configure the check in the remote Agent
+	integrationOption := agentparams.WithIntegration(name+".d", config)
 
 	// update the remote agent with all options
-	agentOptions := []agentparams.Option{file, integration}
+	agentOptions := []agentparams.Option{fileOption, integrationOption}
 
 	v.UpdateEnv(v.newProvisionerWithAgentOptions(agentOptions...))
 }
