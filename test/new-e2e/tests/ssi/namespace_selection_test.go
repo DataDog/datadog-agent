@@ -19,10 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/singlestep"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	compkube "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
-	provkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 )
 
 type namespaceSelectionSuite struct {
@@ -32,37 +30,37 @@ type namespaceSelectionSuite struct {
 func TestNamespaceSelectionSuite(t *testing.T) {
 	helmValues, err := os.ReadFile("testdata/namespace_selection.yaml")
 	require.NoError(t, err, "Could not open helm values file for test")
-	e2e.Run(t, &namespaceSelectionSuite{}, e2e.WithProvisioner(provkindvm.Provisioner(
-		provkindvm.WithRunOptions(
-			kindvm.WithAgentDependentWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent pulumi.ResourceOption) (*compkube.Workload, error) {
-				return singlestep.Scenario(e, kubeProvider, "namespace-selection", []singlestep.Namespace{
-					{
-						Name: "expect-injection",
-						Apps: []singlestep.App{
-							{
-								Name:    DefaultAppName,
-								Image:   "gcr.io/datadoghq/injector-dev/python",
-								Version: "d425e7df",
-								Port:    8080,
-							},
+	e2e.Run(t, &namespaceSelectionSuite{}, e2e.WithProvisioner(Provisioner(ProvisionerOptions{
+		AgentOptions: []kubernetesagentparams.Option{
+			kubernetesagentparams.WithHelmValues(string(helmValues)),
+		},
+		AgentDependentWorkloadAppFunc: func(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent pulumi.ResourceOption) (*compkube.Workload, error) {
+			return singlestep.Scenario(e, kubeProvider, "namespace-selection", []singlestep.Namespace{
+				{
+					Name: "expect-injection",
+					Apps: []singlestep.App{
+						{
+							Name:    DefaultAppName,
+							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Version: "d425e7df",
+							Port:    8080,
 						},
 					},
-					{
-						Name: "expect-no-injection",
-						Apps: []singlestep.App{
-							{
-								Name:    DefaultAppName,
-								Image:   "gcr.io/datadoghq/injector-dev/python",
-								Version: "d425e7df",
-								Port:    8080,
-							},
+				},
+				{
+					Name: "expect-no-injection",
+					Apps: []singlestep.App{
+						{
+							Name:    DefaultAppName,
+							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Version: "d425e7df",
+							Port:    8080,
 						},
 					},
-				}, dependsOnAgent)
-			}),
-			kindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(string(helmValues))),
-		),
-	)))
+				},
+			}, dependsOnAgent)
+		},
+	})))
 }
 
 func (v *namespaceSelectionSuite) TestClusterAgentInstalled() {

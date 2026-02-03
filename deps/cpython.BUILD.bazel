@@ -44,11 +44,6 @@ copy_to_directory(
         "openssl/lib",
         "openssl",
     ],
-    replace_prefixes = {
-        # We need to rename the .dll.a's into .lib files as the Python build expects
-        "libcrypto.dll.a": "libcrypto.lib",
-        "libssl.dll.a": "libssl.lib",
-    },
 )
 
 run_binary(

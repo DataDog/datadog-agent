@@ -111,6 +111,9 @@
       "properties": {
         "field": {
           "type": "string"
+        },
+        "max_file_size": {
+          "type": "integer"
         }
       },
       "additionalProperties": false,

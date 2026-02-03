@@ -67,6 +67,8 @@ const (
 	PulumiVerboseProgressStreams StoreKey = "pulumi_verbose_progress_streams"
 	// DevMode allows to keep the stack after the test completes
 	DevMode StoreKey = "dev_mode"
+	// DevLocal uses local Kind cluster instead of AWS for faster development
+	DevLocal StoreKey = "dev_local"
 	// InitOnly config flag parameter name
 	InitOnly StoreKey = "init_only"
 	// TeardownOnly config flag parameter name

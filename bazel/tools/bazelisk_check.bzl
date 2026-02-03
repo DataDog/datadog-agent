@@ -1,4 +1,4 @@
-"""Check Bazel version against .bazelversion file.
+"""Check files considered by Bazelisk are present and Bazel version against .bazelversion file.
 
 This implements the idiom described in the Bazelisk README for ensuring users don't mistakenly bypass Bazelisk by having
 a Bazel binary in their PATH:
@@ -18,13 +18,23 @@ def check_bazel_version():
 """.strip()
 
 def _impl(repository_ctx):
+    file_to_path = {
+        f: repository_ctx.path(Label("//:" + f))
+        for f in (".bazelversion", "tools/bazel", "tools/bazel.bat")
+    }
+
+    for required_file, path in file_to_path.items():
+        if not path.exists or path.is_dir:
+            fail("Required file not found: `{}` - did you (re)move it?".format(required_file))
+        repository_ctx.watch(path)
+
     repository_ctx.file("BUILD.bazel")
     repository_ctx.file(
         "defs.bzl",
         content = _template.format(
             current_version = native.bazel_version,
-            required_version = repository_ctx.read(Label("//:.bazelversion")).strip(),
+            required_version = repository_ctx.read(file_to_path[".bazelversion"]).strip(),
         ),
     )
 
-check_bazel_version = repository_rule(configure = True, implementation = _impl, local = True)
+bazelisk_check = repository_rule(configure = True, implementation = _impl, local = True)

@@ -309,6 +309,7 @@ type CoreDumpDefinition struct {
 type HashDefinition struct {
 	DefaultActionDefinition `yaml:"-" json:"-"`
 	Field                   string `yaml:"field,omitempty" json:"field,omitempty"`
+	MaxFileSize             int64  `yaml:"max_file_size,omitempty" json:"max_file_size,omitempty"`
 }
 
 // PostCheck returns an error if the hash action is invalid after parsing

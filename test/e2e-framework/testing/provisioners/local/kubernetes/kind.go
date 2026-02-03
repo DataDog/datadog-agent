@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	provisionerBaseID = "aws-kind-"
+	provisionerBaseID = "local-kind-"
 	defaultVMName     = "kind"
 )
 
