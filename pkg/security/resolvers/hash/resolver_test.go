@@ -231,7 +231,7 @@ func TestResolver_ComputeHashes(t *testing.T) {
 			if err != nil {
 				t.Fatalf("couldn't instantiate a new hash resolver: %v", err)
 			}
-			got := resolver.ComputeHashesFromEvent(tt.args.event, tt.args.file)
+			got := resolver.ComputeHashesFromEvent(tt.args.event, tt.args.file, 0)
 			if !reflect.DeepEqual(strings.Join(got, "-"), strings.Join(tt.want, "-")) {
 				t.Errorf("ComputeHashes() = %v, want %v", got, tt.want)
 			}
@@ -510,7 +510,7 @@ func BenchmarkHashFunctions(b *testing.B) {
 					}, &model.FileEvent{
 						PathnameStr:           f.Name(),
 						IsPathnameStrResolved: true,
-					})
+					}, 0)
 					if len(got) == 0 {
 						caseB.Errorf("hash computation failed (due to rate limiting ?): got %v", got)
 					}
