@@ -268,6 +268,9 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_by_flags(struct s
 }
 
 enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct dentry *dentry, struct file_t *file) {
+    // Track total open events that hit the sampling logic
+    monitor_ad_sample_total(EVENT_OPEN);
+   
     u32 pid = bpf_get_current_pid_tgid() >> 32;
 
     // Discard sampled open events from procfs, sysfs, cgroupfs, or devpts
