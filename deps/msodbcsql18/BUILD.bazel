@@ -37,7 +37,6 @@ genrule(
     outs = [
         SO_FILENAME,
         "msodbcsqlr18.rll",
-        "LICENSE.txt",
     ],
     cmd = """
         set -e
@@ -48,7 +47,6 @@ genrule(
         # Copy the files we need
         cp opt/microsoft/msodbcsql18/lib64/{so_filename} $(location {so_filename})
         cp opt/microsoft/msodbcsql18/share/resources/en_US/msodbcsqlr18.rll $(location msodbcsqlr18.rll)
-        cp usr/share/doc/msodbcsql18/LICENSE.txt $(location LICENSE.txt)
     """.format(so_filename = SO_FILENAME),
     target_compatible_with = select({
         "@platforms//os:macos": ["@platforms//:incompatible"],
