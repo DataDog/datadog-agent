@@ -1,5 +1,5 @@
 // This is not generated. As we add configurations make this bigger.
-// Having this indirection allows us to avoid an action to copy the 
+// Having this indirection allows us to avoid an action to copy the
 // os specific config.h to the canonical name befor building the library.
 
 #ifdef __APPLE__
