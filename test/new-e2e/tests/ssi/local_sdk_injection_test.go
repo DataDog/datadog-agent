@@ -40,8 +40,8 @@ func TestLocalSDKInjectionSuite(t *testing.T) {
 						Apps: []singlestep.App{
 							{
 								Name:    DefaultAppName,
-								Image:   "gcr.io/datadoghq/injector-dev/python",
-								Version: "d425e7df",
+								Image:   "registry.datadoghq.com/injector-dev/python",
+								Version: "16ad9d4b",
 								Port:    8080,
 								PodLabels: map[string]string{
 									"admission.datadoghq.com/enabled": "true",
@@ -53,8 +53,8 @@ func TestLocalSDKInjectionSuite(t *testing.T) {
 							},
 							{
 								Name:    "expect-no-injection",
-								Image:   "gcr.io/datadoghq/injector-dev/python",
-								Version: "d425e7df",
+								Image:   "registry.datadoghq.com/injector-dev/python",
+								Version: "16ad9d4b",
 								Port:    8080,
 							},
 						},
