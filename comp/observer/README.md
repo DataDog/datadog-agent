@@ -109,3 +109,64 @@ obs := &observerImpl{
     // ...
 }
 ```
+
+## Metric Recording to Parquet Files
+
+The observer can record all observed metrics to Parquet files for long-term storage and analysis.
+
+### Configuration
+
+Enable Parquet recording in `datadog.yaml`:
+
+```yaml
+observer:
+  capture_metrics.enabled: true
+  parquet_output_dir: "/var/log/datadog/observer-metrics"
+  parquet_flush_interval: 60s  # File rotation interval
+  parquet_retention: 24h        # Automatic cleanup (0 = disabled)
+```
+
+### File Format
+
+Files are rotated at the flush interval with UTC-timestamped names:
+
+```
+/var/log/datadog/observer-metrics/
+├── observer-metrics-20260129-133045Z.parquet
+├── observer-metrics-20260129-133145Z.parquet
+└── observer-metrics-20260129-133245Z.parquet
+```
+
+- **Compression**: Zstd (typically 4-5x compression ratio)
+- **Rotation**: New file created every flush interval
+- **Validity**: Each file is properly closed and immediately readable
+
+### Parquet Schema
+
+Schema is compatible with **FGM (Flare Graph Metrics)** format:
+
+| Column Name  | Type           | Description                                      |
+|--------------|----------------|--------------------------------------------------|
+| `RunID`      | `string`       | Metric source/namespace (e.g., "all-metrics")    |
+| `Time`       | `int64`        | Timestamp in milliseconds since Unix epoch       |
+| `MetricName` | `string`       | Full metric name (e.g., "system.cpu.idle")       |
+| `ValueFloat` | `float64`      | Metric value                                     |
+| `Tags`       | `list<string>` | Array of tags in "key:value" format              |
+
+**Arrow Schema Definition:**
+
+```go
+arrow.NewSchema([]arrow.Field{
+    {Name: "RunID", Type: arrow.BinaryTypes.String},
+    {Name: "Time", Type: arrow.PrimitiveTypes.Int64},
+    {Name: "MetricName", Type: arrow.BinaryTypes.String},
+    {Name: "ValueFloat", Type: arrow.PrimitiveTypes.Float64},
+    {Name: "Tags", Type: arrow.ListOf(arrow.BinaryTypes.String)},
+}, nil)
+```
+
+**Important Notes:**
+- Time is in **milliseconds** (divide by 1000 for seconds)
+- Tags format: `["host:server1", "env:prod"]`
+- All timestamps are UTC
+- **Bloom filters enabled** on Tags and MetricName for fast queries

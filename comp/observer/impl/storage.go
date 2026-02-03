@@ -10,14 +10,12 @@ import (
 	"os"
 	"sort"
 	"strings"
-	"sync"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
 // timeSeriesStorage is an internal storage for time series data.
 type timeSeriesStorage struct {
-	mu     sync.RWMutex
 	series map[string]*seriesStats
 }
 
@@ -96,9 +94,6 @@ func newTimeSeriesStorage() *timeSeriesStorage {
 
 // Add records a data point for a named metric in a namespace.
 func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp int64, tags []string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	key := seriesKey(namespace, name, tags)
 
 	stats, exists := s.series[key]
@@ -178,9 +173,6 @@ func (s *timeSeriesStorage) GetSeries(namespace, name string, tags []string, agg
 // GetSeriesSince returns points with timestamp > since (for delta updates).
 // If since is 0, returns all points.
 func (s *timeSeriesStorage) GetSeriesSince(namespace, name string, tags []string, agg Aggregate, since int64) *observer.Series {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	key := seriesKey(namespace, name, tags)
 	stats := s.series[key]
 	if stats == nil {
@@ -214,9 +206,6 @@ func (s *timeSeriesStorage) GetSeriesSince(namespace, name string, tags []string
 
 // AllSeries returns all series in a namespace using the specified aggregation.
 func (s *timeSeriesStorage) AllSeries(namespace string, agg Aggregate) []observer.Series {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	var result []observer.Series
 	for _, stats := range s.series {
 		if stats.Namespace == namespace {

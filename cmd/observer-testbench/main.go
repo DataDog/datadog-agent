@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build observer
-
 // Package main provides the entry point for the observer test bench.
 // The test bench is a standalone tool for iterating on observer components
 // by loading scenarios and visualizing analysis results.
@@ -17,8 +15,22 @@ import (
 	"os/signal"
 	"syscall"
 
+	"go.uber.org/fx"
+
+	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
+	recorderfx "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	observerimpl "github.com/DataDog/datadog-agent/comp/observer/impl"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+type CLIParams struct {
+	ScenariosDir string
+	HTTPAddr     string
+}
 
 func main() {
 	scenariosDir := flag.String("scenarios-dir", "./scenarios", "Directory containing scenario subdirectories")
@@ -30,22 +42,43 @@ func main() {
 	fmt.Printf("  HTTP address:  %s\n", *httpAddr)
 	fmt.Println()
 
+	err := fxutil.OneShot(run,
+		recorderfx.Module(),
+		core.Bundle(),
+		secretsnoopfx.Module(),
+		fx.Supply(core.BundleParams{
+			ConfigParams: config.NewAgentParams(""),
+			LogParams:    log.ForOneShot("", "off", true),
+		}),
+		fx.Supply(CLIParams{
+			ScenariosDir: *scenariosDir,
+			HTTPAddr:     *httpAddr,
+		}),
+	)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to run observer test bench: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func run(recorder recorderdef.Component, params CLIParams) error {
 	// Create and start the test bench
 	tb, err := observerimpl.NewTestBench(observerimpl.TestBenchConfig{
-		ScenariosDir: *scenariosDir,
-		HTTPAddr:     *httpAddr,
+		ScenariosDir: params.ScenariosDir,
+		HTTPAddr:     params.HTTPAddr,
+		Recorder:     recorder,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create test bench: %v\n", err)
-		os.Exit(1)
+		return err
 	}
 
 	if err := tb.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to start test bench: %v\n", err)
-		os.Exit(1)
+		return err
 	}
 
-	fmt.Printf("API server running at http://localhost%s\n", *httpAddr)
+	fmt.Printf("API server running at http://localhost%s\n", params.HTTPAddr)
 	fmt.Println("Endpoints:")
 	fmt.Println("  GET  /api/status              - Server status and loaded scenario")
 	fmt.Println("  GET  /api/scenarios           - List available scenarios")
@@ -66,4 +99,6 @@ func main() {
 	if err := tb.Stop(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error during shutdown: %v\n", err)
 	}
+
+	return nil
 }
