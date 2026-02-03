@@ -211,21 +211,25 @@ def build(
                 final_lib_path,
             )
 
-            print('\n--- Cc Debug ---')
-            print('\nReadelf')
-            ctx.run(f'readelf -d {final_lib_path}', warn=True)
-            print('\nObjdump')
-            ctx.run(f'objdump -T {final_lib_path}', warn=True)
-            # print('\nNm')
-            # ctx.run(f'nm {final_lib_path}', warn=True)
-            print('\nLdd')
-            ctx.run(f'ldd {final_lib_path}', warn=True)
-            print('--- Cc End ---\n')
-
             # On Linux, use patchelf to set rpath so the library can find OpenSSL at runtime
             if sys.platform.startswith("linux"):
                 openssl_lib_dir = os.path.join(embedded_path, "lib")
                 ctx.run(f"patchelf --add-rpath {openssl_lib_dir} {final_lib_path}")
+
+            print('\n--- Cc Debug ---')
+            try:
+                print('\nReadelf')
+                ctx.run(f'readelf -d {final_lib_path}')
+                print('\nObjdump')
+                ctx.run(f'objdump -T {final_lib_path}')
+                # print('\nNm')
+                # ctx.run(f'nm {final_lib_path}')
+                print('\nLdd')
+                ctx.run(f'ldd {final_lib_path}')
+            except Exception as e:
+                print(f'CC warning: Got error while debug: {e}')
+            print('--- Cc End ---\n')
+
     print('Deepinference library has been built and prepared')
 
     bundled_agents = ["agent"]
