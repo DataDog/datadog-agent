@@ -67,16 +67,26 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), *duration)
 	defer cancel()
 
-	// Note: In a real remote agent, you would:
-	// 1. Register with RAR first: RegisterRemoteAgent()
-	// 2. Get back a session_id
-	// 3. Pass that session_id via gRPC metadata
-	// For this test client, we use a dummy session_id
-	fmt.Printf("Note: This test client uses a dummy session_id.\n")
-	fmt.Printf("Real remote agents must register with RAR first.\n\n")
+	// Register with RAR to get a valid session_id
+	fmt.Printf("Registering with Remote Agent Registry...\n")
+	registerReq := &pb.RegisterRemoteAgentRequest{
+		Pid:            fmt.Sprintf("%d", os.Getpid()),
+		Flavor:         "config-stream-test-client",
+		DisplayName:    *clientName,
+		ApiEndpointUri: "localhost:50051", // Dummy address for test client
+		Services:       []string{},        // Test client doesn't provide any services
+	}
+
+	registerResp, err := client.RegisterRemoteAgent(ctx, registerReq)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to register with RAR: %v\n", err)
+		os.Exit(1)
+	}
+
+	sessionID := registerResp.SessionId
+	fmt.Printf("Successfully registered. Session ID: %s\n\n", sessionID)
 
 	// Add session_id to gRPC metadata
-	sessionID := "test-session-id" // In production, get this from RAR registration
 	md := metadata.New(map[string]string{"session_id": sessionID})
 	ctxWithMetadata := metadata.NewOutgoingContext(ctx, md)
 

@@ -11,6 +11,17 @@ The test client connects to the core-agent's gRPC IPC server and subscribes to t
 - **Correct typed values** - Values are properly typed (string, int, bool, etc.)
 - **RAR authorization** - Only registered agents can subscribe
 
+## Note on Authentication
+
+This client performs actual Remote Agent Registry (RAR) registration to obtain a valid `session_id`, as required by the config streaming authentication model. While lightweight and designed for testing, it is technically a registered remote agent during its runtime. The client:
+
+1. Registers with RAR using minimal metadata (PID, flavor, display name)
+2. Receives a valid `session_id` from the core-agent
+3. Uses that `session_id` in gRPC metadata to authenticate with the config stream
+4. Automatically unregisters when the test completes (via context timeout)
+
+This ensures the test client validates the complete end-to-end authentication flow that real remote agents (like Saluki ADP) will use.
+
 ## Building
 
 ```bash
@@ -25,11 +36,8 @@ go build -o bin/config-stream-client ./cmd/config-stream-client
 2. **Auth token** from the agent's runtime directory
 
 ```bash
-# Get the auth token
-cp /opt/datadog-agent/run/auth_token ./auth_token
-
-# Or on macOS
-cp /opt/datadog-agent/run/auth_token ./auth_token
+chmod 777 bin/agent/dist/auth_token
+cp bin/agent/dist/auth_token /etc/datadog-agent/auth_token
 ```
 
 ### Running the Client
@@ -39,10 +47,10 @@ cp /opt/datadog-agent/run/auth_token ./auth_token
 ./bin/config-stream-client
 
 # Specify options explicitly
-./bin/config-stream-client \\
-  --ipc-address localhost:5001 \\
-  --auth-token $(cat /opt/datadog-agent/run/auth_token) \\
-  --name my-test-client \\
+./bin/config-stream-client \
+  --ipc-address localhost:5001 \
+  --auth-token $(cat /etc/datadog-agent/auth_token) \
+  --name my-test-client \
   --duration 60s
 ```
 
@@ -63,6 +71,9 @@ Config Stream Test Client
 IPC Address: localhost:5001
 Client Name: test-client
 Duration: 30s
+
+Registering with Remote Agent Registry...
+Successfully registered. Session ID: X
 
 Subscribing to config stream...
 
@@ -106,7 +117,7 @@ datadog-agent config set log_level debug
 
 # Or via HTTP API
 curl -X POST "http://localhost:5001/config/v1/log_level?value=debug" \\
-  -H "Authorization: Bearer $(cat /opt/datadog-agent/run/auth_token)"
+  -H "Authorization: Bearer $(cat /etc/datadog-agent/auth_token)"
 ```
 
 The test client should immediately receive an update event.
@@ -133,7 +144,7 @@ Failed to subscribe: rpc error: code = Unauthenticated
 ```
 
 **Solution:**
-1. Verify auth token is correct: `cat /opt/datadog-agent/run/auth_token`
+1. Verify auth token is correct: `cat /etc/datadog-agent/auth_token`
 2. Copy token to current directory or use `--auth-token` flag
 3. Check token hasn't expired (restart agent if needed)
 
@@ -157,10 +168,12 @@ Failed to subscribe: rpc error: code = PermissionDenied desc = session_id not fo
 ```
 
 **Solution:**
-This is expected for the test client. The test client uses a dummy session_id. In production, remote agents must:
-1. Register with RAR first
-2. Use the session_id from RAR registration
-3. Call RefreshRemoteAgent() periodically
+This indicates the client's session_id is not recognized by the core-agent. Possible causes:
+1. **Agent restarted** - RAR state was lost, client needs to re-register
+2. **Session expired** - Registration timeout exceeded (check agent logs)
+3. **Client registration failed** - Check that RAR registration completed successfully before subscribing to config stream
+
+The test client automatically handles registration, but if you see this error, the core-agent may have been restarted since the client registered.
 
 ## Integration Testing
 
@@ -185,19 +198,18 @@ go test -tags test -v -run TestClientConnectsAndReceivesStream
 
 ## Limitations
 
-This is a **test client** with some limitations:
+This is a **test client** with some limitations compared to production remote agents:
 
-- Uses dummy `session_id` (may fail RAR authorization)
-- Doesn't implement full RAR registration flow
-- Doesn't handle reconnection automatically
-- Exits after duration timeout
+- **No session refresh** - Does not call `RefreshRemoteAgent()` periodically
+- **No reconnection logic** - Doesn't handle network failures or agent restarts
+- **Fixed duration** - Exits after timeout (not designed for long-running use)
+- **Minimal services** - Registers with RAR but provides no actual services (Status, Flare, etc.)
 
-For production use, remote agents should use the `configstreamconsumer` library (when available) which handles:
-- Automatic RAR registration
-- Reconnection with exponential backoff
-- Readiness gating
-- `model.Reader` interface
-- Change subscriptions
+For production use, remote agents should implement:
+- Periodic session refresh via `RefreshRemoteAgent()`
+- Automatic reconnection with exponential backoff
+- Full service implementation (Status, Flare, Telemetry)
+- Graceful shutdown and session cleanup
 
 ## See Also
 

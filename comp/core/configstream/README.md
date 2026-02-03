@@ -24,14 +24,14 @@ Remote Agent                      Core Agent
         ▼
 ┌────────────────┐               ┌─────────────────────────┐
 │ 2. Stream      │──────────────>│ Server: Validate RAR    │
-│    ConfigEvents│  + session_id │   → Send snapshot       │
-│                │<──────────────│   → Push updates        │
-└────────────────┘               └─────────────────────────┘
+│    ConfigEvents│ (session_id in│   → Send snapshot       │
+│                │    metadata)  │   → Push updates        │
+└────────────────┘<──────────────└─────────────────────────┘
 ```
 
 **Flow:**
 1. Remote agent registers with RAR, receives `session_id`
-2. Remote agent calls `StreamConfigEvents` with `session_id`
+2. Remote agent calls `StreamConfigEvents` with `session_id` in gRPC metadata
 3. Core-agent validates `session_id` against RAR
 4. Core-agent sends initial snapshot (all config settings)
 5. Core-agent streams incremental updates as config changes
@@ -52,9 +52,14 @@ service AgentSecure {
 ```protobuf
 message ConfigStreamRequest {
   string name = 1;        // Client identifier (e.g., "system-probe")
-  string session_id = 2;  // From RAR registration (required)
+  // NOTE: session_id is passed via gRPC metadata (key: "session_id"), not in the message body.
 }
 ```
+
+**Authentication:**
+- The `session_id` obtained from RAR registration **must** be passed via gRPC metadata
+- Metadata key: `"session_id"`
+- This ensures consistent authentication across all remote agent RPCs
 
 **Response Stream:**
 ```protobuf
@@ -151,15 +156,15 @@ Build and run the standalone test client:
 # Build
 go build -o bin/config-stream-client ./cmd/config-stream-client
 
-# Run (requires running core-agent)
-./bin/config-stream-client \\
-  --ipc-address localhost:5001 \\
-  --auth-token $(cat /opt/datadog-agent/run/auth_token) \\
-  --name my-test-client \\
+# Run (requires running core-agent with RAR enabled)
+./bin/config-stream-client \
+  --ipc-address localhost:5001 \
+  --auth-token $(cat /etc/datadog-agent/auth_token) \
+  --name my-test-client \
   --duration 60s
 ```
 
-See `cmd/config-stream-client/README.md` for detailed usage.
+**Note:** The test client performs actual RAR registration to obtain a valid `session_id`, validating the complete end-to-end authentication flow. See `cmd/config-stream-client/README.md` for detailed usage and limitations.
 
 ## Troubleshooting
 
@@ -167,13 +172,20 @@ See `cmd/config-stream-client/README.md` for detailed usage.
 
 **Symptoms:**
 ```
-rpc error: code = Unauthenticated desc = session_id required
+rpc error: code = Unauthenticated desc = session_id required in metadata
 ```
 
 **Solution:**
-1. Ensure remote agent registers with RAR first
-2. Pass `session_id` from RAR registration to `ConfigStreamRequest`
+1. Ensure remote agent registers with RAR first using `RegisterRemoteAgent()`
+2. Pass `session_id` from RAR registration via gRPC metadata (not in request body)
 3. Check RAR is enabled: `remote_agent_registry.enabled: true`
+
+Example:
+```go
+md := metadata.New(map[string]string{"session_id": sessionID})
+ctx := metadata.NewOutgoingContext(context.Background(), md)
+stream, err := client.StreamConfigEvents(ctx, &pb.ConfigStreamRequest{Name: "my-agent"})
+```
 
 ### No Snapshot Received
 
@@ -206,9 +218,13 @@ rpc error: code = PermissionDenied desc = session_id 'xxx' not found
 ```
 
 **Solution:**
-1. Verify RAR registration succeeded
-2. Check `session_id` is not expired
-3. Call `RefreshRemoteAgent()` periodically (every 30s recommended)
+This indicates the `session_id` is not recognized by the core-agent. Possible causes:
+
+1. **Agent restarted** - RAR state was lost, client must re-register
+2. **Session expired** - Registration timeout exceeded without refresh
+3. **Registration failed** - Initial `RegisterRemoteAgent()` did not complete successfully
+
+**Fix:** Ensure the remote agent calls `RefreshRemoteAgent()` periodically (every 30s recommended) to keep the session alive.
 
 ## Development
 
