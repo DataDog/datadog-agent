@@ -6,6 +6,9 @@
 package healthplatformimpl
 
 import (
+	"encoding/json"
+	"net/http"
+
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 )
 
@@ -34,4 +37,22 @@ func (n *noopHealthPlatform) ClearIssuesForCheck(_ string) {
 
 // ClearAllIssues does nothing when the health platform is disabled
 func (n *noopHealthPlatform) ClearAllIssues() {
+}
+
+// ============================================================================
+// HTTP API Handlers (noop)
+// ============================================================================
+
+// getIssuesHandler handles GET /health-platform/issues when disabled
+func (n *noopHealthPlatform) getIssuesHandler(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	response := struct {
+		Count  int                              `json:"count"`
+		Issues map[string]*healthplatform.Issue `json:"issues"`
+	}{
+		Count:  0,
+		Issues: make(map[string]*healthplatform.Issue),
+	}
+	_ = json.NewEncoder(w).Encode(response)
 }

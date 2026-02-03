@@ -8,14 +8,17 @@ package healthplatformimpl
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"google.golang.org/protobuf/proto"
 
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -36,7 +39,9 @@ type Requires struct {
 
 // Provides defines the output of the health-platform component
 type Provides struct {
-	Comp healthplatformdef.Component
+	compdef.Out
+	Comp         healthplatformdef.Component
+	APIGetIssues api.AgentEndpointProvider
 }
 
 // healthPlatformImpl implements the health platform component
@@ -76,7 +81,15 @@ func NewComponent(reqs Requires) (Provides, error) {
 	// Check if health platform is enabled
 	if !reqs.Config.GetBool("health_platform.enabled") {
 		reqs.Log.Info("Health platform component is disabled")
-		return Provides{Comp: &noopHealthPlatform{}}, nil
+		noop := &noopHealthPlatform{}
+		return Provides{
+			Comp: noop,
+			APIGetIssues: api.NewAgentEndpointProvider(
+				noop.getIssuesHandler,
+				"/health-platform/issues",
+				"GET",
+			),
+		}, nil
 	}
 
 	reqs.Log.Info("Creating health platform component")
@@ -116,9 +129,15 @@ func NewComponent(reqs Requires) (Provides, error) {
 		),
 	}
 
-	// Return the component wrapped in Provides
-	provides := Provides{Comp: comp}
-	return provides, nil
+	// Return the component wrapped in Provides with API endpoints
+	return Provides{
+		Comp: comp,
+		APIGetIssues: api.NewAgentEndpointProvider(
+			comp.getIssuesHandler,
+			"/health-platform/issues",
+			"GET",
+		),
+	}, nil
 }
 
 // ============================================================================
@@ -319,4 +338,32 @@ func (h *healthPlatformImpl) initForwarder(reqs Requires) error {
 
 	h.forwarder = newForwarder(reqs.Config, h, reqs.Log, hostname)
 	return nil
+}
+
+// ============================================================================
+// HTTP API Handlers
+// ============================================================================
+
+// getIssuesHandler handles GET /health-platform/issues
+func (h *healthPlatformImpl) getIssuesHandler(w http.ResponseWriter, _ *http.Request) {
+	count, issues := h.GetAllIssues()
+
+	response := struct {
+		Count  int                              `json:"count"`
+		Issues map[string]*healthplatform.Issue `json:"issues"`
+	}{
+		Count:  count,
+		Issues: issues,
+	}
+
+	h.writeJSONResponse(w, http.StatusOK, response)
+}
+
+// writeJSONResponse writes a JSON response with the given status code
+func (h *healthPlatformImpl) writeJSONResponse(w http.ResponseWriter, statusCode int, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		h.log.Warn("Failed to encode JSON response: " + err.Error())
+	}
 }
