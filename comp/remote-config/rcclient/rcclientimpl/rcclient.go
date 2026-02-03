@@ -10,6 +10,7 @@ package rcclientimpl
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"sync"
 	"time"
@@ -402,6 +403,7 @@ func (rc *rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, 
 			defer wg.Done()
 			defer pkglog.Errorf("[FA] Agent task %s completed", configPath)
 			task, err := types.ParseConfigAgentTask(c.Config, c.Metadata)
+			fmt.Printf("ASTUYVE TASK raw config: %s\n", string(c.Config))
 			if err != nil {
 				rc.client.UpdateApplyStatus(configPath, state.ApplyStatus{
 					State: state.ApplyStateError,
@@ -442,16 +444,18 @@ func (rc *rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, 
 				case string(types.TaskRestart):
 					processed = true
 					pkglog.Errorf("[FA] Restarting agent task %s", configPath)
-					switch task.Config.TaskArgs["manager"] {
+					manager, _ := task.Config.GetStringArg("manager")
+					targetName, _ := task.Config.GetStringArg("target_name")
+					switch manager {
 					case "docker":
-						pkglog.Errorf("[FA] Restarting docker container %s", task.Config.TaskArgs["target_name"])
-						err = exec.Command("docker", "restart", task.Config.TaskArgs["target_name"]).Run()
+						pkglog.Errorf("[FA] Restarting docker container %s", targetName)
+						err = exec.Command("docker", "restart", targetName).Run()
 					case "launchctl":
-						pkglog.Errorf("[FA] Restarting launchctl service %s", task.Config.TaskArgs["target_name"])
-						err = exec.Command("launchctl", "kickstart", "-k", task.Config.TaskArgs["target_name"]).Run()
+						pkglog.Errorf("[FA] Restarting launchctl service %s", targetName)
+						err = exec.Command("launchctl", "kickstart", "-k", targetName).Run()
 					case "systemctl":
-						pkglog.Errorf("[FA] Restarting systemctl service %s", task.Config.TaskArgs["target_name"])
-						err = exec.Command("systemctl", "restart", task.Config.TaskArgs["target_name"]).Run()
+						pkglog.Errorf("[FA] Restarting systemctl service %s", targetName)
+						err = exec.Command("systemctl", "restart", targetName).Run()
 					}
 					if err != nil {
 						pkglog.Errorf("[FA] Error while restarting agent task: %s", err.Error())
@@ -460,12 +464,39 @@ func (rc *rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, 
 					processed = true
 					pkglog.Errorf("[FA] Executing function tool for agent task %s", configPath)
 					pkglog.Errorf("[FA] Task: %s", task)
-					pkglog.Errorf("[FA] Call ID: %s", task.Config.TaskArgs["call_id"])
-					pkglog.Errorf("[FA] Function tool name: %s", task.Config.TaskArgs["function_tool_name"])
-					pkglog.Errorf("[FA] Parameters: %s", task.Config.TaskArgs["parameters"])
-					err = functiontools.NewCall(task).Execute().Send()
-					if err != nil {
-						pkglog.Errorf("[FA] Error while executing function tool for agent task: %s", err.Error())
+					pkglog.Errorf("[FA] Task args:")
+					for key, value := range task.Config.TaskArgs {
+						pkglog.Errorf("[FA]   %s: %v (type: %T)", key, value, value)
+					}
+
+					// Execute the function tool call
+					call := functiontools.NewCall(task)
+					if call.Error != nil {
+						pkglog.Errorf("[FA] Error creating function tool call: %s", call.Error.Error())
+						err = call.Error
+					} else {
+						result := call.Execute()
+
+						// Send the result to the callback URL
+						if result.CallbackURL != "" {
+							apiKey := configUtils.SanitizeAPIKey(rc.config.GetString("api_key"))
+							appKey := rc.config.GetString("app_key")
+							if appKey == "" {
+								appKey = os.Getenv("DD_APP_KEY")
+							}
+							if appKey == "" {
+								appKey = os.Getenv("DD_APPLICATION_KEY")
+							}
+
+							sender := functiontools.NewCallbackSender(apiKey, appKey, result.CallbackURL)
+							err = sender.Send(result.CallID, result.FunctionToolName, result.Output, result.Error)
+							if err != nil {
+								pkglog.Errorf("[FA] Error sending function tool result: %s", err.Error())
+							}
+						} else {
+							pkglog.Errorf("[FA] No callback URL provided, skipping result send")
+							err = result.Error
+						}
 					}
 				}
 
@@ -486,6 +517,7 @@ func (rc *rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, 
 					})
 				}
 			} else {
+				pkglog.Errorf("[FA] Agent task %s (UUID: %s) was already processed, skipping", configPath, task.Config.UUID)
 				rc.m.Unlock()
 			}
 		}(originalConfigPath, originalConfig)

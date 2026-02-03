@@ -19,9 +19,19 @@ type AgentTaskConfig struct {
 
 // AgentTaskData is the content of a agent task configuration file
 type AgentTaskData struct {
-	TaskType string            `json:"task_type"`
-	UUID     string            `json:"uuid"`
-	TaskArgs map[string]string `json:"args"`
+	TaskType string         `json:"task_type"`
+	UUID     string         `json:"uuid"`
+	TaskArgs map[string]any `json:"args"`
+}
+
+// GetStringArg safely extracts a string value from TaskArgs
+func (d *AgentTaskData) GetStringArg(key string) (string, bool) {
+	if val, ok := d.TaskArgs[key]; ok {
+		if str, ok := val.(string); ok {
+			return str, true
+		}
+	}
+	return "", false
 }
 
 // ParseConfigAgentTask parses an agent task config

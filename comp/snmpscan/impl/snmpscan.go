@@ -70,13 +70,13 @@ func (s snmpScannerImpl) handleAgentTask(taskType rcclienttypes.TaskType, task r
 }
 
 func (s snmpScannerImpl) startDeviceScan(task rcclienttypes.AgentTaskConfig) error {
-	deviceIP := task.Config.TaskArgs["ip_address"]
+	deviceIP, _ := task.Config.GetStringArg("ip_address")
 	instance, deviceNamespace, err := snmpparse.GetParamsFromAgent(deviceIP, s.config, s.client)
 	if err != nil {
 		return err
 	}
 
-	namespace, ok := task.Config.TaskArgs["namespace"]
+	namespace, ok := task.Config.GetStringArg("namespace")
 	if !ok || namespace == "" {
 		namespace = deviceNamespace
 	}

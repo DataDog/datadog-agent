@@ -63,35 +63,70 @@ var registry = map[string]FunctionTool{
 
 type FunctionToolCall struct {
 	CallID           string            `json:"call_id"`
-	DatadogAgentKey  string            `json:"datadog_agent_key"`
 	FunctionToolName string            `json:"function_tool_name"`
 	Parameters       map[string]string `json:"parameters"`
 	Output           any               `json:"output"`
 	Error            error             `json:"error,omitempty"`
+	CallbackURL      string            `json:"-"` // Internal field, not serialized
 }
 
 func NewCall(task types.AgentTaskConfig) FunctionToolCall {
-	raw, ok := task.Config.TaskArgs["parameters"]
+	callID, _ := task.Config.GetStringArg("call_id")
+	functionToolName, _ := task.Config.GetStringArg("function_tool_name")
+
+	rawParams, ok := task.Config.TaskArgs["parameters"]
 	if !ok {
 		// No parameters provided, return an empty map (not nil)
 		return FunctionToolCall{
-			CallID:           task.Config.TaskArgs["call_id"],
-			FunctionToolName: task.Config.TaskArgs["function_tool_name"],
+			CallID:           callID,
+			FunctionToolName: functionToolName,
 			Parameters:       make(map[string]string),
 		}
 	}
 
+	// Parameters can be either a map[string]any (from JSON object) or a string (JSON-encoded)
 	var parameters map[string]string
-	err := json.Unmarshal([]byte(raw), &parameters)
-	if err != nil {
+	var callbackURL string
+	switch p := rawParams.(type) {
+	case map[string]any:
+		parameters = make(map[string]string)
+		for k, v := range p {
+			if str, ok := v.(string); ok {
+				// Extract callback_url from parameters if present
+				if k == "callback_url" {
+					callbackURL = str
+					continue // Don't include callback_url in parameters
+				}
+				parameters[k] = str
+			} else {
+				// Convert non-string values to their string representation
+				parameters[k] = fmt.Sprintf("%v", v)
+			}
+		}
+	case string:
+		// If parameters is a JSON string, unmarshal it
+		err := json.Unmarshal([]byte(p), &parameters)
+		if err != nil {
+			return FunctionToolCall{
+				Error: fmt.Errorf("failed to unmarshal parameters: %w", err),
+			}
+		}
+		// Extract callback_url from parameters if present
+		if url, ok := parameters["callback_url"]; ok {
+			callbackURL = url
+			delete(parameters, "callback_url")
+		}
+	default:
 		return FunctionToolCall{
-			Error: fmt.Errorf("failed to unmarshal parameters: %w", err),
+			Error: fmt.Errorf("unexpected parameters type: %T", rawParams),
 		}
 	}
+
 	return FunctionToolCall{
-		CallID:           task.Config.TaskArgs["call_id"],
-		FunctionToolName: task.Config.TaskArgs["function_tool_name"],
+		CallID:           callID,
+		FunctionToolName: functionToolName,
 		Parameters:       parameters,
+		CallbackURL:      callbackURL,
 	}
 }
 

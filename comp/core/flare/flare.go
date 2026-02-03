@@ -98,18 +98,18 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 	if taskType != rcclienttypes.TaskFlare {
 		return false, nil
 	}
-	caseID, found := task.Config.TaskArgs["case_id"]
+	caseID, found := task.Config.GetStringArg("case_id")
 	if !found {
 		return true, errors.New("Case ID was not provided in the flare agent task")
 	}
-	userHandle, found := task.Config.TaskArgs["user_handle"]
+	userHandle, found := task.Config.GetStringArg("user_handle")
 	if !found {
 		return true, errors.New("User handle was not provided in the flare agent task")
 	}
 
 	flareArgs := types.FlareArgs{}
 
-	enableProfiling, found := task.Config.TaskArgs["enable_profiling"]
+	enableProfiling, found := task.Config.GetStringArg("enable_profiling")
 	if !found {
 		f.log.Debug("enable_profiling arg not found, creating flare without profiling enabled")
 	} else if enableProfiling == "true" {
@@ -121,7 +121,7 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 		f.log.Infof("Unrecognized value passed via enable_profiling, creating flare without profiling enabled: %q", enableProfiling)
 	}
 
-	streamlogs, found := task.Config.TaskArgs["enable_streamlogs"]
+	streamlogs, found := task.Config.GetStringArg("enable_streamlogs")
 	if !found || streamlogs == "false" {
 		f.log.Debug("enable_streamlogs arg not found, creating flare without streamlogs enabled")
 	} else if streamlogs == "true" {
