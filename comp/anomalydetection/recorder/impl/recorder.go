@@ -174,3 +174,17 @@ func (h *recordingHandle) ObserveLog(msg observer.LogView) {
 	h.inner.ObserveLog(msg)
 	// TODO: Optionally record logs to parquet (future enhancement)
 }
+
+// ObserveTrace forwards the trace to the inner handle.
+// Trace recording is not implemented yet but the hook is in place.
+func (h *recordingHandle) ObserveTrace(trace observer.TraceView) {
+	h.inner.ObserveTrace(trace)
+	// TODO: Optionally record traces to parquet (future enhancement)
+}
+
+// ObserveProfile forwards the profile to the inner handle.
+// Profile recording is not implemented yet but the hook is in place.
+func (h *recordingHandle) ObserveProfile(profile observer.ProfileView) {
+	h.inner.ObserveProfile(profile)
+	// TODO: Optionally record profiles to parquet (future enhancement)
+}

@@ -51,6 +51,14 @@ func (h *mockHandle) ObserveLog(msg observer.LogView) {
 	})
 }
 
+func (h *mockHandle) ObserveTrace(_ observer.TraceView) {
+	// No-op for test mock - traces not used in demo generator tests
+}
+
+func (h *mockHandle) ObserveProfile(_ observer.ProfileView) {
+	// No-op for test mock - profiles not used in demo generator tests
+}
+
 func (h *mockHandle) getMetrics() []capturedMetric {
 	h.mu.Lock()
 	defer h.mu.Unlock()
