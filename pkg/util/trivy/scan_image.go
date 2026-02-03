@@ -39,6 +39,10 @@ func (c *Collector) scanImage(ctx context.Context, fanalImage ftypes.Image, imgM
 		return nil, err
 	}
 
+	if cache == nil {
+		return nil, fmt.Errorf("cache is not available")
+	}
+
 	imageArtifact, err := image2.NewArtifact(fanalImage, cache, getDefaultArtifactOption(scanOptions))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create artifact from image, err: %w", err)

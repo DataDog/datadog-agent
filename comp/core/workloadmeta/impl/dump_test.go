@@ -7,6 +7,7 @@ package workloadmetaimpl
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -132,6 +133,8 @@ Health:
 Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
+----------- SBOM -----------
+SBOM is nil
 ----------- Resources -----------
 GPUVendor: [nvidia]
 ----------- Resize Policy -----------
@@ -167,6 +170,8 @@ Health:
 Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
+----------- SBOM -----------
+SBOM is nil
 ----------- Resources -----------
 ----------- Resize Policy -----------
 ----------- Allocated Resources -----------
@@ -198,6 +203,137 @@ Health:
 Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
+----------- SBOM -----------
+SBOM is nil
+----------- Resources -----------
+GPUVendor: [nvidia]
+----------- Allocated Resources -----------
+Name: nvidia.com/gpu, ID: GPU-1234
+Hostname: 
+Network IPs: 
+PID: 1
+Cgroup path: /default/ctr-id
+`,
+				},
+			},
+		},
+	}
+
+	assert.EqualValues(t, expectedVerbose, verboseDump)
+
+	date, _ := time.Parse(time.RFC3339, "2023-10-01T12:00:00Z")
+	ctrToMerge.SBOM = &wmdef.SBOM{
+		Status:             wmdef.Success,
+		GenerationDuration: time.Second,
+		GenerationTime:     date,
+	}
+
+	s.handleEvents([]wmdef.CollectorEvent{
+		{
+			Type:   wmdef.EventTypeSet,
+			Source: "source2",
+			Entity: ctrToMerge,
+		},
+	})
+
+	verboseDump = s.Dump(true)
+
+	expectedVerbose = wmdef.WorkloadDumpResponse{
+		Entities: map[string]wmdef.WorkloadEntity{
+			"container": {
+				Infos: map[string]string{
+					"source:source1 id: ctr-id": `----------- Entity ID -----------
+Kind: container ID: ctr-id
+----------- Entity Meta -----------
+Name: ctr-name
+Namespace: 
+Annotations: 
+Labels: 
+----------- Image -----------
+Name: ctr-image
+Tag: 
+ID: 
+Raw Name: 
+Short Name: 
+Repo Digest: 
+----------- Container Info -----------
+Runtime: docker
+RuntimeFlavor: kata
+Running: false
+Status: 
+Health: 
+Created At: 0001-01-01 00:00:00 +0000 UTC
+Started At: 0001-01-01 00:00:00 +0000 UTC
+Finished At: 0001-01-01 00:00:00 +0000 UTC
+----------- SBOM -----------
+SBOM is nil
+----------- Resources -----------
+GPUVendor: [nvidia]
+----------- Allocated Resources -----------
+Name: nvidia.com/gpu, ID: GPU-1234
+Hostname: 
+Network IPs: 
+PID: 0
+Cgroup path: 
+`,
+					"source:source2 id: ctr-id": `----------- Entity ID -----------
+Kind: container ID: ctr-id
+----------- Entity Meta -----------
+Name: 
+Namespace: 
+Annotations: 
+Labels: foo:bar 
+----------- Image -----------
+Name: 
+Tag: latest
+ID: 
+Raw Name: 
+Short Name: 
+Repo Digest: 
+----------- Container Info -----------
+Runtime: 
+RuntimeFlavor: 
+Running: false
+Status: 
+Health: 
+Created At: 0001-01-01 00:00:00 +0000 UTC
+Started At: 0001-01-01 00:00:00 +0000 UTC
+Finished At: 0001-01-01 00:00:00 +0000 UTC
+----------- SBOM -----------
+Status: Success
+Generated in: 1.000000 seconds
+----------- Resources -----------
+----------- Allocated Resources -----------
+Hostname: 
+Network IPs: 
+PID: 1
+Cgroup path: /default/ctr-id
+`,
+					"sources(merged):[source1 source2] id: ctr-id": `----------- Entity ID -----------
+Kind: container ID: ctr-id
+----------- Entity Meta -----------
+Name: ctr-name
+Namespace: 
+Annotations: 
+Labels: foo:bar 
+----------- Image -----------
+Name: ctr-image
+Tag: latest
+ID: 
+Raw Name: 
+Short Name: 
+Repo Digest: 
+----------- Container Info -----------
+Runtime: docker
+RuntimeFlavor: kata
+Running: false
+Status: 
+Health: 
+Created At: 0001-01-01 00:00:00 +0000 UTC
+Started At: 0001-01-01 00:00:00 +0000 UTC
+Finished At: 0001-01-01 00:00:00 +0000 UTC
+----------- SBOM -----------
+SBOM is nil
 ----------- Resources -----------
 GPUVendor: [nvidia]
 ----------- Resize Policy -----------

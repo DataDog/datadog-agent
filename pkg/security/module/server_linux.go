@@ -14,12 +14,18 @@ import (
 	"os"
 	"strconv"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	sbompb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/sbom"
+	sbompkg "github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/containerd/containerd/protobuf/proto"
 )
 
 // DumpDiscarders handles discarder dump requests
@@ -299,4 +305,54 @@ func createSSHSessionPatcher(ev *model.Event, p *probe.Probe) sshSessionPatcher 
 		}
 	}
 	return nil
+}
+
+func (a *APIServer) collectSBOMS() {
+	ebpfProbe, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
+	if !ok {
+		return
+	}
+
+	if sbomResolver := ebpfProbe.Resolvers.SBOMResolver; sbomResolver != nil {
+		if err := sbomResolver.RegisterListener(sbom.SBOMComputed, func(sbom *sbompkg.ScanResult) {
+			select {
+			case a.sboms <- sbom:
+			default:
+				seclog.Warnf("dropping SBOM event")
+			}
+		}); err != nil {
+			seclog.Errorf("failed to register SBOM listener: %s", err)
+		}
+	}
+}
+
+// GetSBOMStream handles SBOM stream requests
+func (a *APIServer) GetSBOMStream(_ *sbompb.SBOMStreamParams, stream sbompb.SBOMCollector_GetSBOMStreamServer) error {
+	for {
+		select {
+		case <-stream.Context().Done():
+			return nil
+		case <-a.stopChan:
+			return nil
+		case sbom := <-a.sboms:
+			bom := sbom.Report.ToCycloneDX()
+
+			data, err := proto.Marshal(bom)
+			if err != nil {
+				return fmt.Errorf("failed to marshal SBOM: %w", err)
+			}
+
+			msg := &sbompb.SBOMMessage{
+				Data: data,
+				Kind: string(workloadmeta.KindContainer),
+				ID:   sbom.RequestID,
+			}
+
+			if err := stream.Send(msg); err != nil {
+				return fmt.Errorf("failed to send SBOM: %s", err)
+			}
+
+			log.Debugf("Forwarding SBOM for %s to core agent", sbom.RequestID)
+		}
+	}
 }
