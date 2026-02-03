@@ -48,9 +48,11 @@ build do
     'PATH' => ["#{gopath.to_path}/bin", env['PATH']].join(File::PATH_SEPARATOR),
   }
   unless windows_target?
+    # TODO: Do it also in other builds
+    rust_lib_path = "#{project_dir}/pkg/deepinference/rust/target/release"
     env['LDFLAGS'] = "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
     env['CGO_CFLAGS'] = "-I. -I#{install_dir}/embedded/include"
-    env['CGO_LDFLAGS'] = "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
+    env['CGO_LDFLAGS'] = "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib -L#{rust_lib_path}"
   end
 
   unless ENV["OMNIBUS_GOMODCACHE"].nil? || ENV["OMNIBUS_GOMODCACHE"].empty?
@@ -85,6 +87,9 @@ build do
     end
   end
 
+  # Clean Rust target directory to avoid CMake cache path conflicts
+  delete "pkg/deepinference/rust/target"
+
   # we assume the go deps are already installed before running omnibus
   if windows_target?
     platform = windows_arch_i386? ? "x86" : "x64"
@@ -102,7 +107,8 @@ build do
     command "dda inv -- -e rtloader.make --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER -DPython3_EXECUTABLE=#{install_dir}/embedded/bin/python3'", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
     command "dda inv -- -e rtloader.install", :live_stream => Omnibus.logger.live_stream(:info)
 
-    command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    # TODO: Target arch should be set elsewhere
+    command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg} --target-arch x86_64-unknown-linux-gnu", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
   if osx_target?
@@ -211,6 +217,17 @@ build do
     move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
   end
 
+  # TODO: Verif
+  # Copy deepinference library to embedded lib directory
+  unless windows_target?
+    rust_lib = "pkg/deepinference/rust/target/release/libdeepinference.so"
+    if File.exist?("#{project_dir}/#{rust_lib}")
+      copy rust_lib, "#{install_dir}/embedded/lib"
+      # move rust_lib, "#{install_dir}/embedded/lib"
+      puts "Copied deepinference library to embedded lib directory"
+    end
+  end
+
   # System-probe eBPF files
   if sysprobe_enabled?
     mkdir "#{install_dir}/embedded/share/system-probe/ebpf"
@@ -311,6 +328,12 @@ build do
   # Allows the agent to be installed in a custom location
   if linux_target?
     command "touch #{install_dir}/.install_root"
+  end
+
+  # TODO: Verif
+  # Whitelist deepinference library for health check
+  unless windows_target?
+    whitelist_file "#{install_dir}/embedded/lib/libdeepinference.so"
   end
 
   # TODO: move this to omnibus-ruby::health-check.rb

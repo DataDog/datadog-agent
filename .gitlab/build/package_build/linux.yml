@@ -11,6 +11,14 @@
   - ${S3_CP_CMD} "${S3_PERMANENT_ARTIFACTS_URI}/llc-${CLANG_LLVM_VER}.${PACKAGE_ARCH}.${CLANG_BUILD_VERSION}" /tmp/system-probe/llc-bpf
   - cp $CI_PROJECT_DIR/minimized-btfs.tar.xz /tmp/system-probe/minimized-btfs.tar.xz
   - chmod 0744 /tmp/system-probe/clang-bpf /tmp/system-probe/llc-bpf
+  - |
+    echo "Setting up Rust / Cargo"
+    echo "
+    [target.x86_64-unknown-linux-gnu]
+    linker = \"/opt/toolchains/x86_64/bin/x86_64-unknown-linux-gnu-gcc\"
+    " >> ~/.cargo/config.toml
+    rustup target add x86_64-unknown-linux-gnu
+    rm -rf pkg/deepinference/rust/target
   - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --flavor "$FLAVOR" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR"
   - ls -la $OMNIBUS_PACKAGE_DIR
   - !reference [.upload_sbom_artifacts]
@@ -28,9 +36,12 @@
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
   artifacts:
+    when: always
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
+      - /opt/datadog-agent/embedded/lib/libssl.so.3
+      - /opt/datadog-agent/embedded/lib/libdeepinference.so
 
 .agent_build_x86:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX

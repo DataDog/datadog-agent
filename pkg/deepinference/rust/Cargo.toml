@@ -1,0 +1,19 @@
+[package]
+name = "deepinference"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+rust-version = "1.91"
+
+[lib]
+name = "deepinference"
+crate-type = ["cdylib"]
+
+[dependencies]
+anyhow = "1.0.100"
+candle-core = { git = "https://github.com/huggingface/candle.git", version = "0.9.2" }
+candle-nn = { git = "https://github.com/huggingface/candle.git", version = "0.9.2" }
+candle-transformers = { git = "https://github.com/huggingface/candle.git", version = "0.9.2" }
+hf-hub = "0.4.3"
+serde_json = "1.0.149"
+tokenizers = "0.22.2"
