@@ -65,3 +65,46 @@ pub fn free_cstring_array(ptr: *mut *mut c_char) {
         drop(Vec::from_raw_parts(ptr, len, capacity));
     }
 }
+
+/// CStringGuard follows the RAII idiom to avoid freeing C-Strings manually when it's necessary
+pub struct CStringGuard {
+    ptr: *mut c_char
+}
+
+impl CStringGuard {
+    pub fn new(s: &str) -> Result<Self> {
+        let ptr = to_cstring(s)?;
+        Ok(Self { ptr })
+    }
+
+    pub fn as_ptr(&self) -> *mut c_char {
+        self.ptr
+    }
+}
+
+impl Drop for CStringGuard {
+    fn drop(&mut self) {
+        free_cstring(self.ptr);
+    }
+}
+
+pub struct CStringArrayGuard {
+    ptr: *mut *mut c_char
+}
+
+impl CStringArrayGuard {
+    pub fn new(arr: &[String]) -> Result<Self> {
+        let ptr = to_cstring_array(arr)?;
+        Ok(Self { ptr })
+    }
+
+    pub fn as_ptr(&self) -> *mut *mut c_char {
+        self.ptr
+    }
+}
+
+impl Drop for CStringArrayGuard {
+    fn drop(&mut self) {
+        free_cstring_array(self.ptr);
+    }
+}

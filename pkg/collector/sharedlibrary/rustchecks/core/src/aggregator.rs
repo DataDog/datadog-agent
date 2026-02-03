@@ -1,8 +1,8 @@
-use crate::cstring::*;
+use crate::cstring::{CStringGuard, CStringArrayGuard};
 
 use std::ffi::{c_char, c_double, c_float, c_int, c_long, c_longlong};
 
-use anyhow::Result;
+use anyhow::{Ok, Result};
 
 /// Replica of the Agent metric type enum
 #[repr(C)]
@@ -27,7 +27,6 @@ pub enum ServiceCheckStatus {
 
 /// Replica of the Agent event struct
 #[repr(C)]
-#[derive(Debug)]
 pub struct Event {
     title: *mut c_char,
     text: *mut c_char,
@@ -124,156 +123,119 @@ impl Aggregator {
     }
 
     pub fn submit_metric(&self, check_id: &str, metric_type: MetricType, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) -> Result<()> {
-        // create the C strings
-        let cstr_check_id = to_cstring(check_id)?;
-        let cstr_name = to_cstring(name)?;
-        let cstr_tags = to_cstring_array(tags)?;
-        let cstr_hostname = to_cstring(hostname)?;
+        // create C strings guards to automatically free the underlying C strings
+        let cstr_check_id = CStringGuard::new(check_id)?;
+        let cstr_name = CStringGuard::new(name)?;
+        let cstr_tags = CStringArrayGuard::new(tags)?;
+        let cstr_hostname = CStringGuard::new(hostname)?;
 
         // submit the metric
         (self.cb_submit_metric)(
-            cstr_check_id,
+            cstr_check_id.as_ptr(),
             metric_type,
-            cstr_name,
+            cstr_name.as_ptr(),
             value,
-            cstr_tags,
-            cstr_hostname,
+            cstr_tags.as_ptr(),
+            cstr_hostname.as_ptr(),
             flush_first_value,
         );
-
-        // free every allocated C string
-        free_cstring(cstr_check_id);
-        free_cstring(cstr_name);
-        free_cstring_array(cstr_tags);
-        free_cstring(cstr_hostname);
 
         Ok(())
     }
 
     pub fn submit_service_check(&self, check_id: &str, name: &str, status: ServiceCheckStatus, tags: &[String], hostname: &str, message: &str) -> Result<()> {
-        // create the C strings
-        let cstr_check_id = to_cstring(check_id)?;
-        let cstr_name = to_cstring(name)?;
-        let cstr_tags = to_cstring_array(tags)?;
-        let cstr_hostname = to_cstring(hostname)?;
-        let cstr_message = to_cstring(message)?;
+        // create C strings guards to automatically free the underlying C strings
+        let cstr_check_id = CStringGuard::new(check_id)?;
+        let cstr_name = CStringGuard::new(name)?;
+        let cstr_tags = CStringArrayGuard::new(tags)?;
+        let cstr_hostname = CStringGuard::new(hostname)?;
+        let cstr_message = CStringGuard::new(message)?;
 
         // submit the service check
         (self.cb_submit_service_check)(
-            cstr_check_id,
-            cstr_name,
+            cstr_check_id.as_ptr(),
+            cstr_name.as_ptr(),
             status as c_int,
-            cstr_tags,
-            cstr_hostname,
-            cstr_message,
+            cstr_tags.as_ptr(),
+            cstr_hostname.as_ptr(),
+            cstr_message.as_ptr(),
         );
-
-        // free every allocated C string
-        free_cstring(cstr_check_id);
-        free_cstring(cstr_name);
-        free_cstring_array(cstr_tags);
-        free_cstring(cstr_hostname);
-        free_cstring(cstr_message);
 
         Ok(())
 
     }
     pub fn submit_event(&self, check_id: &str, title: &str, text: &str, timestamp: c_long, priority: &str, host: &str, tags: &[String], alert_type: &str, aggregation_key: &str, source_type_name: &str, event_type: &str) -> Result<()> {
-        // create the C strings
-        let cstr_check_id = to_cstring(check_id)?;
+        // create C strings guards to automatically free the underlying C strings
+        let cstr_check_id = CStringGuard::new(check_id)?;
         
-        let cstr_title = to_cstring(title)?;
-        let cstr_text = to_cstring(text)?;
-        let cstr_priority = to_cstring(priority)?;
-        let cstr_host = to_cstring(host)?;
-        let cstr_tags = to_cstring_array(tags)?;
-        let cstr_alert_type = to_cstring(alert_type)?;
-        let cstr_aggregation_key = to_cstring(aggregation_key)?;
-        let cstr_source_type_name = to_cstring(source_type_name)?;
-        let cstr_event_type = to_cstring(event_type)?;
+        let cstr_title = CStringGuard::new(title)?;
+        let cstr_text = CStringGuard::new(text)?;
+        let cstr_priority = CStringGuard::new(priority)?;
+        let cstr_host = CStringGuard::new(host)?;
+        let cstr_tags = CStringArrayGuard::new(tags)?;
+        let cstr_alert_type = CStringGuard::new(alert_type)?;
+        let cstr_aggregation_key = CStringGuard::new(aggregation_key)?;
+        let cstr_source_type_name = CStringGuard::new(source_type_name)?;
+        let cstr_event_type = CStringGuard::new(event_type)?;
 
         let event = Event {
-            title: cstr_title,
-            text: cstr_text,
+            title: cstr_title.as_ptr(),
+            text: cstr_text.as_ptr(),
             timestamp,
-            priority: cstr_priority,
-            host: cstr_host,
-            tags: cstr_tags,
-            alert_type: cstr_alert_type,
-            aggregation_key: cstr_aggregation_key,
-            source_type_name: cstr_source_type_name,
-            event_type: cstr_event_type,
+            priority: cstr_priority.as_ptr(),
+            host: cstr_host.as_ptr(),
+            tags: cstr_tags.as_ptr(),
+            alert_type: cstr_alert_type.as_ptr(),
+            aggregation_key: cstr_aggregation_key.as_ptr(),
+            source_type_name: cstr_source_type_name.as_ptr(),
+            event_type: cstr_event_type.as_ptr(),
         };
 
         // submit the event
         (self.cb_submit_event)(
-            cstr_check_id,
+            cstr_check_id.as_ptr(),
             &event,
         );
-
-        // free every allocated C string
-        free_cstring(cstr_check_id);
-        
-        free_cstring(cstr_title);
-        free_cstring(cstr_text);
-        free_cstring(cstr_priority);
-        free_cstring(cstr_host);
-        free_cstring_array(cstr_tags);
-        free_cstring(cstr_alert_type);
-        free_cstring(cstr_aggregation_key);
-        free_cstring(cstr_source_type_name);
-        free_cstring(cstr_event_type);
 
         Ok(())
     }
 
     pub fn submit_histogram_bucket(&self, check_id: &str, metric_name: &str, value: c_longlong, lower_bound: f32, upper_bound: f32, monotonic: c_int, hostname: &str, tags: &[String], flush_first_value: bool) -> Result<()> {
-        // create the C strings
-        let cstr_check_id = to_cstring(check_id)?;
-        let cstr_metric_name = to_cstring(metric_name)?;
-        let cstr_hostname = to_cstring(hostname)?;
-        let cstr_tags = to_cstring_array(tags)?;
+        // create C strings guards to automatically free the underlying C strings
+        let cstr_check_id = CStringGuard::new(check_id)?;
+        let cstr_metric_name = CStringGuard::new(metric_name)?;
+        let cstr_hostname = CStringGuard::new(hostname)?;
+        let cstr_tags = CStringArrayGuard::new(tags)?;
 
         // submit the histogram bucket
         (self.cb_submit_histogram_bucket)(
-            cstr_check_id,
-            cstr_metric_name,
+            cstr_check_id.as_ptr(),
+            cstr_metric_name.as_ptr(),
             value,
             lower_bound,
             upper_bound,
             monotonic,
-            cstr_hostname,
-            cstr_tags,
+            cstr_hostname.as_ptr(),
+            cstr_tags.as_ptr(),
             flush_first_value,
         );
-
-        // free every allocated C string
-        free_cstring(cstr_check_id);
-        free_cstring(cstr_metric_name);
-        free_cstring(cstr_hostname);
-        free_cstring_array(cstr_tags);
 
         Ok(())
     }
 
     pub fn submit_event_platform_event(&self, check_id: &str, raw_event: &str, raw_event_size: c_int, event_type: &str) -> Result<()> {
-        // create the C strings
-        let cstr_check_id = to_cstring(check_id)?;
-        let cstr_raw_event = to_cstring(raw_event)?;
-        let cstr_event_type = to_cstring(event_type)?;
+        // create C strings guards to automatically free the underlying C strings
+        let cstr_check_id = CStringGuard::new(check_id)?;
+        let cstr_raw_event = CStringGuard::new(raw_event)?;
+        let cstr_event_type = CStringGuard::new(event_type)?;
 
         // submit the event platform event
         (self.cb_submit_event_platform_event)(
-            cstr_check_id,
-            cstr_raw_event,
+            cstr_check_id.as_ptr(),
+            cstr_raw_event.as_ptr(),
             raw_event_size,
-            cstr_event_type,
+            cstr_event_type.as_ptr(),
         );
-
-        // free every allocated C string
-        free_cstring(cstr_check_id);
-        free_cstring(cstr_raw_event);
-        free_cstring(cstr_event_type);
 
         Ok(())
     }
