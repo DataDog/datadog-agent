@@ -267,7 +267,7 @@ func getNsPID(pid uint32) (int32, error) {
 
 	nspid := nspids[len(nspids)-1]
 	if nspid > math.MaxInt32 {
-		return 0, fmt.Errorf("nspid %d is too large to fit in int32", pid)
+		return 0, fmt.Errorf("nspid %d is too large to fit in int32", nspid)
 	}
 
 	return int32(nspid), nil
