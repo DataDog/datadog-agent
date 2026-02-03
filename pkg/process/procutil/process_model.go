@@ -75,7 +75,6 @@ func (p *Process) GetCmdline() []string {
 // ProcessIdentity generates a unique identity string for a process based on PID, creation time,
 // and command line hash. This allows detection of exec scenarios where the PID and creation time
 // remain the same but the command line changes.
-// See https://github.com/DataDog/datadog-agent/issues/43137
 func ProcessIdentity(pid int32, createTime int64, cmdline []string) string {
 	return "pid:" + strconv.Itoa(int(pid)) + "|createTime:" + strconv.FormatInt(createTime, 10) + "|cmdHash:" + strconv.FormatUint(hashCmdline(cmdline), 16)
 }
