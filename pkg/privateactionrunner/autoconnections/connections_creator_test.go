@@ -7,7 +7,7 @@ package autoconnections
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -408,5 +408,5 @@ func (n noopConfigWriter) EnsureScriptBundleConfig() (bool, error) {
 type failingConfigWriter struct{}
 
 func (f failingConfigWriter) EnsureScriptBundleConfig() (bool, error) {
-	return false, fmt.Errorf("oh no")
+	return false, errors.New("oh no")
 }
