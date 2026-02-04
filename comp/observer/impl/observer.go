@@ -94,8 +94,12 @@ func NewComponent(deps Requires) Provides {
 			},
 			&ConnectionErrorExtractor{},
 		},
-		tsAnalyses: []observerdef.TimeSeriesAnalysis{
-			NewCUSUMDetector(),
+		multiAnalyses: []observerdef.MultiSeriesAnalysis{
+			newTimeSeriesAnalysisAdapter(NewCUSUMDetector(), []observerdef.Aggregate{
+				observerdef.AggregateAverage,
+				observerdef.AggregateCount,
+			}),
+			NewRRCFAnalysis(DefaultRRCFConfig()),
 		},
 		anomalyProcessors: []observerdef.AnomalyProcessor{
 			correlator,
@@ -241,7 +245,7 @@ func samplePass(rate float64, n uint64) bool {
 // observerImpl is the implementation of the observer component.
 type observerImpl struct {
 	logProcessors     []observerdef.LogProcessor
-	tsAnalyses        []observerdef.TimeSeriesAnalysis
+	multiAnalyses     []observerdef.MultiSeriesAnalysis
 	anomalyProcessors []observerdef.AnomalyProcessor // Supports both old (AnomalyOutput) and new (Signal via ProcessSignal)
 	reporters         []observerdef.Reporter
 	storage           *timeSeriesStorage
@@ -284,10 +288,6 @@ func (o *observerImpl) run() {
 		}
 	}
 }
-
-// analysisAggregations defines which aggregations to run TS analyses on.
-// This allows detecting both value elevation (average) and frequency elevation (count).
-var analysisAggregations = []Aggregate{AggregateAverage, AggregateCount}
 
 // processMetric handles a metric observation.
 func (o *observerImpl) processMetric(source string, m *metricObs) {
@@ -368,32 +368,34 @@ func (o *observerImpl) maybeRunAnalyses(dataTime int64) {
 	o.lastAnalyzedDataTime = analyzeUpTo
 }
 
-// runAnalysesUpTo runs all time series analyses on all series, considering only
-// points with timestamp <= upTo. This ensures we analyze complete time buckets.
+// analysisAggregations defines which aggregations to use for signal emitters.
+var analysisAggregations = []observerdef.Aggregate{observerdef.AggregateAverage, observerdef.AggregateCount}
+
+// runAnalysesUpTo runs all multi-series analyses, providing them access to storage
+// and the data timestamp up to which they should analyze.
 func (o *observerImpl) runAnalysesUpTo(upTo int64) {
-	for _, stats := range o.storage.series {
-		for _, agg := range analysisAggregations {
-			series := stats.toSeriesUpTo(agg, upTo)
-			if len(series.Points) == 0 {
-				continue
-			}
+	// Run multi-series analyses (pull-based)
+	for _, analysis := range o.multiAnalyses {
+		anomalies := analysis.Analyze(o.storage, upTo)
+		for _, anomaly := range anomalies {
+			o.captureRawAnomaly(anomaly)
+			o.processAnomaly(anomaly)
+		}
+	}
 
-			// Run point-based signal emitters (adds its own suffix)
-			o.runSignalEmitters(series, agg)
-
-			// Add suffix for region-based TS analyses
-			series.Name = series.Name + ":" + aggSuffix(agg)
-
-			for _, tsAnalysis := range o.tsAnalyses {
-				result := tsAnalysis.Analyze(series)
-				for _, anomaly := range result.Anomalies {
-					anomaly.AnalyzerName = tsAnalysis.Name()
-					o.captureRawAnomaly(anomaly)
-					o.processAnomaly(anomaly)
+	// Run point-based signal emitters (if any registered)
+	if len(o.signalEmitters) > 0 {
+		for _, stats := range o.storage.series {
+			for _, agg := range analysisAggregations {
+				series := stats.toSeriesUpTo(agg, upTo)
+				if len(series.Points) == 0 {
+					continue
 				}
+				o.runSignalEmitters(series, agg)
 			}
 		}
 	}
+
 	o.flushAndReport()
 }
 
@@ -449,21 +451,68 @@ func (o *observerImpl) processSignal(signal observerdef.Signal) {
 }
 
 // aggSuffix returns a short suffix for the given aggregation type.
-func aggSuffix(agg Aggregate) string {
+func aggSuffix(agg observerdef.Aggregate) string {
 	switch agg {
-	case AggregateAverage:
+	case observerdef.AggregateAverage:
 		return "avg"
-	case AggregateSum:
+	case observerdef.AggregateSum:
 		return "sum"
-	case AggregateCount:
+	case observerdef.AggregateCount:
 		return "count"
-	case AggregateMin:
+	case observerdef.AggregateMin:
 		return "min"
-	case AggregateMax:
+	case observerdef.AggregateMax:
 		return "max"
 	default:
 		return "unknown"
 	}
+}
+
+// timeSeriesAnalysisAdapter wraps a stateless TimeSeriesAnalysis to implement MultiSeriesAnalysis.
+// It runs the wrapped analysis on all series, handling aggregation suffixes.
+type timeSeriesAnalysisAdapter struct {
+	analysis     observerdef.TimeSeriesAnalysis
+	aggregations []observerdef.Aggregate
+}
+
+func newTimeSeriesAnalysisAdapter(analysis observerdef.TimeSeriesAnalysis, aggregations []observerdef.Aggregate) *timeSeriesAnalysisAdapter {
+	return &timeSeriesAnalysisAdapter{
+		analysis:     analysis,
+		aggregations: aggregations,
+	}
+}
+
+func (a *timeSeriesAnalysisAdapter) Name() string {
+	return a.analysis.Name()
+}
+
+func (a *timeSeriesAnalysisAdapter) Analyze(storage observerdef.StorageReader, dataTime int64) []observerdef.AnomalyOutput {
+	var allAnomalies []observerdef.AnomalyOutput
+
+	// Get all series (no filter = everything)
+	seriesKeys := storage.ListSeries(observerdef.SeriesFilter{})
+
+	for _, key := range seriesKeys {
+		for _, agg := range a.aggregations {
+			// Get series up to dataTime
+			series := storage.GetSeriesRange(key, 0, dataTime, agg)
+			if series == nil || len(series.Points) == 0 {
+				continue
+			}
+
+			// Append aggregation suffix for distinct tracking
+			seriesWithAgg := *series
+			seriesWithAgg.Name = series.Name + ":" + aggSuffix(agg)
+
+			result := a.analysis.Analyze(seriesWithAgg)
+			for _, anomaly := range result.Anomalies {
+				anomaly.AnalyzerName = a.analysis.Name()
+				allAnomalies = append(allAnomalies, anomaly)
+			}
+		}
+	}
+
+	return allAnomalies
 }
 
 // processAnomaly sends an anomaly to all registered anomaly processors.

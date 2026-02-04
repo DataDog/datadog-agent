@@ -86,8 +86,11 @@ func RunDemoWithConfig(config DemoConfig) {
 		logProcessors: []observerdef.LogProcessor{
 			&ConnectionErrorExtractor{},
 		},
-		tsAnalyses: []observerdef.TimeSeriesAnalysis{
-			NewCUSUMDetector(),
+		multiAnalyses: []observerdef.MultiSeriesAnalysis{
+			newTimeSeriesAnalysisAdapter(NewCUSUMDetector(), []observerdef.Aggregate{
+				observerdef.AggregateAverage,
+				observerdef.AggregateCount,
+			}),
 		},
 		signalEmitters: []observerdef.SignalEmitter{
 			NewGraphSketchEmitter(DefaultGraphSketchConfig()),

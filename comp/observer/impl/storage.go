@@ -44,15 +44,16 @@ type statPoint struct {
 	Max       float64
 }
 
-// Aggregate specifies which statistic to extract from summary stats.
-type Aggregate int
+// Aggregate is an alias to the definition in the observer component for internal use.
+type Aggregate = observer.Aggregate
 
+// Re-export aggregate constants for internal use.
 const (
-	AggregateAverage Aggregate = iota
-	AggregateSum
-	AggregateCount
-	AggregateMin
-	AggregateMax
+	AggregateAverage = observer.AggregateAverage
+	AggregateSum     = observer.AggregateSum
+	AggregateCount   = observer.AggregateCount
+	AggregateMin     = observer.AggregateMin
+	AggregateMax     = observer.AggregateMax
 )
 
 // aggregate extracts the specified statistic from this point.
@@ -406,4 +407,110 @@ func (s *timeSeriesStorage) DumpToFile(path string) error {
 		return err
 	}
 	return os.WriteFile(path, data, 0644)
+}
+
+// StorageReader interface implementation
+
+// ListSeries returns keys of all series matching the filter.
+func (s *timeSeriesStorage) ListSeries(filter observer.SeriesFilter) []observer.SeriesKey {
+	var result []observer.SeriesKey
+	for _, stats := range s.series {
+		// Check namespace filter
+		if filter.Namespace != "" && stats.Namespace != filter.Namespace {
+			continue
+		}
+		// Check name pattern filter (prefix match)
+		if filter.NamePattern != "" && !strings.HasPrefix(stats.Name, filter.NamePattern) {
+			continue
+		}
+		// Check tag matchers
+		if !matchTags(stats.Tags, filter.TagMatchers) {
+			continue
+		}
+		result = append(result, observer.SeriesKey{
+			Namespace: stats.Namespace,
+			Name:      stats.Name,
+			Tags:      stats.Tags,
+		})
+	}
+	return result
+}
+
+// matchTags checks if tags contain all required key=value pairs.
+func matchTags(tags []string, matchers map[string]string) bool {
+	if len(matchers) == 0 {
+		return true
+	}
+	tagMap := make(map[string]string)
+	for _, t := range tags {
+		if idx := strings.Index(t, ":"); idx > 0 {
+			tagMap[t[:idx]] = t[idx+1:]
+		}
+	}
+	for k, v := range matchers {
+		if tagMap[k] != v {
+			return false
+		}
+	}
+	return true
+}
+
+// GetSeriesByKey returns the full series for a key.
+func (s *timeSeriesStorage) GetSeriesByKey(key observer.SeriesKey, agg Aggregate) *observer.Series {
+	internalKey := seriesKey(key.Namespace, key.Name, key.Tags)
+	stats := s.series[internalKey]
+	if stats == nil {
+		return nil
+	}
+	series := stats.toSeries(agg)
+	return &series
+}
+
+// GetSeriesRange returns points within a time range [start, end].
+func (s *timeSeriesStorage) GetSeriesRange(key observer.SeriesKey, start, end int64, agg Aggregate) *observer.Series {
+	internalKey := seriesKey(key.Namespace, key.Name, key.Tags)
+	stats := s.series[internalKey]
+	if stats == nil {
+		return nil
+	}
+
+	points := make([]observer.Point, 0)
+	for _, p := range stats.Points {
+		if p.Timestamp >= start && p.Timestamp <= end {
+			points = append(points, observer.Point{
+				Timestamp: p.Timestamp,
+				Value:     p.aggregate(agg),
+			})
+		}
+	}
+	return &observer.Series{
+		Namespace: stats.Namespace,
+		Name:      stats.Name,
+		Tags:      stats.Tags,
+		Points:    points,
+	}
+}
+
+// ReadSince returns points with timestamp > cursor, plus the new cursor position.
+func (s *timeSeriesStorage) ReadSince(key observer.SeriesKey, cursor int64, agg Aggregate) ([]observer.Point, int64) {
+	internalKey := seriesKey(key.Namespace, key.Name, key.Tags)
+	stats := s.series[internalKey]
+	if stats == nil {
+		return nil, cursor
+	}
+
+	var points []observer.Point
+	newCursor := cursor
+	for _, p := range stats.Points {
+		if p.Timestamp > cursor {
+			points = append(points, observer.Point{
+				Timestamp: p.Timestamp,
+				Value:     p.aggregate(agg),
+			})
+			if p.Timestamp > newCursor {
+				newCursor = p.Timestamp
+			}
+		}
+	}
+	return points, newCursor
 }
