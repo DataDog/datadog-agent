@@ -12,3 +12,4 @@ services:
         make -C /src clean all &&
         echo "ready" &&
         /src/bio_leak ${HOST} ${PORT} ${NUM_ENTRIES}
+
