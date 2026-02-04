@@ -20,6 +20,21 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 )
 
+// HostOutputs is the interface that both outputs.Host and environments.Host implement.
+// This allows Run functions to accept either type, enabling:
+// - Scenarios (main.go) to use lightweight outputs.Host without test dependencies
+// - Provisioners (test code) to use environments.Host with full client support
+type HostOutputs interface {
+	RemoteHostOutput() *remote.HostOutput
+	FakeIntakeOutput() *fakeintake.FakeintakeOutput
+	AgentOutput() *agent.HostAgentOutput
+	UpdaterOutput() *updater.HostUpdaterOutput
+	DisableFakeIntake()
+	DisableAgent()
+	DisableUpdater()
+	SetAgentClientOptions(options ...agentclientparams.Option)
+}
+
 // Host contains the outputs for a Host environment.
 // This struct is lightweight and does not import test client dependencies.
 type Host struct {

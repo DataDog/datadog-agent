@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
@@ -32,7 +32,7 @@ type WindowsHost struct {
 }
 
 // Ensure WindowsHost implements the WindowsHostOutputs interface
-var _ windows.WindowsHostOutputs = (*WindowsHost)(nil)
+var _ outputs.WindowsHostOutputs = (*WindowsHost)(nil)
 
 var _ common.Initializable = &WindowsHost{}
 
@@ -41,7 +41,7 @@ func (e *WindowsHost) Init(_ common.Context) error {
 	return nil
 }
 
-// RemoteHostOutput implements windows.WindowsHostOutputs
+// RemoteHostOutput implements outputs.WindowsHostOutputs
 func (e *WindowsHost) RemoteHostOutput() *remote.HostOutput {
 	if e.RemoteHost == nil {
 		e.RemoteHost = &components.RemoteHost{}
@@ -49,7 +49,7 @@ func (e *WindowsHost) RemoteHostOutput() *remote.HostOutput {
 	return &e.RemoteHost.HostOutput
 }
 
-// FakeIntakeOutput implements windows.WindowsHostOutputs
+// FakeIntakeOutput implements outputs.WindowsHostOutputs
 func (e *WindowsHost) FakeIntakeOutput() *fakeintake.FakeintakeOutput {
 	if e.FakeIntake == nil {
 		e.FakeIntake = &components.FakeIntake{}
@@ -57,7 +57,7 @@ func (e *WindowsHost) FakeIntakeOutput() *fakeintake.FakeintakeOutput {
 	return &e.FakeIntake.FakeintakeOutput
 }
 
-// AgentOutput implements windows.WindowsHostOutputs
+// AgentOutput implements outputs.WindowsHostOutputs
 func (e *WindowsHost) AgentOutput() *agent.HostAgentOutput {
 	if e.Agent == nil {
 		e.Agent = &components.RemoteHostAgent{}
@@ -65,7 +65,7 @@ func (e *WindowsHost) AgentOutput() *agent.HostAgentOutput {
 	return &e.Agent.HostAgentOutput
 }
 
-// ActiveDirectoryOutput implements windows.WindowsHostOutputs
+// ActiveDirectoryOutput implements outputs.WindowsHostOutputs
 func (e *WindowsHost) ActiveDirectoryOutput() *activedirectory.Output {
 	if e.ActiveDirectory == nil {
 		e.ActiveDirectory = &components.RemoteActiveDirectory{}
@@ -73,17 +73,17 @@ func (e *WindowsHost) ActiveDirectoryOutput() *activedirectory.Output {
 	return &e.ActiveDirectory.Output
 }
 
-// DisableFakeIntake implements windows.WindowsHostOutputs
+// DisableFakeIntake implements outputs.WindowsHostOutputs
 func (e *WindowsHost) DisableFakeIntake() {
 	e.FakeIntake = nil
 }
 
-// DisableAgent implements windows.WindowsHostOutputs
+// DisableAgent implements outputs.WindowsHostOutputs
 func (e *WindowsHost) DisableAgent() {
 	e.Agent = nil
 }
 
-// DisableActiveDirectory implements windows.WindowsHostOutputs
+// DisableActiveDirectory implements outputs.WindowsHostOutputs
 func (e *WindowsHost) DisableActiveDirectory() {
 	e.ActiveDirectory = nil
 }
@@ -92,7 +92,7 @@ func (e *WindowsHost) SetAgentClientOptions(options ...agentclientparams.Option)
 	e.Agent.ClientOptions = options
 }
 
-// SetEnvironment implements windows.WindowsHostOutputs
+// SetEnvironment implements outputs.WindowsHostOutputs
 func (e *WindowsHost) SetEnvironment(env config.Env) {
 	e.Environment = env
 }

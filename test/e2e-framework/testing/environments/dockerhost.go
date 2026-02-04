@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
@@ -32,7 +32,7 @@ type DockerHost struct {
 }
 
 // Ensure DockerHost implements the DockerHostOutputs interface
-var _ ec2docker.DockerHostOutputs = (*DockerHost)(nil)
+var _ outputs.DockerHostOutputs = (*DockerHost)(nil)
 
 var _ common.Initializable = &DockerHost{}
 
@@ -41,7 +41,7 @@ func (e *DockerHost) Init(_ common.Context) error {
 	return nil
 }
 
-// RemoteHostOutput implements ec2docker.DockerHostOutputs
+// RemoteHostOutput implements outputs.DockerHostOutputs
 func (e *DockerHost) RemoteHostOutput() *remote.HostOutput {
 	if e.RemoteHost == nil {
 		e.RemoteHost = &components.RemoteHost{}
@@ -49,7 +49,7 @@ func (e *DockerHost) RemoteHostOutput() *remote.HostOutput {
 	return &e.RemoteHost.HostOutput
 }
 
-// FakeIntakeOutput implements ec2docker.DockerHostOutputs
+// FakeIntakeOutput implements outputs.DockerHostOutputs
 func (e *DockerHost) FakeIntakeOutput() *fakeintake.FakeintakeOutput {
 	if e.FakeIntake == nil {
 		e.FakeIntake = &components.FakeIntake{}
@@ -57,7 +57,7 @@ func (e *DockerHost) FakeIntakeOutput() *fakeintake.FakeintakeOutput {
 	return &e.FakeIntake.FakeintakeOutput
 }
 
-// DockerAgentOutput implements ec2docker.DockerHostOutputs
+// DockerAgentOutput implements outputs.DockerHostOutputs
 func (e *DockerHost) DockerAgentOutput() *agent.DockerAgentOutput {
 	if e.Agent == nil {
 		e.Agent = &components.DockerAgent{}
@@ -65,7 +65,7 @@ func (e *DockerHost) DockerAgentOutput() *agent.DockerAgentOutput {
 	return &e.Agent.DockerAgentOutput
 }
 
-// DockerOutput implements ec2docker.DockerHostOutputs
+// DockerOutput implements outputs.DockerHostOutputs
 func (e *DockerHost) DockerOutput() *docker.ManagerOutput {
 	if e.Docker == nil {
 		e.Docker = &components.RemoteHostDocker{}
@@ -73,12 +73,12 @@ func (e *DockerHost) DockerOutput() *docker.ManagerOutput {
 	return &e.Docker.ManagerOutput
 }
 
-// DisableFakeIntake implements ec2docker.DockerHostOutputs
+// DisableFakeIntake implements outputs.DockerHostOutputs
 func (e *DockerHost) DisableFakeIntake() {
 	e.FakeIntake = nil
 }
 
-// DisableAgent implements ec2docker.DockerHostOutputs
+// DisableAgent implements outputs.DockerHostOutputs
 func (e *DockerHost) DisableAgent() {
 	e.Agent = nil
 }

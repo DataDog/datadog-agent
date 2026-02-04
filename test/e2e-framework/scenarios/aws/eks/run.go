@@ -20,7 +20,6 @@ import (
 	dogstatsdstandalone "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dogstatsd-standalone"
 	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/argorollouts"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/vpa"
 	resourcesAws "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
@@ -29,15 +28,6 @@ import (
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
-
-// KubernetesOutputs is the interface for Kubernetes environment outputs.
-type KubernetesOutputs interface {
-	KubernetesClusterOutput() *kubernetes.ClusterOutput
-	FakeIntakeOutput() *fakeintakeComp.FakeintakeOutput
-	KubernetesAgentOutput() *agent.KubernetesAgentOutput
-	DisableFakeIntake()
-	DisableAgent()
-}
 
 // Run is the entry point for the scenario when run via pulumi.
 // It uses outputs.Kubernetes which is lightweight and doesn't pull in test dependencies.
@@ -55,7 +45,7 @@ func Run(ctx *pulumi.Context) error {
 
 // RunWithEnv deploys an EKS environment using a provided env and params.
 // It accepts KubernetesOutputs interface, enabling reuse between provisioners and direct Pulumi runs.
-func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env KubernetesOutputs, params *RunParams) error {
+func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env outputs.KubernetesOutputs, params *RunParams) error {
 	cluster, err := NewCluster(awsEnv, "eks", params.eksOptions...)
 	if err != nil {
 		return err

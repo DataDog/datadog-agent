@@ -10,6 +10,13 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/ecs"
 )
 
+// ECSOutputs is the interface for ECS environment outputs.
+type ECSOutputs interface {
+	ECSClusterOutput() *ecs.ClusterOutput
+	FakeIntakeOutput() *fakeintake.FakeintakeOutput
+	DisableFakeIntake()
+}
+
 // ECS contains the outputs for an ECS environment.
 type ECS struct {
 	ECSCluster *ecs.ClusterOutput

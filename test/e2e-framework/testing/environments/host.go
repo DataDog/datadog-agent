@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/updater"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
@@ -34,7 +34,7 @@ type Host struct {
 }
 
 // Ensure Host implements the HostOutputs interface for use with scenario Run functions
-var _ ec2.HostOutputs = (*Host)(nil)
+var _ outputs.HostOutputs = (*Host)(nil)
 
 var _ common.Initializable = (*Host)(nil)
 
@@ -43,7 +43,7 @@ func (e *Host) Init(_ common.Context) error {
 	return nil
 }
 
-// RemoteHostOutput implements ec2.HostOutputs
+// RemoteHostOutput implements outputs.HostOutputs
 func (e *Host) RemoteHostOutput() *remote.HostOutput {
 	if e.RemoteHost == nil {
 		e.RemoteHost = &components.RemoteHost{}
@@ -51,7 +51,7 @@ func (e *Host) RemoteHostOutput() *remote.HostOutput {
 	return &e.RemoteHost.HostOutput
 }
 
-// FakeIntakeOutput implements ec2.HostOutputs
+// FakeIntakeOutput implements outputs.HostOutputs
 func (e *Host) FakeIntakeOutput() *fakeintake.FakeintakeOutput {
 	if e.FakeIntake == nil {
 		e.FakeIntake = &components.FakeIntake{}
@@ -59,7 +59,7 @@ func (e *Host) FakeIntakeOutput() *fakeintake.FakeintakeOutput {
 	return &e.FakeIntake.FakeintakeOutput
 }
 
-// AgentOutput implements ec2.HostOutputs
+// AgentOutput implements outputs.HostOutputs
 func (e *Host) AgentOutput() *agent.HostAgentOutput {
 	if e.Agent == nil {
 		e.Agent = &components.RemoteHostAgent{}
@@ -67,7 +67,7 @@ func (e *Host) AgentOutput() *agent.HostAgentOutput {
 	return &e.Agent.HostAgentOutput
 }
 
-// UpdaterOutput implements ec2.HostOutputs
+// UpdaterOutput implements outputs.HostOutputs
 func (e *Host) UpdaterOutput() *updater.HostUpdaterOutput {
 	if e.Updater == nil {
 		e.Updater = &components.RemoteHostUpdater{}
@@ -75,22 +75,22 @@ func (e *Host) UpdaterOutput() *updater.HostUpdaterOutput {
 	return &e.Updater.HostUpdaterOutput
 }
 
-// DisableFakeIntake implements ec2.HostOutputs
+// DisableFakeIntake implements outputs.HostOutputs
 func (e *Host) DisableFakeIntake() {
 	e.FakeIntake = nil
 }
 
-// DisableAgent implements ec2.HostOutputs
+// DisableAgent implements outputs.HostOutputs
 func (e *Host) DisableAgent() {
 	e.Agent = nil
 }
 
-// DisableUpdater implements ec2.HostOutputs
+// DisableUpdater implements outputs.HostOutputs
 func (e *Host) DisableUpdater() {
 	e.Updater = nil
 }
 
-// SetAgentClientOptions implements ec2.HostOutputs
+// SetAgentClientOptions implements outputs.HostOutputs
 func (e *Host) SetAgentClientOptions(options ...agentclientparams.Option) {
 	e.Agent.ClientOptions = options
 }

@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/redis"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/tracegen"
 	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/ecs"
 
 	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ssm"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -25,13 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
 )
-
-// ECSOutputs is the interface for ECS environment outputs.
-type ECSOutputs interface {
-	ECSClusterOutput() *ecs.ClusterOutput
-	FakeIntakeOutput() *fakeintakeComp.FakeintakeOutput
-	DisableFakeIntake()
-}
 
 // isEC2ProviderSet checks whether at least one EC2 capacity provider is set in the given params
 // An EC2 provider is considered set if at least one of its node groups is enabled.
@@ -56,7 +48,7 @@ func Run(ctx *pulumi.Context) error {
 
 // RunWithEnv deploys an ECS environment using provided env and params.
 // It accepts ECSOutputs interface, enabling reuse between provisioners and direct Pulumi runs.
-func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env ECSOutputs, params *RunParams) error {
+func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env outputs.ECSOutputs, params *RunParams) error {
 	// Create cluster
 	cluster, err := NewCluster(awsEnv, params.Name, params.ecsOptions...)
 	if err != nil {

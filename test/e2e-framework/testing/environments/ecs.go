@@ -8,7 +8,7 @@ package environments
 import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/ecs"
-	ecsscenario "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
@@ -20,9 +20,9 @@ type ECS struct {
 }
 
 // Ensure ECS implements the ECSOutputs interface
-var _ ecsscenario.ECSOutputs = (*ECS)(nil)
+var _ outputs.ECSOutputs = (*ECS)(nil)
 
-// ECSClusterOutput implements ecsscenario.ECSOutputs
+// ECSClusterOutput implements outputs.ECSOutputs
 func (e *ECS) ECSClusterOutput() *ecs.ClusterOutput {
 	if e.ECSCluster == nil {
 		e.ECSCluster = &components.ECSCluster{}
@@ -30,7 +30,7 @@ func (e *ECS) ECSClusterOutput() *ecs.ClusterOutput {
 	return &e.ECSCluster.ClusterOutput
 }
 
-// FakeIntakeOutput implements ecsscenario.ECSOutputs
+// FakeIntakeOutput implements outputs.ECSOutputs
 func (e *ECS) FakeIntakeOutput() *fakeintake.FakeintakeOutput {
 	if e.FakeIntake == nil {
 		e.FakeIntake = &components.FakeIntake{}
@@ -38,7 +38,7 @@ func (e *ECS) FakeIntakeOutput() *fakeintake.FakeintakeOutput {
 	return &e.FakeIntake.FakeintakeOutput
 }
 
-// DisableFakeIntake implements ecsscenario.ECSOutputs
+// DisableFakeIntake implements outputs.ECSOutputs
 func (e *ECS) DisableFakeIntake() {
 	e.FakeIntake = nil
 }

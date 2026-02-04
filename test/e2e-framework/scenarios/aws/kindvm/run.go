@@ -40,15 +40,6 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-// KubernetesOutputs is the interface for Kubernetes environment outputs.
-type KubernetesOutputs interface {
-	KubernetesClusterOutput() *kubeComp.ClusterOutput
-	FakeIntakeOutput() *fakeintakeComp.FakeintakeOutput
-	KubernetesAgentOutput() *agent.KubernetesAgentOutput
-	DisableFakeIntake()
-	DisableAgent()
-}
-
 //go:embed agent_helm_values.yaml
 var agentHelmValues string
 
@@ -68,7 +59,7 @@ func Run(ctx *pulumi.Context) error {
 
 // RunWithEnv deploys a KIND-on-EC2 environment using a provided env and params.
 // It accepts KubernetesOutputs interface, enabling reuse between provisioners and direct Pulumi runs.
-func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env KubernetesOutputs, params *RunParams) error {
+func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.KubernetesOutputs, params *RunParams) error {
 
 	var err error
 	var fakeIntake *fakeintakeComp.Fakeintake

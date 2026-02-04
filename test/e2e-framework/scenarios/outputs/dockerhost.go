@@ -12,6 +12,16 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 )
 
+// DockerHostOutputs is the interface for DockerHost environment outputs.
+type DockerHostOutputs interface {
+	RemoteHostOutput() *remote.HostOutput
+	FakeIntakeOutput() *fakeintake.FakeintakeOutput
+	DockerAgentOutput() *agent.DockerAgentOutput
+	DockerOutput() *docker.ManagerOutput
+	DisableFakeIntake()
+	DisableAgent()
+}
+
 // DockerHost contains the outputs for a DockerHost environment.
 type DockerHost struct {
 	RemoteHost *remote.HostOutput

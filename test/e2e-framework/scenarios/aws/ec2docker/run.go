@@ -11,9 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/dogstatsd"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/redis"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dockeragentparams"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	fakeintakescenario "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
@@ -22,21 +20,11 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-// DockerHostOutputs is the interface for DockerHost environment outputs.
-type DockerHostOutputs interface {
-	RemoteHostOutput() *remote.HostOutput
-	FakeIntakeOutput() *fakeintake.FakeintakeOutput
-	DockerAgentOutput() *agent.DockerAgentOutput
-	DockerOutput() *docker.ManagerOutput
-	DisableFakeIntake()
-	DisableAgent()
-}
-
 // Run deploys an environment given a pulumi.Context.
 // It accepts DockerHostOutputs interface, which is implemented by both:
 // - outputs.DockerHost (lightweight, for scenarios without test dependencies)
 // - environments.DockerHost (full-featured, for test provisioners)
-func Run(ctx *pulumi.Context, awsEnv aws.Environment, env DockerHostOutputs, params *Params) error {
+func Run(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.DockerHostOutputs, params *Params) error {
 
 	host, err := ec2.NewVM(awsEnv, params.Name, params.vmOptions...)
 	if err != nil {

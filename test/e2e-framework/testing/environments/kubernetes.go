@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 )
@@ -34,7 +34,7 @@ type Kubernetes struct {
 }
 
 // Ensure Kubernetes implements the KubernetesOutputs interface
-var _ eks.KubernetesOutputs = (*Kubernetes)(nil)
+var _ outputs.KubernetesOutputs = (*Kubernetes)(nil)
 
 var _ common.Diagnosable = (*Kubernetes)(nil)
 

@@ -8,18 +8,14 @@ package windows
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/activedirectory"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	compos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	fakeintakescenario "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/defender"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/fipsmode"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/testsigning"
@@ -27,22 +23,9 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-// WindowsHostOutputs is the interface for WindowsHost environment outputs.
-type WindowsHostOutputs interface {
-	RemoteHostOutput() *remote.HostOutput
-	FakeIntakeOutput() *fakeintake.FakeintakeOutput
-	AgentOutput() *agent.HostAgentOutput
-	ActiveDirectoryOutput() *activedirectory.Output
-	DisableFakeIntake()
-	DisableAgent()
-	DisableActiveDirectory()
-	SetAgentClientOptions(options ...agentclientparams.Option)
-	SetEnvironment(env config.Env)
-}
-
 // RunWithEnv deploys a Windows EC2 environment using provided env and params.
 // It accepts WindowsHostOutputs interface, enabling reuse between provisioners and direct Pulumi runs.
-func RunWithEnv(ctx *pulumi.Context, awsEnv aws.Environment, env WindowsHostOutputs, params *RunParams) error {
+func RunWithEnv(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.WindowsHostOutputs, params *RunParams) error {
 	// Set the environment for test code access
 	env.SetEnvironment(&awsEnv)
 

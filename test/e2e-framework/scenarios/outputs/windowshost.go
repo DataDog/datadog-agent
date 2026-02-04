@@ -14,6 +14,19 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 )
 
+// WindowsHostOutputs is the interface for WindowsHost environment outputs.
+type WindowsHostOutputs interface {
+	RemoteHostOutput() *remote.HostOutput
+	FakeIntakeOutput() *fakeintake.FakeintakeOutput
+	AgentOutput() *agent.HostAgentOutput
+	ActiveDirectoryOutput() *activedirectory.Output
+	DisableFakeIntake()
+	DisableAgent()
+	DisableActiveDirectory()
+	SetAgentClientOptions(options ...agentclientparams.Option)
+	SetEnvironment(env config.Env)
+}
+
 // WindowsHost contains the outputs for a WindowsHost environment.
 type WindowsHost struct {
 	RemoteHost      *remote.HostOutput

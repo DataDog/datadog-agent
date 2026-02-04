@@ -11,6 +11,16 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 )
 
+// KubernetesOutputs is the interface for Kubernetes environment outputs.
+// It is shared across different Kubernetes-based scenarios (EKS, KIND, etc.).
+type KubernetesOutputs interface {
+	KubernetesClusterOutput() *kubernetes.ClusterOutput
+	FakeIntakeOutput() *fakeintake.FakeintakeOutput
+	KubernetesAgentOutput() *agent.KubernetesAgentOutput
+	DisableFakeIntake()
+	DisableAgent()
+}
+
 // Kubernetes contains the outputs for a Kubernetes environment.
 type Kubernetes struct {
 	KubernetesCluster *kubernetes.ClusterOutput

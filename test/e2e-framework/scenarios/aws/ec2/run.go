@@ -11,38 +11,20 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/updater"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	fakeintakescenario "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
-
-// HostOutputs is the interface that both outputs.Host and environments.Host implement.
-// This allows Run functions to accept either type, enabling:
-// - Scenarios (main.go) to use lightweight outputs.Host without test dependencies
-// - Provisioners (test code) to use environments.Host with full client support
-type HostOutputs interface {
-	RemoteHostOutput() *remote.HostOutput
-	FakeIntakeOutput() *fakeintake.FakeintakeOutput
-	AgentOutput() *agent.HostAgentOutput
-	UpdaterOutput() *updater.HostUpdaterOutput
-	DisableFakeIntake()
-	DisableAgent()
-	DisableUpdater()
-	SetAgentClientOptions(options ...agentclientparams.Option)
-}
 
 // Run deploys an environment given a pulumi.Context.
 // It accepts HostOutputs interface, which is implemented by both:
 // - outputs.Host (lightweight, for scenarios without test dependencies)
 // - environments.Host (full-featured, for test provisioners)
-func Run(ctx *pulumi.Context, awsEnv aws.Environment, env HostOutputs, params *Params) error {
+func Run(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.HostOutputs, params *Params) error {
 
 	host, err := NewVM(awsEnv, params.Name, params.instanceOptions...)
 	if err != nil {
