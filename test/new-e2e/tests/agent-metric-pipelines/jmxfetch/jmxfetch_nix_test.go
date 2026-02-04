@@ -308,9 +308,11 @@ type checkInstance struct {
 	KeyStorePassword   *string `json:"key_store_password,omitempty"`
 	TrustStorePath     *string `json:"trust_store_path,omitempty"`
 	TrustStorePassword *string `json:"trust_store_password,omitempty"`
+	JavaOptions        *string `json:"java_options"`
 }
 
 var defaultJavaPassword = "changeit"
+var javaOptionsNoCertCheck = "-Djdk.rmi.ssl.client.enableEndpointIdentification=false"
 
 const adLabelName = "com.datadoghq.ad.checks"
 
@@ -333,6 +335,7 @@ func makeADLabelsManifest(mtls bool, fips bool) (*docker.ComposeInlineManifest, 
 			instance.KeyStorePassword = &defaultJavaPassword
 			instance.TrustStorePath = &truststorePath
 			instance.TrustStorePassword = &defaultJavaPassword
+			instance.JavaOptions = &javaOptionsNoCertCheck
 		})
 		if err != nil {
 			return nil, err
