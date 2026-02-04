@@ -41,7 +41,7 @@ func TestInjectionModeSuite(t *testing.T) {
 					Apps: []singlestep.App{
 						{
 							Name:    "app-csi",
-							Image:   "registry.ddbuild.io/ci/injector-dev/python",
+							Image:   "registry.datadoghq.com/injector-dev/python",
 							Version: "16ad9d4b",
 							Port:    8080,
 							PodAnnotations: map[string]string{
@@ -51,7 +51,7 @@ func TestInjectionModeSuite(t *testing.T) {
 						},
 						{
 							Name:    "app-init-container",
-							Image:   "registry.ddbuild.io/ci/injector-dev/python",
+							Image:   "registry.datadoghq.com/injector-dev/python",
 							Version: "16ad9d4b",
 							Port:    8080,
 							PodAnnotations: map[string]string{
