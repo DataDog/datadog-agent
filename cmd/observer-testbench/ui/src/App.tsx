@@ -90,6 +90,9 @@ function App() {
   const [timeRange, setTimeRange] = useState<TimeRange | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [correlationsExpanded, setCorrelationsExpanded] = useState(true);
+  const [leadLagExpanded, setLeadLagExpanded] = useState(false);
+  const [surpriseExpanded, setSurpriseExpanded] = useState(false);
+  const [graphSketchExpanded, setGraphSketchExpanded] = useState(false);
   const [smoothLines, setSmoothLines] = useState(true);
   const [splitByTag, setSplitByTag] = useState<string | null>(null);
   const [splitSeriesData, setSplitSeriesData] = useState<Map<string, SeriesData[]>>(new Map());
@@ -102,6 +105,11 @@ function App() {
   const series = state.series ?? [];
   const allAnomalies = state.anomalies ?? [];
   const correlations = state.correlations ?? [];
+  // New correlator data
+  const leadLagEdges = state.leadLagEdges ?? [];
+  const surpriseEdges = state.surpriseEdges ?? [];
+  const graphSketchEdges = state.graphSketchEdges ?? [];
+  const correlatorStats = state.correlatorStats;
 
   // Filter anomalies by enabled analyzers
   const anomalies = useMemo(
@@ -154,12 +162,16 @@ function App() {
     }));
   }, [filteredSeries]);
 
-  // Initialize enabled analyzers when components load
+  // Track which scenario we initialized analyzers for
+  const initializedScenarioRef = useRef<string | null>(null);
+
+  // Initialize enabled analyzers when components load (once per scenario)
   useEffect(() => {
-    if (tsAnalyzers.length > 0 && enabledAnalyzers.size === 0) {
+    if (tsAnalyzers.length > 0 && state.activeScenario && initializedScenarioRef.current !== state.activeScenario) {
+      initializedScenarioRef.current = state.activeScenario;
       setEnabledAnalyzers(new Set(tsAnalyzers));
     }
-  }, [tsAnalyzers, enabledAnalyzers.size]);
+  }, [tsAnalyzers, state.activeScenario]);
 
   // Track which scenario we've auto-selected for
   const [autoSelectedScenario, setAutoSelectedScenario] = useState<string | null>(null);
@@ -204,14 +216,27 @@ function App() {
     }
   }, [state.activeScenario, state.connectionState, anomalies, series, autoSelectedScenario]);
 
+  // Track previous selection to detect changes
+  const prevSelectedSeriesRef = useRef<Set<string>>(new Set());
+
   // Fetch data for selected series
   useEffect(() => {
-    // Clear data immediately when selection changes
-    setSeriesData(new Map());
-
     if (selectedSeries.size === 0 || state.connectionState !== 'ready') {
+      if (seriesData.size > 0) {
+        setSeriesData(new Map());
+      }
       return;
     }
+
+    // Only clear and refetch if selection actually changed
+    const selectionChanged = selectedSeries.size !== prevSelectedSeriesRef.current.size ||
+      [...selectedSeries].some(k => !prevSelectedSeriesRef.current.has(k));
+
+    if (!selectionChanged) {
+      return;
+    }
+
+    prevSelectedSeriesRef.current = new Set(selectedSeries);
 
     const fetchSeriesData = async () => {
       const newData = new Map<string, SeriesData>();
@@ -229,21 +254,33 @@ function App() {
     };
 
     fetchSeriesData();
-  }, [selectedSeries, state.connectionState, state.activeScenario]);
+  }, [selectedSeries, state.connectionState, state.activeScenario, seriesData.size]);
+
+  // Track previous split tag to detect changes
+  const prevSplitByTagRef = useRef<string | null>(null);
 
   // Fetch split series data when splitByTag is enabled
   useEffect(() => {
-    setSplitSeriesData(new Map());
-
     if (!splitByTag || selectedSeries.size === 0 || state.connectionState !== 'ready') {
+      if (splitSeriesData.size > 0) {
+        setSplitSeriesData(new Map());
+      }
+      prevSplitByTagRef.current = splitByTag;
       return;
     }
+
+    // Only refetch if split tag changed
+    if (splitByTag === prevSplitByTagRef.current) {
+      return;
+    }
+    prevSplitByTagRef.current = splitByTag;
 
     const fetchSplitData = async () => {
       const newSplitData = new Map<string, SeriesData[]>();
 
       for (const key of selectedSeries) {
-        const [namespace, ...nameParts] = key.split('/');
+        const [_namespace, ...nameParts] = key.split('/');
+        void _namespace; // Avoid unused variable warning
         const name = nameParts.join('/');
 
         // Find all series variants with different tag values for the split key
@@ -268,7 +305,7 @@ function App() {
     };
 
     fetchSplitData();
-  }, [splitByTag, selectedSeries, series, state.connectionState]);
+  }, [splitByTag, selectedSeries, series, state.connectionState, splitSeriesData.size]);
 
   const toggleAnalyzer = (name: string) => {
     const newSet = new Set(enabledAnalyzers);
@@ -469,6 +506,76 @@ function App() {
             </div>
           </div>
 
+          {/* Server Config - Correlators */}
+          <div className="p-4 border-b border-slate-700">
+            <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+              Correlators
+            </h2>
+            <div className="space-y-1 text-xs">
+              <div className="flex items-center gap-2 px-2 py-1">
+                <div className={`w-2 h-2 rounded-full ${correlatorStats?.timecluster?.enabled ? 'bg-green-500' : 'bg-slate-600'}`} />
+                <span className="text-slate-300">TimeCluster</span>
+                {correlatorStats?.timecluster?.enabled && (
+                  <span className="text-slate-500 ml-auto">
+                    {correlatorStats.timecluster.clusterCount ?? 0} clusters
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 px-2 py-1">
+                <div className={`w-2 h-2 rounded-full ${state.leadLagEnabled ? 'bg-blue-500' : 'bg-slate-600'}`} />
+                <span className="text-slate-300">LeadLag</span>
+                {state.leadLagEnabled && (
+                  <span className="text-slate-500 ml-auto">
+                    {leadLagEdges.length} edges
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 px-2 py-1">
+                <div className={`w-2 h-2 rounded-full ${state.surpriseEnabled ? 'bg-amber-500' : 'bg-slate-600'}`} />
+                <span className="text-slate-300">Surprise</span>
+                {state.surpriseEnabled && (
+                  <span className="text-slate-500 ml-auto">
+                    {surpriseEdges.length} edges
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 px-2 py-1">
+                <div className={`w-2 h-2 rounded-full ${state.graphSketchEnabled ? 'bg-emerald-500' : 'bg-slate-600'}`} />
+                <span className="text-slate-300">GraphSketch</span>
+                {state.graphSketchEnabled && (
+                  <span className="text-slate-500 ml-auto">
+                    {graphSketchEdges.length} edges
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="mt-3 text-xs text-slate-500">
+              Use CLI flags to enable/disable:
+              <code className="block mt-1 text-slate-400 bg-slate-900 p-1.5 rounded">
+                --lead-lag --surprise --graph-sketch
+              </code>
+            </div>
+            <div className="mt-3 pt-3 border-t border-slate-700">
+              <div className="text-xs text-slate-500 mb-2">Analysis Settings</div>
+              <div className="space-y-1 text-xs">
+                <div className="flex items-center gap-2 px-2 py-1">
+                  <div className={`w-2 h-2 rounded-full ${state.status?.serverConfig?.cusumSkipCount ? 'bg-amber-500' : 'bg-slate-600'}`} />
+                  <span className="text-slate-300">:count metrics</span>
+                  <span className="text-slate-500 ml-auto">
+                    {state.status?.serverConfig?.cusumSkipCount ? 'filtered' : 'included'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 px-2 py-1">
+                  <div className={`w-2 h-2 rounded-full ${state.status?.serverConfig?.dedupEnabled ? 'bg-green-500' : 'bg-slate-600'}`} />
+                  <span className="text-slate-300">Deduplication</span>
+                  <span className="text-slate-500 ml-auto">
+                    {state.status?.serverConfig?.dedupEnabled ? 'enabled' : 'disabled'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Aggregation Type */}
           <div className="p-4 border-b border-slate-700">
             <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
@@ -571,6 +678,7 @@ function App() {
           {state.connectionState === 'ready' && (
             <div className="space-y-6">
               {/* Correlations - clickable to select related series */}
+              {/* Time Cluster Correlations */}
               {correlations.length > 0 && (
                 <div className="bg-slate-800 rounded-lg">
                   <button
@@ -580,7 +688,7 @@ function App() {
                     <div className="flex items-center gap-2">
                       <span className="text-slate-500">{correlationsExpanded ? '▼' : '▶'}</span>
                       <h2 className="text-sm font-semibold text-slate-300">
-                        Correlations ({correlations.length})
+                        Time Clusters ({correlations.length})
                       </h2>
                     </div>
                     <span className="text-xs text-slate-500">
@@ -648,6 +756,245 @@ function App() {
                       );
                     })}
                   </div>}
+                </div>
+              )}
+
+              {/* Lead-Lag Correlations (Temporal Causality) */}
+              {state.leadLagEnabled && (
+                <div className="bg-slate-800 rounded-lg">
+                  <button
+                    onClick={() => setLeadLagExpanded(!leadLagExpanded)}
+                    className="w-full p-4 flex items-center justify-between hover:bg-slate-700/30 rounded-lg transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-500">{leadLagExpanded ? '▼' : '▶'}</span>
+                      <h2 className="text-sm font-semibold text-slate-300">
+                        Lead-Lag Edges ({leadLagEdges.length})
+                      </h2>
+                      <span className="text-xs px-2 py-0.5 bg-blue-600/30 text-blue-400 rounded">
+                        temporal causality
+                      </span>
+                    </div>
+                  </button>
+                  {leadLagExpanded && leadLagEdges.length > 0 && (
+                    <div className="px-4 pb-4">
+                      <div className="text-xs text-slate-500 mb-3 space-y-1">
+                        <div>Shows which sources consistently precede others (potential root causes)</div>
+                        <div className="bg-slate-700/30 rounded p-2 mt-2">
+                          <span className="text-slate-400 font-medium">Confidence</span>: How consistently the leader precedes the follower.
+                          <span className="text-green-400 ml-2">100%</span> = always leads,
+                          <span className="text-yellow-400 ml-1">50%</span> = half the time.
+                          Higher confidence = stronger causal signal.
+                        </div>
+                      </div>
+                      {/* Column headers */}
+                      <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-slate-500 border-b border-slate-700 mb-1">
+                        <span className="w-[200px]">Leader (cause)</span>
+                        <span className="w-4"></span>
+                        <span className="w-[200px]">Follower (effect)</span>
+                        <span className="ml-auto">Lag</span>
+                        <span className="w-12 text-right">Conf.</span>
+                      </div>
+                      <div className="max-h-64 overflow-y-auto space-y-1">
+                        {leadLagEdges
+                          .slice()
+                          .sort((a, b) => b.confidence - a.confidence)
+                          .slice(0, 500)
+                          .map((edge, i) => (
+                          <div
+                            key={i}
+                            className="flex items-center gap-2 p-2 bg-slate-700/30 rounded text-sm"
+                          >
+                            <span className="text-blue-400 font-mono text-xs truncate max-w-[200px]" title={edge.leader}>
+                              {edge.leader}
+                            </span>
+                            <span className="text-slate-500">→</span>
+                            <span className="text-orange-400 font-mono text-xs truncate max-w-[200px]" title={edge.follower}>
+                              {edge.follower}
+                            </span>
+                            <span className="text-slate-500 text-xs ml-auto">
+                              +{edge.typical_lag}s
+                            </span>
+                            <span className="text-xs px-1.5 py-0.5 bg-slate-600 rounded">
+                              {(edge.confidence * 100).toFixed(0)}%
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      {leadLagEdges.length > 500 && (
+                        <div className="text-xs text-slate-500 mt-2">
+                          Showing top 500 of {leadLagEdges.length} edges by confidence
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {leadLagExpanded && leadLagEdges.length === 0 && (
+                    <div className="px-4 pb-4 text-sm text-slate-500">
+                      No lead-lag patterns detected yet
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Surprise Correlations (Unexpected Co-occurrence) */}
+              {state.surpriseEnabled && (
+                <div className="bg-slate-800 rounded-lg">
+                  <button
+                    onClick={() => setSurpriseExpanded(!surpriseExpanded)}
+                    className="w-full p-4 flex items-center justify-between hover:bg-slate-700/30 rounded-lg transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-500">{surpriseExpanded ? '▼' : '▶'}</span>
+                      <h2 className="text-sm font-semibold text-slate-300">
+                        Surprise Patterns ({surpriseEdges.length})
+                      </h2>
+                      <span className="text-xs px-2 py-0.5 bg-amber-600/30 text-amber-400 rounded">
+                        lift-based
+                      </span>
+                    </div>
+                  </button>
+                  {surpriseExpanded && surpriseEdges.length > 0 && (
+                    <div className="px-4 pb-4">
+                      <div className="text-xs text-slate-500 mb-3 space-y-1">
+                        <div>Shows sources that co-occur more or less than expected by chance.</div>
+                        <div className="bg-slate-700/30 rounded p-2 mt-2">
+                          <span className="text-slate-400 font-medium">Lift</span>: Ratio of actual co-occurrence to expected (if independent).
+                          <div className="mt-1 space-x-3">
+                            <span><span className="text-green-400">lift &gt; 2</span> = strong positive correlation (happen together)</span>
+                          </div>
+                          <div className="space-x-3">
+                            <span><span className="text-yellow-400">lift ≈ 1</span> = independent (no relationship)</span>
+                          </div>
+                          <div className="space-x-3">
+                            <span><span className="text-red-400">lift &lt; 0.5</span> = anti-correlated (rarely happen together)</span>
+                          </div>
+                        </div>
+                      </div>
+                      {/* Column headers */}
+                      <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-slate-500 border-b border-slate-700 mb-1">
+                        <span className="w-[180px]">Source A</span>
+                        <span className="w-4"></span>
+                        <span className="w-[180px]">Source B</span>
+                        <span className="ml-auto">Lift</span>
+                        <span className="w-12 text-right">Count</span>
+                      </div>
+                      <div className="max-h-64 overflow-y-auto space-y-1">
+                        {surpriseEdges
+                          .slice()
+                          .sort((a, b) => b.lift - a.lift)
+                          .slice(0, 500)
+                          .map((edge, i) => (
+                          <div
+                            key={i}
+                            className="flex items-center gap-2 p-2 bg-slate-700/30 rounded text-sm"
+                          >
+                            <span className="text-amber-400 font-mono text-xs truncate max-w-[180px]" title={edge.source1}>
+                              {edge.source1}
+                            </span>
+                            <span className="text-slate-500">↔</span>
+                            <span className="text-amber-400 font-mono text-xs truncate max-w-[180px]" title={edge.source2}>
+                              {edge.source2}
+                            </span>
+                            <span className="ml-auto text-xs">
+                              lift={' '}
+                              <span className={edge.lift > 2 ? 'text-green-400' : edge.lift > 1.5 ? 'text-yellow-400' : 'text-slate-400'}>
+                                {edge.lift.toFixed(2)}
+                              </span>
+                            </span>
+                            <span className="text-xs text-slate-500">
+                              ({edge.support}x)
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      {surpriseEdges.length > 500 && (
+                        <div className="text-xs text-slate-500 mt-2">
+                          Showing top 500 of {surpriseEdges.length} edges by lift
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {surpriseExpanded && surpriseEdges.length === 0 && (
+                    <div className="px-4 pb-4 text-sm text-slate-500">
+                      No surprising co-occurrence patterns detected yet
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* GraphSketch Correlations (Co-occurrence Learning) */}
+              {state.graphSketchEnabled && (
+                <div className="bg-slate-800 rounded-lg">
+                  <button
+                    onClick={() => setGraphSketchExpanded(!graphSketchExpanded)}
+                    className="w-full p-4 flex items-center justify-between hover:bg-slate-700/30 rounded-lg transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-500">{graphSketchExpanded ? '▼' : '▶'}</span>
+                      <h2 className="text-sm font-semibold text-slate-300">
+                        GraphSketch Edges ({graphSketchEdges.length})
+                      </h2>
+                      <span className="text-xs px-2 py-0.5 bg-emerald-600/30 text-emerald-400 rounded">
+                        co-occurrence
+                      </span>
+                    </div>
+                  </button>
+                  {graphSketchExpanded && graphSketchEdges.length > 0 && (
+                    <div className="px-4 pb-4">
+                      <div className="text-xs text-slate-500 mb-3 space-y-1">
+                        <div>Shows learned co-occurrence patterns from anomaly history.</div>
+                        <div className="bg-slate-700/30 rounded p-2 mt-2">
+                          <span className="text-slate-400 font-medium">Frequency</span>: Decay-weighted score where recent co-occurrences count more than old ones.
+                          Higher frequency = sources that consistently anomaly together recently.
+                        </div>
+                      </div>
+                      {/* Column headers */}
+                      <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-slate-500 border-b border-slate-700 mb-1">
+                        <span className="w-[180px]">Source A</span>
+                        <span className="w-4"></span>
+                        <span className="w-[180px]">Source B</span>
+                        <span className="ml-auto">Freq.</span>
+                        <span className="w-12 text-right">Count</span>
+                      </div>
+                      <div className="max-h-64 overflow-y-auto space-y-1">
+                        {graphSketchEdges
+                          .slice()
+                          .sort((a, b) => b.Frequency - a.Frequency)
+                          .slice(0, 50)
+                          .map((edge, i) => (
+                          <div
+                            key={i}
+                            className="flex items-center gap-2 p-2 bg-slate-700/30 rounded text-sm"
+                          >
+                            <span className="text-emerald-400 font-mono text-xs truncate max-w-[180px]" title={edge.Source1}>
+                              {edge.Source1}
+                            </span>
+                            <span className="text-slate-500">—</span>
+                            <span className="text-emerald-400 font-mono text-xs truncate max-w-[180px]" title={edge.Source2}>
+                              {edge.Source2}
+                            </span>
+                            <span className="ml-auto text-xs">
+                              freq={' '}
+                              <span className="text-emerald-400">{edge.Frequency.toFixed(2)}</span>
+                            </span>
+                            <span className="text-xs text-slate-500">
+                              ({edge.Observations}x)
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      {graphSketchEdges.length > 50 && (
+                        <div className="text-xs text-slate-500 mt-2">
+                          Showing top 50 of {graphSketchEdges.length} edges by weight
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {graphSketchExpanded && graphSketchEdges.length === 0 && (
+                    <div className="px-4 pb-4 text-sm text-slate-500">
+                      No co-occurrence patterns learned yet
+                    </div>
+                  )}
                 </div>
               )}
 

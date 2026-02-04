@@ -24,9 +24,14 @@ func parseInt64(s string) (int64, error) {
 	return strconv.ParseInt(s, 10, 64)
 }
 
-// sanitizeFloat replaces Inf and NaN with 0 for JSON compatibility.
+// sanitizeFloat replaces Inf, NaN, and extremely large values with 0 for JSON compatibility.
+// Extremely large values (> 1e15) can cause Chart.js to crash.
 func sanitizeFloat(v float64) float64 {
 	if math.IsInf(v, 0) || math.IsNaN(v) {
+		return 0
+	}
+	// Cap extremely large values to prevent Chart.js crashes
+	if v > 1e15 || v < -1e15 {
 		return 0
 	}
 	return v
@@ -44,12 +49,14 @@ type timestampedReport struct {
 
 // HTMLReporter is an HTTP server that displays reports and metrics on a local webpage.
 type HTMLReporter struct {
-	mu               sync.RWMutex
-	reports          []timestampedReport
-	storage          *timeSeriesStorage
-	correlationState observer.CorrelationState
-	rawAnomalyState  observer.RawAnomalyState
-	server           *http.Server
+	mu                    sync.RWMutex
+	reports               []timestampedReport
+	storage               *timeSeriesStorage
+	correlationState      observer.CorrelationState
+	rawAnomalyState       observer.RawAnomalyState
+	timeClusterCorrelator *TimeClusterCorrelator
+	graphSketchCorrelator *GraphSketchCorrelator
+	server                *http.Server
 }
 
 // NewHTMLReporter creates a new HTMLReporter.
@@ -106,16 +113,36 @@ func (r *HTMLReporter) SetRawAnomalyState(state observer.RawAnomalyState) {
 	r.rawAnomalyState = state
 }
 
+// SetTimeClusterCorrelator sets the time cluster correlator for visualization.
+func (r *HTMLReporter) SetTimeClusterCorrelator(tc *TimeClusterCorrelator) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.timeClusterCorrelator = tc
+}
+
+// SetGraphSketchCorrelator sets the GraphSketch correlator for visualization.
+func (r *HTMLReporter) SetGraphSketchCorrelator(gsc *GraphSketchCorrelator) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.graphSketchCorrelator = gsc
+}
+
 // Start starts the HTTP server on the given address.
 func (r *HTMLReporter) Start(addr string) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", r.handleDashboard)
+	mux.HandleFunc("/graphsketch-correlation", r.handleGraphPage)
+	mux.HandleFunc("/timecluster", r.handleTimeClusterPage)
 	mux.HandleFunc("/api/reports", r.handleAPIReports)
 	mux.HandleFunc("/api/series", r.handleAPISeries)
 	mux.HandleFunc("/api/series/list", r.handleAPISeriesList)
 	mux.HandleFunc("/api/series/batch", r.handleAPISeriesBatch)
 	mux.HandleFunc("/api/correlations", r.handleAPICorrelations)
 	mux.HandleFunc("/api/raw-anomalies", r.handleAPIRawAnomalies)
+	mux.HandleFunc("/api/graphsketch/edges", r.handleAPIGraphSketchEdges)
+	mux.HandleFunc("/api/graphsketch/stats", r.handleAPIGraphSketchStats)
+	mux.HandleFunc("/api/timecluster/clusters", r.handleAPITimeClusterClusters)
+	mux.HandleFunc("/api/timecluster/stats", r.handleAPITimeClusterStats)
 
 	r.server = &http.Server{
 		Addr:    addr,
@@ -348,8 +375,12 @@ func (r *HTMLReporter) handleDashboard(w http.ResponseWriter, req *http.Request)
     </style>
 </head>
 <body>
-    <div class="header">
+    <div class="header" style="display:flex;justify-content:space-between;align-items:center;">
         <h1>Observer Demo Dashboard</h1>
+        <nav style="display:flex;gap:15px;">
+            <a href="/graphsketch-correlation" style="color:#888;text-decoration:none;font-size:0.9em;">GraphSketch Correlator</a>
+            <a href="/timecluster" style="color:#888;text-decoration:none;font-size:0.9em;">TimeCluster Correlator</a>
+        </nav>
     </div>
 
     <div class="main-layout">
@@ -1065,7 +1096,7 @@ func (r *HTMLReporter) handleAPISeriesBatch(w http.ResponseWriter, req *http.Req
 type correlationOutput struct {
 	Pattern     string          `json:"pattern"`
 	Title       string          `json:"title"`
-	Signals     []string        `json:"signals"`
+	Sources     []string        `json:"sources"`
 	Anomalies   []anomalyOutput `json:"anomalies"`
 	FirstSeen   int64           `json:"firstSeen"`   // unix seconds (from data)
 	LastUpdated int64           `json:"lastUpdated"` // unix seconds (from data)
@@ -1114,7 +1145,7 @@ func (r *HTMLReporter) handleAPICorrelations(w http.ResponseWriter, req *http.Re
 			correlations[i] = correlationOutput{
 				Pattern:     ac.Pattern,
 				Title:       ac.Title,
-				Signals:     ac.Signals,
+				Sources:     ac.SourceNames,
 				Anomalies:   anomalies,
 				FirstSeen:   ac.FirstSeen,
 				LastUpdated: ac.LastUpdated,
@@ -1161,3 +1192,640 @@ func (r *HTMLReporter) handleAPIRawAnomalies(w http.ResponseWriter, req *http.Re
 		return
 	}
 }
+
+// handleGraphPage serves the dedicated GraphSketch visualization page.
+func (r *HTMLReporter) handleGraphPage(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Content-Type", "text/html")
+	w.Write([]byte(graphPageHTML))
+}
+
+// handleAPIGraphSketchEdges returns learned edges from GraphSketchCorrelator.
+func (r *HTMLReporter) handleAPIGraphSketchEdges(w http.ResponseWriter, req *http.Request) {
+	r.mu.RLock()
+	correlationState := r.correlationState
+	r.mu.RUnlock()
+
+	var edges []map[string]interface{}
+
+	// Type-assert to GraphSketchCorrelator to access edges
+	if gsCorrelator, ok := correlationState.(*GraphSketchCorrelator); ok {
+		learnedEdges := gsCorrelator.GetLearnedEdges()
+		edges = make([]map[string]interface{}, 0, len(learnedEdges))
+		for _, e := range learnedEdges {
+			edges = append(edges, map[string]interface{}{
+				"source1":      e.Source1,
+				"source2":      e.Source2,
+				"observations": e.Observations,
+				"frequency":    e.Frequency,
+			})
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(edges); err != nil {
+		log.Printf("[500] /api/graphsketch/edges: failed to encode: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+// handleAPIGraphSketchStats returns statistics from GraphSketchCorrelator.
+func (r *HTMLReporter) handleAPIGraphSketchStats(w http.ResponseWriter, req *http.Request) {
+	r.mu.RLock()
+	correlationState := r.correlationState
+	r.mu.RUnlock()
+
+	stats := map[string]interface{}{
+		"correlator_type": "unknown",
+		"available":       false,
+	}
+
+	// Type-assert to GraphSketchCorrelator to access stats
+	if gsCorrelator, ok := correlationState.(*GraphSketchCorrelator); ok {
+		stats = gsCorrelator.GetStats()
+		stats["correlator_type"] = "graphsketch"
+		stats["available"] = true
+	} else if correlationState != nil {
+		stats["correlator_type"] = "other"
+		stats["available"] = false
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(stats); err != nil {
+		log.Printf("[500] /api/graphsketch/stats: failed to encode: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+// graphPageHTML is the dedicated graph visualization page.
+const graphPageHTML = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>GraphSketch Correlation Graph</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+            background: #0f172a; 
+            color: #e2e8f0; 
+            min-height: 100vh;
+            padding: 20px;
+        }
+        a { color: #8b5cf6; text-decoration: none; font-size: 0.85em; }
+        a:hover { text-decoration: underline; }
+        h1 { color: #c4b5fd; font-size: 1.4em; margin: 8px 0 4px 0; }
+        #stats { color: #6b7280; font-size: 0.85em; margin-bottom: 15px; }
+        #graph-svg { 
+            width: 100%; 
+            height: 600px; 
+            background: #1e293b; 
+            border-radius: 8px;
+        }
+        .legend {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 10px 0;
+            font-size: 0.8em;
+            color: #9ca3af;
+        }
+        .legend-item { display: flex; align-items: center; gap: 5px; }
+        .legend-line { width: 30px; height: 3px; }
+        h2 { color: #f87171; font-size: 1.1em; margin: 20px 0 10px 0; }
+        .edge-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 2px 15px;
+            font-size: 0.8em;
+        }
+        .edge-row {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 0;
+            white-space: nowrap;
+        }
+        .edge-src { color: #9ca3af; max-width: 100px; overflow: hidden; text-overflow: ellipsis; }
+        .edge-arrow { color: #6b7280; flex-shrink: 0; }
+        .edge-freq { font-weight: bold; flex-shrink: 0; }
+        .edge-raw { color: #4b5563; font-size: 0.9em; flex-shrink: 0; }
+    </style>
+</head>
+<body>
+    <a href="/">← Back to Dashboard</a>
+    <h1>GraphSketch Correlation Graph</h1>
+    <div id="stats">Loading...</div>
+    <svg id="graph-svg"></svg>
+    <div class="legend">
+        <div class="legend-item"><div class="legend-line" style="background: #fbbf24;"></div> Weak</div>
+        <div class="legend-item"><div class="legend-line" style="background: #f97316;"></div> Medium</div>
+        <div class="legend-item"><div class="legend-line" style="background: #dc2626;"></div> Strong</div>
+    </div>
+    <h2>All Edges (sorted by strength)</h2>
+    <div id="edge-grid" class="edge-grid"></div>
+
+    <script>
+        let edges = [];
+        let stats = {};
+
+        async function fetchData() {
+            try {
+                const [edgesResp, statsResp] = await Promise.all([
+                    fetch('/api/graphsketch/edges'),
+                    fetch('/api/graphsketch/stats')
+                ]);
+                edges = await edgesResp.json() || [];
+                stats = await statsResp.json() || {};
+                render();
+            } catch (e) {
+                console.error('Failed to fetch:', e);
+            }
+        }
+
+        function render() {
+            if (!stats.available) {
+                document.getElementById('stats').textContent = 'GraphSketch Correlator not active. Use -graphsketch-correlator flag.';
+                return;
+            }
+            
+            document.getElementById('stats').textContent = 
+                edges.length + ' edges, ' + (stats.unique_sources || 0) + ' sources, ' +
+                (stats.total_observations || 0) + ' observations';
+            
+            renderGraph();
+            renderEdgeGrid();
+        }
+
+        function renderGraph() {
+            const svg = document.getElementById('graph-svg');
+            if (!edges || edges.length === 0) {
+                svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#6b7280">Waiting for co-occurring anomalies...</text>';
+                return;
+            }
+
+            const rect = svg.getBoundingClientRect();
+            const width = rect.width || 800;
+            const height = 600;
+
+            const nodeSet = new Set();
+            edges.forEach(e => { nodeSet.add(e.source1); nodeSet.add(e.source2); });
+            const nodes = Array.from(nodeSet);
+
+            const centerX = width / 2;
+            const centerY = height / 2;
+            const radius = Math.min(width, height) * 0.38;
+            const positions = {};
+            nodes.forEach((node, i) => {
+                const angle = (2 * Math.PI * i) / nodes.length - Math.PI / 2;
+                positions[node] = {
+                    x: centerX + radius * Math.cos(angle),
+                    y: centerY + radius * Math.sin(angle),
+                    label: node.split(':')[0]
+                };
+            });
+
+            let maxFreq = 1;
+            edges.forEach(e => { if (e.frequency > maxFreq) maxFreq = e.frequency; });
+
+            const sortedEdges = [...edges].sort((a, b) => a.frequency - b.frequency);
+
+            let svgContent = '';
+
+            sortedEdges.forEach(edge => {
+                const p1 = positions[edge.source1];
+                const p2 = positions[edge.source2];
+                if (!p1 || !p2) return;
+
+                const ratio = edge.frequency / maxFreq;
+                const thickness = 1 + ratio * ratio * 10;
+                const opacity = 0.3 + ratio * ratio * 0.7;
+
+                let r, g, b;
+                if (ratio < 0.5) {
+                    r = 251; g = Math.round(191 - ratio * 2 * 80); b = Math.round(36 - ratio * 2 * 19);
+                } else {
+                    const t = (ratio - 0.5) * 2;
+                    r = Math.round(251 - t * 31); g = Math.round(111 - t * 73); b = Math.round(17 + t * 21);
+                }
+
+                svgContent += '<line x1="' + p1.x + '" y1="' + p1.y + '" x2="' + p2.x + '" y2="' + p2.y + '" ' +
+                    'stroke="rgb(' + r + ',' + g + ',' + b + ')" stroke-width="' + thickness + '" stroke-opacity="' + opacity + '"/>';
+            });
+
+            nodes.forEach((node, i) => {
+                const pos = positions[node];
+                const angle = (2 * Math.PI * i) / nodes.length - Math.PI / 2;
+                svgContent += '<circle cx="' + pos.x + '" cy="' + pos.y + '" r="12" fill="#8b5cf6" stroke="#fff" stroke-width="2"/>';
+                
+                const lx = centerX + (radius + 22) * Math.cos(angle);
+                const ly = centerY + (radius + 22) * Math.sin(angle);
+                const anchor = Math.cos(angle) > 0.3 ? 'start' : (Math.cos(angle) < -0.3 ? 'end' : 'middle');
+                svgContent += '<text x="' + lx + '" y="' + ly + '" fill="#9ca3af" font-size="10" text-anchor="' + anchor + '" dominant-baseline="middle">' + pos.label + '</text>';
+            });
+
+            svg.innerHTML = svgContent;
+        }
+
+        function renderEdgeGrid() {
+            const grid = document.getElementById('edge-grid');
+            if (!edges || edges.length === 0) {
+                grid.innerHTML = '';
+                return;
+            }
+
+            const sortedEdges = [...edges].sort((a, b) => b.frequency - a.frequency);
+
+            let maxFreq = 1;
+            sortedEdges.forEach(e => { if (e.frequency > maxFreq) maxFreq = e.frequency; });
+
+            // Shorten source names - get last meaningful part
+            function shorten(s) {
+                const parts = s.split(':');
+                const name = parts[0];
+                // Remove common prefixes
+                return name.replace(/^(cgroup\.v2\.|smaps_rollup\.|smaps\.)/, '');
+            }
+
+            let html = '';
+            sortedEdges.forEach(edge => {
+                const pct = Math.min(100, (edge.frequency / maxFreq) * 100);
+                const color = pct < 50 ? '#fbbf24' : (pct < 75 ? '#f97316' : '#dc2626');
+                const s1 = shorten(edge.source1);
+                const s2 = shorten(edge.source2);
+                // Format frequency with appropriate precision
+                const freqStr = edge.frequency >= 1000 ? edge.frequency.toFixed(1) : 
+                               edge.frequency >= 100 ? edge.frequency.toFixed(2) : 
+                               edge.frequency.toFixed(3);
+                html += '<div class="edge-row">' +
+                    '<span class="edge-src" title="' + edge.source1 + '">' + s1 + '</span>' +
+                    '<span class="edge-arrow">—</span>' +
+                    '<span class="edge-src" title="' + edge.source2 + '">' + s2 + '</span>' +
+                    '<span class="edge-freq" style="color:' + color + '">' + freqStr + '</span>' +
+                    '<span class="edge-raw">(' + edge.observations + 'x)</span>' +
+                    '</div>';
+            });
+            grid.innerHTML = html;
+        }
+
+        fetchData();
+        setInterval(fetchData, 3000);
+    </script>
+</body>
+</html>
+`
+
+// handleTimeClusterPage serves the TimeCluster visualization page.
+func (r *HTMLReporter) handleTimeClusterPage(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "text/html")
+	w.Write([]byte(timeClusterPageHTML))
+}
+
+// handleAPITimeClusterClusters returns all time clusters.
+func (r *HTMLReporter) handleAPITimeClusterClusters(w http.ResponseWriter, _ *http.Request) {
+	r.mu.RLock()
+	tc := r.timeClusterCorrelator
+	r.mu.RUnlock()
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if tc == nil {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"clusters": []interface{}{},
+			"error":    "TimeClusterCorrelator not enabled",
+		})
+		return
+	}
+
+	clusters := tc.GetClusters()
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"clusters": clusters,
+	})
+}
+
+// handleAPITimeClusterStats returns TimeCluster statistics.
+func (r *HTMLReporter) handleAPITimeClusterStats(w http.ResponseWriter, _ *http.Request) {
+	r.mu.RLock()
+	tc := r.timeClusterCorrelator
+	r.mu.RUnlock()
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if tc == nil {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"enabled": false,
+			"error":   "TimeClusterCorrelator not enabled",
+		})
+		return
+	}
+
+	stats := tc.GetStats()
+	stats["enabled"] = true
+	json.NewEncoder(w).Encode(stats)
+}
+
+const timeClusterPageHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time Cluster Correlator</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            background: #0f0f0f; 
+            color: #e0e0e0; 
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #333;
+        }
+        h1 { 
+            color: #22d3ee;
+            font-size: 1.5em;
+            font-weight: 600;
+        }
+        .nav { display: flex; gap: 15px; }
+        .nav a { 
+            color: #888; 
+            text-decoration: none;
+            font-size: 0.85em;
+            transition: color 0.2s;
+        }
+        .nav a:hover { color: #22d3ee; }
+        .stats-bar {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 25px;
+            padding: 15px;
+            background: #1a1a1a;
+            border-radius: 8px;
+        }
+        .stat { display: flex; flex-direction: column; }
+        .stat-label { color: #666; font-size: 0.75em; margin-bottom: 3px; }
+        .stat-value { color: #22d3ee; font-size: 1.4em; font-weight: 600; }
+        .container { display: flex; gap: 25px; flex-wrap: wrap; }
+        .panel {
+            flex: 1;
+            min-width: 400px;
+            background: #1a1a1a;
+            border-radius: 8px;
+            padding: 20px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .panel-title {
+            color: #888;
+            font-size: 0.85em;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .cluster {
+            background: #222;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 3px solid #22d3ee;
+        }
+        .cluster-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .cluster-id {
+            color: #22d3ee;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+        .cluster-count {
+            background: #22d3ee;
+            color: #0f0f0f;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.75em;
+            font-weight: 600;
+        }
+        .cluster-time {
+            color: #666;
+            font-size: 0.75em;
+            margin-bottom: 10px;
+        }
+        .cluster-sources {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+        .source-tag {
+            background: #333;
+            color: #9ca3af;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.7em;
+        }
+        .timeline {
+            background: #222;
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .timeline-bar {
+            height: 120px;
+            background: #1a1a1a;
+            border-radius: 4px;
+            position: relative;
+            margin-top: 10px;
+        }
+        .timeline-cluster {
+            position: absolute;
+            height: 100%;
+            background: rgba(34, 211, 238, 0.3);
+            border: 1px solid #22d3ee;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7em;
+            color: #22d3ee;
+            overflow: hidden;
+            cursor: pointer;
+        }
+        .timeline-cluster:hover {
+            background: rgba(34, 211, 238, 0.5);
+        }
+        .empty-state {
+            color: #555;
+            text-align: center;
+            padding: 50px 20px;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Time Cluster Correlator</h1>
+        <nav class="nav">
+            <a href="/">Dashboard</a>
+            <a href="/graphsketch-correlation">GraphSketch</a>
+            <a href="/timecluster">TimeCluster</a>
+        </nav>
+    </div>
+
+    <div class="stats-bar" id="stats">
+        <div class="stat">
+            <span class="stat-label">Total Clusters</span>
+            <span class="stat-value" id="total-clusters">—</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Total Anomalies</span>
+            <span class="stat-value" id="total-anomalies">—</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Slack (seconds)</span>
+            <span class="stat-value" id="slack-seconds">—</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Window (seconds)</span>
+            <span class="stat-value" id="window-seconds">—</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Largest Cluster</span>
+            <span class="stat-value" id="largest-cluster">—</span>
+        </div>
+    </div>
+
+    <div class="timeline" id="timeline-container">
+        <div class="panel-title">Timeline</div>
+        <div class="timeline-bar" id="timeline"></div>
+    </div>
+
+    <div class="container">
+        <div class="panel">
+            <div class="panel-title">Clusters (by size)</div>
+            <div id="cluster-list"></div>
+        </div>
+    </div>
+
+    <script>
+        let clusters = [];
+        let stats = {};
+
+        async function fetchData() {
+            try {
+                const [statsRes, clustersRes] = await Promise.all([
+                    fetch('/api/timecluster/stats'),
+                    fetch('/api/timecluster/clusters')
+                ]);
+                stats = await statsRes.json();
+                const clusterData = await clustersRes.json();
+
+                if (stats.enabled === false) {
+                    document.getElementById('stats').innerHTML = '<div class="empty-state">TimeClusterCorrelator not enabled. Run with -time-cluster flag.</div>';
+                    return;
+                }
+
+                document.getElementById('total-clusters').textContent = stats.total_clusters || 0;
+                document.getElementById('total-anomalies').textContent = stats.total_anomalies || 0;
+                document.getElementById('slack-seconds').textContent = stats.slack_seconds || 0;
+                document.getElementById('window-seconds').textContent = stats.window_seconds || 0;
+                document.getElementById('largest-cluster').textContent = stats.largest_cluster_size || 0;
+
+                clusters = clusterData.clusters || [];
+                renderTimeline();
+                renderClusterList();
+            } catch (e) {
+                console.error('Failed to fetch TimeCluster data:', e);
+            }
+        }
+
+        function renderTimeline() {
+            const timeline = document.getElementById('timeline');
+            
+            if (!clusters || clusters.length === 0) {
+                timeline.innerHTML = '<div style="color:#555;text-align:center;padding:20px;">No clusters yet (min 2 anomalies)</div>';
+                return;
+            }
+
+            // Find time range and max anomaly count
+            let minTime = Infinity, maxTime = -Infinity, maxCount = 1;
+            clusters.forEach(c => {
+                if (c.start_time < minTime) minTime = c.start_time;
+                if (c.end_time > maxTime) maxTime = c.end_time;
+                if (c.anomaly_count > maxCount) maxCount = c.anomaly_count;
+            });
+
+            const range = maxTime - minTime || 1;
+
+            let html = '';
+            clusters.forEach((c, i) => {
+                const left = ((c.start_time - minTime) / range) * 100;
+                // Width: based on time span, minimum 3%
+                const w = Math.max(3, ((c.end_time - c.start_time) / range) * 100);
+                // Height: proportional to anomaly count (30% to 100%)
+                const sizeFactor = c.anomaly_count / maxCount;
+                const heightPct = 30 + sizeFactor * 70;
+                // Color: intensity based on size (more anomalies = more vivid cyan)
+                const saturation = 50 + sizeFactor * 40;
+                const lightness = 55 - sizeFactor * 15;
+                html += '<div class="timeline-cluster" style="left:' + left + '%;width:' + w + '%;height:' + heightPct + '%;top:' + (100 - heightPct) / 2 + '%;background:hsla(190,' + saturation + '%,' + lightness + '%,0.8);border-color:hsl(190,' + saturation + '%,' + (lightness - 10) + '%);font-size:' + (10 + sizeFactor * 6) + 'px;font-weight:' + (sizeFactor > 0.5 ? 'bold' : 'normal') + '" title="Cluster ' + c.id + ': ' + c.anomaly_count + ' anomalies (' + (c.end_time - c.start_time) + 's)">' + c.anomaly_count + '</div>';
+            });
+            timeline.innerHTML = html;
+        }
+
+        function renderClusterList() {
+            const list = document.getElementById('cluster-list');
+            
+            if (!clusters || clusters.length === 0) {
+                list.innerHTML = '<div class="empty-state">No clusters detected yet</div>';
+                return;
+            }
+
+            function formatTime(unix) {
+                const d = new Date(unix * 1000);
+                return d.toLocaleTimeString();
+            }
+
+            function shorten(s) {
+                const parts = s.split(':');
+                const name = parts[0];
+                return name.replace(/^(cgroup\.v2\.|smaps_rollup\.|smaps\.)/, '');
+            }
+
+            let html = '';
+            clusters.forEach(c => {
+                html += '<div class="cluster">';
+                html += '<div class="cluster-header">';
+                html += '<span class="cluster-id">Cluster #' + c.id + '</span>';
+                html += '<span class="cluster-count">' + c.anomaly_count + ' anomalies</span>';
+                html += '</div>';
+                html += '<div class="cluster-time">' + formatTime(c.start_time) + ' → ' + formatTime(c.end_time) + ' (' + (c.end_time - c.start_time) + 's)</div>';
+                html += '<div class="cluster-sources">';
+                c.sources.slice(0, 20).forEach(s => {
+                    html += '<span class="source-tag" title="' + s + '">' + shorten(s) + '</span>';
+                });
+                if (c.sources.length > 20) {
+                    html += '<span class="source-tag">+' + (c.sources.length - 20) + ' more</span>';
+                }
+                html += '</div>';
+                html += '</div>';
+            });
+            list.innerHTML = html;
+        }
+
+        fetchData();
+        setInterval(fetchData, 2000);
+    </script>
+</body>
+</html>
+`

@@ -2,12 +2,24 @@
 
 const API_BASE = '/api';
 
+export interface ServerConfig {
+  cusumEnabled: boolean;
+  cusumSkipCount: boolean;  // true = filtering out :count metrics
+  zscoreEnabled: boolean;
+  timeClusterEnabled: boolean;
+  leadLagEnabled: boolean;
+  surpriseEnabled: boolean;
+  graphSketchEnabled: boolean;
+  dedupEnabled: boolean;
+}
+
 export interface StatusResponse {
   ready: boolean;
   scenario: string | null;
   seriesCount: number;
   anomalyCount: number;
   componentCount: number;
+  serverConfig: ServerConfig;
 }
 
 export interface ScenarioInfo {
@@ -88,6 +100,74 @@ export interface Correlation {
   lastUpdated: number;
 }
 
+// Lead-Lag edge represents temporal causality between sources
+export interface LeadLagEdge {
+  leader: string;
+  follower: string;
+  typical_lag: number;  // Seconds
+  confidence: number;   // 0-1
+  observations: number;
+}
+
+export interface LeadLagResponse {
+  enabled: boolean;
+  edges: LeadLagEdge[];
+}
+
+// Surprise edge represents unexpected co-occurrence (high lift)
+export interface SurpriseEdge {
+  source1: string;
+  source2: string;
+  lift: number;
+  support: number;         // Number of co-occurrences
+  source1_count: number;   // Total anomalies from source1
+  source2_count: number;   // Total anomalies from source2
+  is_surprising: boolean;  // true if lift > MinLift
+}
+
+export interface SurpriseResponse {
+  enabled: boolean;
+  edges: SurpriseEdge[];
+}
+
+// GraphSketch edge represents learned co-occurrence patterns
+export interface GraphSketchEdge {
+  Source1: string;
+  Source2: string;
+  EdgeKey: string;
+  Observations: number;    // Raw count
+  Frequency: number;       // Decay-weighted frequency
+  FirstSeenUnix: number;
+}
+
+export interface GraphSketchResponse {
+  enabled: boolean;
+  edges: GraphSketchEdge[];
+}
+
+// Stats response from correlators
+export interface CorrelatorStats {
+  leadlag?: {
+    enabled: boolean;
+    edgeCount: number;
+    sourceCount: number;
+  };
+  surprise?: {
+    enabled: boolean;
+    edgeCount: number;
+    totalWindows: number;
+  };
+  graphsketch?: {
+    enabled: boolean;
+    edgeCount: number;
+    signalCount: number;
+  };
+  timecluster?: {
+    enabled: boolean;
+    clusterCount: number;
+  };
+}
+
 class ApiClient {
   private async fetch<T>(path: string, options?: RequestInit): Promise<T> {
     const response = await fetch(`${API_BASE}${path}`, options);
@@ -131,6 +211,33 @@ class ApiClient {
 
   async getCorrelations(): Promise<Correlation[]> {
     return this.fetch('/correlations');
+  }
+
+  async getLeadLag(): Promise<LeadLagResponse> {
+    return this.fetch('/leadlag');
+  }
+
+  async getSurprise(): Promise<SurpriseResponse> {
+    return this.fetch('/surprise');
+  }
+
+  async getGraphSketch(): Promise<GraphSketchResponse> {
+    return this.fetch('/graphsketch');
+  }
+
+  async getStats(): Promise<CorrelatorStats> {
+    return this.fetch('/stats');
+  }
+
+  async updateConfig(config: {
+    cusumSkipCount?: boolean;
+    dedupEnabled?: boolean;
+  }): Promise<StatusResponse> {
+    return this.fetch('/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config),
+    });
   }
 }
 

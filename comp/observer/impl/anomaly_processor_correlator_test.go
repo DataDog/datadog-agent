@@ -142,12 +142,12 @@ func TestCorrelator_ActiveCorrelationListsAllSignals(t *testing.T) {
 	found := findCorrelation(activeCorrs, "kernel_bottleneck")
 	require.NotNil(t, found)
 
-	// Signals should contain all three signals (sorted alphabetically)
-	signals := found.Signals
-	require.Len(t, signals, 3)
-	assert.Contains(t, signals, "network.retransmits:avg")
-	assert.Contains(t, signals, "ebpf.lock_contention_ns:avg")
-	assert.Contains(t, signals, "connection.errors:count")
+	// Sources should contain all three sources (sorted alphabetically)
+	sources := found.SourceNames
+	require.Len(t, sources, 3)
+	assert.Contains(t, sources, "network.retransmits:avg")
+	assert.Contains(t, sources, "ebpf.lock_contention_ns:avg")
+	assert.Contains(t, sources, "connection.errors:count")
 }
 
 func TestCorrelator_ActiveCorrelationContainsPatternName(t *testing.T) {
@@ -417,8 +417,9 @@ func TestCorrelator_DedupesBySourceKeepingMostRecent(t *testing.T) {
 	})
 	correlator.Process(observer.AnomalyOutput{
 		Source:      "network.retransmits:avg",
-		Description: "newest retransmits", // should be kept
-		Timestamp:   1025, // latest End
+		Description: "newest retransmits",                       // should be kept
+		Timestamp:   1025,                                       // latest timestamp
+		TimeRange:   observer.TimeRange{Start: 1010, End: 1025}, // latest End
 	})
 	correlator.Process(observer.AnomalyOutput{
 		Source:      "network.retransmits:avg",
