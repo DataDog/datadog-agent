@@ -12,8 +12,6 @@ cloud.google.com/go/compute/metadata v0.9.0/go.mod h1:E0bWwX5wTnLPedCKqk3pJmVgCB
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/DataDog/agent-payload/v5 v5.0.179 h1:RGwAyXHqioHy/ARYDoX4XuEVZjipIoIjdpFW6aKr5dc=
 github.com/DataDog/agent-payload/v5 v5.0.179/go.mod h1:9PtvPKsgZVTTvqgYtcwB4bjXAkxYzC2wzSXSadPRHv8=
-github.com/DataDog/datadog-agent v0.0.0-20260202172133-c4166f988a48 h1:8nQtBO5R5APLM3N/f350zQTA+uKMbAoHMa5bXePnEp8=
-github.com/DataDog/datadog-agent v0.0.0-20260202172133-c4166f988a48/go.mod h1:hu6HcHL/TQFEzcXLhdTOHVLQ9d5IHSWvEYsrYTBBNJg=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYxD74QmMw0/3CqSKhEr6teh0ncQ=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
 github.com/DataDog/sketches-go v1.4.7 h1:eHs5/0i2Sdf20Zkj0udVFWuCrXGRFig2Dcfm5rtcTxc=
@@ -221,7 +219,6 @@ github.com/yusufpapurcu/wmi v1.2.4 h1:zFUKzehAFReQwLys1b/iSMl+JQGSCSjtVqQn9bBrPo
 github.com/yusufpapurcu/wmi v1.2.4/go.mod h1:SBZ9tNy3G9/m5Oi98Zks0QjeHVDvuK0qfxQmPyzfmi0=
 go.opentelemetry.io/auto/sdk v1.2.1 h1:jXsnJ4Lmnqd11kwkBV2LgLoFMZKizbCi5fNZ/ipaZ64=
 go.opentelemetry.io/auto/sdk v1.2.1/go.mod h1:KRTj+aOaElaLi+wW1kO/DZRXwkF4C5xPbEe3ZiIhN7Y=
-go.opentelemetry.io/collector v0.144.0 h1:nMebGQYlNnrROtAgUmXl7/G8l2eZl/vwGx0ejQmE9FI=
 go.opentelemetry.io/collector/component v1.50.0 h1:AvIhCc/J7tXlKZDETPDMDp6g6pwa3FBD6c0Q8h2u3xA=
 go.opentelemetry.io/collector/component v1.50.0/go.mod h1:S0p+mq0ZvEEN67BKWt0atC5cHn2Km8vBeeIZuYzD0XU=
 go.opentelemetry.io/collector/extension v1.50.0 h1:hNMLDmYslnfO3Q/MdhrSVn+kCAeyxkGA+Qbx+Jtct8M=

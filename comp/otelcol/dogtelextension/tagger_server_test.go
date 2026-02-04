@@ -21,7 +21,7 @@ import (
 func TestTaggerServerWrapper_Interface(t *testing.T) {
 	// Test that taggerServerWrapper implements the required interface
 	wrapper := &taggerServerWrapper{
-		taggerSrv: nil,
+		ext: nil,
 	}
 
 	// Compile-time check that wrapper implements pb.AgentSecureServer

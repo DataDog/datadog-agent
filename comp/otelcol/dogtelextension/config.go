@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package dogtelextension provides a minimal set of Datadog agent functionalities for DDOT in standalone mode
 package dogtelextension
 
 import (

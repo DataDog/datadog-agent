@@ -7,7 +7,6 @@ package dogtelextension
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"time"
 
@@ -42,6 +41,8 @@ type dogtelExtension struct {
 	taggerServer     *grpc.Server
 	taggerServerPort int
 	taggerListener   net.Listener
+	taggerThrottler  throttler
+	taggerTelemetry  *telemetryStore
 
 	// Metric submission goroutine management
 	metricCtx    context.Context
@@ -49,7 +50,7 @@ type dogtelExtension struct {
 }
 
 // Start implements extension.Extension
-func (e *dogtelExtension) Start(ctx context.Context, host component.Host) error {
+func (e *dogtelExtension) Start(_ context.Context, _ component.Host) error {
 	// Check if running in standalone mode
 	standalone := e.coreConfig.GetBool("otel_standalone")
 	if !standalone {
@@ -79,7 +80,7 @@ func (e *dogtelExtension) Start(ctx context.Context, host component.Host) error 
 }
 
 // Shutdown implements extension.Extension
-func (e *dogtelExtension) Shutdown(ctx context.Context) error {
+func (e *dogtelExtension) Shutdown(_ context.Context) error {
 	e.log.Info("Shutting down dogtelextension")
 
 	// Stop metric submission goroutine
@@ -148,7 +149,7 @@ func (e *dogtelExtension) submitRunningMetric() {
 	series.Append(&metrics.Serie{
 		Name:   "dogtel_extension.running",
 		Points: []metrics.Point{{Ts: float64(time.Now().Unix()), Value: 1.0}},
-		Tags:   tagset.CompositeTagsFromSlice([]string{fmt.Sprintf("host:%s", hostname)}),
+		Tags:   tagset.CompositeTagsFromSlice([]string{"host:" + hostname}),
 		MType:  metrics.APIGaugeType,
 		Host:   hostname,
 		Source: metrics.MetricSourceOpenTelemetryCollectorUnknown,

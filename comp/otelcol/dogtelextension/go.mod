@@ -3,7 +3,6 @@ module github.com/DataDog/datadog-agent/comp/otelcol/dogtelextension
 go 1.25.6
 
 require (
-	github.com/DataDog/datadog-agent v0.0.0-20260202172133-c4166f988a48
 	github.com/DataDog/datadog-agent/comp/core/config v0.76.0-devel
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.76.0-devel
 	github.com/DataDog/datadog-agent/comp/core/ipc/def v0.76.0-devel
@@ -11,17 +10,21 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.76.0-devel
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.70.0
 	github.com/DataDog/datadog-agent/comp/core/tagger/def v0.76.0-devel
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.76.0-devel
+	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.76.0-devel
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/metrics v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/proto v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/serializer v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/tagset v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/grpc v0.76.0-devel
+	github.com/google/uuid v1.6.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/component v1.50.0
 	go.opentelemetry.io/collector/extension v1.50.0
 	google.golang.org/grpc v1.78.0
+	google.golang.org/protobuf v1.36.11
 )
 
 require (
@@ -36,8 +39,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.76.0-devel // indirect
-	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.76.0-devel // indirect
-	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.76.0-devel // indirect
@@ -107,7 +108,6 @@ require (
 	github.com/gofrs/flock v0.13.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.7 // indirect
 	github.com/googleapis/gax-go/v2 v2.15.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
@@ -173,7 +173,6 @@ require (
 	google.golang.org/genproto v0.0.0-20251022142026-3a174f9686a8 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20251222181119-0a764e51fe1b // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251222181119-0a764e51fe1b // indirect
-	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

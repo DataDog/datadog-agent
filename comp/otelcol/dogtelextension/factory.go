@@ -7,6 +7,7 @@ package dogtelextension
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"go.opentelemetry.io/collector/component"
@@ -47,8 +48,8 @@ func NewFactory() extension.Factory {
 	return extension.NewFactory(
 		Type,
 		createDefaultConfig,
-		func(ctx context.Context, params extension.Settings, cfg component.Config) (extension.Extension, error) {
-			return nil, fmt.Errorf("dogtelextension requires agent components and is not OCB-compliant")
+		func(_ context.Context, _ extension.Settings, _ component.Config) (extension.Extension, error) {
+			return nil, errors.New("dogtelextension requires agent components and is not OCB-compliant")
 		},
 		stability,
 	)
