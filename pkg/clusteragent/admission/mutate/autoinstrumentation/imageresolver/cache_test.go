@@ -147,7 +147,7 @@ func TestHttpDigestCache_Get_Success(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cc, transport := mockHttpDigestCache(tt.ttl)
+			cc, transport := mockHTTPDigestCache(tt.ttl)
 			tt.setupCache(cc)
 			tt.setupMock(transport)
 
@@ -206,7 +206,7 @@ func TestHttpDigestCache_Get_SameRepoMultipleTags(t *testing.T) {
 }
 
 func TestHttpDigestCache_Get_ConcurrentCacheHit(t *testing.T) {
-	cc, transport := mockHttpDigestCache(5 * time.Minute)
+	cc, transport := mockHTTPDigestCache(5 * time.Minute)
 	transport.addImage("registry", "repo", "v1", "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890")
 
 	resolved, ok := cc.get("registry", "repo", "v1")
