@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
+	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
@@ -166,7 +166,7 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 		fx.Provide(func(c metricscompression.Component) compression.Compressor {
 			return c
 		}),
-		fx.Provide(func() secrets.Component { return secretsnoop.NewComponent().Comp }),
+		fx.Provide(func() secrets.Component { return &secretnooptypes.SecretNoop{} }),
 		defaultforwarder.Module(defaultforwarder.NewParams()),
 		fx.Populate(&f),
 		fx.Populate(&s),
