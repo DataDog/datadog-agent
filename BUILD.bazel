@@ -1,6 +1,6 @@
 # Global build settings
 
-load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag")
+load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -65,24 +65,6 @@ string_flag(
     name = "install_dir",
     build_setting_default = "/opt/datadog-agent",
     make_variable = "INSTALL_DIR",
-)
-
-# Whether the build is for FIPS mode. Default is false.
-bool_flag(
-    name = "fips_mode",
-    build_setting_default = False,
-)
-
-# There is no difference how we build openssl on Linux for FIPS.
-# There is, however, on Windows.
-config_setting(
-    name = "fips_mode_enabled",
-    constraint_values = [
-        "@platforms//os:windows",
-    ],
-    flag_values = {
-        ":fips_mode": "true",
-    },
 )
 
 # Configuration value to determine if we are using the standard install path.
