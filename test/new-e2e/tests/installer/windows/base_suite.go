@@ -632,16 +632,6 @@ func (s *BaseSuite) InstallWithDiagnostics(opts ...MsiOption) {
 	err = s.WaitForAgentService("Running")
 	s.Require().NoError(err, "Agent service status check failed")
 	s.T().Log("MSI installation and service startup completed successfully")
-
-	// Force test failure by stopping the agent
-	s.T().Log("Forcing test failure by stopping the agent service")
-	_, err = s.Env().RemoteHost.Execute("Stop-Process -Name agent -Force")
-	s.Require().NoError(err, "should be able to stop the agent service")
-	// Wait for Windows to update service status after killing the process
-	time.Sleep(5 * time.Second)
-	status, err := windowscommon.GetServiceStatus(s.Env().RemoteHost, "datadogagent")
-	s.Require().NoError(err, "should get service status")
-	s.Require().Contains(status, "Running", "Agent service should be running")
 }
 
 // MustStartExperimentCurrentVersion start an experiment with current version of the Agent

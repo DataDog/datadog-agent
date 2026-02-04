@@ -156,16 +156,6 @@ func (s *baseAgentMSISuite) installAgentPackage(vm *components.RemoteHost, agent
 			err = s.waitForServiceRunning(vm, "datadogagent", 300)
 			s.Require().NoError(err, "service should be running after install")
 		}
-
-		// Force test failure by stopping the agent
-		s.T().Log("Forcing test failure by stopping the agent service")
-		_, err = vm.Execute("Stop-Service -Name datadogagent -Force")
-		s.Require().NoError(err, "should be able to stop the agent service")
-		// Wait for Windows to update service status
-		time.Sleep(5 * time.Second)
-		status, err := windowsCommon.GetServiceStatus(vm, "datadogagent")
-		s.Require().NoError(err, "should get service status")
-		s.Require().Contains(status, "Running", "Agent service should be running")
 	}) {
 		s.T().FailNow()
 	}
