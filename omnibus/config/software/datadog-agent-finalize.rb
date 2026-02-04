@@ -29,6 +29,14 @@ build do
         # TODO: flavor can be defaulted and set from the bazel wrapper based on the environment.
         command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} --//packages/agent:flavor=#{flavor_arg} -- //packages/install_dir:install"
 
+	if linux_target?
+	    if heroku_target?
+               command_on_repo_root "bazelisk run -- //packages/agent/heroku:license_files_install --destdir=#{install_dir}"
+            else
+               command_on_repo_root "bazelisk run -- //packages/agent/linux:license_files_install --destdir=#{install_dir}"
+            end
+        end
+
         # Conf files
         if windows_target?
             conf_dir = "#{install_dir}/etc/datadog-agent"
@@ -42,18 +50,6 @@ build do
         end
 
         if linux_target? || osx_target?
-            delete "#{install_dir}/embedded/bin/pip"  # copy of pip3.13
-            delete "#{install_dir}/embedded/bin/pip3"  # copy of pip3.13
-            block 'create relative symlinks within embedded Python distribution' do
-              Dir.chdir "#{install_dir}/embedded/bin" do
-                File.symlink 'pip3.13', 'pip3'
-                File.symlink 'pip3', 'pip'
-                File.symlink 'python3', 'python'
-              end
-            end
-
-            delete "#{install_dir}/embedded/lib/config_guess"
-
             # Delete .pc files which aren't needed after building
             delete "#{install_dir}/embedded/lib/pkgconfig"
             # Same goes for .cmake files
@@ -139,6 +135,9 @@ build do
 
             # removing the info folder to reduce package size by ~4MB
             delete "#{install_dir}/embedded/share/info"
+
+            # removing the local folder to reduce package size by ~0.5MB
+            delete "#{install_dir}/embedded/share/locale"
 
             # remove some debug ebpf object files to reduce the size of the package
             delete "#{install_dir}/embedded/share/system-probe/ebpf/co-re/oom-kill-debug.o"

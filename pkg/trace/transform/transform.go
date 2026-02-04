@@ -25,6 +25,7 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	traceutilotel "github.com/DataDog/datadog-agent/pkg/trace/otel/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
@@ -86,13 +87,13 @@ func OtelSpanToDDSpanMinimal(
 	rattr := otelres.Attributes()
 
 	ddspan := &pb.Span{
-		Service:  traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, KeyDatadogService),
-		Name:     traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, KeyDatadogName),
-		Resource: traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, KeyDatadogResource),
-		Type:     traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, KeyDatadogType),
-		TraceID:  traceutil.OTelTraceIDToUint64(otelspan.TraceID()),
-		SpanID:   traceutil.OTelSpanIDToUint64(otelspan.SpanID()),
-		ParentID: traceutil.OTelSpanIDToUint64(otelspan.ParentSpanID()),
+		Service:  traceutilotel.GetOTelAttrFromEitherMap(sattr, rattr, true, KeyDatadogService),
+		Name:     traceutilotel.GetOTelAttrFromEitherMap(sattr, rattr, true, KeyDatadogName),
+		Resource: traceutilotel.GetOTelAttrFromEitherMap(sattr, rattr, true, KeyDatadogResource),
+		Type:     traceutilotel.GetOTelAttrFromEitherMap(sattr, rattr, true, KeyDatadogType),
+		TraceID:  traceutilotel.OTelTraceIDToUint64(otelspan.TraceID()),
+		SpanID:   traceutilotel.OTelSpanIDToUint64(otelspan.SpanID()),
+		ParentID: traceutilotel.OTelSpanIDToUint64(otelspan.ParentSpanID()),
 		Start:    int64(otelspan.StartTimestamp()),
 		Duration: int64(otelspan.EndTimestamp()) - int64(otelspan.StartTimestamp()),
 		Meta:     make(map[string]string, sattr.Len()+rattr.Len()),
@@ -106,7 +107,7 @@ func OtelSpanToDDSpanMinimal(
 		}
 	}
 
-	if incomingSpanKindName := traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, KeyDatadogSpanKind); incomingSpanKindName != "" {
+	if incomingSpanKindName := traceutilotel.GetOTelAttrFromEitherMap(sattr, rattr, true, KeyDatadogSpanKind); incomingSpanKindName != "" {
 		ddspan.Meta["span.kind"] = incomingSpanKindName
 	}
 
@@ -114,39 +115,39 @@ func OtelSpanToDDSpanMinimal(
 
 	if !conf.OTLPReceiver.IgnoreMissingDatadogFields {
 		if ddspan.Service == "" {
-			ddspan.Service = traceutil.GetOTelService(otelspan, otelres, true)
+			ddspan.Service = traceutilotel.GetOTelService(otelspan, otelres, true)
 		}
 
 		if OperationAndResourceNameV2Enabled(conf) {
 			if ddspan.Name == "" {
-				ddspan.Name = traceutil.GetOTelOperationNameV2(otelspan, otelres)
+				ddspan.Name = traceutilotel.GetOTelOperationNameV2(otelspan, otelres)
 			}
 			if ddspan.Resource == "" {
-				ddspan.Resource = traceutil.GetOTelResourceV2(otelspan, otelres)
+				ddspan.Resource = traceutilotel.GetOTelResourceV2(otelspan, otelres)
 			}
 		} else {
 			if ddspan.Name == "" {
-				ddspan.Name = traceutil.GetOTelOperationNameV1(otelspan, otelres, lib, conf.OTLPReceiver.SpanNameAsResourceName, conf.OTLPReceiver.SpanNameRemappings, true)
+				ddspan.Name = traceutilotel.GetOTelOperationNameV1(otelspan, otelres, lib, conf.OTLPReceiver.SpanNameAsResourceName, conf.OTLPReceiver.SpanNameRemappings, true)
 			}
 			if ddspan.Resource == "" {
-				ddspan.Resource = traceutil.GetOTelResourceV1(otelspan, otelres)
+				ddspan.Resource = traceutilotel.GetOTelResourceV1(otelspan, otelres)
 			}
 		}
 
 		if ddspan.Type == "" {
 			// correct span type logic if using new resource receiver, keep same if on v1. separate from OperationAndResourceNameV2Enabled.
 			if !conf.HasFeature("disable_receive_resource_spans_v2") {
-				ddspan.Type = traceutil.GetOTelSpanType(otelspan, otelres)
+				ddspan.Type = traceutilotel.GetOTelSpanType(otelspan, otelres)
 			} else {
-				ddspan.Type = traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, "span.type")
+				ddspan.Type = traceutilotel.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, "span.type")
 				if ddspan.Type == "" {
-					ddspan.Type = traceutil.SpanKind2Type(otelspan, otelres)
+					ddspan.Type = traceutilotel.SpanKind2Type(otelspan, otelres)
 				}
 			}
 		}
 
 		if !spanMetaHasKey(ddspan, "span.kind") {
-			ddspan.Meta["span.kind"] = traceutil.OTelSpanKindName(spanKind)
+			ddspan.Meta["span.kind"] = traceutilotel.OTelSpanKindName(spanKind)
 		}
 	}
 
@@ -156,14 +157,14 @@ func OtelSpanToDDSpanMinimal(
 	if isTopLevel {
 		traceutil.SetTopLevel(ddspan, true)
 	}
-	if isMeasured := traceutil.GetOTelAttrFromEitherMap(sattr, rattr, false, "_dd.measured"); isMeasured == "1" {
+	if isMeasured := traceutilotel.GetOTelAttrFromEitherMap(sattr, rattr, false, "_dd.measured"); isMeasured == "1" {
 		traceutil.SetMeasured(ddspan, true)
 	} else if topLevelByKind && (spanKind == ptrace.SpanKindClient || spanKind == ptrace.SpanKindProducer) {
 		// When enable_otlp_compute_top_level_by_span_kind is true, compute stats for client-side spans
 		traceutil.SetMeasured(ddspan, true)
 	}
 	for _, peerTagKey := range peerTagKeys {
-		if peerTagVal := traceutil.GetOTelAttrFromEitherMap(sattr, rattr, false, peerTagKey); peerTagVal != "" {
+		if peerTagVal := traceutilotel.GetOTelAttrFromEitherMap(sattr, rattr, false, peerTagKey); peerTagVal != "" {
 			ddspan.Meta[peerTagKey] = peerTagVal
 		}
 	}
@@ -246,28 +247,28 @@ var apmConventionKeysToDDNamespacedKeys = map[string]string{
 }
 
 func copyAttrToMapIfExists(attributes pcommon.Map, key string, m map[string]string, mappedKey string) {
-	if incomingValue := traceutil.GetOTelAttrVal(attributes, false, key); incomingValue != "" {
+	if incomingValue := traceutilotel.GetOTelAttrVal(attributes, false, key); incomingValue != "" {
 		m[mappedKey] = incomingValue
 	}
 }
 
 // GetOTelEnv returns the environment based on OTel span and resource attributes, with span taking precedence.
 func GetOTelEnv(span ptrace.Span, res pcommon.Resource, ignoreMissingDatadogFields bool) string {
-	env := traceutil.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, KeyDatadogEnvironment)
+	env := traceutilotel.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, KeyDatadogEnvironment)
 	if env == "" && !ignoreMissingDatadogFields {
-		env = traceutil.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, string(semconv127.DeploymentEnvironmentNameKey), string(semconv.DeploymentEnvironmentKey))
+		env = traceutilotel.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, string(semconv127.DeploymentEnvironmentNameKey), string(semconv.DeploymentEnvironmentKey))
 	}
 	return env
 }
 
 // GetOTelHostname returns the DD hostname based on OTel span and resource attributes, with span taking precedence.
 func GetOTelHostname(span ptrace.Span, res pcommon.Resource, tr *attributes.Translator, fallbackHost string, ignoreMissingDatadogFields bool) string {
-	hostname := traceutil.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, KeyDatadogHost)
+	hostname := traceutilotel.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, KeyDatadogHost)
 	if hostname == "" && !ignoreMissingDatadogFields {
 		ctx := context.Background()
-		src, srcok := tr.ResourceToSource(ctx, res, traceutil.SignalTypeSet, nil)
+		src, srcok := tr.ResourceToSource(ctx, res, traceutilotel.SignalTypeSet, nil)
 		if !srcok {
-			if v := traceutil.GetOTelAttrValInResAndSpanAttrs(span, res, false, "_dd.hostname"); v != "" {
+			if v := traceutilotel.GetOTelAttrValInResAndSpanAttrs(span, res, false, "_dd.hostname"); v != "" {
 				src = source.Source{Kind: source.HostnameKind, Identifier: v}
 				srcok = true
 			}
@@ -290,18 +291,30 @@ func GetOTelHostname(span ptrace.Span, res pcommon.Resource, tr *attributes.Tran
 
 // GetOTelVersion returns the version based on OTel span and resource attributes, with span taking precedence.
 func GetOTelVersion(span ptrace.Span, res pcommon.Resource, ignoreMissingDatadogFields bool) string {
-	version := traceutil.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, KeyDatadogVersion)
+	version := traceutilotel.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, KeyDatadogVersion)
 	if version == "" && !ignoreMissingDatadogFields {
-		version = traceutil.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, string(semconv.ServiceVersionKey))
+		version = traceutilotel.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, string(semconv.ServiceVersionKey))
 	}
 	return version
 }
 
 // GetOTelContainerID returns the container ID based on OTel span and resource attributes, with span taking precedence.
 func GetOTelContainerID(span ptrace.Span, res pcommon.Resource, ignoreMissingDatadogFields bool) string {
-	cid := traceutil.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, KeyDatadogContainerID)
+	cid := traceutilotel.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, KeyDatadogContainerID)
 	if cid == "" && !ignoreMissingDatadogFields {
-		cid = traceutil.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, string(semconv.ContainerIDKey), string(semconv.K8SPodUIDKey))
+		cid = traceutilotel.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, string(semconv.ContainerIDKey))
+	}
+	return cid
+}
+
+// GetOTelContainerOrPodID returns the container ID based on OTel span and resource attributes, with span taking precedence.
+//
+// The Kubernetes pod UID will be used as a fallback if the container ID is not found.
+// This is only done for backward compatibility; consider using GetOTelContainerID instead.
+func GetOTelContainerOrPodID(span ptrace.Span, res pcommon.Resource, ignoreMissingDatadogFields bool) string {
+	cid := traceutilotel.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, KeyDatadogContainerID)
+	if cid == "" && !ignoreMissingDatadogFields {
+		cid = traceutilotel.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, string(semconv.ContainerIDKey), string(semconv.K8SPodUIDKey))
 	}
 	return cid
 }
@@ -346,7 +359,7 @@ func GetOTelContainerTags(rattrs pcommon.Map, tagKeys []string) []string {
 			}
 		} else {
 			// Otherwise populate as additional container tags
-			if val := traceutil.GetOTelAttrVal(rattrs, false, key); val != "" {
+			if val := traceutilotel.GetOTelAttrVal(rattrs, false, key); val != "" {
 				t := normalizeutil.NormalizeTag(key + ":" + val)
 				containerTags = append(containerTags, t)
 			}
@@ -445,7 +458,7 @@ func OtelSpanToDDSpan(
 
 	// Check for db.namespace and conditionally set db.name
 	if _, ok := ddspan.Meta["db.name"]; !ok {
-		if dbNamespace := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, false, string(semconv127.DBNamespaceKey)); dbNamespace != "" {
+		if dbNamespace := traceutilotel.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, false, string(semconv127.DBNamespaceKey)); dbNamespace != "" {
 			ddspan.Meta["db.name"] = dbNamespace
 		}
 	}

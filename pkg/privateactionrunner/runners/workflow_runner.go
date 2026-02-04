@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
-	remoteconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/remote-config"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
@@ -31,19 +30,19 @@ type WorkflowRunner struct {
 	opmsClient   opms.Client
 	resolver     resolver.PrivateCredentialResolver
 	config       *config.Config
-	keysManager  remoteconfig.KeysManager
+	keysManager  taskverifier.KeysManager
 	taskVerifier *taskverifier.TaskVerifier
 	taskLoop     *Loop
 }
 
 func NewWorkflowRunner(
 	configuration *config.Config,
-	keysManager remoteconfig.KeysManager,
+	keysManager taskverifier.KeysManager,
 	verifier *taskverifier.TaskVerifier,
 	opmsClient opms.Client,
 ) (*WorkflowRunner, error) {
 	return &WorkflowRunner{
-		registry:     privatebundles.NewRegistry(),
+		registry:     privatebundles.NewRegistry(configuration),
 		opmsClient:   opmsClient,
 		resolver:     resolver.NewPrivateCredentialResolver(),
 		config:       configuration,
@@ -52,10 +51,11 @@ func NewWorkflowRunner(
 	}, nil
 }
 
-func (n *WorkflowRunner) Start(ctx context.Context) {
+func (n *WorkflowRunner) Start(ctx context.Context) error {
+	log.FromContext(ctx).Info("Starting Workflow runner")
 	if n.taskLoop != nil {
 		log.FromContext(ctx).Warn("WorkflowRunner already started")
-		return
+		return nil
 	}
 	startTime := time.Now()
 	n.keysManager.Start(ctx)
@@ -66,12 +66,16 @@ func (n *WorkflowRunner) Start(ctx context.Context) {
 		observability.ReportKeysManagerReady(n.config.MetricsClient, log.FromContext(ctx), startTime)
 		n.taskLoop.Run(ctx)
 	}()
+	return nil
 }
 
-func (n *WorkflowRunner) Close(ctx context.Context) {
+func (n *WorkflowRunner) Stop(ctx context.Context) error {
+	log.FromContext(ctx).Info("Stopping Workflow runner")
+
 	if n.taskLoop != nil {
 		n.taskLoop.Close(ctx)
 	}
+	return nil
 }
 
 func (n *WorkflowRunner) RunTask(

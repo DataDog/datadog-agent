@@ -8,6 +8,7 @@ package diagnose
 
 import (
 	"encoding/json"
+	"slices"
 	"sync"
 
 	"github.com/fatih/color"
@@ -65,13 +66,7 @@ type Catalog struct {
 
 // Register registers a diagnose function
 func (c *Catalog) Register(name string, diagnoseFunc func(Config) []Diagnosis) {
-	registeredSuite := false
-	for _, suite := range AllSuites {
-		if suite == name {
-			registeredSuite = true
-			break
-		}
-	}
+	registeredSuite := slices.Contains(AllSuites, name)
 	if !registeredSuite {
 		panic("suite not registered. plase update the AllSuites list")
 	}

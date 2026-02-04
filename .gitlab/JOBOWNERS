@@ -107,6 +107,7 @@ dev_branch*                            @Datadog/agent-delivery
 dev_master*                            @Datadog/agent-delivery
 dev_nightly*                           @Datadog/agent-delivery
 qa_agent*                              @DataDog/agent-devx
+qa_ot_agent*                           @DataDog/agent-devx
 qa_cws_instrumentation*                @DataDog/agent-devx
 qa_dca*                                @DataDog/agent-devx
 qa_dogstatsd*                          @DataDog/agent-devx

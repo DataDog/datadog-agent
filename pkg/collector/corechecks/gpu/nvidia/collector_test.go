@@ -18,6 +18,7 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
@@ -317,8 +318,8 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 		// Test the exact scenario from function comment plus additional edge cases including zero priority
 		allMetrics := map[CollectorName][]Metric{
 			sampling: {
-				{Name: "memory.usage", Priority: High, Tags: []string{"pid:1001"}},
-				{Name: "memory.usage", Priority: High, Tags: []string{"pid:1002"}},
+				{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1001"}},
+				{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1002"}},
 				{Name: "core.temp", Priority: Low}, // Zero priority (default)
 			},
 			stateless: {
@@ -328,7 +329,7 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 				{Name: "disk.usage", Priority: Low}, // Zero priority, unique metric
 			},
 			ebpf: {
-				{Name: "core.temp", Priority: High}, // Conflicts with CollectorA, higher priority beats zero
+				{Name: "core.temp", Priority: Medium}, // Conflicts with CollectorA, higher priority beats zero
 				{Name: "voltage", Priority: Low},
 				{Name: "fan.speed", Priority: Low}, // Zero priority tie with CollectorB
 			},
@@ -344,10 +345,10 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 		for _, metric := range result {
 			switch metric.Name {
 			case "memory.usage":
-				require.Equal(t, High, metric.Priority)
+				require.Equal(t, Medium, metric.Priority)
 				memoryUsageCount++
 			case "core.temp":
-				require.Equal(t, High, metric.Priority)
+				require.Equal(t, Medium, metric.Priority)
 				coreTempCount++
 			case "power.draw":
 				require.Equal(t, Low, metric.Priority)
@@ -376,9 +377,9 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 		// Ensure intra-collector preservation - no deduplication within same collector
 		allMetrics := map[CollectorName][]Metric{
 			sampling: {
-				{Name: "memory.usage", Priority: High, Tags: []string{"pid:1001"}},
-				{Name: "memory.usage", Priority: High, Tags: []string{"pid:1002"}},
-				{Name: "memory.usage", Priority: High, Tags: []string{"pid:1003"}},
+				{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1001"}},
+				{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1002"}},
+				{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1003"}},
 				{Name: "cpu.usage", Priority: Low},
 			},
 		}
@@ -386,9 +387,9 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 		result := RemoveDuplicateMetrics(allMetrics)
 
 		expected := []Metric{
-			{Name: "memory.usage", Priority: High, Tags: []string{"pid:1001"}},
-			{Name: "memory.usage", Priority: High, Tags: []string{"pid:1002"}},
-			{Name: "memory.usage", Priority: High, Tags: []string{"pid:1003"}},
+			{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1001"}},
+			{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1002"}},
+			{Name: "memory.usage", Priority: Medium, Tags: []string{"pid:1003"}},
 			{Name: "cpu.usage", Priority: Low},
 		}
 
@@ -444,4 +445,100 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 			require.Equal(t, "metric1", result[0].Name)
 		})
 	})
+}
+
+// TestConfiguredMetricPriority ensures that the priority is as defined for certain critical metrics
+func TestConfiguredMetricPriority(t *testing.T) {
+	const pid = 123
+	device := setupMockDeviceWithLibOpts(t, func(device *nvmlmock.Device) *nvmlmock.Device {
+		device.GetProcessUtilizationFunc = func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
+			return []nvml.ProcessUtilizationSample{
+				{
+					Pid:    pid,
+					SmUtil: 50,
+				},
+			}, nvml.SUCCESS
+		}
+		return device
+	}, testutil.WithMockAllFunctions())
+	deviceUUID := device.GetDeviceInfo().UUID
+
+	spCache := &SystemProbeCache{
+		stats: &model.GPUStats{
+			ProcessMetrics: []model.ProcessStatsTuple{
+				{
+					Key: model.ProcessStatsKey{
+						PID:        123,
+						DeviceUUID: deviceUUID,
+					},
+					UtilizationMetrics: model.UtilizationMetrics{
+						UsedCores: 50,
+						Memory: model.MemoryMetrics{
+							CurrentBytes: 1024,
+						},
+						ActiveTimePct: 50,
+					},
+				},
+			},
+			DeviceMetrics: []model.DeviceStatsTuple{
+				{
+					DeviceUUID: deviceUUID,
+					Metrics: model.DeviceUtilizationMetrics{
+						ActiveTimePct: 50,
+					},
+				},
+			},
+		},
+	}
+
+	deps := &CollectorDependencies{
+		SystemProbeCache: spCache,
+		Workloadmeta:     testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
+	}
+
+	// Build collectors with deviceEvents disabled (not useful for this test)
+	collectors, err := BuildCollectors([]ddnvml.Device{device}, deps, []string{string(deviceEvents)})
+	require.NoError(t, err)
+
+	// Set up the expected metric order. The first collector in the list should have the highest priority over the rest.
+	desiredMetricPriority := map[string][]CollectorName{
+		"sm_active":         {gpm, sampling, ebpf},
+		"process.sm_active": {sampling, ebpf},
+	}
+
+	metricsByCollector := make(map[string]map[CollectorName]Metric)
+
+	for metricName := range desiredMetricPriority {
+		metricsByCollector[metricName] = make(map[CollectorName]Metric)
+	}
+
+	for _, collector := range collectors {
+		metrics, err := collector.Collect()
+		require.NoError(t, err)
+		for _, metric := range metrics {
+			metricMap, ok := metricsByCollector[metric.Name]
+			if ok {
+				require.NotContains(t, metricMap, collector.Name(), "each collector should only emit one %s metric with the same name", metric.Name)
+				metricMap[collector.Name()] = metric
+			}
+		}
+	}
+
+	for metricName, metricMap := range metricsByCollector {
+		t.Run(metricName, func(t *testing.T) {
+			require.Contains(t, desiredMetricPriority, metricName) // sanity check
+			collectorOrder := desiredMetricPriority[metricName]
+
+			require.Len(t, metricMap, len(collectorOrder))
+			for _, collectorName := range collectorOrder {
+				require.Contains(t, metricMap, collectorName, "each collector should emit the metric")
+			}
+
+			for i := range len(collectorOrder) - 1 {
+				higherPriorityCollector := collectorOrder[i]
+				lowerPriorityCollector := collectorOrder[i+1]
+				require.Greater(t, metricMap[higherPriorityCollector].Priority, metricMap[lowerPriorityCollector].Priority, "collector %s should have higher priority than collector %s", higherPriorityCollector, lowerPriorityCollector)
+			}
+		})
+	}
 }

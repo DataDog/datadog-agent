@@ -14,7 +14,8 @@ import (
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
 )
 
-func parseFilters(annotationsExclude []string) ([]*regexp.Regexp, error) {
+// ParseFilters parses a list of exclude annotations into regex objects
+func ParseFilters(annotationsExclude []string) ([]*regexp.Regexp, error) {
 	var parsedFilters []*regexp.Regexp
 	var errors []error
 	for _, exclude := range annotationsExclude {
@@ -39,7 +40,8 @@ func filterToRegex(filter string) (*regexp.Regexp, error) {
 	return r, nil
 }
 
-func filterMapStringKey(mapInput map[string]string, keyFilters []*regexp.Regexp) map[string]string {
+// FilterMapStringKey filters a map of strings based on a list of regex objects
+func FilterMapStringKey(mapInput map[string]string, keyFilters []*regexp.Regexp) map[string]string {
 	for key := range mapInput {
 		for _, filter := range keyFilters {
 			if filter.MatchString(key) {

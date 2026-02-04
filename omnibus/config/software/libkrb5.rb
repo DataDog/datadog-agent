@@ -33,9 +33,14 @@ build do
     'libgssapi_krb5.so',
     'libkadm5clnt.so',
   ]
+  bin_files = [
+    'kinit',
+  ]
   command_on_repo_root "bazelisk run -- @krb5//:install --destdir='#{install_dir}/embedded'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded' " \
     + lib_files.map{ |l| "#{install_dir}/embedded/lib/#{l}" }.join(' ') \
     + " " \
-    + pc_files.map{ |pc| "#{install_dir}/embedded/lib/pkgconfig/#{pc}" }.join(' ')
+    + pc_files.map{ |pc| "#{install_dir}/embedded/lib/pkgconfig/#{pc}" }.join(' ') \
+    + " " \
+    + bin_files.map{ |bin| "#{install_dir}/embedded/bin/#{bin}" }.join(' ')
 end

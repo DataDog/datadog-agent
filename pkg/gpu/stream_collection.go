@@ -356,6 +356,7 @@ func (sc *streamCollection) cleanHandlerMap(handlerMap *sync.Map, nowKtime int64
 
 			if deleteReason != "" {
 				handlerMap.Delete(key)
+				handler.releasePoolResources()
 				sc.telemetry.removedHandlers.Inc(handler.metadata.gpuUUID, deleteReason)
 			}
 		}

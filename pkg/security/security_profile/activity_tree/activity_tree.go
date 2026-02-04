@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"io"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 
@@ -228,9 +227,7 @@ func (at *ActivityTree) ComputeSyscallsList() []uint32 {
 	for key := range at.SyscallsMask {
 		output = append(output, uint32(key))
 	}
-	sort.Slice(output, func(i, j int) bool {
-		return output[i] < output[j]
-	})
+	slices.Sort(output)
 	return output
 }
 

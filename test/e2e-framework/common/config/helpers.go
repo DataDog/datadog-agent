@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Masterminds/semver"
+	"github.com/Masterminds/semver/v3"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 

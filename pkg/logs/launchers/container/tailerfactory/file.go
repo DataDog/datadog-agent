@@ -22,8 +22,9 @@ import (
 	"runtime"
 	"syscall"
 
+	"github.com/DataDog/agent-payload/v5/healthplatform"
+
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
@@ -244,7 +245,6 @@ func (tf *factory) makeK8sFileSource(source *sources.LogSource) (*sources.LogSou
 	}
 
 	// get the path for the discovered pod and container
-	// TODO: need a different base path on windows?
 	path := findK8sLogPath(pod, container.Name)
 
 	// Note that it's not clear from k8s documentation that the container logs,
@@ -359,7 +359,7 @@ func (tf *factory) reportDockerPermissionIssue(dockerDir string) {
 		"logs-docker-file-permissions",
 		"Docker File Tailing Permissions",
 		&healthplatform.IssueReport{
-			IssueID: "docker-file-tailing-disabled",
+			IssueId: "docker-file-tailing-disabled",
 			Context: map[string]string{
 				"dockerDir": dockerDir,
 				"os":        runtime.GOOS,

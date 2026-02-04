@@ -1,0 +1,83 @@
+.lint:
+  stage: lint
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  needs: []
+
+lint_licenses:
+  extends: .lint
+  script:
+    - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps]
+    - dda inv -- -e lint-licenses
+  needs: ["go_deps", "go_tools_deps"]
+
+lint_rust_licenses:
+  extends: .lint
+  script:
+    - dda inv -- -e lint-rust-licenses
+
+lint_shell:
+  extends: .lint
+  script:
+    - shellcheck --version
+    #Excludes:
+    #SC2028: echo may not expand escape sequences. Use printf.
+    #SC2059: Don't use variables in the printf format string. Use printf "..%s.." "$foo".
+    - shellcheck --severity=info -e SC2059 -e SC2028 --shell=bash ./cmd/**/*.sh ./omnibus/package-scripts/*/*
+
+lint_filename:
+  extends: .lint
+  script:
+    - dda inv -- -e linter.filenames
+
+lint_copyrights:
+  extends: .lint
+  script:
+    - dda inv -- -e linter.copyrights
+
+lint_codeowners:
+  extends: .lint
+  script:
+    - dda inv -- -e github.lint-codeowner
+
+lint_components:
+  extends: .lint
+  script:
+    - dda inv -- -e lint-components lint-fxutil-oneshot-test
+
+lint_python:
+  extends: .lint
+  script:
+    - dda inv -- -e linter.python --show-versions
+
+lint_update_go:
+  extends: .lint
+  script:
+    - dda inv -- -e linter.update-go
+
+validate_modules:
+  extends: .lint
+  script:
+    - dda inv -- -e modules.validate
+    - dda inv -- -e modules.validate-used-by-otel
+
+check_modules_replace:
+  extends: .lint
+  needs: ["go_deps"]
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+  script:
+    - dda inv -- -e modules.check-all-replace
+
+validate_experiment_systemd_units:
+  extends: .lint
+  rules: !reference [.on_installer_systemd_changes]
+  script:
+    - dda inv -- -e installer.generate-experiment-units --check
+
+lint_releasenotes_rst:
+  extends: .lint
+  rules: !reference [.on_releasenotes_changes]
+  script:
+    - dda inv -- -e linter.rst-releasenotes --only-changed

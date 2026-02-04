@@ -44,7 +44,7 @@ func baseDeviceName(device string) string {
 }
 
 // normalizeDeviceTag returns the device name for use in the device: tag.
-// On Linux, returns unchanged. On Windows, strips backslashes and lowercases.
+// On Linux/Unix, returns unchanged (Windows version strips backslashes and lowercases).
 func normalizeDeviceTag(deviceName string) string {
 	return deviceName
 }
@@ -100,8 +100,8 @@ func (c *Check) fetchAllDeviceLabelsFromLsblk() error {
 	return nil
 }
 
-// Device represents a device entry in an XML structure.
-type device struct {
+// blkidDeviceEntry represents a device entry in a blkid XML cache file.
+type blkidDeviceEntry struct {
 	XMLName xml.Name `xml:"device"`
 	Label   string   `xml:"LABEL,attr"`
 	Text    string   `xml:",chardata"`
@@ -137,14 +137,14 @@ func (c *Check) fetchAllDeviceLabelsFromBlkidCache() error {
 			log.Debugf("skipping empty line")
 			continue
 		}
-		var device device
-		err := xml.Unmarshal([]byte(line), &device)
+		var entry blkidDeviceEntry
+		err := xml.Unmarshal([]byte(line), &entry)
 		if err != nil {
 			log.Debugf("Failed to parse line %s because of %v - skipping the line (some labels might be missing)\n", line, err)
 			continue
 		}
-		if device.Label != "" && device.Text != "" {
-			c.deviceLabels[device.Text] = device.Label
+		if entry.Label != "" && entry.Text != "" {
+			c.deviceLabels[entry.Text] = entry.Label
 		}
 	}
 	return nil
@@ -326,8 +326,8 @@ func (r *rootFsDeviceFinder) askSysDevBlock() (string, error) {
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := scanner.Text()
-		if strings.HasPrefix(line, "DEVNAME=") {
-			name := strings.TrimPrefix(line, "DEVNAME=")
+		if after, ok := strings.CutPrefix(line, "DEVNAME="); ok {
+			name := after
 			if name != "" {
 				return "/dev/" + name, nil
 			}

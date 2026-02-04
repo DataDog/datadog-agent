@@ -7,13 +7,12 @@ package config
 
 import (
 	"crypto/ecdsa"
-	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -32,6 +31,7 @@ const (
 	defaultHealthCheckEndpoint   = "/healthz"
 	healthCheckInterval          = 30_000
 	defaultHTTPServerReadTimeout = 10_000
+	defaultHTTPTimeout           = 30 * time.Second
 	// defaultHTTPServerWriteTimeout defines how long a request is allowed to run for after the HTTP connection is established. If actions are timing out often, `httpServerWriteTimeout` can be adjusted in config.yaml to override this value. See the Golang docs under `WriteTimeout` for more information about how the server uses this value - https://pkg.go.dev/net/http#Server
 	defaultHTTPServerWriteTimeout = 60_000
 	runnerAccessTokenHeader       = "X-Datadog-Apps-On-Prem-Runner-Access-Token"
@@ -46,21 +46,35 @@ func FromDDConfig(config config.Component) (*Config, error) {
 	encodedPrivateKey := config.GetString("privateactionrunner.private_key")
 	urn := config.GetString("privateactionrunner.urn")
 
-	if encodedPrivateKey == "" {
-		return nil, errors.New("private action runner not configured: either run enrollment or provide privateactionrunner.private_key")
-	}
-	privateKey, err := util.Base64ToJWK(encodedPrivateKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode privateactionrunner.private_key: %w", err)
-	}
-
-	if urn == "" {
-		return nil, errors.New("private action runner not configured: URN is required")
+	var privateKey *ecdsa.PrivateKey
+	if encodedPrivateKey != "" {
+		jwk, err := util.Base64ToJWK(encodedPrivateKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode privateactionrunner.private_key: %w", err)
+		}
+		privateKey = jwk.Key.(*ecdsa.PrivateKey)
 	}
 
-	orgID, runnerID, err := parseURN(urn)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse URN: %w", err)
+	var orgID int64
+	var runnerID string
+	// allow empty urn for self-enrollment
+	if urn != "" {
+		urnParts, err := util.ParseRunnerURN(urn)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse URN: %w", err)
+		}
+		orgID = urnParts.OrgID
+		runnerID = urnParts.RunnerID
+	}
+
+	var taskTimeoutSeconds *int32
+	if v := config.GetInt32("privateactionrunner.task_timeout_seconds"); v != 0 {
+		taskTimeoutSeconds = &v
+	}
+
+	httpTimeout := defaultHTTPTimeout
+	if v := config.GetInt32("privateactionrunner.http_timeout_seconds"); v != 0 {
+		httpTimeout = time.Duration(v) * time.Second
 	}
 
 	return &Config{
@@ -74,6 +88,8 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		HealthCheckInterval:       healthCheckInterval,
 		HttpServerReadTimeout:     defaultHTTPServerReadTimeout,
 		HttpServerWriteTimeout:    defaultHTTPServerWriteTimeout,
+		HTTPTimeout:               httpTimeout,
+		TaskTimeoutSeconds:        taskTimeoutSeconds,
 		RunnerAccessTokenHeader:   runnerAccessTokenHeader,
 		RunnerAccessTokenIdHeader: runnerAccessTokenIDHeader,
 		Port:                      defaultPort,
@@ -82,40 +98,29 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		HeartbeatInterval:         heartbeatInterval,
 		Version:                   version.AgentVersion,
 		MetricsClient:             &statsd.NoOpClient{},
-		ActionsAllowlist:          make(map[string]sets.Set[string]),
+		ActionsAllowlist:          makeActionsAllowlist(config),
 		Allowlist:                 strings.Split(config.GetString("privateactionrunner.allowlist"), ","),
 		AllowIMDSEndpoint:         config.GetBool("privateactionrunner.allow_imds_endpoint"),
 		DDHost:                    strings.Join([]string{"api", ddSite}, "."),
 		Modes:                     []modes.Mode{modes.ModePull},
 		OrgId:                     orgID,
-		PrivateKey:                privateKey.Key.(*ecdsa.PrivateKey),
+		PrivateKey:                privateKey,
 		RunnerId:                  runnerID,
 		Urn:                       urn,
 		DatadogSite:               ddSite,
 	}, nil
 }
 
-// parseURN parses a URN in the format urn:dd:apps:on-prem-runner:{region}:{org_id}:{runner_id}
-// and returns the org_id and runner_id
-func parseURN(urn string) (int64, string, error) {
-	parts := strings.Split(urn, ":")
-	if len(parts) != 7 {
-		return 0, "", fmt.Errorf("invalid URN format: expected 6 parts separated by ':', got %d", len(parts))
+func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
+	allowlist := make(map[string]sets.Set[string])
+	actionFqns := config.GetStringSlice("privateactionrunner.actions_allowlist")
+	for _, fqn := range actionFqns {
+		bundleName, actionName := actions.SplitFQN(fqn)
+		previous, ok := allowlist[bundleName]
+		if !ok {
+			previous = sets.New[string]()
+		}
+		allowlist[bundleName] = previous.Insert(actionName)
 	}
-
-	if parts[0] != "urn" || parts[1] != "dd" || parts[2] != "apps" || parts[3] != "on-prem-runner" {
-		return 0, "", fmt.Errorf("invalid URN format: expected 'urn:dd:apps:on-prem-runner', got '%s:%s:%s:%s'", parts[0], parts[1], parts[2], parts[3])
-	}
-
-	orgID, err := strconv.ParseInt(parts[5], 10, 64)
-	if err != nil {
-		return 0, "", fmt.Errorf("invalid org_id in URN: %w", err)
-	}
-
-	runnerID := parts[6]
-	if runnerID == "" {
-		return 0, "", errors.New("runner_id cannot be empty in URN")
-	}
-
-	return orgID, runnerID, nil
+	return allowlist
 }

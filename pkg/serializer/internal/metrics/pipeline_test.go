@@ -46,13 +46,13 @@ func TestPipelineSendValidate(t *testing.T) {
 
 	ctx := PipelineContext{
 		Destinations: []PipelineDestination{{
-			Resolver:             res1,
-			Endpoint:             endpoints.SeriesEndpoint,
-			AddValidationHeaders: true,
+			Resolver:          res1,
+			Endpoint:          endpoints.SeriesEndpoint,
+			ValidationBatchID: "123",
 		}, {
-			Resolver:             res2,
-			Endpoint:             endpoints.SeriesEndpoint,
-			AddValidationHeaders: false,
+			Resolver:          res2,
+			Endpoint:          endpoints.SeriesEndpoint,
+			ValidationBatchID: "",
 		}}}
 
 	ctx.addPayload(transaction.NewBytesPayload([]byte{1}, 1))
@@ -68,14 +68,14 @@ func TestPipelineSendValidate(t *testing.T) {
 		func(t require.TestingT, _ int, txn *transaction.HTTPTransaction) {
 			require.Equal(t, "http://example.test", txn.Domain)
 			require.Equal(t, []byte{1}, txn.Payload.GetContent())
-			require.NotEmpty(t, txn.Headers.Get("x-metrics-request-id"))
+			require.Equal(t, "123", txn.Headers.Get("x-metrics-request-id"))
 			require.Equal(t, "0", txn.Headers.Get("x-metrics-request-seq"))
 			require.Equal(t, "2", txn.Headers.Get("x-metrics-request-len"))
 		},
 		func(t require.TestingT, _ int, txn *transaction.HTTPTransaction) {
 			require.Equal(t, "http://example.test", txn.Domain)
 			require.Equal(t, []byte{2}, txn.Payload.GetContent())
-			require.NotEmpty(t, txn.Headers.Get("x-metrics-request-id"))
+			require.Equal(t, "123", txn.Headers.Get("x-metrics-request-id"))
 			require.Equal(t, "1", txn.Headers.Get("x-metrics-request-seq"))
 			require.Equal(t, "2", txn.Headers.Get("x-metrics-request-len"))
 		},

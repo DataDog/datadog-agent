@@ -32,7 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
-	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
+	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -60,12 +60,14 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	workloadmetainit "github.com/DataDog/datadog-agent/comp/core/workloadmeta/init"
+	filterlistfx "github.com/DataDog/datadog-agent/comp/filterlist/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/mcp"
 
@@ -158,6 +160,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				hostnameimpl.Module(),
 				secretsfx.Module(),
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithResolvers(), defaultforwarder.WithDisableAPIKeyChecking())),
+				filterlistfx.Module(),
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
 				orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDefaultParams()),
 				eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
@@ -188,8 +191,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func() option.Option[integrations.Component] {
 					return option.None[integrations.Component]()
 				}),
-				fx.Provide(func() option.Option[agenttelemetry.Component] {
-					return option.None[agenttelemetry.Component]()
+				agenttelemetryfx.Module(),
+				fx.Provide(func() option.Option[healthplatform.Component] {
+					return option.None[healthplatform.Component]()
 				}),
 
 				statusimpl.Module(),
@@ -519,7 +523,7 @@ func start(log log.Component,
 		go func() {
 			defer wg.Done()
 
-			if err := runCompliance(mainCtx, demultiplexer, wmeta, apiCl, compression, ipc, le.IsLeader); err != nil {
+			if err := runCompliance(mainCtx, demultiplexer, wmeta, filterStore, apiCl, compression, le.IsLeader); err != nil {
 				pkglog.Errorf("Error while running compliance agent: %v", err)
 			}
 		}()
@@ -532,6 +536,7 @@ func start(log log.Component,
 	}
 
 	if config.GetBool("appsec.proxy.enabled") && config.GetBool("cluster_agent.appsec.injector.enabled") {
+		// Should be run before admissionpkg.StartControllers
 		if err := appsec.Start(mainCtx, log, config, le.Subscribe); err != nil {
 			log.Errorf("Cannot start appsec injector: %v", err)
 		}
@@ -581,7 +586,8 @@ func start(log log.Component,
 			}
 			// Webhook and secret controllers are started successfully
 			// Set up the k8s admission webhook server
-			server := admissioncmd.NewServer()
+			secretsLister := apiCl.CertificateSecretInformerFactory.Core().V1().Secrets().Lister()
+			server := admissioncmd.NewServer(secretsLister)
 
 			for _, webhookConf := range webhooks {
 				server.Register(webhookConf.Endpoint(), webhookConf.Name(), webhookConf.WebhookType(), webhookConf.WebhookFunc(), apiCl.DynamicCl, apiCl.Cl)
@@ -592,7 +598,7 @@ func start(log log.Component,
 			go func() {
 				defer wg.Done()
 
-				errServ := server.Run(mainCtx, apiCl.Cl)
+				errServ := server.Run(mainCtx)
 				if errServ != nil {
 					pkglog.Errorf("Error in the Admission Controller Webhook Server: %v", errServ)
 				}

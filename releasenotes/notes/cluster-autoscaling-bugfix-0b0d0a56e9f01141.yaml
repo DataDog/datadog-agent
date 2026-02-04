@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix small bug in Cluster Autoscaling when checking Target Hash value.

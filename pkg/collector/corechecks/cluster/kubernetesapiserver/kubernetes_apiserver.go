@@ -40,11 +40,12 @@ const (
 	// CheckName is the name of the check
 	CheckName = "kubernetes_apiserver"
 
-	KubeControlPaneCheck          = "kube_apiserver_controlplane.up"
-	eventTokenKey                 = "event"
-	maxEventCardinality           = 300
-	defaultResyncPeriodInSecond   = 300
-	defaultTimeoutEventCollection = 2000
+	KubeControlPaneCheck               = "kube_apiserver_controlplane.up"
+	eventTokenKey                      = "event"
+	maxEventCardinality                = 300
+	defaultResyncPeriodInSecond        = 300
+	defaultTimeoutEventCollection      = 2000
+	defaultMaxEstimatedEventTextLength = 3750
 )
 
 var (
@@ -182,6 +183,11 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 	if pkgconfigsetup.Datadog().GetBool("autoscaling.workload.enabled") {
 		k.instance.CollectedEventTypes = append(k.instance.CollectedEventTypes, collectedEventType{
 			Source: "datadog-workload-autoscaler",
+		})
+	}
+	if pkgconfigsetup.Datadog().GetBool("autoscaling.cluster.enabled") {
+		k.instance.CollectedEventTypes = append(k.instance.CollectedEventTypes, collectedEventType{
+			Source: "datadog-cluster-autoscaler",
 		})
 	}
 

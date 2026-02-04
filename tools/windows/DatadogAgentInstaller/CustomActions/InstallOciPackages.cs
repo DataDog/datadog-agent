@@ -120,13 +120,14 @@ namespace Datadog.CustomActions
 
         private ActionResult InstallPackages()
         {
-            if (!ShouldInstall())
-            {
-                _session.Log("Skipping install as FLEET_INSTALL is set to 1");
-                return ActionResult.Success;
-            }
             try
             {
+                if (!ShouldInstall())
+                {
+                    _session.Log("Skipping install as FLEET_INSTALL is set to 1");
+                    return ActionResult.Success;
+                }
+
                 _session.Log("Running datadog-installer setup");
 
                 // add purge command to the rollback data store

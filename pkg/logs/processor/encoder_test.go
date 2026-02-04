@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/agent-payload/v5/pb"
+
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -195,31 +196,77 @@ func TestJsonEncoder(t *testing.T) {
 
 	source := sources.NewLogSource("", logsConfig)
 
-	content := []byte("message")
-	msg := newMessage(content, source, message.StatusError)
-	msg.State = message.StateRendered // we can only encode rendered message
-	msg.Origin.LogSource = source
-	msg.Origin.SetTags([]string{"a", "b:c"})
-	assert.Equal(t, msg.GetContent(), content) // before encoding, content should be the raw message
+	type payload struct {
+		Message   string `json:"message"`
+		Status    string `json:"status"`
+		Timestamp int64  `json:"timestamp"`
+		Hostname  string `json:"hostname"`
+		Service   string `json:"service"`
+		Source    string `json:"ddsource"`
+		Tags      string `json:"ddtags"`
+	}
 
-	err := JSONEncoder.Encode(msg, "unknown")
-	assert.Nil(t, err)
+	t.Run("valid", func(t *testing.T) {
+		content := []byte("valid utf-8 message content")
 
-	log := &jsonPayload{}
-	err = json.Unmarshal(msg.GetContent(), log)
-	assert.Nil(t, err)
+		msg := newMessage(content, source, message.StatusError)
+		msg.State = message.StateRendered // we can only encode rendered message
+		msg.Origin.LogSource = source
+		msg.Origin.SetTags([]string{"a", "b:c"})
+		assert.Equal(t, msg.GetContent(), content) // before encoding, content should be the raw message
 
-	assert.NotEmpty(t, log.Hostname)
+		err := JSONEncoder.Encode(msg, "unknown")
+		assert.Nil(t, err)
 
-	assert.Equal(t, logsConfig.Service, log.Service)
-	assert.Equal(t, logsConfig.Source, log.Source)
-	assert.Equal(t, "a,b:c,sourcecategory:"+logsConfig.SourceCategory+",foo:bar,baz", log.Tags)
+		log := &payload{}
 
-	json, _ := json.Marshal(log)
-	assert.Equal(t, msg.GetContent(), json)
+		err = json.Unmarshal(msg.GetContent(), log)
+		assert.Nil(t, err)
 
-	assert.Equal(t, message.StatusError, log.Status)
-	assert.NotEmpty(t, log.Timestamp)
+		assert.Equal(t, "valid utf-8 message content", log.Message)
+		assert.NotEmpty(t, log.Hostname)
+
+		assert.Equal(t, logsConfig.Service, log.Service)
+		assert.Equal(t, logsConfig.Source, log.Source)
+		assert.Equal(t, "a,b:c,sourcecategory:"+logsConfig.SourceCategory+",foo:bar,baz", log.Tags)
+
+		json, _ := json.Marshal(log)
+		assert.Equal(t, msg.GetContent(), json)
+
+		assert.Equal(t, message.StatusError, log.Status)
+		assert.NotEmpty(t, log.Timestamp)
+	})
+
+	t.Run("invalid", func(t *testing.T) {
+		content := []byte("invalid utf-8 message content a\xf0\x8f\xbf\xbfz")
+
+		msg := newMessage(content, source, message.StatusError)
+		msg.State = message.StateRendered // we can only encode rendered message
+		msg.Origin.LogSource = source
+		msg.Origin.SetTags([]string{"a", "b:c"})
+		assert.Equal(t, msg.GetContent(), content) // before encoding, content should be the raw message
+
+		err := JSONEncoder.Encode(msg, "unknown")
+		assert.Nil(t, err)
+
+		log := &payload{}
+
+		err = json.Unmarshal(msg.GetContent(), log)
+		assert.Nil(t, err)
+
+		assert.Equal(t, "invalid utf-8 message content a����z", log.Message)
+		assert.NotEmpty(t, log.Hostname)
+
+		assert.Equal(t, logsConfig.Service, log.Service)
+		assert.Equal(t, logsConfig.Source, log.Source)
+		assert.Equal(t, "a,b:c,sourcecategory:"+logsConfig.SourceCategory+",foo:bar,baz", log.Tags)
+
+		json, _ := json.Marshal(log)
+		assert.Equal(t, msg.GetContent(), json)
+
+		assert.Equal(t, message.StatusError, log.Status)
+		assert.NotEmpty(t, log.Timestamp)
+	})
 }
 
 func TestEncoderToValidUTF8(t *testing.T) {
@@ -236,4 +283,46 @@ func TestEncoderToValidUTF8(t *testing.T) {
 	assert.Equal(t, "a���z", toValidUtf8([]byte("a\xed\xa0\x80z")))
 	assert.Equal(t, "a����z", toValidUtf8([]byte("a\xf0\x8f\xbf\xbfz")))
 	assert.Equal(t, "世界����z 世界", toValidUtf8([]byte("世界\xf0\x8f\xbf\xbfz 世界")))
+}
+
+func BenchmarkJSONEncoder_Encode(b *testing.B) {
+	logsConfig := &config.LogsConfig{
+		Service:        "Service",
+		Source:         "Source",
+		SourceCategory: "SourceCategory",
+		Tags:           []string{"foo:bar", "baz"},
+	}
+	source := sources.NewLogSource("", logsConfig)
+
+	b.Run("valid", func(b *testing.B) {
+		content := []byte(strings.Repeat("x", 100))
+		var msg *message.Message
+
+		b.ResetTimer()
+		b.ReportAllocs()
+		for range b.N {
+			msg = newMessage(content, source, message.StatusError)
+			msg.State = message.StateRendered // we can only encode rendered message
+			msg.Origin.LogSource = source
+			msg.Origin.SetTags([]string{"a", "b:c"})
+
+			assert.Nil(b, JSONEncoder.Encode(msg, "unknown"))
+		}
+	})
+
+	b.Run("invalid", func(b *testing.B) {
+		content := []byte(strings.Repeat("x", 100) + "\uFFFD")
+		var msg *message.Message
+
+		b.ResetTimer()
+		b.ReportAllocs()
+		for range b.N {
+			msg = newMessage(content, source, message.StatusError)
+			msg.State = message.StateRendered // we can only encode rendered message
+			msg.Origin.LogSource = source
+			msg.Origin.SetTags([]string{"a", "b:c"})
+
+			assert.Nil(b, JSONEncoder.Encode(msg, "unknown"))
+		}
+	})
 }

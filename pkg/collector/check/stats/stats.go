@@ -11,9 +11,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mitchellh/mapstructure"
+	"github.com/go-viper/mapstructure/v2"
+
+	"github.com/DataDog/agent-payload/v5/healthplatform"
 
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -25,6 +28,22 @@ const (
 	runCheckFailureTag = "fail"
 	runCheckSuccessTag = "ok"
 )
+
+// formatUint64 formats a uint64 as a decimal string without importing strconv
+// to reduce binary size. This is a minimal implementation for the common case.
+func formatUint64(n uint64) string {
+	if n == 0 {
+		return "0"
+	}
+	var buf [20]byte // max uint64 is 20 digits
+	i := len(buf)
+	for n > 0 {
+		i--
+		buf[i] = byte('0' + n%10)
+		n /= 10
+	}
+	return string(buf[i:])
+}
 
 // EventPlatformNameTranslations contains human readable translations for event platform event types
 var EventPlatformNameTranslations = map[string]string{
@@ -131,6 +150,7 @@ type Stats struct {
 	m                        sync.Mutex
 	Telemetry                bool // do we want telemetry on this Check
 	HASupported              bool
+	healthPlatform           healthplatformdef.Component // health platform component for reporting issues
 }
 
 //nolint:revive
@@ -152,7 +172,7 @@ type StatsCheck interface {
 }
 
 // NewStats returns a new check stats instance
-func NewStats(c StatsCheck) *Stats {
+func NewStats(c StatsCheck, healthPlatform healthplatformdef.Component) *Stats {
 	stats := Stats{
 		CheckID:                  c.ID(),
 		CheckName:                c.String(),
@@ -164,6 +184,7 @@ func NewStats(c StatsCheck) *Stats {
 		EventPlatformEvents:      make(map[string]int64),
 		TotalEventPlatformEvents: make(map[string]int64),
 		HASupported:              c.IsHASupported(),
+		healthPlatform:           healthPlatform,
 	}
 
 	// We are interested in a check's run state values even when they are 0 so we
@@ -207,12 +228,18 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats S
 			tlmRuns.Inc(cs.CheckName, runCheckFailureTag)
 		}
 		cs.LastError = err.Error()
+
+		// Report error to health platform
+		cs.reportToHealthPlatform(err)
 	} else {
 		if cs.Telemetry {
 			tlmRuns.Inc(cs.CheckName, runCheckSuccessTag)
 		}
 		cs.LastError = ""
 		cs.LastSuccessDate = time.Now().Unix()
+
+		// Clear any previously reported issues when check succeeds
+		cs.clearHealthPlatformIssue()
 	}
 	cs.LastWarnings = []string{}
 	if len(warnings) != 0 {
@@ -272,6 +299,61 @@ func (cs *Stats) SetStateCancelling() {
 	cs.m.Lock()
 	defer cs.m.Unlock()
 	cs.Cancelling = true
+}
+
+// reportToHealthPlatform reports check failures to the health platform
+func (cs *Stats) reportToHealthPlatform(err error) {
+	if cs.healthPlatform == nil {
+		return
+	}
+
+	// Build context for the issue report
+	// Format totalErrors without importing strconv to reduce binary size
+	totalErrorsStr := formatUint64(cs.TotalErrors)
+	context := map[string]string{
+		"checkName":    cs.CheckName,
+		"errorMessage": err.Error(),
+		"totalErrors":  totalErrorsStr,
+		"configSource": cs.CheckConfigSource,
+		"checkVersion": cs.CheckVersion,
+	}
+
+	// Report the issue to health platform
+	reportErr := cs.healthPlatform.ReportIssue(
+		string(cs.CheckID),
+		cs.CheckName,
+		&healthplatform.IssueReport{
+			IssueId: "check-execution-failure",
+			Context: context,
+			Tags:    []string{cs.CheckName, cs.CheckLoader},
+		},
+	)
+
+	if reportErr != nil {
+		log.Warnf("Failed to report check failure to health platform for check %s: %v", cs.CheckName, reportErr)
+	} else {
+		log.Debugf("Reported check failure to health platform for check %s", cs.CheckName)
+	}
+}
+
+// clearHealthPlatformIssue clears any previously reported issue when check succeeds
+func (cs *Stats) clearHealthPlatformIssue() {
+	if cs.healthPlatform == nil {
+		return
+	}
+
+	// Report nil to clear the issue (issue resolution)
+	err := cs.healthPlatform.ReportIssue(
+		string(cs.CheckID),
+		cs.CheckName,
+		nil,
+	)
+
+	if err != nil {
+		log.Warnf("Failed to clear health platform issue for %s: %v", cs.CheckName, err)
+	} else {
+		log.Debugf("Cleared health platform issue for %s", cs.CheckName)
+	}
 }
 
 type aggStats struct {

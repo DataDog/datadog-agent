@@ -34,7 +34,7 @@ const (
 
 // GetAuroraClusterEndpoints queries an AWS account for the endpoints of an Aurora cluster
 // requires the dbClusterIdentifier for the cluster
-func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentifiers []string, dbmTag string) (map[string]*AuroraCluster, error) {
+func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentifiers []string, config Config) (map[string]*AuroraCluster, error) {
 	if len(dbClusterIdentifiers) == 0 {
 		return nil, errors.New("at least one database cluster identifier is required")
 	}
@@ -59,7 +59,7 @@ func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentif
 				if db.Endpoint.Address == nil || db.DBInstanceStatus == nil || strings.ToLower(*db.DBInstanceStatus) != "available" {
 					continue
 				}
-				instance, err := makeInstance(db, dbmTag)
+				instance, err := makeInstance(db, config)
 				if err != nil {
 					log.Errorf("error creating instance from DBInstance: %v", err)
 					continue

@@ -13,7 +13,7 @@ import (
 
 	"k8s.io/client-go/dynamic"
 
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -26,9 +26,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
-func runCompliance(ctx context.Context, senderManager sender.SenderManager, wmeta workloadmeta.Component, apiCl *apiserver.APIClient, compression logscompression.Component, ipc ipc.Component, isLeader func() bool) error {
+func runCompliance(ctx context.Context, senderManager sender.SenderManager, wmeta workloadmeta.Component, filterStore workloadfilter.Component, apiCl *apiserver.APIClient, compression logscompression.Component, isLeader func() bool) error {
 	stopper := startstop.NewSerialStopper()
-	if err := startCompliance(senderManager, wmeta, stopper, apiCl, isLeader, compression, ipc); err != nil {
+	if err := startCompliance(ctx, senderManager, wmeta, filterStore, stopper, apiCl, isLeader, compression); err != nil {
 		return err
 	}
 
@@ -38,28 +38,31 @@ func runCompliance(ctx context.Context, senderManager sender.SenderManager, wmet
 	return nil
 }
 
-func startCompliance(senderManager sender.SenderManager, wmeta workloadmeta.Component, stopper startstop.Stopper, apiCl *apiserver.APIClient, isLeader func() bool, compression logscompression.Component, ipc ipc.Component) error {
-	endpoints, ctx, err := seccommon.NewLogContextCompliance()
+func startCompliance(ctx context.Context, senderManager sender.SenderManager, wmeta workloadmeta.Component, filterStore workloadfilter.Component, stopper startstop.Stopper, apiCl *apiserver.APIClient, isLeader func() bool, compression logscompression.Component) error {
+	endpoints, destinationsCtx, err := seccommon.NewLogContextCompliance()
 	if err != nil {
 		log.Error(err)
 	}
-	stopper.Add(ctx)
+	stopper.Add(destinationsCtx)
 
 	configDir := pkgconfigsetup.Datadog().GetString("compliance_config.dir")
 	checkInterval := pkgconfigsetup.Datadog().GetDuration("compliance_config.check_interval")
 
-	hname, err := hostname.Get(context.TODO())
+	hname, err := hostname.Get(ctx)
 	if err != nil {
 		return err
 	}
 
-	reporter := compliance.NewLogReporter(hname, "compliance-agent", "compliance", endpoints, ctx, compression)
+	reporter := compliance.NewLogReporter(hname, "compliance-agent", "compliance", endpoints, destinationsCtx, compression)
 	statsdClient, err := simpleTelemetrySenderFromSenderManager(senderManager)
 	if err != nil {
 		return err
 	}
 
-	agent := compliance.NewAgent(statsdClient, wmeta, ipc, compliance.AgentOptions{
+	reflectorStore := compliance.NewReflectorStore(apiCl.Cl)
+	reflectorStore.Run(ctx.Done())
+
+	agent := compliance.NewAgent(statsdClient, wmeta, filterStore, hname, compliance.AgentOptions{
 		ConfigDir:     configDir,
 		Reporter:      reporter,
 		CheckInterval: checkInterval,
@@ -72,6 +75,7 @@ func startCompliance(senderManager sender.SenderManager, wmeta workloadmeta.Comp
 			DockerProvider:     compliance.DefaultDockerProvider,
 			LinuxAuditProvider: compliance.DefaultLinuxAuditProvider,
 			KubernetesProvider: wrapKubernetesClient(apiCl, isLeader),
+			ReflectorStore:     reflectorStore,
 		},
 	})
 	err = agent.Start()

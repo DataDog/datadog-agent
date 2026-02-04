@@ -1,0 +1,323 @@
+connectors:
+  datadog/connector:
+    traces:
+      bucket_interval: 10000000000
+      compute_stats_by_span_kind: true
+      compute_top_level_by_span_kind: true
+      ignore_missing_datadog_fields: false
+      ignore_resources: []
+      peer_service_aggregation: true
+      peer_tags: null
+      peer_tags_aggregation: true
+      resource_attributes_as_container_tags: null
+      span_name_as_resource_name: false
+      span_name_remappings: null
+      trace_buffer: 1000
+exporters:
+  datadog:
+    api:
+      fail_on_invalid_key: false
+      key: "[REDACTED]"
+      site: datadoghq.com
+    force_attempt_http2: true
+    host_metadata:
+      enabled: true
+      hostname_source: config_or_system
+      reporter_period: 1800000000000
+      tags: null
+    hostname: otelcol-docker
+    hostname_detection_timeout: 25000000000
+    idle_conn_timeout: 90000000000
+    logs:
+      batch_wait: 5
+      compression_level: 6
+      use_compression: true
+    max_idle_conns: 100
+    metrics:
+      delta_ttl: 3600
+      histograms:
+        mode: distributions
+        send_aggregation_metrics: false
+        send_count_sum_metrics: false
+      instrumentation_scope_metadata_as_tags: true
+      resource_attributes_as_tags: true
+      summaries:
+        mode: gauges
+      sums:
+        cumulative_monotonic_mode: to_delta
+        initial_cumulative_monotonic_value: auto
+    only_metadata: false
+    orchestrator_explorer:
+      enabled: false
+      endpoint: https://orchestrator.datadoghq.com/api/v2/orchmanif
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5000000000
+      max_elapsed_time: 300000000000
+      max_interval: 30000000000
+      multiplier: 1.5
+      randomization_factor: 0.5
+    sending_queue:
+      batch:
+        flush_timeout: 200000000
+        max_size: 0
+        min_size: 8192
+        sizer: {}
+      block_on_overflow: false
+      num_consumers: 10
+      queue_size: 1000
+      sizer: {}
+      storage: null
+      wait_for_result: false
+    timeout: 15000000000
+    traces:
+      compute_stats_by_span_kind: true
+      compute_top_level_by_span_kind: true
+      ignore_resources: []
+      peer_service_aggregation: true
+      peer_tags: null
+      peer_tags_aggregation: true
+      span_name_as_resource_name: false
+      span_name_remappings: null
+      trace_buffer: 0
+extensions:
+  datadog/dd-autoconfigured:
+    api:
+      fail_on_invalid_key: true
+      key: "[REDACTED]"
+      site: datadoghq.com
+    deployment_type: unknown
+    force_attempt_http2: true
+    hostname: ""
+    http:
+      cors: null
+      endpoint: localhost:9875
+      idle_timeout: 0
+      path: /metadata
+      read_header_timeout: 0
+      tls: null
+      transport: tcp
+      write_timeout: 0
+    idle_conn_timeout: 90000000000
+    max_idle_conns: 100
+  ddflare/dd-autoconfigured:
+    cors: null
+    endpoint: localhost:7777
+    idle_timeout: 0
+    read_header_timeout: 0
+    tls: null
+    transport: tcp
+    write_timeout: 0
+  health_check/dd-autoconfigured:
+    check_collector_pipeline:
+      enabled: false
+      exporter_failure_threshold: 5
+      interval: 5m
+    component_health: null
+    cors: null
+    endpoint: localhost:13133
+    grpc: null
+    http: null
+    idle_timeout: 0
+    path: /
+    read_header_timeout: 0
+    response_body: null
+    tls: null
+    transport: tcp
+    use_v2: false
+    write_timeout: 0
+  pprof/dd-autoconfigured:
+    block_profile_fraction: 0
+    endpoint: localhost:1777
+    mutex_profile_fraction: 0
+    save_to_file: ""
+  zpages/dd-autoconfigured:
+    cors: null
+    endpoint: localhost:55679
+    expvar:
+      enabled: false
+    idle_timeout: 60000000000
+    keep_alives_enabled: true
+    read_header_timeout: 60000000000
+    tls: null
+    transport: tcp
+    write_timeout: 30000000000
+processors:
+  infraattributes/dd-autoconfigured:
+    allow_hostname_override: false
+    cardinality: 0
+  filter/drop-prometheus-internal-metrics/dd-autoconfigured:
+    error_mode: propagate
+    logs:
+      exclude: null
+      include: null
+      log_record: null
+      resource: null
+    metrics:
+      datapoint: null
+      exclude:
+        expressions: null
+        match_type: regexp
+        metric_names:
+          - ^scrape_.*$
+          - ^up$
+          - ^promhttp_metric_handler_errors_total$
+        regexp: null
+        resource_attributes: null
+      include: null
+      metric: null
+      regexp: null
+      resource: null
+    profiles:
+      profile: null
+      resource: null
+    spans:
+      exclude: null
+      include: null
+    traces:
+      resource: null
+      span: null
+      spanevent: null
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+        keepalive:
+          enforcement_policy: {}
+          server_parameters: {}
+        read_buffer_size: 524288
+        transport: tcp
+      http:
+        cors: null
+        endpoint: 0.0.0.0:4318
+        idle_timeout: 0
+        keep_alives_enabled: true
+        logs_url_path: /v1/logs
+        metrics_url_path: /v1/metrics
+        read_header_timeout: 0
+        tls: null
+        traces_url_path: /v1/traces
+        transport: tcp
+        write_timeout: 0
+  prometheus/dd-autoconfigured:
+    api_server:
+      enabled: false
+      server_config:
+        cors: null
+        idle_timeout: 0
+        read_header_timeout: 0
+        tls: null
+        transport: tcp
+        write_timeout: 0
+    config:
+      global:
+        evaluation_interval: 1m
+        extra_scrape_metrics: false
+        metric_name_escaping_scheme: allow-utf-8
+        metric_name_validation_scheme: utf8
+        scrape_interval: 1m
+        scrape_native_histograms: false
+        scrape_timeout: 10s
+      otlp:
+        label_name_preserve_multiple_underscores: true
+        label_name_underscore_sanitization: true
+        translation_strategy: UnderscoreEscapingWithSuffixes
+      runtime:
+        gogc: 75
+      scrape_configs:
+        - always_scrape_classic_histograms: false
+          enable_compression: true
+          convert_classic_histograms_to_nhcb: false
+          enable_http2: true
+          extra_scrape_metrics: false
+          fallback_scrape_protocol: PrometheusText0.0.4
+          follow_redirects: true
+          honor_timestamps: true
+          job_name: datadog-agent
+          metric_name_validation_scheme: legacy
+          metric_name_escaping_scheme: underscores
+          metrics_path: /metrics
+          scheme: http
+          scrape_interval: 1m
+          scrape_native_histograms: false
+          scrape_protocols:
+            - PrometheusText0.0.4
+          scrape_timeout: 10s
+          static_configs:
+            - targets:
+                - 0.0.0.0:8888
+          track_timestamps_staleness: false
+    report_extra_scrape_metrics: false
+    target_allocator: null
+    trim_metric_suffixes: false
+service:
+  extensions:
+    - pprof/dd-autoconfigured
+    - zpages/dd-autoconfigured
+    - health_check/dd-autoconfigured
+    - ddflare/dd-autoconfigured
+    - datadog/dd-autoconfigured
+  pipelines:
+    logs:
+      exporters:
+        - datadog
+      processors:
+        - infraattributes/dd-autoconfigured
+      receivers:
+        - otlp
+    metrics:
+      exporters:
+        - datadog
+      processors:
+        - infraattributes/dd-autoconfigured
+      receivers:
+        - otlp
+        - datadog/connector
+    metrics/dd-autoconfigured/datadog:
+      exporters:
+        - datadog
+      processors:
+        - filter/drop-prometheus-internal-metrics/dd-autoconfigured
+      receivers:
+        - prometheus/dd-autoconfigured
+    traces:
+      exporters:
+        - datadog/connector
+      processors:
+        - infraattributes/dd-autoconfigured
+      receivers:
+        - otlp
+    traces/send:
+      exporters:
+        - datadog
+      processors:
+        - infraattributes/dd-autoconfigured
+      receivers:
+        - otlp
+  telemetry:
+    logs:
+      encoding: console
+      error_output_paths:
+        - stderr
+      level: info
+      output_paths:
+        - stderr
+      sampling:
+        enabled: true
+        initial: 10
+        thereafter: 100
+        tick: 10000000000
+    metrics:
+      level: Normal
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: "localhost"
+                port: 8888
+                with_resource_constant_labels:
+                  included: []
+                without_scope_info: true
+                without_type_suffix: true
+                without_units: true

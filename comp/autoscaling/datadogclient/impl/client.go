@@ -121,7 +121,7 @@ func (d *datadogClientWrapper) refreshClient() {
 }
 
 func createDatadogClient(cfg configComponent.Component, logger logComp.Component) (datadogclient.Component, error) {
-	if cfg.IsSet(metricsRedundantEndpointConfig) {
+	if cfg.IsConfigured(metricsRedundantEndpointConfig) {
 		var endpoints []endpoint
 		if err := structure.UnmarshalKey(cfg, metricsRedundantEndpointConfig, &endpoints); err != nil {
 			return nil, fmt.Errorf("could not parse %s: %v", metricsRedundantEndpointConfig, err)

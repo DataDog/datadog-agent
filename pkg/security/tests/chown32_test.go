@@ -33,7 +33,7 @@ func TestChown32(t *testing.T) {
 	}
 
 	ruleDef2 := &rules.RuleDefinition{
-		ID:         "test_rule2",
+		ID:         "test_rule_symlink",
 		Expression: `chown.file.path == "{{.Root}}/test-symlink" && chown.file.destination.uid in [100, 101, 102, 103, 104, 105, 106] && chown.file.destination.gid in [200, 201, 202, 203, 204, 205, 206]`,
 	}
 
@@ -64,7 +64,7 @@ func TestChown32(t *testing.T) {
 			prevGID = 200
 		}()
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			// fchown syscall
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "chown", testFile, "100", "200")
 		}, func(event *model.Event, _ *rules.Rule) {
@@ -82,7 +82,7 @@ func TestChown32(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 
 			test.validateChownSchema(t, event)
-		})
+		}, "test_rule")
 	})
 
 	t.Run("fchown", func(t *testing.T) {
@@ -91,7 +91,7 @@ func TestChown32(t *testing.T) {
 			prevGID = 201
 		}()
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			// fchown syscall
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "fchown", testFile, "101", "201")
 		}, func(event *model.Event, _ *rules.Rule) {
@@ -109,7 +109,7 @@ func TestChown32(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 
 			test.validateChownSchema(t, event)
-		})
+		}, "test_rule")
 	})
 
 	t.Run("fchownat", func(t *testing.T) {
@@ -118,7 +118,7 @@ func TestChown32(t *testing.T) {
 			prevGID = 202
 		}()
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			// fchown syscall
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "fchownat", testFile, "102", "202")
 		}, func(event *model.Event, _ *rules.Rule) {
@@ -136,7 +136,7 @@ func TestChown32(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 
 			test.validateChownSchema(t, event)
-		})
+		}, "test_rule")
 	})
 
 	t.Run("lchown", func(t *testing.T) {
@@ -150,7 +150,7 @@ func TestChown32(t *testing.T) {
 		}
 		defer os.Remove(testSymlink)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			// fchown syscall
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "lchown", testSymlink, "103", "203")
 		}, func(event *model.Event, _ *rules.Rule) {
@@ -168,7 +168,7 @@ func TestChown32(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 
 			test.validateChownSchema(t, event)
-		})
+		}, "test_rule_symlink")
 	})
 
 	t.Run("lchown32", func(t *testing.T) {
@@ -182,7 +182,7 @@ func TestChown32(t *testing.T) {
 		}
 		defer os.Remove(testSymlink)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			// fchown syscall
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "lchown32", testSymlink, "104", "204")
 		}, func(event *model.Event, _ *rules.Rule) {
@@ -200,7 +200,7 @@ func TestChown32(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 
 			test.validateChownSchema(t, event)
-		})
+		}, "test_rule_symlink")
 	})
 
 	t.Run("fchown32", func(t *testing.T) {
@@ -210,7 +210,7 @@ func TestChown32(t *testing.T) {
 			prevGID = 205
 		}()
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			// fchown syscall
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "fchown32", testFile, "105", "205")
 		}, func(event *model.Event, _ *rules.Rule) {
@@ -228,7 +228,7 @@ func TestChown32(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 
 			test.validateChownSchema(t, event)
-		})
+		}, "test_rule")
 	})
 
 	t.Run("chown32", func(t *testing.T) {
@@ -237,7 +237,7 @@ func TestChown32(t *testing.T) {
 			prevGID = 206
 		}()
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			// fchown syscall
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "chown32", testFile, "106", "206")
 		}, func(event *model.Event, _ *rules.Rule) {
@@ -255,6 +255,6 @@ func TestChown32(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 
 			test.validateChownSchema(t, event)
-		})
+		}, "test_rule")
 	})
 }

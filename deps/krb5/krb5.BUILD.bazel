@@ -3,7 +3,8 @@ load("@rules_license//rules:license.bzl", "license")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
-load("@rules_pkg//pkg:mappings.bzl", "strip_prefix")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
 
 package(default_package_metadata = [":license"])
 
@@ -46,8 +47,6 @@ configure_make(
     args = [
         "-j 16",
     ],
-    autoreconf = True,
-    configure_in_place = True,
     configure_options = [
         "--without-keyutils", # this would require additional deps/system deps, disable it
         "--without-system-verto", # do not prefer libverto from the system, if installed
@@ -60,6 +59,12 @@ configure_make(
     lib_source = ":all_srcs",
     deps = [
         "@openssl//:openssl",
+    ],
+    dynamic_deps = [
+        "@openssl//:openssl_shared",
+    ],
+    out_binaries = [
+        "kinit",
     ],
     out_shared_libs = SHARED_LIBS.keys(),
     out_data_dirs = ["lib/pkgconfig"],
@@ -127,9 +132,29 @@ filegroup(
     output_group = "include"
 )
 
+filegroup(
+    name = "_bins",
+    srcs = [":krb5"],
+    output_group = "kinit",
+)
+
 pkg_files(
     name = "hdr_files",
     srcs = [":_headers"],
+)
+
+pkg_files(
+    name = "bin_files",
+    srcs = [
+        ":_bins",
+    ],
+    prefix = "bin",
+    attributes = pkg_attributes("0755"),
+)
+
+pkg_filegroup(
+    name = "all_libs",
+    srcs = [":_lib_" + libname for libname in SHARED_LIBS.keys()],
 )
 
 pkg_install(
@@ -137,5 +162,7 @@ pkg_install(
     srcs = [
         ":hdr_files",
         ":pc_files",
-    ] + [":_lib_" + libname for libname in SHARED_LIBS.keys()],
+        ":bin_files",
+        ":all_libs",
+    ],
 )

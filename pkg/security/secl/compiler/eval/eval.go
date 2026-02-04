@@ -345,8 +345,8 @@ func isFieldReferenceName(str string) (string, bool) {
 // This ONLY checks fields, never variables - providing explicit field access syntax
 func evaluatorFromFieldReference(fieldname string, pos lexer.Position, state *State) (interface{}, lexer.Position, error) {
 	// Handle .length suffix for fields
-	if strings.HasSuffix(fieldname, ".length") {
-		baseFieldName := strings.TrimSuffix(fieldname, ".length")
+	if before, ok := strings.CutSuffix(fieldname, ".length"); ok {
+		baseFieldName := before
 		evaluator, err := state.model.GetEvaluator(baseFieldName, "", 0)
 		if err != nil {
 			return nil, pos, NewError(pos, "field '%s' doesn't exist", baseFieldName)
@@ -396,8 +396,8 @@ func evaluatorFromVariable(varname string, pos lexer.Position, opts *Opts) (inte
 		return variable.GetEvaluator(), pos, nil
 	}
 
-	if strings.HasSuffix(varname, ".length") {
-		trimmedVariable := strings.TrimSuffix(varname, ".length")
+	if before, ok := strings.CutSuffix(varname, ".length"); ok {
+		trimmedVariable := before
 		if variable = opts.VariableStore.Get(trimmedVariable); variable != nil {
 			variableEvaluator = variable.GetEvaluator()
 			switch evaluator := variableEvaluator.(type) {

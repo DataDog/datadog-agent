@@ -227,6 +227,16 @@ var defaultProfiles = `
         - name: logs.encoded_bytes_sent
           aggregate_tags:
             - compression_kind
+        - name: logs.http_connectivity_check
+          aggregate_tags:
+            - status
+        - name: logs.http_connectivity_retry_attempt
+          aggregate_tags:
+            - status
+        - name: logs.restart_attempt
+          aggregate_tags:
+            - status
+            - transport
         - name: logs.sender_latency
         - name: logs.truncated
           aggregate_tags:
@@ -274,6 +284,25 @@ var defaultProfiles = `
       start_after: 30
       iterations: 0
       period: 900
+  - name: synthetics
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: synthetics_agent.checks_received
+        - name: synthetics_agent.checks_processed
+          aggregate_tags:
+            - status
+            - subtype
+        - name: synthetics_agent.error_test_config
+          aggregate_tags:
+            - subtype
+        - name: synthetics_agent.traceroute_error
+          aggregate_tags:
+            - subtype
+        - name: synthetics_agent.evp_send_result_failure
+          aggregate_tags:
+            - subtype
   - name: connectivity
     metric:
       exclude:
@@ -379,7 +408,22 @@ var defaultProfiles = `
           aggregate_tags:
             - version
             - command
-            - host
+        - name: runtime.datadog_agent_ddot_gateway_configured
+          aggregate_tags:
+            - version
+            - command
+        - name: runtime.datadog_agent_otlp_logs_requests
+        - name: runtime.datadog_agent_otlp_logs_events
+        - name: runtime.datadog_agent_otlp_metrics_requests
+        - name: runtime.datadog_agent_otlp_metrics_events
+        - name: runtime.datadog_agent_otlp_traces_requests
+        - name: runtime.datadog_agent_otlp_traces_events
+        - name: runtime.ddot_otlp_logs_requests
+        - name: runtime.ddot_otlp_logs_events
+        - name: runtime.ddot_otlp_metrics_requests
+        - name: runtime.ddot_otlp_metrics_events
+        - name: runtime.ddot_otlp_traces_requests
+        - name: runtime.ddot_otlp_traces_events
     schedule:
       start_after: 30
       iterations: 0
@@ -403,6 +447,18 @@ var defaultProfiles = `
         - name: gpu.device_total
     schedule:
       start_after: 60
+      iterations: 0
+      period: 900
+  - name: cluster-agent
+    metric:
+      metrics:
+        - name: admission_webhooks.image_resolution_attempts
+          aggregate_tags:
+            - repository
+            - tag
+            - outcome
+    schedule:
+      start_after: 30
       iterations: 0
       period: 900
 `

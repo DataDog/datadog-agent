@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/aurora"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/aws"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -29,7 +29,7 @@ type DBMAuroraListener struct {
 	delService   chan<- Service
 	stop         chan bool
 	services     map[string]Service
-	config       aurora.Config
+	config       aws.Config
 	awsRdsClient aws.RdsClient
 	// ticks is used primarily for testing purposes so
 	// the frequency the discovers loop iterates can be controlled
@@ -51,7 +51,7 @@ type DBMAuroraService struct {
 
 // NewDBMAuroraListener returns a new DBMAuroraListener
 func NewDBMAuroraListener(ServiceListernerDeps) (ServiceListener, error) {
-	config, err := aurora.NewAuroraAutodiscoveryConfig()
+	config, err := aws.NewAuroraAutodiscoveryConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func NewDBMAuroraListener(ServiceListernerDeps) (ServiceListener, error) {
 	return newDBMAuroraListener(config, client, nil), nil
 }
 
-func newDBMAuroraListener(config aurora.Config, awsClient aws.RdsClient, ticks <-chan time.Time) ServiceListener {
+func newDBMAuroraListener(config aws.Config, awsClient aws.RdsClient, ticks <-chan time.Time) ServiceListener {
 	l := &DBMAuroraListener{
 		config:       config,
 		services:     make(map[string]Service),
@@ -118,7 +118,7 @@ func (l *DBMAuroraListener) discoverAuroraClusters() {
 		log.Debugf("no aurora clusters found with provided tags %v", l.config.Tags)
 		return
 	}
-	auroraCluster, err := l.awsRdsClient.GetAuroraClusterEndpoints(ctx, ids, l.config.DbmTag)
+	auroraCluster, err := l.awsRdsClient.GetAuroraClusterEndpoints(ctx, ids, l.config)
 	if err != nil {
 		_ = log.Error(err)
 		return
@@ -200,9 +200,9 @@ func (d *DBMAuroraService) GetHosts() (map[string]string, error) {
 }
 
 // GetPorts returns the port for the aurora endpoint
-func (d *DBMAuroraService) GetPorts() ([]ContainerPort, error) {
+func (d *DBMAuroraService) GetPorts() ([]workloadmeta.ContainerPort, error) {
 	port := int(d.instance.Port)
-	return []ContainerPort{{port, fmt.Sprintf("p%d", port)}}, nil
+	return []workloadmeta.ContainerPort{{Port: port, Name: fmt.Sprintf("p%d", port)}}, nil
 }
 
 // GetTags returns the list of container tags - currently always empty
@@ -253,6 +253,8 @@ func (d *DBMAuroraService) GetExtraConfig(key string) (string, error) {
 		return d.clusterID, nil
 	case "dbname":
 		return d.instance.DbName, nil
+	case "global_view_db":
+		return d.instance.GlobalViewDb, nil
 	}
 
 	return "", ErrNotSupported

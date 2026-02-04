@@ -46,7 +46,6 @@ agents:
 				proveks.WithRunOptions(
 					eks.WithEKSOptions(
 						eks.WithLinuxNodeGroup(),
-						eks.WithUseAL2023Nodes(),
 					),
 					eks.WithAgentOptions(
 						kubernetesagentparams.WithHelmValues(values),
@@ -116,7 +115,6 @@ agents:
 			proveks.WithRunOptions(
 				eks.WithEKSOptions(
 					eks.WithLinuxNodeGroup(),
-					eks.WithUseAL2023Nodes(),
 				),
 				eks.WithAgentOptions(
 					kubernetesagentparams.WithHelmValues(values),

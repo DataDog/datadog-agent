@@ -6,6 +6,8 @@
 package checkconfig
 
 import (
+	"maps"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/stretchr/testify/assert"
@@ -93,9 +95,7 @@ func TestBuildProfile(t *testing.T) {
 	mergedMetadata["ip_addresses"] = LegacyMetadataConfig["ip_addresses"]
 
 	vpnTunnelsMergedMetadata := make(profiledefinition.MetadataConfig)
-	for k, v := range mergedMetadata {
-		vpnTunnelsMergedMetadata[k] = v
-	}
+	maps.Copy(vpnTunnelsMergedMetadata, mergedMetadata)
 	mergeMetadata(vpnTunnelsMergedMetadata, VPNTunnelMetadataConfig)
 	mergeMetadata(vpnTunnelsMergedMetadata, RouteMetadataConfig)
 	mergeMetadata(vpnTunnelsMergedMetadata, TunnelMetadataConfig)

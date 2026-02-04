@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os/exec"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
 	"github.com/avast/retry-go/v4"
 )
@@ -75,7 +77,7 @@ func TestSBOM(t *testing.T) {
 	}
 
 	dockerWrapper.Run(t, "package-rule", func(t *testing.T, _ wrapperType, cmdFunc func(bin string, args, env []string) *exec.Cmd) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			retry.Do(func() error {
 				sbom := p.Resolvers.SBOMResolver.GetWorkload(containerutils.ContainerID(dockerWrapper.containerID))
 				if sbom == nil {
@@ -85,7 +87,7 @@ func TestSBOM(t *testing.T) {
 					return fmt.Errorf("report hasn't been generated for '%s'", dockerWrapper.containerID)
 				}
 				return nil
-			})
+			}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
 			cmd := cmdFunc("/bin/touch", []string{"/usr/lib/os-release"}, nil)
 			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
@@ -95,11 +97,12 @@ func TestSBOM(t *testing.T) {
 			assertFieldNotEmpty(t, event, "process.container.id", "container id shouldn't be empty")
 
 			test.validateOpenSchema(t, event)
-		})
+		}, "test_file_package")
 	})
 
 	t.Run("host", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		flake.MarkOnJobName(t, "ubuntu_25.10")
+		test.WaitSignalFromRule(t, func() error {
 			sbom := p.Resolvers.SBOMResolver.GetWorkload("")
 			if sbom == nil {
 				return errors.New("failed to find host SBOM for host")
@@ -119,7 +122,7 @@ func TestSBOM(t *testing.T) {
 			}
 
 			test.validateOpenSchema(t, event)
-		})
+		}, "test_host_file_package")
 	})
 }
 

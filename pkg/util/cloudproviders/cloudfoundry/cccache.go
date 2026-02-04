@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net/url"
 	"strconv"
 	"strings"
@@ -725,9 +726,7 @@ func updateMapInPlace[K comparable, V any](cache map[K]V, newData map[K]V) map[K
 	}
 
 	// Add or update entries
-	for key, value := range newData {
-		cache[key] = value
-	}
+	maps.Copy(cache, newData)
 
 	return cache
 }

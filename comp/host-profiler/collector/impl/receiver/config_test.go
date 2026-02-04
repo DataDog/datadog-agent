@@ -10,10 +10,17 @@ package receiver
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/dd-otel-host-profiler/reporter"
 	"github.com/stretchr/testify/require"
 )
+
+func TestReporterInterval(t *testing.T) {
+	config := defaultConfig()
+	cfg := config.(Config)
+	require.Equal(t, 60*time.Second, cfg.EbpfCollectorConfig.ReporterInterval)
+}
 
 func TestTracers(t *testing.T) {
 	config := defaultConfig()
@@ -60,7 +67,5 @@ func TestSymbolUploader(t *testing.T) {
 	cfg.SymbolUploader.SymbolEndpoints[0].Site = "datadoghq.com"
 	require.Error(t, errSymbolEndpointsAPIKeyRequired(), cfg.Validate())
 	cfg.SymbolUploader.SymbolEndpoints[0].APIKey = "1234567890"
-	require.Error(t, errSymbolEndpointsAppKeyRequired(), cfg.Validate())
-	cfg.SymbolUploader.SymbolEndpoints[0].AppKey = "1234567890"
 	require.NoError(t, cfg.Validate())
 }

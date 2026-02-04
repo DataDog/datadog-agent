@@ -138,16 +138,18 @@ func ddEtwCallbackC(eventRecord C.PEVENT_RECORD) {
 func (e *etwSession) StartTracing(callback etw.EventCallback) error {
 	handle := cgo.NewHandle(callback)
 	defer handle.Delete()
-	traceHandle := C.DDStartTracing(
+	var traceHandle C.TRACEHANDLE
+	ret := windows.Errno(C.DDStartTracing(
 		(C.LPWSTR)(unsafe.Pointer(&e.utf16name[0])),
 		(C.uintptr_t)(handle),
-	)
-	if traceHandle == C.INVALID_PROCESSTRACE_HANDLE {
-		return fmt.Errorf("failed to start tracing: %v", windows.GetLastError())
+		&traceHandle,
+	))
+	if ret != windows.ERROR_SUCCESS {
+		return fmt.Errorf("failed to start tracing: %w", ret)
 	}
 
 	e.hTraceHandle = traceHandle
-	ret := windows.Errno(C.ProcessTrace(
+	ret = windows.Errno(C.ProcessTrace(
 		C.PTRACEHANDLE(&traceHandle),
 		1,
 		nil,

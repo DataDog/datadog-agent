@@ -126,10 +126,6 @@ func (fr *Framer) GetFrameCount() int64 {
 // frames are maintained between calls to Process.  The passed buffer is not used after return.
 func (fr *Framer) Process(input *message.Message) {
 	// we can only process unstructured message in the framer
-	// TODO(remy): the same way the MultiLineHandler use the first part
-	// of a structured message to recompose partials ones into only one,
-	// we might consider doing the same on structured log messages with
-	// the framer.
 	if input.State != message.StateUnstructured {
 		fr.outputFn(input, len(input.GetContent()))
 		fr.frames.Inc()
@@ -158,13 +154,13 @@ func (fr *Framer) Process(input *message.Message) {
 		}
 		buf := fr.buffer.Bytes()[framed:]
 
-		content, rawDataLen := fr.matcher.FindFrame(buf, seen-framed)
+		content, rawDataLen, isTruncated := fr.matcher.FindFrame(buf, seen-framed)
 		if content == nil {
 			// if the matcher was asked to match more than contentLenLimit,
 			// chop off contentLenLimit raw bytes and output them
 			if len(buf) >= contentLenLimit {
 				content, rawDataLen = buf[:contentLenLimit], contentLenLimit
-				input.ParsingExtra.IsTruncated = true
+				isTruncated = true
 			} else {
 				// matcher didn't find a frame, so leave the remainder in
 				// buffer
@@ -177,6 +173,10 @@ func (fr *Framer) Process(input *message.Message) {
 		owned := make([]byte, len(content))
 		copy(owned, content)
 
+		// Copy ParsingExtra and override frame-specific fields
+		parsingExtra := input.ParsingExtra
+		parsingExtra.IsTruncated = isTruncated
+
 		c := &message.Message{
 			MessageContent: message.MessageContent{
 				State: message.StateUnstructured,
@@ -185,7 +185,7 @@ func (fr *Framer) Process(input *message.Message) {
 				Origin:             input.Origin,
 				Status:             input.Status,
 				IngestionTimestamp: input.IngestionTimestamp,
-				ParsingExtra:       input.ParsingExtra,
+				ParsingExtra:       parsingExtra,
 				ServerlessExtra:    input.ServerlessExtra,
 			},
 		}

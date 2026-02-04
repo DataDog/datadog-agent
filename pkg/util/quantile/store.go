@@ -6,6 +6,7 @@
 package quantile
 
 import (
+	"slices"
 	"sort"
 	"unsafe"
 )
@@ -199,11 +200,9 @@ func (s *sparseStore) insertCounts(c *Config, kcs []KeyCount) {
 func (s *sparseStore) insert(c *Config, keys []Key) {
 	s.count += len(keys)
 
-	// TODO|PERF: A custom uint16 sort should easily beat sort.Sort.
+	// TODO|PERF: A custom uint16 sort should easily beat slices.Sort.
 	// TODO|PERF: Would it be cheaper to sort float64s and then convert to keys?
-	sort.Slice(keys, func(i, j int) bool {
-		return keys[i] < keys[j]
-	})
+	slices.Sort(keys)
 
 	// TODO|PERF: Add a non-allocating fast path. When every key is already contained
 	// in the sketch (and no overflow happens) we can just directly update.

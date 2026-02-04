@@ -65,7 +65,7 @@ type discarderHandler func(rs *rules.RuleSet, event *model.Event, probe *EBPFPro
 
 // bumpDiscardersRevision sends an eRPC request to bump the discarders revisionr
 func bumpDiscardersRevision(e *erpc.ERPC) error {
-	req := erpc.NewERPCRequest(erpc.BumpDiscardersRevision)
+	req := erpc.NewERPCRequest(erpc.BumpDiscardersRevisionOp)
 	return e.Request(req)
 }
 
@@ -603,6 +603,29 @@ func applyDNSDefaultDropMaskFromRules(manager *manager.Manager, rs *rules.RuleSe
 	return setDNSDiscarderMask(manager, ^allowMask)
 }
 
+func prCtlDiscarder(_ *rules.RuleSet, event *model.Event, probe *EBPFProbe, _ Discarder) (bool, error) {
+	value, err := event.GetFieldValue("prctl.new_name")
+	if err != nil {
+		return false, err
+	}
+
+	name := value.(string)
+	if len(name) > 16 {
+		return false, errors.New("prctl name length exceeded the maximum of 16 bytes")
+	}
+
+	probe.erpcRequest.OP = erpc.DiscardPrctlOp
+	probe.erpcRequest.Data = [256]byte{}
+	copy(probe.erpcRequest.Data[:], name)
+	err = probe.Erpc.Request(probe.erpcRequest)
+
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
 func setDNSDiscarderMask(manager *manager.Manager, dnsMask uint16) error {
 	bufferSelector, err := managerhelper.Map(manager, "filtered_dns_rcodes")
 	if err != nil {
@@ -678,6 +701,8 @@ func init() {
 		func(event *model.Event) (eval.Field, *model.FileEvent, bool) {
 			return "chdir.file.path", &event.Open.File, false
 		})
+
+	allDiscarderHandlers["prctl.new_name"] = prCtlDiscarder
 
 	// Add all the discarders to the SupportedDiscarders map
 	for field := range allDiscarderHandlers {

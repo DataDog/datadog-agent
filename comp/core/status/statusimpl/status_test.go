@@ -138,6 +138,49 @@ var testTextHeader = fmt.Sprintf(`%s
 %s
 %s`, status.PrintDashes(testTitle, "="), testTitle, status.PrintDashes(testTitle, "="))
 
+func getTextStatusOutput(pid int, goVersion string, arch string, flavor string, conf config.Component) string {
+	res := fmt.Sprintf(`  Status date: 2018-01-05 11:25:15 UTC (1515151515000)
+  Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
+  Pid: %d
+  Go Version: %s
+  Python Version: n/a
+  Build arch: %s
+  Agent flavor: %s
+`, pid, goVersion, arch, flavor)
+
+	if conf.GetBool("fips.enabled") {
+		res += "  FIPS Mode: proxy\n"
+	} else {
+		res += "  FIPS Mode: not available\n"
+	}
+
+	res += "  Log Level: info\n"
+
+	if conf.GetLibType() != "viper" {
+		res += "  Configuration lib used: " + conf.GetLibType() + "\n"
+	}
+
+	res += fmt.Sprintf(`
+  Paths
+  =====
+    Config File: There is no config file
+    conf.d: %s
+    checks.d: %s
+`, conf.GetString("confd_path"), conf.GetString("additional_checksd"))
+
+	if conf.GetBool("fips.enabled") {
+		res += `
+  FIPS proxy
+  ==========
+    FIPS proxy is enabled. All communication to Datadog is routed to a local FIPS proxy:
+      - Local address: localhost
+      - Starting port: 9803
+`
+	}
+
+	return res
+}
+
 func TestGetStatus(t *testing.T) {
 	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
 	startTimeProvider = time.Unix(1515151515, 0)
@@ -150,8 +193,9 @@ func TestGetStatus(t *testing.T) {
 		os.Setenv("TZ", originalTZ)
 	}()
 
+	conf := config.NewMock(t)
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Provide(func() config.Component { return conf }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
@@ -262,23 +306,9 @@ func TestGetStatus(t *testing.T) {
 			name:   "Text",
 			format: "text",
 			assertFunc: func(t *testing.T, bytes []byte) {
-				expectedStatusTextOutput := fmt.Sprintf(`%s
-  Status date: 2018-01-05 11:25:15 UTC (1515151515000)
-  Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
-  Pid: %d
-  Go Version: %s
-  Python Version: n/a
-  Build arch: %s
-  Agent flavor: %s
-  FIPS Mode: not available
-  Log Level: info
-
-  Paths
-  =====
-    Config File: There is no config file
-    conf.d: %s
-    checks.d: %s
-
+				expectedStatusTextOutput := testTextHeader + "\n"
+				expectedStatusTextOutput += getTextStatusOutput(pid, goVersion, arch, "agent", conf)
+				expectedStatusTextOutput += `
 ==========
 Header Foo
 ==========
@@ -302,7 +332,7 @@ X Section
  text from a
  text from x
 
-`, testTextHeader, pid, goVersion, arch, agentFlavor, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"))
+`
 				// We replace windows line break by linux so the tests pass on every OS
 				expectedResult := strings.ReplaceAll(expectedStatusTextOutput, "\r\n", "\n")
 				output := strings.ReplaceAll(string(bytes), "\r\n", "\n")
@@ -315,23 +345,10 @@ X Section
 			format:          "text",
 			excludeSections: []string{status.CollectorSection},
 			assertFunc: func(t *testing.T, bytes []byte) {
-				expectedStatusTextOutput := fmt.Sprintf(`%s
-  Status date: 2018-01-05 11:25:15 UTC (1515151515000)
-  Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
-  Pid: %d
-  Go Version: %s
-  Python Version: n/a
-  Build arch: %s
-  Agent flavor: %s
-  FIPS Mode: not available
-  Log Level: info
 
-  Paths
-  =====
-    Config File: There is no config file
-    conf.d: %s
-    checks.d: %s
-
+				expectedStatusTextOutput := testTextHeader + "\n"
+				expectedStatusTextOutput += getTextStatusOutput(pid, goVersion, arch, "agent", conf)
+				expectedStatusTextOutput += `
 ==========
 Header Foo
 ==========
@@ -349,7 +366,7 @@ X Section
  text from a
  text from x
 
-`, testTextHeader, pid, goVersion, arch, agentFlavor, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"))
+`
 
 				// We replace windows line break by linux so the tests pass on every OS
 				expectedResult := strings.ReplaceAll(expectedStatusTextOutput, "\r\n", "\n")
@@ -486,8 +503,9 @@ func TestGetStatusDoNotRenderHeaderIfNoProviders(t *testing.T) {
 		os.Setenv("TZ", originalTZ)
 	}()
 
+	conf := config.NewMock(t)
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Provide(func() config.Component { return conf }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
@@ -509,29 +527,15 @@ func TestGetStatusDoNotRenderHeaderIfNoProviders(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	expectedOutput := fmt.Sprintf(`%s
-  Status date: 2018-01-05 11:25:15 UTC (1515151515000)
-  Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
-  Pid: %d
-  Go Version: %s
-  Python Version: n/a
-  Build arch: %s
-  Agent flavor: %s
-  FIPS Mode: not available
-  Log Level: info
-
-  Paths
-  =====
-    Config File: There is no config file
-    conf.d: %s
-    checks.d: %s
-
+	expectedOutput := testTextHeader + "\n"
+	expectedOutput += getTextStatusOutput(pid, goVersion, arch, "agent", conf)
+	expectedOutput += `
 =======
 Section
 =======
  text from a
 
-`, testTextHeader, pid, goVersion, arch, agentFlavor, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"))
+`
 
 	// We replace windows line break by linux so the tests pass on every OS
 	expectedResult := strings.ReplaceAll(expectedOutput, "\r\n", "\n")
@@ -552,8 +556,9 @@ func TestGetStatusWithErrors(t *testing.T) {
 		os.Setenv("TZ", originalTZ)
 	}()
 
+	conf := config.NewMock(t)
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Provide(func() config.Component { return conf }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
@@ -597,23 +602,10 @@ func TestGetStatusWithErrors(t *testing.T) {
 			name:   "Text",
 			format: "text",
 			assertFunc: func(t *testing.T, bytes []byte) {
-				expectedStatusTextErrorOutput := fmt.Sprintf(`%s
-  Status date: 2018-01-05 11:25:15 UTC (1515151515000)
-  Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
-  Pid: %d
-  Go Version: %s
-  Python Version: n/a
-  Build arch: %s
-  Agent flavor: agent
-  FIPS Mode: not available
-  Log Level: info
 
-  Paths
-  =====
-    Config File: There is no config file
-    conf.d: %s
-    checks.d: %s
-
+				expectedStatusTextErrorOutput := testTextHeader + "\n"
+				expectedStatusTextErrorOutput += getTextStatusOutput(pid, goVersion, arch, "agent", conf)
+				expectedStatusTextErrorOutput += `
 =========
 Collector
 =========
@@ -624,7 +616,7 @@ Status render errors
 ====================
   - Text error
 
-`, testTextHeader, pid, goVersion, arch, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"))
+`
 
 				// We replace windows line break by linux so the tests pass on every OS
 				expectedResult := strings.ReplaceAll(expectedStatusTextErrorOutput, "\r\n", "\n")
@@ -823,8 +815,9 @@ func TestGetStatusBySectionsWithErrors(t *testing.T) {
 		os.Setenv("TZ", originalTZ)
 	}()
 
+	conf := config.NewMock(t)
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Provide(func() config.Component { return conf }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
@@ -911,30 +904,15 @@ Status render errors
 			format:  "text",
 			section: "header",
 			assertFunc: func(t *testing.T, bytes []byte) {
-				expectedStatusTextErrorOutput := fmt.Sprintf(`%s
-  Status date: 2018-01-05 11:25:15 UTC (1515151515000)
-  Agent start: 2018-01-05 11:25:15 UTC (1515151515000)
-  Pid: %d
-  Go Version: %s
-  Python Version: n/a
-  Build arch: %s
-  Agent flavor: agent
-  FIPS Mode: not available
-  Log Level: info
-
-  Paths
-  =====
-    Config File: There is no config file
-    conf.d: %s
-    checks.d: %s
-
+				expectedStatusTextErrorOutput := testTextHeader + "\n"
+				expectedStatusTextErrorOutput += getTextStatusOutput(pid, goVersion, arch, "agent", conf)
+				expectedStatusTextErrorOutput += `
 ====================
 Status render errors
 ====================
   - Text error
 
-`, testTextHeader, pid, goVersion, arch, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"))
-
+`
 				// We replace windows line break by linux so the tests pass on every OS
 				expectedResult := strings.ReplaceAll(expectedStatusTextErrorOutput, "\r\n", "\n")
 				output := strings.ReplaceAll(string(bytes), "\r\n", "\n")

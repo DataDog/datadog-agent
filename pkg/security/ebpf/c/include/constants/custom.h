@@ -12,7 +12,7 @@
 #define REVISION_ARRAY_SIZE 4096
 #define INODE_DISCARDER_TYPE 0
 
-#define PATH_ID_MAP_SIZE 512
+#define PATH_ID_MAP_SIZE 16384
 
 #define MAX_PERF_STR_BUFF_LEN 256
 #define MAX_STR_BUFF_LEN (1 << 15)
@@ -254,7 +254,7 @@ static __attribute__((always_inline)) u64 is_network_flow_monitor_enabled() {
 #define SYSCTL_OLD_VALUE_TRUNCATED (1 << 1)
 #define SYSCTL_NEW_VALUE_TRUNCATED (1 << 2)
 #define MAX_BPF_FILTER_SIZE (511 * sizeof(struct sock_filter))
-#define MAX_PRCTL_NAME_LEN 255
+#define MAX_PRCTL_NAME_LEN 16
 #define TRACER_MEMFD_SUFFIX_LEN 8
 
 static __attribute__((always_inline)) u64 has_tracing_helpers_in_cgroup_sysctl() {

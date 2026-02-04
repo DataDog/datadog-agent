@@ -31,7 +31,7 @@ type Check struct {
 	interval       time.Duration
 	name           string
 	libraryLoader  ffi.LibraryLoader // FFI handler
-	lib            ffi.Library       // handle of the associated shared library and pointers to its symbols
+	lib            *ffi.Library      // handle of the associated shared library and pointers to its symbols
 	source         string
 	provider       string
 	initConfig     string // json string of check init config
@@ -39,7 +39,7 @@ type Check struct {
 	cancelled      bool
 }
 
-func newCheck(senderManager sender.SenderManager, name string, libraryLoader ffi.LibraryLoader, lib ffi.Library) (*Check, error) {
+func newCheck(senderManager sender.SenderManager, name string, libraryLoader ffi.LibraryLoader, lib *ffi.Library) (*Check, error) {
 	check := &Check{
 		senderManager: senderManager,
 		interval:      defaults.DefaultCheckInterval,
@@ -64,15 +64,15 @@ func (c *Check) runCheckImpl(commitMetrics bool) error {
 	}
 
 	// run the check through the library loader
-	err := c.libraryLoader.Run(c.lib.Run, string(c.id), c.initConfig, c.instanceConfig)
+	err := c.libraryLoader.Run(c.lib, string(c.id), c.initConfig, c.instanceConfig)
 	if err != nil {
-		return fmt.Errorf("Run failed: %s", err)
+		return fmt.Errorf("Run failed: %w", err)
 	}
 
 	if commitMetrics {
 		s, err := c.senderManager.GetSender(c.ID())
 		if err != nil {
-			return fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
+			return fmt.Errorf("Failed to retrieve a Sender instance: %w", err)
 		}
 		s.Commit()
 	}
@@ -81,7 +81,7 @@ func (c *Check) runCheckImpl(commitMetrics bool) error {
 }
 
 // Stop does nothing
-func (c *Check) Stop() {}
+func (*Check) Stop() {}
 
 // Cancel closes the associated shared library and prevents the check from running
 func (c *Check) Cancel() {
@@ -109,7 +109,7 @@ func (c *Check) Version() string {
 }
 
 // IsTelemetryEnabled is not enabled
-func (c *Check) IsTelemetryEnabled() bool {
+func (*Check) IsTelemetryEnabled() bool {
 	return false
 }
 
@@ -139,7 +139,7 @@ func (c *Check) InstanceConfig() string {
 }
 
 // GetWarnings returns nothing
-func (c *Check) GetWarnings() []error {
+func (*Check) GetWarnings() []error {
 	return []error{}
 }
 
@@ -171,7 +171,7 @@ func (c *Check) Configure(_ sender.SenderManager, integrationConfigDigest uint64
 func (c *Check) GetSenderStats() (stats.SenderStats, error) {
 	sender, err := c.senderManager.GetSender(c.ID())
 	if err != nil {
-		return stats.SenderStats{}, fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
+		return stats.SenderStats{}, fmt.Errorf("Failed to retrieve a Sender instance: %w", err)
 	}
 	return sender.GetSenderStats(), nil
 }
@@ -187,11 +187,11 @@ func (c *Check) ID() checkid.ID {
 }
 
 // GetDiagnoses returns nothing
-func (c *Check) GetDiagnoses() ([]diagnose.Diagnosis, error) {
+func (*Check) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 	return nil, nil
 }
 
 // IsHASupported does not apply to shared library checks
-func (c *Check) IsHASupported() bool {
+func (*Check) IsHASupported() bool {
 	return false
 }

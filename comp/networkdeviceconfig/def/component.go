@@ -6,7 +6,7 @@
 // Package networkdeviceconfig provides the component for retrieving network device configurations.
 package networkdeviceconfig
 
-// team: network-device-monitoring
+// team: ndm-integrations
 
 // Component is the component type.
 type Component interface {

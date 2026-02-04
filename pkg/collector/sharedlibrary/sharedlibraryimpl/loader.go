@@ -8,6 +8,8 @@
 package sharedlibrarycheck
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -37,16 +39,20 @@ func (*CheckLoader) Name() string {
 	return CheckLoaderName
 }
 
-func (sl *CheckLoader) String() string {
+func (*CheckLoader) String() string {
 	return "Shared Library Loader"
 }
 
 // Load returns a Shared Library check
 func (sl *CheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data, _ int) (check.Check, error) {
+	// we need to dynamically compute the shared libraries path because their extensions are platform dependent
+	// we could also have collisions with existing shared libraries
+	libPath := sl.loader.ComputeLibraryPath(config.Name)
+
 	// open the library and get pointers to its symbols through the library loader
-	lib, err := sl.loader.Open(config.Name)
+	lib, err := sl.loader.Open(libPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Failed to load shared library at %s: %w", libPath, err)
 	}
 
 	// Create the check
@@ -63,7 +69,7 @@ func (sl *CheckLoader) Load(senderManager sender.SenderManager, config integrati
 	}
 
 	// check version -- fallback to "unversioned" version if the version cannot be retrieved from the library
-	version, err := sl.loader.Version(lib.Version)
+	version, err := sl.loader.Version(lib)
 	if err != nil {
 		c.version = "unversioned"
 	} else {

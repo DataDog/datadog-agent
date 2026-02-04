@@ -210,9 +210,7 @@ def setup_settings(_, force=False):
             vscode_config_template.format(
                 build_tags=",".join(build_tags),
                 workspace_folder=os.getcwd(),
-                excluded_directories=["-rtloader/test", "-test/benchmarks", "-test/integration"]
-                if sys.platform != "linux"
-                else [],
+                excluded_directories=["-rtloader/test", "-test/integration"] if sys.platform != "linux" else [],
             ).replace("'", '"')
         )
     print(color_message("VSCode settings file created successfully.", Color.GREEN))
