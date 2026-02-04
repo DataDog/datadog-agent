@@ -65,7 +65,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenAllUsageMetricsAreRe
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -121,7 +121,7 @@ func TestGivenADiskCheckWithLowercaseDeviceTagConfigured_WhenCheckRuns_ThenLower
 	m.SetupAcceptAll()
 	config := integration.Data([]byte("lowercase_device_tag: true"))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -141,7 +141,7 @@ func TestGivenADiskCheckWithIncludeAllDevicesTrueConfigured_WhenCheckRuns_ThenAl
 	m.SetupAcceptAll()
 	config := integration.Data([]byte("include_all_devices: true"))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -166,7 +166,7 @@ func TestGivenADiskCheckWithIncludeAllDevicesFalseConfigured_WhenCheckRuns_ThenO
 	m.SetupAcceptAll()
 	config := integration.Data([]byte("include_all_devices: false"))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -203,7 +203,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndPartitionsSystemCallRe
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	// No error returned, and metrics are reported for the partitions that were returned
@@ -236,7 +236,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndPartitionsSystemReturn
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -271,7 +271,7 @@ func TestGivenADiskCheckWithAllPartitionsFalseConfigured_WhenCheckRunsAndPartiti
 	m.SetupAcceptAll()
 	config := integration.Data([]byte("all_partitions: false"))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -306,7 +306,7 @@ func TestGivenADiskCheckWithAllPartitionsTrueConfigured_WhenCheckRunsAndPartitio
 	m.SetupAcceptAll()
 	config := integration.Data([]byte("all_partitions: true"))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -328,7 +328,7 @@ device_include:
   - /dev/sda.*
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -356,7 +356,7 @@ device_whitelist:
   - /dev/sda.*
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -395,7 +395,7 @@ func TestGivenADiskCheckWithFileSystemGlobalExcludeNotConfigured_WhenCheckRuns_T
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -428,7 +428,7 @@ func TestGivenADiskCheckWithFileSystemGlobalExcludeNotConfigured_WhenCheckRuns_T
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -450,7 +450,7 @@ file_system_global_exclude:
   - tmp.*
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, initConfig, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, initConfig, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -478,7 +478,7 @@ file_system_global_blacklist:
   - tmpfs
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, initConfig, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, initConfig, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -506,7 +506,7 @@ excluded_filesystems:
   - tmp.*
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -526,7 +526,7 @@ excluded_filesystems:
   - tmpfs(.*
 `))
 
-	err := diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, initConfig, nil, "test")
+	err := diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, initConfig, nil, "test", "provider")
 
 	assert.NotNil(t, err)
 }
@@ -556,7 +556,7 @@ excluded_filesystems:
   - tmpfs
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -578,7 +578,7 @@ file_system_exclude:
   - tmp.*
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -598,7 +598,7 @@ file_system_blacklist:
   - tmp.*
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -618,7 +618,7 @@ file_system_include:
   - ext.*
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -638,7 +638,7 @@ file_system_whitelist:
   - ext.*
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -659,7 +659,7 @@ device_tag_re:
   tmp.*: role:tmp
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -683,7 +683,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenAllIOCountersMetrics
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -706,7 +706,7 @@ func TestGivenADiskCheckWithTagByLabelConfiguredFalse_WhenCheckRuns_ThenBlkidLab
 tag_by_label: false
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -724,7 +724,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenBlkidLabelsAreReport
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -742,7 +742,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenEmptyBlkidLabelsAreN
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -760,7 +760,7 @@ func TestGivenADiskCheckWithTagByLabelConfiguredTrue_WhenCheckRuns_ThenBlkidLabe
 tag_by_label: true
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -784,7 +784,7 @@ func TestGivenADiskCheckWithTagByLabelConfiguredTrue_WhenCheckRunsAndBlkidReturn
 tag_by_label: true
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -805,7 +805,7 @@ func TestGivenADiskCheckWithUseLsblkConfiguredTrue_WhenCheckRuns_ThenLsblkLabels
 use_lsblk: true
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -827,7 +827,7 @@ tag_by_label: true
 use_lsblk: true
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -849,7 +849,7 @@ tag_by_label: false
 use_lsblk: true
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -873,7 +873,7 @@ func TestGivenADiskCheckWithUseLsblkConfiguredTrue_WhenLsblkReturnsError_ThenLsb
 use_lsblk: true
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -899,7 +899,7 @@ func TestGivenADiskCheckWithBlkidCacheFileConfigured_WhenCheckRuns_ThenBlkidCach
 blkid_cache_file: /run/blkid/blkid.tab
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -926,7 +926,7 @@ func TestGivenADiskCheckWithBlkidCacheFileConfigured_WhenBlkidCacheReturnsError_
 blkid_cache_file: /run/blkid/blkid.tab
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -959,7 +959,7 @@ func TestGivenADiskCheckWithBlkidCacheFileConfigured_WhenBlkidCacheHasWrongLines
 blkid_cache_file: /run/blkid/blkid.tab
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -982,7 +982,7 @@ mount_point_global_exclude:
   - /dev/shm
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, initConfig, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, initConfig, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -1010,7 +1010,7 @@ mount_point_global_blacklist:
   - /dev/shm
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, initConfig, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, initConfig, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -1038,7 +1038,7 @@ mount_point_exclude:
   - /dev/.*
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -1066,7 +1066,7 @@ mount_point_blacklist:
   - /dev/.*
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -1091,7 +1091,7 @@ func TestGivenADiskCheckWithExcludedMountPointReConfigured_WhenCheckRuns_ThenUsa
 	m.SetupAcceptAll()
 	config := integration.Data([]byte("excluded_mountpoint_re: /dev/.*"))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -1116,7 +1116,7 @@ func TestGivenADiskCheckWithUseMountConfigured_WhenCheckRuns_ThenUsageMetricsAre
 	m.SetupAcceptAll()
 	config := integration.Data([]byte("use_mount: true"))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -1143,7 +1143,7 @@ func TestGivenADiskCheckWithServiceCheckRwTrueConfigured_WhenCheckRuns_ThenReadW
 service_check_rw: true
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -1197,7 +1197,7 @@ func TestResolveRootDeviceFlagTrue(t *testing.T) {
 resolve_root_device: true
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -1249,7 +1249,7 @@ UEVENT_SEQNUM=42
 resolve_root_device: false
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err = diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -1315,7 +1315,7 @@ func TestDeviceMapperResolution_WhenGopsutilReturnsDmDevice_ThenMetricsHaveFrien
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 	err = diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -1369,7 +1369,7 @@ func TestDeviceMapperResolution_WhenSymlinkResolutionFails_ThenMetricsHaveOrigin
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 	err = diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -1421,7 +1421,7 @@ func TestDeviceMapperResolution_WithLowercaseDeviceTag(t *testing.T) {
 	m.SetupAcceptAll()
 	config := integration.Data([]byte("lowercase_device_tag: true"))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err = diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -1480,7 +1480,7 @@ func TestDeviceMapperResolution_WithMixedDeviceTypes(t *testing.T) {
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 	err = diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -1520,7 +1520,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenInodeMetricsAreRepor
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -1562,7 +1562,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndInodesIsZero_ThenInode
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -1600,7 +1600,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndPartitionsSystemReturn
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -1641,7 +1641,7 @@ func TestGivenADiskCheckWithAllPartitionsTrueConfigured_WhenCheckRunsAndPartitio
 	m.SetupAcceptAll()
 	config := integration.Data([]byte("all_partitions: true"))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -1719,7 +1719,7 @@ DEVNAME=sda1
 resolve_root_device: false
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err = diskCheck.Run()
 
 	// Check should succeed even when falling back to mounts file
@@ -1785,7 +1785,7 @@ func TestGivenADiskCheckWithResolveRootDeviceFalse_WhenProc1MountinfoFails_ThenF
 resolve_root_device: false
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err = diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -1849,7 +1849,7 @@ resolve_root_device: false
 proc_mountinfo_path: /host/proc/1/mountinfo
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err = diskCheck.Run()
 
 	assert.Nil(t, err)

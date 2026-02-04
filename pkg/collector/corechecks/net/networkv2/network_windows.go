@@ -305,8 +305,8 @@ func submitInterfaceMetrics(sender sender.Sender, interfaceIO net.IOCountersStat
 }
 
 // Configure configures the network checks
-func (c *NetworkCheck) Configure(senderManager sender.SenderManager, _ uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
-	err := c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source)
+func (c *NetworkCheck) Configure(senderManager sender.SenderManager, _ uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string, provider string) error {
+	err := c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source, provider)
 	if err != nil {
 		return err
 	}

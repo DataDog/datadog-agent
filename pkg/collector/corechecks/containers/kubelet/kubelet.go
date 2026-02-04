@@ -113,12 +113,12 @@ func Factory(store workloadmeta.Component, filterStore workloadfilter.Component,
 }
 
 // Configure configures the check
-func (k *KubeletCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
+func (k *KubeletCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string, provider string) error {
 	if !pkgconfigsetup.Datadog().GetBool("kubelet_core_check_enabled") {
 		return fmt.Errorf("%w: kubelet core check is disabled", check.ErrSkipCheckInstance)
 	}
 
-	err := k.CommonConfigure(senderManager, initConfig, config, source)
+	err := k.CommonConfigure(senderManager, initConfig, config, source, provider)
 	if err != nil {
 		return err
 	}

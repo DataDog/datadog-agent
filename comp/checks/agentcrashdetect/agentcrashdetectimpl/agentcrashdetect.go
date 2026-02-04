@@ -122,8 +122,8 @@ func (c *WinCrashConfig) Parse(data []byte) error {
 }
 
 // Configure accepts the configuration
-func (wcd *AgentCrashDetect) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) error {
-	err := wcd.CommonConfigure(senderManager, initConfig, data, source)
+func (wcd *AgentCrashDetect) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string, provider string) error {
+	err := wcd.CommonConfigure(senderManager, initConfig, data, source, provider)
 	if err != nil {
 		return err
 	}

@@ -91,7 +91,7 @@ func TestWinCrashReporting(t *testing.T) {
 		check := newCheck()
 		crashCheck := check.(*WinCrashDetect)
 		mock := mocksender.NewMockSender(crashCheck.ID())
-		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "")
+		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "", "")
 		assert.NoError(t, err)
 
 		err = crashCheck.Run()
@@ -119,7 +119,7 @@ func TestWinCrashReporting(t *testing.T) {
 		check := newCheck()
 		crashCheck := check.(*WinCrashDetect)
 		mock := mocksender.NewMockSender(crashCheck.ID())
-		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "")
+		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "", "")
 		assert.NoError(t, err)
 
 		// The text field describes the bugcheck information and callstack.
@@ -173,7 +173,7 @@ func TestWinCrashReporting(t *testing.T) {
 
 		check = newCheck()
 		crashCheck = check.(*WinCrashDetect)
-		err = crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "")
+		err = crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "", "")
 		assert.Nil(t, err)
 		err = crashCheck.Run()
 		assert.Nil(t, err)
@@ -249,7 +249,7 @@ func TestCrashReportingStates(t *testing.T) {
 		check := newCheck()
 		crashCheck := check.(*WinCrashDetect)
 		mock := mocksender.NewMockSender(crashCheck.ID())
-		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "")
+		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "", "")
 		assert.NoError(t, err)
 
 		crashStatus = &probe.WinCrashStatus{
@@ -312,7 +312,7 @@ func TestCrashReportingStates(t *testing.T) {
 		check := newCheck()
 		crashCheck := check.(*WinCrashDetect)
 		mock := mocksender.NewMockSender(crashCheck.ID())
-		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "")
+		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "", "")
 		assert.NoError(t, err)
 
 		noCrashStatus := &probe.WinCrashStatus{
@@ -337,7 +337,7 @@ func TestCrashReportingStates(t *testing.T) {
 		check := newCheck()
 		crashCheck := check.(*WinCrashDetect)
 		mock := mocksender.NewMockSender(crashCheck.ID())
-		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "")
+		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "", "")
 		assert.NoError(t, err)
 
 		failedStatus := &probe.WinCrashStatus{

@@ -64,6 +64,7 @@ type PythonCheck struct {
 	interval       time.Duration
 	lastWarnings   []error
 	source         string
+	provider       string
 	telemetry      bool // whether or not the telemetry is enabled for this check
 	initConfig     string
 	instanceConfig string
@@ -196,6 +197,11 @@ func (c *PythonCheck) ConfigSource() string {
 	return c.source
 }
 
+// ConfigProvider returns the name of the config provider that issued the check config
+func (c *PythonCheck) ConfigProvider() string {
+	return c.provider
+}
+
 // Loader returns the check loader
 func (*PythonCheck) Loader() string {
 	return PythonCheckLoaderName
@@ -249,7 +255,7 @@ func (c *PythonCheck) getPythonWarnings() []error {
 }
 
 // Configure the Python check from YAML data
-func (c *PythonCheck) Configure(_senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (c *PythonCheck) Configure(_senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string, provider string) error {
 	// Generate check ID
 	c.id = checkid.BuildID(c.String(), integrationConfigDigest, data, initConfig)
 
@@ -317,13 +323,14 @@ func (c *PythonCheck) Configure(_senderManager sender.SenderManager, integration
 	cInstance := TrackedCString(string(data))
 	cCheckID := TrackedCString(string(c.id))
 	cCheckName := TrackedCString(c.ModuleName)
+	cProvider := TrackedCString(provider)
 	defer C.call_free(unsafe.Pointer(cInitConfig))
 	defer C.call_free(unsafe.Pointer(cInstance))
 	defer C.call_free(unsafe.Pointer(cCheckID))
-	defer C.call_free(unsafe.Pointer(cCheckName))
+	defer C.call_free(unsafe.Pointer(cProvider))
 
 	var check *C.rtloader_pyobject_t
-	res := C.get_check(rtloader, c.class, cInitConfig, cInstance, cCheckID, cCheckName, &check)
+	res := C.get_check(rtloader, c.class, cInitConfig, cInstance, cCheckID, cCheckName, cProvider, &check)
 	var rtLoaderError error
 	if res == 0 {
 		rtLoaderError = getRtLoaderError()
@@ -343,7 +350,7 @@ func (c *PythonCheck) Configure(_senderManager sender.SenderManager, integration
 		cAgentConfig := TrackedCString(string(agentConfig))
 		defer C.call_free(unsafe.Pointer(cAgentConfig))
 
-		res := C.get_check_deprecated(rtloader, c.class, cInitConfig, cInstance, cAgentConfig, cCheckID, cCheckName, &check)
+		res := C.get_check_deprecated(rtloader, c.class, cInitConfig, cInstance, cAgentConfig, cCheckID, cCheckName, cProvider, &check)
 		if res == 0 {
 			rtLoaderDeprecatedCheckError := getRtLoaderError()
 			if strings.Contains(rtLoaderDeprecatedCheckError.Error(), skipInstanceErrorPattern) {
@@ -358,6 +365,7 @@ func (c *PythonCheck) Configure(_senderManager sender.SenderManager, integration
 	}
 	c.instance = check
 	c.source = source
+	c.provider = provider
 
 	// Add the possibly configured service as a tag for this check
 	s, err := c.senderManager.GetSender(c.id)

@@ -177,8 +177,10 @@ func getFakeCheck() (string, error) {
 	defer C.call_free(configStr)
 	classStr = helpers.TrackedCString("fake_check")
 	defer C.call_free(classStr)
+	providerStr := helpers.TrackedCString("fake_provider")
+	defer C.call_free(providerStr)
 
-	ret = C.get_check(rtloader, class, (*C.char)(emptyStr), (*C.char)(configStr), (*C.char)(checkIDStr), (*C.char)(classStr), &check)
+	ret = C.get_check(rtloader, class, (*C.char)(emptyStr), (*C.char)(configStr), (*C.char)(checkIDStr), (*C.char)(classStr), (*C.char)(providerStr), &check)
 	if ret != 1 || check == nil {
 		return "", errors.New(C.GoString(C.get_error(rtloader)))
 	}
@@ -216,8 +218,10 @@ func runFakeCheck() (string, error) {
 	defer C.call_free(configStr)
 	classStr = helpers.TrackedCString("fake_check")
 	defer C.call_free(classStr)
+	providerStr := helpers.TrackedCString("fake_provider")
+	defer C.call_free(providerStr)
 
-	C.get_check(rtloader, class, (*C.char)(emptyStr), (*C.char)(configStr), (*C.char)(checkIDStr), (*C.char)(classStr), &check)
+	C.get_check(rtloader, class, (*C.char)(emptyStr), (*C.char)(configStr), (*C.char)(checkIDStr), (*C.char)(classStr), (*C.char)(providerStr), &check)
 
 	checkResultStr := C.run_check(rtloader, check)
 	defer C.call_free(unsafe.Pointer(checkResultStr))
@@ -249,8 +253,10 @@ func cancelFakeCheck() error {
 	defer C.call_free(configStr)
 	classStr = helpers.TrackedCString("fake_check")
 	defer C.call_free(classStr)
+	providerStr := helpers.TrackedCString("fake_provider")
+	defer C.call_free(providerStr)
 
-	C.get_check(rtloader, class, (*C.char)(emptyStr), (*C.char)(configStr), (*C.char)(checkIDStr), (*C.char)(classStr), &check)
+	C.get_check(rtloader, class, (*C.char)(emptyStr), (*C.char)(configStr), (*C.char)(checkIDStr), (*C.char)(classStr), (*C.char)(providerStr), &check)
 
 	C.cancel_check(rtloader, check)
 
@@ -281,8 +287,10 @@ func runFakeGetWarnings() ([]string, error) {
 	defer C.call_free(configStr)
 	classStr = helpers.TrackedCString("fake_check")
 	defer C.call_free(classStr)
+	providerStr := helpers.TrackedCString("fake_provider")
+	defer C.call_free(providerStr)
 
-	C.get_check(rtloader, class, (*C.char)(emptyStr), (*C.char)(configStr), (*C.char)(checkIDStr), (*C.char)(classStr), &check)
+	C.get_check(rtloader, class, (*C.char)(emptyStr), (*C.char)(configStr), (*C.char)(checkIDStr), (*C.char)(classStr), (*C.char)(providerStr), &check)
 
 	warns := C.get_checks_warnings(rtloader, check)
 
