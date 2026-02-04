@@ -8,6 +8,7 @@ package sharedlibrary
 
 import (
 	_ "embed"
+	"fmt"
 	"os"
 	"path"
 
@@ -63,7 +64,7 @@ func (v *sharedLibrarySuite) getSuiteOptions() e2e.SuiteOption {
 	return e2e.WithProvisioner(v.newProvisionerWithAgentOptions())
 }
 
-func (v *sharedLibrarySuite) resolveSharedLibraryFileName(name string) string {
+func (v *sharedLibrarySuite) resolveSharedLibraryFileName(name string) (string, error) {
 	var libraryExtension string
 
 	// get the library extension based on the OS running in the remote VM
@@ -74,16 +75,18 @@ func (v *sharedLibrarySuite) resolveSharedLibraryFileName(name string) string {
 		libraryExtension = "dll"
 	case osVM.MacOSFamily:
 		libraryExtension = "dylib"
-	default: // if we can't identify the OS, we fallback to 'so' since it's the most common case
-		libraryExtension = "so"
+	default:
+		return "", fmt.Errorf("unknown OS family: %v", v.descriptor.Flavor.Type())
 	}
 
-	return libraryPrefix + name + "." + libraryExtension
+	return libraryPrefix + name + "." + libraryExtension, nil
 }
 
 func (v *sharedLibrarySuite) updateEnvWithCheckConfigAndSharedLibrary(name string, config string, permissions option.Option[perms.FilePermissions]) {
 	// get the content of the local shared library
-	libraryName := v.resolveSharedLibraryFileName(name)
+	libraryName, err := v.resolveSharedLibraryFileName(name)
+	require.NoError(v.T(), err)
+
 	libraryContent, err := os.ReadFile(path.Join("files", libraryName))
 	require.NoError(v.T(), err)
 
