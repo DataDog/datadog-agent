@@ -10,7 +10,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.61.0
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.64.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/config/mock v0.61.0
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.70.0
 	github.com/DataDog/datadog-agent/pkg/config/model v0.72.2
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.64.0-rc.3
@@ -60,6 +60,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.64.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/flavor v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/http v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.72.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.64.0-rc.3 // indirect
