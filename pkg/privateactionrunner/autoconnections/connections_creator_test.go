@@ -332,21 +332,15 @@ func TestAutoCreateConnections_CreatesScriptConfigFile(t *testing.T) {
 	testWriter := DefaultConfigWriter{BaseDir: tempDir}
 	creator := ConnectionsCreator{*testClient, testWriter}
 
-	input := AutoCreateConnectionsInput{
-		ddSite:     "datadoghq.com",
-		runnerID:   "runner-123",
-		runnerName: "test-runner",
-		apiKey:     "test-api-key",
-		appKey:     "test-app-key",
-		allowlist:  allowlist,
-	}
+	runnerID := "144500f1-474a-4856-aa0a-6fd22e005893"
+	runnerName := "runner-abc123"
 
 	// Verify file doesn't exist before
 	_, err := os.Stat(configPath)
 	assert.True(t, os.IsNotExist(err), "Config file should not exist before test")
 
 	// Run auto-create connections
-	err = creator.AutoCreateConnections(context.Background(), input)
+	err = creator.AutoCreateConnections(context.Background(), runnerID, runnerName, allowlist)
 	require.NoError(t, err, "AutoCreateConnections should succeed")
 
 	// Verify the script config file was created
@@ -380,17 +374,11 @@ func TestAutoCreateConnections_SkipsConnectionWhenConfigFileFails(t *testing.T) 
 		configWriter: failingConfigWriter{},
 	}
 
-	input := AutoCreateConnectionsInput{
-		ddSite:     "datadoghq.com",
-		runnerID:   "runner-123",
-		runnerName: "test-runner",
-		apiKey:     "test-api-key",
-		appKey:     "test-app-key",
-		allowlist:  allowlist,
-	}
+	runnerID := "144500f1-474a-4856-aa0a-6fd22e005893"
+	runnerName := "runner-abc123"
 
 	// Run auto-create connections
-	err := creator.AutoCreateConnections(context.Background(), input)
+	err := creator.AutoCreateConnections(context.Background(), runnerID, runnerName, allowlist)
 	require.NoError(t, err, "AutoCreateConnections should not return error even if config file creation fails")
 
 	// Verify NO connection was created because config file creation failed
