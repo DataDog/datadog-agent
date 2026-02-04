@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -36,10 +37,11 @@ func isEnabled(cfg config.Component) bool {
 
 // Requires defines the dependencies for the privateactionrunner component
 type Requires struct {
-	Config    config.Component
-	Log       log.Component
-	Lifecycle compdef.Lifecycle
-	RcClient  rcclient.Component
+	Config     config.Component
+	Log        log.Component
+	Lifecycle  compdef.Lifecycle
+	RcClient   rcclient.Component
+	Traceroute traceroute.Component
 }
 
 // Provides defines the output of the privateactionrunner component
@@ -95,7 +97,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(cfg)
 
-	r, err := runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient)
+	r, err := runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, reqs.Traceroute)
 	if err != nil {
 		return Provides{}, err
 	}
