@@ -1,0 +1,12 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    OTLP logs now support array type attributes. Arrays containing
+    primitive values or nested maps are now correctly preserved in the log output.
