@@ -39,6 +39,7 @@ func CompressSBOM(sbom *workloadmeta.SBOM) (*workloadmeta.CompressedSBOM, error)
 		Bom:                compressedBom.Bytes(),
 		GenerationTime:     sbom.GenerationTime,
 		GenerationDuration: sbom.GenerationDuration,
+		GenerationMethod:   sbom.GenerationMethod,
 		Status:             sbom.Status,
 		Error:              sbom.Error,
 	}, nil
@@ -73,6 +74,7 @@ func UncompressSBOM(csbom *workloadmeta.CompressedSBOM) (*workloadmeta.SBOM, err
 		CycloneDXBOM:       &cyclosbom,
 		GenerationTime:     csbom.GenerationTime,
 		GenerationDuration: csbom.GenerationDuration,
+		GenerationMethod:   csbom.GenerationMethod,
 		Status:             csbom.Status,
 		Error:              csbom.Error,
 	}, nil

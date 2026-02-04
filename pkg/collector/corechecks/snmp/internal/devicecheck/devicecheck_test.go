@@ -57,7 +57,8 @@ profiles:
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, agentconfig.NewMock(t))
+	connMgr := NewConnectionManager(config, sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
@@ -197,7 +198,8 @@ global_metrics:
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, agentconfig.NewMock(t))
+	connMgr := NewConnectionManager(config, sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
@@ -246,7 +248,8 @@ community_string: public
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", session.NewMockSession, agentconfig.NewMock(t))
+	connMgr := NewConnectionManager(config, session.NewMockSession)
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
@@ -277,7 +280,8 @@ community_string: public
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", session.NewMockSession, agentconfig.NewMock(t))
+	connMgr := NewConnectionManager(config, session.NewMockSession)
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
 	assert.Nil(t, err)
 
 	hostname, err := deviceCk.GetDeviceHostname()
@@ -343,7 +347,8 @@ profiles:
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, agentconfig.NewMock(t))
+	connMgr := NewConnectionManager(config, sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
 	assert.Nil(t, err)
 
 	snmpTags := []string{"snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4", "snmp_profile:f5-big-ip", "device_vendor:f5", "snmp_host:foo_sys_name",
@@ -648,7 +653,8 @@ profiles:
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, agentconfig.NewMock(t))
+	connMgr := NewConnectionManager(config, sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
@@ -695,7 +701,8 @@ profiles:
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, agentconfig.NewMock(t))
+	connMgr := NewConnectionManager(config, sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
 	assert.Nil(t, err)
 
 	// override pinger with mock pinger
@@ -846,7 +853,8 @@ profiles:
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, agentconfig.NewMock(t))
+	connMgr := NewConnectionManager(config, sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
 	assert.Nil(t, err)
 
 	// override pinger with mock pinger
@@ -991,7 +999,8 @@ collect_topology: false
 	cfg := agentconfig.NewMock(t)
 	cfg.SetWithoutSource("tags", []string{"tag1:value1"})
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, cfg)
+	connMgr := NewConnectionManager(config, sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, connMgr, cfg)
 	assert.Nil(t, err)
 
 	// WHEN
@@ -1020,7 +1029,8 @@ collect_topology: false
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, agentconfig.NewMock(t))
+	connMgr := NewConnectionManager(config, sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
@@ -1041,6 +1051,7 @@ collect_topology: false
 	}, deviceCk.profileCache.scalarOIDs)
 	assert.Equal(t, []string{
 		"1.3.6.1.2.1.2.2.1.2",
+		"1.3.6.1.2.1.2.2.1.3",
 		"1.3.6.1.2.1.2.2.1.6",
 		"1.3.6.1.2.1.2.2.1.7",
 		"1.3.6.1.2.1.2.2.1.8",
@@ -1111,6 +1122,7 @@ collect_topology: false
 	}, deviceCk.profileCache.scalarOIDs)
 	assert.Equal(t, []string{
 		"1.3.6.1.2.1.2.2.1.2",
+		"1.3.6.1.2.1.2.2.1.3",
 		"1.3.6.1.2.1.2.2.1.6",
 		"1.3.6.1.2.1.2.2.1.7",
 		"1.3.6.1.2.1.2.2.1.8",
@@ -1136,4 +1148,40 @@ collect_topology: false
 		"1.3.6.1.2.1.31.1.1.1.18",
 		"1.3.6.1.2.1.4.20.1.2",
 	}, deviceCk.profileCache.columnOIDs)
+}
+
+// TestDeviceCheck_ConnectionManager_Initialized tests that ConnectionManager is initialized
+func TestDeviceCheck_ConnectionManager_Initialized(t *testing.T) {
+	profile.SetConfdPathAndCleanProfiles()
+	sess := session.CreateFakeSession()
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: public
+collect_topology: false
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+profiles:
+  f5-big-ip:
+    definition_file: f5-big-ip.yaml
+`)
+
+	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
+	assert.Nil(t, err)
+
+	connMgr := NewConnectionManager(config, sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
+	assert.Nil(t, err)
+
+	// Verify ConnectionManager is initialized
+	assert.NotNil(t, deviceCk.connMgr, "ConnectionManager should be initialized in NewDeviceCheck")
+
+	// Verify it's the correct type (implementation detail, but good to check)
+	_, ok := deviceCk.connMgr.(*snmpConnectionManager)
+	assert.True(t, ok, "connMgr should be a *snmpConnectionManager")
 }

@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 
 	delegatedauthnoop "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
-	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
+	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -38,7 +38,7 @@ func CheckAndUpgradeConfig() error {
 	}
 	ddcfg := pkgconfigsetup.GlobalConfigBuilder()
 	ddcfg.AddConfigPath(defaultpaths.ConfPath)
-	err := pkgconfigsetup.LoadDatadog(ddcfg, secretsnoop.NewComponent().Comp, delegatedauthnoop.NewComponent().Comp, nil)
+	err := pkgconfigsetup.LoadDatadog(ddcfg, &secretnooptypes.SecretNoop{}, delegatedauthnoop.NewComponent().Comp, nil)
 	if err == nil {
 		// was able to read config, check for api key
 		if ddcfg.GetString("api_key") != "" {

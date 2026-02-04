@@ -25,7 +25,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	delegatedauthnoop "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
-	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
+	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -99,7 +99,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 			pkgconfig.SetConfigFile(ddCfg)
 		}
 
-		err := pkgconfigsetup.LoadDatadog(pkgconfig, secretsnoop.NewComponent().Comp, delegatedauthnoop.NewComponent().Comp, nil)
+		err := pkgconfigsetup.LoadDatadog(pkgconfig, &secretnooptypes.SecretNoop{}, delegatedauthnoop.NewComponent().Comp, nil)
 		if err != nil {
 			return nil, err
 		}

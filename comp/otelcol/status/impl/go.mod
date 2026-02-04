@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/status/impl
 
-go 1.25.0
+go 1.25.6
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.72.0-rc.5
@@ -16,7 +16,6 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/api/api/def v0.72.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/def v0.0.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.72.0-rc.5 // indirect
@@ -26,6 +25,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/def v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/api v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.72.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.73.0-devel.0.20251030121902-cd89eab046d6 // indirect
@@ -190,6 +190,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../../../pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/api => ../../../../pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../pkg/collector/check/defaults
+	github.com/DataDog/datadog-agent/pkg/config/basic => ../../../../pkg/config/basic
 	github.com/DataDog/datadog-agent/pkg/config/create => ../../../../pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/helper => ../../../../pkg/config/helper

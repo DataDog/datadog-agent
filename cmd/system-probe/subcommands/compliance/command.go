@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -67,6 +68,7 @@ func CheckCommand(globalParams *command.GlobalParams) *cobra.Command {
 				logscompressionfx.Module(),
 				statsd.Module(),
 				ipcfx.ModuleInsecure(),
+				remotehostnameimpl.Module(),
 			)
 		},
 	}

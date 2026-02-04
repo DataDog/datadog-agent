@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/test/e2e-framework
 
-go 1.25.0
+go 1.25.6
 
 require (
 	dario.cat/mergo v1.0.2
@@ -353,6 +353,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/api => ../../pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../pkg/collector/check/defaults
+	github.com/DataDog/datadog-agent/pkg/config/basic => ../../pkg/config/basic
 	github.com/DataDog/datadog-agent/pkg/config/create => ../../pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/helper => ../../pkg/config/helper
