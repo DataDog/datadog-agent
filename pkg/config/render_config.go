@@ -162,11 +162,6 @@ func mkContext(buildType string) context {
 			OS:            runtime.GOOS,
 			SecurityAgent: true,
 		}
-	case "application-monitoring":
-		return context{
-			OS:                    runtime.GOOS,
-			ApplicationMonitoring: true,
-		}
 	}
 
 	return context{}
