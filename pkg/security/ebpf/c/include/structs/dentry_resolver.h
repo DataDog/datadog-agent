@@ -20,6 +20,11 @@ struct path_leaf_t {
     u16 len;
 };
 
+struct pid_path_key_t {
+    u32 pid;
+    struct path_key_t path_key;
+};
+
 struct dr_erpc_state_t {
     char *userspace_buffer;
     struct path_key_t key;
