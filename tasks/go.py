@@ -363,9 +363,7 @@ def go_fix(ctx, fix=None):
 def get_deps(ctx, path):
     with ctx.cd(path):
         # Might fail if no mod tidy
-        deps: list[str] = (
-            ctx.run("go list -buildvcs=false -deps ./...", hide=True, warn=True).stdout.strip().splitlines()
-        )
+        deps: list[str] = ctx.run("go list -deps ./...", hide=True, warn=True).stdout.strip().splitlines()
         prefix = 'github.com/DataDog/datadog-agent/'
         deps = [
             dep.removeprefix(prefix)

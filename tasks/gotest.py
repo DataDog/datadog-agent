@@ -695,7 +695,7 @@ def create_dependencies(ctx, build_tags=None):
         for module in batch_modules:
             with ctx.cd(module):
                 cmd = (
-                    'go list -buildvcs=false '
+                    'go list '
                     + f'-tags "{" ".join(build_tags)}" '
                     + '-f "{{.ImportPath}} {{.Imports}} {{.TestImports}}" ./...'
                 )
@@ -807,7 +807,7 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
     for module in modules_to_test:
         with ctx.cd(module):
             res = ctx.run(
-                f'go list -buildvcs=false -tags "{" ".join(build_tags)}" {" ".join([normpath(os.path.join("github.com/DataDog/datadog-agent", module, target)) for target in modules_to_test[module].test_targets])}',
+                f'go list -tags "{" ".join(build_tags)}" {" ".join([normpath(os.path.join("github.com/DataDog/datadog-agent", module, target)) for target in modules_to_test[module].test_targets])}',
                 hide=True,
                 warn=True,
             )
