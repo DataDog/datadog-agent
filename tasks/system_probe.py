@@ -1946,6 +1946,7 @@ def _test_docker_image_list():
 
     docker_compose_paths = glob.glob("./pkg/network/protocols/**/*/docker-compose.yml", recursive=True)
     docker_compose_paths.extend(glob.glob("./pkg/network/usm/**/*/docker-compose.yml", recursive=True))
+    docker_compose_paths.append("./pkg/network/protocols/tls/nodejs/testdata/docker-compose-ubuntu.yml")
     # Add relative docker-compose paths
     # For example:
     #   docker_compose_paths.append("./pkg/network/protocols/dockers/testdata/docker-compose.yml")

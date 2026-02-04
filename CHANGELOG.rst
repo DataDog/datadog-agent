@@ -2,6 +2,36 @@
 Release Notes
 =============
 
+.. _Release Notes_7.75.2:
+
+7.75.2
+======
+
+.. _Release Notes_7.75.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-02-04
+
+- Please refer to the `7.75.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7752>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.75.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Disable the SNMP device scan by default.
+
+- Fixes a regression introduced in version 7.75 that caused Workload Protection 
+  File Integrity Monitoring to be disabled by default when installing the Datadog Agent via the Helm chart.
+
+- Fixes a bug introduced in Agent v7.74 where unresolved SSH sessions could cause Workload Protection events to be delayed for several minutes, potentially blocking the delivery of other Workload Protection events.
+
+- GPU: fix metric type for gpu.nvlink.*, gpu.pci.replay_counter and gpu.remapped_rows.* metric that were reported as counters instead of gauges
+
+
 .. _Release Notes_7.75.1:
 
 7.75.1
@@ -33,6 +63,9 @@ Bug Fixes
 - GPU: fix an issue where containerd image creation could be blocked sporadically when advanced eBPF metrics are enabled
 
 - Change the Log Agent default TCP port for datadoghq.eu from the incorrect value of 10516 to the correct 443.
+
+- Resolves an issue where NetFlow metrics are submitted every 10 seconds, instead of aggregating
+  for the full interval per Source/Destination pair.
 
 
 .. _Release Notes_7.75.0:
