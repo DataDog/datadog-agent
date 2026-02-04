@@ -90,7 +90,7 @@ type podTimingState struct {
 	labels        map[string]string
 	scheduledTime float64
 	readyTime     float64
-	locked        bool
+	hasRestarts   bool // true if any container in the pod has restarts > 0
 }
 
 // podTimeToReadyCorrelator correlates pod scheduled and ready times
@@ -107,6 +107,12 @@ type podScheduledTimeAggregator struct {
 // podReadyTimeAggregator accumulates kube_pod_status_ready_time metrics
 // and emits the computed time_to_ready metric
 type podReadyTimeAggregator struct {
+	correlator *podTimeToReadyCorrelator
+}
+
+// podContainerRestartsAggregator accumulates kube_pod_container_status_restarts_total metrics
+// to track whether any container in a pod has restarted
+type podContainerRestartsAggregator struct {
 	correlator *podTimeToReadyCorrelator
 }
 
@@ -320,15 +326,34 @@ func (a *podReadyTimeAggregator) accumulate(metric ksmstore.DDMetric) {
 		}
 		a.correlator.correlator[podID] = state
 	}
+	state.readyTime = metric.Val
+}
 
-	// Once a pod has become ready, lock the state to prevent
-	// container restarts from updating the ready time.
-	// This ensures we capture the initial time-to-ready.
-	if state.locked {
+func (a *podContainerRestartsAggregator) accumulate(metric ksmstore.DDMetric) {
+	// If any container has restarts > 0, mark the pod as having restarts
+	if metric.Val <= 0 {
 		return
 	}
-	state.locked = true
-	state.readyTime = metric.Val
+
+	namespace, found := metric.Labels["namespace"]
+	if !found {
+		return
+	}
+
+	pod, found := metric.Labels["pod"]
+	if !found {
+		return
+	}
+
+	podID := podIdentifier{namespace: namespace, pod: pod}
+	state, exists := a.correlator.correlator[podID]
+	if !exists {
+		state = &podTimingState{
+			labels: make(map[string]string),
+		}
+		a.correlator.correlator[podID] = state
+	}
+	state.hasRestarts = true
 }
 
 func (a *counterAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
@@ -403,8 +428,13 @@ func (a *podScheduledTimeAggregator) flush(_ sender.Sender, _ *KSMCheck, _ *labe
 func (a *podReadyTimeAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
 	for _, state := range a.correlator.correlator {
 		// Only emit metrics for pods that have both scheduled and ready times
-		// and have been locked (meaning ready time has been captured)
-		if !state.locked || state.scheduledTime == 0 {
+		if state.scheduledTime == 0 || state.readyTime == 0 {
+			continue
+		}
+
+		// Skip pods with container restarts - we cannot accurately compute
+		// the initial time-to-ready if the agent started after restarts occurred
+		if state.hasRestarts {
 			continue
 		}
 
@@ -421,6 +451,10 @@ func (a *podReadyTimeAggregator) flush(sender sender.Sender, k *KSMCheck, labelJ
 
 	// Reset the correlator for the next check run
 	a.correlator.correlator = make(map[podIdentifier]*podTimingState)
+}
+
+func (a *podContainerRestartsAggregator) flush(_ sender.Sender, _ *KSMCheck, _ *labelJoiner) {
+	// No-op: the podReadyTimeAggregator handles flushing
 }
 
 func defaultMetricAggregators() map[string]metricAggregator {
@@ -567,7 +601,8 @@ func defaultMetricAggregators() map[string]metricAggregator {
 			[]string{"namespace", "container", "owner_name", "owner_kind"},
 			[]string{"cpu", "memory", "gpu", "mig"},
 		),
-		"kube_pod_status_scheduled_time": &podScheduledTimeAggregator{correlator: podTimeToReadyCorrelator},
-		"kube_pod_status_ready_time":     &podReadyTimeAggregator{correlator: podTimeToReadyCorrelator},
+		"kube_pod_status_scheduled_time":           &podScheduledTimeAggregator{correlator: podTimeToReadyCorrelator},
+		"kube_pod_status_ready_time":               &podReadyTimeAggregator{correlator: podTimeToReadyCorrelator},
+		"kube_pod_container_status_restarts_total": &podContainerRestartsAggregator{correlator: podTimeToReadyCorrelator},
 	}
 }
