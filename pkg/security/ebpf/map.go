@@ -166,6 +166,8 @@ var (
 	BufferSelectorApproverMonitorKey = Uint32MapItem(3)
 	// BufferSelectorDNSResponseFilteredMonitorKey is the key used to select the filtered DNS responses
 	BufferSelectorDNSResponseFilteredMonitorKey = Uint32MapItem(4)
+	// BufferSelectorADSampleMonitorKey is the key used to select the active activity dump sample monitor buffer key
+	BufferSelectorADSampleMonitorKey = Uint32MapItem(5)
 	// BoolFalseMapItem is the value used to set the map entry to false
 	BoolFalseMapItem = Uint8MapItem(0)
 	// BoolTrueMapItem is the value used to set the map entry to true
