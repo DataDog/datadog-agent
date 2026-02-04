@@ -27,6 +27,8 @@ dependency 'jmxfetch'
 # Used for memory profiling with the `status py` agent subcommand
 dependency 'pympler'
 
+dependency 'onnxruntime' if linux_target? || osx_target? || windows_target?
+
 dependency "systemd" if linux_target?
 
 if linux_target? and !heroku_target? # system-probe dependency

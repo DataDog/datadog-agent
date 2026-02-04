@@ -1,6 +1,10 @@
 import os
 import platform
+import re
+import shutil
 import sys
+import tarfile
+import tempfile
 import zipfile
 from pathlib import Path
 
@@ -144,3 +148,129 @@ def install_devcontainer_cli(ctx):
     Install the devcontainer CLI
     """
     ctx.run("npm install -g @devcontainers/cli")
+
+
+# TODO: Test this
+def _extract_onnxruntime_zip(archive_file, temp_dir, destination):
+    """Extract onnxruntime from a zip file (Windows)."""
+    with zipfile.ZipFile(archive_file, "r") as zip_ref:
+        for member in zip_ref.namelist():
+            if member.startswith("lib/") and member.endswith(".dll"):
+                # DLLs go to bin on Windows
+                bin_dir = os.path.join(destination, "bin")
+                os.makedirs(bin_dir, exist_ok=True)
+                zip_ref.extract(member, temp_dir)
+                src = os.path.join(temp_dir, member)
+                dst = os.path.join(bin_dir, os.path.basename(member))
+                if os.path.exists(src):
+                    shutil.move(src, dst)
+            elif member.startswith("lib/") and member.endswith(".lib"):
+                # .lib files go to lib
+                zip_ref.extract(member, destination)
+            elif member.startswith("include/onnxruntime/"):
+                zip_ref.extract(member, destination)
+
+
+def _extract_onnxruntime_tgz(archive_file, tmp_dir, destination):
+    """Extract onnxruntime from a tgz file (Linux/macOS)."""
+    re_lib = re.compile(r"^.*/lib/(.*(\.so|\.dylib)(\.\d+)?)$")
+    re_include = re.compile(r"^.*/include/(.*\.h)$")
+    to_move_files = []
+    with tarfile.open(archive_file, "r:gz") as tar_ref:
+        for member in tar_ref.getmembers():
+            if match := re_lib.match(member.name):
+                tar_ref.extract(member, tmp_dir)
+                to_move_files.append((tmp_dir + '/' + member.name, destination + '/lib/' + match.group(1)))
+            elif match := re_include.match(member.name):
+                tar_ref.extract(member, tmp_dir)
+                to_move_files.append((tmp_dir + '/' + member.name, destination + '/include/' + match.group(1)))
+
+    for src, dst in to_move_files:
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        if not os.path.exists(dst):
+            shutil.move(src, dst)
+
+
+# TODO A: Dev is cleaned when we agent.clean, do it in .cache/onnxruntime?
+@task
+def install_onnxruntime(ctx, version="1.23.2", destination=None):
+    """
+    Installs the requested version of onnxruntime in the dev directory.
+    Required for building the agent with onnxruntime support in non-omnibus builds.
+    """
+    from tasks.libs.common.utils import get_repo_root
+
+    if version is None:
+        version = "1.23.2"
+
+    # Determine platform
+    if sys.platform == 'win32':
+        platform_os = "win"
+        platform_arch = "x64" if platform.machine().lower() in {"amd64", "x86_64"} else "x86"
+        file_ext = ".zip"
+    elif sys.platform.startswith('darwin'):
+        platform_os = "osx"
+        platform_arch = "arm64" if platform.machine().lower() in {"arm64", "aarch64"} else "x64"
+        file_ext = ".tgz"
+    elif sys.platform.startswith('linux'):
+        platform_os = "linux"
+        platform_arch = "aarch64" if platform.machine().lower() in {"aarch64", "arm64"} else "x64"
+        file_ext = ".tgz"
+    else:
+        print(f"Unsupported platform: {sys.platform}")
+        raise Exit(code=1)
+
+    # Determine destination (dev directory in repo root)
+    if destination is None:
+        repo_root = get_repo_root()
+        destination = os.path.join(repo_root, "dev")
+    else:
+        destination = os.path.abspath(destination)
+
+    # Create destination directories
+    lib_dir = os.path.join(destination, "lib")
+    include_dir = os.path.join(destination, "include", "onnxruntime")
+    os.makedirs(lib_dir, exist_ok=True)
+    os.makedirs(include_dir, exist_ok=True)
+
+    # Download URL
+    artifact_url = f"https://github.com/microsoft/onnxruntime/releases/download/v{version}/onnxruntime-{platform_os}-{platform_arch}-{version}{file_ext}"
+
+    print(color_message(f"Downloading onnxruntime {version} for {platform_os}-{platform_arch}...", Color.BLUE))
+    print(color_message(f"URL: {artifact_url}", Color.BLUE))
+
+    # Download the artifact
+    temp_dir = tempfile.mkdtemp()
+    archive_file = os.path.join(temp_dir, f"onnxruntime{file_ext}")
+    try:
+        # Download the file
+        if file_ext == ".zip":
+            gh = GithubAPI(public_repo=True)
+            gh.download_from_url(artifact_url, temp_dir, "onnxruntime")
+            # GithubAPI might download with a different name, find the zip file
+            zip_files = [f for f in os.listdir(temp_dir) if f.endswith('.zip')]
+            if zip_files:
+                archive_file = os.path.join(temp_dir, zip_files[0])
+            else:
+                archive_file = os.path.join(temp_dir, "onnxruntime.zip")
+        else:
+            # Download .tgz files using requests
+            import requests
+            response = requests.get(artifact_url, stream=True, timeout=10)
+            response.raise_for_status()
+            with open(archive_file, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+
+        print(color_message(f"Extracting onnxruntime to {destination}...", Color.BLUE))
+
+        # Extract files
+        if file_ext == ".zip":
+            _extract_onnxruntime_zip(archive_file, temp_dir, destination)
+        else:
+            _extract_onnxruntime_tgz(archive_file, temp_dir, destination)
+
+        print(color_message(f"onnxruntime {version} installed successfully to {destination}", Color.GREEN))
+    finally:
+        # Cleanup
+        shutil.rmtree(temp_dir, ignore_errors=True)

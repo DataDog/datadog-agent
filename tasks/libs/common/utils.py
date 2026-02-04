@@ -248,14 +248,33 @@ def get_build_flags(
     if sys.platform.startswith('linux') and install_path:
         ldflags += f"-X {REPO_PATH}/pkg/config/setup.InstallPath={install_path} "
 
-    # C++ library paths
-    # TODO: Add some flags for std c++ 17
-    onnxruntime_path = os.path.expanduser('~/Documents/onnxruntime/onnxruntime-osx-arm64-1.23.2')
-    # g++ -I$D/include -L$D/lib -lonnxruntime -Wl,-rpath,$D/lib main.cpp
-    # TODO: -lstdc++ on linux
-    env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + f" -L{onnxruntime_path}/lib -lonnxruntime -Wl,-rpath,{onnxruntime_path}/lib -lc++"
-    ldflags += f" -L{onnxruntime_path}/lib -lonnxruntime -Wl,-rpath,{onnxruntime_path}/lib"
-    env['CGO_CXXFLAGS'] = os.environ.get('CGO_CXXFLAGS', '') + f" -I{onnxruntime_path}/include -std=c++17"
+    # # C++ library paths
+    # # TODO: Add some flags for std c++ 17
+    # onnxruntime_path = os.path.expanduser('~/Documents/onnxruntime/onnxruntime-osx-arm64-1.23.2')
+    # # g++ -I$D/include -L$D/lib -lonnxruntime -Wl,-rpath,$D/lib main.cpp
+    # # TODO: -lstdc++ on linux
+    # env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + f" -L{onnxruntime_path}/lib -lonnxruntime -Wl,-rpath,{onnxruntime_path}/lib -lc++"
+    # extldflags += f" -L{onnxruntime_path}/lib -lonnxruntime -Wl,-rpath,{onnxruntime_path}/lib"
+    # env['CGO_CXXFLAGS'] = os.environ.get('CGO_CXXFLAGS', '') + f" -I{onnxruntime_path}/include -std=c++17"
+
+    # C++ library paths for onnxruntime
+    # Use embedded path for onnxruntime libraries and headers
+    onnxruntime_lib_path = f"{embedded_path}/lib"
+    onnxruntime_include_path = f"{embedded_path}/include/onnxruntime"
+
+    if sys.platform == 'win32':
+        # Windows: DLLs are in bin, import libs in lib
+        onnxruntime_lib_path = f"{embedded_path}/lib"
+        env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + f" -L{onnxruntime_lib_path} -lonnxruntime"
+        extldflags += f" -L{onnxruntime_lib_path} -lonnxruntime"
+    else:
+        # Linux and macOS: libraries in lib, use rpath
+        env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + f" -L{onnxruntime_lib_path} -lonnxruntime -Wl,-rpath,{onnxruntime_lib_path}"
+        if sys.platform.startswith('darwin'):
+            env['CGO_LDFLAGS'] += " -lc++"
+        extldflags += f" -L{onnxruntime_lib_path} -lonnxruntime -Wl,-rpath,{onnxruntime_lib_path}"
+
+    env['CGO_CXXFLAGS'] = os.environ.get('CGO_CXXFLAGS', '') + f" -I{onnxruntime_include_path} -std=c++17"
 
     # setting the run path
     if sys.platform.startswith('linux') and run_path:
