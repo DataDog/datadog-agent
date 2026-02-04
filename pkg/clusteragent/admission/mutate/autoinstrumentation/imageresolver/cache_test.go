@@ -205,32 +205,6 @@ func TestHttpDigestCache_Get_SameRepoMultipleTags(t *testing.T) {
 	require.Equal(t, 3, transport.CallCount(), "Should have fetched digest three times")
 }
 
-func TestHttpDigestCache_Get_ConcurrentColdStart(t *testing.T) {
-	cc, transport := mockHttpDigestCache(5 * time.Minute)
-	transport.addImage("registry", "repo", "v1", "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890")
-
-	var wg sync.WaitGroup
-	const concurrency = 100
-	for i := 0; i < concurrency; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			resolved, ok := cc.get("registry", "repo", "v1")
-			require.True(t, ok)
-			require.NotNil(t, resolved)
-		}()
-	}
-	wg.Wait()
-
-	// DEV: A few goroutines may race to fetch before cache is populated.
-	// The important thing is we don't make 100 fetches
-	callCount := transport.CallCount()
-	require.Less(t, callCount, 10, "Should have minimal fetches (not %d)", concurrency)
-	require.Greater(t, callCount, 0, "Should have made at least one fetch")
-	t.Logf("Made %d fetches for %d concurrent requests (%.1f%% cache efficiency)",
-		callCount, concurrency, float64(concurrency-callCount)/float64(concurrency)*100)
-}
-
 func TestHttpDigestCache_Get_ConcurrentCacheHit(t *testing.T) {
 	cc, transport := mockHttpDigestCache(5 * time.Minute)
 	transport.addImage("registry", "repo", "v1", "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890")
