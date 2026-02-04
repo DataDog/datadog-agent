@@ -78,7 +78,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 // runPrivateActionRunner creates the private action runner app and registers lifecycle hooks
-func runPrivateActionRunner(lc fx.Lifecycle, log log.Component, config config.Component, rcClient rcclient.Component) error {
+func runPrivateActionRunner(lc fx.Lifecycle, config config.Component, rcClient rcclient.Component) error {
 	app, err := parapp.NewApp(config, pkgrcclient.NewAdapter(rcClient))
 	if err != nil {
 		return err
