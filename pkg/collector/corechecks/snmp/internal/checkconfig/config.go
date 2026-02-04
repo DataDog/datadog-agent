@@ -206,6 +206,8 @@ type CheckConfig struct {
 
 	PingEnabled bool
 	PingConfig  pinger.Config
+
+	UseUnconnectedUDPSocket bool
 }
 
 // UpdateDeviceIDAndTags updates DeviceID and DeviceIDTags
@@ -649,6 +651,8 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.PingConfig.Timeout = c.PingConfig.Timeout
 	newConfig.PingConfig.Count = c.PingConfig.Count
 	newConfig.PingConfig.UseRawSocket = c.PingConfig.UseRawSocket
+
+	newConfig.UseUnconnectedUDPSocket = c.UseUnconnectedUDPSocket
 
 	return &newConfig
 }
