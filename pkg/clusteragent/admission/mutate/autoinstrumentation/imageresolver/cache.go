@@ -60,7 +60,6 @@ func (c *httpDigestCache) store(registry, repository, tag, digest string) *Resol
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// DEV: Check if another goroutine has already cached this
 			}
 		}
 	}
