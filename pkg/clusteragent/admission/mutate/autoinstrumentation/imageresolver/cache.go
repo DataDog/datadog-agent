@@ -37,7 +37,8 @@ func (c *httpDigestCache) get(registry string, repository string, tag string) (*
 		return nil, false
 	}
 
-	return c.store(registry, repository, tag, digest), true
+	resolved := c.store(registry, repository, tag, digest)
+	return resolved, resolved != nil
 }
 
 func (c *httpDigestCache) checkCache(registry, repository, tag string) *ResolvedImage {
@@ -62,13 +63,11 @@ func (c *httpDigestCache) store(registry, repository, tag, digest string) *Resol
 
 	registryCache, exists := c.cache[registry]
 	if !exists {
-		registryCache = make(repositoryCache)
-		c.cache[registry] = registryCache
+		return nil
 	}
-	repositoryCache, exists := registryCache[repository]
+	_, exists = registryCache[repository]
 	if !exists {
-		repositoryCache = make(tagCache)
-		registryCache[repository] = repositoryCache
+		registryCache[repository] = make(tagCache)
 	}
 
 	resolved := &ResolvedImage{
@@ -89,7 +88,7 @@ func newHTTPDigestCache(ttl time.Duration, ddRegistries map[string]struct{}) *ht
 	}
 
 	return &httpDigestCache{
-		cache:   cache,
+		cache:   make(registryCache),
 		ttl:     ttl,
 		fetcher: newHTTPDigestFetcher(),
 	}
