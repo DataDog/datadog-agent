@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Logs agent now validates the ``encoding`` field in log source configuration.
+    Invalid values like ``utf8`` or ``ascii`` are now rejected at startup with
+    a clear error message instead of being silently treated as UTF-8. Valid
+    options are: ``utf-16-be``, ``utf-16-le``, ``shift-jis``, or empty for UTF-8.
