@@ -45,8 +45,11 @@ var (
 	// BytesSent is the total number of sent bytes before encoding if any
 	BytesSent = expvar.Int{}
 	// TlmBytesSent is the total number of sent bytes before encoding if any
+	// The remote_agent tag identifies which agent sent the logs. Use GetAgentIdentityTag()
+	// to get the correct value for the current agent. This tag is used by COAT to partition
+	// log bytes by agent type.
 	TlmBytesSent = telemetry.NewCounter("logs", "bytes_sent",
-		[]string{"source"}, "Total number of bytes sent before encoding if any")
+		[]string{"remote_agent", "source"}, "Total number of bytes sent before encoding if any")
 	// RetryCount is the total number of times we have retried payloads that failed to send
 	RetryCount = expvar.Int{}
 	// TlmRetryCount is the total number of times we have retried payloads that failed to send
