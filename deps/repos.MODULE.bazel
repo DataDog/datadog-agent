@@ -22,7 +22,10 @@ http_file(
     name = "sqlite3_license",
     downloaded_file_path = "LICENSE.md",
     sha256 = "a7a58d6022c090c528e3167026167b3141d682efc6a3c188b473ba59f1788fc7",
-    url = "https://raw.githubusercontent.com/sqlite/sqlite/version-{}/LICENSE.md".format(".".join([v.lstrip("0") for v in sqlite_ver])),
+    urls = [url.format(".".join([v.lstrip("0") for v in sqlite_ver])) for url in (
+        "https://cdn.jsdelivr.net/gh/sqlite/sqlite@version-{}/LICENSE.md",
+        "https://raw.githubusercontent.com/sqlite/sqlite/version-{}/LICENSE.md",
+    )],
 )
 
 http_archive(

@@ -494,8 +494,9 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 		entry.LinuxBinprm.FileEvent.SetBasenameStr("")
 	}
 
-	// add netns
-	entry.NetNS, _ = utils.NetNSPathFromPid(pid).GetProcessNetworkNamespace()
+	// add namespace ids
+	entry.NetNS, _ = utils.NewNSPathFromPid(pid, utils.NetNsType).GetNSID()
+	entry.MntNS, _ = utils.NewNSPathFromPid(pid, utils.MntNsType).GetNSID()
 
 	if p.config.NetworkEnabled {
 		// snapshot pid routes in kernel space
