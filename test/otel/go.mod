@@ -55,22 +55,18 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.76.0-devel // indirect
-	github.com/DataDog/datadog-agent/comp/core/status v0.76.0-devel // indirect
+	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/orchestrator/util v0.0.0-20251120165911-0b75c97e8b50 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.71.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/otel v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/stats v0.71.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.71.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.64.0-devel // indirect
+	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.70.0 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
-	github.com/fatih/color v1.18.0 // indirect
-	github.com/mattn/go-colorable v0.1.14 // indirect
-	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mdlayher/socket v0.5.1 // indirect
 	github.com/mdlayher/vsock v1.2.1 // indirect
 	github.com/pierrec/lz4/v4 v4.1.23 // indirect
@@ -316,6 +312,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/api => ../../pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../pkg/collector/check/defaults
+	github.com/DataDog/datadog-agent/pkg/config/basic => ../../pkg/config/basic
 	github.com/DataDog/datadog-agent/pkg/config/create => ../../pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/helper => ../../pkg/config/helper

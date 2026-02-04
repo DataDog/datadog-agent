@@ -43,6 +43,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.76.0-devel // indirect
+	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.76.0-devel // indirect
@@ -269,6 +270,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../../../../../pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/api => ../../../../../../pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../../../pkg/collector/check/defaults
+	github.com/DataDog/datadog-agent/pkg/config/basic => ../../../../../../pkg/config/basic
 	github.com/DataDog/datadog-agent/pkg/config/create => ../../../../../../pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/helper => ../../../../../../pkg/config/helper

@@ -16,6 +16,7 @@ import (
 	psutil "github.com/shirou/gopsutil/v4/process"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
+	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
@@ -103,14 +104,22 @@ func (p *ProcessKillerLinux) Kill(sig uint32, pc *killContext) error {
 }
 
 func (p *ProcessKillerLinux) getProcesses(scope string, ev *model.Event, entry *model.ProcessCacheEntry) ([]killContext, error) {
-	if scope == "container" && !entry.ContainerContext.IsNull() {
+	if scope == "container" || scope == "cgroup" {
 		pcs := []killContext{}
 
 		// Use the CGroupResolver to get all PIDs of the container
 		if p.cgroupResolver != nil {
-			cacheEntry := p.cgroupResolver.GetCacheEntryContainerID(entry.ContainerContext.ContainerID)
-			if cacheEntry == nil {
-				return pcs, errors.New("container not found")
+			var cacheEntry *cgroupModel.CacheEntry
+			if !entry.ContainerContext.IsNull() {
+				cacheEntry = p.cgroupResolver.GetCacheEntryContainerID(entry.ContainerContext.ContainerID)
+				if cacheEntry == nil {
+					return pcs, errors.New("container not found")
+				}
+			} else {
+				cacheEntry = p.cgroupResolver.GetCacheEntryByCgroupID(entry.CGroup.CGroupID)
+				if cacheEntry == nil {
+					return pcs, errors.New("cgroup not found")
+				}
 			}
 
 			for _, pid := range cacheEntry.GetPIDs() {

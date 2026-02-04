@@ -646,7 +646,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// language annotation cleanup period
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.cleanup.period", "10m")
 
-	// AppSec Injector in the cluster agent ( Experimental )
+	// AppSec Injector in the cluster agent ( Preview )
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.enabled", false)
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.base_backoff", "5m")
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.max_backoff", "1h")
@@ -655,6 +655,18 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.processor.service.name", "")
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.processor.service.namespace", "")
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.istio.namespace", "istio-system")
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.mode", "sidecar")
+
+	// Processor mode and sidecar configuration
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.image", "ghcr.io/datadog/dd-trace-go/service-extensions-callout")
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.image_tag", "latest")
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.port", 8080)
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.health_port", 8081)
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.resources.requests.cpu", "10m")
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.resources.requests.memory", "128Mi")
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.resources.limits.cpu", "")
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.resources.limits.memory", "")
+	config.BindEnvAndSetDefault("admission_controller.appsec.sidecar.body_parsing_size_limit", "")
 
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.enabled", false)
 	// list of kubernetes resources for which we collect metadata
@@ -1020,6 +1032,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_flush_interval", 20*time.Second)
 	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_resources.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_pods.enabled", true)
+	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_pods_improved.enabled", false)
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.ootb.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.kubelet_config_check.enabled", true, "DD_ORCHESTRATOR_EXPLORER_KUBELET_CONFIG_CHECK_ENABLED")
 
