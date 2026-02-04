@@ -83,7 +83,7 @@ func newHTTPDigestCache(ttl time.Duration, ddRegistries map[string]struct{}) *ht
 	}
 
 	return &httpDigestCache{
-		cache:   make(registryCache),
+		cache:   cache,
 		ttl:     ttl,
 		fetcher: newHTTPDigestFetcher(),
 	}
