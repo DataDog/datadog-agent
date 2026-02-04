@@ -8,33 +8,27 @@ package autoconnections
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// getBundleKeyForDefinition returns the bundle key for a given definition
-// TODO: Used for metric tagging
-func getBundleKeyForDefinition(def ConnectionDefinition) string {
-	for key, definition := range supportedConnections {
-		if definition.BundleID == def.BundleID {
-			return key
-		}
-	}
-	return "unknown"
+type ConnectionsCreator struct {
+	client ConnectionsClient
+}
+
+func NewConnectionsCreator(client ConnectionsClient) ConnectionsCreator {
+	return ConnectionsCreator{client}
 }
 
 type AutoCreateConnectionsInput struct {
-	cfg        model.Reader
 	ddSite     string
 	runnerID   string
 	runnerName string
 	apiKey     string
 	appKey     string
 	allowlist  []string
-	client     *ConnectionsClient
 }
 
-func AutoCreateConnections(ctx context.Context, input AutoCreateConnectionsInput) error {
+func (c ConnectionsCreator) AutoCreateConnections(ctx context.Context, input AutoCreateConnectionsInput) error {
 	definitions := DetermineConnectionsToCreate(input.allowlist)
 	if len(definitions) == 0 {
 		log.Info("No bundles in allowlist for auto-connection creation")
@@ -42,7 +36,7 @@ func AutoCreateConnections(ctx context.Context, input AutoCreateConnectionsInput
 	}
 
 	for _, definition := range definitions {
-		err := input.client.CreateConnection(ctx, definition, input.runnerID, input.runnerName)
+		err := c.client.CreateConnection(ctx, definition, input.runnerID, input.runnerName)
 		if err != nil {
 			log.Warnf("Failed to create %s connection: %v", definition.IntegrationType, err)
 		} else {

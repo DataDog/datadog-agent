@@ -13,7 +13,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -146,32 +145,6 @@ func TestCreateConnection_StatusCodeHandling(t *testing.T) {
 	}
 }
 
-func TestGetBundleKeyForDefinition(t *testing.T) {
-	// Test with known definition
-	httpDef := ConnectionDefinition{
-		BundleID:        "com.datadoghq.http",
-		IntegrationType: "HTTP",
-		Credentials: CredentialConfig{
-			Type: "HTTPNoAuth",
-		},
-	}
-
-	key := getBundleKeyForDefinition(httpDef)
-	assert.Equal(t, "http", key, "Should return correct bundle key for HTTP")
-
-	// Test with unknown definition
-	unknownDef := ConnectionDefinition{
-		BundleID:        "com.datadoghq.unknown",
-		IntegrationType: "Unknown",
-		Credentials: CredentialConfig{
-			Type: "Unknown",
-		},
-	}
-
-	key = getBundleKeyForDefinition(unknownDef)
-	assert.Equal(t, "unknown", key, "Should return 'unknown' for unrecognized bundle")
-}
-
 func TestAutoCreateConnections_AllBundlesSuccess(t *testing.T) {
 	createdConnections := []string{}
 
@@ -185,7 +158,6 @@ func TestAutoCreateConnections_AllBundlesSuccess(t *testing.T) {
 	}))
 	defer server.Close()
 
-	cfg := mock.New(t)
 	allowlist := []string{"com.datadoghq.http.*", "com.datadoghq.kubernetes.*", "com.datadoghq.script"}
 
 	// Use server's client which is pre-configured for TLS
@@ -196,18 +168,18 @@ func TestAutoCreateConnections_AllBundlesSuccess(t *testing.T) {
 		appKey:     "test-app-key",
 	}
 
+	creator := NewConnectionsCreator(*testClient)
+
 	input := AutoCreateConnectionsInput{
-		cfg:        cfg,
 		ddSite:     "datadoghq.com",
 		runnerID:   "144500f1-474a-4856-aa0a-6fd22e005893",
 		runnerName: "runner-abc123",
 		apiKey:     "test-api-key",
 		appKey:     "test-app-key",
 		allowlist:  allowlist,
-		client:     testClient,
 	}
 
-	err := AutoCreateConnections(context.Background(), input)
+	err := creator.AutoCreateConnections(context.Background(), input)
 
 	require.NoError(t, err, "AutoCreateConnections should return nil")
 	assert.Len(t, createdConnections, 3, "Should create 3 connections")
@@ -239,7 +211,6 @@ func TestAutoCreateConnections_PartialFailures(t *testing.T) {
 	}))
 	defer server.Close()
 
-	cfg := mock.New(t)
 	allowlist := []string{"com.datadoghq.http.*", "com.datadoghq.kubernetes.*", "com.datadoghq.script"}
 
 	// Use server's client which is pre-configured for TLS
@@ -250,18 +221,18 @@ func TestAutoCreateConnections_PartialFailures(t *testing.T) {
 		appKey:     "test-app-key",
 	}
 
+	creator := NewConnectionsCreator(*testClient)
+
 	input := AutoCreateConnectionsInput{
-		cfg:        cfg,
 		ddSite:     "datadoghq.com",
 		runnerID:   "144500f1-474a-4856-aa0a-6fd22e005893",
 		runnerName: "runner-abc123",
 		apiKey:     "test-api-key",
 		appKey:     "test-app-key",
 		allowlist:  allowlist,
-		client:     testClient,
 	}
 
-	err := AutoCreateConnections(context.Background(), input)
+	err := creator.AutoCreateConnections(context.Background(), input)
 
 	// Should return nil even with failures (non-blocking)
 	require.NoError(t, err, "AutoCreateConnections should not propagate errors")
@@ -279,7 +250,6 @@ func TestAutoCreateConnections_NoRelevantBundles(t *testing.T) {
 	}))
 	defer server.Close()
 
-	cfg := mock.New(t)
 	allowlist := []string{"com.datadoghq.gitlab.*"} // No matching bundles
 
 	// Use server's client which is pre-configured for TLS
@@ -290,18 +260,18 @@ func TestAutoCreateConnections_NoRelevantBundles(t *testing.T) {
 		appKey:     "test-app-key",
 	}
 
+	creator := NewConnectionsCreator(*testClient)
+
 	input := AutoCreateConnectionsInput{
-		cfg:        cfg,
 		ddSite:     "datadoghq.com",
 		runnerID:   "144500f1-474a-4856-aa0a-6fd22e005893",
 		runnerName: "runner-abc123",
 		apiKey:     "test-api-key",
 		appKey:     "test-app-key",
 		allowlist:  allowlist,
-		client:     testClient,
 	}
 
-	err := AutoCreateConnections(context.Background(), input)
+	err := creator.AutoCreateConnections(context.Background(), input)
 
 	require.NoError(t, err, "AutoCreateConnections should return nil")
 	assert.Equal(t, 0, requestCount, "Should not make any HTTP requests")
@@ -320,7 +290,6 @@ func TestAutoCreateConnections_PartialAllowlist(t *testing.T) {
 	}))
 	defer server.Close()
 
-	cfg := mock.New(t)
 	allowlist := []string{"com.datadoghq.http.*", "com.datadoghq.script"} // Only HTTP and Script
 
 	// Use server's client which is pre-configured for TLS
@@ -331,18 +300,18 @@ func TestAutoCreateConnections_PartialAllowlist(t *testing.T) {
 		appKey:     "test-app-key",
 	}
 
+	creator := NewConnectionsCreator(*testClient)
+
 	input := AutoCreateConnectionsInput{
-		cfg:        cfg,
 		ddSite:     "datadoghq.com",
 		runnerID:   "144500f1-474a-4856-aa0a-6fd22e005893",
 		runnerName: "runner-abc123",
 		apiKey:     "test-api-key",
 		appKey:     "test-app-key",
 		allowlist:  allowlist,
-		client:     testClient,
 	}
 
-	err := AutoCreateConnections(context.Background(), input)
+	err := creator.AutoCreateConnections(context.Background(), input)
 
 	require.NoError(t, err, "AutoCreateConnections should return nil")
 	assert.Len(t, createdConnections, 2, "Should create 2 connections")
