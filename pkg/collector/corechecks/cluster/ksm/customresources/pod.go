@@ -128,6 +128,16 @@ func (f *extendedPodFactory) MetricFamilyGenerators() []generator.FamilyGenerato
 				return f.customResourceOwnerGenerator(p, resourcelimits, Init)
 			}),
 		),
+		*generator.NewFamilyGeneratorWithStability(
+			"kube_pod_time_to_ready",
+			"Time in seconds from pod scheduled to ready.",
+			metric.Gauge,
+			basemetrics.ALPHA,
+			"",
+			wrapPodFunc(func(p *v1.Pod) *metric.Family {
+				return podTimeToReadyGenerator(p)
+			}),
+		),
 	}
 }
 
@@ -264,6 +274,52 @@ func (f *extendedPodFactory) customResourceGenerator(p *v1.Pod, resourceType str
 
 	return &metric.Family{
 		Metrics: ms,
+	}
+}
+
+// podTimeToReadyGenerator generates a metric measuring the time from pod scheduled to ready.
+// This metric is useful for autoscaling decisions and cluster health analysis.
+// Pods are skipped if:
+// - They were never scheduled or never became ready
+// - The time to ready is non-positive (indicates clock skew or invalid data)
+// - Any container has been restarted (indicates the pod experienced issues)
+func podTimeToReadyGenerator(p *v1.Pod) *metric.Family {
+	// Find the PodScheduled and Ready conditions
+	var scheduledTime, readyTime *metav1.Time
+	for i := range p.Status.Conditions {
+		cond := &p.Status.Conditions[i]
+		if cond.Type == v1.PodScheduled && cond.Status == v1.ConditionTrue {
+			scheduledTime = &cond.LastTransitionTime
+		}
+		if cond.Type == v1.PodReady && cond.Status == v1.ConditionTrue {
+			readyTime = &cond.LastTransitionTime
+		}
+	}
+
+	// Skip if pod never became ready or was never scheduled
+	if readyTime == nil || scheduledTime == nil {
+		return &metric.Family{Metrics: []*metric.Metric{}}
+	}
+
+	timeToReady := readyTime.Time.Sub(scheduledTime.Time).Seconds()
+
+	// Skip if time is negative or zero (indicates clock skew or invalid data)
+	if timeToReady <= 0 {
+		return &metric.Family{Metrics: []*metric.Metric{}}
+	}
+
+	// Skip if any containers had a restart (indicates the pod experienced issues)
+	for _, c := range p.Status.ContainerStatuses {
+		if c.RestartCount > 0 {
+			return &metric.Family{Metrics: []*metric.Metric{}}
+		}
+	}
+
+	return &metric.Family{
+		Metrics: []*metric.Metric{{
+			Value: timeToReady,
+			// Labels are added by wrapPodFunc
+		}},
 	}
 }
 
