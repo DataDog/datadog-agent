@@ -212,6 +212,14 @@ func (c *BatchConsumer[V]) Stop() {
 	close(c.syncRequest)
 }
 
+// GetTelemetry returns a summary of the consumer's telemetry
+func (c *BatchConsumer[V]) GetTelemetry() string {
+	if c.metricGroup == nil {
+		return "BatchConsumer telemetry not available"
+	}
+	return c.metricGroup.Summary()
+}
+
 func (c *BatchConsumer[V]) process(b *Batch, syncing bool) {
 	cpu := int(b.Cpu)
 
