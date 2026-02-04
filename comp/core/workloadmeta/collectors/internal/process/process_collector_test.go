@@ -325,7 +325,7 @@ func TestProcessLifecycleCollection(t *testing.T) {
 	creationTime3 := time.Now().Add(2 * time.Second).Unix()
 	proc4 := createTestUnknownProcess(pid2, creationTime3)
 
-	// same pid AND same creation time as proc1, but different cmdline (simulates exec)
+	// same pid AND same creation time as proc1, but different cmdline
 	proc1DiffCmdline := createTestJavaProcess(pid1, creationTime1)
 
 	for _, tc := range []struct {
@@ -500,7 +500,6 @@ func TestProcessLifecycleCollection(t *testing.T) {
 					actualProc, exists := mapActualProcs[expectedDeletedProc.Pid]
 
 					// the same process pid can exist so we ensure it is a different process using ProcessIdentity
-					// which compares pid, createTime, and cmdline hash (handles both PID reuse and exec scenarios)
 					if exists {
 						expectedIdentity := procutil.ProcessIdentity(expectedDeletedProc.Pid, expectedDeletedProc.CreationTime.UnixMilli(), expectedDeletedProc.Cmdline)
 						actualIdentity := procutil.ProcessIdentity(actualProc.Pid, actualProc.CreationTime.UnixMilli(), actualProc.Cmdline)
@@ -631,10 +630,9 @@ func TestProcessCollectorIntervalConfig(t *testing.T) {
 	}
 }
 
-// TestProcessExecCmdlineChangeIntegration tests that the full collector flow correctly handles
-// the exec() scenario where a process replaces itself (same PID, same createTime, but different cmdline).
-// This is an integration test that validates the entire collection cycle detects cmdline changes.
-func TestProcessExecCmdlineChangeIntegration(t *testing.T) {
+// TestProcessDifferentCmdline tests that the full collector flow correctly handles
+// different cmdline scenarios (same PID, same createTime, but different cmdline).
+func TestProcessDifferentCmdline(t *testing.T) {
 	collectionInterval := time.Second * 10
 	createTime := time.Now().Unix()
 	pid := int32(1234)
@@ -753,24 +751,30 @@ func TestProcessCacheDifferentCmdline(t *testing.T) {
 	assert.Equal(t, []string{"htop"}, diff[0].Cmdline)
 }
 
-// TestProcessCacheDifferenceNoChangeWhenCmdlineSame tests that processCacheDifference
+// TestProcessCacheSameCmdline tests that processCacheDifference
 // does not report a process as new when the cmdline stays the same.
-func TestProcessCacheDifferenceNoChangeWhenCmdlineSame(t *testing.T) {
+func TestProcessCacheSameCmdline(t *testing.T) {
 	createTime := time.Now().Unix()
 	pid := int32(12345)
 
-	proc := &procutil.Process{
+	procA := &procutil.Process{
+		Pid:     pid,
+		Cmdline: []string{"bash"},
+		Stats:   &procutil.Stats{CreateTime: createTime},
+	}
+
+	procB := &procutil.Process{
 		Pid:     pid,
 		Cmdline: []string{"bash"},
 		Stats:   &procutil.Stats{CreateTime: createTime},
 	}
 
 	cacheA := map[int32]*procutil.Process{
-		pid: proc,
+		pid: procA,
 	}
 
 	cacheB := map[int32]*procutil.Process{
-		pid: proc,
+		pid: procB,
 	}
 
 	diff := processCacheDifference(cacheA, cacheB)

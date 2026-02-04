@@ -306,9 +306,8 @@ func TestLateContainerId(t *testing.T) {
 	}, <-extractor.ProcessCacheDiff())
 }
 
-// TestExecCmdlineChange tests that when a process uses exec() to replace itself with a different
-// executable (same PID, same createTime, but different cmdline), the extractor treats it as a
-// new process and generates creation/deletion events accordingly.
+// TestExecCmdlineChange tests that when a process has a different cmdline but same PID and same createTime
+// the extractor treats it as a new process and generates creation/deletion events accordingly.
 func TestExecCmdlineChange(t *testing.T) {
 	fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule()).Reset()
 
@@ -316,16 +315,21 @@ func TestExecCmdlineChange(t *testing.T) {
 
 	// Create a process with a specific createTime
 	createTime := time.Now().Unix()
-	proc1 := &procutil.Process{
+	// Use different NsPid values to differentiate bash vs htop in assertions
+	// (In reality exec() preserves NsPid, but this helps verify correct events)
+	bashNsPid := int32(100)
+	htopNsPid := int32(200)
+
+	proc1Bash := &procutil.Process{
 		Pid:     Pid1,
-		NsPid:   1,
+		NsPid:   bashNsPid,
 		Cmdline: []string{"bash"},
 		Stats:   &procutil.Stats{CreateTime: createTime},
 	}
 
 	// First extraction: bash process
 	extractor.Extract(map[int32]*procutil.Process{
-		Pid1: proc1,
+		Pid1: proc1Bash,
 	})
 
 	procs, cacheVersion := extractor.GetAllProcessEntities()
@@ -335,19 +339,19 @@ func TestExecCmdlineChange(t *testing.T) {
 	diff := <-extractor.ProcessCacheDiff()
 	assert.Equal(t, int32(1), diff.cacheVersion)
 	assert.Len(t, diff.Creation, 1)
-	assert.Equal(t, proc1.Pid, diff.Creation[0].Pid)
+	assert.Equal(t, proc1Bash.Pid, diff.Creation[0].Pid)
+	assert.Equal(t, bashNsPid, diff.Creation[0].NsPid)
 	assert.Len(t, diff.Deletion, 0)
 
-	// Simulate exec: same PID and createTime but different cmdline (bash -> htop)
-	proc1Exec := &procutil.Process{
+	proc1htop := &procutil.Process{
 		Pid:     Pid1,
-		NsPid:   1,
+		NsPid:   htopNsPid,
 		Cmdline: []string{"htop"},
 		Stats:   &procutil.Stats{CreateTime: createTime}, // Same createTime as before!
 	}
 
 	extractor.Extract(map[int32]*procutil.Process{
-		Pid1: proc1Exec,
+		Pid1: proc1htop,
 	})
 
 	procs, cacheVersion = extractor.GetAllProcessEntities()
@@ -357,14 +361,13 @@ func TestExecCmdlineChange(t *testing.T) {
 	diff = <-extractor.ProcessCacheDiff()
 	assert.Equal(t, int32(2), diff.cacheVersion)
 
-	// The exec should generate a creation event for the new process (htop)
-	// and a deletion event for the old process (bash)
+	// We should generate a creation event for the new process (htop)
 	assert.Len(t, diff.Creation, 1, "Expected creation event for exec'd process")
-	assert.Len(t, diff.Deletion, 1, "Expected deletion event for original process")
-
-	// Verify the creation is for the new cmdline
 	assert.Equal(t, int32(Pid1), diff.Creation[0].Pid)
+	assert.Equal(t, htopNsPid, diff.Creation[0].NsPid, "Creation event should be for htop process")
 
-	// Verify the deletion is for the old cmdline
+	// We should generate a deletion event for the old process (bash)
+	assert.Len(t, diff.Deletion, 1, "Expected deletion event for original process")
 	assert.Equal(t, int32(Pid1), diff.Deletion[0].Pid)
+	assert.Equal(t, bashNsPid, diff.Deletion[0].NsPid, "Deletion event should be for bash process")
 }
