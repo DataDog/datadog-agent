@@ -61,12 +61,6 @@ func (c *httpDigestCache) store(registry, repository, tag, digest string) *Resol
 	defer c.mu.Unlock()
 
 	// DEV: Check if another goroutine has already cached this
-	if repos, exists := c.cache[registry]; exists {
-		if tags, exists := repos[repository]; exists {
-			if entry, exists := tags[tag]; exists {
-				if time.Since(entry.whenCached) < c.ttl {
-					return entry.resolvedImage
-				}
 			}
 		}
 	}
