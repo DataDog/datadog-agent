@@ -114,7 +114,7 @@ func (t *DockerPermissionIssue) buildWindows(dockerDir string) *healthplatform.R
 		Summary: "Grant read access to Docker log files for the ddagentuser account",
 		Steps: []*healthplatform.RemediationStep{
 			{Order: 1, Text: "Open PowerShell as Administrator"},
-			{Order: 2, Text: fmt.Sprintf("Grant read permissions to ddagentuser: icacls \"%s\\containers\" /grant ddagentuser:(OI)(CI)RX /T", strings.ReplaceAll(dockerDir, `"`, `""`))},
+			{Order: 2, Text: fmt.Sprintf("Grant read permissions to ddagentuser: icacls \"%s\\containers\" /grant ddagentuser:(OI)(CI)RX /T", strings.ReplaceAll(dockerDir, `"`, "`\""))},
 			{Order: 3, Text: "Restart the Datadog Agent service: Restart-Service -Name datadogagent"},
 			{Order: 4, Text: "Verify Docker file tailing is working by checking agent logs"},
 			{Order: 5, Text: "Alternative: Use the Services management console (services.msc) to restart 'Datadog Agent'"},
