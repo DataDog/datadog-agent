@@ -50,16 +50,15 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	remoteWorkloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-remote"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	compliancefx "github.com/DataDog/datadog-agent/comp/security/compliance/fx"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
-	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -137,36 +136,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					// TODO - components: Do not remove runtimeAgent ref until "github.com/DataDog/datadog-agent/pkg/security/agent" is a component so they're not GCed
 					return status.NewInformationProvider(runtimeAgent.StatusProvider()), runtimeAgent, nil
 				}),
-				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, sysprobeconfig sysprobeconfig.Component, wmeta workloadmeta.Component, filterStore workloadfilter.Component, compression logscompression.Component, hostname hostnameinterface.Component) (status.InformationProvider, *compliance.Agent, error) {
-					// Check if compliance should run in system-probe instead
-					if config.GetBool("compliance_config.run_in_system_probe") {
-						log.Info("compliance_config.run_in_system_probe is enabled, compliance will run in system-probe")
-						return status.NewInformationProvider(nil), nil, nil
-					}
-
-					hostnameDetected, err := hostname.Get(context.TODO())
-					if err != nil {
-						return status.NewInformationProvider(nil), nil, err
-					}
-
-					var sysProbeClient compliance.SysProbeClient
-					if cfg := sysprobeconfig.SysProbeObject(); cfg != nil && cfg.SocketAddress != "" {
-						sysProbeClient = compliance.NewRemoteSysProbeClient(cfg.SocketAddress)
-					}
-
-					// start compliance security agent
-					complianceAgent, err := compliance.StartCompliance(log, config, hostnameDetected, stopper, statsdClient, wmeta, filterStore, compression, sysProbeClient)
-					if err != nil {
-						return status.NewInformationProvider(nil), nil, err
-					}
-
-					if complianceAgent == nil {
-						return status.NewInformationProvider(nil), nil, nil
-					}
-
-					// TODO - components: Do not remove complianceAgent ref until "github.com/DataDog/datadog-agent/pkg/compliance" is a component so they're not GCed
-					return status.NewInformationProvider(complianceAgent.StatusProvider()), complianceAgent, nil
-				}),
+				compliancefx.Module(),
 				fx.Supply(
 					status.Params{
 						PythonVersionGetFunc: python.GetPythonVersion,
