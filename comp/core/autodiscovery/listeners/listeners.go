@@ -11,13 +11,14 @@ const (
 	containerListenerName       = "container"
 	environmentListenerName     = "environment"
 	kubeEndpointsListenerName   = "kube_endpoints"
-	kubeServicesListenerName    = "kube_services"
-	kubeletListenerName         = "kubelet"
-	processListenerName         = "process"
-	snmpListenerName            = "snmp"
-	staticConfigListenerName    = "static config"
-	dbmAuroraListenerName       = "database-monitoring-aurora"
-	dbmRdsListenerName          = "database-monitoring-rds"
+	//kubeEndpointslicesListenerName = "kube_endpointslices"
+	kubeServicesListenerName = "kube_services"
+	kubeletListenerName      = "kubelet"
+	processListenerName      = "process"
+	snmpListenerName         = "snmp"
+	staticConfigListenerName = "static config"
+	dbmAuroraListenerName    = "database-monitoring-aurora"
+	dbmRdsListenerName       = "database-monitoring-rds"
 	crdListenerName             = "crd"
 )
 
@@ -27,7 +28,8 @@ func RegisterListeners(serviceListenerFactories map[string]ServiceListenerFactor
 	Register(cloudFoundryBBSListenerName, NewCloudFoundryListener, serviceListenerFactories)
 	Register(containerListenerName, NewContainerListener, serviceListenerFactories)
 	Register(environmentListenerName, NewEnvironmentListener, serviceListenerFactories)
-	Register(kubeEndpointsListenerName, NewKubeEndpointsListener, serviceListenerFactories)
+	//Register(kubeEndpointsListenerName, NewKubeEndpointsListener, serviceListenerFactories)
+	Register(kubeEndpointsListenerName, NewKubeEndpointSlicesListener, serviceListenerFactories)
 	Register(kubeServicesListenerName, NewKubeServiceListener, serviceListenerFactories)
 	Register(kubeletListenerName, NewKubeletListener, serviceListenerFactories)
 	Register(processListenerName, NewProcessListener, serviceListenerFactories)
