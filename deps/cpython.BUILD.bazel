@@ -1,10 +1,10 @@
+load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
+load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_files", "pkg_mklink")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
-load("@rules_pkg//pkg:mappings.bzl", "strip_prefix")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_attributes", "pkg_files", "pkg_mklink", "strip_prefix")
 
 # Keep in sync with the ones on repos.MODULE.bazel
 python_externals = {
@@ -17,7 +17,7 @@ python_externals = {
     "tcltk": "8.6.15.0",
 }
 
-VERSION_STR="3.13"
+VERSION_STR = "3.13"
 
 # These rules will make it easier to get a reference to their folder via $(location)
 # and they add the version in the folder name (as some of the vcxproj stuff relies on that)
@@ -36,7 +36,7 @@ copy_to_directory(
     name = "openssl-bin_win_dir",
     srcs = ["@openssl"],
     # TODO(team:agent-build): Single source of truth for dependency versions
-    out = "openssl-bin-3.5.4/amd64",
+    out = "openssl-bin-{}/amd64".format(OPENSSL_VERSION),
     include_external_repositories = ["*openssl*"],
     # This reproduces the expected layout (libs at root, includes under `include`)
     root_paths = [
@@ -44,11 +44,6 @@ copy_to_directory(
         "openssl/lib",
         "openssl",
     ],
-    replace_prefixes = {
-        # We need to rename the .dll.a's into .lib files as the Python build expects
-        "libcrypto.dll.a": "libcrypto.lib",
-        "libssl.dll.a": "libssl.lib",
-    },
 )
 
 run_binary(
@@ -92,36 +87,36 @@ run_binary(
 )
 
 filegroup(
-    name = "all",
+    name = "all_srcs",
     srcs = glob(["**"], exclude = ["BUILD.bazel"]),
 )
 
 UNIX_BINS = [
-    "pip3",
+    "pip{}".format(VERSION_STR),
     "python{}".format(VERSION_STR),
 ]
 
 python_deps = {
-    'libffi': '-lffi',
-    'libsqlite3': '-lsqlite3',
-    'zlib': '-lz',
-    'bzip2': '-lbz2',
-    'liblzma': '-llzma'
+    "libffi": "-lffi",
+    "libsqlite3": "-lsqlite3",
+    "zlib": "-lz",
+    "bzip2": "-lbz2",
+    "liblzma": "-llzma",
 }
 
 # The list of build tools we want to override in sysconfigdata.py
 # as they will not be available when building custom integrations without bazel
 to_override_build_tools = [
-    'ar',
-    'gcc',
-    'g++',
-    'ld',
+    "ar",
+    "gcc",
+    "g++",
+    "ld",
 ]
 
 to_override_flags = [
-    'CFLAGS',
-    'CXXFLAGS',
-    'LDFLAGS',
+    "CFLAGS",
+    "CXXFLAGS",
+    "LDFLAGS",
 ]
 
 configure_make(
@@ -150,17 +145,19 @@ configure_make(
         # Ensure we don't use the system provided .pc
         "PKG_CONFIG_LIBDIR": "/does/not/exist",
     } | {
-        dep.upper() + '_CFLAGS': "-I$$EXT_BUILD_DEPS/include" for dep in python_deps.keys()
+        dep.upper() + "_CFLAGS": "-I$$EXT_BUILD_DEPS/include"
+        for dep in python_deps.keys()
     } | {
-        dep.upper() + '_LIBS': lib for dep, lib in python_deps.items()
+        dep.upper() + "_LIBS": lib
+        for dep, lib in python_deps.items()
     } | select({
-            "@platforms//os:macos": {
-                # https://github.com/bazelbuild/bazel/issues/5127
-                "AR": "/usr/bin/ar",
-            },
-            "//conditions:default": {},
+        "@platforms//os:macos": {
+            # https://github.com/bazelbuild/bazel/issues/5127
+            "AR": "/usr/bin/ar",
+        },
+        "//conditions:default": {},
     }),
-    lib_source = ":all",
+    lib_source = ":all_srcs",
     # The single dollar sign here isn't a typo, using 2 seems to confuse rules_foreign_cc's substitution
     # This is meant to allow python to find its dependency during its modules import test.
     # We will use the install_dir rpath later on
@@ -173,7 +170,7 @@ configure_make(
     visibility = ["//visibility:public"],
     deps = [
         "@bzip2//:libbz2",
-        "@libffi//:libffi",
+        "@libffi//:ffi",
         "@openssl//:openssl",
         "@sqlite3//:libsqlite3",
         "@xz//:liblzma",
@@ -181,7 +178,6 @@ configure_make(
     ],
     dynamic_deps = [
         "@bzip2//:bz2",
-        "@libffi//:ffi",
         "@sqlite3//:sqlite3",
         "@xz//:lzma",
         "@zlib//:z",
@@ -190,7 +186,7 @@ configure_make(
         # Build in parallel but install without parallel execution
         # (see https://github.com/python/cpython/issues/109796)
         "-j 16",
-        "install"
+        "install",
     ],
     target_compatible_with = select({
         "@platforms//os:macos": [],
@@ -208,16 +204,19 @@ configure_make(
     # If we start using some specific build flags that need to be propagated, we will need to include
     # them here instead of replacing them by an empty string.
     postfix_script = " && ".join([
-        "perl -i -pe 's/(:?[a-zA-Z0-9_+.\\/-]+)\\/{tool}\\b/{tool}/g' $$INSTALLDIR/lib/python{version}/_sysconfigdata__*.py".format(
-            tool=tool,
-            version=VERSION_STR
-        ) for tool in to_override_build_tools
-    ]) + " && " +
-    " && ".join(["perl -i -pe \"s/\'{flag}\': \'.*\',$$/\'{flag}\': \'\',/g\" $$INSTALLDIR/lib/python{version}/_sysconfigdata__*.py".format(
-            flag=flag,
-            version=VERSION_STR
-        ) for flag in to_override_flags
-    ])
+                         "perl -i -pe 's/(:?[a-zA-Z0-9_+.\\/-]+)\\/{tool}\\b/{tool}/g' $$INSTALLDIR/lib/python{version}/_sysconfigdata__*.py".format(
+                             tool = tool,
+                             version = VERSION_STR,
+                         )
+                         for tool in to_override_build_tools
+                     ]) + " && " +
+                     " && ".join([
+                         "perl -i -pe \"s/\'{flag}\': \'.*\',$$/\'{flag}\': \'\',/g\" $$INSTALLDIR/lib/python{version}/_sysconfigdata__*.py".format(
+                             flag = flag,
+                             version = VERSION_STR,
+                         )
+                         for flag in to_override_flags
+                     ]),
 )
 
 pkg_files(
@@ -258,19 +257,49 @@ copy_to_directory(
     root_paths = ["python_unix"],
 )
 
+filegroup(
+    name = "pip_exec",
+    srcs = [":python_unix"],
+    output_group = "pip{}".format(VERSION_STR),
+)
+
+genrule(
+    name = "patch_pip_shebang",
+    srcs = [":pip_exec"],
+    outs = ["pip_patched_tmp"],
+    cmd = "{ echo '#!{install_dir}/embedded/bin/python3\n' ; tail -n +4 $(location :pip_exec) ;} > $@",
+)
+
+dd_agent_expand_template(
+    name = "patch_pip_interpreter",
+    template = ":patch_pip_shebang",
+    out = "pip{}".format(VERSION_STR),
+)
+
 # Create symlinks for libpython (rules_pkg 1.2+ supports symlinks in pkg_install)
 pkg_mklink(
     name = "libpython_symlink",
     link_name = "lib/libpython{}.so".format(VERSION_STR),
     target = "libpython{}.so.1.0".format(VERSION_STR),
-    attributes = pkg_attributes("0644")
+    attributes = pkg_attributes("0644"),
 )
 
-pkg_mklink(
-    name = "python_bin_symlink",
-    link_name = "bin/python3",
-    target = "python{}".format(VERSION_STR)
-)
+BIN_SYMLINKS = {
+    "bin/python3": "python{}".format(VERSION_STR),
+    "bin/python": "python3",
+    "bin/pip3": "pip{}".format(VERSION_STR),
+    "bin/pip": "pip3",
+}
+
+[
+    pkg_mklink(
+        name = "python_bin_symlink_" + target,
+        link_name = link,
+        target = target,
+        attributes = pkg_attributes("0755"),
+    )
+    for link, target in BIN_SYMLINKS.items()
+]
 
 filegroup(
     name = "headers_unix",
@@ -278,14 +307,11 @@ filegroup(
     output_group = "include",
 )
 
-[
-    filegroup(
-        name = "bins_unix_" + bin,
-        srcs = [":python_unix"],
-        output_group = bin,
-    )
-    for bin in UNIX_BINS
-]
+filegroup(
+    name = "python3_bin",
+    srcs = [":python_unix"],
+    output_group = "python{}".format(VERSION_STR),
+)
 
 pkg_files(
     name = "install_libs_unix",
@@ -293,7 +319,7 @@ pkg_files(
     renames = {
         "libs_unix_no_symlinks": REMOVE_BASE_DIRECTORY,
     },
-    attributes = pkg_attributes("0644")
+    attributes = pkg_attributes("0755"),
 )
 
 pkg_files(
@@ -303,9 +329,12 @@ pkg_files(
 
 pkg_files(
     name = "install_bins_unix",
-    srcs = [":bins_unix_" + bin for bin in UNIX_BINS] + [":python_bin_symlink"],
+    srcs = [
+        ":python3_bin",
+        ":patch_pip_interpreter",
+    ],
     prefix = "bin",
-    attributes = pkg_attributes("0755")
+    attributes = pkg_attributes("0755"),
 )
 
 pkg_install(
@@ -313,14 +342,13 @@ pkg_install(
     srcs = select({
         "@platforms//os:windows": [
             "@openssl//:openssl_exe_file",
-            ":install_files_win"
+            ":install_files_win",
         ],
         "//conditions:default": [
             ":install_libs_unix",
             ":install_headers_unix",
             ":install_bins_unix",
-            ":python_bin_symlink",
-        ],
+        ] + [":python_bin_symlink_" + name for name in BIN_SYMLINKS.values()],
     }) + select({
         "@platforms//os:linux": [":libpython_symlink"],
         "//conditions:default": [],

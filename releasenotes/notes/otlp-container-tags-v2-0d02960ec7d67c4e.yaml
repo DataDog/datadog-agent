@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Added the ``enable_otlp_container_tags_v2`` feature flag,
+    which may reduce the Agent's outgoing traffic when ingesting OTLP traces from containerized applications.
+    
+    However, the flag introduces some breaking changes:
+    - container tags on the new spans can no longer be queried as span attributes (with ``@``);
+    - using the ``k8s.pod.uid`` attribute as a fallback container ID is no longer supported;
+    - disabling the infraattributes processor in DDOT trace pipelines will prevent automatic container tag detection. 

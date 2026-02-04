@@ -103,7 +103,7 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 		return sbom.ScanResult{Error: fmt.Errorf("image metadata not found for image id %s: %s", imageID, err)}
 	}
 
-	report, err := c.trivyCollector.ScanDockerImage(
+	report, method, err := c.trivyCollector.ScanDockerImage(
 		ctx,
 		imageMeta,
 		c.cl,
@@ -111,9 +111,10 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 	)
 
 	return sbom.ScanResult{
-		Error:   err,
-		Report:  report,
-		ImgMeta: imageMeta,
+		Error:            err,
+		Report:           report,
+		ImgMeta:          imageMeta,
+		GenerationMethod: method,
 	}
 }
 

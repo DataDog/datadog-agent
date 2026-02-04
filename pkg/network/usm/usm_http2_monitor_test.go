@@ -77,7 +77,7 @@ type usmHTTP2Suite struct {
 }
 
 func (s *usmHTTP2Suite) getCfg() *config.Config {
-	cfg := utils.NewUSMEmptyConfig()
+	cfg := NewUSMEmptyConfig()
 	cfg.EnableHTTP2Monitoring = true
 	cfg.EnableGoTLSSupport = s.isTLS
 	cfg.GoTLSExcludeSelf = s.isTLS
@@ -1889,7 +1889,7 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 
 func TestHTTP2InFlightMapCleaner(t *testing.T) {
 	skipIfKernelNotSupported(t, usmhttp2.MinimumKernelVersion, "HTTP2")
-	cfg := utils.NewUSMEmptyConfig()
+	cfg := NewUSMEmptyConfig()
 	cfg.EnableHTTP2Monitoring = true
 	cfg.HTTP2DynamicTableMapCleanerInterval = 5 * time.Second
 	cfg.HTTPIdleConnectionTTL = time.Second
