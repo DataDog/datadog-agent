@@ -24,8 +24,8 @@ crypto key generate rsa modulus 2048
 ip ssh version 2
 !
 ! ---- SNMP (communities and hosts) ------------------------------------
-snmp-server community <configuration removed>
-snmp-server community <configuration removed>
+snmp-server community <secret hidden>
+snmp-server community <secret hidden>
 snmp-server host 10.0.0.5 version 2c <secret hidden>
 snmp-server host 10.0.0.6 vrf Mgmt-vrf informs version 2c <secret hidden> udp-port 162
 snmp-server location LAB-DC
