@@ -899,6 +899,7 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 						string(semconv.K8SJobNameKey):         "kubejob",
 						string(semconv.ContainerImageNameKey): "lorem-ipsum",
 						string(semconv.ContainerImageTagKey):  "v2.0",
+						string("datadog.container.tag.team"):  "otel",
 					},
 					Spans: []*testutil.OTLPSpan{
 						{
@@ -923,6 +924,7 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 					"kube_job":   "kubejob",
 					"image_name": "lorem-ipsum",
 					"image_tag":  "v2.0",
+					"team":       "otel",
 				}, unflatten(out.Tags[tagContainersTags]))
 			},
 		},

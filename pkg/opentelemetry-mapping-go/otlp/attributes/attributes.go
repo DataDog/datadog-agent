@@ -17,6 +17,7 @@ package attributes
 
 import (
 	"fmt"
+	"strings"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -29,6 +30,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 )
+
+// customContainerTagPrefix defines the prefix for custom container tags.
+const customContainerTagPrefix = "datadog.container.tag."
 
 var (
 	// coreMapping defines the mapping between OpenTelemetry semantic conventions
@@ -272,13 +276,28 @@ func OriginIDFromAttributes(attrs pcommon.Map) (originID string) {
 
 // ContainerTagsFromResourceAttributes extracts container tags from the given
 // set of resource attributes. Container tags are extracted via semantic
-// conventions. Only string-type resource attributes will be extracted.
+// conventions. Customer container tags are extracted via resource attributes
+// prefixed by datadog.container.tag. Custom container tag values of a different type
+// than ValueTypeStr will be ignored.
+// In the case of duplicates between semantic conventions and custom resource attributes
+// (e.g. container.id, datadog.container.tag.container_id) the semantic convention takes
+// precedence.
 func ContainerTagsFromResourceAttributes(attrs pcommon.Map) map[string]string {
 	ddtags := make(map[string]string)
 	attrs.Range(func(key string, value pcommon.Value) bool {
 		// Semantic Conventions
 		if datadogKey, found := ContainerMappings[key]; found && value.Str() != "" {
 			ddtags[datadogKey] = value.Str()
+		}
+		// Custom (datadog.container.tag namespace)
+		if after, ok := strings.CutPrefix(key, customContainerTagPrefix); ok {
+			customKey := after
+			if customKey != "" && value.Str() != "" {
+				// Do not replace if set via semantic conventions mappings.
+				if _, found := ddtags[customKey]; !found {
+					ddtags[customKey] = value.Str()
+				}
+			}
 		}
 		return true
 	})
@@ -290,19 +309,22 @@ type containerTagSource int
 const (
 	containerTagSourceNone containerTagSource = iota
 	containerTagSourceDD
+	containerTagSourceCustom
 	containerTagSourceOTel
 )
 
 // ConsumeContainerTagsFromResource extracts container tags from the attributes of the given resource.
 //
-// Container tags are extracted from 2 sources:
+// Container tags are extracted from 3 sources:
 // 1. OTel semantic conventions;
-// 2. Datadog semantic conventions (pre-mapped tags, usually from the infraattributes processor).
+// 2. Custom container tags prefixed by datadog.container.tag;
+// 3. Datadog semantic conventions (pre-mapped tags, usually from the infraattributes processor).
 //
 // Only string-type resource attributes will be extracted as container tags.
-// In the case of duplicates between the two sources, OTel conventions take priority over pre-mapped tags.
+// In the case of duplicates between the three sources, OTel conventions take priority over custom tags,
+// which take priority over pre-mapped tags.
 //
-// This function also returns a copy of the input resource, with source 2 filtered out.
+// This function also returns a copy of the input resource, with sources 2 and 3 filtered out.
 // This filtered resource should be used when converting spans to Datadog format,
 // to avoid attributes being duplicated as both span attributes and container tags.
 func ConsumeContainerTagsFromResource(res pcommon.Resource) (map[string]string, pcommon.Resource) {
@@ -326,6 +348,12 @@ func ConsumeContainerTagsFromResource(res pcommon.Resource) (map[string]string, 
 			mappedKey = datadogKey
 		}
 
+		// Custom (datadog.container.tag namespace)
+		if strings.HasPrefix(key, customContainerTagPrefix) {
+			tagSource = containerTagSourceCustom
+			mappedKey = strings.TrimPrefix(key, customContainerTagPrefix)
+		}
+
 		// Pre-mapped Datadog-convention container tag
 		if _, found := containerDDTags[key]; found {
 			tagSource = containerTagSourceDD
@@ -341,7 +369,7 @@ func ConsumeContainerTagsFromResource(res pcommon.Resource) (map[string]string, 
 			tagSources[mappedKey] = tagSource
 		}
 
-		// Filter out pre-mapped tags, but keep OTel convention attributes
+		// Filter out custom and pre-mapped tags, but keep OTel convention attributes
 		return tagSource != containerTagSourceOTel
 	})
 
