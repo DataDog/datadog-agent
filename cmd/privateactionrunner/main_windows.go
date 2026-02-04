@@ -22,9 +22,7 @@ import (
 func main() {
 	flavor.SetFlavor(flavor.PrivateActionRunner)
 
-	// Call servicemain.Run EARLY if running as a Windows service with no CLI arguments.
-	// This is required because SCM only gives services 30 seconds to call StartServiceCtrlDispatcher.
-	// If called too late, you may encounter service start timeout errors from SCM.
+	// SCM gives services 30 seconds to call StartServiceCtrlDispatcher
 	if len(os.Args) == 1 && servicemain.RunningAsWindowsService() {
 		servicemain.Run(service.NewService())
 		return

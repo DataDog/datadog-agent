@@ -5,7 +5,6 @@
 
 //go:build windows
 
-// Package service implements the Windows Service for the private-action-runner
 package service
 
 import (
@@ -35,12 +34,10 @@ import (
 )
 
 const (
-	// ServiceName is the service name used for the private-action-runner
 	ServiceName = "datadog-private-action-runner"
 )
 
 var (
-	// defaultConfPath is the default configuration file path on Windows
 	defaultConfPath = filepath.Join(defaultpaths.ConfPath, "datadog.yaml")
 )
 
@@ -48,32 +45,21 @@ type windowsService struct {
 	servicemain.DefaultSettings
 }
 
-// NewService returns the service entry for the private-action-runner
 func NewService() servicemain.Service {
 	return &windowsService{}
 }
 
-// Name returns the service name for event log records
 func (s *windowsService) Name() string {
 	return ServiceName
 }
 
-// Init implements application initialization, run when SERVICE_START_PENDING.
-// This blocks service tools like PowerShell's Start-Service until it returns.
 func (s *windowsService) Init() error {
-	// Nothing to do during init - configuration loading and fx app startup
-	// happens in Run().
 	return nil
 }
 
-// Run implements all application logic, run when SERVICE_RUNNING.
-// The provided context is cancellable - monitor ctx.Done() and return when set.
-// The service will exit when Run() returns.
 func (s *windowsService) Run(ctx context.Context) error {
 	err := fxutil.Run(
-		// ctx is required to be supplied from here, as Windows needs to inject its own context
-		// to allow the agent to work as a service.
-		fx.Provide(func() context.Context { return ctx }), // fx.Supply(ctx) fails with a missing type error.
+		fx.Provide(func() context.Context { return ctx }),
 		fx.Supply(core.BundleParams{
 			ConfigParams: config.NewAgentParams(defaultConfPath),
 			LogParams:    log.ForDaemon("PRIV-ACTION", "private_action_runner.log_file", ""),
