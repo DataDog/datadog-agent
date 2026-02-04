@@ -189,6 +189,15 @@ func (g *GraphSketchCorrelator) IsFrozen() bool {
 	return g.frozen
 }
 
+// getAnomalyTime returns the effective timestamp for an anomaly.
+// Prefers TimeRange.End, falls back to Timestamp if TimeRange is not set.
+func getAnomalyTime(anomaly observer.AnomalyOutput) int64 {
+	if anomaly.TimeRange.End > 0 {
+		return anomaly.TimeRange.End
+	}
+	return anomaly.Timestamp
+}
+
 // Process adds an anomaly, updating co-occurrence tracking and clustering.
 func (g *GraphSketchCorrelator) Process(anomaly observer.AnomalyOutput) {
 	g.mu.Lock()
@@ -201,9 +210,12 @@ func (g *GraphSketchCorrelator) Process(anomaly observer.AnomalyOutput) {
 	// Track wall clock time of last Process call
 	g.lastProcessTime = time.Now().Unix()
 
+	// Get anomaly timestamp
+	anomalyTime := getAnomalyTime(anomaly)
+
 	// Update current data time
-	if anomaly.TimeRange.End > g.currentDataTime {
-		g.currentDataTime = anomaly.TimeRange.End
+	if anomalyTime > g.currentDataTime {
+		g.currentDataTime = anomalyTime
 	}
 
 	// Add to buffer
@@ -216,7 +228,7 @@ func (g *GraphSketchCorrelator) Process(anomaly observer.AnomalyOutput) {
 	coOccurring := g.findCoOccurring(anomaly)
 
 	// Update tensor sketch for each co-occurring pair
-	timeBin := anomaly.TimeRange.End / g.config.TimeBinSize
+	timeBin := anomalyTime / g.config.TimeBinSize
 	g.advanceTimeBin(timeBin)
 
 	for _, other := range coOccurring {
@@ -228,8 +240,8 @@ func (g *GraphSketchCorrelator) Process(anomaly observer.AnomalyOutput) {
 
 		// Track first seen - this is a NEW edge
 		if _, exists := g.edgeFirstSeen[edgeKey]; !exists {
-			g.edgeFirstSeen[edgeKey] = anomaly.TimeRange.End
-			g.lastNewEdgeTime = anomaly.TimeRange.End // Record when we last discovered something new
+			g.edgeFirstSeen[edgeKey] = anomalyTime
+			g.lastNewEdgeTime = anomalyTime // Record when we last discovered something new
 		}
 
 		// Track edge observations for observability
@@ -248,10 +260,12 @@ func (g *GraphSketchCorrelator) Process(anomaly observer.AnomalyOutput) {
 func (g *GraphSketchCorrelator) findCoOccurring(anomaly observer.AnomalyOutput) []observer.AnomalyOutput {
 	var coOccurring []observer.AnomalyOutput
 	window := g.config.CoOccurrenceWindow
+	anomalyTime := getAnomalyTime(anomaly)
 
 	for _, other := range g.anomalyBuffer {
 		// Check if within co-occurrence window
-		if math.Abs(float64(anomaly.TimeRange.End-other.TimeRange.End)) <= float64(window) {
+		otherTime := getAnomalyTime(other)
+		if math.Abs(float64(anomalyTime-otherTime)) <= float64(window) {
 			coOccurring = append(coOccurring, other)
 		}
 	}
@@ -267,7 +281,7 @@ func (g *GraphSketchCorrelator) pruneBufferLocked() {
 	cutoff := g.currentDataTime - g.config.WindowSeconds
 	newBuffer := make([]observer.AnomalyOutput, 0, len(g.anomalyBuffer))
 	for _, anomaly := range g.anomalyBuffer {
-		if anomaly.TimeRange.End >= cutoff {
+		if getAnomalyTime(anomaly) >= cutoff {
 			newBuffer = append(newBuffer, anomaly)
 		}
 	}
@@ -390,11 +404,12 @@ func (g *GraphSketchCorrelator) clusterAnomaly(anomaly observer.AnomalyOutput) {
 		// Join the first candidate cluster
 		g.addToCluster(candidateClusters[0], anomaly)
 	} else {
-		// Create a new cluster
+		// Create a new cluster with timestamp from anomaly
+		anomalyTime := getAnomalyTime(anomaly)
 		newCluster := &graphCluster{
 			id:        g.nextClusterID,
 			anomalies: make(map[string]observer.AnomalyOutput),
-			timeRange: anomaly.TimeRange,
+			timeRange: observer.TimeRange{Start: anomalyTime, End: anomalyTime},
 		}
 		g.nextClusterID++
 		g.addToCluster(newCluster, anomaly)
@@ -406,11 +421,12 @@ func (g *GraphSketchCorrelator) clusterAnomaly(anomaly observer.AnomalyOutput) {
 func (g *GraphSketchCorrelator) addToCluster(cluster *graphCluster, anomaly observer.AnomalyOutput) {
 	if _, exists := cluster.anomalies[anomaly.Source]; !exists {
 		cluster.anomalies[anomaly.Source] = anomaly
-		if anomaly.TimeRange.Start < cluster.timeRange.Start {
-			cluster.timeRange.Start = anomaly.TimeRange.Start
+		anomalyTime := getAnomalyTime(anomaly)
+		if anomalyTime < cluster.timeRange.Start || cluster.timeRange.Start == 0 {
+			cluster.timeRange.Start = anomalyTime
 		}
-		if anomaly.TimeRange.End > cluster.timeRange.End {
-			cluster.timeRange.End = anomaly.TimeRange.End
+		if anomalyTime > cluster.timeRange.End {
+			cluster.timeRange.End = anomalyTime
 		}
 		g.updateClusterStrength(cluster)
 	}
@@ -461,6 +477,35 @@ func (g *GraphSketchCorrelator) Flush() []observer.ReportOutput {
 	g.evictOldClustersLocked()
 	g.pruneBufferLocked()
 	return nil
+}
+
+// Reset clears all internal state for reanalysis.
+func (g *GraphSketchCorrelator) Reset() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	// Reinitialize 3D tensor sketch [NumTimeBins][Depth][Width]
+	g.tensorSketch = make([][][]float64, g.config.NumTimeBins)
+	for t := 0; t < g.config.NumTimeBins; t++ {
+		g.tensorSketch[t] = make([][]float64, g.config.Depth)
+		for d := 0; d < g.config.Depth; d++ {
+			g.tensorSketch[t][d] = make([]float64, g.config.Width)
+		}
+	}
+	g.currentTimeBin = 0
+	g.layerToBinMap = make(map[int]int64)
+	g.anomalyBuffer = g.anomalyBuffer[:0]
+	g.clusters = nil
+	g.nextClusterID = 0
+	g.currentDataTime = 0
+	g.knownEdges = make(map[string]int)
+	g.edgeFirstSeen = make(map[string]int64)
+	g.uniqueSources = make(map[string]bool)
+	g.totalObservations = 0
+	g.lastNewEdgeTime = 0
+	g.cachedTopEdges = nil
+	g.cacheValidUntilData = 0
+	g.frozen = false
 }
 
 // evictOldClustersLocked removes clusters whose last updated time is too old.
@@ -552,7 +597,7 @@ func (g *GraphSketchCorrelator) buildClusterTitle(cluster *graphCluster, sources
 	if strongestEdgeKey != "" {
 		parts := g.splitEdge(strongestEdgeKey)
 		if len(parts) == 2 {
-			return fmt.Sprintf("Correlated: %s ↔ %s (freq: %.1f, %d sources)", parts[0], parts[1], maxFreq, len(sources))
+			return fmt.Sprintf("GraphSketch: %s ↔ %s (%d sources)", parts[0], parts[1], len(sources))
 		}
 	}
 

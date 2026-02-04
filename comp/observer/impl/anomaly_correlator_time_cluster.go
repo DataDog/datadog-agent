@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"fmt"
 	"sort"
+	"sync"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
@@ -52,6 +53,7 @@ type TimeClusterCorrelator struct {
 	clusters        []*timeCluster
 	nextClusterID   int
 	currentDataTime int64
+	mu              sync.RWMutex
 }
 
 // NewTimeClusterCorrelator creates a new TimeClusterCorrelator with the given config.
@@ -190,6 +192,15 @@ func (c *TimeClusterCorrelator) Flush() []observer.ReportOutput {
 	return nil
 }
 
+// Reset clears all internal state for reanalysis.
+func (c *TimeClusterCorrelator) Reset() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.clusters = c.clusters[:0]
+	c.currentDataTime = 0
+}
+
 // evictOldClusters removes clusters whose latest timestamp is outside the window.
 func (c *TimeClusterCorrelator) evictOldClusters() {
 	cutoff := c.currentDataTime - c.config.WindowSeconds
@@ -285,7 +296,7 @@ func (c *TimeClusterCorrelator) ActiveCorrelations() []observer.ActiveCorrelatio
 
 		result = append(result, observer.ActiveCorrelation{
 			Pattern:     fmt.Sprintf("time_cluster_%d", cluster.id),
-			Title:       fmt.Sprintf("Correlated: %d anomalies in time window", len(cluster.anomalies)),
+			Title:       fmt.Sprintf("TimeCluster: %d anomalies", len(cluster.anomalies)),
 			SourceNames: sources,
 			Anomalies:   anomalies,
 			FirstSeen:   cluster.minTimestamp,

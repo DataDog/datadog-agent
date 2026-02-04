@@ -1,4 +1,4 @@
-import { useRef, useEffect, useMemo } from 'react';
+import { useRef, useEffect, useMemo, useState } from 'react';
 import * as d3 from 'd3';
 import type { Point, AnomalyMarker } from '../api/client';
 import type { CorrelationRange, TimeRange } from './ChartWithAnomalyDetails';
@@ -168,14 +168,13 @@ export function TimeSeriesChart({
       .domain([yExtent[0] - yPadding, yExtent[1] + yPadding])
       .range([innerHeight, 0]);
 
-    // Draw correlation ranges as background shading
+    // Draw correlation ranges as subtle background shading
     correlationRanges.forEach((range) => {
       const color = getCorrelationColor(range.id);
       const x1 = xScale(range.start * 1000);
       const x2 = xScale(range.end * 1000);
       const rectWidth = Math.max(x2 - x1, 4); // Minimum 4px width for visibility
 
-      // Draw filled rectangle
       g.append('rect')
         .attr('x', x1)
         .attr('y', 0)
@@ -185,16 +184,7 @@ export function TimeSeriesChart({
         .attr('stroke', color.stroke)
         .attr('stroke-width', 1)
         .attr('stroke-dasharray', '4,2')
-        .attr('opacity', 0.8);
-
-      // Add a small label at the top
-      g.append('text')
-        .attr('x', x1 + 4)
-        .attr('y', 12)
-        .attr('fill', color.stroke)
-        .attr('font-size', '9px')
-        .attr('opacity', 0.9)
-        .text(range.title.length > 20 ? range.title.slice(0, 20) + '…' : range.title);
+        .attr('opacity', 0.5);
     });
 
     // Group anomalies by timestamp to handle overlaps
@@ -205,55 +195,27 @@ export function TimeSeriesChart({
       anomaliesByTimestamp.set(anomaly.timestamp, existing);
     });
 
-    // Draw anomaly markers (behind the line)
+    // Draw anomaly markers - simple circles at data points
     anomaliesByTimestamp.forEach((anomaliesAtTime, timestamp) => {
       const x = xScale(timestamp * 1000);
       const dataPoint = points.find((p) => p.timestamp === timestamp);
 
-      // Draw vertical lines - offset slightly for each analyzer
-      anomaliesAtTime.forEach((anomaly, idx) => {
-        const color = getAnalyzerColor(anomaly.analyzerName);
-        const lineOffset = (idx - (anomaliesAtTime.length - 1) / 2) * 3;
-
-        g.append('line')
-          .attr('x1', x + lineOffset)
-          .attr('x2', x + lineOffset)
-          .attr('y1', 0)
-          .attr('y2', innerHeight)
-          .attr('stroke', color.stroke)
-          .attr('stroke-width', 2)
-          .attr('stroke-dasharray', '4,4')
-          .attr('opacity', 0.7);
-      });
-
-      // Draw circles - stack vertically above the data point
       if (dataPoint) {
         const baseY = yScale(dataPoint.value);
+        const numAnomalies = anomaliesAtTime.length;
+
         anomaliesAtTime.forEach((anomaly, idx) => {
           const color = getAnalyzerColor(anomaly.analyzerName);
-          // Stack circles vertically with 12px spacing
-          const yOffset = idx * -14;
+          const xOffset = numAnomalies > 1 ? (idx - (numAnomalies - 1) / 2) * 8 : 0;
 
           g.append('circle')
-            .attr('cx', x)
-            .attr('cy', baseY + yOffset)
-            .attr('r', 5)
+            .attr('cx', x + xOffset)
+            .attr('cy', baseY)
+            .attr('r', 4)
             .attr('fill', color.stroke)
-            .attr('stroke', '#fff')
+            .attr('stroke', '#1e293b')
             .attr('stroke-width', 1.5);
         });
-
-        // If multiple analyzers, draw a small connector line
-        if (anomaliesAtTime.length > 1) {
-          g.append('line')
-            .attr('x1', x)
-            .attr('x2', x)
-            .attr('y1', baseY)
-            .attr('y2', baseY - (anomaliesAtTime.length - 1) * 14)
-            .attr('stroke', '#64748b')
-            .attr('stroke-width', 1)
-            .attr('opacity', 0.5);
-        }
       }
     });
 
@@ -489,27 +451,62 @@ export function TimeSeriesChart({
     );
   }
 
+  const [showCorrelationLegend, setShowCorrelationLegend] = useState(false);
+
   return (
     <div className="bg-slate-800 rounded-lg p-4">
-      <div className="flex justify-between items-center mb-2">
-        <div className="text-sm text-slate-300 font-mono">{name}</div>
-        {filteredAnomalies.length > 0 && (
-          <div className="flex gap-2">
-            {Array.from(new Set(filteredAnomalies.map((a) => a.analyzerName))).map((analyzer) => {
-              const color = getAnalyzerColor(analyzer);
-              return (
-                <span
-                  key={analyzer}
-                  className="text-xs px-2 py-0.5 rounded"
-                  style={{ backgroundColor: color.fill, color: color.stroke }}
-                >
-                  {analyzer}
-                </span>
-              );
-            })}
-          </div>
-        )}
+      <div className="flex justify-between items-center mb-2 gap-2">
+        <div className="text-sm text-slate-300 font-mono truncate">{name}</div>
+        <div className="flex gap-2 items-center flex-shrink-0">
+          {/* Detector legend - only show if there are anomalies */}
+          {filteredAnomalies.length > 0 && Array.from(new Set(filteredAnomalies.map((a) => a.analyzerName))).map((analyzer) => {
+            const color = getAnalyzerColor(analyzer);
+            const displayName = analyzer === 'cusum_detector' ? 'CUSUM' :
+                               analyzer === 'robust_zscore' ? 'Z-Score' : analyzer;
+            return (
+              <span
+                key={analyzer}
+                className="text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1"
+                style={{ backgroundColor: color.fill, color: color.stroke }}
+              >
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color.stroke }} />
+                {displayName}
+              </span>
+            );
+          })}
+          {/* Correlation count - clickable to expand */}
+          {correlationRanges.length > 0 && (
+            <button
+              onClick={() => setShowCorrelationLegend(!showCorrelationLegend)}
+              className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 hover:bg-slate-600 flex items-center gap-1"
+            >
+              {correlationRanges.length} correlation{correlationRanges.length !== 1 ? 's' : ''}
+              <span className="text-[8px]">{showCorrelationLegend ? '▲' : '▼'}</span>
+            </button>
+          )}
+        </div>
       </div>
+      {/* Expandable correlation legend */}
+      {showCorrelationLegend && correlationRanges.length > 0 && (
+        <div className="mb-2 p-2 bg-slate-900/50 rounded text-[10px] flex flex-wrap gap-2">
+          {correlationRanges.map((range, i) => {
+            const color = getCorrelationColor(range.id);
+            return (
+              <span
+                key={i}
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded"
+                style={{ backgroundColor: color.fill, border: `1px dashed ${color.stroke}` }}
+              >
+                <span
+                  className="w-3 h-3 rounded-sm flex-shrink-0"
+                  style={{ backgroundColor: color.fill, border: `1px dashed ${color.stroke}` }}
+                />
+                <span style={{ color: color.stroke }}>{range.title}</span>
+              </span>
+            );
+          })}
+        </div>
+      )}
       <div ref={containerRef} className="w-full">
         <svg ref={svgRef} />
       </div>

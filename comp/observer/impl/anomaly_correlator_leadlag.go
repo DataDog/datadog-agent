@@ -336,6 +336,17 @@ func (c *LeadLagCorrelator) Flush() []observer.ReportOutput {
 	return nil
 }
 
+// Reset clears all internal state for reanalysis.
+func (c *LeadLagCorrelator) Reset() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.sourceTimestamps = make(map[string]*RingBuffer)
+	c.lagHistograms = make(map[string]*LagHistogram)
+	c.recentAnomalies = c.recentAnomalies[:0]
+	c.currentDataTime = 0
+}
+
 // GetEdges returns all detected lead-lag edges that meet the confidence threshold.
 func (c *LeadLagCorrelator) GetEdges() []LeadLagEdge {
 	c.mu.RLock()
@@ -432,8 +443,8 @@ func (c *LeadLagCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
 
 		result = append(result, observer.ActiveCorrelation{
 			Pattern: fmt.Sprintf("lead_lag_%s_to_%s", edge.Leader, edge.Follower),
-			Title: fmt.Sprintf("Temporal: %s leads %s by ~%ds (%.0f%% confidence, %d observations)",
-				edge.Leader, edge.Follower, edge.TypicalLag, edge.Confidence*100, edge.Observations),
+			Title: fmt.Sprintf("LeadLag: %s → %s (+%ds)",
+				edge.Leader, edge.Follower, edge.TypicalLag),
 			SourceNames: sources,
 			Anomalies:   anomalies,
 			FirstSeen:   firstSeen,

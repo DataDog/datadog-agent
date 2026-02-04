@@ -224,6 +224,20 @@ func (c *SurpriseCorrelator) Flush() []observer.ReportOutput {
 	return nil
 }
 
+// Reset clears all internal state for reanalysis.
+func (c *SurpriseCorrelator) Reset() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.sourceCounts = make(map[string]int)
+	c.pairCounts = make(map[string]int)
+	c.totalWindows = 0
+	c.currentWindowStart = 0
+	c.currentWindowSources = make(map[string]bool)
+	c.recentAnomalies = c.recentAnomalies[:0]
+	c.currentDataTime = 0
+}
+
 // GetEdges returns all detected surprise edges (both high and low lift).
 func (c *SurpriseCorrelator) GetEdges() []SurpriseEdge {
 	c.mu.RLock()
@@ -344,11 +358,11 @@ func (c *SurpriseCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
 		var title string
 		var pattern string
 		if edge.IsSurprising {
-			title = fmt.Sprintf("Surprising co-occurrence: %s + %s (lift=%.1f, %d times)",
-				edge.Source1, edge.Source2, edge.Lift, edge.Support)
+			title = fmt.Sprintf("Surprise: %s + %s (lift=%.1f)",
+				edge.Source1, edge.Source2, edge.Lift)
 			pattern = fmt.Sprintf("surprise_%s_and_%s", edge.Source1, edge.Source2)
 		} else {
-			title = fmt.Sprintf("Unexpectedly rare: %s + %s usually co-occur but didn't (lift=%.2f)",
+			title = fmt.Sprintf("Surprise: %s + %s missing (lift=%.2f)",
 				edge.Source1, edge.Source2, edge.Lift)
 			pattern = fmt.Sprintf("missing_%s_and_%s", edge.Source1, edge.Source2)
 		}

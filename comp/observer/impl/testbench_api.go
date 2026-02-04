@@ -41,6 +41,11 @@ func (api *TestBenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/series/", api.cors(api.handleSeriesData))
 	mux.HandleFunc("/api/anomalies", api.cors(api.handleAnomalies))
 	mux.HandleFunc("/api/correlations", api.cors(api.handleCorrelations))
+	mux.HandleFunc("/api/leadlag", api.cors(api.handleLeadLag))
+	mux.HandleFunc("/api/surprise", api.cors(api.handleSurprise))
+	mux.HandleFunc("/api/graphsketch", api.cors(api.handleGraphSketch))
+	mux.HandleFunc("/api/stats", api.cors(api.handleStats))
+	mux.HandleFunc("/api/config", api.cors(api.handleConfigUpdate))
 
 	api.server = &http.Server{
 		Addr:    addr,
@@ -390,6 +395,70 @@ func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, r *http.Reque
 	}
 
 	api.writeJSON(w, response)
+}
+
+// handleLeadLag returns lead-lag edges.
+func (api *TestBenchAPI) handleLeadLag(w http.ResponseWriter, r *http.Request) {
+	edges, enabled := api.tb.GetLeadLagEdges()
+	if edges == nil {
+		edges = []LeadLagEdge{}
+	}
+	api.writeJSON(w, map[string]interface{}{
+		"enabled": enabled,
+		"edges":   edges,
+	})
+}
+
+// handleSurprise returns surprise edges.
+func (api *TestBenchAPI) handleSurprise(w http.ResponseWriter, r *http.Request) {
+	edges, enabled := api.tb.GetSurpriseEdges()
+	if edges == nil {
+		edges = []SurpriseEdge{}
+	}
+	api.writeJSON(w, map[string]interface{}{
+		"enabled": enabled,
+		"edges":   edges,
+	})
+}
+
+// handleGraphSketch returns graph sketch edges.
+func (api *TestBenchAPI) handleGraphSketch(w http.ResponseWriter, r *http.Request) {
+	edges, enabled := api.tb.GetGraphSketchEdges()
+	if edges == nil {
+		edges = []EdgeInfo{}
+	}
+	api.writeJSON(w, map[string]interface{}{
+		"enabled": enabled,
+		"edges":   edges,
+	})
+}
+
+// handleStats returns correlator statistics.
+func (api *TestBenchAPI) handleStats(w http.ResponseWriter, r *http.Request) {
+	stats := api.tb.GetCorrelatorStats()
+	api.writeJSON(w, stats)
+}
+
+// handleConfigUpdate handles POST /api/config to update server configuration.
+func (api *TestBenchAPI) handleConfigUpdate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		api.writeError(w, http.StatusMethodNotAllowed, "use POST to update config")
+		return
+	}
+
+	var req ConfigUpdateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		api.writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return
+	}
+
+	if err := api.tb.UpdateConfigAndReanalyze(req); err != nil {
+		api.writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Return updated status
+	api.writeJSON(w, api.tb.GetStatus())
 }
 
 // writeJSON writes a JSON response.

@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../api/client';
-import type { StatusResponse, ScenarioInfo, ComponentInfo, SeriesInfo, Anomaly, Correlation } from '../api/client';
+import type {
+  StatusResponse, ScenarioInfo, ComponentInfo, SeriesInfo, Anomaly, Correlation,
+  LeadLagEdge, SurpriseEdge, GraphSketchEdge, CorrelatorStats
+} from '../api/client';
 
 export type ConnectionState = 'disconnected' | 'connected' | 'loading' | 'ready';
 
@@ -12,6 +15,14 @@ export interface ObserverState {
   series: SeriesInfo[];
   anomalies: Anomaly[];
   correlations: Correlation[];
+  // New correlator data
+  leadLagEdges: LeadLagEdge[];
+  leadLagEnabled: boolean;
+  surpriseEdges: SurpriseEdge[];
+  surpriseEnabled: boolean;
+  graphSketchEdges: GraphSketchEdge[];
+  graphSketchEnabled: boolean;
+  correlatorStats: CorrelatorStats | null;
   activeScenario: string | null;
   error: string | null;
 }
@@ -31,6 +42,14 @@ export function useObserver(): [ObserverState, ObserverActions] {
   const [series, setSeries] = useState<SeriesInfo[]>([]);
   const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
   const [correlations, setCorrelations] = useState<Correlation[]>([]);
+  // New correlator state
+  const [leadLagEdges, setLeadLagEdges] = useState<LeadLagEdge[]>([]);
+  const [leadLagEnabled, setLeadLagEnabled] = useState(false);
+  const [surpriseEdges, setSurpriseEdges] = useState<SurpriseEdge[]>([]);
+  const [surpriseEnabled, setSurpriseEnabled] = useState(false);
+  const [graphSketchEdges, setGraphSketchEdges] = useState<GraphSketchEdge[]>([]);
+  const [graphSketchEnabled, setGraphSketchEnabled] = useState(false);
+  const [correlatorStats, setCorrelatorStats] = useState<CorrelatorStats | null>(null);
   const [activeScenario, setActiveScenario] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,14 +67,21 @@ export function useObserver(): [ObserverState, ObserverActions] {
 
   const fetchAll = useCallback(async (): Promise<boolean> => {
     try {
-      const [statusData, scenariosData, componentsData, seriesData, anomaliesData, correlationsData] =
-        await Promise.all([
+      const [
+        statusData, scenariosData, componentsData, seriesData,
+        anomaliesData, correlationsData, leadLagData, surpriseData,
+        graphSketchData, statsData
+      ] = await Promise.all([
           api.getStatus(),
           api.getScenarios(),
           api.getComponents(),
           api.getSeries(),
           api.getAnomalies(),
           api.getCorrelations(),
+          api.getLeadLag(),
+          api.getSurprise(),
+          api.getGraphSketch(),
+          api.getStats(),
         ]);
 
       setStatus(statusData);
@@ -64,6 +90,14 @@ export function useObserver(): [ObserverState, ObserverActions] {
       setSeries(seriesData);
       setAnomalies(anomaliesData);
       setCorrelations(correlationsData);
+      // New correlator data
+      setLeadLagEdges(leadLagData.edges ?? []);
+      setLeadLagEnabled(leadLagData.enabled);
+      setSurpriseEdges(surpriseData.edges ?? []);
+      setSurpriseEnabled(surpriseData.enabled);
+      setGraphSketchEdges(graphSketchData.edges ?? []);
+      setGraphSketchEnabled(graphSketchData.enabled);
+      setCorrelatorStats(statsData);
       setError(null);
 
       if (statusData.ready && statusData.scenario) {
@@ -160,6 +194,13 @@ export function useObserver(): [ObserverState, ObserverActions] {
       series,
       anomalies,
       correlations,
+      leadLagEdges,
+      leadLagEnabled,
+      surpriseEdges,
+      surpriseEnabled,
+      graphSketchEdges,
+      graphSketchEnabled,
+      correlatorStats,
       activeScenario,
       error,
     },
