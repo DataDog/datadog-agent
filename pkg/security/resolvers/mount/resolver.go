@@ -593,6 +593,16 @@ func (mr *Resolver) ToJSON() ([]byte, error) {
 	return json.Marshal(dump)
 }
 
+// Iterate iterates over all the mounts in the cache and calls the callback function for each mount
+func (mr *Resolver) Iterate(cb func(*model.Mount)) {
+	mr.lock.RLock()
+	defer mr.lock.RUnlock()
+
+	for mount := range mr.mounts.ValuesIter() {
+		cb(mount)
+	}
+}
+
 // NewResolver instantiates a new mount resolver
 func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Resolver, dentryResolver *dentry.Resolver, opts ResolverOpts) (*Resolver, error) {
 	mounts, err := simplelru.NewLRU[uint32, *model.Mount](mountsLimit, nil)
