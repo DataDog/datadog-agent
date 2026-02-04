@@ -59,6 +59,17 @@ var registry = map[string]FunctionTool{
 		},
 		isExported: true,
 	},
+	"get_file": {
+		description: "Read the full contents of a file and post them to the callback URL.",
+		properties: map[string]Property{
+			"file_path": {Type: "string", Description: "The full path of the file to read."},
+			"regex":     {Type: "string", Description: "Optional regular expression used to filter the file contents. Use an empty string to return the full file."},
+		},
+		handler: func(parameters map[string]string) (any, error) {
+			return getFile(parameters["file_path"], parameters["regex"])
+		},
+		isExported: true,
+	},
 }
 
 type FunctionToolCall struct {
@@ -68,6 +79,7 @@ type FunctionToolCall struct {
 	Output           any               `json:"output"`
 	Error            error             `json:"error,omitempty"`
 	CallbackURL      string            `json:"-"` // Internal field, not serialized
+	CallbackPath     string            `json:"-"` // Internal field, not serialized
 }
 
 func NewCall(task types.AgentTaskConfig) FunctionToolCall {
@@ -75,59 +87,76 @@ func NewCall(task types.AgentTaskConfig) FunctionToolCall {
 	functionToolName, _ := task.Config.GetStringArg("function_tool_name")
 
 	rawParams, ok := task.Config.TaskArgs["parameters"]
-	if !ok {
-		// No parameters provided, return an empty map (not nil)
-		return FunctionToolCall{
-			CallID:           callID,
-			FunctionToolName: functionToolName,
-			Parameters:       make(map[string]string),
-		}
-	}
-
 	// Parameters can be either a map[string]any (from JSON object) or a string (JSON-encoded)
-	var parameters map[string]string
+	parameters := make(map[string]string)
 	var callbackURL string
-	switch p := rawParams.(type) {
-	case map[string]any:
-		parameters = make(map[string]string)
-		for k, v := range p {
-			if str, ok := v.(string); ok {
-				// Extract callback_url from parameters if present
-				if k == "callback_url" {
-					callbackURL = str
-					continue // Don't include callback_url in parameters
+	var callbackPath string
+	if ok {
+		switch p := rawParams.(type) {
+		case map[string]any:
+			for k, v := range p {
+				if str, ok := v.(string); ok {
+					// Extract callback_url from parameters if present
+					if k == "callback_url" {
+						callbackURL = str
+						continue // Don't include callback_url in parameters
+					}
+					if k == "path" {
+						callbackPath = str
+						continue // Don't include callback path in parameters
+					}
+					parameters[k] = str
+				} else {
+					// Convert non-string values to their string representation
+					parameters[k] = fmt.Sprintf("%v", v)
 				}
-				parameters[k] = str
-			} else {
-				// Convert non-string values to their string representation
-				parameters[k] = fmt.Sprintf("%v", v)
 			}
-		}
-	case string:
-		// If parameters is a JSON string, unmarshal it
-		err := json.Unmarshal([]byte(p), &parameters)
-		if err != nil {
+		case string:
+			// If parameters is a JSON string, unmarshal it
+			err := json.Unmarshal([]byte(p), &parameters)
+			if err != nil {
+				return FunctionToolCall{
+					Error: fmt.Errorf("failed to unmarshal parameters: %w", err),
+				}
+			}
+			// Extract callback_url from parameters if present
+			if url, ok := parameters["callback_url"]; ok {
+				callbackURL = url
+				delete(parameters, "callback_url")
+			}
+			if path, ok := parameters["path"]; ok {
+				callbackPath = path
+				delete(parameters, "path")
+			}
+		default:
 			return FunctionToolCall{
-				Error: fmt.Errorf("failed to unmarshal parameters: %w", err),
+				Error: fmt.Errorf("unexpected parameters type: %T", rawParams),
 			}
-		}
-		// Extract callback_url from parameters if present
-		if url, ok := parameters["callback_url"]; ok {
-			callbackURL = url
-			delete(parameters, "callback_url")
-		}
-	default:
-		return FunctionToolCall{
-			Error: fmt.Errorf("unexpected parameters type: %T", rawParams),
 		}
 	}
 
 	return FunctionToolCall{
 		CallID:           callID,
 		FunctionToolName: functionToolName,
-		Parameters:       parameters,
+		Parameters:       applyParameterDefaults(functionToolName, parameters),
 		CallbackURL:      callbackURL,
+		CallbackPath:     callbackPath,
 	}
+}
+
+func applyParameterDefaults(functionToolName string, parameters map[string]string) map[string]string {
+	if parameters == nil {
+		parameters = make(map[string]string)
+	}
+
+	switch functionToolName {
+	case "get_file":
+		if _, ok := parameters["regex"]; !ok {
+			parameters["regex"] = ""
+		}
+	}
+
+	return parameters
 }
 
 func (functionToolCall FunctionToolCall) Execute() FunctionToolCall {
@@ -139,10 +168,6 @@ func (functionToolCall FunctionToolCall) Execute() FunctionToolCall {
 	functionTool, ok := registry[functionToolCall.FunctionToolName]
 	if !ok {
 		functionToolCall.Error = fmt.Errorf("function tool '%s' not found", functionToolCall.FunctionToolName)
-		return functionToolCall
-	}
-	if len(registry[functionToolCall.FunctionToolName].properties) != len(functionToolCall.Parameters) {
-		functionToolCall.Error = fmt.Errorf("expected %d parameters, got %d", len(registry[functionToolCall.FunctionToolName].properties), len(functionToolCall.Parameters))
 		return functionToolCall
 	}
 	for name := range registry[functionToolCall.FunctionToolName].properties {

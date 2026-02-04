@@ -59,8 +59,27 @@ func NewCallbackSender(apiKey, appKey, callbackURL string) *CallbackSender {
 }
 
 // Send sends the function tool call result to the callback URL
-func (s *CallbackSender) Send(callID, functionToolName string, output any, err error) error {
-	// Build the result object
+func (s *CallbackSender) Send(callID, functionToolName string, output any, err error, callbackPath string) error {
+	payload, payloadErr := buildCallbackPayload(callID, functionToolName, output, err, callbackPath)
+	if payloadErr != nil {
+		return payloadErr
+	}
+
+	return s.sendPayload(payload)
+}
+
+func buildCallbackPayload(callID, functionToolName string, output any, err error, callbackPath string) (CallbackPayload, error) {
+	if err == nil {
+		switch filePayload := output.(type) {
+		case fileContent:
+			return payloadFromFile(filePayload, callbackPath), nil
+		case *fileContent:
+			if filePayload != nil {
+				return payloadFromFile(*filePayload, callbackPath), nil
+			}
+		}
+	}
+
 	result := CallbackResult{
 		CallID:           callID,
 		FunctionToolName: functionToolName,
@@ -70,23 +89,54 @@ func (s *CallbackSender) Send(callID, functionToolName string, output any, err e
 		result.Error = err.Error()
 	}
 
-	// Serialize the result to JSON string for the data field
 	resultJSON, marshalErr := json.Marshal(result)
 	if marshalErr != nil {
-		return fmt.Errorf("failed to marshal result: %w", marshalErr)
+		return CallbackPayload{}, fmt.Errorf("failed to marshal result: %w", marshalErr)
 	}
 
-	payload := CallbackPayload{
+	path := callbackPath
+	if path == "" {
+		path = "/tmp/output.log"
+	}
+
+	return CallbackPayload{
 		Data: CallbackPayloadData{
 			Type: "ingest",
 			Attributes: CallbackPayloadAttributes{
 				Data:        string(resultJSON),
-				Path:        "/tmp/output.log",
+				Path:        path,
 				ContentType: "application/json",
 			},
 		},
+	}, nil
+}
+
+func payloadFromFile(filePayload fileContent, callbackPath string) CallbackPayload {
+	contentType := filePayload.ContentType
+	if contentType == "" {
+		contentType = "text/plain"
+	}
+	path := callbackPath
+	if path == "" {
+		path = filePayload.Path
+		if path == "" {
+			path = "/tmp/output.log"
+		}
 	}
 
+	return CallbackPayload{
+		Data: CallbackPayloadData{
+			Type: "ingest",
+			Attributes: CallbackPayloadAttributes{
+				Data:        filePayload.Data,
+				Path:        path,
+				ContentType: contentType,
+			},
+		},
+	}
+}
+
+func (s *CallbackSender) sendPayload(payload CallbackPayload) error {
 	jsonData, marshalErr := json.Marshal(payload)
 	if marshalErr != nil {
 		return fmt.Errorf("failed to marshal payload: %w", marshalErr)

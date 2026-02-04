@@ -489,7 +489,7 @@ func (rc *rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, 
 							}
 
 							sender := functiontools.NewCallbackSender(apiKey, appKey, result.CallbackURL)
-							err = sender.Send(result.CallID, result.FunctionToolName, result.Output, result.Error)
+							err = sender.Send(result.CallID, result.FunctionToolName, result.Output, result.Error, result.CallbackPath)
 							if err != nil {
 								pkglog.Errorf("[FA] Error sending function tool result: %s", err.Error())
 							}
