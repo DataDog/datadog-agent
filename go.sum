@@ -196,8 +196,8 @@ github.com/DataDog/datadog-go v3.2.0+incompatible h1:qSG2N4FghB1He/r2mFrWKCaL7dX
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/DataDog/datadog-go/v5 v5.8.2 h1:9IEfH1Mw9AjWwhAMqCAkhbxjuJeMxm2ARX2VdgL+ols=
 github.com/DataDog/datadog-go/v5 v5.8.2/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
-github.com/DataDog/datadog-operator/api v0.0.0-20251127112405-4be7033d5f47 h1:uh2sJ7hctv0J3tRfQDQfauCy6x45Ex/A4RdG4/aEOnk=
-github.com/DataDog/datadog-operator/api v0.0.0-20251127112405-4be7033d5f47/go.mod h1:Mx5FrO5t4VF62KTT77HQDheyfGsbufrrBidd+jScicE=
+github.com/DataDog/datadog-operator/api v0.0.0-20260130110400-4fcb91d49671 h1:AOZwJBuJZVyeBRcYi/AavxWozk6+mXZNs2SJJEEVp0U=
+github.com/DataDog/datadog-operator/api v0.0.0-20260130110400-4fcb91d49671/go.mod h1:qrisxX+IMicFX01uVrzmPWTxhSQrrmyb6fUTQdjQdN8=
 github.com/DataDog/datadog-traceroute v1.0.3 h1:84fcvLfsOmdm7T6+7Y07KmQfXJR8gjMdmD4j+vuf8Qo=
 github.com/DataDog/datadog-traceroute v1.0.3/go.mod h1:aA+OKmKRPghOH/DPIrepgLXos++CHZQ5L/uCCeaaNII=
 github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20260123165136-9ed3effd2c0e h1:OMhVn9YYbnrvMZfWFr6wEeXqiAfVz5QM+YqSaJnVWVg=
@@ -484,8 +484,8 @@ github.com/aws/aws-sdk-go-v2/service/sts v1.41.6 h1:5fFjR/ToSOzB2OQ/XqWpZBmNvmP/
 github.com/aws/aws-sdk-go-v2/service/sts v1.41.6/go.mod h1:qgFDZQSD/Kys7nJnVqYlWKnh0SSdMjAi0uSwON4wgYQ=
 github.com/aws/aws-sdk-go-v2/service/timestreamwrite v1.35.3 h1:lG559VMq/SjLPgJ4sz7Qh8LVHKCi+En0CBz4Cx6YgIQ=
 github.com/aws/aws-sdk-go-v2/service/timestreamwrite v1.35.3/go.mod h1:hEgxA1cAEctcJI458bb5OYbUna18HuOU0rlIYJsV5ac=
-github.com/aws/karpenter-provider-aws v1.8.2 h1:oSx4o/7myDNRGXL6YxfielfczQ/8lOYqL03LzfmdqW8=
-github.com/aws/karpenter-provider-aws v1.8.2/go.mod h1:JS+OAkYimztd7l+ZcZljghAk3D+ihZuHwQnnlVL3EXk=
+github.com/aws/karpenter-provider-aws v1.8.6 h1:oVQG3X09tC2PyNyH5q9ksZbFA63ougAT01uyt3EmGrM=
+github.com/aws/karpenter-provider-aws v1.8.6/go.mod h1:qUoB9EK7DCunUurklTxfLGPyBQkCYpbVJsw56un+VA4=
 github.com/aws/smithy-go v1.15.0/go.mod h1:Tg+OJXh4MB2R/uN61Ko2f6hTZwB/ZYGOtib8J3gBHzA=
 github.com/aws/smithy-go v1.24.0 h1:LpilSUItNPFr1eY85RYgTIg5eIEPtvFbskaFcmmIUnk=
 github.com/aws/smithy-go v1.24.0/go.mod h1:LEj2LM3rBRQJxPZTB4KuzZkaZYnZPnvgIhb4pu07mx0=
@@ -3613,8 +3613,8 @@ sigs.k8s.io/gateway-api v1.3.1-0.20250527223622-54df0a899c1c h1:GS4VnGRV90GEUjrg
 sigs.k8s.io/gateway-api v1.3.1-0.20250527223622-54df0a899c1c/go.mod h1:d8NV8nJbaRbEKem+5IuxkL8gJGOZ+FJ+NvOIltV8gDk=
 sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8 h1:gBQPwqORJ8d8/YNZWEjoZs7npUVDpVXUUOFfW6CgAqE=
 sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8/go.mod h1:mdzfpAEoE6DHQEN0uh9ZbOCuHbLK5wOm7dK4ctXE9Tg=
-sigs.k8s.io/karpenter v1.8.0 h1:AmTHUPtnuL8IX9mbcD3NOohyk62idrBCBtM+8Wn6Jvk=
-sigs.k8s.io/karpenter v1.8.0/go.mod h1:nDDVB5873dVVuyTam3oJrllSv0sAgp6as6/5HRTcV4o=
+sigs.k8s.io/karpenter v1.8.2 h1:HvgnZuZZarg7gdEXIecx6lV/QHNCQj6mHg0mI65ztRU=
+sigs.k8s.io/karpenter v1.8.2/go.mod h1:SlMh0Ixoi1uj+cQ9meuWwk/iqfoXtcnqDx4wYheaeso=
 sigs.k8s.io/randfill v1.0.0 h1:JfjMILfT8A6RbawdsK2JXGBR5AQVfd+9TbzrlneTyrU=
 sigs.k8s.io/randfill v1.0.0/go.mod h1:XeLlZ/jmk4i1HRopwe7/aU3H5n1zNUcX6TM94b3QxOY=
 sigs.k8s.io/structured-merge-diff/v6 v6.3.0 h1:jTijUJbW353oVOd9oTlifJqOGEkUw2jB/fXCbTiQEco=
