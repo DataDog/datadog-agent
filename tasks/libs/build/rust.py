@@ -26,6 +26,10 @@ def build_rust_lib(
                     f"-C link-arg=-Wl,-rpath={os.path.join(embedded_path, 'lib')} -C link-arg=-L{os.path.join(embedded_path, 'lib')}"
                 )
 
+            if os.uname().machine == "arm64":
+                # TODO: Verify this, we shouldn't use fp16 in theory
+                rustenv["RUSTFLAGS"] += " -C target-feature=+fp16"
+
             print("CC rustenv:")
             for k, v in rustenv.items():
                 print(f"{k}: {v}")
