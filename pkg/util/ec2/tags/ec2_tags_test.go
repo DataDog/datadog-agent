@@ -339,41 +339,54 @@ func setupTestIMDS(t *testing.T) {
 	t.Cleanup(func() { ts.Close() })
 }
 
-func TestFetchEc2TagsFromAPICredentialChain(t *testing.T) {
+func TestFetchEc2TagsFromAPIFallback(t *testing.T) {
 	ctx := context.Background()
 	conf := configmock.New(t)
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
+	defer func() {
+		getTagsWithClientFunc = getTagsWithClient
+		createEC2ClientFunc = createEC2Client
+	}()
+
 	t.Run("tries default credentials first (IRSA), no fallback needed", func(t *testing.T) {
 		setupTestIMDS(t)
-		defer func() { getTagsWithClientFunc = getTagsWithClient }()
 
 		callCount := 0
-		getTagsWithClientFunc = func(_ context.Context, _ *ec2.Client, _ *ec2internal.EC2Identity) ([]string, error) {
+		createEC2ClientFunc = func(ctx context.Context, region string, creds aws.CredentialsProvider) (*ec2.Client, error) {
 			callCount++
+			return createEC2Client(ctx, region, creds)
+		}
+
+		getTagsWithClientFunc = func(_ context.Context, _ *ec2.Client, _ *ec2internal.EC2Identity) ([]string, error) {
 			return []string{"Name:test"}, nil
 		}
 
-		_, err := fetchEc2TagsFromAPI(ctx)
+		tags, err := fetchEc2TagsFromAPI(ctx)
 		require.NoError(t, err)
-		assert.Equal(t, 1, callCount, "should only call once when default credentials work")
+		assert.Equal(t, []string{"Name:test"}, tags)
+		assert.Equal(t, 1, callCount, "should only create client once")
 	})
 
 	t.Run("falls back to instance credentials when default fails", func(t *testing.T) {
 		setupTestIMDS(t)
-		defer func() { getTagsWithClientFunc = getTagsWithClient }()
 
 		callCount := 0
-		getTagsWithClientFunc = func(_ context.Context, _ *ec2.Client, _ *ec2internal.EC2Identity) ([]string, error) {
+		createEC2ClientFunc = func(ctx context.Context, region string, creds aws.CredentialsProvider) (*ec2.Client, error) {
 			callCount++
 			if callCount == 1 {
-				return nil, errors.New("unauthorized")
+				return nil, errors.New("mock no credentials available")
 			}
+			return createEC2Client(ctx, region, creds)
+		}
+
+		getTagsWithClientFunc = func(_ context.Context, _ *ec2.Client, _ *ec2internal.EC2Identity) ([]string, error) {
 			return []string{"Name:test"}, nil
 		}
 
-		_, err := fetchEc2TagsFromAPI(ctx)
+		tags, err := fetchEc2TagsFromAPI(ctx)
 		require.NoError(t, err)
-		assert.Equal(t, 2, callCount, "should call twice: default credentials fail, then fallback succeeds")
+		assert.Equal(t, []string{"Name:test"}, tags)
+		assert.Equal(t, 2, callCount, "should try twice: default credentials fail, then fallback succeeds")
 	})
 }

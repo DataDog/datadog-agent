@@ -173,30 +173,26 @@ func fetchEc2TagsFromAPI(ctx context.Context) ([]string, error) {
 	}
 
 	// default client chain (IRSA/ECS/env/instance-profile chain)
-	ec2Client, err := createEC2Client(ctx, instanceIdentity.Region, nil)
-	if err == nil {
-		tags, err := getTagsWithClientFunc(ctx, ec2Client, instanceIdentity)
-		if err == nil {
-			return tags, nil
-		}
-		log.Debugf("unable to get tags using default credentials (falling back to instance role): %s", err)
-	} else {
+	ec2Client, err := createEC2ClientFunc(ctx, instanceIdentity.Region, nil)
+	if err != nil {
 		log.Debugf("unable to create EC2 client with default credentials (falling back to instance role): %s", err)
+
+		// If the above fails, for backward compatibility, fall back to our legacy
+		// behavior, where we explicitly query instance role to get credentials.
+		iamParams, err := getSecurityCreds(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		awsCreds := credentials.NewStaticCredentialsProvider(iamParams.AccessKeyID, iamParams.SecretAccessKey, iamParams.Token)
+		// legacy client
+		ec2Client, err = createEC2ClientFunc(ctx, instanceIdentity.Region, awsCreds)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	// If the above fails, for backward compatibility, fall back to our legacy
-	// behavior, where we explicitly query instance role to get credentials.
-	iamParams, err := getSecurityCreds(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	awsCreds := credentials.NewStaticCredentialsProvider(iamParams.AccessKeyID, iamParams.SecretAccessKey, iamParams.Token)
-	legacyClient, err := createEC2Client(ctx, instanceIdentity.Region, awsCreds)
-	if err != nil {
-		return nil, err
-	}
-	return getTagsWithClientFunc(ctx, legacyClient, instanceIdentity)
+	return getTagsWithClientFunc(ctx, ec2Client, instanceIdentity)
 }
 
 func getTagsWithClient(ctx context.Context, client *ec2.Client, instanceIdentity *ec2internal.EC2Identity) ([]string, error) {
@@ -231,6 +227,7 @@ func getTagsWithClient(ctx context.Context, client *ec2.Client, instanceIdentity
 // for testing purposes
 var fetchTags = fetchEc2Tags
 var getTagsWithClientFunc = getTagsWithClient
+var createEC2ClientFunc = createEC2Client
 
 func fetchTagsFromCache(ctx context.Context) ([]string, error) {
 	if !configutils.IsCloudProviderEnabled(ec2internal.CloudProviderName, pkgconfigsetup.Datadog()) {
