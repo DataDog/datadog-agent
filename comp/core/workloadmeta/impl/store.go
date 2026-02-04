@@ -138,8 +138,9 @@ func (w *workloadmeta) Subscribe(name string, priority wmdef.SubscriberPriority,
 				entity := cachedEntity.get(sub.filter.Source())
 				if entity != nil && sub.filter.MatchEntity(&entity) {
 					events = append(events, wmdef.Event{
-						Type:   wmdef.EventTypeSet,
-						Entity: entity,
+						Type:       wmdef.EventTypeSet,
+						Entity:     entity,
+						IsComplete: w.isEntityComplete(kind, cachedEntity),
 					})
 				}
 			}
@@ -857,8 +858,9 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 
 			if isEventTypeSet {
 				filteredEvents[sub] = append(filteredEvents[sub], wmdef.Event{
-					Type:   wmdef.EventTypeSet,
-					Entity: entity,
+					Type:       wmdef.EventTypeSet,
+					Entity:     entity,
+					IsComplete: w.isEntityComplete(entityID.Kind, cachedEntity),
 				})
 			} else {
 				entity = entity.DeepCopy()
@@ -871,6 +873,9 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 				filteredEvents[sub] = append(filteredEvents[sub], wmdef.Event{
 					Type:   wmdef.EventTypeUnset,
 					Entity: entity,
+					// Same as with entity, completeness refers to the copy
+					// before the unset took place
+					IsComplete: w.isEntityComplete(entityID.Kind, cachedEntity),
 				})
 			}
 		}
@@ -988,4 +993,24 @@ func classifyByKindAndID(entities []wmdef.Entity) map[wmdef.Kind]map[string]wmde
 	}
 
 	return res
+}
+
+// isEntityComplete checks if an entity is complete, meaning all expected
+// collectors have reported data for it. If no expected sources are defined for
+// the entity kind, it returns true (considered complete by default).
+func (w *workloadmeta) isEntityComplete(kind wmdef.Kind, cachedEntity *cachedEntity) bool {
+	expectedSources, ok := w.expectedSources[kind]
+	if !ok || len(expectedSources) == 0 {
+		// No expected sources defined for this kind, consider it complete
+		return true
+	}
+
+	// Check if all expected sources have reported
+	for _, expectedSource := range expectedSources {
+		if _, reported := cachedEntity.sources[expectedSource]; !reported {
+			return false
+		}
+	}
+
+	return true
 }
