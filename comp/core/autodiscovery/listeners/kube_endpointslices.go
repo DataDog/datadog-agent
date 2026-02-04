@@ -419,37 +419,6 @@ func processEndpointSlice(slice *discv1.EndpointSlice, tags []string, filterStor
 	return eps
 }
 
-// diffKubeEndpointServices compares two slices of KubeEndpointService and returns what was removed and added
-func diffKubeEndpointServices(old, new []*KubeEndpointService) (toRemove, toAdd []*KubeEndpointService) {
-	// Build maps for quick lookup by entity ID
-	oldMap := make(map[string]*KubeEndpointService)
-	newMap := make(map[string]*KubeEndpointService)
-
-	for _, ep := range old {
-		oldMap[ep.entity] = ep
-	}
-
-	for _, ep := range new {
-		newMap[ep.entity] = ep
-	}
-
-	// Find removed endpoints (in old but not in new)
-	for _, ep := range old {
-		if _, exists := newMap[ep.entity]; !exists {
-			toRemove = append(toRemove, ep)
-		}
-	}
-
-	// Find added endpoints (in new but not in old)
-	for _, ep := range new {
-		if _, exists := oldMap[ep.entity]; !exists {
-			toAdd = append(toAdd, ep)
-		}
-	}
-
-	return toRemove, toAdd
-}
-
 // getStandardTagsForService returns the standard tags defined in the labels
 // of a given Service.
 func (l *KubeEndpointSlicesListener) getStandardTagsForService(namespace, serviceName string) ([]string, error) {

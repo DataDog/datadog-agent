@@ -411,7 +411,7 @@ func getEndpointResolveFuncForSlices(resolveMode endpointResolveMode, namespace,
 
 	case "", kubeEndpointResolveAuto:
 		// Auto or empty (default to auto): we try to resolve the POD behind this address
-		resolveFunc = func(config *integration.Config, endpoint discv1.Endpoint, ip string) {
+		resolveFunc = func(config *integration.Config, endpoint discv1.Endpoint, _ string) {
 			if endpoint.TargetRef != nil && endpoint.TargetRef.Kind == "Pod" {
 				config.NodeName = endpoint.TargetRef.Name
 			}
@@ -419,7 +419,7 @@ func getEndpointResolveFuncForSlices(resolveMode endpointResolveMode, namespace,
 
 	default:
 		log.Warnf("Unknown resolve mode %s for service %s/%s, defaulting to auto", resolveMode, namespace, name)
-		resolveFunc = func(config *integration.Config, endpoint discv1.Endpoint, ip string) {
+		resolveFunc = func(config *integration.Config, endpoint discv1.Endpoint, _ string) {
 			if endpoint.TargetRef != nil && endpoint.TargetRef.Kind == "Pod" {
 				config.NodeName = endpoint.TargetRef.Name
 			}
