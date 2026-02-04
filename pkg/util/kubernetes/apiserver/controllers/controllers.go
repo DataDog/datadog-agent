@@ -61,6 +61,10 @@ var controllerCatalog = map[controllerName]controllerFuncs{
 		func() bool { return pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") },
 		registerEndpointsInformer,
 	},
+	endpointSlicesControllerName: {
+		func() bool { return pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") },
+		registerEndpointSlicesInformer,
+	},
 	crdControllerName: {
 		func() bool {
 			return pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") && pkgconfigsetup.Datadog().GetBool("cluster_checks.crd_collection")
@@ -194,6 +198,15 @@ func registerEndpointsInformer(ctx *ControllerContext, _ chan error) {
 
 	ctx.informersMutex.Lock()
 	ctx.informers[endpointsInformer] = informer
+	ctx.informersMutex.Unlock()
+}
+
+// registerEndpointSlicesInformer registers the EndpointSlices informer.
+func registerEndpointSlicesInformer(ctx *ControllerContext, _ chan error) {
+	informer := ctx.InformerFactory.Discovery().V1().EndpointSlices().Informer()
+
+	ctx.informersMutex.Lock()
+	ctx.informers[endpointSlicesInformer] = informer
 	ctx.informersMutex.Unlock()
 }
 
