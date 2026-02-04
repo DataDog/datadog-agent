@@ -46,9 +46,6 @@ func errSymbolEndpointsSiteRequired() error {
 func errSymbolEndpointsAPIKeyRequired() error {
 	return errors.New("symbol_endpoints.api_key is required")
 }
-func errSymbolEndpointsAppKeyRequired() error {
-	return errors.New("symbol_endpoints.app_key is required")
-}
 
 // Validate validates the config.
 // This is automatically called by the config parser as it implements the xconfmap.Validator interface.
@@ -82,9 +79,6 @@ func (c *Config) Validate() error {
 			}
 			if endpoint.APIKey == "" {
 				return errSymbolEndpointsAPIKeyRequired()
-			}
-			if endpoint.AppKey == "" {
-				return errSymbolEndpointsAppKeyRequired()
 			}
 		}
 	}
