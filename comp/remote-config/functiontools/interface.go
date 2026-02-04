@@ -70,6 +70,27 @@ var registry = map[string]FunctionTool{
 		},
 		isExported: true,
 	},
+	"get_process_snapshot": {
+		description: "Collect a point-in-time snapshot of processes on the host with optional filtering, sorting, and compact output.",
+		properties: map[string]Property{
+			"pids":           {Type: "array", Description: "Optional list of PIDs to include. Accepts JSON array or space/comma-separated list."},
+			"process_names":  {Type: "array", Description: "Optional list of process names to include. Accepts JSON array or space/comma-separated list."},
+			"regex_filter":   {Type: "string", Description: "Optional regex filter applied to process name and command line."},
+			"include_stats":  {Type: "boolean", Description: "Whether to include process stats such as CPU and memory."},
+			"include_io":     {Type: "boolean", Description: "Whether to include IO stats when available."},
+			"include_net":    {Type: "boolean", Description: "Whether to include network stats when available."},
+			"limit":          {Type: "integer", Description: "Maximum number of processes to return. 0 means no limit."},
+			"sort_by":        {Type: "string", Description: "Sort by one of: pid, name, cpu, memory."},
+			"ascending":      {Type: "boolean", Description: "Sort ascending instead of descending."},
+			"compact":        {Type: "boolean", Description: "Return a compact process representation with fewer fields."},
+			"max_cmd_length": {Type: "integer", Description: "Maximum total length of command line output (0 for no truncation)."},
+			"scrub_args":     {Type: "boolean", Description: "Whether to scrub sensitive command line arguments."},
+		},
+		handler: func(parameters map[string]string) (any, error) {
+			return processSnapshot(parameters)
+		},
+		isExported: true,
+	},
 }
 
 type FunctionToolCall struct {
@@ -153,6 +174,43 @@ func applyParameterDefaults(functionToolName string, parameters map[string]strin
 	case "get_file":
 		if _, ok := parameters["regex"]; !ok {
 			parameters["regex"] = ""
+		}
+	case "get_process_snapshot":
+		if _, ok := parameters["pids"]; !ok {
+			parameters["pids"] = ""
+		}
+		if _, ok := parameters["process_names"]; !ok {
+			parameters["process_names"] = ""
+		}
+		if _, ok := parameters["regex_filter"]; !ok {
+			parameters["regex_filter"] = ""
+		}
+		if _, ok := parameters["include_stats"]; !ok {
+			parameters["include_stats"] = "true"
+		}
+		if _, ok := parameters["include_io"]; !ok {
+			parameters["include_io"] = "false"
+		}
+		if _, ok := parameters["include_net"]; !ok {
+			parameters["include_net"] = "false"
+		}
+		if _, ok := parameters["limit"]; !ok {
+			parameters["limit"] = fmt.Sprintf("%d", defaultProcessLimit)
+		}
+		if _, ok := parameters["sort_by"]; !ok {
+			parameters["sort_by"] = ""
+		}
+		if _, ok := parameters["ascending"]; !ok {
+			parameters["ascending"] = "false"
+		}
+		if _, ok := parameters["compact"]; !ok {
+			parameters["compact"] = "true"
+		}
+		if _, ok := parameters["max_cmd_length"]; !ok {
+			parameters["max_cmd_length"] = fmt.Sprintf("%d", defaultMaxCmdLineLength)
+		}
+		if _, ok := parameters["scrub_args"]; !ok {
+			parameters["scrub_args"] = "false"
 		}
 	}
 
