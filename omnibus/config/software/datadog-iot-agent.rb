@@ -46,7 +46,9 @@ build do
   delete "pkg/deepinference/rust/target"
 
   if linux_target?
-    command "invoke agent.build --flavor iot --no-development", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    # TODO: Verif
+    arch = `uname -m`.strip
+    command "invoke agent.build --flavor iot --no-development --target-arch #{arch}-unknown-linux-gnu --embedded-path=#{install_dir}/embedded", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     mkdir "#{install_dir}/bin"
     mkdir "#{install_dir}/run/"
 
