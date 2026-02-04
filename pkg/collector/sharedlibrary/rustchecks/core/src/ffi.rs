@@ -2,16 +2,14 @@
 #[macro_export]
 macro_rules! generate_ffi {
     ($check_function:ident, $version:ident) => {
-        use std::ffi;
-
         /// Entrypoint of the check
         #[unsafe(no_mangle)]
         pub extern "C" fn Run(
-            check_id_cstr: *const ffi::c_char,
-            init_config_cstr: *const ffi::c_char,
-            instance_config_cstr: *const ffi::c_char,
+            check_id_cstr: *const std::ffi::c_char,
+            init_config_cstr: *const std::ffi::c_char,
+            instance_config_cstr: *const std::ffi::c_char,
             aggregator_ptr: *const core::Aggregator,
-            error_handler: *mut *mut ffi::c_char,
+            error_handler: *mut *mut std::ffi::c_char,
         ) {
             if let Err(e) = create_and_run_check(
                 check_id_cstr,
@@ -19,17 +17,22 @@ macro_rules! generate_ffi {
                 instance_config_cstr,
                 aggregator_ptr,
             ) {
-                let cstr_ptr = core::to_cstring(&e.to_string()).unwrap_or(std::ptr::null_mut());
+                let cstr_ptr = match core::to_cstring(&e.to_string()) {
+                    Ok(ptr) => ptr,
+                    Err(_) => core::to_cstring("").unwrap(),
+                };
 
-                unsafe { *error_handler = cstr_ptr };
+                unsafe {
+                    *error_handler = cstr_ptr
+                };
             }
         }
 
         /// Build the check structure and execute its custom implementation
         fn create_and_run_check(
-            check_id_cstr: *const ffi::c_char,
-            init_config_cstr: *const ffi::c_char,
-            instance_config_cstr: *const ffi::c_char,
+            check_id_cstr: *const std::ffi::c_char,
+            init_config_cstr: *const std::ffi::c_char,
+            instance_config_cstr: *const std::ffi::c_char,
             aggregator_ptr: *const core::Aggregator,
         ) -> anyhow::Result<()> {
             // convert C args to Rust structs
@@ -53,7 +56,7 @@ macro_rules! generate_ffi {
 
         /// Get the version of the check
         #[unsafe(no_mangle)]
-        pub extern "C" fn Version() -> *const ffi::c_char {
+        pub extern "C" fn Version() -> *const std::ffi::c_char {
             $version.as_ptr()
         }
     };

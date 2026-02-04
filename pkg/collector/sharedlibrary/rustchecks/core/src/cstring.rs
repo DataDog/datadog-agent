@@ -9,14 +9,13 @@ pub fn to_rust_string(ptr: *const c_char) -> Result<String> {
     }
 
     let rust_str = unsafe { CStr::from_ptr(ptr) }.to_str()?;
-
     Ok(rust_str.to_string())
 }
 
 /// Convert Rust str to C-String pointer
 pub fn to_cstring(string: &str) -> Result<*mut c_char> {
-    let cstr = CString::new(string)?;
-    Ok(cstr.into_raw())
+    let cstring = CString::new(string)?;
+    Ok(cstring.into_raw())
 }
 
 /// Convert Rust vector of Strings to an array of C-String pointers
