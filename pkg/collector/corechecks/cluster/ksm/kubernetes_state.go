@@ -1278,7 +1278,6 @@ func buildDeniedMetricsSet(collectors []string) options.MetricSet {
 		"kube_pod_owner":                                   {},
 		"kube_pod_restart_policy":                          {},
 		"kube_pod_completion_time":                         {},
-		"kube_pod_status_scheduled_time":                   {},
 		"kube_cronjob_status_active":                       {},
 		"kube_node_status_phase":                           {},
 		"kube_cronjob_spec_starting_deadline_seconds":      {},

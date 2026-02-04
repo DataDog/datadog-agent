@@ -79,6 +79,37 @@ type lastCronJobFailedAggregator struct {
 	aggregator *lastCronJobAggregator
 }
 
+// podIdentifier uniquely identifies a pod by namespace and name
+type podIdentifier struct {
+	namespace string
+	pod       string
+}
+
+// podTimingState holds the timing information for a pod's startup
+type podTimingState struct {
+	labels        map[string]string
+	scheduledTime float64
+	readyTime     float64
+	locked        bool
+}
+
+// podTimeToReadyCorrelator correlates pod scheduled and ready times
+// to compute the time it takes for a pod to become ready
+type podTimeToReadyCorrelator struct {
+	correlator map[podIdentifier]*podTimingState
+}
+
+// podScheduledTimeAggregator accumulates kube_pod_status_scheduled_time metrics
+type podScheduledTimeAggregator struct {
+	correlator *podTimeToReadyCorrelator
+}
+
+// podReadyTimeAggregator accumulates kube_pod_status_ready_time metrics
+// and emits the computed time_to_ready metric
+type podReadyTimeAggregator struct {
+	correlator *podTimeToReadyCorrelator
+}
+
 func newSumValuesAggregator(ddMetricName, ksmMetricName string, allowedLabels []string) metricAggregator {
 	if len(allowedLabels) > maxNumberOfAllowedLabels {
 		// `maxNumberOfAllowedLabels` is hardcoded to the maximum number of labels passed to this function from the metricsAggregators definition below.
@@ -141,6 +172,12 @@ func newResourceValuesAggregator(ddMetricPrefix, ddMetricSuffix, ksmMetricName s
 func newLastCronJobAggregator() *lastCronJobAggregator {
 	return &lastCronJobAggregator{
 		accumulator: make(map[cronJob]cronJobState),
+	}
+}
+
+func newPodTimeToReadyCorrelator() *podTimeToReadyCorrelator {
+	return &podTimeToReadyCorrelator{
+		correlator: make(map[podIdentifier]*podTimingState),
 	}
 }
 
@@ -234,6 +271,66 @@ func (a *lastCronJobAggregator) accumulate(metric ksmstore.DDMetric, state servi
 	}
 }
 
+func (a *podScheduledTimeAggregator) accumulate(metric ksmstore.DDMetric) {
+	namespace, found := metric.Labels["namespace"]
+	if !found {
+		return
+	}
+
+	pod, found := metric.Labels["pod"]
+	if !found {
+		return
+	}
+
+	podID := podIdentifier{namespace: namespace, pod: pod}
+	state, exists := a.correlator.correlator[podID]
+	if !exists {
+		state = &podTimingState{
+			labels: make(map[string]string),
+		}
+		// Copy all labels for later use during flush
+		for k, v := range metric.Labels {
+			state.labels[k] = v
+		}
+		a.correlator.correlator[podID] = state
+	}
+	state.scheduledTime = metric.Val
+}
+
+func (a *podReadyTimeAggregator) accumulate(metric ksmstore.DDMetric) {
+	namespace, found := metric.Labels["namespace"]
+	if !found {
+		return
+	}
+
+	pod, found := metric.Labels["pod"]
+	if !found {
+		return
+	}
+
+	podID := podIdentifier{namespace: namespace, pod: pod}
+	state, exists := a.correlator.correlator[podID]
+	if !exists {
+		state = &podTimingState{
+			labels: make(map[string]string),
+		}
+		// Copy all labels for later use during flush
+		for k, v := range metric.Labels {
+			state.labels[k] = v
+		}
+		a.correlator.correlator[podID] = state
+	}
+
+	// Once a pod has become ready, lock the state to prevent
+	// container restarts from updating the ready time.
+	// This ensures we capture the initial time-to-ready.
+	if state.locked {
+		return
+	}
+	state.locked = true
+	state.readyTime = metric.Val
+}
+
 func (a *counterAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
 	for labelValues, count := range a.accumulator {
 
@@ -299,8 +396,36 @@ func (a *lastCronJobAggregator) flush(sender sender.Sender, k *KSMCheck, labelJo
 	a.accumulator = make(map[cronJob]cronJobState)
 }
 
+func (a *podScheduledTimeAggregator) flush(_ sender.Sender, _ *KSMCheck, _ *labelJoiner) {
+	// No-op: the podReadyTimeAggregator handles flushing to avoid double emission
+}
+
+func (a *podReadyTimeAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
+	for _, state := range a.correlator.correlator {
+		// Only emit metrics for pods that have both scheduled and ready times
+		// and have been locked (meaning ready time has been captured)
+		if !state.locked || state.scheduledTime == 0 {
+			continue
+		}
+
+		timeToReady := state.readyTime - state.scheduledTime
+		if timeToReady < 0 {
+			// Skip invalid timing data
+			continue
+		}
+
+		// Use hostnameAndTags to apply label joins and get owner reference tags
+		hostname, tags := k.hostnameAndTags(state.labels, labelJoiner, labelsMapperOverride("kube_pod"))
+		sender.Gauge(ksmMetricPrefix+"pod.time_to_ready", timeToReady, hostname, tags)
+	}
+
+	// Reset the correlator for the next check run
+	a.correlator.correlator = make(map[podIdentifier]*podTimingState)
+}
+
 func defaultMetricAggregators() map[string]metricAggregator {
 	cronJobAggregator := newLastCronJobAggregator()
+	podTimeToReadyCorrelator := newPodTimeToReadyCorrelator()
 
 	return map[string]metricAggregator{
 		"kube_configmap_info": newCountObjectsAggregator(
@@ -442,5 +567,7 @@ func defaultMetricAggregators() map[string]metricAggregator {
 			[]string{"namespace", "container", "owner_name", "owner_kind"},
 			[]string{"cpu", "memory", "gpu", "mig"},
 		),
+		"kube_pod_status_scheduled_time": &podScheduledTimeAggregator{correlator: podTimeToReadyCorrelator},
+		"kube_pod_status_ready_time":     &podReadyTimeAggregator{correlator: podTimeToReadyCorrelator},
 	}
 }
