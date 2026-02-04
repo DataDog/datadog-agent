@@ -10,6 +10,7 @@ import (
 	"expvar"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 var (
@@ -151,4 +152,27 @@ func init() {
 	LogsExpvars.Set("SenderLatency", &SenderLatency)
 	LogsExpvars.Set("HttpDestinationStats", &DestinationExpVars)
 	LogsExpvars.Set("LogsTruncated", &LogsTruncated)
+}
+
+// GetAgentIdentityTag returns the appropriate remote_agent tag value for the current agent.
+// This should be used when recording metrics that need to be partitioned by agent type.
+// Returns values like "agent", "system-probe", "trace-agent", etc.
+func GetAgentIdentityTag() string {
+	switch flavor.GetFlavor() {
+	case flavor.DefaultAgent:
+		return "agent"
+	case flavor.SystemProbe:
+		return "system-probe"
+	case flavor.TraceAgent:
+		return "trace-agent"
+	case flavor.ProcessAgent:
+		return "process-agent"
+	case flavor.SecurityAgent:
+		return "security-agent"
+	case flavor.ClusterAgent:
+		return "cluster-agent"
+	default:
+		// For unknown flavors, return the raw flavor string
+		return flavor.GetFlavor()
+	}
 }
