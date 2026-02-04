@@ -335,7 +335,7 @@ func (l *KubeEndpointSlicesListener) endpointSlicesDiffer(first, second *discv1.
 		return true
 	}
 
-	return equality.Semantic.DeepEqual(first, second)
+	return !equality.Semantic.DeepEqual(first, second)
 }
 
 // isEndpointSlicesAnnotated looks for the corresponding service of a kubernetes endpointslice object
