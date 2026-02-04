@@ -40,11 +40,28 @@ build do
     " #{install_dir}/embedded/lib/pkgconfig/libsepol.pc" \
     " #{install_dir}/embedded/lib/libsepol.so"
 
+  command_on_repo_root "bazelisk run -- @libyaml//:install --destdir='#{install_dir}/embedded'"
+  sh_lib = if linux_target? then "libyaml.so" else "libyaml.dylib" end
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded' " \
+    "#{install_dir}/embedded/lib/pkgconfig/yaml-0.1.pc " \
+    "#{install_dir}/embedded/lib/#{sh_lib}"
+
   command_on_repo_root "bazelisk run -- @pcre2//:install --destdir=#{install_dir}/embedded"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix " \
     "--prefix #{install_dir}/embedded " \
     "#{install_dir}/embedded/lib/pkgconfig/libpcre2*.pc " \
     "#{install_dir}/embedded/lib/libpcre2*.so"
+
+  command_on_repo_root "bazelisk run -- @popt//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/popt.pc" \
+    " #{install_dir}/embedded/lib/libpopt.so"
+
+  command_on_repo_root "bazelisk run -- @rpm//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/rpm.pc" \
+    " #{install_dir}/embedded/lib/librpm.so" \
+    " #{install_dir}/embedded/lib/librpmio.so"
 
   command_on_repo_root "bazelisk run -- @util-linux//:blkid_install --destdir='#{install_dir}/embedded'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
@@ -56,9 +73,6 @@ dependency 'bzip2'
 dependency 'curl'
 dependency 'libgcrypt'
 dependency 'libxslt'
-dependency 'libyaml'
-dependency 'popt'
-dependency 'rpm'
 dependency 'xmlsec'
 
 relative_path "openscap-#{version}"

@@ -1685,6 +1685,7 @@ func TestReportDeviceMetadataWithFetchError(t *testing.T) {
 	mockConfig := configmock.New(t)
 	testDir := t.TempDir()
 	mockConfig.SetWithoutSource("run_path", testDir)
+	mockConfig.SetWithoutSource("hostname", "my-hostname")
 	timeNow = common.MockTimeNow
 	deps := createDeps(t)
 	senderManager := deps.Demultiplexer

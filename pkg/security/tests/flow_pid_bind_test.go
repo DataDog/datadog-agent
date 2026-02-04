@@ -656,7 +656,7 @@ func TestFlowPidBindLeak(t *testing.T) {
 	}
 
 	pid := utils.Getpid()
-	netns, err := utils.NetNSPathFromPid(pid).GetProcessNetworkNamespace()
+	netns, err := utils.NewNSPathFromPid(pid, utils.NetNsType).GetNSID()
 	if err != nil {
 		t.Fatalf("failed to get the network namespace: %v", err)
 	}

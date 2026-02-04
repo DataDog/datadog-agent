@@ -3283,6 +3283,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "exec.mntns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Exec.Process.PIDContext.MntNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "exec.netns":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -4671,6 +4682,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exit.mntns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Exit.Process.PIDContext.MntNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "exit.netns":
@@ -10787,6 +10809,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "process.ancestors.mntns":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.PIDContext.MntNS)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.PIDContext.MntNS)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "process.ancestors.netns":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -12448,6 +12497,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "process.mntns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.BaseEvent.ProcessContext.Process.PIDContext.MntNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "process.netns":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -13863,6 +13923,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.mntns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return 0
+				}
+				return int(ev.BaseEvent.ProcessContext.Parent.PIDContext.MntNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "process.parent.netns":
@@ -17100,6 +17174,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.ancestors.mntns":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.PIDContext.MntNS)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.PIDContext.MntNS)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.ancestors.netns":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -18761,6 +18862,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.mntns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.PTrace.Tracee.Process.PIDContext.MntNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.netns":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -20176,6 +20288,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.mntns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return 0
+				}
+				return int(ev.PTrace.Tracee.Parent.PIDContext.MntNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.netns":
@@ -24837,6 +24963,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.ancestors.mntns":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.PIDContext.MntNS)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.PIDContext.MntNS)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.ancestors.netns":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -26498,6 +26651,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.mntns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Setrlimit.Target.Process.PIDContext.MntNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.netns":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -27913,6 +28077,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.mntns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.PIDContext.MntNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "setrlimit.target.parent.netns":
@@ -31671,6 +31849,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.ancestors.mntns":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.PIDContext.MntNS)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.PIDContext.MntNS)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.ancestors.netns":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -33332,6 +33537,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.mntns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Signal.Target.Process.PIDContext.MntNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.netns":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -34747,6 +34963,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.mntns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Signal.Target.Parent.PIDContext.MntNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "signal.target.parent.netns":
@@ -36623,6 +36853,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.is_exec",
 		"exec.is_kworker",
 		"exec.is_thread",
+		"exec.mntns",
 		"exec.netns",
 		"exec.pid",
 		"exec.ppid",
@@ -36735,6 +36966,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.is_exec",
 		"exit.is_kworker",
 		"exit.is_thread",
+		"exit.mntns",
 		"exit.netns",
 		"exit.pid",
 		"exit.ppid",
@@ -37111,6 +37343,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.is_kworker",
 		"process.ancestors.is_thread",
 		"process.ancestors.length",
+		"process.ancestors.mntns",
 		"process.ancestors.netns",
 		"process.ancestors.pid",
 		"process.ancestors.ppid",
@@ -37220,6 +37453,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.is_exec",
 		"process.is_kworker",
 		"process.is_thread",
+		"process.mntns",
 		"process.netns",
 		"process.parent.args",
 		"process.parent.args_flags",
@@ -37311,6 +37545,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.is_exec",
 		"process.parent.is_kworker",
 		"process.parent.is_thread",
+		"process.parent.mntns",
 		"process.parent.netns",
 		"process.parent.pid",
 		"process.parent.ppid",
@@ -37441,6 +37676,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.is_kworker",
 		"ptrace.tracee.ancestors.is_thread",
 		"ptrace.tracee.ancestors.length",
+		"ptrace.tracee.ancestors.mntns",
 		"ptrace.tracee.ancestors.netns",
 		"ptrace.tracee.ancestors.pid",
 		"ptrace.tracee.ancestors.ppid",
@@ -37550,6 +37786,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.is_exec",
 		"ptrace.tracee.is_kworker",
 		"ptrace.tracee.is_thread",
+		"ptrace.tracee.mntns",
 		"ptrace.tracee.netns",
 		"ptrace.tracee.parent.args",
 		"ptrace.tracee.parent.args_flags",
@@ -37641,6 +37878,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.parent.is_exec",
 		"ptrace.tracee.parent.is_kworker",
 		"ptrace.tracee.parent.is_thread",
+		"ptrace.tracee.parent.mntns",
 		"ptrace.tracee.parent.netns",
 		"ptrace.tracee.parent.pid",
 		"ptrace.tracee.parent.ppid",
@@ -37899,6 +38137,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.ancestors.is_kworker",
 		"setrlimit.target.ancestors.is_thread",
 		"setrlimit.target.ancestors.length",
+		"setrlimit.target.ancestors.mntns",
 		"setrlimit.target.ancestors.netns",
 		"setrlimit.target.ancestors.pid",
 		"setrlimit.target.ancestors.ppid",
@@ -38008,6 +38247,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.is_exec",
 		"setrlimit.target.is_kworker",
 		"setrlimit.target.is_thread",
+		"setrlimit.target.mntns",
 		"setrlimit.target.netns",
 		"setrlimit.target.parent.args",
 		"setrlimit.target.parent.args_flags",
@@ -38099,6 +38339,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.parent.is_exec",
 		"setrlimit.target.parent.is_kworker",
 		"setrlimit.target.parent.is_thread",
+		"setrlimit.target.parent.mntns",
 		"setrlimit.target.parent.netns",
 		"setrlimit.target.parent.pid",
 		"setrlimit.target.parent.ppid",
@@ -38276,6 +38517,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.is_kworker",
 		"signal.target.ancestors.is_thread",
 		"signal.target.ancestors.length",
+		"signal.target.ancestors.mntns",
 		"signal.target.ancestors.netns",
 		"signal.target.ancestors.pid",
 		"signal.target.ancestors.ppid",
@@ -38385,6 +38627,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.is_exec",
 		"signal.target.is_kworker",
 		"signal.target.is_thread",
+		"signal.target.mntns",
 		"signal.target.netns",
 		"signal.target.parent.args",
 		"signal.target.parent.args_flags",
@@ -38476,6 +38719,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.parent.is_exec",
 		"signal.target.parent.is_kworker",
 		"signal.target.parent.is_thread",
+		"signal.target.parent.mntns",
 		"signal.target.parent.netns",
 		"signal.target.parent.pid",
 		"signal.target.parent.ppid",
@@ -39174,6 +39418,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exec", reflect.Bool, "bool", false, nil
 	case "exec.is_thread":
 		return "exec", reflect.Bool, "bool", false, nil
+	case "exec.mntns":
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.netns":
 		return "exec", reflect.Int, "int", false, nil
 	case "exec.pid":
@@ -39398,6 +39644,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exit", reflect.Bool, "bool", false, nil
 	case "exit.is_thread":
 		return "exit", reflect.Bool, "bool", false, nil
+	case "exit.mntns":
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.netns":
 		return "exit", reflect.Int, "int", false, nil
 	case "exit.pid":
@@ -40150,6 +40398,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Bool, "bool", false, nil
 	case "process.ancestors.length":
 		return "", reflect.Int, "int", false, nil
+	case "process.ancestors.mntns":
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.netns":
 		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.pid":
@@ -40368,6 +40618,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Bool, "bool", false, nil
 	case "process.is_thread":
 		return "", reflect.Bool, "bool", false, nil
+	case "process.mntns":
+		return "", reflect.Int, "int", false, nil
 	case "process.netns":
 		return "", reflect.Int, "int", false, nil
 	case "process.parent.args":
@@ -40550,6 +40802,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Bool, "bool", false, nil
 	case "process.parent.is_thread":
 		return "", reflect.Bool, "bool", false, nil
+	case "process.parent.mntns":
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.netns":
 		return "", reflect.Int, "int", false, nil
 	case "process.parent.pid":
@@ -40810,6 +41064,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.ancestors.length":
 		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.ancestors.mntns":
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.netns":
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.pid":
@@ -41028,6 +41284,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.is_thread":
 		return "ptrace", reflect.Bool, "bool", false, nil
+	case "ptrace.tracee.mntns":
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.netns":
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.args":
@@ -41210,6 +41468,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.parent.is_thread":
 		return "ptrace", reflect.Bool, "bool", false, nil
+	case "ptrace.tracee.parent.mntns":
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.netns":
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.pid":
@@ -41726,6 +41986,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.ancestors.length":
 		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.ancestors.mntns":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.netns":
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.pid":
@@ -41944,6 +42206,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.is_thread":
 		return "setrlimit", reflect.Bool, "bool", false, nil
+	case "setrlimit.target.mntns":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.netns":
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.args":
@@ -42126,6 +42390,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.parent.is_thread":
 		return "setrlimit", reflect.Bool, "bool", false, nil
+	case "setrlimit.target.parent.mntns":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.netns":
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.pid":
@@ -42480,6 +42746,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.ancestors.length":
 		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.ancestors.mntns":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.netns":
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.pid":
@@ -42698,6 +42966,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.is_thread":
 		return "signal", reflect.Bool, "bool", false, nil
+	case "signal.target.mntns":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.netns":
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.args":
@@ -42880,6 +43150,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.parent.is_thread":
 		return "signal", reflect.Bool, "bool", false, nil
+	case "signal.target.parent.mntns":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.netns":
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.pid":
@@ -43851,6 +44123,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setBoolFieldValue("exec.is_kworker", &ev.Exec.Process.PIDContext.IsKworker, value)
 	case "exec.is_thread":
 		return ev.setBoolFieldValue("exec.is_thread", &ev.Exec.Process.IsThread, value)
+	case "exec.mntns":
+		return ev.setUint32FieldValue("exec.mntns", &ev.Exec.Process.PIDContext.MntNS, value)
 	case "exec.netns":
 		return ev.setUint32FieldValue("exec.netns", &ev.Exec.Process.PIDContext.NetNS, value)
 	case "exec.pid":
@@ -44190,6 +44464,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setBoolFieldValue("exit.is_kworker", &ev.Exit.Process.PIDContext.IsKworker, value)
 	case "exit.is_thread":
 		return ev.setBoolFieldValue("exit.is_thread", &ev.Exit.Process.IsThread, value)
+	case "exit.mntns":
+		return ev.setUint32FieldValue("exit.mntns", &ev.Exit.Process.PIDContext.MntNS, value)
 	case "exit.netns":
 		return ev.setUint32FieldValue("exit.netns", &ev.Exit.Process.PIDContext.NetNS, value)
 	case "exit.pid":
@@ -45126,6 +45402,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setBoolFieldValue("process.ancestors.is_thread", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.IsThread, value)
 	case "process.ancestors.length":
 		return &eval.ErrFieldReadOnly{Field: "process.ancestors.length"}
+	case "process.ancestors.mntns":
+		return ev.setUint32FieldValue("process.ancestors.mntns", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.MntNS, value)
 	case "process.ancestors.netns":
 		return ev.setUint32FieldValue("process.ancestors.netns", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.NetNS, value)
 	case "process.ancestors.pid":
@@ -45459,6 +45737,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setBoolFieldValue("process.is_kworker", &ev.BaseEvent.ProcessContext.Process.PIDContext.IsKworker, value)
 	case "process.is_thread":
 		return ev.setBoolFieldValue("process.is_thread", &ev.BaseEvent.ProcessContext.Process.IsThread, value)
+	case "process.mntns":
+		return ev.setUint32FieldValue("process.mntns", &ev.BaseEvent.ProcessContext.Process.PIDContext.MntNS, value)
 	case "process.netns":
 		return ev.setUint32FieldValue("process.netns", &ev.BaseEvent.ProcessContext.Process.PIDContext.NetNS, value)
 	case "process.parent.args":
@@ -45751,6 +46031,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setBoolFieldValue("process.parent.is_kworker", &ev.BaseEvent.ProcessContext.Parent.PIDContext.IsKworker, value)
 	case "process.parent.is_thread":
 		return ev.setBoolFieldValue("process.parent.is_thread", &ev.BaseEvent.ProcessContext.Parent.IsThread, value)
+	case "process.parent.mntns":
+		return ev.setUint32FieldValue("process.parent.mntns", &ev.BaseEvent.ProcessContext.Parent.PIDContext.MntNS, value)
 	case "process.parent.netns":
 		return ev.setUint32FieldValue("process.parent.netns", &ev.BaseEvent.ProcessContext.Parent.PIDContext.NetNS, value)
 	case "process.parent.pid":
@@ -46677,6 +46959,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.ancestors.length"}
+	case "ptrace.tracee.ancestors.mntns":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setUint32FieldValue("ptrace.tracee.ancestors.mntns", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.PIDContext.MntNS, value)
 	case "ptrace.tracee.ancestors.netns":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -47394,6 +47684,11 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
 		return ev.setBoolFieldValue("ptrace.tracee.is_thread", &ev.PTrace.Tracee.Process.IsThread, value)
+	case "ptrace.tracee.mntns":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		return ev.setUint32FieldValue("ptrace.tracee.mntns", &ev.PTrace.Tracee.Process.PIDContext.MntNS, value)
 	case "ptrace.tracee.netns":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -48229,6 +48524,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
 		return ev.setBoolFieldValue("ptrace.tracee.parent.is_thread", &ev.PTrace.Tracee.Parent.IsThread, value)
+	case "ptrace.tracee.parent.mntns":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		return ev.setUint32FieldValue("ptrace.tracee.parent.mntns", &ev.PTrace.Tracee.Parent.PIDContext.MntNS, value)
 	case "ptrace.tracee.parent.netns":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -49579,6 +49882,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "setrlimit.target.ancestors.length"}
+	case "setrlimit.target.ancestors.mntns":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setUint32FieldValue("setrlimit.target.ancestors.mntns", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.PIDContext.MntNS, value)
 	case "setrlimit.target.ancestors.netns":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -50296,6 +50607,11 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
 		return ev.setBoolFieldValue("setrlimit.target.is_thread", &ev.Setrlimit.Target.Process.IsThread, value)
+	case "setrlimit.target.mntns":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setUint32FieldValue("setrlimit.target.mntns", &ev.Setrlimit.Target.Process.PIDContext.MntNS, value)
 	case "setrlimit.target.netns":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -51131,6 +51447,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Parent = &Process{}
 		}
 		return ev.setBoolFieldValue("setrlimit.target.parent.is_thread", &ev.Setrlimit.Target.Parent.IsThread, value)
+	case "setrlimit.target.parent.mntns":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setUint32FieldValue("setrlimit.target.parent.mntns", &ev.Setrlimit.Target.Parent.PIDContext.MntNS, value)
 	case "setrlimit.target.parent.netns":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -52329,6 +52653,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "signal.target.ancestors.length"}
+	case "signal.target.ancestors.mntns":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setUint32FieldValue("signal.target.ancestors.mntns", &ev.Signal.Target.Ancestor.ProcessContext.Process.PIDContext.MntNS, value)
 	case "signal.target.ancestors.netns":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -53046,6 +53378,11 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target = &ProcessContext{}
 		}
 		return ev.setBoolFieldValue("signal.target.is_thread", &ev.Signal.Target.Process.IsThread, value)
+	case "signal.target.mntns":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setUint32FieldValue("signal.target.mntns", &ev.Signal.Target.Process.PIDContext.MntNS, value)
 	case "signal.target.netns":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -53881,6 +54218,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Parent = &Process{}
 		}
 		return ev.setBoolFieldValue("signal.target.parent.is_thread", &ev.Signal.Target.Parent.IsThread, value)
+	case "signal.target.parent.mntns":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setUint32FieldValue("signal.target.parent.mntns", &ev.Signal.Target.Parent.PIDContext.MntNS, value)
 	case "signal.target.parent.netns":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
