@@ -525,12 +525,12 @@ func (s *BaseSuite) collectxperf() {
 	}
 }
 
-// startStartupDumpCollector sets up procdump and starts a background goroutine that
-// monitors the agent service for the "StartPending" state. When detected, it waits
-// 10 seconds then captures a memory dump of the service process.
+// startProcdump sets up procdump and starts it in the background, waiting for
+// the agent process to launch. Procdump will capture a full memory dump if the
+// process terminates (e.g., crashes during startup).
 //
-// The returned collector should be cleaned up with collectStartupDumps().
-func (s *BaseSuite) startStartupDumpCollector(ctx context.Context) *windowscommon.StartupDumpCollector {
+// The returned session should be cleaned up with collectProcdumps().
+func (s *BaseSuite) startProcdump() *windowscommon.ProcdumpSession {
 	host := s.Env().RemoteHost
 
 	// Setup procdump on remote host
@@ -538,33 +538,43 @@ func (s *BaseSuite) startStartupDumpCollector(ctx context.Context) *windowscommo
 	err := windowscommon.SetupProcdump(host)
 	s.Require().NoError(err, "should setup procdump")
 
-	// Create and start collector
-	collector := windowscommon.NewStartupDumpCollector(host, "datadogagent", windowscommon.ProcdumpsPath)
-	collector.Start(ctx)
+	// Start procdump
+	ps, err := windowscommon.StartProcdump(host, "agent.exe", windowscommon.ProcdumpsPath)
+	s.Require().NoError(err, "should start procdump")
 
-	return collector
+	return ps
 }
 
-// collectStartupDumps waits for the collector to finish and downloads any captured dumps
-// if the test failed. This should be called in a defer after startStartupDumpCollector().
-func (s *BaseSuite) collectStartupDumps(collector *windowscommon.StartupDumpCollector) {
-	collector.Wait()
-
-	dumpPaths, err := collector.Results()
-	if err != nil {
-		s.T().Logf("Warning: startup dump collection error: %v", err)
-	}
+// collectProcdumps stops procdump and downloads any captured dumps if the test failed.
+// This should be called in a defer after startProcdump().
+func (s *BaseSuite) collectProcdumps(ps *windowscommon.ProcdumpSession) {
+	// Close to terminate procdump - if the process started successfully,
+	// procdump is still waiting for termination. If the process crashed,
+	// procdump already exited but closing is harmless.
+	ps.Close()
 
 	// Only download dumps if the test failed
 	if !s.T().Failed() {
 		return
 	}
 
+	// List actual dump files in the output directory (procdump adds timestamp to filename)
+	host := s.Env().RemoteHost
+	output, listErr := host.Execute(fmt.Sprintf(`Get-ChildItem -Path '%s' -Filter '*.dmp' | Select-Object -ExpandProperty FullName`, windowscommon.ProcdumpsPath))
+	if listErr != nil || strings.TrimSpace(output) == "" {
+		return
+	}
+
+	dumpPaths := strings.Split(strings.TrimSpace(output), "\n")
 	for _, remotePath := range dumpPaths {
+		remotePath = strings.TrimSpace(remotePath)
+		if remotePath == "" {
+			continue
+		}
 		s.T().Logf("Collected startup dump: %s", remotePath)
 		// Download dump from remote host to local output directory
 		localPath := filepath.Join(s.SessionOutputDir(), filepath.Base(remotePath))
-		if err := s.Env().RemoteHost.GetFile(remotePath, localPath); err != nil {
+		if err := host.GetFile(remotePath, localPath); err != nil {
 			s.T().Logf("Warning: failed to download dump %s: %v", remotePath, err)
 		} else {
 			s.T().Logf("Downloaded startup dump to: %s", localPath)
@@ -602,7 +612,7 @@ func (s *BaseSuite) InstallWithXperf(opts ...MsiOption) {
 
 // InstallWithDiagnostics installs the MSI with comprehensive diagnostics collection:
 // - xperf tracing for system-wide performance analysis
-// - procdump collection to capture agent memory dump during startup
+// - procdump collection to capture agent memory dump if it crashes during startup
 func (s *BaseSuite) InstallWithDiagnostics(opts ...MsiOption) {
 	s.T().Helper()
 
@@ -611,12 +621,10 @@ func (s *BaseSuite) InstallWithDiagnostics(opts ...MsiOption) {
 	s.startxperf()
 	defer s.collectxperf()
 
-	// Start startup dump collector in background
-	s.T().Log("Starting startup dump collector")
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
-	collector := s.startStartupDumpCollector(ctx)
-	defer s.collectStartupDumps(collector)
+	// Start procdump in background to capture crash dumps
+	s.T().Log("Starting procdump")
+	ps := s.startProcdump()
+	defer s.collectProcdumps(ps)
 
 	// Proceed with installation
 	s.T().Log("Installing MSI")
@@ -628,6 +636,14 @@ func (s *BaseSuite) InstallWithDiagnostics(opts ...MsiOption) {
 	err = s.WaitForAgentService("Running")
 	s.Require().NoError(err, "Agent service status check failed")
 	s.T().Log("MSI installation and service startup completed successfully")
+
+	// Force test failure by stopping the agent
+	s.T().Log("Forcing test failure by stopping the agent service")
+	_, err = s.Env().RemoteHost.Execute("Stop-Service -Name datadogagent -Force")
+	s.Require().NoError(err, "should be able to stop the agent service")
+	status, err := windowscommon.GetServiceStatus(s.Env().RemoteHost, "datadogagent")
+	s.Require().NoError(err, "should get service status")
+	s.Require().Contains(status, "Running", "Agent service should be running")
 }
 
 // MustStartExperimentCurrentVersion start an experiment with current version of the Agent

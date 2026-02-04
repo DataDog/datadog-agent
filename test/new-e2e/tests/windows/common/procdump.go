@@ -6,11 +6,11 @@
 package common
 
 import (
-	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
-	"time"
+
+	"golang.org/x/crypto/ssh"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
@@ -82,116 +82,39 @@ func CaptureProcdump(host *components.RemoteHost, pid int, outputDir string, pro
 	return "", fmt.Errorf("procdump did not capture dump for PID %d, output: %s", pid, output)
 }
 
-// StartupDumpCollector monitors a Windows service and captures a memory dump
-// during the startup phase. It polls for the service to enter the "StartPending"
-// state, waits a configurable delay, then captures a dump using procdump.
-type StartupDumpCollector struct {
-	host        *components.RemoteHost
-	serviceName string
-	outputDir   string
-	delay       time.Duration // delay after StartPending before capturing
-
-	dumpPaths []string
-	err       error
-	done      chan struct{}
+// ProcdumpSession wraps an SSH session running procdump.
+// Use Close() to terminate procdump when no longer needed.
+type ProcdumpSession struct {
+	Session *ssh.Session
 }
 
-// NewStartupDumpCollector creates a new StartupDumpCollector
-//
-// Parameters:
-//   - host: the remote Windows host to monitor
-//   - serviceName: the Windows service name to monitor (e.g., "datadogagent")
-//   - outputDir: directory on the remote host where dumps will be written
-func NewStartupDumpCollector(host *components.RemoteHost, serviceName, outputDir string) *StartupDumpCollector {
-	return &StartupDumpCollector{
-		host:        host,
-		serviceName: serviceName,
-		outputDir:   outputDir,
-		delay:       10 * time.Second,
-		done:        make(chan struct{}),
+// Close terminates the procdump process if it's still running.
+func (ps *ProcdumpSession) Close() {
+	if ps.Session != nil {
+		_ = ps.Session.Close()
+		ps.Session = nil
 	}
 }
 
-// WithDelay sets the delay between detecting StartPending and capturing the dump
-func (c *StartupDumpCollector) WithDelay(d time.Duration) *StartupDumpCollector {
-	c.delay = d
-	return c
-}
+// StartProcdump starts procdump in the background, waiting for the specified process
+// to launch. Procdump will capture a full memory dump when the process terminates.
+func StartProcdump(host *components.RemoteHost, processName, outputDir string) (*ProcdumpSession, error) {
+	// Build the dump path
+	dumpPath := filepath.Join(outputDir, processName)
+	// Use forward slashes for PowerShell compatibility
+	dumpPath = strings.ReplaceAll(dumpPath, "\\", "/")
 
-// Start begins monitoring the service in a background goroutine.
-// The goroutine will:
-// 1. Poll the service status every second
-// 2. When "StartPending" is detected, wait for the configured delay
-// 3. Capture a memory dump of the service process
-// 4. Exit after capturing one dump or when the context is cancelled
-func (c *StartupDumpCollector) Start(ctx context.Context) {
-	go func() {
-		defer close(c.done)
+	// Start procdump:
+	// -accepteula: Accept the EULA automatically
+	// -ma: Write a full dump file
+	// -t: Write a dump when the process terminates
+	// -w: Wait for the specified process to launch if it's not running
+	cmd := fmt.Sprintf(`& "%s" -accepteula -ma -t -w %s "%s"`, ProcdumpExe, processName, dumpPath)
 
-		// Poll for StartPending state
-		ticker := time.NewTicker(1 * time.Second)
-		defer ticker.Stop()
+	session, _, _, err := host.Start(cmd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start procdump: %w", err)
+	}
 
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				status, err := GetServiceStatus(c.host, c.serviceName)
-				if err != nil {
-					// Service may not exist yet, continue polling
-					continue
-				}
-
-				if strings.Contains(status, "StartPending") {
-					// Found StartPending, wait the configured delay then capture
-					select {
-					case <-ctx.Done():
-						return
-					case <-time.After(c.delay):
-					}
-
-					// Get the service PID and capture dump
-					pid, err := GetServicePID(c.host, c.serviceName)
-					if err != nil {
-						c.err = fmt.Errorf("failed to get service PID for %s: %w", c.serviceName, err)
-						return
-					}
-
-					if pid == 0 {
-						c.err = fmt.Errorf("service %s has PID 0 (not running)", c.serviceName)
-						return
-					}
-
-					dumpPath, err := CaptureProcdump(c.host, pid, c.outputDir, c.serviceName)
-					if err != nil {
-						c.err = err
-						return
-					}
-					c.dumpPaths = append(c.dumpPaths, dumpPath)
-					return // Done - captured one dump
-				}
-			}
-		}
-	}()
-}
-
-// Wait blocks until the collector goroutine is done or the context was cancelled
-func (c *StartupDumpCollector) Wait() {
-	<-c.done
-}
-
-// Results returns the collected dump paths and any error that occurred.
-func (c *StartupDumpCollector) Results() ([]string, error) {
-	return c.dumpPaths, c.err
-}
-
-// DumpPaths returns the paths to collected dump files on the remote host
-func (c *StartupDumpCollector) DumpPaths() []string {
-	return c.dumpPaths
-}
-
-// Error returns any error that occurred during collection
-func (c *StartupDumpCollector) Error() error {
-	return c.err
+	return &ProcdumpSession{Session: session}, nil
 }
