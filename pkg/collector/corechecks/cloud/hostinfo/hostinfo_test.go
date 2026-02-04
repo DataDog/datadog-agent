@@ -42,7 +42,7 @@ func TestHostInfoCheckNoCloudProvider(t *testing.T) {
 	mockSender.On("FinalizeCheckServiceTag").Return()
 
 	check := newCheck().(*Check)
-	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mocksender.SetSender(mockSender, check.ID())
 
@@ -77,7 +77,7 @@ func TestHostInfoCheckWithPreemptionTermination(t *testing.T) {
 	mockSender.On("FinalizeCheckServiceTag").Return()
 
 	check := newCheck().(*Check)
-	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mocksender.SetSender(mockSender, check.ID())
 
@@ -111,7 +111,7 @@ func TestHostInfoCheckNoPreemptionScheduled(t *testing.T) {
 	mockSender.On("FinalizeCheckServiceTag").Return()
 
 	check := newCheck().(*Check)
-	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mocksender.SetSender(mockSender, check.ID())
 
@@ -146,7 +146,7 @@ func TestHostInfoCheckPreemptionEventSentOnlyOnce(t *testing.T) {
 	mockSender.On("FinalizeCheckServiceTag").Return()
 
 	check := newCheck().(*Check)
-	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mocksender.SetSender(mockSender, check.ID())
 
@@ -187,7 +187,7 @@ func TestHostInfoCheckNotPreemptibleStopsPolling(t *testing.T) {
 	mockSender.On("FinalizeCheckServiceTag").Return()
 
 	check := newCheck().(*Check)
-	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mocksender.SetSender(mockSender, check.ID())
 
@@ -228,7 +228,7 @@ func TestHostInfoCheckPreemptionUnsupportedStopsPolling(t *testing.T) {
 	mockSender.On("FinalizeCheckServiceTag").Return()
 
 	check := newCheck().(*Check)
-	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 
 	mocksender.SetSender(mockSender, check.ID())
 

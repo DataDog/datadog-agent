@@ -740,7 +740,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenPartitionHasCdromInOpts_ThenPartit
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -775,7 +775,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenPartitionHasEmptyFstype_ThenPartit
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)

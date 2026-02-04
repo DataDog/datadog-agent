@@ -1434,7 +1434,7 @@ mount_point_exclude:
   - /mnt/nfs_share
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -1483,7 +1483,7 @@ device_tag_re:
   /dev/sda.*: role:primary, type:ssd, tier:fast
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)

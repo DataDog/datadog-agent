@@ -1520,7 +1520,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenInodeMetricsAreRepor
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -1562,7 +1562,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndInodesIsZero_ThenInode
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -1600,7 +1600,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndPartitionsSystemReturn
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -1641,7 +1641,7 @@ func TestGivenADiskCheckWithAllPartitionsTrueConfigured_WhenCheckRunsAndPartitio
 	m.SetupAcceptAll()
 	config := integration.Data([]byte("all_partitions: true"))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -1719,7 +1719,7 @@ DEVNAME=sda1
 resolve_root_device: false
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err = diskCheck.Run()
 
 	// Check should succeed even when falling back to mounts file
@@ -1785,7 +1785,7 @@ func TestGivenADiskCheckWithResolveRootDeviceFalse_WhenProc1MountinfoFails_ThenF
 resolve_root_device: false
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err = diskCheck.Run()
 
 	assert.Nil(t, err)
@@ -1849,7 +1849,7 @@ resolve_root_device: false
 proc_mountinfo_path: /host/proc/1/mountinfo
 `))
 
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test", "provider")
 	err = diskCheck.Run()
 
 	assert.Nil(t, err)

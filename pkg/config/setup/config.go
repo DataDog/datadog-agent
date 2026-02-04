@@ -1318,8 +1318,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("metric_filterlist_match_prefix", false)
 	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
 	config.BindEnvAndSetDefault("metric_tag_filterlist", []interface{}{})
-  
-  // Integration Security Settings
+
+	// Integration Security Settings
 	// When enabled, integrations will ignore configuration parameters that refer to file paths
 	// if the configuration provider is not trusted. Providers like container labels, pod annotations,
 	// or kubernetes objects are not trusted by default since they can be created by users who don't manage the agent.

@@ -118,7 +118,7 @@ func TestMemoryCheckWindows(t *testing.T) {
 
 	memCheck := new(Check)
 	m := mocksender.NewMockSender(memCheck.ID())
-	memCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test")
+	memCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test", "provider")
 
 	// PDH counters may not be available in all environments (e.g., Windows containers)
 	// Use Maybe() to allow these to be optional
