@@ -312,7 +312,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct den
 
     // NOTE: should we consider to remove the path_id to limit the invalidation and let the LRU refreshing the entry ?
     u8 value = 0;
-    if (bpf_map_update_elem(&open_samples, &file->path_key, &value, BPF_NOEXIST) < 0) {
+    if (bpf_map_update_elem(&open_samples, &key, &value, BPF_NOEXIST) < 0) {
         return DISCARDED;
     }
 
