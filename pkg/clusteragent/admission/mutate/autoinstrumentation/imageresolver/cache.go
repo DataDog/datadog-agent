@@ -60,23 +60,29 @@ func (c *httpDigestCache) store(registry, repository, tag, digest string) *Resol
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	registryCache, _ := c.cache[registry]
-	if registryCache[repository] == nil {
-		registryCache[repository] = make(tagCache)
+	registryCache, exists := c.cache[registry]
+	if !exists {
+		registryCache = make(repositoryCache)
+		c.cache[registry] = registryCache
+	}
+	repositoryCache, exists := registryCache[repository]
+	if !exists {
+		repositoryCache = make(tagCache)
+		registryCache[repository] = repositoryCache
 	}
 
 	resolved := &ResolvedImage{
 		FullImageRef:     registry + "/" + repository + "@" + digest,
 		CanonicalVersion: tag,
 	}
-	registryCache[repository][tag] = cacheEntry{
+	c.cache[registry][repository][tag] = cacheEntry{
 		resolvedImage: resolved,
 		whenCached:    time.Now(),
 	}
 	return resolved
 }
 
-func newHttpDigestCache(ttl time.Duration, ddRegistries map[string]struct{}) *httpDigestCache {
+func newHTTPDigestCache(ttl time.Duration, ddRegistries map[string]struct{}) *httpDigestCache {
 	cache := make(registryCache)
 	for registry := range ddRegistries {
 		cache[registry] = make(repositoryCache)

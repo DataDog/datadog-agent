@@ -61,7 +61,7 @@ func (m *mockRoundTripper) CallCount() int {
 	return m.callCount
 }
 
-func mockHttpDigestCache(ttl time.Duration) (*httpDigestCache, *mockRoundTripper) {
+func mockHTTPDigestCache(ttl time.Duration) (*httpDigestCache, *mockRoundTripper) {
 	transport := &mockRoundTripper{
 		responses: make(map[string]*http.Response),
 	}
@@ -163,7 +163,7 @@ func TestHttpDigestCache_Get_Success(t *testing.T) {
 }
 
 func TestHttpDigestCache_Get_Failure(t *testing.T) {
-	cc, transport := mockHttpDigestCache(1 * time.Minute)
+	cc, transport := mockHTTPDigestCache(1 * time.Minute)
 	resolved, ok := cc.get("test-registry", "dd-lib-python-init", "v1")
 
 	require.False(t, ok, "Expected failed get")
@@ -172,7 +172,7 @@ func TestHttpDigestCache_Get_Failure(t *testing.T) {
 }
 
 func TestHttpDigestCache_Get_MultipleRepositories(t *testing.T) {
-	cc, transport := mockHttpDigestCache(5 * time.Minute)
+	cc, transport := mockHTTPDigestCache(5 * time.Minute)
 	transport.addImage("registry1", "dd-lib-python-init", "v1", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 	transport.addImage("registry2", "dd-lib-java-init", "v2", "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
 
@@ -187,7 +187,7 @@ func TestHttpDigestCache_Get_MultipleRepositories(t *testing.T) {
 }
 
 func TestHttpDigestCache_Get_SameRepoMultipleTags(t *testing.T) {
-	cc, transport := mockHttpDigestCache(5 * time.Minute)
+	cc, transport := mockHTTPDigestCache(5 * time.Minute)
 	transport.addImage("registry", "dd-lib-python-init", "v1", "sha256:1111111111111111111111111111111111111111111111111111111111111111")
 	transport.addImage("registry", "dd-lib-python-init", "v2", "sha256:2222222222222222222222222222222222222222222222222222222222222222")
 	transport.addImage("registry", "dd-lib-python-init", "latest", "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
