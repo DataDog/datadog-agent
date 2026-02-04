@@ -16,8 +16,8 @@ type registryCache map[string]repositoryCache
 type repositoryCache map[string]tagCache
 type tagCache map[string]cacheEntry
 type cacheEntry struct {
-	resolvedImage *ResolvedImage
-	whenCached    time.Time
+	digest     string
+	whenCached time.Time
 }
 
 type httpDigestCache struct {
@@ -27,21 +27,20 @@ type httpDigestCache struct {
 	fetcher *httpDigestFetcher
 }
 
-func (c *httpDigestCache) get(registry string, repository string, tag string) (*ResolvedImage, bool) {
-	if resolved := c.checkCache(registry, repository, tag); resolved != nil {
-		return resolved, true
+func (c *httpDigestCache) get(registry string, repository string, tag string) (string, bool) {
+	if digest := c.checkCache(registry, repository, tag); digest != "" {
+		return digest, true
 	}
 
 	digest, err := c.fetcher.digest(registry + "/" + repository + ":" + tag)
 	if err != nil {
-		return nil, false
+		return "", false
 	}
 
-	resolved := c.store(registry, repository, tag, digest)
-	return resolved, resolved != nil
+	return c.store(registry, repository, tag, digest), true
 }
 
-func (c *httpDigestCache) checkCache(registry, repository, tag string) *ResolvedImage {
+func (c *httpDigestCache) checkCache(registry, repository, tag string) string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -49,36 +48,32 @@ func (c *httpDigestCache) checkCache(registry, repository, tag string) *Resolved
 		if tags, exists := repos[repository]; exists {
 			if entry, exists := tags[tag]; exists {
 				if time.Since(entry.whenCached) < c.ttl {
-					return entry.resolvedImage
+					return entry.digest
 				}
 			}
 		}
 	}
-	return nil
+	return ""
 }
 
-func (c *httpDigestCache) store(registry, repository, tag, digest string) *ResolvedImage {
+func (c *httpDigestCache) store(registry, repository, tag, digest string) string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	registryCache, exists := c.cache[registry]
 	if !exists {
-		return nil
+		return ""
 	}
 	_, exists = registryCache[repository]
 	if !exists {
 		registryCache[repository] = make(tagCache)
 	}
 
-	resolved := &ResolvedImage{
-		FullImageRef:     registry + "/" + repository + "@" + digest,
-		CanonicalVersion: tag,
-	}
 	c.cache[registry][repository][tag] = cacheEntry{
-		resolvedImage: resolved,
-		whenCached:    time.Now(),
+		digest:     digest,
+		whenCached: time.Now(),
 	}
-	return resolved
+	return digest
 }
 
 func newHTTPDigestCache(ttl time.Duration, ddRegistries map[string]struct{}) *httpDigestCache {
