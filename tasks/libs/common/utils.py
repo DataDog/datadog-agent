@@ -252,8 +252,10 @@ def get_build_flags(
     # TODO: Add some flags for std c++ 17
     onnxruntime_path = os.path.expanduser('~/Documents/onnxruntime/onnxruntime-osx-arm64-1.23.2')
     # g++ -I$D/include -L$D/lib -lonnxruntime -Wl,-rpath,$D/lib main.cpp
-    env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + f" -L{onnxruntime_path}/lib -lonnxruntime -Wl,-rpath,{onnxruntime_path}/lib"
-    env['CGO_CXXFLAGS'] = os.environ.get('CGO_CXXFLAGS', '') + f" -I{onnxruntime_path}/include"
+    # TODO: -lstdc++ on linux
+    env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + f" -L{onnxruntime_path}/lib -lonnxruntime -Wl,-rpath,{onnxruntime_path}/lib -lc++"
+    ldflags += f" -L{onnxruntime_path}/lib -lonnxruntime -Wl,-rpath,{onnxruntime_path}/lib"
+    env['CGO_CXXFLAGS'] = os.environ.get('CGO_CXXFLAGS', '') + f" -I{onnxruntime_path}/include -std=c++17"
 
     # setting the run path
     if sys.platform.startswith('linux') and run_path:

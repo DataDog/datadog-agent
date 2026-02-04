@@ -83,7 +83,7 @@ std::vector<float> l2Normalize(const std::vector<float>& vec) {
     return normalized;
 }
 
-void benchmark(char **error) {
+extern "C" void benchmark(char **error) {
     try {
         // Get model path
         std::string model_path = getDefaultModelPath();
