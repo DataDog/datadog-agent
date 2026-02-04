@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/command"
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands"
-	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/windows/service"
+	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands/run"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
 )
@@ -24,7 +24,7 @@ func main() {
 
 	// SCM gives services 30 seconds to call StartServiceCtrlDispatcher
 	if len(os.Args) == 1 && servicemain.RunningAsWindowsService() {
-		servicemain.Run(service.NewService())
+		servicemain.Run(run.NewService())
 		return
 	}
 
