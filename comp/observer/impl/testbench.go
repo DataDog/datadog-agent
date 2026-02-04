@@ -69,6 +69,12 @@ type TestBench struct {
 	// Raw logs (kept for context packets and API)
 	loadedLogs []LogEntry
 
+	// Smart log buffer (pattern dedup + error logs)
+	logBuffer *LogBuffer
+
+	// Health score calculator
+	healthCalculator *HealthCalculator
+
 	// API server
 	api *TestBenchAPI
 }
@@ -155,6 +161,9 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 
 		anomalies:  []observerdef.AnomalyOutput{},
 		byAnalyzer: make(map[string][]observerdef.AnomalyOutput),
+
+		logBuffer:        NewLogBuffer(DefaultLogBufferConfig()),
+		healthCalculator: NewHealthCalculator(DefaultHealthCalculatorConfig()),
 	}
 
 	// Add time series analyzers based on config
@@ -474,15 +483,22 @@ func (tb *TestBench) loadLogsFile(path string) error {
 
 	for _, log := range logs {
 		timestamp := log.GetTimestamp()
+		content := string(log.GetContent())
+		tags := log.GetTags()
+		source := log.GetHostname()
+		level := log.GetStatus()
 
 		// Store raw log for API/context packets
 		tb.loadedLogs = append(tb.loadedLogs, LogEntry{
 			Timestamp: timestamp,
-			Content:   string(log.GetContent()),
-			Tags:      log.GetTags(),
-			Source:    log.GetHostname(),
-			Level:     log.GetStatus(),
+			Content:   content,
+			Tags:      tags,
+			Source:    source,
+			Level:     level,
 		})
+
+		// Add to smart log buffer (pattern dedup)
+		tb.logBuffer.Add(timestamp, content, tags, source, level)
 
 		// Process through log processors
 		for _, processor := range tb.logProcessors {
@@ -602,6 +618,16 @@ func (tb *TestBench) runAnalyses() {
 			tb.correlations = append(tb.correlations, cs.ActiveCorrelations()...)
 		}
 	}
+
+	// Update health score
+	errorLogCount := len(tb.logBuffer.GetErrorLogs())
+	var maxTimestamp int64
+	for _, a := range tb.anomalies {
+		if a.Timestamp > maxTimestamp {
+			maxTimestamp = a.Timestamp
+		}
+	}
+	tb.healthCalculator.Update(tb.anomalies, tb.correlations, errorLogCount, maxTimestamp)
 }
 
 // GetStatus returns the current status.
@@ -822,6 +848,38 @@ func (tb *TestBench) GetLogsInWindow(start, end int64) []LogEntry {
 		}
 	}
 	return result
+}
+
+// GetLogPatterns returns pattern summaries from the smart log buffer.
+func (tb *TestBench) GetLogPatterns() []LogPatternSummary {
+	return tb.logBuffer.GetLogSummary()
+}
+
+// GetLogPatternsInWindow returns pattern summaries active within the time window.
+func (tb *TestBench) GetLogPatternsInWindow(start, end int64) []LogPatternSummary {
+	return tb.logBuffer.GetPatternsInWindow(start, end)
+}
+
+// GetErrorLogs returns buffered error/warn logs.
+func (tb *TestBench) GetErrorLogs() []BufferedLog {
+	return tb.logBuffer.GetErrorLogs()
+}
+
+// GetLogBufferStats returns statistics about the log buffer.
+func (tb *TestBench) GetLogBufferStats() LogBufferStats {
+	return tb.logBuffer.Stats()
+}
+
+// GetHealth returns the current health score and related information.
+func (tb *TestBench) GetHealth() HealthResponse {
+	score := tb.healthCalculator.GetScore()
+	return HealthResponse{
+		Score:       score.Score,
+		Status:      tb.healthCalculator.GetStatus(),
+		LastUpdated: score.LastUpdated,
+		Factors:     score.Factors,
+		History:     tb.healthCalculator.GetHistory(),
+	}
 }
 
 // GetAnomaliesByAnalyzer returns anomalies grouped by analyzer name.

@@ -41,6 +41,10 @@ func (api *TestBenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/series/", api.cors(api.handleSeriesData))
 	mux.HandleFunc("/api/anomalies", api.cors(api.handleAnomalies))
 	mux.HandleFunc("/api/logs", api.cors(api.handleLogs))
+	mux.HandleFunc("/api/log-patterns", api.cors(api.handleLogPatterns))
+	mux.HandleFunc("/api/log-buffer-stats", api.cors(api.handleLogBufferStats))
+	mux.HandleFunc("/api/error-logs", api.cors(api.handleErrorLogs))
+	mux.HandleFunc("/api/health", api.cors(api.handleHealth))
 	mux.HandleFunc("/api/correlations", api.cors(api.handleCorrelations))
 	mux.HandleFunc("/api/leadlag", api.cors(api.handleLeadLag))
 	mux.HandleFunc("/api/surprise", api.cors(api.handleSurprise))
@@ -374,6 +378,46 @@ func (api *TestBenchAPI) handleLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	api.writeJSON(w, logs)
+}
+
+// handleLogPatterns returns pattern summaries from the smart log buffer.
+// Query params: start (unix seconds), end (unix seconds) - optional time window
+func (api *TestBenchAPI) handleLogPatterns(w http.ResponseWriter, r *http.Request) {
+	startStr := r.URL.Query().Get("start")
+	endStr := r.URL.Query().Get("end")
+
+	var patterns []LogPatternSummary
+	if startStr != "" && endStr != "" {
+		start, err1 := parseIntParam(startStr)
+		end, err2 := parseIntParam(endStr)
+		if err1 != nil || err2 != nil {
+			http.Error(w, "invalid start/end parameter", http.StatusBadRequest)
+			return
+		}
+		patterns = api.tb.GetLogPatternsInWindow(start, end)
+	} else {
+		patterns = api.tb.GetLogPatterns()
+	}
+
+	api.writeJSON(w, patterns)
+}
+
+// handleLogBufferStats returns statistics about the log buffer.
+func (api *TestBenchAPI) handleLogBufferStats(w http.ResponseWriter, r *http.Request) {
+	stats := api.tb.GetLogBufferStats()
+	api.writeJSON(w, stats)
+}
+
+// handleErrorLogs returns buffered error/warn logs.
+func (api *TestBenchAPI) handleErrorLogs(w http.ResponseWriter, r *http.Request) {
+	logs := api.tb.GetErrorLogs()
+	api.writeJSON(w, logs)
+}
+
+// handleHealth returns the current health score and related information.
+func (api *TestBenchAPI) handleHealth(w http.ResponseWriter, r *http.Request) {
+	health := api.tb.GetHealth()
+	api.writeJSON(w, health)
 }
 
 // parseIntParam parses a string to int64, used for query parameters.
