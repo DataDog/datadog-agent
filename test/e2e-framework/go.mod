@@ -437,7 +437,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/startstop => ../../pkg/util/startstop
 	github.com/DataDog/datadog-agent/pkg/util/statstracker => ../../pkg/util/statstracker
 	github.com/DataDog/datadog-agent/pkg/util/system => ../../pkg/util/system
-	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../pkg/util/system/socket
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../pkg/util/testutil
 	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker => ../../pkg/util/utilizationtracker
 	github.com/DataDog/datadog-agent/pkg/util/uuid => ../../pkg/util/uuid
