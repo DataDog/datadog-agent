@@ -12,9 +12,9 @@ import (
 	"time"
 )
 
-type registryCache map[string]repositoryCache // registry -> repositoryCache
-type repositoryCache map[string]tagCache      // repository -> tagCache
-type tagCache map[string]cacheEntry           // tag -> cacheEntry
+type registryCache map[string]repositoryCache
+type repositoryCache map[string]tagCache
+type tagCache map[string]cacheEntry
 type cacheEntry struct {
 	resolvedImage *ResolvedImage
 	whenCached    time.Time
