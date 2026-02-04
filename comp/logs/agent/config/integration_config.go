@@ -37,6 +37,9 @@ const (
 	SHIFTJIS string = "shift-jis"
 )
 
+// validEncodings contains all valid non-empty encoding values
+var validEncodings = []string{UTF16BE, UTF16LE, SHIFTJIS}
+
 // LogsConfig represents a log source config, which can be for instance
 // a file to tail or a port to listen to.
 type LogsConfig struct {
@@ -347,8 +350,10 @@ func (c *LogsConfig) Validate() error {
 		if c.Path == "" {
 			return errors.New("file source must have a path")
 		}
-		err := c.validateTailingMode()
-		if err != nil {
+		if err := c.validateEncoding(); err != nil {
+			return err
+		}
+		if err := c.validateTailingMode(); err != nil {
 			return err
 		}
 	case c.Type == TCPType && c.Port == 0:
@@ -368,6 +373,19 @@ func (c *LogsConfig) Validate() error {
 		return err
 	}
 	return CompileProcessingRules(c.ProcessingRules)
+}
+
+func (c *LogsConfig) validateEncoding() error {
+	if c.Encoding == "" {
+		return nil
+	}
+	for _, valid := range validEncodings {
+		if c.Encoding == valid {
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid encoding '%s', valid options are: %s, %s, %s (or empty for UTF-8)",
+		c.Encoding, UTF16BE, UTF16LE, SHIFTJIS)
 }
 
 func (c *LogsConfig) validateTailingMode() error {

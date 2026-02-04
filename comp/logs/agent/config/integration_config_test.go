@@ -144,6 +144,34 @@ func TestEncoding(t *testing.T) {
 	assert.Equal(t, "", decode(`{}`).Encoding)
 }
 
+func TestEncodingValidation(t *testing.T) {
+	// Valid encodings should pass validation
+	validConfigs := []*LogsConfig{
+		{Type: FileType, Path: "/var/log/test.log", Encoding: ""},
+		{Type: FileType, Path: "/var/log/test.log", Encoding: UTF16BE},
+		{Type: FileType, Path: "/var/log/test.log", Encoding: UTF16LE},
+		{Type: FileType, Path: "/var/log/test.log", Encoding: SHIFTJIS},
+	}
+
+	for _, config := range validConfigs {
+		err := config.Validate()
+		assert.Nil(t, err, "Expected valid encoding '%s' to pass validation", config.Encoding)
+	}
+
+	// Invalid encodings should fail validation
+	invalidEncodings := []string{"utf-8", "utf8", "ascii", "latin1", "UTF-16-BE", "UTF-16-LE", "SHIFT-JIS"}
+	for _, encoding := range invalidEncodings {
+		config := &LogsConfig{Type: FileType, Path: "/var/log/test.log", Encoding: encoding}
+		err := config.Validate()
+		assert.NotNil(t, err, "Expected invalid encoding '%s' to fail validation", encoding)
+		assert.Contains(t, err.Error(), "invalid encoding")
+		assert.Contains(t, err.Error(), encoding)
+		assert.Contains(t, err.Error(), UTF16BE)
+		assert.Contains(t, err.Error(), UTF16LE)
+		assert.Contains(t, err.Error(), SHIFTJIS)
+	}
+}
+
 func TestConfigDump(t *testing.T) {
 	config := LogsConfig{Type: FileType, Path: "/var/log/foo.log"}
 	dump := config.Dump(true)
@@ -154,7 +182,7 @@ func TestPublicJSON(t *testing.T) {
 	config := LogsConfig{
 		Type:     FileType,
 		Path:     "/var/log/foo.log",
-		Encoding: "utf-8",
+		Encoding: UTF16LE,
 		Service:  "foo",
 		Tags:     []string{"foo:bar"},
 		Source:   "bar",
@@ -162,7 +190,7 @@ func TestPublicJSON(t *testing.T) {
 	ret, err := config.PublicJSON()
 	assert.NoError(t, err)
 
-	expectedJSON := `{"type":"file","path":"/var/log/foo.log","encoding":"utf-8","service":"foo","source":"bar","tags":["foo:bar"]}`
+	expectedJSON := `{"type":"file","path":"/var/log/foo.log","encoding":"utf-16-le","service":"foo","source":"bar","tags":["foo:bar"]}`
 	assert.Equal(t, expectedJSON, string(ret))
 }
 

@@ -320,7 +320,7 @@ logs:
     port: 8080
     idle_timeout: "30s"
     path: /var/log/journal/
-    encoding: utf-8
+    encoding: utf-16-le
     exclude_paths:
       - /var/log/exclude1.log
       - /var/log/exclude2.log
@@ -371,7 +371,7 @@ logs:
 				assert.Equal(t, 8080, config.Port)
 				assert.Equal(t, "30s", config.IdleTimeout)
 				assert.Equal(t, "/var/log/journal/", config.Path)
-				assert.Equal(t, "utf-8", config.Encoding)
+				assert.Equal(t, "utf-16-le", config.Encoding)
 				require.Equal(t, len(config.ExcludePaths), 2)
 				assert.Equal(t, "beginning", config.TailingMode)
 				assert.Equal(t, "test_config_id", config.ConfigID)
@@ -556,7 +556,7 @@ logs:
 		},
 		{
 			name: "Test comprehensive JSON config",
-			data: []byte(`[{"type":"file","path":"/var/log/test.log","source":"test_source","service":"test_service","tags":["tag1","tag2"],"encoding":"utf-8","port":8080,"container_mode":true,"log_processing_rules":[{"type":"multi_line","name":"test_rule","pattern":"^\\d{4}"}]}]`),
+			data: []byte(`[{"type":"file","path":"/var/log/test.log","source":"test_source","service":"test_service","tags":["tag1","tag2"],"encoding":"shift-jis","port":8080,"container_mode":true,"log_processing_rules":[{"type":"multi_line","name":"test_rule","pattern":"^\\d{4}"}]}]`),
 			assert: func(t *testing.T, configs []*LogsConfig, err error) {
 				assert.Nil(t, err)
 				require.Equal(t, len(configs), 1)
@@ -568,7 +568,7 @@ logs:
 				require.Equal(t, len(config.Tags), 2)
 				assert.Equal(t, "tag1", config.Tags[0])
 				assert.Equal(t, "tag2", config.Tags[1])
-				assert.Equal(t, "utf-8", config.Encoding)
+				assert.Equal(t, "shift-jis", config.Encoding)
 				assert.Equal(t, 8080, config.Port)
 				assert.Equal(t, true, config.ContainerMode)
 				require.Equal(t, len(config.ProcessingRules), 1)
