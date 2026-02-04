@@ -84,6 +84,11 @@ type OTLP struct {
 	// GrpcMaxRecvMsgSizeMib specifies the max receive message size (in Mib) in OTLP receiver gRPC server in the trace agent binary.
 	// This config only applies to Agent OTLP ingestion. It does not apply to OSS Datadog exporter/connector or DDOT.
 	GrpcMaxRecvMsgSizeMib int `mapstructure:"-"`
+
+	// IgnoreMissingDatadogFields is deprecated and no longer used.
+	// It is kept for backwards compatibility with external packages.
+	// Deprecated: This field is ignored - the Agent now always uses standard OTel semantic conventions.
+	IgnoreMissingDatadogFields bool `mapstructure:"-"`
 }
 
 // ObfuscationConfig holds the configuration for obfuscating sensitive data

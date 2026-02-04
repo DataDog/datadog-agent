@@ -15,7 +15,7 @@ upgrade:
     * The ``datadog.host.name`` attribute continues to be respected for hostname resolution as documented at https://docs.datadoghq.com/opentelemetry/mapping/hostname/.
     * The ``datadog.container.tag.*`` attributes continue to be supported for custom container tags.
 
-    The configuration option ``otlp_config.traces.ignore_missing_datadog_fields`` (and corresponding environment variable ``DD_OTLP_CONFIG_IGNORE_MISSING_DATADOG_FIELDS``) has been removed as it is no longer applicable.
+    The configuration option ``otlp_config.traces.ignore_missing_datadog_fields`` (and corresponding environment variable ``DD_OTLP_CONFIG_IGNORE_MISSING_DATADOG_FIELDS``) is deprecated and no longer has any effect. The Agent now always uses standard OTel semantic conventions.
 
     **Migration**: If you were using ``datadog.*`` attributes, switch to the standard OpenTelemetry semantic conventions:
 
