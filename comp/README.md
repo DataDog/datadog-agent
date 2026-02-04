@@ -791,12 +791,6 @@ Package networkdeviceconfig provides the component for retrieving network device
 
 Package notableevents provides a component that monitors notable system events and forwards them to the Datadog Event Management v2 API.
 
-### [comp/privateactionrunner](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/privateactionrunner)
-
-*Datadog Team*: action-platform
-
-Package privateactionrunner provides a component that enables private actions executions
-
 ### [comp/publishermetadatacache](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/publishermetadatacache)
 
 *Datadog Team*: windows-products
