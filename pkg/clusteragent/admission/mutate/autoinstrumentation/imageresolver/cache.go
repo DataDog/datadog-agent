@@ -12,78 +12,78 @@ import (
 	"time"
 )
 
-type repositoryCache map[string]tagCache // repository -> tagCache
-type tagCache map[string]cacheEntry      // tag -> cacheEntry
+type registryCache map[string]repositoryCache
+type repositoryCache map[string]tagCache
+type tagCache map[string]cacheEntry
 type cacheEntry struct {
-	resolvedImage *ResolvedImage
-	whenCached    time.Time
+	digest     string
+	whenCached time.Time
 }
 
 type httpDigestCache struct {
-	cache   repositoryCache
+	cache   registryCache
 	ttl     time.Duration
 	mu      sync.RWMutex
 	fetcher *httpDigestFetcher
 }
 
-func (c *httpDigestCache) get(registry string, repository string, tag string) (*ResolvedImage, error) {
-	if resolved := c.checkCache(repository, tag); resolved != nil {
-		return resolved, nil
+func (c *httpDigestCache) get(registry string, repository string, tag string) (string, bool) {
+	if digest := c.checkCache(registry, repository, tag); digest != "" {
+		return digest, true
 	}
 
 	digest, err := c.fetcher.digest(registry + "/" + repository + ":" + tag)
 	if err != nil {
-		return nil, err
+		return "", false
 	}
 
 	return c.store(registry, repository, tag, digest), nil
 }
 
-func (c *httpDigestCache) checkCache(repository, tag string) *ResolvedImage {
+func (c *httpDigestCache) checkCache(registry, repository, tag string) string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	if tags, exists := c.cache[repository]; exists {
-		if entry, exists := tags[tag]; exists {
-			if time.Since(entry.whenCached) < c.ttl {
-				return entry.resolvedImage
+	if repos, exists := c.cache[registry]; exists {
+		if tags, exists := repos[repository]; exists {
+			if entry, exists := tags[tag]; exists {
+				if time.Since(entry.whenCached) < c.ttl {
+					return entry.digest
+				}
 			}
 		}
 	}
-	return nil
+	return ""
 }
 
-func (c *httpDigestCache) store(registry, repository, tag, digest string) *ResolvedImage {
+func (c *httpDigestCache) store(registry, repository, tag, digest string) string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// DEV: Check if another goroutine has already cached this
-	if tags, exists := c.cache[repository]; exists {
-		if entry, exists := tags[tag]; exists {
-			if time.Since(entry.whenCached) < c.ttl {
-				return entry.resolvedImage
-			}
-		}
+	registryCache, exists := c.cache[registry]
+	if !exists {
+		return ""
+	}
+	_, exists = registryCache[repository]
+	if !exists {
+		registryCache[repository] = make(tagCache)
 	}
 
-	if c.cache[repository] == nil {
-		c.cache[repository] = make(tagCache)
+	c.cache[registry][repository][tag] = cacheEntry{
+		digest:     digest,
+		whenCached: time.Now(),
 	}
-
-	resolved := &ResolvedImage{
-		FullImageRef:     registry + "/" + repository + "@" + digest,
-		CanonicalVersion: tag,
-	}
-	c.cache[repository][tag] = cacheEntry{
-		resolvedImage: resolved,
-		whenCached:    time.Now(),
-	}
-	return resolved
+	return digest
 }
 
-func newHTTPDigestCache(ttl time.Duration) *httpDigestCache {
+func newHTTPDigestCache(ttl time.Duration, ddRegistries map[string]struct{}) *httpDigestCache {
+	cache := make(registryCache)
+	for registry := range ddRegistries {
+		cache[registry] = make(repositoryCache)
+	}
+
 	return &httpDigestCache{
-		cache:   make(repositoryCache),
+		cache:   cache,
 		ttl:     ttl,
 		fetcher: newHTTPDigestFetcher(),
 	}

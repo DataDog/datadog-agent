@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
 	"github.com/avast/retry-go/v4"
 )
@@ -100,6 +101,7 @@ func TestSBOM(t *testing.T) {
 	})
 
 	t.Run("host", func(t *testing.T) {
+		flake.MarkOnJobName(t, "ubuntu_25.10")
 		test.WaitSignalFromRule(t, func() error {
 			sbom := p.Resolvers.SBOMResolver.GetWorkload("")
 			if sbom == nil {
