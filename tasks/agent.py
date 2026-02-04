@@ -182,7 +182,6 @@ def build(
         env,
         embedded_path,
         target_arch,
-        "release" if development else "debug",
     )
 
     bundled_agents = ["agent"]

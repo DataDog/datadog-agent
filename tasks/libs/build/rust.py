@@ -36,9 +36,9 @@ def build_rust_lib(
 
             with ctx.cd(libpath):
                 target_arg = f"--target {target_arch}" if target_arch else ""
-                profile = '--release' if profile == 'release' else ''
+                profile_arg = '--release' if profile == 'release' else ''
                 ctx.run(
-                    f"cargo build {profile} {target_arg}",
+                    f"cargo build {profile_arg} {target_arg}",
                     env=rustenv,
                 )
 
