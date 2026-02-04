@@ -399,10 +399,6 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 
 	e.currentRuleSet.Store(rs)
 
-	if replayEvents {
-		e.probe.ReplayEvents()
-	}
-
 	if err := e.probe.FlushDiscarders(); err != nil {
 		return fmt.Errorf("failed to flush discarders: %w", err)
 	}
@@ -415,6 +411,10 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 
 	// update the stats of auto-suppression rules
 	e.AutoSuppression.Apply(rs)
+
+	if replayEvents {
+		e.probe.ReplayEvents()
+	}
 
 	e.notifyAPIServer(ruleIDs, policies)
 

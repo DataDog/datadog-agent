@@ -2,7 +2,7 @@
 
 module github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl
 
-go 1.25.0
+go 1.25.6
 
 require (
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.0.0-00010101000000-000000000000
@@ -70,6 +70,7 @@ require (
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.71.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.71.0 // indirect
@@ -621,6 +622,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../../../pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/api => ../../../../pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../pkg/collector/check/defaults
+	github.com/DataDog/datadog-agent/pkg/config/basic => ../../../../pkg/config/basic
 	github.com/DataDog/datadog-agent/pkg/config/create => ../../../../pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/helper => ../../../../pkg/config/helper
