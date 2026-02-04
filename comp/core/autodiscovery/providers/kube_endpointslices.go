@@ -13,9 +13,9 @@ import (
 	"strings"
 	"sync"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	v1 "k8s.io/api/core/v1"
 	discv1 "k8s.io/api/discovery/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/labels"
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	disclisters "k8s.io/client-go/listers/discovery/v1"
@@ -26,13 +26,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	kubeEndpointSliceID                     = "endpointslices"
 	kubeEndpointSliceAnnotationPrefix       = "ad.datadoghq.com/endpoints."
 	kubeEndpointSliceAnnotationPrefixLegacy = "service-discovery.datadoghq.com/endpoints."
 	kubeEndpointSliceResolvePath            = "resolve"
@@ -60,8 +59,8 @@ type configInfoSlices struct {
 
 // NewKubeEndpointSlicesConfigProvider returns a new ConfigProvider connected to apiserver using EndpointSlices.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewKubeEndpointSlicesConfigProvider(telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
-	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
+// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
+func NewKubeEndpointSlicesConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
@@ -100,12 +99,19 @@ func NewKubeEndpointSlicesConfigProvider(telemetryStore *telemetry.Store) (types
 		return nil, fmt.Errorf("cannot add event handler to endpointslice informer: %s", err)
 	}
 
+	if pkgconfigsetup.Datadog().GetBool("cluster_checks.support_hybrid_ignore_ad_tags") {
+		log.Warnf("The `cluster_checks.support_hybrid_ignore_ad_tags` flag is" +
+			" deprecated and will be removed in a future version. Please replace " +
+			"`ad.datadoghq.com/endpoints.ignore_autodiscovery_tags` in your service annotations" +
+			"using adv2 for check specification and adv1 for `ignore_autodiscovery_tags`.")
+	}
+
 	return p, nil
 }
 
 // String returns a string representation of the kubeEndpointSlicesConfigProvider
 func (k *kubeEndpointSlicesConfigProvider) String() string {
-	return names.KubeEndpoints
+	return names.KubeEndpointSlices
 }
 
 // Collect retrieves services from the apiserver, builds Config objects and returns them
@@ -117,7 +123,7 @@ func (k *kubeEndpointSlicesConfigProvider) Collect(context.Context) ([]integrati
 	k.setUpToDate(true)
 
 	var generatedConfigs []integration.Config
-	parsedConfigsInfo := k.parseServiceAnnotationsForEndpointSlices(services, pkgconfigsetup.Datadog())
+	parsedConfigsInfo := k.parseServiceAnnotationsForEndpointSlices(services)
 	for _, conf := range parsedConfigsInfo {
 		// Fetch all EndpointSlices for this service
 		slices, err := k.endpointSliceLister.EndpointSlices(conf.namespace).List(
@@ -127,7 +133,10 @@ func (k *kubeEndpointSlicesConfigProvider) Collect(context.Context) ([]integrati
 			log.Errorf("Cannot get Kubernetes endpointslices: %s", err)
 			continue
 		}
-		generatedConfigs = append(generatedConfigs, generateConfigsFromSlices(conf.tpl, conf.resolveMode, slices, conf.namespace, conf.serviceName)...)
+		for _, slice := range slices {
+			generatedConfigs = append(generatedConfigs, generateConfigFromSlice(conf.tpl, conf.resolveMode, slice, conf.namespace, conf.serviceName)...)
+		}
+
 		serviceKey := fmt.Sprintf("%s/%s", conf.namespace, conf.serviceName)
 		k.Lock()
 		k.monitoredServices[serviceKey] = true
@@ -192,7 +201,6 @@ func (k *kubeEndpointSlicesConfigProvider) invalidateOnServiceUpdate(old, obj in
 		k.setUpToDate(false)
 		return
 	}
-	// Quick exit if resource version did not change
 	if svc.ResourceVersion == oldSvc.ResourceVersion {
 		return
 	}
@@ -240,7 +248,6 @@ func (k *kubeEndpointSlicesConfigProvider) invalidateOnEndpointSliceUpdate(old, 
 		return
 	}
 
-	// Get service name from label
 	serviceName := slice.Labels[kubernetesServiceNameLabelProvider]
 	if serviceName == "" {
 		return
@@ -251,32 +258,8 @@ func (k *kubeEndpointSlicesConfigProvider) invalidateOnEndpointSliceUpdate(old, 
 	k.Lock()
 	defer k.Unlock()
 	if found := k.monitoredServices[serviceKey]; found {
-		// Invalidate only when endpoints change
-		if endpointSliceEndpointsDifferProvider(slice, oldSlice) {
-			k.upToDate = false
-		}
+		k.upToDate = equality.Semantic.DeepEqual(slice.Endpoints, oldSlice.Endpoints)
 	}
-}
-
-// endpointSliceEndpointsDifferProvider compares the endpoints in two endpointslices
-func endpointSliceEndpointsDifferProvider(first, second *discv1.EndpointSlice) bool {
-	if len(first.Endpoints) != len(second.Endpoints) {
-		return true
-	}
-
-	// Simple comparison - could be optimized with a more sophisticated diff
-	for i := range first.Endpoints {
-		if len(first.Endpoints[i].Addresses) != len(second.Endpoints[i].Addresses) {
-			return true
-		}
-		for j := range first.Endpoints[i].Addresses {
-			if first.Endpoints[i].Addresses[j] != second.Endpoints[i].Addresses[j] {
-				return true
-			}
-		}
-	}
-
-	return false
 }
 
 // setUpToDate is a thread-safe method to update the upToDate value
@@ -286,7 +269,7 @@ func (k *kubeEndpointSlicesConfigProvider) setUpToDate(v bool) {
 	k.upToDate = v
 }
 
-func (k *kubeEndpointSlicesConfigProvider) parseServiceAnnotationsForEndpointSlices(services []*v1.Service, cfg model.Config) []configInfoSlices {
+func (k *kubeEndpointSlicesConfigProvider) parseServiceAnnotationsForEndpointSlices(services []*v1.Service) []configInfoSlices {
 	var configsInfo []configInfoSlices
 
 	setServiceKeys := map[string]struct{}{}
@@ -300,7 +283,6 @@ func (k *kubeEndpointSlicesConfigProvider) parseServiceAnnotationsForEndpointSli
 		serviceKey := fmt.Sprintf("%s/%s", svc.Namespace, svc.Name)
 		setServiceKeys[serviceKey] = struct{}{}
 
-		// Use same annotation prefix as Endpoints for compatibility
 		endptConf, errors := utils.ExtractTemplatesFromAnnotations(serviceKey, svc.GetAnnotations(), kubeEndpointID)
 		for _, err := range errors {
 			log.Errorf("Cannot parse endpoint template for service %s: %s", serviceKey, err)
@@ -323,8 +305,9 @@ func (k *kubeEndpointSlicesConfigProvider) parseServiceAnnotationsForEndpointSli
 
 		ignoreAdForHybridScenariosTags := ignoreADTagsFromAnnotations(svc.GetAnnotations(), kubeEndpointSliceAnnotationPrefix)
 		for i := range endptConf {
-			endptConf[i].Source = "kube_endpointslices:" + serviceKey
-			if cfg.GetBool("cluster_checks.support_hybrid_ignore_ad_tags") {
+			// TODO: Kept same source for now, but we should consider using a different source.
+			endptConf[i].Source = "kube_endpoints:" + apiserver.EntityForEndpoints(svc.Namespace, svc.Name, "")
+			if pkgconfigsetup.Datadog().GetBool("cluster_checks.support_hybrid_ignore_ad_tags") {
 				endptConf[i].IgnoreAutodiscoveryTags = endptConf[i].IgnoreAutodiscoveryTags || ignoreAdForHybridScenariosTags
 			}
 			configsInfo = append(configsInfo, configInfoSlices{
@@ -360,50 +343,48 @@ func hasEndpointSliceAnnotations(svc *v1.Service) bool {
 	return false
 }
 
-// generateConfigsFromSlices creates a config template for each endpoint IP across all slices
-func generateConfigsFromSlices(tpl integration.Config, resolveMode endpointResolveMode, slices []*discv1.EndpointSlice, namespace, serviceName string) []integration.Config {
-	if len(slices) == 0 {
-		log.Warnf("No EndpointSlices for service %s/%s, cannot generate config templates", namespace, serviceName)
+// generateConfigFromSlice creates a config template for each endpoint IP across all slices
+func generateConfigFromSlice(tpl integration.Config, resolveMode endpointResolveMode, slice *discv1.EndpointSlice, namespace, serviceName string) []integration.Config {
+	if slice == nil {
+		log.Warnf("EndpointSlice for %s/%s is nil, cannot generate config templates", namespace, serviceName)
 		return []integration.Config{tpl}
 	}
 	generatedConfigs := make([]integration.Config, 0)
 
 	// Check resolve annotation to know how we should process this endpoint
-	resolveFunc := getEndpointResolveFuncForSlices(resolveMode, namespace, serviceName)
+	resolveFunc := getEndpointResolveFuncForSlice(resolveMode, namespace, serviceName)
 
-	for _, slice := range slices {
-		for _, endpoint := range slice.Endpoints {
-			for _, ip := range endpoint.Addresses {
-				// Set a new entity containing the endpoint's IP
-				entity := apiserver.EntityForEndpoints(namespace, serviceName, ip)
-				newConfig := integration.Config{
-					ServiceID:               entity,
-					Name:                    tpl.Name,
-					Instances:               tpl.Instances,
-					InitConfig:              tpl.InitConfig,
-					MetricConfig:            tpl.MetricConfig,
-					LogsConfig:              tpl.LogsConfig,
-					ADIdentifiers:           []string{entity},
-					ClusterCheck:            true,
-					Provider:                tpl.Provider,
-					Source:                  tpl.Source,
-					IgnoreAutodiscoveryTags: tpl.IgnoreAutodiscoveryTags,
-				}
-
-				if resolveFunc != nil {
-					resolveFunc(&newConfig, endpoint, ip)
-				}
-
-				generatedConfigs = append(generatedConfigs, newConfig)
+	for _, endpoint := range slice.Endpoints {
+		for _, ip := range endpoint.Addresses {
+			// Set a new entity containing the endpoint's IP
+			entity := apiserver.EntityForEndpoints(namespace, serviceName, ip)
+			newConfig := integration.Config{
+				ServiceID:               entity,
+				Name:                    tpl.Name,
+				Instances:               tpl.Instances,
+				InitConfig:              tpl.InitConfig,
+				MetricConfig:            tpl.MetricConfig,
+				LogsConfig:              tpl.LogsConfig,
+				ADIdentifiers:           []string{entity},
+				ClusterCheck:            true,
+				Provider:                tpl.Provider,
+				Source:                  tpl.Source,
+				IgnoreAutodiscoveryTags: tpl.IgnoreAutodiscoveryTags,
 			}
+
+			if resolveFunc != nil {
+				resolveFunc(&newConfig, endpoint)
+			}
+
+			generatedConfigs = append(generatedConfigs, newConfig)
 		}
 	}
 	return generatedConfigs
 }
 
-// getEndpointResolveFuncForSlices returns a function that resolves the endpoint address for EndpointSlices
-func getEndpointResolveFuncForSlices(resolveMode endpointResolveMode, namespace, name string) func(*integration.Config, discv1.Endpoint, string) {
-	var resolveFunc func(*integration.Config, discv1.Endpoint, string)
+// getEndpointResolveFuncForSlice returns a function that resolves the endpoint address for EndpointSlices
+func getEndpointResolveFuncForSlice(resolveMode endpointResolveMode, namespace, name string) func(*integration.Config, discv1.Endpoint) {
+	var resolveFunc func(*integration.Config, discv1.Endpoint)
 
 	switch resolveMode {
 	case kubeEndpointResolveIP:
@@ -411,19 +392,10 @@ func getEndpointResolveFuncForSlices(resolveMode endpointResolveMode, namespace,
 
 	case "", kubeEndpointResolveAuto:
 		// Auto or empty (default to auto): we try to resolve the POD behind this address
-		resolveFunc = func(config *integration.Config, endpoint discv1.Endpoint, _ string) {
-			if endpoint.TargetRef != nil && endpoint.TargetRef.Kind == "Pod" {
-				config.NodeName = endpoint.TargetRef.Name
-			}
-		}
-
+		resolveFunc = utils.ResolveEndpointSliceConfigAuto
 	default:
 		log.Warnf("Unknown resolve mode %s for service %s/%s, defaulting to auto", resolveMode, namespace, name)
-		resolveFunc = func(config *integration.Config, endpoint discv1.Endpoint, _ string) {
-			if endpoint.TargetRef != nil && endpoint.TargetRef.Kind == "Pod" {
-				config.NodeName = endpoint.TargetRef.Name
-			}
-		}
+		resolveFunc = utils.ResolveEndpointSliceConfigAuto
 	}
 
 	return resolveFunc
