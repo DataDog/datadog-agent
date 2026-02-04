@@ -154,7 +154,7 @@ func newGui(deps dependencies) provides {
 		OnStart: g.start,
 		OnStop:  g.stop})
 
-	p.Comp = option.New[guicomp.Component](g)
+	p.Comp = option.New[guicomp.Component](&g)
 	p.Endpoint = api.NewAgentEndpointProvider(g.getIntentToken, "/gui/intent", "GET")
 
 	return p
