@@ -46,6 +46,7 @@ func (api *TestBenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/error-logs", api.cors(api.handleErrorLogs))
 	mux.HandleFunc("/api/health", api.cors(api.handleHealth))
 	mux.HandleFunc("/api/context-packets", api.cors(api.handleContextPackets))
+	mux.HandleFunc("/api/flare-data", api.cors(api.handleFlareData))
 	mux.HandleFunc("/api/correlations", api.cors(api.handleCorrelations))
 	mux.HandleFunc("/api/leadlag", api.cors(api.handleLeadLag))
 	mux.HandleFunc("/api/surprise", api.cors(api.handleSurprise))
@@ -425,6 +426,39 @@ func (api *TestBenchAPI) handleHealth(w http.ResponseWriter, r *http.Request) {
 func (api *TestBenchAPI) handleContextPackets(w http.ResponseWriter, r *http.Request) {
 	packets := api.tb.GetContextPackets()
 	api.writeJSON(w, packets)
+}
+
+// handleFlareData returns all observer data in flare format.
+func (api *TestBenchAPI) handleFlareData(w http.ResponseWriter, r *http.Request) {
+	provider := api.tb.AsFlareDataProvider()
+
+	health := provider.GetHealth()
+	contextPackets := provider.GetContextPackets()
+	logBufferStats := provider.GetLogBufferStats()
+	anomalies := provider.GetAnomalies()
+	correlations := provider.GetCorrelations()
+
+	// Build anomaly summary
+	summary := AnomalySummary{
+		TotalAnomalies: len(anomalies),
+		ByAnalyzer:     make(map[string]int),
+		BySource:       make(map[string]int),
+	}
+	for _, a := range anomalies {
+		summary.ByAnalyzer[a.Analyzer]++
+		summary.BySource[a.Source]++
+	}
+	summary.RecentAnomalies = anomalies
+	summary.Correlations = correlations
+
+	flareData := ObserverFlareData{
+		Health:         health,
+		AnomalySummary: summary,
+		ContextPackets: contextPackets,
+		LogBufferStats: logBufferStats,
+	}
+
+	api.writeJSON(w, flareData)
 }
 
 // parseIntParam parses a string to int64, used for query parameters.

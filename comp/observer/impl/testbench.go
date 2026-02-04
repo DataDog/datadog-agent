@@ -913,6 +913,84 @@ func (tb *TestBench) GetLatestContextPacket() *ContextPacket {
 	return tb.contextPacketGen.GetLatestPacket()
 }
 
+// FlareDataProvider interface implementation for TestBench
+
+// GetAnomalies returns anomalies as snapshots for flare export.
+func (tb *TestBench) GetAnomaliesSnapshot() []AnomalySnapshot {
+	tb.mu.RLock()
+	defer tb.mu.RUnlock()
+
+	snapshots := make([]AnomalySnapshot, 0, len(tb.anomalies))
+	for _, a := range tb.anomalies {
+		severity := 0.0
+		if a.DebugInfo != nil {
+			severity = a.DebugInfo.DeviationSigma
+		}
+		snapshots = append(snapshots, AnomalySnapshot{
+			Source:    a.Source,
+			Analyzer:  a.AnalyzerName,
+			Title:     a.Title,
+			Timestamp: a.Timestamp,
+			Severity:  severity,
+		})
+	}
+	return snapshots
+}
+
+// GetCorrelationsSnapshot returns correlations as snapshots for flare export.
+func (tb *TestBench) GetCorrelationsSnapshot() []CorrelationSnapshot {
+	tb.mu.RLock()
+	defer tb.mu.RUnlock()
+
+	snapshots := make([]CorrelationSnapshot, 0, len(tb.correlations))
+	for _, c := range tb.correlations {
+		snapshots = append(snapshots, CorrelationSnapshot{
+			Pattern:      c.Pattern,
+			Title:        c.Title,
+			Sources:      c.SourceNames,
+			AnomalyCount: len(c.Anomalies),
+			FirstSeen:    c.FirstSeen,
+			LastUpdated:  c.LastUpdated,
+		})
+	}
+	return snapshots
+}
+
+// testBenchFlareAdapter adapts TestBench to FlareDataProvider interface.
+type testBenchFlareAdapter struct {
+	tb *TestBench
+}
+
+func (a *testBenchFlareAdapter) GetHealth() HealthResponse {
+	return a.tb.GetHealth()
+}
+
+func (a *testBenchFlareAdapter) GetContextPackets() []ContextPacket {
+	return a.tb.GetContextPackets()
+}
+
+func (a *testBenchFlareAdapter) GetLogBufferStats() LogBufferStats {
+	return a.tb.GetLogBufferStats()
+}
+
+func (a *testBenchFlareAdapter) GetAnomalies() []AnomalySnapshot {
+	return a.tb.GetAnomaliesSnapshot()
+}
+
+func (a *testBenchFlareAdapter) GetCorrelations() []CorrelationSnapshot {
+	return a.tb.GetCorrelationsSnapshot()
+}
+
+// AsFlareDataProvider returns the TestBench as a FlareDataProvider.
+func (tb *TestBench) AsFlareDataProvider() FlareDataProvider {
+	return &testBenchFlareAdapter{tb: tb}
+}
+
+// ExportFlareData exports observer data to a directory in flare format.
+func (tb *TestBench) ExportFlareData(dir string) error {
+	return WriteFlareToDirectory(dir, tb.AsFlareDataProvider())
+}
+
 // GetAnomaliesByAnalyzer returns anomalies grouped by analyzer name.
 func (tb *TestBench) GetAnomaliesByAnalyzer() map[string][]observerdef.AnomalyOutput {
 	tb.mu.RLock()
