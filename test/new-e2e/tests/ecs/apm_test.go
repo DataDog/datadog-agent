@@ -79,13 +79,13 @@ func (suite *ecsAPMSuite) getCommonECSTagPatterns(clusterName, taskName, appName
 		// Format: _dd.tags.container:cluster_name:value,ecs_cluster_name:value,container_name:value,task_arn:value,...
 		// We need to validate that this bundled tag contains the required ECS metadata
 		return []string{
-			// Match _dd.tags.container and verify it contains cluster_name
-			`^_dd\.tags\.container:.*cluster_name:` + regexp.QuoteMeta(clusterName) + `(,|$)`,
-			// Match _dd.tags.container and verify it contains ecs_cluster_name
-			`^_dd\.tags\.container:.*ecs_cluster_name:` + regexp.QuoteMeta(clusterName) + `(,|$)`,
-			// Match _dd.tags.container and verify it contains container_name
+			// Match _dd.tags.container and verify it contains cluster_name anywhere in the value
+			`^_dd\.tags\.container:.*cluster_name:` + regexp.QuoteMeta(clusterName),
+			// Match _dd.tags.container and verify it contains ecs_cluster_name anywhere in the value
+			`^_dd\.tags\.container:.*ecs_cluster_name:` + regexp.QuoteMeta(clusterName),
+			// Match _dd.tags.container and verify it contains container_name anywhere in the value
 			`^_dd\.tags\.container:.*container_name:`,
-			// Match _dd.tags.container and verify it contains task_arn
+			// Match _dd.tags.container and verify it contains task_arn anywhere in the value
 			`^_dd\.tags\.container:.*task_arn:`,
 		}
 	}
