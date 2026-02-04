@@ -1635,15 +1635,15 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 		cfg.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
 	}
 	for i, tt := range []struct {
-		rattr                      map[string]string
-		libname                    string
-		libver                     string
-		sattr                      map[string]string
-		in                         ptrace.Span
-		operationNameV1            string
-		operationNameV2            string
-		resourceNameV1             string
-		resourceNameV2             string
+		rattr              map[string]string
+		libname            string
+		libver             string
+		sattr              map[string]string
+		in                 ptrace.Span
+		operationNameV1    string
+		operationNameV2    string
+		resourceNameV1     string
+		resourceNameV2     string
 		out                *pb.Span
 		outTags            map[string]string
 		topLevelOutMetrics map[string]float64
@@ -2246,12 +2246,12 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 				StatusMsg:  "Error",
 				StatusCode: ptrace.StatusCodeError,
 			}),
-			operationNameV1: "",
-			operationNameV2: "",
-			resourceNameV1:  "",
-			resourceNameV2:  "",
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "http.server.request",
+			resourceNameV1:  "GET /path",
+			resourceNameV2:  "GET /path",
 			out: &pb.Span{
-				Service:  "",
+				Service:  "pylons",
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -2281,13 +2281,18 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"http.url":                      "sample_url",
 					"http.useragent":                "sample_useragent",
 					"http.request.headers.example":  "test",
+					"http.status_code":              "sample_status_code",
+					"env":                           "staging",
+					"error.msg":                     "Error",
+					"version":                       "v1.2.3",
+					"span.kind":                     "server",
 				},
 				Metrics: map[string]float64{
 					"approx":                               1.2,
 					"count":                                2,
 					sampler.KeySamplingRateEventExtraction: 0,
 				},
-				Type: "",
+				Type: "web",
 			},
 			topLevelOutMetrics: map[string]float64{
 				"_top_level":                           1,
