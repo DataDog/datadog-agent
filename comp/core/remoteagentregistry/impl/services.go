@@ -157,10 +157,24 @@ func collectFromPromText(ch chan<- prometheus.Metric, promText string, remoteAge
 				continue
 			}
 
+			// Check if the metric already has a remote_agent label.
+			// With explicit agent identity, metrics should already have the correct value.
+			// We only add the label if it's missing (for backward compatibility).
+			hasRemoteAgentLabel := false
+			for _, label := range metric.Label {
+				if *label.Name == remoteAgentMetricTagName {
+					hasRemoteAgentLabel = true
+					break
+				}
+			}
+
 			labelNames := make([]string, 0, len(metric.Label)+1)
 			labelValues := make([]string, 0, len(metric.Label)+1)
-			labelNames = append(labelNames, remoteAgentMetricTagName)
-			labelValues = append(labelValues, remoteAgentName)
+			// Only add remote_agent label if the metric doesn't already have one
+			if !hasRemoteAgentLabel {
+				labelNames = append(labelNames, remoteAgentMetricTagName)
+				labelValues = append(labelValues, remoteAgentName)
+			}
 			for _, label := range metric.Label {
 				labelNames = append(labelNames, *label.Name)
 				labelValues = append(labelValues, *label.Value)
