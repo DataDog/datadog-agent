@@ -47,6 +47,8 @@ import (
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
@@ -144,6 +146,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			agenttelemetryComponent agenttelemetry.Component,
 			hostname hostnameinterface.Component,
 			ipc ipc.Component,
+			delegatedAuthComp delegatedauth.Component,
 			snmpScanManager snmpscanmanager.Component,
 			traceroute traceroute.Component,
 		) error {
@@ -170,6 +173,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				agenttelemetryComponent,
 				hostname,
 				ipc,
+				delegatedAuthComp,
 				snmpScanManager,
 				traceroute,
 			)
@@ -201,6 +205,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.LogFile),
 			}),
 			secretsfx.Module(),
+			delegatedauthfx.Module(),
 			getSharedFxOption(),
 			getPlatformModules(),
 		)

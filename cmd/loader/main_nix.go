@@ -16,6 +16,7 @@ import (
 	"runtime"
 	"strconv"
 
+	delegatedauthnoop "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
 	"golang.org/x/sys/unix"
 
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -48,7 +49,7 @@ func main() {
 
 	cfg := pkgconfigsetup.GlobalConfigBuilder()
 	cfg.SetConfigFile(os.Args[1])
-	err = pkgconfigsetup.LoadDatadog(cfg, &secretnooptypes.SecretNoop{}, nil)
+	err = pkgconfigsetup.LoadDatadog(cfg, &secretnooptypes.SecretNoop{}, delegatedauthnoop.NewComponent().Comp, nil)
 	if err != nil {
 		log.Warnf("Failed to load the configuration: %v", err)
 		execOrExit(os.Environ(), fullPath)

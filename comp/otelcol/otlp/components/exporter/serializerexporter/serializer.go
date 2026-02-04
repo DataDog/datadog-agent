@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
@@ -168,6 +169,7 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 		}),
 		fx.Provide(func() secrets.Component { return &secretnooptypes.SecretNoop{} }),
 		defaultforwarder.Module(defaultforwarder.NewParams()),
+		delegatedauthfx.Module(),
 		fx.Populate(&f),
 		fx.Populate(&s),
 	)
