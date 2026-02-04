@@ -7,8 +7,6 @@
 
 package imageresolver
 
-import "strings"
-
 // ImageInfo represents information about an image from remote configuration.
 type ImageInfo struct {
 	Tag              string `json:"tag"`
@@ -26,14 +24,6 @@ type RepositoryConfig struct {
 type ResolvedImage struct {
 	FullImageRef     string // e.g., "gcr.io/datadoghq/dd-lib-python-init@sha256:abc123..."
 	CanonicalVersion string // e.g., "3.1.0"
-}
-
-// Digest extracts the digest portion from FullImageRef (e.g., "sha256:abc123...")
-func (r *ResolvedImage) Digest() string {
-	if idx := strings.Index(r.FullImageRef, "@"); idx != -1 {
-		return r.FullImageRef[idx+1:]
-	}
-	return ""
 }
 
 func newResolvedImage(registry string, repositoryName string, imageInfo ImageInfo) *ResolvedImage {
