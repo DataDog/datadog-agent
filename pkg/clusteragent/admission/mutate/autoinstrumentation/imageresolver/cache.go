@@ -27,14 +27,14 @@ type httpDigestCache struct {
 	fetcher *httpDigestFetcher
 }
 
-func (c *httpDigestCache) get(registry string, repository string, tag string) (string, bool) {
+func (c *httpDigestCache) get(registry string, repository string, tag string) (string, error) {
 	if digest := c.checkCache(registry, repository, tag); digest != "" {
-		return digest, true
+		return digest, nil
 	}
 
 	digest, err := c.fetcher.digest(registry + "/" + repository + ":" + tag)
 	if err != nil {
-		return "", false
+		return "", err
 	}
 
 	return c.store(registry, repository, tag, digest), nil

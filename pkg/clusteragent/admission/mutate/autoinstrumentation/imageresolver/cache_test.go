@@ -157,9 +157,9 @@ func TestHttpDigestCache_Get_Success(t *testing.T) {
 
 func TestHttpDigestCache_Get_Failure(t *testing.T) {
 	cc, transport := mockHTTPDigestCache(1 * time.Minute)
-	resolved, ok := cc.get("test-registry", "dd-lib-python-init", "v1")
+	resolved, err := cc.get("test-registry", "dd-lib-python-init", "v1")
 
-	require.False(t, ok, "Expected failed get")
+	require.Error(t, err, "Expected failed get")
 	require.Empty(t, resolved, "Expected empty digest")
 	require.Equal(t, 1, transport.CallCount())
 }
@@ -172,8 +172,8 @@ func TestHttpDigestCache_Get_MultipleRepositories(t *testing.T) {
 	resolved1, err1 := cc.get("registry1", "dd-lib-python-init", "v1")
 	resolved2, err2 := cc.get("registry2", "dd-lib-java-init", "v2")
 
-	require.True(t, ok1, "Should fetch python lib")
-	require.True(t, ok2, "Should fetch java lib")
+	require.NoError(t, err1, "Should fetch python lib")
+	require.NoError(t, err2, "Should fetch java lib")
 	require.Equal(t, "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", resolved1)
 	require.Equal(t, "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", resolved2)
 	require.Equal(t, 2, transport.CallCount(), "Should have fetched digest twice")
@@ -189,9 +189,9 @@ func TestHttpDigestCache_Get_SameRepoMultipleTags(t *testing.T) {
 	resolved2, err2 := cc.get("registry", "dd-lib-python-init", "v2")
 	resolved3, err3 := cc.get("registry", "dd-lib-python-init", "latest")
 
-	require.True(t, ok1)
-	require.True(t, ok2)
-	require.True(t, ok3)
+	require.NoError(t, err1)
+	require.NoError(t, err2)
+	require.NoError(t, err3)
 	require.Equal(t, "sha256:1111111111111111111111111111111111111111111111111111111111111111", resolved1)
 	require.Equal(t, "sha256:2222222222222222222222222222222222222222222222222222222222222222", resolved2)
 	require.Equal(t, "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", resolved3)

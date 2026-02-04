@@ -538,13 +538,14 @@ func TestRcResolver_AsyncInitialization(t *testing.T) {
 }
 
 func newMockBucketTagResolver(t *testing.T, ttl time.Duration, bucketID string) bucketTagResolver {
+	datadogRegistries := map[string]struct{}{
+		"gcr.io/datadoghq":       {},
+		"public.ecr.aws/datadog": {},
+	}
 	return bucketTagResolver{
-		cache:    newHTTPDigestCache(ttl),
-		bucketID: bucketID,
-		datadoghqRegistries: map[string]struct{}{
-			"gcr.io/datadoghq":       {},
-			"public.ecr.aws/datadog": {},
-		},
+		cache:               newHTTPDigestCache(ttl, datadogRegistries),
+		bucketID:            bucketID,
+		datadoghqRegistries: datadogRegistries,
 	}
 }
 
@@ -561,13 +562,20 @@ func TestBucketTagResolver_Resolve(t *testing.T) {
 	t.Run("accepts_allowed_registries", func(t *testing.T) {
 		resolver := newMockBucketTagResolver(t, 5*time.Minute, "4")
 
-		resolver.cache.cache["dd-lib-java-init"] = tagCache{
-			"1-gr4": cacheEntry{
-				resolvedImage: &ResolvedImage{
-					FullImageRef:     "gcr.io/datadoghq/dd-lib-java-init@sha256:abc123",
-					CanonicalVersion: "1",
+		resolver.cache.cache["gcr.io/datadoghq"] = repositoryCache{
+			"dd-lib-java-init": tagCache{
+				"1-gr4": {
+					digest:     "sha256:abc123",
+					whenCached: time.Now(),
 				},
-				whenCached: time.Now(),
+			},
+		}
+		resolver.cache.cache["public.ecr.aws/datadog"] = repositoryCache{
+			"dd-lib-java-init": tagCache{
+				"1-gr4": {
+					digest:     "sha256:abc123",
+					whenCached: time.Now(),
+				},
 			},
 		}
 
@@ -590,13 +598,12 @@ func TestBucketTagResolver_Resolve(t *testing.T) {
 	t.Run("cache_hit_returns_resolved_image", func(t *testing.T) {
 		resolver := newMockBucketTagResolver(t, 5*time.Minute, "1")
 
-		resolver.cache.cache["dd-lib-python-init"] = tagCache{
-			"3-gr1": cacheEntry{
-				resolvedImage: &ResolvedImage{
-					FullImageRef:     "gcr.io/datadoghq/dd-lib-python-init@sha256:def456",
-					CanonicalVersion: "3",
+		resolver.cache.cache["gcr.io/datadoghq"] = repositoryCache{
+			"dd-lib-python-init": tagCache{
+				"3-gr1": {
+					digest:     "sha256:def456",
+					whenCached: time.Now(),
 				},
-				whenCached: time.Now(),
 			},
 		}
 
@@ -605,7 +612,7 @@ func TestBucketTagResolver_Resolve(t *testing.T) {
 		assert.True(t, ok, "Should resolve cached image")
 		require.NotNil(t, resolved, "Should return resolved image")
 		assert.Equal(t, "gcr.io/datadoghq/dd-lib-python-init@sha256:def456", resolved.FullImageRef)
-		assert.Equal(t, "3", resolved.CanonicalVersion)
+		assert.Equal(t, "v3", resolved.CanonicalVersion)
 	})
 
 	t.Run("cache_miss_returns_nil", func(t *testing.T) {
@@ -620,13 +627,12 @@ func TestBucketTagResolver_Resolve(t *testing.T) {
 	t.Run("v_prefix_normalization_for_major_versions", func(t *testing.T) {
 		resolver := newMockBucketTagResolver(t, 5*time.Minute, "3")
 
-		resolver.cache.cache["dd-lib-js-init"] = tagCache{
-			"2-gr3": cacheEntry{
-				resolvedImage: &ResolvedImage{
-					FullImageRef:     "gcr.io/datadoghq/dd-lib-js-init@sha256:xyz789",
-					CanonicalVersion: "2",
+		resolver.cache.cache["gcr.io/datadoghq"] = repositoryCache{
+			"dd-lib-js-init": tagCache{
+				"2-gr3": {
+					digest:     "sha256:xyz789",
+					whenCached: time.Now(),
 				},
-				whenCached: time.Now(),
 			},
 		}
 
@@ -641,13 +647,12 @@ func TestBucketTagResolver_Resolve(t *testing.T) {
 	t.Run("canonical_versions_not_normalized", func(t *testing.T) {
 		resolver := newMockBucketTagResolver(t, 5*time.Minute, "5")
 
-		resolver.cache.cache["dd-lib-ruby-init"] = tagCache{
-			"1.2.3": cacheEntry{
-				resolvedImage: &ResolvedImage{
-					FullImageRef:     "gcr.io/datadoghq/dd-lib-ruby-init@sha256:canonical",
-					CanonicalVersion: "v1.2.3",
+		resolver.cache.cache["gcr.io/datadoghq"] = repositoryCache{
+			"dd-lib-ruby-init": tagCache{
+				"1.2.3": {
+					digest:     "sha256:canonical",
+					whenCached: time.Now(),
 				},
-				whenCached: time.Now(),
 			},
 		}
 

@@ -236,20 +236,23 @@ func (r *bucketTagResolver) Resolve(registry string, repository string, tag stri
 
 	bucketTag := r.createBucketTag(tag)
 
-	resolvedImage, err := r.cache.get(registry, repository, bucketTag)
+	digest, err := r.cache.get(registry, repository, bucketTag)
 	if err != nil {
 		log.Debugf("cache miss for %s/%s:%s - %v", registry, repository, bucketTag, err)
 		metrics.ImageResolutionAttempts.Inc(repository, bucketTag, tag)
 		return nil, false
 	}
 	log.Debugf("cache hit for %s/%s:%s", registry, repository, bucketTag)
-	metrics.ImageResolutionAttempts.Inc(repository, bucketTag, resolvedImage.Digest())
-	return resolvedImage, true
+	metrics.ImageResolutionAttempts.Inc(repository, bucketTag, digest)
+	return &ResolvedImage{
+		FullImageRef:     registry + "/" + repository + "@" + digest,
+		CanonicalVersion: tag, // DEV: This is the customer provided tag
+	}, true
 }
 
 func newBucketTagResolver(cfg Config) *bucketTagResolver {
 	return &bucketTagResolver{
-		cache:               newHTTPDigestCache(cfg.DigestCacheTTL),
+		cache:               newHTTPDigestCache(cfg.DigestCacheTTL, cfg.DDRegistries),
 		bucketID:            cfg.BucketID,
 		datadoghqRegistries: cfg.DDRegistries,
 	}
