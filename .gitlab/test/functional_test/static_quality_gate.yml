@@ -44,6 +44,8 @@ static_quality_gates:
     # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
     - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
     - export DD_API_KEY="$DATADOG_API_KEY"
+    # DD_APP_KEY is required for querying metrics (e.g., fetching ancestor metrics for relative size calculation)
+    - DD_APP_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_APP_KEY_ORG2" token)" || exit $?; export DD_APP_KEY
     - !reference [ .setup_agent_github_app ]
     - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
     - dda inv -- quality-gates.parse-and-trigger-gates || exit $?

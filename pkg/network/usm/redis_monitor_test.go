@@ -117,7 +117,7 @@ func (s *redisProtocolParsingSuite) TestDecoding() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.isTLS && !gotlstestutil.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
+			if tt.isTLS && !gotlstestutil.GoTLSSupported(t, NewUSMEmptyConfig()) {
 				t.Skip("GoTLS not supported for this setup")
 			}
 			testRedisDecoding(t, tt.isTLS, tt.protocolVersion, tt.trackResources)
@@ -301,7 +301,7 @@ func testRedisDecoding(t *testing.T, isTLS bool, version int, trackResources boo
 }
 
 func getRedisDefaultTestConfiguration(enableTLS bool) *config.Config {
-	cfg := utils.NewUSMEmptyConfig()
+	cfg := NewUSMEmptyConfig()
 	cfg.EnableRedisMonitoring = true
 	cfg.RedisTrackResources = true // Enable resource tracking for tests
 	cfg.MaxTrackedConnections = 1000

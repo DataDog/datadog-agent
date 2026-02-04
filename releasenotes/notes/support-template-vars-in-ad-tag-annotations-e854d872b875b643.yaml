@@ -1,0 +1,7 @@
+features:
+  - |
+    Autodiscovery template variables are now supported in ``ad.datadoghq.com/tags`` and
+    ``ad.datadoghq.com/<container>.tags`` Kubernetes pod annotations. Template variables
+    are resolved at runtime, enabling dynamic tagging based on pod and container metadata.
+    This allows centralized tag configuration that applies to all checks, logs, and traces
+    without hardcoding pod-specific values.
