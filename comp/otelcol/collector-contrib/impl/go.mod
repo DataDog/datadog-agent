@@ -97,7 +97,6 @@ require (
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0 // indirect
 	github.com/Code-Hex/go-generics-cache v1.5.1 // indirect
 	github.com/DataDog/agent-payload/v5 v5.0.179 // indirect
-	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.76.0-devel // indirect
