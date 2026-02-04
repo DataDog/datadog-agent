@@ -91,7 +91,6 @@ int BPF_BYPASSABLE_UPROBE(uprobe__SSL_set_bio, void *ssl_ctx, void *bio) {
 // This prevents map entry leaks that could exhaust the map's 1024 entry limit.
 SEC("uprobe/BIO_free")
 int BPF_BYPASSABLE_UPROBE(uprobe__BIO_free, void *bio) {
-    log_debug("uprobe/BIO_free: bio=%p", bio);
     bpf_map_delete_elem(&fd_by_ssl_bio, &bio);
     return 0;
 }
