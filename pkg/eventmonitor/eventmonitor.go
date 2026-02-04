@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -57,7 +56,7 @@ type EventMonitor struct {
 	cwsStatusProvider CWSStatusProvider
 }
 
-var _ module.Module = &EventMonitor{}
+var _ types.SystemProbeModule = &EventMonitor{}
 
 // Register the event monitoring module
 func (m *EventMonitor) Register(_ types.SystemProbeRouter) error {

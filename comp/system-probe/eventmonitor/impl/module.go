@@ -1,39 +1,62 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2025-present Datadog, Inc.
 
 //go:build linux || windows
 
-package modules
+package eventmonitorimpl
 
 import (
 	"context"
 	"errors"
 	"fmt"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	eventmonitordef "github.com/DataDog/datadog-agent/comp/system-probe/eventmonitor/def"
+	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	netconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	"github.com/DataDog/datadog-agent/pkg/network/sender"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var eventMonitorModuleConfigNamespaces = []string{"event_monitoring_config", "runtime_security_config"}
+type dependencies struct {
+	SysprobeConfig sysprobeconfig.Component
+	Log            logdef.Component
+	WMeta          workloadmeta.Component
+	FilterStore    workloadfilter.Component
+	Tagger         tagger.Component
+	Compression    logscompression.Component
+	Statsd         ddgostatsd.ClientInterface
+	Hostname       hostname.Component
+	Ipc            ipc.Component
 
-func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
+	GPUProcessEventConsumer eventmonitordef.ProcessEventConsumerComponent
+}
+
+func createEventMonitorModule(deps dependencies) (types.SystemProbeModule, error) {
 	emconfig := emconfig.NewConfig()
 
 	secconfig, err := secconfig.NewConfig()
 	if err != nil {
 		log.Errorf("invalid probe configuration: %v", err)
-		return nil, module.ErrNotEnabled
+		return nil, types.ErrNotEnabled
 	}
 
 	opts := eventmonitor.Opts{}
@@ -60,7 +83,7 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 	evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, hostname, opts)
 	if err != nil {
 		log.Errorf("error initializing event monitoring module: %v", err)
-		return nil, module.ErrNotEnabled
+		return nil, types.ErrNotEnabled
 	}
 
 	if secconfig.RuntimeSecurity.IsRuntimeEnabled() {
@@ -105,11 +128,13 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 	}
 
 	gpucfg := gpuconfig.New()
-	if gpucfg.Enabled {
-		err := createGPUProcessEventConsumer(evm)
+	if gpucfg.Enabled && deps.GPUProcessEventConsumer != nil {
+		c := deps.GPUProcessEventConsumer
+		pc, err := consumers.NewProcessConsumer(c.ID(), c.ChanSize(), c.EventTypes(), evm)
 		if err != nil {
 			return nil, fmt.Errorf("cannot create event consumer for GPU: %w", err)
 		}
+		c.Set(pc)
 	}
 
 	return evm, err

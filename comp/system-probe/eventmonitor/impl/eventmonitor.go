@@ -11,7 +11,6 @@ package eventmonitorimpl
 import (
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -21,9 +20,10 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	eventmonitor "github.com/DataDog/datadog-agent/comp/system-probe/eventmonitor/def"
-	"github.com/DataDog/datadog-agent/comp/system-probe/module"
 	"github.com/DataDog/datadog-agent/comp/system-probe/types"
-	sysmodule "github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 // Requires defines the dependencies for the eventmonitor component
@@ -37,6 +37,8 @@ type Requires struct {
 	Compression    logscompression.Component
 	Ipc            ipc.Component
 	Log            log.Component
+
+	GPUProcessEventConsumer eventmonitor.ProcessEventConsumerComponent `name:"gpu" optional:"true"`
 }
 
 // Provides defines the output of the eventmonitor component
@@ -47,19 +49,19 @@ type Provides struct {
 
 // NewComponent creates a new eventmonitor component
 func NewComponent(reqs Requires) (Provides, error) {
-	mc := &module.Component{
-		Factory: modules.EventMonitor,
-		CreateFn: func() (types.SystemProbeModule, error) {
-			return modules.EventMonitor.Fn(nil, sysmodule.FactoryDependencies{
-				SysprobeConfig: reqs.SysprobeConfig,
-				Log:            reqs.Log,
-				WMeta:          reqs.WMeta,
-				FilterStore:    reqs.FilterStore,
-				Tagger:         reqs.Tagger,
-				Compression:    reqs.Compression,
-				Statsd:         reqs.Statsd,
-				Hostname:       reqs.Hostname,
-				Ipc:            reqs.Ipc,
+	mc := &moduleFactory{
+		createFn: func() (types.SystemProbeModule, error) {
+			return createEventMonitorModule(dependencies{
+				SysprobeConfig:          reqs.SysprobeConfig,
+				Log:                     reqs.Log,
+				WMeta:                   reqs.WMeta,
+				FilterStore:             reqs.FilterStore,
+				Tagger:                  reqs.Tagger,
+				Compression:             reqs.Compression,
+				Statsd:                  reqs.Statsd,
+				Hostname:                reqs.Hostname,
+				Ipc:                     reqs.Ipc,
+				GPUProcessEventConsumer: reqs.GPUProcessEventConsumer,
 			})
 		},
 	}
@@ -68,4 +70,29 @@ func NewComponent(reqs Requires) (Provides, error) {
 		Comp:   mc,
 	}
 	return provides, nil
+}
+
+type moduleFactory struct {
+	createFn func() (types.SystemProbeModule, error)
+}
+
+func (m *moduleFactory) Name() sysconfigtypes.ModuleName {
+	return config.EventMonitorModule
+}
+
+func (m *moduleFactory) ConfigNamespaces() []string {
+	return []string{"event_monitoring_config", "runtime_security_config"}
+}
+
+func (m *moduleFactory) Create() (types.SystemProbeModule, error) {
+	evm, err := m.createFn()
+	return evm, err
+}
+
+func (m *moduleFactory) NeedsEBPF() bool {
+	return !secconfig.IsEBPFLessModeEnabled()
+}
+
+func (m *moduleFactory) OptionalEBPF() bool {
+	return false
 }

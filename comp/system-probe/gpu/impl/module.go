@@ -1,11 +1,11 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2024-present Datadog, Inc.
+// Copyright 2025-present Datadog, Inc.
 
 //go:build linux && linux_bpf && nvml
 
-package modules
+package gpuimpl
 
 import (
 	"context"
@@ -21,73 +21,16 @@ import (
 	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
-	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
-	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
 	"github.com/DataDog/datadog-agent/pkg/gpu"
-	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	gpuconfigconsts "github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	usm "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
-	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var _ module.Module = &GPUMonitoringModule{}
-var gpuMonitoringConfigNamespaces = []string{gpuconfigconsts.GPUNS}
-
-// processEventConsumer is a global variable that holds the process event consumer, created in the eventmonitor module
-// Note: In the future we should have a better way to handle dependencies between modules
-var processEventConsumer *consumers.ProcessConsumer
-
-const processConsumerID = "gpu"
-const processConsumerChanSize = 100
-
 const defaultCollectedDebugEvents = 100
 const maxCollectedDebugEvents = 1000000
-
-var processConsumerEventTypes = []consumers.ProcessConsumerEventTypes{consumers.ExecEventType, consumers.ExitEventType}
-
-// GPUMonitoring Factory
-var GPUMonitoring = &module.Factory{
-	Name:             config.GPUMonitoringModule,
-	ConfigNamespaces: gpuMonitoringConfigNamespaces,
-	Fn: func(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
-		if processEventConsumer == nil {
-			return nil, errors.New("process event consumer not initialized")
-		}
-
-		c := gpuconfig.New()
-
-		ctx, cancel := context.WithCancel(context.Background())
-
-		if c.ConfigureCgroupPerms {
-			configureCgroupPermissions(ctx, c.CgroupReapplyInterval, c.CgroupReapplyInfinitely)
-		}
-
-		probeDeps := gpu.ProbeDependencies{
-			Telemetry:      deps.Telemetry,
-			ProcessMonitor: processEventConsumer,
-			WorkloadMeta:   deps.WMeta,
-		}
-		p, err := gpu.NewProbe(c, probeDeps)
-		if err != nil {
-			cancel()
-			return nil, fmt.Errorf("unable to start %s: %w", config.GPUMonitoringModule, err)
-		}
-
-		return &GPUMonitoringModule{
-			Probe:         p,
-			contextCancel: cancel,
-			context:       ctx,
-		}, nil
-	},
-	NeedsEBPF: func() bool {
-		return true
-	},
-}
 
 // GPUMonitoringModule is a module for GPU monitoring
 type GPUMonitoringModule struct {
@@ -169,17 +112,6 @@ func (t *GPUMonitoringModule) collectEventsHandler(w http.ResponseWriter, r *htt
 func (t *GPUMonitoringModule) Close() {
 	t.contextCancel()
 	t.Probe.Close()
-}
-
-// createGPUProcessEventConsumer creates the process event consumer for the GPU module. Should be called from the event monitor module
-func createGPUProcessEventConsumer(evm *eventmonitor.EventMonitor) error {
-	var err error
-	processEventConsumer, err = consumers.NewProcessConsumer(processConsumerID, processConsumerChanSize, processConsumerEventTypes, evm)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func hostRoot() string {

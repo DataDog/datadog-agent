@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/common"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -177,7 +176,7 @@ type runDependencies struct {
 
 func (r *runDependencies) sortModules() {
 	slices.SortStableFunc(r.Modules, func(a, b types.SystemProbeModuleComponent) int {
-		return slices.Index(modules.ModuleOrder, a.Name()) - slices.Index(modules.ModuleOrder, b.Name())
+		return slices.Index(types.ModuleOrder, a.Name()) - slices.Index(types.ModuleOrder, b.Name())
 	})
 }
 

@@ -9,6 +9,8 @@
 package fx
 
 import (
+	"go.uber.org/fx"
+
 	gpu "github.com/DataDog/datadog-agent/comp/system-probe/gpu/def"
 	gpuimpl "github.com/DataDog/datadog-agent/comp/system-probe/gpu/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -21,5 +23,9 @@ func Module() fxutil.Module {
 			gpuimpl.NewComponent,
 		),
 		fxutil.ProvideOptional[gpu.Component](),
+		fx.Provide(fx.Annotate(
+			gpuimpl.NewProcessEventConsumer,
+			fx.ResultTags(`name:"gpu"`),
+		)),
 	)
 }

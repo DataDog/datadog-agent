@@ -9,38 +9,69 @@
 package gpuimpl
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
+	"context"
+	"errors"
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	gpu "github.com/DataDog/datadog-agent/comp/system-probe/gpu/def"
-	"github.com/DataDog/datadog-agent/comp/system-probe/module"
+	eventmonitor "github.com/DataDog/datadog-agent/comp/system-probe/eventmonitor/def"
+	gpudef "github.com/DataDog/datadog-agent/comp/system-probe/gpu/def"
 	"github.com/DataDog/datadog-agent/comp/system-probe/types"
-	sysmodule "github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/gpu"
+	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
+	gpuconfigconsts "github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 // Requires defines the dependencies for the gpu component
 type Requires struct {
-	SysprobeConfig sysprobeconfig.Component
-	Telemetry      telemetry.Component
-	WMeta          workloadmeta.Component
+	SysprobeConfig  sysprobeconfig.Component
+	Telemetry       telemetry.Component
+	WMeta           workloadmeta.Component
+	ProcessConsumer eventmonitor.ProcessEventConsumerComponent `name:"gpu"`
 }
 
 // Provides defines the output of the gpu component
 type Provides struct {
-	Comp   gpu.Component
+	Comp   gpudef.Component
 	Module types.ProvidesSystemProbeModule
 }
 
 // NewComponent creates a new gpu component
 func NewComponent(reqs Requires) (Provides, error) {
-	mc := &module.Component{
-		Factory: modules.GPUMonitoring,
-		CreateFn: func() (types.SystemProbeModule, error) {
-			return modules.GPUMonitoring.Fn(nil, sysmodule.FactoryDependencies{
-				Telemetry: reqs.Telemetry,
-				WMeta:     reqs.WMeta,
-			})
+	mc := &moduleFactory{
+		createFn: func() (types.SystemProbeModule, error) {
+			if reqs.ProcessConsumer.Get() == nil {
+				return nil, errors.New("process event consumer not initialized")
+			}
+
+			c := gpuconfig.New()
+
+			ctx, cancel := context.WithCancel(context.Background())
+
+			if c.ConfigureCgroupPerms {
+				configureCgroupPermissions(ctx, c.CgroupReapplyInterval, c.CgroupReapplyInfinitely)
+			}
+
+			probeDeps := gpu.ProbeDependencies{
+				Telemetry:            reqs.Telemetry,
+				WorkloadMeta:         reqs.WMeta,
+				ProcessEventConsumer: reqs.ProcessConsumer,
+			}
+			p, err := gpu.NewProbe(c, probeDeps)
+			if err != nil {
+				cancel()
+				return nil, fmt.Errorf("unable to start %s: %w", config.GPUMonitoringModule, err)
+			}
+
+			return &GPUMonitoringModule{
+				Probe:         p,
+				contextCancel: cancel,
+				context:       ctx,
+			}, nil
 		},
 	}
 	provides := Provides{
@@ -48,4 +79,28 @@ func NewComponent(reqs Requires) (Provides, error) {
 		Comp:   mc,
 	}
 	return provides, nil
+}
+
+type moduleFactory struct {
+	createFn func() (types.SystemProbeModule, error)
+}
+
+func (m *moduleFactory) Name() sysconfigtypes.ModuleName {
+	return config.GPUMonitoringModule
+}
+
+func (m *moduleFactory) ConfigNamespaces() []string {
+	return []string{gpuconfigconsts.GPUNS}
+}
+
+func (m *moduleFactory) Create() (types.SystemProbeModule, error) {
+	return m.createFn()
+}
+
+func (m *moduleFactory) NeedsEBPF() bool {
+	return true
+}
+
+func (m *moduleFactory) OptionalEBPF() bool {
+	return false
 }
