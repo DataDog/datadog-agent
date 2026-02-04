@@ -26,6 +26,10 @@ def build_rust_lib(
                     f"-C link-arg=-Wl,-rpath={os.path.join(embedded_path, 'lib')} -C link-arg=-L{os.path.join(embedded_path, 'lib')}"
                 )
 
+            print("CC rustenv:")
+            for k, v in rustenv.items():
+                print(f"{k}: {v}")
+
             with ctx.cd(libpath):
                 target_arg = f"--target {target_arch}" if target_arch else ""
                 ctx.run(

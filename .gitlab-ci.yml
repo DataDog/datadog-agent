@@ -1308,3 +1308,15 @@ workflow:
       - scheduler_failure
       - stale_schedule
       - data_integrity_failure
+
+.setup-rust-build:
+  - |
+    echo "Setting up Rust / Cargo"
+    arch="$(uname -m)"
+    echo "
+    [target.$arch-unknown-linux-gnu]
+    linker = \"/opt/toolchains/$arch/bin/$arch-unknown-linux-gnu-gcc\"
+    " >> ~/.cargo/config.toml
+    rustup target add "$arch-unknown-linux-gnu"
+    # Remove Rust library targets to avoid cache conflicts
+    rm -rf pkg/deepinference/rust/target
