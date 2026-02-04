@@ -19,29 +19,20 @@ func NewConnectionsCreator(client ConnectionsClient) ConnectionsCreator {
 	return ConnectionsCreator{client}
 }
 
-type AutoCreateConnectionsInput struct {
-	ddSite     string
-	runnerID   string
-	runnerName string
-	apiKey     string
-	appKey     string
-	allowlist  []string
-}
-
-func (c ConnectionsCreator) AutoCreateConnections(ctx context.Context, input AutoCreateConnectionsInput) error {
-	definitions := DetermineConnectionsToCreate(input.allowlist)
+func (c ConnectionsCreator) AutoCreateConnections(ctx context.Context, runnerID, runnerName string, allowlist []string) error {
+	definitions := DetermineConnectionsToCreate(allowlist)
 	if len(definitions) == 0 {
 		log.Info("No bundles in allowlist for auto-connection creation")
 		return nil
 	}
 
 	for _, definition := range definitions {
-		err := c.client.CreateConnection(ctx, definition, input.runnerID, input.runnerName)
+		err := c.client.CreateConnection(ctx, definition, runnerID, runnerName)
 		if err != nil {
 			log.Warnf("Failed to create %s connection: %v", definition.IntegrationType, err)
 		} else {
 			log.Infof("Successfully created %s connection: %s (%s)",
-				definition.IntegrationType, definition.IntegrationType, input.runnerID)
+				definition.IntegrationType, definition.IntegrationType, runnerID)
 		}
 	}
 

@@ -170,16 +170,10 @@ func TestAutoCreateConnections_AllBundlesSuccess(t *testing.T) {
 
 	creator := NewConnectionsCreator(*testClient)
 
-	input := AutoCreateConnectionsInput{
-		ddSite:     "datadoghq.com",
-		runnerID:   "144500f1-474a-4856-aa0a-6fd22e005893",
-		runnerName: "runner-abc123",
-		apiKey:     "test-api-key",
-		appKey:     "test-app-key",
-		allowlist:  allowlist,
-	}
+	runnerID := "144500f1-474a-4856-aa0a-6fd22e005893"
+	runnerName := "runner-abc123"
 
-	err := creator.AutoCreateConnections(context.Background(), input)
+	err := creator.AutoCreateConnections(context.Background(), runnerID, runnerName, allowlist)
 
 	require.NoError(t, err, "AutoCreateConnections should return nil")
 	assert.Len(t, createdConnections, 3, "Should create 3 connections")
@@ -223,16 +217,10 @@ func TestAutoCreateConnections_PartialFailures(t *testing.T) {
 
 	creator := NewConnectionsCreator(*testClient)
 
-	input := AutoCreateConnectionsInput{
-		ddSite:     "datadoghq.com",
-		runnerID:   "144500f1-474a-4856-aa0a-6fd22e005893",
-		runnerName: "runner-abc123",
-		apiKey:     "test-api-key",
-		appKey:     "test-app-key",
-		allowlist:  allowlist,
-	}
+	runnerID := "144500f1-474a-4856-aa0a-6fd22e005893"
+	runnerName := "runner-abc123"
 
-	err := creator.AutoCreateConnections(context.Background(), input)
+	err := creator.AutoCreateConnections(context.Background(), runnerID, runnerName, allowlist)
 
 	// Should return nil even with failures (non-blocking)
 	require.NoError(t, err, "AutoCreateConnections should not propagate errors")
@@ -262,16 +250,10 @@ func TestAutoCreateConnections_NoRelevantBundles(t *testing.T) {
 
 	creator := NewConnectionsCreator(*testClient)
 
-	input := AutoCreateConnectionsInput{
-		ddSite:     "datadoghq.com",
-		runnerID:   "144500f1-474a-4856-aa0a-6fd22e005893",
-		runnerName: "runner-abc123",
-		apiKey:     "test-api-key",
-		appKey:     "test-app-key",
-		allowlist:  allowlist,
-	}
+	runnerID := "144500f1-474a-4856-aa0a-6fd22e005893"
+	runnerName := "runner-abc123"
 
-	err := creator.AutoCreateConnections(context.Background(), input)
+	err := creator.AutoCreateConnections(context.Background(), runnerID, runnerName, allowlist)
 
 	require.NoError(t, err, "AutoCreateConnections should return nil")
 	assert.Equal(t, 0, requestCount, "Should not make any HTTP requests")
@@ -302,16 +284,10 @@ func TestAutoCreateConnections_PartialAllowlist(t *testing.T) {
 
 	creator := NewConnectionsCreator(*testClient)
 
-	input := AutoCreateConnectionsInput{
-		ddSite:     "datadoghq.com",
-		runnerID:   "144500f1-474a-4856-aa0a-6fd22e005893",
-		runnerName: "runner-abc123",
-		apiKey:     "test-api-key",
-		appKey:     "test-app-key",
-		allowlist:  allowlist,
-	}
+	runnerID := "144500f1-474a-4856-aa0a-6fd22e005893"
+	runnerName := "runner-abc123"
 
-	err := creator.AutoCreateConnections(context.Background(), input)
+	err := creator.AutoCreateConnections(context.Background(), runnerID, runnerName, allowlist)
 
 	require.NoError(t, err, "AutoCreateConnections should return nil")
 	assert.Len(t, createdConnections, 2, "Should create 2 connections")
