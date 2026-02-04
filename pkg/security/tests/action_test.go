@@ -1347,6 +1347,25 @@ func TestRemediationCustomEvents(t *testing.T) {
 			},
 		},
 		{
+			ID: "kill_no_tags",
+			Expression: `process.file.name == "syscall_tester" && open.file.path == "{{.Root}}/test-kill-no-tags" 
+			&& ${process.kill_no_tags_performed} != "done"`,
+			Actions: []*rules.ActionDefinition{
+				{
+					Set: &rules.SetDefinition{
+						Scope: "process",
+						Name:  "kill_no_tags_performed",
+						Value: "done",
+					},
+				}, {
+					Kill: &rules.KillDefinition{
+						Signal: "SIGKILL",
+						Scope:  "process",
+					},
+				},
+			},
+		},
+		{
 			ID:         "network_remediation",
 			Expression: `exec.file.name == "sleep" && exec.args in ["123"] && ${process.network_remediation_performed} != "done"`,
 			Actions: []*rules.ActionDefinition{
@@ -1464,6 +1483,77 @@ func TestRemediationCustomEvents(t *testing.T) {
 		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
 		assert.NoError(t, err)
 	})
+	t.Run("kill-no-tags", func(t *testing.T) {
+		testFile, _, err := test.Path("test-kill-no-tags")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(testFile)
+
+		err = test.GetEventSent(t, func() error {
+			ch := make(chan bool, 1)
+
+			go func() {
+				timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+
+				cmd := exec.CommandContext(timeoutCtx, syscallTester, "open", testFile, ";", "sleep", "1", ";")
+				_ = cmd.Run()
+
+				ch <- true
+			}()
+
+			select {
+			case <-ch:
+			case <-time.After(time.Second * 3):
+				t.Error("signal timeout")
+			}
+			return nil
+		}, func(_ *rules.Rule, _ *model.Event) bool {
+			return true
+		}, time.Second*5, "kill_no_tags")
+
+		if err != nil {
+			t.Error(err)
+		}
+
+		err = retry.Do(func() error {
+			msg := test.msgSender.getMsg("remediation_status")
+			if msg == nil {
+				return errors.New("not found")
+			}
+
+			jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_id`); err != nil || el != "remediation_status" {
+					t.Errorf("agent.rule_id should be 'remediation_status': %s => %v", string(msg.Data), err)
+				}
+
+				if el, err := jsonpath.JsonPathLookup(obj, `$.event_type`); err != nil || el != "remediation_status" {
+					t.Errorf("event_type should be 'remediation_status': %s => %v", string(msg.Data), err)
+				}
+
+				if el, err := jsonpath.JsonPathLookup(obj, `$.remediation_action`); err != nil || el != "kill" {
+					t.Errorf("rule_action should be 'kill': %s => %v", string(msg.Data), err)
+				}
+
+				if el, err := jsonpath.JsonPathLookup(obj, `$.status`); err != nil || el != "performed" {
+					t.Errorf("status should be 'performed': %s => %v", string(msg.Data), err)
+				}
+
+				if el, err := jsonpath.JsonPathLookup(obj, `$.scope`); err != nil || el != "process" {
+					t.Errorf("scope should be 'process': %s => %v", string(msg.Data), err)
+				}
+
+				if el, err := jsonpath.JsonPathLookup(obj, `$.process.pid`); err != nil || el == nil {
+					t.Errorf("process.pid not found: %s => %v", string(msg.Data), err)
+				}
+			})
+
+			return nil
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		assert.NoError(t, err)
+	})
+
 	t.Run("network-isolation-remediation-status", func(t *testing.T) {
 		err = test.GetEventSent(t, func() error {
 			cmd := exec.Command("sleep", "123")
