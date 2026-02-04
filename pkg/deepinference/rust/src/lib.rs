@@ -221,8 +221,8 @@ fn repr_benchmark_unit(value: f64) -> String {
     if value > 100000.0 {
         return format!("{:.1}M", value / 100000.0);
     }
-    if value > 100.0 {
-        return format!("{:.1}K", value / 100.0);
+    if value > 1000.0 {
+        return format!("{:.1}K", value / 1000.0);
     }
     return format!("{:.1}", value);
 }
@@ -290,8 +290,6 @@ fn benchmark_model(time_window: Duration, model: &BertModel, tokenizer: &Tokeniz
 
     let start_time = std::time::Instant::now();
     let mut num_calls = 0;
-    let mut num_tokens = 0;
-    let mut num_bytes = 0;
     while start_time.elapsed() < time_window {
         let ys = model.forward(&token_ids, &token_type_ids, None)?;
         // Take into account post processing
@@ -302,9 +300,7 @@ fn benchmark_model(time_window: Duration, model: &BertModel, tokenizer: &Tokeniz
             return Err(anyhow::anyhow!("Invalid embeddings shape: {:?} (should be [1, {}])", ys.shape(), EMBEDDING_SIZE));
         }
         num_calls += 1;
-        num_tokens += tokens.len();
-        num_bytes += EMBEDDING_SIZE * 4;
     }
 
-    Ok(ModelBenchmarkResult { sentence_tokens: tokens.len(), total_time: start_time.elapsed(), num_calls: num_calls, num_tokens: num_tokens, num_bytes: num_bytes })
+    Ok(ModelBenchmarkResult { sentence_tokens: tokens.len(), total_time: start_time.elapsed(), num_calls: num_calls, num_tokens: num_calls * tokens.len(), num_bytes: num_calls * EMBEDDING_SIZE * 4 })
 }
