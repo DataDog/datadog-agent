@@ -809,6 +809,12 @@ Package publishermetadatacache provides a cache for Windows Event Log publisher 
 
 Package rdnsquerier provides the reverse DNS querier component.
 
+### [comp/security/compliance](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/security/compliance)
+
+*Datadog Team*: agent-security
+
+Package compliance provides the compliance component interface
+
 ### [comp/serializer/logscompression](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/serializer/logscompression)
 
 *Datadog Team*: agent-log-pipelines
