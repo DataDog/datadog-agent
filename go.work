@@ -6,6 +6,7 @@ go 1.25.6
 godebug tlsmlkem=0
 
 use (
+
 	.
 	comp/api/api/def
 	comp/core/agenttelemetry/def
@@ -163,6 +164,7 @@ use (
 	pkg/util/http
 	pkg/util/json
 	pkg/util/jsonquery
+	pkg/util/kubernetes/apiserver
 	pkg/util/kubernetes/apiserver/common/namespace
 	pkg/util/log
 	pkg/util/log/setup
