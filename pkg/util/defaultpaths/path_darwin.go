@@ -164,6 +164,11 @@ func GetHostProfilerLogFile() string {
 	return CommonRootOrPath(commonRoot, hostProfilerLogFile)
 }
 
+// GetPrivateActionRunnerLogFile returns the path to the private-action-runner log file
+func GetPrivateActionRunnerLogFile() string {
+	return CommonRootOrPath(commonRoot, privateActionRunnerLogFile)
+}
+
 // GetSystemProbeLogFile returns the path to the system-probe log file
 func GetSystemProbeLogFile() string {
 	return CommonRootOrPath(commonRoot, systemProbeLogFile)
