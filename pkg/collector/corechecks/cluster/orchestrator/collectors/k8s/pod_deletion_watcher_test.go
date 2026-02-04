@@ -73,6 +73,7 @@ func (s *PodDeletionWatcherTestSuite) SetupTest() {
 // TearDownTest runs after each test to clean up resources.
 func (s *PodDeletionWatcherTestSuite) TearDownTest() {
 	close(s.stopCh)
+	s.watcher.AwaitStop()
 }
 
 // TestFiltersNonDeleteEvents verifies that the watcher only processes
