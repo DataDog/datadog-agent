@@ -27,10 +27,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
+	privilegedlogsimpl "github.com/DataDog/datadog-agent/comp/system-probe/privilegedlogs/impl"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/server"
-	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -153,10 +152,12 @@ func WithParentPermFixup(t *testing.T, path string, op func() error) error {
 }
 
 func setupTestServer(t *testing.T) *Handler {
-	cfg := &sysconfigtypes.Config{}
-	deps := module.FactoryDependencies{}
+	pc, err := privilegedlogsimpl.NewComponent(privilegedlogsimpl.Requires{})
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	fdModule, err := modules.PrivilegedLogs.Fn(cfg, deps)
+	fdModule, err := pc.Comp.Create()
 	if err != nil {
 		t.Fatalf("Failed to create privileged logs module: %v", err)
 	}

@@ -14,12 +14,11 @@ import (
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 
 	"github.com/DataDog/datadog-agent/comp/system-probe/types"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NewPrivilegedLogsModule creates a new instance of the privileged logs module.
-var NewPrivilegedLogsModule = func() module.Module {
+var NewPrivilegedLogsModule = func() types.SystemProbeModule {
 	cache, err := simplelru.NewLRU[string, struct{}](128, nil)
 	if err != nil {
 		log.Errorf("Failed to create LRU cache for privileged logs module: %v", err)
@@ -31,7 +30,7 @@ var NewPrivilegedLogsModule = func() module.Module {
 	}
 }
 
-var _ module.Module = &privilegedLogsModule{}
+var _ types.SystemProbeModule = &privilegedLogsModule{}
 
 type privilegedLogsModule struct {
 	informedPaths *simplelru.LRU[string, struct{}]
