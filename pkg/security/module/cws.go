@@ -143,7 +143,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		listeners = append(listeners, selfTester)
 	}
 
-	c.ruleEngine, err = rulesmodule.NewRuleEngine(evm, cfg, evm.Probe, c.rateLimiter, c.apiServer, c, c.statsdClient, ipc, listeners...)
+	c.ruleEngine, err = rulesmodule.NewRuleEngine(evm, cfg, evm.Probe, c.rateLimiter, c.apiServer, c, c.statsdClient, hostname, ipc, listeners...)
 	if err != nil {
 		return nil, err
 	}
@@ -331,13 +331,15 @@ func (c *CWSConsumer) Stop() {
 
 	c.cancelFnc()
 
-	if c.apiServer != nil {
-		c.apiServer.Stop()
-	}
-
+	// Stop the rule engine first to stop goroutines that send heartbeat/ruleset loaded events to the reporter
 	c.ruleEngine.Stop()
 
 	c.wg.Wait()
+
+	// Now we shouldn't have anymore events to send so we can safely stop the API server to close reporter channels
+	if c.apiServer != nil {
+		c.apiServer.Stop()
+	}
 
 	c.grpcCmdServer.Stop()
 	if c.grpcEventServer != nil {

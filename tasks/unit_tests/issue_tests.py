@@ -148,19 +148,13 @@ class TestAskReviews(unittest.TestCase):
     def test_label_with_ask_review(self, slack_mock, gh_mock, print_mock):
         pr_mock = MagicMock()
         pr_mock.title = "This is a feature"
+        pr_mock.base.ref = "main"
         pr_mock.get_labels.return_value = [types.SimpleNamespace(name='ask-review')]
-        pr_mock.user.login = "someuser"
         pr_mock.html_url = "https://github.com/foo/bar/pull/1"
         pr_mock.title = "Nominal PR"
 
-        # Mock get_issue_events to simulate the actor as the last event's actor
-        pr_mock.get_issue_events.return_value = [
-            types.SimpleNamespace(
-                event="labeled",
-                label=types.SimpleNamespace(name="ask-review"),
-                actor=types.SimpleNamespace(login="actorlogin", name=None),
-            )
-        ]
+        pr_mock.user.login = "actorlogin"
+        pr_mock.user.name = None
 
         gh_instance = MagicMock()
         gh_instance.repo.get_pull.return_value = pr_mock
@@ -193,17 +187,13 @@ class TestAskReviews(unittest.TestCase):
         """Test that any PR with no-review label is skipped (independent of event type)"""
         pr_mock = MagicMock()
         pr_mock.title = "WIP: Experimental changes"
+        pr_mock.base.ref = "main"
         pr_mock.get_labels.return_value = [
             types.SimpleNamespace(name='ask-review'),
             types.SimpleNamespace(name='no-review'),
         ]
-        pr_mock.get_issue_events.return_value = [
-            types.SimpleNamespace(
-                event="labeled",
-                label=types.SimpleNamespace(name="no-review"),
-                actor=types.SimpleNamespace(login="actorlogin"),
-            )
-        ]
+        pr_mock.user.login = "actorlogin"
+        pr_mock.user.name = None
         # ask_reviews returns early on no-review before reading events, but keep events non-empty
         # to match current implementation expectations if the order changes in the future.
 
@@ -227,16 +217,12 @@ class TestAskReviews(unittest.TestCase):
         """Test that any PR with no-review label is skipped (independent of event type)"""
         pr_mock = MagicMock()
         pr_mock.title = "WIP: Experimental changes"
+        pr_mock.base.ref = "main"
         pr_mock.get_labels.return_value = [
             types.SimpleNamespace(name='no-review'),
         ]
-        pr_mock.get_issue_events.return_value = [
-            types.SimpleNamespace(
-                event="review_requested",
-                label=types.SimpleNamespace(name="no-review"),
-                actor=types.SimpleNamespace(login="actorlogin"),
-            )
-        ]
+        pr_mock.user.login = "actorlogin"
+        pr_mock.user.name = None
         # ask_reviews returns early on no-review before reading events, but keep events non-empty
         # to match current implementation expectations if the order changes in the future.
 
@@ -259,14 +245,10 @@ class TestAskReviews(unittest.TestCase):
     def test_backport(self, slack_mock, gh_mock, print_mock):
         pr_mock = MagicMock()
         pr_mock.title = "Backport: fix issue 123"
+        pr_mock.base.ref = "7.7.x"
         pr_mock.get_labels.return_value = [MagicMock(name='ask-review')]
-        pr_mock.get_issue_events.return_value = [
-            types.SimpleNamespace(
-                event="labeled",
-                label=types.SimpleNamespace(name='ask-review'),
-                actor=types.SimpleNamespace(login="actorlogin"),
-            )
-        ]
+        pr_mock.user.login = "actorlogin"
+        pr_mock.user.name = None
         # ask_reviews returns early on backport before reading events, but keep events non-empty
         # to match current implementation expectations if the order changes in the future.
         gh_instance = MagicMock()
@@ -275,7 +257,7 @@ class TestAskReviews(unittest.TestCase):
 
         # team_slugs is required; value doesn't matter because backport returns early
         ask_reviews(MockContext(), 6, team_slugs=["team1"])
-        print_mock.assert_any_call("This is a backport PR, we don't need to ask for reviews.")
+        print_mock.assert_any_call("We don't ask for reviews on non main target PRs.")
         slack_mock.assert_not_called()
 
     @patch('builtins.print')
@@ -290,17 +272,12 @@ class TestAskReviews(unittest.TestCase):
     def test_default_channel(self, slack_mock, gh_mock, print_mock):
         pr_mock = MagicMock()
         pr_mock.title = "Title"
+        pr_mock.base.ref = "main"
         pr_mock.get_labels.return_value = [types.SimpleNamespace(name='ask-review')]
-        pr_mock.user.login = "frank"
+        pr_mock.user.login = "actorlogin"
+        pr_mock.user.name = None
         pr_mock.html_url = "http://foo"
         pr_mock.title = "PR with reviewers on DEFAULT_SLACK_CHANNEL"
-        pr_mock.get_issue_events.return_value = [
-            types.SimpleNamespace(
-                event="labeled",
-                label=types.SimpleNamespace(name="ask-review"),
-                actor=types.SimpleNamespace(login="actorlogin", name=None),
-            )
-        ]
         gh_instance = MagicMock()
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
@@ -330,17 +307,11 @@ class TestAskReviews(unittest.TestCase):
     def test_same_slack_channel(self, slack_mock, gh_mock, print_mock):
         pr_mock = MagicMock()
         pr_mock.title = "Some PR"
+        pr_mock.base.ref = "main"
         pr_mock.get_labels.return_value = [types.SimpleNamespace(name='ask-review')]
-        pr_mock.user.login = "integrationbot"
+        pr_mock.user.name = "actorlogin"
         pr_mock.html_url = "http://foo"
         pr_mock.title = "Test"
-        pr_mock.get_issue_events.return_value = [
-            types.SimpleNamespace(
-                event="labeled",
-                label=types.SimpleNamespace(name="ask-review"),
-                actor=types.SimpleNamespace(name="actorlogin"),
-            )
-        ]
         gh_instance = MagicMock()
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
@@ -374,15 +345,11 @@ class TestAskReviews(unittest.TestCase):
         """Test that when a specific team is requested (review_request event), only that team is notified"""
         pr_mock = MagicMock()
         pr_mock.title = "Feature PR"
+        pr_mock.base.ref = "main"
         pr_mock.get_labels.return_value = [types.SimpleNamespace(name='ask-review')]
-        pr_mock.user.login = "someuser"
+        pr_mock.user.login = "actorlogin"
+        pr_mock.user.name = "actorname"
         pr_mock.html_url = "https://github.com/foo/bar/pull/9"
-        pr_mock.get_issue_events.return_value = [
-            types.SimpleNamespace(
-                event="review_requested",
-                actor=types.SimpleNamespace(name="actorname", login="actorlogin"),
-            )
-        ]
 
         gh_instance = MagicMock()
         gh_instance.repo.get_pull.return_value = pr_mock

@@ -112,10 +112,9 @@ bazel_dep(name = "gawk", version = "5.3.2.bcr.3")
 bazel_dep(name = "gcc_toolchain", version = "0.9.0")
 git_override(
     module_name = "gcc_toolchain",
-    commit = "e736410ced16744922c11762783b7c1fdddf620c",
+    commit = "93d5d8532523027d54e60d6e9d9a9d13b55ee5b7",
     patch_args = ["-p1"],
     patches = [
-        "//bazel/patches:gcc-toolchain/0000-fix-no-repository-visible-as-@.patch",
         "//bazel/patches:gcc-toolchain/0001-Remove-fortran-related-actions-adapt-to-our-ctng-too.patch",
         "//bazel/patches:gcc-toolchain/0002-fix-c-x86_64-header-locations-with-our-ctng-toolchai.patch",
         "//bazel/patches:gcc-toolchain/0003-add-nostdinc-to-asmflags.patch",
@@ -203,8 +202,7 @@ crate = use_extension("@rules_rust//crate_universe:extension.bzl", "crate")
 
 include("//deps:crates.MODULE.bazel")
 
-crate.from_specs()
-use_repo(crate, "crates")
+use_repo(crate, "sdagent_crates")
 
 #########################
 ## Native dependencies ##
@@ -240,9 +238,6 @@ include("//deps/nfsiostat:nfsiostat.MODULE.bazel")
 include("//deps/openscap:openscap.MODULE.bazel")
 
 # buildifier: leave-alone
-include("//deps/openssl3:openssl3.MODULE.bazel")
-
-# buildifier: leave-alone
 include("//deps/libpcap:libpcap.MODULE.bazel")
 
 # buildifier: leave-alone
@@ -259,4 +254,4 @@ include("//deps/windows:drivers.MODULE.bazel")
 # to the build command to enable it.
 bazel_dep(name = "apple_support", version = "1.24.1")
 
-use_repo_rule("//bazel/tools:check_bazel_version.bzl", "check_bazel_version")(name = "check_bazel_version")
+use_repo_rule("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")(name = "bazelisk_check")

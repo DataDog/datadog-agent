@@ -268,6 +268,10 @@ func (a *Agent) FlushSync() {
 		log.Errorf("Error flushing traces: %s", err.Error())
 		return
 	}
+	if err := a.TraceWriterV1.FlushSync(); err != nil {
+		log.Errorf("Error flushing traces v1: %s", err.Error())
+		return
+	}
 }
 
 // UpdateAPIKey receives the API Key update signal and propagates it across all internal
