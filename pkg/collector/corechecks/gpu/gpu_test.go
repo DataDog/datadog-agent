@@ -389,7 +389,7 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 	// Expect GetPidToCid to be called and return an empty map (no processes)
 	mockContainerProvider.EXPECT().GetPidToCid(gomock.Any()).Return(map[int]string{}).AnyTimes()
 	check.containerProvider = mockContainerProvider
-	require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte{}, []byte{}, "test"))
+	require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
 	require.Empty(t, check.collectors)
 	t.Cleanup(func() { check.Cancel() })
 
