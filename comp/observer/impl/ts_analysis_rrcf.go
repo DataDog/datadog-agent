@@ -51,9 +51,8 @@ type RRCFAnalysis struct {
 	// Key is metric name, value is recent values (up to ShingleSize).
 	shingleBuffer map[string][]float64
 
-	// forest is the RRCF forest structure (placeholder for now).
-	// TODO: Implement actual RRCF forest
-	forest *rrcfForest
+	// forest is the RRCF forest structure.
+	forest *rcForest
 
 	// recentScores tracks recent CoDisp scores for dynamic thresholding.
 	recentScores []float64
@@ -66,33 +65,34 @@ type metricDef struct {
 	agg       observer.Aggregate
 }
 
-// rrcfForest is a placeholder for the actual RRCF implementation.
-// TODO: Implement random cut trees, insert/delete, CoDisp scoring.
-type rrcfForest struct {
-	numTrees int
-	treeSize int
-	// trees []*randomCutTree
-}
-
 // NewRRCFAnalysis creates an RRCF analysis with the given config.
 func NewRRCFAnalysis(config RRCFConfig) *RRCFAnalysis {
+	metrics := []metricDef{
+		// CPU metrics
+		{namespace: "system", name: "cpu.user", agg: observer.AggregateAverage},
+		{namespace: "system", name: "cpu.system", agg: observer.AggregateAverage},
+		{namespace: "system", name: "cpu.iowait", agg: observer.AggregateAverage},
+		// Memory metrics
+		{namespace: "system", name: "memory.used", agg: observer.AggregateAverage},
+		{namespace: "system", name: "memory.rss", agg: observer.AggregateAverage},
+		// Disk IO metrics
+		{namespace: "system", name: "disk.read_bytes", agg: observer.AggregateSum},
+		{namespace: "system", name: "disk.write_bytes", agg: observer.AggregateSum},
+	}
+
+	// Compute shingle dimension: numMetrics * shingleSize
+	numMetrics := len(metrics)
+	shingleDim := numMetrics * config.ShingleSize
+
+	// Create forest with fixed seed for reproducibility (can be made configurable)
+	forest := newRCForest(config.NumTrees, config.TreeSize, shingleDim, 42)
+
 	return &RRCFAnalysis{
-		config: config,
-		metrics: []metricDef{
-			// CPU metrics
-			{namespace: "system", name: "cpu.user", agg: observer.AggregateAverage},
-			{namespace: "system", name: "cpu.system", agg: observer.AggregateAverage},
-			{namespace: "system", name: "cpu.iowait", agg: observer.AggregateAverage},
-			// Memory metrics
-			{namespace: "system", name: "memory.used", agg: observer.AggregateAverage},
-			{namespace: "system", name: "memory.rss", agg: observer.AggregateAverage},
-			// Disk IO metrics
-			{namespace: "system", name: "disk.read_bytes", agg: observer.AggregateSum},
-			{namespace: "system", name: "disk.write_bytes", agg: observer.AggregateSum},
-		},
+		config:        config,
+		metrics:       metrics,
 		cursors:       make(map[string]int64),
 		shingleBuffer: make(map[string][]float64),
-		forest:        &rrcfForest{numTrees: config.NumTrees, treeSize: config.TreeSize},
+		forest:        forest,
 		recentScores:  make([]float64, 0, 100),
 	}
 }
@@ -264,12 +264,10 @@ func (r *RRCFAnalysis) buildShingles(aligned []timestampedVector) []shingle {
 }
 
 // scoreAndDetect scores shingles using RRCF and returns anomalies for high scores.
-func (r *RRCFAnalysis) scoreAndDetect(shingles []shingle, dataTime int64) []observer.AnomalyOutput {
+func (r *RRCFAnalysis) scoreAndDetect(shingles []shingle, _ int64) []observer.AnomalyOutput {
 	var anomalies []observer.AnomalyOutput
 
 	for _, s := range shingles {
-		// TODO: Implement actual RRCF scoring
-		// For now, placeholder that always returns score 0
 		score := r.scoreShingle(s)
 
 		// Track recent scores for potential dynamic thresholding
@@ -300,16 +298,11 @@ func (r *RRCFAnalysis) scoreAndDetect(shingles []shingle, dataTime int64) []obse
 }
 
 // scoreShingle computes the CoDisp (collusive displacement) score for a shingle.
-// TODO: Implement actual RRCF algorithm.
+// Inserts the shingle into the RRCF forest and returns the average CoDisp score.
 func (r *RRCFAnalysis) scoreShingle(s shingle) float64 {
-	// Placeholder: actual implementation will:
-	// 1. Insert shingle into forest
-	// 2. Compute CoDisp score
-	// 3. Evict oldest point if at capacity
-	// 4. Return score
-
-	_ = s // unused for now
-	return 0.0
+	// Insert shingle into forest (handles eviction of oldest point if at capacity)
+	_, avgCodisp := r.forest.insertPoint(s.vector)
+	return avgCodisp
 }
 
 // Reset clears all state, useful for testing or after major regime changes.
@@ -317,5 +310,5 @@ func (r *RRCFAnalysis) Reset() {
 	r.cursors = make(map[string]int64)
 	r.shingleBuffer = make(map[string][]float64)
 	r.recentScores = r.recentScores[:0]
-	// TODO: Reset forest state
+	r.forest.reset()
 }
