@@ -176,6 +176,7 @@ func (b *bufferImpl) AddRawProfile(body []byte, headers map[string][]string) {
 				profile.Version = metadata.Version
 				profile.Hostname = metadata.Hostname
 				profile.DurationNs = metadata.DurationNs
+				profile.TimestampNs = metadata.TimestampNs
 				// Merge metadata tags with profile tags
 				for k, v := range metadata.Tags {
 					profile.Tags[k] = v
@@ -217,6 +218,7 @@ type profileMetadata struct {
 	Env         string
 	Version     string
 	Hostname    string
+	TimestampNs int64 // Profile start time (nanoseconds since epoch)
 	DurationNs  int64
 	Tags        map[string]string
 }
@@ -298,12 +300,16 @@ func parseProfileMetadata(body []byte, boundary string) *profileMetadata {
 				}
 			}
 
-			// Calculate duration from start/end if available
-			if event.Start != "" && event.End != "" {
+			// Parse start time and calculate duration from start/end if available
+			if event.Start != "" {
 				// Timestamps are typically in RFC3339 format
 				if startTime, err := time.Parse(time.RFC3339Nano, event.Start); err == nil {
-					if endTime, err := time.Parse(time.RFC3339Nano, event.End); err == nil {
-						metadata.DurationNs = endTime.Sub(startTime).Nanoseconds()
+					metadata.TimestampNs = startTime.UnixNano()
+
+					if event.End != "" {
+						if endTime, err := time.Parse(time.RFC3339Nano, event.End); err == nil {
+							metadata.DurationNs = endTime.Sub(startTime).Nanoseconds()
+						}
 					}
 				}
 			}
