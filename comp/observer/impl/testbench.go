@@ -229,6 +229,65 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 		tb.anomalyProcessors = append(tb.anomalyProcessors, gs)
 	}
 
+	// Add time series analyzers based on config
+	if config.EnableCUSUM {
+		cusum := NewCUSUMDetector()
+		cusum.SkipCountMetrics = !config.CUSUMIncludeCount // Default: skip count metrics
+		tb.tsAnalyses = append(tb.tsAnalyses, cusum)
+	}
+	if config.EnableZScore {
+		tb.tsAnalyses = append(tb.tsAnalyses, NewRobustZScoreDetector())
+	}
+
+	// Create deduplicator if enabled
+	if config.EnableDedup {
+		bucketSize := config.DedupBucketSeconds
+		if bucketSize == 0 {
+			bucketSize = 5
+		}
+		tb.deduplicator = NewAnomalyDeduplicator(AnomalyDedupConfig{
+			BucketSizeSeconds: bucketSize,
+		})
+	}
+
+	// Create correlators based on config
+	if config.EnableTimeCluster {
+		tc := NewTimeClusterCorrelator(TimeClusterConfig{
+			ProximitySeconds: 10,
+			MinClusterSize:   2,
+			WindowSeconds:    120,
+		})
+		tb.timeClusterCorrelator = tc
+		tb.anomalyProcessors = append(tb.anomalyProcessors, tc)
+	}
+
+	if config.EnableLeadLag {
+		ll := NewLeadLagCorrelator(LeadLagConfig{
+			MaxLagSeconds:       30,
+			MinObservations:     3,
+			ConfidenceThreshold: 0.6,
+			WindowSeconds:       120,
+		})
+		tb.leadLagCorrelator = ll
+		tb.anomalyProcessors = append(tb.anomalyProcessors, ll)
+	}
+
+	if config.EnableSurprise {
+		sc := NewSurpriseCorrelator(SurpriseConfig{
+			WindowSizeSeconds: 10,
+			MinLift:           2.0,
+			MinSupport:        2,
+		})
+		tb.surpriseCorrelator = sc
+		tb.anomalyProcessors = append(tb.anomalyProcessors, sc)
+	}
+
+	if config.EnableGraphSketch {
+		gs := NewGraphSketchCorrelator(DefaultGraphSketchCorrelatorConfig())
+		tb.graphSketchCorrelator = gs
+		tb.anomalyProcessors = append(tb.anomalyProcessors, gs)
+	}
+
 	tb.api = NewTestBenchAPI(tb)
 
 	return tb, nil
