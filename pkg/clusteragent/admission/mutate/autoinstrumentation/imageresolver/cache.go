@@ -60,10 +60,6 @@ func (c *httpDigestCache) store(registry, repository, tag, digest string) *Resol
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-			}
-		}
-	}
-
 	registryCache, _ := c.cache[registry]
 	if registryCache[repository] == nil {
 		registryCache[repository] = make(tagCache)
