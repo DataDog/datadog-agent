@@ -45,6 +45,7 @@ func (api *TestBenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/log-buffer-stats", api.cors(api.handleLogBufferStats))
 	mux.HandleFunc("/api/error-logs", api.cors(api.handleErrorLogs))
 	mux.HandleFunc("/api/health", api.cors(api.handleHealth))
+	mux.HandleFunc("/api/context-packets", api.cors(api.handleContextPackets))
 	mux.HandleFunc("/api/correlations", api.cors(api.handleCorrelations))
 	mux.HandleFunc("/api/leadlag", api.cors(api.handleLeadLag))
 	mux.HandleFunc("/api/surprise", api.cors(api.handleSurprise))
@@ -418,6 +419,12 @@ func (api *TestBenchAPI) handleErrorLogs(w http.ResponseWriter, r *http.Request)
 func (api *TestBenchAPI) handleHealth(w http.ResponseWriter, r *http.Request) {
 	health := api.tb.GetHealth()
 	api.writeJSON(w, health)
+}
+
+// handleContextPackets returns all generated context packets.
+func (api *TestBenchAPI) handleContextPackets(w http.ResponseWriter, r *http.Request) {
+	packets := api.tb.GetContextPackets()
+	api.writeJSON(w, packets)
 }
 
 // parseIntParam parses a string to int64, used for query parameters.

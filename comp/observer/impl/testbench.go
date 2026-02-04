@@ -75,6 +75,9 @@ type TestBench struct {
 	// Health score calculator
 	healthCalculator *HealthCalculator
 
+	// Context packet generator
+	contextPacketGen *ContextPacketGenerator
+
 	// API server
 	api *TestBenchAPI
 }
@@ -164,6 +167,7 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 
 		logBuffer:        NewLogBuffer(DefaultLogBufferConfig()),
 		healthCalculator: NewHealthCalculator(DefaultHealthCalculatorConfig()),
+		contextPacketGen: NewContextPacketGenerator(DefaultContextPacketConfig()),
 	}
 
 	// Add time series analyzers based on config
@@ -620,7 +624,8 @@ func (tb *TestBench) runAnalyses() {
 	}
 
 	// Update health score
-	errorLogCount := len(tb.logBuffer.GetErrorLogs())
+	errorLogs := tb.logBuffer.GetErrorLogs()
+	errorLogCount := len(errorLogs)
 	var maxTimestamp int64
 	for _, a := range tb.anomalies {
 		if a.Timestamp > maxTimestamp {
@@ -628,6 +633,22 @@ func (tb *TestBench) runAnalyses() {
 		}
 	}
 	tb.healthCalculator.Update(tb.anomalies, tb.correlations, errorLogCount, maxTimestamp)
+
+	// Check if we should generate a context packet
+	newScore := tb.healthCalculator.GetScore().Score
+	logPatterns := tb.logBuffer.GetLogSummary()
+	packet := tb.contextPacketGen.CheckAndGenerate(
+		newScore,
+		maxTimestamp,
+		tb.anomalies,
+		tb.correlations,
+		logPatterns,
+		errorLogs,
+	)
+	if packet != nil {
+		fmt.Printf("  Context packet generated: %s (health %d → %d)\n",
+			packet.ID, packet.HealthBefore, packet.HealthAfter)
+	}
 }
 
 // GetStatus returns the current status.
@@ -880,6 +901,16 @@ func (tb *TestBench) GetHealth() HealthResponse {
 		Factors:     score.Factors,
 		History:     tb.healthCalculator.GetHistory(),
 	}
+}
+
+// GetContextPackets returns all generated context packets.
+func (tb *TestBench) GetContextPackets() []ContextPacket {
+	return tb.contextPacketGen.GetPackets()
+}
+
+// GetLatestContextPacket returns the most recent context packet.
+func (tb *TestBench) GetLatestContextPacket() *ContextPacket {
+	return tb.contextPacketGen.GetLatestPacket()
 }
 
 // GetAnomaliesByAnalyzer returns anomalies grouped by analyzer name.
