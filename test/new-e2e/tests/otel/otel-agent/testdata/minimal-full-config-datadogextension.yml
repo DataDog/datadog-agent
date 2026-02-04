@@ -4,7 +4,6 @@ connectors:
       bucket_interval: 10000000000
       compute_stats_by_span_kind: true
       compute_top_level_by_span_kind: true
-      ignore_missing_datadog_fields: false
       ignore_resources: []
       peer_service_aggregation: true
       peer_tags: null

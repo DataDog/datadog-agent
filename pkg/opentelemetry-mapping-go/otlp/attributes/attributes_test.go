@@ -44,7 +44,6 @@ func TestTagsFromAttributes(t *testing.T) {
 		"tags.datadoghq.com/service":                    "service_name",
 		string(semconv127.DeploymentEnvironmentNameKey): "prod",
 		string(semconv127.ContainerNameKey):             "custom",
-		"datadog.container.tag.custom.team":             "otel",
 		"kube_cronjob":                                  "cron",
 	}
 	attrs := pcommon.NewMap()
@@ -59,7 +58,6 @@ func TestTagsFromAttributes(t *testing.T) {
 		fmt.Sprintf("%s:%s", "runtime", "cro"),
 		fmt.Sprintf("%s:%s", "env", "prod"),
 		fmt.Sprintf("%s:%s", "container_name", "custom"),
-		fmt.Sprintf("%s:%s", "custom.team", "otel"),
 		fmt.Sprintf("%s:%s", "kube_cronjob", "cron"),
 	}, TagsFromAttributes(attrs))
 }
@@ -94,7 +92,6 @@ func TestContainerTagFromResourceAttributes(t *testing.T) {
 			string(semconv127.AWSECSTaskFamilyKey):      "sample_task_family",
 			string(semconv127.AWSECSClusterARNKey):      "sample_ecs_cluster_name",
 			string(semconv127.AWSECSContainerARNKey):    "sample_ecs_container_name",
-			"datadog.container.tag.custom.team":         "otel",
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, map[string]string{
@@ -111,21 +108,8 @@ func TestContainerTagFromResourceAttributes(t *testing.T) {
 			"task_family":         "sample_task_family",
 			"ecs_cluster_name":    "sample_ecs_cluster_name",
 			"ecs_container_name":  "sample_ecs_container_name",
-			"custom.team":         "otel",
 		}, ContainerTagsFromResourceAttributes(attributes))
 		fmt.Println(ContainerTagsFromResourceAttributes(attributes))
-	})
-
-	t.Run("conventions vs custom", func(t *testing.T) {
-		attributes := pcommon.NewMap()
-		err := attributes.FromRaw(map[string]interface{}{
-			string(semconv127.ContainerNameKey):    "ok",
-			"datadog.container.tag.container_name": "nok",
-		})
-		assert.NoError(t, err)
-		assert.Equal(t, map[string]string{
-			"container_name": "ok",
-		}, ContainerTagsFromResourceAttributes(attributes))
 	})
 
 	t.Run("invalid", func(t *testing.T) {
@@ -136,9 +120,6 @@ func TestContainerTagFromResourceAttributes(t *testing.T) {
 			"custom_tag":       "example_custom_tag",
 		})
 		assert.NoError(t, err)
-		slice := attributes.PutEmptySlice("datadog.container.tag.slice")
-		slice.AppendEmpty().SetStr("value1")
-		slice.AppendEmpty().SetStr("value2")
 		assert.Equal(t, map[string]string{}, ContainerTagsFromResourceAttributes(attributes))
 	})
 
@@ -157,12 +138,6 @@ func TestConsumeContainerTagsFromResource(t *testing.T) {
 		string(semconv127.ContainerImageNameKey): "test_image_name_otel",
 		string(conventions.ContainerImageTagKey): "test_image_tag_otel",
 
-		// Custom tags
-		"datadog.container.tag.container_id":        "test_container_id_custom",
-		"datadog.container.tag.container_name":      "test_container_name_custom",
-		"datadog.container.tag.runtime":             "test_runtime_custom",
-		"datadog.container.tag.kube_container_name": "test_kube_container_name_custom",
-
 		// Datadog conventions
 		"container_id":      "test_container_id_dd",
 		"image_name":        "test_image_name_dd",
@@ -176,13 +151,12 @@ func TestConsumeContainerTagsFromResource(t *testing.T) {
 	require.NoError(t, err)
 	containerTags, newRes := ConsumeContainerTagsFromResource(res)
 	assert.Equal(t, map[string]string{
-		"container_id":        "test_container_id_otel",          // OTel > Custom, Datadog
-		"container_name":      "test_container_name_otel",        // OTel > Custom
-		"image_name":          "test_image_name_otel",            // OTel > Datadog
-		"image_tag":           "test_image_tag_otel",             // OTel only
-		"runtime":             "test_runtime_custom",             // Custom > Datadog
-		"kube_container_name": "test_kube_container_name_custom", // Custom only
-		"kube_cluster_name":   "test_kube_cluster_name_dd",       // Datadog only
+		"container_id":      "test_container_id_otel", // OTel > Datadog
+		"container_name":    "test_container_name_otel",
+		"image_name":        "test_image_name_otel", // OTel > Datadog
+		"image_tag":         "test_image_tag_otel",  // OTel only
+		"runtime":           "test_runtime_dd",      // Datadog only
+		"kube_cluster_name": "test_kube_cluster_name_dd",
 	}, containerTags)
 	assert.Equal(t, uint32(42), newRes.DroppedAttributesCount())
 	newAttrs := newRes.Attributes().AsRaw()

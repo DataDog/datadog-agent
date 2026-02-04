@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-
 // OperationAndResourceNameV2Enabled checks if the new operation and resource name logic should be used
 func OperationAndResourceNameV2Enabled(conf *config.AgentConfig) bool {
 	return !conf.OTLPReceiver.SpanNameAsResourceName && len(conf.OTLPReceiver.SpanNameRemappings) == 0 && !conf.HasFeature("disable_operation_and_resource_name_logic_v2")
@@ -192,29 +191,16 @@ func GetOTelVersion(span ptrace.Span, res pcommon.Resource) string {
 }
 
 // GetOTelContainerID returns the container ID based on OTel span and resource attributes, with span taking precedence.
-<<<<<<< HEAD
 func GetOTelContainerID(span ptrace.Span, res pcommon.Resource) string {
-	return traceutilotel.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, string(semconv.ContainerIDKey), string(semconv.K8SPodUIDKey))
-=======
-func GetOTelContainerID(span ptrace.Span, res pcommon.Resource, ignoreMissingDatadogFields bool) string {
-	cid := traceutilotel.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, KeyDatadogContainerID)
-	if cid == "" && !ignoreMissingDatadogFields {
-		cid = traceutilotel.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, string(semconv.ContainerIDKey))
-	}
-	return cid
+	return traceutilotel.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, string(semconv.ContainerIDKey))
 }
 
 // GetOTelContainerOrPodID returns the container ID based on OTel span and resource attributes, with span taking precedence.
 //
 // The Kubernetes pod UID will be used as a fallback if the container ID is not found.
 // This is only done for backward compatibility; consider using GetOTelContainerID instead.
-func GetOTelContainerOrPodID(span ptrace.Span, res pcommon.Resource, ignoreMissingDatadogFields bool) string {
-	cid := traceutilotel.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, KeyDatadogContainerID)
-	if cid == "" && !ignoreMissingDatadogFields {
-		cid = traceutilotel.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, string(semconv.ContainerIDKey), string(semconv.K8SPodUIDKey))
-	}
-	return cid
->>>>>>> main
+func GetOTelContainerOrPodID(span ptrace.Span, res pcommon.Resource) string {
+	return traceutilotel.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, string(semconv.ContainerIDKey), string(semconv.K8SPodUIDKey))
 }
 
 // GetOTelStatusCode returns the HTTP status code based on OTel span and resource attributes, with span taking precedence.
