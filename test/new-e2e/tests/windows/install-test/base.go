@@ -161,6 +161,8 @@ func (s *baseAgentMSISuite) installAgentPackage(vm *components.RemoteHost, agent
 		s.T().Log("Forcing test failure by stopping the agent service")
 		_, err = vm.Execute("Stop-Service -Name datadogagent -Force")
 		s.Require().NoError(err, "should be able to stop the agent service")
+		// Wait for Windows to update service status
+		time.Sleep(5 * time.Second)
 		status, err := windowsCommon.GetServiceStatus(vm, "datadogagent")
 		s.Require().NoError(err, "should get service status")
 		s.Require().Contains(status, "Running", "Agent service should be running")
@@ -224,11 +226,7 @@ func (s *baseAgentMSISuite) collectXperf(vm *components.RemoteHost) {
 	}
 }
 
-// startProcdump sets up procdump and starts it in the background, waiting for
-// the agent process to launch. Procdump will capture a full memory dump if the
-// process terminates (e.g., crashes during startup).
-//
-// The returned session should be cleaned up with collectProcdumps().
+// startProcdump sets up procdump and starts it in the background
 func (s *baseAgentMSISuite) startProcdump(vm *components.RemoteHost) *windowsCommon.ProcdumpSession {
 	// Setup procdump on remote host
 	s.T().Log("Setting up procdump on remote host")
@@ -243,38 +241,38 @@ func (s *baseAgentMSISuite) startProcdump(vm *components.RemoteHost) *windowsCom
 }
 
 // collectProcdumps stops procdump and downloads any captured dumps if the test failed.
-// This should be called in a defer after startProcdump().
 func (s *baseAgentMSISuite) collectProcdumps(ps *windowsCommon.ProcdumpSession, vm *components.RemoteHost) {
-	// Close to terminate procdump - if the process started successfully,
-	// procdump is still waiting for termination. If the process crashed,
-	// procdump already exited but closing is harmless.
+	// Only collect dumps if the test failed
+	if !s.T().Failed() {
+		ps.Close()
+		return
+	}
+
+	procDumpPath := "C:/procdumps/agent.exe.dmp"
+
+	// Wait for procdump to finish writing the dump file BEFORE closing the session.
+	s.T().Log("Waiting for procdump to finish writing dump...")
+	deadline := time.Now().Add(60 * time.Second)
+	for time.Now().Before(deadline) {
+		output, err := vm.Execute(fmt.Sprintf(`if (Test-Path '%s') { (Get-Item '%s').Length } else { 0 }`, procDumpPath, procDumpPath))
+		if err == nil {
+			size := strings.TrimSpace(output)
+			if size != "" && size != "0" {
+				s.T().Logf("Dump file ready, size: %s bytes", size)
+				break
+			}
+		}
+		time.Sleep(2 * time.Second)
+	}
+
 	ps.Close()
 
-	// Only download dumps if the test failed
-	if !s.T().Failed() {
-		return
-	}
-
-	// List actual dump files in the output directory (procdump adds timestamp to filename)
-	output, listErr := vm.Execute(fmt.Sprintf(`Get-ChildItem -Path '%s' -Filter '*.dmp' | Select-Object -ExpandProperty FullName`, windowsCommon.ProcdumpsPath))
-	if listErr != nil || strings.TrimSpace(output) == "" {
-		return
-	}
-
-	dumpPaths := strings.Split(strings.TrimSpace(output), "\n")
-	for _, remotePath := range dumpPaths {
-		remotePath = strings.TrimSpace(remotePath)
-		if remotePath == "" {
-			continue
-		}
-		s.T().Logf("Collected startup dump: %s", remotePath)
-		// Download dump from remote host to local output directory
-		localPath := filepath.Join(s.SessionOutputDir(), filepath.Base(remotePath))
-		if err := vm.GetFile(remotePath, localPath); err != nil {
-			s.T().Logf("Warning: failed to download dump %s: %v", remotePath, err)
-		} else {
-			s.T().Logf("Downloaded startup dump to: %s", localPath)
-		}
+	// Download the dump file
+	outDir := s.SessionOutputDir()
+	if err := vm.GetFile(procDumpPath, filepath.Join(outDir, "agent.exe.dmp")); err != nil {
+		s.T().Logf("Warning: failed to download dump %s: %v", procDumpPath, err)
+	} else {
+		s.T().Logf("Downloaded startup dump to: %s", outDir)
 	}
 }
 
