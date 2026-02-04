@@ -218,17 +218,6 @@ build do
     move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
   end
 
-  # TODO: Verif
-  # Copy deepinference library to embedded lib directory
-  unless windows_target?
-    rust_lib = "pkg/deepinference/rust/target/release/libdeepinference.so"
-    if File.exist?("#{project_dir}/#{rust_lib}")
-      copy rust_lib, "#{install_dir}/embedded/lib"
-      # move rust_lib, "#{install_dir}/embedded/lib"
-      puts "Copied deepinference library to embedded lib directory"
-    end
-  end
-
   # System-probe eBPF files
   if sysprobe_enabled?
     mkdir "#{install_dir}/embedded/share/system-probe/ebpf"
