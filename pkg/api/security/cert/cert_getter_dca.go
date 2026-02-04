@@ -136,8 +136,7 @@ func (c *clusterCAData) buildClusterClientTLSConfig() (*tls.Config, error) {
 	// Note: The private key is NOT required for client-side TLS verification.
 	// Clients only need the CA certificate to verify the server's certificate.
 	if c.caCert == nil {
-		return nil, errors.New("cluster_trust_chain.enable_tls_verification is true but no CA certificate available. " +
-			"Set ca_cert_file_path/ca_key_file_path or ca_secret_name/ca_secret_namespace")
+		return nil, errors.New("cluster_trust_chain.enable_tls_verification is true but no CA certificate available. Set ca_cert_file_path/ca_key_file_path or ca_secret_name/ca_secret_namespace")
 	}
 
 	clusterClientCertPool := x509.NewCertPool()
