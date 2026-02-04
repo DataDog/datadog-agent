@@ -99,14 +99,14 @@ admission_controller:
   agent_sidecar:
     cluster_agent:
       tls_verify: true
-      ca_secret_name: "datadog-agent-cluster-ca-secret"
-      ca_secret_namespace: "datadog-agent"
+      ca_cert_secret_name: "datadog-agent-cluster-ca-secret"
+      ca_cert_secret_namespace: "datadog-agent"
 ```
 
 Environment variables:
 - `DD_ADMISSION_CONTROLLER_AGENT_SIDECAR_CLUSTER_AGENT_TLS_VERIFY`: Enable TLS verification
-- `DD_ADMISSION_CONTROLLER_AGENT_SIDECAR_CLUSTER_AGENT_CA_SECRET_NAME`: Name of the secret containing the CA certificate
-- `DD_ADMISSION_CONTROLLER_AGENT_SIDECAR_CLUSTER_AGENT_CA_SECRET_NAMESPACE`: Namespace where the CA secret is located
+- `DD_ADMISSION_CONTROLLER_AGENT_SIDECAR_CLUSTER_AGENT_CA_CERT_SECRET_NAME`: Name of the secret containing the CA certificate
+- `DD_ADMISSION_CONTROLLER_AGENT_SIDECAR_CLUSTER_AGENT_CA_CERT_SECRET_NAMESPACE`: Namespace where the CA secret is located
 
 ### RBAC Requirements
 
@@ -153,12 +153,7 @@ You can bind multiple ServiceAccounts in a single ClusterRoleBinding by adding m
 
 1. The Cluster Agent admission controller injects TLS configuration environment variables into the Fargate sidecar
 2. At startup, the sidecar uses the Kubernetes API to fetch the CA certificate from the specified secret
-3. The sidecar uses the CA certificate to verify the Cluster Agent's TLS certificate
-4. Secure, verified communication is established between the sidecar and Cluster Agent
-
-This approach is secure because:
-- The Kubernetes API is already authenticated via in-cluster configuration
-- Secret access is authorized via RBAC (ClusterRoleBinding)
+3. The sidecar uses the CA certificate to verify the Cluster Agent's TLS certificate and establish secure communciation
 
 ## Notes
 - For now, we only support configuring 1 custom selector and 1 custom profile.

@@ -112,8 +112,8 @@ func NewWebhook(datadogConfig config.Component) *Webhook {
 
 		// TLS verification configuration for Fargate sidecars
 		isTLSVerificationEnabled: datadogConfig.GetBool("admission_controller.agent_sidecar.cluster_agent.tls_verify"),
-		caSecretName:             datadogConfig.GetString("admission_controller.agent_sidecar.cluster_agent.ca_secret_name"),
-		caSecretNamespace:        datadogConfig.GetString("admission_controller.agent_sidecar.cluster_agent.ca_secret_namespace"),
+		caSecretName:             datadogConfig.GetString("admission_controller.agent_sidecar.cluster_agent.ca_cert_secret_name"),
+		caSecretNamespace:        datadogConfig.GetString("admission_controller.agent_sidecar.cluster_agent.ca_cert_secret_namespace"),
 	}
 }
 
@@ -445,11 +445,11 @@ func (w *Webhook) getDefaultSidecarTemplate() *corev1.Container {
 					Value: "true",
 				},
 				corev1.EnvVar{
-					Name:  "DD_CLUSTER_TRUST_CHAIN_CA_SECRET_NAME",
+					Name:  "DD_CLUSTER_TRUST_CHAIN_CA_CERT_SECRET_NAME",
 					Value: w.caSecretName,
 				},
 				corev1.EnvVar{
-					Name:  "DD_CLUSTER_TRUST_CHAIN_CA_SECRET_NAMESPACE",
+					Name:  "DD_CLUSTER_TRUST_CHAIN_CA_CERT_SECRET_NAMESPACE",
 					Value: w.caSecretNamespace,
 				},
 			)
