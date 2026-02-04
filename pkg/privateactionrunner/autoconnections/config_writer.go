@@ -17,18 +17,22 @@ import (
 //go:embed script-config.yaml
 var defaultScriptConfig []byte
 
-// ConfigWriter handles creation of script configuration files
-type ConfigWriter struct {
+type ConfigWriter interface {
+	EnsureScriptBundleConfig() (bool, error)
+}
+
+// DefaultConfigWriter handles creation of script configuration files
+type DefaultConfigWriter struct {
 	BaseDir string
 }
 
 func NewDefaultConfigWriter() ConfigWriter {
-	return ConfigWriter{BaseDir: PrivateActionRunnerBaseDir}
+	return DefaultConfigWriter{BaseDir: PrivateActionRunnerBaseDir}
 }
 
 // EnsureScriptBundleConfig creates the script bundle configuration file if it doesn't exist
 // Returns true if file was created, false if it already existed
-func (w ConfigWriter) EnsureScriptBundleConfig() (bool, error) {
+func (w DefaultConfigWriter) EnsureScriptBundleConfig() (bool, error) {
 	configPath := filepath.Join(w.BaseDir, ScriptConfigFileName)
 
 	// Check if file already exists

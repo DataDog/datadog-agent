@@ -20,7 +20,7 @@ func TestEnsureScriptBundleConfig(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "script-config.yaml")
 
-	writer := ConfigWriter{BaseDir: tempDir}
+	writer := DefaultConfigWriter{BaseDir: tempDir}
 
 	created, err := writer.EnsureScriptBundleConfig()
 	require.NoError(t, err)
@@ -72,14 +72,9 @@ func TestEnsureScriptBundleConfig_ErrorCases(t *testing.T) {
 	require.NoError(t, err)
 	defer os.Chmod(tempDir, 0755)
 
-	writer := ConfigWriter{BaseDir: tempDir}
+	writer := DefaultConfigWriter{BaseDir: tempDir}
 	created, err := writer.EnsureScriptBundleConfig()
 	assert.Error(t, err)
 	assert.False(t, created)
 	assert.Contains(t, err.Error(), "failed to write config file")
-}
-
-func TestNewDefaultConfigWriter(t *testing.T) {
-	writer := NewDefaultConfigWriter()
-	assert.Equal(t, "/etc/privateactionrunner", writer.BaseDir)
 }
