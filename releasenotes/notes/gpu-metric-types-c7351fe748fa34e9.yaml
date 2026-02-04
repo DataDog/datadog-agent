@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    GPU: Fix the metric type for `gpu.nvlink.*`, `gpu.pci.replay_counter`, and `gpu.remapped_rows.*`, which were previously reported as counters instead of gauges.
+    GPU: Fix the metric type for ``gpu.nvlink.*``, ``gpu.pci.replay_counter``, and ``gpu.remapped_rows.*``, which were previously reported as counters instead of gauges.
