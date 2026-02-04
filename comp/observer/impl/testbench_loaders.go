@@ -27,11 +27,11 @@ type testLogView struct {
 	timestamp int64
 }
 
-func (v *testLogView) GetContent() []byte  { return v.content }
-func (v *testLogView) GetStatus() string   { return v.status }
-func (v *testLogView) GetTags() []string   { return v.tags }
-func (v *testLogView) GetHostname() string { return v.hostname }
-func (v *testLogView) GetTimestamp() int64 { return v.timestamp }
+func (v *testLogView) GetContent() []byte   { return v.content }
+func (v *testLogView) GetStatus() string    { return v.status }
+func (v *testLogView) GetTags() []string    { return v.tags }
+func (v *testLogView) GetHostname() string  { return v.hostname }
+func (v *testLogView) GetTimestamp() int64  { return v.timestamp }
 
 // LoadLogFile loads logs from a file and returns LogView instances.
 // Supports JSON lines format and plain text with timestamps.
@@ -90,8 +90,17 @@ func parseJSONLine(line string) (observerdef.LogView, error) {
 		return nil, err
 	}
 
+	// Extract content from common fields, fall back to whole line
+	content := line
+	for _, field := range []string{"content", "message", "msg", "log", "text"} {
+		if c, ok := data[field].(string); ok {
+			content = c
+			break
+		}
+	}
+
 	log := &testLogView{
-		content: []byte(line),
+		content: []byte(content),
 		status:  "info",
 	}
 

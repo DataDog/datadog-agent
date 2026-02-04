@@ -321,6 +321,12 @@ func (m *Message) GetHostname() string {
 	return m.Hostname
 }
 
+// GetTimestamp returns the message ingestion timestamp as unix seconds.
+func (m *Message) GetTimestamp() int64 {
+	// IngestionTimestamp is in nanoseconds, convert to seconds
+	return m.IngestionTimestamp / 1e9
+}
+
 // StructuredContent stores enough information from a tailer to manipulate a
 // structured log message (from journald or windowsevents) and to render it to
 // be encoded later on in the pipeline.

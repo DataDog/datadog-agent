@@ -56,6 +56,7 @@ type LogView interface {
 	GetStatus() string
 	GetTags() []string
 	GetHostname() string
+	GetTimestamp() int64
 }
 
 // LogProcessor transforms observed logs into metrics and anomaly events.

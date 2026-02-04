@@ -38,6 +38,11 @@ type CLIParams struct {
 	EnableCUSUM       bool
 	EnableZScore      bool
 	CUSUMIncludeCount bool
+
+	// Recording mode
+	Record    bool
+	OutputDir string
+	TimeScale float64
 }
 
 func main() {
@@ -51,7 +56,31 @@ func main() {
 	enableCUSUM := flag.Bool("cusum", true, "Enable CUSUM change-point detector")
 	enableZScore := flag.Bool("zscore", true, "Enable Robust Z-Score detector")
 	cusumIncludeCount := flag.Bool("cusum-include-count", false, "CUSUM: include :count metrics (default: skip them)")
+
+	// Recording mode flags
+	record := flag.Bool("record", false, "Record demo scenario to files instead of running testbench")
+	outputDir := flag.String("output", "./recorded-scenario", "Output directory for recorded scenario (used with --record)")
+	timeScale := flag.Float64("timescale", 0.1, "Time scale for demo recording (0.1 = 10x speed, 1.0 = realtime)")
+
 	flag.Parse()
+
+	// Handle recording mode separately (doesn't need full FX setup)
+	if *record {
+		fmt.Printf("Observer Demo Recording\n")
+		fmt.Printf("  Output dir: %s\n", *outputDir)
+		fmt.Printf("  Time scale: %.2f\n", *timeScale)
+		fmt.Println()
+
+		err := observerimpl.RunDemoWithRecording(observerimpl.RecordingConfig{
+			OutputDir: *outputDir,
+			TimeScale: *timeScale,
+		})
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Recording failed: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	fmt.Printf("Observer Test Bench\n")
 	fmt.Printf("  Scenarios dir: %s\n", *scenariosDir)
@@ -77,6 +106,9 @@ func main() {
 			EnableCUSUM:       *enableCUSUM,
 			EnableZScore:      *enableZScore,
 			CUSUMIncludeCount: *cusumIncludeCount,
+			Record:            *record,
+			OutputDir:         *outputDir,
+			TimeScale:         *timeScale,
 		}),
 	)
 	if err != nil {

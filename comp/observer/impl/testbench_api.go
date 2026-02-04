@@ -40,6 +40,7 @@ func (api *TestBenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/series", api.cors(api.handleSeriesList))
 	mux.HandleFunc("/api/series/", api.cors(api.handleSeriesData))
 	mux.HandleFunc("/api/anomalies", api.cors(api.handleAnomalies))
+	mux.HandleFunc("/api/logs", api.cors(api.handleLogs))
 	mux.HandleFunc("/api/correlations", api.cors(api.handleCorrelations))
 	mux.HandleFunc("/api/leadlag", api.cors(api.handleLeadLag))
 	mux.HandleFunc("/api/surprise", api.cors(api.handleSurprise))
@@ -351,6 +352,38 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 	}
 
 	api.writeJSON(w, response)
+}
+
+// handleLogs returns loaded logs, optionally filtered by time window.
+// Query params: start (unix seconds), end (unix seconds)
+func (api *TestBenchAPI) handleLogs(w http.ResponseWriter, r *http.Request) {
+	startStr := r.URL.Query().Get("start")
+	endStr := r.URL.Query().Get("end")
+
+	var logs []LogEntry
+	if startStr != "" && endStr != "" {
+		start, err1 := parseIntParam(startStr)
+		end, err2 := parseIntParam(endStr)
+		if err1 != nil || err2 != nil {
+			http.Error(w, "invalid start/end parameter", http.StatusBadRequest)
+			return
+		}
+		logs = api.tb.GetLogsInWindow(start, end)
+	} else {
+		logs = api.tb.GetLogs()
+	}
+
+	api.writeJSON(w, logs)
+}
+
+// parseIntParam parses a string to int64, used for query parameters.
+func parseIntParam(s string) (int64, error) {
+	var v int64
+	err := json.Unmarshal([]byte(s), &v)
+	if err != nil {
+		return 0, err
+	}
+	return v, nil
 }
 
 // handleCorrelations returns detected correlations.

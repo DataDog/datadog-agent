@@ -66,6 +66,9 @@ type TestBench struct {
 	correlations []observerdef.ActiveCorrelation        // from anomaly processors
 	byAnalyzer   map[string][]observerdef.AnomalyOutput // anomalies grouped by analyzer
 
+	// Raw logs (kept for context packets and API)
+	loadedLogs []LogEntry
+
 	// API server
 	api *TestBenchAPI
 }
@@ -265,6 +268,13 @@ func (tb *TestBench) ListScenarios() ([]ScenarioInfo, error) {
 			}
 		}
 
+		// Also check for logs.json file directly in the scenario directory
+		if !info.HasLogs {
+			if _, err := os.Stat(filepath.Join(scenarioPath, "logs.json")); err == nil {
+				info.HasLogs = true
+			}
+		}
+
 		scenarios = append(scenarios, info)
 	}
 
@@ -298,6 +308,7 @@ func (tb *TestBench) LoadScenario(name string) error {
 	tb.anomalies = []observerdef.AnomalyOutput{}
 	tb.correlations = []observerdef.ActiveCorrelation{}
 	tb.byAnalyzer = make(map[string][]observerdef.AnomalyOutput)
+	tb.loadedLogs = []LogEntry{}
 	tb.ready = false
 	tb.loadedScenario = name
 
@@ -333,11 +344,19 @@ func (tb *TestBench) LoadScenario(name string) error {
 		}
 	}
 
-	// Load log files
-	logsDir := filepath.Join(scenarioPath, "logs")
-	if _, err := os.Stat(logsDir); err == nil {
-		if err := tb.loadLogsDir(logsDir); err != nil {
-			return fmt.Errorf("failed to load logs: %w", err)
+	// Load log files - check for logs.json first, then logs/ directory
+	logsFile := filepath.Join(scenarioPath, "logs.json")
+	if _, err := os.Stat(logsFile); err == nil {
+		if err := tb.loadLogsFile(logsFile); err != nil {
+			return fmt.Errorf("failed to load logs.json: %w", err)
+		}
+	} else {
+		// Fall back to logs/ directory
+		logsDir := filepath.Join(scenarioPath, "logs")
+		if _, err := os.Stat(logsDir); err == nil {
+			if err := tb.loadLogsDir(logsDir); err != nil {
+				return fmt.Errorf("failed to load logs: %w", err)
+			}
 		}
 	}
 
@@ -418,10 +437,16 @@ func (tb *TestBench) loadLogsDir(dir string) error {
 
 		for _, log := range logs {
 			// Get timestamp from testLogView
-			var timestamp int64
-			if tlv, ok := log.(*testLogView); ok {
-				timestamp = tlv.timestamp
-			}
+			timestamp := log.GetTimestamp()
+
+			// Store raw log for API/context packets
+			tb.loadedLogs = append(tb.loadedLogs, LogEntry{
+				Timestamp: timestamp,
+				Content:   string(log.GetContent()),
+				Tags:      log.GetTags(),
+				Source:    log.GetHostname(),
+				Level:     log.GetStatus(),
+			})
 
 			// Process through log processors
 			for _, processor := range tb.logProcessors {
@@ -436,6 +461,40 @@ func (tb *TestBench) loadLogsDir(dir string) error {
 
 	if totalLogs > 0 {
 		fmt.Printf("  Loaded %d log entries\n", totalLogs)
+	}
+	return nil
+}
+
+// loadLogsFile loads logs from a single JSON lines file (logs.json).
+func (tb *TestBench) loadLogsFile(path string) error {
+	logs, err := LoadLogFile(path)
+	if err != nil {
+		return err
+	}
+
+	for _, log := range logs {
+		timestamp := log.GetTimestamp()
+
+		// Store raw log for API/context packets
+		tb.loadedLogs = append(tb.loadedLogs, LogEntry{
+			Timestamp: timestamp,
+			Content:   string(log.GetContent()),
+			Tags:      log.GetTags(),
+			Source:    log.GetHostname(),
+			Level:     log.GetStatus(),
+		})
+
+		// Process through log processors
+		for _, processor := range tb.logProcessors {
+			result := processor.Process(log)
+			for _, m := range result.Metrics {
+				tb.storage.Add("logs", m.Name, m.Value, timestamp, m.Tags)
+			}
+		}
+	}
+
+	if len(logs) > 0 {
+		fmt.Printf("  Loaded %d log entries from %s\n", len(logs), filepath.Base(path))
 	}
 	return nil
 }
@@ -738,6 +797,30 @@ func (tb *TestBench) GetAnomalies() []observerdef.AnomalyOutput {
 
 	result := make([]observerdef.AnomalyOutput, len(tb.anomalies))
 	copy(result, tb.anomalies)
+	return result
+}
+
+// GetLogs returns all loaded logs.
+func (tb *TestBench) GetLogs() []LogEntry {
+	tb.mu.RLock()
+	defer tb.mu.RUnlock()
+
+	result := make([]LogEntry, len(tb.loadedLogs))
+	copy(result, tb.loadedLogs)
+	return result
+}
+
+// GetLogsInWindow returns logs within the specified time window.
+func (tb *TestBench) GetLogsInWindow(start, end int64) []LogEntry {
+	tb.mu.RLock()
+	defer tb.mu.RUnlock()
+
+	var result []LogEntry
+	for _, log := range tb.loadedLogs {
+		if log.Timestamp >= start && log.Timestamp <= end {
+			result = append(result, log)
+		}
+	}
 	return result
 }
 

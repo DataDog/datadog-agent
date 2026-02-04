@@ -196,10 +196,11 @@ func NewComponent(deps Requires) Provides {
 				"msg": message,
 			})
 			handle.ObserveLog(&agentLogView{
-				content:  payload,
-				status:   strings.ToLower(level.String()),
-				tags:     tags,
-				hostname: "",
+				content:   payload,
+				status:    strings.ToLower(level.String()),
+				tags:      tags,
+				hostname:  "",
+				timestamp: time.Now().Unix(),
 			})
 		})
 	}
@@ -689,24 +690,27 @@ type logView struct {
 	obs *logObs
 }
 
-func (v *logView) GetContent() []byte  { return v.obs.content }
-func (v *logView) GetStatus() string   { return v.obs.status }
-func (v *logView) GetTags() []string   { return v.obs.tags }
-func (v *logView) GetHostname() string { return v.obs.hostname }
+func (v *logView) GetContent() []byte   { return v.obs.content }
+func (v *logView) GetStatus() string    { return v.obs.status }
+func (v *logView) GetTags() []string    { return v.obs.tags }
+func (v *logView) GetHostname() string  { return v.obs.hostname }
+func (v *logView) GetTimestamp() int64  { return v.obs.timestamp }
 
 // agentLogView is a minimal LogView implementation for agent-internal logs.
 // It is immediately copied by the observer handle, so it must not be retained.
 type agentLogView struct {
-	content  []byte
-	status   string
-	tags     []string
-	hostname string
+	content   []byte
+	status    string
+	tags      []string
+	hostname  string
+	timestamp int64
 }
 
-func (v *agentLogView) GetContent() []byte  { return v.content }
-func (v *agentLogView) GetStatus() string   { return v.status }
-func (v *agentLogView) GetTags() []string   { return v.tags }
-func (v *agentLogView) GetHostname() string { return v.hostname }
+func (v *agentLogView) GetContent() []byte   { return v.content }
+func (v *agentLogView) GetStatus() string    { return v.status }
+func (v *agentLogView) GetTags() []string    { return v.tags }
+func (v *agentLogView) GetHostname() string  { return v.hostname }
+func (v *agentLogView) GetTimestamp() int64  { return v.timestamp }
 
 // copyBytes creates a copy of a byte slice.
 func copyBytes(b []byte) []byte {

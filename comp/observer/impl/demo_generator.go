@@ -372,8 +372,8 @@ type logMessage struct {
 	timestamp int64
 }
 
-func (l *logMessage) GetContent() []byte  { return l.content }
-func (l *logMessage) GetStatus() string   { return l.status }
-func (l *logMessage) GetTags() []string   { return l.tags }
-func (l *logMessage) GetHostname() string { return l.hostname }
-func (l *logMessage) GetTimestamp() int64 { return l.timestamp }
+func (l *logMessage) GetContent() []byte   { return l.content }
+func (l *logMessage) GetStatus() string    { return l.status }
+func (l *logMessage) GetTags() []string    { return l.tags }
+func (l *logMessage) GetHostname() string  { return l.hostname }
+func (l *logMessage) GetTimestamp() int64  { return l.timestamp }
