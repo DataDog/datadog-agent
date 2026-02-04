@@ -5,7 +5,6 @@
 
 //go:build windows
 
-// Package main is the entrypoint for private-action-runner process
 package main
 
 import (
