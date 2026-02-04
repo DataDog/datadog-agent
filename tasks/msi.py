@@ -5,6 +5,7 @@ msi namespaced tasks
 import hashlib
 import mmap
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -706,3 +707,140 @@ def download_latest_artifacts_for_ref(project: Project, ref_name: str, output_di
             os.close(fd)
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
+
+
+@task
+def package_oci(
+    ctx,
+    msi_path=None,
+    output_dir=None,
+    source_type="msi",
+):
+    """
+    Create an OCI package from an MSI installer.
+
+    Args:
+        msi_path: Path to the MSI file (default: auto-detect in omnibus/pkg)
+        output_dir: Output directory for the OCI tar (default: omnibus/pkg)
+        source_type: Source type - 'msi' or 'zip' (default: msi)
+
+    Requires:
+        datadog-package: Install from https://github.com/DataDog/datadog-package
+            go install github.com/DataDog/datadog-packages/cmd/datadog-package@latest
+    """
+    import tempfile
+    from pathlib import Path
+
+    # Set defaults
+    if output_dir is None:
+        output_dir = OUTPUT_PATH
+
+    # Determine package version
+    package_version = None
+
+    # Verify datadog-package is in PATH
+    datadog_package_path = shutil.which("datadog-package")
+    if datadog_package_path is None:
+        print("datadog-package not found in PATH")
+        print("To install datadog-package, run:")
+        print("  go install github.com/DataDog/datadog-packages/cmd/datadog-package@latest")
+        print("Or see: https://github.com/DataDog/datadog-packages")
+        raise Exit(code=1)
+
+    if msi_path is None and source_type == "msi":
+        # Auto-detect: Get version from git and find matching MSI
+        package_version = get_version(ctx, include_git=True, url_safe=True, include_pipeline_id=True)
+        msi_pattern = f"datadog-agent-{package_version}-1-x86_64.msi"
+        msi_files = list(Path(OUTPUT_PATH).glob(msi_pattern))
+        if not msi_files:
+            print(f"No MSI found matching pattern: {msi_pattern}")
+            raise Exit(code=1)
+        msi_path = str(msi_files[0])
+        print(f"Found MSI: {msi_path}")
+    elif msi_path is None and source_type == "zip":
+        print("When source_type='zip', msi_path must be explicitly provided.")
+        raise Exit(code=1)
+    elif msi_path is not None:
+        # MSI path provided: Extract version from filename
+        if not os.path.exists(msi_path):
+            print(f"MSI file not found: {msi_path}")
+            raise Exit(code=1)
+        # Verify file extension matches source type
+        msi_file = Path(msi_path)
+        file_ext = msi_file.suffix.lower()
+        if source_type == "zip":
+            expected_ext = ".zip"
+        else:
+            expected_ext = ".msi"
+
+        if file_ext != expected_ext:
+            print(f"Error: source_type='{source_type}' but file has extension '{file_ext}'")
+            print(f"Expected a '{expected_ext}' file.")
+            raise Exit(code=1)
+
+        # Expected format: datadog-agent-{VERSION}-1-x86_64.msi
+        msi_filename = os.path.basename(msi_path)
+        pattern = rf'datadog-agent-(.+)-1-x86_64\{file_ext}$'
+        version_match = re.search(pattern, msi_filename)
+
+        if not version_match:
+            print(f"Could not extract version from filename: {msi_filename}")
+            print(f"Expected format: datadog-agent-{{VERSION}}-1-x86_64{file_ext}")
+            raise Exit(code=1)
+
+        package_version = version_match.group(1)
+        print(f"Extracted version from MSI filename: {package_version}")
+
+    # Create temporary directory for input
+    with tempfile.TemporaryDirectory() as src_dir:
+        print(f"Using temporary directory: {src_dir}")
+
+        # Handle different source types
+        extra_flags = ""
+        if source_type == "msi":
+            # Copy MSI to temp directory
+            print(f"Copying MSI to {src_dir}")
+            shutil.copy2(msi_path, src_dir)
+        elif source_type == "zip":
+            # Extract ZIP to temp directory
+            print(f"Extracting ZIP to {src_dir}")
+            with zipfile.ZipFile(msi_path, "r") as zip_ref:
+                zip_ref.extractall(src_dir)
+
+            # Check for config directory
+            config_dir = os.path.join(src_dir, "etc", "datadog-agent")
+            if os.path.exists(config_dir):
+                extra_flags = f"--configs {config_dir}"
+        else:
+            print(f"Unknown source type: {source_type}")
+            raise Exit(code=1)
+
+        # Construct output path
+        oci_output_path = os.path.join(output_dir, f"datadog-agent-{package_version}-1-windows-amd64.oci.tar")
+
+        # Build the command
+        cmd = (
+            f'"{datadog_package_path}" create '
+            f'--version "{package_version}-1" '
+            f'--package "datadog-agent" '
+            f'--os windows '
+            f'--arch amd64 '
+            f'--archive '
+            f'--archive-path "{oci_output_path}" '
+        )
+
+        if extra_flags:
+            cmd += f'{extra_flags} '
+
+        cmd += f'"{src_dir}"'
+        result = ctx.run(cmd, warn=True)
+
+        if not result:
+            print("Failed to create OCI package")
+            raise Exit(code=1)
+
+        if os.path.exists(oci_output_path):
+            print(f"Successfully created OCI package: {oci_output_path}")
+        else:
+            print(f"OCI package not found at expected path: {oci_output_path}")
+            raise Exit(code=1)

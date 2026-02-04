@@ -109,10 +109,9 @@ func TestConfigEndpoint(t *testing.T) {
 
 	t.Run("authorized_not_marshallable", func(t *testing.T) {
 		configName := "my.config.value"
-		cfg, server, configEndpoint := getConfigServer(t, api.AuthorizedSet{configName: {}})
-		cfg.SetWithoutSource(configName, make(chan int))
-		cfg.SetKnown(configName) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-		testConfigValue(t, configEndpoint, server, configName, http.StatusInternalServerError)
+		cfg, _, _ := getConfigServer(t, api.AuthorizedSet{configName: {}})
+		// calling SetWithoutSource with an invalid type of data will panic
+		assert.Panics(t, func() { cfg.SetWithoutSource(configName, make(chan int)) })
 	})
 
 	parentConfigName := "root.parent"

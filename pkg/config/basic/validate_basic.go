@@ -14,29 +14,15 @@ import (
 
 // TODO: Callers that are using SetWithoutSource improperly, need to be fixed
 var allowlistCaller = []string{
-	// This calls `cfg.SetWithoutSource(configName, make(chan int))`
-	// and expects it to be "not marshallable"
-	"comp/api/api/apiimpl/internal/config/endpoint_test.go",
-
-	// Fixable by updating test
-	"comp/autoscaling/datadogclient/impl/client_test.go",
-	"comp/autoscaling/datadogclient/impl/status_test.go",
-
-	// Fixing this test by updating its use of SetWithoutSources causes other failures
+	// Fixing this test by updating its use of SetWithoutSources causes other failures, needs investigation
 	"comp/core/autodiscovery/listeners/snmp_test.go",
 
-	// Needs investigation: passes locally but fails on CI
-	"comp/metadata/resources/resourcesimpl/resources_test.go",
-
-	// Needs investigation
+	// TestNewConfig has an expectedConfig, which has embedded structs pathteststore.Config and connfilter.Config
 	"comp/networkpath/npcollector/npcollectorimpl/config_test.go",
 	"comp/networkpath/npcollector/npcollectorimpl/npcollector_testutils.go",
 
-	// Needs investigation
+	// TestFullConfig assigns an object usersV3, which is a list of structs
 	"comp/snmptraps/config/config_test.go",
-
-	// Needs investigation
-	"pkg/collector/corechecks/snmp/status/status_test.go",
 }
 
 // ValidateBasicTypes returns true if the argument is made of only basic types

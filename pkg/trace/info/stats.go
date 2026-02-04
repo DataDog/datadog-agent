@@ -155,6 +155,7 @@ func (ts *TagStats) publishAndReset(statsd statsd.ClientInterface, sendAllStats 
 		ts.PayloadAccepted.Swap(0), tags, 1)
 	_ = statsd.Count("datadog.trace_agent.receiver.payload_refused",
 		ts.PayloadRefused.Swap(0), tags, 1)
+	publishNonZeroStats(statsd, tags, ts.PayloadTimeout.Swap(0), "datadog.trace_agent.receiver.payload_timeout", sendAllStats)
 	publishNonZeroStats(statsd, tags, ts.ClientDroppedP0Spans.Swap(0), "datadog.trace_agent.receiver.client_dropped_p0_spans", sendAllStats)
 	publishNonZeroStats(statsd, tags, ts.ClientDroppedP0Traces.Swap(0), "datadog.trace_agent.receiver.client_dropped_p0_traces", sendAllStats)
 
@@ -417,6 +418,8 @@ type Stats struct {
 	PayloadAccepted atomic.Int64
 	// PayloadRefused counts the number of payloads that have been rejected by the rate limiter.
 	PayloadRefused atomic.Int64
+	// PayloadTimeout counts the number of payloads that have been rejected due to request context timeout.
+	PayloadTimeout atomic.Int64
 	// TracesDropped contains stats about the count of dropped traces by reason
 	TracesDropped *TracesDropped
 	// SpansMalformed contains stats about the count of malformed traces by reason
@@ -470,6 +473,7 @@ func (s *Stats) update(recent *Stats) {
 	s.EventsSampled.Add(recent.EventsSampled.Load())
 	s.PayloadAccepted.Add(recent.PayloadAccepted.Load())
 	s.PayloadRefused.Add(recent.PayloadRefused.Load())
+	s.PayloadTimeout.Add(recent.PayloadTimeout.Load())
 	s.TracesPerSamplingPriority.update(&recent.TracesPerSamplingPriority)
 }
 

@@ -7,7 +7,7 @@
 package fx
 
 import (
-	registrarimpl "github.com/DataDog/datadog-agent/comp/logs/kubehealth/impl"
+	registrarimpl "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

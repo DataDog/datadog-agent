@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	ec2docker "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -98,12 +97,10 @@ func TestJMXFetchNixFIPS(t *testing.T) {
 }
 
 func TestJMXFetchNixMtls(t *testing.T) {
-	flake.Mark(t)
 	testJMXFetchNix(t, true, false)
 }
 
 func TestJMXFetchNixMtlsFIPS(t *testing.T) {
-	flake.Mark(t)
 	testJMXFetchNix(t, true, true)
 }
 
@@ -311,9 +308,11 @@ type checkInstance struct {
 	KeyStorePassword   *string `json:"key_store_password,omitempty"`
 	TrustStorePath     *string `json:"trust_store_path,omitempty"`
 	TrustStorePassword *string `json:"trust_store_password,omitempty"`
+	JavaOptions        *string `json:"java_options"`
 }
 
 var defaultJavaPassword = "changeit"
+var javaOptionsNoCertCheck = "-Djdk.rmi.ssl.client.enableEndpointIdentification=false"
 
 const adLabelName = "com.datadoghq.ad.checks"
 
@@ -336,6 +335,7 @@ func makeADLabelsManifest(mtls bool, fips bool) (*docker.ComposeInlineManifest, 
 			instance.KeyStorePassword = &defaultJavaPassword
 			instance.TrustStorePath = &truststorePath
 			instance.TrustStorePassword = &defaultJavaPassword
+			instance.JavaOptions = &javaOptionsNoCertCheck
 		})
 		if err != nil {
 			return nil, err

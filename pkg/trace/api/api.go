@@ -663,6 +663,12 @@ func (r *HTTPReceiver) handleTracesV1(w http.ResponseWriter, req *http.Request) 
 	// After the configured timeout, respond without ingesting the payload,
 	// and sending the configured status.
 	case r.recvsem <- struct{}{}:
+	case <-req.Context().Done():
+		// Either the client closed the connection, or we hit a middleware timeout
+		log.Debugf("request context timed out, payload dropped")
+		w.WriteHeader(http.StatusTooManyRequests)
+		r.tagStats(V10, req.Header, "").PayloadTimeout.Inc()
+		return
 	case <-time.After(time.Duration(r.conf.DecoderTimeout) * time.Millisecond):
 		log.Debugf("trace-agent is overwhelmed, a payload has been rejected")
 		// this payload can not be accepted
@@ -756,6 +762,12 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	// After the configured timeout, respond without ingesting the payload,
 	// and sending the configured status.
 	case r.recvsem <- struct{}{}:
+	case <-req.Context().Done():
+		// Either the client closed the connection, or we hit a middleware timeout
+		log.Debugf("request context timed out, payload dropped")
+		w.WriteHeader(http.StatusTooManyRequests)
+		r.tagStats(v, req.Header, "").PayloadTimeout.Inc()
+		return
 	case <-time.After(time.Duration(r.conf.DecoderTimeout) * time.Millisecond):
 		log.Debugf("trace-agent is overwhelmed, a payload has been rejected")
 		// this payload can not be accepted

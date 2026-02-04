@@ -1163,6 +1163,104 @@ func TestHandleTraces(t *testing.T) {
 		assert.Equal(t, http.StatusTooManyRequests, result.StatusCode)
 		assert.Equal(t, "application/json", result.Header.Get("Content-Type"))
 	})
+
+	t.Run("context_timeout", func(t *testing.T) {
+		// prepare the msgpack payload
+		bts, err := testutil.GetTestTraces(10, 10, true).MarshalMsg(nil)
+		assert.Nil(t, err)
+
+		// prepare the receiver
+		conf := newTestReceiverConfig()
+		conf.Decoders = 1
+		dynConf := sampler.NewDynamicConfig()
+
+		rawTraceChan := make(chan *Payload)
+		receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, nil, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+
+		// Block the recvsem to ensure the handler waits for the semaphore
+		receiver.recvsem = make(chan struct{})
+
+		// response recorder
+		handler := receiver.handleWithVersion(v04, receiver.handleTraces)
+		rr := httptest.NewRecorder()
+
+		// Create a request with a context that times out immediately
+		req, _ := http.NewRequest("POST", "/v0.4/traces", bytes.NewReader(bts))
+		req.Header.Set("Content-Type", "application/msgpack")
+		req.Header.Set("Datadog-Send-Real-Http-Status", "true")
+		req.Header.Set(header.Lang, "go")
+
+		// Create a context with a very short timeout to trigger the context cancellation
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+		defer cancel()
+		req = req.WithContext(ctx)
+
+		// Wait a bit to ensure the context is cancelled before the handler processes it
+		time.Sleep(10 * time.Millisecond)
+
+		// Get initial PayloadTimeout count
+		ts := receiver.tagStats(v04, req.Header, "")
+		initialTimeout := ts.PayloadTimeout.Load()
+
+		handler.ServeHTTP(rr, req)
+		result := rr.Result()
+		defer result.Body.Close()
+
+		// Verify that we got a 429 status code
+		assert.Equal(t, http.StatusTooManyRequests, result.StatusCode)
+
+		// Verify that PayloadTimeout was incremented
+		finalTimeout := ts.PayloadTimeout.Load()
+		assert.Equal(t, initialTimeout+1, finalTimeout, "PayloadTimeout should be incremented when request context is cancelled")
+	})
+
+	t.Run("context_timeout_v10", func(t *testing.T) {
+		// Test the same scenario for V10 endpoint
+		strings := idx.NewStringTable()
+		tp := idx.InternalTracerPayload{
+			Strings: strings,
+		}
+		tp.SetLanguageName("python")
+		bts, err := tp.MarshalMsg(nil)
+		assert.Nil(t, err)
+
+		conf := newTestReceiverConfig()
+		conf.Decoders = 1
+		dynConf := sampler.NewDynamicConfig()
+
+		rawTraceChanV1 := make(chan *PayloadV1)
+		receiver := NewHTTPReceiver(conf, dynConf, nil, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+
+		// Block the recvsem
+		receiver.recvsem = make(chan struct{})
+
+		handler := receiver.handleWithVersion(V10, receiver.handleTraces)
+		rr := httptest.NewRecorder()
+
+		req, _ := http.NewRequest("POST", "/v1.0/traces", bytes.NewReader(bts))
+		req.Header.Set("Content-Type", "application/msgpack")
+		req.Header.Set(header.TraceCount, "1")
+		req.Header.Set(header.Lang, "python")
+
+		// Create a context with a very short timeout
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+		defer cancel()
+		req = req.WithContext(ctx)
+
+		time.Sleep(10 * time.Millisecond)
+
+		ts := receiver.tagStats(V10, req.Header, "")
+		initialTimeout := ts.PayloadTimeout.Load()
+
+		handler.ServeHTTP(rr, req)
+		result := rr.Result()
+		defer result.Body.Close()
+
+		assert.Equal(t, http.StatusTooManyRequests, result.StatusCode)
+
+		finalTimeout := ts.PayloadTimeout.Load()
+		assert.Equal(t, initialTimeout+1, finalTimeout, "PayloadTimeout should be incremented for V10 endpoint")
+	})
 }
 
 func TestClientComputedTopLevel(t *testing.T) {

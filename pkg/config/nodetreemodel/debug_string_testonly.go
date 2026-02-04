@@ -76,8 +76,12 @@ func (c *ntmConfig) toDebugString(source model.Source, opts ...model.StringifyOp
 }
 
 type ptrCount struct {
+	// Pointer ID, monotomically increasing number for each pointer observed by the stringifier
 	key int
+	// How many times a pointer appears, only used by option `DedupPointerAddr`
 	num int
+	// Hold a reference to the object, prevents GC from removing it and reusing addresses
+	ref interface{}
 }
 
 type treeDebugger struct {
@@ -195,6 +199,7 @@ func (d *treeDebugger) makePointer(object interface{}) string {
 			d.seenPtrs[ptr] = &ptrCount{
 				key: len(d.seenPtrs),
 				num: 0,
+				ref: object,
 			}
 			d.seenPtrOrder = append(d.seenPtrOrder, ptr)
 		}

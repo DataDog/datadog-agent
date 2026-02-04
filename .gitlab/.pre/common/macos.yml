@@ -27,7 +27,7 @@
   - |
     export TMPDIR=/tmp/gitlabci
     NEWTMPDIR="$RUNNER_TEMP_PROJECT_DIR/gitlabci"
-    rm -fr "$(realpath $TMPDIR)" "$NEWTMPDIR"
+    sudo rm -fr "$(realpath $TMPDIR)" "$NEWTMPDIR"
     mkdir "$NEWTMPDIR"
     sudo ln -fs "$NEWTMPDIR" $TMPDIR
     echo "Temporary folder created, TMPDIR=$TMPDIR -> $NEWTMPDIR"
