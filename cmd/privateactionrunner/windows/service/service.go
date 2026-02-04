@@ -11,6 +11,7 @@ package service
 import (
 	"context"
 	"errors"
+	"path/filepath"
 
 	"go.uber.org/fx"
 
@@ -27,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -35,6 +37,11 @@ import (
 const (
 	// ServiceName is the service name used for the private-action-runner
 	ServiceName = "datadog-private-action-runner"
+)
+
+var (
+	// defaultConfPath is the default configuration file path on Windows
+	defaultConfPath = filepath.Join(defaultpaths.ConfPath, "datadog.yaml")
 )
 
 type windowsService struct {
@@ -68,7 +75,7 @@ func (s *windowsService) Run(ctx context.Context) error {
 		// to allow the agent to work as a service.
 		fx.Provide(func() context.Context { return ctx }), // fx.Supply(ctx) fails with a missing type error.
 		fx.Supply(core.BundleParams{
-			ConfigParams: config.NewAgentParams(""),
+			ConfigParams: config.NewAgentParams(defaultConfPath),
 			LogParams:    log.ForDaemon("PRIV-ACTION", "private_action_runner.log_file", ""),
 		}),
 		core.Bundle(),
