@@ -269,6 +269,8 @@ type observerImpl struct {
 	totalAnomalyCount    int                             // total count of all anomalies ever detected (no cap)
 	uniqueAnomalySources map[observerdef.MetricName]bool // unique sources that had anomalies
 	dedupSkipped         int                             // count of anomalies skipped by dedup
+
+	lastAnalyzedDataTime int64 // data timestamp up to which we've analyzed
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
@@ -289,52 +291,26 @@ var analysisAggregations = []Aggregate{AggregateAverage, AggregateCount}
 
 // processMetric handles a metric observation.
 func (o *observerImpl) processMetric(source string, m *metricObs) {
-	// Add to storage
 	o.storage.Add(source, m.name, m.value, m.timestamp, m.tags)
-
-	// Run time series analyses on multiple aggregations
-	for _, agg := range analysisAggregations {
-		if series := o.storage.GetSeries(source, m.name, m.tags, agg); series != nil {
-			// OLD path: Run region-based anomaly detection (TimeSeriesAnalysis)
-			o.runTSAnalyses(*series, agg)
-
-			// NEW path: Run point-based signal emitters
-			o.runSignalEmitters(*series, agg)
-		}
-	}
-
-	o.flushAndReport()
+	o.maybeRunAnalyses(m.timestamp)
 }
 
 // processLog handles a log observation.
 func (o *observerImpl) processLog(source string, l *logObs) {
-	// Events (from check-events source) are routed as event signals for correlation,
-	// not processed through log processors for metric derivation.
 	if source == "check-events" {
 		o.routeEventSignal(l)
 		return
 	}
 
-	// Create a view for processors
 	view := &logView{obs: l}
-
 	for _, processor := range o.logProcessors {
 		result := processor.Process(view)
-
-		// Add metrics from log processing to storage, then run TS analyses
 		for _, m := range result.Metrics {
 			o.storage.Add(source, m.Name, m.Value, l.timestamp, m.Tags)
-			// Run time series analyses on multiple aggregations
-			for _, agg := range analysisAggregations {
-				if series := o.storage.GetSeries(source, m.Name, m.Tags, agg); series != nil {
-					o.runTSAnalyses(*series, agg)
-				}
-			}
 		}
-
 	}
 
-	o.flushAndReport()
+	o.maybeRunAnalyses(l.timestamp)
 }
 
 // routeEventSignal converts an event log observation to a unified Signal and sends it
@@ -377,25 +353,48 @@ func (o *observerImpl) routeEventSignal(l *logObs) {
 	}
 }
 
-// runTSAnalyses runs all time series analyses on a series with the given aggregation.
-// It appends an aggregation suffix to the series name for distinct Source tracking.
-func (o *observerImpl) runTSAnalyses(series observerdef.Series, agg Aggregate) {
-	// Append aggregation suffix to series name for distinct Source tracking
-	seriesWithAgg := series
-	seriesWithAgg.Name = series.Name + ":" + aggSuffix(agg)
+// maybeRunAnalyses checks if data time has advanced enough to trigger analysis.
+// We only analyze complete seconds - when we see data at time T, we analyze up to T-1.
+// This ensures deterministic output regardless of batch vs streaming ingestion.
+func (o *observerImpl) maybeRunAnalyses(dataTime int64) {
+	// Only analyze complete seconds (everything strictly before current second)
+	analyzeUpTo := dataTime - 1
 
-	for _, tsAnalysis := range o.tsAnalyses {
-		result := tsAnalysis.Analyze(seriesWithAgg)
-		for _, anomaly := range result.Anomalies {
-			// Set the analyzer name so we can identify who produced this anomaly
-			anomaly.AnalyzerName = tsAnalysis.Name()
-			anomaly.Source = observerdef.MetricName(seriesWithAgg.Name)
-			anomaly.SourceSeriesID = observerdef.SeriesID(seriesKey(series.Namespace, seriesWithAgg.Name, series.Tags))
-			// Capture raw anomaly before passing to processors
-			o.captureRawAnomaly(anomaly)
-			o.processAnomaly(anomaly)
+	if analyzeUpTo <= o.lastAnalyzedDataTime {
+		return
+	}
+
+	o.runAnalysesUpTo(analyzeUpTo)
+	o.lastAnalyzedDataTime = analyzeUpTo
+}
+
+// runAnalysesUpTo runs all time series analyses on all series, considering only
+// points with timestamp <= upTo. This ensures we analyze complete time buckets.
+func (o *observerImpl) runAnalysesUpTo(upTo int64) {
+	for _, stats := range o.storage.series {
+		for _, agg := range analysisAggregations {
+			series := stats.toSeriesUpTo(agg, upTo)
+			if len(series.Points) == 0 {
+				continue
+			}
+
+			// Run point-based signal emitters (adds its own suffix)
+			o.runSignalEmitters(series, agg)
+
+			// Add suffix for region-based TS analyses
+			series.Name = series.Name + ":" + aggSuffix(agg)
+
+			for _, tsAnalysis := range o.tsAnalyses {
+				result := tsAnalysis.Analyze(series)
+				for _, anomaly := range result.Anomalies {
+					anomaly.AnalyzerName = tsAnalysis.Name()
+					o.captureRawAnomaly(anomaly)
+					o.processAnomaly(anomaly)
+				}
+			}
 		}
 	}
+	o.flushAndReport()
 }
 
 // runSignalEmitters runs point-based signal emitters on a series and processes the signals.

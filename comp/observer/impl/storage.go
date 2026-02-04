@@ -93,6 +93,25 @@ func (s *seriesStats) toSeries(agg Aggregate) observer.Series {
 	}
 }
 
+// toSeriesUpTo returns a Series with only points where Timestamp <= upTo.
+func (s *seriesStats) toSeriesUpTo(agg Aggregate, upTo int64) observer.Series {
+	points := make([]observer.Point, 0, len(s.Points))
+	for _, p := range s.Points {
+		if p.Timestamp <= upTo {
+			points = append(points, observer.Point{
+				Timestamp: p.Timestamp,
+				Value:     p.aggregate(agg),
+			})
+		}
+	}
+	return observer.Series{
+		Namespace: s.Namespace,
+		Name:      s.Name,
+		Tags:      s.Tags,
+		Points:    points,
+	}
+}
+
 // newTimeSeriesStorage creates a new time series storage.
 func newTimeSeriesStorage() *timeSeriesStorage {
 	return &timeSeriesStorage{
