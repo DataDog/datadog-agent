@@ -7,14 +7,16 @@
 package hello
 
 /*
-#cgo CXXFLAGS: -std=c++11
-#cgo LDFLAGS: -lstdc++
-
 #include "hello.h"
 */
 import "C"
+import "errors"
 
-// PrintHelloWorld calls the C++ function to print "Hello World"
-func PrintHelloWorld() {
-	C.PrintHelloWorld()
+func Benchmark() error {
+	var error *C.char
+	C.benchmark(&error)
+	if error != nil {
+		return errors.New(C.GoString(error))
+	}
+	return nil
 }

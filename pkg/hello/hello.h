@@ -10,8 +10,9 @@
 extern "C" {
 #endif
 
-// PrintHelloWorld prints "Hello World" to stdout
-void PrintHelloWorld();
+#include <stddef.h>
+
+void benchmark(char **error);
 
 #ifdef __cplusplus
 }

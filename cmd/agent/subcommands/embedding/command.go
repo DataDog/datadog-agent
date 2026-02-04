@@ -7,9 +7,6 @@
 package embedding
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -60,11 +57,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 func runEmbedding(_ log.Component, params *cliParams) error {
 	// Call the C++ function to print hello world
-	hello.PrintHelloWorld()
-
-	// If text argument was provided, print it as well
-	if params.text != "" {
-		fmt.Fprintf(os.Stdout, "Text argument: %s\n", params.text)
+	err := hello.Benchmark()
+	if err != nil {
+		return err
 	}
 
 	return nil
