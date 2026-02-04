@@ -82,6 +82,9 @@ func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetry
 		// Add here the metric names that should be included in the telemetry response.
 		// This is useful to avoid sending too many metrics to the Core Agent.
 
+		// Logs metrics (the remote_agent tag is set to "system-probe" via metrics.GetAgentIdentityTag())
+		"logs__bytes_sent",
+
 		// Windows Injector metrics (using double underscore format from telemetry component)
 		"injector__processes_added_to_injection_tracker",
 		"injector__processes_removed_from_injection_tracker",
