@@ -167,7 +167,6 @@ dda inv install-tools
 /// note | Caveat
 Ensure $GOPATH/bin is in your PATH. Otherwise, `dda inv install-tools` will install the tools successfully, but they will not be found at runtime.
 ///
-]
 
 If you're using a [remote clone](#remote-clone), some builds may fail due to the shallow cloning. To acquire all Git history, run the following command.
 
