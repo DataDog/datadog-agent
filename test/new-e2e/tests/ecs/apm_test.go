@@ -73,13 +73,20 @@ func (suite *ecsAPMSuite) SetupSuite() {
 //   - appName: Application name (e.g., "dogstatsd", "tracegen")
 //   - includeFullSet: If true, includes all tags (for metrics). If false, returns minimal set (for traces).
 func (suite *ecsAPMSuite) getCommonECSTagPatterns(clusterName, taskName, appName string, includeFullSet bool) []string {
-	// Minimal tags for traces - just core ECS metadata added by agent tagger
+	// Minimal tags for traces - ECS metadata is bundled in _dd.tags.container when DD_APM_ENABLE_CONTAINER_TAGS_BUFFER=true
 	if !includeFullSet {
+		// When DD_APM_ENABLE_CONTAINER_TAGS_BUFFER=true, all container tags are bundled into a single tag
+		// Format: _dd.tags.container:cluster_name:value,ecs_cluster_name:value,container_name:value,task_arn:value,...
+		// We need to validate that this bundled tag contains the required ECS metadata
 		return []string{
-			`^cluster_name:` + regexp.QuoteMeta(clusterName) + `$`,
-			`^ecs_cluster_name:` + regexp.QuoteMeta(clusterName) + `$`,
-			`^container_name:`,
-			`^task_arn:`,
+			// Match _dd.tags.container and verify it contains cluster_name
+			`^_dd\.tags\.container:.*cluster_name:` + regexp.QuoteMeta(clusterName) + `(,|$)`,
+			// Match _dd.tags.container and verify it contains ecs_cluster_name
+			`^_dd\.tags\.container:.*ecs_cluster_name:` + regexp.QuoteMeta(clusterName) + `(,|$)`,
+			// Match _dd.tags.container and verify it contains container_name
+			`^_dd\.tags\.container:.*container_name:`,
+			// Match _dd.tags.container and verify it contains task_arn
+			`^_dd\.tags\.container:.*task_arn:`,
 		}
 	}
 
