@@ -13,6 +13,14 @@
     - !reference [.cache_omnibus_ruby_deps, setup]
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
+    - |
+      echo "Setting up Rust / Cargo"
+      echo "
+      [target.x86_64-unknown-linux-gnu]
+      linker = \"/opt/toolchains/x86_64/bin/x86_64-unknown-linux-gnu-gcc\"
+      " >> ~/.cargo/config.toml
+      rustup target add x86_64-unknown-linux-gnu
+      rm -rf pkg/deepinference/rust/target
     - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --flavor heroku
     - ls -la $OMNIBUS_PACKAGE_DIR
     - !reference [.create_signature_and_lint_linux_packages]
