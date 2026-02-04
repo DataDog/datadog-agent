@@ -582,11 +582,49 @@ document
 
 ---
 
+## Iteration 16: Custom Action Entry Point Names (Lambda to Method Group)
+
+### Runtime Error
+```
+Error 1723. There is a problem with this Windows Installer package. A DLL required for this install to complete could not be run.
+Action RunAsAdmin, entry: <.ctor>b__118_0, library: C:\Users\...\MSIADD9.tmp
+```
+
+Error code 1154 (`ERROR_DLL_NOT_FOUND`) - the DLL entry point couldn't be found.
+
+### Root Cause
+Custom actions were defined using lambda expressions:
+```csharp
+session => CustomActions.EnsureAdminCaller(session)
+```
+
+The C# compiler generates mangled names for lambdas (like `<.ctor>b__118_0`). When WixSharp_wix4's MakeSfxCA packages these custom actions, it cannot find the entry points because the generated names aren't valid DLL exports.
+
+### Fix Applied
+Converted all lambda expressions to method group syntax:
+```csharp
+// Before (lambda - generates mangled entry point name)
+session => CustomActions.EnsureAdminCaller(session)
+
+// After (method group - generates proper "EnsureAdminCaller" entry point)
+CustomActions.EnsureAdminCaller
+```
+
+**Files updated:**
+1. `WixSetup/Datadog Agent/AgentCustomActions.cs` - 36 lambdas converted
+2. `WixSetup/Datadog Installer/DatadogInstallerCustomActions.cs` - 9 lambdas converted
+
+### Technical Notes
+- Method group syntax tells the compiler to use the actual method name as the entry point
+- This produces DLL exports like `EnsureAdminCaller` instead of `<.ctor>b__118_0`
+- The method signatures (`ActionResult MethodName(Session session)`) already match the delegate expected by WixSharp's `CustomAction<T>` constructor
+- This is a common issue when migrating from WiX 3 to WiX 5 with WixSharp
+
+---
+
 ## Current Status
 
-The build should now proceed with MSI compilation. Additional issues may arise during:
-1. MSI compilation (wix.exe build)
-2. Runtime testing
+The MSI should now run without the DLL entry point error. Continue testing installation.
 
 ---
 
@@ -601,8 +639,10 @@ The build should now proceed with MSI compilation. Additional issues may arise d
 | `CustomActions.Tests/CustomActions.Tests.csproj` | Package refs, target framework |
 | `WixSetup/WixSharpCompatExtensions.cs` | **NEW FILE** - NineDigit replacement |
 | `WixSetup/Program.cs` | Compiler options migration |
-| `WixSetup/Datadog Agent/AgentInstaller.cs` | Removed NineDigit using, fixed Dirs, removed InstallPrivileges, WixFailWhenDeferred→util:FailWhenDeferred |
-| `WixSetup/Datadog Installer/DatadogInstaller.cs` | Removed NineDigit using, removed InstallPrivileges, added XElement using, WixFailWhenDeferred→util:FailWhenDeferred |
+| `WixSetup/Datadog Agent/AgentInstaller.cs` | Removed NineDigit using, fixed Dirs, removed InstallPrivileges, WixFailWhenDeferred→util:FailWhenDeferred, SummaryInformation |
+| `WixSetup/Datadog Installer/DatadogInstaller.cs` | Removed NineDigit using, removed InstallPrivileges, added XElement using, WixFailWhenDeferred→util:FailWhenDeferred, SummaryInformation |
+| `WixSetup/Datadog Agent/AgentCustomActions.cs` | Lambda→method group for all 36 custom actions |
+| `WixSetup/Datadog Installer/DatadogInstallerCustomActions.cs` | Lambda→method group for all 9 custom actions |
 | `tasks/msi.py` | Added migration note to MakeSfxCA workaround |
 | 29 source files | Namespace change: `Microsoft.Deployment.WindowsInstaller` → `WixToolset.Dtf.WindowsInstaller` |
 

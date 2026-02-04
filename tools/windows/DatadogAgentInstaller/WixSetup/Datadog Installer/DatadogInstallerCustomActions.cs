@@ -19,7 +19,7 @@ namespace WixSetup.Datadog_Installer
         {
             RunAsAdmin = new CustomAction<CustomActions>(
                 new Id(nameof(RunAsAdmin)),
-                session => CustomActions.EnsureAdminCaller(session),
+                CustomActions.EnsureAdminCaller,
                 Return.check,
                 When.After,
                 Step.AppSearch,
@@ -29,7 +29,7 @@ namespace WixSetup.Datadog_Installer
 
             ReadInstallState = new CustomAction<CustomActions>(
                 new Id(nameof(ReadInstallState)),
-                session => CustomActions.ReadInstallState(session),
+                CustomActions.ReadInstallState,
                 Return.check,
                 When.After,
                 new Step(RunAsAdmin.Id),
@@ -42,7 +42,7 @@ namespace WixSetup.Datadog_Installer
 
             ProcessDdAgentUserCredentials = new CustomAction<CustomActions>(
                     new Id(nameof(ProcessDdAgentUserCredentials)),
-                    session => CustomActions.ProcessDdAgentUserCredentials(session),
+                    CustomActions.ProcessDdAgentUserCredentials,
                     Return.check,
                     // Run at end of "config phase", right before the "make changes" phase.
                     // Ensure no actions that modify the input properties are run after this action.
@@ -59,7 +59,7 @@ namespace WixSetup.Datadog_Installer
 
             ReadConfig = new CustomAction<CustomActions>(
                 new Id(nameof(ReadConfig)),
-                session => CustomActions.ReadConfig(session),
+                CustomActions.ReadConfig,
                 Return.ignore,
                 When.After,
                 Step.CostFinalize,
@@ -73,7 +73,7 @@ namespace WixSetup.Datadog_Installer
 
             OpenMsiLog = new CustomAction<CustomActions>(
                 new Id(nameof(OpenMsiLog)),
-                session => CustomActions.OpenMsiLog(session)
+                CustomActions.OpenMsiLog
             )
             {
                 // Not run in a sequence, run from button on fatalError dialog
@@ -82,7 +82,7 @@ namespace WixSetup.Datadog_Installer
 
             WriteInstallState = new CustomAction<CustomActions>(
                     new Id(nameof(WriteInstallState)),
-                    session => CustomActions.WriteInstallState(session),
+                    CustomActions.WriteInstallState,
                     Return.check,
                     When.Before,
                     Step.StartServices,
@@ -100,7 +100,7 @@ namespace WixSetup.Datadog_Installer
 
             RollbackWriteInstallState = new CustomAction<CustomActions>(
                     new Id(nameof(RollbackWriteInstallState)),
-                    session => CustomActions.DeleteInstallState(session),
+                    CustomActions.DeleteInstallState,
                     Return.check,
                     When.Before,
                     new Step(WriteInstallState.Id),
@@ -118,7 +118,7 @@ namespace WixSetup.Datadog_Installer
 
             DeleteInstallState = new CustomAction<CustomActions>(
                 new Id(nameof(DeleteInstallState)),
-                session => CustomActions.DeleteInstallState(session),
+                CustomActions.DeleteInstallState,
                 Return.check,
                 // Since this CA removes registry values it must run before the built-in RemoveRegistryValues
                 // so that the built-in registry keys can be removed if they are empty.
@@ -134,7 +134,7 @@ namespace WixSetup.Datadog_Installer
 
             RollbackDeleteInstallState = new CustomAction<CustomActions>(
                 new Id(nameof(RollbackDeleteInstallState)),
-                session => CustomActions.WriteInstallState(session),
+                CustomActions.WriteInstallState,
                 Return.check,
                 When.Before,
                 new Step(DeleteInstallState.Id),
