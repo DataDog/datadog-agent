@@ -7,7 +7,6 @@
 package fx
 
 import (
-	compliance "github.com/DataDog/datadog-agent/comp/security/compliance/def"
 	complianceimpl "github.com/DataDog/datadog-agent/comp/security/compliance/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -18,6 +17,5 @@ func Module() fxutil.Module {
 		fxutil.ProvideComponentConstructor(
 			complianceimpl.NewComponent,
 		),
-		fxutil.ProvideOptional[compliance.Component](),
 	)
 }
