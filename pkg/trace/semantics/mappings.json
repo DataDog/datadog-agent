@@ -10,18 +10,18 @@
       "canonical": "peer.hostname",
       "subsystems": ["stats"],
       "fallbacks": [
-        {"name": "peer.hostname", "provider": "datadog"},
-        {"name": "hostname", "provider": "datadog"},
-        {"name": "net.peer.name", "provider": "otel", "version": "1.6.1"},
-        {"name": "db.hostname", "provider": "datadog"},
-        {"name": "network.destination.name", "provider": "otel", "version": "1.17.0"},
-        {"name": "grpc.host", "provider": "datadog"},
-        {"name": "http.host", "provider": "datadog"},
-        {"name": "server.address", "provider": "otel", "version": "1.17.0"},
-        {"name": "http.server_name", "provider": "datadog"},
-        {"name": "out.host", "provider": "datadog"},
-        {"name": "dns.hostname", "provider": "datadog"},
-        {"name": "network.destination.ip", "provider": "otel", "version": "1.17.0"}
+        {"name": "peer.hostname", "provider": "datadog", "type": "string"},
+        {"name": "hostname", "provider": "datadog", "type": "string"},
+        {"name": "net.peer.name", "provider": "otel", "type": "string"},
+        {"name": "db.hostname", "provider": "datadog", "type": "string"},
+        {"name": "network.destination.name", "provider": "otel", "version": "1.21.0", "type": "string"},
+        {"name": "grpc.host", "provider": "datadog", "type": "string"},
+        {"name": "http.host", "provider": "datadog", "type": "string"},
+        {"name": "server.address", "provider": "otel", "version": "1.21.0", "type": "string"},
+        {"name": "http.server_name", "provider": "datadog", "type": "string"},
+        {"name": "out.host", "provider": "datadog", "type": "string"},
+        {"name": "dns.hostname", "provider": "datadog", "type": "string"},
+        {"name": "network.destination.ip", "provider": "otel", "version": "1.21.0", "type": "string"}
       ]
     },
     "_dd.base_service": {
@@ -33,110 +33,110 @@
       "canonical": "peer.db.name",
       "subsystems": ["stats"],
       "fallbacks": [
-        {"name": "db.name", "provider": "otel", "version": "1.6.1"},
-        {"name": "mongodb.db", "provider": "datadog"},
-        {"name": "db.instance", "provider": "otel"},
-        {"name": "cassandra.keyspace", "provider": "datadog"},
-        {"name": "db.namespace", "provider": "otel", "version": "1.26.0"}
+        {"name": "db.name", "provider": "otel", "type": "string"},
+        {"name": "mongodb.db", "provider": "datadog", "type": "string"},
+        {"name": "db.instance", "provider": "otel", "type": "string"},
+        {"name": "cassandra.keyspace", "provider": "datadog", "type": "string"},
+        {"name": "db.namespace", "provider": "otel", "version": "1.24.0", "type": "string"}
       ]
     },
     "peer.db.system": {
       "canonical": "peer.db.system",
       "subsystems": ["stats"],
       "fallbacks": [
-        {"name": "db.system", "provider": "otel", "version": "1.6.1"},
-        {"name": "active_record.db.vendor", "provider": "datadog"},
-        {"name": "db.type", "provider": "datadog"},
-        {"name": "sequel.db.vendor", "provider": "datadog"}
+        {"name": "db.system", "provider": "otel", "type": "string"},
+        {"name": "active_record.db.vendor", "provider": "datadog", "type": "string"},
+        {"name": "db.type", "provider": "datadog", "type": "string"},
+        {"name": "sequel.db.vendor", "provider": "datadog", "type": "string"}
       ]
     },
     "peer.cassandra.contact.points": {
       "canonical": "peer.cassandra.contact.points",
       "subsystems": ["stats"],
       "fallbacks": [
-        {"name": "db.cassandra.contact.points", "provider": "otel"}
+        {"name": "db.cassandra.contact.points", "provider": "otel", "type": "string"}
       ]
     },
     "peer.couchbase.seed.nodes": {
       "canonical": "peer.couchbase.seed.nodes",
       "subsystems": ["stats"],
       "fallbacks": [
-        {"name": "db.couchbase.seed.nodes", "provider": "otel"}
+        {"name": "db.couchbase.seed.nodes", "provider": "otel", "type": "string"}
       ]
     },
     "peer.messaging.destination": {
       "canonical": "peer.messaging.destination",
       "subsystems": ["stats"],
       "fallbacks": [
-        {"name": "topicname", "provider": "datadog"},
-        {"name": "messaging.destination", "provider": "otel", "version": "1.6.1"},
-        {"name": "messaging.destination.name", "provider": "otel", "version": "1.17.0"},
-        {"name": "messaging.rabbitmq.exchange", "provider": "otel"},
-        {"name": "amqp.destination", "provider": "datadog"},
-        {"name": "amqp.queue", "provider": "datadog"},
-        {"name": "amqp.exchange", "provider": "datadog"},
-        {"name": "msmq.queue.path", "provider": "datadog"},
-        {"name": "aws.queue.name", "provider": "datadog"}
+        {"name": "topicname", "provider": "datadog", "type": "string"},
+        {"name": "messaging.destination", "provider": "otel", "type": "string"},
+        {"name": "messaging.destination.name", "provider": "otel", "version": "1.21.0", "type": "string"},
+        {"name": "messaging.rabbitmq.exchange", "provider": "otel", "type": "string"},
+        {"name": "amqp.destination", "provider": "datadog", "type": "string"},
+        {"name": "amqp.queue", "provider": "datadog", "type": "string"},
+        {"name": "amqp.exchange", "provider": "datadog", "type": "string"},
+        {"name": "msmq.queue.path", "provider": "datadog", "type": "string"},
+        {"name": "aws.queue.name", "provider": "datadog", "type": "string"}
       ]
     },
     "peer.messaging.system": {
       "canonical": "peer.messaging.system",
       "subsystems": ["stats"],
       "fallbacks": [
-        {"name": "messaging.system", "provider": "otel", "version": "1.6.1"}
+        {"name": "messaging.system", "provider": "otel", "type": "string"}
       ]
     },
     "peer.kafka.bootstrap.servers": {
       "canonical": "peer.kafka.bootstrap.servers",
       "subsystems": ["stats"],
       "fallbacks": [
-        {"name": "messaging.kafka.bootstrap.servers", "provider": "otel"}
+        {"name": "messaging.kafka.bootstrap.servers", "provider": "otel", "type": "string"}
       ]
     },
     "peer.rpc.service": {
       "canonical": "peer.rpc.service",
       "subsystems": ["stats"],
       "fallbacks": [
-        {"name": "rpc.service", "provider": "otel", "version": "1.6.1"}
+        {"name": "rpc.service", "provider": "otel", "type": "string"}
       ]
     },
     "peer.rpc.system": {
       "canonical": "peer.rpc.system",
       "subsystems": ["stats"],
       "fallbacks": [
-        {"name": "rpc.system", "provider": "otel", "version": "1.6.1"}
+        {"name": "rpc.system", "provider": "otel", "type": "string"}
       ]
     },
     "peer.aws.s3.bucket": {
       "canonical": "peer.aws.s3.bucket",
       "subsystems": ["stats"],
       "fallbacks": [
-        {"name": "bucketname", "provider": "datadog"},
-        {"name": "aws.s3.bucket", "provider": "otel"}
+        {"name": "bucketname", "provider": "datadog", "type": "string"},
+        {"name": "aws.s3.bucket", "provider": "otel", "type": "string"}
       ]
     },
     "peer.aws.sqs.queue": {
       "canonical": "peer.aws.sqs.queue",
       "subsystems": ["stats"],
       "fallbacks": [
-        {"name": "queuename", "provider": "datadog"},
-        {"name": "aws.sqs.queue", "provider": "otel"}
+        {"name": "queuename", "provider": "datadog", "type": "string"},
+        {"name": "aws.sqs.queue", "provider": "otel", "type": "string"}
       ]
     },
     "peer.aws.dynamodb.table": {
       "canonical": "peer.aws.dynamodb.table",
       "subsystems": ["stats"],
       "fallbacks": [
-        {"name": "tablename", "provider": "datadog"},
-        {"name": "aws.dynamodb.table", "provider": "otel"}
+        {"name": "tablename", "provider": "datadog", "type": "string"},
+        {"name": "aws.dynamodb.table", "provider": "otel", "type": "string"}
       ]
     },
     "peer.aws.kinesis.stream": {
       "canonical": "peer.aws.kinesis.stream",
       "subsystems": ["stats"],
       "fallbacks": [
-        {"name": "streamname", "provider": "datadog"},
-        {"name": "aws.kinesis.stream", "provider": "otel"}
+        {"name": "streamname", "provider": "datadog", "type": "string"},
+        {"name": "aws.kinesis.stream", "provider": "otel", "type": "string"}
       ]
     },
     "http.status_code": {
@@ -145,22 +145,22 @@
       "fallbacks": [
         {"name": "http.status_code", "provider": "datadog", "type": "int64"},
         {"name": "http.status_code", "provider": "datadog", "type": "string"},
-        {"name": "http.response.status_code", "provider": "otel", "version": "1.23.0", "type": "int64"}
+        {"name": "http.response.status_code", "provider": "otel", "version": "1.21.0", "type": "string"}
       ]
     },
     "http.method": {
       "canonical": "http.method",
       "subsystems": ["stats", "normalization"],
       "fallbacks": [
-        {"name": "http.request.method", "provider": "otel", "version": "1.23.0"},
-        {"name": "http.method", "provider": "otel", "version": "1.6.1"}
+        {"name": "http.request.method", "provider": "otel", "version": "1.21.0", "type": "string"},
+        {"name": "http.method", "provider": "otel", "type": "string"}
       ]
     },
     "http.route": {
       "canonical": "http.route",
       "subsystems": ["stats", "normalization"],
       "fallbacks": [
-        {"name": "http.route", "provider": "otel", "version": "1.6.1"}
+        {"name": "http.route", "provider": "otel", "version": "1.21.0", "type": "string"}
       ]
     },
     "rpc.grpc.status_code": {
@@ -179,17 +179,17 @@
       "canonical": "span.kind",
       "subsystems": ["stats", "normalization"],
       "fallbacks": [
-        {"name": "span.kind", "provider": "datadog"}
+        {"name": "span.kind", "provider": "otel", "type": "string"}
       ]
     },
     "db.query": {
       "canonical": "db.query",
       "subsystems": ["obfuscation", "normalization"],
       "fallbacks": [
-        {"name": "db.query.text", "provider": "otel", "version": "1.26.0"},
-        {"name": "db.statement", "provider": "otel", "version": "1.6.1"},
-        {"name": "sql.query", "provider": "datadog"},
-        {"name": "mongodb.query", "provider": "datadog"}
+        {"name": "db.query.text", "provider": "otel", "version": "1.24.0", "type": "string"},
+        {"name": "db.statement", "provider": "otel", "type": "string"},
+        {"name": "sql.query", "provider": "datadog", "type": "string"},
+        {"name": "mongodb.query", "provider": "datadog", "type": "string"}
       ]
     },
     "mongodb.query": {
@@ -226,77 +226,63 @@
       "canonical": "http.url",
       "subsystems": ["obfuscation"],
       "fallbacks": [
-        {"name": "http.url", "provider": "otel", "version": "1.6.1"}
+        {"name": "http.url", "provider": "otel", "type": "string"}
       ]
     },
     "messaging.operation": {
       "canonical": "messaging.operation",
       "subsystems": ["normalization"],
       "fallbacks": [
-        {"name": "messaging.operation", "provider": "otel", "version": "1.6.1"}
+        {"name": "messaging.operation", "provider": "otel", "type": "string"}
       ]
     },
     "graphql.operation.type": {
       "canonical": "graphql.operation.type",
       "subsystems": ["normalization"],
       "fallbacks": [
-        {"name": "graphql.operation.type", "provider": "otel", "version": "1.17.0"}
+        {"name": "graphql.operation.type", "provider": "otel", "type": "string"}
       ]
     },
     "graphql.operation.name": {
       "canonical": "graphql.operation.name",
       "subsystems": ["normalization"],
       "fallbacks": [
-        {"name": "graphql.operation.name", "provider": "otel", "version": "1.17.0"}
+        {"name": "graphql.operation.name", "provider": "otel", "type": "string"}
       ]
     },
     "faas.invoked.provider": {
       "canonical": "faas.invoked.provider",
       "subsystems": ["normalization"],
       "fallbacks": [
-        {"name": "faas.invoked_provider", "provider": "otel", "version": "1.6.1"}
+        {"name": "faas.invoked_provider", "provider": "otel", "type": "string"}
       ]
     },
     "faas.invoked.name": {
       "canonical": "faas.invoked.name",
       "subsystems": ["normalization"],
       "fallbacks": [
-        {"name": "faas.invoked_name", "provider": "otel", "version": "1.6.1"}
+        {"name": "faas.invoked_name", "provider": "otel", "type": "string"}
       ]
     },
     "faas.trigger": {
       "canonical": "faas.trigger",
       "subsystems": ["normalization"],
       "fallbacks": [
-        {"name": "faas.trigger", "provider": "otel", "version": "1.6.1"}
+        {"name": "faas.trigger", "provider": "otel", "type": "string"}
       ]
     },
     "network.protocol.name": {
       "canonical": "network.protocol.name",
       "subsystems": ["normalization"],
       "fallbacks": [
-        {"name": "network.protocol.name", "provider": "otel", "version": "1.17.0"}
+        {"name": "network.protocol.name", "provider": "otel", "version": "1.21.0", "type": "string"}
       ]
     },
     "rpc.method": {
       "canonical": "rpc.method",
       "subsystems": ["normalization"],
       "fallbacks": [
-        {"name": "rpc.method", "provider": "otel", "version": "1.6.1"}
-      ]
-    },
-    "rpc.service": {
-      "canonical": "rpc.service",
-      "subsystems": ["normalization"],
-      "fallbacks": [
-        {"name": "rpc.service", "provider": "otel", "version": "1.6.1"}
-      ]
-    },
-    "rpc.system": {
-      "canonical": "rpc.system",
-      "subsystems": ["normalization"],
-      "fallbacks": [
-        {"name": "rpc.system", "provider": "otel", "version": "1.6.1"}
+        {"name": "rpc.method", "provider": "otel", "type": "string"}
       ]
     },
     "component": {
@@ -318,8 +304,8 @@
       "canonical": "_dd.top_level",
       "subsystems": ["sampling"],
       "fallbacks": [
-        {"name": "_dd.top_level", "provider": "datadog"},
-        {"name": "_top_level", "provider": "datadog"}
+        {"name": "_dd.top_level", "provider": "datadog", "type": "float64"},
+        {"name": "_top_level", "provider": "datadog", "type": "float64"}
       ]
     },
     "_sampling_priority_v1": {
@@ -341,45 +327,6 @@
       "canonical": "_dd.partial_version",
       "subsystems": ["sampling"],
       "fallbacks": []
-    },
-    "db.system": {
-      "canonical": "db.system",
-      "subsystems": ["normalization"],
-      "fallbacks": [
-        {"name": "db.system", "provider": "otel", "version": "1.6.1"}
-      ]
-    },
-    "db.name": {
-      "canonical": "db.name",
-      "subsystems": ["normalization"],
-      "fallbacks": [
-        {"name": "db.name", "provider": "otel", "version": "1.6.1"},
-        {"name": "db.namespace", "provider": "otel", "version": "1.26.0"}
-      ]
-    },
-    "env": {
-      "canonical": "env",
-      "subsystems": ["normalization"],
-      "fallbacks": [
-        {"name": "env", "provider": "datadog"},
-        {"name": "deployment.environment.name", "provider": "otel", "version": "1.27.0"},
-        {"name": "deployment.environment", "provider": "otel", "version": "1.17.0"}
-      ]
-    },
-    "version": {
-      "canonical": "version",
-      "subsystems": ["normalization"],
-      "fallbacks": [
-        {"name": "version", "provider": "datadog"},
-        {"name": "service.version", "provider": "otel", "version": "1.6.1"}
-      ]
-    },
-    "service.name": {
-      "canonical": "service.name",
-      "subsystems": ["normalization"],
-      "fallbacks": [
-        {"name": "service.name", "provider": "otel", "version": "1.6.1"}
-      ]
     }
   }
 }

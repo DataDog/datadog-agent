@@ -85,15 +85,8 @@ const (
 	ConceptFaaSTrigger          Concept = "faas.trigger"
 	ConceptNetworkProtocolName  Concept = "network.protocol.name"
 	ConceptRPCMethod            Concept = "rpc.method"
-	ConceptRPCService           Concept = "rpc.service"
-	ConceptRPCSystem            Concept = "rpc.system"
 	ConceptComponent            Concept = "component"
 	ConceptLinkName             Concept = "link.name"
-	ConceptDBSystem             Concept = "db.system"
-	ConceptDBName               Concept = "db.name"
-	ConceptEnv                  Concept = "env"
-	ConceptVersion              Concept = "version"
-	ConceptServiceName          Concept = "service.name"
 )
 
 // Sampling

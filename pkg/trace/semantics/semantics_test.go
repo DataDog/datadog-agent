@@ -32,10 +32,10 @@ func TestGetAttributePrecedence_KnownConcept(t *testing.T) {
 			name:    "db.query chain",
 			concept: ConceptDBQuery,
 			expected: []TagInfo{
-				{Name: "db.query.text", Provider: ProviderOTel, Version: "1.26.0"},
-				{Name: "db.statement", Provider: ProviderOTel, Version: "1.6.1"},
-				{Name: "sql.query", Provider: ProviderDatadog},
-				{Name: "mongodb.query", Provider: ProviderDatadog},
+				{Name: "db.query.text", Provider: ProviderOTel, Version: "1.24.0", Type: ValueTypeString},
+				{Name: "db.statement", Provider: ProviderOTel, Type: ValueTypeString},
+				{Name: "sql.query", Provider: ProviderDatadog, Type: ValueTypeString},
+				{Name: "mongodb.query", Provider: ProviderDatadog, Type: ValueTypeString},
 			},
 		},
 		{
@@ -44,25 +44,25 @@ func TestGetAttributePrecedence_KnownConcept(t *testing.T) {
 			expected: []TagInfo{
 				{Name: "http.status_code", Provider: ProviderDatadog, Type: ValueTypeInt64},
 				{Name: "http.status_code", Provider: ProviderDatadog, Type: ValueTypeString},
-				{Name: "http.response.status_code", Provider: ProviderOTel, Version: "1.23.0", Type: ValueTypeInt64},
+				{Name: "http.response.status_code", Provider: ProviderOTel, Version: "1.21.0", Type: ValueTypeString},
 			},
 		},
 		{
 			name:    "peer.hostname chain",
 			concept: ConceptPeerHostname,
 			expected: []TagInfo{
-				{Name: "peer.hostname", Provider: ProviderDatadog},
-				{Name: "hostname", Provider: ProviderDatadog},
-				{Name: "net.peer.name", Provider: ProviderOTel, Version: "1.6.1"},
-				{Name: "db.hostname", Provider: ProviderDatadog},
-				{Name: "network.destination.name", Provider: ProviderOTel, Version: "1.17.0"},
-				{Name: "grpc.host", Provider: ProviderDatadog},
-				{Name: "http.host", Provider: ProviderDatadog},
-				{Name: "server.address", Provider: ProviderOTel, Version: "1.17.0"},
-				{Name: "http.server_name", Provider: ProviderDatadog},
-				{Name: "out.host", Provider: ProviderDatadog},
-				{Name: "dns.hostname", Provider: ProviderDatadog},
-				{Name: "network.destination.ip", Provider: ProviderOTel, Version: "1.17.0"},
+				{Name: "peer.hostname", Provider: ProviderDatadog, Type: ValueTypeString},
+				{Name: "hostname", Provider: ProviderDatadog, Type: ValueTypeString},
+				{Name: "net.peer.name", Provider: ProviderOTel, Type: ValueTypeString},
+				{Name: "db.hostname", Provider: ProviderDatadog, Type: ValueTypeString},
+				{Name: "network.destination.name", Provider: ProviderOTel, Version: "1.21.0", Type: ValueTypeString},
+				{Name: "grpc.host", Provider: ProviderDatadog, Type: ValueTypeString},
+				{Name: "http.host", Provider: ProviderDatadog, Type: ValueTypeString},
+				{Name: "server.address", Provider: ProviderOTel, Version: "1.21.0", Type: ValueTypeString},
+				{Name: "http.server_name", Provider: ProviderDatadog, Type: ValueTypeString},
+				{Name: "out.host", Provider: ProviderDatadog, Type: ValueTypeString},
+				{Name: "dns.hostname", Provider: ProviderDatadog, Type: ValueTypeString},
+				{Name: "network.destination.ip", Provider: ProviderOTel, Version: "1.21.0", Type: ValueTypeString},
 			},
 		},
 		{
@@ -81,51 +81,34 @@ func TestGetAttributePrecedence_KnownConcept(t *testing.T) {
 			name:    "http.method chain",
 			concept: ConceptHTTPMethod,
 			expected: []TagInfo{
-				{Name: "http.request.method", Provider: ProviderOTel, Version: "1.23.0"},
-				{Name: "http.method", Provider: ProviderOTel, Version: "1.6.1"},
-			},
-		},
-		{
-			name:    "env chain",
-			concept: ConceptEnv,
-			expected: []TagInfo{
-				{Name: "env", Provider: ProviderDatadog},
-				{Name: "deployment.environment.name", Provider: ProviderOTel, Version: "1.27.0"},
-				{Name: "deployment.environment", Provider: ProviderOTel, Version: "1.17.0"},
-			},
-		},
-		{
-			name:    "version chain",
-			concept: ConceptVersion,
-			expected: []TagInfo{
-				{Name: "version", Provider: ProviderDatadog},
-				{Name: "service.version", Provider: ProviderOTel, Version: "1.6.1"},
+				{Name: "http.request.method", Provider: ProviderOTel, Version: "1.21.0", Type: ValueTypeString},
+				{Name: "http.method", Provider: ProviderOTel, Type: ValueTypeString},
 			},
 		},
 		{
 			name:    "peer.db.name chain",
 			concept: ConceptPeerDBName,
 			expected: []TagInfo{
-				{Name: "db.name", Provider: ProviderOTel, Version: "1.6.1"},
-				{Name: "mongodb.db", Provider: ProviderDatadog},
-				{Name: "db.instance", Provider: ProviderOTel},
-				{Name: "cassandra.keyspace", Provider: ProviderDatadog},
-				{Name: "db.namespace", Provider: ProviderOTel, Version: "1.26.0"},
+				{Name: "db.name", Provider: ProviderOTel, Type: ValueTypeString},
+				{Name: "mongodb.db", Provider: ProviderDatadog, Type: ValueTypeString},
+				{Name: "db.instance", Provider: ProviderOTel, Type: ValueTypeString},
+				{Name: "cassandra.keyspace", Provider: ProviderDatadog, Type: ValueTypeString},
+				{Name: "db.namespace", Provider: ProviderOTel, Version: "1.24.0", Type: ValueTypeString},
 			},
 		},
 		{
 			name:    "peer.messaging.destination chain",
 			concept: ConceptPeerMessagingDestination,
 			expected: []TagInfo{
-				{Name: "topicname", Provider: ProviderDatadog},
-				{Name: "messaging.destination", Provider: ProviderOTel, Version: "1.6.1"},
-				{Name: "messaging.destination.name", Provider: ProviderOTel, Version: "1.17.0"},
-				{Name: "messaging.rabbitmq.exchange", Provider: ProviderOTel},
-				{Name: "amqp.destination", Provider: ProviderDatadog},
-				{Name: "amqp.queue", Provider: ProviderDatadog},
-				{Name: "amqp.exchange", Provider: ProviderDatadog},
-				{Name: "msmq.queue.path", Provider: ProviderDatadog},
-				{Name: "aws.queue.name", Provider: ProviderDatadog},
+				{Name: "topicname", Provider: ProviderDatadog, Type: ValueTypeString},
+				{Name: "messaging.destination", Provider: ProviderOTel, Type: ValueTypeString},
+				{Name: "messaging.destination.name", Provider: ProviderOTel, Version: "1.21.0", Type: ValueTypeString},
+				{Name: "messaging.rabbitmq.exchange", Provider: ProviderOTel, Type: ValueTypeString},
+				{Name: "amqp.destination", Provider: ProviderDatadog, Type: ValueTypeString},
+				{Name: "amqp.queue", Provider: ProviderDatadog, Type: ValueTypeString},
+				{Name: "amqp.exchange", Provider: ProviderDatadog, Type: ValueTypeString},
+				{Name: "msmq.queue.path", Provider: ProviderDatadog, Type: ValueTypeString},
+				{Name: "aws.queue.name", Provider: ProviderDatadog, Type: ValueTypeString},
 			},
 		},
 	}
@@ -224,7 +207,7 @@ func TestGetAllEquivalences(t *testing.T) {
 	require.NotNil(t, all)
 
 	// Check that we have a reasonable number of concepts
-	assert.GreaterOrEqual(t, len(all), 40, "expected at least 40 concepts")
+	assert.GreaterOrEqual(t, len(all), 35, "expected at least 35 concepts")
 
 	// Verify some known concepts exist
 	_, ok := all[ConceptDBQuery]
@@ -255,23 +238,25 @@ func TestTagInfoMetadata(t *testing.T) {
 		require.NotNil(t, tags)
 		require.Len(t, tags, 4)
 
-		// Verify OTel tags have versions
+		// Verify OTel tags have correct provider, version (where applicable), and explicit types
 		assert.Equal(t, "db.query.text", tags[0].Name)
 		assert.Equal(t, ProviderOTel, tags[0].Provider)
-		assert.Equal(t, "1.26.0", tags[0].Version)
+		assert.Equal(t, "1.24.0", tags[0].Version)
+		assert.Equal(t, ValueTypeString, tags[0].Type)
 
 		assert.Equal(t, "db.statement", tags[1].Name)
 		assert.Equal(t, ProviderOTel, tags[1].Provider)
-		assert.Equal(t, "1.6.1", tags[1].Version)
+		assert.Empty(t, tags[1].Version) // deprecated, version not specified
+		assert.Equal(t, ValueTypeString, tags[1].Type)
 
-		// Verify Datadog tags do not have versions
+		// Verify Datadog tags have correct provider and explicit types
 		assert.Equal(t, "sql.query", tags[2].Name)
 		assert.Equal(t, ProviderDatadog, tags[2].Provider)
-		assert.Empty(t, tags[2].Version)
+		assert.Equal(t, ValueTypeString, tags[2].Type)
 
 		assert.Equal(t, "mongodb.query", tags[3].Name)
 		assert.Equal(t, ProviderDatadog, tags[3].Provider)
-		assert.Empty(t, tags[3].Version)
+		assert.Equal(t, ValueTypeString, tags[3].Type)
 	})
 
 	t.Run("_dd.top_level metadata", func(t *testing.T) {
@@ -281,9 +266,11 @@ func TestTagInfoMetadata(t *testing.T) {
 
 		assert.Equal(t, "_dd.top_level", tags[0].Name)
 		assert.Equal(t, ProviderDatadog, tags[0].Provider)
+		assert.Equal(t, ValueTypeFloat64, tags[0].Type)
 
 		assert.Equal(t, "_top_level", tags[1].Name)
 		assert.Equal(t, ProviderDatadog, tags[1].Provider)
+		assert.Equal(t, ValueTypeFloat64, tags[1].Type)
 	})
 }
 
@@ -296,17 +283,18 @@ func TestTypeMetadata(t *testing.T) {
 		require.NotNil(t, tags)
 		require.Len(t, tags, 3)
 
-		// First: int64 type (numeric)
+		// First: int64 type (numeric in Metrics)
 		assert.Equal(t, "http.status_code", tags[0].Name)
 		assert.Equal(t, ValueTypeInt64, tags[0].Type)
 
-		// Second: string type
+		// Second: string type (in Meta)
 		assert.Equal(t, "http.status_code", tags[1].Name)
 		assert.Equal(t, ValueTypeString, tags[1].Type)
 
-		// Third: OTel int64 type
+		// Third: OTel string type (in Meta) with version
 		assert.Equal(t, "http.response.status_code", tags[2].Name)
-		assert.Equal(t, ValueTypeInt64, tags[2].Type)
+		assert.Equal(t, "1.21.0", tags[2].Version)
+		assert.Equal(t, ValueTypeString, tags[2].Type)
 	})
 
 	t.Run("rpc.grpc.status_code type chain", func(t *testing.T) {
@@ -314,14 +302,107 @@ func TestTypeMetadata(t *testing.T) {
 		require.NotNil(t, tags)
 		require.Len(t, tags, 6)
 
-		// First 4 should be int64 type
+		// First 4 should be int64 type (in Metrics)
 		for i := 0; i < 4; i++ {
 			assert.Equal(t, ValueTypeInt64, tags[i].Type, "tag[%d] should be int64 type", i)
 		}
 
-		// Last 2 should be string type
+		// Last 2 should be string type (in Meta)
 		for i := 4; i < 6; i++ {
 			assert.Equal(t, ValueTypeString, tags[i].Type, "tag[%d] should be string type", i)
+		}
+	})
+}
+
+func TestVersionMetadata(t *testing.T) {
+	r, err := NewEmbeddedRegistry()
+	require.NoError(t, err)
+
+	t.Run("stable HTTP attributes have version 1.21.0", func(t *testing.T) {
+		tags := r.GetAttributePrecedence(ConceptHTTPMethod)
+		require.NotNil(t, tags)
+		require.Len(t, tags, 2)
+
+		// http.request.method is stable in 1.21.0
+		assert.Equal(t, "http.request.method", tags[0].Name)
+		assert.Equal(t, "1.21.0", tags[0].Version)
+
+		// http.method is deprecated, no version
+		assert.Equal(t, "http.method", tags[1].Name)
+		assert.Empty(t, tags[1].Version)
+	})
+
+	t.Run("stable DB attributes have version 1.24.0", func(t *testing.T) {
+		tags := r.GetAttributePrecedence(ConceptDBQuery)
+		require.NotNil(t, tags)
+
+		// db.query.text is stable in 1.24.0
+		assert.Equal(t, "db.query.text", tags[0].Name)
+		assert.Equal(t, "1.24.0", tags[0].Version)
+
+		// db.statement is deprecated, no version
+		assert.Equal(t, "db.statement", tags[1].Name)
+		assert.Empty(t, tags[1].Version)
+	})
+
+	t.Run("network attributes have version 1.21.0", func(t *testing.T) {
+		tags := r.GetAttributePrecedence(ConceptPeerHostname)
+		require.NotNil(t, tags)
+
+		// Find network.destination.name and server.address
+		var networkDestName, serverAddr *TagInfo
+		for i := range tags {
+			if tags[i].Name == "network.destination.name" {
+				networkDestName = &tags[i]
+			}
+			if tags[i].Name == "server.address" {
+				serverAddr = &tags[i]
+			}
+		}
+
+		require.NotNil(t, networkDestName, "expected network.destination.name in fallbacks")
+		assert.Equal(t, "1.21.0", networkDestName.Version)
+
+		require.NotNil(t, serverAddr, "expected server.address in fallbacks")
+		assert.Equal(t, "1.21.0", serverAddr.Version)
+	})
+}
+
+func TestProviderMetadata(t *testing.T) {
+	r, err := NewEmbeddedRegistry()
+	require.NoError(t, err)
+
+	t.Run("peer.hostname providers", func(t *testing.T) {
+		tags := r.GetAttributePrecedence(ConceptPeerHostname)
+		require.NotNil(t, tags)
+
+		// Verify Datadog-specific attributes have datadog provider
+		datadogAttrs := map[string]bool{
+			"peer.hostname":    true,
+			"hostname":         true,
+			"db.hostname":      true,
+			"grpc.host":        true,
+			"http.host":        true,
+			"http.server_name": true,
+			"out.host":         true,
+			"dns.hostname":     true,
+		}
+
+		// Verify OTel standard attributes have otel provider
+		otelAttrs := map[string]bool{
+			"net.peer.name":            true,
+			"network.destination.name": true,
+			"server.address":           true,
+			"network.destination.ip":   true,
+		}
+
+		for _, tag := range tags {
+			if datadogAttrs[tag.Name] {
+				assert.Equal(t, ProviderDatadog, tag.Provider, "attribute %s should have datadog provider", tag.Name)
+			}
+			if otelAttrs[tag.Name] {
+				assert.Equal(t, ProviderOTel, tag.Provider, "attribute %s should have otel provider", tag.Name)
+			}
 		}
 	})
 }
@@ -345,8 +426,8 @@ func TestNewRegistryFromJSON(t *testing.T) {
 				"canonical": "test.concept",
 				"subsystems": ["test"],
 				"fallbacks": [
-					{"name": "test.attr1", "provider": "datadog"},
-					{"name": "test.attr2", "provider": "otel", "version": "1.0.0"}
+					{"name": "test.attr1", "provider": "datadog", "type": "string"},
+					{"name": "test.attr2", "provider": "otel", "version": "1.0.0", "type": "string"}
 				]
 			}
 		}
@@ -363,9 +444,11 @@ func TestNewRegistryFromJSON(t *testing.T) {
 	require.Len(t, tags, 2)
 	assert.Equal(t, "test.attr1", tags[0].Name)
 	assert.Equal(t, ProviderDatadog, tags[0].Provider)
+	assert.Equal(t, ValueTypeString, tags[0].Type)
 	assert.Equal(t, "test.attr2", tags[1].Name)
 	assert.Equal(t, ProviderOTel, tags[1].Provider)
 	assert.Equal(t, "1.0.0", tags[1].Version)
+	assert.Equal(t, ValueTypeString, tags[1].Type)
 }
 
 func TestNewRegistryFromJSON_InvalidJSON(t *testing.T) {
