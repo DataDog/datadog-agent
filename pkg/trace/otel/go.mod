@@ -14,7 +14,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.71.0
 	github.com/DataDog/datadog-agent/pkg/trace/stats v0.71.0
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.71.0
-	github.com/DataDog/datadog-go/v5 v5.8.2
+	github.com/DataDog/datadog-go/v5 v5.8.3
 	github.com/google/go-cmp v0.7.0
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/component/componenttest v0.144.0
