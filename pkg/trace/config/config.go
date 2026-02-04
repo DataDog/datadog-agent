@@ -563,7 +563,7 @@ type AgentConfig struct {
 	// SecretsRefreshFn is called when a 403 response is received to trigger
 	// API key refresh from the secrets backend. It returns true if the refresh
 	// was triggered, false if throttled or unavailable.
-	SecretsRefreshFn func() bool `json:"-"`
+	SecretsRefreshFn func() `json:"-"`
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.

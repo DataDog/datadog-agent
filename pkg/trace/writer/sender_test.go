@@ -83,32 +83,16 @@ func TestIsRetriable(t *testing.T) {
 }
 
 func TestSender(t *testing.T) {
-	statsd := &statsd.NoOpClient{}
-	const climit = 100
-	testSenderConfig := func(serverURL string) *senderConfig {
-		url, err := url.Parse(serverURL + "/")
-		if err != nil {
-			t.Fatal(err)
-		}
-		cfg := config.New()
-		cfg.ConnectionResetInterval = 0
-		return &senderConfig{
-			client:     cfg.NewHTTPClient(),
-			url:        url,
-			maxConns:   climit,
-			maxQueued:  40,
-			maxRetries: 4,
-			apiKey:     testAPIKey,
-			userAgent:  "testUserAgent",
-		}
-	}
-
 	t.Run("accept", func(t *testing.T) {
 		assert := assert.New(t)
 		server := newTestServer()
 		defer server.Close()
 
-		s := newSender(testSenderConfig(server.URL), statsd)
+		s, err := newTestSender(server.URL)
+		assert.NoError(err)
+		if err != nil {
+			t.Fatal(err)
+		}
 		for i := 0; i < 20; i++ {
 			s.Push(expectResponses(200))
 		}
@@ -125,8 +109,9 @@ func TestSender(t *testing.T) {
 		server := newTestServerWithLatency(50 * time.Millisecond)
 		defer server.Close()
 
-		s := newSender(testSenderConfig(server.URL), statsd)
-		for i := 0; i < climit*2; i++ {
+		s, err := newTestSender(server.URL)
+		assert.NoError(err)
+		for i := 0; i < s.cfg.maxConns*2; i++ {
 			// we have to sleep for a bit to yield to the receiver, otherwise
 			// the channel will get immediately full.
 			time.Sleep(time.Millisecond)
@@ -134,9 +119,9 @@ func TestSender(t *testing.T) {
 		}
 		s.Stop()
 
-		assert.True(server.Peak() <= climit)
-		assert.Equal(climit*2, server.Total(), "total")
-		assert.Equal(climit*2, server.Accepted(), "accepted")
+		assert.True(server.Peak() <= s.cfg.maxConns)
+		assert.Equal(s.cfg.maxConns*2, server.Total(), "total")
+		assert.Equal(s.cfg.maxConns*2, server.Accepted(), "accepted")
 		assert.Equal(0, server.Retried(), "retry")
 		assert.Equal(0, server.Failed(), "failed")
 	})
@@ -146,7 +131,8 @@ func TestSender(t *testing.T) {
 		server := newTestServer()
 		defer server.Close()
 
-		s := newSender(testSenderConfig(server.URL), statsd)
+		s, err := newTestSender(server.URL)
+		assert.NoError(err)
 		for i := 0; i < 20; i++ {
 			s.Push(expectResponses(404))
 		}
@@ -169,7 +155,8 @@ func TestSender(t *testing.T) {
 			return time.Nanosecond
 		}
 
-		s := newSender(testSenderConfig(server.URL), statsd)
+		s, err := newTestSender(server.URL)
+		assert.NoError(err)
 		s.Push(expectResponses(503, 408, 200))
 		s.Stop()
 
@@ -185,7 +172,8 @@ func TestSender(t *testing.T) {
 		defer server.Close()
 		defer useBackoffDuration(time.Millisecond)()
 
-		s := newSender(testSenderConfig(server.URL), statsd)
+		s, err := newTestSender(server.URL)
+		assert.NoError(err)
 		s.Push(expectResponses(503, 503, 200))
 		for i := 0; i < 20; i++ {
 			s.Push(expectResponses(404))
@@ -209,7 +197,8 @@ func TestSender(t *testing.T) {
 			wg.Done()
 		}))
 		defer server.Close()
-		s := newSender(testSenderConfig(server.URL), statsd)
+		s, err := newTestSender(server.URL)
+		assert.NoError(err)
 		s.Push(expectResponses(http.StatusOK))
 		s.Stop()
 		wg.Wait()
@@ -222,9 +211,10 @@ func TestSender(t *testing.T) {
 		defer useBackoffDuration(0)()
 
 		var recorder mockRecorder
-		cfg := testSenderConfig(server.URL)
-		cfg.recorder = &recorder
-		s := newSender(cfg, statsd)
+
+		s, err := newTestSender(server.URL)
+		assert.NoError(err)
+		s.cfg.recorder = &recorder
 
 		// push a couple of payloads
 		start := time.Now()
@@ -275,10 +265,11 @@ func TestSender(t *testing.T) {
 			defer server.Close()
 		}
 
-		senders := []*sender{
-			newSender(testSenderConfig(servers[0].URL), statsd),
-			newSender(testSenderConfig(servers[1].URL), statsd),
-			newSender(testSenderConfig(servers[2].URL), statsd),
+		senders := make([]*sender, 3)
+		for i := range 3 {
+			s, err := newTestSender(servers[i].URL)
+			assert.NoError(err)
+			senders[i] = s
 		}
 		// Enable and failover MRF on s1, enable and not failover on s2, disabled on s3
 		senders[0].cfg.isMRF = true
@@ -321,14 +312,14 @@ func TestSender(t *testing.T) {
 		server := newTestServer()
 		defer server.Close()
 
+		s, err := newTestSender(server.URL)
+		assert.NoError(err)
+
 		callbackInvoked := false
-		cfg := testSenderConfig(server.URL)
-		cfg.secretsRefreshFn = func() bool {
+		s.apiKeyManager.refreshFn = func() {
 			callbackInvoked = true
-			return true
 		}
 
-		s := newSender(cfg, statsd)
 		s.Push(expectResponses(403))
 		s.Stop()
 
@@ -339,10 +330,9 @@ func TestSender(t *testing.T) {
 		server := newTestServer()
 		defer server.Close()
 
-		cfg := testSenderConfig(server.URL)
-		cfg.secretsRefreshFn = nil
+		s, err := newTestSender(server.URL)
+		assert.NoError(err)
 
-		s := newSender(cfg, statsd)
 		assert.NotPanics(func() {
 			s.Push(expectResponses(403))
 			s.Stop()
@@ -355,14 +345,15 @@ func TestSender(t *testing.T) {
 		defer server.Close()
 		defer useBackoffDuration(time.Nanosecond)()
 
+		s, err := newTestSender(server.URL)
+		assert.NoError(err)
+
 		callbackInvoked := false
-		cfg := testSenderConfig(server.URL)
-		cfg.secretsRefreshFn = func() bool {
+		s.apiKeyManager.refreshFn = func() {
 			callbackInvoked = true
-			return true
 		}
 
-		s := newSender(cfg, statsd)
+		assert.NoError(err)
 		s.Push(expectResponses(403, 403, 200))
 		s.Stop()
 
@@ -461,4 +452,26 @@ func (r *mockRecorder) recordEvent(t eventType, data *eventData) {
 	case eventTypeRejected:
 		r.rejected = append(r.rejected, data)
 	}
+}
+
+func newTestSender(serverURL string) (*sender, error) {
+	url, err := url.Parse(serverURL + "/")
+	if err != nil {
+		return nil, err
+	}
+	cfg := config.New()
+	cfg.ConnectionResetInterval = 0
+	scfg := &senderConfig{
+		client:     cfg.NewHTTPClient(),
+		url:        url,
+		maxConns:   100,
+		maxQueued:  40,
+		maxRetries: 4,
+		userAgent:  "testUserAgent",
+	}
+	apiKeyManager := &apiKeyManager{
+		apiKey: testAPIKey,
+	}
+	statsd := &statsd.NoOpClient{}
+	return newSender(scfg, apiKeyManager, statsd), nil
 }

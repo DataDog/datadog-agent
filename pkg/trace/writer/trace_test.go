@@ -466,15 +466,15 @@ func TestTraceWriterUpdateAPIKey(t *testing.T) {
 	assert.NoError(err)
 
 	assert.Len(tw.senders, 1)
-	assert.Equal("123", tw.senders[0].cfg.apiKey)
+	assert.Equal("123", tw.senders[0].apiKeyManager.Get())
 	assert.Equal(url, tw.senders[0].cfg.url)
 
 	tw.UpdateAPIKey("invalid", "foo")
-	assert.Equal("123", tw.senders[0].cfg.apiKey)
+	assert.Equal("123", tw.senders[0].apiKeyManager.Get())
 	assert.Equal(url, tw.senders[0].cfg.url)
 
 	tw.UpdateAPIKey("123", "foo")
-	assert.Equal("foo", tw.senders[0].cfg.apiKey)
+	assert.Equal("foo", tw.senders[0].apiKeyManager.Get())
 	assert.Equal(url, tw.senders[0].cfg.url)
 }
 
@@ -563,7 +563,7 @@ func BenchmarkMapDelete(b *testing.B) {
 	}
 	for n := 0; n < b.N; n++ {
 		m["_sampling_priority_v1"] = 1
-		//delete(m, "_sampling_priority_v1")
+		// delete(m, "_sampling_priority_v1")
 	}
 }
 
@@ -584,7 +584,7 @@ func BenchmarkSpanProto(b *testing.B) {
 		},
 	}
 	for n := 0; n < b.N; n++ {
-		//proto.Marshal(&s)
+		// proto.Marshal(&s)
 		s.MarshalVT()
 	}
 }

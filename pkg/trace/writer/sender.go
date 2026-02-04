@@ -45,19 +45,23 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 			log.Criticalf("Invalid host endpoint: %q", endpoint.Host)
 			os.Exit(1)
 		}
-		senders[i] = newSender(&senderConfig{
-			client:           cfg.NewHTTPClient(),
-			maxConns:         int(maxConns),
-			maxQueued:        qsize,
-			maxRetries:       cfg.MaxSenderRetries,
-			url:              url,
-			apiKey:           endpoint.APIKey,
-			recorder:         r,
-			userAgent:        fmt.Sprintf("Datadog Trace Agent/%s/%s", cfg.AgentVersion, cfg.GitCommit),
-			isMRF:            endpoint.IsMRF,
-			MRFFailoverAPM:   cfg.MRFFailoverAPM,
-			secretsRefreshFn: cfg.SecretsRefreshFn,
-		}, statsd)
+		scfg := &senderConfig{
+			client:         cfg.NewHTTPClient(),
+			maxConns:       int(maxConns),
+			maxQueued:      qsize,
+			maxRetries:     cfg.MaxSenderRetries,
+			url:            url,
+			recorder:       r,
+			userAgent:      fmt.Sprintf("Datadog Trace Agent/%s/%s", cfg.AgentVersion, cfg.GitCommit),
+			isMRF:          endpoint.IsMRF,
+			MRFFailoverAPM: cfg.MRFFailoverAPM,
+		}
+		apiKeyManager := &apiKeyManager{
+			apiKey:    endpoint.APIKey,
+			refreshFn: cfg.SecretsRefreshFn,
+		}
+
+		senders[i] = newSender(scfg, apiKeyManager, statsd)
 	}
 	return senders
 }
@@ -141,8 +145,6 @@ type senderConfig struct {
 	client *config.ResetClient
 	// url specifies the URL to send requests too.
 	url *url.URL
-	// apiKey specifies the Datadog API key to use.
-	apiKey string
 	// maxConns specifies the maximum number of allowed concurrent ougoing
 	// connections.
 	maxConns int
@@ -161,16 +163,41 @@ type senderConfig struct {
 	isMRF bool
 	// MRFFailoverAPM determines whether APM data should be failed over to the secondary (MRF) DC.
 	MRFFailoverAPM func() bool
-	// secretsRefreshFn is called when a 403 response is received to trigger
-	// API key refresh from the secrets backend. It returns true if the refresh
-	// was triggered, false if throttled or unavailable.
-	secretsRefreshFn func() bool
+}
+
+// apiKeyManager handles API Key access for concurrent use
+type apiKeyManager struct {
+	sync.RWMutex
+	// apiKey specifies the Datadog API key to use.
+	apiKey string
+
+	// refreshFn triggers API key refresh from the secrets backend
+	refreshFn func()
+}
+
+func (m *apiKeyManager) Get() string {
+	m.RLock()
+	defer m.RUnlock()
+	return m.apiKey
+}
+
+func (m *apiKeyManager) Update(newKey string) {
+	m.Lock()
+	defer m.Unlock()
+	m.apiKey = newKey
+}
+
+func (m *apiKeyManager) refresh() {
+	if m.refreshFn != nil {
+		m.refreshFn()
+	}
 }
 
 // sender is responsible for sending payloads to a given URL. It uses a size-limited
 // retry queue with a backoff mechanism in case of retriable errors.
 type sender struct {
-	cfg *senderConfig
+	cfg           *senderConfig
+	apiKeyManager *apiKeyManager
 
 	queue      chan *payload // payload queue
 	inflight   *atomic.Int32 // inflight payloads
@@ -183,14 +210,15 @@ type sender struct {
 }
 
 // newSender returns a new sender based on the given config cfg.
-func newSender(cfg *senderConfig, statsd statsd.ClientInterface) *sender {
+func newSender(cfg *senderConfig, apiKeyManager *apiKeyManager, statsd statsd.ClientInterface) *sender {
 	s := sender{
-		cfg:        cfg,
-		queue:      make(chan *payload, cfg.maxQueued),
-		inflight:   atomic.NewInt32(0),
-		maxRetries: int32(cfg.maxRetries),
-		statsd:     statsd,
-		enabled:    true,
+		cfg:           cfg,
+		apiKeyManager: apiKeyManager,
+		queue:         make(chan *payload, cfg.maxQueued),
+		inflight:      atomic.NewInt32(0),
+		maxRetries:    int32(cfg.maxRetries),
+		statsd:        statsd,
+		enabled:       true,
 	}
 	for i := 0; i < cfg.maxConns; i++ {
 		go s.loop()
@@ -393,7 +421,7 @@ const (
 )
 
 func (s *sender) do(req *http.Request) error {
-	req.Header.Set(headerAPIKey, s.cfg.apiKey)
+	req.Header.Set(headerAPIKey, s.apiKeyManager.Get())
 	req.Header.Set(headerUserAgent, s.cfg.userAgent)
 	resp, err := s.cfg.client.Do(req)
 	if err != nil {
@@ -411,9 +439,7 @@ func (s *sender) do(req *http.Request) error {
 
 	if resp.StatusCode == http.StatusForbidden {
 		log.Debugf("API Key invalid (403), triggering secret refresh")
-		if s.cfg.secretsRefreshFn != nil {
-			s.cfg.secretsRefreshFn()
-		}
+		s.apiKeyManager.refresh()
 	}
 
 	if isRetriable(resp.StatusCode) {
