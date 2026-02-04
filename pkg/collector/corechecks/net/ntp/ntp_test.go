@@ -119,7 +119,15 @@ func TestNTPOK(t *testing.T) {
 	ntpCheck.Run()
 
 	mockSender.AssertExpectations(t)
-	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 1)
+	// 1 NTP offset + 0 or 1 intake offset
+	gaugeCalls := 0
+	for _, c := range mockSender.Calls {
+		if c.Method == "GaugeWithTimestamp" {
+			gaugeCalls++
+		}
+	}
+	assert.GreaterOrEqual(t, gaugeCalls, 1)
+	assert.LessOrEqual(t, gaugeCalls, 2)
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 1)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 }
@@ -169,7 +177,15 @@ func TestNTPCritical(t *testing.T) {
 	ntpCheck.Run()
 
 	mockSender.AssertExpectations(t)
-	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 1)
+	// 1 NTP offset + 0 or 1 intake offset
+	gaugeCalls := 0
+	for _, c := range mockSender.Calls {
+		if c.Method == "GaugeWithTimestamp" {
+			gaugeCalls++
+		}
+	}
+	assert.GreaterOrEqual(t, gaugeCalls, 1)
+	assert.LessOrEqual(t, gaugeCalls, 2)
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 1)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 }
@@ -186,6 +202,13 @@ func TestNTPError(t *testing.T) {
 	ntpCheck.Configure(senderManager, integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
+	// Intake offset may or may not be submitted depending on whether expvar is set
+	mockSender.On("GaugeWithTimestamp",
+		"ntp.offset",
+		mock.AnythingOfType("float64"),
+		"",
+		[]string{"source:intake"},
+		mock.AnythingOfType("float64")).Return().Maybe()
 	mockSender.On("ServiceCheck",
 		"ntp.in_sync",
 		servicecheck.ServiceCheckUnknown,
@@ -197,7 +220,14 @@ func TestNTPError(t *testing.T) {
 	err := ntpCheck.Run()
 
 	mockSender.AssertExpectations(t)
-	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 0)
+	// 0 NTP offset (NTP failed), 0 or 1 intake offset
+	gaugeCalls := 0
+	for _, c := range mockSender.Calls {
+		if c.Method == "GaugeWithTimestamp" {
+			gaugeCalls++
+		}
+	}
+	assert.LessOrEqual(t, gaugeCalls, 1)
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 1)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 	assert.Error(t, err)
@@ -216,6 +246,13 @@ func TestNTPInvalid(t *testing.T) {
 	ntpCheck.Configure(senderManager, integration.FakeConfigHash, ntpCfg, ntpInitCfg, "test")
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
+	// Intake offset may or may not be submitted depending on whether expvar is set
+	mockSender.On("GaugeWithTimestamp",
+		"ntp.offset",
+		mock.AnythingOfType("float64"),
+		"",
+		[]string{"source:intake"},
+		mock.AnythingOfType("float64")).Return().Maybe()
 	mockSender.On("ServiceCheck",
 		"ntp.in_sync",
 		servicecheck.ServiceCheckUnknown,
@@ -227,7 +264,14 @@ func TestNTPInvalid(t *testing.T) {
 	err := ntpCheck.Run()
 
 	mockSender.AssertExpectations(t)
-	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 0)
+	// 0 NTP offset (invalid stratum), 0 or 1 intake offset
+	gaugeCalls := 0
+	for _, c := range mockSender.Calls {
+		if c.Method == "GaugeWithTimestamp" {
+			gaugeCalls++
+		}
+	}
+	assert.LessOrEqual(t, gaugeCalls, 1)
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 1)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 	assert.Error(t, err)
@@ -274,7 +318,15 @@ func TestNTPNegativeOffsetCritical(t *testing.T) {
 	ntpCheck.Run()
 
 	mockSender.AssertExpectations(t)
-	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 1)
+	// 1 NTP offset + 0 or 1 intake offset
+	gaugeCalls := 0
+	for _, c := range mockSender.Calls {
+		if c.Method == "GaugeWithTimestamp" {
+			gaugeCalls++
+		}
+	}
+	assert.GreaterOrEqual(t, gaugeCalls, 1)
+	assert.LessOrEqual(t, gaugeCalls, 2)
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 1)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 }
@@ -330,7 +382,15 @@ hosts:
 	ntpCheck.Run()
 
 	mockSender.AssertExpectations(t)
-	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 1)
+	// 1 NTP offset + 0 or 1 intake offset
+	gaugeCalls := 0
+	for _, c := range mockSender.Calls {
+		if c.Method == "GaugeWithTimestamp" {
+			gaugeCalls++
+		}
+	}
+	assert.GreaterOrEqual(t, gaugeCalls, 1)
+	assert.LessOrEqual(t, gaugeCalls, 2)
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 1)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 }
@@ -388,7 +448,15 @@ hosts:
 	ntpCheck.Run()
 
 	mockSender.AssertExpectations(t)
-	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 1)
+	// 1 NTP offset + 0 or 1 intake offset
+	gaugeCalls := 0
+	for _, c := range mockSender.Calls {
+		if c.Method == "GaugeWithTimestamp" {
+			gaugeCalls++
+		}
+	}
+	assert.GreaterOrEqual(t, gaugeCalls, 1)
+	assert.LessOrEqual(t, gaugeCalls, 2)
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 1)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 }

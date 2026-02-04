@@ -8,18 +8,25 @@ package transaction
 import (
 	"expvar"
 	"net/http"
-	"time"
+
+	"github.com/benbjohnson/clock"
 )
 
+const intakeTimeOffsetExpvarName = "corechecks_net_ntp_intake_time_offset"
+
 var (
-	// intakeTimeOffsetExpvar stores the time offset between the agent and Datadog intake
-	// Captured from the Date header in successful HTTP responses
-	intakeTimeOffsetExpvar = expvar.NewFloat("corechecks_net_ntp_intake_time_offset")
+	intakeTimeOffsetExpvar = expvar.NewFloat(intakeTimeOffsetExpvarName)
+	defaultClock           = clock.New()
 )
 
 // updateIntakeTimeOffset parses the Date header from an HTTP response and updates the intake time offset.
 // The offset uses NTP convention: positive means agent is behind, negative means ahead.
 func updateIntakeTimeOffset(dateHeader string) {
+	updateIntakeTimeOffsetWithClock(dateHeader, defaultClock)
+}
+
+// updateIntakeTimeOffsetWithClock is the same as updateIntakeTimeOffset but accepts a clock for testing.
+func updateIntakeTimeOffsetWithClock(dateHeader string, clk clock.Clock) {
 	if dateHeader == "" {
 		return
 	}
@@ -29,8 +36,9 @@ func updateIntakeTimeOffset(dateHeader string) {
 		return
 	}
 
+	now := clk.Now()
 	// Calculate offset using NTP convention: positive means agent clock is behind, negative means ahead
 	// serverTime - agentTime: if result is positive, agent is behind (needs to add time)
-	offset := intakeServerTime.Sub(time.Now()).Seconds()
+	offset := intakeServerTime.Sub(now).Seconds()
 	intakeTimeOffsetExpvar.Set(offset)
 }
