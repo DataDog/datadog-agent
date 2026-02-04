@@ -4,17 +4,17 @@ ip name-server vrf default 8.8.8.8
 !
 ntp server 10.101.0.1
 !
-snmp-server community <secret removed>
-snmp-server community <secret removed>
+snmp-server community <secret hidden>
+snmp-server community <secret hidden>
 !
 spanning-tree mode mstp
 !
 aaa authorization exec default local
 !
-enable secret 5 <secret removed>
+enable secret 5 <secret hidden>
 no aaa root
 !
-username admin privilege 15 role network-admin secret 5 <secret removed>
+username admin privilege 15 role network-admin secret 5 <secret hidden>
 !
 vlan 2,4093
 !
