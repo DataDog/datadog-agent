@@ -235,7 +235,6 @@ def build_binaries(
         "max_retries": "Maximum number of retries for failed tests, default 3",
         "impacted": "Only run tests that are impacted by the changes (only available in CI for now)",
         "keep_stack": "Keep the stack after running the test, you are responsible for destroying the stack later.",
-        "windows_agent": "Use Windows-compatible agent images (multi-arch with Windows support)",
     },
 )
 def run(
@@ -270,7 +269,6 @@ def run(
     max_retries=0,
     osdescriptors="",
     module_name="test/new-e2e",
-    windows_agent=False,
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -350,9 +348,6 @@ def run(
 
     if cluster_agent_image:
         parsed_params["ddagent:clusterAgentFullImagePath"] = cluster_agent_image
-
-    if windows_agent:
-        parsed_params["ddagent:linuxOnly"] = "false"
 
     if parsed_params:
         env_vars["E2E_STACK_PARAMS"] = json.dumps(parsed_params)
