@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package cloudauth provides the implementation for specific delegated auth exchanges
-package cloudauth
+// Package aws provides the implementation for aws auth exchange
+package aws
 
 import (
 	"bytes"
@@ -19,6 +19,7 @@ import (
 	"os"
 	"time"
 
+	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
@@ -54,12 +55,20 @@ const (
 	getCallerIdentityBody = "Action=GetCallerIdentity&Version=2011-06-15"
 )
 
-// ProviderAWS is the specifier for the AWS provider type
-const ProviderAWS = "aws"
-
 // AWSAuth contains the implementation for the AWS cloud auth
 type AWSAuth struct {
 	AwsRegion string
+}
+
+// NewAWSAuth creates a new AWSAuth from an AWSProviderConfig.
+func NewAWSAuth(config *cloudauthconfig.AWSProviderConfig) *AWSAuth {
+	region := ""
+	if config != nil {
+		region = config.Region
+	}
+	return &AWSAuth{
+		AwsRegion: region,
+	}
 }
 
 // GenerateAuthProof generates an AWS-specific authentication proof using SigV4 signing.

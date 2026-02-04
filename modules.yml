@@ -26,7 +26,10 @@ modules:
   comp/core/delegatedauth/api:
     independent: false
     used_by_otel: true
-  comp/core/delegatedauth/api/cloudauth:
+  comp/core/delegatedauth/api/cloudauth/aws:
+    independent: false
+    used_by_otel: true
+  comp/core/delegatedauth/api/cloudauth/config:
     independent: false
     used_by_otel: true
   comp/core/delegatedauth/common:

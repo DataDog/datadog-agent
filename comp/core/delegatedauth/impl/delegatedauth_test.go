@@ -12,10 +12,9 @@ import (
 	"testing"
 	"time"
 
+	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth"
 )
 
 func TestContextCancellationStopsRefresh(t *testing.T) {
@@ -356,9 +355,9 @@ func TestStatusJSON_EnabledWithInstances(t *testing.T) {
 	// Test status when delegated auth is enabled with instances
 	apiKey := "test-api-key-1234567890"
 	comp := &delegatedAuthComponent{
-		initialized:       true,
-		resolvedProvider:  cloudauth.ProviderAWS,
-		resolvedAWSRegion: "us-east-1",
+		initialized:      true,
+		resolvedProvider: cloudauthconfig.ProviderAWS,
+		providerConfig:   &cloudauthconfig.AWSProviderConfig{Region: "us-east-1"},
 		instances: map[string]*authInstance{
 			"api_key": {
 				apiKey:              &apiKey,
@@ -380,7 +379,7 @@ func TestStatusJSON_EnabledWithInstances(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, true, stats["enabled"])
-	assert.Equal(t, cloudauth.ProviderAWS, stats["provider"])
+	assert.Equal(t, cloudauthconfig.ProviderAWS, stats["provider"])
 	assert.Equal(t, "us-east-1", stats["awsRegion"])
 
 	instances, ok := stats["instances"].(map[string]map[string]interface{})
@@ -416,9 +415,9 @@ func TestStatusText_NotEnabled(t *testing.T) {
 func TestStatusText_EnabledWithInstances(t *testing.T) {
 	apiKey := "test-api-key-1234567890"
 	comp := &delegatedAuthComponent{
-		initialized:       true,
-		resolvedProvider:  cloudauth.ProviderAWS,
-		resolvedAWSRegion: "us-west-2",
+		initialized:      true,
+		resolvedProvider: cloudauthconfig.ProviderAWS,
+		providerConfig:   &cloudauthconfig.AWSProviderConfig{Region: "us-west-2"},
 		instances: map[string]*authInstance{
 			"api_key": {
 				apiKey:              &apiKey,
@@ -437,7 +436,7 @@ func TestStatusText_EnabledWithInstances(t *testing.T) {
 
 	// Verify key information is present in the text output
 	assert.Contains(t, output, "Delegated Authentication")
-	assert.Contains(t, output, cloudauth.ProviderAWS)
+	assert.Contains(t, output, cloudauthconfig.ProviderAWS)
 	assert.Contains(t, output, "us-west-2")
 	assert.Contains(t, output, "api_key")
 	assert.Contains(t, output, "Active")
@@ -463,9 +462,9 @@ func TestStatusHTML_NotEnabled(t *testing.T) {
 func TestStatusHTML_EnabledWithInstances(t *testing.T) {
 	apiKey := "test-api-key-1234567890"
 	comp := &delegatedAuthComponent{
-		initialized:       true,
-		resolvedProvider:  cloudauth.ProviderAWS,
-		resolvedAWSRegion: "eu-west-1",
+		initialized:      true,
+		resolvedProvider: cloudauthconfig.ProviderAWS,
+		providerConfig:   &cloudauthconfig.AWSProviderConfig{Region: "eu-west-1"},
 		instances: map[string]*authInstance{
 			"api_key": {
 				apiKey:              &apiKey,
@@ -485,7 +484,7 @@ func TestStatusHTML_EnabledWithInstances(t *testing.T) {
 	// Verify HTML structure and content
 	assert.Contains(t, output, "<div")
 	assert.Contains(t, output, "Delegated Authentication")
-	assert.Contains(t, output, cloudauth.ProviderAWS)
+	assert.Contains(t, output, cloudauthconfig.ProviderAWS)
 	assert.Contains(t, output, "eu-west-1")
 	assert.Contains(t, output, "api_key")
 }
@@ -494,9 +493,9 @@ func TestStatusPopulateInfo_MultipleInstances(t *testing.T) {
 	// Test the internal populateStatusInfo with multiple instances in various states
 	apiKey1 := "active-key-1"
 	comp := &delegatedAuthComponent{
-		initialized:       true,
-		resolvedProvider:  cloudauth.ProviderAWS,
-		resolvedAWSRegion: "ap-southeast-1",
+		initialized:      true,
+		resolvedProvider: cloudauthconfig.ProviderAWS,
+		providerConfig:   &cloudauthconfig.AWSProviderConfig{Region: "ap-southeast-1"},
 		instances: map[string]*authInstance{
 			"api_key": {
 				apiKey:              &apiKey1,
@@ -523,7 +522,7 @@ func TestStatusPopulateInfo_MultipleInstances(t *testing.T) {
 	comp.populateStatusInfo(stats)
 
 	assert.Equal(t, true, stats["enabled"])
-	assert.Equal(t, cloudauth.ProviderAWS, stats["provider"])
+	assert.Equal(t, cloudauthconfig.ProviderAWS, stats["provider"])
 	assert.Equal(t, "ap-southeast-1", stats["awsRegion"])
 
 	instances := stats["instances"].(map[string]map[string]interface{})

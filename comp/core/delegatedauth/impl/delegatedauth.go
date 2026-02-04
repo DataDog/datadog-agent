@@ -18,7 +18,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/api"
-	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth"
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aws"
+	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -67,12 +68,12 @@ type authInstance struct {
 // mutable fields.
 type delegatedAuthComponent struct {
 	// Mutable fields (protected by mu)
-	mu                sync.RWMutex
-	config            pkgconfigmodel.ReaderWriter
-	instances         map[string]*authInstance // Map of APIKeyConfigKey -> authInstance
-	initialized       bool                     // Whether Initialize() has been called
-	resolvedProvider  string                   // Resolved provider name (e.g., "aws")
-	resolvedAWSRegion string                   // Resolved AWS region (if provider is AWS)
+	mu               sync.RWMutex
+	config           pkgconfigmodel.ReaderWriter
+	instances        map[string]*authInstance // Map of APIKeyConfigKey -> authInstance
+	initialized      bool                     // Whether Initialize() has been called
+	providerConfig   common.ProviderConfig    // Resolved provider configuration
+	resolvedProvider string                   // Resolved provider name (e.g., "aws") - for status display
 }
 
 // Provides list the provided interfaces from the delegatedauth Component
@@ -118,37 +119,34 @@ func (d *delegatedAuthComponent) Initialize(params delegatedauth.InitParams) err
 	// Store the config
 	d.config = params.Config
 
-	provider := params.Provider
-	awsRegion := params.AWSRegion
-
-	// If provider is explicitly specified, use it
-	if provider != "" {
-		d.resolvedProvider = provider
-		d.resolvedAWSRegion = awsRegion
+	// If provider config is explicitly specified, use it
+	if params.ProviderConfig != nil {
+		d.providerConfig = params.ProviderConfig
+		d.resolvedProvider = params.ProviderConfig.ProviderName()
 		d.initialized = true
-		log.Infof("Using explicitly configured cloud provider '%s' for delegated auth", provider)
+		log.Infof("Using explicitly configured cloud provider '%s' for delegated auth", d.resolvedProvider)
 		return nil
 	}
 
 	// Auto-detect cloud provider
 	ctx := context.Background()
 	if creds.IsRunningOnAWS(ctx) {
-		provider = cloudauth.ProviderAWS
 		log.Info("Auto-detected AWS as cloud provider for delegated auth")
 
-		// Auto-detect AWS region if not specified
-		if awsRegion == "" {
-			region, err := creds.GetAWSRegion(ctx)
-			if err != nil {
-				log.Warnf("Failed to auto-detect AWS region: %v. Will use default region.", err)
-			} else if region != "" {
-				awsRegion = region
-				log.Infof("Auto-detected AWS region: %s", awsRegion)
-			}
+		// Auto-detect AWS region
+		awsRegion := ""
+		region, err := creds.GetAWSRegion(ctx)
+		if err != nil {
+			log.Warnf("Failed to auto-detect AWS region: %v. Will use default region.", err)
+		} else if region != "" {
+			awsRegion = region
+			log.Infof("Auto-detected AWS region: %s", awsRegion)
 		}
 
-		d.resolvedProvider = provider
-		d.resolvedAWSRegion = awsRegion
+		d.providerConfig = &cloudauthconfig.AWSProviderConfig{
+			Region: awsRegion,
+		}
+		d.resolvedProvider = cloudauthconfig.ProviderAWS
 		d.initialized = true
 		return nil
 	}
@@ -162,8 +160,7 @@ func (d *delegatedAuthComponent) AddInstance(params delegatedauth.InstanceParams
 	// Check initialization without holding the lock (fast path)
 	d.mu.RLock()
 	initialized := d.initialized
-	provider := d.resolvedProvider
-	awsRegion := d.resolvedAWSRegion
+	providerConfig := d.providerConfig
 	d.mu.RUnlock()
 
 	if !initialized {
@@ -188,15 +185,13 @@ func (d *delegatedAuthComponent) AddInstance(params delegatedauth.InstanceParams
 		log.Warnf("Refresh interval was set to 0 for '%s', defaulting to 60 minutes", apiKeyConfigKey)
 	}
 
-	// Create the appropriate provider
+	// Create the appropriate provider based on the provider config type
 	var tokenProvider common.Provider
-	switch provider {
-	case cloudauth.ProviderAWS:
-		tokenProvider = &cloudauth.AWSAuth{
-			AwsRegion: awsRegion,
-		}
+	switch cfg := providerConfig.(type) {
+	case *cloudauthconfig.AWSProviderConfig:
+		tokenProvider = aws.NewAWSAuth(cfg)
 	default:
-		return fmt.Errorf("unsupported delegated auth provider '%s'. Currently only 'aws' is supported", provider)
+		return fmt.Errorf("unsupported delegated auth provider config type: %T", providerConfig)
 	}
 
 	authConfig := &common.AuthConfig{
@@ -449,8 +444,9 @@ func (d *delegatedAuthComponent) populateStatusInfo(stats map[string]interface{}
 	// Add resolved provider information
 	if d.initialized {
 		stats["provider"] = d.resolvedProvider
-		if d.resolvedProvider == cloudauth.ProviderAWS && d.resolvedAWSRegion != "" {
-			stats["awsRegion"] = d.resolvedAWSRegion
+		// Add provider-specific details
+		if awsConfig, ok := d.providerConfig.(*cloudauthconfig.AWSProviderConfig); ok && awsConfig.Region != "" {
+			stats["awsRegion"] = awsConfig.Region
 		}
 	}
 

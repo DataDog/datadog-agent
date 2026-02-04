@@ -14,7 +14,8 @@ use (
 	comp/core/config
 	comp/core/configsync
 	comp/core/delegatedauth/api
-	comp/core/delegatedauth/api/cloudauth
+	comp/core/delegatedauth/api/cloudauth/aws
+	comp/core/delegatedauth/api/cloudauth/config
 	comp/core/delegatedauth/common
 	comp/core/delegatedauth/def
 	comp/core/delegatedauth/fx

@@ -10,6 +10,7 @@
 package delegatedauth
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -20,12 +21,10 @@ type InitParams struct {
 	// Config is used to read settings and write API keys.
 	Config pkgconfigmodel.ReaderWriter
 
-	// Provider specifies the cloud provider. Currently only "aws" is supported.
-	// If empty, auto-detects from the environment.
-	Provider string
-
-	// AWSRegion specifies the AWS region. If empty, auto-detects from EC2 metadata.
-	AWSRegion string
+	// ProviderConfig contains provider-specific configuration.
+	// Use cloudauth.AWSProviderConfig for AWS, etc.
+	// If nil, auto-detects from the environment.
+	ProviderConfig common.ProviderConfig
 }
 
 // InstanceParams configures a single API key instance.

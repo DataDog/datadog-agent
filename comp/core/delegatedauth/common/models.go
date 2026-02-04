@@ -15,6 +15,13 @@ type AuthConfig struct {
 	OrgUUID string
 }
 
+// ProviderConfig is an interface for provider-specific configuration.
+// Each cloud provider implements its own config struct with the fields it needs.
+type ProviderConfig interface {
+	// ProviderName returns the name of the provider (e.g., "aws").
+	ProviderName() string
+}
+
 // Provider is an interface for generating cloud-specific authentication proofs.
 // Each provider implements how to generate a proof from their cloud platform (e.g., AWS SigV4 signed request).
 // The proof is then exchanged for a Datadog API key using api.GetAPIKey().

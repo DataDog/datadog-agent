@@ -20,9 +20,10 @@ import (
 	"sync"
 	"time"
 
-	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	"gopkg.in/yaml.v2"
 
+	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/config/create"
@@ -2592,11 +2593,27 @@ func configureDelegatedAuth(config pkgconfigmodel.Config, delegatedAuthComp dele
 
 		// Use the first configured instance to initialize the component
 		if !needsInit {
+			provider := config.GetString(configPrefix + ".provider")
 			initParams = delegatedauth.InitParams{
-				Config:    config,
-				Provider:  config.GetString(configPrefix + ".provider"),
-				AWSRegion: config.GetString(configPrefix + ".aws_region"),
+				Config: config,
 			}
+
+			// Create provider-specific configuration from nested config
+			switch provider {
+			case "aws":
+				initParams.ProviderConfig = &cloudauthconfig.AWSProviderConfig{
+					Region: config.GetString(configPrefix + ".aws.aws_region"),
+				}
+			case "":
+				// Empty provider means auto-detect; ProviderConfig stays nil
+				// But if aws config is present, we can still use it when auto-detect picks AWS
+				if awsRegion := config.GetString(configPrefix + ".aws.aws_region"); awsRegion != "" {
+					initParams.ProviderConfig = &cloudauthconfig.AWSProviderConfig{
+						Region: awsRegion,
+					}
+				}
+			}
+
 			needsInit = true
 		}
 
@@ -2668,7 +2685,9 @@ func bindDelegatedAuthConfig(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnvAndSetDefault(configPrefix+".org_uuid", "")
 	config.BindEnvAndSetDefault(configPrefix+".refresh_interval_mins", 60)
 	config.BindEnvAndSetDefault(configPrefix+".provider", "")
-	config.BindEnvAndSetDefault(configPrefix+".aws_region", "")
+
+	// Provider-specific configuration (nested under provider name)
+	config.BindEnvAndSetDefault(configPrefix+".aws.aws_region", "")
 
 	// Register this prefix for use in configureDelegatedAuth
 	// Build the API key config key

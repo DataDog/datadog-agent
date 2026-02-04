@@ -5,7 +5,7 @@
 
 //go:build integration
 
-package cloudauth
+package aws
 
 import (
 	"bytes"
