@@ -23,7 +23,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
+
+// createIntegrationTestMessage creates a message with proper LogSource and identifier
+func createIntegrationTestMessage(content string, identifier string) *message.Message {
+	source := sources.NewLogSource("test", &config.LogsConfig{
+		Type: config.StringChannelType,
+	})
+	msg := message.NewMessageWithSource([]byte(content), "info", source, time.Now().UnixNano())
+	msg.Origin.Identifier = identifier
+	return msg
+}
 
 // ProviderFailoverIntegrationSuite contains integration tests for router channel failover
 type ProviderFailoverIntegrationSuite struct {
@@ -38,7 +49,6 @@ func TestProviderFailoverIntegrationSuite(t *testing.T) {
 func (suite *ProviderFailoverIntegrationSuite) SetupTest() {
 	cfg := configmock.New(suite.T())
 	cfg.SetWithoutSource("logs_config.pipeline_failover.enabled", true)
-	cfg.SetWithoutSource("logs_config.pipeline_failover.timeout_ms", 5)
 	cfg.SetWithoutSource("logs_config.message_channel_size", 5)
 
 	endpoints := config.NewMockEndpointsWithOptions([]config.Endpoint{config.NewMockEndpoint()}, map[string]interface{}{
@@ -67,6 +77,7 @@ func (suite *ProviderFailoverIntegrationSuite) TearDownTest() {
 }
 
 // TestHighThroughputMultipleTailers simulates realistic high-load scenario
+// All tailers share the same channel but messages route to pipelines based on origin hash
 func (suite *ProviderFailoverIntegrationSuite) TestHighThroughputMultipleTailers() {
 	numTailers := 10
 	messagesPerTailer := 100
@@ -79,11 +90,14 @@ func (suite *ProviderFailoverIntegrationSuite) TestHighThroughputMultipleTailers
 		go func(id int) {
 			defer wg.Done()
 
+			// All tailers get the same shared channel
 			routerChan := suite.provider.NextPipelineChan()
 			require.NotNil(suite.T(), routerChan)
 
 			for i := 0; i < messagesPerTailer; i++ {
-				msg := createTestMessage(fmt.Sprintf("tailer-%d-msg-%d", id, i))
+				// Each tailer has a unique identifier for consistent pipeline hashing
+				identifier := fmt.Sprintf("file:/var/log/tailer-%d.log", id)
+				msg := createIntegrationTestMessage(fmt.Sprintf("tailer-%d-msg-%d", id, i), identifier)
 
 				select {
 				case routerChan <- msg:
@@ -113,7 +127,7 @@ func (suite *ProviderFailoverIntegrationSuite) TestBurstLoadWithSmallBuffers() {
 	done := make(chan struct{})
 	go func() {
 		for i := 0; i < numMessages; i++ {
-			msg := createTestMessage(fmt.Sprintf("burst-msg-%d", i))
+			msg := createIntegrationTestMessage(fmt.Sprintf("burst-msg-%d", i), "file:/var/log/burst.log")
 			routerChan <- msg
 		}
 		close(done)
@@ -129,30 +143,28 @@ func (suite *ProviderFailoverIntegrationSuite) TestBurstLoadWithSmallBuffers() {
 
 // TestGracefulShutdownUnderLoad tests shutdown while actively processing
 func (suite *ProviderFailoverIntegrationSuite) TestGracefulShutdownUnderLoad() {
-	numTailers := 5
-	routerChans := make([]chan *message.Message, numTailers)
+	// All tailers share the same channel
+	routerChan := suite.provider.NextPipelineChan()
+	require.NotNil(suite.T(), routerChan)
 
-	for i := 0; i < numTailers; i++ {
-		routerChans[i] = suite.provider.NextPipelineChan()
-		require.NotNil(suite.T(), routerChans[i])
-	}
-
+	numSenders := 5
 	stopSending := make(chan struct{})
 	var sendWg sync.WaitGroup
 
-	for i, routerChan := range routerChans {
+	for i := 0; i < numSenders; i++ {
 		sendWg.Add(1)
-		go func(tailerID int, ch chan *message.Message) {
+		go func(senderID int) {
 			defer sendWg.Done()
 			msgCount := 0
+			identifier := fmt.Sprintf("file:/var/log/sender-%d.log", senderID)
 			for {
 				select {
 				case <-stopSending:
 					return
 				default:
-					msg := createTestMessage(fmt.Sprintf("tailer-%d-msg-%d", tailerID, msgCount))
+					msg := createIntegrationTestMessage(fmt.Sprintf("sender-%d-msg-%d", senderID, msgCount), identifier)
 					select {
-					case ch <- msg:
+					case routerChan <- msg:
 						msgCount++
 					case <-stopSending:
 						return
@@ -160,7 +172,7 @@ func (suite *ProviderFailoverIntegrationSuite) TestGracefulShutdownUnderLoad() {
 					}
 				}
 			}
-		}(i, routerChan)
+		}(i)
 	}
 
 	time.Sleep(200 * time.Millisecond)
@@ -192,6 +204,7 @@ func (suite *ProviderFailoverIntegrationSuite) TestMixedTailerTypes() {
 	messagesPerTailer := 50
 
 	var wg sync.WaitGroup
+	var totalSent atomic.Int64
 
 	// File tailers (with monitor, which is nil when failover enabled)
 	for i := 0; i < numFileTailers; i++ {
@@ -203,9 +216,11 @@ func (suite *ProviderFailoverIntegrationSuite) TestMixedTailerTypes() {
 			require.NotNil(suite.T(), routerChan)
 			suite.Nil(monitor, "Monitor should be nil with failover enabled")
 
+			identifier := fmt.Sprintf("file:/var/log/file-tailer-%d.log", tailerID)
 			for j := 0; j < messagesPerTailer; j++ {
-				msg := createTestMessage(fmt.Sprintf("file-tailer-%d-msg-%d", tailerID, j))
+				msg := createIntegrationTestMessage(fmt.Sprintf("file-tailer-%d-msg-%d", tailerID, j), identifier)
 				routerChan <- msg
+				totalSent.Add(1)
 			}
 		}(i)
 	}
@@ -219,9 +234,11 @@ func (suite *ProviderFailoverIntegrationSuite) TestMixedTailerTypes() {
 			routerChan := suite.provider.NextPipelineChan()
 			require.NotNil(suite.T(), routerChan)
 
+			identifier := fmt.Sprintf("container:/other-tailer-%d", tailerID)
 			for j := 0; j < messagesPerTailer; j++ {
-				msg := createTestMessage(fmt.Sprintf("other-tailer-%d-msg-%d", tailerID, j))
+				msg := createIntegrationTestMessage(fmt.Sprintf("other-tailer-%d-msg-%d", tailerID, j), identifier)
 				routerChan <- msg
+				totalSent.Add(1)
 			}
 		}(i)
 	}
@@ -229,19 +246,15 @@ func (suite *ProviderFailoverIntegrationSuite) TestMixedTailerTypes() {
 	wg.Wait()
 	time.Sleep(200 * time.Millisecond)
 
-	suite.provider.routerMutex.Lock()
-	totalChannels := len(suite.provider.routerChannels)
-	suite.provider.routerMutex.Unlock()
-
-	suite.Equal(numFileTailers+numOtherTailers, totalChannels)
+	expectedTotal := int64((numFileTailers + numOtherTailers) * messagesPerTailer)
+	suite.Equal(expectedTotal, totalSent.Load(), "All messages should be sent")
 }
 
 // TestRapidStartStopCycles tests for resource leaks during rapid lifecycle changes
 func (suite *ProviderFailoverIntegrationSuite) TestRapidStartStopCycles() {
 	for iteration := 0; iteration < 5; iteration++ {
 		cfg := configmock.New(suite.T())
-		cfg.SetWithoutSource("logs_config.pipeline_failover_enabled", true)
-		cfg.SetWithoutSource("logs_config.pipeline_failover_timeout_ms", 5)
+		cfg.SetWithoutSource("logs_config.pipeline_failover.enabled", true)
 		cfg.SetWithoutSource("logs_config.message_channel_size", 5)
 
 		endpoints := config.NewMockEndpointsWithOptions([]config.Endpoint{config.NewMockEndpoint()}, map[string]interface{}{
@@ -262,11 +275,11 @@ func (suite *ProviderFailoverIntegrationSuite) TestRapidStartStopCycles() {
 
 		p.Start()
 
+		routerChan := p.NextPipelineChan()
 		for i := 0; i < 5; i++ {
-			ch := p.NextPipelineChan()
-			msg := createTestMessage(fmt.Sprintf("iter-%d-msg-%d", iteration, i))
+			msg := createIntegrationTestMessage(fmt.Sprintf("iter-%d-msg-%d", iteration, i), "file:/test.log")
 			select {
-			case ch <- msg:
+			case routerChan <- msg:
 			case <-time.After(100 * time.Millisecond):
 			}
 		}

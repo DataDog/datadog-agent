@@ -2105,7 +2105,6 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// Pipeline failover configuration
 	config.BindEnvAndSetDefault("logs_config.pipeline_failover.enabled", false)
-	config.BindEnvAndSetDefault("logs_config.pipeline_failover.timeout_ms", 10)
 }
 
 // vector integration
