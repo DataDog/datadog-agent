@@ -283,7 +283,9 @@ def show_all(_, base_dir: str = '.', ignored=False):
 def remove_replace_rules(data: str) -> str:
     # remove all replace block
     data = re.sub("\tgithub.com/DataDog/datadog-agent/.+ => .+", '', data)
+    data = re.sub("\tgithub.com/DataDog/datadog-agent => .+", '', data)  # main module
     data = re.sub("replace github.com/DataDog/datadog-agent/[^ ]+ => .+", '', data)
+    data = re.sub("replace github.com/DataDog/datadog-agent => .+", '', data)  # main module
     data = re.sub(r"replace \(\s+\)", '', data)
     data = re.sub(r"// This section was automatically added by 'dda inv modules\..+", '', data)
     return data
@@ -316,7 +318,11 @@ def update_go_mod(gomod_list, root):
         if root.endswith(mod):
             # don't add a replace for the current module
             continue
-        gomod += f"\t{repo_name}{mod} => {prefix}/{mod}\n"
+        if mod == ".":
+            # Special handling for the main module
+            gomod += f"\tgithub.com/DataDog/datadog-agent => {prefix}\n"
+        else:
+            gomod += f"\t{repo_name}{mod} => {prefix}/{mod}\n"
 
     gomod += ")\n"
 
@@ -360,7 +366,6 @@ def add_all_replace(ctx: Context):
         mods for mods in get_default_modules().values() if mods.path.split(os.sep)[0] not in ["tools", "internal"]
     ]
     mod_to_replace = sorted([mod.path for mod in gomods])
-    mod_to_replace.remove(".")
 
     # Second we iterate over all go.mod and update them
     for mod in gomods:
