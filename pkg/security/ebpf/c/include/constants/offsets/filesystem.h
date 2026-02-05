@@ -335,11 +335,6 @@ static struct inode * __attribute__((always_inline)) get_ovl_lower_inode_direct(
     return lower;
 }
 
-static int __attribute__((always_inline)) get_ovl_lower_ino_direct(struct dentry *dentry) {
-    struct inode *lower = get_ovl_lower_inode_direct(dentry);
-    return get_inode_ino(lower);
-}
-
 static struct dentry * __attribute__((always_inline)) get_ovl_lower_dentry_from_ovl_path(struct dentry *dentry) {
     struct inode *d_inode = get_dentry_inode(dentry);
 
@@ -348,11 +343,6 @@ static struct dentry * __attribute__((always_inline)) get_ovl_lower_dentry_from_
     bpf_probe_read(&lower, sizeof(lower), (char *)d_inode + get_sizeof_inode() + 16);
 
     return lower;
-}
-
-static int __attribute__((always_inline)) get_ovl_lower_ino_from_ovl_path(struct dentry *dentry) {
-    struct dentry *lower = get_ovl_lower_dentry_from_ovl_path(dentry);
-    return get_dentry_ino(lower);
 }
 
 static struct dentry * __attribute__((always_inline)) get_ovl_lower_dentry_from_ovl_entry(struct dentry *dentry) {
@@ -370,11 +360,6 @@ static struct dentry * __attribute__((always_inline)) get_ovl_lower_dentry_from_
     bpf_probe_read(&lower, sizeof(lower), (char *)oe + 4 + 4 + 8);
 
     return lower;
-}
-
-static int __attribute__((always_inline)) get_ovl_lower_ino_from_ovl_entry(struct dentry *dentry) {
-    struct dentry *lower = get_ovl_lower_dentry_from_ovl_entry(dentry);
-    return get_dentry_ino(lower);
 }
 
 static struct dentry * __attribute__((always_inline)) get_ovl_upper_dentry(struct dentry *dentry) {
