@@ -394,7 +394,7 @@ func TestProcessOTLPTraces_MutliSpanInOneResAndOp(t *testing.T) {
 	res := rspan.Resource()
 	res.Attributes().PutStr("service.name", "svc")
 	res.Attributes().PutStr(string(semconv.DeploymentEnvironmentKey), "tracer-env")
-	res.Attributes().PutStr("host.name", "dd-host")
+	res.Attributes().PutStr("datadog.host.name", "dd-host")
 
 	sspan := rspan.ScopeSpans().AppendEmpty()
 	span1 := sspan.Spans().AppendEmpty()

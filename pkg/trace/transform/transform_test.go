@@ -88,6 +88,11 @@ func TestGetOTelHostname(t *testing.T) {
 		expected     string
 	}{
 		{
+			name:     "datadog.host.name",
+			rattrs:   map[string]string{"datadog.host.name": "dd-hostname"},
+			expected: "test-host",
+		},
+		{
 			name:     "_dd.hostname",
 			rattrs:   map[string]string{"_dd.hostname": "test-host"},
 			expected: "test-host",
