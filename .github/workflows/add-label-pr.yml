@@ -49,7 +49,7 @@ jobs:
               labels: ['internal']
             });
       - name: Assign team label
-        uses: ./.github/actions/assign-team-label
-        with:
-          pr-number: ${{ github.event.pull_request.number }}
-          github-token: ${{ steps.octo-sts.outputs.token }}
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_TOKEN: ${{ steps.octo-sts.outputs.token }}
+        run: dda inv -- -e github.assign-team-label --pr-id="${PR_NUMBER}"
