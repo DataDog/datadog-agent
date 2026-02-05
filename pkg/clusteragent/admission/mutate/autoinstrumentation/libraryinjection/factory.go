@@ -65,6 +65,10 @@ func (f *ProviderFactory) GetProviderForPod(pod *corev1.Pod, cfg LibraryInjectio
 	case InjectionModeCSI:
 		return NewCSIProvider(cfg)
 	case InjectionModeImageVolume:
+		if !versionCompatible() {
+			log.Warnf("Image volume provider is not compatible with the current version of the injector, stopping injection")
+			return nil
+		}
 		return NewImageVolumeProvider(cfg)
 	}
 }
