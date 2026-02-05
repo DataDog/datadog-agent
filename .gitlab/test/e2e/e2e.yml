@@ -982,7 +982,7 @@ new-e2e-otel:
     TEAM: otel
     ON_NIGHTLY_FIPS: "true"
 
-new-e2e-ssi:
+.new-e2e_ssi:
   extends: .new_e2e_template
   rules:
     - !reference [.on_ssi_or_e2e_changes]
@@ -996,6 +996,16 @@ new-e2e-ssi:
   variables:
     TARGETS: ./tests/ssi
     TEAM: injection-platform
+
+new-e2e-ssi-kind:
+  extends: .new-e2e_ssi
+  variables:
+    E2E_PROVISIONER: kind
+
+new-e2e-ssi-eks:
+  extends: .new-e2e_ssi
+  variables:
+    E2E_PROVISIONER: eks
 
 .new-e2e_package_signing:
   variables:
