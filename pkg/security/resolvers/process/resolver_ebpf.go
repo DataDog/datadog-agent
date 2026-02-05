@@ -313,7 +313,7 @@ func (p *EBPFResolver) AddExecEntry(event *model.Event, cgroupContext model.CGro
 	defer p.Unlock()
 
 	var err error
-	if err := p.ResolveNewProcessCacheEntry(event.ProcessCacheEntry); err != nil {
+	if err := p.resolveNewProcessCacheEntry(event.ProcessCacheEntry); err != nil {
 		var errResolution *spath.ErrPathResolution
 		if errors.As(err, &errResolution) {
 			event.SetPathResolutionError(&event.ProcessCacheEntry.FileEvent, err)
@@ -575,6 +575,7 @@ func (p *EBPFResolver) RetrieveFileFieldsFromProcfs(filename string) (*model.Fil
 }
 
 func (p *EBPFResolver) insertEntry(entry *model.ProcessCacheEntry, cgroupContext model.CGroupContext, source uint64) {
+	p.mountResolver.SetPidMntNs(entry.Pid, entry.MntNS)
 	entry.Source = source
 
 	p.entryCache[entry.Pid] = entry
@@ -672,6 +673,7 @@ func (p *EBPFResolver) insertExecEntry(entry *model.ProcessCacheEntry, inode uin
 
 func (p *EBPFResolver) deleteEntry(pid uint32, exitTime time.Time) {
 	// Start by updating the exit timestamp of the pid cache entry
+	p.mountResolver.DeletePid(pid)
 	entry, ok := p.entryCache[pid]
 	if !ok {
 		return
@@ -763,8 +765,8 @@ func (p *EBPFResolver) resolveFullFilePath(e *model.FileFields, pce *model.Proce
 	return pathnameStr, mountPath, source, origin, err
 }
 
-// SetProcessPath resolves process file path
-func (p *EBPFResolver) SetProcessPath(fileEvent *model.FileEvent, pce *model.ProcessCacheEntry) (string, error) {
+// setProcessPath resolves process file path
+func (p *EBPFResolver) setProcessPath(fileEvent *model.FileEvent, pce *model.ProcessCacheEntry) (string, error) {
 	onError := func(pathnameStr string, err error) (string, error) {
 		fileEvent.SetPathnameStr("")
 		fileEvent.SetBasenameStr("")
@@ -808,7 +810,7 @@ func (p *EBPFResolver) SetProcessSymlink(entry *model.ProcessCacheEntry) {
 }
 
 // SetProcessFilesystem resolves process file system
-func (p *EBPFResolver) SetProcessFilesystem(entry *model.ProcessCacheEntry) (string, error) {
+func (p *EBPFResolver) setProcessFilesystem(entry *model.ProcessCacheEntry) (string, error) {
 	if entry.FileEvent.MountID != 0 {
 		fs, err := p.mountResolver.ResolveFilesystem(entry.FileEvent.MountID, entry.Pid)
 		if err != nil {
@@ -853,14 +855,14 @@ func (p *EBPFResolver) resolveFromCache(pid, tid uint32, inode uint64) *model.Pr
 	return entry
 }
 
-// ResolveNewProcessCacheEntry resolves the context fields of a new process cache entry parsed from kernel data
-func (p *EBPFResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheEntry) error {
-	if _, err := p.SetProcessPath(&entry.FileEvent, entry); err != nil {
+// resolveNewProcessCacheEntry resolves the context fields of a new process cache entry parsed from kernel data
+func (p *EBPFResolver) resolveNewProcessCacheEntry(entry *model.ProcessCacheEntry) error {
+	if _, err := p.setProcessPath(&entry.FileEvent, entry); err != nil {
 		return &spath.ErrPathResolution{Err: fmt.Errorf("failed to resolve exec path: %w", err)}
 	}
 
 	if entry.HasInterpreter() {
-		if _, err := p.SetProcessPath(&entry.LinuxBinprm.FileEvent, entry); err != nil {
+		if _, err := p.setProcessPath(&entry.LinuxBinprm.FileEvent, entry); err != nil {
 			return &spath.ErrPathResolution{Err: fmt.Errorf("failed to resolve interpreter path: %w", err)}
 		}
 	} else {
@@ -876,7 +878,7 @@ func (p *EBPFResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheEntr
 	p.ApplyBootTime(entry)
 	p.SetProcessSymlink(entry)
 
-	_, err := p.SetProcessFilesystem(entry)
+	_, err := p.setProcessFilesystem(entry)
 
 	return err
 }
@@ -935,7 +937,7 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64, newE
 		return nil
 	}
 
-	if err = p.ResolveNewProcessCacheEntry(entry); err != nil {
+	if err = p.resolveNewProcessCacheEntry(entry); err != nil {
 		if newEntryCb != nil {
 			newEntryCb(entry, err)
 		}
