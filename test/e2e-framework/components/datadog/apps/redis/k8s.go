@@ -56,7 +56,8 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 			Name:      pulumi.String("redis"),
 			Namespace: pulumi.String(namespace),
 			Labels: pulumi.StringMap{
-				"app": pulumi.String("redis"),
+				"app":  pulumi.String("redis"),
+				"team": pulumi.String("container-integrations"), // Test auto_team_tag_collection feature (default enabled)
 			},
 		},
 		Spec: &appsv1.DeploymentSpecArgs{
