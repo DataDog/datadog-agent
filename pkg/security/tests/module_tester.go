@@ -61,7 +61,8 @@ const (
 	Skip
 )
 const (
-	getEventTimeout = 10 * time.Second
+	getEventTimeout         = 10 * time.Second
+	functionalTestsHostname = "functional_tests_host"
 )
 
 var (
@@ -250,7 +251,7 @@ func (tm *testModule) mapFilters(filters ...func(event *model.Event, rule *rules
 func (tm *testModule) waitSignal(tb testing.TB, action func() error, cb func(*model.Event, *rules.Rule) error) {
 	tb.Helper()
 
-	if err := tm.getSignal(tb, action, cb); err != nil {
+	if err := tm.getSignalFromRule(tb, action, cb); err != nil {
 		if _, ok := err.(ErrSkipTest); ok {
 			tb.Skip(err)
 		} else {
@@ -260,13 +261,15 @@ func (tm *testModule) waitSignal(tb testing.TB, action func() error, cb func(*mo
 }
 
 func (tm *testModule) GetSignal(tb testing.TB, action func() error, cb onRuleHandler) error {
-	return tm.getSignal(tb, action, func(event *model.Event, rule *rules.Rule) error {
+	return tm.getSignalFromRule(tb, action, func(event *model.Event, rule *rules.Rule) error {
 		cb(event, rule)
 		return nil
 	})
 }
 
-func (tm *testModule) getSignal(tb testing.TB, action func() error, cb func(*model.Event, *rules.Rule) error) error {
+// getSignalForRule is like getSignal but filters events by ruleID
+// to prevent stale events from previous tests from being processed.
+func (tm *testModule) getSignalFromRule(tb testing.TB, action func() error, cb func(event *model.Event, rule *rules.Rule) error, ruleID ...string) error {
 	tb.Helper()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -277,6 +280,11 @@ func (tm *testModule) getSignal(tb testing.TB, action func() error, cb func(*mod
 
 	tm.RegisterRuleEventHandler(func(e *model.Event, r *rules.Rule) {
 		tb.Helper()
+		// Filter out events that don't match the expected type and rule if ruleID is provided (only when WaitSignalFromRule is called)
+		if len(ruleID) > 0 && r.ID != ruleID[0] {
+			tb.Logf("Filtering event: got rule %q, expected %q", r.ID, ruleID)
+			return
+		}
 		select {
 		case <-ctx.Done():
 			return
@@ -551,14 +559,21 @@ func (tm *testModule) NewTimeoutError() ErrTimeout {
 	return ErrTimeout{msg.String()}
 }
 
-func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb onRuleHandler) {
+// WaitSignalFromRule is like WaitSignal but filters events by ruleID
+// to prevent stale events from previous sub-tests from being processed.
+func (tm *testModule) WaitSignalFromRule(tb testing.TB, action func() error, cb onRuleHandler, ruleID string) {
 	tb.Helper()
-
-	tm.waitSignal(tb, action, func(event *model.Event, rule *rules.Rule) error {
+	if err := tm.getSignalFromRule(tb, action, func(event *model.Event, rule *rules.Rule) error {
 		validateProcessContext(tb, event)
 		cb(event, rule)
 		return nil
-	})
+	}, ruleID); err != nil {
+		if _, ok := err.(ErrSkipTest); ok {
+			tb.Skip(err)
+		} else {
+			tb.Fatal(err)
+		}
+	}
 }
 
 func (tm *testModule) WaitSignalWithoutProcessContext(tb testing.TB, action func() error, cb onRuleHandler) {
@@ -867,12 +882,6 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to set up datadog.yaml configuration: %s", err)
 	}
-
-	// reset the system-probe config to not be adjusted yet
-	// necessary because the config object is a global, and we want the adjustment
-	// to happen again
-	cfg := pkgconfigsetup.GlobalSystemProbeConfigBuilder()
-	cfg.Set("system_probe_config.adjusted", false, pkgconfigmodel.SourceAgentRuntime)
 
 	_, err = spconfig.New(sysprobeConfigName, "")
 	if err != nil {

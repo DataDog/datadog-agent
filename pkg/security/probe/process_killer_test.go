@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -75,7 +74,7 @@ func (p *ProcessKiller) getRuleStatsNoAlloc(ruleID string) *processKillerStats {
 func assertKillEvent(t *testing.T, pk *ProcessKiller, rule *rules.Rule, container, executable string, pid uint32, status KillActionStatus, scope string) {
 	event := craftFakeEvent(container, executable, pid)
 	// First kill should be enqueued
-	killed := pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
+	killed, _ := pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
 	if status == KillActionStatusPerformed {
 		assert.True(t, killed)
 	} else {
@@ -153,7 +152,7 @@ func craftKillRule(t *testing.T, id, scope string) (*rules.Rule, *rules.RuleSet)
 
 	opts := rules.NewRuleOpts(map[eval.EventType]bool{"*": true})
 	ruleSet := rules.NewRuleSet(&model.Model{}, nil, opts, &eval.Opts{})
-	_, err := ruleSet.AddRule(ast.NewParsingContext(false), rule.PolicyRule)
+	_, err := ruleSet.AddRule(rule.PolicyRule)
 	assert.NoError(t, err)
 
 	return rule, ruleSet
@@ -484,21 +483,21 @@ func TestProcessKillerNoEnforcement(t *testing.T) {
 
 		event := craftFakeEvent("container1", "executable1", 123)
 		// First kill should be performed
-		killed := pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
+		killed, _ := pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
 		assert.False(t, killed)
 		assert.Equal(t, 0, len(event.ActionReports))
 
 		// reset event to different pid, but same container, same executable
 		event = craftFakeEvent("container1", "executable1", 456)
 		// Second kill should be performed as well
-		killed = pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
+		killed, _ = pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
 		assert.False(t, killed)
 		assert.Equal(t, 0, len(event.ActionReports))
 
 		// reset event to different pid AND executable
 		event = craftFakeEvent("container1", "executable2", 789)
 		// Third kill should be performed as well
-		killed = pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
+		killed, _ = pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
 		assert.False(t, killed)
 		assert.Equal(t, 0, len(event.ActionReports))
 
@@ -512,21 +511,21 @@ func TestProcessKillerNoEnforcement(t *testing.T) {
 
 		event := craftFakeEvent("container1", "executable1", 123)
 		// First kill should be performed
-		killed := pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
+		killed, _ := pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
 		assert.False(t, killed)
 		assert.Equal(t, 0, len(event.ActionReports))
 
 		// reset event to different pid, but same container, same executable
 		event = craftFakeEvent("container1", "executable1", 456)
 		// Second kill should be performed as well
-		killed = pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
+		killed, _ = pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
 		assert.False(t, killed)
 		assert.Equal(t, 0, len(event.ActionReports))
 
 		// reset event to different pid AND container
 		event = craftFakeEvent("container2", "executable1", 789)
 		// Third kill should be performed as well
-		killed = pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
+		killed, _ = pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
 		assert.False(t, killed)
 		assert.Equal(t, 0, len(event.ActionReports))
 
@@ -728,7 +727,7 @@ func TestProcessKillerRuleScopeContainer(t *testing.T) {
 
 		// Third kill should NOT perform any kill (because no container AND container scope)
 		event := craftFakeEvent("", "executable1", 111)
-		killed := pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
+		killed, _ := pk.KillAndReport(rule.PolicyRule.Def.Actions[0].Kill, rule, event)
 		assert.False(t, killed)
 		assert.Equal(t, 0, len(event.ActionReports))
 

@@ -25,19 +25,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
-	configPaths = []string{
+func configPaths() []string {
+	return []string{
 		pkgconfigsetup.Datadog().GetString("confd_path"),    // Custom checks
 		filepath.Join(defaultpaths.GetDistPath(), "conf.d"), // Default check configs
 	}
+}
 
-	checkPaths = []string{
+func checkPaths() []string {
+	return []string{
 		filepath.Join(defaultpaths.GetDistPath(), "checks.d"),    // Custom checks
 		pkgconfigsetup.Datadog().GetString("additional_checksd"), // Custom checks
 		defaultpaths.PyChecksPath,                                // Integrations-core checks
 		getFleetPoliciesPath(),                                   // Fleet Policies
 	}
-)
+}
 
 // getFleetPoliciesPath returns the path to the fleet policies directory if it is set in the configuration
 // otherwise it returns an empty string
@@ -107,7 +109,7 @@ func getCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 
 	var file []byte
 	var e error
-	for _, path := range configPaths {
+	for _, path := range configPaths() {
 		if len(path) == 0 {
 			continue
 		}
@@ -266,7 +268,7 @@ func getWheelsChecks() ([]string, error) {
 // Sends a list containing the names of all the checks
 func listChecks(w http.ResponseWriter, _ *http.Request) {
 	integrations := []string{}
-	for _, path := range checkPaths {
+	for _, path := range checkPaths() {
 		files, err := os.ReadDir(path)
 		if err != nil {
 			continue
@@ -345,7 +347,7 @@ func getConfigsInPath(path string) ([]string, error) {
 // Sends a list containing the names of all the config files
 func listConfigs(w http.ResponseWriter, _ *http.Request) {
 	filenames := []string{}
-	for _, path := range configPaths {
+	for _, path := range configPaths() {
 		if len(path) == 0 {
 			continue
 		}

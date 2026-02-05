@@ -10,7 +10,6 @@ package gops
 
 import (
 	"fmt"
-	"runtime"
 
 	"github.com/shirou/gopsutil/v4/mem"
 	"github.com/shirou/gopsutil/v4/process"
@@ -45,19 +44,28 @@ func GetProcesses() ([]*ProcessInfo, error) {
 	}
 
 	for _, pid := range pids {
-		p, err := process.NewProcess(pid)
-		if err != nil {
-			// an error can occur here only if the process has disappeared,
-			log.Debugf("Process with pid %d disappeared while scanning: %s", pid, err)
-			continue
-		}
-		processInfo, err := newProcessInfo(p, totalMem)
-		if err != nil {
-			log.Debugf("Error fetching info for pid %d: %s", pid, err)
-			continue
-		}
+		// Recover from panics that can occur in gopsutil when parsing malformed proc files
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Debugf("Panic while processing pid %d (likely malformed proc file): %v", pid, r)
+				}
+			}()
 
-		processInfos = append(processInfos, processInfo)
+			p, err := process.NewProcess(pid)
+			if err != nil {
+				// an error can occur here only if the process has disappeared,
+				log.Debugf("Process with pid %d disappeared while scanning: %s", pid, err)
+				return
+			}
+			processInfo, err := newProcessInfo(p, totalMem)
+			if err != nil {
+				log.Debugf("Error fetching info for pid %d: %s", pid, err)
+				return
+			}
+
+			processInfos = append(processInfos, processInfo)
+		}()
 	}
 
 	// platform-specific post-processing on the collected info
@@ -85,12 +93,9 @@ func newProcessInfo(p *process.Process, totalMem float64) (*ProcessInfo, error) 
 
 	pctMem := 100. * float64(memInfo.RSS) / totalMem
 
-	var username string
-	if runtime.GOOS != "android" {
-		username, err = p.Username()
-		if err != nil {
-			return nil, err
-		}
+	username, err := p.Username()
+	if err != nil {
+		return nil, err
 	}
 
 	return &ProcessInfo{pid, ppid, name, memInfo.RSS, pctMem, memInfo.VMS, username}, nil

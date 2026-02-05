@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 )
 
@@ -70,6 +71,12 @@ func deepCopyProgram(original *program) *program {
 		config:     copiedConfig,
 		executable: original.executable,
 		processID:  original.processID,
+	}
+	if len(original.lastRuntimeStats) > 0 {
+		copied.lastRuntimeStats = append(
+			[]loader.RuntimeStats(nil),
+			original.lastRuntimeStats...,
+		)
 	}
 
 	// Note: loadedProgram interface is more complex to copy and represents

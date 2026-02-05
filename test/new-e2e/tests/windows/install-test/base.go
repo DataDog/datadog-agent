@@ -7,9 +7,11 @@
 package installtest
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -34,6 +36,7 @@ type baseAgentMSISuite struct {
 	windows.BaseAgentInstallerSuite[environments.WindowsHost]
 	beforeInstall      *windowsCommon.FileSystemSnapshot
 	beforeInstallPerms map[string]string // path -> SDDL
+	dumpFolder         string
 }
 
 // NOTE: BeforeTest is not called before subtests
@@ -56,6 +59,20 @@ func (s *baseAgentMSISuite) BeforeTest(suiteName, testName string) {
 		err = windowsCommon.ClearEventLog(vm, logName)
 		s.Require().NoError(err, "should clear %s event log", logName)
 	}
+
+	// Enable crash dumps before each test
+	s.dumpFolder = `C:\dumps`
+	err = windowsCommon.EnableWERGlobalDumps(vm, s.dumpFolder)
+	s.Require().NoError(err, "should enable WER dumps")
+
+	// Set GOTRACEBACK=wer globally so Go processes produce stack traces in crash dumps
+	_, err = vm.Execute(`[Environment]::SetEnvironmentVariable('GOTRACEBACK', 'wer', 'Machine')`)
+	s.Require().NoError(err, "should set GOTRACEBACK environment variable")
+
+	// Clean dump folder before each test
+	s.T().Logf("Clearing dump folder")
+	err = windowsCommon.CleanDirectory(vm, s.dumpFolder)
+	s.Require().NoError(err, "should clean dump folder")
 }
 
 // NOTE: AfterTest is not called after subtests
@@ -64,9 +81,20 @@ func (s *baseAgentMSISuite) AfterTest(suiteName, testName string) {
 		afterTest.AfterTest(suiteName, testName)
 	}
 
+	vm := s.Env().RemoteHost
+
+	// Look for and download crash dumps
+	dumps, err := windowsCommon.DownloadAllWERDumps(vm, s.dumpFolder, s.SessionOutputDir())
+	s.Assert().NoError(err, "should download crash dumps")
+	if !s.Assert().Empty(dumps, "should not have crash dumps") {
+		s.T().Logf("Found crash dumps:")
+		for _, dump := range dumps {
+			s.T().Logf("  %s", dump)
+		}
+	}
+
 	if s.T().Failed() {
 		// If the test failed, export the event logs for debugging
-		vm := s.Env().RemoteHost
 		for _, logName := range []string{"System", "Application"} {
 			// collect the full event log as an evtx file
 			s.T().Logf("Exporting %s event log", logName)
@@ -105,14 +133,80 @@ func (s *baseAgentMSISuite) installAgentPackage(vm *components.RemoteHost, agent
 		windowsAgent.WithValidAPIKey(),
 	}
 	installOpts = append(installOpts, installOptions...)
+
+	// Check if DD_INSTALL_ONLY is set - if so, services won't start
+	skipServiceCheck := s.hasInstallOnlyOption(installOptions...)
+
+	s.startXperf(vm)
+	defer s.collectXperf(vm)
+
 	if !s.Run("install "+agentPackage.AgentVersion(), func() {
 		remoteMSIPath, err = s.InstallAgent(vm, installOpts...)
 		s.Require().NoError(err, "should install agent %s", agentPackage.AgentVersion())
+
+		// Wait for the service to start (up to 5 minutes), unless DD_INSTALL_ONLY is set
+		if !skipServiceCheck {
+			err = s.waitForServiceRunning(vm, "datadogagent", 300)
+			s.Require().NoError(err, "service should be running after install")
+		}
 	}) {
 		s.T().FailNow()
 	}
 
 	return remoteMSIPath
+}
+
+// hasInstallOnlyOption checks if DD_INSTALL_ONLY is set in the install options
+func (s *baseAgentMSISuite) hasInstallOnlyOption(installOptions ...windowsAgent.InstallAgentOption) bool {
+	params := &windowsAgent.InstallAgentParams{}
+	for _, opt := range installOptions {
+		_ = opt(params)
+	}
+	return params.InstallOnly == "true"
+}
+
+// waitForServiceRunning waits for a service to reach Running status
+func (s *baseAgentMSISuite) waitForServiceRunning(vm *components.RemoteHost, serviceName string, timeoutSeconds int) error {
+	deadline := time.Now().Add(time.Duration(timeoutSeconds) * time.Second)
+	for time.Now().Before(deadline) {
+		status, err := windowsCommon.GetServiceStatus(vm, serviceName)
+		if err == nil && strings.Contains(status, "Running") {
+			return nil
+		}
+		time.Sleep(5 * time.Second)
+	}
+	return fmt.Errorf("timeout waiting for service %s to reach Running state after %d seconds", serviceName, timeoutSeconds)
+}
+
+// startXperf starts xperf tracing on the remote host
+func (s *baseAgentMSISuite) startXperf(vm *components.RemoteHost) {
+	err := vm.HostArtifactClient.Get("windows-products/xperf-5.0.8169.zip", "C:/xperf.zip")
+	s.Require().NoError(err)
+
+	// extract if C:/xperf dir does not exist
+	_, err = vm.Execute("if (-Not (Test-Path -Path C:/xperf)) { Expand-Archive -Path C:/xperf.zip -DestinationPath C:/xperf }")
+	s.Require().NoError(err)
+
+	outputPath := "C:/kernel.etl"
+	xperfPath := "C:/xperf/xperf.exe"
+	_, err = vm.Execute(fmt.Sprintf(`& "%s" -On Base+Latency+CSwitch+PROC_THREAD+LOADER+Profile+DISPATCHER -stackWalk CSwitch+Profile+ReadyThread+ThreadCreate -f %s -MaxBuffers 1024 -BufferSize 1024 -MaxFile 1024 -FileMode Circular`, xperfPath, outputPath))
+	s.Require().NoError(err)
+}
+
+// collectXperf collects xperf tracing from the remote host
+func (s *baseAgentMSISuite) collectXperf(vm *components.RemoteHost) {
+	xperfPath := "C:/xperf/xperf.exe"
+	outputPath := "C:/full_host_profiles.etl"
+
+	_, err := vm.Execute(fmt.Sprintf(`& "%s" -stop -d %s`, xperfPath, outputPath))
+	s.Require().NoError(err)
+
+	// collect xperf if the test failed
+	if s.T().Failed() {
+		outDir := s.SessionOutputDir()
+		err = vm.GetFile(outputPath, filepath.Join(outDir, "full_host_profiles.etl"))
+		s.Require().NoError(err)
+	}
 }
 
 func (s *baseAgentMSISuite) uninstallAgent() bool {

@@ -45,7 +45,7 @@ from tasks.update_go import PATTERN_MAJOR_MINOR, update_file
 
 WINDOWS_MAX_PACKAGES_NUMBER = 150
 WINDOWS_MAX_CLI_LENGTH = 8000  # Windows has a max command line length of 8192 characters
-TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/source_test/*", ".gitlab-ci.yml"]
+TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/build/source_test/*", ".gitlab-ci.yml"]
 # TODO(songy23): contrib and OCB versions do not match in 0.122. Revert this once 0.123 is released
 OTEL_UPSTREAM_GO_MOD_PATH = (
     f"https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/v{OCB_VERSION}/go.mod"
@@ -100,12 +100,7 @@ def build_standard_lib(
     """
     args["go_build_tags"] = " ".join(build_tags)
 
-    ctx.run(
-        cmd.format(**args),
-        env=env,
-        out_stream=test_profiler,
-        warn=True,
-    )
+    ctx.run(cmd.format(**args), env=env, out_stream=test_profiler)  # with `warn=True`, errors went unnoticed
 
 
 def test_flavor(
@@ -325,18 +320,19 @@ def test(
 
     test_run_arg = f"-run {test_run_name}" if test_run_name else ""
 
-    stdlib_build_cmd = 'go build {verbose} -mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" '
-    stdlib_build_cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} std cmd'
+    # build flags are used both for building the stdlib and to run the tests
+    gobuild_flags = '-mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" {build_cpus} {race_opt} {trimpath_opt}'
+
+    stdlib_build_cmd = f'go build {{verbose}} {gobuild_flags} std cmd'
     rerun_coverage_fix = '--raw-command {cov_test_path}' if coverage else ""
     gotestsum_flags = (
         '{junit_file_flag} {json_flag} --format {gotestsum_format} {rerun_fails} --packages="{packages}" '
         + rerun_coverage_fix
     )
-    gobuild_flags = (
-        '-mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" {build_cpus} {race_opt}'
-    )
     govet_flags = '-vet=off'
-    gotest_flags = '{verbose} {test_cpus} -timeout {timeout}s -short {covermode_opt} {test_run_arg} {nocache} {extra_args} {trimpath_opt}'
+    gotest_flags = (
+        '{verbose} {test_cpus} -timeout {timeout}s -short {covermode_opt} {test_run_arg} {nocache} {extra_args}'
+    )
     cmd = f'gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
     args = {
         "go_mod": go_mod,
@@ -458,6 +454,10 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
 
         assert best_module_path, f"No module found for {modified_file}"
         module = get_module_by_path(best_module_path)
+
+        if not module.should_test():
+            continue
+
         targets = module.lint_targets if lint else module.test_targets
 
         for target in targets:
@@ -695,7 +695,7 @@ def create_dependencies(ctx, build_tags=None):
         for module in batch_modules:
             with ctx.cd(module):
                 cmd = (
-                    'go list '
+                    'go list -buildvcs=false '
                     + f'-tags "{" ".join(build_tags)}" '
                     + '-f "{{.ImportPath}} {{.Imports}} {{.TestImports}}" ./...'
                 )
@@ -807,7 +807,7 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
     for module in modules_to_test:
         with ctx.cd(module):
             res = ctx.run(
-                f'go list -tags "{" ".join(build_tags)}" {" ".join([normpath(os.path.join("github.com/DataDog/datadog-agent", module, target)) for target in modules_to_test[module].test_targets])}',
+                f'go list -buildvcs=false -tags "{" ".join(build_tags)}" {" ".join([normpath(os.path.join("github.com/DataDog/datadog-agent", module, target)) for target in modules_to_test[module].test_targets])}',
                 hide=True,
                 warn=True,
             )

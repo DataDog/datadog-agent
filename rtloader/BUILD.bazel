@@ -1,0 +1,32 @@
+# rtloader
+
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
+
+package(
+    default_package_metadata = [":license"],
+    default_visibility = ["@@//packages:__subpackages__"],
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:Apache-2.0"],
+    license_text = "LICENSE",
+    visibility = ["//visibility:public"],
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        "//rtloader/common:all_files",
+        "//rtloader/include:all_files",
+        "//rtloader/rtloader:lib_files",
+        "//rtloader/three:lib_files",
+    ],
+)
+
+pkg_install(
+    name = "install",
+    srcs = ["all_files"],
+)

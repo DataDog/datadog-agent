@@ -19,7 +19,7 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
+	"github.com/cenkalti/backoff/v5"
 
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/common"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/telemetry"
@@ -165,9 +165,11 @@ func (c *client) get(ctx context.Context, path string, v interface{}) error {
 
 	expBackoff := backoff.NewExponentialBackOff()
 	expBackoff.InitialInterval = c.initialInterval
-	expBackoff.MaxElapsedTime = c.maxElapsedTime
 
-	return backoff.Retry(operation, expBackoff)
+	_, err = backoff.Retry(ctx, func() (any, error) {
+		return nil, operation()
+	}, backoff.WithBackOff(expBackoff), backoff.WithMaxElapsedTime(c.maxElapsedTime))
+	return err
 }
 
 func (c *client) getTaskMetadataAtPath(ctx context.Context, path string) (*Task, error) {

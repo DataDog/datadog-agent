@@ -16,6 +16,7 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 )
@@ -106,7 +107,7 @@ func TestCreateProcessService(t *testing.T) {
 					service: &ProcessService{
 						process: basicProcess,
 						hosts:   map[string]string{"host": "127.0.0.1"},
-						ports: []ContainerPort{
+						ports: []workloadmeta.ContainerPort{
 							{Port: 6379},
 						},
 						pid:   int(testPidInt),
@@ -123,7 +124,7 @@ func TestCreateProcessService(t *testing.T) {
 					service: &ProcessService{
 						process: processWithMultiplePorts,
 						hosts:   map[string]string{"host": "127.0.0.1"},
-						ports: []ContainerPort{
+						ports: []workloadmeta.ContainerPort{
 							{Port: 80},
 							{Port: 443},
 						},
@@ -151,7 +152,7 @@ func TestCreateProcessService(t *testing.T) {
 					service: &ProcessService{
 						process: processWithSameCommAndGeneratedName,
 						hosts:   map[string]string{"host": "127.0.0.1"},
-						ports: []ContainerPort{
+						ports: []workloadmeta.ContainerPort{
 							{Port: 5432},
 						},
 						pid:   int(testPidInt),
@@ -196,7 +197,7 @@ func TestProcessServiceInterface(t *testing.T) {
 	svc := &ProcessService{
 		process: process,
 		hosts:   map[string]string{"host": "127.0.0.1"},
-		ports:   []ContainerPort{{Port: 6379}},
+		ports:   []workloadmeta.ContainerPort{{Port: 6379}},
 		pid:     1234,
 		ready:   true,
 		tagger:  taggerComponent,
@@ -220,7 +221,7 @@ func TestProcessServiceInterface(t *testing.T) {
 	t.Run("GetPorts", func(t *testing.T) {
 		ports, err := svc.GetPorts()
 		assert.NoError(t, err)
-		assert.Equal(t, []ContainerPort{{Port: 6379}}, ports)
+		assert.Equal(t, []workloadmeta.ContainerPort{{Port: 6379}}, ports)
 	})
 
 	t.Run("GetPid", func(t *testing.T) {
@@ -267,7 +268,7 @@ func TestProcessServiceEqual(t *testing.T) {
 		process:  process,
 		tagsHash: "hash1",
 		hosts:    map[string]string{"host": "127.0.0.1"},
-		ports:    []ContainerPort{{Port: 6379}},
+		ports:    []workloadmeta.ContainerPort{{Port: 6379}},
 		pid:      1234,
 		ready:    true,
 	}
@@ -276,7 +277,7 @@ func TestProcessServiceEqual(t *testing.T) {
 		process:  process,
 		tagsHash: "hash1",
 		hosts:    map[string]string{"host": "127.0.0.1"},
-		ports:    []ContainerPort{{Port: 6379}},
+		ports:    []workloadmeta.ContainerPort{{Port: 6379}},
 		pid:      1234,
 		ready:    true,
 	}
@@ -285,7 +286,7 @@ func TestProcessServiceEqual(t *testing.T) {
 		process:  process,
 		tagsHash: "hash2", // different hash
 		hosts:    map[string]string{"host": "127.0.0.1"},
-		ports:    []ContainerPort{{Port: 6379}},
+		ports:    []workloadmeta.ContainerPort{{Port: 6379}},
 		pid:      1234,
 		ready:    true,
 	}
@@ -304,11 +305,16 @@ func TestProcessServiceEqual(t *testing.T) {
 }
 
 func newProcessListener(t *testing.T, tagger tagger.Component) (*ProcessListener, *testWorkloadmetaListener) {
+	return newProcessListenerWithFilters(t, tagger, nil)
+}
+
+func newProcessListenerWithFilters(t *testing.T, tagger tagger.Component, processFilters workloadfilter.FilterBundle) (*ProcessListener, *testWorkloadmetaListener) {
 	wlm := newTestWorkloadmetaListener(t)
 
 	return &ProcessListener{
 		workloadmetaListener: wlm,
 		tagger:               tagger,
+		processFilters:       processFilters,
 	}, wlm
 }
 
@@ -333,5 +339,112 @@ func assertProcessServices(t *testing.T, wlm *testWorkloadmetaListener, expected
 		for svcID := range wlm.services {
 			t.Errorf("got unexpected service: %s", svcID)
 		}
+	}
+}
+
+// mockFilterBundle is a mock implementation of workloadfilter.FilterBundle for testing
+type mockFilterBundle struct {
+	excludeAll bool
+}
+
+func (m *mockFilterBundle) IsExcluded(_ workloadfilter.Filterable) bool {
+	return m.excludeAll
+}
+
+func (m *mockFilterBundle) GetResult(_ workloadfilter.Filterable) workloadfilter.Result {
+	if m.excludeAll {
+		return workloadfilter.Excluded
+	}
+	return workloadfilter.Unknown
+}
+
+func (m *mockFilterBundle) GetErrors() []error {
+	return nil
+}
+
+func TestCreateProcessServiceWithFilters(t *testing.T) {
+	processEntityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindProcess,
+		ID:   testPID,
+	}
+
+	basicProcess := &workloadmeta.Process{
+		EntityID: processEntityID,
+		Pid:      testPidInt,
+		Ppid:     testPpidInt,
+		Comm:     testComm,
+		Cmdline:  []string{"/usr/bin/redis-server", "--port", "6379"},
+		Service: &workloadmeta.Service{
+			GeneratedName: "redis",
+			TCPPorts:      []uint16{6379},
+		},
+	}
+
+	taggerComponent := taggerfxmock.SetupFakeTagger(t)
+
+	tests := []struct {
+		name             string
+		process          *workloadmeta.Process
+		processFilters   workloadfilter.FilterBundle
+		expectedServices map[string]wlmListenerSvc
+	}{
+		{
+			name:             "process excluded by filter is skipped",
+			process:          basicProcess,
+			processFilters:   &mockFilterBundle{excludeAll: true},
+			expectedServices: map[string]wlmListenerSvc{
+				// No services should be created
+			},
+		},
+		{
+			name:           "process not excluded by filter creates service",
+			process:        basicProcess,
+			processFilters: &mockFilterBundle{excludeAll: false},
+			expectedServices: map[string]wlmListenerSvc{
+				"process://1234": {
+					service: &ProcessService{
+						process: basicProcess,
+						hosts:   map[string]string{"host": "127.0.0.1"},
+						ports: []workloadmeta.ContainerPort{
+							{Port: 6379},
+						},
+						pid:   int(testPidInt),
+						ready: true,
+					},
+				},
+			},
+		},
+		{
+			name:           "nil filter bundle creates service",
+			process:        basicProcess,
+			processFilters: nil,
+			expectedServices: map[string]wlmListenerSvc{
+				"process://1234": {
+					service: &ProcessService{
+						process: basicProcess,
+						hosts:   map[string]string{"host": "127.0.0.1"},
+						ports: []workloadmeta.ContainerPort{
+							{Port: 6379},
+						},
+						pid:   int(testPidInt),
+						ready: true,
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			listener, wlm := newProcessListenerWithFilters(t, taggerComponent, tt.processFilters)
+
+			if tt.process != nil {
+				listener.Store().(workloadmetamock.Mock).Set(tt.process)
+			}
+
+			listener.createProcessService(tt.process)
+
+			assertProcessServices(t, wlm, tt.expectedServices)
+		})
 	}
 }

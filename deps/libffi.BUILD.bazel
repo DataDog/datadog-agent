@@ -247,9 +247,11 @@ cc_library(
         "@platforms//cpu:x86_64": [
             "src/x86/asmnames.h",
             "src/x86/ffi64.c",
+            "src/x86/ffiw64.c",
             "src/x86/internal.h",
             "src/x86/internal64.h",
             "src/x86/unix64.S",
+            "src/x86/win64.S",
         ],
         "//conditions:default": [],
     }),
@@ -268,4 +270,6 @@ cc_library(
             }),
     implementation_deps = [":dlmalloc_header", ":libffi_include_headers"],
     visibility = ["//visibility:public"],
+    linkstatic = True,
 )
+

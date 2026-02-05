@@ -696,14 +696,10 @@ func TestActivityTree_CreateProcessNode(t *testing.T) {
 								)
 								at = activity_tree.NewActivityTree(profile, nil, "profile")
 								profile.ActivityTree = at
+								cgce := cgroupModel.NewCacheEntry(model.ContainerContext{ContainerID: containerutils.ContainerID(contID)}, model.CGroupContext{CGroupID: containerutils.CGroupID(contID)}, 0)
 								profile.Instances = append(profile.Instances, &tags.Workload{
-									CacheEntry: &cgroupModel.CacheEntry{
-										ContainerContext: model.ContainerContext{
-											ContainerID: containerutils.ContainerID(contID),
-										},
-										CGroupContext: model.CGroupContext{CGroupID: containerutils.CGroupID(contID)},
-									},
-									Selector: cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"},
+									GCroupCacheEntry: cgce,
+									Selector:         cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"},
 								})
 							}
 						} else { // retrieve last saved tree state

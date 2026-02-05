@@ -1725,6 +1725,23 @@ api_key:
 #   # Increase this value if you experience timeouts with large profile uploads.
 #
 #   profiling_receiver_timeout: 5
+#
+#   # @param additional_profile_tags - map of strings - optional
+#   # @env DD_APM_ADDITIONAL_PROFILE_TAGS - JSON string - optional
+#   # Additional tags to add to all profiles. These tags are added on the agent side
+#   # before forwarding profiles to Datadog. This is useful for environment-identifying
+#   # tags that should be applied to all profiles (e.g., origin).
+#   #
+#   # Note: For Azure App Service in Windows, this configuration is set in the AAS Site Extension.
+#   # Overriding the default tags in AAS Windows should be done with reference to https://datadoghq.atlassian.net/wiki/spaces/SLS/pages/6007685143/Profiling.
+#   #
+#   # additional_profile_tags:
+#   #   _dd.origin: appservice
+#   #   <TAG_KEY>: <TAG_VALUE>
+#
+#   ## DD_APM_ADDITIONAL_PROFILE_TAGS='{"_dd.origin":"appservice","secondtag":"custom"}'
+#
+#   # additional_profile_tags: {}
 {{ if .InternalProfiling }}
 #   # @param profiling - custom object - optional
 #   # Enter specific configurations for internal profiling.
@@ -1983,34 +2000,37 @@ api_key:
 #     # Custom filters to include or exclude specific destinations from network path collection.
 #     # Filters support matching by domain (with wildcard or regex) and by IP address (single IP or CIDR notation).
 #     # Filters are applied sequentially, the last matching filter takes precedence.
+#     # In end_user_device infrastructure mode, user-defined filters are appended to the default SaaS filters below.
 #
 #     filters:
 #
-#       # exclude single domain
-#       - match_domain: 'api.slack.com'
-#         type: exclude
+#       # ===== Filter syntax examples =====
 #
-#       # exclude domain using wildcard
-#       - match_domain: '*.datadoghq.com'      # translate to regex '.*\.datadoghq\.com
-#         type: exclude
-#       - match_domain: '*.zoom.us'
-#         match_domain_strategy: wildcard      # use wildcard to match domain (default)
-#         type: exclude
+#       # Exclude single domain
+#       # - match_domain: 'api.slack.com'
+#       #   type: exclude
 #
-#       # exclude single IP or using CIDR notation
-#       - match_ip: 10.10.10.10
-#         type: exclude
-#       - match_ip: 10.20.0.0/24
-#         type: exclude
+#       # Exclude domain using wildcard (default strategy)
+#       # - match_domain: '*.datadoghq.com'      # translates to regex '.*\.datadoghq\.com'
+#       #   type: exclude
+#       # - match_domain: '*.zoom.us'
+#       #   match_domain_strategy: wildcard      # use wildcard to match domain (default)
+#       #   type: exclude
 #
-#       # exclude using regex
-#       - match_domain: '.*\.zoom\.us'
-#         match_domain_strategy: regex         # use regex to match domain
-#         type: exclude
+#       # Exclude single IP or using CIDR notation
+#       # - match_ip: 10.10.10.10
+#       #   type: exclude
+#       # - match_ip: 10.20.0.0/24
+#       #   type: exclude
 #
-#       # include
-#       - match_domain: 'api.datadoghq.com'
-#         type: include
+#       # Exclude using regex
+#       # - match_domain: '.*\.zoom\.us'
+#       #   match_domain_strategy: regex         # use regex to match domain
+#       #   type: exclude
+#
+#       # Include specific domain
+#       # - match_domain: 'api.datadoghq.com'
+#       #   type: include
 
 #     # @param traceroute_queries - integer - optional - default: 3
 #     # @env DD_NETWORK_PATH_COLLECTOR_TRACEROUTE_QUERIES - integer - optional - default: 3
@@ -2251,6 +2271,13 @@ api_key:
 #   # Set to true to enable the Network Module of the System Probe
 #
 #   enabled: false
+
+#   # @param dns_monitoring_ports - list of integers - optional - default: [53]
+#   # @env DD_SYSTEM_PROBE_CONFIG_DNS_MONITORING_PORTS - space separated list of integers - optional - default: [53]
+#   # A list of ports that should be monitored for DNS traffic.
+#
+#   dns_monitoring_ports:
+#     - 53
 {{ end -}}
 {{ if .UniversalServiceMonitoringModule }}
 #############################################################
@@ -4058,6 +4085,19 @@ api_key:
 #
 #   namespace: default
 
+#   # @param default_scan - custom object - optional
+#   # Configuration for automatic SNMP device scanning.
+#   # When enabled, discovered SNMP devices are automatically scanned.
+#
+#   # default_scan:
+#
+#     # @param enabled - boolean - optional - default: false
+#     # Enable automatic scanning of discovered SNMP devices.
+#     # When enabled, devices discovered via autodiscovery or configured
+#     # directly will be scanned to collect OID data.
+#
+#     # enabled: false
+
 #   # @param autodiscovery - custom object - optional
 #   # Creates and schedules a listener to automatically discover your SNMP devices.
 #   # Discovered devices can then be monitored with the SNMP integration by using
@@ -4085,7 +4125,7 @@ api_key:
 #
 #     discovery_allowed_failures: 3
 
-#     # @param loader - string - optional - default: python
+#     # @param loader - string - optional - default: core
 #     # Check loader to use. Available loaders:
 #     # - core: (recommended) Uses new corecheck SNMP integration
 #     # - python: Uses legacy python SNMP integration
@@ -4147,6 +4187,23 @@ api_key:
 #     # The deduplication logic is based on the sysName, sysDesc, sysObjectID and sysUptime
 #     use_deduplication: false
 
+#     # @param oid_batch_size - integer - optional - default: 5
+#     # The number of OIDs handled by each batch for all hosts in SNMP autodiscovery.
+#     # Applies to all configurations if not overridden.
+#     # By default, devices dynamically tune their batch size to optimize performance (agent version v7.73+).
+#
+#     # oid_batch_size: 5
+
+#     # @param timeout - integer - optional - default: 5
+#     # The number of seconds before timing out. Applies to all configurations if not overridden.
+#
+#     # timeout: 5
+
+#     # @param retries - integer - optional - default: 3
+#     # The number of retries before failure. Applies to all configurations if not overridden.
+#
+#     # retries: 3
+
 #     # @param configs - list - required
 #     # The actual list of configurations used to discover SNMP devices in various subnets.
 #     # Example:
@@ -4184,6 +4241,16 @@ api_key:
 #
 #         port: 161
 
+#         # @param timeout - integer - optional - default: 5
+#         # The number of seconds before timing out. Applies to all authentications if not overridden.
+#
+#         # timeout: 5
+
+#         # @param retries - integer - optional - default: 3
+#         # The number of retries before failure. Applies to all authentications if not overridden.
+#
+#         # retries: 3
+
 #         # @param authentications - list of custom objects - optional
 #         # A list of authentication configurations to try when connecting to your SNMP devices.
 #         # The Agent tries each configuration until it successfully connects.
@@ -4205,12 +4272,12 @@ api_key:
 #             # @param timeout - integer - optional - default: 5
 #             # The number of seconds before timing out.
 #
-#             timeout: 5
+#             # timeout: 5
 
 #             # @param retries - integer - optional - default: 3
 #             # The number of retries before failure.
 #
-#             retries: 3
+#             # retries: 3
 
 #             # @param community_string - string - optional
 #             # Required for SNMP v1 & v2.
@@ -4274,10 +4341,10 @@ api_key:
 #
 #         ad_identifier: snmp
 
-#         # @param loader - string - optional - default: python
+#         # @param loader - string - optional - default: core
 #         # Check loader to use. Available loaders:
-#         # - core: will use corecheck SNMP integration
-#         # - python: will use python SNMP integration
+#         # - core: (recommended) Uses new corecheck SNMP integration
+#         # - python: Uses legacy python SNMP integration
 #
 #         loader: core
 
@@ -4301,7 +4368,7 @@ api_key:
 #         # @param oid_batch_size - integer - optional - default: 5
 #         # The number of OIDs handled by each batch.
 #
-#         oid_batch_size: 5
+#         # oid_batch_size: 5
 
 #         # @param interface_configs - map - optional
 #         # This option is used to override interface inbound/outbound speed, add interface tags, or disable monitoring for specific interfaces
@@ -4818,6 +4885,14 @@ api_key:
 #       # be overridden.
 #
 #       sampling_percentage: 100
+
+#     infra_attributes:
+#
+#       # @param enabled - boolean - optional - default: true
+#       # @env DD_OTLP_CONFIG_TRACES_INFRA_ATTRIBUTES_ENABLED - boolean - optional - default: true
+#       # Set to false to disable Infra-Attribute-Processor for traces pipeline in the OTLP ingest endpoint.
+#
+#       enabled: true
 
 #     # @param ignore_missing_datadog_fields - boolean - optional - default: false
 #     # @env DD_OTLP_CONFIG_IGNORE_MISSING_DATADOG_FIELDS - boolean - optional - default: false

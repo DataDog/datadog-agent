@@ -9,7 +9,6 @@ package listeners
 
 import (
 	"errors"
-	"maps"
 	"sort"
 	"strings"
 	"time"
@@ -104,9 +103,9 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		return
 	}
 
-	ports := make([]ContainerPort, 0, len(container.Ports))
+	ports := make([]workloadmeta.ContainerPort, 0, len(container.Ports))
 	for _, port := range container.Ports {
-		ports = append(ports, ContainerPort{
+		ports = append(ports, workloadmeta.ContainerPort{
 			Port: port.Port,
 			Name: port.Name,
 		})
@@ -154,22 +153,8 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 			log.Errorf("error getting check names from labels on container %s: %v", container.ID, err)
 		}
 
-		hosts := make(map[string]string)
-		maps.Copy(hosts, container.NetworkIPs)
-
-		if rancherIP, ok := docker.FindRancherIPInLabels(container.Labels); ok {
-			hosts["rancher"] = rancherIP
-		}
-
-		// Some CNI solutions (including ECS awsvpc) do not assign an
-		// IP through docker, but set a valid reachable hostname. Use
-		// it if no IP is discovered.
-		if len(hosts) == 0 && len(container.Hostname) > 0 {
-			hosts["hostname"] = container.Hostname
-		}
-
 		svc.ready = true
-		svc.hosts = hosts
+		svc.hosts = docker.ContainerHosts(container.NetworkIPs, container.Labels, container.Hostname)
 		svc.checkNames = checkNames
 	}
 

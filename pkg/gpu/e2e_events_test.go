@@ -163,9 +163,9 @@ loop:
 	stats, err := statsGen.getStats(int64(endTs + 1))
 	require.NoError(t, err)
 	require.NotNil(t, stats)
-	require.Len(t, stats.Metrics, 1)
+	require.Len(t, stats.ProcessMetrics, 1)
 
-	metrics := stats.Metrics[0]
+	metrics := stats.ProcessMetrics[0]
 
 	require.Equal(t, metrics.Key.PID, uint32(executingPID))
 

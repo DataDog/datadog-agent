@@ -20,7 +20,13 @@
             "method": "main.testNestedPointer"
           }
         }
-      }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
     },
     "timestamp": "[ts]",
     "message": "{anotherInt: 42, anotherString: xyz}"

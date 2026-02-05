@@ -1030,16 +1030,12 @@ func serializeK8sContext(e *model.Event, ctx *model.UserSessionContext, userSess
 }
 
 func serializeSSHContext(ctx *model.UserSessionContext, userSessionContextSerializer *UserSessionContextSerializer) {
-	if model.SSHAuthMethodStrings == nil {
-		model.InitSSHAuthMethodConstants()
-	}
-
 	sshClientIP := ctx.SSHClientIP.IP.String()
 	if sshClientIP == "<nil>" {
 		sshClientIP = ""
 	}
 
-	sshAuthMethod := model.SSHAuthMethodStrings[usersession.AuthType(ctx.SSHAuthMethod)]
+	sshAuthMethod := model.SSHAuthMethodToString(usersession.AuthType(ctx.SSHAuthMethod))
 	if sshAuthMethod == "<nil>" {
 		sshAuthMethod = ""
 	}
@@ -1060,10 +1056,8 @@ func newUserSessionContextSerializer(ctx *model.UserSessionContext, e *model.Eve
 	if ctx.SSHSessionID != 0 {
 		serializeSSHContext(ctx, userSessionContextSerializer)
 	}
-	// init the map if not already done
-	model.InitUserSessionTypes()
 
-	userSessionContextSerializer.SessionType = model.UserSessionTypeStrings[usersession.Type(e.FieldHandlers.ResolveSessionType(e, ctx))]
+	userSessionContextSerializer.SessionType = model.UserSessionTypeToString(usersession.Type(e.FieldHandlers.ResolveSessionType(e, ctx)))
 	userSessionContextSerializer.ID = e.FieldHandlers.ResolveSessionID(e, ctx)
 	userSessionContextSerializer.Identity = e.FieldHandlers.ResolveSessionIdentity(e, ctx)
 	return userSessionContextSerializer
@@ -1578,15 +1572,15 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 		s.SecurityProfileContextSerializer = newSecurityProfileContextSerializer(event, &event.SecurityProfileContext)
 	}
 
-	if ctx, exists := event.FieldHandlers.ResolveContainerContext(event); exists {
+	if !event.ProcessContext.ContainerContext.IsNull() {
 		s.ContainerContextSerializer = &ContainerContextSerializer{
-			ID:        string(ctx.ContainerID),
-			CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(ctx.CreatedAt))),
+			ID:        string(event.ProcessContext.ContainerContext.ContainerID),
+			CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(event.ProcessContext.ContainerContext.CreatedAt))),
 			Variables: newVariablesContext(event, rule, "container."),
 		}
 	}
 
-	if cgroupID := event.FieldHandlers.ResolveCGroupID(event, &event.ProcessContext.CGroup); cgroupID != "" {
+	if !event.ProcessContext.CGroup.IsNull() {
 		s.CGroupContextSerializer = &CGroupContextSerializer{
 			ID:        string(event.ProcessContext.CGroup.CGroupID),
 			Variables: newVariablesContext(event, rule, "cgroup."),

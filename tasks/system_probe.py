@@ -53,7 +53,7 @@ TEST_PACKAGES_LIST = [
     "./pkg/ebpf/...",
     "./pkg/network/...",
     "./pkg/collector/corechecks/ebpf/...",
-    "./pkg/collector/corechecks/servicediscovery/module/...",
+    "./pkg/discovery/module/...",
     "./pkg/process/monitor/...",
     "./pkg/dyninst/...",
     "./pkg/gpu/...",
@@ -92,6 +92,10 @@ CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
 LIBPCAP_VERSION = "1.10.5"
 
 TEST_HELPER_CBINS = ["cudasample"]
+
+RUST_BINARIES = [
+    "pkg/discovery/module/rust",
+]
 
 
 def get_ebpf_build_dir(arch: Arch) -> Path:
@@ -1580,6 +1584,8 @@ def build_object_files(
 
     validate_object_file_metadata(ctx, build_dir, verbose=False)
 
+    build_rust_binaries(ctx, arch=arch_obj)
+
     if not is_windows:
         sudo = "" if is_root() else "sudo"
         ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}")
@@ -1612,6 +1618,27 @@ def build_object_files(
             with ctx.cd(runtime_dir):
                 ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}/runtime")
                 ctx.run(f"{sudo} find ./ -maxdepth 1 -type f -name '*.c' {cp_cmd('runtime')}")
+
+
+def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None, packages: list[str] | None = None):
+    if is_windows or is_macos:
+        return
+
+    platform_map = {
+        "x86_64": "//bazel/platforms:linux_x86_64",
+        "arm64": "//bazel/platforms:linux_arm64",
+    }
+
+    platform_flag = ""
+    if arch.kmt_arch in platform_map:
+        platform_flag = f"--platforms={platform_map[arch.kmt_arch]}"
+
+    for source_path in RUST_BINARIES:
+        if packages and not any(source_path.startswith(package) for package in packages):
+            continue
+
+        install_dest = output_dir / source_path if output_dir else Path(source_path)
+        ctx.run(f"bazelisk run {platform_flag} -- @//{source_path}:install --destdir={install_dest}")
 
 
 def build_cws_object_files(
@@ -1919,6 +1946,7 @@ def _test_docker_image_list():
 
     docker_compose_paths = glob.glob("./pkg/network/protocols/**/*/docker-compose.yml", recursive=True)
     docker_compose_paths.extend(glob.glob("./pkg/network/usm/**/*/docker-compose.yml", recursive=True))
+    docker_compose_paths.append("./pkg/network/protocols/tls/nodejs/testdata/docker-compose-ubuntu.yml")
     # Add relative docker-compose paths
     # For example:
     #   docker_compose_paths.append("./pkg/network/protocols/dockers/testdata/docker-compose.yml")

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 )
 
 const (
@@ -460,7 +462,8 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 		}
 	}
 
-	c.extractTagsFromJSONInMap(podTagsAnnotation, pod.Annotations, tagList)
+	podAdapter := newResolvableAdapter(pod, nil)
+	c.extractTagsFromJSONWithResolution(podTagsAnnotation, pod.Annotations, tagList, podAdapter)
 
 	// OpenShift pod annotations
 	if dcName, found := pod.Annotations["openshift.io/deployment-config.name"]; found {
@@ -761,13 +764,9 @@ func (c *WorkloadMetaCollector) extractGPUTags(gpu *workloadmeta.GPU, tagList *t
 	tagList.AddLow(tags.GPUDriverVersion, gpu.DriverVersion)
 	tagList.AddLow(tags.GPUVirtualizationMode, gpu.VirtualizationMode)
 	tagList.AddLow(tags.GPUArchitecture, strings.ToLower(gpu.Architecture))
-
-	if gpu.DeviceType == workloadmeta.GPUDeviceTypeMIG {
-		tagList.AddLow(tags.GPUSlicingMode, "mig")
-	} else if len(gpu.ChildrenGPUUUIDs) > 0 {
-		tagList.AddLow(tags.GPUSlicingMode, "mig-parent")
-	} else {
-		tagList.AddLow(tags.GPUSlicingMode, "none")
+	tagList.AddLow(tags.GPUSlicingMode, gpu.SlicingMode())
+	if gpu.GPUType != "" {
+		tagList.AddLow(tags.GPUType, strings.ToLower(gpu.GPUType))
 	}
 
 	if gpu.ParentGPUUUID == "" {
@@ -936,7 +935,8 @@ func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.Ku
 
 	// container-specific tags provided through pod annotation
 	annotation := fmt.Sprintf(podContainerTagsAnnotationFormat, containerName)
-	c.extractTagsFromJSONInMap(annotation, pod.Annotations, tagList)
+	containerAdapter := newResolvableAdapter(pod, container)
+	c.extractTagsFromJSONWithResolution(annotation, pod.Annotations, tagList, containerAdapter)
 
 	low, orch, high, standard := tagList.Compute()
 	return &types.TagInfo{
@@ -1015,13 +1015,13 @@ func (c *WorkloadMetaCollector) extractFromMapNormalizedWithFn(input map[string]
 	}
 }
 
-func (c *WorkloadMetaCollector) extractTagsFromJSONInMap(key string, input map[string]string, tags *taglist.TagList) {
+func (c *WorkloadMetaCollector) extractTagsFromJSONWithResolution(key string, input map[string]string, tags *taglist.TagList, resolvable tmplvar.Resolvable) {
 	jsonTags, found := input[key]
 	if !found {
 		return
 	}
 
-	err := parseJSONValue(jsonTags, tags)
+	err := parseJSONValueWithResolution(jsonTags, tags, resolvable)
 	if err != nil {
 		log.Errorf("can't parse value for annotation %s: %s", key, err)
 	}
@@ -1029,7 +1029,7 @@ func (c *WorkloadMetaCollector) extractTagsFromJSONInMap(key string, input map[s
 
 func (c *WorkloadMetaCollector) addOpenTelemetryStandardTags(container *workloadmeta.Container, tags *taglist.TagList) {
 	if otelResourceAttributes, ok := container.EnvVars[envVarOtelResourceAttributes]; ok {
-		for _, pair := range strings.Split(otelResourceAttributes, ",") {
+		for pair := range strings.SplitSeq(otelResourceAttributes, ",") {
 			fields := strings.SplitN(pair, "=", 2)
 			if len(fields) != 2 {
 				log.Debugf("invalid OpenTelemetry resource attribute: %s", pair)
@@ -1049,10 +1049,6 @@ func buildTaggerSource(entityID workloadmeta.EntityID) string {
 }
 
 func parseJSONValue(value string, tags *taglist.TagList) error {
-	if value == "" {
-		return errors.New("value is empty")
-	}
-
 	result := map[string]interface{}{}
 	if err := json.Unmarshal([]byte(value), &result); err != nil {
 		return fmt.Errorf("failed to unmarshal JSON: %s", err)
@@ -1062,16 +1058,43 @@ func parseJSONValue(value string, tags *taglist.TagList) error {
 		switch v := value.(type) {
 		case string:
 			tags.AddAuto(key, v)
+		case float64:
+			tags.AddAuto(key, fmt.Sprint(v))
+		case int64:
+			tags.AddAuto(key, strconv.FormatInt(v, 10))
+		case bool:
+			tags.AddAuto(key, strconv.FormatBool(v))
 		case []interface{}:
 			for _, tag := range v {
 				tags.AddAuto(key, fmt.Sprint(tag))
 			}
 		default:
-			log.Debugf("Tag value %s is not valid, must be a string or an array, skipping", v)
+			log.Debugf("Tag value %s is not valid, must be a string, int, float, bool or an array, skipping", v)
 		}
 	}
-
 	return nil
+}
+
+func parseJSONValueWithResolution(value string, tags *taglist.TagList, resolvable tmplvar.Resolvable) error {
+	if value == "" {
+		return errors.New("value is empty")
+	}
+
+	// Parse without template resolution if no resolvable entity is provided.
+	if resolvable == nil {
+		log.Debug("no resolvable entity provided, parsing without template resolution")
+		return parseJSONValue(value, tags)
+	}
+
+	resolver := tmplvar.NewTemplateResolver(tmplvar.JSONParser, nil, false)
+	resolved, err := resolver.ResolveDataWithTemplateVars([]byte(value), resolvable)
+	if err != nil {
+		// If resolution fails, log but try to parse the original value
+		log.Debugf("Failed to resolve template variables in tags: %v", err)
+		return parseJSONValue(value, tags)
+	}
+
+	return parseJSONValue(string(resolved), tags)
 }
 
 func parseContainerADTagsLabels(tags *taglist.TagList, labelValue string) {

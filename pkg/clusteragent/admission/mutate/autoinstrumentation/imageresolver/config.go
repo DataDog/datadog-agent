@@ -1,0 +1,59 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build kubeapiserver
+
+// Package imageresolver provides configuration and utilities for resolving
+// container image references from mutable tags to digests.
+package imageresolver
+
+import (
+	"crypto/sha256"
+	"encoding/binary"
+	"strconv"
+	"time"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+)
+
+const (
+	rolloutBucketCount = 10 // Max number of buckets for gradual rollout
+)
+
+// RemoteConfigClient defines the interface we need for remote config operations
+type RemoteConfigClient interface {
+	GetConfigs(product string) map[string]state.RawConfig
+	Subscribe(product string, callback func(map[string]state.RawConfig, func(string, state.ApplyStatus)))
+}
+
+// Config contains information needed to create a Resolver
+type Config struct {
+	Site           string
+	DDRegistries   map[string]struct{}
+	RCClient       RemoteConfigClient
+	MaxInitRetries int
+	InitRetryDelay time.Duration
+	BucketID       string
+}
+
+func calculateRolloutBucket(apiKey string) string {
+	// DEV: If the API key is empty for whatever reason, resolves to bucket 2
+	hash := sha256.Sum256([]byte(apiKey))
+	hashInt := binary.BigEndian.Uint64(hash[:8])
+	return strconv.Itoa(int(hashInt % rolloutBucketCount))
+}
+
+// NewConfig creates a new Config
+func NewConfig(cfg config.Component, rcClient RemoteConfigClient) Config {
+	return Config{
+		Site:           cfg.GetString("site"),
+		DDRegistries:   newDatadoghqRegistries(cfg.GetStringSlice("admission_controller.auto_instrumentation.default_dd_registries")),
+		RCClient:       rcClient,
+		MaxInitRetries: 5,
+		InitRetryDelay: 1 * time.Second,
+		BucketID:       calculateRolloutBucket(cfg.GetString("api_key")),
+	}
+}

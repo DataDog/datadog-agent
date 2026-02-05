@@ -96,6 +96,13 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 			install: make(map[string]packageWithVersion),
 		},
 	}
+
+	// Map DD_LOGS_ENABLED env var into datadog.yaml
+	if logsEnabledEnv := os.Getenv("DD_LOGS_ENABLED"); logsEnabledEnv != "" {
+		logsEnabled := strings.EqualFold(logsEnabledEnv, "true") || logsEnabledEnv == "1"
+		s.Config.DatadogYAML.LogsEnabled = config.BoolToPtr(logsEnabled)
+	}
+
 	return s, nil
 }
 

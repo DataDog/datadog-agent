@@ -221,36 +221,6 @@ func (fh *EBPFFieldHandlers) ResolveMountRootPath(ev *model.Event, e *model.Moun
 	return e.MountRootPath
 }
 
-func (fh *EBPFFieldHandlers) containerIDFromCgroupID(cgroupID containerutils.CGroupID) containerutils.ContainerID {
-	if containerID, ok := fh.cgroupIDcache.Get(cgroupID); ok {
-		return containerID
-	}
-
-	cid := containerutils.FindContainerID(cgroupID)
-	fh.cgroupIDcache.Add(cgroupID, cid)
-	return cid
-}
-
-// ResolveContainerContext queries the cgroup resolver to retrieve the ContainerContext of the event
-func (fh *EBPFFieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
-	if ev.ProcessContext.ContainerContext.Resolved {
-		return &ev.ProcessContext.ContainerContext, ev.ProcessContext.ContainerContext.Resolved
-	}
-
-	if ev.ProcessContext.Process.ContainerContext.ContainerID == "" {
-		ev.ProcessContext.Process.ContainerContext.ContainerID = fh.containerIDFromCgroupID(ev.ProcessContext.Process.CGroup.CGroupID)
-	}
-
-	if ev.ProcessContext.ContainerContext.ContainerID != "" {
-		if containerContext, _ := fh.resolvers.CGroupResolver.GetContainerWorkload(ev.ProcessContext.ContainerContext.ContainerID); containerContext != nil {
-			ev.ProcessContext.ContainerContext = containerContext.ContainerContext
-			ev.ProcessContext.ContainerContext.Resolved = true
-		}
-	}
-
-	return &ev.ProcessContext.ContainerContext, ev.ProcessContext.ContainerContext.Resolved
-}
-
 // ResolveRights resolves the rights of a file
 func (fh *EBPFFieldHandlers) ResolveRights(_ *model.Event, e *model.FileFields) int {
 	return int(e.Mode) & (syscall.S_ISUID | syscall.S_ISGID | syscall.S_ISVTX | syscall.S_IRWXU | syscall.S_IRWXG | syscall.S_IRWXO)
@@ -551,35 +521,18 @@ func (fh *EBPFFieldHandlers) ResolveModuleArgs(_ *model.Event, module *model.Loa
 
 // ResolveHashesFromEvent resolves the hashes of the requested event
 func (fh *EBPFFieldHandlers) ResolveHashesFromEvent(ev *model.Event, f *model.FileEvent) []string {
-	return fh.resolvers.HashResolver.ComputeHashesFromEvent(ev, f)
+	return fh.resolvers.HashResolver.ComputeHashesFromEvent(ev, f, 0)
 }
 
 // ResolveHashes resolves the hashes of the requested file event
 func (fh *EBPFFieldHandlers) ResolveHashes(eventType model.EventType, process *model.Process, file *model.FileEvent) []string {
-	return fh.resolvers.HashResolver.ComputeHashes(eventType, process, file)
-}
-
-// ResolveCGroupID resolves the cgroup ID of the event
-func (fh *EBPFFieldHandlers) ResolveCGroupID(ev *model.Event, cont *model.CGroupContext) string {
-	if len(cont.CGroupID) == 0 {
-		if entry, _ := fh.ResolveProcessCacheEntry(ev, nil); entry != nil {
-			if entry.CGroup.CGroupID != "" && entry.CGroup.CGroupID != "/" {
-				return string(entry.CGroup.CGroupID)
-			}
-
-			if cgroupContext, _, err := fh.resolvers.ResolveCGroupContext(cont.CGroupFile); err == nil {
-				ev.ProcessContext.CGroup = *cgroupContext
-			}
-		}
-	}
-
-	return string(cont.CGroupID)
+	return fh.resolvers.HashResolver.ComputeHashes(eventType, process, file, 0)
 }
 
 // ResolveCGroupVersion resolves the version of the cgroup API
 func (fh *EBPFFieldHandlers) ResolveCGroupVersion(ev *model.Event, e *model.CGroupContext) int {
 	if e.CGroupVersion == 0 {
-		if filesystem, _ := fh.resolvers.MountResolver.ResolveFilesystem(e.CGroupFile.MountID, ev.PIDContext.Pid); filesystem == "cgroup2" {
+		if filesystem, _ := fh.resolvers.MountResolver.ResolveFilesystem(e.CGroupPathKey.MountID, ev.PIDContext.Pid); filesystem == "cgroup2" {
 			e.CGroupVersion = 2
 		} else {
 			e.CGroupVersion = 1
@@ -597,16 +550,6 @@ func (fh *EBPFFieldHandlers) ResolveContainerID(ev *model.Event, e *model.Contai
 		}
 	}
 	return string(e.ContainerID)
-}
-
-// ResolveContainerCreatedAt resolves the container creation time of the event
-func (fh *EBPFFieldHandlers) ResolveContainerCreatedAt(ev *model.Event, e *model.ContainerContext) int {
-	if e.CreatedAt == 0 {
-		if containerContext, _ := fh.ResolveContainerContext(ev); containerContext != nil {
-			e.CreatedAt = containerContext.CreatedAt
-		}
-	}
-	return int(e.CreatedAt)
 }
 
 // ResolveContainerTags resolves the container tags of the event

@@ -21,32 +21,9 @@ license "MIT"
 license_file "Copyright"
 skip_transitive_dependency_licensing true
 
-dependency "libxml2"
-dependency "libxslt"
-dependency "libtool"
-dependency "libgcrypt"
-dependency "openssl3"
-
-version("1.3.1") { source sha256: "10f48384d4fd1afc05fea545b74fbf7c152582f0a895c189f164d55270400c63" }
-version("1.3.7") { source sha256: "d82e93b69b8aa205a616b62917a269322bf63a3eaafb3775014e61752b2013ea" }
-
-source url: "https://github.com/lsh123/xmlsec/releases/download/#{version}/xmlsec1-#{version}.tar.gz"
-
-relative_path "xmlsec1-#{version}"
-
 build do
-  env = with_standard_compiler_flags(with_embedded_path)
-
-  env["CFLAGS"] << " -fPIC"
-  env["CFLAGS"] << " -std=c99"
-
-  update_config_guess
-  configure_options = [
-    "--disable-static",
-    "--disable-pedantic",
-    "--with-libxml=#{install_dir}/embedded/"
-  ]
-  configure(*configure_options, env: env)
-  make "-j #{workers}", env: env
-  make "install", env: env
+  command_on_repo_root "bazelisk run -- @xmlsec//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/libxmlsec1*.so" \
+    " #{install_dir}/embedded/lib/pkgconfig/xmlsec1*.pc"
 end

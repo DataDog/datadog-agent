@@ -161,14 +161,6 @@ func (ctx *systemContext) removeProcess(pid int) {
 	}
 }
 
-// cleanOld removes any old entries that have not been accessed in a while, to avoid
-// retaining unused data forever
-func (ctx *systemContext) cleanOld() {
-	if ctx.cudaKernelCache != nil {
-		ctx.cudaKernelCache.CleanOld()
-	}
-}
-
 // filterDevicesForContainer filters the available GPU devices for the given
 // container. If the ID is not empty, we check the assignment of GPU resources
 // to the container and return only the devices that are available to the

@@ -35,8 +35,8 @@ func isAllowed(path, allowedPrefix string) bool {
 	// Files which have any ancestor directory named "logs" are allowed
 	// regardless of the file name.
 	dir := filepath.Dir(path)
-	parts := strings.Split(dir, "/")
-	for _, part := range parts {
+	parts := strings.SplitSeq(dir, "/")
+	for part := range parts {
 		if strings.ToLower(part) == "logs" {
 			return true
 		}

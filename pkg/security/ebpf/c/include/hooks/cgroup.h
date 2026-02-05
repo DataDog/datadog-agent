@@ -167,9 +167,13 @@ int __attribute__((always_inline)) dr_cgroup_write_callback(void *ctx) {
         return 0;
 
     struct cgroup_write_event_t event = {
-        .file.path_key = inputs->original_key,
+        .path_key = inputs->original_key,
         .pid = inputs->cgroup_write_ctx.cgroup_write_pid,
     };
+
+    struct proc_cache_t *entry = fill_process_context(&event.process);
+    fill_cgroup_context(entry, &event.cgroup);
+    fill_span_context(&event.span);
 
     send_event(ctx, EVENT_CGROUP_WRITE, event);
 

@@ -82,7 +82,13 @@
             }
           }
         }
-      }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
     },
     "timestamp": "[ts]",
     "message": "{x: [abc], z: 5, writer: {pointer: not captured at 0x[addr]}}"

@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -56,6 +57,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	filterlistfx "github.com/DataDog/datadog-agent/comp/filterlist/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
@@ -103,7 +105,9 @@ type cliParams struct {
 	checkPause                int
 	checkName                 string
 	checkDelay                int
+	checkConfig               string
 	instanceFilter            string
+	instanceID                string
 	logLevel                  string
 	formatJSON                bool
 	formatTable               bool
@@ -185,6 +189,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				inventorychecksimpl.Module(),
 				logscompression.Module(),
 				metricscompression.Module(),
+				filterlistfx.Module(),
 				// inventorychecksimpl depends on a collector and serializer when created to send payload.
 				// Here we just want to collect metadata to be displayed, so we don't need a collector.
 				collector.NoneModule(),
@@ -216,12 +221,14 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 		},
 	}
 
+	cmd.Flags().StringVarP(&cliParams.checkConfig, "check-config", "C", "", "path to a check configuration file")
 	cmd.Flags().BoolVarP(&cliParams.checkRate, "check-rate", "r", false, "check rates by running the check twice with a 1sec-pause between the 2 runs")
 	cmd.Flags().IntVarP(&cliParams.checkTimes, "check-times", "t", 1, "number of times to run the check")
 	cmd.Flags().IntVar(&cliParams.checkPause, "pause", 0, "pause between multiple runs of the check, in milliseconds")
 	cmd.Flags().StringVarP(&cliParams.logLevel, "log-level", "l", "", "set the log level (default 'off') (deprecated, use the env var DD_LOG_LEVEL instead)")
 	cmd.Flags().IntVarP(&cliParams.checkDelay, "delay", "d", 100, "delay between running the check and grabbing the metrics in milliseconds")
 	cmd.Flags().StringVarP(&cliParams.instanceFilter, "instance-filter", "", "", "filter instances using jq style syntax, example: --instance-filter '.ip_address == \"127.0.0.51\"'")
+	cmd.Flags().StringVarP(&cliParams.instanceID, "instance-id", "", "", "filter instances by the hash associated with the ID referenced in the agent-status, example: --instance-id == \"2a9be2f806a5923e\"'")
 	cmd.Flags().BoolVarP(&cliParams.formatJSON, "json", "", false, "format aggregator and check runner output as json")
 	cmd.Flags().BoolVarP(&cliParams.formatTable, "table", "", false, "format aggregator and check runner output as an ascii table")
 	cmd.Flags().StringVarP(&cliParams.breakPoint, "breakpoint", "b", "", "set a breakpoint at a particular line number (Python checks only)")
@@ -231,7 +238,6 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cmd.Flags().UintVarP(&cliParams.discoveryTimeout, "discovery-timeout", "", 5, "max retry duration until Autodiscovery resolves the check template (in seconds)")
 	cmd.Flags().UintVarP(&cliParams.discoveryRetryInterval, "discovery-retry-interval", "", 1, "(unused)")
 	cmd.Flags().UintVarP(&cliParams.discoveryMinInstances, "discovery-min-instances", "", 1, "minimum number of config instances to be discovered before running the check(s)")
-
 	// Power user flags - mark as hidden
 	createHiddenStringFlag(cmd, &cliParams.profileMemoryDir, "m-dir", "", "an existing directory in which to store memory profiling data, ignoring clean-up")
 	createHiddenStringFlag(cmd, &cliParams.profileMemoryFrames, "m-frames", "", "the number of stack frames to consider")
@@ -316,11 +322,7 @@ func run(
 	// AutoDiscovery.
 	pkgcollector.InitCheckScheduler(collector, demultiplexer, logReceiver, tagger, filterStore)
 
-	waitCtx, cancelTimeout := context.WithTimeout(
-		context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
-
-	allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.checkName}, int(cliParams.discoveryMinInstances), cliParams.instanceFilter, ac)
-	cancelTimeout()
+	allConfigs, err := getAllCheckConfigs(ac, *cliParams)
 	if err != nil {
 		return err
 	}
@@ -445,6 +447,22 @@ func run(
 
 	cs := pkgcollector.GetChecksByNameForConfigs(cliParams.checkName, allConfigs)
 
+	// Filter by instance ID if specified
+	if cliParams.instanceID != "" {
+		var filtered []check.Check
+		for _, c := range cs {
+			parts := strings.Split(string(c.ID()), ":")
+			hash := parts[len(parts)-1]
+
+			if strings.Contains(hash, cliParams.instanceID) {
+				filtered = append(filtered, c)
+			}
+		}
+		if len(filtered) == 0 {
+			return fmt.Errorf("no check instance found matching '%s'", cliParams.instanceID)
+		}
+		cs = filtered
+	}
 	// something happened while getting the check(s), display some info.
 	if len(cs) == 0 {
 		for check, error := range autodiscoveryimpl.GetConfigErrors() {
@@ -665,12 +683,22 @@ func runCheck(cliParams *cliParams, c check.Check, _ aggregator.Demultiplexer) *
 	return s
 }
 
+// checkFlareDirPerms is the permission mode for the check flare directory (rwxr-x---)
+const checkFlareDirPerms = 0750
+
 func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
-	_ = os.Mkdir(defaultpaths.CheckFlareDirectory, os.ModeDir)
+	writeCheckToFileInDir(checkName, checkFileOutput, defaultpaths.CheckFlareDirectory)
+}
+
+func writeCheckToFileInDir(checkName string, checkFileOutput *bytes.Buffer, dir string) {
+	if err := os.MkdirAll(dir, checkFlareDirPerms); err != nil {
+		fmt.Println("Error while creating check flare directory:", err)
+		return
+	}
 
 	// Windows cannot accept ":" in file names
 	filenameSafeTimeStamp := strings.ReplaceAll(time.Now().UTC().Format(time.RFC3339), ":", "-")
-	flarePath := filepath.Join(defaultpaths.CheckFlareDirectory, "check_"+checkName+"_"+filenameSafeTimeStamp+".log")
+	flarePath := filepath.Join(dir, "check_"+checkName+"_"+filenameSafeTimeStamp+".log")
 
 	scrubbed, err := scrubber.ScrubBytes(checkFileOutput.Bytes())
 	if err != nil {
@@ -769,6 +797,27 @@ func populateMemoryProfileConfig(cliParams *cliParams, initConfig map[string]int
 	}
 
 	return nil
+}
+
+func getAllCheckConfigs(ac autodiscovery.Component, cliParams cliParams) ([]integration.Config, error) {
+	// get configs from auto discovery
+	if cliParams.checkConfig == "" {
+		waitCtx, cancelTimeout := context.WithTimeout(
+			context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
+
+		allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.checkName}, int(cliParams.discoveryMinInstances), cliParams.instanceFilter, ac)
+		defer cancelTimeout()
+
+		return allConfigs, err
+	}
+
+	// get config from custom config file
+	customConf, _, err := providers.GetIntegrationConfigFromFile(cliParams.checkName, cliParams.checkConfig)
+	if err != nil {
+		return nil, fmt.Errorf("fail to load custom config: %v", err)
+	}
+
+	return []integration.Config{customConf}, nil
 }
 
 // disableCmdPort overrrides the `cmd_port` configuration so that when the

@@ -349,12 +349,18 @@ func (m *Module) handleProcessesUpdate(update process.ProcessesUpdate) {
 				m.diagnostics.reportReceived(runtimeID, probe)
 			}
 			if update.ShouldUploadSymDB {
+				// Perform the upload, unless it was already queued previously.
 				if err := m.symdb.queueUpload(runtimeID, update.Executable.Path); err != nil {
 					log.Warnf("Failed to queue SymDB upload for process %v: %v", runtimeID.ID, err)
 				}
-			} else {
-				m.symdb.removeUpload(runtimeID)
 			}
+			// NOTE: we don't do anything if ShouldUploadSymDB is false, even
+			// when it switches from true to false. We could attempt to cancel
+			// an upload if it's in progress, but then would we would probably
+			// also want to re-attempt it if the flag switches back to true
+			// later; this is complicated since, in other cases, we don't want
+			// to re-upload (i.e. after a successful upload), so it's easier to
+			// do nothing.
 		}
 		if m.actuator != nil {
 			m.actuator.HandleUpdate(actuator.ProcessesUpdate{Processes: actuatorUpdates})

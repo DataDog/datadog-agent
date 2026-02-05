@@ -25,6 +25,7 @@ type ScriptBundleConfig struct {
 type RunPredefinedScriptConfig struct {
 	Command         []string               `yaml:"command"`
 	ParameterSchema map[string]interface{} `yaml:"parameterSchema,omitempty"`
+	AllowedEnvVars  []string               `yaml:"allowedEnvVars,omitempty"`
 }
 
 func parseCredentials(credentials *privateconnection.PrivateCredentials) (*ScriptBundleConfig, error) {

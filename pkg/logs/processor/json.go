@@ -27,13 +27,13 @@ type jsonEncoder struct{}
 
 // JSON representation of a message.
 type jsonPayload struct {
-	Message   string `json:"message"`
-	Status    string `json:"status"`
-	Timestamp int64  `json:"timestamp"`
-	Hostname  string `json:"hostname"`
-	Service   string `json:"service"`
-	Source    string `json:"ddsource"`
-	Tags      string `json:"ddtags"`
+	Message   ValidUtf8Bytes `json:"message"`
+	Status    string         `json:"status"`
+	Timestamp int64          `json:"timestamp"`
+	Hostname  string         `json:"hostname"`
+	Service   string         `json:"service"`
+	Source    string         `json:"ddsource"`
+	Tags      string         `json:"ddtags"`
 }
 
 // Encode encodes a message into a JSON byte array.
@@ -48,7 +48,7 @@ func (j *jsonEncoder) Encode(msg *message.Message, hostname string) error {
 	}
 
 	encoded, err := json.Marshal(jsonPayload{
-		Message:   toValidUtf8(msg.GetContent()),
+		Message:   ValidUtf8Bytes(msg.GetContent()),
 		Status:    msg.GetStatus(),
 		Timestamp: ts.UnixNano() / nanoToMillis,
 		Hostname:  hostname,
