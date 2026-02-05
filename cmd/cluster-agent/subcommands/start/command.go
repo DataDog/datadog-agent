@@ -74,6 +74,7 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	metadatarunner "github.com/DataDog/datadog-agent/comp/metadata/runner"
 	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/impl"
 	rccomp "github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
@@ -273,6 +274,7 @@ func start(log log.Component,
 	ipc ipc.Component,
 	diagnoseComp diagnose.Component,
 	dcametadataComp dcametadata.Component,
+	hostnameGetter hostnameinterface.Component,
 
 	clusterChecksMetadataComp clusterchecksmetadata.Component,
 	_ metadatarunner.Component,
@@ -427,6 +429,10 @@ func start(log log.Component,
 		if config.GetBool("admission_controller.auto_instrumentation.enabled") || config.GetBool("apm_config.instrumentation.enabled") {
 			products = append(products, state.ProductGradualRollout)
 		}
+		// Add private action runner product if enabled
+		if config.GetBool("privateactionrunner.enabled") {
+			products = append(products, state.ProductActionPlatformRunnerKeys)
+		}
 
 		if len(products) > 0 {
 			var err error
@@ -542,6 +548,17 @@ func start(log log.Component,
 		}
 	} else {
 		appsec.Cleanup(mainCtx, log, config, le.Subscribe)
+	}
+
+	if config.GetBool("privateactionrunner.enabled") {
+		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, log)
+		if err != nil {
+			log.Errorf("Cannot start private action runner: %v", err)
+		} else {
+			defer drain()
+		}
+	} else {
+		log.Info("Private action runner is disabled")
 	}
 
 	if config.GetBool("admission_controller.enabled") {
@@ -664,6 +681,31 @@ func setupClusterCheck(ctx context.Context, ac autodiscovery.Component, tagger t
 
 	pkglog.Info("Started cluster check Autodiscovery")
 	return handler, nil
+}
+
+func startPrivateActionRunner(
+	ctx context.Context,
+	config config.Component,
+	hostnameGetter hostnameinterface.Component,
+	rcClient *rcclient.Client,
+	log log.Component,
+) (func(), error) {
+	if rcClient == nil {
+		return nil, errors.New("Remote config is disabled or failed to initialize, remote config is a required dependency for private action runner")
+	}
+	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log)
+	if err != nil {
+		return nil, err
+	}
+	err = app.Start(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return func() {
+		if err := app.Stop(context.Background()); err != nil {
+			log.Errorf("Error stopping private action runner: %v", err)
+		}
+	}, nil
 }
 
 func initializeRemoteConfigClient(rcService rccomp.Component, config config.Component, clusterName, clusterID string, products ...string) (*rcclient.Client, error) {
