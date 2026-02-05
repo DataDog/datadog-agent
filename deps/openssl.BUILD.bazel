@@ -23,6 +23,7 @@ DEFAULT_CONFIG = [
     "no-ssl3",
     "no-gost",
     "--libdir=lib",
+    "-fmacro-prefix-map=../../../../../../external/+_repo_rules+openssl/=",
     # This instructs openssl to dynamically *load* zlib at runtime, not
     # dynamically *link* with it at build time
     "zlib-dynamic",
