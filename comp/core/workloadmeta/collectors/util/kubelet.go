@@ -572,10 +572,19 @@ func convertConditions(conditions []kubelet.Conditions) []workloadmeta.Kubernete
 	result := make([]workloadmeta.KubernetesPodCondition, len(conditions))
 
 	for i, condition := range conditions {
+		var lastTransitionTime time.Time
+		if condition.LastTransitionTime != "" {
+			// Parse RFC3339 timestamp from kubelet
+			if t, err := time.Parse(time.RFC3339, condition.LastTransitionTime); err == nil {
+				lastTransitionTime = t
+			}
+		}
+
 		result[i] = workloadmeta.KubernetesPodCondition{
-			Type:   condition.Type,
-			Status: condition.Status,
-			Reason: condition.Reason,
+			Type:               condition.Type,
+			Status:             condition.Status,
+			Reason:             condition.Reason,
+			LastTransitionTime: lastTransitionTime,
 		}
 	}
 

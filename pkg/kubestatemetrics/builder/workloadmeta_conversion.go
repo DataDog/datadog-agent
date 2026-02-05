@@ -310,8 +310,9 @@ func convertWorkloadmetaConditions(conditions []workloadmeta.KubernetesPodCondit
 
 	for i, condition := range conditions {
 		result[i] = corev1.PodCondition{
-			Type:   corev1.PodConditionType(condition.Type),
-			Status: corev1.ConditionStatus(condition.Status),
+			Type:               corev1.PodConditionType(condition.Type),
+			Status:             corev1.ConditionStatus(condition.Status),
+			LastTransitionTime: metav1.Time{Time: condition.LastTransitionTime},
 		}
 	}
 
