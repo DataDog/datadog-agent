@@ -97,7 +97,7 @@ func (h *TestConnectionHandler) validateScriptUser() (string, []string) {
 	}
 
 	// Check if the current user can sudo to the script user
-	suCmd := exec.Command("sudo", "su", "-c", fmt.Sprintf("id -u %s", ScriptUserName))
+	suCmd := exec.Command("sudo", "su", "-c", "id -u %s"+ScriptUserName)
 	_, err = suCmd.CombinedOutput()
 	if err != nil {
 		errors = append(errors, fmt.Sprintf("Failed to check if the current user can sudo to the script user: %v", err))
