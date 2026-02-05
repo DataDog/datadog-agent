@@ -39,6 +39,22 @@ type baseAgentMSISuite struct {
 	dumpFolder         string
 }
 
+// packageInstallOptions holds options for the installAgentPackage method
+type packageInstallOptions struct {
+	skipProcdump bool
+}
+
+// PackageInstallOption is a functional option for installAgentPackage
+type PackageInstallOption func(*packageInstallOptions)
+
+// WithSkipProcdump skips starting procdump during installation.
+// Use this for tests that need to delete agent files after installation.
+func WithSkipProcdump() PackageInstallOption {
+	return func(o *packageInstallOptions) {
+		o.skipProcdump = true
+	}
+}
+
 // NOTE: BeforeTest is not called before subtests
 func (s *baseAgentMSISuite) BeforeTest(suiteName, testName string) {
 	if beforeTest, ok := any(&s.BaseAgentInstallerSuite).(suite.BeforeTest); ok {
@@ -121,8 +137,18 @@ func (s *baseAgentMSISuite) newTester(vm *components.RemoteHost, options ...Test
 }
 
 func (s *baseAgentMSISuite) installAgentPackage(vm *components.RemoteHost, agentPackage *windowsAgent.Package, installOptions ...windowsAgent.InstallAgentOption) string {
+	return s.installAgentPackageWithOptions(vm, agentPackage, nil, installOptions...)
+}
+
+func (s *baseAgentMSISuite) installAgentPackageWithOptions(vm *components.RemoteHost, agentPackage *windowsAgent.Package, pkgOpts []PackageInstallOption, installOptions ...windowsAgent.InstallAgentOption) string {
 	remoteMSIPath := ""
 	var err error
+
+	// Apply package install options
+	opts := &packageInstallOptions{}
+	for _, opt := range pkgOpts {
+		opt(opts)
+	}
 
 	// install the agent
 	installOpts := []windowsAgent.InstallAgentOption{
@@ -141,8 +167,8 @@ func (s *baseAgentMSISuite) installAgentPackage(vm *components.RemoteHost, agent
 	s.startXperf(vm)
 	defer s.collectXperf(vm)
 
-	// Start procdump in background to capture crash dumps (only if service will start)
-	if !skipServiceCheck {
+	// Start procdump in background to capture crash dumps (only if service will start and not skipped)
+	if !skipServiceCheck && !opts.skipProcdump {
 		ps := s.startProcdump(vm)
 		defer s.collectProcdumps(ps, vm)
 	}
