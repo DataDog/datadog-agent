@@ -5,6 +5,7 @@ go 1.25.6
 require (
 	github.com/DataDog/datadog-agent v0.0.0-20260205105048-4b9a467b716a
 	github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/log/def v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/proto v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.76.0-devel
