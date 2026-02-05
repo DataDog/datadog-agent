@@ -250,8 +250,9 @@ type RuleContext struct {
 // easyjson:json
 type BaseEventSerializer struct {
 	EventContextSerializer `json:"evt,omitempty"`
-	Date                   utils.EasyjsonTime `json:"date,omitempty"`
-	ProcessingTimeMicrosec uint32             `json:"processingtime_microsec"`
+	Date                   utils.EasyjsonTime           `json:"date,omitempty"`
+	ProcessingTimeMicrosec uint32                       `json:"processingtime_microsec"`
+	ProcessingTrace        []model.ProcessingCheckpoint `json:"processing_trace,omitempty"`
 
 	*FileEventSerializer        `json:"file,omitempty"`
 	*ExitEventSerializer        `json:"exit,omitempty"`
@@ -483,6 +484,7 @@ func NewBaseEventSerializer(event *model.Event, rule *rules.Rule, scrubber *util
 		ProcessContextSerializer: newProcessContextSerializer(pc, event, rule),
 		Date:                     utils.NewEasyjsonTime(event.ResolveEventTime()),
 		ProcessingTimeMicrosec:   processingTimeMicrosec,
+		ProcessingTrace:          event.ProcessingTrace,
 	}
 
 	if event.IsAnomalyDetectionEvent() && len(event.Rules) > 0 {
