@@ -336,6 +336,34 @@ func TestNoBlockErrEnvironment(t *testing.T) {
 	assert.Contains(t, r.GetRegisteredProcesses(), pid)
 }
 
+func TestRegisterDistinguishProcessDoesNotExistFromOtherErrors(t *testing.T) {
+	r := newFileRegistry()
+	r.procRoot = t.TempDir() // fake procfs
+
+	const pid = uint32(4242)
+	missingNamespacedPath := "/does-not-exist"
+
+	t.Run("process_gone_returns_ErrProcessDoesNotExist", func(t *testing.T) {
+		// NewFilePath will fail because the target path doesn't exist, and since
+		// /<procRoot>/<pid> also doesn't exist we should return ErrProcessDoesNotExist.
+		err := r.Register(missingNamespacedPath, pid, IgnoreCB, IgnoreCB, IgnoreCB)
+		require.ErrorIs(t, err, ErrProcessDoesNotExist)
+	})
+
+	t.Run("process_alive_returns_UnknownAttachmentError_for_missing_file", func(t *testing.T) {
+		// Make /<procRoot>/<pid> exist, but keep /root/<namespacedPath> missing so
+		// NewFilePath still fails.
+		require.NoError(t, os.MkdirAll(filepath.Join(r.procRoot, strconv.Itoa(int(pid))), 0o755))
+
+		err := r.Register(missingNamespacedPath, pid, IgnoreCB, IgnoreCB, IgnoreCB)
+		require.Error(t, err)
+		require.NotErrorIs(t, err, ErrProcessDoesNotExist)
+
+		var unknown *UnknownAttachmentError
+		require.ErrorAs(t, err, &unknown)
+	})
+}
+
 func TestFilePathInCallbackArgument(t *testing.T) {
 	var capturedPath string
 	callback := func(f FilePath) error {

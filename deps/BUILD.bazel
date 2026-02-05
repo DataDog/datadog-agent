@@ -12,47 +12,23 @@ filegroup(
         "@bzip2//:bz2",
         "@libffi//:ffi",
         "@libyaml",
-        "@lua//:liblua",
         "@patchelf",
         "@sqlite3",
         "@xz//:lzma",
         "@zlib//:z",
     ] + select({
-        "@platforms//os:linux": [
+        "//packages/agent:linux_default": [
             "@gpg-error",
+            "@lua//:liblua",
             "@nghttp2",
         ],
-        "//:macos_arm64": [
-            "@openssl3//:libcrypto",
+        "//packages/agent:linux_heroku": [
+            "@gpg-error",
+            "@lua//:liblua",
+            "@nghttp2",
         ],
         "@platforms//os:windows": [
             "@cpython//:python_win",
-        ],
-        "//conditions:default": [],
-    }),
-    visibility = [
-        "//compliance:__pkg__",
-        "//packages:__subpackages__",
-    ],
-)
-
-# This is temporary to separate heroku from non-heroku deps
-#
-filegroup(
-    name = "openscap_deps",
-    srcs = select({
-        "@platforms//os:linux": [
-            "@acl",
-            "@attr",
-            "@gcrypt",
-            "@gpg-error",
-            "@libpcap//:pcap",
-            "@libselinux//:selinux",
-            "@libsepol//:sepol",
-            "@libxml2",
-            "@libxslt",
-            "@pcre2",
-            "@zstd",
         ],
         "//conditions:default": [],
     }),

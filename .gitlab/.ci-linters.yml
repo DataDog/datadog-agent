@@ -5,8 +5,8 @@
 needs-rules:
   allowed-stages:
     - .pre
+    - .post
     - lint
-    - notify
     - deploy_dca
     - deploy_dca_mutable_tags
     - deploy_containers
@@ -64,8 +64,6 @@ job-owners:
     - build_fakeintake
     - build_iot_agent-binary_arm64
     - build_iot_agent-binary_x64
-    - build_otel_agent_binary_arm64
-    - build_otel_agent_binary_x64
     - cancel-prev-pipelines
     - close_failing_tests_stale_issues
     - compute_gitlab_ci_config
@@ -80,6 +78,7 @@ job-owners:
     - go_e2e_deps
     - go_mod_tidy_check
     - go_tools_deps
+    - go_tools_deps_arm64
     - installer-amd64
     - installer-amd64-oci
     - installer-arm64

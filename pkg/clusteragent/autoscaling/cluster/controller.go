@@ -13,10 +13,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/model"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -28,6 +25,11 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/clock"
 	karpenterv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type store = autoscaling.Store[model.NodePoolInternal]
@@ -153,12 +155,12 @@ func (c *Controller) syncNodePool(ctx context.Context, name string, nodePool *ka
 				log.Errorf("Error converting Target NodePool: %v", err)
 				return autoscaling.Requeue
 			}
-		}
 
-		// Only create or update if there is no TargetHash (i.e. it is fully Datadog-managed), or if the TargetHash has not changed
-		if !checkTargetHash(npi, targetNp) {
-			log.Infof("NodePool: %s TargetHash (%s) has changed since recommendation was generated; no action will be applied.", npi.Name(), npi.TargetHash())
-			return autoscaling.NoRequeue
+			// Only create or update if the TargetHash has not changed
+			if npi.TargetHash() != targetNp.GetAnnotations()[model.KarpenterNodePoolHashAnnotationKey] {
+				log.Infof("NodePool: %s TargetHash (%s) has changed since recommendation was generated; no action will be applied.", npi.Name(), npi.TargetHash())
+				return autoscaling.NoRequeue
+			}
 		}
 
 		if nodePool == nil {
@@ -177,7 +179,7 @@ func (c *Controller) syncNodePool(ctx context.Context, name string, nodePool *ka
 	} else {
 		if nodePool != nil && isCreatedByDatadog(nodePool.GetLabels()) {
 			// Not present in store, and the cluster NodePool is fully managed, then delete the NodePool
-			if err := c.deleteNodePool(ctx, name); err != nil {
+			if err := c.deleteNodePool(ctx, name, nodePool); err != nil {
 				log.Errorf("Error deleting NodePool: %v", err)
 				return autoscaling.Requeue
 			}
@@ -188,13 +190,6 @@ func (c *Controller) syncNodePool(ctx context.Context, name string, nodePool *ka
 	}
 
 	return autoscaling.NoRequeue
-}
-
-func checkTargetHash(npi model.NodePoolInternal, targetNp *karpenterv1.NodePool) bool {
-	if targetNp == nil {
-		return false
-	}
-	return npi.TargetHash() == "" || npi.TargetHash() == targetNp.GetAnnotations()[model.KarpenterNodePoolHashAnnotationKey]
 }
 
 func (c *Controller) createNodePool(ctx context.Context, npi model.NodePoolInternal, knp *karpenterv1.NodePool) error {
@@ -233,35 +228,47 @@ func (c *Controller) createNodePool(ctx context.Context, npi model.NodePoolInter
 		return fmt.Errorf("unable to create NodePool: %s, err: %v", npi.Name(), err)
 	}
 
+	c.eventRecorder.Eventf(knp, corev1.EventTypeNormal, model.SuccessfulNodepoolCreateEventReason, "Created NodePool with instances %q", npi.RecommendedInstanceTypes())
+
 	return nil
 }
 
 func (c *Controller) patchNodePool(ctx context.Context, knp *karpenterv1.NodePool, npi model.NodePoolInternal) error {
+	patchData := model.BuildNodePoolPatch(knp, npi)
+	if patchData == nil {
+		log.Debugf("NodePool: %s has not changed, no action will be applied.", npi.Name())
+		return nil
+	}
+
 	log.Infof("Patching NodePool: %s", npi.Name())
 
-	patchData := model.BuildNodePoolPatch(knp, npi)
 	patchBytes, err := json.Marshal(patchData)
 	if err != nil {
+		c.eventRecorder.Eventf(knp, corev1.EventTypeWarning, model.FailedNodepoolUpdateEventReason, "Failed to update NodePool: %v", err)
 		return fmt.Errorf("error marshaling patch data: %s, err: %v", npi.Name(), err)
 	}
 
 	// TODO: If NodePool is not considered a custom resource in the future, use StrategicMergePatchType and simplify patch object
 	_, err = c.Client.Resource(nodePoolGVR).Patch(ctx, npi.Name(), types.MergePatchType, patchBytes, metav1.PatchOptions{})
 	if err != nil {
+		c.eventRecorder.Eventf(knp, corev1.EventTypeWarning, model.FailedNodepoolUpdateEventReason, "Failed to update NodePool: %v", err)
 		return fmt.Errorf("unable to update NodePool: %s, err: %v", npi.Name(), err)
 	}
 
+	c.eventRecorder.Eventf(knp, corev1.EventTypeNormal, model.SuccessfulNodepoolUpdateEventReason, "Updated NodePool with instances %q", npi.RecommendedInstanceTypes())
 	return nil
 }
 
-func (c *Controller) deleteNodePool(ctx context.Context, name string) error {
+func (c *Controller) deleteNodePool(ctx context.Context, name string, knp *karpenterv1.NodePool) error {
 	log.Infof("Deleting NodePool: %s", name)
 
 	err := c.Client.Resource(nodePoolGVR).Delete(ctx, name, metav1.DeleteOptions{})
 	if err != nil {
+		c.eventRecorder.Eventf(knp, corev1.EventTypeWarning, model.FailedNodepoolDeleteEventReason, "Failed to delete NodePool: %v", err)
 		return fmt.Errorf("Unable to delete NodePool: %s, err: %v", name, err)
 	}
 
+	c.eventRecorder.Eventf(knp, corev1.EventTypeNormal, model.SuccessfulNodepoolDeleteEventReason, "Deleted NodePool: %s", name)
 	return nil
 }
 

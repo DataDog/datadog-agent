@@ -136,12 +136,6 @@ func NewPolicyMonitor(statsdClient statsd.ClientInterface, perRuleMetricEnabled 
 	}
 }
 
-// RuleSetLoadedReport represents the rule and the custom event related to a RuleSetLoaded event, ready to be dispatched
-type RuleSetLoadedReport struct {
-	Rule  *rules.Rule
-	Event *events.CustomEvent
-}
-
 // ReportRuleSetLoaded reports to Datadog that a new ruleset was loaded
 func ReportRuleSetLoaded(bundle RulesetLoadedEventBundle, sender events.EventSender, statsdClient statsd.ClientInterface) {
 	if err := statsdClient.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
@@ -225,7 +219,9 @@ type RuleAction struct {
 // HashAction is used to report 'hash' action
 // easyjson:json
 type HashAction struct {
-	Enabled bool `json:"enabled,omitempty"`
+	Enabled     bool   `json:"enabled,omitempty"`
+	Field       string `json:"field,omitempty"`
+	MaxFileSize int64  `json:"max_file_size,omitempty"`
 }
 
 // RuleSetAction is used to report 'set' action
@@ -362,7 +358,9 @@ func RuleStateFromRule(rule *rules.PolicyRule, policy *rules.PolicyInfo, status 
 			}
 		case action.Def.Hash != nil:
 			ruleAction.Hash = &HashAction{
-				Enabled: true,
+				Enabled:     true,
+				Field:       action.Def.Hash.Field,
+				MaxFileSize: action.Def.Hash.MaxFileSize,
 			}
 		case action.Def.CoreDump != nil:
 			ruleAction.CoreDump = &CoreDumpAction{
@@ -417,7 +415,13 @@ func NewPoliciesState(rs *rules.RuleSet, filteredRules []*rules.PolicyRule, err 
 	var policyState *PolicyState
 	var exists bool
 
+	ruleIDs := make(map[eval.RuleID]struct{})
 	for _, rule := range rs.GetRules() {
+		if _, found := ruleIDs[rule.Def.ID]; found {
+			continue
+		}
+
+		ruleIDs[rule.Def.ID] = struct{}{}
 		for pInfo := range rule.Policies(includeInternalPolicies) {
 			if policyState, exists = mp[pInfo.Name]; !exists {
 				policyState = NewPolicyState(pInfo.Name, pInfo.Source, pInfo.Version, pInfo.Type, pInfo.ReplacePolicyID, PolicyStatusLoaded, "")

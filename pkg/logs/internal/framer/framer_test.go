@@ -262,6 +262,49 @@ func TestContentLenLimit(t *testing.T) {
 		t.Run("two-byte chunks", test(contentLenLimit, chunk(input, 2), lines, lens))
 		t.Run("one-byte chunks", test(contentLenLimit, chunk(input, 1), lines, lens))
 	})
+	t.Run("exact-with-newline-should-not-truncate", func(t *testing.T) {
+		input := []byte(strings.Repeat("a", contentLenLimit) + "\n")
+		lines := []string{strings.Repeat("a", contentLenLimit)}
+		lens := []int{contentLenLimit + 1}
+
+		gotContent := []string{}
+		gotLens := []int{}
+		gotTruncated := []bool{}
+		outputFn := func(msg *message.Message, rawDataLen int) {
+			gotContent = append(gotContent, string(msg.GetContent()))
+			gotLens = append(gotLens, rawDataLen)
+			gotTruncated = append(gotTruncated, msg.ParsingExtra.IsTruncated)
+		}
+		fr := NewFramer(outputFn, UTF8Newline, contentLenLimit)
+		logMessage := message.NewMessage(input, nil, "", 0)
+		fr.Process(logMessage)
+
+		require.Equal(t, lines, gotContent)
+		require.Equal(t, lens, gotLens)
+		require.Equal(t, []bool{false}, gotTruncated, "Log exactly at limit should NOT be truncated")
+	})
+
+	t.Run("one-byte-over-should-truncate", func(t *testing.T) {
+		input := []byte(strings.Repeat("a", contentLenLimit+1) + "\n")
+		lines := []string{strings.Repeat("a", contentLenLimit), "a"}
+		lens := []int{contentLenLimit, 2}
+
+		gotContent := []string{}
+		gotLens := []int{}
+		gotTruncated := []bool{}
+		outputFn := func(msg *message.Message, rawDataLen int) {
+			gotContent = append(gotContent, string(msg.GetContent()))
+			gotLens = append(gotLens, rawDataLen)
+			gotTruncated = append(gotTruncated, msg.ParsingExtra.IsTruncated)
+		}
+		fr := NewFramer(outputFn, UTF8Newline, contentLenLimit)
+		logMessage := message.NewMessage(input, nil, "", 0)
+		fr.Process(logMessage)
+
+		require.Equal(t, lines, gotContent)
+		require.Equal(t, lens, gotLens)
+		require.Equal(t, []bool{true, false}, gotTruncated, "First frame truncated, second frame completes the line")
+	})
 }
 
 func TestLineBreakIncomingData(t *testing.T) {

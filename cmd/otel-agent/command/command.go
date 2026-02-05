@@ -112,12 +112,12 @@ func flags(reg *featuregate.Registry, cfgs *subcommands.GlobalParams) *flag.Flag
 		"Set arbitrary component config property. The component has to be defined in the config file and the flag"+
 			" has a higher precedence. Array config properties are overridden and maps are joined. Example --set=exporters.debug.verbosity=detailed",
 		func(s string) error {
-			idx := strings.Index(s, "=")
-			if idx == -1 {
+			before, after, ok := strings.Cut(s, "=")
+			if !ok {
 				// No need for more context, see TestSetFlag/invalid_set.
 				return errors.New("missing equal sign")
 			}
-			cfgs.Sets = append(cfgs.Sets, "yaml:"+strings.TrimSpace(strings.ReplaceAll(s[:idx], ".", "::"))+": "+strings.TrimSpace(s[idx+1:]))
+			cfgs.Sets = append(cfgs.Sets, "yaml:"+strings.TrimSpace(strings.ReplaceAll(before, ".", "::"))+": "+strings.TrimSpace(after))
 			return nil
 		})
 

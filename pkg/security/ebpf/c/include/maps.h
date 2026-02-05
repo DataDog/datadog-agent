@@ -27,6 +27,7 @@ BPF_ARRAY_MAP(mmap_protection_approvers, struct u32_flags_filter_t, 1)
 BPF_ARRAY_MAP(mprotect_vm_protection_approvers, struct u32_flags_filter_t, 1)
 BPF_ARRAY_MAP(mprotect_req_protection_approvers, struct u32_flags_filter_t, 1)
 BPF_ARRAY_MAP(open_flags_approvers, struct u32_flags_filter_t, 1)
+BPF_ARRAY_MAP(open_flags_rdonly_approver, u8, 1)
 BPF_ARRAY_MAP(selinux_enforce_status, u16, 2)
 BPF_ARRAY_MAP(splice_entry_flags_approvers, struct u32_flags_filter_t, 1)
 BPF_ARRAY_MAP(splice_exit_flags_approvers, struct u32_flags_filter_t, 1)
@@ -65,7 +66,6 @@ BPF_LRU_MAP(cgroup_wait_list, u64, u64, 1) // max entries will be overridden at 
 BPF_LRU_MAP(traced_cgroups_discarded, u64, u8, 512)
 BPF_LRU_MAP(activity_dump_rate_limiters, u64, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(pid_rate_limiters, u32, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
-BPF_LRU_MAP(mount_ref, u32, struct mount_ref_t, 64000)
 BPF_LRU_MAP(bpf_maps, u32, struct bpf_map_t, 4096)
 BPF_LRU_MAP(bpf_progs, u32, struct bpf_prog_t, 4096)
 BPF_LRU_MAP(tgid_fd_map_id, struct bpf_tgid_fd_t, u32, 4096)
@@ -75,8 +75,10 @@ BPF_LRU_MAP(pid_cache, u32, struct pid_cache_t, 1) // max entries will be overri
 BPF_LRU_MAP(pid_ignored, u32, u32, 16738)
 BPF_LRU_MAP(exec_pid_transfer, u32, u64, 512)
 BPF_LRU_MAP(netns_cache, u32, u32, 40960)
+BPF_LRU_MAP(mntns_cache, u32, u32, 40960)
 BPF_LRU_MAP(span_tls, u32, struct span_tls_t, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(inode_discarders, struct inode_discarder_t, struct inode_discarder_params_t, 4096)
+BPF_LRU_MAP(prctl_discarders, char[MAX_PRCTL_NAME_LEN], int, 1024)
 BPF_LRU_MAP(flow_pid, struct pid_route_t, struct pid_route_entry_t, 10240)
 BPF_LRU_MAP(conntrack, struct namespaced_flow_t, struct namespaced_flow_t, 4096) // TODO: size should be updated dynamically with "nf_conntrack_max"
 BPF_LRU_MAP(io_uring_ctx_pid, void *, u64, 2048)

@@ -145,7 +145,7 @@ func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (types.Res
 func (l *loader) detectManagedEnvironment(flags map[string]string, kubelet *K8sKubeletConfig) *K8sManagedEnvConfig {
 	nodeLabels, ok := flags["--node-labels"]
 	if ok {
-		for _, label := range strings.Split(nodeLabels, ",") {
+		for label := range strings.SplitSeq(nodeLabels, ",") {
 			label = strings.TrimSpace(label)
 			switch {
 			case strings.HasPrefix(label, "cloud.google.com/gke"):

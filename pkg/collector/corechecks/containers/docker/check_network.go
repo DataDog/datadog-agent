@@ -200,8 +200,8 @@ func findDockerNetworks(procPath string, entry *containerNetworkEntry, container
 		// Keep legacy behavior, maping eth0 to bridge
 		entry.ifaceNetworkMapping = map[string]string{"eth0": "bridge"}
 		return
-	} else if strings.HasPrefix(netMode, containerModePrefix) {
-		entry.networkContainerID = strings.TrimPrefix(netMode, containerModePrefix)
+	} else if after, ok := strings.CutPrefix(netMode, containerModePrefix); ok {
+		entry.networkContainerID = after
 		return
 	}
 

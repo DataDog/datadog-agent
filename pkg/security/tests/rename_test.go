@@ -63,7 +63,7 @@ func TestRename(t *testing.T) {
 	t.Run("rename", ifSyscallSupported("SYS_RENAME", func(t *testing.T, syscallNB uintptr) {
 		renameSyscallIsSupported = true
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			_, _, errno := syscall.Syscall(syscallNB, uintptr(testOldFilePtr), uintptr(testNewFilePtr), 0)
 			if errno != 0 {
 				return error(errno)
@@ -85,7 +85,7 @@ func TestRename(t *testing.T) {
 			test.validateRenameSchema(t, event)
 			validateSyscallContext(t, event, "$.syscall.rename.path")
 			validateSyscallContext(t, event, "$.syscall.rename.destination_path")
-		})
+		}, "test_rule")
 	}))
 
 	if renameSyscallIsSupported {
@@ -95,7 +95,7 @@ func TestRename(t *testing.T) {
 	}
 
 	t.Run("renameat", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			_, _, errno := syscall.Syscall6(syscall.SYS_RENAMEAT, 0, uintptr(testOldFilePtr), 0, uintptr(testNewFilePtr), 0, 0)
 			if errno != 0 {
 				return error(errno)
@@ -117,7 +117,7 @@ func TestRename(t *testing.T) {
 			test.validateRenameSchema(t, event)
 			validateSyscallContext(t, event, "$.syscall.rename.path")
 			validateSyscallContext(t, event, "$.syscall.rename.destination_path")
-		})
+		}, "test_rule")
 	})
 
 	if err := os.Rename(testNewFile, testOldFile); err != nil {
@@ -125,7 +125,7 @@ func TestRename(t *testing.T) {
 	}
 
 	t.Run("renameat2", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			_, _, errno := syscall.Syscall6(unix.SYS_RENAMEAT2, 0, uintptr(testOldFilePtr), 0, uintptr(testNewFilePtr), 0, 0)
 			if errno != 0 {
 				if errno == syscall.ENOSYS {
@@ -150,7 +150,7 @@ func TestRename(t *testing.T) {
 			test.validateRenameSchema(t, event)
 			validateSyscallContext(t, event, "$.syscall.rename.path")
 			validateSyscallContext(t, event, "$.syscall.rename.destination_path")
-		})
+		}, "test_rule")
 	})
 
 	if err := os.Rename(testNewFile, testOldFile); err != nil {
@@ -176,7 +176,7 @@ func TestRename(t *testing.T) {
 
 		ch := make(chan iouring.Result, 1)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if _, err = iour.SubmitRequest(prepRequest, ch); err != nil {
 				return err
 			}
@@ -209,7 +209,7 @@ func TestRename(t *testing.T) {
 			assert.Equal(t, value.(bool), true)
 
 			assertFieldEqual(t, event, "process.file.path", executable)
-		})
+		}, "test_rule")
 	})
 }
 
@@ -247,13 +247,13 @@ func TestRenameInvalidate(t *testing.T) {
 	}
 
 	for i := 0; i != 5; i++ {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return os.Rename(testOldFile, testNewFile)
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "rename", event.GetType(), "wrong event type")
 			assertFieldEqual(t, event, "rename.file.destination.path", testNewFile)
 			test.validateRenameSchema(t, event)
-		})
+		}, "test_rule")
 
 		// swap
 		old := testOldFile
@@ -312,7 +312,7 @@ func TestRenameReuseInode(t *testing.T) {
 	}
 	defer os.Remove(testNewFile)
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		f, err = os.Create(testNewFile)
 		if err != nil {
 			return err
@@ -321,7 +321,7 @@ func TestRenameReuseInode(t *testing.T) {
 		return f.Close()
 	}, func(event *model.Event, _ *rules.Rule) {
 		assert.Equal(t, "open", event.GetType(), "wrong event type")
-	})
+	}, "test_rule2")
 
 	testNewFileInode := getInode(t, testNewFile)
 
@@ -340,7 +340,7 @@ func TestRenameReuseInode(t *testing.T) {
 
 	defer os.Remove(testReuseInodeFile)
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		f, err = os.Create(testReuseInodeFile)
 		if err != nil {
 			return err
@@ -352,7 +352,7 @@ func TestRenameReuseInode(t *testing.T) {
 		assertFieldEqual(t, event, "open.file.path", testReuseInodeFile)
 
 		test.validateOpenSchema(t, event)
-	})
+	}, "test_rule")
 }
 
 func TestRenameFolder(t *testing.T) {
@@ -385,7 +385,7 @@ func TestRenameFolder(t *testing.T) {
 	defer os.Remove(filename)
 
 	for i := 0; i != 5; i++ {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			testFile, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0755)
 			if err != nil {
 				return err
@@ -406,6 +406,6 @@ func TestRenameFolder(t *testing.T) {
 			testNewFolder = old
 
 			filename = testOldFolder + "/test-rename"
-		})
+		}, "test_rule")
 	}
 }

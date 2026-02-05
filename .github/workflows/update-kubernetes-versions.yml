@@ -7,17 +7,33 @@ on:
 
   # Allow manual trigger
   workflow_dispatch:
+    inputs:
+      disable_dockerhub:
+        description: 'Disable fetching versions from Docker Hub'
+        required: false
+        default: false
+        type: boolean
+      disable_github:
+        description: 'Disable fetching RC versions from GitHub'
+        required: false
+        default: false
+        type: boolean
 
 permissions: {}
 
 jobs:
   update-k8s-versions:
+    timeout-minutes: 30
     name: Check for new Kubernetes version
     runs-on: ubuntu-latest
     permissions:
       id-token: write # Required for OIDC token from GitHub
     environment:
       name: main
+    env:
+      AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+      ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+      ECR_REGION: ${{ vars.ECR_REGION }}
     steps:
       - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
         id: octo-sts
@@ -40,12 +56,80 @@ jobs:
           features: legacy-tasks
 
       - name: Install Python dependencies
-        run: pip install requests pyyaml
+        run: pip install requests pyyaml semver
+
+      - name: Install kind
+        uses: helm/kind-action@92086f6be054225fa813e0a4b13787fc9088faab #v1.13.0
+        with:
+          install_only: true
 
       - name: Fetch latest Kubernetes version
         id: fetch-versions
         run: |
-          dda inv k8s-versions.fetch-versions
+          args=()
+          if [ "${{ inputs.disable_dockerhub }}" = "true" ]; then
+            args+=(--disable-dockerhub)
+          fi
+          if [ "${{ inputs.disable_github }}" = "true" ]; then
+            args+=(--disable-github)
+          fi
+          dda inv k8s-versions.fetch-versions "${args[@]}"
+
+      - name: Build RC images
+        if: steps.fetch-versions.outputs.has_new_rc_versions == 'true'
+        id: build-rc-images
+        run: |
+          dda inv kind-node-image.build-rc-images --versions='${{ steps.fetch-versions.outputs.new_versions }}'
+
+      - name: Configure AWS credentials
+        if: steps.fetch-versions.outputs.has_new_rc_versions == 'true' && steps.build-rc-images.outputs.built_count > 0
+        uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708 # v5.1.1
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/datadog-agent-kind-image-publisher-oidc
+          aws-region: us-east-1
+
+      - name: Log in to AWS ECR
+        if: steps.fetch-versions.outputs.has_new_rc_versions == 'true' && steps.build-rc-images.outputs.built_count > 0
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          registry: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.ECR_REGION }}.amazonaws.com
+
+      - name: Tag and push RC images to ECR
+        if: steps.fetch-versions.outputs.has_new_rc_versions == 'true' && steps.build-rc-images.outputs.built_count > 0
+        id: push-rc-images
+        env:
+          ECR_REGISTRY: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.ECR_REGION }}.amazonaws.com
+        run: |
+          set -euo pipefail
+
+          new_versions='${{ steps.fetch-versions.outputs.new_versions }}'
+
+          for image in ${{ steps.build-rc-images.outputs.built_images }}; do
+            tag="${image##*:}"
+            ecr_image="$ECR_REGISTRY/$ECR_REPOSITORY:$tag"
+
+            docker tag "$image" "$ecr_image"
+            docker push "$ecr_image"
+
+            # Get digest from local image after push
+            digest=$(docker inspect --format='{{index .RepoDigests 0}}' "$ecr_image" | cut -d@ -f2)
+
+            [ -n "$digest" ] || { echo "Error: Could not get digest for $tag"; exit 1; }
+
+            # Append the digest into the new versions JSON
+            # Must use the -c option (compact) to keep the jq output to a single-line
+            new_versions=$(jq -c --arg tag "$tag" --arg digest "$digest" '.[$tag].digest = $digest' <<< "$new_versions")
+          done
+
+          echo "new_versions=$new_versions" >> "$GITHUB_OUTPUT"
+
+      - name: Save new versions to file
+        if: steps.fetch-versions.outputs.has_new_versions == 'true'
+        run: |
+          # Use push-rc-images output if RC images were built (includes digests from ECR)
+          # Otherwise use fetch-versions output (includes digests from Docker Hub for final releases)
+          VERSIONS='${{ steps.push-rc-images.outputs.new_versions || steps.fetch-versions.outputs.new_versions }}'
+          dda inv k8s-versions.save-versions --versions="$VERSIONS"
 
       - name: Update e2e.yml with new version
         id: update-yaml
@@ -61,10 +145,10 @@ jobs:
           branch: update-k8s-versions-automated
           token: ${{ steps.octo-sts.outputs.token }}
           sign-commits: true
-          title: "[automated] Add new Kubernetes version to e2e tests"
+          title: "[automated] Update Kubernetes latest version in e2e tests"
           body: |
             ### What does this PR do?
-            Adds the latest Kubernetes version from kindest/node to the e2e test matrix.
+            Updates the Kubernetes version used by the `new-e2e-containers-k8s-latest` job in `.gitlab/test/e2e/e2e.yml` to the latest stable release from `kindest/node`.
 
             ### Motivation
             Keep e2e tests running against the latest Kubernetes version to ensure compatibility.

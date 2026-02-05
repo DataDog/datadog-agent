@@ -204,22 +204,24 @@ func (e *Event) GetContainerID() string {
 // CGroupContext holds the cgroup context of an event
 type CGroupContext struct {
 	*Releasable
-	CGroupID      containerutils.CGroupID `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
-	CGroupFile    PathKey                 `field:"file"`
+	CGroupID      containerutils.CGroupID `field:"id"` // SECLDoc[id] Definition:`ID of the cgroup`
+	CGroupPathKey PathKey                 `field:"file"`
 	CGroupVersion int                     `field:"version,handler:ResolveCGroupVersion"` // SECLDoc[version] Definition:`[Experimental] Version of the cgroup API`
 }
 
-// Merge two cgroup context
-func (cg *CGroupContext) Merge(cg2 *CGroupContext) {
-	if cg.CGroupID == "" {
-		cg.CGroupID = cg2.CGroupID
-	}
-	if cg.CGroupFile.Inode == 0 {
-		cg.CGroupFile.Inode = cg2.CGroupFile.Inode
-	}
-	if cg.CGroupFile.MountID == 0 {
-		cg.CGroupFile.MountID = cg2.CGroupFile.MountID
-	}
+// IsNull returns true if the cgroup context is null
+func (cg *CGroupContext) IsNull() bool {
+	return cg.CGroupPathKey.IsNull()
+}
+
+// IsResolved returns true if the cgroup context is resolved & not null
+func (cg *CGroupContext) IsResolved() bool {
+	return cg.CGroupID != "" && !cg.CGroupPathKey.IsNull()
+}
+
+// Equals returns true if the two cgroup contexts are equal
+func (cg *CGroupContext) Equals(cg2 *CGroupContext) bool {
+	return cg.CGroupPathKey.Inode == cg2.CGroupPathKey.Inode
 }
 
 // Hash returns a unique key for the entity
@@ -517,7 +519,8 @@ type InvalidateDentryEvent struct {
 
 // MountReleasedEvent defines a mount released event
 type MountReleasedEvent struct {
-	MountID uint32
+	MountID       uint32
+	MountIDUnique uint64
 }
 
 // LinkEvent represents a link event
@@ -629,9 +632,10 @@ type SELinuxEvent struct {
 
 // PIDContext holds the process context of a kernel event
 type PIDContext struct {
-	Pid           uint32 `field:"pid"` // SECLDoc[pid] Definition:`Process ID of the process (also called thread group ID)`
-	Tid           uint32 `field:"tid"` // SECLDoc[tid] Definition:`Thread ID of the thread`
-	NetNS         uint32 `field:"-"`
+	Pid           uint32 `field:"pid"`        // SECLDoc[pid] Definition:`Process ID of the process (also called thread group ID)`
+	Tid           uint32 `field:"tid"`        // SECLDoc[tid] Definition:`Thread ID of the thread`
+	NetNS         uint32 `field:"netns"`      // SECLDoc[netns] Definition:`NetNS ID of the process`
+	MntNS         uint32 `field:"mntns"`      // SECLDoc[mntns] Definition:`MNTNS ID of the process`
 	IsKworker     bool   `field:"is_kworker"` // SECLDoc[is_kworker] Definition:`Indicates whether the process is a kworker`
 	ExecInode     uint64 `field:"-"`          // used to track exec and event loss
 	UserSessionID uint64 `field:"-"`          // used to track user sessions from kernel space
@@ -826,7 +830,7 @@ type ActivityDumpLoadConfig struct {
 
 // NetworkDeviceContext represents the network device context of a network event
 type NetworkDeviceContext struct {
-	NetNS   uint32 `field:"-"`
+	NetNS   uint32 `field:"netns"` // SECLDoc[netns] Definition:`Interface NetNS ID`
 	IfIndex uint32 `field:"-"`
 	IfName  string `field:"ifname,handler:ResolveNetworkDeviceIfName"` // SECLDoc[ifname] Definition:`Interface ifname`
 }

@@ -30,7 +30,14 @@ const (
 
 // PublicClient exposes endpoint that don't require JWT authentication
 type PublicClient interface {
-	EnrollWithApiKey(ctx context.Context, apiKey string, appKey string, runnerName string, runnerModes []modes.Mode, publicJwk *jose.JSONWebKey) (*par.CreateRunnerResponse, error)
+	EnrollWithApiKey(
+		ctx context.Context,
+		apiKey string,
+		appKey string,
+		runnerName string,
+		runnerModes []modes.Mode,
+		publicJwk *jose.JSONWebKey,
+	) (*par.CreateRunnerResponse, error)
 }
 
 type publicClient struct {
@@ -47,7 +54,14 @@ func NewPublicClient(ddBaseURL string) PublicClient {
 	}
 }
 
-func (p *publicClient) EnrollWithApiKey(ctx context.Context, apiKey string, appKey string, runnerName string, runnerModes []modes.Mode, publicJwk *jose.JSONWebKey) (*par.CreateRunnerResponse, error) {
+func (p *publicClient) EnrollWithApiKey(
+	ctx context.Context,
+	apiKey string,
+	appKey string,
+	runnerName string,
+	runnerModes []modes.Mode,
+	publicJwk *jose.JSONWebKey,
+) (*par.CreateRunnerResponse, error) {
 	publicKeyPEM, err := util.JWKToPEM(publicJwk)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert public key to PEM: %w", err)

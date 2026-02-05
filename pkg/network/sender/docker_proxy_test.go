@@ -23,8 +23,8 @@ import (
 
 func TestDockerProxyExtract(t *testing.T) {
 	// non docker-proxy processes
-	require.Nil(t, extractProxyTarget(&dockerProcess{Pid: 1}))
-	require.Nil(t, extractProxyTarget(&dockerProcess{Pid: 1, Cmdline: []string{"/usr/bin/true"}}))
+	require.Nil(t, extractProxyTarget(&process{Pid: 1}))
+	require.Nil(t, extractProxyTarget(&process{Pid: 1, Cmdline: []string{"/usr/bin/true"}}))
 
 	cases := []struct {
 		ip, port, proto string
@@ -43,7 +43,7 @@ func TestDockerProxyExtract(t *testing.T) {
 	}
 	for _, c := range cases {
 		cmdline := dockerProxyCmdLine(c.ip, c.port, c.proto)
-		p := extractProxyTarget(&dockerProcess{Pid: 1, Cmdline: cmdline})
+		p := extractProxyTarget(&process{Pid: 1, Cmdline: cmdline})
 		if !c.target.addr.IsValid() {
 			require.Nil(t, p, "%+v", c)
 		} else {
@@ -101,7 +101,7 @@ func TestDockerProxyFiltering(t *testing.T) {
 	redisServerHostPort := uint16(32769)
 	dockerProxyIP := "172.17.0.1"
 	dockerProxyPort := uint16(34050)
-	dpf.HandleEvent(&dockerProcess{Pid: dockerProxyPID, Cmdline: dockerProxyCmdLine(redisServerContainerIP, strconv.Itoa(int(redisServerPort)), "tcp"), EventType: model.ExecEventType})
+	dpf.process(&process{Pid: dockerProxyPID, Cmdline: dockerProxyCmdLine(redisServerContainerIP, strconv.Itoa(int(redisServerPort)), "tcp"), EventType: model.ExecEventType})
 
 	// (1) This represents the *outgoing* connection from redis client to redis server (via host IP)
 	// It should be *kept*
@@ -158,7 +158,7 @@ func TestDockerProxyEvents(t *testing.T) {
 	dpf := newDockerProxyFilter(logmock.New(t))
 	dpf.pidAliveFunc = func(_ int) bool { return true }
 	// ensure connections are filtered out
-	dpf.HandleEvent(&dockerProcess{Pid: 10, Cmdline: dockerProxyCmdLine("127.0.0.2", "9999", "tcp"), EventType: model.ExecEventType})
+	dpf.process(&process{Pid: 10, Cmdline: dockerProxyCmdLine("127.0.0.2", "9999", "tcp"), EventType: model.ExecEventType})
 	c0 := network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{Pid: 10, Source: util.AddressFromString("127.0.0.2"), SPort: 10000, Dest: util.AddressFromString("127.0.0.2"), DPort: 9999}}
 	c1 := network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{Pid: 11, Source: util.AddressFromString("127.0.0.2"), SPort: 9999, Dest: util.AddressFromString("127.0.0.2"), DPort: 10000}}
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: []network.ConnectionStats{c0, c1}}}
@@ -166,7 +166,7 @@ func TestDockerProxyEvents(t *testing.T) {
 	require.Empty(t, conns.Conns)
 
 	// send exit event and ensure next iteration of FilterProxies still filters them out
-	dpf.HandleEvent(&dockerProcess{Pid: 10, EventType: model.ExitEventType})
+	dpf.process(&process{Pid: 10, EventType: model.ExitEventType})
 	conns = &network.Connections{BufferedData: network.BufferedData{Conns: []network.ConnectionStats{c0, c1}}}
 	dpf.FilterProxies(conns)
 	require.Empty(t, conns.Conns)
@@ -180,7 +180,7 @@ func TestDockerProxyEvents(t *testing.T) {
 func TestDockerProxyPIDOverwrite(t *testing.T) {
 	dpf := newDockerProxyFilter(logmock.New(t))
 	dpf.pidAliveFunc = func(_ int) bool { return true }
-	dpf.HandleEvent(&dockerProcess{Pid: 10, Cmdline: dockerProxyCmdLine("127.0.0.2", "9999", "tcp"), EventType: model.ExecEventType})
+	dpf.process(&process{Pid: 10, Cmdline: dockerProxyCmdLine("127.0.0.2", "9999", "tcp"), EventType: model.ExecEventType})
 	c0 := network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{Pid: 10, Source: util.AddressFromString("127.0.0.2"), SPort: 10000, Dest: util.AddressFromString("127.0.0.2"), DPort: 9999}}
 	c1 := network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{Pid: 11, Source: util.AddressFromString("127.0.0.2"), SPort: 9999, Dest: util.AddressFromString("127.0.0.2"), DPort: 10000}}
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: []network.ConnectionStats{c0, c1}}}
@@ -188,7 +188,7 @@ func TestDockerProxyPIDOverwrite(t *testing.T) {
 	require.Empty(t, conns.Conns)
 
 	// new process with same PID as previous docker-proxy
-	dpf.HandleEvent(&dockerProcess{Pid: 10, Cmdline: []string{"/usr/bin/true"}})
+	dpf.process(&process{Pid: 10, Cmdline: []string{"/usr/bin/true"}})
 	conns = &network.Connections{BufferedData: network.BufferedData{Conns: []network.ConnectionStats{c0, c1}}}
 	dpf.FilterProxies(conns)
 	require.Empty(t, conns.Conns)
@@ -197,7 +197,7 @@ func TestDockerProxyPIDOverwrite(t *testing.T) {
 func TestDockerProxyDeadProcess(t *testing.T) {
 	dpf := newDockerProxyFilter(logmock.New(t))
 	dpf.pidAliveFunc = func(_ int) bool { return false }
-	dpf.HandleEvent(&dockerProcess{Pid: 10, Cmdline: dockerProxyCmdLine("127.0.0.2", "9999", "tcp"), EventType: model.ExecEventType})
+	dpf.process(&process{Pid: 10, Cmdline: dockerProxyCmdLine("127.0.0.2", "9999", "tcp"), EventType: model.ExecEventType})
 	c0 := network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{Pid: 10, Source: util.AddressFromString("127.0.0.2"), SPort: 10000, Dest: util.AddressFromString("127.0.0.2"), DPort: 9999}}
 	c1 := network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{Pid: 11, Source: util.AddressFromString("127.0.0.2"), SPort: 9999, Dest: util.AddressFromString("127.0.0.2"), DPort: 10000}}
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: []network.ConnectionStats{c0, c1}}}

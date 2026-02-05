@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/tmpl"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/workflowjsonschema"
 	"github.com/santhosh-tekuri/jsonschema/v5"
 
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/tmpl"
+	workflowjsonschema "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/workflowjsonschema"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
@@ -77,7 +77,7 @@ func (h *RunPredefinedScriptHandler) Run(
 		defer cancel()
 	}
 
-	cmd := NewPredefinedScriptCommand(ctx, evaluatedCommand)
+	cmd := NewPredefinedScriptCommand(ctx, evaluatedCommand, script.AllowedEnvVars)
 	var stdoutBuffer bytes.Buffer
 	cmd.Stdout = &stdoutBuffer
 	var stderrBuffer bytes.Buffer

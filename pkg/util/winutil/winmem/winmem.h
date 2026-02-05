@@ -21,7 +21,8 @@ extern BOOL PageFileCallback(
 );
 
 // C wrapper that calls EnumPageFilesW with our callback
-BOOL enumPageFilesWithHandle(GoHandle handle);
+// Returns ERROR_SUCCESS on success, or GetLastError() on failure
+DWORD enumPageFilesWithHandle(GoHandle handle);
 
 #ifdef __cplusplus
 }

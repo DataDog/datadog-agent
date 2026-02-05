@@ -100,7 +100,6 @@ type Destination struct {
 // NewDestination returns a new Destination.
 // minConcurrency denotes the minimum number of concurrent http requests the pipeline will allow at once.
 // maxConcurrency represents the maximum number of concurrent http requests, reachable when the client is experiencing a large latency in sends.
-// TODO: add support for SOCKS5
 func NewDestination(endpoint config.Endpoint,
 	contentType string,
 	destinationsContext *client.DestinationsContext,
@@ -152,6 +151,8 @@ func newDestination(endpoint config.Endpoint,
 	if destMeta.ReportingEnabled {
 		metrics.DestinationExpVars.Set(destMeta.TelemetryName(), expVars)
 	}
+
+	metrics.DestinationLogsDropped.Set(endpoint.Host, &expvar.Int{})
 
 	workerPool := newDefaultWorkerPool(minConcurrency, maxConcurrency, destMeta)
 
@@ -292,8 +293,15 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			}
 		}
 
-		metrics.LogsSent.Add(payload.Count())
-		metrics.TlmLogsSent.Add(float64(payload.Count()))
+		if err != nil {
+			// Permanent error, increment the logs dropped metric
+			metrics.DestinationLogsDropped.Add(d.host, payload.Count())
+			metrics.TlmLogsDropped.Add(float64(payload.Count()), d.host)
+		} else {
+			metrics.LogsSent.Add(payload.Count())
+			metrics.TlmLogsSent.Add(float64(payload.Count()))
+		}
+
 		output <- payload
 		return result
 	}

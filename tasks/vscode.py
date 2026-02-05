@@ -39,8 +39,6 @@ def setup(ctx, force=False):
 
     - force: If True, will override the existing settings
     """
-    print(color_message("* Setting up extensions", Color.BOLD))
-    setup_extensions(ctx)
     print(color_message("* Setting up tasks", Color.BOLD))
     setup_tasks(ctx, force)
     print(color_message("* Setting up tests", Color.BOLD))
@@ -49,6 +47,8 @@ def setup(ctx, force=False):
     setup_settings(ctx, force)
     print(color_message("* Setting up launch settings", Color.BOLD))
     setup_launch(ctx, force)
+    print(color_message("* Setting up extensions", Color.BOLD))
+    setup_extensions(ctx)
 
 
 @task(
@@ -210,9 +210,7 @@ def setup_settings(_, force=False):
             vscode_config_template.format(
                 build_tags=",".join(build_tags),
                 workspace_folder=os.getcwd(),
-                excluded_directories=["-rtloader/test", "-test/benchmarks", "-test/integration"]
-                if sys.platform != "linux"
-                else [],
+                excluded_directories=["-rtloader/test", "-test/integration"] if sys.platform != "linux" else [],
             ).replace("'", '"')
         )
     print(color_message("VSCode settings file created successfully.", Color.GREEN))

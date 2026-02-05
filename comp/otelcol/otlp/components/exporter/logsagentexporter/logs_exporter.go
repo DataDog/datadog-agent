@@ -95,6 +95,14 @@ func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 
 // consumeRegularLogs maps logs from OTLP to DD format and ingests them through the exporter channel
 func (e *Exporter) consumeRegularLogs(ctx context.Context, ld plog.Logs) (err error) {
+	otelSource := e.cfg.OtelSource
+	if otelSource == "datadog_agent" {
+		OTLPIngestAgentLogsRequests.Inc()
+		OTLPIngestAgentLogsEvents.Add(float64(ld.LogRecordCount()))
+	} else if otelSource == "otel_agent" {
+		OTLPIngestDDOTLogsRequests.Inc()
+		OTLPIngestDDOTLogsEvents.Add(float64(ld.LogRecordCount()))
+	}
 	defer func() {
 		if err != nil {
 			newErr, scrubbingErr := scrubber.ScrubString(err.Error())

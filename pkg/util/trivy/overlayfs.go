@@ -18,10 +18,8 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/trivy/walker"
+	"github.com/DataDog/ddtrivy"
 
-	"github.com/aquasecurity/trivy/pkg/fanal/applier"
-	local "github.com/aquasecurity/trivy/pkg/fanal/artifact/container"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/samber/lo"
@@ -91,7 +89,7 @@ func (c *fakeContainer) Layers() (layers []ftypes.LayerPath) {
 	return layers
 }
 
-func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, ctr ftypes.Container, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, ctr ftypes.Container, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (*Report, error) {
 	var cache CacheWithCleaner
 	if pkgconfigsetup.Datadog().GetBool("sbom.container_image.overlayfs_disable_cache") {
 		cache = newMemoryCache()
@@ -109,17 +107,10 @@ func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, ctr ftyp
 
 	log.Debugf("Generating SBOM for image %s using overlayfs %+v", imgMeta.ID, layers)
 
-	containerArtifact, err := local.NewArtifact(ctr, cache, walker.NewFSWalker(), getDefaultArtifactOption(scanOptions))
+	artifactOptions := getDefaultArtifactOption(scanOptions)
+	trivyReport, err := ddtrivy.ScanOverlays(ctx, artifactOptions, cache, ctr)
 	if err != nil {
-		return nil, err
-	}
-
-	trivyReport, err := c.scan(ctx, containerArtifact, applier.NewApplier(cache))
-	if err != nil {
-		if imgMeta != nil {
-			return nil, fmt.Errorf("unable to marshal report to sbom format for image %s, err: %w", imgMeta.ID, err)
-		}
-		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
+		return nil, fmt.Errorf("unable to scan overlayfs image, err: %w", err)
 	}
 
 	return c.buildReport(trivyReport, imgMeta.ID)

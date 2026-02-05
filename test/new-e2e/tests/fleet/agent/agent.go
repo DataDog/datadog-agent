@@ -79,7 +79,7 @@ func (a *Agent) InstalledIntegrations() (map[string]string, error) {
 		return nil, err
 	}
 	integrations := make(map[string]string)
-	for _, integration := range strings.Split(rawIntegrations, "\n") {
+	for integration := range strings.SplitSeq(rawIntegrations, "\n") {
 		integration = strings.TrimSpace(integration)
 		if strings.HasPrefix(integration, "datadog-") {
 			parts := strings.Split(integration, "==")
@@ -370,16 +370,16 @@ type Status struct {
 			} `json:"AnalyzedRateByServiceLegacy"`
 			AnalyzedSpansByService struct {
 			} `json:"AnalyzedSpansByService"`
-			AzureServerlessTags      string `json:"AzureServerlessTags"`
-			BucketInterval           int64  `json:"BucketInterval"`
-			ClientStatsFlushInterval int    `json:"ClientStatsFlushInterval"`
-			ComputeStatsBySpanKind   bool   `json:"ComputeStatsBySpanKind"`
-			ConfigPath               string `json:"ConfigPath"`
-			ConnectionLimit          int    `json:"ConnectionLimit"`
-			ConnectionResetInterval  int    `json:"ConnectionResetInterval"`
-			ContainerProcRoot        string `json:"ContainerProcRoot"`
-			DDAgentBin               string `json:"DDAgentBin"`
-			DebugServerPort          int    `json:"DebugServerPort"`
+			AdditionalProfileTags    map[string]string `json:"AdditionalProfileTags"`
+			BucketInterval           int64             `json:"BucketInterval"`
+			ClientStatsFlushInterval int               `json:"ClientStatsFlushInterval"`
+			ComputeStatsBySpanKind   bool              `json:"ComputeStatsBySpanKind"`
+			ConfigPath               string            `json:"ConfigPath"`
+			ConnectionLimit          int               `json:"ConnectionLimit"`
+			ConnectionResetInterval  int               `json:"ConnectionResetInterval"`
+			ContainerProcRoot        string            `json:"ContainerProcRoot"`
+			DDAgentBin               string            `json:"DDAgentBin"`
+			DebugServerPort          int               `json:"DebugServerPort"`
 			DebuggerIntakeProxy      struct {
 				DDURL string `json:"DDURL"`
 			} `json:"DebuggerIntakeProxy"`
@@ -1014,8 +1014,6 @@ type Status struct {
 					Alloc int `json:"alloc"`
 				} `json:"memstats"`
 				Pid                             int    `json:"pid"`
-				PodQueueBytes                   int    `json:"pod_queue_bytes"`
-				PodQueueSize                    int    `json:"pod_queue_size"`
 				ProcessCount                    int    `json:"process_count"`
 				ProcessQueueBytes               int    `json:"process_queue_bytes"`
 				ProcessQueueSize                int    `json:"process_queue_size"`

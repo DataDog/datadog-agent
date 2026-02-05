@@ -9,7 +9,8 @@ erratic: false
 target:
   name: datadog-agent
   cpu_allotment: 4
-  memory_allotment: 850 MiB
+  # Set to 20% higher than the memory_usage check value
+  memory_allotment: 660 MiB
 
   environment:
     DD_API_KEY: a0000001
@@ -57,7 +58,13 @@ checks:
     description: "Memory usage quality gate. This puts a bound on the total agent memory usage."
     bounds:
       series: total_pss_bytes
-      upper_bound: "485 MiB"
+      # Note: this gate is informational and should not be ratcheted downwards.
+      # The limit may be raised if it is hit. Increases should still be noted on
+      # the Limit Adjustments confluence page.
+      #
+      # When updating this, update the memory_allotment in the target section to
+      # 20% higher
+      upper_bound: "550 MiB"
 
   - name: intake_connections
     description: "Connections established to intake APIs. This puts a bound on total connections per Agent instance."

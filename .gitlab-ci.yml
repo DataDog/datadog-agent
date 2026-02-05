@@ -1,45 +1,11 @@
 ---
 include:
-  - .gitlab/.pre/include.yml
-  - .gitlab/bazel/*.yaml
-  - .gitlab/benchmarks/include.yml
-  - .gitlab/binary_build/include.yml
-  - .gitlab/check_deploy/check_deploy.yml
-  - .gitlab/check_merge/do_not_merge.yml
-  - .gitlab/choco_build/choco_build.yml
-  - .gitlab/common/shared.yml
-  - .gitlab/common/skip_ci_check.yml
-  - .gitlab/container_build/include.yml
-  - .gitlab/container_scan/container_scan.yml
-  - .gitlab/deploy_packages/include.yml
-  - .gitlab/deps_build/deps_build.yml
-  - .gitlab/deps_fetch/deps_fetch.yml
-  - .gitlab/dev_container_deploy/include.yml
-  - .gitlab/e2e/e2e.yml
-  - .gitlab/e2e_install_packages/include.yml
-  - .gitlab/e2e_pre_test/e2e_pre_test.yml
-  - .gitlab/e2e_testing_deploy/e2e_deploy.yml
-  - .gitlab/functional_test/include.yml
-  - .gitlab/install_script_testing/install_script_testing.yml
-  - .gitlab/integration_test/include.yml
-  - .gitlab/internal_image_deploy/internal_image_deploy.yml
-  - .gitlab/internal_kubernetes_deploy/include.yml
-  - .gitlab/lint/include.yml
-  - .gitlab/maintenance_jobs/include.yml
-  - .gitlab/network_device_build/network_device_build.yml
-  - .gitlab/notify/notify.yml
-  - .gitlab/package_build/include.yml
-  - .gitlab/packaging/include.yml
-  - .gitlab/package_deps_build/package_deps_build.yml
-  - .gitlab/pkg_metrics/pkg_metrics.yml
-  - .gitlab/post_rc_build/post_rc_tasks.yml
-  - .gitlab/trigger_distribution/trigger_distribution.yml
-  - .gitlab/trigger_distribution/conditions.yml
-  - .gitlab/dynamic_test/include.yml
-  - .gitlab/setup/setup.yml
-  - .gitlab/source_test/include.yml
-  - .gitlab/scan/windows.yml
-  - .gitlab/fuzz/infra.yaml
+  - local: .adms/**/*.yaml
+  - local: .gitlab/.pre/**.yml
+  - local: .gitlab/build/**.yml
+  - local: .gitlab/deploy/**.yml
+  - local: .gitlab/test/**.yml
+  - local: .gitlab/.post/**.yml
 
 default:
   retry:
@@ -81,7 +47,6 @@ stages:
   - e2e_pre_test
   - e2e_init
   - e2e
-  - e2e_cleanup
   - e2e_k8s
   - e2e_install_packages
   - functional_test
@@ -91,7 +56,7 @@ stages:
   - internal_kubernetes_deploy
   - post_rc_build
   - check_merge
-  - notify
+  - .post
 
 variables:
   # Special variable that allows us to set the pipeline to compute the code coverage of the e2e tests. It will impact several jobs so that
@@ -164,25 +129,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v88930157-ef91d52f
+  CI_IMAGE_BTF_GEN: v91623141-e13c2467
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v88930157-ef91d52f
+  CI_IMAGE_DOCKER_X64: v91623141-e13c2467
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v88930157-ef91d52f
+  CI_IMAGE_DOCKER_ARM64: v91623141-e13c2467
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v88930157-ef91d52f
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v91623141-e13c2467
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v88930157-ef91d52f
+  CI_IMAGE_LINUX: v93279297-c459726e
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v88930157-ef91d52f
+  CI_IMAGE_RPM_X64: v91623141-e13c2467
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v88930157-ef91d52f
+  CI_IMAGE_RPM_ARM64: v91623141-e13c2467
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v88930157-ef91d52f
+  CI_IMAGE_RPM_ARMHF: v91623141-e13c2467
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v88930157-ef91d52f
+  CI_IMAGE_WIN_LTSC2022_X64: v91623141-e13c2467
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v88930157-ef91d52f
+  CI_IMAGE_WIN_LTSC2025_X64: v91623141-e13c2467
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -362,9 +327,35 @@ variables:
 .fakeintake_paths: &fakeintake_paths
   paths:
     - "test/fakeintake/**/*"
-    - .gitlab/binary_build/fakeintake.yml
-    - .gitlab/container_build/fakeintake.yml
-    - .gitlab/dev_container_deploy/fakeintake.yml
+    - .gitlab/build/binary_build/fakeintake.yml
+    - .gitlab/deploy/container_build/fakeintake.yml
+    - .gitlab/deploy/dev_container_deploy/fakeintake.yml
+
+# Paths that impact the final build artifacts (rpm, deb, docker images, etc.)
+# Used to conditionally skip expensive tests like SMP when only non-artifact files change
+# like documentation, CI config, e2e tests.
+.artifacts_build_impacting_paths: &artifacts_build_impacting_paths
+  paths:
+    # agent source code
+    - go.mod
+    - go.sum
+    - cmd/**/*
+    - comp/**/*
+    - internal/**/*
+    - pkg/**/*
+    - rtloader/**/*
+    # Build system
+    - tasks/**/*.py
+    - deps/**/*
+    - omnibus/**/*
+    - .bazelrc
+    - .bazelversion
+    - bazel/**/*
+    - BUILD.bazel
+    - MODULE.bazel
+    - release.json
+    # SMP regression detector experiments
+    - test/regression/**/*
 
 .if_coverage_pipeline: &if_coverage_pipeline
   if: $E2E_COVERAGE_PIPELINE == "true"
@@ -445,7 +436,7 @@ workflow:
       RELEASE_PROD: "true"
   - changes:
       paths:
-        - .gitlab/internal_image_deploy/internal_image_deploy.yml
+        - .gitlab/deploy/internal_image_deploy/internal_image_deploy.yml
       compare_to: $COMPARE_TO_BRANCH
     variables:
       RELEASE_PROD: "false"
@@ -513,6 +504,12 @@ workflow:
   - <<: *if_tagged_commit
     when: never
 
+.on_dev_branches_with_artifact_changes:
+  - !reference [.on_dev_branches]
+  - changes:
+      <<: *artifacts_build_impacting_paths
+      compare_to: $COMPARE_TO_BRANCH
+
 .on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy
     when: always
@@ -558,14 +555,15 @@ workflow:
   - pkg/ebpf/**/*
   - pkg/security/**/*
   - pkg/eventmonitor/**/*
-  - .gitlab/kernel_matrix_testing/security_agent.yml
-  - .gitlab/kernel_matrix_testing/common.yml
-  - .gitlab/source_test/ebpf.yml
+  - .gitlab/test/kernel_matrix_testing/security_agent.yml
+  - .gitlab/test/kernel_matrix_testing/common.yml
+  - .gitlab/build/source_test/ebpf.yml
   - test/new-e2e/tests/cws/**/*
   - test/new-e2e/system-probe/**/*
   - test/new-e2e/scenarios/system-probe/**/*
   - test/e2e-framework/testing/runner/**/*
   - test/e2e-framework/testing/utils/**/*
+  - test/e2e-framework/scenarios/aws/microVMs/**/*
   - test/new-e2e/go.mod
   - go.mod
   - tasks/security_agent.py
@@ -587,7 +585,7 @@ workflow:
   changes:
     paths:
       - tools/windows/DatadogAgentInstaller/**/*
-      - .gitlab/e2e_install_packages/windows.yml
+      - .gitlab/test/e2e_install_packages/windows.yml
       - test/new-e2e/tests/windows/install-test/**/*
       - test/new-e2e/tests/windows/domain-test/**/*
       - tasks/msi.py
@@ -606,7 +604,7 @@ workflow:
 .system_probe_change_paths: &system_probe_change_paths
   - cmd/system-probe/**/*
   - pkg/collector/corechecks/ebpf/**/*
-  - pkg/collector/corechecks/servicediscovery/**/*
+  - pkg/discovery/**/*
   - pkg/ebpf/**/*
   - pkg/network/**/*
   - pkg/process/monitor/*
@@ -614,13 +612,14 @@ workflow:
   - pkg/util/kernel/**/*
   - pkg/dyninst/**/*
   - pkg/gpu/**/*
-  - .gitlab/kernel_matrix_testing/system_probe.yml
-  - .gitlab/kernel_matrix_testing/common.yml
-  - .gitlab/source_test/ebpf.yml
+  - .gitlab/test/kernel_matrix_testing/system_probe.yml
+  - .gitlab/test/kernel_matrix_testing/common.yml
+  - .gitlab/build/source_test/ebpf.yml
   - test/new-e2e/system-probe/**/*
   - test/new-e2e/scenarios/system-probe/**/*
   - test/e2e-framework/testing/runner/**/*
   - test/e2e-framework/testing/utils/**/*
+  - test/e2e-framework/scenarios/aws/microVMs/**/*
   - test/new-e2e/go.mod
   - go.mod
   - tasks/system_probe.py
@@ -653,7 +652,7 @@ workflow:
     when: on_success
   - changes:
       paths:
-        - .gitlab/e2e/e2e.yml
+        - .gitlab/test/e2e/e2e.yml
         - test/e2e-framework/**/*
         - test/new-e2e/go.mod
         - go.mod
@@ -675,7 +674,7 @@ workflow:
     when: never
   - changes:
       paths:
-        - .gitlab/e2e/e2e.yml
+        - .gitlab/test/e2e/e2e.yml
         - test/e2e-framework/testing/**/*
         - test/new-e2e/go.mod
         - go.mod
@@ -816,7 +815,6 @@ workflow:
         - comp/core/autodiscovery/providers/process_log.go
         - test/new-e2e/tests/discovery/**/*
         - pkg/collector/corechecks/discovery/**/*
-        - pkg/collector/corechecks/servicediscovery/**/*
         - pkg/discovery/**/*
       compare_to: $COMPARE_TO_BRANCH
 
@@ -901,10 +899,13 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - .gitlab/**/*
+        - .gitlab/deploy/**/*
+        - .gitlab/test/e2e_install_packages/**/*
+        - .gitlab/test/e2e/e2e.yml
         - omnibus/config/**/*
         - pkg/fleet/**/*
         - cmd/installer/**/*
+        - test/new-e2e/tests/fleet/**/*
         - test/new-e2e/tests/installer/**/*
         - tasks/installer.py
       compare_to: $COMPARE_TO_BRANCH
@@ -969,8 +970,8 @@ workflow:
         - comp/otelcol/**/*
         - pkg/config/setup/otlp.go
         - pkg/trace/api/otlp.go
-        - pkg/trace/stats/otel_util.go
-        - pkg/trace/traceutil/otel_util.go
+        - pkg/trace/otel/stats/otel_util.go
+        - pkg/trace/otel/traceutil/otel_util.go
         - pkg/trace/transform/transform.go
         - test/new-e2e/tests/otel/**/*
       compare_to: $COMPARE_TO_BRANCH
@@ -996,7 +997,12 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - cmd/**/*
+        - cmd/agent/**/*
+        - cmd/installer/**/*
+        - cmd/process-agent/**/*
+        - cmd/security-agent/**/*
+        - cmd/system-probe/**/*
+        - cmd/trace-agent/**/*
         - pkg/util/winutil/servicemain/**/*
         - pkg/util/winutil/messagestrings/**/*
         - tasks/windows_resources.py
@@ -1018,7 +1024,7 @@ workflow:
   - changes:
       paths:
         - pkg/trace/**/*
-        - .gitlab/benchmarks/*
+        - .gitlab/test/benchmarks/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
   - when: manual
@@ -1046,7 +1052,7 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - pkg/collector/corechecks/servicediscovery/module/*
+        - pkg/discovery/module/*
         - pkg/network/**/*
         - pkg/process/monitor/*
         - pkg/util/kernel/**/*
@@ -1094,11 +1100,12 @@ workflow:
   - <<: *if_disable_e2e_tests
     when: never
 
-.on_macos_gui_change:
+.on_macos_files_change:
   - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
   - changes:
       paths:
         - comp/core/gui/guiimpl/systray/**/*
+        - "**/*.m"
       compare_to: $COMPARE_TO_BRANCH
 
 .on_packaging_change:
@@ -1108,7 +1115,7 @@ workflow:
         - omnibus/**/*
         - .gitlab-ci.yml
         - release.json
-        - .gitlab/package_build/**/*
+        - .gitlab/build/package_build/**/*
       compare_to: $COMPARE_TO_BRANCH
 
 .on_go-version_change:
@@ -1198,7 +1205,7 @@ workflow:
         - pkg/gpu/**/*
         - pkg/collector/corechecks/gpu/**/*
         - comp/core/workloadmeta/collectors/internal/nvml/**/*
-        - .gitlab/source_test/linux.yml
+        - .gitlab/build/source_test/linux.yml
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
@@ -1208,6 +1215,17 @@ workflow:
   - changes:
       paths:
         - pkg/fleet/installer/packages/embedded/tmpl/**/*.service
+      compare_to: $COMPARE_TO_BRANCH
+  - when: manual
+    allow_failure: true
+
+.on_releasenotes_changes:
+  - <<: *if_main_branch
+  - !reference [.except_mergequeue]
+  - changes:
+      paths:
+        - releasenotes/notes/**/*.yaml
+        - releasenotes-dca/notes/**/*.yaml
       compare_to: $COMPARE_TO_BRANCH
   - when: manual
     allow_failure: true

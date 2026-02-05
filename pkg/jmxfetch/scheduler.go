@@ -37,7 +37,7 @@ func (s *JmxScheduler) Schedule(configs []integration.Config) {
 
 		digest := config.Digest()
 
-		for _, instance := range config.Instances {
+		for instanceIndex, instance := range config.Instances {
 			if !check.IsJMXInstance(config.Name, instance, config.InitConfig) {
 				continue
 			}
@@ -51,7 +51,7 @@ func (s *JmxScheduler) Schedule(configs []integration.Config) {
 				MetricConfig:  config.MetricConfig,
 				Name:          config.Name,
 				Provider:      config.Provider,
-				Source:        config.Source,
+				Source:        fmt.Sprintf("%s[%d]", config.Source, instanceIndex),
 			}
 
 			id := fmt.Sprintf("%v_%x", c.Name, c.IntDigest())

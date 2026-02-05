@@ -83,7 +83,13 @@
             }
           }
         }
-      }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
     },
     "timestamp": "[ts]",
     "message": "{aBool: true, aString: one, aNumber: 2, nested: {anotherInt: 3, anotherString: four}}"

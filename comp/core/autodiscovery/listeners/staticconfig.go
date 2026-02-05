@@ -8,6 +8,7 @@ package listeners
 import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
@@ -55,6 +56,13 @@ func (l *StaticConfigListener) createServices() {
 	if enabled := pkgconfigsetup.SystemProbe().GetBool("discovery.enabled"); enabled {
 		l.newService <- &StaticConfigService{adIdentifier: "_discovery"}
 	}
+
+	// Infrastructure mode: emit a single service for the mode
+	// All checks with ad_identifiers: [_<mode>] will be scheduled
+	infraMode := pkgconfigsetup.Datadog().GetString("infrastructure_mode")
+	if infraMode != "full" {
+		l.newService <- &StaticConfigService{adIdentifier: "_" + infraMode}
+	}
 }
 
 // Equal returns whether the two StaticConfigService are equal
@@ -83,7 +91,7 @@ func (s *StaticConfigService) GetHosts() (map[string]string, error) {
 }
 
 // GetPorts returns nil and an error because port is not supported in this listener
-func (s *StaticConfigService) GetPorts() ([]ContainerPort, error) {
+func (s *StaticConfigService) GetPorts() ([]workloadmeta.ContainerPort, error) {
 	return nil, ErrNotSupported
 }
 
