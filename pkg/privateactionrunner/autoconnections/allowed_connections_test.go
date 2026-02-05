@@ -12,7 +12,7 @@ import (
 )
 
 func TestDetermineConnectionsToCreate_AllBundles(t *testing.T) {
-	allowlist := []string{"com.datadoghq.http.*", "com.datadoghq.kubernetes.*", "com.datadoghq.script"}
+	allowlist := []string{"com.datadoghq.http.request", "com.datadoghq.kubernetes.core.getPod", "com.datadoghq.script.runPredefinedScript"}
 
 	definitions := DetermineConnectionsToCreate(allowlist)
 
@@ -58,12 +58,12 @@ func TestDetermineConnectionsToCreate_SingleBundle(t *testing.T) {
 		},
 		{
 			name:           "kubernetes bundle",
-			allowlist:      []string{"com.datadoghq.kubernetes.get_pods"},
+			allowlist:      []string{"com.datadoghq.kubernetes.core.getPod"},
 			expectedBundle: "com.datadoghq.kubernetes",
 		},
 		{
 			name:           "script bundle",
-			allowlist:      []string{"com.datadoghq.script"},
+			allowlist:      []string{"com.datadoghq.script.runPredefinedScript"},
 			expectedBundle: "com.datadoghq.script",
 		},
 	}
@@ -78,25 +78,8 @@ func TestDetermineConnectionsToCreate_SingleBundle(t *testing.T) {
 	}
 }
 
-func TestDetermineConnectionsToCreate_MultipleBundles(t *testing.T) {
-	allowlist := []string{"com.datadoghq.http.*", "com.datadoghq.script"}
-
-	definitions := DetermineConnectionsToCreate(allowlist)
-
-	assert.Len(t, definitions, 2)
-
-	bundleIDs := make(map[string]bool)
-	for _, def := range definitions {
-		bundleIDs[def.BundleID] = true
-	}
-
-	assert.True(t, bundleIDs["com.datadoghq.http"])
-	assert.True(t, bundleIDs["com.datadoghq.script"])
-	assert.False(t, bundleIDs["com.datadoghq.kubernetes"])
-}
-
 func TestDetermineConnectionsToCreate_NoRelevantBundles(t *testing.T) {
-	allowlist := []string{"com.datadoghq.gitlab.*"}
+	allowlist := []string{"com.datadoghq.gitlab.issues.createIssue"}
 
 	definitions := DetermineConnectionsToCreate(allowlist)
 
@@ -126,23 +109,6 @@ func TestDetermineConnectionsToCreate_EmptyAndNilAllowlist(t *testing.T) {
 			assert.NotNil(t, definitions)
 		})
 	}
-}
-
-func TestDetermineConnectionsToCreate_UniversalWildcard(t *testing.T) {
-	allowlist := []string{"com.datadoghq.*"}
-
-	definitions := DetermineConnectionsToCreate(allowlist)
-
-	assert.Len(t, definitions, 3)
-
-	bundleIDs := make(map[string]bool)
-	for _, def := range definitions {
-		bundleIDs[def.BundleID] = true
-	}
-
-	assert.True(t, bundleIDs["com.datadoghq.http"])
-	assert.True(t, bundleIDs["com.datadoghq.kubernetes"])
-	assert.True(t, bundleIDs["com.datadoghq.script"])
 }
 
 func TestGenerateConnectionName(t *testing.T) {

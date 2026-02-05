@@ -40,24 +40,10 @@ var supportedConnections = map[string]ConnectionDefinition{
 	},
 }
 
+// The agent allowlist only supports FQNs
 func matchesPattern(pattern, bundleID string) bool {
-	if pattern == bundleID {
-		return true
-	}
-
-	if strings.HasSuffix(pattern, ".*") {
-		prefix := strings.TrimSuffix(pattern, ".*")
-		if strings.HasPrefix(bundleID, prefix) {
-			return true
-		}
-	}
-
 	if strings.HasPrefix(pattern, bundleID+".") {
 		return true
-	}
-
-	if pattern == "com.datadoghq.*" {
-		return strings.HasPrefix(bundleID, "com.datadoghq.")
 	}
 
 	return false
