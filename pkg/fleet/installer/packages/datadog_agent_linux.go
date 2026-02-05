@@ -460,31 +460,6 @@ func postPromoteConfigExperimentDatadogAgent(ctx HookContext) error {
 	return nil
 }
 
-func postInstallExtensionDatadogAgent(ctx HookContext) (err error) {
-	span, ctx := ctx.StartSpan("setup_extension_permissions")
-	defer func() {
-		span.Finish(err)
-	}()
-
-	// Reconstruct the extension path
-	extensionPath := filepath.Join(ctx.PackagePath, "ext", ctx.Extension)
-	if _, err := os.Stat(extensionPath); os.IsNotExist(err) {
-		// Extension might be at system path for DEB/RPM installations
-		extensionPath = filepath.Join("/opt/datadog-agent", "ext", ctx.Extension)
-	}
-
-	// Set ownership recursively to dd-agent:dd-agent
-	extensionPermissions := file.Permissions{
-		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
-	}
-
-	if err := extensionPermissions.Ensure(ctx, extensionPath); err != nil {
-		return fmt.Errorf("failed to set extension ownership: %w", err)
-	}
-
-	return nil
-}
-
 type datadogAgentConfig struct {
 	Installer installerConfig `yaml:"installer"`
 }
@@ -498,6 +473,45 @@ type installerRegistryConfig struct {
 	Auth     string `yaml:"auth,omitempty"`
 	Username string `yaml:"username,omitempty"`
 	Password string `yaml:"password,omitempty"`
+}
+
+// agentExtensionHandler defines the interface for extension-specific lifecycle hooks
+type agentExtensionHandler interface {
+	preInstall(ctx HookContext) error
+	postInstall(ctx HookContext) error
+	preRemove(ctx HookContext) error
+}
+
+// agentExtensionHandlers maps extension names to their handlers
+var agentExtensionHandlers = map[string]agentExtensionHandler{
+	"ddot": &ddotExtensionHandler{},
+}
+
+// preInstallExtensionDatadogAgent runs pre-installation steps for agent extensions
+func preInstallExtensionDatadogAgent(ctx HookContext) error {
+	handler, exists := agentExtensionHandlers[ctx.Extension]
+	if !exists {
+		return nil
+	}
+	return handler.preInstall(ctx)
+}
+
+// postInstallExtensionDatadogAgent runs post-installation steps for agent extensions
+func postInstallExtensionDatadogAgent(ctx HookContext) error {
+	handler, exists := agentExtensionHandlers[ctx.Extension]
+	if !exists {
+		return nil
+	}
+	return handler.postInstall(ctx)
+}
+
+// preRemoveExtensionDatadogAgent runs pre-removal steps for agent extensions
+func preRemoveExtensionDatadogAgent(ctx HookContext) error {
+	handler, exists := agentExtensionHandlers[ctx.Extension]
+	if !exists {
+		return nil
+	}
+	return handler.preRemove(ctx)
 }
 
 // setRegistryConfig is a best effort to get the `installer` block from `datadog.yaml` and update the env.
