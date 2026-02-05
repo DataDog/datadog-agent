@@ -54,6 +54,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.71.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.71.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.76.0-devel // indirect
 	github.com/mdlayher/socket v0.5.1 // indirect
 	github.com/mdlayher/vsock v1.2.1 // indirect
 	go.opentelemetry.io/collector/internal/componentalias v0.144.0 // indirect
@@ -63,7 +64,6 @@ require (
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.179 // indirect
-	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.76.0-devel
@@ -262,6 +262,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/def => ../../../../../../comp/def
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../../../../../comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../../../../../comp/forwarder/orchestrator/orchestratorinterface
+	github.com/DataDog/datadog-agent/comp/logs-library => ../../../../../../comp/logs-library
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../../../../comp/logs/agent/config
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ../../../../../../comp/netflow/payload
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../../../../../../comp/otelcol/collector-contrib/def

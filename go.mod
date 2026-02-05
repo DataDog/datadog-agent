@@ -17,7 +17,6 @@ retract (
 
 // Internal deps fix version
 replace (
-	github.com/cihub/seelog => github.com/cihub/seelog v0.0.0-20151216151435-d2c6e5aa9fbf // v2.6
 	// Use a patched version of go-cmp to avoid disabling dead code elimination
 	// Commit from https://github.com/DataDog/go-cmp/tree/dce-patch/v0.7.0
 	github.com/google/go-cmp => github.com/DataDog/go-cmp v0.0.0-20250605161605-8f326bf2ab9d
@@ -959,6 +958,7 @@ require (
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.4.0
+	github.com/DataDog/datadog-agent/comp/logs-library v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl v0.0.0-00010101000000-000000000000
@@ -978,6 +978,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace/stats v0.71.0
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.71.0
 	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.76.0-devel
 	github.com/DataDog/ddtrivy v0.0.0-20260115083325-07614fb0b8d5
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.0
@@ -1287,6 +1288,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/def => ./comp/def
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ./comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ./comp/forwarder/orchestrator/orchestratorinterface
+	github.com/DataDog/datadog-agent/comp/logs-library => ./comp/logs-library
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ./comp/logs/agent/config
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ./comp/netflow/payload
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ./comp/otelcol/collector-contrib/def

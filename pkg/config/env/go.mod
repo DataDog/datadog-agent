@@ -7,6 +7,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/system v0.61.0
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.76.0-devel
 	github.com/stretchr/testify v1.11.1
 )
 
@@ -82,6 +83,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/def => ../../../comp/def
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../../comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../../comp/forwarder/orchestrator/orchestratorinterface
+	github.com/DataDog/datadog-agent/comp/logs-library => ../../../comp/logs-library
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../comp/logs/agent/config
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ../../../comp/netflow/payload
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../../../comp/otelcol/collector-contrib/def

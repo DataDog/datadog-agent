@@ -28,7 +28,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.72.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/util/grpc v0.60.0
 	github.com/DataDog/datadog-agent/pkg/util/http v0.72.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/util/system v0.72.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.76.0-devel
 	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/google/uuid v1.6.0
 	github.com/mdlayher/vsock v1.2.1
@@ -49,7 +49,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.0.0-20251003153905-4e3e64f07b69 // indirect
-	github.com/DataDog/datadog-agent/comp/core/status v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/api v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-00010101000000-000000000000 // indirect
@@ -73,6 +72,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.72.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.72.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.72.2 // indirect
 	github.com/DataDog/viper v1.15.0 // indirect
@@ -80,9 +80,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/ebitengine/purego v0.9.1 // indirect
-	github.com/fatih/color v1.18.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
@@ -98,8 +96,6 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20251013123823-9fd1530e3ec3 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
-	github.com/mattn/go-colorable v0.1.14 // indirect
-	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mdlayher/socket v0.5.1 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
@@ -190,6 +186,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/def => ../../../../comp/def
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../../../comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../../../comp/forwarder/orchestrator/orchestratorinterface
+	github.com/DataDog/datadog-agent/comp/logs-library => ../../../../comp/logs-library
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../../comp/logs/agent/config
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ../../../../comp/netflow/payload
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../../../../comp/otelcol/collector-contrib/def
