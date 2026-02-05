@@ -106,6 +106,7 @@ BPF_LRU_MAP_FLAGS(syscalls, u64, struct syscall_cache_t, 1, BPF_F_NO_COMMON_LRU)
 BPF_LRU_MAP_FLAGS(pathnames, struct path_key_t, struct path_leaf_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(capabilities_contexts, u32, struct capabilities_context_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 BPF_LRU_MAP_FLAGS(open_samples, struct pid_path_key_t, u8, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
+BPF_LRU_MAP_FLAGS(pid_path_keys, u32, struct path_key_t, 40000, BPF_F_NO_COMMON_LRU)
 
 BPF_SK_MAP(sk_storage_meta, struct sock_meta_t);
 
