@@ -10,6 +10,8 @@ import (
 	"net/http"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
+
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 )
 
 // noopHealthPlatform is a no-op implementation of the health platform component
@@ -55,4 +57,9 @@ func (n *noopHealthPlatform) getIssuesHandler(w http.ResponseWriter, _ *http.Req
 		Issues: make(map[string]*healthplatform.Issue),
 	}
 	_ = json.NewEncoder(w).Encode(response)
+}
+
+// fillFlare does nothing when the health platform is disabled (no file created)
+func (n *noopHealthPlatform) fillFlare(_ flaretypes.FlareBuilder) error {
+	return nil
 }
