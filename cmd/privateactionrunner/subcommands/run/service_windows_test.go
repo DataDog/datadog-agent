@@ -23,4 +23,3 @@ func TestServiceInit(t *testing.T) {
 	err := s.Init()
 	assert.NoError(t, err)
 }
-
