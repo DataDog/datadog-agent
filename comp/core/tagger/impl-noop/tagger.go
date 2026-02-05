@@ -27,6 +27,10 @@ func (n *noopTagger) Tag(types.EntityID, types.TagCardinality) ([]string, error)
 	return nil, nil
 }
 
+func (n *noopTagger) TagWithCompleteness(types.EntityID, types.TagCardinality) ([]string, bool, error) {
+	return nil, true, nil
+}
+
 // GenerateContainerIDFromOriginInfo generates a container ID from Origin Info.
 // This is a no-op for the noop tagger
 func (n *noopTagger) GenerateContainerIDFromOriginInfo(origindetection.OriginInfo) (string, error) {
