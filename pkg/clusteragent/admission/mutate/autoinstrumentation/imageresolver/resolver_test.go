@@ -537,7 +537,7 @@ func TestRcResolver_AsyncInitialization(t *testing.T) {
 	})
 }
 
-func newMockBucketTagResolver(t *testing.T, ttl time.Duration, bucketID string) bucketTagResolver {
+func newMockBucketTagResolver(ttl time.Duration, bucketID string) bucketTagResolver {
 	datadogRegistries := map[string]struct{}{
 		"gcr.io/datadoghq":       {},
 		"public.ecr.aws/datadog": {},
