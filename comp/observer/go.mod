@@ -9,6 +9,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/log v0.76.0-devel
+	github.com/google/pprof v0.0.0-20260111202518-71be6bfdd440
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/fx v1.24.0
 )

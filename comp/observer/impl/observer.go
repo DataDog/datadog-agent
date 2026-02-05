@@ -16,6 +16,7 @@ import (
 	"time"
 
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
+	logger "github.com/DataDog/datadog-agent/comp/core/log/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -32,6 +33,7 @@ type Requires struct {
 	// RemoteAgentRegistry enables fetching traces/profiles
 	// from remote trace-agents via the ObserverProvider gRPC service.
 	RemoteAgentRegistry remoteagentregistry.Component
+	Logger              logger.Component
 }
 
 type AgentInternalLogTapConfig struct {
@@ -156,9 +158,10 @@ func NewComponent(deps Requires) Provides {
 		reporters: []observerdef.Reporter{
 			reporter,
 		},
-		storage:   newTimeSeriesStorage(),
-		obsCh:     make(chan observation, 1000),
-		maxEvents: 1000, // Keep last 1000 events for debugging
+		storage:          newTimeSeriesStorage(),
+		obsCh:            make(chan observation, 1000),
+		maxEvents:        1000, // Keep last 1000 events for debugging
+		anomalyDetection: NewAnomalyDetection(deps.Logger),
 	}
 
 	// If recorder is provided, wrap handles through it; otherwise use inner handle directly
@@ -341,7 +344,8 @@ type observerImpl struct {
 	currentDataTime  int64 // latest data timestamp seen
 
 	// fetcher pulls traces/profiles from remote trace-agents
-	fetcher *observerFetcher
+	fetcher          *observerFetcher
+	anomalyDetection *AnomalyDetection
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
@@ -349,15 +353,19 @@ func (o *observerImpl) run() {
 	for obs := range o.obsCh {
 		if obs.metric != nil {
 			o.processMetric(obs.source, obs.metric)
+			o.anomalyDetection.ProcessMetric(obs.metric)
 		}
 		if obs.log != nil {
 			o.processLog(obs.source, obs.log)
+			o.anomalyDetection.ProcessLog(obs.log)
 		}
 		if obs.trace != nil {
 			o.processTrace(obs.source, obs.trace)
+			o.anomalyDetection.ProcessTrace(obs.trace)
 		}
 		if obs.profile != nil {
 			o.processProfile(obs.source, obs.profile)
+			o.anomalyDetection.ProcessProfile(obs.profile)
 		}
 	}
 }

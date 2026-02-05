@@ -245,7 +245,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	// Observer buffer configuration for trace-agent
 	// When enabled, trace-agent buffers traces/profiles for the core-agent's observer component
 	// to fetch via the ObserverProvider gRPC service.
-	config.BindEnvAndSetDefault("apm_config.observer.enabled", false, "DD_APM_OBSERVER_ENABLED")
+	config.BindEnvAndSetDefault("apm_config.observer.enabled", true, "DD_APM_OBSERVER_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.observer.trace_buffer_size", 1000, "DD_APM_OBSERVER_TRACE_BUFFER_SIZE")
 	config.BindEnvAndSetDefault("apm_config.observer.profile_buffer_size", 100, "DD_APM_OBSERVER_PROFILE_BUFFER_SIZE")
 }
