@@ -912,7 +912,9 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 
 	// filter out event if already present on a profile
 	if !p.config.RuntimeSecurity.SecurityProfileV2Enabled {
+		event.RecordCheckpoint("lookup_profiles_start")
 		p.profileManager.LookupEventInProfiles(event)
+		event.RecordCheckpoint("lookup_profiles_done")
 
 		// mark the events that have an associated activity dump
 		if p.profileManager.HasActiveActivityDump(event) {
@@ -925,11 +927,15 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	}
 
 	// send event to wildcard handlers, like the CWS rule engine, first
+	event.RecordCheckpoint("send_to_handlers_start")
 	p.probe.sendEventToHandlers(event)
+	event.RecordCheckpoint("send_to_handlers_done")
 
 	// send event to specific event handlers, like the event monitor consumers, subsequently
 	if notifyConsumers {
+		event.RecordCheckpoint("send_to_consumers_start")
 		p.probe.sendEventToConsumers(event)
+		event.RecordCheckpoint("send_to_consumers_done")
 	}
 
 	// handle sbom resolution
@@ -1124,7 +1130,9 @@ func (p *EBPFProbe) triggerNopEvent() error {
 
 // setProcessContext set the process context, should return false if the event shouldn't be dispatched
 func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Event, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
+	event.RecordCheckpoint("resolve_process_start")
 	entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event, newEntryCb)
+	event.RecordCheckpoint("resolve_process_done")
 	event.ProcessCacheEntry = entry
 	if event.ProcessCacheEntry == nil {
 		panic("should always return a process cache entry")
@@ -1160,7 +1168,9 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 	}
 
 	// flush exited process
+	event.RecordCheckpoint("dequeue_exited_start")
 	p.Resolvers.ProcessResolver.DequeueExited()
+	event.RecordCheckpoint("dequeue_exited_done")
 
 	return true
 }
@@ -1170,6 +1180,8 @@ func (p *EBPFProbe) zeroEvent() *model.Event {
 	p.event.FieldHandlers = p.fieldHandlers
 	p.event.Origin = EBPFOrigin
 	p.event.Source = model.EventSourceRuntime
+	// Reset the processing trace slice (retain backing array to reduce allocations)
+	p.event.ProcessingTrace = p.event.ProcessingTrace[:0]
 	return p.event
 }
 
@@ -1267,6 +1279,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) model.EventType {
 		return model.UnknownEventType
 	}
 	offset += read
+	event.RecordCheckpoint("unmarshal")
 
 	eventType := event.GetEventType()
 	if eventType > model.MaxKernelEventType {
@@ -1288,6 +1301,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) model.EventType {
 		return eventType
 	}
 	offset += read
+	event.RecordCheckpoint("unmarshal_contexts")
 
 	// save netns handle if applicable
 	netNS := event.PIDContext.NetNS
@@ -1302,15 +1316,19 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) model.EventType {
 	if !p.handleBeforeProcessContext(event, data, offset, dataLen, cgroupContext, newEntryCb) {
 		return eventType
 	}
+	event.RecordCheckpoint("before_process_ctx")
+
 	// resolve process context
 	if !p.setProcessContext(eventType, event, newEntryCb) {
 		return eventType
 	}
+	event.RecordCheckpoint("set_process_ctx")
 
 	// handle regular events
 	if !p.handleRegularEvent(event, offset, dataLen, data, newEntryCb) {
 		return eventType
 	}
+	event.RecordCheckpoint("handle_regular_event")
 
 	// send related events
 	for _, relatedEvent := range relatedEvents {
@@ -1319,8 +1337,10 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) model.EventType {
 		p.putBackPoolEvent(relatedEvent)
 	}
 	relatedEvents = relatedEvents[0:0]
+	event.RecordCheckpoint("related_events")
 
 	p.DispatchEvent(event, true)
+	event.RecordCheckpoint("dispatch")
 
 	if eventType == model.ExitEventType {
 		p.Resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, event.ResolveEventTime())
@@ -1339,6 +1359,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 	var err error
 	var read int
 	eventType := event.GetEventType()
+	event.RecordCheckpoint(fmt.Sprintf("regular_event_%s", eventType))
 	switch eventType {
 
 	case model.FileMountEventType, model.FileMoveMountEventType, model.PivotRootEventType:
@@ -1346,10 +1367,12 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			return false
 		}
 
+		event.RecordCheckpoint("handle_new_mount")
 		if err := p.handleNewMount(event, &event.Mount.Mount); err != nil {
 			seclog.Debugf("failed to handle new mount from mount event: %s\n", err)
 			return false
 		}
+		event.RecordCheckpoint("handle_new_mount_done")
 
 		// TODO: this should be moved in the resolver itself in order to handle the fallbacks
 		if event.Mount.GetFSType() == "nsfs" {
@@ -1453,7 +1476,9 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.Exit, eventType, offset, dataLen, data) {
 			return false
 		}
+		event.RecordCheckpoint("apply_exit_entry")
 		exists := p.Resolvers.ProcessResolver.ApplyExitEntry(event, newEntryCb)
+		event.RecordCheckpoint("apply_exit_entry_done")
 		if exists {
 			// update action reports
 			p.processKiller.HandleProcessExited(event)
@@ -1510,7 +1535,9 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.PTrace, eventType, offset, dataLen, data) {
 			return false
 		}
+		event.RecordCheckpoint("resolve_ptrace_ctx")
 		ok := resolveTraceProcessContext(event, p, newEntryCb)
+		event.RecordCheckpoint("resolve_ptrace_ctx_done")
 		if !ok {
 			return false
 		}
@@ -1546,7 +1573,9 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.Signal, eventType, offset, dataLen, data) {
 			return false
 		}
+		event.RecordCheckpoint("resolve_signal_target")
 		event.Signal.Target = resolveTargetProcessContext(event.Signal.PID, p, newEntryCb)
+		event.RecordCheckpoint("resolve_signal_target_done")
 	case model.SpliceEventType:
 		if !p.regularUnmarshalEvent(&event.Splice, eventType, offset, dataLen, data) {
 			return false
@@ -1722,7 +1751,9 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.Setrlimit, eventType, offset, dataLen, data) {
 			return false
 		}
+		event.RecordCheckpoint("resolve_setrlimit_target")
 		event.Setrlimit.Target = resolveTargetProcessContext(event.Setrlimit.TargetPid, p, newEntryCb)
+		event.RecordCheckpoint("resolve_setrlimit_target_done")
 	case model.CapabilitiesEventType:
 		if !p.regularUnmarshalEvent(&event.CapabilitiesUsage, eventType, offset, dataLen, data) {
 			return false
@@ -1756,7 +1787,9 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		}
 		pid := event.CgroupWrite.Pid
 
+		event.RecordCheckpoint("cgroup_write_resolve")
 		pce := p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, true, newEntryCb)
+		event.RecordCheckpoint("cgroup_write_resolve_done")
 		if pce == nil {
 			seclog.Debugf("failed to resolve process: %d", pid)
 			return false
@@ -1774,11 +1807,16 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			p.Resolvers.ProcessResolver.UpdateProcessContexts(pce, cacheEntry.GetCGroupContext(), cacheEntry.GetContainerContext())
 		}
 	case model.ExecEventType:
+		event.RecordCheckpoint("handle_ssh_session_exec")
 		p.HandleSSHUserSessionFromEvent(event)
+		event.RecordCheckpoint("handle_ssh_session_exec_done")
 
 	case model.ForkEventType:
+		event.RecordCheckpoint("handle_ssh_session_fork")
 		p.HandleSSHUserSessionFromEvent(event)
+		event.RecordCheckpoint("handle_ssh_session_fork_done")
 	}
+	event.RecordCheckpoint("regular_event_done")
 	return true
 }
 
@@ -1789,27 +1827,33 @@ func (p *EBPFProbe) handleBeforeProcessContext(event *model.Event, data []byte, 
 	eventType := event.GetEventType()
 	switch eventType {
 	case model.ForkEventType:
+		event.RecordCheckpoint("unmarshal_fork")
 		if _, err = p.unmarshalProcessCacheEntry(event, data[offset:]); err != nil {
 			seclog.Errorf("failed to decode fork event: %s (offset %d, len %d)", err, offset, dataLen)
 			return false
 		}
 
+		event.RecordCheckpoint("add_fork_entry_start")
 		if err := p.Resolvers.ProcessResolver.AddForkEntry(event, cgroupContext, newEntryCb); err != nil {
 			seclog.Errorf("failed to insert fork event: %s (pid %d, offset %d, len %d)", err, event.PIDContext.Pid, offset, len(data))
 			return false
 		}
+		event.RecordCheckpoint("add_fork_entry_done")
 	case model.ExecEventType:
 		// unmarshal and fill event.processCacheEntry
+		event.RecordCheckpoint("unmarshal_exec")
 		if _, err = p.unmarshalProcessCacheEntry(event, data[offset:]); err != nil {
 			seclog.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
 			return false
 		}
 
+		event.RecordCheckpoint("add_exec_entry_start")
 		err = p.Resolvers.ProcessResolver.AddExecEntry(event, cgroupContext)
 		if err != nil {
 			seclog.Errorf("failed to insert exec event: %s (pid %d, offset %d, len %d)", err, event.PIDContext.Pid, offset, len(data))
 			return false
 		}
+		event.RecordCheckpoint("add_exec_entry_done")
 	}
 	return true
 }
