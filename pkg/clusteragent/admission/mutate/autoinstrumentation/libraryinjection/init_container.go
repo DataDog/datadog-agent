@@ -12,10 +12,6 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/utils/ptr"
-
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -23,22 +19,6 @@ const (
 	InjectorInitContainerName = "datadog-init-apm-inject"
 	// LibraryInitContainerNameTemplate is the template for library init container names.
 	LibraryInitContainerNameTemplate = "datadog-lib-%s-init"
-)
-
-var (
-	// defaultRestrictedSecurityContext is the security context used for init containers
-	// in namespaces with the "restricted" Pod Security Standard.
-	// https://datadoghq.atlassian.net/browse/INPLAT-492
-	defaultRestrictedSecurityContext = &corev1.SecurityContext{
-		AllowPrivilegeEscalation: ptr.To(false),
-		RunAsNonRoot:             ptr.To(true),
-		SeccompProfile: &corev1.SeccompProfile{
-			Type: corev1.SeccompProfileTypeRuntimeDefault,
-		},
-		Capabilities: &corev1.Capabilities{
-			Drop: []corev1.Capability{"ALL"},
-		},
-	}
 )
 
 // InitContainerProvider implements LibraryInjectionProvider using init containers
@@ -115,7 +95,7 @@ func (p *InitContainerProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConf
 	}
 
 	// Resolve security context based on namespace labels and config
-	resolvedSecurityContext := p.resolveInitSecurityContext(pod.Namespace)
+	resolvedSecurityContext := resolveInitSecurityContext(p.cfg, pod.Namespace)
 	initContainer.SecurityContext = resolvedSecurityContext
 
 	patcher.AddInitContainer(initContainer)
@@ -191,34 +171,6 @@ func (p *InitContainerProvider) InjectLibrary(pod *corev1.Pod, cfg LibraryConfig
 	return MutationResult{
 		Status: MutationStatusInjected,
 	}
-}
-
-// resolveInitSecurityContext determines the appropriate security context for init containers
-// based on namespace labels and global configuration.
-func (p *InitContainerProvider) resolveInitSecurityContext(nsName string) *corev1.SecurityContext {
-	// Use the configured security context if provided
-	if p.cfg.InitSecurityContext != nil {
-		return p.cfg.InitSecurityContext
-	}
-
-	// If wmeta is not available, we can't check namespace labels
-	if p.cfg.Wmeta == nil {
-		return nil
-	}
-
-	// Check namespace labels for Pod Security Standard
-	id := util.GenerateKubeMetadataEntityID("", "namespaces", "", nsName)
-	ns, err := p.cfg.Wmeta.GetKubernetesMetadata(id)
-	if err != nil {
-		log.Warnf("error getting labels for namespace=%s: %s", nsName, err)
-		return nil
-	}
-
-	if val, ok := ns.EntityMeta.Labels["pod-security.kubernetes.io/enforce"]; ok && val == "restricted" {
-		return defaultRestrictedSecurityContext
-	}
-
-	return nil
 }
 
 // Verify that InitContainerProvider implements LibraryInjectionProvider.

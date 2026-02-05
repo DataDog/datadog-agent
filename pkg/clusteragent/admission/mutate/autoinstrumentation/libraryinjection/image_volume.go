@@ -74,8 +74,9 @@ func (p *ImageVolumeProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig
 			injectorMount,
 			etcMountInitContainer,
 		},
-		Command:   []string{"cp", src, dst},
-		Resources: requirements,
+		Command:         []string{"cp", src, dst},
+		SecurityContext: resolveInitSecurityContext(p.cfg, pod.Namespace),
+		Resources:       requirements,
 	})
 
 	return MutationResult{

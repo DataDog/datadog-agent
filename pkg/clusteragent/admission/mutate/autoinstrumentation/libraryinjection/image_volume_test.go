@@ -15,6 +15,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 )
@@ -115,4 +116,30 @@ func TestImageVolumeProvider_InjectInjector_SkipsWhenInsufficientResources(t *te
 
 	assert.Equal(t, libraryinjection.MutationStatusSkipped, resultLow.Status)
 	assert.NotNil(t, resultLow.Err)
+}
+
+func TestImageVolumeProvider_InjectInjector_UsesConfiguredInitSecurityContext(t *testing.T) {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-pod", Namespace: "default"},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{Name: "app", Image: "my-app:latest"},
+			},
+		},
+	}
+
+	sc := &corev1.SecurityContext{
+		RunAsNonRoot: ptr.To(true),
+	}
+
+	provider := libraryinjection.NewImageVolumeProvider(libraryinjection.LibraryInjectionConfig{
+		InitSecurityContext: sc,
+	})
+	result := provider.InjectInjector(pod, libraryinjection.InjectorConfig{
+		Package: libraryinjection.NewLibraryImageFromFullRef("gcr.io/datadoghq/apm-inject:0.52.0", "0.52.0"),
+	})
+
+	require.Equal(t, libraryinjection.MutationStatusInjected, result.Status)
+	require.Len(t, pod.Spec.InitContainers, 1)
+	require.Same(t, sc, pod.Spec.InitContainers[0].SecurityContext)
 }
