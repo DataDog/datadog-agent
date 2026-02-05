@@ -483,8 +483,9 @@ type ClientGroupedStats struct {
 	PeerTags       []string `protobuf:"bytes,16,rep,name=peer_tags,json=peerTags,proto3" json:"peer_tags,omitempty"`
 	IsTraceRoot    Trilean  `protobuf:"varint,17,opt,name=is_trace_root,json=isTraceRoot,proto3,enum=datadog.trace.Trilean" json:"is_trace_root,omitempty"` // this field's value is equal to span's ParentID == 0.
 	GRPCStatusCode string   `protobuf:"bytes,18,opt,name=GRPC_status_code,json=GRPCStatusCode,proto3" json:"GRPC_status_code,omitempty"`
-	HTTPMethod     string   `protobuf:"bytes,19,opt,name=HTTP_method,json=HTTPMethod,proto3" json:"HTTP_method,omitempty"`       // HTTP method of the request
-	HTTPEndpoint   string   `protobuf:"bytes,20,opt,name=HTTP_endpoint,json=HTTPEndpoint,proto3" json:"HTTP_endpoint,omitempty"` // Http route or quantized/simplified URL path
+	HTTPMethod     string   `protobuf:"bytes,19,opt,name=HTTP_method,json=HTTPMethod,proto3" json:"HTTP_method,omitempty"`          // HTTP method of the request
+	HTTPEndpoint   string   `protobuf:"bytes,20,opt,name=HTTP_endpoint,json=HTTPEndpoint,proto3" json:"HTTP_endpoint,omitempty"`    // Http route or quantized/simplified URL path
+	ServiceSource  string   `protobuf:"bytes,21,opt,name=service_source,json=serviceSource,proto3" json:"service_source,omitempty" msg:"srv_src"` // @inject_tag: msg:"srv_src"
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -652,6 +653,13 @@ func (x *ClientGroupedStats) GetHTTPEndpoint() string {
 	return ""
 }
 
+func (x *ClientGroupedStats) GetServiceSource() string {
+	if x != nil {
+		return x.ServiceSource
+	}
+	return ""
+}
+
 var File_datadog_trace_stats_proto protoreflect.FileDescriptor
 
 const file_datadog_trace_stats_proto_rawDesc = "" +
@@ -686,7 +694,7 @@ const file_datadog_trace_stats_proto_rawDesc = "" +
 	"\x05start\x18\x01 \x01(\x04R\x05start\x12\x1a\n" +
 	"\bduration\x18\x02 \x01(\x04R\bduration\x127\n" +
 	"\x05stats\x18\x03 \x03(\v2!.datadog.trace.ClientGroupedStatsR\x05stats\x12&\n" +
-	"\x0eagentTimeShift\x18\x04 \x01(\x03R\x0eagentTimeShift\"\xef\x04\n" +
+	"\x0eagentTimeShift\x18\x04 \x01(\x03R\x0eagentTimeShift\"\x96\x05\n" +
 	"\x12ClientGroupedStats\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
@@ -710,7 +718,8 @@ const file_datadog_trace_stats_proto_rawDesc = "" +
 	"\x10GRPC_status_code\x18\x12 \x01(\tR\x0eGRPCStatusCode\x12\x1f\n" +
 	"\vHTTP_method\x18\x13 \x01(\tR\n" +
 	"HTTPMethod\x12#\n" +
-	"\rHTTP_endpoint\x18\x14 \x01(\tR\fHTTPEndpointJ\x04\b\x0e\x10\x0f*+\n" +
+	"\rHTTP_endpoint\x18\x14 \x01(\tR\fHTTPEndpoint\x12%\n" +
+	"\x0eservice_source\x18\x15 \x01(\tR\rserviceSourceJ\x04\b\x0e\x10\x0f*+\n" +
 	"\aTrilean\x12\v\n" +
 	"\aNOT_SET\x10\x00\x12\b\n" +
 	"\x04TRUE\x10\x01\x12\t\n" +
