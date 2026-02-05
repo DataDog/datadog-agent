@@ -212,6 +212,33 @@ func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefi
 		module.Fields[alias] = newStructField
 	}
 
+	if field.tldField {
+		name = name + ".tld"
+		aliasPrefix = alias
+		alias = alias + ".tld"
+
+		newStructField := &common.StructField{
+			Name:         name,
+			BasicType:    "int",
+			ReturnType:   "int",
+			OrigType:     "int",
+			IsArray:      isArray,
+			IsTLD:        true,
+			Event:        event,
+			Iterator:     iterator,
+			CommentText:  doc.SECLDocForTLD,
+			OpOverrides:  opOverrides,
+			Struct:       "string",
+			Alias:        alias,
+			AliasPrefix:  aliasPrefix,
+			GettersOnly:  field.gettersOnly,
+			Ref:          field.ref,
+			RestrictedTo: restrictedTo,
+		}
+
+		module.Fields[alias] = newStructField
+	}
+
 	if _, ok := module.EventTypes[event]; !ok {
 		module.EventTypes[event] = common.NewEventTypeMetada(alias)
 	} else {
@@ -279,6 +306,23 @@ func addLengthOpField(module *common.Module, alias string, field *common.StructF
 	return &lengthField
 }
 
+func addTLDOpField(module *common.Module, alias string, field *common.StructField) *common.StructField {
+	tldField := *field
+	tldField.IsTLD = true
+	tldField.Name += ".tld"
+	tldField.OrigType = "int"
+	tldField.BasicType = "int"
+	tldField.ReturnType = "int"
+	tldField.Struct = "string"
+	tldField.AliasPrefix = alias
+	tldField.Alias = alias + ".tld"
+	tldField.CommentText = doc.SECLDocForTLD
+
+	module.Fields[tldField.Alias] = &tldField
+
+	return &tldField
+}
+
 // handleIterator adds iterator to list of exposed SECL iterators of the module
 func handleIterator(module *common.Module, field seclField, fieldType, iterator, aliasPrefix, prefixedFieldName, event string, restrictedTo []string, fieldCommentText string, opOverrides []string, isPointer, isArray bool) *common.StructField {
 	alias := field.name
@@ -308,6 +352,10 @@ func handleIterator(module *common.Module, field seclField, fieldType, iterator,
 	lengthField := addLengthOpField(module, alias, module.Iterators[alias])
 	lengthField.Iterator = module.Iterators[alias]
 	lengthField.IsIterator = true
+
+	tldField := addTLDOpField(module, alias, module.Iterators[alias])
+	tldField.Iterator = module.Iterators[alias]
+	tldField.IsIterator = true
 
 	return module.Iterators[alias]
 }
@@ -356,6 +404,10 @@ func handleFieldWithHandler(module *common.Module, field seclField, aliasPrefix,
 		addLengthOpField(module, alias, module.Fields[alias])
 	}
 
+	if field.tldField {
+		addTLDOpField(module, alias, module.Fields[alias])
+	}
+
 	if _, ok := module.EventTypes[event]; !ok {
 		module.EventTypes[event] = common.NewEventTypeMetada(alias)
 	} else {
@@ -396,6 +448,7 @@ type seclField struct {
 	helper                 bool // mark the handler as just a helper and not a real resolver. Won't be called by ResolveFields
 	skipADResolution       bool
 	lengthField            bool
+	tldField               bool
 	weight                 int64
 	check                  string
 	setHandler             string
@@ -447,6 +500,8 @@ func parseFieldDef(def string) (seclField, error) {
 						field.helper = true
 					case "length":
 						field.lengthField = true
+					case "tld":
+						field.tldField = true
 					case "skip_ad":
 						field.skipADResolution = true
 					case "exposed_at_event_root_only":
@@ -759,7 +814,7 @@ func _sortFieldsByChecks(module *common.Module, fields map[string]*common.Struct
 
 func sortFieldsByChecks(module *common.Module) {
 	for fieldName, field := range module.Fields {
-		if field.Event != "" || field.IsLength {
+		if field.Event != "" || field.IsLength || field.IsTLD {
 			continue
 		}
 		module.FieldsOrderByChecks = append(module.FieldsOrderByChecks, fieldName)
@@ -1094,7 +1149,7 @@ func getHandlers(allFields map[string]*common.StructField) map[string]string {
 	handlers := make(map[string]string)
 
 	for _, field := range allFields {
-		if field.Handler != "" && !field.IsLength {
+		if field.Handler != "" && !field.IsLength && !field.IsTLD {
 			returnType := field.ReturnType
 			if field.IsArray {
 				returnType = "[]" + returnType
@@ -1158,7 +1213,7 @@ func getFieldReflectType(field *common.StructField) string {
 }
 
 func isReadOnly(field *common.StructField) bool {
-	return field.IsLength || field.ReadOnly
+	return field.IsLength || field.ReadOnly || field.IsTLD
 }
 
 func genGetter(getters []string, getter string) bool {
