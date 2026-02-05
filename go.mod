@@ -41,8 +41,8 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/configsync v0.64.0
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.76.0-devel
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.76.0-devel
-	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.73.0-devel.0.20251030121902-cd89eab046d6
-	github.com/DataDog/datadog-agent/comp/core/ipc/def v0.70.0
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.76.0-devel
+	github.com/DataDog/datadog-agent/comp/core/ipc/def v0.76.0-devel
 	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers v0.70.0
 	github.com/DataDog/datadog-agent/comp/core/ipc/impl v0.72.0-devel.0.20250915111542-570ca4a195dc
 	github.com/DataDog/datadog-agent/comp/core/ipc/mock v0.70.0
@@ -143,7 +143,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.76.0-devel
-	github.com/DataDog/datadog-agent/pkg/util/grpc v0.60.0
+	github.com/DataDog/datadog-agent/pkg/util/grpc v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/hostinfo v0.0.0-20251027120702-0e91eee9852f
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/http v0.76.0-devel
@@ -922,7 +922,7 @@ require (
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20231121144256-b99613f794b6 // indirect
-	golang.org/x/exp/typeparams v0.0.0-20250620022241-b7579e27df2b // indirect
+	golang.org/x/exp/typeparams v0.0.0-20251023183803-a4bb9ffd2546 // indirect
 	golang.org/x/lint v0.0.0-20241112194109-818c5a804067 // indirect
 	golang.org/x/oauth2 v0.34.0
 	golang.org/x/telemetry v0.0.0-20251203150158-8fff8a5912fc // indirect
@@ -963,6 +963,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/otelcol/dogtelextension v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter v0.59.0
@@ -1300,6 +1301,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types => ./comp/otelcol/ddflareextension/types
 	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/def => ./comp/otelcol/ddprofilingextension/def
 	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl => ./comp/otelcol/ddprofilingextension/impl
+	github.com/DataDog/datadog-agent/comp/otelcol/dogtelextension => ./comp/otelcol/dogtelextension
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline => ./comp/otelcol/logsagentpipeline
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl => ./comp/otelcol/logsagentpipeline/logsagentpipelineimpl
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter => ./comp/otelcol/otlp/components/exporter/datadogexporter
