@@ -13,11 +13,12 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
-	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/parversion"
@@ -26,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 // isEnabled checks if the private action runner is enabled in the configuration
@@ -40,6 +40,7 @@ type Requires struct {
 	Log       log.Component
 	Lifecycle compdef.Lifecycle
 	RcClient  rcclient.Component
+	Hostname  hostname.Component
 }
 
 // Provides defines the output of the privateactionrunner component
@@ -55,6 +56,7 @@ type privateactionrunnerImpl struct {
 
 // NewComponent creates a new privateactionrunner component
 func NewComponent(reqs Requires) (Provides, error) {
+	ctx := context.Background()
 	if !isEnabled(reqs.Config) {
 		reqs.Log.Info("private-action-runner is not enabled. Set privateactionrunner.enabled: true in your datadog.yaml file or set the environment variable DD_PRIVATEACTIONRUNNER_ENABLED=true.")
 		return Provides{}, privateactionrunner.ErrNotEnabled
@@ -76,7 +78,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	canSelfEnroll := reqs.Config.GetBool("privateactionrunner.self_enroll")
 	if cfg.IdentityIsIncomplete() && canSelfEnroll {
 		reqs.Log.Info("Identity not found and self-enrollment enabled. Self-enrolling private action runner")
-		updatedCfg, err := performSelfEnrollment(reqs.Log, reqs.Config, cfg)
+		updatedCfg, err := performSelfEnrollment(ctx, reqs.Log, reqs.Config, reqs.Hostname, cfg)
 		if err != nil {
 			return Provides{}, fmt.Errorf("self-enrollment failed: %w", err)
 		}
@@ -133,13 +135,12 @@ func (p *privateactionrunnerImpl) Stop(ctx context.Context) error {
 }
 
 // performSelfEnrollment handles the self-registration of a private action runner
-func performSelfEnrollment(log log.Component, ddConfig config.Component, cfg *parconfig.Config) (*parconfig.Config, error) {
+func performSelfEnrollment(ctx context.Context, log log.Component, ddConfig config.Component, hostnameComp hostnameinterface.Component, cfg *parconfig.Config) (*parconfig.Config, error) {
 	ddSite := ddConfig.GetString("site")
 	apiKey := ddConfig.GetString("api_key")
 	appKey := ddConfig.GetString("app_key")
 
-	env.DetectFeatures(ddConfig)
-	runnerHostname, err := hostname.Get(context.Background())
+	runnerHostname, err := hostnameComp.Get(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get hostname: %w", err)
 	}
@@ -147,7 +148,7 @@ func performSelfEnrollment(log log.Component, ddConfig config.Component, cfg *pa
 	formattedTime := now.Format("20060102150405")
 	runnerName := runnerHostname + "-" + formattedTime
 
-	enrollmentResult, err := enrollment.SelfEnroll(ddSite, runnerName, apiKey, appKey)
+	enrollmentResult, err := enrollment.SelfEnroll(ctx, ddSite, runnerName, apiKey, appKey)
 	if err != nil {
 		return nil, fmt.Errorf("enrollment API call failed: %w", err)
 	}
