@@ -87,8 +87,9 @@ func (mr *NoOpResolver) InsertMoved(_ model.Mount) error {
 func (mr *NoOpResolver) Iterate(_ func(*model.Mount)) {
 }
 
-//SetPidMntNs sets the pid mount namespace in the cache
+// SetPidMntNs sets the pid mount namespace in the cache
 func (mr *NoOpResolver) SetPidMntNs(_ uint32, _ uint32) {}
 
-//DeletePid deletes a pid from the pid/ns cache
+// DeletePid deletes a pid from the pid/ns cache
 func (mr *NoOpResolver) DeletePid(_ uint32) {}
+f
