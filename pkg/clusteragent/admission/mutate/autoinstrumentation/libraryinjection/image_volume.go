@@ -15,7 +15,6 @@ const (
 	// librarySubPath is the path where the library files are stored in the library image.
 	// See library Dockerfile: https://github.com/DataDog/libdatadog-build/blob/f2325768e60d6bb02e8467f5321b6f9fa10ff850/scripts/lib-injection/Dockerfile.
 	librarySubPath = "datadog-init/package"
-	etcMountPath   = "/datadog-etc"
 )
 
 type ImageVolumeProvider struct {
@@ -51,18 +50,7 @@ func (p *ImageVolumeProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig
 	}
 	patcher.AddVolumeMount(injectorMount)
 
-	// Volume mount for /etc/ld.so.preload
-	etcMountAppContainer := corev1.VolumeMount{
-		Name:      EtcVolumeName,
-		MountPath: "/etc/ld.so.preload",
-		SubPath:   "ld.so.preload",
-		ReadOnly:  true,
-	}
-	patcher.AddVolumeMount(etcMountAppContainer)
-
-	// Shared volume for ld.so.preload
-	etcVolume := newEmptyDirVolume(EtcVolumeName)
-	patcher.AddVolume(etcVolume)
+	etcMountInitContainer := addEtcLdSoPreloadVolumeAndMounts(patcher)
 
 	// Init container to copy the ld.so.preload file into /etc/ld.so.preload.
 	patcher.AddInitContainer(corev1.Container{
@@ -70,12 +58,9 @@ func (p *ImageVolumeProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig
 		Image: cfg.Package.FullRef(),
 		VolumeMounts: []corev1.VolumeMount{
 			injectorMount,
-			{
-				Name:      EtcVolumeName,
-				MountPath: etcMountPath,
-			},
+			etcMountInitContainer,
 		},
-		Command: []string{"cp", asAbsPath(injectorFilePath("ld.so.preload")), etcMountPath + "/ld.so.preload"},
+		Command: []string{"cp", asAbsPath(injectorFilePath("ld.so.preload")), etcMountPath + "/" + ldSoPreloadFileName},
 	})
 
 	return MutationResult{

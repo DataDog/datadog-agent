@@ -73,10 +73,6 @@ func (p *InitContainerProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConf
 	sourceVolume := newEmptyDirVolume(InstrumentationVolumeName)
 	patcher.AddVolume(sourceVolume)
 
-	// Volume for /etc/ld.so.preload
-	etcVolume := newEmptyDirVolume(EtcVolumeName)
-	patcher.AddVolume(etcVolume)
-
 	// Volume mount for the injector files
 	injectorMount := corev1.VolumeMount{
 		Name:      InstrumentationVolumeName,
@@ -84,22 +80,8 @@ func (p *InitContainerProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConf
 		SubPath:   injectPackageDir,
 	}
 
-	// Volume mount for /etc directory in init container
-	etcMountInitContainer := corev1.VolumeMount{
-		Name:      EtcVolumeName,
-		MountPath: "/datadog-etc",
-	}
-
-	// Volume mount for /etc/ld.so.preload in app containers
-	etcMountAppContainer := corev1.VolumeMount{
-		Name:      EtcVolumeName,
-		MountPath: "/etc/ld.so.preload",
-		SubPath:   "ld.so.preload",
-		ReadOnly:  true,
-	}
-
 	// Add volume mounts to app containers
-	patcher.AddVolumeMount(etcMountAppContainer)
+	etcMountInitContainer := addEtcLdSoPreloadVolumeAndMounts(patcher)
 	patcher.AddVolumeMount(corev1.VolumeMount{
 		Name:      InstrumentationVolumeName,
 		MountPath: asAbsPath(injectPackageDir),
@@ -116,10 +98,12 @@ func (p *InitContainerProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConf
 		Command: []string{"/bin/sh", "-c", "--"},
 		Args: []string{
 			fmt.Sprintf(
-				`cp -r /%s/* %s && echo %s > /datadog-etc/ld.so.preload && echo $(date +%%s) >> %s`,
+				`cp -r /%s/* %s && echo %s > %s/%s && echo $(date +%%s) >> %s`,
 				injectorMount.SubPath,
 				injectorMount.MountPath,
 				asAbsPath(injectorFilePath("launcher.preload.so")),
+				etcMountPath,
+				ldSoPreloadFileName,
 				tsFilePath,
 			),
 		},

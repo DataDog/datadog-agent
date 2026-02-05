@@ -57,7 +57,10 @@ func TestImageVolumeProvider_InjectInjector(t *testing.T) {
 	require.NotNil(t, etcVol, "etc volume should exist")
 	assert.Equal(t, libraryinjection.EtcVolumeName, etcVol.Name)
 	require.NotNil(t, etcVol.VolumeSource.EmptyDir)
-	assert.Equal(t, corev1.EmptyDirVolumeSource{}, etcVol.VolumeSource.EmptyDir)
+
+	// Verify init container was added.
+	require.Len(t, pod.Spec.InitContainers, 1)
+	assert.Equal(t, "copy-ld-so-preload", pod.Spec.InitContainers[0].Name)
 
 	// Verify volume mounts were added to the application container.
 	require.Len(t, pod.Spec.Containers, 1)
@@ -81,7 +84,7 @@ func TestImageVolumeProvider_InjectInjector(t *testing.T) {
 	assert.True(t, instrMount.ReadOnly)
 	assert.Equal(t, "opt/datadog-packages/datadog-apm-inject", instrMount.SubPath)
 
-	// assert.Equal(t, libraryinjection.InstrumentationVolumeName, etcMount.Name)
-	// assert.True(t, etcMount.ReadOnly)
-	// assert.Equal(t, "opt/datadog-packages/datadog-apm-inject/stable/inject/ld.so.preload", etcMount.SubPath)
+	assert.Equal(t, libraryinjection.EtcVolumeName, etcMount.Name)
+	assert.True(t, etcMount.ReadOnly)
+	assert.Equal(t, "ld.so.preload", etcMount.SubPath)
 }
