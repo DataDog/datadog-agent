@@ -234,7 +234,22 @@ class WiFiIPCServer {
         
         data.withUnsafeBytes { ptr in
             let bytesPtr = ptr.baseAddress?.assumingMemoryBound(to: UInt8.self)
-            _ = write(clientFD, bytesPtr, data.count)
+            let bytesWritten = write(clientFD, bytesPtr, data.count)
+
+            // Handle write errors gracefully (client may disconnect before response is fully sent)
+            // With SIGPIPE ignored in main.swift, write() returns -1 instead of crashing the app
+            if bytesWritten < 0 {
+                if errno == EPIPE {
+                    // Client disconnected before response fully sent - this is normal for short-lived connections
+                    Logger.debug("Client disconnected before response sent (EPIPE)", context: "WiFiIPCServer")
+                } else {
+                    Logger.error("Write failed: \(String(cString: strerror(errno)))", context: "WiFiIPCServer")
+                }
+            } else if bytesWritten < data.count {
+                // Partial write - rare but possible if socket buffer is full
+                Logger.info("Partial write: \(bytesWritten)/\(data.count) bytes sent", context: "WiFiIPCServer")
+            }
+            // Success case (bytesWritten == data.count) - no logging needed for normal operation
         }
     }
 
