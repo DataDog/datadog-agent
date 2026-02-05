@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
@@ -87,4 +88,31 @@ func TestImageVolumeProvider_InjectInjector(t *testing.T) {
 	assert.Equal(t, libraryinjection.EtcVolumeName, etcMount.Name)
 	assert.True(t, etcMount.ReadOnly)
 	assert.Equal(t, "ld.so.preload", etcMount.SubPath)
+}
+
+func TestImageVolumeProvider_InjectInjector_SkipsWhenInsufficientResources(t *testing.T) {
+	podLowResources := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-pod-low", Namespace: "default"},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name: "app",
+					Resources: corev1.ResourceRequirements{
+						Limits: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("1m"),  // below micro minimum (5m)
+							corev1.ResourceMemory: resource.MustParse("8Mi"), // below micro minimum (16Mi)
+						},
+					},
+				},
+			},
+		},
+	}
+
+	provider := libraryinjection.NewImageVolumeProvider(libraryinjection.LibraryInjectionConfig{})
+	resultLow := provider.InjectInjector(podLowResources, libraryinjection.InjectorConfig{
+		Package: libraryinjection.NewLibraryImageFromFullRef("test-image", ""),
+	})
+
+	assert.Equal(t, libraryinjection.MutationStatusSkipped, resultLow.Status)
+	assert.NotNil(t, resultLow.Err)
 }

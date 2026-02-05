@@ -8,6 +8,8 @@
 package libraryinjection
 
 import (
+	"errors"
+
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -28,6 +30,15 @@ func NewImageVolumeProvider(cfg LibraryInjectionConfig) *ImageVolumeProvider {
 }
 
 func (p *ImageVolumeProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig) MutationResult {
+	// Validate that the pod has sufficient resources for the micro init container.
+	result := ComputeMicroInitResourceRequirements(pod, p.cfg.DefaultResourceRequirements)
+	if result.ShouldSkip {
+		return MutationResult{
+			Status: MutationStatusSkipped,
+			Err:    errors.New(result.Message),
+		}
+	}
+	requirements := result.Requirements
 	patcher := NewPodPatcher(pod, p.cfg.ContainerFilter)
 
 	// Image volume for the injector image contents
@@ -52,6 +63,9 @@ func (p *ImageVolumeProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig
 
 	etcMountInitContainer := addEtcLdSoPreloadVolumeAndMounts(patcher)
 
+	src := asAbsPath(injectorFilePath("ld.so.preload"))
+	dst := etcMountPath + "/" + ldSoPreloadFileName
+
 	// Init container to copy the ld.so.preload file into /etc/ld.so.preload.
 	patcher.AddInitContainer(corev1.Container{
 		Name:  "copy-ld-so-preload",
@@ -60,11 +74,15 @@ func (p *ImageVolumeProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig
 			injectorMount,
 			etcMountInitContainer,
 		},
-		Command: []string{"cp", asAbsPath(injectorFilePath("ld.so.preload")), etcMountPath + "/" + ldSoPreloadFileName},
+		Command:   []string{"cp", src, dst},
+		Resources: requirements,
 	})
 
 	return MutationResult{
 		Status: MutationStatusInjected,
+		Context: MutationContext{
+			ResourceRequirements: requirements,
+		},
 	}
 }
 
@@ -92,6 +110,12 @@ func (p *ImageVolumeProvider) InjectLibrary(pod *corev1.Pod, cfg LibraryConfig) 
 	return MutationResult{
 		Status: MutationStatusInjected,
 	}
+}
+
+// versionCompatible checks if the Kubernetes API server version is compatible with the ImageVolumeProvider.
+func versionCompatible() bool {
+	// TODO: Implement version compatibility check
+	return true
 }
 
 // Verify that InitContainerProvider implements LibraryInjectionProvider.

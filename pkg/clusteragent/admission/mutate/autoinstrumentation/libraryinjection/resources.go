@@ -22,6 +22,14 @@ var (
 	// MinimumMemoryLimit is the minimum memory limit required for init containers.
 	// This is the recommended minimum by Alpine.
 	MinimumMemoryLimit = resource.MustParse("100Mi") // 100 MB
+
+	// MinimumMicroCPULimit is the minimum CPU limit required for the micro init container
+	// used by image-volume injection (e.g., a simple `cp`).
+	MinimumMicroCPULimit = resource.MustParse("5m")
+
+	// MinimumMicroMemoryLimit is the minimum memory limit required for the micro init container
+	// used by image-volume injection (e.g., a simple `cp`).
+	MinimumMicroMemoryLimit = resource.MustParse("16Mi")
 )
 
 // ResourceRequirementsResult holds the result of computing resource requirements.
@@ -72,6 +80,67 @@ func ComputeResourceRequirements(pod *corev1.Pod, defaultRequirements map[corev1
 			if maxPodReq, ok := podRequirements.Requests[k]; ok {
 				requirements.Requests[k] = maxPodReq
 			}
+		}
+	}
+
+	if shouldSkip {
+		return ResourceRequirementsResult{
+			Requirements: requirements,
+			ShouldSkip:   true,
+			Message:      insufficientResourcesMessage,
+		}
+	}
+	return ResourceRequirementsResult{
+		Requirements: requirements,
+		ShouldSkip:   false,
+		Message:      "",
+	}
+}
+
+// ComputeMicroInitResourceRequirements computes the resource requirements for the micro init container
+// used by the image-volume injection mode.
+//
+// Unlike ComputeResourceRequirements, the minimums are tuned for a very lightweight operation (copying a file).
+func ComputeMicroInitResourceRequirements(pod *corev1.Pod, defaultRequirements map[corev1.ResourceName]resource.Quantity) ResourceRequirementsResult {
+	requirements := corev1.ResourceRequirements{
+		Limits:   corev1.ResourceList{},
+		Requests: corev1.ResourceList{},
+	}
+
+	podRequirements := PodSumResourceRequirements(pod)
+	insufficientResourcesMessage := "The overall pod's containers limit is too low for image-volume injection"
+	shouldSkip := false
+
+	for _, k := range [2]corev1.ResourceName{corev1.ResourceCPU, corev1.ResourceMemory} {
+		min := resource.Quantity{}
+		switch k {
+		case corev1.ResourceCPU:
+			min = MinimumMicroCPULimit
+		case corev1.ResourceMemory:
+			min = MinimumMicroMemoryLimit
+		}
+
+		// If a resource quantity was set in config, use it.
+		if q, ok := defaultRequirements[k]; ok {
+			requirements.Limits[k] = q
+			requirements.Requests[k] = q
+			if min.Cmp(q) == 1 {
+				shouldSkip = true
+				insufficientResourcesMessage += fmt.Sprintf(", %v configured=%v needed=%v", k, q.String(), min.String())
+			}
+			continue
+		}
+
+		// Otherwise, try to use as much of the resource as we can without impacting pod scheduling.
+		if maxPodLim, ok := podRequirements.Limits[k]; ok {
+			if min.Cmp(maxPodLim) == 1 {
+				shouldSkip = true
+				insufficientResourcesMessage += fmt.Sprintf(", %v pod_limit=%v needed=%v", k, maxPodLim.String(), min.String())
+			}
+			requirements.Limits[k] = maxPodLim
+		}
+		if maxPodReq, ok := podRequirements.Requests[k]; ok {
+			requirements.Requests[k] = maxPodReq
 		}
 	}
 
