@@ -85,6 +85,7 @@ func payloadWithCounts(ts time.Time, k BucketsAggregationKey, containerID, versi
 						GRPCStatusCode: k.GRPCStatusCode,
 						HTTPMethod:     k.HTTPMethod,
 						HTTPEndpoint:   k.HTTPEndpoint,
+						ServiceSource:  k.ServiceSource,
 					},
 				},
 			},
