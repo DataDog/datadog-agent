@@ -9,6 +9,7 @@ package run
 import (
 	"errors"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -61,6 +62,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					}
 				}),
 				settingsimpl.Module(),
+				remotehostnameimpl.Module(),
 				ipcfx.ModuleReadWrite(),
 				rcserviceimpl.Module(),
 				rcclientimpl.Module(),
