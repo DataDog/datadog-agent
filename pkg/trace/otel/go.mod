@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/trace/otel
 
-go 1.24.0
+go 1.25.3
 
 require (
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.71.0
@@ -143,6 +143,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/trace/compression/def => ../../../comp/trace/compression/def
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip => ../../../comp/trace/compression/impl-gzip
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd => ../../../comp/trace/compression/impl-zstd
+	github.com/DataDog/datadog-agent/comp/trace/observerbuffer/def => ../../../comp/trace/observerbuffer/def
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../../pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/api => ../../../pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../pkg/collector/check/defaults

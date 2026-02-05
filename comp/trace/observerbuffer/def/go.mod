@@ -1,16 +1,14 @@
-module github.com/DataDog/datadog-agent/comp/core/tagger/utils
+module github.com/DataDog/datadog-agent/comp/trace/observerbuffer/def
 
-go 1.24.0
+go 1.25.3
 
-require github.com/stretchr/testify v1.11.1
+require github.com/DataDog/datadog-agent/pkg/proto v0.0.0-00010101000000-000000000000
 
 require (
-	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/kr/pretty v0.3.1 // indirect
-	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/rogpeppe/go-internal v1.14.1 // indirect
-	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
+	github.com/philhofer/fwd v1.2.0 // indirect
+	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
+	github.com/tinylib/msgp v1.6.3 // indirect
+	google.golang.org/protobuf v1.36.11 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
@@ -51,6 +49,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/tagger/tags => ../../../../comp/core/tagger/tags
 	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry => ../../../../comp/core/tagger/telemetry
 	github.com/DataDog/datadog-agent/comp/core/tagger/types => ../../../../comp/core/tagger/types
+	github.com/DataDog/datadog-agent/comp/core/tagger/utils => ../../../../comp/core/tagger/utils
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../../comp/core/telemetry
 	github.com/DataDog/datadog-agent/comp/def => ../../../../comp/def
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../../../comp/forwarder/defaultforwarder
@@ -83,7 +82,6 @@ replace (
 	github.com/DataDog/datadog-agent/comp/trace/compression/def => ../../../../comp/trace/compression/def
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip => ../../../../comp/trace/compression/impl-gzip
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd => ../../../../comp/trace/compression/impl-zstd
-	github.com/DataDog/datadog-agent/comp/trace/observerbuffer/def => ../../../../comp/trace/observerbuffer/def
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../../../pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/api => ../../../../pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../pkg/collector/check/defaults
