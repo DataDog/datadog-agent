@@ -17,6 +17,7 @@ import (
 	"math/rand"
 	"os"
 	"strings"
+	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -70,6 +71,26 @@ type Resolver struct {
 
 	hitsCounters map[counterEntry]*atomic.Int64
 	missCounters map[counterEntry]*atomic.Int64
+
+	// debug tracing
+	activeTrace     *[]model.ProcessingCheckpoint
+	activeStartTime time.Time
+}
+
+// traceCheckpoint appends a checkpoint to the active trace if set
+func (dr *Resolver) traceCheckpoint(name string) {
+	if dr.activeTrace != nil && !dr.activeStartTime.IsZero() {
+		*dr.activeTrace = append(*dr.activeTrace, model.ProcessingCheckpoint{
+			Name:      name,
+			ElapsedUs: time.Since(dr.activeStartTime).Microseconds(),
+		})
+	}
+}
+
+// SetActiveTrace sets the trace target for subsequent calls
+func (dr *Resolver) SetActiveTrace(trace *[]model.ProcessingCheckpoint, startTime time.Time) {
+	dr.activeTrace = trace
+	dr.activeStartTime = startTime
 }
 
 // ErrEntryNotFound is thrown when a path key was not found in the cache
@@ -567,13 +588,18 @@ func (dr *Resolver) Resolve(pathKey model.PathKey, cache bool) (string, error) {
 	var err = ErrEntryNotFound
 
 	if cache {
+		dr.traceCheckpoint("dentry_cache")
 		path, err = dr.ResolveFromCache(pathKey)
 	}
 	if err != nil && dr.config.ERPCDentryResolutionEnabled {
+		dr.traceCheckpoint("dentry_erpc")
 		path, err = dr.ResolveFromERPC(pathKey, cache)
+		dr.traceCheckpoint("dentry_erpc_done")
 	}
 	if err != nil && err != errTruncatedParentsERPC && dr.config.MapDentryResolutionEnabled {
+		dr.traceCheckpoint("dentry_map")
 		path, err = dr.ResolveFromMap(pathKey, cache)
+		dr.traceCheckpoint("dentry_map_done")
 	}
 	return path, err
 }

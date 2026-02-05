@@ -26,6 +26,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
+	spath "github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
@@ -68,6 +69,18 @@ func NewEBPFFieldHandlers(config *config.Config, resolvers *resolvers.EBPFResolv
 	}, nil
 }
 
+func (fh *EBPFFieldHandlers) setPathResolverTrace(ev *model.Event) {
+	if pr, ok := fh.resolvers.PathResolver.(*spath.Resolver); ok {
+		pr.SetActiveTrace(&ev.ProcessingTrace, ev.StartTime)
+	}
+}
+
+func (fh *EBPFFieldHandlers) clearPathResolverTrace() {
+	if pr, ok := fh.resolvers.PathResolver.(*spath.Resolver); ok {
+		pr.SetActiveTrace(nil, time.Time{})
+	}
+}
+
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
 func (fh *EBPFFieldHandlers) ResolveProcessCacheEntry(ev *model.Event, newEntryCb func(*model.ProcessCacheEntry, error)) (*model.ProcessCacheEntry, bool) {
 	if ev.PIDContext.IsKworker {
@@ -75,7 +88,9 @@ func (fh *EBPFFieldHandlers) ResolveProcessCacheEntry(ev *model.Event, newEntryC
 	}
 
 	if ev.ProcessCacheEntry == nil && ev.PIDContext.Pid != 0 {
+		fh.resolvers.ProcessResolver.SetActiveTrace(&ev.ProcessingTrace, ev.StartTime)
 		ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid, ev.PIDContext.ExecInode, true, newEntryCb)
+		fh.resolvers.ProcessResolver.SetActiveTrace(nil, ev.StartTime)
 	}
 
 	if ev.ProcessCacheEntry == nil {
@@ -94,7 +109,10 @@ func (fh *EBPFFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *model.
 // ResolveFilePath resolves the inode to a full path
 func (fh *EBPFFieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent) string {
 	if !f.IsPathnameStrResolved && len(f.PathnameStr) == 0 {
+		ev.RecordCheckpoint("resolve_file_path_start")
+		fh.setPathResolverTrace(ev)
 		path, mountPath, source, origin, err := fh.resolvers.PathResolver.ResolveFullFilePath(&f.FileFields, &ev.PIDContext)
+		ev.RecordCheckpoint("resolve_file_path_fields_done")
 		if err != nil {
 			ev.SetPathResolutionError(f, err)
 		}
@@ -102,7 +120,10 @@ func (fh *EBPFFieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent
 		f.MountPath = mountPath
 		f.MountSource = source
 		f.MountOrigin = origin
+		ev.RecordCheckpoint("resolve_file_mount_attrs_start")
 		err = fh.resolvers.PathResolver.ResolveMountAttributes(f, &ev.PIDContext)
+		ev.RecordCheckpoint("resolve_file_mount_attrs_done")
+		fh.clearPathResolverTrace()
 		if err != nil && f.PathResolutionError == nil {
 			seclog.Warnf("error while resolving the attributes for mountid %d: %s", f.MountID, err)
 			ev.SetPathResolutionError(f, err)
@@ -130,7 +151,9 @@ func (fh *EBPFFieldHandlers) ResolveFileFilesystem(ev *model.Event, f *model.Fil
 		if f.IsFileless() {
 			f.Filesystem = model.TmpFS
 		} else {
+			ev.RecordCheckpoint("resolve_filesystem_start")
 			fs, err := fh.resolvers.MountResolver.ResolveFilesystem(f.FileFields.MountID, ev.PIDContext.Pid)
+			ev.RecordCheckpoint("resolve_filesystem_done")
 			if err != nil {
 				ev.SetPathResolutionError(f, err)
 			}
@@ -180,7 +203,9 @@ func (fh *EBPFFieldHandlers) ResolveMountPointPath(ev *model.Event, e *model.Mou
 		return "/"
 	}
 	if len(e.MountPointPath) == 0 {
+		ev.RecordCheckpoint("resolve_mount_point_path")
 		mountPointPath, _, _, err := fh.resolvers.MountResolver.ResolveMountPath(e.MountID, ev.PIDContext.Pid)
+		ev.RecordCheckpoint("resolve_mount_point_path_done")
 		if err != nil {
 			e.MountPointPathResolutionError = err
 			return ""
@@ -193,12 +218,14 @@ func (fh *EBPFFieldHandlers) ResolveMountPointPath(ev *model.Event, e *model.Mou
 // ResolveMountSourcePath resolves a mount source path
 func (fh *EBPFFieldHandlers) ResolveMountSourcePath(ev *model.Event, e *model.MountEvent) string {
 	if e.BindSrcMountID != 0 && len(e.MountSourcePath) == 0 {
+		ev.RecordCheckpoint("resolve_mount_source_path")
 		bindSourceMountPath, _, _, err := fh.resolvers.MountResolver.ResolveMountPath(e.BindSrcMountID, ev.PIDContext.Pid)
 		if err != nil {
 			e.MountSourcePathResolutionError = err
 			return ""
 		}
 		rootStr, err := fh.resolvers.PathResolver.ResolveMountRoot(ev, &e.Mount)
+		ev.RecordCheckpoint("resolve_mount_source_path_done")
 		if err != nil {
 			e.MountSourcePathResolutionError = err
 			return ""
@@ -211,7 +238,9 @@ func (fh *EBPFFieldHandlers) ResolveMountSourcePath(ev *model.Event, e *model.Mo
 // ResolveMountRootPath resolves a mount root path
 func (fh *EBPFFieldHandlers) ResolveMountRootPath(ev *model.Event, e *model.MountEvent) string {
 	if len(e.MountRootPath) == 0 {
+		ev.RecordCheckpoint("resolve_mount_root_path")
 		mountRootPath, _, _, err := fh.resolvers.MountResolver.ResolveMountRoot(e.MountID, ev.PIDContext.Pid)
+		ev.RecordCheckpoint("resolve_mount_root_path_done")
 		if err != nil {
 			e.MountRootPathResolutionError = err
 			return ""
@@ -229,6 +258,7 @@ func (fh *EBPFFieldHandlers) ResolveRights(_ *model.Event, e *model.FileFields) 
 // ResolveChownUID resolves the user id of a chown event to a username
 func (fh *EBPFFieldHandlers) ResolveChownUID(ev *model.Event, e *model.ChownEvent) string {
 	if len(e.User) == 0 {
+		ev.RecordCheckpoint("resolve_chown_uid")
 		e.User, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.UID), ev.ProcessContext.ContainerContext.ContainerID)
 	}
 	return e.User
@@ -237,6 +267,7 @@ func (fh *EBPFFieldHandlers) ResolveChownUID(ev *model.Event, e *model.ChownEven
 // ResolveChownGID resolves the group id of a chown event to a group name
 func (fh *EBPFFieldHandlers) ResolveChownGID(ev *model.Event, e *model.ChownEvent) string {
 	if len(e.Group) == 0 {
+		ev.RecordCheckpoint("resolve_chown_gid")
 		e.Group, _ = fh.resolvers.UserGroupResolver.ResolveGroup(int(e.GID), ev.ProcessContext.ContainerContext.ContainerID)
 	}
 	return e.Group
@@ -368,6 +399,7 @@ func (fh *EBPFFieldHandlers) ResolveSELinuxBoolName(_ *model.Event, e *model.SEL
 // ResolveFileFieldsGroup resolves the group id of the file to a group name
 func (fh *EBPFFieldHandlers) ResolveFileFieldsGroup(ev *model.Event, e *model.FileFields) string {
 	if len(e.Group) == 0 {
+		ev.RecordCheckpoint("resolve_group")
 		e.Group, _ = fh.resolvers.UserGroupResolver.ResolveGroup(int(e.GID), ev.ProcessContext.ContainerContext.ContainerID)
 	}
 	return e.Group
@@ -388,6 +420,7 @@ func (fh *EBPFFieldHandlers) ResolveNetworkDeviceIfName(_ *model.Event, device *
 // ResolveFileFieldsUser resolves the user id of the file to a username
 func (fh *EBPFFieldHandlers) ResolveFileFieldsUser(ev *model.Event, e *model.FileFields) string {
 	if len(e.User) == 0 {
+		ev.RecordCheckpoint("resolve_user")
 		e.User, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.UID), ev.ProcessContext.ContainerContext.ContainerID)
 	}
 	return e.User
@@ -544,6 +577,7 @@ func (fh *EBPFFieldHandlers) ResolveCGroupVersion(ev *model.Event, e *model.CGro
 // ResolveContainerID resolves the container ID of the event
 func (fh *EBPFFieldHandlers) ResolveContainerID(ev *model.Event, e *model.ContainerContext) string {
 	if len(e.ContainerID) == 0 {
+		ev.RecordCheckpoint("resolve_container_id")
 		if entry, _ := fh.ResolveProcessCacheEntry(ev, nil); entry != nil {
 			e.ContainerID = containerutils.ContainerID(entry.ProcessContext.ContainerContext.ContainerID)
 			return string(e.ContainerID)
@@ -553,9 +587,11 @@ func (fh *EBPFFieldHandlers) ResolveContainerID(ev *model.Event, e *model.Contai
 }
 
 // ResolveContainerTags resolves the container tags of the event
-func (fh *EBPFFieldHandlers) ResolveContainerTags(_ *model.Event, e *model.ContainerContext) []string {
+func (fh *EBPFFieldHandlers) ResolveContainerTags(ev *model.Event, e *model.ContainerContext) []string {
 	if len(e.Tags) == 0 && e.ContainerID != "" {
+		ev.RecordCheckpoint("resolve_container_tags")
 		e.Tags = fh.resolvers.TagsResolver.Resolve(e.ContainerID)
+		ev.RecordCheckpoint("resolve_container_tags_done")
 	}
 	return e.Tags
 }
