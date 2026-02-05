@@ -926,6 +926,7 @@ func deepCopyGroupedStats(s []*pb.ClientGroupedStats) []*pb.ClientGroupedStats {
 			TopLevelHits:   b.GetTopLevelHits(),
 			SpanKind:       b.GetSpanKind(),
 			PeerTags:       b.GetPeerTags(),
+			ServiceSource:  b.GetServiceSource(),
 			IsTraceRoot:    b.GetIsTraceRoot(),
 			GRPCStatusCode: b.GetGRPCStatusCode(),
 			HTTPMethod:     b.GetHTTPMethod(),
