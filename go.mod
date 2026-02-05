@@ -133,7 +133,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/template v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/trace v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.76.0-devel
-	github.com/DataDog/datadog-agent/pkg/util/cache v0.69.4
+	github.com/DataDog/datadog-agent/pkg/util/cache v0.75.2
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/common v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.76.0-devel
@@ -154,7 +154,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/option v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.74.0-devel.0.20251125141836-2ae7a968751c
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.76.0-devel
-	github.com/DataDog/datadog-agent/pkg/util/prometheus v0.64.0
+	github.com/DataDog/datadog-agent/pkg/util/prometheus v0.75.2
 	github.com/DataDog/datadog-agent/pkg/util/quantile v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.76.0-devel
@@ -176,7 +176,7 @@ require (
 	github.com/DataDog/sketches-go v1.4.7
 	github.com/DataDog/viper v1.15.0
 	// TODO: pin to a WPA released version once there is a release that includes the apis module
-	github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20250108152814-82e58d0231d1
+	github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20260203200653-38d7e6f429a0
 	github.com/DataDog/zstd v1.5.7
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/Masterminds/sprig/v3 v3.3.0
@@ -390,7 +390,7 @@ require (
 	golang.org/x/arch v0.23.0
 	golang.org/x/crypto v0.47.0
 	golang.org/x/exp v0.0.0-20251209150349-8475f28825e9
-	golang.org/x/mod v0.31.0
+	golang.org/x/mod v0.32.0
 	golang.org/x/net v0.49.0
 	golang.org/x/sync v0.19.0
 	golang.org/x/sys v0.40.0
@@ -409,15 +409,15 @@ require (
 	istio.io/client-go v1.27.3
 	k8s.io/api v0.35.0-alpha.0
 	k8s.io/apiextensions-apiserver v0.35.0-alpha.0
-	k8s.io/apimachinery v0.35.0-alpha.0
-	k8s.io/autoscaler/vertical-pod-autoscaler v1.2.2
+	k8s.io/apimachinery v0.35.0
+	k8s.io/autoscaler/vertical-pod-autoscaler v1.5.1
 	k8s.io/cli-runtime v0.34.1
-	k8s.io/client-go v0.35.0-alpha.0
-	k8s.io/component-base v0.35.0-alpha.0
+	k8s.io/client-go v0.35.0
+	k8s.io/component-base v0.35.0
 	k8s.io/cri-api v0.34.1
 	k8s.io/cri-client v0.34.1
 	k8s.io/klog/v2 v2.130.1
-	k8s.io/kube-aggregator v0.34.1
+	k8s.io/kube-aggregator v0.35.0-alpha.0
 	k8s.io/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f
 	k8s.io/kubectl v0.34.1
 	k8s.io/kubelet v0.34.1
@@ -567,7 +567,7 @@ require (
 	github.com/elastic/go-licenser v0.4.2 // indirect
 	github.com/elastic/go-perf v0.0.0-20241029065020-30bec95324b8 // indirect
 	github.com/elastic/lunes v0.2.0 // indirect
-	github.com/emicklei/go-restful/v3 v3.12.2 // indirect
+	github.com/emicklei/go-restful/v3 v3.13.0 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.36.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.3.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
@@ -936,23 +936,23 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251222181119-0a764e51fe1b // indirect
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/cheggaaa/pb.v1 v1.0.28 // indirect
-	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
+	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	honnef.co/go/tools v0.6.1 // indirect
-	k8s.io/apiserver v0.35.0-alpha.0 // indirect
+	k8s.io/apiserver v0.35.0 // indirect
 	k8s.io/cloud-provider v0.34.1 // indirect
 	k8s.io/component-helpers v0.34.1 // indirect
 	k8s.io/csi-translation-lib v0.34.1 // indirect
 	k8s.io/kms v0.35.0-alpha.0 // indirect
-	k8s.io/kube-openapi v0.0.0-20250710124328-f3f2b991d03b // indirect
+	k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912 // indirect
 	k8s.io/sample-controller v0.34.1 // indirect
 	mellium.im/sasl v0.3.2 // indirect
 	modernc.org/sqlite v1.36.2 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.34.0 // indirect
 	sigs.k8s.io/controller-runtime v0.22.4 // indirect
-	sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8 // indirect
+	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
 )
@@ -978,7 +978,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.71.0
 	github.com/DataDog/datadog-agent/pkg/trace/stats v0.71.0
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.71.0
-	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace v0.77.0-devel
 	github.com/DataDog/ddtrivy v0.0.0-20260115083325-07614fb0b8d5
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.0
@@ -1397,6 +1399,8 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/http => ./pkg/util/http
 	github.com/DataDog/datadog-agent/pkg/util/json => ./pkg/util/json
 	github.com/DataDog/datadog-agent/pkg/util/jsonquery => ./pkg/util/jsonquery
+	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver => ./pkg/util/kubernetes/apiserver
+	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common => ./pkg/util/kubernetes/apiserver/common
 	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace => ./pkg/util/kubernetes/apiserver/common/namespace
 	github.com/DataDog/datadog-agent/pkg/util/log => ./pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/log/setup => ./pkg/util/log/setup
