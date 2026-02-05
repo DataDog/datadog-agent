@@ -7,8 +7,6 @@ package common
 
 import (
 	"fmt"
-	"path/filepath"
-	"strings"
 
 	"golang.org/x/crypto/ssh"
 
@@ -63,18 +61,15 @@ func (ps *ProcdumpSession) Close() {
 }
 
 // StartProcdump starts procdump in the background
-func StartProcdump(host *components.RemoteHost, processName, outputDir string) (*ProcdumpSession, error) {
-	// Build the dump path
-	dumpPath := filepath.Join(outputDir, processName)
-	// Use forward slashes for PowerShell compatibility
-	dumpPath = strings.ReplaceAll(dumpPath, "\\", "/")
+func StartProcdump(host *components.RemoteHost, processName string) (*ProcdumpSession, error) {
 
 	// Start procdump:
 	// -accepteula: Accept the EULA automatically
 	// -ma: Write a full dump file
-	// -t: Write a dump when the process terminates
+	// -n 5: Write 5 dumps
+	// -s 5: Wait 5 seconds between dumps
 	// -w: Wait for the specified process to launch if it's not running
-	cmd := fmt.Sprintf(`& "%s" -accepteula -ma -t -w %s "%s"`, ProcdumpExe, processName, dumpPath)
+	cmd := fmt.Sprintf(`& "%s" -accepteula -ma -n 5 -s 5 -w %s "%s"`, ProcdumpExe, processName, ProcdumpsPath)
 
 	session, _, _, err := host.Start(cmd)
 	if err != nil {

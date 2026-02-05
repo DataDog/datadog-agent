@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -250,7 +251,7 @@ func (s *baseAgentMSISuite) startProcdump(vm *components.RemoteHost) *windowsCom
 	s.Require().NoError(err, "should setup procdump")
 
 	// Start procdump - use "agent.exe" as the process name for -w flag
-	ps, err := windowsCommon.StartProcdump(vm, "agent.exe", windowsCommon.ProcdumpsPath)
+	ps, err := windowsCommon.StartProcdump(vm, "agent.exe")
 	s.Require().NoError(err, "should start procdump")
 
 	return ps
@@ -264,31 +265,33 @@ func (s *baseAgentMSISuite) collectProcdumps(ps *windowsCommon.ProcdumpSession, 
 		return
 	}
 
-	procDumpPath := "C:/procdumps/agent.exe.dmp"
-
-	// Wait for procdump to finish writing the dump file BEFORE closing the session.
-	s.T().Log("Waiting for procdump to finish writing dump...")
-	deadline := time.Now().Add(60 * time.Second)
+	// Wait for procdump to finish writing dump files BEFORE closing the session.
+	// Procdump is configured to capture 5 dumps, so wait until all 5 are created.
+	expectedDumpCount := 5
+	s.T().Logf("Waiting for procdump to create %d dump files...", expectedDumpCount)
+	deadline := time.Now().Add(120 * time.Second)
 	for time.Now().Before(deadline) {
-		output, err := vm.Execute(fmt.Sprintf(`if (Test-Path '%s') { (Get-Item '%s').Length } else { 0 }`, procDumpPath, procDumpPath))
+		output, err := vm.Execute(fmt.Sprintf(`(Get-ChildItem -Path '%s' -Filter '*.dmp' -ErrorAction SilentlyContinue | Measure-Object).Count`, windowsCommon.ProcdumpsPath))
 		if err == nil {
-			size := strings.TrimSpace(output)
-			if size != "" && size != "0" {
-				s.T().Logf("Dump file ready, size: %s bytes", size)
+			countStr := strings.TrimSpace(output)
+			count, parseErr := strconv.Atoi(countStr)
+			if parseErr == nil && count >= expectedDumpCount {
+				s.T().Logf("All %d dump files ready", count)
 				break
 			}
+			s.T().Logf("Found %s dump files, waiting for %d...", countStr, expectedDumpCount)
 		}
-		time.Sleep(2 * time.Second)
+		time.Sleep(5 * time.Second)
 	}
 
 	ps.Close()
 
-	// Download the dump file
+	// Download all dump files
 	outDir := s.SessionOutputDir()
-	if err := vm.GetFile(procDumpPath, filepath.Join(outDir, "agent.exe.dmp")); err != nil {
-		s.T().Logf("Warning: failed to download dump %s: %v", procDumpPath, err)
+	if err := vm.GetFolder(windowsCommon.ProcdumpsPath, outDir); err != nil {
+		s.T().Logf("Warning: failed to download procdumps %s: %v", windowsCommon.ProcdumpsPath, err)
 	} else {
-		s.T().Logf("Downloaded startup dump to: %s", outDir)
+		s.T().Logf("Downloaded procdumps to: %s", outDir)
 	}
 }
 
