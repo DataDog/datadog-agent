@@ -1,6 +1,5 @@
 # Utils to build Rust libraries
 
-import glob
 import os
 import shutil
 import sys
@@ -16,17 +15,32 @@ def build_rust_lib(
     if embedded_path is None:
         embedded_path = get_embedded_path(ctx)
 
+    arch = os.uname().machine
+    if arch == "aarch64":
+        arch = "arm64"
+
     # TODO: Windows support
     target_os = os.getenv("GOOS") or sys.platform
     if target_os not in ("windows", "win32"):
         with gitlab_section(f"Build {libname} rust library", collapsed=True):
             rustenv = env.copy()
-            if glob.glob(os.path.join(embedded_path, "lib", "libssl*.so")):
-                rustenv["OPENSSL_DIR"] = embedded_path
-                rustenv["OPENSSL_LIB_DIR"] = os.path.join(embedded_path, "lib")
-                rustenv["OPENSSL_INCLUDE_DIR"] = os.path.join(embedded_path, "include")
-            if os.path.exists(os.path.join(embedded_path, "lib", "pkgconfig")):
-                rustenv["PKG_CONFIG_PATH"] = os.path.join(embedded_path, "lib", "pkgconfig")
+            if os.path.exists(os.path.join(embedded_path, "lib/pkgconfig/openssl.pc")):
+                openssl_dir = embedded_path
+                rustenv["OPENSSL_DIR"] = openssl_dir
+                rustenv["OPENSSL_LIB_DIR"] = os.path.join(openssl_dir, "lib")
+                rustenv["OPENSSL_INCLUDE_DIR"] = os.path.join(openssl_dir, "include")
+                rustenv["PKG_CONFIG_PATH"] = (
+                    os.path.join(openssl_dir, "lib", "pkgconfig") + ":" + rustenv.get("PKG_CONFIG_PATH", "")
+                )
+            elif (arch == "arm64" and os.path.exists("/usr/lib/aarch64-linux-gnu/libssl.so")) or (
+                arch == "x86_64" and os.path.exists("/usr/lib/x86_64-linux-gnu/libssl.so")
+            ):
+                # In this case, we use the system OpenSSL libraries
+                arch_tgt = 'aarch64-linux-gnu' if arch == "arm64" else 'x86_64-linux-gnu'
+                rustenv["OPENSSL_LIB_DIR"] = f"/usr/lib/{arch_tgt}"
+                rustenv["OPENSSL_INCLUDE_DIR"] = f"/usr/include/{arch_tgt}"
+                rustenv["PKG_CONFIG_PATH"] = f"/usr/lib/{arch_tgt}/pkgconfig:{rustenv.get('PKG_CONFIG_PATH', '')}"
+
             if sys.platform.startswith("linux"):
                 rustenv["RUSTFLAGS"] = (
                     f"-C link-arg=-Wl,-rpath={os.path.join(embedded_path, 'lib')} "
@@ -40,10 +54,11 @@ def build_rust_lib(
             else:
                 rustenv["RUSTFLAGS"] = f"-C link-arg=-L{os.path.join(embedded_path, 'lib')}"
 
-            if os.uname().machine == "arm64":
+            if arch == "arm64":
                 # TODO: Verify this, we shouldn't use fp16 in theory
                 rustenv["RUSTFLAGS"] += " -C target-feature=+fp16"
 
+            # TODO
             print("CC rustenv:")
             for k, v in rustenv.items():
                 print(f"{k}: {v}")
@@ -70,9 +85,8 @@ def build_rust_lib(
                 openssl_lib_dir = os.path.join(embedded_path, "lib")
                 ctx.run(f"patchelf --add-rpath {openssl_lib_dir} {final_lib_path}")
 
-    # TODO: Do it only once
-    # Add OpenSSL library directory to linker search path for Go build
-    if target_os not in ("windows", "win32"):
+        # TODO: Do it only once
+        # Add OpenSSL library directory to linker search path for Go build
         openssl_lib_dir = os.path.join(embedded_path, "lib")
         # Add to CGO_LDFLAGS so the linker can find OpenSSL libraries
         if sys.platform.startswith("linux"):

@@ -5,7 +5,7 @@
 
 //go:build (linux || darwin) && cgo
 
-// DeepInference is a library for doing machine learning inference on CPU relying on Rust / Candle.
+// Package deepinference is a library for doing machine learning inference on CPU relying on Rust / Candle.
 package deepinference
 
 /*

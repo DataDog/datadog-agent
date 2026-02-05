@@ -1,5 +1,5 @@
 {
-  "checksum": "35683e5a86c1a88851da0ab40c88dcfa53e3a166c7bf4cbef69ff824fa91b3ee",
+  "checksum": "83121baf93d3dd9f0d43a42b7a3b7c3d58f803bf1379db828fd153fdca06ad8c",
   "crates": {
     "adler2 2.0.1": {
       "name": "adler2",
@@ -2313,7 +2313,7 @@
           ],
           "selects": {}
         },
-        "edition": "2024",
+        "edition": "2021",
         "version": "0.1.0"
       },
       "license": "Apache-2.0",
