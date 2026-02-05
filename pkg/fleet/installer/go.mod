@@ -29,7 +29,6 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.2 // indirect
-	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.18.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/docker/cli v29.0.3+incompatible // indirect
@@ -117,8 +116,6 @@ replace github.com/DataDog/datadog-agent/pkg/util/option => ../../util/option
 replace github.com/DataDog/datadog-agent/pkg/util/pointer => ../../util/pointer
 
 replace github.com/DataDog/datadog-agent/pkg/util/system => ../../util/system
-
-replace github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../util/system/socket
 
 replace github.com/DataDog/datadog-agent/pkg/util/testutil => ../../util/testutil
 

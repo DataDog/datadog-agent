@@ -565,6 +565,7 @@ func TestPublishReceiverStats(t *testing.T) {
 			EventsSampled:         atom(14),
 			PayloadAccepted:       atom(15),
 			PayloadRefused:        atom(16),
+			PayloadTimeout:        atom(17),
 		},
 	}}
 
@@ -581,6 +582,7 @@ func TestPublishReceiverStats(t *testing.T) {
 			"LangVersion":           "",
 			"PayloadAccepted":       15.0,
 			"PayloadRefused":        16.0,
+			"PayloadTimeout":        17.0,
 			"Service":               "service",
 			"SpansDropped":          11.0,
 			"SpansFiltered":         12.0,

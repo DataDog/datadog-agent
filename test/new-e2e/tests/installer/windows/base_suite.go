@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -197,11 +198,10 @@ func (s *BaseSuite) createStableAgent() {
 	}
 	// else, use the defaults (last stable release)
 
-	// TODO: update to last stable when there is one
-	agentVersion := "7.68.0-rc.5"
-	agentVersionPackage := "7.68.0-rc.5-1"
-	agentRegistry := consts.BetaS3OCIRegistry
-	agentMSIURL := "https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/ddagent-cli-7.68.0-rc.5.msi"
+	agentVersion := "7.75.0"
+	agentVersionPackage := "7.75.0-1"
+	agentRegistry := consts.StableS3OCIRegistry
+	agentMSIURL := "https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-7.75.0.msi"
 	// Allow override of version and version package via environment variables
 	if val := os.Getenv("STABLE_AGENT_VERSION"); val != "" {
 		agentVersion = val
@@ -526,6 +526,62 @@ func (s *BaseSuite) collectxperf() {
 	}
 }
 
+// startProcdump sets up procdump and starts it in the background.
+func (s *BaseSuite) startProcdump() *windowscommon.ProcdumpSession {
+	host := s.Env().RemoteHost
+
+	// Setup procdump on remote host
+	s.T().Log("Setting up procdump on remote host")
+	err := windowscommon.SetupProcdump(host)
+	s.Require().NoError(err, "should setup procdump")
+
+	// Start procdump
+	ps, err := windowscommon.StartProcdump(host, "agent.exe")
+	s.Require().NoError(err, "should start procdump")
+
+	return ps
+}
+
+// collectProcdumps stops procdump and downloads any captured dumps if the test failed.
+func (s *BaseSuite) collectProcdumps(ps *windowscommon.ProcdumpSession) {
+	// Only collect dumps if the test failed
+	if !s.T().Failed() {
+		ps.Close()
+		return
+	}
+
+	host := s.Env().RemoteHost
+
+	// Wait for procdump to finish writing dump files BEFORE closing the session.
+	// Procdump is configured to capture 5 dumps, so wait until all 5 are created.
+	expectedDumpCount := 5
+	s.T().Logf("Waiting for procdump to create %d dump files...", expectedDumpCount)
+	deadline := time.Now().Add(120 * time.Second)
+	for time.Now().Before(deadline) {
+		output, err := host.Execute(fmt.Sprintf(`(Get-ChildItem -Path '%s' -Filter '*.dmp' -ErrorAction SilentlyContinue | Measure-Object).Count`, windowscommon.ProcdumpsPath))
+		if err == nil {
+			countStr := strings.TrimSpace(output)
+			count, parseErr := strconv.Atoi(countStr)
+			if parseErr == nil && count >= expectedDumpCount {
+				s.T().Logf("All %d dump files ready", count)
+				break
+			}
+			s.T().Logf("Found %s dump files, waiting for %d...", countStr, expectedDumpCount)
+		}
+		time.Sleep(5 * time.Second)
+	}
+
+	ps.Close()
+
+	// Download all dump files
+	outDir := s.SessionOutputDir()
+	if err := host.GetFolder(windowscommon.ProcdumpsPath, outDir); err != nil {
+		s.T().Logf("Warning: failed to download dump %s: %v", windowscommon.ProcdumpsPath, err)
+	} else {
+		s.T().Logf("Downloaded procdumps to: %s", outDir)
+	}
+}
+
 // InstallWithXperf installs the MSI with xperf tracing to diagnose service startup issues.
 // This wraps the MSI installation with performance tracing and service status checking.
 //
@@ -551,6 +607,34 @@ func (s *BaseSuite) InstallWithXperf(opts ...MsiOption) {
 	err = s.WaitForAgentService("Running")
 	s.Require().NoError(err, "Agent service status check failed")
 
+	s.T().Log("MSI installation and service startup completed successfully")
+}
+
+// InstallWithDiagnostics installs the MSI with comprehensive diagnostics collection:
+// - xperf tracing for system-wide performance analysis
+// - procdump collection to capture agent memory dump if it crashes during startup
+func (s *BaseSuite) InstallWithDiagnostics(opts ...MsiOption) {
+	s.T().Helper()
+
+	// Start xperf tracing
+	s.T().Log("Starting xperf tracing")
+	s.startxperf()
+	defer s.collectxperf()
+
+	// Start procdump in background to capture crash dumps
+	s.T().Log("Starting procdump")
+	ps := s.startProcdump()
+	defer s.collectProcdumps(ps)
+
+	// Proceed with installation
+	s.T().Log("Installing MSI")
+	err := s.Installer().Install(opts...)
+	s.Require().NoError(err, "MSI installation failed")
+
+	// Wait for service to be running
+	s.T().Log("Checking agent service status after MSI installation")
+	err = s.WaitForAgentService("Running")
+	s.Require().NoError(err, "Agent service status check failed")
 	s.T().Log("MSI installation and service startup completed successfully")
 }
 

@@ -9,6 +9,7 @@ package run
 import (
 	"errors"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -26,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -48,7 +50,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			err := fxutil.Run(
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(cliParams.ExtraConfFilePath)),
-					LogParams:    log.ForOneShot("PRIV-ACTION", "info", true)}),
+					LogParams:    log.ForDaemon(command.LoggerName, "privateactionrunner.log_file", pkgconfigsetup.DefaultPrivateActionRunnerLogFile)}),
 				core.Bundle(),
 				secretsnoopfx.Module(),
 				fx.Provide(func(c config.Component) settings.Params {
@@ -60,6 +62,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					}
 				}),
 				settingsimpl.Module(),
+				remotehostnameimpl.Module(),
 				ipcfx.ModuleReadWrite(),
 				rcserviceimpl.Module(),
 				rcclientimpl.Module(),

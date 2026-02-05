@@ -11,7 +11,7 @@ package usersessions
 import (
 	"testing"
 
-	"github.com/hashicorp/golang-lru/v2/simplelru"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
@@ -73,12 +73,8 @@ func Test_parseSSHLogLine(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			lru, err := simplelru.NewLRU[SSHSessionKey, SSHSessionValue](100, nil)
+			sshSessionParsed, err := lru.New[SSHSessionKey, SSHSessionValue](100)
 			assert.NoError(t, err)
-
-			sshSessionParsed := &sshSessionParsed{
-				Lru: lru,
-			}
 
 			parseSSHLogLine(tt.logLine, sshSessionParsed)
 
@@ -88,7 +84,7 @@ func Test_parseSSHLogLine(t *testing.T) {
 					Port: tt.expectedPort,
 				}
 
-				value, found := sshSessionParsed.Lru.Get(key)
+				value, found := sshSessionParsed.Get(key)
 				assert.True(t, found, "SSH Session must be in LRU")
 
 				if found {
@@ -96,7 +92,7 @@ func Test_parseSSHLogLine(t *testing.T) {
 					assert.Equal(t, tt.expectedPublicKey, value.PublicKey, "Public key must match")
 				}
 			} else {
-				assert.Equal(t, 0, sshSessionParsed.Lru.Len(), "LRU must be empty")
+				assert.Equal(t, 0, sshSessionParsed.Len(), "LRU must be empty")
 			}
 		})
 	}

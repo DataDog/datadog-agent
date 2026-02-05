@@ -446,6 +446,13 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.Provision
 		resources.Merge(provisionerResources)
 	}
 
+	// After provisioning, refresh field values from newEnv to capture any changes made by provisioners
+	// (e.g., setting fields to nil when certain components aren't deployed)
+	envValue := reflect.ValueOf(newEnv)
+	for idx, field := range newEnvFields {
+		newEnvValues[idx] = envValue.Elem().FieldByIndex(field.Index)
+	}
+
 	// When INIT_ONLY is set, we only partially provision the environment so we do not want initialize the environment
 	if bs.initOnly {
 		return nil

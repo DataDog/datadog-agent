@@ -50,18 +50,6 @@ build do
         end
 
         if linux_target? || osx_target?
-            delete "#{install_dir}/embedded/bin/pip"  # copy of pip3.13
-            delete "#{install_dir}/embedded/bin/pip3"  # copy of pip3.13
-            block 'create relative symlinks within embedded Python distribution' do
-              Dir.chdir "#{install_dir}/embedded/bin" do
-                File.symlink 'pip3.13', 'pip3'
-                File.symlink 'pip3', 'pip'
-                File.symlink 'python3', 'python'
-              end
-            end
-
-            delete "#{install_dir}/embedded/lib/config_guess"
-
             # Delete .pc files which aren't needed after building
             delete "#{install_dir}/embedded/lib/pkgconfig"
             # Same goes for .cmake files

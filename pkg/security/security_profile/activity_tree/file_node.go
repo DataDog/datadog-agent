@@ -44,7 +44,7 @@ type OpenNode struct {
 func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, imageTag string, generationType NodeGenerationType, reducedFilePath string, resolvers *resolvers.EBPFResolvers) *FileNode {
 	// call resolver. Safeguard: the process context might be empty if from a snapshot.
 	if resolvers != nil && fileEvent != nil && event.ProcessContext != nil {
-		resolvers.HashResolver.ComputeHashesFromEvent(event, fileEvent)
+		resolvers.HashResolver.ComputeHashesFromEvent(event, fileEvent, 0)
 	}
 
 	fan := &FileNode{

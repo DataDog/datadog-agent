@@ -284,6 +284,25 @@ var defaultProfiles = `
       start_after: 30
       iterations: 0
       period: 900
+  - name: synthetics
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: synthetics_agent.checks_received
+        - name: synthetics_agent.checks_processed
+          aggregate_tags:
+            - status
+            - subtype
+        - name: synthetics_agent.error_test_config
+          aggregate_tags:
+            - subtype
+        - name: synthetics_agent.traceroute_error
+          aggregate_tags:
+            - subtype
+        - name: synthetics_agent.evp_send_result_failure
+          aggregate_tags:
+            - subtype
   - name: connectivity
     metric:
       exclude:

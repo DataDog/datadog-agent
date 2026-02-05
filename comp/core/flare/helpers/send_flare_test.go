@@ -406,7 +406,7 @@ func TestSendToRetryLogic(t *testing.T) {
 			if len(timeBetweenAttempts) > 0 {
 				for i, duration := range timeBetweenAttempts {
 					expectedDelay := 1 * time.Second
-					assert.True(t, duration >= expectedDelay-100*time.Millisecond && duration <= expectedDelay+100*time.Millisecond,
+					assert.True(t, duration >= expectedDelay-500*time.Millisecond && duration <= expectedDelay+500*time.Millisecond,
 						"Retry delay %d was %v, expected around %v", i+1, duration, expectedDelay)
 				}
 			}

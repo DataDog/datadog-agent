@@ -150,7 +150,7 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags, tagger, compression, hostname, origin)
 
 	traceTags := serverlessInitTag.MakeTraceAgentTags(tags)
-	traceAgent := setupTraceAgent(traceTags, configuredTags, tagger)
+	traceAgent := setupTraceAgent(traceTags, configuredTags, tagger, origin)
 
 	tracingCtx := &cloudservice.TracingContext{
 		TraceAgent: traceAgent,
@@ -188,11 +188,20 @@ var serverlessProfileTags = []string{
 	"_dd.origin",
 }
 
-func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tagger.Component) trace.ServerlessTraceAgent {
+func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tagger.Component, origin string) trace.ServerlessTraceAgent {
 	profileTags := make(map[string]string)
 	for _, serverlessProfileTag := range serverlessProfileTags {
 		if value, ok := tags[serverlessProfileTag]; ok {
 			profileTags[serverlessProfileTag] = value
+		}
+	}
+
+	// For Google Cloud Run Functions, add functionname tag to profiles so the profiling team can filter by functions
+	if origin == cloudservice.CloudRunOrigin {
+		_, functionTargetExists := os.LookupEnv("FUNCTION_TARGET")
+
+		if functionTargetExists {
+			profileTags["functionname"] = os.Getenv(cloudservice.ServiceNameEnvVar)
 		}
 	}
 

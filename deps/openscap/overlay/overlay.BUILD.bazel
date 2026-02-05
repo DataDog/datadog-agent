@@ -13,7 +13,7 @@ package(
     ],
 )
 
-VERSION = "1.4.2"
+VERSION = "1.4.3"
 
 package_metadata(
     name = "package_metadata",

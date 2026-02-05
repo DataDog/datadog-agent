@@ -18,7 +18,6 @@ include:
     - !reference [.retrieve_linux_go_tools_deps]
     - VERSION="$(dda inv agent.version --url-safe)-1" || exit $?
     - VERSION_NO_PIPELINE="$(dda inv agent.version --url-safe | sed -E 's/\.pipeline(.*)//')-1" || exit $?
-    - export PATH=$PATH:$(go env GOPATH)/bin
     - datadog-package push registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:${VERSION} ${OMNIBUS_PACKAGE_DIR}/${OCI_PRODUCT}-${VERSION}.oci.tar
     # This is used for E2E tests. Doesn't cost more than an additional tag to the registry.
     - datadog-package push registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:pipeline-${CI_PIPELINE_ID} ${OMNIBUS_PACKAGE_DIR}/${OCI_PRODUCT}-${VERSION}.oci.tar

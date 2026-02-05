@@ -19,10 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/singlestep"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	compkube "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
-	provkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 )
 
 type workloadSelectionSuite struct {
@@ -32,38 +30,38 @@ type workloadSelectionSuite struct {
 func TestWorkloadSelectionSuite(t *testing.T) {
 	helmValues, err := os.ReadFile("testdata/workload_selection.yaml")
 	require.NoError(t, err, "Could not open helm values file for test")
-	e2e.Run(t, &workloadSelectionSuite{}, e2e.WithProvisioner(provkindvm.Provisioner(
-		provkindvm.WithRunOptions(
-			kindvm.WithAgentDependentWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent pulumi.ResourceOption) (*compkube.Workload, error) {
-				return singlestep.Scenario(e, kubeProvider, "workload-selection", []singlestep.Namespace{
-					{
-						Name: "targeted-namespace",
-						Labels: map[string]string{
-							"injection": "yes",
+	e2e.Run(t, &workloadSelectionSuite{}, e2e.WithProvisioner(Provisioner(ProvisionerOptions{
+		AgentOptions: []kubernetesagentparams.Option{
+			kubernetesagentparams.WithHelmValues(string(helmValues)),
+		},
+		AgentDependentWorkloadAppFunc: func(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent pulumi.ResourceOption) (*compkube.Workload, error) {
+			return singlestep.Scenario(e, kubeProvider, "workload-selection", []singlestep.Namespace{
+				{
+					Name: "targeted-namespace",
+					Labels: map[string]string{
+						"injection": "yes",
+					},
+					Apps: []singlestep.App{
+						{
+							Name:    DefaultAppName,
+							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Version: "d425e7df",
+							Port:    8080,
+							PodLabels: map[string]string{
+								"language": "python",
+							},
 						},
-						Apps: []singlestep.App{
-							{
-								Name:    DefaultAppName,
-								Image:   "gcr.io/datadoghq/injector-dev/python",
-								Version: "d425e7df",
-								Port:    8080,
-								PodLabels: map[string]string{
-									"language": "python",
-								},
-							},
-							{
-								Name:    "expect-no-injection",
-								Image:   "gcr.io/datadoghq/injector-dev/python",
-								Version: "d425e7df",
-								Port:    8080,
-							},
+						{
+							Name:    "expect-no-injection",
+							Image:   "gcr.io/datadoghq/injector-dev/python",
+							Version: "d425e7df",
+							Port:    8080,
 						},
 					},
-				}, dependsOnAgent)
-			}),
-			kindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(string(helmValues))),
-		),
-	)))
+				},
+			}, dependsOnAgent)
+		},
+	})))
 }
 
 func (v *workloadSelectionSuite) TestClusterAgentInstalled() {
@@ -77,7 +75,7 @@ func (v *workloadSelectionSuite) TestExpectInjection() {
 
 	// Ensure the pod was injected.
 	pod := FindPodInNamespace(v.T(), k8s, "targeted-namespace", DefaultAppName)
-	podValidator := testutils.NewPodValidator(pod)
+	podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
 	podValidator.RequireInjection(v.T(), DefaultExpectedContainers)
 	podValidator.RequireLibraryVersions(v.T(), map[string]string{
 		"python": "v3.18.1",
@@ -93,6 +91,6 @@ func (v *workloadSelectionSuite) TestExpectInjection() {
 
 func (v *workloadSelectionSuite) TestExpectNoInjection() {
 	pod := FindPodInNamespace(v.T(), v.Env().KubernetesCluster.Client(), "targeted-namespace", "expect-no-injection")
-	podValidator := testutils.NewPodValidator(pod)
+	podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
 	podValidator.RequireNoInjection(v.T())
 }

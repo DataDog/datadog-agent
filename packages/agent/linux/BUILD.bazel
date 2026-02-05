@@ -1,6 +1,16 @@
-# agent linux distribution packages
+"""Agent package components specific to linux."""
 
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load(
+    "@rules_pkg//pkg:mappings.bzl",
+    "pkg_attributes",
+    "pkg_filegroup",
+    "pkg_mkdirs",
+)
+load("//bazel/rules:dd_agent_pkg_mklink.bzl", "dd_agent_pkg_mklink")
 load("//compliance:package_licenses.bzl", "package_licenses")
+
+package(default_visibility = ["//packages:__subpackages__"])
 
 # This is a placeholder for an eventual group containg (the future) top level binaries
 # such as //cmd/agent:agent
@@ -10,6 +20,7 @@ filegroup(
         "//deps:all_deps",
     ] + select({
         "@platforms//os:linux": [
+            "//deps/nfsiostat:all_files",
             "//deps/openscap:all_deps",
         ],
         "//conditions:default": [],
@@ -19,4 +30,64 @@ filegroup(
 package_licenses(
     name = "license_files",
     src = ":all_deps",
+)
+
+# Replacement for datadog-agent-installer-symlinks.rb
+
+pkg_mkdirs(
+    name = "dirs",
+    attributes = pkg_attributes(mode = "755"),
+    dirs = [
+        "opt/datadog-packages",
+        "opt/datadog-packages/datadog-agent",
+        "opt/datadog-packages/run",
+        "opt/datadog-packages/run/datadog-agent",
+    ],
+)
+
+dd_agent_pkg_mklink(
+    name = "experiment_link",
+    attributes = pkg_attributes(mode = "755"),
+    link_name = "/opt/datadog-packages/datadog-agent/experiment",
+    target = "/opt/datadog-packages/datadog-agent/stable",
+)
+
+# TODO: Figure out how to point to the build version
+# stable -> /opt/datadog-packages/run/datadog-agent/7.75.0-devel.git.510.0eb2d89.pipeline.87895082
+dd_agent_pkg_mklink(
+    name = "stable_link",
+    attributes = pkg_attributes(mode = "755"),
+    link_name = "/opt/datadog-packages/datadog-agent/stable",
+    target = "/opt/datadog-packages/run/datadog-agent/{build_version}",
+    #link "/opt/datadog-agent", "/opt/datadog-packages/run/datadog-agent/{build_version}"
+)
+
+dd_agent_pkg_mklink(
+    name = "version_to_install_link",
+    attributes = pkg_attributes(mode = "755"),
+    link_name = "opt/datadog-packages/run/datadog-agent/{build_version}",
+    target = "{install_dir}",
+)
+
+# note that this does not follow the naming pattern of "all_files".
+# Instead, I'm using the name of the omnibus script it will replace.
+# That provides a clearer meaning during the migration than the name
+# of the package (packages/agent/linux) alone.
+pkg_filegroup(
+    name = "datadog_agent_installer_symlinks",
+    srcs = [
+        ":experiment_link",
+        ":stable_link",
+        ":version_to_install_link",
+    ],
+)
+
+pkg_install(
+    name = "install",
+    srcs = select({
+        "//:is_standard_install": [
+            ":datadog_agent_installer_symlinks",
+        ],
+        "//conditions:default": [],
+    }),
 )

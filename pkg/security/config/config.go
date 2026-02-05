@@ -179,6 +179,8 @@ type RuntimeSecurityConfig struct {
 	PolicyMonitorPerRuleEnabled bool
 	// PolicyMonitorReportInternalPolicies enable internal policies monitoring
 	PolicyMonitorReportInternalPolicies bool
+	// RuleCacheEnabled defines if the rule cache should be enabled
+	RuleCacheEnabled bool
 	// SocketPath is the path to the socket that is used to communicate with the security agent
 	SocketPath string
 	// SocketPath is the path to the socket that is used to communicate with system-probe
@@ -376,6 +378,8 @@ type RuntimeSecurityConfig struct {
 
 	// UserSessionsCacheSize defines the size of the User Sessions cache size
 	UserSessionsCacheSize int
+	// SSHUserSessionsEnabled defines if SSH user session features should be enabled
+	SSHUserSessionsEnabled bool
 
 	// EBPFLessEnabled enables the ebpfless probe
 	EBPFLessEnabled bool
@@ -532,6 +536,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		PolicyMonitorEnabled:                pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.monitor.enabled"),
 		PolicyMonitorPerRuleEnabled:         pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.monitor.per_rule_enabled"),
 		PolicyMonitorReportInternalPolicies: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.monitor.report_internal_policies"),
+		RuleCacheEnabled:                    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.policies.rule_cache_enabled"),
 
 		LogPatterns: pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.log_patterns"),
 		LogTags:     pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.log_tags"),
@@ -631,7 +636,8 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		EnforcementDisarmerExecutablePeriod:     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.enforcement.disarmer.executable.period"),
 
 		// User Sessions
-		UserSessionsCacheSize: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.user_sessions.cache_size"),
+		SSHUserSessionsEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.user_sessions.ssh.enabled"),
+		UserSessionsCacheSize:  pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.user_sessions.cache_size"),
 
 		// ebpf less
 		EBPFLessEnabled: IsEBPFLessModeEnabled(),

@@ -360,7 +360,7 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 				if err != nil {
 					return nil, 0, err
 				}
-				return []Metric{{Name: "total_energy_consumption", Value: float64(energy), Type: metrics.CountType}}, 0, nil
+				return []Metric{{Name: "total_energy_consumption", Value: float64(energy), Type: metrics.GaugeType}}, 0, nil
 			},
 		},
 		{
@@ -424,10 +424,10 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 				}
 
 				return []Metric{
-					{Name: "remapped_rows.correctable", Value: float64(correctable), Type: metrics.CountType},
-					{Name: "remapped_rows.uncorrectable", Value: float64(uncorrectable), Type: metrics.CountType},
-					{Name: "remapped_rows.pending", Value: boolToFloat(pending), Type: metrics.CountType},
-					{Name: "remapped_rows.failed", Value: boolToFloat(failed), Type: metrics.CountType},
+					{Name: "remapped_rows.correctable", Value: float64(correctable), Type: metrics.GaugeType},
+					{Name: "remapped_rows.uncorrectable", Value: float64(uncorrectable), Type: metrics.GaugeType},
+					{Name: "remapped_rows.pending", Value: boolToFloat(pending), Type: metrics.GaugeType},
+					{Name: "remapped_rows.failed", Value: boolToFloat(failed), Type: metrics.GaugeType},
 				}, 0, nil
 			},
 		},

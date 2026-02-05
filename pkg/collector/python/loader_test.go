@@ -26,3 +26,7 @@ func TestLoadHACheck(t *testing.T) {
 func TestLoadError(t *testing.T) {
 	testLoadError(t)
 }
+
+func TestLoadCustomCheckEmitsCheckReadyMetric(t *testing.T) {
+	testLoadCustomCheckEmitsCheckReadyMetric(t)
+}

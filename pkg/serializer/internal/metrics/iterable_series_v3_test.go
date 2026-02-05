@@ -26,15 +26,18 @@ func TestPayloadsBuilderV3(t *testing.T) {
 	tags := tagset.NewCompositeTags([]string{"foo", "bar"}, []string{"ook", "eek"})
 	series := metrics.Series{
 		&metrics.Serie{
-			Name:    "serie1",
-			NoIndex: true,
-			Points:  []metrics.Point{{Ts: ts, Value: 0}}},
-
+			Name:     "serie1",
+			NoIndex:  true,
+			Points:   []metrics.Point{{Ts: ts, Value: 0}},
+			Interval: 10,
+		},
 		&metrics.Serie{
-			Name:    "serie2",
-			NoIndex: false,
-			Tags:    tags,
-			Points:  []metrics.Point{{Ts: ts, Value: 2}}},
+			Name:     "serie2",
+			NoIndex:  false,
+			Tags:     tags,
+			Points:   []metrics.Point{{Ts: ts, Value: 2}},
+			Interval: 10,
+		},
 		&metrics.Serie{
 			Name:           "serie3",
 			NoIndex:        false,
@@ -42,8 +45,9 @@ func TestPayloadsBuilderV3(t *testing.T) {
 			Host:           "test.example",
 			SourceTypeName: "stn",
 			Source:         metrics.MetricSourceDogstatsd,
-			Points:         []metrics.Point{{Ts: ts, Value: 3}}},
-
+			Points:         []metrics.Point{{Ts: ts, Value: 3}},
+			Interval:       0,
+		},
 		&metrics.Serie{
 			Name:           "serie4",
 			NoIndex:        true,
@@ -51,7 +55,9 @@ func TestPayloadsBuilderV3(t *testing.T) {
 			Device:         "switch1",
 			SourceTypeName: "stn",
 			Source:         metrics.MetricSourceCassandra,
-			Points:         []metrics.Point{{Ts: ts, Value: 3.14}}},
+			Points:         []metrics.Point{{Ts: ts, Value: 3.14}},
+			Interval:       0,
+		},
 	}
 
 	pipelineConfig := PipelineConfig{
@@ -120,7 +126,7 @@ func TestPayloadsBuilderV3(t *testing.T) {
 		11<<3 | 2, 4, 2, 2, 2, 2,
 		12<<3 | 2, 4, 0, 4, 0, 3,
 		13<<3 | 2, 4, 0, 0, 2, 2,
-		14<<3 | 2, 4, 0, 0, 0, 0,
+		14<<3 | 2, 4, 10, 10, 0, 0,
 		15<<3 | 2, 4, 1, 1, 1, 1,
 		16<<3 | 2, 1, 8, 0xc2, 0xb8, 0xad, 0x8b, 0xd, 0, 0, 0,
 		17<<3 | 2, 1, 2, 4, 6,

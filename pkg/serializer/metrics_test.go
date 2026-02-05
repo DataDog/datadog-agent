@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
+	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	metricscompressionimpl "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl"
@@ -30,7 +30,7 @@ func TestBuildPipelines(t *testing.T) {
 	config.SetWithoutSource("dd_url", "http://example.test")
 	config.SetWithoutSource("api_key", "test_key")
 
-	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, secretsnoop.NewComponent().Comp)
+	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
 	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
@@ -58,7 +58,7 @@ func TestBuildPipelinesWithAdditionalEndpoints(t *testing.T) {
 		"http://another.test": {"test_key"},
 	})
 
-	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, secretsnoop.NewComponent().Comp)
+	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
 	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
@@ -89,7 +89,7 @@ func TestBuildPipelinesWithAutoscalingFailover(t *testing.T) {
 	config.SetWithoutSource("cluster_agent.url", "https://cluster.agent.svc")
 	config.SetWithoutSource("cluster_agent.auth_token", "01234567890123456789012345678901")
 
-	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, secretsnoop.NewComponent().Comp)
+	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
 	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
@@ -128,7 +128,7 @@ func TestBuildPipelinesWithAutoscalingFailoverEmptyList(t *testing.T) {
 	config.SetWithoutSource("cluster_agent.url", "https://cluster.agent.svc")
 	config.SetWithoutSource("cluster_agent.auth_token", "01234567890123456789012345678901")
 
-	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, secretsnoop.NewComponent().Comp)
+	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
 	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
@@ -154,7 +154,7 @@ func TestBuildPipelinesWithMRFInactive(t *testing.T) {
 	config.SetWithoutSource("multi_region_failover.enabled", true)
 	config.SetWithoutSource("multi_region_failover.dd_url", "http://mrf.example.test")
 
-	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, secretsnoop.NewComponent().Comp)
+	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
 	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
@@ -186,7 +186,7 @@ func TestBuildPipelinesWithMRFActive(t *testing.T) {
 	config.SetWithoutSource("multi_region_failover.failover_metrics", true)
 	config.SetWithoutSource("multi_region_failover.dd_url", "http://mrf.example.test")
 
-	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, secretsnoop.NewComponent().Comp)
+	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
 	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
@@ -222,7 +222,7 @@ func TestBuildPipelinesWithMRFActiveFilter(t *testing.T) {
 	config.SetWithoutSource("multi_region_failover.metric_allowlist", []string{"datadog.agent.running"})
 	config.SetWithoutSource("multi_region_failover.dd_url", "http://mrf.example.test")
 
-	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, secretsnoop.NewComponent().Comp)
+	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
 	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
@@ -259,7 +259,7 @@ func TestBuildPipelinesSketches(t *testing.T) {
 	config.SetWithoutSource("cluster_agent.url", "https://cluster.agent.svc")
 	config.SetWithoutSource("cluster_agent.auth_token", "01234567890123456789012345678901")
 
-	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, secretsnoop.NewComponent().Comp)
+	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
 	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
@@ -291,7 +291,7 @@ func TestPipelinesWithV3AndAdditionalEndpoints(t *testing.T) {
 		"serializer_experimental_use_v3_api.series.endpoints",
 		[]string{"http://example.test"})
 
-	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, secretsnoop.NewComponent().Comp)
+	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
 	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
@@ -333,7 +333,7 @@ func TestPipelinesWithAdditionalEndpointsV3(t *testing.T) {
 		"serializer_experimental_use_v3_api.series.endpoints",
 		[]string{"http://app.us5.datadoghq.com"})
 
-	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, secretsnoop.NewComponent().Comp)
+	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
 	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
@@ -372,12 +372,24 @@ func TestPipelinesWithV3Validate(t *testing.T) {
 	config.SetWithoutSource("serializer_experimental_use_v3_api.series.endpoints", []string{"http://example.test"})
 	config.SetWithoutSource("serializer_experimental_use_v3_api.series.validate", true)
 
-	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, secretsnoop.NewComponent().Comp)
+	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
 	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
 
 	pipelines := s.buildPipelines(metricsKindSeries)
+
+	batchID := ""
+outer:
+	for _, ctx := range pipelines {
+		for _, d := range ctx.Destinations {
+			if d.ValidationBatchID != "" {
+				batchID = d.ValidationBatchID
+				break outer
+			}
+		}
+	}
+	require.NotEmpty(t, batchID)
 
 	testutil.ElementsMatchFn(t, maps.All(pipelines),
 		// v3 pipeline has one destination...
@@ -389,7 +401,7 @@ func TestPipelinesWithV3Validate(t *testing.T) {
 				func(t require.TestingT, _ int, dest metrics.PipelineDestination) {
 					require.Equal(t, "http://example.test", dest.Resolver.GetConfigName())
 					require.Equal(t, endpoints.V3SeriesEndpoint, dest.Endpoint)
-					require.True(t, dest.AddValidationHeaders)
+					require.Equal(t, batchID, dest.ValidationBatchID)
 				})
 		},
 		// v2 pipeline has two destinations...
@@ -401,13 +413,13 @@ func TestPipelinesWithV3Validate(t *testing.T) {
 				func(t require.TestingT, _ int, dest metrics.PipelineDestination) {
 					require.Equal(t, "http://example.test", dest.Resolver.GetConfigName())
 					require.Equal(t, endpoints.SeriesEndpoint, dest.Endpoint)
-					require.True(t, dest.AddValidationHeaders)
+					require.Equal(t, batchID, dest.ValidationBatchID)
 				},
 				// ... to the alternative domain without validation headers
 				func(t require.TestingT, _ int, dest metrics.PipelineDestination) {
 					require.Equal(t, "http://another.test", dest.Resolver.GetConfigName())
 					require.Equal(t, endpoints.SeriesEndpoint, dest.Endpoint)
-					require.False(t, dest.AddValidationHeaders)
+					require.Empty(t, dest.ValidationBatchID)
 				},
 			)
 		},

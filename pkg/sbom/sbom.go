@@ -17,8 +17,9 @@ import (
 )
 
 const (
-	ScanFilesystemType = "filesystem" // ScanFilesystemType defines the type for file-system scan
-	ScanDaemonType     = "daemon"     // ScanDaemonType defines the type for daemon scan
+	ScanFilesystemType = "filesystem"  // ScanFilesystemType defines the type for file-system scan
+	ScanDaemonType     = "daemon"      // ScanDaemonType defines the type for daemon scan
+	ScanMethodTagName  = "scan_method" // ScanMethodTagName defines the tag name for scan method
 )
 
 // Report defines the report interface
@@ -57,12 +58,13 @@ type ScanOptions = types.ScanOptions
 
 // ScanResult defines the scan result
 type ScanResult struct {
-	Error     error
-	Report    Report
-	CreatedAt time.Time
-	Duration  time.Duration
-	ImgMeta   *workloadmeta.ContainerImageMetadata
-	RequestID string
+	Error            error
+	Report           Report
+	CreatedAt        time.Time
+	Duration         time.Duration
+	GenerationMethod string
+	ImgMeta          *workloadmeta.ContainerImageMetadata
+	RequestID        string
 }
 
 // ConvertScanResultToSBOM converts an SBOM scan result to a workloadmeta SBOM.
@@ -79,11 +81,14 @@ func (result *ScanResult) ConvertScanResultToSBOM() *workloadmeta.SBOM {
 		report = result.Report.ToCycloneDX()
 	}
 
-	return &workloadmeta.SBOM{
+	sbom := &workloadmeta.SBOM{
 		CycloneDXBOM:       report,
 		GenerationTime:     result.CreatedAt,
 		GenerationDuration: result.Duration,
+		GenerationMethod:   result.GenerationMethod,
 		Status:             status,
 		Error:              reportedError,
 	}
+
+	return sbom
 }

@@ -52,6 +52,8 @@ class GateMetricsData:
     current_on_wire_size: int | None = None
     max_on_disk_size: int | None = None
     max_on_wire_size: int | None = None
+    relative_on_disk_size: int | None = None
+    relative_on_wire_size: int | None = None
 
 
 def _extract_gate_name_from_scope(scope: str) -> str | None:
@@ -92,6 +94,8 @@ def fetch_pr_metrics(pr_number: int) -> dict[str, GateMetricsData]:
         "on_wire_size": "current_on_wire_size",
         "max_allowed_on_disk_size": "max_on_disk_size",
         "max_allowed_on_wire_size": "max_on_wire_size",
+        "relative_on_disk_size": "relative_on_disk_size",
+        "relative_on_wire_size": "relative_on_wire_size",
     }
 
     # Single query with all metrics (comma-separated)
@@ -205,6 +209,32 @@ def identify_failing_gates(pr_metrics: dict[str, GateMetricsData]) -> dict[str, 
             failing[gate_name] = metrics
 
     return failing
+
+
+# Threshold for considering a size change as meaningful (not noise)
+# Changes below this threshold are considered neutral and won't trigger a bump
+SIZE_INCREASE_THRESHOLD_BYTES = 2 * 1024  # 2 KiB
+
+
+def identify_gates_with_size_increase(pr_metrics: dict[str, GateMetricsData]) -> dict[str, GateMetricsData]:
+    """
+    Identify all gates that have a meaningful on-disk size increase.
+
+    This is used for exception bumps where we want to bump ALL gates
+    with size increases, not just the ones that are currently failing.
+
+    A gate is included if relative_on_disk_size > SIZE_INCREASE_THRESHOLD_BYTES.
+
+    Returns gates where on_disk_size has increased beyond the noise threshold.
+    """
+    gates_to_bump: dict[str, GateMetricsData] = {}
+
+    for gate_name, metrics in pr_metrics.items():
+        # Check if there's a meaningful size increase
+        if metrics.relative_on_disk_size is not None and metrics.relative_on_disk_size > SIZE_INCREASE_THRESHOLD_BYTES:
+            gates_to_bump[gate_name] = metrics
+
+    return gates_to_bump
 
 
 def get_pr_for_branch(branch: str):
@@ -686,7 +716,7 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     if ancestor == current_commit:
         ancestor = get_commit_sha(ctx, commit="HEAD~1")
         print(color_message(f"On main branch, using parent commit {ancestor} as ancestor", "cyan"))
-    metric_handler.generate_relative_size(ctx, ancestor=ancestor, report_path="ancestor_static_gate_report.json")
+    metric_handler.generate_relative_size(ancestor=ancestor)
 
     # Post-process gate failures: mark as non-blocking if delta <= 0
     # This means the size issue existed before this PR and wasn't introduced by current changes
@@ -875,26 +905,26 @@ def exception_threshold_bump(ctx, pr_number):
 
     print(color_message(f"Found metrics for {len(pr_metrics)} gates", "cyan"))
 
-    # Step 2: Identify failing gates
-    failing_gates = identify_failing_gates(pr_metrics)
-    if not failing_gates:
-        print(color_message("[INFO] No failing gates found - nothing to bump!", "green"))
+    # Step 2: Identify gates with size increase (not just failing gates)
+    gates_to_bump = identify_gates_with_size_increase(pr_metrics)
+    if not gates_to_bump:
+        print(color_message("[INFO] No gates with size increase found - nothing to bump!", "green"))
         return
 
-    print(color_message(f"Found {len(failing_gates)} failing gates:", "orange"))
-    for gate_name, metrics in failing_gates.items():
+    print(color_message(f"Found {len(gates_to_bump)} gates with size increase:", "orange"))
+    for gate_name, metrics in gates_to_bump.items():
         short_name = gate_name.replace("static_quality_gate_", "")
-        disk_excess = (metrics.current_on_disk_size or 0) - (metrics.max_on_disk_size or 0)
-        wire_excess = (metrics.current_on_wire_size or 0) - (metrics.max_on_wire_size or 0)
+        disk_delta = metrics.relative_on_disk_size or 0
+        wire_delta = metrics.relative_on_wire_size or 0
         print(
             color_message(
-                f"  - {short_name}: disk +{byte_to_string(disk_excess)}, wire +{byte_to_string(wire_excess)}", "orange"
+                f"  - {short_name}: disk +{byte_to_string(disk_delta)}, wire +{byte_to_string(wire_delta)}", "orange"
             )
         )
 
-    # Step 3: Fetch main branch headroom (only for failing gates to minimize API footprint)
+    # Step 3: Fetch main branch headroom (for gates with size increase)
     print(color_message("Fetching main branch metrics for headroom calculation...", "cyan"))
-    main_headroom = fetch_main_headroom(list(failing_gates.keys()))
+    main_headroom = fetch_main_headroom(list(gates_to_bump.keys()))
 
     if not main_headroom:
         print(color_message("[ERROR] Unable to fetch main branch metrics from Datadog.", "red"))
@@ -905,9 +935,9 @@ def exception_threshold_bump(ctx, pr_number):
     with open(GATE_CONFIG_PATH) as f:
         config = yaml.safe_load(f)
 
-    # Step 5: Calculate and apply new thresholds for failing gates ONLY
+    # Step 5: Calculate and apply new thresholds for gates with size increase
     updated_gates = []
-    for gate_name, pr_gate_metrics in failing_gates.items():
+    for gate_name, pr_gate_metrics in gates_to_bump.items():
         if gate_name not in config:
             print(color_message(f"[WARN] Gate {gate_name} not found in config, skipping", "orange"))
             continue

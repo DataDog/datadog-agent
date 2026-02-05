@@ -51,10 +51,10 @@ linters:
               desc: "use the v2 sdk instead"
         logger:
           files:
-            - "!**/pkg/util/log/**"
+            - $all
           deny:
             - pkg: "github.com/cihub/seelog"
-              desc: "seelog should not be used directly. Use `pkg/util/log` instead."
+              desc: "seelog should not be used. Use `pkg/util/log` instead."
         pkgconfigusage:
           files:
             - "**/comp/**"
@@ -220,7 +220,6 @@ linters:
         - (github.com/DataDog/datadog-agent/comp/core/log/def.Component).Warnf
         - (net/http.ResponseWriter).Write
         - fmt.Sscanf
-        - github.com/cihub/seelog.Warnf
         - github.com/DataDog/datadog-agent/pkg/util/log.ChangeLogLevel
         - github.com/DataDog/datadog-agent/pkg/util/log.Critical
         - github.com/DataDog/datadog-agent/pkg/util/log.Criticalc

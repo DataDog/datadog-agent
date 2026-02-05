@@ -10,6 +10,7 @@ package receiver
 import (
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/dd-otel-host-profiler/config"
@@ -45,9 +46,6 @@ func errSymbolEndpointsSiteRequired() error {
 func errSymbolEndpointsAPIKeyRequired() error {
 	return errors.New("symbol_endpoints.api_key is required")
 }
-func errSymbolEndpointsAppKeyRequired() error {
-	return errors.New("symbol_endpoints.app_key is required")
-}
 
 // Validate validates the config.
 // This is automatically called by the config parser as it implements the xconfmap.Validator interface.
@@ -82,9 +80,6 @@ func (c *Config) Validate() error {
 			if endpoint.APIKey == "" {
 				return errSymbolEndpointsAPIKeyRequired()
 			}
-			if endpoint.AppKey == "" {
-				return errSymbolEndpointsAppKeyRequired()
-			}
 		}
 	}
 	return nil
@@ -94,6 +89,11 @@ func (c *Config) Validate() error {
 func defaultConfig() component.Config {
 	cfg := ebpfcollector.NewFactory().CreateDefaultConfig().(*ebpfconfig.Config)
 	cfg.Tracers = getDefaultTracersString()
+	// 60s batches more samples per report, improving compression and reducing upload bandwidth
+	cfg.ReporterInterval = 60 * time.Second
+	// Default jitter is 20%, which makes sense for 5s intervals (~1s variation).
+	// With 60s intervals, 20% would mean ~12s variation, so we reduce to 5% (~3s).
+	cfg.ReporterJitter = 0.05
 
 	return Config{
 		EbpfCollectorConfig: cfg,

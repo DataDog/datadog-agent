@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"testing"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -27,7 +28,7 @@ type dummyService struct {
 	ID            string
 	ADIdentifiers []string
 	Hosts         map[string]string
-	Ports         []listeners.ContainerPort
+	Ports         []workloadmeta.ContainerPort
 	Pid           int
 	Hostname      string
 	ExtraConfig   map[string]string
@@ -54,7 +55,7 @@ func (s *dummyService) GetHosts() (map[string]string, error) {
 }
 
 // GetPorts returns dummy ports
-func (s *dummyService) GetPorts() ([]listeners.ContainerPort, error) {
+func (s *dummyService) GetPorts() ([]workloadmeta.ContainerPort, error) {
 	return s.Ports, nil
 }
 
@@ -100,24 +101,6 @@ func (s *dummyService) FilterTemplates(_ map[string]integration.Config) {
 // GetImageName does nothing
 func (s *dummyService) GetImageName() string {
 	return ""
-}
-
-func TestGetFallbackHost(t *testing.T) {
-	ip, err := getFallbackHost(map[string]string{"bridge": "172.17.0.1"})
-	assert.Equal(t, "172.17.0.1", ip)
-	assert.Equal(t, nil, err)
-
-	ip, err = getFallbackHost(map[string]string{"foo": "172.17.0.1"})
-	assert.Equal(t, "172.17.0.1", ip)
-	assert.Equal(t, nil, err)
-
-	ip, err = getFallbackHost(map[string]string{"foo": "172.17.0.1", "bridge": "172.17.0.2"})
-	assert.Equal(t, "172.17.0.2", ip)
-	assert.Equal(t, nil, err)
-
-	ip, err = getFallbackHost(map[string]string{"foo": "172.17.0.1", "bar": "172.17.0.2"})
-	assert.Equal(t, "", ip)
-	assert.NotNil(t, err)
 }
 
 func TestResolve(t *testing.T) {
@@ -335,7 +318,7 @@ func TestResolve(t *testing.T) {
 			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
-				Ports:         []listeners.ContainerPort{},
+				Ports:         []workloadmeta.ContainerPort{},
 			},
 			tpl: integration.Config{
 				Name:          "cpu",
@@ -701,7 +684,7 @@ func TestResolve(t *testing.T) {
 				Hosts: map[string]string{
 					"": "my-cluster.cluster-123456789012.us-west-2.rds.amazonaws.com",
 				},
-				Ports:       []listeners.ContainerPort{{Port: 5432, Name: fmt.Sprintf("p%d", 5432)}},
+				Ports:       []workloadmeta.ContainerPort{{Port: 5432, Name: fmt.Sprintf("p%d", 5432)}},
 				ExtraConfig: map[string]string{"region": "us-west-2", "dbclusteridentifier": "my-cluster", "managed_authentication_enabled": "true"},
 			},
 			tpl: integration.Config{
@@ -948,8 +931,8 @@ func TestResolve(t *testing.T) {
 	}
 }
 
-func newFakeContainerPorts() []listeners.ContainerPort {
-	return []listeners.ContainerPort{
+func newFakeContainerPorts() []workloadmeta.ContainerPort {
+	return []workloadmeta.ContainerPort{
 		{Port: 1, Name: "foo"},
 		{Port: 2, Name: "bar"},
 		{Port: 3, Name: "baz"},

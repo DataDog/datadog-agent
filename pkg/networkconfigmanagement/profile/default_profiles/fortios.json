@@ -1,0 +1,52 @@
+{
+  "commands": [
+    {
+      "type": "running",
+      "values": [
+        "show full-configuration"
+      ],
+      "processing_rules": {
+        "validation": [
+          {
+            "type": "valid_output",
+            "pattern": "config (system|global|vdom)"
+          }
+        ],
+        "redaction": [
+          {
+            "regex": "^(#private-encryption-key=).+",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "(set .+ ENC) .+",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "(set (?:passwd|password|key|group-password|auth-password-l1|auth-password-l2|rsso|history0|history1))\\s*( ENC)? .+",
+            "replacement": "$1$2 <secret hidden>"
+          },
+          {
+            "regex": "(set md5-key [0-9]+) .+",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "(?s)(set private-key ).*?-+END (ENCRYPTED|RSA|OPENSSH) PRIVATE KEY-+\\n?\"$",
+            "replacement": "$1<secret hidden>"
+          },
+          {
+            "regex": "(?s)(set privatekey ).*?-+END (ENCRYPTED|RSA|OPENSSH) PRIVATE KEY-+\\n?\"$",
+            "replacement": "$1<secret hidden>"
+          },
+          {
+            "regex": "(?s)(set ca )\"-+BEGIN.*?-+END CERTIFICATE-+\"$",
+            "replacement": "$1<secret hidden>"
+          },
+          {
+            "regex": "(?s)(set csr ).*?-+END CERTIFICATE REQUEST-+\"$",
+            "replacement": "$1<secret hidden>"
+          }
+        ]
+      }
+    }
+  ]
+}

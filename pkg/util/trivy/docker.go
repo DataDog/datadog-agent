@@ -85,14 +85,14 @@ func (c *fakeDockerContainer) Layers() (layers []ftypes.LayerPath) {
 }
 
 // ScanDockerImage scans a docker image by exporting it and scanning the tarball
-func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, client client.ImageAPIClient, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, client client.ImageAPIClient, scanOptions sbom.ScanOptions) (*Report, string, error) {
 	fanalImage, cleanup, err := convertDockerImage(ctx, client, imgMeta)
 	if cleanup != nil {
 		defer cleanup()
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("unable to convert docker image, err: %w", err)
+		return nil, "", fmt.Errorf("unable to convert docker image, err: %w", err)
 	}
 
 	if scanOptions.OverlayFsScan && fanalImage.inspect.GraphDriver.Name == "overlay2" {
@@ -120,8 +120,18 @@ func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.C
 			},
 		}
 
-		return c.scanOverlayFS(ctx, layers, fakeContainer, imgMeta, scanOptions)
+		report, err := c.scanOverlayFS(ctx, layers, fakeContainer, imgMeta, scanOptions)
+		if err != nil {
+			return nil, "overlayfs", err
+		}
+
+		return report, "overlayfs", nil
 	}
 
-	return c.scanImage(ctx, fanalImage, imgMeta, scanOptions)
+	report, err := c.scanImage(ctx, fanalImage, imgMeta, scanOptions)
+	if err != nil {
+		return nil, "tarball", err
+	}
+
+	return report, "tarball", nil
 }

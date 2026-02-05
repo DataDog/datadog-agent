@@ -47,6 +47,7 @@ use (
 	comp/def
 	comp/forwarder/defaultforwarder
 	comp/forwarder/orchestrator/orchestratorinterface
+	comp/logs-library
 	comp/logs/agent/config
 	comp/netflow/payload
 	comp/otelcol/collector-contrib/def
@@ -84,6 +85,7 @@ use (
 	pkg/aggregator/ckey
 	pkg/api
 	pkg/collector/check/defaults
+	pkg/config/basic
 	pkg/config/create
 	pkg/config/env
 	pkg/config/helper
@@ -175,7 +177,6 @@ use (
 	pkg/util/startstop
 	pkg/util/statstracker
 	pkg/util/system
-	pkg/util/system/socket
 	pkg/util/testutil
 	pkg/util/utilizationtracker
 	pkg/util/uuid

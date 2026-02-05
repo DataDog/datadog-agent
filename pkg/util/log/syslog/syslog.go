@@ -14,33 +14,33 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 )
 
-var levelToSyslogSeverity = map[seelog.LogLevel]int{
+var levelToSyslogSeverity = map[types.LogLevel]int{
 	// Mapping to RFC 5424 where possible
-	seelog.TraceLvl:    7,
-	seelog.DebugLvl:    7,
-	seelog.InfoLvl:     6,
-	seelog.WarnLvl:     4,
-	seelog.ErrorLvl:    3,
-	seelog.CriticalLvl: 2,
-	seelog.Off:         7,
+	types.TraceLvl:    7,
+	types.DebugLvl:    7,
+	types.InfoLvl:     6,
+	types.WarnLvl:     4,
+	types.ErrorLvl:    3,
+	types.CriticalLvl: 2,
+	types.Off:         7,
 }
 
 // HeaderFormatter creates a function that formats a syslog header for the given log level.
-func HeaderFormatter(facility int, rfc bool) func(seelog.LogLevel) string {
+func HeaderFormatter(facility int, rfc bool) func(types.LogLevel) string {
 	pid := os.Getpid()
 	appName := filepath.Base(os.Args[0])
 
 	if rfc { // RFC 5424
-		return func(level seelog.LogLevel) string {
+		return func(level types.LogLevel) string {
 			return fmt.Sprintf("<%d>1 %s %d - -", facility*8+levelToSyslogSeverity[level], appName, pid)
 		}
 	}
 
 	// otherwise old-school logging
-	return func(level seelog.LogLevel) string {
+	return func(level types.LogLevel) string {
 		return fmt.Sprintf("<%d>%s[%d]:", facility*8+levelToSyslogSeverity[level], appName, pid)
 	}
 }
