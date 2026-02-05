@@ -36,9 +36,8 @@ func newRedisEncoder(redisPayloads map[redis.Key]*redis.RequestStats) *redisEnco
 	}
 }
 
-func (e *redisEncoder) EncodeConnectionDirect(c network.ConnectionStats, conn *model.Connection) (staticTags uint64, dynamicTags map[string]struct{}) {
-	var buf bytes.Buffer
-	staticTags = e.encodeData(c, &buf)
+func (e *redisEncoder) EncodeConnectionDirect(c network.ConnectionStats, conn *model.Connection, buf *bytes.Buffer) (staticTags uint64, dynamicTags map[string]struct{}) {
+	staticTags = e.encodeData(c, buf)
 	conn.DatabaseAggregations = buf.Bytes()
 	return
 }
