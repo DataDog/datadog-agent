@@ -40,32 +40,10 @@ var supportedConnections = map[string]ConnectionDefinition{
 	},
 }
 
-func matchesPattern(pattern, bundleID string) bool {
-	if pattern == bundleID {
-		return true
-	}
-
-	if strings.HasSuffix(pattern, ".*") {
-		prefix := strings.TrimSuffix(pattern, ".*")
-		if strings.HasPrefix(bundleID, prefix) {
-			return true
-		}
-	}
-
-	if strings.HasPrefix(pattern, bundleID+".") {
-		return true
-	}
-
-	if pattern == "com.datadoghq.*" {
-		return strings.HasPrefix(bundleID, "com.datadoghq.")
-	}
-
-	return false
-}
-
 func allowlistContainsBundle(allowlist []string, bundleID string) bool {
 	for _, pattern := range allowlist {
-		if matchesPattern(pattern, bundleID) {
+		// The agent allowlist only supports FQNs
+		if strings.HasPrefix(pattern, bundleID+".") {
 			return true
 		}
 	}
@@ -77,7 +55,7 @@ func DetermineConnectionsToCreate(allowlist []string) []ConnectionDefinition {
 		return []ConnectionDefinition{}
 	}
 
-	result := []ConnectionDefinition{}
+	var result []ConnectionDefinition
 
 	for _, definition := range supportedConnections {
 		if allowlistContainsBundle(allowlist, definition.BundleID) {
