@@ -6,7 +6,10 @@
 // Package trace provides trace collection and processing for serverless environments.
 package trace
 
-import "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
+import (
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+)
 
 const (
 	ddOriginTagName = "_dd.origin"
@@ -18,10 +21,10 @@ type spanModifier struct {
 }
 
 // ModifySpan applies extra logic to the given span
-func (s *spanModifier) ModifySpan(_ *idx.InternalTraceChunk, span *idx.InternalSpan) {
+func (s *spanModifier) ModifySpan(_ *pb.TraceChunk, span *pb.Span) {
 	// ensure all spans have tag _dd.origin in addition to span.Origin
-	if origin, ok := span.GetAttributeAsString(ddOriginTagName); !ok || origin == "" {
-		span.SetStringAttribute(ddOriginTagName, s.ddOrigin)
+	if origin := span.Meta[ddOriginTagName]; origin == "" {
+		traceutil.SetMeta(span, ddOriginTagName, s.ddOrigin)
 	}
 }
 
