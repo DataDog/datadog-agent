@@ -64,6 +64,12 @@ type extraFactoriesWithAgentCore struct {
 
 var _ ExtraFactories = (*extraFactoriesWithAgentCore)(nil)
 
+const (
+	// zapCoreStackDepth skips the slog handler and wrapper frames in the logging
+	// pipeline to show the actual caller location in log output.
+	zapCoreStackDepth = 7
+)
+
 // NewExtraFactoriesWithAgentCore creates a new ExtraFactories instance when the Agent Core is available.
 func NewExtraFactoriesWithAgentCore(
 	tagger tagger.Component,
@@ -83,8 +89,7 @@ func NewExtraFactoriesWithAgentCore(
 }
 
 func (e extraFactoriesWithAgentCore) GetZapCore() zapcore.Core {
-	// depth of 7 to account for additional frames from slog/otel
-	return zapAgent.NewZapCoreWithDepth(7)
+	return zapAgent.NewZapCoreWithDepth(zapCoreStackDepth)
 }
 
 func (e extraFactoriesWithAgentCore) GetExtensions() []extension.Factory {
@@ -128,8 +133,7 @@ func (e extraFactoriesWithoutAgentCore) GetZapCore() zapcore.Core {
 	// manually init agent's log module since it's not done for us in Standalone mode
 	logAgent.SetupLogger(slogWrapper.NewWrapper(handler), logLevel)
 
-	// depth of 7 to account for additional frames from slog/otel
-	return zapAgent.NewZapCoreWithDepth(7)
+	return zapAgent.NewZapCoreWithDepth(zapCoreStackDepth)
 }
 
 // GetExtensions returns the extensions for the collector.
