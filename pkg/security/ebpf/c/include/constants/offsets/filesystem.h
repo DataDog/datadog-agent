@@ -439,22 +439,7 @@ static int __attribute__((always_inline)) get_overlayfs_layer(struct dentry *den
 }
 
 static void __attribute__((always_inline)) set_overlayfs_inode(struct dentry *dentry, struct file_t *file) {
-    u64 orig_inode = file->path_key.ino;
-    u64 lower_inode = get_ovl_lower_ino(dentry);
     u64 upper_inode = get_ovl_upper_ino(dentry);
-
-    // NOTE(safchain) both lower & upper inode seems to be incorrect sometimes on kernel >= 6.8.
-    // Need to investigate the root cause.
-    if (get_ovl_path_in_inode() == 2 && lower_inode != orig_inode && upper_inode != orig_inode) {
-        return;
-    }
-
-    if (lower_inode) {
-        file->path_key.ino = lower_inode;
-    } else if (upper_inode) {
-        file->path_key.ino = upper_inode;
-    }
-
     file->flags |= upper_inode != 0 ? UPPER_LAYER : LOWER_LAYER;
 }
 
