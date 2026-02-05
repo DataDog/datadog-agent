@@ -289,8 +289,8 @@ func (s *testRepairSuite) TestRepair() {
 	// initialize test helper
 	t := s.newTester(vm)
 
-	// install the agent
-	_ = s.installAgentPackage(vm, s.AgentPackage)
+	// install the agent - skip procdump since this test deletes agent files
+	_ = s.installAgentPackageWithOptions(vm, s.AgentPackage, []PackageInstallOption{WithSkipProcdump()})
 	RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm), s.AgentPackage.AgentVersion())
 
 	err := windowsCommon.StopService(t.host, "DatadogAgent")
