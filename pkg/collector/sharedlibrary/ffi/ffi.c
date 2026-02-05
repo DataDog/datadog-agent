@@ -113,7 +113,7 @@ library_t load_shared_library(const char *lib_path, const char **error) {
     // get pointer of 'Run' symbol
     lib.run = (run_function_t *)get_symbol(lib.handle, "Run", &lib_error);
     if (lib_error) {
-		*error = lib_error;
+		*error = strdup("can't find 'Run' symbol");
         close_lib(lib.handle, &lib_error);
         return lib;
     }

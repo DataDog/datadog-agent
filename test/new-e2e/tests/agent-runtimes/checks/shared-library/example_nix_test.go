@@ -36,5 +36,10 @@ func TestLinuxSharedLibraryCheckSuite(t *testing.T) {
 
 func (v *linuxSharedLibrarySuite) TestCheckExample() {
 	v.updateEnvWithCheckConfigAndSharedLibrary("example", checkMinimalConfig, linuxDefaultPermissions)
-	v.testExampleRunAndMetrics()
+	v.testCheckExampleExecutionAndMetrics()
+}
+
+func (v *linuxSharedLibrarySuite) TestCheckWithoutRunSymbol() {
+	v.updateEnvWithCheckConfigAndSharedLibrary("no-run-symbol", checkMinimalConfig, linuxDefaultPermissions)
+	v.testCheckWithoutRunSymbolExecutionError()
 }

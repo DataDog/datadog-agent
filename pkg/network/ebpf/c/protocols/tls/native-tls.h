@@ -86,6 +86,15 @@ int BPF_BYPASSABLE_UPROBE(uprobe__SSL_set_bio, void *ssl_ctx, void *bio) {
     return 0;
 }
 
+// BIO_free cleanup hook: ensures fd_by_ssl_bio entries are deleted even when
+// SSL_set_bio is never called (e.g., error paths where BIO is freed directly).
+// This prevents map entry leaks that could exhaust the map's 1024 entry limit.
+SEC("uprobe/BIO_free")
+int BPF_BYPASSABLE_UPROBE(uprobe__BIO_free, void *bio) {
+    bpf_map_delete_elem(&fd_by_ssl_bio, &bio);
+    return 0;
+}
+
 SEC("uprobe/SSL_read")
 int BPF_BYPASSABLE_UPROBE(uprobe__SSL_read) {
     ssl_read_args_t args = { 0 };

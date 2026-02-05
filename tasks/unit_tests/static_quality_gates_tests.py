@@ -25,6 +25,7 @@ from invoke.exceptions import Exit
 
 from tasks.libs.package.size import InfraError
 from tasks.quality_gates import (
+    SIZE_INCREASE_THRESHOLD_BYTES,
     GateMetricsData,
     _extract_gate_name_from_scope,
     _get_latest_value_from_pointlist,
@@ -35,6 +36,7 @@ from tasks.quality_gates import (
     get_change_metrics,
     get_pr_number_from_commit,
     identify_failing_gates,
+    identify_gates_with_size_increase,
     parse_and_trigger_gates,
 )
 from tasks.static_quality_gates.gates import (
@@ -1897,6 +1899,145 @@ class TestIdentifyFailingGates(unittest.TestCase):
         self.assertNotIn("static_quality_gate_docker_agent_amd64", failing)
 
 
+class TestIdentifyGatesWithSizeIncrease(unittest.TestCase):
+    """Test the identify_gates_with_size_increase function."""
+
+    def test_identifies_gate_with_size_increase(self):
+        """Should identify gate with positive relative_on_disk_size above threshold."""
+        pr_metrics = {
+            "static_quality_gate_agent_deb_amd64": GateMetricsData(
+                current_on_disk_size=200 * 1024 * 1024,
+                max_on_disk_size=250 * 1024 * 1024,
+                current_on_wire_size=50 * 1024 * 1024,
+                max_on_wire_size=100 * 1024 * 1024,
+                relative_on_disk_size=5 * 1024 * 1024,  # +5 MiB (above threshold)
+                relative_on_wire_size=1 * 1024 * 1024,
+            )
+        }
+        gates_to_bump = identify_gates_with_size_increase(pr_metrics)
+        self.assertEqual(len(gates_to_bump), 1)
+        self.assertIn("static_quality_gate_agent_deb_amd64", gates_to_bump)
+
+    def test_excludes_gate_with_no_size_increase(self):
+        """Should exclude gate with zero or negative relative_on_disk_size."""
+        pr_metrics = {
+            "static_quality_gate_agent_deb_amd64": GateMetricsData(
+                current_on_disk_size=200 * 1024 * 1024,
+                max_on_disk_size=250 * 1024 * 1024,
+                current_on_wire_size=50 * 1024 * 1024,
+                max_on_wire_size=100 * 1024 * 1024,
+                relative_on_disk_size=0,  # No change
+                relative_on_wire_size=0,
+            )
+        }
+        gates_to_bump = identify_gates_with_size_increase(pr_metrics)
+        self.assertEqual(len(gates_to_bump), 0)
+
+    def test_excludes_gate_with_size_decrease(self):
+        """Should exclude gate with negative relative_on_disk_size (size decreased)."""
+        pr_metrics = {
+            "static_quality_gate_agent_deb_amd64": GateMetricsData(
+                current_on_disk_size=200 * 1024 * 1024,
+                max_on_disk_size=250 * 1024 * 1024,
+                current_on_wire_size=50 * 1024 * 1024,
+                max_on_wire_size=100 * 1024 * 1024,
+                relative_on_disk_size=-5 * 1024 * 1024,  # -5 MiB (decreased)
+                relative_on_wire_size=-1 * 1024 * 1024,
+            )
+        }
+        gates_to_bump = identify_gates_with_size_increase(pr_metrics)
+        self.assertEqual(len(gates_to_bump), 0)
+
+    def test_excludes_gate_with_size_below_threshold(self):
+        """Should exclude gate with size increase below 2 KiB threshold."""
+        pr_metrics = {
+            "static_quality_gate_agent_deb_amd64": GateMetricsData(
+                current_on_disk_size=200 * 1024 * 1024,
+                max_on_disk_size=250 * 1024 * 1024,
+                current_on_wire_size=50 * 1024 * 1024,
+                max_on_wire_size=100 * 1024 * 1024,
+                relative_on_disk_size=1024,  # +1 KiB (below 2 KiB threshold)
+                relative_on_wire_size=512,
+            )
+        }
+        gates_to_bump = identify_gates_with_size_increase(pr_metrics)
+        self.assertEqual(len(gates_to_bump), 0)
+
+    def test_includes_gate_with_size_at_threshold(self):
+        """Should include gate with size increase exactly at threshold."""
+        pr_metrics = {
+            "static_quality_gate_agent_deb_amd64": GateMetricsData(
+                current_on_disk_size=200 * 1024 * 1024,
+                max_on_disk_size=250 * 1024 * 1024,
+                current_on_wire_size=50 * 1024 * 1024,
+                max_on_wire_size=100 * 1024 * 1024,
+                relative_on_disk_size=SIZE_INCREASE_THRESHOLD_BYTES + 1,  # Just above threshold
+                relative_on_wire_size=0,
+            )
+        }
+        gates_to_bump = identify_gates_with_size_increase(pr_metrics)
+        self.assertEqual(len(gates_to_bump), 1)
+
+    def test_handles_missing_relative_size(self):
+        """Should exclude gate when relative_on_disk_size is None."""
+        pr_metrics = {
+            "static_quality_gate_agent_deb_amd64": GateMetricsData(
+                current_on_disk_size=200 * 1024 * 1024,
+                max_on_disk_size=250 * 1024 * 1024,
+                current_on_wire_size=50 * 1024 * 1024,
+                max_on_wire_size=100 * 1024 * 1024,
+                relative_on_disk_size=None,  # Missing
+                relative_on_wire_size=None,
+            )
+        }
+        gates_to_bump = identify_gates_with_size_increase(pr_metrics)
+        self.assertEqual(len(gates_to_bump), 0)
+
+    def test_multiple_gates_mixed(self):
+        """Should correctly identify gates with size increase among multiple."""
+        pr_metrics = {
+            "static_quality_gate_agent_deb_amd64": GateMetricsData(
+                current_on_disk_size=200 * 1024 * 1024,
+                max_on_disk_size=250 * 1024 * 1024,
+                relative_on_disk_size=10 * 1024 * 1024,  # +10 MiB (include)
+            ),
+            "static_quality_gate_docker_agent_amd64": GateMetricsData(
+                current_on_disk_size=100 * 1024 * 1024,
+                max_on_disk_size=150 * 1024 * 1024,
+                relative_on_disk_size=0,  # No change (exclude)
+            ),
+            "static_quality_gate_agent_rpm_amd64": GateMetricsData(
+                current_on_disk_size=160 * 1024 * 1024,
+                max_on_disk_size=150 * 1024 * 1024,  # Failing but no increase
+                relative_on_disk_size=-5 * 1024 * 1024,  # Size decreased (exclude)
+            ),
+            "static_quality_gate_agent_suse_amd64": GateMetricsData(
+                current_on_disk_size=180 * 1024 * 1024,
+                max_on_disk_size=200 * 1024 * 1024,
+                relative_on_disk_size=3 * 1024 * 1024,  # +3 MiB (include)
+            ),
+        }
+        gates_to_bump = identify_gates_with_size_increase(pr_metrics)
+        self.assertEqual(len(gates_to_bump), 2)
+        self.assertIn("static_quality_gate_agent_deb_amd64", gates_to_bump)
+        self.assertIn("static_quality_gate_agent_suse_amd64", gates_to_bump)
+        self.assertNotIn("static_quality_gate_docker_agent_amd64", gates_to_bump)
+        self.assertNotIn("static_quality_gate_agent_rpm_amd64", gates_to_bump)
+
+    def test_includes_non_failing_gate_with_increase(self):
+        """Should include gate with size increase even if not failing (current < max)."""
+        pr_metrics = {
+            "static_quality_gate_agent_deb_amd64": GateMetricsData(
+                current_on_disk_size=100 * 1024 * 1024,  # 100 MiB (not failing)
+                max_on_disk_size=150 * 1024 * 1024,  # 150 MiB limit
+                relative_on_disk_size=5 * 1024 * 1024,  # +5 MiB increase
+            )
+        }
+        gates_to_bump = identify_gates_with_size_increase(pr_metrics)
+        self.assertEqual(len(gates_to_bump), 1)
+        self.assertIn("static_quality_gate_agent_deb_amd64", gates_to_bump)
+
+
 class TestFetchPrMetrics(unittest.TestCase):
     """Test the fetch_pr_metrics function."""
 
@@ -1982,6 +2123,54 @@ class TestFetchPrMetrics(unittest.TestCase):
         self.assertEqual(len(result), 2)
         self.assertIn("static_quality_gate_agent_deb_amd64", result)
         self.assertIn("static_quality_gate_docker_agent_amd64", result)
+
+    @patch("tasks.quality_gates.query_metrics")
+    def test_fetches_relative_size_metrics(self, mock_query):
+        """Should fetch and parse relative_on_disk_size and relative_on_wire_size."""
+        # API call includes all 6 metrics including relative sizes
+        mock_query.return_value = [
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_disk_size{...}",
+                "pointlist": make_pointlist([[1704240000, 100 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_wire_size{...}",
+                "pointlist": make_pointlist([[1704240000, 50 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.max_allowed_on_disk_size{...}",
+                "pointlist": make_pointlist([[1704240000, 150 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.max_allowed_on_wire_size{...}",
+                "pointlist": make_pointlist([[1704240000, 75 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.relative_on_disk_size{...}",
+                "pointlist": make_pointlist([[1704240000, 5 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.relative_on_wire_size{...}",
+                "pointlist": make_pointlist([[1704240000, 2 * 1024 * 1024]]),
+            },
+        ]
+
+        result = fetch_pr_metrics(12345)
+
+        self.assertEqual(len(result), 1)
+        gate = result["static_quality_gate_agent_deb_amd64"]
+        self.assertEqual(gate.current_on_disk_size, 100 * 1024 * 1024)
+        self.assertEqual(gate.current_on_wire_size, 50 * 1024 * 1024)
+        self.assertEqual(gate.max_on_disk_size, 150 * 1024 * 1024)
+        self.assertEqual(gate.max_on_wire_size, 75 * 1024 * 1024)
+        self.assertEqual(gate.relative_on_disk_size, 5 * 1024 * 1024)
+        self.assertEqual(gate.relative_on_wire_size, 2 * 1024 * 1024)
 
 
 class TestFetchMainHeadroom(unittest.TestCase):
@@ -2073,6 +2262,8 @@ class TestGateMetricsData(unittest.TestCase):
         self.assertIsNone(metrics.current_on_wire_size)
         self.assertIsNone(metrics.max_on_disk_size)
         self.assertIsNone(metrics.max_on_wire_size)
+        self.assertIsNone(metrics.relative_on_disk_size)
+        self.assertIsNone(metrics.relative_on_wire_size)
 
     def test_with_values(self):
         """Should store provided values."""
@@ -2081,11 +2272,15 @@ class TestGateMetricsData(unittest.TestCase):
             current_on_wire_size=50,
             max_on_disk_size=150,
             max_on_wire_size=75,
+            relative_on_disk_size=10,
+            relative_on_wire_size=5,
         )
         self.assertEqual(metrics.current_on_disk_size, 100)
         self.assertEqual(metrics.current_on_wire_size, 50)
         self.assertEqual(metrics.max_on_disk_size, 150)
         self.assertEqual(metrics.max_on_wire_size, 75)
+        self.assertEqual(metrics.relative_on_disk_size, 10)
+        self.assertEqual(metrics.relative_on_wire_size, 5)
 
 
 class TestGenerateMetricReports(unittest.TestCase):

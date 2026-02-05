@@ -6,7 +6,7 @@ _SPECS = [
     struct(os = "windows", prefix = "bin/", format = "{}.dll"),
 ]
 
-def _gen_targets(base_name, src, libname, version, prefix, spec):
+def _gen_targets(base_name, src, libname, version, prefix, spec, attributes):
     name = "{}_{}".format(base_name, spec.os)
     platform = "@platforms//os:{}".format(spec.os)
     dest_prefix = (prefix + "/" + spec.prefix) if prefix else spec.prefix
@@ -18,6 +18,7 @@ def _gen_targets(base_name, src, libname, version, prefix, spec):
             srcs = [src],
             prefix = dest_prefix,
             target_compatible_with = [platform],
+            attributes = attributes,
         )
         return platform, ":{}".format(name)
 
@@ -30,6 +31,7 @@ def _gen_targets(base_name, src, libname, version, prefix, spec):
         prefix = dest_prefix,
         renames = {src: target},
         target_compatible_with = [platform],
+        attributes = attributes,
     )
 
     major = version.partition(".")[0]
@@ -43,13 +45,14 @@ def _gen_targets(base_name, src, libname, version, prefix, spec):
             link_name = "{}{}".format(dest_prefix, link),
             target = target,
             target_compatible_with = [platform],
+            attributes = attributes,
         )
         target = link
 
     pkg_filegroup(name = name, srcs = targets, target_compatible_with = [platform])
     return platform, ":{}".format(name)
 
-def so_symlink(name, src, libname = None, version = None, prefix = ""):
+def so_symlink(name, src, libname = None, version = None, prefix = "", attributes = None):
     """Creates shared library symlink chain following Unix conventions.
 
     Unix (Linux/macOS): Generates the common multilevel symlink hierarchy for shared libraries:
@@ -67,8 +70,9 @@ def so_symlink(name, src, libname = None, version = None, prefix = ""):
         libname: Library name without extension (e.g., "libreadline")
         prefix: Installation directory prefix (default: "")
         version: Full version string (e.g., "3.0", ignored on Windows)
+        attributes: pkg_attributes
     """
     native.alias(
         name = name,
-        actual = select(dict([_gen_targets(name, src, libname, version, prefix, spec) for spec in _SPECS])),
+        actual = select(dict([_gen_targets(name, src, libname, version, prefix, spec, attributes) for spec in _SPECS])),
     )

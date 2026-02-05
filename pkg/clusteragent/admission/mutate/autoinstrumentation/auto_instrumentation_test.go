@@ -2729,7 +2729,7 @@ func TestAutoinstrumentation(t *testing.T) {
 			require.True(t, mutated, "the pod was mutated but the webhook returned false")
 
 			// Require injection to have occurred.
-			validator := testutils.NewPodValidator(in)
+			validator := testutils.NewPodValidator(in, testutils.InjectionModeAuto)
 			validator.RequireInjection(t, test.expected.containerNames)
 
 			// Require the libraries and versions to match.
@@ -2868,7 +2868,7 @@ func TestEnvVarsAlreadySet(t *testing.T) {
 			require.True(t, mutated, "the pod was mutated but the webhook returned false")
 
 			// Setup validator.
-			validator := testutils.NewPodValidator(in)
+			validator := testutils.NewPodValidator(in, testutils.InjectionModeAuto)
 
 			// Require environment to match.
 			validator.RequireEnvs(t, test.expected, test.expectedContainers)
@@ -3060,7 +3060,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			require.True(t, mutated, "the pod was mutated but the webhook returned false")
 
 			// Setup validator.
-			validator := testutils.NewPodValidator(in)
+			validator := testutils.NewPodValidator(in, testutils.InjectionModeAuto)
 
 			// Ensure the pod was properly skipped due to resources.
 			if test.skipped {

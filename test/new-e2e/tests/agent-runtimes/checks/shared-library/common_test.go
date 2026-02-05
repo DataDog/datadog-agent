@@ -104,7 +104,7 @@ func (v *sharedLibrarySuite) updateEnvWithCheckConfigAndSharedLibrary(name strin
 }
 
 // Test the shared library code and check it returns the right metrics
-func (v *sharedLibrarySuite) testExampleRunAndMetrics() {
+func (v *sharedLibrarySuite) testCheckExampleExecutionAndMetrics() {
 	// execute the check and retrieve the metrics
 	check := v.Env().Agent.Client.Check(agentclient.WithArgs([]string{"example", "--json"}))
 	data := checkutils.ParseJSONOutput(v.T(), []byte(check))
@@ -134,4 +134,12 @@ func (v *sharedLibrarySuite) testExampleRunAndMetrics() {
 	assert.Equal(v.T(), "hello.text", event.Text)
 	assert.Equal(v.T(), "normal", event.Priority)
 	assert.Equal(v.T(), "info", event.AlertType)
+}
+
+// Test the shared library code and check it returns the right metrics
+func (v *sharedLibrarySuite) testCheckWithoutRunSymbolExecutionError() {
+	_, err := v.Env().Agent.Client.CheckWithError(agentclient.WithArgs([]string{"no-run-symbol", "--json"}))
+
+	// expect to have an error about the `Run` symbol
+	assert.ErrorContains(v.T(), err, "can't find 'Run' symbol")
 }

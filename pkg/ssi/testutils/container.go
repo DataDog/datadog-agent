@@ -13,6 +13,12 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+// ContainerInjectionValidator validates container-level injection.
+type ContainerInjectionValidator interface {
+	RequireContainerInjection(t *testing.T, container *ContainerValidator)
+	RequireNoContainerInjection(t *testing.T, container *ContainerValidator)
+}
+
 // ContainerValidator provides a test friendly structure to run assertions on container states for SSI.
 type ContainerValidator struct {
 	raw          *corev1.Container
@@ -20,51 +26,40 @@ type ContainerValidator struct {
 	envs         map[string]string
 	commandline  string
 	volumeMounts map[string]corev1.VolumeMount
+	injection    ContainerInjectionValidator
 }
 
 // NewContainerValidator initializes a container validator and converts the Kubernetes spec into a test friendly struct.
-func NewContainerValidator(container *corev1.Container) *ContainerValidator {
+func NewContainerValidator(container *corev1.Container, injection ContainerInjectionValidator) *ContainerValidator {
 	return &ContainerValidator{
 		raw:          container,
 		envs:         newEnvMap(container.Env),
 		image:        NewImageValidator(container.Image),
 		commandline:  parseCommandline(container),
 		volumeMounts: newVolumeMountMap(container.VolumeMounts),
+		injection:    injection,
 	}
 }
 
 // RequireInjection ensures a container was injected for SSI. It's a high level function that should be modified if
 // the implementation or meaning of injection changes over time.
 func (v *ContainerValidator) RequireInjection(t *testing.T) {
+	// Validate common env vars
 	expectedEnvs := map[string]string{
 		"LD_PRELOAD":            "/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so",
 		"DD_INJECT_SENDER_TYPE": "k8s",
 	}
 	v.RequireEnvs(t, expectedEnvs)
 
-	expectedVolumeMounts := []corev1.VolumeMount{
-		{
-			Name:      "datadog-auto-instrumentation",
-			MountPath: "/opt/datadog-packages/datadog-apm-inject",
-			SubPath:   "opt/datadog-packages/datadog-apm-inject",
-		},
-		{
-			Name:      "datadog-auto-instrumentation-etc",
-			MountPath: "/etc/ld.so.preload",
-			SubPath:   "ld.so.preload",
-			ReadOnly:  true,
-		},
-		{
-			Name:      "datadog-auto-instrumentation",
-			MountPath: "/opt/datadog/apm/library",
-			SubPath:   "opt/datadog/apm/library",
-		},
+	// Validate mode-specific volume mounts
+	if v.injection != nil {
+		v.injection.RequireContainerInjection(t, v)
 	}
-	v.RequireVolumeMounts(t, expectedVolumeMounts)
 }
 
 // RequireNoInjection ensures a container was not injected for SSI.
 func (v *ContainerValidator) RequireNoInjection(t *testing.T) {
+	// Validate common env vars are not set
 	unsetEnvs := []string{
 		"LD_PRELOAD",
 		"DD_INJECT_SENDER_TYPE",
@@ -72,25 +67,10 @@ func (v *ContainerValidator) RequireNoInjection(t *testing.T) {
 	}
 	v.RequireMissingEnvs(t, unsetEnvs)
 
-	missing := []corev1.VolumeMount{
-		{
-			Name:      "datadog-auto-instrumentation",
-			MountPath: "/opt/datadog-packages/datadog-apm-inject",
-			SubPath:   "opt/datadog-packages/datadog-apm-inject",
-		},
-		{
-			Name:      "datadog-auto-instrumentation-etc",
-			MountPath: "/etc/ld.so.preload",
-			SubPath:   "ld.so.preload",
-			ReadOnly:  true,
-		},
-		{
-			Name:      "datadog-auto-instrumentation",
-			MountPath: "/opt/datadog/apm/library",
-			SubPath:   "opt/datadog/apm/library",
-		},
+	// Validate mode-specific volume mounts are not present
+	if v.injection != nil {
+		v.injection.RequireNoContainerInjection(t, v)
 	}
-	v.RequireMissingVolumeMounts(t, missing)
 }
 
 // RequireVolumeMounts ensures the list of provided volume mounts exist in the container.
