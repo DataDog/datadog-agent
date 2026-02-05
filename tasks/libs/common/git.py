@@ -231,26 +231,7 @@ def get_main_parent_commit(ctx) -> str:
     return get_common_ancestor(ctx, "HEAD", f'origin/{get_default_branch()}')
 
 
-def get_ancestor_base_branch(branch_name: str | None = None) -> str:
-    """
-    Get the base branch to use for ancestor calculation.
-
-    This function tries to determine the correct base branch by:
-    1. Using COMPARE_TO_BRANCH environment variable if set (preferred in CI)
-    2. Falling back to GitHub API to look up the PR's target branch
-    3. Falling back to get_default_branch() if neither works
-
-    This is particularly important for PRs targeting release branches
-    (e.g., 7.54.x) where we need to find the ancestor from the release
-    branch, not main.
-
-    Args:
-        branch_name: The branch name to look up via GitHub API. If None, uses
-                     CI_COMMIT_REF_NAME or falls back to the current branch.
-
-    Returns:
-        The base branch name to use for ancestor calculation.
-    """
+def get_current_pr(branch_name: str | None):
     # First, check if COMPARE_TO_BRANCH is set (used in GitLab CI)
     compare_to_branch = os.environ.get("COMPARE_TO_BRANCH")
     if compare_to_branch:
@@ -274,12 +255,37 @@ def get_ancestor_base_branch(branch_name: str | None = None) -> str:
         if len(prs) > 1:
             print(f"Warning: Multiple PRs found for branch {branch_name}, using first PR's base")
 
-        base_branch = prs[0].base.ref
-        print(f"Found PR #{prs[0].number} for branch {branch_name}, target branch: {base_branch}")
-        return base_branch
+        print(f"Found PR #{prs[0].number} for branch {branch_name}, target branch: {prs[0].base.ref}")
+        return prs[0]
     except Exception as e:
         print(f"Warning: Failed to get PR base branch for {branch_name}: {e}")
+        return None
+
+
+def get_ancestor_base_branch(branch_name: str | None = None) -> str:
+    """
+    Get the base branch to use for ancestor calculation.
+
+    This function tries to determine the correct base branch by:
+    1. Using COMPARE_TO_BRANCH environment variable if set (preferred in CI)
+    2. Falling back to GitHub API to look up the PR's target branch
+    3. Falling back to get_default_branch() if neither works
+
+    This is particularly important for PRs targeting release branches
+    (e.g., 7.54.x) where we need to find the ancestor from the release
+    branch, not main.
+
+    Args:
+        branch_name: The branch name to look up via GitHub API. If None, uses
+                     CI_COMMIT_REF_NAME or falls back to the current branch.
+
+    Returns:
+        The base branch name to use for ancestor calculation.
+    """
+    pr = get_current_pr(branch_name)
+    if not pr:
         return get_default_branch()
+    return pr.base.ref
 
 
 def check_base_branch(branch, release_version):
