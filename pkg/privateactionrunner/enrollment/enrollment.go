@@ -37,7 +37,7 @@ type PersistedIdentity struct {
 }
 
 // SelfEnroll performs self-registration of a private action runner using API credentials
-func SelfEnroll(ddSite, runnerName, apiKey, appKey string) (*Result, error) {
+func SelfEnroll(ctx context.Context, ddSite, runnerName, apiKey, appKey string) (*Result, error) {
 	privateJwk, publicJwk, err := util.GenerateKeys()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate key pair: %w", err)
@@ -46,7 +46,6 @@ func SelfEnroll(ddSite, runnerName, apiKey, appKey string) (*Result, error) {
 	ddBaseURL := "https://api." + ddSite
 	publicClient := opms.NewPublicClient(ddBaseURL)
 
-	ctx := context.Background()
 	runnerModes := []modes.Mode{modes.ModePull}
 
 	createRunnerResponse, err := publicClient.EnrollWithApiKey(
