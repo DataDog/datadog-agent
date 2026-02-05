@@ -6,27 +6,15 @@
 package testsuite
 
 import (
-	"fmt"
-	"math/rand"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 
 	"github.com/stretchr/testify/assert"
 )
-
-func randomString(n int) string {
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	var sb strings.Builder
-	sb.Grow(n)
-	for i := 0; i < n; i++ {
-		sb.WriteByte(charset[rand.Intn(len(charset))])
-	}
-	return sb.String()
-}
 
 // TestPayloadChunking creates a payload that is N * writer.MaxPayloadSize and
 // expects the trace-agent to writer N+1 payloads and not miss any trace.
@@ -45,42 +33,38 @@ func TestPayloadChunking(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer r.KillAgent()
-	expectedPayloadCount := 4
-	// make a payload that will need to be chunked into separate payloads
+
+	trace, err := jsonTraceFromPath("./testdata/trace_with_rates.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	payloadCount := 3
+	traceSize := (&pb.TraceChunk{Spans: trace}).Msgsize()
+	// make a payload that will cover payloadCount
 	var traces pb.Traces
-	for range 50 {
-		trace, err := jsonTraceFromPath("./testdata/trace_with_rates.json")
-		if err != nil {
-			t.Fatal(err)
-		}
-		for span := range trace {
-			// We must add some uniqueness over each chunk so we actually take up space when converted to v1
-			trace[span].Meta["someRandomness"] = randomString(25_000) // 25kb is the max size of a string attribute value
-		}
+	for size := 0; size < writer.MaxPayloadSize*payloadCount; size += traceSize {
 		traces = append(traces, trace)
 	}
-	fmt.Printf("Sending %d traces of size %d\n", len(traces), traces.Msgsize())
+
 	if err := r.Post(traces); err != nil {
 		t.Fatal(err)
 	}
 	timeout := time.After(3 * time.Second)
 	var got int
-	for i := 0; i < expectedPayloadCount; i++ {
+	for i := 0; i < payloadCount+1; i++ {
 		select {
 		case p := <-r.Out():
 			if v, ok := p.(*pb.AgentPayload); ok {
-				fmt.Printf("Got a payload with %d chunks of size %d\n", len(v.IdxTracerPayloads[0].Chunks), v.IdxTracerPayloads[0].SizeVT())
 				// ok
-				for _, tracerPayload := range v.IdxTracerPayloads {
+				for _, tracerPayload := range v.TracerPayloads {
 					got += len(tracerPayload.Chunks)
 				}
 				continue
 			}
 			t.Fatalf("invalid payload type: %T", p)
 		case <-timeout:
-			fmt.Printf("Agent log: %s", r.AgentLog())
-			t.Fatalf("timed out waiting for payloads, only got %d of %d", got, len(traces))
+			t.Fatal("timed out waiting for payloads")
 		}
 	}
-	assert.Equal(t, len(traces), got)
+	assert.Equal(t, got, len(traces))
 }

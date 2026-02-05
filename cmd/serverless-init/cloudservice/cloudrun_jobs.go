@@ -16,7 +16,7 @@ import (
 	serverlessInitTrace "github.com/DataDog/datadog-agent/cmd/serverless-init/trace"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	idx "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -48,8 +48,7 @@ const (
 // CloudRunJobs has helper functions for getting Google Cloud Run data
 type CloudRunJobs struct {
 	startTime  time.Time
-	jobChunk   *idx.InternalTraceChunk
-	jobSpan    *idx.InternalSpan
+	jobSpan    *pb.Span
 	traceAgent TraceAgent
 	spanTags   map[string]string // tags used for span creation (unified service tags + configured tags + cloud provider metadata)
 }
@@ -154,7 +153,7 @@ func isCloudRunJob() bool {
 	return exists
 }
 
-// initJobSpan creates and initializes the job span chunk with Cloud Run Job metadata
+// initJobSpan creates and initializes the job span with Cloud Run Job metadata
 func (c *CloudRunJobs) initJobSpan() {
 	tags := c.spanTags
 	jobNameVal := tags[jobNameTag]
@@ -175,30 +174,23 @@ func (c *CloudRunJobs) initJobSpan() {
 		resourceName = "gcp.run.job"
 	}
 
-	// Use helper function to create the chunk with a single span
-	c.jobChunk = idx.NewInternalTraceChunkWithSpan(
+	c.jobSpan = serverlessInitTrace.InitSpan(
 		serviceName,
 		"gcp.run.job.task",
 		resourceName,
 		"", // TODO add custom 'job' span type (requires UI changes)
-		0,  // parentID - top-level span
 		c.startTime.UnixNano(),
 		tags,
-		1,                  // priority
-		CloudRunJobsOrigin, // origin
 	)
-
-	// Store reference to the span for later use
-	c.jobSpan = c.jobChunk.Spans[0]
 }
 
 // setSpanModifier sets up the span modifier to reparent user spans under the job span
 func (c *CloudRunJobs) setSpanModifier() {
-	if c.traceAgent == nil || c.jobChunk == nil || c.jobSpan == nil {
+	if c.traceAgent == nil || c.jobSpan == nil {
 		return
 	}
 
-	modifier := serverlessInitTrace.NewCloudRunJobsSpanModifier(c.jobChunk)
+	modifier := serverlessInitTrace.NewCloudRunJobsSpanModifier(c.jobSpan)
 	if ta, ok := c.traceAgent.(serverlessInitTrace.SpanModifierSetter); ok {
 		ta.SetSpanModifier(modifier)
 	}
@@ -206,21 +198,18 @@ func (c *CloudRunJobs) setSpanModifier() {
 
 // completeAndSubmitJobSpan finalizes the span with duration and error status, then submits it
 func (c *CloudRunJobs) completeAndSubmitJobSpan(runErr error) {
-	if c.jobChunk == nil || c.jobSpan == nil {
+	if c.jobSpan == nil {
 		return
 	}
 
-	// Set duration
-	duration := time.Since(c.startTime).Nanoseconds()
-	c.jobSpan.SetDuration(uint64(duration))
+	c.jobSpan.Duration = time.Since(c.startTime).Nanoseconds()
 
-	// Set error status if needed
 	if runErr != nil {
-		c.jobSpan.SetError(true)
-		c.jobSpan.SetStringAttribute("error.msg", runErr.Error())
+		c.jobSpan.Error = 1
+		c.jobSpan.Meta["error.msg"] = runErr.Error()
 		exitCode := exitcode.From(runErr)
-		c.jobSpan.SetStringAttribute("exit_code", strconv.Itoa(exitCode))
+		c.jobSpan.Meta["exit_code"] = strconv.Itoa(exitCode)
 	}
 
-	serverlessInitTrace.SubmitSpan(c.jobChunk, CloudRunJobsOrigin, c.traceAgent)
+	serverlessInitTrace.SubmitSpan(c.jobSpan, CloudRunJobsOrigin, c.traceAgent)
 }

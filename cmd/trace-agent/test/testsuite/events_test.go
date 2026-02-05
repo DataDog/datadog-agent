@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 )
 
@@ -104,11 +103,10 @@ func TestAPMEvents(t *testing.T) {
 
 func countEvents(p *pb.AgentPayload) int {
 	n := 0
-	for _, tp := range p.IdxTracerPayloads {
-		internalPayload := idx.FromProto(tp)
-		for _, chunk := range internalPayload.Chunks {
+	for _, tp := range p.TracerPayloads {
+		for _, chunk := range tp.Chunks {
 			for _, span := range chunk.Spans {
-				if sampler.IsAnalyzedSpanV1(span) {
+				if sampler.IsAnalyzedSpan(span) {
 					n++
 				}
 			}
