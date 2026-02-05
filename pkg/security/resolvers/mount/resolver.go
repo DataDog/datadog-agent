@@ -64,6 +64,26 @@ type Resolver struct {
 	cacheMissStats atomic.Int64
 	procHitsStats  atomic.Int64
 	procMissStats  atomic.Int64
+
+	// debug tracing (set by caller, safe because lock is held)
+	activeTrace     *[]model.ProcessingCheckpoint
+	activeStartTime time.Time
+}
+
+// traceCheckpoint appends a checkpoint to the active trace if set
+func (mr *Resolver) traceCheckpoint(name string) {
+	if mr.activeTrace != nil && !mr.activeStartTime.IsZero() {
+		*mr.activeTrace = append(*mr.activeTrace, model.ProcessingCheckpoint{
+			Name:      name,
+			ElapsedUs: time.Since(mr.activeStartTime).Microseconds(),
+		})
+	}
+}
+
+// SetActiveTrace sets the trace target for subsequent calls
+func (mr *Resolver) SetActiveTrace(trace *[]model.ProcessingCheckpoint, startTime time.Time) {
+	mr.activeTrace = trace
+	mr.activeStartTime = startTime
 }
 
 // IsMountIDValid returns whether the mountID is valid
@@ -179,8 +199,10 @@ func (mr *Resolver) syncPidListmount(pid uint32) error {
 
 // syncPidNamespace snapshots the namespace of the pid
 func (mr *Resolver) syncPidNamespace(pid uint32) error {
+	mr.traceCheckpoint(fmt.Sprintf("mount_sync_pid_ns_%d", pid))
 	var err error
 	if mr.opts.SnapshotUsingListMount {
+		mr.traceCheckpoint("mount_sync_listmount")
 		err = mr.syncPidListmount(pid)
 		// TODO: Decide if it makes sense to fully regress to procfs when it fails only once
 		if err != nil {
@@ -189,7 +211,9 @@ func (mr *Resolver) syncPidNamespace(pid uint32) error {
 	}
 
 	if !mr.opts.SnapshotUsingListMount {
+		mr.traceCheckpoint("mount_sync_procfs")
 		err = mr.syncPidProcfs(pid)
+		mr.traceCheckpoint("mount_sync_procfs_done")
 	}
 
 	return err
@@ -547,22 +571,28 @@ func (mr *Resolver) resolveMount(mountID uint32, pid uint32) (*model.Mount, mode
 		return nil, model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
+	mr.traceCheckpoint("mount_lookup_cache")
 	mount, source, origin := mr.lookupMount(mountID)
 	if mount != nil {
 		mr.cacheHitsStats.Inc()
+		mr.traceCheckpoint("mount_cache_hit")
 		return mount, source, origin, nil
 	}
 	mr.cacheMissStats.Inc()
 
+	mr.traceCheckpoint("mount_cache_miss_sync")
 	if err := mr.syncPidNamespace(pid); err != nil {
 		return nil, model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
+	mr.traceCheckpoint("mount_cache_miss_sync_done")
 
 	if mount, ok := mr.mounts.Get(mountID); mount != nil && ok {
 		mr.procHitsStats.Inc()
+		mr.traceCheckpoint("mount_proc_hit")
 		return mount, model.MountSourceMountID, mount.Origin, nil
 	}
 	mr.procMissStats.Inc()
+	mr.traceCheckpoint("mount_proc_miss")
 
 	return nil, model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: mountID}
 }

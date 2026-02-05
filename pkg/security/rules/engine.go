@@ -677,18 +677,22 @@ func (e *RuleEngine) HandleEvent(event *model.Event) {
 	}
 
 	if ruleSet := e.GetRuleSet(); ruleSet != nil {
+		event.RecordCheckpoint("rule_evaluate_start")
 		matched := ruleSet.Evaluate(event)
+		event.RecordCheckpoint("rule_evaluate_done")
 		if !matched {
 			evtType := int(event.GetEventType())
 			if evtType >= 0 && evtType < len(e.noMatchCounters) {
 				e.noMatchCounters[evtType].Inc()
 			}
+			event.RecordCheckpoint("rule_evaluate_discarders_start")
 			ruleSet.EvaluateDiscarders(event)
+			event.RecordCheckpoint("rule_evaluate_discarders_done")
 		}
 	}
 
 	// Debug-only: report events that took too long to process, even if no rule matched.
-	if event.Flags&model.EventFlagsSlowProcessingReported == 0 && time.Since(event.StartTime) > 5*time.Second {
+	if event.Flags&model.EventFlagsSlowProcessingReported == 0 && time.Since(event.StartTime) > 3*time.Second {
 		event.AddToFlags(model.EventFlagsSlowProcessingReported)
 
 		originalRuleID := fmt.Sprintf("event_%s", event.GetEventType())
