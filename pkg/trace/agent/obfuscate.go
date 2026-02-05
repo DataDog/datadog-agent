@@ -11,7 +11,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 )
@@ -32,7 +31,68 @@ const (
 	textNonParsable = transform.TextNonParsable
 )
 
-func obfuscateSQLSpan(o *obfuscate.Obfuscator, span *idx.InternalSpan) (*obfuscate.ObfuscatedQuery, error) {
+// obfuscateSpan is an interface that exposes all the methods needed to obfuscate a span.
+type obfuscateSpan interface {
+	GetAttributeAsString(key string) (string, bool)
+	SetStringAttribute(key string, value string)
+	Type() string
+	Resource() string
+	SetResource(resource string)
+	Service() string
+	// MapFilteredAttributes maps over all attributes where shouldMap returns true and applies the given function to each attribute
+	MapFilteredAttributes(shouldMap func(k string) bool, mapper func(k, v string) string)
+}
+
+type obfuscateSpanV0 struct {
+	span *pb.Span
+}
+
+func (o *obfuscateSpanV0) GetAttributeAsString(key string) (string, bool) {
+	v, ok := o.span.Meta[key]
+	return v, ok
+}
+
+func (o *obfuscateSpanV0) SetStringAttribute(key string, value string) {
+	if o.span.Meta == nil {
+		o.span.Meta = make(map[string]string)
+	}
+	o.span.Meta[key] = value
+}
+
+func (o *obfuscateSpanV0) Type() string {
+	return o.span.Type
+}
+
+func (o *obfuscateSpanV0) Resource() string {
+	return o.span.Resource
+}
+
+func (o *obfuscateSpanV0) SetResource(resource string) {
+	o.span.Resource = resource
+}
+
+func (o *obfuscateSpanV0) Service() string {
+	return o.span.Service
+}
+
+func (o *obfuscateSpanV0) MapFilteredAttributes(shouldMap func(k string) bool, mapper func(k, v string) string) {
+	for k, v := range o.span.Meta {
+		if !shouldMap(k) {
+			continue
+		}
+		newV := mapper(k, v)
+		if newV != v {
+			o.span.Meta[k] = newV
+		}
+	}
+}
+
+// ObfuscateSQLSpan obfuscates a SQL span
+func ObfuscateSQLSpan(o *obfuscate.Obfuscator, span *pb.Span) (*obfuscate.ObfuscatedQuery, error) {
+	return obfuscateSQLSpan(o, &obfuscateSpanV0{span: span})
+}
+
+func obfuscateSQLSpan(o *obfuscate.Obfuscator, span obfuscateSpan) (*obfuscate.ObfuscatedQuery, error) {
 	if span.Resource() == "" {
 		return nil, nil
 	}
@@ -52,7 +112,12 @@ func obfuscateSQLSpan(o *obfuscate.Obfuscator, span *idx.InternalSpan) (*obfusca
 	return oq, nil
 }
 
-func obfuscateRedisSpan(o *obfuscate.Obfuscator, span *idx.InternalSpan, removeAllArgs bool) {
+// ObfuscateRedisSpan obfuscates a Redis span
+func ObfuscateRedisSpan(o *obfuscate.Obfuscator, span *pb.Span, removeAllArgs bool) {
+	obfuscateRedisSpan(o, &obfuscateSpanV0{span: span}, removeAllArgs)
+}
+
+func obfuscateRedisSpan(o *obfuscate.Obfuscator, span obfuscateSpan, removeAllArgs bool) {
 	v, ok := span.GetAttributeAsString(tagRedisRawCommand)
 	if !ok || v == "" {
 		return
@@ -64,7 +129,12 @@ func obfuscateRedisSpan(o *obfuscate.Obfuscator, span *idx.InternalSpan, removeA
 	span.SetStringAttribute(tagRedisRawCommand, o.ObfuscateRedisString(v))
 }
 
-func obfuscateValkeySpan(o *obfuscate.Obfuscator, span *idx.InternalSpan, removeAllArgs bool) {
+// ObfuscateValkeySpan obfuscates a Valkey span
+func ObfuscateValkeySpan(o *obfuscate.Obfuscator, span *pb.Span, removeAllArgs bool) {
+	obfuscateValkeySpan(o, &obfuscateSpanV0{span: span}, removeAllArgs)
+}
+
+func obfuscateValkeySpan(o *obfuscate.Obfuscator, span obfuscateSpan, removeAllArgs bool) {
 	v, ok := span.GetAttributeAsString(tagValkeyRawCommand)
 	if !ok || v == "" {
 		return
@@ -76,7 +146,7 @@ func obfuscateValkeySpan(o *obfuscate.Obfuscator, span *idx.InternalSpan, remove
 	span.SetStringAttribute(tagValkeyRawCommand, o.ObfuscateRedisString(v))
 }
 
-func (a *Agent) obfuscateSpanInternal(span *idx.InternalSpan) {
+func (a *Agent) obfuscateSpanInternal(span obfuscateSpan) {
 	o := a.lazyInitObfuscator()
 	if a.conf.Obfuscation != nil && a.conf.Obfuscation.CreditCards.Enabled {
 		span.MapFilteredAttributes(o.ShouldObfuscateCCKey, func(k, v string) string {
@@ -156,6 +226,14 @@ func (a *Agent) obfuscateSpanInternal(span *idx.InternalSpan) {
 	}
 }
 
+func (a *Agent) obfuscateSpan(span *pb.Span) {
+	a.lazyInitObfuscator()
+	for _, spanEvent := range span.SpanEvents {
+		a.obfuscateSpanEvent(spanEvent)
+	}
+	a.obfuscateSpanInternal(&obfuscateSpanV0{span: span})
+}
+
 // obfuscateSpanEvent uses the pre-configured agent obfuscator to do limited obfuscation of span events
 // For now, we only obfuscate any credit-card like when enabled.
 func (a *Agent) obfuscateSpanEvent(spanEvent *pb.SpanEvent) {
@@ -175,7 +253,7 @@ func (a *Agent) obfuscateSpanEvent(spanEvent *pb.SpanEvent) {
 			case pb.AttributeAnyValue_BOOL_VALUE:
 				continue // Booleans can't be credit cards
 			case pb.AttributeAnyValue_ARRAY_VALUE:
-				a.ccObfuscateAttributeArray(v, strValue)
+				a.ccObfuscateAttributeArray(v)
 			}
 			newVal := a.obfuscator.ObfuscateCreditCardNumber(strValue)
 			if newVal != strValue {
@@ -185,7 +263,7 @@ func (a *Agent) obfuscateSpanEvent(spanEvent *pb.SpanEvent) {
 	}
 }
 
-func (a *Agent) ccObfuscateAttributeArray(v *pb.AttributeAnyValue, strValue string) {
+func (a *Agent) ccObfuscateAttributeArray(v *pb.AttributeAnyValue) {
 	var arrStrValue string
 	for _, vElement := range v.ArrayValue.Values {
 		switch vElement.Type {
@@ -199,7 +277,7 @@ func (a *Agent) ccObfuscateAttributeArray(v *pb.AttributeAnyValue, strValue stri
 			continue // Booleans can't be credit cards
 		}
 		newVal := a.obfuscator.ObfuscateCreditCardNumber(arrStrValue)
-		if newVal != strValue {
+		if newVal != arrStrValue {
 			*vElement = pb.AttributeArrayValue{Type: pb.AttributeArrayValue_STRING_VALUE, StringValue: newVal}
 		}
 	}

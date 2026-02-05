@@ -548,7 +548,7 @@ func (r *HTTPReceiver) decodeTracerPayload(v Version, req *http.Request, cIDProv
 		}
 		var tracerPayload pb.TracerPayload
 		_, err = tracerPayload.UnmarshalMsg(buf.Bytes())
-		return &tracerPayload, nil
+		return &tracerPayload, err
 	default:
 		var traces pb.Traces
 		if err = r.decodeRequest(req, &traces); err != nil {

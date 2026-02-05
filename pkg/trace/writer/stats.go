@@ -241,8 +241,6 @@ func (w *DatadogStatsWriter) addStats(sp *pb.StatsPayload) {
 	w.payloads = append(w.payloads, payloads...)
 }
 
-const headerLanguages = "X-Datadog-Reported-Languages"
-
 // SendPayload sends a stats payload to the Datadog backend.
 func (w *DatadogStatsWriter) SendPayload(p *pb.StatsPayload) {
 	req := newPayload(map[string]string{
