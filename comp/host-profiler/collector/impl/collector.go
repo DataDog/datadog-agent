@@ -10,7 +10,6 @@ package collectorimpl
 
 import (
 	"context"
-	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -27,7 +26,6 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.uber.org/zap"
-	"go.uber.org/zap/exp/zapslog"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -97,6 +95,7 @@ func (c *collectorImpl) Run() error {
 
 func newCollectorSettings(uri string, extraFactories ExtraFactories) (otelcol.CollectorSettings, error) {
 	zapCore := extraFactories.GetZapCore()
+	extraFactories.SetupSlogDefault(zapCore)
 
 	// Replace default core to use Agent logger
 	options := []zap.Option{
@@ -104,8 +103,6 @@ func newCollectorSettings(uri string, extraFactories ExtraFactories) (otelcol.Co
 			return zapCore
 		}),
 	}
-
-	slog.SetDefault(slog.New(zapslog.NewHandler(zapCore)))
 
 	return otelcol.CollectorSettings{
 		BuildInfo: component.BuildInfo{

@@ -31,6 +31,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor"
+	"go.uber.org/zap/exp/zapslog"
 	"go.uber.org/zap/zapcore"
 
 	"go.opentelemetry.io/collector/confmap"
@@ -50,6 +51,7 @@ type ExtraFactories interface {
 	GetConverters() []confmap.ConverterFactory
 	GetExtensions() []extension.Factory
 	GetZapCore() zapcore.Core
+	SetupSlogDefault(core zapcore.Core)
 }
 
 // extraFactoriesWithAgentCore is a struct that implements the ExtraFactories interface when the Agent Core is available.
@@ -88,6 +90,10 @@ func NewExtraFactoriesWithAgentCore(
 	}
 }
 
+func (e extraFactoriesWithAgentCore) SetupSlogDefault(_ zapcore.Core) {
+	// In Bundled mode, the Agent logger takes care of setting up global logging
+}
+
 func (e extraFactoriesWithAgentCore) GetZapCore() zapcore.Core {
 	return zapAgent.NewZapCoreWithDepth(zapCoreStackDepth)
 }
@@ -116,6 +122,10 @@ func (e extraFactoriesWithAgentCore) GetConverters() []confmap.ConverterFactory 
 type extraFactoriesWithoutAgentCore struct{}
 
 var _ ExtraFactories = (*extraFactoriesWithoutAgentCore)(nil)
+
+func (e extraFactoriesWithoutAgentCore) SetupSlogDefault(core zapcore.Core) {
+	slog.SetDefault(slog.New(zapslog.NewHandler(core)))
+}
 
 // NewExtraFactoriesWithoutAgentCore creates a new ExtraFactories instance when the Agent Core is not available.
 func NewExtraFactoriesWithoutAgentCore() ExtraFactories {
