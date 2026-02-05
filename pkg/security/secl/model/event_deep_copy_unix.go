@@ -69,6 +69,7 @@ func (e *Event) DeepCopy() *Event {
 	copied.Signature = e.Signature
 	copied.SpanContext = deepCopySpanContext(e.SpanContext)
 	copied.Splice = deepCopySpliceEvent(e.Splice)
+	copied.StartTime = e.StartTime
 	copied.SysCtl = deepCopySysCtlEvent(e.SysCtl)
 	copied.Syscalls = deepCopySyscallsEvent(e.Syscalls)
 	copied.TracerMemfdSeal = deepCopyTracerMemfdSealEvent(e.TracerMemfdSeal)
