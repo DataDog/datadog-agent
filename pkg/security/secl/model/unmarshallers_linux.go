@@ -708,19 +708,6 @@ func (e *UtimesEvent) UnmarshalBinary(data []byte) (int, error) {
 	return n + 32, nil
 }
 
-// UnmarshalBinary calls a series of BinaryUnmarshaler
-func UnmarshalBinary(data []byte, binaryUnmarshalers ...BinaryUnmarshaler) (int, error) {
-	read := 0
-	for _, marshaler := range binaryUnmarshalers {
-		n, err := marshaler.UnmarshalBinary(data[read:])
-		read += n
-		if err != nil {
-			return read, err
-		}
-	}
-	return read, nil
-}
-
 // UnmarshalBinary2 calls UnmarshalBinary on two BinaryUnmarshalers in sequence
 // This generic version helps escape analysis by avoiding interface boxing
 func UnmarshalBinary2[T1, T2 BinaryUnmarshaler](data []byte, t1 T1, t2 T2) (int, error) {
