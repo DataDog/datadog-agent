@@ -5,7 +5,9 @@
   stage: deps_build
 
 bazel:build-deps:linux-amd64:
-  extends: [ .bazel:build-deps, .bazel:runner:linux-amd64 ]
+  extends: [ .bazel:build-deps, .bazel:defs:cache:ephemeral ]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: [ "arch:amd64", "specific:true" ]
   script:
     - bazel build //deps/... --platforms=//bazel/platforms:linux_x86_64
 

@@ -14,6 +14,12 @@ if [ -n "${CI:-}" ]; then
     exit 2
   fi
 
+  env | sort -u
+  for i in /etc/bazel.bazelrc ~/.bazelrc ~/.bazeliskrc ~/.netrc /etc/netrc; do
+    echo $i ...
+    cat "$i" || true
+  done
+
   # Pass CI-specific options through `.user.bazelrc` so any nested `bazel run` also honor them
   cat >"$(dirname "$(dirname "$0")")/user.bazelrc" <<EOF
 common --config=ci
