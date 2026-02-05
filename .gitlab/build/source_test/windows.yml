@@ -83,7 +83,6 @@ tests_windows-x64:
       -e CI
       -e CI_PIPELINE_ID
       -e CI_PROJECT_NAME
-      -e CI_JOB_ID
       -e SIGN_WINDOWS_DD_WCS=true
       -e GOMODCACHE="c:\modcache"
       -e PIP_INDEX_URL
@@ -109,7 +108,6 @@ tests_windows-x64:
       -e CI
       -e CI_PIPELINE_ID
       -e CI_PROJECT_NAME
-      -e CI_JOB_ID
       -e SIGN_WINDOWS_DD_WCS=true
       -e GOMODCACHE="c:\modcache"
       -e PIP_INDEX_URL

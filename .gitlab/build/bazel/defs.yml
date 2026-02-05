@@ -91,7 +91,6 @@
     - >-
       .\tools\ci\docker-run-with-bazel-cache.ps1
       --env=CI_IDENTITIES_GITLAB_ID_TOKEN
-      --env=CI_JOB_ID
       --volume="${CI_PROJECT_DIR}:$CI_PROJECT_DIR"
       --workdir="$CI_PROJECT_DIR"
       "$WINBUILDIMAGE"

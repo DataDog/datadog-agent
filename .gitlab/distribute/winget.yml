@@ -23,7 +23,6 @@ publish_winget_7_x64:
       -e CI
       -e WINGET_GITHUB_ACCESS_TOKEN=${wingetPat}
       -e GENERAL_ARTIFACTS_CACHE_BUCKET_URL
-      -e CI_JOB_ID
       ${WINBUILDIMAGE}
       Powershell
       -C "C:\mnt\tasks\winbuildscripts\Update-Winget.ps1"
