@@ -721,6 +721,63 @@ func UnmarshalBinary(data []byte, binaryUnmarshalers ...BinaryUnmarshaler) (int,
 	return read, nil
 }
 
+// UnmarshalBinary2 calls UnmarshalBinary on two BinaryUnmarshalers in sequence
+// This generic version helps escape analysis by avoiding interface boxing
+func UnmarshalBinary2[T1, T2 BinaryUnmarshaler](data []byte, t1 T1, t2 T2) (int, error) {
+	read, err := t1.UnmarshalBinary(data)
+	if err != nil {
+		return read, err
+	}
+
+	n, err := t2.UnmarshalBinary(data[read:])
+	read += n
+	return read, err
+}
+
+// UnmarshalBinary3 calls UnmarshalBinary on three BinaryUnmarshalers in sequence
+// This generic version helps escape analysis by avoiding interface boxing
+func UnmarshalBinary3[T1, T2, T3 BinaryUnmarshaler](data []byte, t1 T1, t2 T2, t3 T3) (int, error) {
+	read, err := t1.UnmarshalBinary(data)
+	if err != nil {
+		return read, err
+	}
+
+	n, err := t2.UnmarshalBinary(data[read:])
+	read += n
+	if err != nil {
+		return read, err
+	}
+
+	n, err = t3.UnmarshalBinary(data[read:])
+	read += n
+	return read, err
+}
+
+// UnmarshalBinary4 calls UnmarshalBinary on four BinaryUnmarshalers in sequence
+// This generic version helps escape analysis by avoiding interface boxing
+func UnmarshalBinary4[T1, T2, T3, T4 BinaryUnmarshaler](data []byte, t1 T1, t2 T2, t3 T3, t4 T4) (int, error) {
+	read, err := t1.UnmarshalBinary(data)
+	if err != nil {
+		return read, err
+	}
+
+	n, err := t2.UnmarshalBinary(data[read:])
+	read += n
+	if err != nil {
+		return read, err
+	}
+
+	n, err = t3.UnmarshalBinary(data[read:])
+	read += n
+	if err != nil {
+		return read, err
+	}
+
+	n, err = t4.UnmarshalBinary(data[read:])
+	read += n
+	return read, err
+}
+
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *MountReleasedEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 16 {
