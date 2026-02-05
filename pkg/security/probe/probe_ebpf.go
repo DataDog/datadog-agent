@@ -977,7 +977,7 @@ func (p *EBPFProbe) EventMarshallerCtor(event *model.Event) func() events.EventM
 }
 
 func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event, cgroupContext *model.CGroupContext) (int, error) {
-	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, cgroupContext)
+	read, err := model.UnmarshalBinary3(data, &event.PIDContext, &event.SpanContext, cgroupContext)
 	if err != nil {
 		return 0, err
 	}
