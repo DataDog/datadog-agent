@@ -989,9 +989,9 @@ workflow:
         - pkg/clusteragent/admission/controllers/webhook/**/*
         - comp/core/workloadmeta/collectors/internal/kubeapiserver/**/*
         - comp/languagedetection/**/*
+        - pkg/ssi/**/*
         - test/new-e2e/tests/ssi/**/*
       compare_to: $COMPARE_TO_BRANCH
-    when: on_success
 
 .on_windows_service_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
