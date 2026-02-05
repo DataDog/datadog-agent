@@ -396,3 +396,9 @@ if linux_target? or windows_target?
   strip_build windows_target? || do_build
   debug_path ".debug"  # the strip symbols will be in here
 end
+
+if linux_target?
+  # Strip runs before packaging, so restore final perms after strip.
+  chmod_before_packaging "#{install_dir}/embedded/bin/dd-compile-policy", 0555
+  chmod_before_packaging "#{install_dir}/embedded/bin/secret-generic-connector", 0500
+end
