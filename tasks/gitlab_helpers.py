@@ -326,3 +326,148 @@ def compute_gitlab_ci_config(
     print('Writing', diff_file)
     with open(diff_file, 'w') as f:
         f.write(yaml.safe_dump(diff.to_dict()))
+
+
+@task
+def generate_dag(
+    ctx,
+    input_file: str = '.gitlab-ci.yml',
+    output_file: str | None = None,
+    expand_matrix: bool = True,
+    offline: bool = False,
+):
+    """Generate the GitLab CI execution DAG (Directed Acyclic Graph).
+
+    Creates a graph showing job dependencies based on:
+    - Stage ordering: jobs depend on all jobs from the previous stage
+    - needs clause: if defined, overrides stage-based dependencies
+
+    Args:
+        input_file: Path to the GitLab CI configuration file
+        output_file: Output JSON file (prints to stdout if not specified)
+        expand_matrix: Expand matrix jobs into individual jobs (default: True)
+        offline: If True, only resolve includes (faster but may miss extends/references).
+                 If False (default), fully resolve via GitLab API for accurate results.
+
+    Example:
+        $ dda inv gitlab.generate-dag
+        $ dda inv gitlab.generate-dag -o dag.json
+        $ dda inv gitlab.generate-dag --no-expand-matrix
+        $ dda inv gitlab.generate-dag --offline  # Faster but less accurate
+    """
+    from tasks.libs.pipeline.gitlab_dag import generate_execution_graph
+
+    graph = generate_execution_graph(
+        ctx,
+        input_file=input_file,
+        resolve_only_includes=offline,
+        expand_matrix=expand_matrix,
+        output_file=output_file,
+    )
+
+    if not output_file:
+        print(graph.to_json())
+    else:
+        print(f"Generated {output_file} with {len(graph.nodes)} nodes and {len(graph.edges)} edges")
+
+
+@task
+def critical_path(
+    ctx,
+    pipeline_ids: str,
+    output_file: str | None = None,
+    json_output: bool = False,
+):
+    """Analyze the critical path of one or more pipeline executions.
+
+    Computes the sequence of jobs that determined the pipeline duration,
+    including job durations, wait times, and efficiency metrics.
+
+    Args:
+        pipeline_ids: Comma-separated list of pipeline IDs (e.g., "94783455" or "94783455,94783456")
+        output_file: Output file for JSON results (optional)
+        json_output: If True, output JSON instead of human-readable summary
+
+    Example:
+        $ dda inv gitlab.critical-path 94783455
+        $ dda inv gitlab.critical-path 94783455,94783456,94783457
+        $ dda inv gitlab.critical-path 94783455 --json-output
+        $ dda inv gitlab.critical-path 94783455,94783456 -o results.json
+    """
+    from tasks.libs.pipeline.critical_path_analysis import (
+        aggregate_critical_path_stats,
+        analyze_multiple_pipelines,
+        analyze_pipeline_critical_path,
+    )
+
+    ids = [int(p.strip()) for p in pipeline_ids.split(',') if p.strip()]
+
+    if not ids:
+        print("Error: No pipeline IDs provided")
+        return
+
+    if len(ids) == 1:
+        # Single pipeline analysis
+        result = analyze_pipeline_critical_path(ctx, ids[0])
+
+        if json_output or output_file:
+            import json
+
+            output = json.dumps(result.to_dict(), indent=2)
+            if output_file:
+                with open(output_file, 'w') as f:
+                    f.write(output)
+                print(f"Results written to {output_file}")
+            else:
+                print(output)
+        else:
+            print(result.summary())
+    else:
+        # Multiple pipeline analysis
+        results = analyze_multiple_pipelines(ctx, ids)
+
+        if not results:
+            print("No pipelines were successfully analyzed")
+            return
+
+        if json_output or output_file:
+            import json
+
+            output = {
+                "pipelines": [r.to_dict() for r in results],
+                "aggregate": aggregate_critical_path_stats(results),
+            }
+            output_str = json.dumps(output, indent=2)
+
+            if output_file:
+                with open(output_file, 'w') as f:
+                    f.write(output_str)
+                print(f"Results written to {output_file}")
+            else:
+                print(output_str)
+        else:
+            # Print summary for each pipeline
+            for result in results:
+                print(result.summary())
+                print("\n")
+
+            # Print aggregate stats
+            stats = aggregate_critical_path_stats(results)
+            print("=" * 100)
+            print("AGGREGATE STATISTICS")
+            print("=" * 100)
+            print(f"Pipelines analyzed: {stats['pipeline_count']}")
+            print()
+            print("Pipeline Duration:")
+            print(f"  Average: {stats['duration']['avg']:.0f}s ({stats['duration']['avg']/60:.1f} min)")
+            print(f"  Min:     {stats['duration']['min']:.0f}s ({stats['duration']['min']/60:.1f} min)")
+            print(f"  Max:     {stats['duration']['max']:.0f}s ({stats['duration']['max']/60:.1f} min)")
+            print()
+            print("Critical Path Efficiency:")
+            print(f"  Average: {stats['efficiency']['avg']*100:.1f}%")
+            print(f"  Min:     {stats['efficiency']['min']*100:.1f}%")
+            print(f"  Max:     {stats['efficiency']['max']*100:.1f}%")
+            print()
+            print("Top jobs on critical path:")
+            for job, count in stats['top_critical_path_jobs']:
+                print(f"  {job}: {count}/{stats['pipeline_count']} pipelines")

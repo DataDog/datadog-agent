@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import sys
@@ -281,3 +282,175 @@ def post_message(_: Context, channel: str, message: str):
 
     client = WebClient(token=os.environ['SLACK_DATADOG_AGENT_BOT_TOKEN'])
     client.chat_postMessage(channel=channel, text=message)
+
+
+@task
+def critical_path_stats(ctx, hours=24):
+    """
+    Analyze critical paths for dev branch pipelines and log the top 5 patterns.
+
+    This task:
+    1. Queries Datadog CI Visibility for completed dev branch pipelines
+    2. Computes the critical path for each pipeline
+    3. Logs the top 5 most frequent patterns in a structured format for Datadog
+
+    Run daily via scheduled pipeline to track CI performance over time.
+
+    Args:
+        hours: Number of hours to look back (default: 24)
+    """
+    import json as json_module
+    from collections import Counter
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    from tasks.libs.ciproviders.gitlab_api import resolve_gitlab_ci_configuration
+    from tasks.libs.pipeline.critical_path_analysis import analyze_pipeline_critical_path
+
+    if not os.environ.get("DD_API_KEY"):
+        print("DD_API_KEY environment variable not set, cannot query CI Visibility")
+        raise Exit(code=1)
+
+    # Fetch pipeline IDs from CI Visibility
+    print(f"Fetching dev branch pipelines from the last {hours} hours...")
+    pipeline_ids = _fetch_dev_branch_pipeline_ids(hours=hours)
+    print(f"Found {len(pipeline_ids)} pipelines to analyze")
+
+    if not pipeline_ids:
+        print("No pipelines found, skipping analysis")
+        return
+
+    # Resolve GitLab CI config once for all pipelines
+    print("Resolving GitLab CI configuration...")
+    cached_config = resolve_gitlab_ci_configuration(ctx, '.gitlab-ci.yml', resolve_only_includes=False)
+
+    # Analyze pipelines in parallel
+    results = []
+    failed = 0
+
+    def analyze_one(pid):
+        return analyze_pipeline_critical_path(ctx, pid, cached_config=cached_config)
+
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {executor.submit(analyze_one, pid): pid for pid in pipeline_ids}
+        for future in as_completed(futures):
+            pid = futures[future]
+            try:
+                result = future.result()
+                results.append(result)
+            except Exception as e:
+                failed += 1
+                print(f"Failed to analyze pipeline {pid}: {e}", file=sys.stderr)
+
+    print(f"Successfully analyzed {len(results)} pipelines ({failed} failed)")
+
+    if not results:
+        print("No pipelines successfully analyzed")
+        return
+
+    # Count critical path patterns (normalized job names without matrix suffixes)
+    pattern_counter = Counter()
+    for r in results:
+        pattern = " -> ".join(j.name.split(':')[0].strip() for j in r.critical_path)
+        pattern_counter[pattern] += 1
+
+    total_pipelines = len(results)
+
+    print(f"\n{'='*80}")
+    print("TOP 5 CRITICAL PATH PATTERNS")
+    print(f"{'='*80}")
+
+    for rank, (pattern, count) in enumerate(pattern_counter.most_common(5), 1):
+        frequency_pct = 100 * count / total_pipelines
+        # Stable, non-cryptographic identifier for querying patterns in logs.
+        # Avoid `hash()` (salted per-process) and MD5 (flagged by static analysis).
+        pattern_hash = int.from_bytes(hashlib.sha256(pattern.encode("utf-8")).digest()[:8], "big") % 100000
+
+        # Print human-readable format
+        print(f"\n#{rank} ({frequency_pct:.1f}% - {count}/{total_pipelines} pipelines)")
+        print(f"   {pattern}")
+
+        # Print structured JSON log for Datadog querying
+        # Query with: CRITICAL_PATH_LOG @critical_path.rank:*
+        log_entry = {
+            "critical_path": {
+                "rank": rank,
+                "frequency_pct": round(frequency_pct, 1),
+                "count": count,
+                "total_pipelines": total_pipelines,
+                "pattern": pattern,
+                "pattern_id": pattern_hash,
+            }
+        }
+        print(f"CRITICAL_PATH_LOG: {json_module.dumps(log_entry)}")
+
+    print(f"\n{'='*80}")
+    print(f"Total pipelines analyzed: {total_pipelines}")
+    print(f"Unique patterns: {len(pattern_counter)}")
+
+
+def _fetch_dev_branch_pipeline_ids(hours: int = 24) -> list[int]:
+    """
+    Fetch pipeline IDs from Datadog CI Visibility for dev branch pipelines.
+
+    Filters:
+    - DataDog/datadog-agent repo
+    - Not main, release (7.x, 6.x), or merge queue branches
+    - Completed pipelines (not canceled, skipped, or running)
+    - Push or API triggered (not manual retries)
+    """
+    from datetime import datetime, timedelta, timezone
+
+    from datadog_api_client import ApiClient, Configuration
+    from datadog_api_client.v2.api.ci_visibility_pipelines_api import CIVisibilityPipelinesApi
+
+    query = (
+        '@ci.pipeline.name:DataDog/datadog-agent '
+        '@git.branch:* '
+        '-@git.branch:(main OR 7.*.x OR 6.*.x OR mq-*) '
+        '-@ci.status:(canceled OR skipped OR running) '
+        '@gitlab.pipeline_source:(push OR api) '
+        '-ci_partial_retry:true'
+    )
+
+    pipeline_ids = set()
+    page_cursor = None
+    now = datetime.now(timezone.utc)
+    from_time = now - timedelta(hours=hours)
+
+    with ApiClient(Configuration(enable_retry=True)) as api_client:
+        api = CIVisibilityPipelinesApi(api_client)
+
+        while True:
+            kwargs = {
+                "filter_query": query,
+                "filter_from": from_time,
+                "filter_to": now,
+                "page_limit": 1000,
+            }
+            if page_cursor:
+                kwargs["page_cursor"] = page_cursor
+
+            response = api.list_ci_app_pipeline_events(**kwargs)
+
+            if hasattr(response, 'data') and response.data:
+                for event in response.data:
+                    if hasattr(event, 'attributes') and hasattr(event.attributes, 'attributes'):
+                        attrs = event.attributes.attributes
+                        # CI Visibility returns nested dicts: attrs['ci']['pipeline']['id']
+                        ci_data = attrs.get('ci')
+                        if isinstance(ci_data, dict):
+                            pipeline_data = ci_data.get('pipeline')
+                            if isinstance(pipeline_data, dict):
+                                pipeline_id = pipeline_data.get('id')
+                                if pipeline_id is not None:
+                                    pipeline_ids.add(int(pipeline_id))
+
+            # Check for more pages
+            if hasattr(response, 'meta') and hasattr(response.meta, 'page') and hasattr(response.meta.page, 'after'):
+                page_cursor = response.meta.page.after
+                if not page_cursor:
+                    break
+            else:
+                break
+
+    return list(pipeline_ids)

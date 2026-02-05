@@ -50,6 +50,24 @@ send_pipeline_stats:
     - !reference [.notify_setup]
     - dda inv -- -e notify.send-stats
 
+# Analyze critical paths for dev branch pipelines and send metrics to Datadog
+# Runs daily on scheduled main pipeline
+critical_path_stats:
+  extends: .notify-job
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  #rules:
+  #  - !reference [.on_scheduled_main]
+  when: always
+  dependencies: []
+  needs: []
+  timeout: 60 minutes
+  script:
+    - !reference [.notify_setup]
+    - DD_APP_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_APP_KEY_ORG2 token) || exit $?; export DD_APP_KEY
+    - export DD_SITE=datadoghq.com
+    - dda inv -- -e notify.critical-path-stats
+
 notify_gitlab_ci_changes:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   extends: .notify-job
