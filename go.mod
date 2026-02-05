@@ -970,6 +970,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.65.0-devel.0.20250304124125-23a109221842
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor v0.59.0
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.76.0-devel
+	github.com/DataDog/datadog-agent/comp/trace/observerbuffer/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/processor v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/process/util/api v0.76.0-devel
@@ -1322,6 +1323,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/trace/compression/def => ./comp/trace/compression/def
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip => ./comp/trace/compression/impl-gzip
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd => ./comp/trace/compression/impl-zstd
+	github.com/DataDog/datadog-agent/comp/trace/observerbuffer/def => ./comp/trace/observerbuffer/def
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ./pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/api => ./pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ./pkg/collector/check/defaults
