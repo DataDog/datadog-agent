@@ -53,27 +53,25 @@ PUBLIC_HEADERS = [
 ]
 
 LOCAL_DEFINES = [
-    "-DHAVE_CONFIG_H",
-]
+    "HAVE_CONFIG_H",
+    "CURL_DISABLE_DIGEST_AUTH",
+    "BSAES_ASM",
+    "ECP_NISTZ256_ASM",
+    "ECP_SM2P256_ASM",
+    "KECCAK1600_ASM",
+    "L_ENDIAN",
+    "OPENSSL_CPUID_OBJ",
+    "OPENSSL_PIC",
+    "SHA1_ASM",
+    "SHA256_ASM",
+    "SHA512_ASM",
+    "SM4_ASM",
+    "VPAES_ASM",
+    "VPSM4_ASM",
 
-# TODO: Bring this into LOCAL_DEFINES
-XLOCAL_DEFINES = [
-    "-DOPENSSLDIR='\"/opt/datadog/embedded/ssl/cacerts\"'",
-    "-DENGINESDIR='\"_/opt/datadog/embedded/lib/engines-3\"'",
-    "-DMODULESDIR='\"/opt/datadog/embedded/lib/ossl-modules\"'",
-    "-DBSAES_ASM",
-    "-DECP_NISTZ256_ASM",
-    "-DECP_SM2P256_ASM",
-    "-DKECCAK1600_ASM",
-    "-DOPENSSL_CPUID_OBJ",
-    "-DSHA1_ASM",
-    "-DSHA256_ASM",
-    "-DSHA512_ASM",
-    "-DSM4_ASM",
-    "-DVPAES_ASM",
-    "-DVPSM4_ASM",
-    "-DL_ENDIAN",
-    "-DOPENSSL_PIC",
+    #"OPENSSLDIR='\"/opt/datadog/embedded/ssl/cacerts\"'",
+    #"ENGINESDIR='\"_/opt/datadog/embedded/lib/engines-3\"'",
+    #"MODULESDIR='\"/opt/datadog/embedded/lib/ossl-modules\"'",
 ]
 
 ARCH_HDRS_COND = {
@@ -87,13 +85,13 @@ cc_binary(
         "@platforms//os:linux": LIB_CURLTOOL_SRCS_LINUX_ARM64,
         "@platforms//os:macos": LIB_CURLTOOL_SRCS_DARWIN_ARM64,
     }),
-    defines = ["HAVE_CONFIG_H"],
+    defines = LOCAL_DEFINES,
     includes = [
         ".",
         "include",
         "lib",
     ],
-    copts = LOCAL_DEFINES + [
+    copts = [
         "-I.",
     ],
     dynamic_deps = [
@@ -132,9 +130,9 @@ cc_library(
     includes = [
         "include",
     ],
-    local_defines = [
+    local_defines = LOCAL_DEFINES + [
         "BUILDING_LIBCURL",
-        "HAVE_CONFIG_H",
+        # XXXX "HAVE_CONFIG_H",
         "NDEBUG",
         "CURL_STATICLIB",
     ] + select({
