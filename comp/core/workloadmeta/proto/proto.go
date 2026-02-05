@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var emptyTimestampUnix = new(time.Time).Unix()
@@ -56,6 +57,18 @@ func ProtobufEventFromWorkloadmetaEvent(event workloadmeta.Event) (*pb.Workloadm
 		return &pb.WorkloadmetaEvent{
 			Type:      protoEventType,
 			Container: protoContainer,
+		}, nil
+	case workloadmeta.KindContainerImageMetadata:
+		containerImageMetadata := entity.(*workloadmeta.ContainerImageMetadata)
+
+		protoContainerImageMetadata, err := protoContainerImageMetadataFromWorkloadmetaContainerImageMetadata(containerImageMetadata)
+		if err != nil {
+			return nil, err
+		}
+
+		return &pb.WorkloadmetaEvent{
+			Type:                   protoEventType,
+			ContainerImageMetadata: protoContainerImageMetadata,
 		}, nil
 	case workloadmeta.KindKubernetesPod:
 		kubernetesPod := entity.(*workloadmeta.KubernetesPod)
@@ -243,6 +256,8 @@ func toProtoKind(kind workloadmeta.Kind) (pb.WorkloadmetaKind, error) {
 	switch kind {
 	case workloadmeta.KindContainer:
 		return pb.WorkloadmetaKind_CONTAINER, nil
+	case workloadmeta.KindContainerImageMetadata:
+		return pb.WorkloadmetaKind_CONTAINER_IMAGE_METADATA, nil
 	case workloadmeta.KindKubernetesPod:
 		return pb.WorkloadmetaKind_KUBERNETES_POD, nil
 	case workloadmeta.KindECSTask:
@@ -393,6 +408,54 @@ func toProtoContainerHealth(health workloadmeta.ContainerHealth) (pb.ContainerHe
 	}
 
 	return pb.ContainerHealth_CONTAINER_HEALTH_UNKNOWN, fmt.Errorf("unknown health state: %s", health)
+}
+
+func protoContainerImageMetadataFromWorkloadmetaContainerImageMetadata(containerImageMetadata *workloadmeta.ContainerImageMetadata) (*pb.ContainerImageMetadata, error) {
+	protoEntityID, err := toProtoEntityID(&containerImageMetadata.EntityID)
+	if err != nil {
+		return nil, err
+	}
+
+	var protoLayers []*pb.ContainerImageLayer
+	for _, layer := range containerImageMetadata.Layers {
+		protoLayers = append(protoLayers, &pb.ContainerImageLayer{
+			MediaType: layer.MediaType,
+			Digest:    layer.Digest,
+			SizeBytes: layer.SizeBytes,
+			Urls:      layer.URLs,
+		})
+	}
+
+	return &pb.ContainerImageMetadata{
+		EntityId:     protoEntityID,
+		EntityMeta:   toProtoEntityMetaFromContainerImageMetadata(containerImageMetadata),
+		RepoTags:     containerImageMetadata.RepoTags,
+		RepoDigests:  containerImageMetadata.RepoDigests,
+		MediaType:    containerImageMetadata.MediaType,
+		SizeBytes:    containerImageMetadata.SizeBytes,
+		Os:           containerImageMetadata.OS,
+		OsVersion:    containerImageMetadata.OSVersion,
+		Architecture: containerImageMetadata.Architecture,
+		Variant:      containerImageMetadata.Variant,
+		Layers:       protoLayers,
+		Sbom: &pb.CompressedSBOM{
+			Bom:                containerImageMetadata.SBOM.Bom,
+			GenerationTime:     timestamppb.New(containerImageMetadata.SBOM.GenerationTime),
+			GenerationDuration: uint64(containerImageMetadata.SBOM.GenerationDuration),
+			GenerationMethod:   containerImageMetadata.SBOM.GenerationMethod,
+			Status:             string(containerImageMetadata.SBOM.Status),
+			Error:              containerImageMetadata.SBOM.Error,
+		},
+	}, nil
+}
+
+func toProtoEntityMetaFromContainerImageMetadata(containerImageMetadata *workloadmeta.ContainerImageMetadata) *pb.EntityMeta {
+	return &pb.EntityMeta{
+		Name:        containerImageMetadata.Name,
+		Namespace:   containerImageMetadata.Namespace,
+		Annotations: containerImageMetadata.Annotations,
+		Labels:      containerImageMetadata.Labels,
+	}
 }
 
 func protoKubernetesPodFromWorkloadmetaKubernetesPod(kubernetesPod *workloadmeta.KubernetesPod) (*pb.KubernetesPod, error) {
@@ -778,6 +841,15 @@ func WorkloadmetaEventFromProtoEvent(protoEvent *pb.WorkloadmetaEvent) (workload
 			Type:   eventType,
 			Entity: crd,
 		}, nil
+	} else if protoEvent.ContainerImageMetadata != nil {
+		containerImageMetadata, err := toWorkloadmetaContainerImageMetadata(protoEvent.ContainerImageMetadata)
+		if err != nil {
+			return workloadmeta.Event{}, err
+		}
+		return workloadmeta.Event{
+			Type:   eventType,
+			Entity: containerImageMetadata,
+		}, nil
 	}
 
 	return workloadmeta.Event{}, errors.New("unknown entity")
@@ -787,6 +859,8 @@ func toWorkloadmetaKind(protoKind pb.WorkloadmetaKind) (workloadmeta.Kind, error
 	switch protoKind {
 	case pb.WorkloadmetaKind_CONTAINER:
 		return workloadmeta.KindContainer, nil
+	case pb.WorkloadmetaKind_CONTAINER_IMAGE_METADATA:
+		return workloadmeta.KindContainerImageMetadata, nil
 	case pb.WorkloadmetaKind_KUBERNETES_POD:
 		return workloadmeta.KindKubernetesPod, nil
 	case pb.WorkloadmetaKind_ECS_TASK:
@@ -1169,6 +1243,45 @@ func toWorkloadmetaProcess(protoProcess *pb.Process) (*workloadmeta.Process, err
 		Owner:          owner,
 		Service:        toWorkloadmetaService(protoProcess.Service),
 		InjectionState: workloadmeta.InjectionState(protoProcess.InjectionState),
+	}, nil
+}
+
+func toWorkloadmetaContainerImageMetadata(protoContainerImageMetadata *pb.ContainerImageMetadata) (*workloadmeta.ContainerImageMetadata, error) {
+	entityID, err := toWorkloadmetaEntityID(protoContainerImageMetadata.EntityId)
+	if err != nil {
+		return nil, err
+	}
+
+	var layers []workloadmeta.ContainerImageLayer
+	for _, protoLayer := range protoContainerImageMetadata.Layers {
+		layers = append(layers, workloadmeta.ContainerImageLayer{
+			MediaType: protoLayer.MediaType,
+			Digest:    protoLayer.Digest,
+			SizeBytes: protoLayer.SizeBytes,
+			URLs:      protoLayer.Urls,
+		})
+	}
+
+	return &workloadmeta.ContainerImageMetadata{
+		EntityID:     entityID,
+		EntityMeta:   toWorkloadmetaEntityMeta(protoContainerImageMetadata.EntityMeta),
+		RepoTags:     protoContainerImageMetadata.RepoTags,
+		RepoDigests:  protoContainerImageMetadata.RepoDigests,
+		MediaType:    protoContainerImageMetadata.MediaType,
+		SizeBytes:    protoContainerImageMetadata.SizeBytes,
+		OS:           protoContainerImageMetadata.Os,
+		OSVersion:    protoContainerImageMetadata.OsVersion,
+		Architecture: protoContainerImageMetadata.Architecture,
+		Variant:      protoContainerImageMetadata.Variant,
+		Layers:       layers,
+		SBOM: &workloadmeta.CompressedSBOM{
+			Bom:                protoContainerImageMetadata.Sbom.Bom,
+			GenerationTime:     protoContainerImageMetadata.Sbom.GenerationTime.AsTime(),
+			GenerationDuration: time.Duration(protoContainerImageMetadata.Sbom.GenerationDuration),
+			GenerationMethod:   protoContainerImageMetadata.Sbom.GenerationMethod,
+			Status:             workloadmeta.SBOMStatus(protoContainerImageMetadata.Sbom.Status),
+			Error:              protoContainerImageMetadata.Sbom.Error,
+		},
 	}, nil
 }
 

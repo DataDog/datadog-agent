@@ -43,6 +43,7 @@ const (
 // types to protobuf and vice versa.
 var supportedKinds = []workloadmeta.Kind{
 	workloadmeta.KindContainer,
+	workloadmeta.KindContainerImageMetadata,
 	workloadmeta.KindKubernetesPod,
 	workloadmeta.KindECSTask,
 	workloadmeta.KindProcess,
