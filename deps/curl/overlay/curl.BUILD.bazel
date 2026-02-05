@@ -136,6 +136,7 @@ cc_library(
         "BUILDING_LIBCURL",
         "HAVE_CONFIG_H",
         "NDEBUG",
+        "CURL_STATICLIB",
     ] + select({
         "@platforms//os:macos": [
             "CURL_MACOS_CALL_COPYPROXIES",
@@ -145,6 +146,7 @@ cc_library(
     copts = [
         "-Wno-implicit-function-declaration",
         "-Wno-int-conversion",
+        "-Wno-system-headers",
         "-I.",
         "-O2",
     ],
@@ -180,6 +182,7 @@ cc_shared_library(
     ],
     user_link_flags = select({
         "@platforms//os:linux": [
+            "-fvisibility=hidden",
             "-Wl,-L/opt/datadog-agent/embedded/lib",
             "-Wl,-rpath=/opt/datadog-agent/embedded/lib",
         ],
