@@ -124,6 +124,76 @@ CACHED_WHEEL_FULL_PATH_PATTERN = CACHED_WHEEL_DIRECTORY_PATTERN + CACHED_WHEEL_F
 LAST_DIRECTORY_COMMIT_PATTERN = "git -C {integrations_dir} rev-list -1 HEAD {integration}"
 
 
+def get_hello_path():
+    here = os.path.abspath(os.path.dirname(__file__))
+    return os.path.abspath(os.path.join(here, '..', 'pkg', 'hello'))
+
+
+def get_hello_build_path():
+    return os.path.join(get_hello_path(), 'build')
+
+
+def build_hello(ctx, env, install_prefix=None, cmake_options=''):
+    """
+    Build the hello package with ONNX Runtime dependency.
+    Downloads ONNX Runtime and builds the hello library.
+    If install_prefix is provided, installs to that location. Otherwise, files stay in build directory.
+    """
+    import errno
+
+    hello_path = get_hello_path()
+    hello_build_path = get_hello_build_path()
+    prefix = install_prefix or get_embedded_path(ctx)
+
+    if cmake_options.find("-G") == -1:
+        cmake_options += " -G \"Unix Makefiles\""
+
+    # Only set install prefix if we have one, otherwise don't install
+    if prefix:
+        cmake_args = cmake_options + f" -DCMAKE_INSTALL_PREFIX:PATH={prefix} -DHELLO_INSTALL_ONNXRUNTIME=ON"
+        if sys.platform == 'linux':
+            # Set RPATH so that libraries can find ONNX Runtime at runtime
+            lib_path = os.path.join(prefix, 'lib')
+            cmake_args += f' -DCMAKE_INSTALL_RPATH="{lib_path}"'
+            cmake_args += ' -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=TRUE'
+    else:
+        # No embedded path - don't install, files stay in build directory
+        cmake_args = cmake_options + " -DHELLO_INSTALL_ONNXRUNTIME=OFF"
+
+    if os.getenv('DD_CMAKE_TOOLCHAIN'):
+        cmake_args += f' --toolchain {os.getenv("DD_CMAKE_TOOLCHAIN")}'
+
+    if sys.platform == 'darwin':
+        cmake_args += " -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13"
+
+    # Perform "out of the source build" in `hello_build_path` folder.
+    try:
+        os.makedirs(hello_build_path)
+    except OSError as e:
+        if e.errno == errno.EEXIST:
+            pass
+        else:
+            raise
+
+    ctx.run(f"cd {hello_build_path} && cmake {cmake_args} {hello_path}", err_stream=sys.stdout)
+    # Build onnxruntime_download target - this downloads, extracts, and copies files via POST_BUILD commands
+    ctx.run(f"cmake --build {hello_build_path} --target onnxruntime_download", err_stream=sys.stdout)
+    # Only install if we have a prefix (otherwise files are already in build directory)
+    if prefix:
+        ctx.run(f"cmake --install {hello_build_path}", err_stream=sys.stdout)
+
+        env["CGO_CXXFLAGS"] = env.get("CGO_CXXFLAGS", "") + f" -I{prefix}/include"
+        env["CGO_LDFLAGS"] = env.get("CGO_LDFLAGS", "") + f" -L{prefix}/lib -lonnxruntime"
+        env["CGO_LDFLAGS"] = env.get("CGO_LDFLAGS", "") + f" -Wl,-rpath,{prefix}/lib"
+
+
+def clean_hello(ctx):
+    """
+    Clean the hello package
+    """
+    ctx.run(f"rm -rf {get_hello_build_path()}")
+
+
 @task(iterable=['bundle'])
 @run_on_devcontainer
 def build(
@@ -172,6 +242,10 @@ def build(
         rtloader_root=rtloader_root,
         python_home_3=python_home_3,
     )
+
+    # Build hello package with ONNX Runtime
+    with gitlab_section("Build hello package", collapsed=True):
+        build_hello(ctx, env, install_prefix=embedded_path, cmake_options=cmake_options)
 
     bundled_agents = ["agent"]
     if sys.platform == 'win32' or os.getenv("GOOS") == "windows":
@@ -761,6 +835,9 @@ def clean(ctx):
 
     print("Cleaning rtloader")
     rtloader_clean(ctx)
+
+    print("Cleaning C++ packages")
+    clean_hello(ctx)
 
 
 @task
