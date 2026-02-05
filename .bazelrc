@@ -47,14 +47,6 @@ common:cache --remote_local_fallback # best-effort on transient connection error
 common:cache --remote_retries=1
 common:cache --remote_timeout=60
 
-# sd-agent build config ---------------------------------------------------------------------------------------------------
-# Matches sd-agent Cargo.toml [profile.release] settings
-build:sd-agent-release --@rules_rust//rust/settings:lto=fat # Enable fat LTO
-build:sd-agent-release --@rules_rust//rust/settings:extra_rustc_flag=-Copt-level=z # Optimize for size
-build:sd-agent-release --@rules_rust//rust/settings:extra_rustc_flag=-Ccodegen-units=1 # Single codegen unit for maximum optimization
-build:sd-agent-release --@rules_rust//rust/settings:extra_rustc_flag=-Cstrip=symbols # Strip debug symbols
-build:sd-agent-release --@rules_rust//rust/settings:extra_rustc_flag=-Cpanic=abort # Remove stack unwinding
-
 # CI config ------------------------------------------------------------------------------------------------------------
 common:ci --config=cache
 
@@ -65,5 +57,9 @@ build:ci --aspects=@rules_rust//rust:defs.bzl%rustfmt_aspect
 build:ci --output_groups=+rustfmt_checks
 
 #common:ci --config=dd-internal
+
+# Project configs --------------------------------------------------------------------------------------
+import %workspace%/bazel/configs/sdagent_rc
+
 # Local development options --------------------------------------------------------------------------------------------
 try-import %workspace%/user.bazelrc
