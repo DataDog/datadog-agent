@@ -394,16 +394,6 @@ static int __attribute__((always_inline)) get_ovl_upper_ino(struct dentry *dentr
     return get_dentry_ino(upper);
 }
 
-static int __attribute__((always_inline)) get_ovl_lower_ino(struct dentry *dentry) {
-    switch (get_ovl_path_in_inode()) {
-    case 2:
-        return get_ovl_lower_ino_from_ovl_entry(dentry);
-    case 1:
-        return get_ovl_lower_ino_from_ovl_path(dentry);
-    }
-    return get_ovl_lower_ino_direct(dentry);
-}
-
 static int __attribute__((always_inline)) get_ovl_upper_nlink(struct dentry *dentry) {
     struct dentry *upper = get_ovl_upper_dentry(dentry);
     return get_dentry_nlink(upper);
