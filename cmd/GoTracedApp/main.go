@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package main
 
 import (
@@ -94,8 +99,8 @@ func processRequest(ctx context.Context) {
 	// Simulate database query
 	time.Sleep(time.Duration(20+rand.Intn(30)) * time.Millisecond)
 
-	// Allocate some memory to generate heap profile data
-	_ = make([]byte, 1024*1024) // 1MB allocation
+	// Simulate memory allocation to generate heap profile data
+	simulateMemoryAllocation()
 
 	dbSpan.Finish()
 
@@ -119,6 +124,32 @@ func processRequest(ctx context.Context) {
 	simulateCPUWork()
 
 	logicSpan.Finish()
+}
+
+func simulateMemoryAllocation() {
+	// Allocate varying amounts of memory to generate heap profile data
+	allocSize := 1024*1024 + rand.Intn(5*1024*1024) // 1-6MB random allocation
+	data := make([]byte, allocSize)
+
+	// Fill with some data to ensure memory is actually used
+	for i := range data {
+		data[i] = byte(i % 256)
+	}
+
+	// Allocate additional memory structures to simulate realistic memory patterns
+	userRecords := make([]map[string]interface{}, 100)
+	for i := range userRecords {
+		userRecords[i] = map[string]interface{}{
+			"id":    i,
+			"name":  fmt.Sprintf("user-%d", i),
+			"email": fmt.Sprintf("user%d@example.com", i),
+			"data":  make([]byte, 1024), // 1KB per record
+		}
+	}
+
+	// Keep references to prevent immediate GC
+	_ = data
+	_ = userRecords
 }
 
 func simulateCPUWork() {
