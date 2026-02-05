@@ -92,6 +92,7 @@ modules:
   comp/logs/agent/config:
     used_by_otel: true
   comp/netflow/payload: default
+  comp/observer/def: default
   comp/otelcol/collector-contrib/def: default
   comp/otelcol/collector-contrib/impl: default
   comp/otelcol/converter/def: default

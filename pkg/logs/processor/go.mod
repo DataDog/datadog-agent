@@ -1,11 +1,12 @@
 module github.com/DataDog/datadog-agent/pkg/logs/processor
 
-go 1.24.0
+go 1.25.3
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.179
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.61.0
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.61.0
+	github.com/DataDog/datadog-agent/comp/observer/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/model v0.72.2
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.61.0
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.61.0
@@ -141,6 +142,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../../comp/forwarder/orchestrator/orchestratorinterface
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../comp/logs/agent/config
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ../../../comp/netflow/payload
+	github.com/DataDog/datadog-agent/comp/observer/def => ../../../comp/observer/def
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../../../comp/otelcol/collector-contrib/def
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl => ../../../comp/otelcol/collector-contrib/impl
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def => ../../../comp/otelcol/converter/def
