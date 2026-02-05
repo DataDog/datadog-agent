@@ -40,22 +40,16 @@ type cliParams struct {
 // runPrivateActionRunner runs the private action runner with the given configuration and context.
 // This function is shared between the CLI run command and the Windows service.
 func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles []string) error {
-	var fxOptions []fx.Option
-
-	// Provide context and setup shutdown listener if running as Windows service
-	if ctx != nil {
-		fxOptions = append(fxOptions,
-			fx.Provide(func() context.Context { return ctx }),
-			fx.Invoke(func(shutdowner fx.Shutdowner) {
-				go func() {
-					<-ctx.Done()
-					_ = shutdowner.Shutdown()
-				}()
-			}),
-		)
-	}
-
-	fxOptions = append(fxOptions,
+	fxOptions := []fx.Option{
+		// Provide context for cancellation (Windows service uses this for graceful shutdown)
+		fx.Provide(func() context.Context { return ctx }),
+		// Setup shutdown listener for context cancellation (e.g., from Windows SCM)
+		fx.Invoke(func(shutdowner fx.Shutdowner) {
+			go func() {
+				<-ctx.Done()
+				_ = shutdowner.Shutdown()
+			}()
+		}),
 		fx.Supply(core.BundleParams{
 			ConfigParams: config.NewAgentParams(confPath, config.WithExtraConfFiles(extraConfFiles)),
 			LogParams:    log.ForDaemon(command.LoggerName, "privateactionrunner.log_file", pkgconfigsetup.DefaultPrivateActionRunnerLogFile)}),
@@ -76,7 +70,7 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 		rcclientimpl.Module(),
 		fx.Supply(rcclient.Params{AgentName: "private-action-runner", AgentVersion: version.AgentVersion}),
 		privateactionrunnerfx.Module(),
-	)
+	}
 
 	err := fxutil.Run(fxOptions...)
 	if errors.Is(err, privateactionrunner.ErrNotEnabled) {
@@ -96,7 +90,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Run the Private Action Runner",
 		Long:  `Runs the private-action-runner in the foreground`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return runPrivateActionRunner(context.TODO(), globalParams.ConfFilePath, cliParams.ExtraConfFilePath)
+			return runPrivateActionRunner(context.Background(), globalParams.ConfFilePath, cliParams.ExtraConfFilePath)
 		},
 	}
 
