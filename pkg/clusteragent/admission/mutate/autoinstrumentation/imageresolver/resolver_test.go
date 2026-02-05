@@ -551,7 +551,7 @@ func newMockBucketTagResolver(ttl time.Duration, bucketID string) bucketTagResol
 
 func TestBucketTagResolver_Resolve(t *testing.T) {
 	t.Run("rejects_non_datadog_registry", func(t *testing.T) {
-		resolver := newMockBucketTagResolver(t, 5*time.Minute, "3")
+		resolver := newMockBucketTagResolver(5*time.Minute, "3")
 
 		resolved, ok := resolver.Resolve("docker.io", "library/nginx", "latest")
 
@@ -560,7 +560,7 @@ func TestBucketTagResolver_Resolve(t *testing.T) {
 	})
 
 	t.Run("accepts_allowed_registries", func(t *testing.T) {
-		resolver := newMockBucketTagResolver(t, 5*time.Minute, "4")
+		resolver := newMockBucketTagResolver(5*time.Minute, "4")
 
 		resolver.cache.cache["gcr.io/datadoghq"] = repositoryCache{
 			"dd-lib-java-init": tagCache{
@@ -596,7 +596,7 @@ func TestBucketTagResolver_Resolve(t *testing.T) {
 	})
 
 	t.Run("cache_hit_returns_resolved_image", func(t *testing.T) {
-		resolver := newMockBucketTagResolver(t, 5*time.Minute, "1")
+		resolver := newMockBucketTagResolver(5*time.Minute, "1")
 
 		resolver.cache.cache["gcr.io/datadoghq"] = repositoryCache{
 			"dd-lib-python-init": tagCache{
@@ -616,7 +616,7 @@ func TestBucketTagResolver_Resolve(t *testing.T) {
 	})
 
 	t.Run("cache_miss_returns_nil", func(t *testing.T) {
-		resolver := newMockBucketTagResolver(t, 5*time.Minute, "2")
+		resolver := newMockBucketTagResolver(5*time.Minute, "2")
 
 		resolved, ok := resolver.Resolve("gcr.io/datadoghq", "dd-lib-java-init", "v1")
 
@@ -625,7 +625,7 @@ func TestBucketTagResolver_Resolve(t *testing.T) {
 	})
 
 	t.Run("v_prefix_normalization_for_major_versions", func(t *testing.T) {
-		resolver := newMockBucketTagResolver(t, 5*time.Minute, "3")
+		resolver := newMockBucketTagResolver(5*time.Minute, "3")
 
 		resolver.cache.cache["gcr.io/datadoghq"] = repositoryCache{
 			"dd-lib-js-init": tagCache{
@@ -645,7 +645,7 @@ func TestBucketTagResolver_Resolve(t *testing.T) {
 	})
 
 	t.Run("canonical_versions_not_normalized", func(t *testing.T) {
-		resolver := newMockBucketTagResolver(t, 5*time.Minute, "5")
+		resolver := newMockBucketTagResolver(5*time.Minute, "5")
 
 		resolver.cache.cache["gcr.io/datadoghq"] = repositoryCache{
 			"dd-lib-ruby-init": tagCache{
