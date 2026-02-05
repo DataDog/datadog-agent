@@ -50,7 +50,8 @@ if linux_target?
       bin_files = [
           'kinit',
         ]
-
+      
+      command_on_repo_root "bazelisk run -- //deps/msodbcsql18:install --destdir='#{install_dir}'"
       command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded' " \
         + lib_files.map{ |l| "#{install_dir}/embedded/lib/#{l}" }.join(' ') \
         + " " \
