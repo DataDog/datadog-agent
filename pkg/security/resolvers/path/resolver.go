@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
@@ -22,6 +23,14 @@ import (
 type Resolver struct {
 	dentryResolver *dentry.Resolver
 	mountResolver  mount.ResolverInterface
+}
+
+// SetActiveTrace propagates the trace to sub-resolvers
+func (r *Resolver) SetActiveTrace(trace *[]model.ProcessingCheckpoint, startTime time.Time) {
+	r.dentryResolver.SetActiveTrace(trace, startTime)
+	if mr, ok := r.mountResolver.(*mount.Resolver); ok {
+		mr.SetActiveTrace(trace, startTime)
+	}
 }
 
 // NewResolver returns a new path resolver
