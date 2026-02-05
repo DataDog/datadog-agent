@@ -48,4 +48,3 @@ func (s *windowsService) Run(ctx context.Context) error {
 	}
 	return err
 }
-

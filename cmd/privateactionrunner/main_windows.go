@@ -30,4 +30,3 @@ func main() {
 	rootCmd := command.MakeCommand(subcommands.PrivateActionRunnerSubcommands())
 	os.Exit(runcmd.Run(rootCmd))
 }
-
