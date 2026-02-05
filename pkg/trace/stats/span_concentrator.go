@@ -38,11 +38,12 @@ type StatSpan struct {
 
 	//Fields below this are derived on creation
 
-	spanKind         string
-	statusCode       uint32
-	isTopLevel       bool
-	matchingPeerTags []string
-	grpcStatusCode   string
+	spanKind              string
+	isIntegrationOverride string
+	statusCode            uint32
+	isTopLevel            bool
+	matchingPeerTags      []string
+	grpcStatusCode        string
 
 	httpMethod   string
 	httpEndpoint string
@@ -185,18 +186,19 @@ func (sc *SpanConcentrator) NewStatSpanWithConfig(config StatSpanConfig) (statSp
 		return nil, false
 	}
 	return &StatSpan{
-		service:          config.Service,
-		resource:         config.Resource,
-		name:             config.Name,
-		typ:              config.Type,
-		error:            config.Error,
-		parentID:         config.ParentID,
-		start:            config.Start,
-		duration:         config.Duration,
-		spanKind:         config.Meta[tagSpanKind],
-		statusCode:       getStatusCode(config.Meta, config.Metrics),
-		isTopLevel:       isTopLevel,
-		matchingPeerTags: matchingPeerTags(config.Meta, config.PeerTags),
+		service:               config.Service,
+		resource:              config.Resource,
+		name:                  config.Name,
+		typ:                   config.Type,
+		error:                 config.Error,
+		parentID:              config.ParentID,
+		start:                 config.Start,
+		duration:              config.Duration,
+		spanKind:              config.Meta[tagSpanKind],
+		isIntegrationOverride: config.Meta[tagIntegrationOverride],
+		statusCode:            getStatusCode(config.Meta, config.Metrics),
+		isTopLevel:            isTopLevel,
+		matchingPeerTags:      matchingPeerTags(config.Meta, config.PeerTags),
 
 		grpcStatusCode: getGRPCStatusCode(config.Meta, config.Metrics),
 

@@ -20,9 +20,10 @@ import (
 )
 
 const (
-	tagSynthetics  = "synthetics"
-	tagSpanKind    = "span.kind"
-	tagBaseService = "_dd.base_service"
+	tagSynthetics          = "synthetics"
+	tagSpanKind            = "span.kind"
+	tagBaseService         = "_dd.base_service"
+	tagIntegrationOverride = "_dd.integration_svc"
 )
 
 // Aggregation contains all the dimension on which we aggregate statistics.
@@ -33,18 +34,19 @@ type Aggregation struct {
 
 // BucketsAggregationKey specifies the key by which a bucket is aggregated.
 type BucketsAggregationKey struct {
-	Service        string
-	Name           string
-	Resource       string
-	Type           string
-	SpanKind       string
-	StatusCode     uint32
-	Synthetics     bool
-	PeerTagsHash   uint64
-	IsTraceRoot    pb.Trilean
-	GRPCStatusCode string
-	HTTPMethod     string
-	HTTPEndpoint   string
+	Service               string
+	Name                  string
+	Resource              string
+	Type                  string
+	SpanKind              string
+	StatusCode            uint32
+	Synthetics            bool
+	PeerTagsHash          uint64
+	IsIntegrationOverride string
+	IsTraceRoot           pb.Trilean
+	GRPCStatusCode        string
+	HTTPMethod            string
+	HTTPEndpoint          string
 }
 
 // PayloadAggregationKey specifies the key by which a payload is aggregated.
@@ -97,18 +99,19 @@ func NewAggregationFromSpan(s *StatSpan, origin string, aggKey PayloadAggregatio
 	agg := Aggregation{
 		PayloadAggregationKey: aggKey,
 		BucketsAggregationKey: BucketsAggregationKey{
-			Resource:       s.resource,
-			Service:        s.service,
-			Name:           s.name,
-			SpanKind:       s.spanKind,
-			Type:           s.typ,
-			StatusCode:     s.statusCode,
-			Synthetics:     synthetics,
-			IsTraceRoot:    isTraceRoot,
-			GRPCStatusCode: s.grpcStatusCode,
-			PeerTagsHash:   tagsFnvHash(s.matchingPeerTags),
-			HTTPMethod:     s.httpMethod,
-			HTTPEndpoint:   s.httpEndpoint,
+			Resource:              s.resource,
+			Service:               s.service,
+			Name:                  s.name,
+			SpanKind:              s.spanKind,
+			Type:                  s.typ,
+			StatusCode:            s.statusCode,
+			IsIntegrationOverride: s.isIntegrationOverride,
+			Synthetics:            synthetics,
+			IsTraceRoot:           isTraceRoot,
+			GRPCStatusCode:        s.grpcStatusCode,
+			PeerTagsHash:          tagsFnvHash(s.matchingPeerTags),
+			HTTPMethod:            s.httpMethod,
+			HTTPEndpoint:          s.httpEndpoint,
 		},
 	}
 	return agg
