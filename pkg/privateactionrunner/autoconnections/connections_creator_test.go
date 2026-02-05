@@ -158,7 +158,7 @@ func TestAutoCreateConnections_AllBundlesSuccess(t *testing.T) {
 	}))
 	defer server.Close()
 
-	allowlist := []string{"com.datadoghq.http.*", "com.datadoghq.kubernetes.*", "com.datadoghq.script"}
+	allowlist := []string{"com.datadoghq.http.request", "com.datadoghq.kubernetes.core.getPod", "com.datadoghq.script.runPredefinedScript"}
 
 	// Use server's client which is pre-configured for TLS
 	testClient := &ConnectionsClient{
@@ -205,7 +205,7 @@ func TestAutoCreateConnections_PartialFailures(t *testing.T) {
 	}))
 	defer server.Close()
 
-	allowlist := []string{"com.datadoghq.http.*", "com.datadoghq.kubernetes.*", "com.datadoghq.script"}
+	allowlist := []string{"com.datadoghq.http.request", "com.datadoghq.kubernetes.core.getPod", "com.datadoghq.script.runPredefinedScript"}
 
 	// Use server's client which is pre-configured for TLS
 	testClient := &ConnectionsClient{
@@ -238,7 +238,7 @@ func TestAutoCreateConnections_NoRelevantBundles(t *testing.T) {
 	}))
 	defer server.Close()
 
-	allowlist := []string{"com.datadoghq.gitlab.*"} // No matching bundles
+	allowlist := []string{"com.datadoghq.gitlab.issues.getIssue"} // No matching bundles
 
 	// Use server's client which is pre-configured for TLS
 	testClient := &ConnectionsClient{
@@ -272,7 +272,7 @@ func TestAutoCreateConnections_PartialAllowlist(t *testing.T) {
 	}))
 	defer server.Close()
 
-	allowlist := []string{"com.datadoghq.http.*", "com.datadoghq.script"} // Only HTTP and Script
+	allowlist := []string{"com.datadoghq.http.request", "com.datadoghq.script.runPredefinedScript"} // Only HTTP and Script
 
 	// Use server's client which is pre-configured for TLS
 	testClient := &ConnectionsClient{
