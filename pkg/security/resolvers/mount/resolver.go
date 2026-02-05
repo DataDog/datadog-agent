@@ -39,6 +39,7 @@ const (
 	// mounts LRU limit: 100000 mounts
 	mountsLimit       = 100000
 	danglingListLimit = 2000
+	pidNsLimit        = 100000
 )
 
 // ResolverOpts defines mount resolver options
@@ -58,6 +59,7 @@ type Resolver struct {
 	minMountID      uint32 // used to find the first userspace visible mount ID
 	dangling        *simplelru.LRU[uint32, *model.Mount]
 	fallbackLimiter *utils.Limiter[uint64]
+	pidNs           map[uint32]uint32
 
 	// stats
 	cacheHitsStats atomic.Int64
@@ -180,19 +182,44 @@ func (mr *Resolver) syncPidListmount(pid uint32) error {
 // syncPidNamespace snapshots the namespace of the pid
 func (mr *Resolver) syncPidNamespace(pid uint32) error {
 	var err error
+	var syncPid func(uint32) error
 	if mr.opts.SnapshotUsingListMount {
-		err = mr.syncPidListmount(pid)
-		// TODO: Decide if it makes sense to fully regress to procfs when it fails only once
-		if err != nil {
-			mr.opts.SnapshotUsingListMount = false
+		syncPid = func(p uint32) error {
+			err := mr.syncPidListmount(p)
+
+			// TODO: Decide if it makes sense to fully regress to procfs when it fails only once
+			if err != nil {
+				mr.opts.SnapshotUsingListMount = false
+				err = mr.syncPidProcfs(p)
+			}
+
+			return err
+		}
+	} else {
+		syncPid = mr.syncPidProcfs
+	}
+
+	err = syncPid(pid)
+	if err == nil {
+		return nil
+	}
+
+	// If it failed to sync the pid, try to sync from other pids from the pid's namespace
+	ns, ok := mr.pidNs[pid]
+	if ok {
+		for k, v := range mr.pidNs {
+			if v != ns || k == pid {
+				continue
+			}
+
+			err = syncPid(k)
+			if err == nil {
+				return nil
+			}
 		}
 	}
 
-	if !mr.opts.SnapshotUsingListMount {
-		err = mr.syncPidProcfs(pid)
-	}
-
-	return err
+	return fmt.Errorf("failed to sync PID namespace for pid %d / namespace %d: %w", pid, ns, err)
 }
 
 // SyncCache Snapshots the current mount points of the system by reading through /proc/[pid]/mountinfo.
@@ -640,6 +667,7 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Re
 		mounts:          mounts,
 		dentryResolver:  dentryResolver,
 		dangling:        dangling,
+		pidNs:           make(map[uint32]uint32),
 	}
 
 	// create a rate limiter that allows for 64 mount IDs
@@ -654,4 +682,18 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Re
 	}
 
 	return mr, nil
+}
+
+// SetPidMntNs sets the pid mount namespace in the cache
+func (mr *Resolver) SetPidMntNs(pid uint32, ns uint32) {
+	mr.lock.Lock()
+	defer mr.lock.Unlock()
+	mr.pidNs[pid] = ns
+}
+
+// DeletePid deletes a pid from the pid/ns cache
+func (mr *Resolver) DeletePid(pid uint32) {
+	mr.lock.Lock()
+	defer mr.lock.Unlock()
+	delete(mr.pidNs, pid)
 }
