@@ -69,14 +69,10 @@ func NewComponent(reqs Requires) Provides {
 
 	reqs.Log.Infof("Observer buffer configured: enabled=%v, trace_buffer_size=%d, profile_buffer_size=%d", cfg.Enabled, cfg.TraceBufferSize, cfg.ProfileBufferSize)
 
-	if !cfg.Enabled {
-		return Provides{Comp: &noopBuffer{}}
-	}
-
 	return Provides{
 		Comp: &bufferImpl{
-			traceBuffer:   make([]observerbuffer.BufferedTrace, 0, cfg.TraceBufferSize),
-			profileBuffer: make([]observerbuffer.ProfileData, 0, cfg.ProfileBufferSize),
+			traceBuffer:   make(map[string]observerbuffer.BufferedTrace, cfg.TraceBufferSize),
+			profileBuffer: make(map[string]observerbuffer.ProfileData, cfg.ProfileBufferSize),
 			traceCap:      cfg.TraceBufferSize,
 			profileCap:    cfg.ProfileBufferSize,
 		},
@@ -87,8 +83,10 @@ func NewComponent(reqs Requires) Provides {
 type bufferImpl struct {
 	mu sync.Mutex
 
-	traceBuffer   []observerbuffer.BufferedTrace
-	profileBuffer []observerbuffer.ProfileData
+	// traceBuffer stores one trace per service (keyed by service name)
+	traceBuffer map[string]observerbuffer.BufferedTrace
+	// profileBuffer stores one profile per service:profileType (keyed by "service:profileType")
+	profileBuffer map[string]observerbuffer.ProfileData
 
 	traceCap   int
 	profileCap int
@@ -101,7 +99,37 @@ type bufferImpl struct {
 	profileDroppedSinceDrain uint64
 }
 
+// extractServiceName extracts the service name from a trace payload.
+// Returns the first service found in the payload, or "unknown" if none found.
+func extractServiceName(payload *pb.TracerPayload) string {
+	if payload == nil {
+		return "unknown"
+	}
+
+	// Look for the first span in the first chunk
+	for _, chunk := range payload.Chunks {
+		if len(chunk.Spans) > 0 && chunk.Spans[0].Service != "" {
+			return chunk.Spans[0].Service
+		}
+	}
+
+	return "unknown"
+}
+
+// profileKey generates a unique key for a profile based on service and profile type.
+// Returns "service:profileType" or "unknown:unknown" if service or type is empty.
+func profileKey(service, profileType string) string {
+	if service == "" {
+		service = "unknown"
+	}
+	if profileType == "" {
+		profileType = "unknown"
+	}
+	return service + ":" + profileType
+}
+
 // AddTrace adds a trace payload to the buffer.
+// Only the last trace per service is kept.
 func (b *bufferImpl) AddTrace(payload *pb.TracerPayload) {
 	if payload == nil {
 		return
@@ -110,37 +138,42 @@ func (b *bufferImpl) AddTrace(payload *pb.TracerPayload) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	// If buffer is full, drop the oldest entry
-	if len(b.traceBuffer) >= b.traceCap {
-		// Shift buffer left by one (drop oldest)
-		copy(b.traceBuffer, b.traceBuffer[1:])
-		b.traceBuffer = b.traceBuffer[:len(b.traceBuffer)-1]
+	service := extractServiceName(payload)
+
+	// Check if we're adding a new service and buffer is at capacity
+	if _, exists := b.traceBuffer[service]; !exists && len(b.traceBuffer) >= b.traceCap {
+		// Buffer is full and this is a new service, drop it
 		b.tracesDropped.Add(1)
 		b.traceDroppedSinceDrain++
+		return
 	}
 
-	b.traceBuffer = append(b.traceBuffer, observerbuffer.BufferedTrace{
+	// Store or replace the trace for this service
+	b.traceBuffer[service] = observerbuffer.BufferedTrace{
 		Payload:      payload,
 		ReceivedAtNs: time.Now().UnixNano(),
-	})
+	}
 }
 
 // AddProfile adds a profile to the buffer.
+// Only the last profile per service:profileType is kept.
 func (b *bufferImpl) AddProfile(profile observerbuffer.ProfileData) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	// If buffer is full, drop the oldest entry
-	if len(b.profileBuffer) >= b.profileCap {
-		// Shift buffer left by one (drop oldest)
-		copy(b.profileBuffer, b.profileBuffer[1:])
-		b.profileBuffer = b.profileBuffer[:len(b.profileBuffer)-1]
+	key := profileKey(profile.Service, profile.ProfileType)
+
+	// Check if we're adding a new service:type combination and buffer is at capacity
+	if _, exists := b.profileBuffer[key]; !exists && len(b.profileBuffer) >= b.profileCap {
+		// Buffer is full and this is a new service:type, drop it
 		b.profilesDropped.Add(1)
 		b.profileDroppedSinceDrain++
+		return
 	}
 
 	profile.ReceivedAtNs = time.Now().UnixNano()
-	b.profileBuffer = append(b.profileBuffer, profile)
+	// Store or replace the profile for this service:type
+	b.profileBuffer[key] = profile
 }
 
 // AddRawProfile adds a raw profile from an HTTP request to the buffer.
@@ -340,17 +373,23 @@ func (b *bufferImpl) DrainTraces(maxItems uint32) (traces []observerbuffer.Buffe
 		hasMore = true
 	}
 
-	// Copy the traces to return
-	traces = make([]observerbuffer.BufferedTrace, count)
-	copy(traces, b.traceBuffer[:count])
+	// Collect traces from the map
+	traces = make([]observerbuffer.BufferedTrace, 0, count)
+	servicesToDrain := make([]string, 0, count)
 
-	// Remove drained traces from buffer
-	remaining := len(b.traceBuffer) - count
-	if remaining > 0 {
-		copy(b.traceBuffer, b.traceBuffer[count:])
-		hasMore = true
+	for service, trace := range b.traceBuffer {
+		if len(traces) >= count {
+			hasMore = true
+			break
+		}
+		traces = append(traces, trace)
+		servicesToDrain = append(servicesToDrain, service)
 	}
-	b.traceBuffer = b.traceBuffer[:remaining]
+
+	// Remove drained traces from the map
+	for _, service := range servicesToDrain {
+		delete(b.traceBuffer, service)
+	}
 
 	return traces, droppedCount, hasMore
 }
@@ -373,17 +412,23 @@ func (b *bufferImpl) DrainProfiles(maxItems uint32) (profiles []observerbuffer.P
 		hasMore = true
 	}
 
-	// Copy the profiles to return
-	profiles = make([]observerbuffer.ProfileData, count)
-	copy(profiles, b.profileBuffer[:count])
+	// Collect profiles from the map
+	profiles = make([]observerbuffer.ProfileData, 0, count)
+	keysToDrain := make([]string, 0, count)
 
-	// Remove drained profiles from buffer
-	remaining := len(b.profileBuffer) - count
-	if remaining > 0 {
-		copy(b.profileBuffer, b.profileBuffer[count:])
-		hasMore = true
+	for key, profile := range b.profileBuffer {
+		if len(profiles) >= count {
+			hasMore = true
+			break
+		}
+		profiles = append(profiles, profile)
+		keysToDrain = append(keysToDrain, key)
 	}
-	b.profileBuffer = b.profileBuffer[:remaining]
+
+	// Remove drained profiles from the map
+	for _, key := range keysToDrain {
+		delete(b.profileBuffer, key)
+	}
 
 	return profiles, droppedCount, hasMore
 }
