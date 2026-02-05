@@ -43,7 +43,7 @@ func TestOOMKill(t *testing.T) {
 	r.Start()
 	defer r.Stop()
 	go func() {
-		for range r.outV1 {
+		for range r.out {
 			continue
 		}
 	}()

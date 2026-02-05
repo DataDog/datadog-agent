@@ -96,7 +96,7 @@ var endpoints = []Endpoint{
 	},
 	{
 		Pattern: "/v1.0/traces",
-		Handler: func(r *HTTPReceiver) http.Handler { return r.handleWithVersion(V10, r.handleTraces) },
+		Handler: func(r *HTTPReceiver) http.Handler { return r.handleWithVersion(V10, r.handleTracesV1) },
 	},
 	{
 		Pattern:         "/profiling/v1/input",

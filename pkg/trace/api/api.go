@@ -101,6 +101,7 @@ func (r *HTTPReceiver) reserveBodySize(buf *bytes.Buffer, req *http.Request) err
 type HTTPReceiver struct {
 	Stats *info.ReceiverStats
 
+	out                 chan *Payload
 	outV1               chan *PayloadV1
 	conf                *config.AgentConfig
 	dynConf             *sampler.DynamicConfig
@@ -136,6 +137,7 @@ type HTTPReceiver struct {
 func NewHTTPReceiver(
 	conf *config.AgentConfig,
 	dynConf *sampler.DynamicConfig,
+	out chan *Payload,
 	outV1 chan *PayloadV1,
 	statsProcessor StatsProcessor,
 	telemetryCollector telemetry.TelemetryCollector,
@@ -158,6 +160,7 @@ func NewHTTPReceiver(
 	return &HTTPReceiver{
 		Stats: info.NewReceiverStats(conf.SendAllInternalStats),
 
+		out:                 out,
 		outV1:               outV1,
 		statsProcessor:      statsProcessor,
 		conf:                conf,
@@ -502,11 +505,106 @@ func (r *HTTPReceiver) tagStats(v Version, httpHeader http.Header, service strin
 	})
 }
 
-// decodeTracerPayload decodes the payload in http request `req`.
+// decodeTracerPayload decodes the payload in http request `req`, it handles non v1.0 requests.
+// This function will be deprecated in the future and all payloads will use decodeConvertedTracerPayload instead.
 // - tp is the decoded payload
+// - err is the first error encountered
+func (r *HTTPReceiver) decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, lang, langVersion, tracerVersion string) (tp *pb.TracerPayload, err error) {
+	switch v {
+	case v01:
+		var spans []*pb.Span
+		if err = json.NewDecoder(req.Body).Decode(&spans); err != nil {
+			return nil, err
+		}
+		return &pb.TracerPayload{
+			LanguageName:    lang,
+			LanguageVersion: langVersion,
+			ContainerID:     cIDProvider.GetContainerID(req.Context(), req.Header),
+			Chunks:          traceChunksFromSpans(spans),
+			TracerVersion:   tracerVersion,
+		}, nil
+	case v05:
+		buf := getBuffer()
+		defer putBuffer(buf)
+		if _, err = r.copyRequestBody(buf, req); err != nil {
+			return nil, err
+		}
+		var traces pb.Traces
+		if err = traces.UnmarshalMsgDictionary(buf.Bytes()); err != nil {
+			return nil, err
+		}
+		return &pb.TracerPayload{
+			LanguageName:    lang,
+			LanguageVersion: langVersion,
+			ContainerID:     cIDProvider.GetContainerID(req.Context(), req.Header),
+			Chunks:          traceChunksFromTraces(traces),
+			TracerVersion:   tracerVersion,
+		}, err
+	case V07:
+		buf := getBuffer()
+		defer putBuffer(buf)
+		if _, err = r.copyRequestBody(buf, req); err != nil {
+			return nil, err
+		}
+		var tracerPayload pb.TracerPayload
+		_, err = tracerPayload.UnmarshalMsg(buf.Bytes())
+		return &tracerPayload, nil
+	default:
+		var traces pb.Traces
+		if err = r.decodeRequest(req, &traces); err != nil {
+			return nil, err
+		}
+		return &pb.TracerPayload{
+			LanguageName:    lang,
+			LanguageVersion: langVersion,
+			ContainerID:     cIDProvider.GetContainerID(req.Context(), req.Header),
+			Chunks:          traceChunksFromTraces(traces),
+			TracerVersion:   tracerVersion,
+		}, nil
+	}
+}
+
+// decodeRequest decodes the payload in http request `req` into `dest`.
+// It handles only v02, v03, v04 requests.
 // - ranHook reports whether the decoder was able to run the pb.MetaHook
 // - err is the first error encountered
-func (r *HTTPReceiver) decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, lang, langVersion, tracerVersion string) (tp *idx.InternalTracerPayload, err error) {
+func (r *HTTPReceiver) decodeRequest(req *http.Request, dest *pb.Traces) error {
+	switch mediaType := getMediaType(req); mediaType {
+	case "application/msgpack":
+		buf := getBuffer()
+		defer putBuffer(buf)
+		_, err := r.copyRequestBody(buf, req)
+		if err != nil {
+			return err
+		}
+		_, err = dest.UnmarshalMsg(buf.Bytes())
+		return err
+	case "application/json":
+		fallthrough
+	case "text/json":
+		fallthrough
+	case "":
+		return json.NewDecoder(req.Body).Decode(&dest)
+	default:
+		// do our best
+		if err1 := json.NewDecoder(req.Body).Decode(&dest); err1 != nil {
+			buf := getBuffer()
+			defer putBuffer(buf)
+			_, err2 := r.copyRequestBody(buf, req)
+			if err2 != nil {
+				return err2
+			}
+			_, err2 = dest.UnmarshalMsg(buf.Bytes())
+			return err2
+		}
+		return nil
+	}
+}
+
+// decodeConvertedTracerPayload decodes the payload in http request `req` directly converting to the internal tracer payload format.
+// - tp is the decoded payload
+// - err is the first error encountered
+func (r *HTTPReceiver) decodeConvertedTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, lang, langVersion, tracerVersion string) (tp *idx.InternalTracerPayload, err error) {
 	switch v {
 	case v01:
 		var spans []*pb.Span
@@ -699,6 +797,125 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
+	if r.conf.HasFeature("convert-traces") {
+		r.handleTracesV1(v, w, req)
+		return
+	}
+	r.wg.Add(1)
+	defer r.wg.Done()
+
+	tracen, err := traceCount(req)
+	if err == errInvalidHeaderTraceCountValue {
+		log.Errorf("Failed to count traces: %s", err)
+	}
+	defer req.Body.Close()
+
+	select {
+	// Wait for the semaphore to become available, allowing the handler to
+	// decode its payload.
+	// After the configured timeout, respond without ingesting the payload,
+	// and sending the configured status.
+	case r.recvsem <- struct{}{}:
+	case <-req.Context().Done():
+		// Either the client closed the connection, or we hit a middleware timeout
+		log.Debugf("request context timed out, payload dropped")
+		w.WriteHeader(http.StatusTooManyRequests)
+		r.tagStats(v, req.Header, "").PayloadTimeout.Inc()
+		return
+	case <-time.After(time.Duration(r.conf.DecoderTimeout) * time.Millisecond):
+		log.Debugf("trace-agent is overwhelmed, a payload has been rejected")
+		// this payload can not be accepted
+		io.Copy(io.Discard, req.Body) //nolint:errcheck
+		switch v {
+		case v01, v02, v03:
+			// do nothing
+		default:
+			w.Header().Set("Content-Type", "application/json")
+		}
+		if isHeaderTrue(header.SendRealHTTPStatus, req.Header.Get(header.SendRealHTTPStatus)) {
+			w.WriteHeader(http.StatusTooManyRequests)
+		} else {
+			w.WriteHeader(r.rateLimiterResponse)
+		}
+		r.replyOK(req, v, w)
+		r.tagStats(v, req.Header, "").PayloadRefused.Inc()
+		return
+	}
+	defer func() {
+		// Signal the semaphore that we are done decoding, so another handler
+		// routine can take a turn decoding a payload.
+		<-r.recvsem
+	}()
+
+	firstService := func(tp *pb.TracerPayload) string {
+		if tp == nil || len(tp.Chunks) == 0 || len(tp.Chunks[0].Spans) == 0 {
+			return ""
+		}
+		return tp.Chunks[0].Spans[0].Service
+	}
+
+	start := time.Now()
+	tp, err := r.decodeTracerPayload(v, req, r.containerIDProvider, req.Header.Get(header.Lang), req.Header.Get(header.LangVersion), req.Header.Get(header.TracerVersion))
+	ts := r.tagStats(v, req.Header, firstService(tp))
+	defer func(err error) {
+		tags := append(ts.AsTags(), fmt.Sprintf("success:%v", err == nil))
+		_ = r.statsd.Histogram("datadog.trace_agent.receiver.serve_traces_ms", float64(time.Since(start))/float64(time.Millisecond), tags, 1)
+	}(err)
+	if err != nil {
+		httpDecodingError(err, []string{"handler:traces", fmt.Sprintf("v:%s", v)}, w, r.statsd)
+		switch err {
+		case apiutil.ErrLimitedReaderLimitReached:
+			ts.TracesDropped.PayloadTooLarge.Add(tracen)
+		case io.EOF, io.ErrUnexpectedEOF:
+			ts.TracesDropped.EOF.Add(tracen)
+		case msgp.ErrShortBytes:
+			ts.TracesDropped.MSGPShortBytes.Add(tracen)
+		default:
+			if err, ok := err.(net.Error); ok && err.Timeout() {
+				ts.TracesDropped.Timeout.Add(tracen)
+			} else {
+				ts.TracesDropped.DecodingError.Add(tracen)
+			}
+		}
+		log.Errorf("Cannot decode %s traces payload: %v", v, err)
+		return
+	}
+	if n, ok := r.replyOK(req, v, w); ok {
+		tags := append(ts.AsTags(), "endpoint:traces_"+string(v))
+		_ = r.statsd.Histogram("datadog.trace_agent.receiver.rate_response_bytes", float64(n), tags, 1)
+	}
+
+	ts.TracesReceived.Add(int64(len(tp.Chunks)))
+	ts.TracesBytes.Add(req.Body.(*apiutil.LimitedReader).Count)
+	ts.PayloadAccepted.Inc()
+	ctags := getContainerTagsList(r.conf.ContainerTags, tp.ContainerID)
+	if len(ctags) > 0 {
+		if tp.Tags == nil {
+			tp.Tags = make(map[string]string)
+		}
+		tp.Tags[tagContainersTags] = strings.Join(ctags, ",")
+	}
+	ptags := getProcessTags(req.Header, tp)
+	if ptags != "" {
+		if tp.Tags == nil {
+			tp.Tags = make(map[string]string)
+		}
+		tp.Tags[tagProcessTags] = ptags
+	}
+	payload := &Payload{
+		Source:                 ts,
+		TracerPayload:          tp,
+		ClientComputedTopLevel: isHeaderTrue(header.ComputedTopLevel, req.Header.Get(header.ComputedTopLevel)),
+		ClientComputedStats:    isHeaderTrue(header.ComputedStats, req.Header.Get(header.ComputedStats)),
+		ClientDroppedP0s:       droppedTracesFromHeader(req.Header, ts),
+		ProcessTags:            ptags,
+		ContainerTags:          ctags,
+	}
+	r.out <- payload
+}
+
+// handleTracesV1 knows how to handle a bunch of traces and converts them to the internal format if needed
+func (r *HTTPReceiver) handleTracesV1(v Version, w http.ResponseWriter, req *http.Request) {
 	r.wg.Add(1)
 	defer r.wg.Done()
 	tracen, err := traceCount(req)
@@ -752,7 +969,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	}
 
 	start := time.Now()
-	tp, err := r.decodeTracerPayload(v, req, r.containerIDProvider, req.Header.Get(header.Lang), req.Header.Get(header.LangVersion), req.Header.Get(header.TracerVersion))
+	tp, err := r.decodeConvertedTracerPayload(v, req, r.containerIDProvider, req.Header.Get(header.Lang), req.Header.Get(header.LangVersion), req.Header.Get(header.TracerVersion))
 	ts := r.tagStats(v, req.Header, firstService(tp))
 	defer func(err error) {
 		tags := append(ts.AsTags(), fmt.Sprintf("success:%v", err == nil))
@@ -789,7 +1006,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	if len(ctags) > 0 {
 		tp.SetStringAttribute(tagContainersTags, strings.Join(ctags, ","))
 	}
-	ptags := getProcessTags(req.Header, tp)
+	ptags := getProcessTagsV1(req.Header, tp)
 	if ptags != "" {
 		tp.SetStringAttribute(tagProcessTags, ptags)
 	}
@@ -843,11 +1060,11 @@ func droppedTracesFromHeader(h http.Header, ts *info.TagStats) int64 {
 // 1. tags in the v07 payload
 // 2. tags in the first span of the first chunk
 // 3. tags in the header
-func getProcessTags(h http.Header, p *idx.InternalTracerPayload) string {
+func getProcessTagsV1(h http.Header, p *idx.InternalTracerPayload) string {
 	if ptags, ok := p.GetAttributeAsString(tagProcessTags); ok {
 		return ptags
 	}
-	if span, ok := getFirstSpan(p); ok {
+	if span, ok := getFirstSpanV1(p); ok {
 		if ptags, ok := span.GetAttributeAsString(tagProcessTags); ok {
 			return ptags
 		}
@@ -855,7 +1072,37 @@ func getProcessTags(h http.Header, p *idx.InternalTracerPayload) string {
 	return h.Get(header.ProcessTags)
 }
 
-func getFirstSpan(p *idx.InternalTracerPayload) (*idx.InternalSpan, bool) {
+func getProcessTags(h http.Header, p *pb.TracerPayload) string {
+	if p.Tags != nil {
+		if ptags, ok := p.Tags[tagProcessTags]; ok {
+			return ptags
+		}
+	}
+	if span, ok := getFirstSpan(p); ok {
+		if ptags, ok := span.Meta[tagProcessTags]; ok {
+			return ptags
+		}
+	}
+	return h.Get(header.ProcessTags)
+}
+
+func getFirstSpan(p *pb.TracerPayload) (*pb.Span, bool) {
+	if len(p.Chunks) == 0 {
+		return nil, false
+	}
+	for _, chunk := range p.Chunks {
+		if chunk == nil || len(chunk.Spans) == 0 {
+			continue
+		}
+		if chunk.Spans[0] == nil {
+			continue
+		}
+		return chunk.Spans[0], true
+	}
+	return nil, false
+}
+
+func getFirstSpanV1(p *idx.InternalTracerPayload) (*idx.InternalSpan, bool) {
 	if len(p.Chunks) == 0 {
 		return nil, false
 	}
