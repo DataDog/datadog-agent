@@ -55,7 +55,7 @@ func DetermineConnectionsToCreate(allowlist []string) []ConnectionDefinition {
 		return []ConnectionDefinition{}
 	}
 
-	result := []ConnectionDefinition{}
+	var result []ConnectionDefinition
 
 	for _, definition := range supportedConnections {
 		if allowlistContainsBundle(allowlist, definition.BundleID) {
