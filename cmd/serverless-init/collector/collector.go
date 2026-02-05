@@ -8,6 +8,8 @@
 /*
 TODO:
 
+only start for in process, not sidecar OR collect for sidecar and tag appropriately. Some sort of container or sidecar tag?
+
 rename to enhanced metrics collector? Or otherwise organize file structure?
 look into simplifying cpu limit and fallbacks, is it valid in Cloud Run?
 Check in Cloud Run Functions, Cloud Run Jobs, Azure Web Apps
@@ -92,8 +94,6 @@ func (c *Collector) collectLoop(ctx context.Context) {
 }
 
 func (c *Collector) collect() {
-	log.Debugf("Starting collect() with metricSource: %d (%s)", c.metricSource, c.metricSource.String())
-
 	if err := c.cgroupReader.RefreshCgroups(0); err != nil {
 		log.Debugf("Failed to refresh cgroups: %v", err)
 		return
@@ -114,10 +114,7 @@ func (c *Collector) collect() {
 		log.Debugf("Incomplete cgroup stats: %v", errs)
 	}
 
-	timestamp := time.Now()
-	log.Debugf("Collecting CPU stats at timestamp: %v", timestamp)
-
-	c.processCPUStats(stats.CPU, timestamp)
+	c.processCPUStats(stats.CPU)
 }
 
 func convertToContainerCPUStats(cpuStats *cgroups.CPUStats) *provider.ContainerCPUStats {
@@ -138,12 +135,12 @@ func computeCPULimit(cgs *cgroups.CPUStats) *float64 {
 
 	if cgs.CPUCount != nil && *cgs.CPUCount != uint64(systemutils.HostCPUCount()) {
 		limit = pointer.Ptr(float64(*cgs.CPUCount))
-		log.Debugf("CPU limit from CPUSet: %.0f ns/s = %d cores", *limit, *cgs.CPUCount)
+		log.Debugf("CPU limit from CPUSet: %.0f cores", *limit)
 	}
 
 	if cgs.SchedulerQuota != nil && cgs.SchedulerPeriod != nil {
 		quotaLimit := (float64(*cgs.SchedulerQuota) / float64(*cgs.SchedulerPeriod))
-		log.Debugf("CPU limit from CFS quota: %.0f ns/s (quota=%d, period=%d)", quotaLimit, *cgs.SchedulerQuota, *cgs.SchedulerPeriod)
+		log.Debugf("CPU limit from CFS quota: %.0f cores (quota=%d, period=%d)", quotaLimit, *cgs.SchedulerQuota, *cgs.SchedulerPeriod)
 		if limit == nil || quotaLimit < *limit {
 			limit = &quotaLimit
 		}
@@ -154,14 +151,14 @@ func computeCPULimit(cgs *cgroups.CPUStats) *float64 {
 		log.Debugf("CPU limit from systemutils.HostCPUCount: %d cores", systemutils.HostCPUCount())
 	}
 
-	log.Debugf("Final CPU limit: %.0f ns/s (%.2f cores)", *limit, *limit/float64(time.Second))
+	log.Debugf("CPU limit: %.0f cores", *limit)
 
-	// Convert cpu limit to nanoseconds
-	limitNanos := *limit * float64(time.Second)
+	// Convert CPU limit from cores to nanocores
+	limitNanos := *limit * 1e9
 	return &limitNanos
 }
 
-func (c *Collector) processCPUStats(cpuStats *cgroups.CPUStats, timestamp time.Time) {
+func (c *Collector) processCPUStats(cpuStats *cgroups.CPUStats) {
 	if cpuStats == nil {
 		log.Debug("CPU stats are nil, skipping")
 		return
@@ -175,12 +172,12 @@ func (c *Collector) processCPUStats(cpuStats *cgroups.CPUStats, timestamp time.T
 func (c *Collector) sendCPUMetrics(cpuStats *provider.ContainerCPUStats) {
 
 	if cpuStats.Total != nil {
-		// CPU usage in nanoseconds/second
+		// CPU usage in nanoseconds/second (ie. nanocores)
 		c.metricAgent.AddMetric(c.metricPrefix+"cpu.usage", *cpuStats.Total, c.metricSource, metrics.RateType)
 	}
 
 	if cpuStats.Limit != nil {
-		// CPU limit in nanoseconds
+		// CPU limit in nanocores
 		c.metricAgent.AddMetric(c.metricPrefix+"cpu.limit", *cpuStats.Limit, c.metricSource, metrics.GaugeType)
 	}
 }
