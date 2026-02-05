@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
@@ -33,13 +32,12 @@ func testBasicTraces(c *assert.CollectT, service string, intake *components.Fake
 	trace := traces[0]
 	assert.Equal(c, agent.Hostname(), trace.HostName)
 	assert.Equal(c, "none", trace.Env)
-	if !assert.NotEmpty(c, trace.IdxTracerPayloads) {
+	if !assert.NotEmpty(c, trace.TracerPayloads) {
 		return
 	}
-	tp := idx.FromProto(trace.IdxTracerPayloads[0])
-	assert.Equal(c, "go", tp.LanguageName())
-	_, ok := tp.GetAttributeAsString("_dd.apm_mode")
-	assert.False(c, ok)
+	tp := trace.TracerPayloads[0]
+	assert.Equal(c, "go", tp.LanguageName)
+	assert.NotContains(c, tp.Tags, "_dd.apm_mode")
 	if !assert.NotEmpty(c, tp.Chunks) {
 		return
 	}
@@ -48,22 +46,14 @@ func testBasicTraces(c *assert.CollectT, service string, intake *components.Fake
 	}
 	spans := tp.Chunks[0].Spans
 	for _, sp := range spans {
-		assert.Equal(c, service, sp.Service())
-		assert.Contains(c, sp.Name(), "tracegen")
-		lang, ok := sp.GetAttributeAsString("language")
-		assert.True(c, ok)
-		assert.Equal(c, "go", lang)
-		priority, ok := sp.GetAttributeAsFloat64("_sampling_priority_v1")
-		assert.True(c, ok)
-		assert.Equal(c, 1.0, priority)
-		parentID := sp.ParentID()
-		if parentID == 0 {
-			topLevel, ok := sp.GetAttributeAsFloat64("_dd.top_level")
-			assert.True(c, ok)
-			assert.Equal(c, 1.0, topLevel)
-			topLevel, ok = sp.GetAttributeAsFloat64("_top_level")
-			assert.True(c, ok)
-			assert.Equal(c, 1.0, topLevel)
+		assert.Equal(c, service, sp.Service)
+		assert.Contains(c, sp.Name, "tracegen")
+		assert.Contains(c, sp.Meta, "language")
+		assert.Equal(c, "go", sp.Meta["language"])
+		assert.Contains(c, sp.Metrics, "_sampling_priority_v1")
+		if sp.ParentID == 0 {
+			assert.Equal(c, float64(1), sp.Metrics["_dd.top_level"])
+			assert.Equal(c, float64(1), sp.Metrics["_top_level"])
 		}
 	}
 }
@@ -106,10 +96,9 @@ func testProcessTraces(c *assert.CollectT, intake *components.FakeIntake, proces
 	assert.NoError(c, err)
 	assert.NotEmpty(c, traces)
 	for _, p := range traces {
-		assert.NotEmpty(c, p.IdxTracerPayloads)
-		for _, tp := range p.IdxTracerPayloads {
-			internalTp := idx.FromProto(tp)
-			tags, ok := internalTp.GetAttributeAsString("_dd.tags.process")
+		assert.NotEmpty(c, p.TracerPayloads)
+		for _, tp := range p.TracerPayloads {
+			tags, ok := tp.Tags["_dd.tags.process"]
 			assert.True(c, ok)
 			assert.Equal(c, processTags, tags)
 		}
@@ -275,9 +264,8 @@ func hasPeerTagsStats(payloads []*aggregator.APMStatsPayload, fullTag string) bo
 
 func hasContainerTag(payloads []*aggregator.TracePayload, tag string) bool {
 	for _, p := range payloads {
-		for _, t := range p.AgentPayload.IdxTracerPayloads {
-			idxPayload := idx.FromProto(t)
-			tags, ok := idxPayload.GetAttributeAsString("_dd.tags.container")
+		for _, t := range p.AgentPayload.TracerPayloads {
+			tags, ok := t.Tags["_dd.tags.container"]
 			if ok && strings.Count(tags, tag) > 0 {
 				return true
 			}
