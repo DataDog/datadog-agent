@@ -64,7 +64,7 @@ func TestCreateConnection_CorrectHTTPRequest(t *testing.T) {
 	assert.Equal(t, "/api/v2/actions/connections", receivedPath, "Path should be correct")
 	assert.Equal(t, "test-api-key", receivedHeaders.Get("DD-API-KEY"), "DD-API-KEY header should match")
 	assert.Equal(t, "test-app-key", receivedHeaders.Get("DD-APPLICATION-KEY"), "DD-APPLICATION-KEY header should match")
-	assert.Equal(t, "application/json", receivedHeaders.Get("Content-Type"), "Content-Type should be application/json")
+	assert.Equal(t, "application/vnd.api+json", receivedHeaders.Get("Content-Type"), "Content-Type should be application/vnd.api+json")
 	assert.Contains(t, receivedHeaders.Get("User-Agent"), "datadog-agent/", "User-Agent should contain datadog-agent/")
 	assert.Contains(t, receivedBody, `"name":"HTTP (runner-name-abc123)"`, "Body should contain connection name")
 }

@@ -243,7 +243,9 @@ func (d *Discovery) getDevicesFound() []string {
 }
 
 func (d *Discovery) createDevice(deviceDigest checkconfig.DeviceDigest, subnet *snmpSubnet, deviceIP string, writeCache bool) {
-	deviceCk, err := devicecheck.NewDeviceCheck(subnet.config, deviceIP, d.sessionFactory, d.agentConfig)
+	deviceConfig := subnet.config.CopyWithNewIP(deviceIP)
+	connMgr := devicecheck.NewConnectionManager(deviceConfig, d.sessionFactory)
+	deviceCk, err := devicecheck.NewDeviceCheck(deviceConfig, connMgr, d.agentConfig)
 	if err != nil {
 		// should not happen since the deviceCheck is expected to be valid at this point
 		// and are only changing the device ip

@@ -8,7 +8,6 @@ package autoconnections
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/jsonapi"
 )
 
 // ConnectionsClient is an HTTP client for creating connections via the Datadog API.
@@ -45,23 +45,15 @@ func NewConnectionsAPIClient(cfg model.Reader, ddSite, apiKey, appKey string) (*
 }
 
 type ConnectionRequest struct {
-	Data ConnectionRequestData `json:"data"`
-}
-
-type ConnectionRequestData struct {
-	Type       string                      `json:"type"`
-	Attributes ConnectionRequestAttributes `json:"attributes"`
-}
-
-type ConnectionRequestAttributes struct {
-	Name        string            `json:"name"`
-	RunnerID    string            `json:"runner_id"`
-	Integration IntegrationConfig `json:"integration"`
+	ID          string            `jsonapi:"primary,action_connection"`
+	Name        string            `jsonapi:"attribute" json:"name" validate:"required"`
+	RunnerID    string            `jsonapi:"attribute" json:"runner_id" validate:"required"`
+	Integration IntegrationConfig `jsonapi:"attribute" json:"integration" validate:"required"`
 }
 
 type IntegrationConfig struct {
-	Type        string                 `json:"type"`
-	Credentials map[string]interface{} `json:"credentials"`
+	Type        string                 `json:"type" validate:"required"`
+	Credentials map[string]interface{} `json:"credentials" validate:"required"`
 }
 
 func buildConnectionRequest(definition ConnectionDefinition, runnerID, runnerName string) ConnectionRequest {
@@ -76,16 +68,11 @@ func buildConnectionRequest(definition ConnectionDefinition, runnerID, runnerNam
 	}
 
 	return ConnectionRequest{
-		Data: ConnectionRequestData{
-			Type: "action_connection",
-			Attributes: ConnectionRequestAttributes{
-				Name:     connectionName,
-				RunnerID: runnerID,
-				Integration: IntegrationConfig{
-					Type:        definition.IntegrationType,
-					Credentials: credentials,
-				},
-			},
+		Name:     connectionName,
+		RunnerID: runnerID,
+		Integration: IntegrationConfig{
+			Type:        definition.IntegrationType,
+			Credentials: credentials,
 		},
 	}
 }
@@ -93,7 +80,7 @@ func buildConnectionRequest(definition ConnectionDefinition, runnerID, runnerNam
 func (c *ConnectionsClient) CreateConnection(ctx context.Context, definition ConnectionDefinition, runnerID, runnerName string) error {
 	reqBody := buildConnectionRequest(definition, runnerID, runnerName)
 
-	body, err := json.Marshal(reqBody)
+	body, err := jsonapi.Marshal(reqBody, jsonapi.MarshalClientMode())
 	if err != nil {
 		return fmt.Errorf("failed to marshal request: %w", err)
 	}
@@ -107,7 +94,7 @@ func (c *ConnectionsClient) CreateConnection(ctx context.Context, definition Con
 
 	httpReq.Header.Set("DD-API-KEY", c.apiKey)
 	httpReq.Header.Set("DD-APPLICATION-KEY", c.appKey)
-	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Content-Type", "application/vnd.api+json")
 	httpReq.Header.Set("User-Agent", "datadog-agent/"+version.AgentVersion)
 
 	resp, err := c.httpClient.Do(httpReq)

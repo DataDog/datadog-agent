@@ -49,12 +49,11 @@ func TestBuildConnectionRequest_NoAdditionalFields(t *testing.T) {
 
 	request := buildConnectionRequest(httpDef, runnerID, runnerName)
 
-	assert.Equal(t, "action_connection", request.Data.Type)
-	assert.Equal(t, connectionName, request.Data.Attributes.Name)
-	assert.Equal(t, runnerID, request.Data.Attributes.RunnerID)
-	assert.Equal(t, "HTTP", request.Data.Attributes.Integration.Type)
-	assert.Equal(t, "HTTPNoAuth", request.Data.Attributes.Integration.Credentials["type"])
-	assert.Len(t, request.Data.Attributes.Integration.Credentials, 1)
+	assert.Equal(t, connectionName, request.Name)
+	assert.Equal(t, runnerID, request.RunnerID)
+	assert.Equal(t, "HTTP", request.Integration.Type)
+	assert.Equal(t, "HTTPNoAuth", request.Integration.Credentials["type"])
+	assert.Len(t, request.Integration.Credentials, 1)
 }
 
 func TestBuildConnectionRequest_WithAdditionalFields(t *testing.T) {
@@ -74,14 +73,13 @@ func TestBuildConnectionRequest_WithAdditionalFields(t *testing.T) {
 
 	request := buildConnectionRequest(scriptDef, runnerID, runnerName)
 
-	assert.Equal(t, "action_connection", request.Data.Type)
-	assert.Equal(t, connectionName, request.Data.Attributes.Name)
-	assert.Equal(t, runnerID, request.Data.Attributes.RunnerID)
-	assert.Equal(t, "Script", request.Data.Attributes.Integration.Type)
-	assert.Equal(t, "Script", request.Data.Attributes.Integration.Credentials["type"])
+	assert.Equal(t, connectionName, request.Name)
+	assert.Equal(t, runnerID, request.RunnerID)
+	assert.Equal(t, "Script", request.Integration.Type)
+	assert.Equal(t, "Script", request.Integration.Credentials["type"])
 	assert.Equal(t, "/etc/dd-action-runner/config/credentials/script.yaml",
-		request.Data.Attributes.Integration.Credentials["configFileLocation"])
-	assert.Len(t, request.Data.Attributes.Integration.Credentials, 2)
+		request.Integration.Credentials["configFileLocation"])
+	assert.Len(t, request.Integration.Credentials, 2)
 }
 
 func TestCreateConnection_Success(t *testing.T) {
