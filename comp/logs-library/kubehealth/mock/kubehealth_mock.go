@@ -9,7 +9,7 @@ package mock
 import (
 	"go.uber.org/fx"
 
-	kubehealthdef "github.com/DataDog/datadog-agent/comp/logs/kubehealth/def"
+	kubehealthdef "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/def"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
