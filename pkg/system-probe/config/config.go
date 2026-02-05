@@ -143,10 +143,18 @@ func load() (*types.Config, error) {
 		diEnabled {
 		c.EnabledModules[EventMonitorModule] = struct{}{}
 	}
-	complianceEnabled := coreCfg.GetBool(compNS("enabled")) || // full module is enabled
-		cfg.GetBool(compNS("database_benchmarks.enabled")) || // only the DB benchmarks handler is enabled
-		(cfg.GetBool(secNS("enabled")) && cfg.GetBool(secNS("compliance_module.enabled"))) // only the DB benchmarks handler is enabled via the CWS config (legacy)
-	if complianceEnabled {
+	complianceEnabled := coreCfg.GetBool(compNS("enabled"))
+	complianceRunInSystemProbe := coreCfg.GetBool(compNS("run_in_system_probe"))
+	complianceDBBenchmarksEnabled := cfg.GetBool(compNS("database_benchmarks.enabled"))
+	complianceLegacyCWSEnabled := cfg.GetBool(secNS("enabled")) && cfg.GetBool(secNS("compliance_module.enabled"))
+
+	// Enable compliance module if:
+	// 1. Full compliance is enabled AND should run in system-probe, OR
+	// 2. Only DB benchmarks handler is needed (regardless of run_in_system_probe), OR
+	// 3. Legacy CWS config enables compliance module
+	shouldEnableComplianceModule := (complianceEnabled && complianceRunInSystemProbe) || complianceDBBenchmarksEnabled || complianceLegacyCWSEnabled
+
+	if shouldEnableComplianceModule {
 		c.EnabledModules[ComplianceModule] = struct{}{}
 	}
 	if cfg.GetBool(spNS("process_config.enabled")) {
@@ -191,10 +199,16 @@ func load() (*types.Config, error) {
 		}
 	}
 
-	// Enable discovery by default if system-probe has any modules enabled,
-	// unless the user has explicitly configured the discovery.enabled config
-	// key.
-	if len(c.EnabledModules) > 0 &&
+	// Enable discovery by default on Linux if system-probe has any modules
+	// enabled, unless the user has explicitly configured the discovery.enabled
+	// config key.
+	//
+	// Note that besides the support in system-probe itself (currently only
+	// implemented on Linux), the WorkloadMeta-based process collector in the
+	// core agent needs to be supported on the platform for discovery to work
+	// correctly.
+	if runtime.GOOS == "linux" &&
+		len(c.EnabledModules) > 0 &&
 		!c.ModuleIsEnabled(DiscoveryModule) &&
 		applyDefault(cfg, discoveryNS("enabled"), true) {
 		c.EnabledModules[DiscoveryModule] = struct{}{}

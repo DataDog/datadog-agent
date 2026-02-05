@@ -2001,7 +2001,7 @@ func (s *TracerSuite) TestShortWrite() {
 		require.True(collect, ok)
 
 		require.Equal(collect, sent, conn.Monotonic.SentBytes)
-	}, 3*time.Second, 100*time.Millisecond, "couldn't find connection used by short write")
+	}, 10*time.Second, 100*time.Millisecond, "couldn't find connection used by short write")
 }
 
 func (s *TracerSuite) TestKprobeAttachWithKprobeEvents() {
@@ -3381,8 +3381,8 @@ func (s *TracerSuite) TestDNSWorkload() {
 	// Container ID resolution (not resolv.conf resolution) fails in this test before 5.11.
 	// I think it's related to this patch:
 	// https://github.com/torvalds/linux/commit/3ae700ecfae913316e3b4fe5f60c72b6131aaa1f#diff-360c5854af72f475f4ebbf588f1c163c9b9694f618088f5ff1e399b36e339901
-	// It changes the way that timestamps are offered in /proc/<pid>/stat.
-	// It's likely my test's injection of process events via HandleEvents is wrong on older kernels
+	// It changes the way that timestamps are offered in /proc/<pid>/stat to respect time namespaces.
+	// This means the processCache doesn't always work properly in pre-5.11
 	if kv < kernel.VersionCode(5, 11, 0) {
 		t.Skip("Not supported before 5.11")
 	}

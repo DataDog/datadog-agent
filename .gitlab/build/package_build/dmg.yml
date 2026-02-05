@@ -26,9 +26,14 @@
   stage: package_build
   needs: ["go_mod_tidy_check"]
   rules:
+     - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
+       variables:
+         SIGN: true  # for `main` and release branches
+     - if: $CI_COMMIT_BRANCH =~ /notarization/
+       variables:
+         SIGN: true  # for branches with "notarization" in their name - should we need to tune it
      - !reference [.on_macos_files_change]
      - !reference [.on_packaging_change]
-     - !reference [.on_main_or_release_branch]
      - !reference [.on_all_builds]
      - !reference [.manual]
   artifacts:
@@ -40,7 +45,6 @@
     CI_IDENTITIES_GITLAB_ID_TOKEN:
       aud: ci-identities
   variables:
-    SIGN: true
     KEYCHAIN_NAME: "build.keychain"
     INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
     INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD: true
@@ -59,7 +63,7 @@
   after_script:
     # Destroy the keychain used to sign packages
     - |
-      if [ "$SIGN" = true ]; then
+      if [ "${SIGN:-false}" = true ]; then
         security delete-keychain "build.keychain" || true
       fi
     - sudo umount /Volumes/Agent || true
