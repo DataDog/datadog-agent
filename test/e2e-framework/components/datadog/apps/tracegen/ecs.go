@@ -44,7 +44,7 @@ func EcsAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, opts ...
 					Environment: ecs.TaskDefinitionKeyValuePairArray{
 						ecs.TaskDefinitionKeyValuePairArgs{
 							Name:  pulumi.StringPtr("DD_TRACE_AGENT_URL"),
-							Value: pulumi.StringPtr("unix:///var/run/datadog/apm.socket"),
+							Value: pulumi.StringPtr("unix:///opt/datadog-agent/run/apm.socket"),
 						},
 					},
 					Cpu:    pulumi.IntPtr(10),
@@ -52,7 +52,7 @@ func EcsAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, opts ...
 					MountPoints: ecs.TaskDefinitionMountPointArray{
 						ecs.TaskDefinitionMountPointArgs{
 							SourceVolume:  pulumi.StringPtr("apmsocketpath"),
-							ContainerPath: pulumi.StringPtr("/var/run/datadog"),
+							ContainerPath: pulumi.StringPtr("/opt/datadog-agent/run"),
 							ReadOnly:      pulumi.BoolPtr(true),
 						},
 					},
@@ -69,7 +69,7 @@ func EcsAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, opts ...
 			Volumes: classicECS.TaskDefinitionVolumeArray{
 				classicECS.TaskDefinitionVolumeArgs{
 					Name:     pulumi.String("apmsocketpath"),
-					HostPath: pulumi.StringPtr("/var/run/datadog"),
+					HostPath: pulumi.StringPtr("/opt/datadog-agent/run"),
 				},
 			},
 		},

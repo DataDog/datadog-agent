@@ -51,7 +51,7 @@ func ECSFargateLinuxContainerDefinition(e config.Env, image string, apiKeySSMPar
 		Environment: append(append(ecs.TaskDefinitionKeyValuePairArray{
 			ecs.TaskDefinitionKeyValuePairArgs{
 				Name:  pulumi.StringPtr("DD_DOGSTATSD_SOCKET"),
-				Value: pulumi.StringPtr("/var/run/datadog/dsd.socket"),
+				Value: pulumi.StringPtr("/opt/datadog-agent/run/dsd.socket"),
 			},
 			ecs.TaskDefinitionKeyValuePairArgs{
 				Name:  pulumi.StringPtr("ECS_FARGATE"),
@@ -86,7 +86,7 @@ func ECSFargateLinuxContainerDefinition(e config.Env, image string, apiKeySSMPar
 		},
 		MountPoints: ecs.TaskDefinitionMountPointArray{
 			ecs.TaskDefinitionMountPointArgs{
-				ContainerPath: pulumi.StringPtr("/var/run/datadog"),
+				ContainerPath: pulumi.StringPtr("/opt/datadog-agent/run"),
 				SourceVolume:  pulumi.StringPtr("dd-sockets"),
 			},
 			ecs.TaskDefinitionMountPointArgs{

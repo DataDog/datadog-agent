@@ -1314,10 +1314,10 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 	}
 
 	if suite.Contains(env, "DD_DOGSTATSD_URL") {
-		suite.Equal("unix:///var/run/datadog/dsd.socket", env["DD_DOGSTATSD_URL"])
+		suite.Equal("unix:///opt/datadog-agent/run/dsd.socket", env["DD_DOGSTATSD_URL"])
 	}
 	if suite.Contains(env, "DD_TRACE_AGENT_URL") {
-		suite.Equal("unix:///var/run/datadog/apm.socket", env["DD_TRACE_AGENT_URL"])
+		suite.Equal("unix:///opt/datadog-agent/run/apm.socket", env["DD_TRACE_AGENT_URL"])
 	}
 	suite.Contains(env, "DD_ENTITY_ID")
 	if suite.Contains(env, "DD_ENV") {
@@ -1345,7 +1345,7 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 	if suite.Contains(hostPathVolumes, "datadog") {
 		// trim trailing '/' if exists
 		ddHostPath := strings.TrimSuffix(hostPathVolumes["datadog"].Path, "/")
-		suite.Contains("/var/run/datadog", ddHostPath)
+		suite.Contains("/opt/datadog-agent/run", ddHostPath)
 		suite.Contains(volumesMarkedAsSafeToEvict, "datadog")
 	}
 
@@ -1355,7 +1355,7 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 	}
 
 	if suite.Contains(volumeMounts, "datadog") {
-		suite.ElementsMatch([]string{"/var/run/datadog"}, volumeMounts["datadog"])
+		suite.ElementsMatch([]string{"/opt/datadog-agent/run"}, volumeMounts["datadog"])
 	}
 
 	switch language {

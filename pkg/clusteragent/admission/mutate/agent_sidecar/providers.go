@@ -25,7 +25,7 @@ import (
 //                            //
 ////////////////////////////////
 
-const socketDir = "/var/run/datadog"
+const socketDir = "/opt/datadog-agent/run"
 const apmSocket = socketDir + "/apm.socket"
 const dogstatsdSocket = socketDir + "/dsd.socket"
 

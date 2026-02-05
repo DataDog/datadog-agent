@@ -49,16 +49,16 @@ var dockerUDSAgentOptions = []func(*dockeragentparams.Params) error{
 	// Enable the UDS receiver in the trace-agent
 	dockeragentparams.WithAgentServiceEnvVariable(
 		"DD_APM_RECEIVER_SOCKET",
-		pulumi.String("/var/run/datadog/apm.socket")),
+		pulumi.String("/opt/datadog-agent/run/apm.socket")),
 	// Optional: UDS is more reliable for statsd metrics
 	// Set DD_DOGSTATSD_SOCKET to enable the UDS statsd listener in the core-agent
 	dockeragentparams.WithAgentServiceEnvVariable(
 		"DD_DOGSTATSD_SOCKET",
-		pulumi.String("/var/run/datadog/dsd.socket")),
+		pulumi.String("/opt/datadog-agent/run/dsd.socket")),
 	// Set STATSD_URL to instruct the statsd client in the trace-agent to send metrics through UDS
 	dockeragentparams.WithAgentServiceEnvVariable(
 		"STATSD_URL",
-		pulumi.String("unix:///var/run/datadog/dsd.socket")),
+		pulumi.String("unix:///opt/datadog-agent/run/dsd.socket")),
 }
 
 func dockerAgentOptions(tr transport) []func(*dockeragentparams.Params) error {
