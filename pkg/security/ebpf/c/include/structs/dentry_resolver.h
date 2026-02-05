@@ -20,9 +20,9 @@ struct path_leaf_t {
     u16 len;
 };
 
-struct pid_path_key_t {
-    u32 pid;
-    struct path_key_t path_key;
+struct process_path_key_t {
+    struct path_key_t process_path_key;
+    struct path_key_t file_path_key;
 };
 
 struct dr_erpc_state_t {
