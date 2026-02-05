@@ -5,15 +5,22 @@
 
 package autoconnections
 
-import "path/filepath"
+import (
+	"path/filepath"
 
-const (
-	PrivateActionRunnerBaseDir = "/etc/privateactionrunner"
-	ScriptConfigFileName       = "script-config.yaml"
-	ConfigDirPermissions       = 0755 // rwxr-xr-x
-	ConfigFilePermissions      = 0640 // rw-r-----
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
+const (
+	PrivateActionRunnerRelativeDir = "private-action-runner"
+	ScriptConfigFileName           = "script-config.yaml"
+	ConfigDirPermissions           = 0755 // rwxr-xr-x
+	ConfigFilePermissions          = 0640 // rw-r-----
+)
+
+func GetPrivateActionRunnerDir() string {
+	return filepath.Join(defaultpaths.ConfPath, PrivateActionRunnerRelativeDir)
+}
 func GetScriptConfigPath() string {
-	return filepath.Join(PrivateActionRunnerBaseDir, ScriptConfigFileName)
+	return filepath.Join(GetPrivateActionRunnerDir(), ScriptConfigFileName)
 }

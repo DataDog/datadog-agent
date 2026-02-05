@@ -7,7 +7,6 @@ package autoconnections
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 )
 
@@ -35,7 +34,7 @@ var supportedConnections = map[string]ConnectionDefinition{
 		Credentials: CredentialConfig{
 			Type: "Script",
 			AdditionalFields: map[string]interface{}{
-				"configFileLocation": filepath.Join(PrivateActionRunnerBaseDir, ScriptConfigFileName),
+				"configFileLocation": GetScriptConfigPath(),
 			},
 		},
 	},

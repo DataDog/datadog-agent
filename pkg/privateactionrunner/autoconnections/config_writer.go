@@ -27,7 +27,7 @@ type DefaultConfigWriter struct {
 }
 
 func NewDefaultConfigWriter() ConfigWriter {
-	return DefaultConfigWriter{BaseDir: PrivateActionRunnerBaseDir}
+	return DefaultConfigWriter{BaseDir: GetPrivateActionRunnerDir()}
 }
 
 // EnsureScriptBundleConfig creates the script bundle configuration file if it doesn't exist

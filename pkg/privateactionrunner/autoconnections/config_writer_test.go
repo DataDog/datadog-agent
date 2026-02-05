@@ -16,7 +16,7 @@ import (
 )
 
 func TestEnsureScriptBundleConfig(t *testing.T) {
-	// Create temporary directory to simulate /etc/privateactionrunner
+	// Create temporary directory
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "script-config.yaml")
 
