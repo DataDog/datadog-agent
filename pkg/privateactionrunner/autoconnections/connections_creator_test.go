@@ -320,7 +320,7 @@ func TestAutoCreateConnections_CreatesScriptConfigFile(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := tempDir + "/script-config.yaml"
 
-	allowlist := []string{"com.datadoghq.script"}
+	allowlist := []string{"com.datadoghq.script.runPredefinedScript"}
 
 	testClient := &ConnectionsClient{
 		httpClient: server.Client(),
@@ -359,7 +359,7 @@ func TestAutoCreateConnections_SkipsConnectionWhenConfigFileFails(t *testing.T) 
 	}))
 	defer server.Close()
 
-	allowlist := []string{"com.datadoghq.script"}
+	allowlist := []string{"com.datadoghq.script.runPredefinedScript"}
 
 	testClient := &ConnectionsClient{
 		httpClient: server.Client(),
