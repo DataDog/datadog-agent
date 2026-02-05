@@ -177,7 +177,6 @@ use (
 	pkg/util/startstop
 	pkg/util/statstracker
 	pkg/util/system
-	pkg/util/system/socket
 	pkg/util/testutil
 	pkg/util/utilizationtracker
 	pkg/util/uuid

@@ -39,5 +39,10 @@ func TestWindowsSharedLibraryCheckSuite(t *testing.T) {
 
 func (v *windowsSharedLibrarySuite) TestCheckExample() {
 	v.updateEnvWithCheckConfigAndSharedLibrary("example", checkMinimalConfig, windowsDefaultPermissions)
-	v.testExampleRunAndMetrics()
+	v.testCheckExampleExecutionAndMetrics()
+}
+
+func (v *windowsSharedLibrarySuite) TestCheckWithoutRunSymbol() {
+	v.updateEnvWithCheckConfigAndSharedLibrary("no-run-symbol", checkMinimalConfig, windowsDefaultPermissions)
+	v.testCheckWithoutRunSymbolExecutionError()
 }

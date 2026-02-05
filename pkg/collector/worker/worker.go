@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
@@ -164,11 +165,19 @@ func (w *Worker) Run() {
 			continue
 		}
 
-		var watchdogTimer *time.Timer
+		var watchdogCancel chan struct{}
+		var watchdogWG sync.WaitGroup
 		if w.watchdogWarningTimeout > 0 {
-			watchdogTimer = time.AfterFunc(w.watchdogWarningTimeout, func() {
-				log.Warnf("Check %s is running for longer than the watchdog warning timeout of %s", check.ID(), w.watchdogWarningTimeout)
-			})
+			watchdogCancel = make(chan struct{})
+			watchdogWG.Add(1)
+			go func() {
+				defer watchdogWG.Done()
+				select {
+				case <-time.After(w.watchdogWarningTimeout):
+					log.Warnf("Check %s is running for longer than the watchdog warning timeout of %s", check.ID(), w.watchdogWarningTimeout)
+				case <-watchdogCancel:
+				}
+			}()
 		}
 
 		checkStartTime := time.Now()
@@ -238,8 +247,9 @@ func (w *Worker) Run() {
 
 		checkLogger.CheckFinished()
 
-		if watchdogTimer != nil {
-			watchdogTimer.Stop()
+		if watchdogCancel != nil {
+			close(watchdogCancel)
+			watchdogWG.Wait()
 		}
 	}
 

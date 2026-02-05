@@ -68,6 +68,11 @@ func NewPodDeletionWatcher(client kubernetes.Interface, eventHandler func(*v1.Po
 	return watcher
 }
 
+// AwaitStop blocks until [PodDeletionWatcher] has stopped, it must be only be called after closing the stop channel.
+func (w *PodDeletionWatcher) AwaitStop() {
+	w.wg.Wait()
+}
+
 // getInitialResourceVersion gets the current resource version using a cheap List operation.
 // Using limit=1 ensures minimal data transfer while getting the current resource version.
 func (w *PodDeletionWatcher) getInitialResourceVersion(ctx context.Context) (string, error) {

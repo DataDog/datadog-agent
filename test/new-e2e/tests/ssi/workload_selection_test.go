@@ -75,7 +75,7 @@ func (v *workloadSelectionSuite) TestExpectInjection() {
 
 	// Ensure the pod was injected.
 	pod := FindPodInNamespace(v.T(), k8s, "targeted-namespace", DefaultAppName)
-	podValidator := testutils.NewPodValidator(pod)
+	podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
 	podValidator.RequireInjection(v.T(), DefaultExpectedContainers)
 	podValidator.RequireLibraryVersions(v.T(), map[string]string{
 		"python": "v3.18.1",
@@ -91,6 +91,6 @@ func (v *workloadSelectionSuite) TestExpectInjection() {
 
 func (v *workloadSelectionSuite) TestExpectNoInjection() {
 	pod := FindPodInNamespace(v.T(), v.Env().KubernetesCluster.Client(), "targeted-namespace", "expect-no-injection")
-	podValidator := testutils.NewPodValidator(pod)
+	podValidator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
 	podValidator.RequireNoInjection(v.T())
 }

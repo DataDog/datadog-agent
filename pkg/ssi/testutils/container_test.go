@@ -47,7 +47,7 @@ func TestContainerValidator(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			v := testutils.NewContainerValidator(test.in)
+			v := testutils.NewContainerValidator(test.in, nil)
 			test.require(t, v)
 		})
 	}
