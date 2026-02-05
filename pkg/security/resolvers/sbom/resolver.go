@@ -17,12 +17,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/avast/retry-go/v4"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/skydive-project/go-debouncer"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -223,6 +225,9 @@ func (r *Resolver) Start(ctx context.Context) error {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
+		ticker := time.NewTicker(1 * time.Minute)
+		defer ticker.Stop()
+
 		for {
 			select {
 			case <-ctx.Done():
@@ -236,6 +241,11 @@ func (r *Resolver) Start(ctx context.Context) error {
 					} else {
 						seclog.Warnf("Failed to generate SBOM for '%s': %v", sbom.ContainerID, err)
 					}
+				}
+			case <-ticker.C:
+				seclog.Debugf("Enriching SBOM with runtime usage")
+				if err := r.enrichSBOMsWithUsage(); err != nil {
+					seclog.Errorf("Couldn't enrich SBOMs with usage: %v", err)
 				}
 			}
 		}
@@ -348,6 +358,52 @@ func (r *Resolver) removeSBOMData(key workloadKey) {
 	r.dataCacheLock.Unlock()
 }
 
+func (r *Resolver) enrichSBOMsWithUsage() error {
+	r.sbomsLock.RLock()
+	defer r.sbomsLock.RUnlock()
+
+	images := r.wmeta.ListImages()
+
+	for _, image := range images {
+		uncompressedSBOM, err := sbomutil.UncompressSBOM(image.SBOM)
+		if err != nil {
+			return err
+		}
+
+		for _, sbom := range r.sboms.Values() {
+			if sbom.data != nil && sbom.workloadKey == workloadKey(image.Name) {
+				r.enrichSBOMWithUsage(uncompressedSBOM, sbom)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (r *Resolver) enrichSBOMWithUsage(wsbom *workloadmeta.SBOM, sbom *SBOM) {
+	componentMap := make(map[string]*cyclonedx_v1_4.Component)
+	for _, component := range wsbom.CycloneDXBOM.Components {
+		componentMap[component.Name+"/"+component.Version] = component
+	}
+
+	files := sbom.data.files
+	for _, pkg := range files.pkgs {
+		if !pkg.LastAccess.IsZero() {
+			if component, ok := componentMap[pkg.Name+"/"+pkg.Version]; ok {
+				if component.Properties == nil {
+					component.Properties = []*cyclonedx_v1_4.Property{}
+				}
+
+				lastAccess := pkg.LastAccess.Format(time.RFC3339)
+				component.Properties = append(component.Properties, &cyclonedx_v1_4.Property{
+					Name:  "LastAccess",
+					Value: &lastAccess,
+				})
+			}
+		}
+	}
+}
+
 func (r *Resolver) addPendingScan(containerID containerutils.ContainerID) bool {
 	r.pendingScanLock.Lock()
 	defer r.pendingScanLock.Unlock()
@@ -450,7 +506,12 @@ func (r *Resolver) ResolvePackage(containerID containerutils.ContainerID, file *
 	sbom.Lock()
 	defer sbom.Unlock()
 
-	return sbom.data.files.queryFile(file.PathnameStr)
+	pkg := sbom.data.files.queryFile(file.PathnameStr)
+	if pkg != nil {
+		pkg.LastAccess = time.Now()
+	}
+
+	return pkg
 }
 
 // newSBOM (thread unsafe) creates a new SBOM entry for the sbom designated by the provided process cache

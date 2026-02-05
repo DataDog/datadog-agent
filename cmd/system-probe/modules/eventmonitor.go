@@ -40,6 +40,7 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 	opts.StatsdClient = deps.Statsd
 	opts.ProbeOpts.EnvsVarResolutionEnabled = emconfig.EnvVarsResolutionEnabled
 	opts.ProbeOpts.Tagger = deps.Tagger
+	opts.ProbeOpts.WorkloadMeta = deps.WMeta
 	secmoduleOpts := secmodule.Opts{}
 
 	// adapt options
