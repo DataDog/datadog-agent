@@ -75,3 +75,16 @@ func (c *httpDigestCache) store(registry, repository, tag, digest string) string
 	}
 	return digest
 }
+
+func newHTTPDigestCache(ttl time.Duration, ddRegistries map[string]struct{}) *httpDigestCache {
+	cache := make(registryCache)
+	for registry := range ddRegistries {
+		cache[registry] = make(repositoryCache)
+	}
+
+	return &httpDigestCache{
+		cache:   cache,
+		ttl:     ttl,
+		fetcher: newHTTPDigestFetcher(),
+	}
+}
