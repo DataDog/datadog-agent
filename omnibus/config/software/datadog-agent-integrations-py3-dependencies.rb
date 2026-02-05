@@ -51,19 +51,13 @@ if linux_target?
           'kinit',
         ]
 
-      command_on_repo_root "bazelisk run -- @krb5//:install --destdir='#{install_dir}/embedded'"
       command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded' " \
         + lib_files.map{ |l| "#{install_dir}/embedded/lib/#{l}" }.join(' ') \
         + " " \
         + pc_files.map{ |pc| "#{install_dir}/embedded/lib/pkgconfig/#{pc}" }.join(' ') \
         + " " \
-        + bin_files.map{ |bin| "#{install_dir}/embedded/bin/#{bin}" }.join(' ')
-
-      command_on_repo_root "bazelisk run -- //deps/msodbcsql18:install --destdir='#{install_dir}'"
-
-      # Fix rpath to point to the embedded lib directory
-      command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-        " '#{install_dir}/embedded/msodbcsql/lib64/libmsodbcsql-18.3.so.3.1'"
+        + bin_files.map{ |bin| "#{install_dir}/embedded/bin/#{bin}" }.join(' ') \
+        + " '#{install_dir}/embedded/msodbcsql/lib64/libmsodbcsql-18.3.so.3.1'"
     end
 
     # gstatus binary used by the glusterfs integration
