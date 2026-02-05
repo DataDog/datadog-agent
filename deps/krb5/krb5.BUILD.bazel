@@ -143,7 +143,7 @@ filegroup(
 pkg_files(
     name = "hdr_files",
     srcs = [":_headers"],
-    prefix = "embedded/include",
+    prefix = "embedded/",
 )
 
 pkg_files(
