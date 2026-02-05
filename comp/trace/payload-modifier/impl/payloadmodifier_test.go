@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
 )
 
@@ -106,11 +106,9 @@ func TestNewComponent_AzureAppServices(t *testing.T) {
 				require.NotNil(t, comp.modifier, "expected modifier to be created")
 
 				// Test that the modifier applies the expected tags
-				strings := idx.NewStringTable()
-				payload := &idx.InternalTracerPayload{
-					Strings: strings,
-					Attributes: map[uint32]*idx.AnyValue{
-						strings.Add("existing"): {Value: &idx.AnyValue_StringValueRef{StringValueRef: strings.Add("tag")}},
+				payload := &pb.TracerPayload{
+					Tags: map[string]string{
+						"existing": "tag",
 					},
 				}
 
@@ -118,8 +116,8 @@ func TestNewComponent_AzureAppServices(t *testing.T) {
 
 				if tt.expectedFunctionTags != "" {
 					// Verify function tags were added
-					functionTags, ok := payload.GetAttributeAsString("_dd.tags.function")
-					assert.True(t, ok)
+					assert.Contains(t, payload.Tags, "_dd.tags.function")
+					functionTags := payload.Tags["_dd.tags.function"]
 					assert.Equal(t, tt.expectedFunctionTags, functionTags)
 					// Verify dogstatsd tags are excluded
 					assert.NotContains(t, functionTags, "dogstatsd")
@@ -127,28 +125,22 @@ func TestNewComponent_AzureAppServices(t *testing.T) {
 				}
 
 				// Verify existing tags are preserved
-				value, ok := payload.GetAttributeAsString("existing")
-				assert.True(t, ok)
-				assert.Equal(t, "tag", value)
+				assert.Equal(t, "tag", payload.Tags["existing"])
 			} else {
 				// Verify modifier was not created
 				assert.Nil(t, comp.modifier, "expected modifier to be nil")
 
 				// Test that Modify is a no-op
-				strings := idx.NewStringTable()
-				payload := &idx.InternalTracerPayload{
-					Strings: strings,
-					Attributes: map[uint32]*idx.AnyValue{
-						strings.Add("existing"): {Value: &idx.AnyValue_StringValueRef{StringValueRef: strings.Add("tag")}},
+				payload := &pb.TracerPayload{
+					Tags: map[string]string{
+						"existing": "tag",
 					},
 				}
 
 				comp.Modify(payload)
 
 				// Payload should be unchanged
-				value, ok := payload.GetAttributeAsString("existing")
-				assert.True(t, ok)
-				assert.Equal(t, "tag", value)
+				assert.Equal(t, map[string]string{"existing": "tag"}, payload.Tags)
 			}
 		})
 	}
