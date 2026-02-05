@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package impl
+package softwareinventoryimpl
 
 import (
 	"net/http"
