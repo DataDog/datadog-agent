@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/trace/stats
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.71.0
@@ -216,6 +216,8 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/http => ../../../pkg/util/http
 	github.com/DataDog/datadog-agent/pkg/util/json => ../../../pkg/util/json
 	github.com/DataDog/datadog-agent/pkg/util/jsonquery => ../../../pkg/util/jsonquery
+	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver => ../../../pkg/util/kubernetes/apiserver
+	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common => ../../../pkg/util/kubernetes/apiserver/common
 	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace => ../../../pkg/util/kubernetes/apiserver/common/namespace
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../../pkg/util/log/setup

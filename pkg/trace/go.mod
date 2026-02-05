@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/trace
 
-go 1.24.0
+go 1.25.0
 
 // NOTE: Prefer using simple `require` directives instead of using `replace` if possible.
 // See https://github.com/DataDog/datadog-agent/blob/main/docs/dev/gomodreplace.md
@@ -41,7 +41,7 @@ require (
 	google.golang.org/grpc v1.78.0
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/ini.v1 v1.67.0
-	k8s.io/apimachinery v0.35.0-alpha.0
+	k8s.io/apimachinery v0.35.0
 )
 
 require (
@@ -303,6 +303,8 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/http => ../../pkg/util/http
 	github.com/DataDog/datadog-agent/pkg/util/json => ../../pkg/util/json
 	github.com/DataDog/datadog-agent/pkg/util/jsonquery => ../../pkg/util/jsonquery
+	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver => ../../pkg/util/kubernetes/apiserver
+	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common => ../../pkg/util/kubernetes/apiserver/common
 	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace => ../../pkg/util/kubernetes/apiserver/common/namespace
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../pkg/util/log/setup
