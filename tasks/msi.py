@@ -183,28 +183,82 @@ def sign_file(ctx, path, force=False):
 
 def _ensure_wix_tools(ctx):
     """
-    Ensure WiX 5.x dotnet tools are installed globally.
+    Ensure WiX 5.x dotnet tools and required extensions are installed globally.
     This is required for WixSharp_wix4 which relies on the wix dotnet tool.
     WixSharp_wix4 supports WiX 4.x and 5.x.
     """
     if sys.platform != 'win32':
         return
 
-    # Check if wix is installed globally
-    result = ctx.run('dotnet wix --version', warn=True, hide=True)
-    if result and result.return_code == 0:
-        print("WiX tools found")
-        return
+    WIX_VERSION = "5.0.2"
+    # These extensions are required for the MSI build:
+    # - Netfx: .NET Framework detection
+    # - Util: Utility elements (RemoveFolderEx, EventSource, ServiceConfig, FailWhenDeferred)
+    # - UI: Standard UI dialogs
+    REQUIRED_EXTENSIONS = [
+        "WixToolset.Netfx.wixext",
+        "WixToolset.Util.wixext",
+        "WixToolset.UI.wixext",
+    ]
 
-    # Install WiX 5.x globally (WixSharp_wix4 supports WiX 4.x and 5.x)
-    print("WiX tools not found. Installing WiX 5.0.2 globally...")
-    result = ctx.run('dotnet tool install --global wix --version 5.0.2', warn=True)
+    # Check if wix is installed globally
+    # Note: .NET global tools are invoked directly by name, not with 'dotnet' prefix
+    result = ctx.run('wix --version', warn=True, hide=True)
     if not result or result.return_code != 0:
-        raise Exit(
-            "Failed to install WiX tools. Please install manually with: dotnet tool install --global wix --version 5.0.2",
-            code=1,
-        )
-    print("WiX tools installed successfully")
+        # Install WiX 5.x globally
+        print(f"WiX tools not found. Installing WiX {WIX_VERSION} globally...")
+        result = ctx.run(f'dotnet tool install --global wix --version {WIX_VERSION}', warn=True)
+        if not result or result.return_code != 0:
+            raise Exit(
+                f"Failed to install WiX tools. Please install manually with: dotnet tool install --global wix --version {WIX_VERSION}",
+                code=1,
+            )
+        print("WiX tools installed successfully")
+    else:
+        print("WiX tools found")
+
+    # Check and install required WiX extensions
+    _ensure_wix_extensions(ctx, REQUIRED_EXTENSIONS, WIX_VERSION)
+
+
+def _ensure_wix_extensions(ctx, extensions, version):
+    """
+    Ensure required WiX extensions are installed with the correct version.
+
+    WiX extensions must match the WiX toolset version. For example, WiX 5.0.2
+    requires extensions version 5.0.2. Using mismatched versions (e.g., 6.0.2
+    extensions with WiX 5.0.2) will cause build errors.
+    """
+    # Get list of installed extensions
+    result = ctx.run('wix extension list -g', warn=True, hide=True)
+    installed_extensions = {}
+    if result and result.return_code == 0 and result.stdout:
+        # Parse output like "WixToolset.Netfx.wixext 5.0.2" (space-separated)
+        for line in result.stdout.strip().split('\n'):
+            parts = line.strip().split()
+            if len(parts) >= 2:
+                ext_name, ext_version = parts[0], parts[1]
+                installed_extensions[ext_name] = ext_version
+
+    for ext in extensions:
+        expected = f"{ext}/{version}"
+        if ext in installed_extensions:
+            if installed_extensions[ext] == version:
+                print(f"WiX extension {expected} already installed")
+                continue
+            else:
+                # Wrong version installed - remove it first
+                print(f"Removing incompatible WiX extension {ext}/{installed_extensions[ext]}...")
+                ctx.run(f'wix extension remove -g {ext}', warn=True, hide=True)
+
+        # Install the extension with the correct version
+        print(f"Installing WiX extension {expected}...")
+        result = ctx.run(f'wix extension add -g {expected}', warn=True)
+        if not result or result.return_code != 0:
+            raise Exit(
+                f"Failed to install WiX extension {expected}. Please install manually with: wix extension add -g {expected}",
+                code=1,
+            )
 
 
 def _build(
@@ -294,7 +348,7 @@ def _build_wxs(ctx, env, outdir, ca_dll):
         raise Exit("Failed to build the MSI WXS.", code=1)
 
     # sign the MakeSfxCA output files
-    _fix_makesfxca_dll(os.path.join(outdir, ca_dll))
+    # _fix_makesfxca_dll(os.path.join(outdir, ca_dll))
     sign_file(ctx, os.path.join(outdir, ca_dll))
 
 
