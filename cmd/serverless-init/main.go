@@ -168,13 +168,7 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 
 	metricAgent.AddMetric(cloudService.GetStartMetricName(), 1.0, cloudService.GetSource(), metrics.DistributionType)
 
-	// Start CPU metrics collection for Azure Container Apps and Google Cloud Run
-	switch cs := cloudService.(type) {
-	case *cloudservice.ContainerApp:
-		cs.StartEnhancedMetrics(metricAgent) // use aggregation and tags from metric agent
-	case *cloudservice.CloudRun:
-		cs.StartEnhancedMetrics(metricAgent)
-	}
+	cloudService.StartEnhancedMetrics(metricAgent)
 
 	setupOtlpAgent(metricAgent, tagger)
 
