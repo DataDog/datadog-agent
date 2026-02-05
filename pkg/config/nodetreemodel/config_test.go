@@ -1296,7 +1296,7 @@ tree(#ptr<000014>) source=environment-variable
   > collector
     inner(#ptr<000002>)
     > input_chan_size
-        leaf(#ptr<000017>), val:100000, source:default
+        leaf(#ptr<000009>), val:100000, source:default
     > pathtest_contexts_limit
         leaf(#ptr<000004>), val:100000, source:default
     > processing_chan_size

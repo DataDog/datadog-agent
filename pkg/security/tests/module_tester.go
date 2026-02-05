@@ -61,7 +61,8 @@ const (
 	Skip
 )
 const (
-	getEventTimeout = 10 * time.Second
+	getEventTimeout         = 10 * time.Second
+	functionalTestsHostname = "functional_tests_host"
 )
 
 var (
@@ -881,12 +882,6 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to set up datadog.yaml configuration: %s", err)
 	}
-
-	// reset the system-probe config to not be adjusted yet
-	// necessary because the config object is a global, and we want the adjustment
-	// to happen again
-	cfg := pkgconfigsetup.GlobalSystemProbeConfigBuilder()
-	cfg.Set("system_probe_config.adjusted", false, pkgconfigmodel.SourceAgentRuntime)
 
 	_, err = spconfig.New(sysprobeConfigName, "")
 	if err != nil {

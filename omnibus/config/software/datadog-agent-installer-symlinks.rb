@@ -3,18 +3,14 @@ name 'datadog-agent-installer-symlinks'
 description "Create symlinks for the datadog-agent installer to track deb/rpm packages as installed"
 
 always_build true
+skip_transitive_dependency_licensing true
 
 build do
   license :project_license
 
   block do
     if linux_target? and install_dir == '/opt/datadog-agent'
-      version = project.build_version
-      mkdir '/opt/datadog-packages/datadog-agent'
-      mkdir '/opt/datadog-packages/run/datadog-agent'
-      link "/opt/datadog-agent", "/opt/datadog-packages/run/datadog-agent/#{version}"
-      link "/opt/datadog-packages/run/datadog-agent/#{version}", "/opt/datadog-packages/datadog-agent/stable"
-      link "/opt/datadog-packages/datadog-agent/stable", "/opt/datadog-packages/datadog-agent/experiment"
+      command_on_repo_root "bazelisk run -- //packages/agent/linux:install --destdir='/'"
       project.extra_package_file "/opt/datadog-packages/datadog-agent"
       project.extra_package_file "/opt/datadog-packages/run"
     end
