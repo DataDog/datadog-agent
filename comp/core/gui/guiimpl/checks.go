@@ -36,7 +36,7 @@ func checkPaths() []string {
 	return []string{
 		filepath.Join(defaultpaths.GetDistPath(), "checks.d"),    // Custom checks
 		pkgconfigsetup.Datadog().GetString("additional_checksd"), // Custom checks
-		defaultpaths.GetPyChecksPath(),                           // Integrations-core checks
+		defaultpaths.GetDefaultPyChecksPath(),                    // Integrations-core checks
 		getFleetPoliciesPath(),                                   // Fleet Policies
 	}
 }

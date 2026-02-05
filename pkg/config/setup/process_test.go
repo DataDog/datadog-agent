@@ -33,7 +33,7 @@ func TestProcessDefaultConfig(t *testing.T) {
 		},
 		{
 			key:          "process_config.log_file",
-			defaultValue: defaultpaths.GetProcessAgentLogFile(),
+			defaultValue: defaultpaths.GetDefaultProcessAgentLogFile(),
 		},
 		{
 			key:          "process_config.grpc_connection_timeout_secs",

@@ -121,131 +121,131 @@ func init() {
 
 // Config path getters
 
-// GetConfPath returns the path to the folder containing datadog.yaml
-func GetConfPath() string {
+// GetDefaultConfPath returns the path to the folder containing datadog.yaml
+func GetDefaultConfPath() string {
 	return CommonRootOrPath(commonRoot, confPath)
 }
 
-// GetConfdPath returns the path to the conf.d directory
-func GetConfdPath() string {
+// GetDefaultConfdPath returns the path to the conf.d directory
+func GetDefaultConfdPath() string {
 	return CommonRootOrPath(commonRoot, confdPath)
 }
 
-// GetAdditionalChecksPath returns the path to the checks.d directory
-func GetAdditionalChecksPath() string {
+// GetDefaultAdditionalChecksPath returns the path to the checks.d directory
+func GetDefaultAdditionalChecksPath() string {
 	return CommonRootOrPath(commonRoot, additionalChecksPath)
 }
 
 // Log file getters
 
-// GetLogFile returns the path to the agent log file
-func GetLogFile() string {
+// GetDefaultLogFile returns the path to the agent log file
+func GetDefaultLogFile() string {
 	return CommonRootOrPath(commonRoot, logFile)
 }
 
-// GetDCALogFile returns the path to the cluster-agent log file
-func GetDCALogFile() string {
+// GetDefaultDCALogFile returns the path to the cluster-agent log file
+func GetDefaultDCALogFile() string {
 	return CommonRootOrPath(commonRoot, dcaLogFile)
 }
 
-// GetJmxLogFile returns the path to the jmxfetch log file
-func GetJmxLogFile() string {
+// GetDefaultJmxLogFile returns the path to the jmxfetch log file
+func GetDefaultJmxLogFile() string {
 	return CommonRootOrPath(commonRoot, jmxLogFile)
 }
 
-// GetDogstatsDProtocolLogFile returns the path to the DogStatsD protocol stats log file
-func GetDogstatsDProtocolLogFile() string {
+// GetDefaultDogstatsDProtocolLogFile returns the path to the DogStatsD protocol stats log file
+func GetDefaultDogstatsDProtocolLogFile() string {
 	return CommonRootOrPath(commonRoot, dogstatsDProtocolLogFile)
 }
 
-// GetDogstatsDServiceLogFile returns the path to the dogstatsd service log file
-func GetDogstatsDServiceLogFile() string {
+// GetDefaultDogstatsDServiceLogFile returns the path to the dogstatsd service log file
+func GetDefaultDogstatsDServiceLogFile() string {
 	return dogstatsDServiceLogFile
 }
 
-// GetTraceAgentLogFile returns the path to the trace-agent log file
-func GetTraceAgentLogFile() string {
+// GetDefaultTraceAgentLogFile returns the path to the trace-agent log file
+func GetDefaultTraceAgentLogFile() string {
 	return traceAgentLogFile
 }
 
-// GetStreamlogsLogFile returns the path to the streamlogs log file
-func GetStreamlogsLogFile() string {
+// GetDefaultStreamlogsLogFile returns the path to the streamlogs log file
+func GetDefaultStreamlogsLogFile() string {
 	return CommonRootOrPath(commonRoot, streamlogsLogFile)
 }
 
-// GetUpdaterLogFile returns the path to the updater log file
-func GetUpdaterLogFile() string {
+// GetDefaultUpdaterLogFile returns the path to the updater log file
+func GetDefaultUpdaterLogFile() string {
 	return CommonRootOrPath(commonRoot, updaterLogFile)
 }
 
-// GetSecurityAgentLogFile returns the path to the security-agent log file
-func GetSecurityAgentLogFile() string {
+// GetDefaultSecurityAgentLogFile returns the path to the security-agent log file
+func GetDefaultSecurityAgentLogFile() string {
 	return CommonRootOrPath(commonRoot, securityAgentLogFile)
 }
 
-// GetProcessAgentLogFile returns the path to the process-agent log file
-func GetProcessAgentLogFile() string {
+// GetDefaultProcessAgentLogFile returns the path to the process-agent log file
+func GetDefaultProcessAgentLogFile() string {
 	return CommonRootOrPath(commonRoot, processAgentLogFile)
 }
 
-// GetOTelAgentLogFile returns the path to the otel-agent log file
-func GetOTelAgentLogFile() string {
+// GetDefaultOTelAgentLogFile returns the path to the otel-agent log file
+func GetDefaultOTelAgentLogFile() string {
 	return CommonRootOrPath(commonRoot, otelAgentLogFile)
 }
 
-// GetHostProfilerLogFile returns the path to the host-profiler log file
-func GetHostProfilerLogFile() string {
+// GetDefaultHostProfilerLogFile returns the path to the host-profiler log file
+func GetDefaultHostProfilerLogFile() string {
 	return CommonRootOrPath(commonRoot, hostProfilerLogFile)
 }
 
-// GetPrivateActionRunnerLogFile returns the path to the private-action-runner log file
-func GetPrivateActionRunnerLogFile() string {
+// GetDefaultPrivateActionRunnerLogFile returns the path to the private-action-runner log file
+func GetDefaultPrivateActionRunnerLogFile() string {
 	return CommonRootOrPath(commonRoot, privateActionRunnerLogFile)
 }
 
-// GetSystemProbeLogFile returns the path to the system-probe log file
-func GetSystemProbeLogFile() string {
+// GetDefaultSystemProbeLogFile returns the path to the system-probe log file
+func GetDefaultSystemProbeLogFile() string {
 	return CommonRootOrPath(commonRoot, systemProbeLogFile)
 }
 
 // Flare directory getters
 
-// GetCheckFlareDirectory returns the path to the check flare directory
-func GetCheckFlareDirectory() string {
+// GetDefaultCheckFlareDirectory returns the path to the check flare directory
+func GetDefaultCheckFlareDirectory() string {
 	return CommonRootOrPath(commonRoot, checkFlareDirectory)
 }
 
-// GetJMXFlareDirectory returns the path to the JMX flare directory
-func GetJMXFlareDirectory() string {
+// GetDefaultJMXFlareDirectory returns the path to the JMX flare directory
+func GetDefaultJMXFlareDirectory() string {
 	return CommonRootOrPath(commonRoot, jmxFlareDirectory)
 }
 
 // Socket path getters
 
-// GetStatsdSocket returns the path to the dogstatsd Unix socket (empty on Windows)
-func GetStatsdSocket() string {
+// GetDefaultStatsdSocket returns the path to the dogstatsd Unix socket (empty on Windows)
+func GetDefaultStatsdSocket() string {
 	return statsdSocket
 }
 
-// GetReceiverSocket returns the path to the APM receiver Unix socket (empty on Windows)
-func GetReceiverSocket() string {
+// GetDefaultReceiverSocket returns the path to the APM receiver Unix socket (empty on Windows)
+func GetDefaultReceiverSocket() string {
 	return receiverSocket
 }
 
-// GetPidFilePath returns the path to the agent PID file
-func GetPidFilePath() string {
+// GetDefaultPidFilePath returns the path to the agent PID file
+func GetDefaultPidFilePath() string {
 	return pidFilePath
 }
 
-// GetRunPath returns the path to the run directory
-func GetRunPath() string {
+// GetDefaultRunPath returns the path to the run directory
+func GetDefaultRunPath() string {
 	return runPath
 }
 
 // Other path getters
 
-// GetPyChecksPath returns the path to the python checks directory
-func GetPyChecksPath() string {
+// GetDefaultPyChecksPath returns the path to the python checks directory
+func GetDefaultPyChecksPath() string {
 	return pyChecksPath
 }
 

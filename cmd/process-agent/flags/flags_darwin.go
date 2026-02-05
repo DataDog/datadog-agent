@@ -15,7 +15,7 @@ import (
 
 // DefaultConfPath returns the default location of datadog.yaml
 func DefaultConfPath() string {
-	return filepath.Join(defaultpaths.GetConfPath(), "datadog.yaml")
+	return filepath.Join(defaultpaths.GetDefaultConfPath(), "datadog.yaml")
 }
 
 // DefaultSysProbeConfPath returns empty since system-probe is not yet supported on darwin

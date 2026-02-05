@@ -38,7 +38,7 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Compo
 	// and set the common root in defaultpaths so all getter functions return transformed paths
 	if commonRoot != "" {
 		defaultpaths.SetCommonRoot(commonRoot)
-		defaultConfPath = defaultpaths.GetConfPath()
+		defaultConfPath = defaultpaths.GetDefaultConfPath()
 		// Also set common_root in config early so SetCommonRootPaths can use it later
 		config.Set("common_root", commonRoot, pkgconfigmodel.SourceCLI)
 	}

@@ -25,7 +25,7 @@ func GetPythonPaths() []string {
 	// wheels install in default site - already in sys.path; takes precedence over any additional location
 	return []string{
 		defaultpaths.GetDistPath(),                               // common modules are shipped in the dist path directly or under the "checks/" sub-dir
-		defaultpaths.GetPyChecksPath(),                           // integrations-core legacy checks
+		defaultpaths.GetDefaultPyChecksPath(),                    // integrations-core legacy checks
 		filepath.Join(defaultpaths.GetDistPath(), "checks.d"),    // custom checks in the "checks.d/" sub-dir of the dist path
 		pkgconfigsetup.Datadog().GetString("additional_checksd"), // custom checks, least precedent check location
 	}

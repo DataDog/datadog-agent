@@ -11,5 +11,5 @@ import "github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 
 // DefaultLogFile returns the default path to the system-probe log file
 func DefaultLogFile() string {
-	return defaultpaths.GetSystemProbeLogFile()
+	return defaultpaths.GetDefaultSystemProbeLogFile()
 }

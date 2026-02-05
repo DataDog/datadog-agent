@@ -15,10 +15,10 @@ import (
 
 // DefaultConfPath returns the default location of datadog.yaml
 func DefaultConfPath() string {
-	return filepath.Join(defaultpaths.GetConfPath(), "datadog.yaml")
+	return filepath.Join(defaultpaths.GetDefaultConfPath(), "datadog.yaml")
 }
 
 // DefaultSysProbeConfPath returns the default location of system-probe.yaml
 func DefaultSysProbeConfPath() string {
-	return filepath.Join(defaultpaths.GetConfPath(), "system-probe.yaml")
+	return filepath.Join(defaultpaths.GetDefaultConfPath(), "system-probe.yaml")
 }

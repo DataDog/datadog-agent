@@ -23,5 +23,5 @@ func isProcess(pid int) bool {
 
 // Path returns a suitable location for the pidfile under Linux
 func Path() string {
-	return defaultpaths.GetPidFilePath()
+	return defaultpaths.GetDefaultPidFilePath()
 }

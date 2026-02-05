@@ -162,7 +162,7 @@ func run(cliParams *cliParams, _ config.Component, diagnoseComponent diagnose.Co
 
 	logFile := pkgconfigsetup.Datadog().GetString("log_file")
 	if logFile == "" {
-		logFile = defaultpaths.GetDCALogFile()
+		logFile = defaultpaths.GetDefaultDCALogFile()
 	}
 
 	if cliParams.profiling >= 30 {

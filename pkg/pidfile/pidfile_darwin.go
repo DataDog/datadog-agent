@@ -18,5 +18,5 @@ func isProcess(pid int) bool {
 
 // Path returns a suitable location for the pidfile under OSX
 func Path() string {
-	return defaultpaths.GetPidFilePath()
+	return defaultpaths.GetDefaultPidFilePath()
 }

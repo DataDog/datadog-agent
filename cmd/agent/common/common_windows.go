@@ -23,20 +23,20 @@ const ServiceName = "DatadogAgent"
 func init() {
 	_, err := winutil.GetProgramDataDir()
 	if err != nil {
-		winutil.LogEventViewer(ServiceName, messagestrings.MSG_WARNING_PROGRAMDATA_ERROR, defaultpaths.GetConfPath())
+		winutil.LogEventViewer(ServiceName, messagestrings.MSG_WARNING_PROGRAMDATA_ERROR, defaultpaths.GetDefaultConfPath())
 	}
 }
 
 // CheckAndUpgradeConfig checks to see if there's an old datadog.conf, and if
 // datadog.yaml is either missing or incomplete (no API key).  If so, upgrade it
 func CheckAndUpgradeConfig() error {
-	datadogConfPath := filepath.Join(defaultpaths.GetConfPath(), "datadog.conf")
+	datadogConfPath := filepath.Join(defaultpaths.GetDefaultConfPath(), "datadog.conf")
 	if _, err := os.Stat(datadogConfPath); os.IsNotExist(err) {
 		log.Debug("Previous config file not found, not upgrading")
 		return nil
 	}
 	ddcfg := pkgconfigsetup.GlobalConfigBuilder()
-	ddcfg.AddConfigPath(defaultpaths.GetConfPath())
+	ddcfg.AddConfigPath(defaultpaths.GetDefaultConfPath())
 	err := pkgconfigsetup.LoadDatadog(ddcfg, &secretnooptypes.SecretNoop{}, nil)
 	if err == nil {
 		// was able to read config, check for api key
@@ -45,7 +45,7 @@ func CheckAndUpgradeConfig() error {
 			return nil
 		}
 	}
-	err = ImportConfig(defaultpaths.GetConfPath(), defaultpaths.GetConfPath(), false)
+	err = ImportConfig(defaultpaths.GetDefaultConfPath(), defaultpaths.GetDefaultConfPath(), false)
 	if err != nil {
 		winutil.LogEventViewer(ServiceName, messagestrings.MSG_WARN_CONFIGUPGRADE_FAILED, err.Error())
 		return err

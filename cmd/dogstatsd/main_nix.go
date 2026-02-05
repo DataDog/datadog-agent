@@ -20,7 +20,7 @@ import (
 func main() {
 	flavor.SetFlavor(flavor.Dogstatsd)
 
-	if err := command.MakeRootCommand(defaultpaths.GetDogstatsDServiceLogFile()).Execute(); err != nil {
+	if err := command.MakeRootCommand(defaultpaths.GetDefaultDogstatsDServiceLogFile()).Execute(); err != nil {
 		log.Error(err)
 		os.Exit(-1)
 	}

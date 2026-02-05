@@ -110,7 +110,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			cliParams.args = args
 			c := config.NewAgentParams(globalParams.ConfFilePath,
 				config.WithSecurityAgentConfigFilePaths([]string{
-					path.Join(defaultpaths.GetConfPath(), "security-agent.yaml"),
+					path.Join(defaultpaths.GetDefaultConfPath(), "security-agent.yaml"),
 				}),
 				config.WithConfigLoadSecurityAgent(true),
 				config.WithIgnoreErrors(true),
@@ -128,11 +128,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				secretfx.Module(),
 				flare.Module(flare.NewLocalParams(
 					defaultpaths.GetDistPath(),
-					defaultpaths.GetPyChecksPath(),
-					defaultpaths.GetLogFile(),
-					defaultpaths.GetJmxLogFile(),
-					defaultpaths.GetDogstatsDProtocolLogFile(),
-					defaultpaths.GetStreamlogsLogFile(),
+					defaultpaths.GetDefaultPyChecksPath(),
+					defaultpaths.GetDefaultLogFile(),
+					defaultpaths.GetDefaultJmxLogFile(),
+					defaultpaths.GetDefaultDogstatsDProtocolLogFile(),
+					defaultpaths.GetDefaultStreamlogsLogFile(),
 				)),
 				flareprofilerfx.Module(),
 				// workloadmeta setup
@@ -214,7 +214,7 @@ func makeFlare(flareComp flare.Component,
 	)
 
 	streamLogParams := streamlogs.CliParams{
-		FilePath: defaultpaths.GetStreamlogsLogFile(),
+		FilePath: defaultpaths.GetDefaultStreamlogsLogFile(),
 		Duration: cliParams.withStreamLogs,
 		Quiet:    true,
 	}

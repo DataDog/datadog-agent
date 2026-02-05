@@ -198,7 +198,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			fx.Supply(core.BundleParams{
 				ConfigParams:         config.NewAgentParams(""),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
-				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.GetLogFile()),
+				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.GetDefaultLogFile()),
 			}),
 			secretsfx.Module(),
 			getSharedFxOption(),

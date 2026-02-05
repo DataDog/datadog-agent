@@ -228,7 +228,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Supply(core.BundleParams{
 				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, configOpts...),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
-				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.GetLogFile()),
+				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.GetDefaultLogFile()),
 			}),
 			secretsfx.Module(),
 			fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
@@ -400,11 +400,11 @@ func getSharedFxOption() fx.Option {
 	return fx.Options(
 		flare.Module(flare.NewParams(
 			defaultpaths.GetDistPath(),
-			defaultpaths.GetPyChecksPath(),
-			defaultpaths.GetLogFile(),
-			defaultpaths.GetJmxLogFile(),
-			defaultpaths.GetDogstatsDProtocolLogFile(),
-			defaultpaths.GetStreamlogsLogFile(),
+			defaultpaths.GetDefaultPyChecksPath(),
+			defaultpaths.GetDefaultLogFile(),
+			defaultpaths.GetDefaultJmxLogFile(),
+			defaultpaths.GetDefaultDogstatsDProtocolLogFile(),
+			defaultpaths.GetDefaultStreamlogsLogFile(),
 		)),
 		core.Bundle(),
 		hostnameimpl.Module(),

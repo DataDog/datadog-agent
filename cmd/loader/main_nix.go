@@ -55,7 +55,7 @@ func main() {
 	}
 
 	// comp/trace/config/config*.go
-	logFile := defaultpaths.GetTraceAgentLogFile()
+	logFile := defaultpaths.GetDefaultTraceAgentLogFile()
 	// cmd/trace-agent/subcommands/run/command.go
 	logparams := logdef.ForDaemon("TRACE-LOADER", "apm_config.log_file", logFile)
 	err = pkglogsetup.SetupLogger(
@@ -291,7 +291,7 @@ func getListeners(cfg model.Reader) (tcpFD int, listeners map[string]uintptr, er
 		traceCfgReceiverPort = cfg.GetInt("apm_config.receiver_port")
 	}
 
-	traceCfgReceiverSocket := defaultpaths.GetReceiverSocket()
+	traceCfgReceiverSocket := defaultpaths.GetDefaultReceiverSocket()
 	if cfg.IsSet("apm_config.receiver_socket") {
 		traceCfgReceiverSocket = cfg.GetString("apm_config.receiver_socket")
 	}

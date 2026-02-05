@@ -18,7 +18,7 @@ import (
 
 // DefaultLogFilePath returns the default path where the agent will write logs
 func DefaultLogFilePath() string {
-	return defaultpaths.GetTraceAgentLogFile()
+	return defaultpaths.GetDefaultTraceAgentLogFile()
 }
 
 // defaultDDAgentBin specifies the default path to the main agent binary.

@@ -89,43 +89,43 @@ func TestGettersWithCommonRoot(t *testing.T) {
 	defer func() { commonRoot = originalRoot }()
 
 	// Test without common root set
-	// Note: GetRunPath() returns {InstallPath}/run for container compatibility,
+	// Note: GetDefaultRunPath() returns {InstallPath}/run for container compatibility,
 	// not the FHS path /var/run/datadog. Containers mount volumes at /opt/datadog-agent/run.
 	t.Run("without common root", func(t *testing.T) {
 		SetCommonRoot("")
-		assert.Equal(t, "/etc/datadog-agent", GetConfPath())
-		assert.Equal(t, "/var/log/datadog/agent.log", GetLogFile())
-		assert.Equal(t, "/var/log/datadog/dogstatsd_info/dogstatsd-stats.log", GetDogstatsDProtocolLogFile())
-		assert.Equal(t, "/opt/datadog-agent/checks.d", GetPyChecksPath())
-		assert.Equal(t, "/opt/datadog-agent/run", GetRunPath())
+		assert.Equal(t, "/etc/datadog-agent", GetDefaultConfPath())
+		assert.Equal(t, "/var/log/datadog/agent.log", GetDefaultLogFile())
+		assert.Equal(t, "/var/log/datadog/dogstatsd_info/dogstatsd-stats.log", GetDefaultDogstatsDProtocolLogFile())
+		assert.Equal(t, "/opt/datadog-agent/checks.d", GetDefaultPyChecksPath())
+		assert.Equal(t, "/opt/datadog-agent/run", GetDefaultRunPath())
 	})
 
 	// Test with common root set
 	t.Run("with common root", func(t *testing.T) {
 		SetCommonRoot("/opt/datadog-agent")
-		assert.Equal(t, "/opt/datadog-agent/etc", GetConfPath())
-		assert.Equal(t, "/opt/datadog-agent/logs/agent.log", GetLogFile())
-		assert.Equal(t, "/opt/datadog-agent/logs/cluster-agent.log", GetDCALogFile())
-		assert.Equal(t, "/opt/datadog-agent/logs/jmxfetch.log", GetJmxLogFile())
+		assert.Equal(t, "/opt/datadog-agent/etc", GetDefaultConfPath())
+		assert.Equal(t, "/opt/datadog-agent/logs/agent.log", GetDefaultLogFile())
+		assert.Equal(t, "/opt/datadog-agent/logs/cluster-agent.log", GetDefaultDCALogFile())
+		assert.Equal(t, "/opt/datadog-agent/logs/jmxfetch.log", GetDefaultJmxLogFile())
 		// Note: filepath.Join strips trailing slashes when common root is applied
-		assert.Equal(t, "/opt/datadog-agent/logs/checks", GetCheckFlareDirectory())
-		assert.Equal(t, "/opt/datadog-agent/logs/jmxinfo", GetJMXFlareDirectory())
-		assert.Equal(t, "/opt/datadog-agent/logs/dogstatsd_info/dogstatsd-stats.log", GetDogstatsDProtocolLogFile())
-		assert.Equal(t, "/opt/datadog-agent/logs/streamlogs_info/streamlogs.log", GetStreamlogsLogFile())
+		assert.Equal(t, "/opt/datadog-agent/logs/checks", GetDefaultCheckFlareDirectory())
+		assert.Equal(t, "/opt/datadog-agent/logs/jmxinfo", GetDefaultJMXFlareDirectory())
+		assert.Equal(t, "/opt/datadog-agent/logs/dogstatsd_info/dogstatsd-stats.log", GetDefaultDogstatsDProtocolLogFile())
+		assert.Equal(t, "/opt/datadog-agent/logs/streamlogs_info/streamlogs.log", GetDefaultStreamlogsLogFile())
 		// pyChecksPath is under /opt/datadog-agent, so transformation applies
-		assert.Equal(t, "/opt/datadog-agent/checks.d", GetPyChecksPath())
+		assert.Equal(t, "/opt/datadog-agent/checks.d", GetDefaultPyChecksPath())
 		// runPath transforms from /var/run/datadog to {root}/run
-		assert.Equal(t, "/opt/datadog-agent/run", GetRunPath())
+		assert.Equal(t, "/opt/datadog-agent/run", GetDefaultRunPath())
 	})
 
 	// Test with custom common root
 	t.Run("with custom common root", func(t *testing.T) {
 		SetCommonRoot("/custom/path")
-		assert.Equal(t, "/custom/path/etc", GetConfPath())
-		assert.Equal(t, "/custom/path/logs/agent.log", GetLogFile())
+		assert.Equal(t, "/custom/path/etc", GetDefaultConfPath())
+		assert.Equal(t, "/custom/path/logs/agent.log", GetDefaultLogFile())
 		// pyChecksPath /opt/datadog-agent/checks.d transforms to {root}/checks.d
-		assert.Equal(t, "/custom/path/checks.d", GetPyChecksPath())
+		assert.Equal(t, "/custom/path/checks.d", GetDefaultPyChecksPath())
 		// runPath /var/run/datadog transforms to {root}/run
-		assert.Equal(t, "/custom/path/run", GetRunPath())
+		assert.Equal(t, "/custom/path/run", GetDefaultRunPath())
 	})
 }
