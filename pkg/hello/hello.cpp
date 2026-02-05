@@ -9,6 +9,8 @@
 #include <string>
 #include <cstring>
 #include <cstdlib>
+#include <ctime>
+#include <sys/time.h>
 
 #include "onnxruntime_cxx_api.h"
 
@@ -287,8 +289,16 @@ extern "C" void benchmark(char **error) {
         size_t num_calls = 0;
         size_t num_tokens = 0;
         size_t num_bytes = 0;
-        auto start_time = std::chrono::high_resolution_clock::now();
-        while (std::chrono::high_resolution_clock::now() - start_time < std::chrono::seconds(20)) {
+        timespec start_time;
+        clock_gettime(CLOCK_MONOTONIC, &start_time);
+        timespec current_time;
+        while (true) {
+            clock_gettime(CLOCK_MONOTONIC, &current_time);
+            double elapsed = (current_time.tv_sec - start_time.tv_sec) +
+                            (current_time.tv_nsec - start_time.tv_nsec) / 1e9;
+            if (elapsed >= 20.0) {
+                break;
+            }
             session.Run(run_options,
                         input_names_cstr.data(), ordered_inputs.data(), input_names_cstr.size(),
                         output_names_cstr.data(), output_names_cstr.size());
@@ -338,12 +348,15 @@ extern "C" void benchmark(char **error) {
             }
         };
 
-        auto end_time = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-        std::cout << "- Total time: " << (double)duration.count() / 1000.0 << "s" << std::endl;
-        std::cout << "- Number of inference calls: " << unit_repr((double)num_calls / (double)duration.count() * 1000.0) << " call/s" << std::endl;
-        std::cout << "- Number of input tokens: " << unit_repr((double)num_tokens / (double)duration.count() * 1000.0) << " token/s" << std::endl;
-        std::cout << "- Number of output embedding bytes: " << unit_repr((double)num_bytes / (double)duration.count() * 1000.0) << " byte/s" << std::endl;
+        timespec end_time;
+        clock_gettime(CLOCK_MONOTONIC, &end_time);
+        double duration_ms = ((end_time.tv_sec - start_time.tv_sec) * 1000.0) +
+                            ((end_time.tv_nsec - start_time.tv_nsec) / 1e6);
+        double duration_s = duration_ms / 1000.0;
+        std::cout << "- Total time: " << duration_s << "s" << std::endl;
+        std::cout << "- Number of inference calls: " << unit_repr((double)num_calls / duration_s) << " call/s" << std::endl;
+        std::cout << "- Number of input tokens: " << unit_repr((double)num_tokens / duration_s) << " token/s" << std::endl;
+        std::cout << "- Number of output embedding bytes: " << unit_repr((double)num_bytes / duration_s) << " byte/s" << std::endl;
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
         *error = strdup(e.what());
