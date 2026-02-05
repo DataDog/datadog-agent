@@ -207,7 +207,7 @@ require (
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
 	github.com/containerd/cgroups/v3 v3.0.5
 	github.com/containerd/containerd v1.7.30
-	github.com/containerd/containerd/api v1.8.0
+	github.com/containerd/containerd/api v1.9.0
 	github.com/containerd/errdefs v1.0.0
 	github.com/containerd/typeurl/v2 v2.2.3
 	github.com/containernetworking/cni v1.2.3
@@ -401,7 +401,7 @@ require (
 	google.golang.org/grpc v1.78.0
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
 	google.golang.org/protobuf v1.36.11
-	gopkg.in/DataDog/dd-trace-go.v1 v1.72.2
+	gopkg.in/DataDog/dd-trace-go.v1 v1.74.8
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
@@ -813,7 +813,7 @@ require (
 	github.com/tmthrgd/go-hex v0.0.0-20190904060850-447a3041c3bc // indirect
 	github.com/twitchtv/twirp v8.1.3+incompatible // indirect
 	github.com/ua-parser/uap-go v0.0.0-20240611065828-3a4781585db6 // indirect
-	github.com/ugorji/go/codec v1.2.11 // indirect
+	github.com/ugorji/go/codec v1.2.12 // indirect
 	github.com/ulikunitz/xz v0.5.15 // indirect
 	github.com/urfave/cli/v3 v3.1.1 // indirect
 	github.com/vbatts/tar-split v0.12.2 // indirect
@@ -1038,6 +1038,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs v0.74.0-devel.0.20251125141836-2ae7a968751c // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/otel v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-go v3.2.0+incompatible // indirect
+	github.com/DataDog/dd-trace-go/v2 v2.4.1 // indirect
 	github.com/Jeffail/gabs/v2 v2.1.0 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/ProtonMail/gopenpgp/v3 v3.2.1 // indirect
