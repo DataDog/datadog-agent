@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
+	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -240,6 +241,52 @@ func initAgentDemultiplexer(log log.Component,
 	return demux
 }
 
+// eventLogView is a minimal observer.LogView implementation for forwarding aggregator events into the observer.
+// It is immediately copied by the observer handle, so it must not be retained.
+type eventLogView struct {
+	content  []byte
+	status   string
+	tags     []string
+	hostname string
+	ts       int64
+}
+
+func (v *eventLogView) GetContent() []byte  { return v.content }
+func (v *eventLogView) GetStatus() string   { return v.status }
+func (v *eventLogView) GetTags() []string   { return v.tags }
+func (v *eventLogView) GetHostname() string { return v.hostname }
+
+// GetTimestamp is an optional method recognized by the observer handle to set event time.
+func (v *eventLogView) GetTimestamp() int64 { return v.ts }
+
+// standardizeEventType normalizes event type names to lowercase_with_underscores format.
+// Examples: "Agent Startup" -> "agent_startup", "Container OOM" -> "container_oom"
+func standardizeEventType(name string) string {
+	// Convert to lowercase
+	result := ""
+	for _, ch := range name {
+		if ch >= 'A' && ch <= 'Z' {
+			result += string(ch + 32) // to lowercase
+		} else if ch == ' ' || ch == '.' || ch == '-' {
+			result += "_"
+		} else {
+			result += string(ch)
+		}
+	}
+	// Collapse multiple underscores
+	for len(result) > 0 && result[0] == '_' {
+		result = result[1:]
+	}
+	for i := 0; i < len(result)-1; {
+		if result[i] == '_' && result[i+1] == '_' {
+			result = result[:i] + result[i+1:]
+		} else {
+			i++
+		}
+	}
+	return result
+}
+
 // Options returns options used during the demux initialization.
 func (d *AgentDemultiplexer) Options() AgentDemultiplexerOptions {
 	return d.options
@@ -269,6 +316,58 @@ func (d *AgentDemultiplexer) AddAgentStartupTelemetry(agentVersion string) {
 			}
 		}
 	}
+}
+
+// SetObserver wires an observer component into the demultiplexer.
+// This should be called after construction to enable mirroring of check metrics
+// and events to the observer for local analysis/correlation.
+func (d *AgentDemultiplexer) SetObserver(obs observer.Component) {
+	if obs == nil {
+		return
+	}
+
+	// Only wire if capture_metrics.enabled is enabled
+	if !pkgconfigsetup.Datadog().GetBool("observer.capture_metrics.enabled") {
+		d.log.Debug("Observer metric capture disabled by configuration")
+		return
+	}
+
+	// Wire all metric paths with a single global handle
+	metricsHandle := obs.GetHandle("all-metrics")
+
+	// Metrics: mirror raw check samples into the observer via the CheckSampler hook.
+	d.aggregator.SetObserverHandle(metricsHandle)
+
+	// DogStatsD metrics: wire all time sampler workers
+	for _, worker := range d.statsd.workers {
+		worker.sampler.observerHandle = metricsHandle
+	}
+
+	// Timestamped metrics (no-aggregation pipeline)
+	if d.statsd.noAggStreamWorker != nil {
+		d.statsd.noAggStreamWorker.observerHandle = metricsHandle
+	}
+
+	// Events: forward lifecycle events as best-effort log observations (used as event signals for correlation).
+	eventsHandle := obs.GetHandle("check-events")
+	d.aggregator.SetObserverEventSink(func(e event.Event) {
+		// Copy tags to avoid mutating the underlying slice that is also stored in agg.events.
+		tags := make([]string, len(e.Tags), len(e.Tags)+3)
+		copy(tags, e.Tags)
+		// Event signal tags used downstream for correlation/annotation (kept local to observer only).
+		tags = append(tags,
+			"observer_signal:event",
+			fmt.Sprintf("observer_ts:%d", e.Ts),
+			fmt.Sprintf("event_type:%s", standardizeEventType(e.EventType)))
+
+		eventsHandle.ObserveLog(&eventLogView{
+			content:  []byte(e.String()),
+			status:   string(e.AlertType),
+			tags:     tags,
+			hostname: e.Host,
+			ts:       e.Ts,
+		})
+	})
 }
 
 // run runs all demultiplexer parts

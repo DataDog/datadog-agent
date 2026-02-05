@@ -193,7 +193,15 @@ func (c *CheckBase) Cancel() {
 
 // Interval returns the scheduling time for the check.
 // Long-running checks should override to return 0.
+// Interval returns the scheduling time for the check.
+// If observer high-frequency collection is enabled, returns that interval instead.
 func (c *CheckBase) Interval() time.Duration {
+	// Check if observer high-frequency mode is enabled
+	if highFreqInterval := pkgconfigsetup.Datadog().GetDuration("observer.high_frequency_interval"); highFreqInterval > 0 {
+		return highFreqInterval
+	}
+
+	// Return normal interval
 	return c.checkInterval
 }
 

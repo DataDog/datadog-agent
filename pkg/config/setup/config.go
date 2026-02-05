@@ -334,6 +334,30 @@ func initCommonWithServerless(config pkgconfigmodel.Setup) {
 func InitConfig(config pkgconfigmodel.Setup) {
 	initCommonWithServerless(config)
 
+	// Observer
+	// Capture agent-internal logs via pkg/util/log hook and route them through the observer.
+	// Default enabled; can be disabled if needed.
+	config.BindEnvAndSetDefault("observer.capture_agent_internal_logs", true)
+	// Sampling for agent-internal logs forwarded to the observer.
+	// Warn+ and above are never sampled; these apply to info/debug/trace only.
+	config.BindEnvAndSetDefault("observer.capture_agent_internal_logs.sample_rate_info", 0.2)
+	config.BindEnvAndSetDefault("observer.capture_agent_internal_logs.sample_rate_debug", 0.05)
+	config.BindEnvAndSetDefault("observer.capture_agent_internal_logs.sample_rate_trace", 0.0)
+	// Debug: dump all observer metrics to a file periodically
+	config.BindEnvAndSetDefault("observer.debug_dump_path", "")
+	config.BindEnvAndSetDefault("observer.debug_dump_interval", 0)
+	config.BindEnvAndSetDefault("observer.debug_events_dump_path", "")
+
+	// Observer recording: enables fetching traces/profiles from remote trace-agents via gRPC
+	// Requires remote_agent_registry.enabled=true
+	config.BindEnvAndSetDefault("observer.recording", false)
+	config.BindEnvAndSetDefault("observer.traces.enabled", true)
+	config.BindEnvAndSetDefault("observer.traces.fetch_interval", 5*time.Second)
+	config.BindEnvAndSetDefault("observer.traces.max_fetch_batch", 100)
+	config.BindEnvAndSetDefault("observer.profiles.enabled", true)
+	config.BindEnvAndSetDefault("observer.profiles.fetch_interval", 10*time.Second)
+	config.BindEnvAndSetDefault("observer.profiles.max_fetch_batch", 50)
+
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
 	config.BindEnvAndSetDefault("auto_exit.noprocess.enabled", false)
@@ -840,6 +864,14 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Changing this setting may impact your custom metrics billing.
 	config.BindEnvAndSetDefault("checks_tag_cardinality", "low")
 	config.BindEnvAndSetDefault("dogstatsd_tag_cardinality", "low")
+
+	// Observer component configuration for metric capture and anomaly detection
+	config.BindEnvAndSetDefault("observer.capture_metrics.enabled", false)
+	config.BindEnvAndSetDefault("observer.capture_metrics.sample_rate", 1.0)
+	config.BindEnvAndSetDefault("observer.high_frequency_interval", 0*time.Second) // 0 = disabled
+	config.BindEnvAndSetDefault("observer.parquet_output_dir", "")                 // Directory for parquet files
+	config.BindEnvAndSetDefault("observer.parquet_flush_interval", 60*time.Second) // File rotation interval
+	config.BindEnvAndSetDefault("observer.parquet_retention", 24*time.Hour)        // Cleanup after 24 hours
 
 	config.BindEnvAndSetDefault("hpa_watcher_polling_freq", 10)
 	config.BindEnvAndSetDefault("hpa_watcher_gc_period", 60*5) // 5 minutes

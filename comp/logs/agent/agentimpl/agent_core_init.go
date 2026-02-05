@@ -105,6 +105,7 @@ func buildPipelineProvider(a *logAgent, processingRules []*config.ProcessingRule
 		a.compression,
 		a.config.GetBool("logs_config.disable_distributed_senders"), // legacy
 		false, // serverless
+		a.observerHandle,
 	)
 	return pipelineProvider
 }

@@ -59,6 +59,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	demultiplexerendpointfx "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint/fx"
+	recorderfx "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
 	commonendpoints "github.com/DataDog/datadog-agent/comp/api/commonendpoints/fx"
@@ -142,6 +143,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/netflow"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	"github.com/DataDog/datadog-agent/comp/networkpath"
+	"github.com/DataDog/datadog-agent/comp/observer"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
@@ -490,6 +492,7 @@ func getSharedFxOption() fx.Option {
 			})
 		}),
 		logs.Bundle(),
+		observer.Bundle(),
 		langDetectionClimpl.Module(),
 		metadata.Bundle(),
 		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDefaultParams()),
@@ -561,6 +564,7 @@ func getSharedFxOption() fx.Option {
 		configstreamfx.Module(),
 		healthplatformfx.Module(),
 		tracetelemetryfx.Module(),
+		recorderfx.Module(),
 	)
 }
 

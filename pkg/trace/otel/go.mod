@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/trace/otel
 
-go 1.24.0
+go 1.25.6
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.72.0-rc.5
@@ -9,7 +9,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.72.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.71.0
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.72.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/proto v0.74.1
+	github.com/DataDog/datadog-agent/pkg/proto v0.75.2
 	github.com/DataDog/datadog-agent/pkg/trace v0.71.0
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.71.0
 	github.com/DataDog/datadog-agent/pkg/trace/stats v0.71.0
@@ -50,15 +50,15 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.72.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.72.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.75.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/api v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.72.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/env v0.72.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/env v0.75.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.73.0-devel.0.20251030121902-cd89eab046d6 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.72.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/model v0.72.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/model v0.75.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.72.0-rc.5 // indirect
@@ -71,26 +71,26 @@ require (
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/tagset v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.72.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/template v0.72.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.75.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.69.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/common v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.72.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.72.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.75.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.71.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.72.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.75.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/grpc v0.60.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/http v0.72.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.72.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.75.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.70.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.72.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.72.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.72.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/option v0.75.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.75.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.75.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.72.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system v0.72.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.72.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.72.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.72.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system v0.75.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.75.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.75.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.75.2 // indirect
 	github.com/DataDog/go-sqllexer v0.1.12 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/sketches-go v1.4.7 // indirect
@@ -197,6 +197,7 @@ require (
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
+	github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def => ../../../comp/anomalydetection/recorder/def
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../comp/api/api/def
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def => ../../../comp/core/agenttelemetry/def
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx => ../../../comp/core/agenttelemetry/fx
@@ -239,6 +240,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../../comp/forwarder/orchestrator/orchestratorinterface
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../comp/logs/agent/config
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ../../../comp/netflow/payload
+	github.com/DataDog/datadog-agent/comp/observer => ../../../comp/observer
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../../../comp/otelcol/collector-contrib/def
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl => ../../../comp/otelcol/collector-contrib/impl
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def => ../../../comp/otelcol/converter/def
@@ -264,6 +266,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/trace/compression/def => ../../../comp/trace/compression/def
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip => ../../../comp/trace/compression/impl-gzip
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd => ../../../comp/trace/compression/impl-zstd
+	github.com/DataDog/datadog-agent/comp/trace/observerbuffer => ../../../comp/trace/observerbuffer
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../../pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/api => ../../../pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../pkg/collector/check/defaults

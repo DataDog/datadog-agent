@@ -15,4 +15,8 @@ type Component interface {
 	RefreshRemoteAgent(sessionID string) bool
 	GetRegisteredAgents() []RegisteredAgent
 	GetRegisteredAgentStatuses() []StatusData
+	// GetObserverTraces fetches traces from all registered remote agents that support the ObserverProvider service.
+	GetObserverTraces(maxItems uint32) []ObserverTracesData
+	// GetObserverProfiles fetches profiles from all registered remote agents that support the ObserverProvider service.
+	GetObserverProfiles(maxItems uint32) []ObserverProfilesData
 }

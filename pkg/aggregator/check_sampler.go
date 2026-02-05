@@ -11,6 +11,7 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
+	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/util"
@@ -36,6 +37,7 @@ type CheckSampler struct {
 	contextResolverMetrics bool
 	logThrottling          util.SimpleThrottler
 	allowSketchBucketReset bool
+	observerHandle         observer.Handle
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
@@ -63,8 +65,22 @@ func newCheckSampler(
 	}
 }
 
+// SetObserverHandle sets the observer handle for mirroring check samples.
+// This should be called after construction if observer integration is enabled.
+func (cs *CheckSampler) SetObserverHandle(h observer.Handle) {
+	cs.observerHandle = h
+}
+
 func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterList filterlist.TagMatcher) {
 	contextKey := cs.contextResolver.trackContext(metricSample, tagFilterList)
+
+	// Best-effort: if an observer handle is configured, mirror the raw check sample
+	// into the observer. This allows local correlation/anomaly detection using the
+	// exact same samples that the aggregator will process and forward upstream.
+	if cs.observerHandle != nil {
+		cs.observerHandle.ObserveMetric(metricSample)
+	}
+
 	if metricSample.Mtype == metrics.DistributionType {
 		cs.sketchMap.insert(int64(metricSample.Timestamp), contextKey, metricSample.Value, metricSample.SampleRate)
 		return

@@ -470,6 +470,16 @@ Package npcollector used to manage network paths
 
 Package traceroute provides the traceroute component
 
+## [comp/observer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/observer) (Component Bundle)
+
+*Datadog Team*: agent-metric-pipelines
+
+Package observer provides a component for observing data flowing through the agent.
+
+### [comp/observer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/observer)
+
+Package observer provides a component for observing data flowing through the agent.
+
 ## [comp/otelcol](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol) (Component Bundle)
 
 *Datadog Team*: opentelemetry-agent
@@ -724,6 +734,12 @@ Package telemetry provides the installer telemetry component.
 ### [comp/updater/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/updater)
 
 Package updater is the updater component.
+
+### [comp/anomalydetection/recorder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/recorder)
+
+*Datadog Team*: agent-metric-pipelines
+
+Package recorder provides a middleware component for recording and replaying observer data.
 
 ### [comp/autoscaling/datadogclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient)
 

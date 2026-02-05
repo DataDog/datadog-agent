@@ -218,6 +218,7 @@ func (a *Agent) SetupPipeline(
 		a.compression,
 		a.config.GetBool("logs_config.disable_distributed_senders"),
 		false, // serverless
+		nil,   // observer handle (not integrated with otel-agent yet)
 	)
 
 	a.destinationsCtx = destinationsCtx
