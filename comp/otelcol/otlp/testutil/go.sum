@@ -1,6 +1,4 @@
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
-github.com/DataDog/datadog-agent/pkg/util/system/socket v0.76.0-devel h1:pqlaw/ZgBBGu0WyZs64jYosLCb+PSeKgmP6BahN1mpY=
-github.com/DataDog/datadog-agent/pkg/util/system/socket v0.76.0-devel/go.mod h1:v/Z9vju3ET/4evXPcYdbrgImyS/Q4YQzhvsPy2a3y70=
 github.com/DataDog/sketches-go v1.4.7 h1:eHs5/0i2Sdf20Zkj0udVFWuCrXGRFig2Dcfm5rtcTxc=
 github.com/DataDog/sketches-go v1.4.7/go.mod h1:eAmQ/EBmtSO+nQp7IZMZVRPT4BQTmIc5RZQ+deGlTPM=
 github.com/DataDog/viper v1.15.0 h1:oV4rbRx+ylrbIAEBCw+8xKyH+eQF1DkVHDGz7RtmKlk=

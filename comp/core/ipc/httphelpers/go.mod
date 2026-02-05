@@ -9,7 +9,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.72.2
 	github.com/DataDog/datadog-agent/pkg/util/log v0.72.2
 	github.com/DataDog/datadog-agent/pkg/util/system v0.72.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.76.0-devel
 	github.com/mdlayher/vsock v1.2.1
 	github.com/stretchr/testify v1.11.1
 )

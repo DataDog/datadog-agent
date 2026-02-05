@@ -55,7 +55,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/option v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.70.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.69.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.70.0 // indirect
 	github.com/DataDog/viper v1.15.0 // indirect

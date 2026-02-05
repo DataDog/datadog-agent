@@ -86,7 +86,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/quantile v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.76.0-devel // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.76.0-devel // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.54.0 // indirect
