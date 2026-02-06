@@ -3840,6 +3840,15 @@ api_key:
 #
 # kubernetes_collect_metadata_tags: true
 
+## @param auto_team_tag_collection - boolean - optional - default: true
+## @env DD_AUTO_TEAM_TAG_COLLECTION - boolean - optional - default: true
+## When enabled, the orchestrator check automatically collects the 'team' tag from Kubernetes resources.
+## If a resource has a label or annotation with key 'team', and no 'team' tag has been explicitly configured
+## via kubernetes_resources_labels_as_tags or kubernetes_resources_annotations_as_tags, the agent will
+## automatically add a 'team' tag with the value from the label (preferred) or annotation.
+#
+# auto_team_tag_collection: true
+
 ## @param kubernetes_metadata_tag_update_freq - integer - optional - default: 60
 ## @env DD_KUBERNETES_METADATA_TAG_UPDATE_FREQ - integer - optional - default: 60
 ## Set how often in secons the Agent refreshes the internal mapping of services to ContainerIDs.
@@ -4893,15 +4902,6 @@ api_key:
 #       # Set to false to disable Infra-Attribute-Processor for traces pipeline in the OTLP ingest endpoint.
 #
 #       enabled: true
-
-#     # @param ignore_missing_datadog_fields - boolean - optional - default: false
-#     # @env DD_OTLP_CONFIG_IGNORE_MISSING_DATADOG_FIELDS - boolean - optional - default: false
-#     # IgnoreMissingDatadogFields specifies whether to recompute DD span fields if the corresponding "datadog."
-#     # namespaced span attributes are missing. If true (default), incoming "datadog." namespaced
-#     # OTLP span attributes are used to construct the DD span. If these attributes are missing, they are recomputed from the other
-#     # OTLP semantic convention attributes. If it is false, a field is populated only if its associated "datadog."
-#     # OTLP span attribute exists; otherwise, the field is left empty.
-#     ignore_missing_datadog_fields: false
 
 #   # @param logs - custom object - optional
 #   # Logs-specific configuration for OTLP ingest in the Datadog Agent.
