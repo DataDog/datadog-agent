@@ -382,25 +382,6 @@ func generateConfigFromSlice(tpl integration.Config, resolveMode endpointResolve
 	return generatedConfigs
 }
 
-// getEndpointResolveFuncForSlice returns a function that resolves the endpoint address for EndpointSlices
-func getEndpointResolveFuncForSlice(resolveMode endpointResolveMode, namespace, name string) func(*integration.Config, discv1.Endpoint) {
-	var resolveFunc func(*integration.Config, discv1.Endpoint)
-
-	switch resolveMode {
-	case kubeEndpointResolveIP:
-		// IP: we explicitly ignore what's behind this address (nothing to do)
-
-	case "", kubeEndpointResolveAuto:
-		// Auto or empty (default to auto): we try to resolve the POD behind this address
-		resolveFunc = utils.ResolveEndpointSliceConfigAuto
-	default:
-		log.Warnf("Unknown resolve mode %s for service %s/%s, defaulting to auto", resolveMode, namespace, name)
-		resolveFunc = utils.ResolveEndpointSliceConfigAuto
-	}
-
-	return resolveFunc
-}
-
 func (k *kubeEndpointSlicesConfigProvider) cleanErrorsOfDeletedServices(setCurrentServiceKeys map[string]struct{}) {
 	setServiceKeysWithErrors := map[string]struct{}{}
 	for serviceKey := range k.configErrors {
