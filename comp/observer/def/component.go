@@ -322,6 +322,10 @@ type StorageReader interface {
 	// ReadSince returns points with timestamp > cursor, plus the new cursor position.
 	// Use cursor=0 to read all points.
 	ReadSince(key SeriesKey, cursor int64, agg Aggregate) (points []Point, newCursor int64)
+
+	// PointCount returns the number of raw data points for a series without
+	// loading or converting them. Returns 0 if the series is not found.
+	PointCount(key SeriesKey) int
 }
 
 // Aggregate specifies which statistic to extract from summary stats.

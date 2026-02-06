@@ -322,6 +322,19 @@ func (s *timeSeriesStorage) TimeBounds() (minTs int64, maxTs int64, ok bool) {
 	return min, max, found
 }
 
+// MaxTimestamp returns the latest timestamp across all series in storage.
+func (s *timeSeriesStorage) MaxTimestamp() int64 {
+	var max int64
+	for _, stats := range s.series {
+		if n := len(stats.Points); n > 0 {
+			if t := stats.Points[n-1].Timestamp; t > max {
+				max = t
+			}
+		}
+	}
+	return max
+}
+
 // seriesKey creates a unique key for a series.
 func seriesKey(namespace, name string, tags []string) string {
 	sortedTags := copyTags(tags)
@@ -434,6 +447,15 @@ func (s *timeSeriesStorage) ListSeries(filter observer.SeriesFilter) []observer.
 		})
 	}
 	return result
+}
+
+// PointCount returns the number of raw data points for a series.
+func (s *timeSeriesStorage) PointCount(key observer.SeriesKey) int {
+	k := seriesKey(key.Namespace, key.Name, key.Tags)
+	if stats, ok := s.series[k]; ok {
+		return len(stats.Points)
+	}
+	return 0
 }
 
 // matchTags checks if tags contain all required key=value pairs.
