@@ -1431,7 +1431,7 @@ def compare_inventory(
     return added_files, removed_files, changed_files
 
 
-def display_change_summary(change: FileChange):
+def _display_change_summary(change: FileChange):
     print(color_message(f'Summary of changes to {change.current.relative_path}', "orange"))
     if change.flags & FileChange.Flags.Permissions:
         print(f'    Permission changed: {oct(change.previous.chmod)} -> {oct(change.current.chmod)}')
@@ -1445,3 +1445,18 @@ def display_change_summary(change: FileChange):
         print(
             f'    File owner/group changed: {change.previous.owner}:{change.previous.group} -> {change.current.owner}:{change.current.group}'
         )
+
+
+def print_inventory_diff(added, removed, changed):
+    if len(added) > 0:
+        print(color_message('➕ New files added:', "orange"))
+        for f in added:
+            print(color_message(f'    - {f.relative_path} ({byte_to_string(f.size_bytes)})', "orange"))
+    if len(removed) > 0:
+        print(color_message('❌ Old files removed:', "orange"))
+        for f in removed:
+            print(color_message(f'    - {f.relative_path} ({byte_to_string(f.size_bytes)})', "orange"))
+    if len(changed) > 0:
+        print(color_message('⚠️ Some files modifications need review:', "orange"))
+        for change in changed.values():
+            _display_change_summary(change)
