@@ -57,6 +57,7 @@ func NewTracer(cfg *config.Config, telemetryComp telemetry.Component, _ statsd.C
 		cfg.MaxRedisStatsBuffered,
 		cfg.EnableNPMConnectionRollup,
 		cfg.EnableProcessEventMonitoring,
+		cfg.DNSMonitoringPortList,
 	)
 
 	// Initialize reverse DNS
