@@ -1,2 +1,3 @@
 # To edit the requirements file, open a PR on github.com/DataDog/datadog-agent-buildimages
--r https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/59ff0fc027be93b61cf7f6af9acac415d585a296/requirements.txt
+-r https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/46a8acbc12912f550a760046266354caf55eda03/requirements.txt
+
