@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"math/rand"
 	"time"
 
@@ -159,7 +160,14 @@ func (o *OrchestratorCheck) Configure(senderManager sender.SenderManager, integr
 		return fmt.Errorf("could not get global tags from tagger: %w", err)
 	}
 
-	extraTags := make([]string, 0, len(checkConfigExtraTags)+len(taggerExtraTags))
+	// Check for integer overflow before computing total capacity
+	if len(taggerExtraTags) > math.MaxInt-len(checkConfigExtraTags) {
+		return fmt.Errorf("combined tag count would overflow integer limits: config_tags=%d, tagger_tags=%d",
+			len(checkConfigExtraTags), len(taggerExtraTags))
+	}
+
+	totalCapacity := len(checkConfigExtraTags) + len(taggerExtraTags)
+	extraTags := make([]string, 0, totalCapacity)
 	extraTags = append(extraTags, checkConfigExtraTags...)
 	extraTags = append(extraTags, taggerExtraTags...)
 
