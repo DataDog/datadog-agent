@@ -11,7 +11,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 from invoke import task
-from invoke.exceptions import Exit
+from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks import vscode
 from tasks.libs.common.color import Color, color_message
@@ -176,12 +176,15 @@ def pre_commit(ctx, interactive=True):
 
         return Status.FAIL, message
 
-    try:
-        # Some dd-hooks can mess up with pre-commit
-        hooks_path = ctx.run("git config --global core.hooksPath", hide=True).stdout.strip()
-        ctx.run("git config --global --unset core.hooksPath", hide=True)
-    except Exception:
-        hooks_path = ""
+    hooks_path_values = []
+    global_hooks_path = ""
+    hooks_path_list = ctx.run("git config --show-origin --get-all core.hooksPath", hide=True, warn=True)
+    if hooks_path_list.ok:
+        hooks_path_values = [line.split(None, 1)[-1] for line in hooks_path_list.stdout.splitlines() if line.strip()]
+
+    global_hooks = ctx.run("git config --global --get core.hooksPath", hide=True, warn=True)
+    if global_hooks.ok:
+        global_hooks_path = global_hooks.stdout.strip()
 
     if running_in_pyapp():
         import shutil
@@ -200,13 +203,28 @@ def pre_commit(ctx, interactive=True):
         config_file = ".pre-commit-config.yaml"
 
     # Uninstall in case someone switch from one config to the other
-    ctx.run("pre-commit uninstall", hide=True)
-    ctx.run("pre-commit clean", hide=True)
-    # build-vcs avoids errors when getting go dependencies
-    ctx.run(f"GOFLAGS=-buildvcs=false pre-commit install --config {config_file}", hide=True)
+    try:
+        ctx.run("pre-commit uninstall", hide=True)
+        ctx.run("pre-commit clean", hide=True)
+        # build-vcs avoids errors when getting go dependencies
+        ctx.run(f"GOFLAGS=-buildvcs=false pre-commit install --config {config_file}", hide=True)
+    except UnexpectedExit as e:
+        output = f"{e.result.stdout}{e.result.stderr}"
+        if "core.hooksPath" in output and "Cowardly refusing to install hooks" in output:
+            restore_path = global_hooks_path or "/usr/local/dd/global_hooks"
+            message = (
+                "pre-commit refused to install because git core.hooksPath is set. "
+                "Temporarily unset it with `git config --unset-all core.hooksPath` "
+                "or `git config --global --unset core.hooksPath`, rerun this task, "
+                f"then restore it with `git config --global core.hooksPath {restore_path}`."
+            )
+            status = Status.FAIL
+            if interactive:
+                raise Exit(code=1, message=f'{color_message("Error:", Color.RED)} {message}')
 
-    if hooks_path:
-        ctx.run(f"git config --global core.hooksPath {hooks_path}", hide=True)
+            return status, message
+
+        raise
 
     if interactive:
         if message:
