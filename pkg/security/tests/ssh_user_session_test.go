@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -797,7 +798,7 @@ func TestSSHUserSessionSnapshot(t *testing.T) {
 			// Now we check if we got all the executed commands
 			i := len(commands) - 1
 			ancestor := event.ProcessContext.Ancestor
-			for ancestor != nil && ancestor.Comm != "sshd" {
+			for ancestor != nil && !strings.HasPrefix(ancestor.Comm, "sshd") {
 				if ancestor.UserSession.SSHSessionID != eventSSHSessionID && ancestor.ProcessContext.Comm != commands[i] {
 					t.Logf("SSH Session incorrect: expected %s with id %d, got %s with id %d",
 						ancestor.Comm, ancestor.UserSession.SSHSessionID, event.ProcessContext.Comm, eventSSHSessionID)
@@ -810,7 +811,7 @@ func TestSSHUserSessionSnapshot(t *testing.T) {
 				t.Log("ancestor is nil")
 				return false
 			}
-			if ancestor.Comm != "sshd" || ancestor.UserSession.SSHSessionID != 0 {
+			if !strings.HasPrefix(ancestor.Comm, "sshd") || ancestor.UserSession.SSHSessionID != 0 {
 				t.Logf("sshd not found with id 0, got %s with id %d (current session had id %d)", ancestor.Comm, ancestor.UserSession.SSHSessionID, eventSSHSessionID)
 				return false
 			}
