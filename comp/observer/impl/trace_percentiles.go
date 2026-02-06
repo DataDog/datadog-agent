@@ -15,6 +15,21 @@ type TracePercentiles struct {
 	Services []string // Sorted list of unique services observed
 }
 
+// P50Value returns the 50th percentile value.
+func (t TracePercentiles) P50Value() int64 {
+	return t.P50
+}
+
+// P95Value returns the 95th percentile value.
+func (t TracePercentiles) P95Value() int64 {
+	return t.P95
+}
+
+// P99Value returns the 99th percentile value.
+func (t TracePercentiles) P99Value() int64 {
+	return t.P99
+}
+
 // TracePercentileCalculator calculates percentiles from trace durations
 type TracePercentileCalculator struct{}
 
@@ -24,9 +39,9 @@ func NewTracePercentileCalculator() *TracePercentileCalculator {
 }
 
 // CalculatePercentiles takes a slice of traces and returns P50, P95, and P99 percentiles
-func (c *TracePercentileCalculator) CalculatePercentiles(traces []*traceObs) *TracePercentiles {
+func (c *TracePercentileCalculator) CalculatePercentiles(traces []*traceObs) TracePercentiles {
 	if len(traces) == 0 {
-		return &TracePercentiles{P50: 0, P95: 0, P99: 0, Services: nil}
+		return TracePercentiles{P50: 0, P95: 0, P99: 0, Services: nil}
 	}
 
 	// Extract durations
@@ -68,7 +83,7 @@ func (c *TracePercentileCalculator) CalculatePercentiles(traces []*traceObs) *Tr
 	}
 
 	if len(durations) == 0 {
-		return &TracePercentiles{P50: 0, P95: 0, P99: 0, Services: nil}
+		return TracePercentiles{P50: 0, P95: 0, P99: 0, Services: nil}
 	}
 
 	services := make([]string, 0, len(serviceSet))
@@ -83,7 +98,7 @@ func (c *TracePercentileCalculator) CalculatePercentiles(traces []*traceObs) *Tr
 	})
 
 	// Calculate percentiles
-	return &TracePercentiles{
+	return TracePercentiles{
 		P50:      percentile(durations, 50),
 		P95:      percentile(durations, 95),
 		P99:      percentile(durations, 99),

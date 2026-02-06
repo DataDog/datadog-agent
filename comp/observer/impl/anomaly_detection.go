@@ -21,6 +21,7 @@ type MetricSums struct {
 type AnomalyDetection struct {
 	log                 logger.Component
 	profileProcessor    *anomaly.ProfileProcessor
+	detectorProcessor   *anomaly.DetectorProcessor
 	profileBuffer       [][]byte
 	profileMutex        sync.Mutex
 	metricSums          map[string]float64
@@ -38,6 +39,7 @@ func NewAnomalyDetection(log logger.Component) *AnomalyDetection {
 	a := &AnomalyDetection{
 		log:                 log,
 		profileProcessor:    anomaly.NewProfileProcessor(),
+		detectorProcessor:   anomaly.NewDetectorProcessor(log),
 		profileBuffer:       make([][]byte, 0),
 		metricSums:          make(map[string]float64),
 		tracePercentileCalc: NewTracePercentileCalculator(),
@@ -109,26 +111,22 @@ func (a *AnomalyDetection) processProfilesPeriodically() {
 			topFuncs, err := a.profileProcessor.GetTopFunctions(profiles, 10)
 			if err != nil {
 				a.log.Warnf("Failed to process profiles: %v", err)
-			} else if topFuncs != nil {
-				a.displayTopFunctions(topFuncs)
 			}
 
 			metricSums := a.drainMetrics()
-			if len(metricSums) > 0 {
-				a.log.Infof("Processing %d accumulated metrics", len(metricSums))
-				a.displayMetricSums(&MetricSums{Sums: metricSums})
-			}
 			traces := a.drainTraces()
 
 			percentiles := a.tracePercentileCalc.CalculatePercentiles(traces)
-			a.log.Infof("Trace percentiles (from %d traces): P50=%d, P95=%d, P99=%d",
-				len(traces), percentiles.P50, percentiles.P95, percentiles.P99)
 
 			logs := a.drainLogs()
-			if len(logs) > 0 {
-				a.log.Infof("Processing %d accumulated logs", len(logs))
-
+			logsMessages := make([]string, 0, len(logs))
+			for _, log := range logs {
+				if log != nil && len(log.content) > 0 {
+					logsMessages = append(logsMessages, string(log.content))
+				}
 			}
+
+			a.processAnomalyScores(topFuncs, metricSums, logsMessages, percentiles)
 		case <-a.stopChan:
 
 			return
@@ -176,29 +174,21 @@ func (a *AnomalyDetection) drainMetrics() map[string]float64 {
 	return result
 }
 
-// displayTopFunctions displays the top CPU and memory consuming functions
-func (a *AnomalyDetection) displayTopFunctions(topFuncs *anomaly.TopFunctions) {
-	if len(topFuncs.CPU) > 0 {
-		a.log.Infof("Top 10 CPU consuming functions:")
-		for i, fn := range topFuncs.CPU {
-			a.log.Infof("  %d. %s: %d samples", i+1, fn.Name, fn.Flat)
-		}
+func (a *AnomalyDetection) processAnomalyScores(
+	topFuncs anomaly.TopFunctions,
+	metrics map[string]float64,
+	logs []string,
+	percentiles TracePercentiles,
+) {
+	scoreResults, err := a.detectorProcessor.ComputeScores(
+		topFuncs,
+		metrics,
+		logs,
+		percentiles,
+	)
+	if err != nil {
+		a.log.Warnf("Failed to compute anomaly scores: %v", err)
+		return
 	}
-
-	if len(topFuncs.Memory) > 0 {
-		a.log.Infof("Top 10 memory consuming functions:")
-		for i, fn := range topFuncs.Memory {
-			a.log.Infof("  %d. %s: %d bytes", i+1, fn.Name, fn.Bytes)
-		}
-	}
-}
-
-// displayMetricSums displays the aggregated metric sums
-func (a *AnomalyDetection) displayMetricSums(metricSums *MetricSums) {
-	if len(metricSums.Sums) > 0 {
-		a.log.Infof("Aggregated metric sums (%d metrics):", len(metricSums.Sums))
-		for name, sum := range metricSums.Sums {
-			a.log.Infof("  %s: %f", name, sum)
-		}
-	}
+	a.log.Debugf("Anomaly detector scores: %v", scoreResults)
 }

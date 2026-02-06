@@ -82,13 +82,13 @@ func (p *ProfileProcessor) ProcessProfiles(rawDataList [][]byte) (*CumulativePro
 }
 
 // GetTopFunctions processes a list of raw profile data and returns the top N CPU and memory consuming functions
-func (p *ProfileProcessor) GetTopFunctions(rawDataList [][]byte, topN int) (*TopFunctions, error) {
+func (p *ProfileProcessor) GetTopFunctions(rawDataList [][]byte, topN int) (TopFunctions, error) {
 	cumulativeData, err := p.ProcessProfiles(rawDataList)
 	if err != nil {
-		return nil, fmt.Errorf("failed to process profiles: %w", err)
+		return TopFunctions{}, fmt.Errorf("failed to process profiles: %w", err)
 	}
 
-	return &TopFunctions{
+	return TopFunctions{
 		CPU: topNFromStats(cumulativeData.CPUStats, topN, func(name string, value int64) CPUFunction {
 			return CPUFunction{Name: name, Flat: value}
 		}),
