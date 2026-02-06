@@ -19,25 +19,27 @@ type MetricSums struct {
 }
 
 type AnomalyDetection struct {
-	log              logger.Component
-	profileProcessor *anomaly.ProfileProcessor
-	profileBuffer    [][]byte
-	profileMutex     sync.Mutex
-	metricSums       map[string]float64
-	metricSumsMutex  sync.Mutex
-	traceBuffer      []*traceObs
-	traceMutex       sync.Mutex
-	stopChan         chan struct{}
-	wg               sync.WaitGroup
+	log                 logger.Component
+	profileProcessor    *anomaly.ProfileProcessor
+	profileBuffer       [][]byte
+	profileMutex        sync.Mutex
+	metricSums          map[string]float64
+	metricSumsMutex     sync.Mutex
+	traceBuffer         []*traceObs
+	traceMutex          sync.Mutex
+	tracePercentileCalc *TracePercentileCalculator
+	stopChan            chan struct{}
+	wg                  sync.WaitGroup
 }
 
 func NewAnomalyDetection(log logger.Component) *AnomalyDetection {
 	a := &AnomalyDetection{
-		log:              log,
-		profileProcessor: anomaly.NewProfileProcessor(),
-		profileBuffer:    make([][]byte, 0),
-		metricSums:       make(map[string]float64),
-		stopChan:         make(chan struct{}),
+		log:                 log,
+		profileProcessor:    anomaly.NewProfileProcessor(),
+		profileBuffer:       make([][]byte, 0),
+		metricSums:          make(map[string]float64),
+		tracePercentileCalc: NewTracePercentileCalculator(),
+		stopChan:            make(chan struct{}),
 	}
 
 	// Start the background processing goroutine
@@ -106,6 +108,12 @@ func (a *AnomalyDetection) processProfilesPeriodically() {
 				a.log.Infof("Processing %d accumulated metrics", len(metricSums))
 				a.displayMetricSums(&MetricSums{Sums: metricSums})
 			}
+			traces := a.drainTraces()
+
+			percentiles := a.tracePercentileCalc.CalculatePercentiles(traces)
+			a.log.Infof("Trace percentiles (from %d traces): P50=%d, P95=%d, P99=%d",
+				len(traces), percentiles.P50, percentiles.P95, percentiles.P99)
+
 		case <-a.stopChan:
 
 			return
