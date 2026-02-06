@@ -224,7 +224,7 @@ func TestSwapMemoryError(t *testing.T) {
 	memCheck := new(Check)
 
 	// Mock proc files to return errors (simulates non-Linux or unavailable)
-	openProcFile = func(path string) (*os.File, error) {
+	openProcFile = func(_ string) (*os.File, error) {
 		return nil, errors.New("file not found")
 	}
 
