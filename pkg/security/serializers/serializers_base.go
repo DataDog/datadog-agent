@@ -486,7 +486,7 @@ func NewBaseEventSerializer(event *model.Event, rule *rules.Rule, scrubber *util
 		ProcessContextSerializer: newProcessContextSerializer(pc, event),
 		Date:                     utils.NewEasyjsonTime(event.ResolveEventTime()),
 		ProcessingTimeMicrosec:   processingTimeMicrosec,
-		ProcessingTrace:          event.ProcessingTrace,
+		ProcessingTrace:          append([]model.ProcessingCheckpoint(nil), event.ProcessingTrace...),
 	}
 	if s.ProcessContextSerializer != nil {
 		s.ProcessContextSerializer.Variables = newVariablesContext(event, rule, "process.")
