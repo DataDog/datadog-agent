@@ -10,6 +10,7 @@ files_check:
   needs:
     - agent_deb-x64-a7
   script:
+    - !reference [ .setup_agent_github_app ]
     - dda inv -- quality-gates.check-files ${CI_COMMIT_BRANCH} ${OMNIBUS_PACKAGE_DIR}
   artifacts:
     expire_in: 2 weeks
