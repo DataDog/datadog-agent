@@ -127,13 +127,11 @@ func (t *minimalTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 					}
 					continue
 				}
-
 				if _, ok := runtimeMetricsMappings[md.Name()]; ok && !t.cfg.skipRuntimeMetricMappings {
 					metadata.Languages = extractLanguageTag(md.Name(), metadata.Languages)
 				} else {
 					seenNonAPMMetrics = true
 				}
-
 				err := t.mapToDDFormat(ctx, md, consumer, additionalTags, host, scopeName, rattrs)
 				if err != nil {
 					return metadata, err
