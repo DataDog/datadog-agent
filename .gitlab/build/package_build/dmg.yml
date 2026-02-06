@@ -52,7 +52,6 @@
     NOTARIZATION_TIMEOUT: 15m
     NOTARIZATION_ATTEMPTS: 3
     NOTARIZATION_WAIT_TIME: 15s
-    AWS_SHARED_CREDENTIALS_FILE: ${CI_PROJECT_DIR}/.aws/credentials-by-job-id/${CI_JOB_ID}
   timeout: 2h
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
