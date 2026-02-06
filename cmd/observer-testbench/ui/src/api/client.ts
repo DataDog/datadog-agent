@@ -168,6 +168,25 @@ export interface CorrelatorStats {
   };
 }
 
+// Ground truth marker from markers.json (injected anomaly timestamps)
+export interface GroundTruthMarker {
+  timestamp: number;
+  type: string;       // e.g. "baseline_start", "anomaly_start", "anomaly_end"
+  description: string;
+}
+
+export interface DiagnosisResult {
+  status: string;
+  result?: string;
+  error?: string;
+}
+
+export interface EvaluationResult {
+  status: string;
+  result?: string;
+  error?: string;
+}
+
 class ApiClient {
   private async fetch<T>(path: string, options?: RequestInit): Promise<T> {
     const response = await fetch(`${API_BASE}${path}`, options);
@@ -227,6 +246,22 @@ class ApiClient {
 
   async getStats(): Promise<CorrelatorStats> {
     return this.fetch('/stats');
+  }
+
+  async getMarkers(): Promise<GroundTruthMarker[]> {
+    return this.fetch('/markers');
+  }
+
+  async runDiagnosis(): Promise<DiagnosisResult> {
+    return this.fetch('/diagnosis/run', { method: 'POST' });
+  }
+
+  async runEvaluation(scenario: string): Promise<EvaluationResult> {
+    return this.fetch('/evaluation/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scenario }),
+    });
   }
 
   async updateConfig(config: {

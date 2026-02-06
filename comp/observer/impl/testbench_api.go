@@ -8,12 +8,17 @@ package observerimpl
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"math"
 	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
+	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
@@ -52,7 +57,10 @@ func (api *TestBenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/surprise", api.cors(api.handleSurprise))
 	mux.HandleFunc("/api/graphsketch", api.cors(api.handleGraphSketch))
 	mux.HandleFunc("/api/stats", api.cors(api.handleStats))
+	mux.HandleFunc("/api/markers", api.cors(api.handleMarkers))
 	mux.HandleFunc("/api/config", api.cors(api.handleConfigUpdate))
+	mux.HandleFunc("/api/diagnosis/run", api.cors(api.handleDiagnosisRun))
+	mux.HandleFunc("/api/evaluation/run", api.cors(api.handleEvaluationRun))
 
 	api.server = &http.Server{
 		Addr:    addr,
@@ -366,7 +374,7 @@ func (api *TestBenchAPI) handleLogs(w http.ResponseWriter, r *http.Request) {
 	startStr := r.URL.Query().Get("start")
 	endStr := r.URL.Query().Get("end")
 
-	var logs []LogEntry
+	var logs []recorderdef.LogData
 	if startStr != "" && endStr != "" {
 		start, err1 := parseIntParam(startStr)
 		end, err2 := parseIntParam(endStr)
@@ -555,6 +563,223 @@ func (api *TestBenchAPI) handleGraphSketch(w http.ResponseWriter, r *http.Reques
 func (api *TestBenchAPI) handleStats(w http.ResponseWriter, r *http.Request) {
 	stats := api.tb.GetCorrelatorStats()
 	api.writeJSON(w, stats)
+}
+
+// handleMarkers returns ground truth markers loaded from the scenario.
+func (api *TestBenchAPI) handleMarkers(w http.ResponseWriter, _ *http.Request) {
+	markers := api.tb.GetMarkers()
+	if markers == nil {
+		markers = []GroundTruthMarker{}
+	}
+	api.writeJSON(w, markers)
+}
+
+// findEvalScript locates a Python eval script relative to the working directory or GOPATH.
+func findEvalScript(name string) (string, error) {
+	candidates := []string{
+		filepath.Join("comp", "observer", "eval", name),
+		filepath.Join("..", "comp", "observer", "eval", name),
+	}
+	for _, c := range candidates {
+		if _, err := os.Stat(c); err == nil {
+			abs, _ := filepath.Abs(c)
+			return abs, nil
+		}
+	}
+	return "", fmt.Errorf("script %s not found (tried %v)", name, candidates)
+}
+
+// buildAnalysisInput creates a JSON file with anomaly/correlation/health data for LLM analysis.
+func (api *TestBenchAPI) buildAnalysisInput() (string, error) {
+	provider := api.tb.AsFlareDataProvider()
+	health := provider.GetHealth()
+	anomalies := provider.GetAnomalies()
+	correlations := provider.GetCorrelations()
+	markers := api.tb.GetMarkers()
+	logStats := provider.GetLogBufferStats()
+
+	// Build summary (same format used manually)
+	uniqueSources := make(map[string]bool)
+	for _, a := range anomalies {
+		uniqueSources[a.Source] = true
+	}
+
+	sampleAnomalies := anomalies
+	if len(sampleAnomalies) > 20 {
+		sampleAnomalies = sampleAnomalies[:20]
+	}
+	sampleCorrelations := correlations
+	if len(sampleCorrelations) > 20 {
+		sampleCorrelations = sampleCorrelations[:20]
+	}
+
+	// NOTE: ground_truth_markers intentionally excluded — including them
+	// leaks the answer to the LLM and inflates diagnosis scores.
+	_ = markers
+	input := map[string]interface{}{
+		"total_anomalies":            len(anomalies),
+		"unique_sources_in_anomalies": len(uniqueSources),
+		"correlations":               sampleCorrelations,
+		"sample_anomalies":           sampleAnomalies,
+		"health":                     health,
+		"log_buffer_stats":           logStats,
+	}
+
+	tmpFile, err := os.CreateTemp("", "observer-analysis-*.json")
+	if err != nil {
+		return "", err
+	}
+	defer tmpFile.Close()
+
+	if err := json.NewEncoder(tmpFile).Encode(input); err != nil {
+		os.Remove(tmpFile.Name())
+		return "", err
+	}
+	return tmpFile.Name(), nil
+}
+
+// handleDiagnosisRun runs the LLM diagnosis script on current scenario data.
+func (api *TestBenchAPI) handleDiagnosisRun(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		api.writeError(w, http.StatusMethodNotAllowed, "use POST")
+		return
+	}
+
+	// Check for API key
+	if os.Getenv("OPENAI_API_KEY") == "" {
+		api.writeError(w, http.StatusBadRequest, "OPENAI_API_KEY environment variable not set")
+		return
+	}
+
+	// Find script
+	scriptPath, err := findEvalScript("analyze_with_llm.py")
+	if err != nil {
+		api.writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Build input JSON
+	inputFile, err := api.buildAnalysisInput()
+	if err != nil {
+		api.writeError(w, http.StatusInternalServerError, "failed to build analysis input: "+err.Error())
+		return
+	}
+	defer os.Remove(inputFile)
+
+	// Run script
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "python3", scriptPath, inputFile, "--cusum", "--timecluster")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		api.writeError(w, http.StatusInternalServerError, fmt.Sprintf("script failed: %v\nOutput: %s", err, string(output)))
+		return
+	}
+
+	// Extract RESPONSE section
+	fullOutput := string(output)
+	result := fullOutput
+	if idx := strings.Index(fullOutput, "RESPONSE:"); idx != -1 {
+		result = fullOutput[idx+len("RESPONSE:"):]
+		// Strip leading separator lines
+		result = strings.TrimLeft(result, "=\n ")
+	}
+	result = strings.TrimSpace(result)
+
+	// Cache result
+	api.tb.mu.Lock()
+	api.tb.lastDiagnosis = result
+	api.tb.mu.Unlock()
+
+	api.writeJSON(w, map[string]string{
+		"status": "completed",
+		"result": result,
+	})
+}
+
+// handleEvaluationRun runs the LLM evaluation script on the last diagnosis.
+func (api *TestBenchAPI) handleEvaluationRun(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		api.writeError(w, http.StatusMethodNotAllowed, "use POST")
+		return
+	}
+
+	if os.Getenv("OPENAI_API_KEY") == "" {
+		api.writeError(w, http.StatusBadRequest, "OPENAI_API_KEY environment variable not set")
+		return
+	}
+
+	// Parse request body for scenario name
+	var req struct {
+		Scenario string `json:"scenario"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Scenario == "" {
+		api.writeError(w, http.StatusBadRequest, "request body must include 'scenario' field")
+		return
+	}
+
+	// Check we have a diagnosis to evaluate
+	api.tb.mu.RLock()
+	diagnosis := api.tb.lastDiagnosis
+	api.tb.mu.RUnlock()
+
+	if diagnosis == "" {
+		api.writeError(w, http.StatusBadRequest, "no diagnosis to evaluate — run diagnosis first")
+		return
+	}
+
+	// Find script
+	scriptPath, err := findEvalScript("evaluate_diagnosis.py")
+	if err != nil {
+		api.writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Write diagnosis to temp file
+	tmpFile, err := os.CreateTemp("", "observer-diagnosis-*.txt")
+	if err != nil {
+		api.writeError(w, http.StatusInternalServerError, "failed to create temp file: "+err.Error())
+		return
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.WriteString(diagnosis); err != nil {
+		tmpFile.Close()
+		api.writeError(w, http.StatusInternalServerError, "failed to write diagnosis: "+err.Error())
+		return
+	}
+	tmpFile.Close()
+
+	// Run evaluation script
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "python3", scriptPath, tmpFile.Name(), "--scenario", req.Scenario)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		api.writeError(w, http.StatusInternalServerError, fmt.Sprintf("script failed: %v\nOutput: %s", err, string(output)))
+		return
+	}
+
+	// Extract EVALUATION RESULT section
+	fullOutput := string(output)
+	result := fullOutput
+	if idx := strings.Index(fullOutput, "EVALUATION RESULT:"); idx != -1 {
+		result = fullOutput[idx+len("EVALUATION RESULT:"):]
+		result = strings.TrimLeft(result, "=\n ")
+	}
+	result = strings.TrimSpace(result)
+
+	// Cache result
+	api.tb.mu.Lock()
+	api.tb.lastEvaluation = result
+	api.tb.mu.Unlock()
+
+	api.writeJSON(w, map[string]string{
+		"status": "completed",
+		"result": result,
+	})
 }
 
 // handleConfigUpdate handles POST /api/config to update server configuration.

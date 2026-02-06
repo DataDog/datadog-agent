@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -67,7 +68,7 @@ type TestBench struct {
 	byAnalyzer   map[string][]observerdef.AnomalyOutput // anomalies grouped by analyzer
 
 	// Raw logs (kept for context packets and API)
-	loadedLogs []LogEntry
+	loadedLogs []recorderdef.LogData
 
 	// Smart log buffer (pattern dedup + error logs)
 	logBuffer *LogBuffer
@@ -78,8 +79,22 @@ type TestBench struct {
 	// Context packet generator
 	contextPacketGen *ContextPacketGenerator
 
+	// Ground truth markers (from markers.json)
+	groundTruthMarkers []GroundTruthMarker
+
+	// LLM diagnosis/evaluation results (cached from last run)
+	lastDiagnosis  string
+	lastEvaluation string
+
 	// API server
 	api *TestBenchAPI
+}
+
+// GroundTruthMarker represents an annotated point in time from markers.json.
+type GroundTruthMarker struct {
+	Timestamp   int64  `json:"timestamp"`
+	Type        string `json:"type"`
+	Description string `json:"description"`
 }
 
 // ScenarioInfo describes an available scenario.
@@ -380,7 +395,8 @@ func (tb *TestBench) LoadScenario(name string) error {
 	tb.anomalies = []observerdef.AnomalyOutput{}
 	tb.correlations = []observerdef.ActiveCorrelation{}
 	tb.byAnalyzer = make(map[string][]observerdef.AnomalyOutput)
-	tb.loadedLogs = []LogEntry{}
+	tb.loadedLogs = []recorderdef.LogData{}
+	tb.groundTruthMarkers = nil
 	tb.ready = false
 	tb.loadedScenario = name
 
@@ -440,6 +456,14 @@ func (tb *TestBench) LoadScenario(name string) error {
 		}
 	}
 
+	// Load ground truth markers if present
+	markersFile := filepath.Join(scenarioPath, "markers.json")
+	if _, err := os.Stat(markersFile); err == nil {
+		if err := tb.loadMarkers(markersFile); err != nil {
+			fmt.Printf("  Warning: failed to load markers: %v\n", err)
+		}
+	}
+
 	// Run analyses on all loaded data
 	tb.runAnalyses()
 
@@ -487,95 +511,72 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 	return nil
 }
 
-// loadLogsDir loads all log files from a directory.
+// loadLogsDir loads all log files from a directory using the recorder's ReadAllLogs.
 func (tb *TestBench) loadLogsDir(dir string) error {
-	files, err := filepath.Glob(filepath.Join(dir, "*"))
+	if tb.config.Recorder == nil {
+		return fmt.Errorf("recorder component not configured - cannot load log files")
+	}
+
+	logs, err := tb.config.Recorder.ReadAllLogs(dir)
 	if err != nil {
-		return err
+		return fmt.Errorf("reading logs: %w", err)
 	}
 
-	totalLogs := 0
-	for _, file := range files {
-		info, err := os.Stat(file)
-		if err != nil || info.IsDir() {
-			continue
-		}
+	tb.ingestLogs(logs)
 
-		logs, err := LoadLogFile(file)
-		if err != nil {
-			fmt.Printf("  Warning: failed to load log file %s: %v\n", filepath.Base(file), err)
-			continue
-		}
-
-		for _, log := range logs {
-			// Get timestamp from testLogView
-			timestamp := log.GetTimestamp()
-
-			// Store raw log for API/context packets
-			tb.loadedLogs = append(tb.loadedLogs, LogEntry{
-				Timestamp: timestamp,
-				Content:   string(log.GetContent()),
-				Tags:      log.GetTags(),
-				Source:    log.GetHostname(),
-				Level:     log.GetStatus(),
-			})
-
-			// Process through log processors
-			for _, processor := range tb.logProcessors {
-				result := processor.Process(log)
-				for _, m := range result.Metrics {
-					tb.storage.Add("logs", m.Name, m.Value, timestamp, m.Tags)
-				}
-			}
-		}
-		totalLogs += len(logs)
-	}
-
-	if totalLogs > 0 {
-		fmt.Printf("  Loaded %d log entries\n", totalLogs)
+	if len(logs) > 0 {
+		fmt.Printf("  Loaded %d log entries from %s\n", len(logs), dir)
 	}
 	return nil
 }
 
-// loadLogsFile loads logs from a single JSON lines file (logs.json).
+// loadLogsFile loads logs from a single file (logs.json or .jsonl).
+// Uses LoadLogFile for flexible format support (JSON lines, plain text).
 func (tb *TestBench) loadLogsFile(path string) error {
 	logs, err := LoadLogFile(path)
 	if err != nil {
 		return err
 	}
 
+	// Convert LogView to LogData
+	logData := make([]recorderdef.LogData, 0, len(logs))
 	for _, log := range logs {
-		timestamp := log.GetTimestamp()
-		content := string(log.GetContent())
-		tags := log.GetTags()
-		source := log.GetHostname()
-		level := log.GetStatus()
+		logData = append(logData, recorderdef.LogData{
+			Timestamp: log.GetTimestamp(),
+			Content:   string(log.GetContent()),
+			Status:    log.GetStatus(),
+			Hostname:  log.GetHostname(),
+			Tags:      log.GetTags(),
+		})
+	}
+
+	tb.ingestLogs(logData)
+
+	if len(logData) > 0 {
+		fmt.Printf("  Loaded %d log entries from %s\n", len(logData), filepath.Base(path))
+	}
+	return nil
+}
+
+// ingestLogs stores logs and feeds them through processors.
+func (tb *TestBench) ingestLogs(logs []recorderdef.LogData) {
+	for i := range logs {
+		log := &logs[i]
 
 		// Store raw log for API/context packets
-		tb.loadedLogs = append(tb.loadedLogs, LogEntry{
-			Timestamp: timestamp,
-			Content:   content,
-			Tags:      tags,
-			Source:    source,
-			Level:     level,
-		})
+		tb.loadedLogs = append(tb.loadedLogs, *log)
 
 		// Add to smart log buffer (pattern dedup)
-		tb.logBuffer.Add(timestamp, content, tags, source, level)
+		tb.logBuffer.Add(log.Timestamp, log.Content, log.Tags, log.Source, log.Status)
 
-		// Process through log processors
+		// Process through log processors (LogData implements LogView)
 		for _, processor := range tb.logProcessors {
 			result := processor.Process(log)
 			for _, m := range result.Metrics {
-				tb.storage.Add("logs", m.Name, m.Value, timestamp, m.Tags)
+				tb.storage.Add("logs", m.Name, m.Value, log.Timestamp, m.Tags)
 			}
 		}
 	}
-
-	if len(logs) > 0 {
-		fmt.Printf("  Loaded %d log entries from %s\n", len(logs), filepath.Base(path))
-	}
-	return nil
 }
 
 // loadEventsDir loads all event files from a directory.
@@ -608,6 +609,33 @@ func (tb *TestBench) loadEventsDir(dir string) error {
 		fmt.Printf("  Loaded %d events\n", totalEvents)
 	}
 	return nil
+}
+
+// loadMarkers loads ground truth markers from a JSON file.
+func (tb *TestBench) loadMarkers(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+
+	var markers []GroundTruthMarker
+	if err := json.Unmarshal(data, &markers); err != nil {
+		return fmt.Errorf("parsing markers: %w", err)
+	}
+
+	tb.groundTruthMarkers = markers
+	fmt.Printf("  Loaded %d ground truth markers\n", len(markers))
+	return nil
+}
+
+// GetMarkers returns all loaded ground truth markers.
+func (tb *TestBench) GetMarkers() []GroundTruthMarker {
+	tb.mu.RLock()
+	defer tb.mu.RUnlock()
+
+	result := make([]GroundTruthMarker, len(tb.groundTruthMarkers))
+	copy(result, tb.groundTruthMarkers)
+	return result
 }
 
 // runAnalyses runs all time series analyses on all stored series.
@@ -907,21 +935,21 @@ func (tb *TestBench) GetAnomalies() []observerdef.AnomalyOutput {
 }
 
 // GetLogs returns all loaded logs.
-func (tb *TestBench) GetLogs() []LogEntry {
+func (tb *TestBench) GetLogs() []recorderdef.LogData {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
-	result := make([]LogEntry, len(tb.loadedLogs))
+	result := make([]recorderdef.LogData, len(tb.loadedLogs))
 	copy(result, tb.loadedLogs)
 	return result
 }
 
 // GetLogsInWindow returns logs within the specified time window.
-func (tb *TestBench) GetLogsInWindow(start, end int64) []LogEntry {
+func (tb *TestBench) GetLogsInWindow(start, end int64) []recorderdef.LogData {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
-	var result []LogEntry
+	var result []recorderdef.LogData
 	for _, log := range tb.loadedLogs {
 		if log.Timestamp >= start && log.Timestamp <= end {
 			result = append(result, log)

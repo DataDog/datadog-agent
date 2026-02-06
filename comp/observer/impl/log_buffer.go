@@ -42,7 +42,7 @@ type BufferedLog struct {
 	Content   string   `json:"content"`
 	Tags      []string `json:"tags,omitempty"`
 	Source    string   `json:"source,omitempty"`
-	Level     string   `json:"level,omitempty"`
+	Status    string   `json:"status,omitempty"`
 }
 
 // LogPatternSummary is the output format for GetLogSummary().
@@ -103,7 +103,7 @@ func (b *LogBuffer) Add(timestamp int64, content string, tags []string, source, 
 		Content:   content,
 		Tags:      tags,
 		Source:    source,
-		Level:     level,
+		Status:    level,
 	}
 
 	// Always keep error/warn logs

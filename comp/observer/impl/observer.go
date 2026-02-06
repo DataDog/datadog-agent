@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	recorder "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -25,6 +26,10 @@ type Requires struct {
 	// AgentInternalLogTap provides optional overrides for capturing agent-internal logs.
 	// When fields are nil, values are read from configuration defaults.
 	AgentInternalLogTap AgentInternalLogTapConfig
+
+	// Recorder is an optional recorder component for recording observations to disk.
+	// If provided, agent-internal logs will be recorded along with other data.
+	Recorder recorder.Component `optional:"true"`
 }
 
 type AgentInternalLogTapConfig struct {
@@ -126,7 +131,7 @@ func NewComponent(deps Requires) Provides {
 						fmt.Fprintf(os.Stderr, "[observer] events dump error: %v\n", err)
 					} else {
 						fmt.Printf("[observer] dumped events to %s\n", eventsDumpPath)
-					}
+				}
 				}
 			}
 		}()
@@ -151,11 +156,28 @@ func NewComponent(deps Requires) Provides {
 			sampleTrace = *deps.AgentInternalLogTap.SampleRateTrace
 		}
 
-		handle := obs.GetHandle("agent-internal-logs")
+		// Warmup: skip logs during startup to avoid noisy init errors
+		warmupSec := cfg.GetInt("observer.capture_agent_internal_logs.warmup_seconds")
+		if warmupSec <= 0 {
+			warmupSec = 30 // default: ignore first 30s of agent startup
+		}
+		startTime := time.Now()
+
+		// Create handle, optionally wrapped with recorder for disk recording
+		handleFunc := obs.GetHandle
+		if deps.Recorder != nil {
+			handleFunc = deps.Recorder.GetHandle(handleFunc)
+		}
+		handle := handleFunc("agent-internal-logs")
 		baseTags := []string{"source:datadog-agent"}
 
 		var infoN, debugN, traceN uint64
 		shouldSample := func(level pkglog.LogLevel) bool {
+			// Skip all logs during warmup period
+			if time.Since(startTime) < time.Duration(warmupSec)*time.Second {
+				return false
+			}
+
 			var rate float64
 			switch level {
 			case pkglog.WarnLvl, pkglog.ErrorLvl, pkglog.CriticalLvl:

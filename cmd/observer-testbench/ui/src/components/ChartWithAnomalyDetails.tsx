@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { TimeSeriesChart } from './TimeSeriesChart';
 import type { SplitSeries } from './TimeSeriesChart';
-import type { Point, AnomalyMarker, Anomaly } from '../api/client';
+import type { Point, AnomalyMarker, Anomaly, GroundTruthMarker } from '../api/client';
 
 export interface CorrelationRange {
   id: number;
@@ -21,6 +21,7 @@ interface ChartWithAnomalyDetailsProps {
   anomalyMarkers: AnomalyMarker[];
   anomalies: Anomaly[];
   correlationRanges?: CorrelationRange[];
+  groundTruthMarkers?: GroundTruthMarker[];
   enabledAnalyzers: Set<string>;
   timeRange?: TimeRange | null;
   onTimeRangeChange?: (range: TimeRange | null) => void;
@@ -34,6 +35,7 @@ export function ChartWithAnomalyDetails({
   anomalyMarkers,
   anomalies,
   correlationRanges = [],
+  groundTruthMarkers = [],
   enabledAnalyzers,
   timeRange,
   onTimeRangeChange,
@@ -65,6 +67,7 @@ export function ChartWithAnomalyDetails({
         points={points}
         anomalies={anomalyMarkers}
         correlationRanges={correlationRanges}
+        groundTruthMarkers={groundTruthMarkers}
         enabledAnalyzers={enabledAnalyzers}
         timeRange={timeRange}
         onTimeRangeChange={onTimeRangeChange}

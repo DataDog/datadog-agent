@@ -3,7 +3,7 @@ import { useObserver } from './hooks/useObserver';
 import { ChartWithAnomalyDetails } from './components/ChartWithAnomalyDetails';
 import { SeriesTree } from './components/SeriesTree';
 import { api } from './api/client';
-import type { SeriesData, SeriesInfo } from './api/client';
+import type { SeriesData, SeriesInfo, GroundTruthMarker, DiagnosisResult, EvaluationResult } from './api/client';
 import type { SplitSeries } from './components/TimeSeriesChart';
 
 // Parse tag string "key:value" into parts
@@ -97,6 +97,21 @@ function App() {
   const [splitByTag, setSplitByTag] = useState<string | null>(null);
   const [splitSeriesData, setSplitSeriesData] = useState<Map<string, SeriesData[]>>(new Map());
   const [aggregationType, setAggregationType] = useState<AggregationType>('avg');
+  const [groundTruthMarkers, setGroundTruthMarkers] = useState<GroundTruthMarker[]>([]);
+  const [diagnosisResult, setDiagnosisResult] = useState<DiagnosisResult | null>(null);
+  const [evaluationResult, setEvaluationResult] = useState<EvaluationResult | null>(null);
+  const [diagnosisLoading, setDiagnosisLoading] = useState(false);
+  const [evaluationLoading, setEvaluationLoading] = useState(false);
+  const [diagnosisPanelOpen, setDiagnosisPanelOpen] = useState(false);
+
+  // Fetch ground truth markers when scenario changes
+  useEffect(() => {
+    if (state.activeScenario) {
+      api.getMarkers().then(setGroundTruthMarkers).catch(() => setGroundTruthMarkers([]));
+    } else {
+      setGroundTruthMarkers([]);
+    }
+  }, [state.activeScenario]);
   const isResizingRef = useRef(false);
 
   // Safely access arrays with fallbacks
@@ -427,9 +442,102 @@ function App() {
                 {anomalies.length !== allAnomalies.length && `/${allAnomalies.length}`} anomalies
               </span>
             )}
+            {/* Diagnosis / Evaluation buttons */}
+            {state.activeScenario && (
+              <div className="flex gap-2 items-center">
+                <button
+                  onClick={async () => {
+                    setDiagnosisLoading(true);
+                    setDiagnosisResult(null);
+                    setEvaluationResult(null);
+                    try {
+                      const result = await api.runDiagnosis();
+                      setDiagnosisResult(result);
+                      setDiagnosisPanelOpen(true);
+                    } catch (e) {
+                      setDiagnosisResult({ status: 'error', error: e instanceof Error ? e.message : 'Failed' });
+                      setDiagnosisPanelOpen(true);
+                    } finally {
+                      setDiagnosisLoading(false);
+                    }
+                  }}
+                  disabled={diagnosisLoading}
+                  className="px-3 py-1 text-xs rounded bg-purple-700 hover:bg-purple-600 text-white disabled:opacity-50 disabled:cursor-wait"
+                >
+                  {diagnosisLoading ? 'Diagnosing...' : 'Run Diagnosis'}
+                </button>
+                {diagnosisResult?.status === 'completed' && (
+                  <button
+                    onClick={async () => {
+                      setEvaluationLoading(true);
+                      setEvaluationResult(null);
+                      try {
+                        const result = await api.runEvaluation(state.activeScenario || '');
+                        setEvaluationResult(result);
+                        setDiagnosisPanelOpen(true);
+                      } catch (e) {
+                        setEvaluationResult({ status: 'error', error: e instanceof Error ? e.message : 'Failed' });
+                      } finally {
+                        setEvaluationLoading(false);
+                      }
+                    }}
+                    disabled={evaluationLoading}
+                    className="px-3 py-1 text-xs rounded bg-emerald-700 hover:bg-emerald-600 text-white disabled:opacity-50 disabled:cursor-wait"
+                  >
+                    {evaluationLoading ? 'Evaluating...' : 'Run Evaluation'}
+                  </button>
+                )}
+                {(diagnosisResult || evaluationResult) && (
+                  <button
+                    onClick={() => setDiagnosisPanelOpen(!diagnosisPanelOpen)}
+                    className="px-2 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 text-slate-300"
+                  >
+                    {diagnosisPanelOpen ? 'Hide' : 'Show'} Results
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </header>
+
+      {/* Diagnosis/Evaluation results panel */}
+      {diagnosisPanelOpen && (diagnosisResult || evaluationResult) && (
+        <div className="bg-slate-800 border-b border-slate-700 px-6 py-4 max-h-96 overflow-y-auto">
+          <div className="flex gap-6">
+            {/* Diagnosis result */}
+            {diagnosisResult && (
+              <div className="flex-1 min-w-0">
+                <h3 className="text-xs font-semibold text-purple-400 uppercase tracking-wider mb-2">
+                  LLM Diagnosis
+                </h3>
+                {diagnosisResult.error ? (
+                  <div className="text-red-400 text-sm">{diagnosisResult.error}</div>
+                ) : (
+                  <pre className="text-sm text-slate-300 whitespace-pre-wrap font-mono leading-relaxed">
+                    {diagnosisResult.result}
+                  </pre>
+                )}
+              </div>
+            )}
+            {/* Evaluation result */}
+            {evaluationResult && (
+              <div className="w-80 flex-shrink-0">
+                <h3 className="text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-2">
+                  Evaluation ({state.activeScenario})
+                </h3>
+                {evaluationResult.error ? (
+                  <div className="text-red-400 text-sm">{evaluationResult.error}</div>
+                ) : (
+                  <pre className="text-sm text-slate-300 whitespace-pre-wrap font-mono leading-relaxed">
+                    {evaluationResult.result}
+                  </pre>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="flex-1 flex">
         {/* Left Sidebar - Scenarios & Components */}
@@ -1046,6 +1154,7 @@ function App() {
                         anomalyMarkers={data.anomalies}
                         anomalies={seriesAnomalies}
                         correlationRanges={seriesCorrelations}
+                        groundTruthMarkers={groundTruthMarkers}
                         enabledAnalyzers={enabledAnalyzers}
                         timeRange={timeRange}
                         onTimeRangeChange={setTimeRange}

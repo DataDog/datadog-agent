@@ -22,7 +22,8 @@ import (
 // It wraps observer handles to intercept and optionally record observations.
 type Component interface {
 	// GetHandle wraps the provided HandleFunc with recording capability.
-	// If recording is enabled via config, metrics will be written to parquet files.
+	// If recording is enabled via config, metrics will be written to parquet files
+	// and logs will be written to JSON lines files.
 	// This is called by the observer's GetHandle to create the final handle chain.
 	GetHandle(handleFunc observer.HandleFunc) observer.HandleFunc
 
@@ -30,6 +31,11 @@ type Component interface {
 	// This is for batch loading scenarios (like testbench) where streaming via handles
 	// is not needed and direct access to all metrics at once is more efficient.
 	ReadAllMetrics(inputDir string) ([]MetricData, error)
+
+	// ReadAllLogs reads all logs from JSON lines files and returns them as a slice.
+	// This is for batch loading scenarios (like testbench) where streaming via handles
+	// is not needed and direct access to all logs at once is more efficient.
+	ReadAllLogs(inputDir string) ([]LogData, error)
 }
 
 // MetricData represents a single metric read from parquet files.
@@ -41,3 +47,30 @@ type MetricData struct {
 	Timestamp int64    // Unix timestamp in seconds
 	Tags      []string // Tags in "key:value" format
 }
+
+// LogData represents a single log entry read from JSON lines files.
+// Used by ReadAllLogs for batch loading scenarios.
+// Implements observer.LogView so it can be fed directly to log processors.
+type LogData struct {
+	Source    string   `json:"source,omitempty"`   // Source/namespace identifier
+	Content   string   `json:"content"`            // Log message content
+	Status    string   `json:"status,omitempty"`   // Log level (info, warn, error, debug, etc.)
+	Hostname  string   `json:"hostname,omitempty"` // Hostname where the log originated
+	Timestamp int64    `json:"timestamp"`          // Unix timestamp in seconds
+	Tags      []string `json:"tags,omitempty"`     // Tags in "key:value" format
+}
+
+// GetContent implements observer.LogView.
+func (d *LogData) GetContent() []byte { return []byte(d.Content) }
+
+// GetStatus implements observer.LogView.
+func (d *LogData) GetStatus() string { return d.Status }
+
+// GetTags implements observer.LogView.
+func (d *LogData) GetTags() []string { return d.Tags }
+
+// GetHostname implements observer.LogView.
+func (d *LogData) GetHostname() string { return d.Hostname }
+
+// GetTimestamp implements observer.LogView.
+func (d *LogData) GetTimestamp() int64 { return d.Timestamp }

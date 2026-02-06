@@ -52,10 +52,14 @@ type HealthSnapshot struct {
 // HealthCalculatorConfig configures the health calculator.
 type HealthCalculatorConfig struct {
 	// Weight multipliers for different factors
-	AnomalyCountWeight  float64 // points per anomaly (default: 5)
-	MaxSeverityWeight   float64 // points per severity unit (default: 10)
-	ClusterSizeWeight   float64 // points per signal in cluster (default: 2)
-	ErrorLogRateWeight  float64 // points per error log burst (default: 3)
+	// Tuned so metric anomalies drive the score:
+	//   ~10 anomalies → health ~80 (degraded)
+	//   ~20 anomalies → health ~60 (warning)
+	//   ~50 anomalies → health ~0  (critical)
+	AnomalyCountWeight  float64 // points per anomaly (default: 2)
+	MaxSeverityWeight   float64 // points per severity unit, capped (default: 5)
+	ClusterSizeWeight   float64 // points per signal in cluster (default: 1)
+	ErrorLogRateWeight  float64 // supplemental, logs not yet processed effectively (default: 0.5)
 
 	// Thresholds
 	HealthyThreshold   int // score above this is healthy (default: 80)
@@ -69,10 +73,10 @@ type HealthCalculatorConfig struct {
 // DefaultHealthCalculatorConfig returns sensible defaults.
 func DefaultHealthCalculatorConfig() HealthCalculatorConfig {
 	return HealthCalculatorConfig{
-		AnomalyCountWeight:  5,
-		MaxSeverityWeight:   10,
-		ClusterSizeWeight:   2,
-		ErrorLogRateWeight:  3,
+		AnomalyCountWeight:  2,
+		MaxSeverityWeight:   5,
+		ClusterSizeWeight:   1,
+		ErrorLogRateWeight:  0.5,
 		HealthyThreshold:    80,
 		WarningThreshold:    60,
 		CriticalThreshold:   30,
@@ -83,13 +87,13 @@ func DefaultHealthCalculatorConfig() HealthCalculatorConfig {
 // NewHealthCalculator creates a new health calculator.
 func NewHealthCalculator(cfg HealthCalculatorConfig) *HealthCalculator {
 	if cfg.AnomalyCountWeight == 0 {
-		cfg.AnomalyCountWeight = 5
+		cfg.AnomalyCountWeight = 2
 	}
 	if cfg.MaxSeverityWeight == 0 {
-		cfg.MaxSeverityWeight = 10
+		cfg.MaxSeverityWeight = 5
 	}
 	if cfg.ClusterSizeWeight == 0 {
-		cfg.ClusterSizeWeight = 2
+		cfg.ClusterSizeWeight = 1
 	}
 	if cfg.MaxHistorySize == 0 {
 		cfg.MaxHistorySize = 100

@@ -31,7 +31,7 @@ type Provides struct {
 func NewComponent(req Requires) (Provides, error) {
 	r := &recorderImpl{}
 
-	// Initialize recording if both capture_metrics.enabled AND parquet_output_dir are configured.
+	// Initialize metric recording if both capture_metrics.enabled AND parquet_output_dir are configured.
 	captureMetricsEnabled := req.Config.GetBool("observer.capture_metrics.enabled")
 	if captureMetricsEnabled {
 		if parquetDir := req.Config.GetString("observer.parquet_output_dir"); parquetDir != "" {
@@ -58,12 +58,40 @@ func NewComponent(req Requires) (Provides, error) {
 		pkglog.Debug("Recorder parquet writer disabled (observer.capture_metrics.enabled is false)")
 	}
 
+	// Initialize log recording if both capture_logs.enabled AND logs_output_dir are configured.
+	captureLogsEnabled := req.Config.GetBool("observer.capture_logs.enabled")
+	if captureLogsEnabled {
+		if logsDir := req.Config.GetString("observer.logs_output_dir"); logsDir != "" {
+			flushInterval := req.Config.GetDuration("observer.logs_flush_interval")
+			if flushInterval == 0 {
+				flushInterval = 30 * time.Second
+			}
+
+			retentionDuration := req.Config.GetDuration("observer.logs_retention")
+			if retentionDuration <= 0 {
+				retentionDuration = 24 * time.Hour
+			}
+
+			// Create log writer
+			logWriter, err := NewLogWriter(logsDir, flushInterval, retentionDuration)
+			if err != nil {
+				pkglog.Errorf("Failed to create log writer: %v", err)
+			} else {
+				r.logWriter = logWriter
+				pkglog.Infof("Recorder started with log output: dir=%s flush=%v retention=%v", logsDir, flushInterval, retentionDuration)
+			}
+		}
+	} else {
+		pkglog.Debug("Recorder log writer disabled (observer.capture_logs.enabled is false)")
+	}
+
 	return Provides{Comp: r}, nil
 }
 
 // recorderImpl implements the recorder component
 type recorderImpl struct {
 	parquetWriter *ParquetWriter
+	logWriter     *LogWriter
 	mu            sync.Mutex
 }
 
@@ -72,8 +100,8 @@ func (r *recorderImpl) GetHandle(handleFunc observer.HandleFunc) observer.Handle
 	return func(name string) observer.Handle {
 		innerHandle := handleFunc(name)
 
-		// If recording is enabled, wrap with recording handle
-		if r.parquetWriter != nil {
+		// If any recording is enabled, wrap with recording handle
+		if r.parquetWriter != nil || r.logWriter != nil {
 			return &recordingHandle{
 				inner:    innerHandle,
 				recorder: r,
@@ -140,6 +168,19 @@ func (r *recorderImpl) ReadAllMetrics(inputDir string) ([]recorderdef.MetricData
 	return metrics, nil
 }
 
+// ReadAllLogs reads all logs from JSON lines files and returns them as a slice.
+// This is for batch loading scenarios where streaming via handles is not needed.
+func (r *recorderImpl) ReadAllLogs(inputDir string) ([]recorderdef.LogData, error) {
+	// Read all log files from the input directory
+	reader, err := NewLogReader(inputDir)
+	if err != nil {
+		return nil, fmt.Errorf("creating log reader: %w", err)
+	}
+
+	pkglog.Infof("ReadAllLogs: loaded %d logs from %s", reader.Len(), inputDir)
+	return reader.All(), nil
+}
+
 // recordingHandle wraps an observer handle to record observations.
 type recordingHandle struct {
 	inner    observer.Handle
@@ -168,9 +209,24 @@ func (h *recordingHandle) ObserveMetric(sample observer.MetricView) {
 	}
 }
 
-// ObserveLog forwards the log to the inner handle.
-// Log recording is not implemented yet but the hook is in place.
+// ObserveLog forwards the log to the inner handle and records it.
 func (h *recordingHandle) ObserveLog(msg observer.LogView) {
+	// Forward to inner handle first
 	h.inner.ObserveLog(msg)
-	// TODO: Optionally record logs to parquet (future enhancement)
+
+	// Record to JSON lines if writer is available
+	if h.recorder.logWriter != nil {
+		timestamp := msg.GetTimestamp()
+		if timestamp == 0 {
+			timestamp = time.Now().Unix()
+		}
+		h.recorder.logWriter.WriteLog(
+			timestamp,
+			string(msg.GetContent()),
+			msg.GetTags(),
+			msg.GetHostname(),
+			msg.GetStatus(),
+			h.name, // source/namespace
+		)
+	}
 }

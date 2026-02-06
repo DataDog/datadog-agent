@@ -1,6 +1,6 @@
 import { useRef, useEffect, useMemo, useState } from 'react';
 import * as d3 from 'd3';
-import type { Point, AnomalyMarker } from '../api/client';
+import type { Point, AnomalyMarker, GroundTruthMarker } from '../api/client';
 import type { CorrelationRange, TimeRange } from './ChartWithAnomalyDetails';
 
 // Analyzer colors for distinguishing different detection algorithms
@@ -35,6 +35,18 @@ const LINE_COLORS = [
   '#14b8a6', // teal
 ];
 
+// Ground truth marker colors by type
+const MARKER_COLORS: Record<string, string> = {
+  baseline_start: '#22c55e',  // green
+  anomaly_start: '#ef4444',   // red
+  anomaly_end: '#3b82f6',     // blue
+  scenario_end: '#64748b',    // slate
+};
+
+function getMarkerColor(type: string) {
+  return MARKER_COLORS[type] || '#a855f7'; // purple default
+}
+
 function getAnalyzerColor(analyzerName: string) {
   return ANALYZER_COLORS[analyzerName] || ANALYZER_COLORS.default;
 }
@@ -58,6 +70,7 @@ interface TimeSeriesChartProps {
   points: Point[];
   anomalies: AnomalyMarker[];
   correlationRanges?: CorrelationRange[];
+  groundTruthMarkers?: GroundTruthMarker[];
   enabledAnalyzers: Set<string>;
   timeRange?: TimeRange | null;
   onTimeRangeChange?: (range: TimeRange | null) => void;
@@ -71,6 +84,7 @@ export function TimeSeriesChart({
   points,
   anomalies,
   correlationRanges = [],
+  groundTruthMarkers = [],
   enabledAnalyzers,
   timeRange,
   onTimeRangeChange,
@@ -185,6 +199,63 @@ export function TimeSeriesChart({
         .attr('stroke-width', 1)
         .attr('stroke-dasharray', '4,2')
         .attr('opacity', 0.5);
+    });
+
+    // Draw ground truth markers as vertical dashed lines with readable labels
+    groundTruthMarkers.forEach((marker) => {
+      const x = xScale(marker.timestamp * 1000);
+      if (x < 0 || x > innerWidth) return; // Off screen
+
+      const color = getMarkerColor(marker.type);
+      const label = marker.type.replace(/_/g, ' ');
+
+      // Vertical dashed line — full height, prominent
+      g.append('line')
+        .attr('x1', x)
+        .attr('x2', x)
+        .attr('y1', 0)
+        .attr('y2', innerHeight)
+        .attr('stroke', color)
+        .attr('stroke-width', 2)
+        .attr('stroke-dasharray', '8,4')
+        .attr('opacity', 0.9);
+
+      // Label background pill for readability
+      const labelText = g.append('text')
+        .attr('x', x + 6)
+        .attr('y', 12)
+        .attr('fill', color)
+        .attr('font-size', '10px')
+        .attr('font-weight', '600')
+        .attr('font-family', 'system-ui, sans-serif')
+        .text(label);
+
+      // Measure text and add background rect behind it
+      const bbox = (labelText.node() as SVGTextElement)?.getBBox();
+      if (bbox) {
+        g.insert('rect', ':last-child')
+          .attr('x', bbox.x - 3)
+          .attr('y', bbox.y - 2)
+          .attr('width', bbox.width + 6)
+          .attr('height', bbox.height + 4)
+          .attr('rx', 3)
+          .attr('fill', '#0f172a')
+          .attr('fill-opacity', 0.85)
+          .attr('stroke', color)
+          .attr('stroke-width', 0.5)
+          .attr('stroke-opacity', 0.5);
+
+        // Re-append text so it's on top of the rect
+        labelText.remove();
+        g.append('text')
+          .attr('x', x + 6)
+          .attr('y', 12)
+          .attr('fill', color)
+          .attr('font-size', '10px')
+          .attr('font-weight', '600')
+          .attr('font-family', 'system-ui, sans-serif')
+          .text(label);
+      }
     });
 
     // Group anomalies by timestamp to handle overlaps
@@ -348,7 +419,7 @@ export function TimeSeriesChart({
       .attr('stroke', '#8b5cf6')
       .attr('stroke-width', 1);
 
-  }, [points, displayPoints, filteredAnomalies, correlationRanges, height, timeRange, smoothLines, displaySplitSeries]);
+  }, [points, displayPoints, filteredAnomalies, correlationRanges, groundTruthMarkers, height, timeRange, smoothLines, displaySplitSeries]);
 
   // Handle resize
   useEffect(() => {

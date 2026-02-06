@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
 
@@ -39,7 +40,8 @@ type RecordingHandle struct {
 	source       string
 	metricWriter *json.Encoder
 	metricFile   *os.File
-	logWriter    *LogWriter
+	logWriter    *json.Encoder
+	logFile      *os.File
 	mu           sync.Mutex
 }
 
@@ -57,12 +59,12 @@ func NewRecordingHandle(inner observer.Handle, source string, outputDir string) 
 		return nil, fmt.Errorf("creating metrics file: %w", err)
 	}
 
-	// Create logs file
+	// Create logs file (JSONL using recorder's LogData format)
 	logsPath := filepath.Join(outputDir, "logs.json")
-	logWriter, err := NewLogWriter(logsPath)
+	logFile, err := os.Create(logsPath)
 	if err != nil {
 		metricFile.Close()
-		return nil, fmt.Errorf("creating log writer: %w", err)
+		return nil, fmt.Errorf("creating log file: %w", err)
 	}
 
 	return &RecordingHandle{
@@ -70,7 +72,8 @@ func NewRecordingHandle(inner observer.Handle, source string, outputDir string) 
 		source:       source,
 		metricWriter: json.NewEncoder(metricFile),
 		metricFile:   metricFile,
-		logWriter:    logWriter,
+		logWriter:    json.NewEncoder(logFile),
+		logFile:      logFile,
 	}, nil
 }
 
@@ -99,14 +102,20 @@ func (h *RecordingHandle) ObserveLog(msg observer.LogView) {
 	// Forward to inner handle
 	h.inner.ObserveLog(msg)
 
-	// Record to file
-	_ = h.logWriter.WriteLog(
-		msg.GetTimestamp(),
-		string(msg.GetContent()),
-		msg.GetTags(),
-		h.source,
-		msg.GetStatus(),
-	)
+	// Record to file using recorder's LogData format
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	entry := recorderdef.LogData{
+		Timestamp: msg.GetTimestamp(),
+		Content:   string(msg.GetContent()),
+		Status:    msg.GetStatus(),
+		Hostname:  msg.GetHostname(),
+		Source:    h.source,
+		Tags:      msg.GetTags(),
+	}
+
+	_ = h.logWriter.Encode(entry)
 }
 
 // Close closes the recording handle and flushes all data.
@@ -125,8 +134,11 @@ func (h *RecordingHandle) Close() error {
 		}
 	}
 
-	if h.logWriter != nil {
-		if err := h.logWriter.Close(); err != nil {
+	if h.logFile != nil {
+		if err := h.logFile.Sync(); err != nil {
+			errs = append(errs, err)
+		}
+		if err := h.logFile.Close(); err != nil {
 			errs = append(errs, err)
 		}
 	}
