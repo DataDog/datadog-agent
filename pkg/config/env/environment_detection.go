@@ -135,7 +135,7 @@ func excludeFeatures(detectedFeatures FeatureMap, excludedFeatures []string) {
 		filter = strings.ToLower(strings.TrimPrefix(filter, "name:"))
 		r, err := regexp.Compile(filter)
 		if err != nil {
-			log.Warnf("Unbale to parse exclude feature filter: '%s'", filter)
+			log.Warnf("Unable to parse exclude feature filter: '%s'", filter)
 			continue
 		}
 

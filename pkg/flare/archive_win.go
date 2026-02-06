@@ -277,6 +277,35 @@ func getEventLogConfig(fb flaretypes.FlareBuilder) error {
 
 }
 
+// getIISData collects IIS web application information grouped by application pool.
+// This helps diagnose IIS-related issues by showing the distribution of web applications
+// across application pools.
+func getIISData(fb flaretypes.FlareBuilder) error {
+	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
+	defer cancelfunc()
+
+	// PowerShell command to get web applications grouped by application pool
+	psCommand := "Get-WebApplication | Group-Object ApplicationPool | Select-Object Name, Count | Format-Table -AutoSize"
+
+	cmd := exec.CommandContext(cancelctx, "powershell", "-NoProfile", "-NonInteractive", "-Command", psCommand)
+
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err != nil {
+		// IIS may not be installed, which is expected on many systems
+		log.Debugf("Could not collect IIS data (IIS may not be installed): %s, stderr: %s", err, stderr.String())
+		// Still add the file with error info so support knows we tried
+		errorMsg := fmt.Sprintf("Could not collect IIS data: %s\nStderr: %s\nNote: This is expected if IIS is not installed.", err, stderr.String())
+		return fb.AddFile("iis_application_pools.txt", []byte(errorMsg))
+	}
+
+	return fb.AddFile("iis_application_pools.txt", out.Bytes())
+}
+
 func getWindowsData(fb flaretypes.FlareBuilder) error {
 	getTypeperfData(fb)     //nolint:errcheck
 	getLodctrOutput(fb)     //nolint:errcheck
@@ -285,5 +314,6 @@ func getWindowsData(fb flaretypes.FlareBuilder) error {
 	getServiceStatus(fb)    //nolint:errcheck
 	getDatadogRegistry(fb)  //nolint:errcheck
 	getEventLogConfig(fb)   //nolint:errcheck
+	getIISData(fb)          //nolint:errcheck
 	return nil
 }
