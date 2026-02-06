@@ -683,12 +683,22 @@ func runCheck(cliParams *cliParams, c check.Check, _ aggregator.Demultiplexer) *
 	return s
 }
 
+// checkFlareDirPerms is the permission mode for the check flare directory (rwxr-x---)
+const checkFlareDirPerms = 0750
+
 func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
-	_ = os.Mkdir(defaultpaths.GetDefaultCheckFlareDirectory(), os.ModeDir)
+	writeCheckToFileInDir(checkName, checkFileOutput, defaultpaths.GetDefaultCheckFlareDirectory())
+}
+
+func writeCheckToFileInDir(checkName string, checkFileOutput *bytes.Buffer, dir string) {
+	if err := os.MkdirAll(dir, checkFlareDirPerms); err != nil {
+		fmt.Println("Error while creating check flare directory:", err)
+		return
+	}
 
 	// Windows cannot accept ":" in file names
 	filenameSafeTimeStamp := strings.ReplaceAll(time.Now().UTC().Format(time.RFC3339), ":", "-")
-	flarePath := filepath.Join(defaultpaths.GetDefaultCheckFlareDirectory(), "check_"+checkName+"_"+filenameSafeTimeStamp+".log")
+	flarePath := filepath.Join(dir, "check_"+checkName+"_"+filenameSafeTimeStamp+".log")
 
 	scrubbed, err := scrubber.ScrubBytes(checkFileOutput.Bytes())
 	if err != nil {

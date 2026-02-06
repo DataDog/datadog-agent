@@ -496,7 +496,7 @@ func (x *FilterProcess) GetArgs() []string {
 	return nil
 }
 
-func (x *FilterProcess) GetDefaultLogFile() string {
+func (x *FilterProcess) GetLogFile() string {
 	if x != nil {
 		return x.LogFile
 	}
