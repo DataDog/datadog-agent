@@ -14,6 +14,13 @@ import (
 const (
 	PrivateActionRunnerRelativeDir = "private-action-runner"
 	ScriptConfigFileName           = "script-config.yaml"
+
+	CreateConnectionEndpoint = "/api/v2/actions/connections"
+	APIKeyHeader             = "DD-API-KEY"
+	AppKeyHeader             = "DD-APPLICATION-KEY"
+	ContentTypeHeader        = "Content-Type"
+	ContentType              = "application/vnd.api+json"
+	UserAgentHeader          = "User-Agent"
 )
 
 func GetPrivateActionRunnerDir() string {

@@ -85,17 +85,17 @@ func (c *ConnectionsClient) CreateConnection(ctx context.Context, definition Con
 		return fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	url := c.baseUrl + "/api/v2/actions/connections"
+	url := c.baseUrl + CreateConnectionEndpoint
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
-	httpReq.Header.Set("DD-API-KEY", c.apiKey)
-	httpReq.Header.Set("DD-APPLICATION-KEY", c.appKey)
-	httpReq.Header.Set("Content-Type", "application/vnd.api+json")
-	httpReq.Header.Set("User-Agent", "datadog-agent/"+version.AgentVersion)
+	httpReq.Header.Set(APIKeyHeader, c.apiKey)
+	httpReq.Header.Set(AppKeyHeader, c.appKey)
+	httpReq.Header.Set(ContentTypeHeader, ContentType)
+	httpReq.Header.Set(UserAgentHeader, "datadog-agent/"+version.AgentVersion)
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
