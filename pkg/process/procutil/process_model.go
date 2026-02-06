@@ -7,6 +7,7 @@ package procutil
 
 import (
 	"hash/fnv"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -77,6 +78,18 @@ func (p *Process) GetCmdline() []string {
 // remain the same but the command line changes.
 func ProcessIdentity(pid int32, createTime int64, cmdline []string) string {
 	return "pid:" + strconv.FormatInt(int64(pid), 10) + "|createTime:" + strconv.FormatInt(createTime, 10) + "|cmdHash:" + strconv.FormatUint(hashCmdline(cmdline), 16)
+}
+
+// IsSameProcess returns true if two processes have the same identity (PID, create time, and cmdline).
+// Returns false if either process is nil.
+func IsSameProcess(a, b *Process) bool {
+	if a.Pid != b.Pid {
+		return false
+	}
+	if a.Stats.CreateTime != b.Stats.CreateTime {
+		return false
+	}
+	return slices.Equal(a.Cmdline, b.Cmdline)
 }
 
 // hashCmdline computes a fast FNV-1a hash of the command line arguments.
