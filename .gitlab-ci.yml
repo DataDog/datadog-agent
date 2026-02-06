@@ -986,6 +986,7 @@ workflow:
         - test/new-e2e/tests/fleet/**/*
         - test/new-e2e/tests/installer/**/*
         - tasks/installer.py
+        - tools/windows/DatadogAgentInstaller/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
