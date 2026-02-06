@@ -6,6 +6,7 @@ package collector
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -42,7 +43,11 @@ type Telemetry struct {
 }
 
 func (t Telemetry) String() string {
-	return fmt.Sprintf("%v\n%v\n%v\n", t.CPU, t.Memory, t.Error)
+	builder := strings.Builder{}
+	for _, metric := range t.Metrics {
+		builder.WriteString(fmt.Sprintf("%v: %v\n", metric.MetricName, metric.Average))
+	}
+	return fmt.Sprintf("\n%v\n%v\n%v\n Trace: %v\n Metrics:\n%v\n", t.CPU, t.Memory, t.Error, t.Trace, builder.String())
 }
 
 type ComparisonMode struct {

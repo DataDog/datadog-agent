@@ -83,16 +83,26 @@ func (dp *DetectorProcessor) ComputeScores(
 
 	telemetry := dp.buildTelemetry(topFuncs, metrics, logMessages, percentiles)
 
-	dp.log.Debugf("%v", telemetry)
+	dp.log.Infof("Telemetry: %v", telemetry)
 
 	results, err := dp.telemetryHistory.Add(telemetry)
 	if err != nil {
 		return nil, err
 	}
 
-	dp.log.Debugf("Telemetry comparison result: %v", results)
+	dp.log.Infof("**** Telemetry comparison result *** \n%v\n", results)
 
-	return dp.detectorRunner.ComputeScores(results, dp.currentStep)
+	scores, err := dp.detectorRunner.ComputeScores(results, dp.currentStep)
+	if err != nil {
+		return nil, err
+	}
+
+	dp.log.Infof("**** Detector scores *** \n")
+	for name, score := range scores {
+		dp.log.Infof("  %s: %v (best: %v)", name, score.Score, score.BestScore)
+	}
+
+	return scores, nil
 }
 
 func (dp *DetectorProcessor) buildTelemetry(

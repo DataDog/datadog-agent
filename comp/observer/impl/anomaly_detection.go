@@ -122,7 +122,11 @@ func (a *AnomalyDetection) processProfilesPeriodically() {
 			logsMessages := make([]string, 0, len(logs))
 			for _, log := range logs {
 				if log != nil && len(log.content) > 0 {
-					logsMessages = append(logsMessages, string(log.content))
+					content := string(log.content)
+					if len(content) > 300 {
+						content = content[:300]
+					}
+					logsMessages = append(logsMessages, content)
 				}
 			}
 
