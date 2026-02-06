@@ -82,8 +82,10 @@ func (mr *Resolver) traceCheckpoint(name string) {
 
 // SetActiveTrace sets the trace target for subsequent calls
 func (mr *Resolver) SetActiveTrace(trace *[]model.ProcessingCheckpoint, startTime time.Time) {
+	mr.lock.Lock()
 	mr.activeTrace = trace
 	mr.activeStartTime = startTime
+	mr.lock.Unlock()
 }
 
 // IsMountIDValid returns whether the mountID is valid
