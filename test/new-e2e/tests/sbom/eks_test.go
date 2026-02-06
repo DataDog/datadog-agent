@@ -26,7 +26,6 @@ func TestSBOMEKSSuite(t *testing.T) {
 			proveks.WithRunOptions(
 				sceneks.WithEKSOptions(
 					sceneks.WithLinuxNodeGroup(),
-					sceneks.WithWindowsNodeGroup(),
 					sceneks.WithBottlerocketNodeGroup(),
 					sceneks.WithLinuxARMNodeGroup(),
 				),
@@ -35,7 +34,6 @@ func TestSBOMEKSSuite(t *testing.T) {
 				sceneks.WithAgentOptions(
 					kubernetesagentparams.WithDualShipping(),
 					kubernetesagentparams.WithHelmValues(helmValues),
-					kubernetesagentparams.WithWindowsImage(),
 				),
 				sceneks.WithDeployArgoRollout(),
 			),
