@@ -87,12 +87,23 @@ pkg_files(
 )
 
 pkg_filegroup(
-    name = "all_files",
+    name = "msodbcsql_files",
     srcs = [
         ":lib64_files",
         ":lib_symlink",
         ":license_files",
         ":resource_files",
+    ],
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":msodbcsql_files",
+        "@krb5//:all_libs",
+        "@krb5//:bin_files",
+        "@krb5//:hdr_files",
+        "@krb5//:pc_files",
     ],
 )
 

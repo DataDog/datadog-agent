@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
 	"unicode"
 
 	"github.com/Masterminds/semver/v3"
@@ -64,6 +65,8 @@ type ServiceExtractor struct {
 	useWindowsServiceName bool
 	serviceByPID          map[int32]*serviceMetadata
 	scmReader             *scmReader
+
+	mtx sync.RWMutex
 }
 
 type serviceMetadata struct {
@@ -94,6 +97,8 @@ func (d *ServiceExtractor) Extract(processes map[int32]*procutil.Process) {
 	if !d.enabled {
 		return
 	}
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
 
 	serviceByPID := make(map[int32]*serviceMetadata)
 
@@ -124,6 +129,8 @@ func (d *ServiceExtractor) ExtractSingle(proc *procutil.Process) {
 	if !d.enabled {
 		return
 	}
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
 
 	if meta, seen := d.serviceByPID[proc.Pid]; seen {
 		// check the service metadata is for the same process
@@ -147,6 +154,8 @@ func (d *ServiceExtractor) Remove(pid int32) {
 	if !d.enabled {
 		return
 	}
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
 
 	delete(d.serviceByPID, pid)
 }
@@ -156,6 +165,8 @@ func (d *ServiceExtractor) GetServiceContext(pid int32) []string {
 	if !d.enabled {
 		return nil
 	}
+	d.mtx.RLock()
+	defer d.mtx.RUnlock()
 
 	if runtime.GOOS == "windows" && d.useWindowsServiceName {
 		tags, err := d.getWindowsServiceTags(pid)

@@ -19,19 +19,17 @@ import (
 // MockModule defines the fx options for the mock component.
 func MockModule() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newMock),
+		fx.Provide(NewMock),
 	)
 }
 
 type npCollectorMock struct{}
 
-func (s *npCollectorMock) ScheduleNetworkPathTests(_conns iter.Seq[npmodel.NetworkPathConnection]) {
-	panic("implement me")
-}
+func (s *npCollectorMock) ScheduleNetworkPathTests(_conns iter.Seq[npmodel.NetworkPathConnection]) {}
 
-func newMock() provides {
+func NewMock() Provides {
 	// Mock initialization
-	return provides{
+	return Provides{
 		Comp: &npCollectorMock{},
 	}
 }

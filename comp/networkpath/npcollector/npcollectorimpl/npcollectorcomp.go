@@ -32,7 +32,8 @@ type dependencies struct {
 	Statsd      statsd.ClientInterface
 }
 
-type provides struct {
+// Provides defines the output of the npcollector component
+type Provides struct {
 	fx.Out
 
 	Comp npcollector.Component
@@ -45,7 +46,7 @@ func Module() fxutil.Module {
 	)
 }
 
-func newNpCollector(deps dependencies) provides {
+func newNpCollector(deps dependencies) Provides {
 	var collector *npCollectorImpl
 
 	configs := newConfig(deps.AgentConfig, deps.Logger)
@@ -86,7 +87,7 @@ func newNpCollector(deps dependencies) provides {
 		collector = newNoopNpCollectorImpl()
 	}
 
-	return provides{
+	return Provides{
 		Comp: collector,
 	}
 }

@@ -67,6 +67,9 @@ type healthPlatformImpl struct {
 	// Forwarder for sending reports to Datadog intake
 	forwarder *forwarder
 
+	// Check runner for periodic health checks
+	checkRunner *checkRunner
+
 	// Metrics
 	metrics telemetryMetrics // Telemetry metrics for health platform
 }
@@ -115,6 +118,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 		issuesMux: sync.RWMutex{},                         // Initialize issues mutex
 	}
 
+	// Initialize check runner (must be after comp is created as it needs the reporter interface)
+	comp.checkRunner = newCheckRunner(reqs.Log, comp)
+
 	if err := comp.initForwarder(reqs); err != nil {
 		reqs.Log.Warn("Health platform forwarder not initialized: " + err.Error())
 	}
@@ -155,6 +161,12 @@ func NewComponent(reqs Requires) (Provides, error) {
 func (h *healthPlatformImpl) start(_ context.Context) error {
 	h.log.Info("Starting health platform component")
 
+	// Start the check runner for periodic health checks
+	if h.checkRunner != nil {
+		h.checkRunner.Start()
+	}
+
+	// Start the forwarder for sending reports to intake
 	if h.forwarder != nil {
 		h.forwarder.Start()
 	}
@@ -166,6 +178,12 @@ func (h *healthPlatformImpl) start(_ context.Context) error {
 func (h *healthPlatformImpl) stop(_ context.Context) error {
 	h.log.Info("Stopping health platform component")
 
+	// Stop the check runner first to prevent new issues being reported
+	if h.checkRunner != nil {
+		h.checkRunner.Stop()
+	}
+
+	// Stop the forwarder
 	if h.forwarder != nil {
 		h.forwarder.Stop()
 	}
@@ -223,6 +241,13 @@ func (h *healthPlatformImpl) ReportIssue(checkID string, checkName string, repor
 	}
 
 	return nil
+}
+
+// RegisterCheck registers a periodic health check function
+// The check function will be called at the specified interval
+// If interval is 0 or negative, uses default of 15 minutes
+func (h *healthPlatformImpl) RegisterCheck(checkID string, checkName string, checkFn healthplatformdef.HealthCheckFunc, interval time.Duration) error {
+	return h.checkRunner.RegisterCheck(checkID, checkName, checkFn, interval)
 }
 
 // ============================================================================

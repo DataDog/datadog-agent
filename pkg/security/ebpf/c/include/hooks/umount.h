@@ -63,7 +63,7 @@ int hook_cleanup_mnt(ctx_t *ctx) {
     event.mount_id_unique = get_mount_mount_id_unique(mnt);
 
     bump_mount_discarder_revision(event.mount_id);
-    bump_path_id(event.mount_id);
+    bump_high_path_id(event.mount_id);
 
     send_event(ctx, EVENT_MOUNT_RELEASED, event);
 

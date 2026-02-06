@@ -125,6 +125,7 @@ func NewDefaultTranslator(set component.TelemetrySettings, attributesTranslator 
 		deltaTTL:                             3600,
 		fallbackSourceProvider:               &noSourceProvider{},
 		originProduct:                        OriginProductUnknown,
+		withRuntimeRemapping:                 true,
 	}
 
 	for _, opt := range options {
@@ -553,7 +554,7 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 					}
 					continue
 				}
-				if v, ok := runtimeMetricsMappings[md.Name()]; ok {
+				if v, ok := runtimeMetricsMappings[md.Name()]; ok && t.cfg.withRuntimeRemapping {
 					metadata.Languages = extractLanguageTag(md.Name(), metadata.Languages)
 					for _, mp := range v {
 						if mp.attributes == nil {

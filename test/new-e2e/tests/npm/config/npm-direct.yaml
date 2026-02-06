@@ -1,0 +1,4 @@
+network_config:
+  enabled: true
+  direct_send: true
+log_level: debug

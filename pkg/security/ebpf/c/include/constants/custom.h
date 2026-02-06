@@ -12,7 +12,8 @@
 #define REVISION_ARRAY_SIZE 4096
 #define INODE_DISCARDER_TYPE 0
 
-#define PATH_ID_MAP_SIZE 16384
+#define PATH_ID_HIGH_MAP_SIZE 16384 // mount part of the path id
+#define PATH_ID_LOW_MAP_SIZE 32768 // inode part of the path id
 
 #define MAX_PERF_STR_BUFF_LEN 256
 #define MAX_STR_BUFF_LEN (1 << 15)
@@ -272,6 +273,12 @@ enum link_target_dentry_origin {
 enum global_rate_limiter_type {
     RAW_PACKET_FILTER_LIMITER = 0,
     RAW_PACKET_ACTION_LIMITER,
+};
+
+enum PATH_ID_INVALIDATE_TYPE {
+    PATH_ID_INVALIDATE_TYPE_NONE = 0, // no invalidate
+    PATH_ID_INVALIDATE_TYPE_LOCAL = 1, // only the local path id is invalidated, mosly non dir related events
+    PATH_ID_INVALIDATE_TYPE_GLOBAL = 2, // the global path id is invalidated, meaning impacting the volume
 };
 
 #define TAIL_CALL_FNC_NAME(name, ...) tail_call_##name(__VA_ARGS__)

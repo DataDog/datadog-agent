@@ -194,8 +194,8 @@ github.com/DataDog/datadog-api-client-go/v2 v2.54.0/go.mod h1:d3tOEgUd2kfsr9uuHQ
 github.com/DataDog/datadog-go v2.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/DataDog/datadog-go v3.2.0+incompatible h1:qSG2N4FghB1He/r2mFrWKCaL7dXCilEuNEeAn20fdD4=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
-github.com/DataDog/datadog-go/v5 v5.8.2 h1:9IEfH1Mw9AjWwhAMqCAkhbxjuJeMxm2ARX2VdgL+ols=
-github.com/DataDog/datadog-go/v5 v5.8.2/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
+github.com/DataDog/datadog-go/v5 v5.8.3 h1:s58CUJ9s8lezjhTNJO/SxkPBv2qZjS3ktpRSqGF5n0s=
+github.com/DataDog/datadog-go/v5 v5.8.3/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
 github.com/DataDog/datadog-operator/api v0.0.0-20260130110400-4fcb91d49671 h1:AOZwJBuJZVyeBRcYi/AavxWozk6+mXZNs2SJJEEVp0U=
 github.com/DataDog/datadog-operator/api v0.0.0-20260130110400-4fcb91d49671/go.mod h1:qrisxX+IMicFX01uVrzmPWTxhSQrrmyb6fUTQdjQdN8=
 github.com/DataDog/datadog-traceroute v1.0.3 h1:84fcvLfsOmdm7T6+7Y07KmQfXJR8gjMdmD4j+vuf8Qo=
@@ -2275,8 +2275,8 @@ github.com/rust-secure-code/go-rustaudit v0.0.0-20250226111315-e20ec32e963c/go.m
 github.com/ryanuber/columnize v0.0.0-20160712163229-9b3edd62028f/go.mod h1:sm1tb6uqfes/u+d4ooFouqFdy9/2g9QGwK3SQygK0Ts=
 github.com/ryanuber/go-glob v1.0.0 h1:iQh3xXAumdQ+4Ufa5b25cRpC5TYKlno6hsv6Cb3pkBk=
 github.com/ryanuber/go-glob v1.0.0/go.mod h1:807d1WSdnB0XRJzKNil9Om6lcp/3a0v4qIHxIXzX/Yc=
-github.com/safchain/baloum v0.0.0-20241120122234-f22c9bd19f3b h1:ZeznXGJOGRRGKuU7GEUmNobE4swH0PbMqukrQS3XCLE=
-github.com/safchain/baloum v0.0.0-20241120122234-f22c9bd19f3b/go.mod h1:azfM30OkV7er0g2EIbpI+Jl4P6T5RMpsED0+7Up/Gog=
+github.com/safchain/baloum v0.0.0-20260120132056-b70fa9c29846 h1:WqLi9MF8xLHLuRsVqwEyqR2rb7go/QIKeu2X35GT5mY=
+github.com/safchain/baloum v0.0.0-20260120132056-b70fa9c29846/go.mod h1:ZGI6OW/qZK61qeNiNf4Dc8f4Isv9BQRpzhWTzcOMcJ4=
 github.com/safchain/ethtool v0.7.0 h1:rlJzfDetsVvT61uz8x1YIcFn12akMfuPulHtZjtb7Is=
 github.com/safchain/ethtool v0.7.0/go.mod h1:MenQKEjXdfkjD3mp2QdCk8B/hwvkrlOTm/FD4gTpFxQ=
 github.com/sagikazarmark/locafero v0.7.0 h1:5MqpDsTGNDhY8sGp0Aowyf0qKsPrhewaLSsFaodPcyo=

@@ -22,7 +22,7 @@ import (
 
 	resourcesAws "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
 )
 
 // isEC2ProviderSet checks whether at least one EC2 capacity provider is set in the given params
@@ -32,29 +32,29 @@ func isEC2ProviderSet(params *Params) bool {
 
 }
 
+// Run is the entry point for the scenario when run via pulumi.
+// It uses outputs.ECS which is lightweight and doesn't pull in test dependencies.
 func Run(ctx *pulumi.Context) error {
 	awsEnv, err := resourcesAws.NewEnvironment(ctx)
 	if err != nil {
 		return err
 	}
 
-	env, _, _, err := environments.CreateEnv[environments.ECS]()
-	if err != nil {
-		return err
-	}
+	env := outputs.NewECS()
 
 	params := ParamsFromEnvironment(awsEnv)
 	return RunWithEnv(ctx, awsEnv, env, params)
 }
 
-// RunWithEnv deploys an ECS environment using provided env and params
-func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env *environments.ECS, params *RunParams) error {
+// RunWithEnv deploys an ECS environment using provided env and params.
+// It accepts ECSOutputs interface, enabling reuse between provisioners and direct Pulumi runs.
+func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env outputs.ECSOutputs, params *RunParams) error {
 	// Create cluster
 	cluster, err := NewCluster(awsEnv, params.Name, params.ecsOptions...)
 	if err != nil {
 		return err
 	}
-	if err := cluster.Export(ctx, &env.ECSCluster.ClusterOutput); err != nil {
+	if err := cluster.Export(ctx, env.ECSClusterOutput()); err != nil {
 		return err
 	}
 
@@ -72,11 +72,11 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env *envir
 			if fakeIntake, err = fakeintake.NewECSFargateInstance(awsEnv, "ecs", params.fakeintakeOptions...); err != nil {
 				return err
 			}
-			if err := fakeIntake.Export(awsEnv.Ctx(), &env.FakeIntake.FakeintakeOutput); err != nil {
+			if err := fakeIntake.Export(awsEnv.Ctx(), env.FakeIntakeOutput()); err != nil {
 				return err
 			}
 		} else {
-			env.FakeIntake = nil
+			env.DisableFakeIntake()
 		}
 
 		apiKeyParam, err = ssm.NewParameter(ctx, awsEnv.Namer.ResourceName("agent-apikey"), &ssm.ParameterArgs{
@@ -102,7 +102,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env *envir
 			}
 		}
 	} else {
-		env.FakeIntake = nil
+		env.DisableFakeIntake()
 	}
 
 	// Testing workload if at least one EC2 node group is present

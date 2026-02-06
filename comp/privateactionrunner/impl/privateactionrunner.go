@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/parversion"
+	pkgrcclient "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
@@ -62,7 +63,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
 
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, reqs.RcClient, reqs.Log)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -77,7 +78,7 @@ func NewPrivateActionRunner(
 	ctx context.Context,
 	coreConfig model.ReaderWriter,
 	hostnameGetter hostnameinterface.Component,
-	rcClient rcclient.Component,
+	rcClient pkgrcclient.Client,
 	logger log.Component,
 ) (*PrivateActionRunner, error) {
 	persistedIdentity, err := enrollment.GetIdentityFromPreviousEnrollment(coreConfig)

@@ -123,7 +123,7 @@ func (f *horizontalControllerFixture) testScalingDecision(args horizontalScaling
 			Time:                metav1.NewTime(f.clock.Now()),
 			FromReplicas:        args.currentReplicas,
 			ToReplicas:          args.scaleReplicas,
-			RecommendedReplicas: pointer.Ptr[int32](args.recReplicas),
+			RecommendedReplicas: pointer.Ptr(args.recReplicas),
 		}
 		if args.scaleLimitReason != "" {
 			action.LimitedReason = &args.scaleLimitReason
@@ -1050,10 +1050,11 @@ func TestHorizontalControllerSyncScaleDecisionsWithRules(t *testing.T) {
 	assert.Equal(t, autoscaling.NoRequeue, result)
 	assert.NoError(t, err)
 
-	// Setting Downscaling strategy to Disabled, nothing allowed
+	// Setting Downscaling strategy to Disabled, Upscaling allowed
 	// Moving clock 10 minutes forward to avoid the 5 pods rule
 	f.clock.Step(10 * time.Minute)
 	fakePai.Spec.ApplyPolicy.ScaleDown.Strategy = pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect)
+	fakePai.Spec.ApplyPolicy.ScaleUp.Strategy = nil
 	result, err = f.testScalingDecision(horizontalScalingTestArgs{
 		fakePai:         fakePai,
 		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,

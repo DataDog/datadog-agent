@@ -63,9 +63,7 @@ func testJMXFetchNix(t *testing.T, mtls bool, fips bool) {
 		extraManifests = append(extraManifests, *mtlsManifest)
 	}
 
-	// causes all sorts of `suite.go:493: unable to create session output directory:` errors
-	// due to race to create /home/vagrant/e2e-output/latest from every test
-	// t.Parallel()
+	t.Parallel()
 
 	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(
 		awsdocker.Provisioner(

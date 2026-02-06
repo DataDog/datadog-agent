@@ -14,20 +14,23 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/updater"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	fakeintakescenario "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-// Run deploys a environment given a pulumi.Context
-func Run(ctx *pulumi.Context, awsEnv aws.Environment, env *environments.Host, params *Params) error {
+// Run deploys an environment given a pulumi.Context.
+// It accepts HostOutputs interface, which is implemented by both:
+// - outputs.Host (lightweight, for scenarios without test dependencies)
+// - environments.Host (full-featured, for test provisioners)
+func Run(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.HostOutputs, params *Params) error {
 
 	host, err := NewVM(awsEnv, params.Name, params.instanceOptions...)
 	if err != nil {
 		return err
 	}
-	err = host.Export(ctx, &env.RemoteHost.HostOutput)
+	err = host.Export(ctx, env.RemoteHostOutput())
 	if err != nil {
 		return err
 	}
@@ -58,12 +61,12 @@ func Run(ctx *pulumi.Context, awsEnv aws.Environment, env *environments.Host, pa
 
 	// Create FakeIntake if required
 	if params.fakeintakeOptions != nil {
-		fakeIntake, err := fakeintake.NewECSFargateInstance(awsEnv, params.Name, params.fakeintakeOptions...)
+		fakeIntake, err := fakeintakescenario.NewECSFargateInstance(awsEnv, params.Name, params.fakeintakeOptions...)
 
 		if err != nil {
 			return err
 		}
-		err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
+		err = fakeIntake.Export(ctx, env.FakeIntakeOutput())
 		if err != nil {
 			return err
 		}
@@ -75,12 +78,12 @@ func Run(ctx *pulumi.Context, awsEnv aws.Environment, env *environments.Host, pa
 			params.agentOptions = append(newOpts, params.agentOptions...)
 		}
 	} else {
-		// Suite inits all fields by default, so we need to explicitly set it to nil
-		env.FakeIntake = nil
+		// Mark FakeIntake as not provisioned
+		env.DisableFakeIntake()
 	}
 	if !params.installUpdater {
-		// Suite inits all fields by default, so we need to explicitly set it to nil
-		env.Updater = nil
+		// Mark Updater as not provisioned
+		env.DisableUpdater()
 	}
 
 	// Create Agent if required
@@ -90,12 +93,12 @@ func Run(ctx *pulumi.Context, awsEnv aws.Environment, env *environments.Host, pa
 			return err
 		}
 
-		err = updater.Export(ctx, &env.Updater.HostUpdaterOutput)
+		err = updater.Export(ctx, env.UpdaterOutput())
 		if err != nil {
 			return err
 		}
 		// todo: add agent once updater installs agent on bootstrap
-		env.Agent = nil
+		env.DisableAgent()
 	} else if params.agentOptions != nil {
 		agentOptions := append(params.agentOptions, agentparams.WithTags([]string{fmt.Sprintf("stackid:%s", ctx.Stack())}))
 		agent, err := agent.NewHostAgent(&awsEnv, host, agentOptions...)
@@ -103,30 +106,28 @@ func Run(ctx *pulumi.Context, awsEnv aws.Environment, env *environments.Host, pa
 			return err
 		}
 
-		err = agent.Export(ctx, &env.Agent.HostAgentOutput)
+		err = agent.Export(ctx, env.AgentOutput())
 		if err != nil {
 			return err
 		}
-
-		env.Agent.ClientOptions = params.agentClientOptions
+		env.SetAgentClientOptions(params.agentClientOptions...)
 	} else {
-		// Suite inits all fields by default, so we need to explicitly set it to nil
-		env.Agent = nil
+		// Mark Agent as not provisioned
+		env.DisableAgent()
 	}
 
 	return nil
 }
 
+// VMRun is the entry point for the scenario when run via pulumi.
+// It uses outputs.Host which is lightweight and doesn't pull in test dependencies.
 func VMRun(ctx *pulumi.Context) error {
 	awsEnv, err := aws.NewEnvironment(ctx)
 	if err != nil {
 		return err
 	}
 
-	env, _, _, err := environments.CreateEnv[environments.Host]()
-	if err != nil {
-		return err
-	}
+	env := outputs.NewHost()
 
 	return Run(ctx, awsEnv, env, ParamsFromEnvironment(awsEnv))
 }

@@ -436,14 +436,13 @@ type Status struct {
 			OTLPReceiver          struct {
 				AttributesTranslator struct {
 				} `json:"AttributesTranslator"`
-				BindHost                   string `json:"BindHost"`
-				GRPCPort                   int    `json:"GRPCPort"`
-				GrpcMaxRecvMsgSizeMib      int    `json:"GrpcMaxRecvMsgSizeMib"`
-				IgnoreMissingDatadogFields bool   `json:"IgnoreMissingDatadogFields"`
-				MaxRequestBytes            int    `json:"MaxRequestBytes"`
-				ProbabilisticSampling      int    `json:"ProbabilisticSampling"`
-				SpanNameAsResourceName     bool   `json:"SpanNameAsResourceName"`
-				SpanNameRemappings         struct {
+				BindHost               string `json:"BindHost"`
+				GRPCPort               int    `json:"GRPCPort"`
+				GrpcMaxRecvMsgSizeMib  int    `json:"GrpcMaxRecvMsgSizeMib"`
+				MaxRequestBytes        int    `json:"MaxRequestBytes"`
+				ProbabilisticSampling  int    `json:"ProbabilisticSampling"`
+				SpanNameAsResourceName bool   `json:"SpanNameAsResourceName"`
+				SpanNameRemappings     struct {
 				} `json:"SpanNameRemappings"`
 			} `json:"OTLPReceiver"`
 			Obfuscation struct {

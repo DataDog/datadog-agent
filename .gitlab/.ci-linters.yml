@@ -20,7 +20,6 @@ needs-rules:
     - build_dogstatsd_static-binary_x64
     - build_processed_btfhub_archive
     - check_already_deployed_version_7
-    - dynamic_test-evaluate-e2e
     - compute_gitlab_ci_config
     - dogstatsd_x64_size_test
     - go_mod_tidy_check

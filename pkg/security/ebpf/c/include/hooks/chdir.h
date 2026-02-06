@@ -73,7 +73,7 @@ int __attribute__((always_inline)) sys_chdir_ret(void *ctx, int retval, enum TAI
         return 0;
     }
 
-    set_file_inode(syscall->chdir.dentry, &syscall->chdir.file, 0);
+    set_file_inode(syscall->chdir.dentry, &syscall->chdir.file, PATH_ID_INVALIDATE_TYPE_NONE);
 
     syscall->retval = retval;
 

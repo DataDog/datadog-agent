@@ -60,6 +60,12 @@ func (hr *horizontalController) sync(ctx context.Context, podAutoscaler *datadog
 		return autoscaling.NoRequeue, nil
 	}
 
+	// If horizontal scaling is disabled, clear horizontal state and exit.
+	if !autoscalerInternal.IsHorizontalScalingEnabled() {
+		autoscalerInternal.ClearHorizontalState()
+		return autoscaling.NoRequeue, nil
+	}
+
 	// Get the GVK of the target resource
 	gvk, err := autoscalerInternal.TargetGVK()
 	if err != nil {

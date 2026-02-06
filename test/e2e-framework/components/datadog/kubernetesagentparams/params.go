@@ -77,6 +77,8 @@ type Params struct {
 	FIPS bool
 	// JMX is a flag to deploy the agent with JMX agent image.
 	JMX bool
+	// WindowsImage is a flag to use Windows-compatible image (multi-arch with Windows).
+	WindowsImage bool
 }
 
 type Option = func(*Params) error
@@ -86,6 +88,7 @@ func NewParams(env config.Env, options ...Option) (*Params, error) {
 		Namespace:     defaultAgentNamespace,
 		HelmRepoURL:   DatadogHelmRepo,
 		HelmChartPath: "datadog",
+		WindowsImage:  !env.AgentLinuxOnly(),
 	}
 
 	if env.AgentLocalChartPath() != "" {
@@ -256,6 +259,13 @@ func WithFIPS() func(*Params) error {
 func WithJMX() func(*Params) error {
 	return func(p *Params) error {
 		p.JMX = true
+		return nil
+	}
+}
+
+func WithWindowsImage() func(*Params) error {
+	return func(p *Params) error {
+		p.WindowsImage = true
 		return nil
 	}
 }
