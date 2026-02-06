@@ -253,9 +253,9 @@ func (dr *Resolver) ResolveNameFromMap(pathKey model.PathKey) (string, error) {
 // ResolveName resolves an inode/mount ID pair to a file basename
 func (dr *Resolver) ResolveName(pathKey model.PathKey) string {
 	name, err := dr.ResolveNameFromCache(pathKey)
-	if err != nil && dr.config.MapDentryResolutionEnabled {
-		name, err = dr.ResolveNameFromMap(pathKey)
-	}
+	//if err != nil && dr.config.MapDentryResolutionEnabled {
+	//	name, err = dr.ResolveNameFromMap(pathKey)
+	//}
 
 	if err != nil {
 		name = ""
@@ -329,82 +329,82 @@ func computeFilenameFromParts(parts []string) string {
 }
 
 // ResolveFromMap resolves the path of the provided inode / mount id / path id
-func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool) (string, error) {
-	var resolutionErr error
-
-	keyBuffer, err := pathKey.MarshalBinary()
-	if err != nil {
-		return "", err
-	}
-
-	depth := int64(0)
-
-	dr.prepareBuffersWithCapacity(128)
-
-	// Fetch path recursively
-	for i := 0; i <= model.MaxPathDepth; i++ {
-		var pathLeaf model.PathLeaf
-		pathKey.Write(keyBuffer)
-		if err := dr.pathnames.Lookup(keyBuffer, &pathLeaf); err != nil {
-			dr.filenameParts = dr.filenameParts[:0]
-			resolutionErr = &ErrDentryPathKeyNotFound{PathKey: pathKey}
-			break
-		}
-		depth++
-
-		if pathLeaf.Name[0] == '\x00' {
-			if depth >= model.MaxPathDepth {
-				resolutionErr = errTruncatedParents
-			} else {
-				resolutionErr = errKernelMapResolution
-			}
-			break
-		}
-
-		// Don't append dentry name if this is the root dentry (i.d. name == '/')
-		var name string
-		if pathLeaf.Name[0] == '/' {
-			name = "/"
-		} else {
-			name = model.NullTerminatedString(pathLeaf.Name[:])
-			dr.filenameParts = append(dr.filenameParts, name)
-		}
-
-		// do not cache fake path keys in the case of rename events
-		if !model.IsFakeInode(pathKey.Inode) && cache {
-			dr.keys = append(dr.keys, pathKey)
-			dr.cacheNameEntries = append(dr.cacheNameEntries, name)
-		}
-
-		if pathLeaf.Parent.Inode == 0 {
-			break
-		}
-
-		// Prepare next key
-		pathKey = pathLeaf.Parent
-	}
-
-	filename := computeFilenameFromParts(dr.filenameParts)
-
-	entry := counterEntry{
-		resolutionType: metrics.KernelMapsTag,
-		resolution:     metrics.PathResolutionTag,
-	}
-
-	if resolutionErr == nil && len(dr.keys) > 0 {
-		resolutionErr = dr.cacheEntries(dr.keys, dr.cacheNameEntries)
-
-		if depth > 0 {
-			dr.hitsCounters[entry].Add(depth)
-		}
-	}
-
-	if resolutionErr != nil {
-		dr.missCounters[entry].Inc()
-	}
-
-	return filename, resolutionErr
-}
+//func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool) (string, error) {
+//	var resolutionErr error
+//
+//	keyBuffer, err := pathKey.MarshalBinary()
+//	if err != nil {
+//		return "", err
+//	}
+//
+//	depth := int64(0)
+//
+//	dr.prepareBuffersWithCapacity(128)
+//
+//	// Fetch path recursively
+//	for i := 0; i <= model.MaxPathDepth; i++ {
+//		var pathLeaf model.PathLeaf
+//		pathKey.Write(keyBuffer)
+//		if err := dr.pathnames.Lookup(keyBuffer, &pathLeaf); err != nil {
+//			dr.filenameParts = dr.filenameParts[:0]
+//			resolutionErr = &ErrDentryPathKeyNotFound{PathKey: pathKey}
+//			break
+//		}
+//		depth++
+//
+//		if pathLeaf.Name[0] == '\x00' {
+//			if depth >= model.MaxPathDepth {
+//				resolutionErr = errTruncatedParents
+//			} else {
+//				resolutionErr = errKernelMapResolution
+//			}
+//			break
+//		}
+//
+//		// Don't append dentry name if this is the root dentry (i.d. name == '/')
+//		var name string
+//		if pathLeaf.Name[0] == '/' {
+//			name = "/"
+//		} else {
+//			name = model.NullTerminatedString(pathLeaf.Name[:])
+//			dr.filenameParts = append(dr.filenameParts, name)
+//		}
+//
+//		// do not cache fake path keys in the case of rename events
+//		if !model.IsFakeInode(pathKey.Inode) && cache {
+//			dr.keys = append(dr.keys, pathKey)
+//			dr.cacheNameEntries = append(dr.cacheNameEntries, name)
+//		}
+//
+//		if pathLeaf.Parent.Inode == 0 {
+//			break
+//		}
+//
+//		// Prepare next key
+//		pathKey = pathLeaf.Parent
+//	}
+//
+//	filename := computeFilenameFromParts(dr.filenameParts)
+//
+//	entry := counterEntry{
+//		resolutionType: metrics.KernelMapsTag,
+//		resolution:     metrics.PathResolutionTag,
+//	}
+//
+//	if resolutionErr == nil && len(dr.keys) > 0 {
+//		resolutionErr = dr.cacheEntries(dr.keys, dr.cacheNameEntries)
+//
+//		if depth > 0 {
+//			dr.hitsCounters[entry].Add(depth)
+//		}
+//	}
+//
+//	if resolutionErr != nil {
+//		dr.missCounters[entry].Inc()
+//	}
+//
+//	return filename, resolutionErr
+//}
 
 // preventSegmentMajorPageFault prepares the userspace memory area where the dentry resolver response is written. Used in kernel versions where BPF_F_MMAPABLE array maps are not yet available.
 func (dr *Resolver) preventSegmentMajorPageFault() {
@@ -569,9 +569,9 @@ func (dr *Resolver) Resolve(pathKey model.PathKey, cache bool) (string, error) {
 	if err != nil && dr.config.ERPCDentryResolutionEnabled {
 		path, err = dr.ResolveFromERPC(pathKey, cache)
 	}
-	if err != nil && err != errTruncatedParentsERPC && dr.config.MapDentryResolutionEnabled {
-		path, err = dr.ResolveFromMap(pathKey, cache)
-	}
+	//if err != nil && err != errTruncatedParentsERPC && dr.config.MapDentryResolutionEnabled {
+	//	path, err = dr.ResolveFromMap(pathKey, cache)
+	//}
 	return path, err
 }
 
@@ -593,28 +593,28 @@ func (dr *Resolver) ResolveParentFromCache(pathKey model.PathKey) (model.PathKey
 }
 
 // ResolveParentFromMap resolves the parent
-func (dr *Resolver) ResolveParentFromMap(pathKey model.PathKey) (model.PathKey, error) {
-	entry := counterEntry{
-		resolutionType: metrics.KernelMapsTag,
-		resolution:     metrics.ParentResolutionTag,
-	}
-
-	path, err := dr.lookupInodeFromMap(pathKey)
-	if err != nil {
-		dr.missCounters[entry].Inc()
-		return model.PathKey{}, err
-	}
-
-	dr.hitsCounters[entry].Inc()
-	return path.Parent, nil
-}
+//func (dr *Resolver) ResolveParentFromMap(pathKey model.PathKey) (model.PathKey, error) {
+//	entry := counterEntry{
+//		resolutionType: metrics.KernelMapsTag,
+//		resolution:     metrics.ParentResolutionTag,
+//	}
+//
+//	path, err := dr.lookupInodeFromMap(pathKey)
+//	if err != nil {
+//		dr.missCounters[entry].Inc()
+//		return model.PathKey{}, err
+//	}
+//
+//	dr.hitsCounters[entry].Inc()
+//	return path.Parent, nil
+//}
 
 // GetParent returns the parent mount_id/inode
 func (dr *Resolver) GetParent(pathKey model.PathKey) (model.PathKey, error) {
 	pathKey, err := dr.ResolveParentFromCache(pathKey)
-	if err != nil && dr.config.MapDentryResolutionEnabled {
-		pathKey, err = dr.ResolveParentFromMap(pathKey)
-	}
+	//if err != nil && dr.config.MapDentryResolutionEnabled {
+	//	pathKey, err = dr.ResolveParentFromMap(pathKey)
+	//}
 
 	if pathKey.Inode == 0 {
 		return model.PathKey{}, ErrEntryNotFound
