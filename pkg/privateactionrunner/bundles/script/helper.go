@@ -13,14 +13,18 @@ import (
 	"strings"
 )
 
+var (
+	ScriptUserName = "dd-scriptuser"
+)
+
 func NewShellScriptCommand(ctx context.Context, scriptFile string, args []string) *exec.Cmd {
-	sudoArgs := []string{"-u", "scriptuser", "sh", scriptFile}
+	sudoArgs := []string{"-u", ScriptUserName, "sh", scriptFile}
 	sudoArgs = append(sudoArgs, args...)
 	return exec.CommandContext(ctx, "sudo", sudoArgs...)
 }
 
 func NewPredefinedScriptCommand(ctx context.Context, command []string, envVarNames []string) *exec.Cmd {
-	sudoArgs := []string{"-u", "scriptuser"}
+	sudoArgs := []string{"-u", ScriptUserName}
 	if len(envVarNames) > 0 {
 		preserveEnvArg := "--preserve-env=" + strings.Join(envVarNames, ",")
 		sudoArgs = append(sudoArgs, preserveEnvArg)

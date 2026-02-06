@@ -77,7 +77,7 @@ func (suite *k8sSuite) TearDownSuite() {
 // is run first.
 func (suite *k8sSuite) Test00UpAndRunning() {
 	timeout := 10 * time.Minute
-	// Windows FIPS images are bigger and take longer to pull and start
+	// FIPS images are bigger and take longer to pull and start
 	if suite.Env().Agent.FIPSEnabled {
 		timeout = 20 * time.Minute
 	}
