@@ -8,8 +8,9 @@
 package ebpfless
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestWriteMapWithSizeLimit(t *testing.T) {
