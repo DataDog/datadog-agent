@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package version provides version information for the host profiler.
 package version
 
 import "github.com/DataDog/datadog-agent/pkg/version"

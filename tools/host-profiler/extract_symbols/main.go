@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+// Package main provides a tool to extract debug symbols from ELF files.
 package main
 
 import (
