@@ -1143,12 +1143,12 @@ def check_files(ctx, branch_name, reports_folder):
             arch = "amd64"
             if 'aarch64' in artifact or 'arm64' in artifact:
                 arch = "arm64"
-            gate_name = f'agent_{package_type}_{arch}'
-            report_filename = f'{gate_name}_{arch}_size_report_{os.environ["CI_COMMIT_SHORT_SHA"]}.yml'
+            gate_short_name = f'agent_{package_type}_{arch}'
+            report_filename = f'{gate_short_name}_{arch}_size_report_{os.environ["CI_COMMIT_SHORT_SHA"]}.yml'
             measure_package_local(
                 ctx,
                 artifact,
-                gate_name,
+                f'static_quality_gate_{gate_short_name}',
                 output_path=report_filename,
                 build_job_name=os.environ['CI_JOB_NAME'],
                 debug=True,
@@ -1160,7 +1160,7 @@ def check_files(ctx, branch_name, reports_folder):
             )
 
             parent_report_file = tempfile.NamedTemporaryFile()
-            get_parent_report(ctx, branch_name, gate_name, parent_report_file.path)
+            get_parent_report(ctx, branch_name, gate_short_name, parent_report_file.path)
             body = compare_inventories(ctx, parent_report_file.path, report_filename)
             pr_comment += body
 
