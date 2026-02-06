@@ -190,27 +190,67 @@ func extractMetricsFromRecord(record arrow.Record) ([]FGMMetric, error) {
 	valueFloatIdx := findColumnIndexInSchema(schema, "valuefloat")
 	tagsIdx := findColumnIndexInSchema(schema, "tags")
 
-	// Get columns
+	// Helper to read int64 values from either Int64 or Timestamp columns
+	readTimeValue := func(col arrow.Array, i int) int64 {
+		if col.IsNull(i) {
+			return 0
+		}
+		switch c := col.(type) {
+		case *array.Int64:
+			return c.Value(i)
+		case *array.Timestamp:
+			return int64(c.Value(i))
+		default:
+			return 0
+		}
+	}
+
+	// Get typed column references (safe type switches)
 	var runIDCol *array.String
-	var timeCol *array.Int64
 	var metricNameCol *array.String
 	var valueFloatCol *array.Float64
 	var tagsCol *array.List
+	var timeColRaw arrow.Array
 
 	if runIDIdx >= 0 {
-		runIDCol = record.Column(runIDIdx).(*array.String)
+		if c, ok := record.Column(runIDIdx).(*array.String); ok {
+			runIDCol = c
+		}
 	}
 	if timeIdx >= 0 {
-		timeCol = record.Column(timeIdx).(*array.Int64)
+		timeColRaw = record.Column(timeIdx) // Int64 or Timestamp, handled by readTimeValue
 	}
 	if metricNameIdx >= 0 {
-		metricNameCol = record.Column(metricNameIdx).(*array.String)
+		if c, ok := record.Column(metricNameIdx).(*array.String); ok {
+			metricNameCol = c
+		}
 	}
 	if valueFloatIdx >= 0 {
-		valueFloatCol = record.Column(valueFloatIdx).(*array.Float64)
+		if c, ok := record.Column(valueFloatIdx).(*array.Float64); ok {
+			valueFloatCol = c
+		}
 	}
 	if tagsIdx >= 0 {
-		tagsCol = record.Column(tagsIdx).(*array.List)
+		if c, ok := record.Column(tagsIdx).(*array.List); ok {
+			tagsCol = c
+		}
+	}
+
+	// Discover l_* tag columns (FGM format: flat string columns prefixed with "l_")
+	type labelCol struct {
+		key string
+		col *array.String
+	}
+	var labelCols []labelCol
+	for i, field := range schema.Fields() {
+		if strings.HasPrefix(field.Name, "l_") {
+			if c, ok := record.Column(i).(*array.String); ok {
+				labelCols = append(labelCols, labelCol{
+					key: strings.TrimPrefix(field.Name, "l_"),
+					col: c,
+				})
+			}
+		}
 	}
 
 	// Build metrics
@@ -224,8 +264,8 @@ func extractMetricsFromRecord(record arrow.Record) ([]FGMMetric, error) {
 		if runIDCol != nil && !runIDCol.IsNull(i) {
 			runID = runIDCol.Value(i)
 		}
-		if timeCol != nil && !timeCol.IsNull(i) {
-			timestamp = timeCol.Value(i)
+		if timeColRaw != nil {
+			timestamp = readTimeValue(timeColRaw, i)
 		}
 		if metricNameCol != nil && !metricNameCol.IsNull(i) {
 			metricName = metricNameCol.Value(i)
@@ -235,7 +275,7 @@ func extractMetricsFromRecord(record arrow.Record) ([]FGMMetric, error) {
 			valueFloat = &v
 		}
 
-		// Extract tags from list column
+		// Extract tags from list column (recorder format)
 		if tagsCol != nil && !tagsCol.IsNull(i) {
 			start, end := tagsCol.ValueOffsets(i)
 			tagsValues := tagsCol.ListValues().(*array.String)
@@ -252,6 +292,15 @@ func extractMetricsFromRecord(record arrow.Record) ([]FGMMetric, error) {
 			}
 		}
 
+		// Extract tags from l_* columns (FGM format)
+		for _, lc := range labelCols {
+			if !lc.col.IsNull(i) {
+				if v := lc.col.Value(i); v != "" {
+					tags[lc.key] = v
+				}
+			}
+		}
+
 		metrics[i] = FGMMetric{
 			RunID:      runID,
 			Time:       timestamp,
@@ -264,11 +313,19 @@ func extractMetricsFromRecord(record arrow.Record) ([]FGMMetric, error) {
 	return metrics, nil
 }
 
-// findColumnIndexInSchema finds the index of a column by name (case-insensitive).
+// normalizeColumnName lowercases and strips underscores for flexible matching.
+// This handles both PascalCase (MetricName) and snake_case (metric_name) column names.
+func normalizeColumnName(name string) string {
+	return strings.ToLower(strings.ReplaceAll(name, "_", ""))
+}
+
+// findColumnIndexInSchema finds the index of a column by name.
+// Matches are case-insensitive and ignore underscores, so "metric_name",
+// "MetricName", and "metricname" all match each other.
 func findColumnIndexInSchema(schema *arrow.Schema, name string) int {
-	nameLower := strings.ToLower(name)
+	normalized := normalizeColumnName(name)
 	for i, field := range schema.Fields() {
-		if strings.ToLower(field.Name) == nameLower {
+		if normalizeColumnName(field.Name) == normalized {
 			return i
 		}
 	}
@@ -335,15 +392,10 @@ func extractMetricsFromTable(table arrow.Table) ([]FGMMetric, error) {
 	return metrics, nil
 }
 
-// findColumnIndex finds the index of a column by name (case-insensitive), returns -1 if not found.
+// findColumnIndex finds the index of a column by name, returns -1 if not found.
+// Uses the same normalization as findColumnIndexInSchema.
 func findColumnIndex(schema *arrow.Schema, name string) int {
-	nameLower := strings.ToLower(name)
-	for i, field := range schema.Fields() {
-		if strings.ToLower(field.Name) == nameLower {
-			return i
-		}
-	}
-	return -1
+	return findColumnIndexInSchema(schema, name)
 }
 
 // getStringColumn extracts a string column from an Arrow table.
