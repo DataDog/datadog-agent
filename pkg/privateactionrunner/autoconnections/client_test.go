@@ -24,7 +24,7 @@ func TestNewConnectionAPIClient_ValidCredentials(t *testing.T) {
 	appKey := "test-app-key"
 	ddSite := "datadoghq.com"
 
-	client, err := NewConnectionAPIClient(cfg, ddSite, apiKey, appKey)
+	client, err := NewConnectionsAPIClient(cfg, ddSite, apiKey, appKey)
 
 	require.NoError(t, err)
 	require.NotNil(t, client)
@@ -101,7 +101,7 @@ func TestCreateConnection_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := &Client{
+	client := &ConnectionsClient{
 		httpClient: &http.Client{Timeout: 10 * time.Second},
 		baseUrl:    server.URL,
 		apiKey:     "test-api-key",
@@ -164,7 +164,7 @@ func TestCreateConnection_ErrorResponses(t *testing.T) {
 			}))
 			defer server.Close()
 
-			client := &Client{
+			client := &ConnectionsClient{
 				httpClient: &http.Client{Timeout: 10 * time.Second},
 				baseUrl:    server.URL,
 				apiKey:     "test-api-key",

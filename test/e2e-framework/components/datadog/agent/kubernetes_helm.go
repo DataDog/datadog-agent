@@ -69,6 +69,8 @@ type HelmInstallationArgs struct {
 	FIPS bool
 	// JMX is used to deploy the agent with the JMX agent image
 	JMX bool
+	// WindowsImage is used to use Windows-compatible image (multi-arch with Windows)
+	WindowsImage bool
 }
 
 type HelmComponent struct {
@@ -147,7 +149,7 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 	}
 
 	// Compute some values
-	agentImagePath := dockerAgentFullImagePath(e, "", "", args.OTelAgent, args.FIPS, args.JMX)
+	agentImagePath := dockerAgentFullImagePath(e, "", "", args.OTelAgent, args.FIPS, args.JMX, args.WindowsImage)
 	if args.AgentFullImagePath != "" {
 		agentImagePath = args.AgentFullImagePath
 	}
