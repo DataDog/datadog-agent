@@ -19,7 +19,6 @@ import (
 	"go.opentelemetry.io/ebpf-profiler/tracer/types"
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // Config is the configuration for the profiles receiver.
@@ -33,8 +32,6 @@ type Config struct {
 // ServiceNameEnvVars is the list of environment variables used to determine the service name.
 // The order indicates which environment variable takes precedence.
 var serviceNameEnvVars = []string{"DD_SERVICE", "OTEL_SERVICE_NAME"}
-
-const profilerName = "full-host-profiler"
 
 var _ xconfmap.Validator = (*Config)(nil)
 
@@ -97,9 +94,6 @@ func defaultConfig() component.Config {
 	cfg.ReporterJitter = 0.05
 
 	symbolUploaderConfig := symboluploader.DefaultSymbolUploaderConfig()
-	symbolUploaderConfig.Version = version.AgentVersion
-	symbolUploaderConfig.Name = profilerName
-
 	return Config{
 		EbpfCollectorConfig:  cfg,
 		SymbolUploader:       symbolUploaderConfig,

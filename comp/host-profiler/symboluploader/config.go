@@ -9,6 +9,8 @@ package symboluploader
 
 import (
 	"time"
+
+	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 )
 
 // Default configuration values
@@ -61,5 +63,7 @@ func DefaultSymbolUploaderConfig() SymbolUploaderConfig {
 			SymbolQueryInterval:  DefaultSymbolQueryInterval,
 			DryRun:               DefaultUploadSymbolsDryRun,
 		},
+		Name:    version.ProfilerName,
+		Version: version.ProfilerVersion,
 	}
 }
