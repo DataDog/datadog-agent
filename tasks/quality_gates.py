@@ -497,6 +497,7 @@ def display_pr_comment(
     with_non_blocking_error = False
     significant_success_count = 0
     collapsed_success_count = 0
+    has_na_change = False
 
     # Sort gates by error_types to group in between NoError, AssertionError and StackTrace
     for gate in sorted(gate_states, key=lambda x: x["error_type"] is None):
@@ -505,6 +506,8 @@ def display_pr_comment(
 
         # Get change metrics for on-disk (delta with percentage and limit bounds)
         change_str, limit_bounds, is_neutral = get_change_metrics(gate['name'], metric_handler, metric_type="disk")
+        if change_str == "N/A":
+            has_na_change = True
 
         # Get change metrics for on-wire
         wire_change_str, wire_limit_bounds, _ = get_change_metrics(gate['name'], metric_handler, metric_type="wire")
@@ -580,7 +583,12 @@ def display_pr_comment(
         wire_section += body_wire
         wire_section += "\n</details>\n"
 
-    body = f"{SUCCESS_CHAR if final_state else FAIL_CHAR} Please find below the results from static quality gates\n{ancestor_info}{dashboard_link}{job_link}{final_error_body}\n\n{success_section}\n{wire_section}"
+    # Add retry hint if some deltas are N/A (ancestor metrics not yet available due to race condition)
+    retry_hint = ""
+    if has_na_change and job_url:
+        retry_hint = f"SOME SIZE DELTAS ARE N/A (ANCESTOR METRICS NOT YET AVAILABLE). [RETRY JOB]({job_url})\n"
+
+    body = f"{SUCCESS_CHAR if final_state else FAIL_CHAR} Please find below the results from static quality gates\n{ancestor_info}{dashboard_link}{job_link}{retry_hint}{final_error_body}\n\n{success_section}\n{wire_section}"
 
     pr_commenter(ctx, title=title, body=body, pr=pr)
 
