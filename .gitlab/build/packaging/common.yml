@@ -59,13 +59,6 @@
 
         echo "✅ Package measurement completed"
 
-
-        echo "📊 Starting checking file inventories..."
-        PARENT_REPORT=$(mktemp /tmp/parent-inventory-XXXX.yml)
-        dda -- inv quality-gates.get-parent-report "${CI_COMMIT_BRANCH}" "${REPORT_PREFIX}" "${PARENT_REPORT}"
-
-        dda inv quality-gates.compare-inventory ${PARENT_REPORT} ${REPORT_FILENAME}
-
         # Upload the report to S3
         BUCKET_BASE_PATH="s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/GATE_REPORTS/"
         echo "Uploading report to ${BUCKET_BASE_PATH}"

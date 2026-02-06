@@ -1460,3 +1460,23 @@ def print_inventory_diff(added, removed, changed):
         print(color_message('⚠️ Some files modifications need review:', "orange"))
         for change in changed.values():
             _display_change_summary(change)
+
+
+def inventory_changes_to_comment(added, removed, changed):
+    body = "Detected file changes:\nAdded files:\n"
+    for f in added:
+        body += f"* {f.relative_path} ({byte_to_string(f.size_bytes)})\n"
+    body += "Removed files:\n"
+    for f in removed:
+        body += f"* {f.relative_path} ({byte_to_string(f.size_bytes)})\n"
+    body += "Changed files:\n"
+    for path, change in changed.values():
+        change_str = f"* {path}:\n"
+        if change.flags & FileChange.Flags.Permissions:
+            change_str += f"** Permission changed: {oct(change.previous.chmod)} -> {oct(change.current.chmod)}"
+        if change.flags & FileChange.Flags.Size:
+            change_str += f'** Size changed: {change.size_percent:+.2f}% ({byte_to_string(change.previous.size_bytes)} -> {byte_to_string(change.current.size_bytes)})\n'
+        if change.flags & (FileChange.Flags.Owner | FileChange.Flags.Group):
+            change_str += f'** File owner/group changed: {change.previous.owner}:{change.previous.group} -> {change.current.owner}:{change.current.group}'
+        body += change_str
+    return body
