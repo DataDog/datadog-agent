@@ -350,32 +350,24 @@ type observerImpl struct {
 
 // run is the main dispatch loop, processing all observations sequentially.
 func (o *observerImpl) run() {
-	metrics := make([]*metricObs, 0)
-	logs := make([]*logObs, 0)
-	traces := make([]*traceObs, 0)
-	profiles := make([]*profileObs, 0)
 	for obs := range o.obsCh {
 		if obs.metric != nil {
 			o.processMetric(obs.source, obs.metric)
-			metrics = append(metrics, obs.metric)
+			o.anomalyDetection.ProcessMetric(obs.metric)
 		}
 		if obs.log != nil {
 			o.processLog(obs.source, obs.log)
-			logs = append(logs, obs.log)
+			o.anomalyDetection.ProcessLog(obs.log)
 		}
 		if obs.trace != nil {
 			o.processTrace(obs.source, obs.trace)
-			traces = append(traces, obs.trace)
+			o.anomalyDetection.ProcessTrace(obs.trace)
 		}
 		if obs.profile != nil {
-			profiles = append(profiles, obs.profile)
 			o.processProfile(obs.source, obs.profile)
+			o.anomalyDetection.ProcessProfile(obs.profile)
 		}
 	}
-	o.anomalyDetection.ProcessMetrics(metrics)
-	o.anomalyDetection.ProcessLogs(logs)
-	o.anomalyDetection.ProcessTraces(traces)
-	o.anomalyDetection.ProcessProfiles(profiles)
 }
 
 // analysisAggregations defines which aggregations to run TS analyses on.

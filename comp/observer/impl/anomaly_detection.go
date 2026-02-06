@@ -56,45 +56,31 @@ func (a *AnomalyDetection) Stop() {
 }
 
 func (a *AnomalyDetection) ProcessMetric(metric *metricObs) {
-	if metric == nil {
-		return
-	}
-	a.ProcessMetrics([]*metricObs{metric})
-}
-
-func (a *AnomalyDetection) ProcessMetrics(metrics []*metricObs) {
-	a.metricSumsMutex.Lock()
-	defer a.metricSumsMutex.Unlock()
-	for _, metric := range metrics {
-		if !strings.HasPrefix(metric.name, "datadog") && !strings.HasPrefix(metric.name, "runtime.") {
-			a.metricSums[metric.name] += metric.value
-		}
+	if !strings.HasPrefix(metric.name, "datadog") && !strings.HasPrefix(metric.name, "runtime.") {
+		a.metricSumsMutex.Lock()
+		a.metricSums[metric.name] += metric.value
+		a.metricSumsMutex.Unlock()
 	}
 }
 
-func (a *AnomalyDetection) ProcessLogs(logs []*logObs) {
-	a.log.Debugf("Processing log: %v", logs)
+func (a *AnomalyDetection) ProcessLog(log *logObs) {
+	a.log.Debugf("Processing log: %v", log)
 }
 
-func (a *AnomalyDetection) ProcessTraces(traces []*traceObs) {
-	if len(traces) == 0 {
-		return
-	}
+func (a *AnomalyDetection) ProcessTrace(trace *traceObs) {
 	a.traceMutex.Lock()
-	defer a.traceMutex.Unlock()
-	for _, trace := range traces {
-		a.traceBuffer = append(a.traceBuffer, trace)
-	}
+	a.traceBuffer = append(a.traceBuffer, trace)
+	a.traceMutex.Unlock()
 }
 
-func (a *AnomalyDetection) ProcessProfiles(profiles []*profileObs) {
-	a.profileMutex.Lock()
-	defer a.profileMutex.Unlock()
-	for _, profile := range profiles {
-		if profile.profileType == "go" {
-			// Store the profile in the buffer
+func (a *AnomalyDetection) ProcessProfile(profile *profileObs) {
+	if profile.profileType == "go" {
+		// Store the profile in the buffer
+		a.profileMutex.Lock()
+		if len(a.profileBuffer) < 1000 {
 			a.profileBuffer = append(a.profileBuffer, profile.rawData)
 		}
+		a.profileMutex.Unlock()
 	}
 }
 
