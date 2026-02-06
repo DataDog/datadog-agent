@@ -130,10 +130,10 @@ func TestShowMetadataHostSystemInfoCommand(t *testing.T) {
 		func(_ core.BundleParams) {})
 }
 
-func TestShowHealthPlatformIssuesCommand(t *testing.T) {
+func TestShowHealthIssuesCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
-		[]string{"diagnose", "show-metadata", "health-platform-issues"},
+		[]string{"diagnose", "show-metadata", "health-issues"},
 		printHealthPlatformIssues,
 		func(_ core.BundleParams) {})
 }

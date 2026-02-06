@@ -15,7 +15,8 @@ import (
 )
 
 // Diagnose converts health platform issues to diagnose format
-func Diagnose(healthplatformComp healthplatformdef.Component) []diagnose.Diagnosis {
+// When diagCfg.Verbose is true, remediations are included in the output
+func Diagnose(healthplatformComp healthplatformdef.Component, diagCfg diagnose.Config) []diagnose.Diagnosis {
 	count, issues := healthplatformComp.GetAllIssues()
 
 	// If no issues, return nil (nothing to report)
@@ -35,13 +36,19 @@ func Diagnose(healthplatformComp healthplatformdef.Component) []diagnose.Diagnos
 			status = diagnose.DiagnosisFail
 		}
 
-		diagnoses = append(diagnoses, diagnose.Diagnosis{
-			Status:      status,
-			Name:        issue.Title,
-			Category:    checkID,
-			Diagnosis:   issue.Description,
-			Remediation: formatRemediation(issue.Remediation),
-		})
+		d := diagnose.Diagnosis{
+			Status:    status,
+			Name:      issue.Title,
+			Category:  checkID,
+			Diagnosis: issue.Description,
+		}
+
+		// Only include remediations in verbose mode
+		if diagCfg.Verbose {
+			d.Remediation = formatRemediation(issue.Remediation)
+		}
+
+		diagnoses = append(diagnoses, d)
 	}
 
 	return diagnoses

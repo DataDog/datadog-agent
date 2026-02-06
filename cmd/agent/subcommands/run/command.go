@@ -718,11 +718,11 @@ func startAgent(
 		return firewallscanner.Diagnose(cfg)
 	})
 
-	diagnosecatalog.Register(diagnose.HealthPlatformIssues, func(_ diagnose.Config) []diagnose.Diagnosis {
+	diagnosecatalog.Register(diagnose.HealthPlatformIssues, func(diagCfg diagnose.Config) []diagnose.Diagnosis {
 		if !cfg.GetBool("health_platform.enabled") {
 			return nil
 		}
-		return healthplatformimpl.Diagnose(healthplatformComp)
+		return healthplatformimpl.Diagnose(healthplatformComp, diagCfg)
 	})
 
 	// start dependent services
