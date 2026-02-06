@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/parversion"
+	pkgrcclient "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
@@ -48,7 +49,7 @@ type Provides struct {
 	Comp privateactionrunner.Component
 }
 
-type privateactionrunnerImpl struct {
+type PrivateActionRunner struct {
 	workflowRunner *runners.WorkflowRunner
 	commonRunner   *runners.CommonRunner
 	drain          func()
@@ -61,60 +62,73 @@ func NewComponent(reqs Requires) (Provides, error) {
 		reqs.Log.Info("private-action-runner is not enabled. Set privateactionrunner.enabled: true in your datadog.yaml file or set the environment variable DD_PRIVATEACTIONRUNNER_ENABLED=true.")
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
-	persistedIdentity, err := enrollment.GetIdentityFromPreviousEnrollment(reqs.Config)
-	if err != nil {
-		return Provides{}, fmt.Errorf("self-enrollment failed: %w", err)
-	}
-	if persistedIdentity != nil {
-		reqs.Config.Set("privateactionrunner.private_key", persistedIdentity.PrivateKey, model.SourceAgentRuntime)
-		reqs.Config.Set("privateactionrunner.urn", persistedIdentity.URN, model.SourceAgentRuntime)
-	}
 
-	cfg, err := parconfig.FromDDConfig(reqs.Config)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log)
 	if err != nil {
 		return Provides{}, err
-	}
-
-	canSelfEnroll := reqs.Config.GetBool("privateactionrunner.self_enroll")
-	if cfg.IdentityIsIncomplete() && canSelfEnroll {
-		reqs.Log.Info("Identity not found and self-enrollment enabled. Self-enrolling private action runner")
-		updatedCfg, err := performSelfEnrollment(ctx, reqs.Log, reqs.Config, reqs.Hostname, cfg)
-		if err != nil {
-			return Provides{}, fmt.Errorf("self-enrollment failed: %w", err)
-		}
-		reqs.Config.Set("privateactionrunner.private_key", updatedCfg.PrivateKey, model.SourceAgentRuntime)
-		reqs.Config.Set("privateactionrunner.urn", updatedCfg.Urn, model.SourceAgentRuntime)
-		cfg = updatedCfg
-	} else if cfg.IdentityIsIncomplete() {
-		return Provides{}, errors.New("identity not found and self-enrollment disabled. Please provide a valid URN and private key")
-	}
-	reqs.Log.Info("Private action runner starting")
-	reqs.Log.Info("==> Version : " + parversion.RunnerVersion)
-	reqs.Log.Info("==> Site : " + cfg.DatadogSite)
-	reqs.Log.Info("==> URN : " + cfg.Urn)
-
-	keysManager := taskverifier.NewKeyManager(reqs.RcClient)
-	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
-	opmsClient := opms.NewClient(cfg)
-
-	r, err := runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient)
-	if err != nil {
-		return Provides{}, err
-	}
-	runner := &privateactionrunnerImpl{
-		workflowRunner: r,
-		commonRunner:   runners.NewCommonRunner(cfg),
 	}
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: runner.Start,
 		OnStop:  runner.Stop,
 	})
-	return Provides{
-		Comp: runner,
-	}, nil
+	return Provides{Comp: runner}, nil
 }
 
-func (p *privateactionrunnerImpl) Start(_ context.Context) error {
+func NewPrivateActionRunner(
+	ctx context.Context,
+	coreConfig model.ReaderWriter,
+	hostnameGetter hostnameinterface.Component,
+	rcClient pkgrcclient.Client,
+	logger log.Component,
+) (*PrivateActionRunner, error) {
+	persistedIdentity, err := enrollment.GetIdentityFromPreviousEnrollment(coreConfig)
+	if err != nil {
+		return nil, fmt.Errorf("self-enrollment failed: %w", err)
+	}
+	if persistedIdentity != nil {
+		coreConfig.Set("privateactionrunner.private_key", persistedIdentity.PrivateKey, model.SourceAgentRuntime)
+		coreConfig.Set("privateactionrunner.urn", persistedIdentity.URN, model.SourceAgentRuntime)
+	}
+
+	cfg, err := parconfig.FromDDConfig(coreConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	canSelfEnroll := coreConfig.GetBool("privateactionrunner.self_enroll")
+	if cfg.IdentityIsIncomplete() && canSelfEnroll {
+		logger.Info("Identity not found and self-enrollment enabled. Self-enrolling private action runner")
+		updatedCfg, err := performSelfEnrollment(ctx, logger, coreConfig, hostnameGetter, cfg)
+		if err != nil {
+			return nil, fmt.Errorf("self-enrollment failed: %w", err)
+		}
+		coreConfig.Set("privateactionrunner.private_key", updatedCfg.PrivateKey, model.SourceAgentRuntime)
+		coreConfig.Set("privateactionrunner.urn", updatedCfg.Urn, model.SourceAgentRuntime)
+		cfg = updatedCfg
+	} else if cfg.IdentityIsIncomplete() {
+		return nil, errors.New("identity not found and self-enrollment disabled. Please provide a valid URN and private key")
+	}
+	logger.Info("Private action runner starting")
+	logger.Info("==> Version : " + parversion.RunnerVersion)
+	logger.Info("==> Site : " + cfg.DatadogSite)
+	logger.Info("==> URN : " + cfg.Urn)
+
+	keysManager := taskverifier.NewKeyManager(rcClient)
+	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
+	opmsClient := opms.NewClient(cfg)
+
+	r, err := runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient)
+	if err != nil {
+		return nil, err
+	}
+	runner := &PrivateActionRunner{
+		workflowRunner: r,
+		commonRunner:   runners.NewCommonRunner(cfg),
+	}
+	return runner, nil
+}
+
+func (p *PrivateActionRunner) Start(_ context.Context) error {
 	// Use background context to avoid inheriting any deadlines from component lifecycle which stop the PAR loop
 	ctx, cancel := context.WithCancel(context.Background())
 	p.drain = cancel
@@ -125,7 +139,7 @@ func (p *privateactionrunnerImpl) Start(_ context.Context) error {
 	return p.workflowRunner.Start(ctx)
 }
 
-func (p *privateactionrunnerImpl) Stop(ctx context.Context) error {
+func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 	err := p.workflowRunner.Stop(ctx)
 	if err != nil {
 		return err
