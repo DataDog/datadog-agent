@@ -9,13 +9,13 @@ package reporter
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	seccommon "github.com/DataDog/datadog-agent/pkg/security/common"
