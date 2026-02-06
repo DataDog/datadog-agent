@@ -293,8 +293,7 @@ func processCacheDifference(procCacheA map[int32]*procutil.Process, procCacheB m
 			continue
 		}
 
-		// Same PID exists, but identity differs (different creation time or cmdline)
-		if procutil.ProcessIdentity(procA.Pid, procA.Stats.CreateTime, procA.Cmdline) != procutil.ProcessIdentity(procB.Pid, procB.Stats.CreateTime, procB.Cmdline) {
+		if !procutil.IsSameProcess(procA, procB) {
 			newProcs = append(newProcs, procA)
 		}
 	}

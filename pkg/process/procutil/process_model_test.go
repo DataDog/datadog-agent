@@ -97,3 +97,106 @@ func TestProcessIdentityArgBoundaryDistinction(t *testing.T) {
 
 	assert.NotEqual(t, identity1, identity2, "Different arg boundaries should produce different identities")
 }
+
+func TestIsSameProcess(t *testing.T) {
+	createTime := int64(1000000)
+
+	tests := []struct {
+		name     string
+		procA    *Process
+		procB    *Process
+		expected bool
+	}{
+		{
+			name: "identical processes",
+			procA: &Process{
+				Pid:     1234,
+				Cmdline: []string{"bash", "-c", "echo"},
+				Stats:   &Stats{CreateTime: createTime},
+			},
+			procB: &Process{
+				Pid:     1234,
+				Cmdline: []string{"bash", "-c", "echo"},
+				Stats:   &Stats{CreateTime: createTime},
+			},
+			expected: true,
+		},
+		{
+			name: "different PID",
+			procA: &Process{
+				Pid:     1234,
+				Cmdline: []string{"bash"},
+				Stats:   &Stats{CreateTime: createTime},
+			},
+			procB: &Process{
+				Pid:     5678,
+				Cmdline: []string{"bash"},
+				Stats:   &Stats{CreateTime: createTime},
+			},
+			expected: false,
+		},
+		{
+			name: "different create time",
+			procA: &Process{
+				Pid:     1234,
+				Cmdline: []string{"bash"},
+				Stats:   &Stats{CreateTime: createTime},
+			},
+			procB: &Process{
+				Pid:     1234,
+				Cmdline: []string{"bash"},
+				Stats:   &Stats{CreateTime: createTime + 1000},
+			},
+			expected: false,
+		},
+		{
+			name: "different cmdline (exec scenario)",
+			procA: &Process{
+				Pid:     1234,
+				Cmdline: []string{"bash"},
+				Stats:   &Stats{CreateTime: createTime},
+			},
+			procB: &Process{
+				Pid:     1234,
+				Cmdline: []string{"htop"},
+				Stats:   &Stats{CreateTime: createTime},
+			},
+			expected: false,
+		},
+		{
+			name: "different cmdline args",
+			procA: &Process{
+				Pid:     1234,
+				Cmdline: []string{"cmd", "a", "b"},
+				Stats:   &Stats{CreateTime: createTime},
+			},
+			procB: &Process{
+				Pid:     1234,
+				Cmdline: []string{"cmd", "b", "a"},
+				Stats:   &Stats{CreateTime: createTime},
+			},
+			expected: false,
+		},
+		{
+			name: "empty vs non-empty cmdline",
+			procA: &Process{
+				Pid:     1234,
+				Cmdline: []string{},
+				Stats:   &Stats{CreateTime: createTime},
+			},
+			procB: &Process{
+				Pid:     1234,
+				Cmdline: []string{"bash"},
+				Stats:   &Stats{CreateTime: createTime},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := IsSameProcess(tt.procA, tt.procB)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
