@@ -313,12 +313,12 @@ func (lp *languagePatcher) handleDeployment(ctx context.Context, owner langUtil.
 		for k, v := range annotationsPatch {
 			lp.logger.Debugf("[lang-detection-patcher] deployment %s: annotation patch %s=%v", deploymentID, k, v)
 		}
-		lp.logger.Infof("[lang-detection-patcher] patching deployment %s with %d annotations", deploymentID, len(annotationsPatch))
+		lp.logger.Debugf("[lang-detection-patcher] patching deployment %s with %d annotations", deploymentID, len(annotationsPatch))
 		err = lp.patchOwner(ctx, &owner, annotationsPatch)
 		if err != nil {
 			lp.logger.Errorf("[lang-detection-patcher] failed to patch deployment %s: %v", deploymentID, err)
 		} else {
-			lp.logger.Infof("[lang-detection-patcher] successfully patched deployment %s", deploymentID)
+			lp.logger.Debugf("[lang-detection-patcher] successfully patched deployment %s", deploymentID)
 		}
 	} else {
 		lp.logger.Debugf("[lang-detection-patcher] deployment %s: no annotations to patch, skipping", deploymentID)

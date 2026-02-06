@@ -361,7 +361,7 @@ func (c *client) handleProcessEvent(processEvent workloadmeta.Event, isRetry boo
 	if added {
 		c.freshlyUpdatedPods[pod.Name] = struct{}{}
 		delete(c.processesWithoutPod, process.ContainerID)
-		c.logger.Infof("[lang-detection-client] added language %s for container %s in pod %s/%s (owner: %s/%s)", process.Language.Name, containerName, pod.Namespace, pod.Name, pod.Owners[0].Kind, pod.Owners[0].Name)
+		c.logger.Debugf("[lang-detection-client] added language %s for container %s in pod %s/%s (owner: %s/%s)", process.Language.Name, containerName, pod.Namespace, pod.Name, pod.Owners[0].Kind, pod.Owners[0].Name)
 	}
 	c.telemetry.ProcessedEvents.Inc(pod.Namespace, pod.Name, containerName, string(process.Language.Name))
 }
