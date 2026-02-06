@@ -1417,6 +1417,76 @@ func TestMapRuntimeMetricsNoMapping(t *testing.T) {
 	assert.Empty(t, rmt.Languages)
 }
 
+func TestWithoutRuntimeMetricMappings(t *testing.T) {
+	tests := []struct {
+		name         string
+		mappedName   string
+		skipMappings bool
+		expectedLang string
+	}{
+		{
+			name:         "process.runtime.go.goroutines",
+			mappedName:   "runtime.go.num_goroutine",
+			expectedLang: "go",
+		},
+		{
+			name:         "process.runtime.go.goroutines",
+			skipMappings: true,
+		},
+		{
+			name:         "process.runtime.dotnet.exceptions.count",
+			mappedName:   "runtime.dotnet.exceptions.count",
+			expectedLang: "dotnet",
+		},
+		{
+			name:         "process.runtime.dotnet.exceptions.count",
+			skipMappings: true,
+		},
+		{
+			name:         "jvm.thread.count",
+			mappedName:   "jvm.thread_count",
+			expectedLang: "jvm",
+		},
+		{
+			name:         "jvm.thread.count",
+			skipMappings: true,
+		},
+		{
+			name:         "process.runtime.jvm.threads.count",
+			mappedName:   "jvm.thread_count",
+			expectedLang: "jvm",
+		},
+		{
+			name:         "process.runtime.jvm.threads.count",
+			skipMappings: true,
+		},
+	}
+
+	for _, tt := range tests {
+		var opts []TranslatorOption
+		if tt.skipMappings {
+			opts = append(opts, WithoutRuntimeMetricMappings())
+		}
+		tr := NewTestTranslator(t, opts...)
+		consumer := &mockTimeSeriesConsumer{}
+		metric := createTestMetricWithAttributes(tt.name, pmetric.MetricTypeGauge, nil, 1)
+
+		rmt, err := tr.MapMetrics(t.Context(), metric, consumer, nil)
+		require.NoError(t, err)
+
+		if tt.skipMappings {
+			require.Len(t, consumer.metrics, 1)
+			assert.Equal(t, tt.name, consumer.metrics[0].name)
+			assert.Empty(t, rmt.Languages)
+		} else {
+			require.Len(t, consumer.metrics, 2)
+			assert.Equal(t, tt.name, consumer.metrics[0].name)
+			assert.Equal(t, tt.mappedName, consumer.metrics[1].name)
+			assert.Equal(t, []string{tt.expectedLang}, rmt.Languages)
+		}
+	}
+}
+
 func TestMapSystemMetrics(t *testing.T) {
 	ctx := context.Background()
 	tr := NewTestTranslator(t, WithRemapping())

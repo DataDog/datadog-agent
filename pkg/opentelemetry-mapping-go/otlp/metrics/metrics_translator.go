@@ -553,7 +553,8 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 					}
 					continue
 				}
-				if v, ok := runtimeMetricsMappings[md.Name()]; ok {
+
+				if v, ok := runtimeMetricsMappings[md.Name()]; ok && !t.cfg.skipRuntimeMetricMappings {
 					metadata.Languages = extractLanguageTag(md.Name(), metadata.Languages)
 					for _, mp := range v {
 						if mp.attributes == nil {
