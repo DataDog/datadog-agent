@@ -138,50 +138,50 @@ func TestGetAttributePrecedence_UnknownConcept(t *testing.T) {
 	assert.Nil(t, tags)
 }
 
-func TestGetAttributePrecedence_NoFallbacks(t *testing.T) {
+func TestGetAttributePrecedence_SingleTag(t *testing.T) {
 	r, err := NewEmbeddedRegistry()
 	require.NoError(t, err)
 
-	// Concepts with no fallbacks should return the canonical name with default datadog provider
+	// Concepts with a single tag should return that tag with explicit type
 	tests := []struct {
 		concept  Concept
 		expected TagInfo
 	}{
 		{
 			concept:  ConceptPeerService,
-			expected: TagInfo{Name: "peer.service", Provider: ProviderDatadog, Version: "", Type: ""},
+			expected: TagInfo{Name: "peer.service", Provider: ProviderDatadog, Version: "", Type: ValueTypeString},
 		},
 		{
 			concept:  ConceptDDMeasured,
-			expected: TagInfo{Name: "_dd.measured", Provider: ProviderDatadog, Version: "", Type: ""},
+			expected: TagInfo{Name: "_dd.measured", Provider: ProviderDatadog, Version: "", Type: ValueTypeString},
 		},
 		{
 			concept:  ConceptMongoDBQuery,
-			expected: TagInfo{Name: "mongodb.query", Provider: ProviderDatadog, Version: "", Type: ""},
+			expected: TagInfo{Name: "mongodb.query", Provider: ProviderDatadog, Version: "", Type: ValueTypeString},
 		},
 		{
 			concept:  ConceptElasticsearchBody,
-			expected: TagInfo{Name: "elasticsearch.body", Provider: ProviderDatadog, Version: "", Type: ""},
+			expected: TagInfo{Name: "elasticsearch.body", Provider: ProviderDatadog, Version: "", Type: ValueTypeString},
 		},
 		{
 			concept:  ConceptRedisRawCommand,
-			expected: TagInfo{Name: "redis.raw_command", Provider: ProviderDatadog, Version: "", Type: ""},
+			expected: TagInfo{Name: "redis.raw_command", Provider: ProviderDatadog, Version: "", Type: ValueTypeString},
 		},
 		{
 			concept:  ConceptComponent,
-			expected: TagInfo{Name: "component", Provider: ProviderDatadog, Version: "", Type: ""},
+			expected: TagInfo{Name: "component", Provider: ProviderDatadog, Version: "", Type: ValueTypeString},
 		},
 		{
 			concept:  ConceptLinkName,
-			expected: TagInfo{Name: "link.name", Provider: ProviderDatadog, Version: "", Type: ""},
+			expected: TagInfo{Name: "link.name", Provider: ProviderDatadog, Version: "", Type: ValueTypeString},
 		},
 		{
 			concept:  ConceptDDBaseService,
-			expected: TagInfo{Name: "_dd.base_service", Provider: ProviderDatadog, Version: "", Type: ""},
+			expected: TagInfo{Name: "_dd.base_service", Provider: ProviderDatadog, Version: "", Type: ValueTypeString},
 		},
 		{
 			concept:  ConceptSamplingPriority,
-			expected: TagInfo{Name: "_sampling_priority_v1", Provider: ProviderDatadog, Version: "", Type: ""},
+			expected: TagInfo{Name: "_sampling_priority_v1", Provider: ProviderDatadog, Version: "", Type: ValueTypeFloat64},
 		},
 	}
 
@@ -424,7 +424,6 @@ func TestNewRegistryFromJSON(t *testing.T) {
 		"concepts": {
 			"test.concept": {
 				"canonical": "test.concept",
-				"subsystems": ["test"],
 				"fallbacks": [
 					{"name": "test.attr1", "provider": "datadog", "type": "string"},
 					{"name": "test.attr2", "provider": "otel", "version": "1.0.0", "type": "string"}

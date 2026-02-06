@@ -364,11 +364,10 @@ func TestOtelSpanToDDSpanDBNameMapping(t *testing.T) {
 // In semconv 1.23+, http.status_code was replaced with http.response.status_code.
 func TestGetOTelStatusCode_Semconv123Plus(t *testing.T) {
 	tests := []struct {
-		name                       string
-		sattrs                     map[string]uint32
-		rattrs                     map[string]uint32
-		expected                   uint32
-		ignoreMissingDatadogFields bool
+		name     string
+		sattrs   map[string]uint32
+		rattrs   map[string]uint32
+		expected uint32
 	}{
 		{
 			name: "http.response.status_code only (semconv 1.23+)",
@@ -422,23 +421,6 @@ func TestGetOTelStatusCode_Semconv123Plus(t *testing.T) {
 			},
 			expected: 201,
 		},
-		{
-			name: "datadog field takes precedence over all OTel conventions",
-			sattrs: map[string]uint32{
-				KeyDatadogHTTPStatusCode:             418, // I'm a teapot
-				string(semconv117.HTTPStatusCodeKey): 200,
-				"http.response.status_code":          201,
-			},
-			expected: 418,
-		},
-		{
-			name: "ignore missing datadog fields - http.response.status_code ignored",
-			sattrs: map[string]uint32{
-				"http.response.status_code": 200,
-			},
-			expected:                   0,
-			ignoreMissingDatadogFields: true,
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -450,7 +432,7 @@ func TestGetOTelStatusCode_Semconv123Plus(t *testing.T) {
 			for k, v := range tt.rattrs {
 				res.Attributes().PutInt(k, int64(v))
 			}
-			assert.Equal(t, tt.expected, GetOTelStatusCode(span, res, tt.ignoreMissingDatadogFields))
+			assert.Equal(t, tt.expected, GetOTelStatusCode(span, res))
 		})
 	}
 }
@@ -459,11 +441,10 @@ func TestGetOTelStatusCode_Semconv123Plus(t *testing.T) {
 // Semconv 1.27+ uses deployment.environment.name, 1.17+ uses deployment.environment.
 func TestGetOTelEnv_SemconvVersionPrecedence(t *testing.T) {
 	tests := []struct {
-		name                       string
-		sattrs                     map[string]string
-		rattrs                     map[string]string
-		expected                   string
-		ignoreMissingDatadogFields bool
+		name     string
+		sattrs   map[string]string
+		rattrs   map[string]string
+		expected string
 	}{
 		{
 			name:     "semconv127 deployment.environment.name only",
@@ -504,17 +485,6 @@ func TestGetOTelEnv_SemconvVersionPrecedence(t *testing.T) {
 			expected: "span-env-117",
 		},
 		{
-			name: "datadog.env takes precedence over all semconv versions",
-			sattrs: map[string]string{
-				KeyDatadogEnvironment: "dd-env",
-			},
-			rattrs: map[string]string{
-				string(semconv127.DeploymentEnvironmentNameKey): "res-env-127",
-				string(semconv117.DeploymentEnvironmentKey):     "res-env-117",
-			},
-			expected: "dd-env",
-		},
-		{
 			name: "mixed: span has semconv117, resource has both versions",
 			sattrs: map[string]string{
 				string(semconv117.DeploymentEnvironmentKey): "span-117",
@@ -524,15 +494,6 @@ func TestGetOTelEnv_SemconvVersionPrecedence(t *testing.T) {
 				string(semconv117.DeploymentEnvironmentKey):     "res-117",
 			},
 			expected: "span-117",
-		},
-		{
-			name: "ignore missing datadog fields - all OTel conventions ignored",
-			rattrs: map[string]string{
-				string(semconv127.DeploymentEnvironmentNameKey): "prod-127",
-				string(semconv117.DeploymentEnvironmentKey):     "prod-117",
-			},
-			expected:                   "",
-			ignoreMissingDatadogFields: true,
 		},
 	}
 	for _, tt := range tests {
@@ -545,7 +506,7 @@ func TestGetOTelEnv_SemconvVersionPrecedence(t *testing.T) {
 			for k, v := range tt.rattrs {
 				res.Attributes().PutStr(k, v)
 			}
-			assert.Equal(t, tt.expected, GetOTelEnv(span, res, tt.ignoreMissingDatadogFields))
+			assert.Equal(t, tt.expected, GetOTelEnv(span, res))
 		})
 	}
 }
@@ -1047,7 +1008,7 @@ func TestFallbackInconsistency_HTTPStatusCodePrecedence(t *testing.T) {
 			for k, v := range tt.rattrs {
 				res.Attributes().PutInt(k, int64(v))
 			}
-			actual := GetOTelStatusCode(span, res, false)
+			actual := GetOTelStatusCode(span, res)
 			assert.Equal(t, tt.expected, actual, "Note: %s", tt.note)
 		})
 	}
@@ -1112,8 +1073,9 @@ func TestFallbackInconsistency_DBNamespacePrecedence(t *testing.T) {
 	}
 }
 
-// TestFallbackInconsistency_ContainerIDFallback documents that container.id lookup
-// falls back to k8s.pod.uid but does NOT fall back to other potential container identifiers.
+// TestFallbackInconsistency_ContainerIDFallback documents that GetOTelContainerID
+// only checks container.id and does NOT fall back to k8s.pod.uid or other identifiers.
+// Use GetOTelContainerOrPodID if k8s.pod.uid fallback is needed.
 func TestFallbackInconsistency_ContainerIDFallback(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -1129,16 +1091,10 @@ func TestFallbackInconsistency_ContainerIDFallback(t *testing.T) {
 			note:     "Primary key works.",
 		},
 		{
-			name:     "k8s.pod.uid fallback",
+			name:     "CURRENT: no fallback to k8s.pod.uid",
 			rattrs:   map[string]string{string(semconv117.K8SPodUIDKey): "pod-uid-456"},
-			expected: "pod-uid-456",
-			note:     "Falls back to k8s.pod.uid.",
-		},
-		{
-			name:     "container.id takes precedence over k8s.pod.uid",
-			rattrs:   map[string]string{string(semconv117.ContainerIDKey): "container-123", string(semconv117.K8SPodUIDKey): "pod-uid-456"},
-			expected: "container-123",
-			note:     "container.id wins over k8s.pod.uid.",
+			expected: "",
+			note:     "GetOTelContainerID does NOT fall back to k8s.pod.uid. Use GetOTelContainerOrPodID for that.",
 		},
 		{
 			name:     "CURRENT: no fallback to container.runtime",
@@ -1157,7 +1113,7 @@ func TestFallbackInconsistency_ContainerIDFallback(t *testing.T) {
 			for k, v := range tt.rattrs {
 				res.Attributes().PutStr(k, v)
 			}
-			actual := GetOTelContainerID(span, res, false)
+			actual := GetOTelContainerID(span, res)
 			assert.Equal(t, tt.expected, actual, "Note: %s", tt.note)
 		})
 	}
@@ -1202,7 +1158,7 @@ func TestFallbackInconsistency_VersionNoFallback(t *testing.T) {
 			for k, v := range tt.rattrs {
 				res.Attributes().PutStr(k, v)
 			}
-			actual := GetOTelVersion(span, res, false)
+			actual := GetOTelVersion(span, res)
 			assert.Equal(t, tt.expected, actual, "Note: %s", tt.note)
 		})
 	}

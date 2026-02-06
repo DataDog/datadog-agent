@@ -119,9 +119,6 @@ type ConceptMapping struct {
 	// Canonical is the canonical name for this concept.
 	Canonical string `json:"canonical"`
 
-	// Subsystems lists which trace-agent subsystems use this concept (e.g., "stats", "obfuscation", "normalization", "sampling").
-	Subsystems []string `json:"subsystems"`
-
 	// Fallbacks is the ordered list of attribute keys to check when looking up this concept. The first matching key takes precedence.
 	Fallbacks []TagInfo `json:"fallbacks"`
 }

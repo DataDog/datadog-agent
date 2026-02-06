@@ -77,14 +77,7 @@ func (r *EmbeddedRegistry) loadFromJSON(data []byte) error {
 
 	for conceptName, mapping := range rd.Concepts {
 		concept := Concept(conceptName)
-		// If there are no fallbacks, use the canonical name as the only fallback
-		if len(mapping.Fallbacks) == 0 {
-			r.mappings[concept] = []TagInfo{
-				{Name: mapping.Canonical, Provider: ProviderDatadog},
-			}
-		} else {
-			r.mappings[concept] = mapping.Fallbacks
-		}
+		r.mappings[concept] = mapping.Fallbacks
 	}
 
 	return nil

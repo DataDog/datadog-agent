@@ -717,20 +717,6 @@ func TestProcessOTLPTraces_SemconvVersionMixing(t *testing.T) {
 			enableOperationAndResourceNameV2: true,
 			expected:                         createStatsPayload(agentEnv, agentHost, "mixed-env-svc", "server.request", "web", "server", "test-span", agentHost, "env-127", "", "", nil, nil, true, false),
 		},
-		{
-			name:     "datadog.env takes precedence over all OTel conventions",
-			spanName: "test-span",
-			rattrs: map[string]string{
-				"service.name":                           "dd-env-svc",
-				string(semconv.DeploymentEnvironmentKey): "otel-env-117",
-				"deployment.environment.name":            "otel-env-127",
-				transform.KeyDatadogEnvironment:          "dd-env",
-			},
-			sattrs:                           map[string]any{},
-			spanKind:                         ptrace.SpanKindServer,
-			enableOperationAndResourceNameV2: true,
-			expected:                         createStatsPayload(agentEnv, agentHost, "dd-env-svc", "server.request", "web", "server", "test-span", agentHost, "dd-env", "", "", nil, nil, true, false),
-		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			traces := ptrace.NewTraces()

@@ -3,12 +3,12 @@
   "concepts": {
     "peer.service": {
       "canonical": "peer.service",
-      "subsystems": ["stats", "normalization"],
-      "fallbacks": []
+      "fallbacks": [
+        {"name": "peer.service", "provider": "datadog", "type": "string"}
+      ]
     },
     "peer.hostname": {
       "canonical": "peer.hostname",
-      "subsystems": ["stats"],
       "fallbacks": [
         {"name": "peer.hostname", "provider": "datadog", "type": "string"},
         {"name": "hostname", "provider": "datadog", "type": "string"},
@@ -24,14 +24,8 @@
         {"name": "network.destination.ip", "provider": "otel", "version": "1.21.0", "type": "string"}
       ]
     },
-    "_dd.base_service": {
-      "canonical": "_dd.base_service",
-      "subsystems": ["stats", "normalization"],
-      "fallbacks": []
-    },
     "peer.db.name": {
       "canonical": "peer.db.name",
-      "subsystems": ["stats"],
       "fallbacks": [
         {"name": "db.name", "provider": "otel", "type": "string"},
         {"name": "mongodb.db", "provider": "datadog", "type": "string"},
@@ -42,7 +36,6 @@
     },
     "peer.db.system": {
       "canonical": "peer.db.system",
-      "subsystems": ["stats"],
       "fallbacks": [
         {"name": "db.system", "provider": "otel", "type": "string"},
         {"name": "active_record.db.vendor", "provider": "datadog", "type": "string"},
@@ -52,21 +45,18 @@
     },
     "peer.cassandra.contact.points": {
       "canonical": "peer.cassandra.contact.points",
-      "subsystems": ["stats"],
       "fallbacks": [
         {"name": "db.cassandra.contact.points", "provider": "otel", "type": "string"}
       ]
     },
     "peer.couchbase.seed.nodes": {
       "canonical": "peer.couchbase.seed.nodes",
-      "subsystems": ["stats"],
       "fallbacks": [
         {"name": "db.couchbase.seed.nodes", "provider": "otel", "type": "string"}
       ]
     },
     "peer.messaging.destination": {
       "canonical": "peer.messaging.destination",
-      "subsystems": ["stats"],
       "fallbacks": [
         {"name": "topicname", "provider": "datadog", "type": "string"},
         {"name": "messaging.destination", "provider": "otel", "type": "string"},
@@ -81,35 +71,30 @@
     },
     "peer.messaging.system": {
       "canonical": "peer.messaging.system",
-      "subsystems": ["stats"],
       "fallbacks": [
         {"name": "messaging.system", "provider": "otel", "type": "string"}
       ]
     },
     "peer.kafka.bootstrap.servers": {
       "canonical": "peer.kafka.bootstrap.servers",
-      "subsystems": ["stats"],
       "fallbacks": [
         {"name": "messaging.kafka.bootstrap.servers", "provider": "otel", "type": "string"}
       ]
     },
     "peer.rpc.service": {
       "canonical": "peer.rpc.service",
-      "subsystems": ["stats"],
       "fallbacks": [
         {"name": "rpc.service", "provider": "otel", "type": "string"}
       ]
     },
     "peer.rpc.system": {
       "canonical": "peer.rpc.system",
-      "subsystems": ["stats"],
       "fallbacks": [
         {"name": "rpc.system", "provider": "otel", "type": "string"}
       ]
     },
     "peer.aws.s3.bucket": {
       "canonical": "peer.aws.s3.bucket",
-      "subsystems": ["stats"],
       "fallbacks": [
         {"name": "bucketname", "provider": "datadog", "type": "string"},
         {"name": "aws.s3.bucket", "provider": "otel", "type": "string"}
@@ -117,7 +102,6 @@
     },
     "peer.aws.sqs.queue": {
       "canonical": "peer.aws.sqs.queue",
-      "subsystems": ["stats"],
       "fallbacks": [
         {"name": "queuename", "provider": "datadog", "type": "string"},
         {"name": "aws.sqs.queue", "provider": "otel", "type": "string"}
@@ -125,7 +109,6 @@
     },
     "peer.aws.dynamodb.table": {
       "canonical": "peer.aws.dynamodb.table",
-      "subsystems": ["stats"],
       "fallbacks": [
         {"name": "tablename", "provider": "datadog", "type": "string"},
         {"name": "aws.dynamodb.table", "provider": "otel", "type": "string"}
@@ -133,7 +116,6 @@
     },
     "peer.aws.kinesis.stream": {
       "canonical": "peer.aws.kinesis.stream",
-      "subsystems": ["stats"],
       "fallbacks": [
         {"name": "streamname", "provider": "datadog", "type": "string"},
         {"name": "aws.kinesis.stream", "provider": "otel", "type": "string"}
@@ -141,7 +123,6 @@
     },
     "http.status_code": {
       "canonical": "http.status_code",
-      "subsystems": ["stats", "normalization"],
       "fallbacks": [
         {"name": "http.status_code", "provider": "datadog", "type": "int64"},
         {"name": "http.status_code", "provider": "datadog", "type": "string"},
@@ -150,7 +131,6 @@
     },
     "http.method": {
       "canonical": "http.method",
-      "subsystems": ["stats", "normalization"],
       "fallbacks": [
         {"name": "http.request.method", "provider": "otel", "version": "1.21.0", "type": "string"},
         {"name": "http.method", "provider": "otel", "type": "string"}
@@ -158,14 +138,12 @@
     },
     "http.route": {
       "canonical": "http.route",
-      "subsystems": ["stats", "normalization"],
       "fallbacks": [
-        {"name": "http.route", "provider": "otel", "version": "1.21.0", "type": "string"}
+        {"name": "http.route", "provider": "otel", "type": "string"}
       ]
     },
     "rpc.grpc.status_code": {
       "canonical": "rpc.grpc.status_code",
-      "subsystems": ["stats"],
       "fallbacks": [
         {"name": "rpc.grpc.status_code", "provider": "otel", "type": "int64"},
         {"name": "grpc.code", "provider": "datadog", "type": "int64"},
@@ -177,14 +155,18 @@
     },
     "span.kind": {
       "canonical": "span.kind",
-      "subsystems": ["stats", "normalization"],
       "fallbacks": [
         {"name": "span.kind", "provider": "otel", "type": "string"}
       ]
     },
+    "_dd.base_service": {
+      "canonical": "_dd.base_service",
+      "fallbacks": [
+        {"name": "_dd.base_service", "provider": "datadog", "type": "string"}
+      ]
+    },
     "db.query": {
       "canonical": "db.query",
-      "subsystems": ["obfuscation", "normalization"],
       "fallbacks": [
         {"name": "db.query.text", "provider": "otel", "version": "1.24.0", "type": "string"},
         {"name": "db.statement", "provider": "otel", "type": "string"},
@@ -194,115 +176,114 @@
     },
     "mongodb.query": {
       "canonical": "mongodb.query",
-      "subsystems": ["obfuscation"],
-      "fallbacks": []
+      "fallbacks": [
+        {"name": "mongodb.query", "provider": "datadog", "type": "string"}
+      ]
     },
     "elasticsearch.body": {
       "canonical": "elasticsearch.body",
-      "subsystems": ["obfuscation"],
-      "fallbacks": []
+      "fallbacks": [
+        {"name": "elasticsearch.body", "provider": "datadog", "type": "string"}
+      ]
     },
     "opensearch.body": {
       "canonical": "opensearch.body",
-      "subsystems": ["obfuscation"],
-      "fallbacks": []
+      "fallbacks": [
+        {"name": "opensearch.body", "provider": "datadog", "type": "string"}
+      ]
     },
     "redis.raw_command": {
       "canonical": "redis.raw_command",
-      "subsystems": ["obfuscation"],
-      "fallbacks": []
+      "fallbacks": [
+        {"name": "redis.raw_command", "provider": "datadog", "type": "string"}
+      ]
     },
     "valkey.raw_command": {
       "canonical": "valkey.raw_command",
-      "subsystems": ["obfuscation"],
-      "fallbacks": []
+      "fallbacks": [
+        {"name": "valkey.raw_command", "provider": "datadog", "type": "string"}
+      ]
     },
     "memcached.command": {
       "canonical": "memcached.command",
-      "subsystems": ["obfuscation"],
-      "fallbacks": []
+      "fallbacks": [
+        {"name": "memcached.command", "provider": "datadog", "type": "string"}
+      ]
     },
     "http.url": {
       "canonical": "http.url",
-      "subsystems": ["obfuscation"],
       "fallbacks": [
         {"name": "http.url", "provider": "otel", "type": "string"}
       ]
     },
     "messaging.operation": {
       "canonical": "messaging.operation",
-      "subsystems": ["normalization"],
       "fallbacks": [
         {"name": "messaging.operation", "provider": "otel", "type": "string"}
       ]
     },
     "graphql.operation.type": {
       "canonical": "graphql.operation.type",
-      "subsystems": ["normalization"],
       "fallbacks": [
         {"name": "graphql.operation.type", "provider": "otel", "type": "string"}
       ]
     },
     "graphql.operation.name": {
       "canonical": "graphql.operation.name",
-      "subsystems": ["normalization"],
       "fallbacks": [
         {"name": "graphql.operation.name", "provider": "otel", "type": "string"}
       ]
     },
     "faas.invoked.provider": {
       "canonical": "faas.invoked.provider",
-      "subsystems": ["normalization"],
       "fallbacks": [
         {"name": "faas.invoked_provider", "provider": "otel", "type": "string"}
       ]
     },
     "faas.invoked.name": {
       "canonical": "faas.invoked.name",
-      "subsystems": ["normalization"],
       "fallbacks": [
         {"name": "faas.invoked_name", "provider": "otel", "type": "string"}
       ]
     },
     "faas.trigger": {
       "canonical": "faas.trigger",
-      "subsystems": ["normalization"],
       "fallbacks": [
         {"name": "faas.trigger", "provider": "otel", "type": "string"}
       ]
     },
     "network.protocol.name": {
       "canonical": "network.protocol.name",
-      "subsystems": ["normalization"],
       "fallbacks": [
         {"name": "network.protocol.name", "provider": "otel", "version": "1.21.0", "type": "string"}
       ]
     },
     "rpc.method": {
       "canonical": "rpc.method",
-      "subsystems": ["normalization"],
       "fallbacks": [
         {"name": "rpc.method", "provider": "otel", "type": "string"}
       ]
     },
     "component": {
       "canonical": "component",
-      "subsystems": ["normalization"],
-      "fallbacks": []
+      "fallbacks": [
+        {"name": "component", "provider": "datadog", "type": "string"}
+      ]
     },
     "link.name": {
       "canonical": "link.name",
-      "subsystems": ["normalization"],
-      "fallbacks": []
+      "fallbacks": [
+        {"name": "link.name", "provider": "datadog", "type": "string"}
+      ]
     },
     "_dd.measured": {
       "canonical": "_dd.measured",
-      "subsystems": ["sampling"],
-      "fallbacks": []
+      "fallbacks": [
+        {"name": "_dd.measured", "provider": "datadog", "type": "string"}
+      ]
     },
     "_dd.top_level": {
       "canonical": "_dd.top_level",
-      "subsystems": ["sampling"],
       "fallbacks": [
         {"name": "_dd.top_level", "provider": "datadog", "type": "float64"},
         {"name": "_top_level", "provider": "datadog", "type": "float64"}
@@ -310,23 +291,27 @@
     },
     "_sampling_priority_v1": {
       "canonical": "_sampling_priority_v1",
-      "subsystems": ["sampling"],
-      "fallbacks": []
+      "fallbacks": [
+        {"name": "_sampling_priority_v1", "provider": "datadog", "type": "float64"}
+      ]
     },
     "otel.trace_id": {
       "canonical": "otel.trace_id",
-      "subsystems": ["sampling"],
-      "fallbacks": []
+      "fallbacks": [
+        {"name": "otel.trace_id", "provider": "datadog", "type": "string"}
+      ]
     },
     "_dd.p.tid": {
       "canonical": "_dd.p.tid",
-      "subsystems": ["sampling"],
-      "fallbacks": []
+      "fallbacks": [
+        {"name": "_dd.p.tid", "provider": "datadog", "type": "string"}
+      ]
     },
     "_dd.partial_version": {
       "canonical": "_dd.partial_version",
-      "subsystems": ["sampling"],
-      "fallbacks": []
+      "fallbacks": [
+        {"name": "_dd.partial_version", "provider": "datadog", "type": "string"}
+      ]
     }
   }
 }
