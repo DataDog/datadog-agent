@@ -1,0 +1,27 @@
+---
+clusterAgent:
+  admissionController:
+    configMode: "hostip"
+
+# Temporary until the Datadog CSI driver is released
+datadog-csi-driver:
+  image:
+    repository: "gcr.io/datadoghq/csi-driver"
+    tag: "main"
+
+datadog:
+  csi:
+    enabled: true
+  apm:
+    instrumentation:
+      enabled: true
+      injector:
+        imageTag: "0.54.0"
+      enabledNamespaces: []
+      targets:
+        - name: "apps"
+          namespaceSelector:
+            matchNames:
+              - "injection-mode"
+          ddTraceVersions:
+            python: "v3.18.1"

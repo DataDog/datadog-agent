@@ -10,6 +10,7 @@ package transformers
 
 import (
 	"fmt"
+
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
@@ -18,6 +19,7 @@ const (
 	tagKeyEnv     = "env"
 	tagKeyVersion = "version"
 	tagKeyService = "service"
+	tagKeyTeam    = "team"
 )
 
 var labelToTagKeys = map[string]string{
@@ -57,15 +59,33 @@ func RetrieveMetadataTags(
 ) []string {
 	tags := []string{}
 
+	teamLabelCollected := false
 	for name, value := range labels {
 		if tagKey, ok := labelsAsTags[name]; ok {
+			if tagKey == tagKeyTeam {
+				teamLabelCollected = true
+			}
 			tags = append(tags, fmt.Sprintf("%s:%s", tagKey, value))
 		}
 	}
 
+	teamAnnotationCollected := false
 	for name, value := range annotations {
 		if tagKey, ok := annotationsAsTags[name]; ok {
+			if tagKey == tagKeyTeam {
+				teamAnnotationCollected = true
+			}
 			tags = append(tags, fmt.Sprintf("%s:%s", tagKey, value))
+		}
+	}
+
+	if pkgconfigsetup.Datadog().GetBool("auto_team_tag_collection") && !teamLabelCollected && !teamAnnotationCollected {
+		// try to collect team tag from labels first
+		if teamLabel, ok := labels[tagKeyTeam]; ok {
+			tags = append(tags, fmt.Sprintf("%s:%s", tagKeyTeam, teamLabel))
+		} else if teamAnnotation, ok := annotations[tagKeyTeam]; ok {
+			// fallback to collect team tag from annotations
+			tags = append(tags, fmt.Sprintf("%s:%s", tagKeyTeam, teamAnnotation))
 		}
 	}
 

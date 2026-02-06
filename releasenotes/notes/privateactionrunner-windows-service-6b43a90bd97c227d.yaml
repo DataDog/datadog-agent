@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Private Action Runner now supports running as a Windows service via Service Control Manager (SCM).

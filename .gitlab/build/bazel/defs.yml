@@ -49,13 +49,20 @@
   variables:
     XDG_CACHE_HOME: c:/bzl
 
+# ⚠️ swap `extends` and `tags` only for *experimental* purposes with persistent runners
 .bazel:runner:linux-amd64:
-  extends: .bazel:defs:cache:persistent
-  tags: [ "k8s-persistent:amd64", "specific:true" ]
+  #extends: .bazel:defs:cache:persistent
+  #tags: [ "k8s-persistent:amd64", "specific:true" ]
+  extends: .bazel:defs:cache:ephemeral
+  tags: [ "arch:amd64", "specific:true" ]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
 
 .bazel:runner:linux-arm64:
-  extends: .bazel:defs:cache:persistent
-  tags: [ "k8s-persistent:arm64", "specific:true" ]
+  #extends: .bazel:defs:cache:persistent
+  #tags: [ "k8s-persistent:arm64", "specific:true" ]
+  extends: .bazel:defs:cache:ephemeral
+  tags: [ "arch:arm64", "specific:true" ]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
 
 .bazel:runner:macos-amd64:
   extends: .bazel:defs:cache:macos
@@ -83,6 +90,7 @@
       $EncodedCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes("$FailFast`n$Utf8Script"))
     - >-
       .\tools\ci\docker-run-with-bazel-cache.ps1
+      --env=CI_IDENTITIES_GITLAB_ID_TOKEN
       --volume="${CI_PROJECT_DIR}:$CI_PROJECT_DIR"
       --workdir="$CI_PROJECT_DIR"
       "$WINBUILDIMAGE"

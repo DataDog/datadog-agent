@@ -2326,6 +2326,12 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor10
 			} else {
 				out.Field = string(in.String())
 			}
+		case "max_file_size":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.MaxFileSize = int64(in.Int64())
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -2355,6 +2361,16 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor10
 			out.RawString(prefix)
 		}
 		out.String(string(in.Field))
+	}
+	if in.MaxFileSize != 0 {
+		const prefix string = ",\"max_file_size\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Int64(int64(in.MaxFileSize))
 	}
 	out.RawByte('}')
 }

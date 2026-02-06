@@ -616,7 +616,7 @@ func (s *testAgentUpgradeSuite) installPreviousAgentVersion(opts ...installerwin
 		installerwindows.WithMSILogFile("install-previous-version.log"),
 	}
 	options = append(options, opts...)
-	s.InstallWithXperf(options...)
+	s.InstallWithDiagnostics(options...)
 
 	// sanity check: make sure we did indeed install the stable version
 	s.Require().Host(s.Env().RemoteHost).
@@ -635,7 +635,7 @@ func (s *testAgentUpgradeSuite) installCurrentAgentVersion(opts ...installerwind
 		installerwindows.WithMSILogFile("install-current-version.log"),
 	}
 	options = append(options, opts...)
-	s.InstallWithXperf(options...)
+	s.InstallWithDiagnostics(options...)
 
 	// sanity check: make sure we did indeed install the stable version
 	s.Require().Host(s.Env().RemoteHost).

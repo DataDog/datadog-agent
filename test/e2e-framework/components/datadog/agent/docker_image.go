@@ -25,9 +25,10 @@ const (
 	jmxSuffix                        = "-jmx"
 	otelSuffix                       = "-7-full"
 	fipsSuffix                       = "-fips"
+	linuxOnlySuffix                  = "-linux"
 )
 
-func dockerAgentFullImagePath(e config.Env, repositoryPath, imageTag string, otel bool, fips bool, jmx bool) string {
+func dockerAgentFullImagePath(e config.Env, repositoryPath, imageTag string, otel bool, fips bool, jmx bool, windowsImage bool) string {
 	// return agent image path if defined
 	if e.AgentFullImagePath() != "" {
 		return e.AgentFullImagePath()
@@ -36,6 +37,7 @@ func dockerAgentFullImagePath(e config.Env, repositoryPath, imageTag string, ote
 	useOtel := otel
 	useFIPS := fips || e.AgentFIPS()
 	useJMX := jmx
+	useLinuxOnly := e.AgentLinuxOnly() && !windowsImage
 
 	// if agent pipeline id and commit sha are defined, use the image from the pipeline pushed on agent QA registry
 	if e.PipelineID() != "" && e.CommitSHA() != "" && imageTag == "" {
@@ -45,16 +47,23 @@ func dockerAgentFullImagePath(e config.Env, repositoryPath, imageTag string, ote
 			panic("Unsupported: no image with FIPS, JMX and OTel exists yet")
 		case useOtel && useFIPS:
 			panic("Unsupported: no image with FIPS and OTel exists yet")
-		case useOtel && useJMX:
+		case useLinuxOnly && useFIPS && useJMX:
+			tag += fipsSuffix + linuxOnlySuffix + jmxSuffix
+		case useLinuxOnly && useFIPS:
+			tag += fipsSuffix + linuxOnlySuffix
+		case useOtel:
+			// OTel images (-7-full) are already Linux-only and have jmx
 			tag += otelSuffix
 		case useFIPS && useJMX:
 			tag += fipsSuffix + jmxSuffix
 		case useFIPS:
 			tag += fipsSuffix
+		case useLinuxOnly && useJMX:
+			tag += linuxOnlySuffix + jmxSuffix
+		case useLinuxOnly:
+			tag += linuxOnlySuffix
 		case useJMX:
 			tag += jmxSuffix
-		case useOtel:
-			tag += otelSuffix
 		}
 
 		exists, err := e.InternalRegistryImageTagExists(fmt.Sprintf("%s/agent-qa", e.InternalRegistry()), tag)

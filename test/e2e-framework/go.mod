@@ -6,7 +6,7 @@ require (
 	dario.cat/mergo v1.0.2
 	github.com/DataDog/datadog-agent/pkg/util/option v0.73.0-rc.9
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.73.0-rc.9
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.2
 	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/test/new-e2e v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-api-client-go/v2 v2.54.0
@@ -70,7 +70,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07 // indirect
 	github.com/DataDog/datadog-agent/pkg/proto v0.74.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.73.0-rc.9 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.73.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.73.2 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/zstd v1.5.7 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
@@ -315,6 +315,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/def => ../../comp/def
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../comp/forwarder/orchestrator/orchestratorinterface
+	github.com/DataDog/datadog-agent/comp/logs-library => ../../comp/logs-library
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../comp/logs/agent/config
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ../../comp/netflow/payload
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../../comp/otelcol/collector-contrib/def
@@ -437,7 +438,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/startstop => ../../pkg/util/startstop
 	github.com/DataDog/datadog-agent/pkg/util/statstracker => ../../pkg/util/statstracker
 	github.com/DataDog/datadog-agent/pkg/util/system => ../../pkg/util/system
-	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../pkg/util/system/socket
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../pkg/util/testutil
 	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker => ../../pkg/util/utilizationtracker
 	github.com/DataDog/datadog-agent/pkg/util/uuid => ../../pkg/util/uuid

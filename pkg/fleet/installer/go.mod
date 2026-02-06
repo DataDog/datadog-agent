@@ -117,8 +117,6 @@ replace github.com/DataDog/datadog-agent/pkg/util/pointer => ../../util/pointer
 
 replace github.com/DataDog/datadog-agent/pkg/util/system => ../../util/system
 
-replace github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../util/system/socket
-
 replace github.com/DataDog/datadog-agent/pkg/util/testutil => ../../util/testutil
 
 replace github.com/DataDog/datadog-agent/pkg/trace => ../../trace

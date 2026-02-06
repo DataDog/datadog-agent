@@ -37,6 +37,10 @@ func TestMain(m *testing.M) {
 				ID:    "apm",
 				Title: "APM Commands",
 			},
+			&cobra.Group{
+				ID:    "extension",
+				Title: "Extensions Commands",
+			},
 		)
 		cmd.AddCommand(RootCommands()...)
 		cmd.AddCommand(UnprivilegedCommands()...)

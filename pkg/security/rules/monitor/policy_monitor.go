@@ -219,8 +219,9 @@ type RuleAction struct {
 // HashAction is used to report 'hash' action
 // easyjson:json
 type HashAction struct {
-	Enabled bool   `json:"enabled,omitempty"`
-	Field   string `json:"field,omitempty"`
+	Enabled     bool   `json:"enabled,omitempty"`
+	Field       string `json:"field,omitempty"`
+	MaxFileSize int64  `json:"max_file_size,omitempty"`
 }
 
 // RuleSetAction is used to report 'set' action
@@ -357,8 +358,9 @@ func RuleStateFromRule(rule *rules.PolicyRule, policy *rules.PolicyInfo, status 
 			}
 		case action.Def.Hash != nil:
 			ruleAction.Hash = &HashAction{
-				Enabled: true,
-				Field:   action.Def.Hash.Field,
+				Enabled:     true,
+				Field:       action.Def.Hash.Field,
+				MaxFileSize: action.Def.Hash.MaxFileSize,
 			}
 		case action.Def.CoreDump != nil:
 			ruleAction.CoreDump = &CoreDumpAction{

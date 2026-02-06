@@ -22,10 +22,10 @@ build do
   if !windows_target?
     env = with_standard_compiler_flags(with_embedded_path)
     command_on_repo_root "bazelisk run -- @cpython//:install --destdir='#{install_dir}/embedded'"
-    sh_lib = if linux_target? then "libpython3.so" else "libpython3.13.dylib" end
+    sh_ext = if linux_target? then "so" else "dylib" end
     command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
       " #{install_dir}/embedded/lib/pkgconfig/python*.pc" \
-      " #{install_dir}/embedded/lib/#{sh_lib}" \
+      " #{install_dir}/embedded/lib/libpython3.*#{sh_ext}" \
       " #{install_dir}/embedded/lib/python3.13/lib-dynload/*.so" \
       " #{install_dir}/embedded/bin/python3*"
   elsif fips_mode?
@@ -43,10 +43,10 @@ build do
     python_arch = "amd64"
 
     mkdir "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\include"
-    # Copy the import library to have them point at our own built versions, regardless of
+    # Link the import library to have them point at our own built versions, regardless of
     # their names in usual python builds
-    copy "#{install_dir}\\embedded3\\lib\\libcrypto.dll.a", "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\libcrypto.lib"
-    copy "#{install_dir}\\embedded3\\lib\\libssl.dll.a", "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\libssl.lib"
+    link "#{install_dir}\\embedded3\\lib\\libcrypto.lib", "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\libcrypto.lib"
+    link "#{install_dir}\\embedded3\\lib\\libssl.lib", "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\libssl.lib"
     # Copy the actual DLLs, be sure to keep the same name since that's what the IMPLIBs expect
     copy "#{install_dir}\\embedded3\\bin\\libssl-3-x64.dll", "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\libssl-3.dll"
     # Create empty PDBs since python's build system require those to be present

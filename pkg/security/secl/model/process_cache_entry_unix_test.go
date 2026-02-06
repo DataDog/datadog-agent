@@ -138,6 +138,7 @@ func TestCopyProcessContextFromParent(t *testing.T) {
 	parent.ContainerContext = ContainerContext{
 		ContainerID: "1234",
 	}
+	parent.MntNS = 1234
 	parent.NetNS = 5678
 	parent.UserSession = UserSessionContext{
 		ID:          "abc",
@@ -156,6 +157,7 @@ func TestCopyProcessContextFromParent(t *testing.T) {
 
 		assert.Equal(t, parent.CGroup, child.CGroup)
 		assert.Equal(t, parent.ContainerContext, child.ContainerContext)
+		assert.Equal(t, parent.MntNS, child.MntNS)
 		assert.Equal(t, parent.NetNS, child.NetNS)
 		assert.Equal(t, parent.UserSession, child.UserSession)
 		assert.Equal(t, parent.Credentials, child.Credentials)
@@ -167,6 +169,7 @@ func TestCopyProcessContextFromParent(t *testing.T) {
 
 		assert.Equal(t, parent.CGroup, child.CGroup)
 		assert.Equal(t, parent.ContainerContext, child.ContainerContext)
+		assert.Equal(t, parent.MntNS, child.MntNS)
 		assert.Equal(t, parent.NetNS, child.NetNS)
 		assert.Equal(t, parent.UserSession, child.UserSession)
 		assert.Equal(t, parent.Credentials, child.Credentials)
@@ -178,6 +181,7 @@ func TestCopyProcessContextFromParent(t *testing.T) {
 
 		assert.Equal(t, parent.CGroup, child.CGroup)
 		assert.Equal(t, parent.ContainerContext, child.ContainerContext)
+		assert.Equal(t, parent.MntNS, child.MntNS)
 		assert.Equal(t, parent.NetNS, child.NetNS)
 		assert.Equal(t, parent.UserSession, child.UserSession)
 		assert.Equal(t, parent.Credentials, child.Credentials)
@@ -189,6 +193,7 @@ func TestCopyProcessContextFromParent(t *testing.T) {
 
 		assert.Equal(t, parent.CGroup, child.CGroup)
 		assert.Equal(t, parent.ContainerContext, child.ContainerContext)
+		assert.Equal(t, parent.MntNS, child.MntNS)
 		assert.Equal(t, parent.NetNS, child.NetNS)
 		assert.Equal(t, parent.UserSession, child.UserSession)
 		assert.Equal(t, parent.Credentials, child.Credentials)

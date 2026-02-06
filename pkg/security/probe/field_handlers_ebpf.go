@@ -521,12 +521,12 @@ func (fh *EBPFFieldHandlers) ResolveModuleArgs(_ *model.Event, module *model.Loa
 
 // ResolveHashesFromEvent resolves the hashes of the requested event
 func (fh *EBPFFieldHandlers) ResolveHashesFromEvent(ev *model.Event, f *model.FileEvent) []string {
-	return fh.resolvers.HashResolver.ComputeHashesFromEvent(ev, f)
+	return fh.resolvers.HashResolver.ComputeHashesFromEvent(ev, f, 0)
 }
 
 // ResolveHashes resolves the hashes of the requested file event
 func (fh *EBPFFieldHandlers) ResolveHashes(eventType model.EventType, process *model.Process, file *model.FileEvent) []string {
-	return fh.resolvers.HashResolver.ComputeHashes(eventType, process, file)
+	return fh.resolvers.HashResolver.ComputeHashes(eventType, process, file, 0)
 }
 
 // ResolveCGroupVersion resolves the version of the cgroup API

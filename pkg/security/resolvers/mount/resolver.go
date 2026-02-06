@@ -136,10 +136,17 @@ func (mr *Resolver) syncCache() error {
 // syncCacheFromListMount Snapshots the current mountpoints using procfs
 func (mr *Resolver) syncPidProcfs(pid uint32) error {
 	nrMounts := 0
+	mounts := []*model.Mount{}
+
 	err := GetPidProcfs(kernel.ProcFSRoot(), pid, func(sm *model.Mount) {
-		mr.insert(sm)
+		mr.mounts.Remove(sm.MountID)
+		mounts = append(mounts, sm)
 		nrMounts++
 	})
+
+	for _, m := range mounts {
+		mr.insert(m)
+	}
 
 	if err != nil {
 		return fmt.Errorf("error synchronizing the pid procfs: %v", err)
@@ -151,10 +158,17 @@ func (mr *Resolver) syncPidProcfs(pid uint32) error {
 // syncCacheFromProcfs Snapshots the mounts of the pid namespace using the listmount api
 func (mr *Resolver) syncPidListmount(pid uint32) error {
 	nrMounts := 0
+	mounts := []*model.Mount{}
+
 	err := GetPidListmount(kernel.ProcFSRoot(), pid, func(sm *model.Mount) {
-		mr.insert(sm)
+		mr.mounts.Remove(sm.MountID)
+		mounts = append(mounts, sm)
 		nrMounts++
 	})
+
+	for _, m := range mounts {
+		mr.insert(m)
+	}
 
 	if err != nil {
 		return fmt.Errorf("error synchronizing from procfs: %v", err)
@@ -330,26 +344,27 @@ func (mr *Resolver) InsertMoved(m model.Mount) error {
 }
 
 func (mr *Resolver) insert(m *model.Mount) {
+	if mr.minMountID > m.MountID {
+		mr.minMountID = m.MountID
+	}
 
 	invalidateChildrenPath := false
 	// Remove the previous one if exists
-	if prev, ok := mr.mounts.Get(m.MountID); prev != nil && ok {
-		if prev.ParentPathKey != m.ParentPathKey {
-			invalidateChildrenPath = true
+	if m.Origin != model.MountOriginProcfs {
+		if prev, ok := mr.mounts.Get(m.MountID); prev != nil && ok {
+			if prev.ParentPathKey != m.ParentPathKey {
+				invalidateChildrenPath = true
+			}
+			m.Children = prev.Children
+			prev.Children = []uint32{}
+			mr.delete(prev)
 		}
-		m.Children = prev.Children
-		prev.Children = []uint32{}
-		mr.delete(prev)
-	}
 
-	// if we're inserting a mount from a kernel event (!= procfs) that isn't the root fs
-	// then remove the leading slash from the mountpoint
-	if len(m.Path) == 0 && m.MountPointStr != "/" {
-		m.MountPointStr = strings.TrimPrefix(m.MountPointStr, "/")
-	}
-
-	if mr.minMountID > m.MountID {
-		mr.minMountID = m.MountID
+		// if we're inserting a mount from a kernel event (!= procfs) that isn't the root fs
+		// then remove the leading slash from the mountpoint
+		if len(m.Path) == 0 && m.MountPointStr != "/" {
+			m.MountPointStr = strings.TrimPrefix(m.MountPointStr, "/")
+		}
 	}
 
 	// Update the list of children of the parent
@@ -370,16 +385,18 @@ func (mr *Resolver) insert(m *model.Mount) {
 	}
 
 	// check if this mount has any dangling children
-	start := len(m.Children)
-	for danglingElem := range mr.dangling.ValuesIter() {
-		if danglingElem.ParentPathKey.MountID == m.MountID {
-			m.Children = append(m.Children, danglingElem.MountID)
+	if m.Origin != model.MountOriginProcfs {
+		start := len(m.Children)
+		for danglingElem := range mr.dangling.ValuesIter() {
+			if danglingElem.ParentPathKey.MountID == m.MountID {
+				m.Children = append(m.Children, danglingElem.MountID)
+			}
 		}
-	}
 
-	// remove appended from dangling list
-	for i := start; i < len(m.Children); i++ {
-		mr.dangling.Remove(m.Children[i])
+		// remove appended from dangling list
+		for i := start; i < len(m.Children); i++ {
+			mr.dangling.Remove(m.Children[i])
+		}
 	}
 
 	mr.mounts.Add(m.MountID, m)
@@ -591,6 +608,16 @@ func (mr *Resolver) ToJSON() ([]byte, error) {
 	}
 
 	return json.Marshal(dump)
+}
+
+// Iterate iterates over all the mounts in the cache and calls the callback function for each mount
+func (mr *Resolver) Iterate(cb func(*model.Mount)) {
+	mr.lock.RLock()
+	defer mr.lock.RUnlock()
+
+	for mount := range mr.mounts.ValuesIter() {
+		cb(mount)
+	}
 }
 
 // NewResolver instantiates a new mount resolver

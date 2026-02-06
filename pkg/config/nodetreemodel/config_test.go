@@ -1099,21 +1099,6 @@ func TestUnsetForSource(t *testing.T) {
         leaf(#ptr<000006>), val:6, source:file`
 	assert.Equal(t, expect, txt)
 
-	// [AGENTCFG-314] Prevent the test from being flakey.
-	// This keeps a reference to the node for `input_chan_size`, which helps prevent
-	// an edge case that can cause this test to fail on rare occasions.
-	// Because UnsetForSource removes nodes, and we allocate more nodes later in this
-	// test, if the GC timing is right, it's possible that a future node reuses the
-	// same address as this node. Since the Stringifier caches node addresses in order
-	// to determine their unique ID, this address reuse would cause it to get confused
-	// and reuse the ID of `input_chan_size`. By holding this reference we prevent the
-	// reuse of this node's address, and prevent this edge case from occurring.
-	var keepNode Node
-	if ncfg, ok := cfg.(NodeTreeConfig); ok {
-		keepNode, _ = ncfg.GetNode("network_path.collector.input_chan_size")
-	}
-	assert.NotNil(t, keepNode)
-
 	// No change if source doesn't match
 	cfg.UnsetForSource("network_path.collector.input_chan_size", model.SourceFile)
 	assert.Equal(t, expect, txt)

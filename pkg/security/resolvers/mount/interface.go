@@ -25,4 +25,5 @@ type ResolverInterface interface {
 	ResolveMount(mountID uint32, pid uint32) (*model.Mount, model.MountSource, model.MountOrigin, error)
 	SendStats() error
 	ToJSON() ([]byte, error)
+	Iterate(cb func(*model.Mount))
 }

@@ -6,6 +6,7 @@
 package marshal
 
 import (
+	"bytes"
 	"fmt"
 	"sync"
 
@@ -24,8 +25,10 @@ type USMEncoder interface {
 	Close()
 	// EncodeConnection encodes USM data for a given connection into the given builder. Returns static tags and dynamic tags.
 	EncodeConnection(network.ConnectionStats, *model.ConnectionBuilder) (uint64, map[string]struct{})
-	// EncodeConnectionDirect encodes USM data for a given connection directly onto the model.Connection object. Returns static tags and dynamic tags.
-	EncodeConnectionDirect(network.ConnectionStats, *model.Connection) (uint64, map[string]struct{})
+	// EncodeConnectionDirect encodes USM data for a given connection directly onto the model.Connection object reusing the provided buffer.
+	// The provided buffer should already be reset.
+	// Returns static tags and dynamic tags.
+	EncodeConnectionDirect(network.ConnectionStats, *model.Connection, *bytes.Buffer) (uint64, map[string]struct{})
 }
 
 // USMConnectionIndex provides a generic container for USM data pre-aggregated by connection

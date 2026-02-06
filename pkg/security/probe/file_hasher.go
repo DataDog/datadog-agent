@@ -52,7 +52,7 @@ func (p *FileHasher) AddPendingReports(report *HashActionReport) {
 }
 
 func (p *FileHasher) hash(report *HashActionReport) {
-	p.resolver.HashFileEvent(report.eventType, report.crtID, report.pid, &report.fileEvent)
+	p.resolver.HashFileEvent(report.eventType, report.cgroupID, report.pid, &report.fileEvent, report.maxFileSize)
 	report.resolved = true
 }
 
@@ -118,12 +118,13 @@ func (p *FileHasher) HashAndReport(rule *rules.Rule, action *rules.HashDefinitio
 	}
 
 	report := &HashActionReport{
-		rule:      rule,
-		pid:       ev.ProcessContext.Pid,
-		crtID:     ev.ProcessContext.Process.ContainerContext.ContainerID,
-		seenAt:    ev.ResolveEventTime(),
-		fileEvent: *fileEvent,
-		eventType: eventType,
+		rule:        rule,
+		pid:         ev.ProcessContext.Pid,
+		cgroupID:    ev.ProcessContext.Process.CGroup.CGroupID,
+		maxFileSize: action.MaxFileSize,
+		seenAt:      ev.ResolveEventTime(),
+		fileEvent:   *fileEvent,
+		eventType:   eventType,
 	}
 	ev.ActionReports = append(ev.ActionReports, report)
 	p.pendingReports = append(p.pendingReports, report)

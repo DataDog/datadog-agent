@@ -29,5 +29,8 @@ test/new-e2e/tests/containers:
 /tests/installer/windows:
   - test: TestAgentUpgradesOnDCWithGMSA
 
+test/new-e2e/tests/sbom:
+  - test: TestSBOMKindSuite/TestSBOM
+
 on-log:
   - "panic: Expected to find a single pod" # K8s Agent Executor can be flaky with the current implementation

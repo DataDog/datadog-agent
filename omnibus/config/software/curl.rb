@@ -20,7 +20,6 @@ default_version "8.18.0"
 
 dependency "zlib"
 dependency "openssl3"
-dependency "nghttp2"
 source url:    "https://curl.haxx.se/download/curl-#{version}.tar.gz",
        sha256: "e9274a5f8ab5271c0e0e6762d2fce194d5f98acc568e4ce816845b2dcc0cf88f"
 
@@ -30,6 +29,10 @@ build do
   license "Curl"
   license_file "https://raw.githubusercontent.com/bagder/curl/master/COPYING"
   env = with_standard_compiler_flags(with_embedded_path)
+
+  command_on_repo_root "bazelisk run -- @nghttp2//:install --verbose --destdir='#{install_dir}'"
+  command_on_repo_root "bazelisk run -- @nghttp2//:install_pc --destdir='/'"
+  # nghttp2 is at the bottom. It does not need rpath rewriting.
 
   configure_options = [
            "--disable-manual",
