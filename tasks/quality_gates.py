@@ -1160,8 +1160,8 @@ def check_files(ctx, branch_name, reports_folder):
             )
 
             parent_report_file = tempfile.NamedTemporaryFile()
-            get_parent_report(ctx, branch_name, gate_short_name, parent_report_file.path)
-            body = compare_inventories(ctx, parent_report_file.path, report_filename)
+            get_parent_report(ctx, branch_name, gate_short_name, parent_report_file.file.name)
+            body = compare_inventories(ctx, parent_report_file.file.name, report_filename)
             pr_comment += body
 
     pr = get_pr_for_branch(branch_name)
