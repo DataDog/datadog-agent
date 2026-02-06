@@ -1,0 +1,93 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+//go:build linux || windows
+
+package healthplatformimpl
+
+import (
+	"os"
+	"path"
+	"runtime"
+	"time"
+
+	"github.com/DataDog/agent-payload/v5/healthplatform"
+
+	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
+)
+
+const (
+	defaultLinuxDockerSocket       = "/var/run/docker.sock"
+	defaultWindowsDockerSocketPath = "//./pipe/docker_engine"
+	defaultHostMountPrefix         = "/host"
+
+	dockerSocketCheckInterval = 15 * time.Minute
+	socketTimeout             = 500 * time.Millisecond
+)
+
+// registerBuiltInChecks registers all built-in periodic health checks
+func (h *healthPlatformImpl) registerBuiltInChecks() {
+	// Register Docker socket permission check
+	if err := h.RegisterCheck(
+		"docker-socket-permissions",
+		"Docker Socket Permissions",
+		checkDockerSocket,
+		dockerSocketCheckInterval,
+	); err != nil {
+		h.log.Warn("Failed to register Docker socket check: " + err.Error())
+	}
+}
+
+// checkDockerSocket checks if Docker socket exists but is not reachable (permission issue)
+func checkDockerSocket() (*healthplatform.IssueReport, error) {
+	// Check if DOCKER_HOST is set - if so, skip the check as user has custom config
+	if _, dockerHostSet := os.LookupEnv("DOCKER_HOST"); dockerHostSet {
+		return nil, nil
+	}
+
+	for _, socketPath := range getDockerSocketPaths() {
+		exists, reachable := socket.IsAvailable(socketPath, socketTimeout)
+		if exists && !reachable {
+			// Docker socket exists but is not reachable - permission issue
+			return &healthplatform.IssueReport{
+				IssueId: "docker-file-tailing-disabled",
+				Context: map[string]string{
+					"dockerDir": socketPath,
+					"os":        runtime.GOOS,
+				},
+				Tags: []string{"docker-socket", "permissions"},
+			}, nil
+		}
+	}
+
+	// No issue detected
+	return nil, nil
+}
+
+// getDockerSocketPaths returns the default Docker socket paths to check
+func getDockerSocketPaths() []string {
+	if runtime.GOOS == "windows" {
+		return []string{defaultWindowsDockerSocketPath}
+	}
+
+	// On Linux, check both with and without host mount prefix
+	paths := []string{defaultLinuxDockerSocket}
+	if isContainerized() {
+		paths = append(paths, path.Join(defaultHostMountPrefix, defaultLinuxDockerSocket))
+	}
+	return paths
+}
+
+// isContainerized checks if the agent is running in a container
+func isContainerized() bool {
+	// Check common container indicators
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		return true
+	}
+	if _, err := os.Stat("/run/.containerenv"); err == nil {
+		return true
+	}
+	return false
+}
