@@ -335,6 +335,11 @@ static struct inode * __attribute__((always_inline)) get_ovl_lower_inode_direct(
     return lower;
 }
 
+static int __attribute__((always_inline)) get_ovl_lower_ino_direct(struct dentry *dentry) {
+    struct inode *lower = get_ovl_lower_inode_direct(dentry);
+    return get_inode_ino(lower);
+}
+
 static struct dentry * __attribute__((always_inline)) get_ovl_lower_dentry_from_ovl_path(struct dentry *dentry) {
     struct inode *d_inode = get_dentry_inode(dentry);
 
@@ -343,6 +348,11 @@ static struct dentry * __attribute__((always_inline)) get_ovl_lower_dentry_from_
     bpf_probe_read(&lower, sizeof(lower), (char *)d_inode + get_sizeof_inode() + 16);
 
     return lower;
+}
+
+static int __attribute__((always_inline)) get_ovl_lower_ino_from_ovl_path(struct dentry *dentry) {
+    struct dentry *lower = get_ovl_lower_dentry_from_ovl_path(dentry);
+    return get_dentry_ino(lower);
 }
 
 static struct dentry * __attribute__((always_inline)) get_ovl_lower_dentry_from_ovl_entry(struct dentry *dentry) {
@@ -362,6 +372,11 @@ static struct dentry * __attribute__((always_inline)) get_ovl_lower_dentry_from_
     return lower;
 }
 
+static int __attribute__((always_inline)) get_ovl_lower_ino_from_ovl_entry(struct dentry *dentry) {
+    struct dentry *lower = get_ovl_lower_dentry_from_ovl_entry(dentry);
+    return get_dentry_ino(lower);
+}
+
 static struct dentry * __attribute__((always_inline)) get_ovl_upper_dentry(struct dentry *dentry) {
     struct inode *d_inode = get_dentry_inode(dentry);
 
@@ -377,6 +392,16 @@ static struct dentry * __attribute__((always_inline)) get_ovl_upper_dentry(struc
 static int __attribute__((always_inline)) get_ovl_upper_ino(struct dentry *dentry) {
     struct dentry *upper = get_ovl_upper_dentry(dentry);
     return get_dentry_ino(upper);
+}
+
+static int __attribute__((always_inline)) get_ovl_lower_ino(struct dentry *dentry) {
+    switch (get_ovl_path_in_inode()) {
+    case 2:
+        return get_ovl_lower_ino_from_ovl_entry(dentry);
+    case 1:
+        return get_ovl_lower_ino_from_ovl_path(dentry);
+    }
+    return get_ovl_lower_ino_direct(dentry);
 }
 
 static int __attribute__((always_inline)) get_ovl_upper_nlink(struct dentry *dentry) {
@@ -414,7 +439,32 @@ static int __attribute__((always_inline)) get_overlayfs_layer(struct dentry *den
 }
 
 static void __attribute__((always_inline)) set_overlayfs_inode(struct dentry *dentry, struct file_t *file) {
+    u64 lower_inode = get_ovl_lower_ino(dentry);
     u64 upper_inode = get_ovl_upper_ino(dentry);
+
+    if (get_ovl_path_in_inode() == 2) {
+        // On kernels >= 6.5 (ovl_path_in_inode == 2), the overlay inode's i_ino is set
+        // by ovl_map_ino to match the underlying filesystem inode (for samefs) or to a
+        // properly mapped value (for xino). Do NOT swap path_key.ino in this case.
+        //
+        // Swapping would replace the overlay inode with the raw lower/upper filesystem
+        // inode, which lives in a different numbering space than the overlay inodes used
+        // for parent entries in the pathnames eBPF map. If the swapped inode collides
+        // with an overlay inode of a parent directory, the dentry walk overwrites the
+        // leaf entry and corrupts the resolved path (e.g. /usr/bin/bash -> /usr/usr/bin/bash).
+        file->flags |= upper_inode != 0 ? UPPER_LAYER : LOWER_LAYER;
+        return;
+    }
+
+    // On older kernels, the overlay inode's i_ino may be a meaningless sequential number
+    // that doesn't match what stat() returns. We must swap to the real lower/upper inode
+    // for correct event reporting and path resolution.
+    if (lower_inode) {
+        file->path_key.ino = lower_inode;
+    } else if (upper_inode) {
+        file->path_key.ino = upper_inode;
+    }
+
     file->flags |= upper_inode != 0 ? UPPER_LAYER : LOWER_LAYER;
 }
 
