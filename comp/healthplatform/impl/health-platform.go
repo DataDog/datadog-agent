@@ -121,6 +121,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 	// Initialize check runner (must be after comp is created as it needs the reporter interface)
 	comp.checkRunner = newCheckRunner(reqs.Log, comp)
 
+	// Register built-in health checks
+	comp.registerBuiltInChecks()
+
 	if err := comp.initForwarder(reqs); err != nil {
 		reqs.Log.Warn("Health platform forwarder not initialized: " + err.Error())
 	}
