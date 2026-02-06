@@ -116,10 +116,6 @@ func NewController(
 	c.Controller = baseController
 	c.limitHeap = limitHeap
 	store.RegisterObserver(autoscaling.Observer{
-		SetFunc:    c.limitHeap.InsertIntoHeap,
-		DeleteFunc: c.limitHeap.DeleteFromHeap,
-	})
-	store.RegisterObserver(autoscaling.Observer{
 		DeleteFunc: unsetTelemetry,
 	})
 	c.store = store

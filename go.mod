@@ -165,7 +165,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.69.4
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/version v0.76.0-devel
-	github.com/DataDog/datadog-go/v5 v5.8.2
+	github.com/DataDog/datadog-go/v5 v5.8.3
 	github.com/DataDog/datadog-operator/api v0.0.0-20260130110400-4fcb91d49671
 	github.com/DataDog/datadog-traceroute v1.0.3
 	github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20260123165136-9ed3effd2c0e
@@ -308,7 +308,7 @@ require (
 	github.com/redis/go-redis/v9 v9.17.3
 	github.com/rickar/props v1.0.0
 	github.com/robfig/cron/v3 v3.0.1
-	github.com/safchain/baloum v0.0.0-20241120122234-f22c9bd19f3b
+	github.com/safchain/baloum v0.0.0-20260120132056-b70fa9c29846
 	github.com/safchain/ethtool v0.7.0
 	github.com/samber/lo v1.52.0
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
