@@ -13,14 +13,17 @@ import (
 	"math/rand"
 	"time"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 )
 
 var (
-	serviceName = flag.String("service", "go-traced-app", "Service name for traces and profiling")
-	agentAddr   = flag.String("agent", "localhost:8126", "Datadog agent address")
-	env         = flag.String("env", "dev", "Environment name")
+	serviceName  = flag.String("service", "go-traced-app", "Service name for traces and profiling")
+	agentAddr    = flag.String("agent", "localhost:8126", "Datadog agent address")
+	env          = flag.String("env", "dev", "Environment name")
+	statsdAddr   = flag.String("statsd", "localhost:8125", "DogStatsD address")
+	statsdClient ddgostatsd.ClientInterface
 )
 
 func main() {
@@ -56,8 +59,21 @@ func main() {
 	}
 	defer profiler.Stop()
 
+	// Initialize DogStatsD client
+	client, err := ddgostatsd.New(*statsdAddr,
+		ddgostatsd.WithNamespace("app."),
+		ddgostatsd.WithTags([]string{fmt.Sprintf("service:%s", *serviceName), fmt.Sprintf("env:%s", *env)}),
+	)
+	if err != nil {
+		log.Printf("Warning: Failed to create DogStatsD client: %v", err)
+	} else {
+		statsdClient = client
+		defer client.Close()
+	}
+
 	log.Printf("Go Traced App started (service: %s)", *serviceName)
 	log.Printf("Sending traces to %s", *agentAddr)
+	log.Printf("Sending metrics to %s", *statsdAddr)
 	log.Printf("Environment: %s", *env)
 	log.Println("Press Ctrl+C to stop")
 
@@ -124,6 +140,9 @@ func processRequest(ctx context.Context) {
 	simulateCPUWork()
 
 	logicSpan.Finish()
+
+	// Send DogStatsD metrics
+	sendDogStatsDMetrics()
 }
 
 func simulateMemoryAllocation() {
@@ -162,6 +181,30 @@ func simulateCPUWork() {
 		}
 	}
 	_ = sum
+}
+
+// sendDogStatsDMetrics sends a few DogStatsD metrics using the Datadog library
+func sendDogStatsDMetrics() {
+	if statsdClient == nil {
+		return
+	}
+
+	tags := []string{fmt.Sprintf("service:%s", *serviceName), fmt.Sprintf("env:%s", *env)}
+
+	// Send a counter metric
+	statsdClient.Count("request.count", 1, tags, 1)
+
+	// Send a gauge metric with random value
+	gaugeValue := float64(50 + rand.Intn(50))
+	statsdClient.Gauge("request.duration", gaugeValue, tags, 1)
+
+	// Send a histogram metric
+	histogramValue := float64(10 + rand.Intn(100))
+	statsdClient.Histogram("request.latency", histogramValue, tags, 1)
+
+	// Send a set metric
+	setValue := fmt.Sprintf("user-%d", rand.Intn(1000))
+	statsdClient.Set("unique_users", setValue, tags, 1)
 }
 
 func init() {
