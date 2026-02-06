@@ -9,6 +9,7 @@ package imageresolver
 
 import (
 	"fmt"
+	"net/http"
 	"reflect"
 	"strings"
 	"sync"
@@ -251,8 +252,9 @@ func (r *bucketTagResolver) Resolve(registry string, repository string, tag stri
 }
 
 func newBucketTagResolver(cfg Config) *bucketTagResolver {
+	rt := http.DefaultTransport.(*http.Transport).Clone()
 	return &bucketTagResolver{
-		cache:               newHTTPDigestCache(cfg.DigestCacheTTL, cfg.DDRegistries),
+		cache:               newHTTPDigestCache(cfg.DigestCacheTTL, cfg.DDRegistries, rt),
 		bucketID:            cfg.BucketID,
 		datadoghqRegistries: cfg.DDRegistries,
 	}

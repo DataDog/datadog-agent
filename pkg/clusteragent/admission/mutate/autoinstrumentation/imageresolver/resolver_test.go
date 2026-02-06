@@ -10,6 +10,7 @@ package imageresolver
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
@@ -542,8 +543,11 @@ func newMockBucketTagResolver(ttl time.Duration, bucketID string) bucketTagResol
 		"gcr.io/datadoghq":       {},
 		"public.ecr.aws/datadog": {},
 	}
+	transport := &mockRoundTripper{
+		responses: make(map[string]*http.Response),
+	}
 	return bucketTagResolver{
-		cache:               newHTTPDigestCache(ttl, datadogRegistries),
+		cache:               newHTTPDigestCache(ttl, datadogRegistries, transport),
 		bucketID:            bucketID,
 		datadoghqRegistries: datadogRegistries,
 	}

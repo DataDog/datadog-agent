@@ -8,6 +8,7 @@
 package imageresolver
 
 import (
+	"net/http"
 	"sync"
 	"time"
 )
@@ -76,7 +77,7 @@ func (c *httpDigestCache) store(registry, repository, tag, digest string) string
 	return digest
 }
 
-func newHTTPDigestCache(ttl time.Duration, ddRegistries map[string]struct{}) *httpDigestCache {
+func newHTTPDigestCache(ttl time.Duration, ddRegistries map[string]struct{}, rt http.RoundTripper) *httpDigestCache {
 	cache := make(registryCache)
 	for registry := range ddRegistries {
 		cache[registry] = make(repositoryCache)
@@ -85,6 +86,6 @@ func newHTTPDigestCache(ttl time.Duration, ddRegistries map[string]struct{}) *ht
 	return &httpDigestCache{
 		cache:   cache,
 		ttl:     ttl,
-		fetcher: newHTTPDigestFetcher(),
+		fetcher: newHTTPDigestFetcher(rt),
 	}
 }
