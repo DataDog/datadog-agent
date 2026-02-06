@@ -233,17 +233,15 @@ func (suite *ecsAPMSuite) TestBasicTraceCollection() {
 	// Test basic trace collection and validation
 	suite.Run("Basic trace collection", func() {
 		// Use the existing tracegen app for basic trace validation
+		// Note: Using bundled tag format since DD_APM_ENABLE_CONTAINER_TAGS_BUFFER=true
+		expectedTags := suite.getCommonECSTagPatterns(suite.ecsClusterName, "tracegen-tcp", "tracegen", false)
 		suite.AssertAPMTrace(&TestAPMTraceArgs{
 			Filter: TestAPMTraceFilterArgs{
 				ServiceName: "tracegen-test-service",
 			},
 			Expect: TestAPMTraceExpectArgs{
 				TraceIDPresent: true,
-				Tags: &[]string{
-					`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
-					`^container_name:`,
-					`^task_arn:`,
-				},
+				Tags:           &expectedTags,
 			},
 		})
 	})
@@ -374,38 +372,33 @@ func (suite *ecsAPMSuite) TestTraceTagEnrichment() {
 				return
 			}
 
-			// Check that traces have ECS metadata tags
+			// Check that traces have ECS metadata tags (bundled in _dd.tags.container)
 			foundEnrichedTrace := false
 			for _, trace := range traces {
-				traceTags := trace.Tags
+				// Container tags are in TracerPayload.Tags, not AgentPayload.Tags
+				for _, tracerPayload := range trace.TracerPayloads {
+					// Check for bundled _dd.tags.container tag
+					if containerTagsValue, exists := tracerPayload.Tags["_dd.tags.container"]; exists {
+						// Check if bundled tag contains required ECS metadata
+						hasClusterName := regexp.MustCompile(`ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName)).MatchString(containerTagsValue)
+						hasTaskArn := regexp.MustCompile(`task_arn:`).MatchString(containerTagsValue)
+						hasContainerName := regexp.MustCompile(`container_name:`).MatchString(containerTagsValue)
 
-				// Check for key ECS tags
-				hasClusterName := false
-				hasTaskArn := false
-				hasContainerName := false
-
-				for key, value := range traceTags {
-					if key == "ecs_cluster_name" && value == suite.ecsClusterName {
-						hasClusterName = true
-					}
-					if key == "task_arn" && value != "" {
-						hasTaskArn = true
-					}
-					if key == "container_name" && value != "" {
-						hasContainerName = true
+						if hasClusterName && hasTaskArn && hasContainerName {
+							foundEnrichedTrace = true
+							suite.T().Logf("Found trace with bundled ECS metadata tags: _dd.tags.container=%s",
+								containerTagsValue)
+							break
+						}
 					}
 				}
-
-				if hasClusterName && hasTaskArn && hasContainerName {
-					foundEnrichedTrace = true
-					suite.T().Logf("Found trace with ECS metadata tags: cluster=%s, task_arn=%s, container=%s",
-						traceTags["ecs_cluster_name"], traceTags["task_arn"], traceTags["container_name"])
+				if foundEnrichedTrace {
 					break
 				}
 			}
 
 			assert.Truef(c, foundEnrichedTrace,
-				"No traces found with complete ECS metadata tags (cluster_name, task_arn, container_name)")
+				"No traces found with complete ECS metadata tags in _dd.tags.container (cluster_name, task_arn, container_name)")
 		}, 2*time.Minute, 10*time.Second, "Trace tag enrichment validation failed")
 	})
 }
@@ -490,10 +483,14 @@ func (suite *ecsAPMSuite) TestAPMFargate() {
 				return
 			}
 
-			// Filter for Fargate traces
+			// Filter for Fargate traces (check bundled _dd.tags.container tag)
 			fargateTraces := lo.Filter(traces, func(trace *aggregator.TracePayload, _ int) bool {
-				if launchType, exists := trace.Tags["ecs_launch_type"]; exists {
-					return launchType == "fargate"
+				for _, tracerPayload := range trace.TracerPayloads {
+					if containerTags, exists := tracerPayload.Tags["_dd.tags.container"]; exists {
+						if regexp.MustCompile(`ecs_launch_type:fargate`).MatchString(containerTags) {
+							return true
+						}
+					}
 				}
 				return false
 			})
@@ -501,18 +498,21 @@ func (suite *ecsAPMSuite) TestAPMFargate() {
 			if len(fargateTraces) > 0 {
 				suite.T().Logf("Found %d traces from Fargate tasks", len(fargateTraces))
 
-				// Verify Fargate traces have expected tags
+				// Verify Fargate traces have expected metadata in bundled tag
 				trace := fargateTraces[0]
-				assert.Equalf(c, "fargate", trace.Tags["ecs_launch_type"],
-					"Fargate trace should have ecs_launch_type:fargate tag")
+				for _, tracerPayload := range trace.TracerPayloads {
+					if containerTags, exists := tracerPayload.Tags["_dd.tags.container"]; exists {
+						assert.Regexpf(c, `ecs_launch_type:fargate`, containerTags,
+							"Fargate trace should have ecs_launch_type:fargate in bundled tag")
 
-				// Verify trace has cluster name
-				assert.Equalf(c, suite.ecsClusterName, trace.Tags["ecs_cluster_name"],
-					"Fargate trace should have correct cluster name")
+						assert.Regexpf(c, `ecs_cluster_name:`+regexp.QuoteMeta(suite.ecsClusterName), containerTags,
+							"Fargate trace should have correct cluster name in bundled tag")
 
-				// Fargate tasks should have task_arn
-				assert.NotEmptyf(c, trace.Tags["task_arn"],
-					"Fargate trace should have task_arn tag")
+						assert.Regexpf(c, `task_arn:`, containerTags,
+							"Fargate trace should have task_arn in bundled tag")
+						break
+					}
+				}
 			} else {
 				suite.T().Logf("No Fargate traces found yet - checking EC2 traces")
 			}
@@ -529,14 +529,16 @@ func (suite *ecsAPMSuite) TestAPMEC2() {
 				return
 			}
 
-			// Filter for EC2 traces
+			// Filter for EC2 traces (check bundled _dd.tags.container tag)
 			ec2Traces := lo.Filter(traces, func(trace *aggregator.TracePayload, _ int) bool {
-				if launchType, exists := trace.Tags["ecs_launch_type"]; exists {
-					return launchType == "ec2"
-				}
-				// If no launch type tag, might be EC2 (daemon mode)
-				if _, hasCluster := trace.Tags["ecs_cluster_name"]; hasCluster {
-					return true
+				for _, tracerPayload := range trace.TracerPayloads {
+					if containerTags, exists := tracerPayload.Tags["_dd.tags.container"]; exists {
+						// Check for ecs_launch_type:ec2 OR presence of ecs_cluster_name (daemon mode)
+						if regexp.MustCompile(`ecs_launch_type:ec2`).MatchString(containerTags) ||
+							regexp.MustCompile(`ecs_cluster_name:`).MatchString(containerTags) {
+							return true
+						}
+					}
 				}
 				return false
 			})
@@ -547,20 +549,26 @@ func (suite *ecsAPMSuite) TestAPMEC2() {
 
 			suite.T().Logf("Found %d traces from EC2 tasks", len(ec2Traces))
 
-			// Verify EC2 traces have expected metadata
+			// Verify EC2 traces have expected metadata in bundled tag
 			trace := ec2Traces[0]
+			for _, tracerPayload := range trace.TracerPayloads {
+				if containerTags, exists := tracerPayload.Tags["_dd.tags.container"]; exists {
+					// EC2 tasks should have cluster name
+					assert.Regexpf(c, `ecs_cluster_name:`+regexp.QuoteMeta(suite.ecsClusterName), containerTags,
+						"EC2 trace should have correct cluster name in bundled tag")
 
-			// EC2 tasks should have cluster name
-			assert.Equalf(c, suite.ecsClusterName, trace.Tags["ecs_cluster_name"],
-				"EC2 trace should have correct cluster name")
+					// EC2 tasks should have task_arn
+					assert.Regexpf(c, `task_arn:`, containerTags,
+						"EC2 trace should have task_arn in bundled tag")
 
-			// EC2 tasks should have task_arn
-			assert.NotEmptyf(c, trace.Tags["task_arn"],
-				"EC2 trace should have task_arn tag")
+					// EC2 tasks should have container_name
+					assert.Regexpf(c, `container_name:`, containerTags,
+						"EC2 trace should have container_name in bundled tag")
 
-			// EC2 tasks should have container_name
-			assert.NotEmptyf(c, trace.Tags["container_name"],
-				"EC2 trace should have container_name tag")
+					suite.T().Logf("EC2 trace container tags: %s", containerTags)
+					break
+				}
+			}
 
 			// Log transport method (UDS vs TCP)
 			for _, payload := range trace.TracerPayloads {
@@ -611,7 +619,7 @@ func (suite *ecsAPMSuite) TestTraceTCP() {
 
 // testTrace verifies that traces are tagged with container and ECS task tags.
 func (suite *ecsAPMSuite) testTrace(taskName string) {
-	// Get expected tag patterns (minimal set for traces)
+	// Get expected tag patterns (minimal set for traces - bundled format)
 	expectedTagPatterns := suite.getCommonECSTagPatterns(suite.ecsClusterName, taskName, "tracegen", false)
 
 	// Convert string patterns to compiled regexps
@@ -635,9 +643,11 @@ func (suite *ecsAPMSuite) testTrace(taskName string) {
 				tags := lo.MapToSlice(tracerPayload.Tags, func(k string, v string) string {
 					return k + ":" + v
 				})
-				// Assert origin detection is working properly
-				err = assertTags(tags, compiledPatterns, []*regexp.Regexp{}, false)
+				// Assert bundled tag contains required ECS metadata
+				// Set acceptUnexpectedTags=true since there may be other tags besides _dd.tags.container
+				err = assertTags(tags, compiledPatterns, []*regexp.Regexp{}, true)
 				if err == nil {
+					suite.T().Logf("Found trace with proper bundled tags for task %s", taskName)
 					break
 				}
 			}
@@ -645,6 +655,6 @@ func (suite *ecsAPMSuite) testTrace(taskName string) {
 				break
 			}
 		}
-		require.NoErrorf(c, err, "Failed finding trace with proper tags")
-	}, 2*time.Minute, 10*time.Second, "Failed finding trace with proper tags")
+		require.NoErrorf(c, err, "Failed finding trace with proper bundled tags")
+	}, 2*time.Minute, 10*time.Second, "Failed finding trace with proper bundled tags")
 }
