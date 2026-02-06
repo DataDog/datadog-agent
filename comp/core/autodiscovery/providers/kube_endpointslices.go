@@ -150,6 +150,11 @@ func (k *kubeEndpointSlicesConfigProvider) IsUpToDate(context.Context) (bool, er
 	return k.upToDate, nil
 }
 
+// GetConfigErrors returns a map of configuration errors for each Kubernetes service
+func (k *kubeEndpointSlicesConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet {
+	return k.configErrors
+}
+
 func (k *kubeEndpointSlicesConfigProvider) invalidateOnServiceAdd(obj interface{}) {
 	svc, ok := obj.(*v1.Service)
 	if !ok {
@@ -192,7 +197,6 @@ func (k *kubeEndpointSlicesConfigProvider) invalidateOnServiceUpdate(old, obj in
 	svc, ok := obj.(*v1.Service)
 	if !ok {
 		log.Errorf("Expected a *v1.Service type, got: %T", obj)
-		k.setUpToDate(false)
 		return
 	}
 	oldSvc, ok := old.(*v1.Service)
@@ -305,7 +309,6 @@ func (k *kubeEndpointSlicesConfigProvider) parseServiceAnnotationsForEndpointSli
 
 		ignoreAdForHybridScenariosTags := ignoreADTagsFromAnnotations(svc.GetAnnotations(), kubeEndpointSliceAnnotationPrefix)
 		for i := range endptConf {
-			// TODO: Kept same source for now, but we should consider using a different source.
 			endptConf[i].Source = "kube_endpoints:" + apiserver.EntityForEndpoints(svc.Namespace, svc.Name, "")
 			if pkgconfigsetup.Datadog().GetBool("cluster_checks.support_hybrid_ignore_ad_tags") {
 				endptConf[i].IgnoreAutodiscoveryTags = endptConf[i].IgnoreAutodiscoveryTags || ignoreAdForHybridScenariosTags
@@ -393,9 +396,4 @@ func (k *kubeEndpointSlicesConfigProvider) cleanErrorsOfDeletedServices(setCurre
 			delete(k.configErrors, serviceKey)
 		}
 	}
-}
-
-// GetConfigErrors returns a map of configuration errors for each Kubernetes service
-func (k *kubeEndpointSlicesConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet {
-	return k.configErrors
 }
