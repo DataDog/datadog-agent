@@ -330,11 +330,11 @@ def download_by_test(
     help={
         "pipeline": "The pipeline id to download the package from",
         "binary": "The binary of the package, either agent or dogstatsd",
-        "type": "The type of package, only deb is supported for now",
+        "type": "The type of package",
         "flavor": "The flavor of the package, either empty, heroku, iot or fips",
         "arch": "The package architecture, either amd64 or arm64",
         "path": "The path to download the package to",
-        "extract": "Whether to extract the package",
+        "extract": "Whether to extract the package. This is only supported if type=deb.",
         "extract_dir": "The directory to extract the package to",
     }
 )
