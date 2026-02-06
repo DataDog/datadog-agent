@@ -16,10 +16,10 @@ import (
 	"path/filepath"
 
 	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/regions"
-	parconfigkeys "github.com/DataDog/datadog-agent/pkg/privateactionrunner/configkeys"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 )
@@ -99,7 +99,7 @@ func GetIdentityFromPreviousEnrollment(cfg configModel.Reader) (*PersistedIdenti
 
 // getIdentityFilePath returns the path to the file which contains the identity of the private action runner when doing self-enrollment
 func getIdentityFilePath(cfg configModel.Reader) string {
-	if configPath := cfg.GetString(parconfigkeys.PARIdentityFilePath); configPath != "" {
+	if configPath := cfg.GetString(setup.PARIdentityFilePath); configPath != "" {
 		return configPath
 	}
 	// similarly to pkg/api/security/cert/cert_getter.go we also check if auth_token_file_path as a fallback since customers would probably want these files to be next to each other
