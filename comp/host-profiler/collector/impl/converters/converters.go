@@ -302,7 +302,7 @@ func addProfilerMetadataTags(conf confMap) error {
 
 	profilerNameElement := confMap{
 		"key":    "profiler_name",
-		"value":  "host_profiler",
+		"value":  "host-profiler",
 		"action": "upsert",
 	}
 	profilerVersionElement := confMap{
