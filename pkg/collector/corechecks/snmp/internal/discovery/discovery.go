@@ -297,6 +297,13 @@ func (d *Discovery) deleteDevice(deviceDigest checkconfig.DeviceDigest, subnet *
 		}
 
 		if d.config.DiscoveryAllowedFailures != -1 && failure >= d.config.DiscoveryAllowedFailures {
+			// Close device session before removing
+			if device, ok := d.discoveredDevices[deviceDigest]; ok && device.deviceCheck != nil {
+				if err := device.deviceCheck.Close(); err != nil {
+					log.Debugf("failed to close session for removed device %s: %v", deviceDigest, err)
+				}
+			}
+
 			delete(d.discoveredDevices, deviceDigest)
 			delete(subnet.devices, deviceDigest)
 			delete(subnet.deviceFailures, deviceDigest)

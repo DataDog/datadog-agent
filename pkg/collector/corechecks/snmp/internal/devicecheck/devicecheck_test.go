@@ -616,6 +616,8 @@ profiles:
 	sender.AssertMetric(t, "Gauge", deviceUnreachableMetric, 0., "", snmpTags)
 
 	sender.ResetCalls()
+	// Close the session to force reconnection on next run
+	connMgr.Close()
 	sess.ConnectErr = errors.New("some error")
 	err = deviceCk.Run(time.Now())
 
@@ -671,7 +673,14 @@ profiles:
 	err = deviceCk.Run(time.Now())
 	assert.Nil(t, err)
 
-	assert.Equal(t, uint64(1), deviceCk.sessionCloseErrorCount.Load())
+	// Sessions are now persistent, so close errors no longer occur during Run()
+	// The session is only closed when explicitly requested (e.g., Cancel())
+	assert.Equal(t, uint64(0), deviceCk.sessionCloseErrorCount.Load())
+
+	// Verify that close is called and returns an error when explicitly closing
+	closeErr := connMgr.Close()
+	assert.Error(t, closeErr)
+	assert.Contains(t, closeErr.Error(), "close error")
 }
 
 func TestDeviceCheck_WithPing(t *testing.T) {

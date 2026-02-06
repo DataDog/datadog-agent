@@ -351,17 +351,10 @@ func (d *DeviceCheck) getValuesAndTags() (bool, profiledefinition.ProfileDefinit
 	// If connection failed, cannot proceed
 	if connErr != nil {
 		d.diagnoses.Add("error", "SNMP_FAILED_TO_OPEN_CONNECTION", "Agent failed to open connection.")
+		d.connMgr.MarkConnectionBroken()
 		// cannot connect -> use cached profile
 		return false, d.profileCache.GetProfile(), tags, nil, fmt.Errorf("snmp connection error: %s", connErr)
 	}
-
-	defer func() {
-		err := d.connMgr.Close()
-		if err != nil {
-			d.sessionCloseErrorCount.Inc()
-			log.Warnf("failed to close session (count: %d): %v", d.sessionCloseErrorCount.Load(), err)
-		}
-	}()
 
 	// Check if the device is reachable
 	if !deviceReachable {
@@ -391,6 +384,9 @@ func (d *DeviceCheck) getValuesAndTags() (bool, profiledefinition.ProfileDefinit
 
 	if err != nil {
 		checkErrors = append(checkErrors, fmt.Sprintf("failed to fetch values: %s", err))
+		if isConnectionError(err) {
+			d.connMgr.MarkConnectionBroken()
+		}
 	} else {
 		tags = append(tags, d.sender.GetCheckInstanceMetricTags(profile.MetricTags, valuesStore)...)
 	}
@@ -455,6 +451,14 @@ func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string)
 // GetDiagnoses collects diagnoses for diagnose CLI
 func (d *DeviceCheck) GetDiagnoses() []diagnose.Diagnosis {
 	return d.diagnoses.ReportAsAgentDiagnoses()
+}
+
+// Close closes the SNMP connection
+func (d *DeviceCheck) Close() error {
+	if d.connMgr != nil {
+		return d.connMgr.Close()
+	}
+	return nil
 }
 
 // createPinger creates a pinger using the passed configuration

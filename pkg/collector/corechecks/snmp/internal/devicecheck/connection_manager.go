@@ -28,6 +28,9 @@ type ConnectionManager interface {
 	// GetSession returns the current active session if initialized.
 	GetSession() (session.Session, error)
 
+	// MarkConnectionBroken marks the session as broken and needing reconnection.
+	MarkConnectionBroken()
+
 	// Close closes the current session.
 	Close() error
 }
@@ -64,6 +67,7 @@ type snmpConnectionManager struct {
 	sessionFactory session.Factory
 	session        session.Session
 	mode           connectionMode
+	isConnected    bool // Track if session is currently connected
 }
 
 // NewConnectionManager creates a new SNMP connection manager.
@@ -77,6 +81,13 @@ func NewConnectionManager(config *checkconfig.CheckConfig, sessionFactory sessio
 
 // Connect establishes a connection and returns (session, deviceReachable, error).
 func (m *snmpConnectionManager) Connect() (session.Session, bool, error) {
+	// If already connected, return existing session without checking reachability
+	// (reachability will be detected when actual SNMP calls are made)
+	if m.isConnected && m.session != nil {
+		return m.session, true, nil
+	}
+
+	// Not connected - establish new connection
 	if m.mode == modeUndecided {
 		return m.firstConnect()
 	}
@@ -84,11 +95,14 @@ func (m *snmpConnectionManager) Connect() (session.Session, bool, error) {
 	useUnconnected := m.mode == modeUnconnected
 	sess, err := m.createSession(useUnconnected)
 	if err != nil {
+		m.isConnected = false
 		return nil, false, err
 	}
 	m.session = sess
 
 	reachErr := m.checkReachability(sess)
+	m.isConnected = true // Mark connected even if unreachable
+
 	return sess, reachErr == nil, nil
 }
 
@@ -107,6 +121,7 @@ func (m *snmpConnectionManager) Close() error {
 	}
 	err := m.session.Close()
 	m.session = nil
+	m.isConnected = false
 	return err
 }
 
@@ -127,6 +142,7 @@ func (m *snmpConnectionManager) firstConnect() (session.Session, bool, error) {
 		// Connected socket works perfectly - use it permanently
 		m.mode = modeConnected
 		m.session = connectedSession
+		m.isConnected = true
 		return connectedSession, true, nil
 	}
 
@@ -135,6 +151,7 @@ func (m *snmpConnectionManager) firstConnect() (session.Session, bool, error) {
 		// Not a timeout (e.g., auth error) - fallback won't help
 		m.mode = modeConnected
 		m.session = connectedSession
+		m.isConnected = true
 		return connectedSession, false, nil
 	}
 
@@ -147,6 +164,7 @@ func (m *snmpConnectionManager) firstConnect() (session.Session, bool, error) {
 		log.Infof("[%s] Unconnected socket creation failed, defaulting to connected mode", m.config.IPAddress)
 		m.mode = modeConnected
 		m.session = connectedSession
+		m.isConnected = true
 		return connectedSession, false, nil
 	}
 
@@ -157,6 +175,7 @@ func (m *snmpConnectionManager) firstConnect() (session.Session, bool, error) {
 		m.mode = modeUnconnected
 		connectedSession.Close()
 		m.session = unconnSess
+		m.isConnected = true
 		return unconnSess, true, nil
 	}
 
@@ -165,6 +184,7 @@ func (m *snmpConnectionManager) firstConnect() (session.Session, bool, error) {
 	m.mode = modeConnected
 	unconnSess.Close()
 	m.session = connectedSession
+	m.isConnected = true
 	return connectedSession, false, nil
 }
 
@@ -198,4 +218,28 @@ func isTimeoutError(err error) bool {
 	// gosnmp doesn't implement the net.Error interface, so we check the error string
 	// https://github.com/gosnmp/gosnmp/blob/e72026a86bb80209ed38f118892479e6b7177344/marshal.go#L210
 	return err != nil && strings.Contains(err.Error(), "timeout")
+}
+
+// MarkConnectionBroken marks the session as broken and needing reconnection.
+func (m *snmpConnectionManager) MarkConnectionBroken() {
+	m.isConnected = false
+}
+
+// isConnectionError checks if error indicates broken connection.
+func isConnectionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := strings.ToLower(err.Error())
+	connectionErrors := []string{
+		"connection refused", "connection reset", "broken pipe",
+		"socket closed", "i/o timeout", "connection timed out",
+		"no route to host", "network is unreachable",
+	}
+	for _, connErr := range connectionErrors {
+		if strings.Contains(errStr, connErr) {
+			return true
+		}
+	}
+	return false
 }

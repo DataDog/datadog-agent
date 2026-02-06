@@ -185,6 +185,13 @@ func (c *Check) Cancel() {
 		c.discovery.Stop()
 		c.discovery = nil
 	}
+
+	// Close single device connection
+	if c.singleDeviceCk != nil {
+		if err := c.singleDeviceCk.Close(); err != nil {
+			log.Warnf("failed to close SNMP connection on cancel: %v", err)
+		}
+	}
 }
 
 // Interval returns the scheduling time for the check
