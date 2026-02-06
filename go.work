@@ -48,6 +48,7 @@ use (
 	comp/forwarder/defaultforwarder
 	comp/forwarder/orchestrator/orchestratorinterface
 	comp/logs-library
+	comp/logs-library/defaults
 	comp/logs/agent/config
 	comp/netflow/payload
 	comp/otelcol/collector-contrib/def

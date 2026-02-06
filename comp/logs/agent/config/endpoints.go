@@ -11,6 +11,7 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/defaults"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -412,7 +413,7 @@ func NewEndpoints(main Endpoint, additionalEndpoints []Endpoint, useProto bool, 
 		useProto,
 		useHTTP,
 		pkgconfigsetup.DefaultBatchWait,
-		pkgconfigsetup.DefaultBatchMaxConcurrentSend,
+		defaults.DefaultBatchMaxConcurrentSend,
 		pkgconfigsetup.DefaultBatchMaxSize,
 		pkgconfigsetup.DefaultBatchMaxContentSize,
 		pkgconfigsetup.DefaultInputChanSize,
