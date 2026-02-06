@@ -53,6 +53,10 @@ func (l *StaticConfigListener) createServices() {
 		}
 	}
 
+	if enabled := pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.kubelet_config_check.enabled"); enabled {
+		l.newService <- &StaticConfigService{adIdentifier: "_kubelet_config_orchestrator"}
+	}
+
 	if enabled := pkgconfigsetup.SystemProbe().GetBool("discovery.enabled"); enabled {
 		l.newService <- &StaticConfigService{adIdentifier: "_discovery"}
 	}
