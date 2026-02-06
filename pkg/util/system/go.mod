@@ -10,7 +10,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.61.0
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/mdlayher/vsock v1.2.1
-	github.com/shirou/gopsutil/v4 v4.25.12
+	github.com/shirou/gopsutil/v4 v4.26.1
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/atomic v1.11.0
 	golang.org/x/sys v0.40.0
