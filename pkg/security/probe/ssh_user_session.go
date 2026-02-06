@@ -48,7 +48,8 @@ func (p *EBPFProbe) HandleSSHUserSession(event *model.Event) {
 	parent := event.ProcessContext.Parent
 
 	// If the parent is a sshd process, we consider it's a new ssh session
-	if parent != nil && parent.Comm == "sshd" && event.ProcessContext.Comm != "sshd" {
+	// A sshd process will always be sshd, except on Ubuntu 25 where they introduced sshd-session
+	if parent != nil && strings.HasPrefix(parent.Comm, "sshd") && !strings.HasPrefix(event.ProcessContext.Comm, "sshd") {
 		sshSessionID := rand.Uint64()
 		event.ProcessContext.UserSession.SSHSessionID = sshSessionID
 		// Try to extract the SSH client IP and port
