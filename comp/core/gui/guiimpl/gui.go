@@ -19,6 +19,7 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
 	securejoin "github.com/cyphar/filepath-securejoin"
@@ -56,6 +57,7 @@ type gui struct {
 
 	auth         authenticator
 	intentTokens map[string]bool
+	intentMu     sync.Mutex
 
 	// To compute uptime
 	startTimestamp int64
@@ -152,7 +154,7 @@ func newGui(deps dependencies) provides {
 		OnStart: g.start,
 		OnStop:  g.stop})
 
-	p.Comp = option.New[guicomp.Component](g)
+	p.Comp = option.New[guicomp.Component](&g)
 	p.Endpoint = api.NewAgentEndpointProvider(g.getIntentToken, "/gui/intent", "GET")
 
 	return p
@@ -187,10 +189,13 @@ func (g *gui) getIntentToken(w http.ResponseWriter, _ *http.Request) {
 	key := make([]byte, 32)
 	_, e := rand.Read(key)
 	if e != nil {
-		http.Error(w, e.Error(), 500)
+		http.Error(w, e.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	token := base64.RawURLEncoding.EncodeToString(key)
+	g.intentMu.Lock()
+	defer g.intentMu.Unlock()
 	g.intentTokens[token] = true
 	w.Write([]byte(token))
 }
@@ -258,18 +263,19 @@ func (g *gui) getAccessToken(w http.ResponseWriter, r *http.Request) {
 	// intentToken is present in the query when the GUI is opened from the CLI
 	intentToken := r.URL.Query().Get("intent")
 	if intentToken == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		http.Error(w, "missing intentToken", 401)
+		http.Error(w, "missing intentToken", http.StatusUnauthorized)
 		return
 	}
-	if _, ok := g.intentTokens[intentToken]; !ok {
-		w.WriteHeader(http.StatusUnauthorized)
-		http.Error(w, "invalid intentToken", 401)
+	g.intentMu.Lock()
+	_, ok := g.intentTokens[intentToken]
+	if !ok {
+		g.intentMu.Unlock()
+		http.Error(w, "invalid intentToken", http.StatusUnauthorized)
 		return
 	}
-
-	// Remove single use token from map
+	// Remove single use token from map (atomic with validation)
 	delete(g.intentTokens, intentToken)
+	g.intentMu.Unlock()
 
 	// generate accessToken
 	accessToken := g.auth.GenerateAccessToken()

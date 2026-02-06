@@ -9,7 +9,9 @@ package fixtures
 import (
 	"embed"
 	"fmt"
+	"io"
 	"io/fs"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -69,13 +71,19 @@ var (
 		layoutPath:  "oci-layout-simple-v1-linux2-amd128.tar",
 		contentPath: "simple-v1",
 	}
-	ociFixtures = []*Fixture{&FixtureSimpleV1, &FixtureSimpleV2, &FixtureSimpleV1Linux2Amd128}
+	ociFixtures = []*Fixture{&FixtureSimpleV1, &FixtureSimpleV1WithExtension, &FixtureSimpleV2, &FixtureSimpleV1Linux2Amd128}
 )
 
 //go:embed *
 var fixturesFS embed.FS
 
 func extractLayoutsAndBuildRegistry(t *testing.T, layoutsDir string) *httptest.Server {
+	// Suppress registry logs during fixture extraction
+	originalLogOutput := log.Writer()
+	log.SetOutput(io.Discard)
+	defer log.SetOutput(originalLogOutput)
+
+	// Create a registry server
 	s := httptest.NewServer(registry.New())
 	for _, f := range ociFixtures {
 		layoutDir := path.Join(layoutsDir, f.layoutPath)

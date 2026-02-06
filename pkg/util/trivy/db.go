@@ -98,7 +98,8 @@ func (b BoltDB) Delete(keys []string, callback onDeleteCallback) error {
 // Get retrieves the value attached to the given key.
 func (b BoltDB) Get(key string) ([]byte, error) {
 	var res []byte
-	return res, b.db.View(func(tx *bolt.Tx) error {
+
+	err := b.db.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(boltBucket))
 		if bucket == nil {
 			return fmt.Errorf("bucket %s not found", boltBucket)
@@ -106,6 +107,11 @@ func (b BoltDB) Get(key string) ([]byte, error) {
 		res = slices.Clone(bucket.Get([]byte(key)))
 		return nil
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	return res, nil
 }
 
 // Store inserts a key in the database.
