@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build (linux && linux_bpf) || darwin
 
 package ebpfless
 
@@ -12,11 +12,10 @@ import (
 	"strconv"
 	"strings"
 
-	"golang.org/x/sys/unix"
-
 	"github.com/google/gopacket/layers"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
@@ -29,9 +28,9 @@ type PCAPTuple network.ConnectionTuple
 
 func connDirectionFromPktType(pktType uint8) network.ConnectionDirection {
 	switch pktType {
-	case unix.PACKET_HOST:
+	case filter.PACKET_HOST:
 		return network.INCOMING
-	case unix.PACKET_OUTGOING:
+	case filter.PACKET_OUTGOING:
 		return network.OUTGOING
 	default:
 		return network.UNKNOWN
@@ -156,9 +155,9 @@ func isSeqBeforeEq(prev, cur uint32) bool {
 
 func debugPacketDir(pktType uint8) string {
 	switch pktType {
-	case unix.PACKET_HOST:
+	case filter.PACKET_HOST:
 		return "Incoming"
-	case unix.PACKET_OUTGOING:
+	case filter.PACKET_OUTGOING:
 		return "Outgoing"
 	default:
 		return "InvalidDir-" + strconv.Itoa(int(pktType))
