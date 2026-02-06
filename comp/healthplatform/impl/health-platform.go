@@ -20,12 +20,14 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/impl/remediations"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // Requires defines the dependencies for the health-platform component
@@ -40,8 +42,9 @@ type Requires struct {
 // Provides defines the output of the health-platform component
 type Provides struct {
 	compdef.Out
-	Comp         healthplatformdef.Component
-	APIGetIssues api.AgentEndpointProvider
+	Comp          healthplatformdef.Component
+	APIGetIssues  api.AgentEndpointProvider
+	FlareProvider flaretypes.Provider
 }
 
 // healthPlatformImpl implements the health platform component
@@ -49,9 +52,10 @@ type Provides struct {
 // The component provides methods to report issues, retrieve them, and manage the health monitoring lifecycle.
 type healthPlatformImpl struct {
 	// Core dependencies
-	config    config.Component    // Config component for accessing configuration
-	log       log.Component       // Logger for health platform operations
-	telemetry telemetry.Component // Telemetry component for metrics collection
+	config           config.Component            // Config component for accessing configuration
+	log              log.Component               // Logger for health platform operations
+	telemetry        telemetry.Component         // Telemetry component for metrics collection
+	hostnameProvider hostnameinterface.Component // Hostname provider for runtime resolution
 
 	// Issue tracking
 	issues    map[string]*healthplatform.Issue // Issue detected by check ID (nil if no issue)
@@ -62,6 +66,9 @@ type healthPlatformImpl struct {
 
 	// Forwarder for sending reports to Datadog intake
 	forwarder *forwarder
+
+	// Check runner for periodic health checks
+	checkRunner *checkRunner
 
 	// Metrics
 	metrics telemetryMetrics // Telemetry metrics for health platform
@@ -89,6 +96,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 				"/health-platform/issues",
 				"GET",
 			),
+			FlareProvider: flaretypes.NewProvider(noop.fillFlare),
 		}, nil
 	}
 
@@ -97,9 +105,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 	// Initialize the health platform implementation
 	comp := &healthPlatformImpl{
 		// Core dependencies
-		config:    reqs.Config,
-		log:       reqs.Log,
-		telemetry: reqs.Telemetry,
+		config:           reqs.Config,
+		log:              reqs.Log,
+		telemetry:        reqs.Telemetry,
+		hostnameProvider: reqs.Hostname,
 
 		// Remediation management
 		remediationRegistry: remediations.NewRegistry(), // Initialize remediation registry with built-in templates
@@ -108,6 +117,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 		issues:    make(map[string]*healthplatform.Issue), // Initialize issues map
 		issuesMux: sync.RWMutex{},                         // Initialize issues mutex
 	}
+
+	// Initialize check runner (must be after comp is created as it needs the reporter interface)
+	comp.checkRunner = newCheckRunner(reqs.Log, comp)
 
 	if err := comp.initForwarder(reqs); err != nil {
 		reqs.Log.Warn("Health platform forwarder not initialized: " + err.Error())
@@ -137,6 +149,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 			"/health-platform/issues",
 			"GET",
 		),
+		FlareProvider: flaretypes.NewProvider(comp.fillFlare),
 	}, nil
 }
 
@@ -148,6 +161,12 @@ func NewComponent(reqs Requires) (Provides, error) {
 func (h *healthPlatformImpl) start(_ context.Context) error {
 	h.log.Info("Starting health platform component")
 
+	// Start the check runner for periodic health checks
+	if h.checkRunner != nil {
+		h.checkRunner.Start()
+	}
+
+	// Start the forwarder for sending reports to intake
 	if h.forwarder != nil {
 		h.forwarder.Start()
 	}
@@ -159,6 +178,12 @@ func (h *healthPlatformImpl) start(_ context.Context) error {
 func (h *healthPlatformImpl) stop(_ context.Context) error {
 	h.log.Info("Stopping health platform component")
 
+	// Stop the check runner first to prevent new issues being reported
+	if h.checkRunner != nil {
+		h.checkRunner.Stop()
+	}
+
+	// Stop the forwarder
 	if h.forwarder != nil {
 		h.forwarder.Stop()
 	}
@@ -216,6 +241,13 @@ func (h *healthPlatformImpl) ReportIssue(checkID string, checkName string, repor
 	}
 
 	return nil
+}
+
+// RegisterCheck registers a periodic health check function
+// The check function will be called at the specified interval
+// If interval is 0 or negative, uses default of 15 minutes
+func (h *healthPlatformImpl) RegisterCheck(checkID string, checkName string, checkFn healthplatformdef.HealthCheckFunc, interval time.Duration) error {
+	return h.checkRunner.RegisterCheck(checkID, checkName, checkFn, interval)
 }
 
 // ============================================================================
@@ -366,4 +398,40 @@ func (h *healthPlatformImpl) writeJSONResponse(w http.ResponseWriter, statusCode
 	if err := json.NewEncoder(w).Encode(data); err != nil {
 		h.log.Warn("Failed to encode JSON response: " + err.Error())
 	}
+}
+
+// ============================================================================
+// Flare Provider
+// ============================================================================
+
+// fillFlare adds health platform issues to the flare archive
+func (h *healthPlatformImpl) fillFlare(fb flaretypes.FlareBuilder) error {
+	count, issues := h.GetAllIssues()
+
+	// Only create the file if there are issues
+	if count == 0 {
+		return nil
+	}
+
+	hostname, err := h.hostnameProvider.Get(context.Background())
+	if err != nil {
+		hostname = "unknown"
+	}
+
+	report := &healthplatform.HealthReport{
+		EventType: "agent.health",
+		EmittedAt: time.Now().UTC().Format(time.RFC3339),
+		Host: &healthplatform.HostInfo{
+			Hostname:     hostname,
+			AgentVersion: version.AgentVersion,
+		},
+		Issues: issues,
+	}
+
+	data, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return fb.AddFile("health-platform-issues.json", data)
 }
