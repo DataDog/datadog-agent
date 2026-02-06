@@ -9,24 +9,24 @@ import "sort"
 
 // TracePercentiles contains percentile values for trace durations
 type TracePercentiles struct {
-	P50      int64    // 50th percentile (median)
-	P95      int64    // 95th percentile
-	P99      int64    // 99th percentile
+	P50      float64  // 50th percentile (median)
+	P95      float64  // 95th percentile
+	P99      float64  // 99th percentile
 	Services []string // Sorted list of unique services observed
 }
 
 // P50Value returns the 50th percentile value.
-func (t TracePercentiles) P50Value() int64 {
+func (t TracePercentiles) P50Value() float64 {
 	return t.P50
 }
 
 // P95Value returns the 95th percentile value.
-func (t TracePercentiles) P95Value() int64 {
+func (t TracePercentiles) P95Value() float64 {
 	return t.P95
 }
 
 // P99Value returns the 99th percentile value.
-func (t TracePercentiles) P99Value() int64 {
+func (t TracePercentiles) P99Value() float64 {
 	return t.P99
 }
 
@@ -98,16 +98,27 @@ func (c *TracePercentileCalculator) CalculatePercentiles(traces []*traceObs) Tra
 	})
 
 	// Calculate percentiles
+	p50 := percentile(durations, 50)
+	p95 := percentile(durations, 95)
+	p99 := percentile(durations, 99)
+
+	sum := p50 + p95 + p99
+	if sum > 0 {
+		p50 /= sum
+		p95 /= sum
+		p99 /= sum
+	}
+
 	return TracePercentiles{
-		P50:      percentile(durations, 50),
-		P95:      percentile(durations, 95),
-		P99:      percentile(durations, 99),
+		P50:      p50,
+		P95:      p95,
+		P99:      p99,
 		Services: services,
 	}
 }
 
 // percentile calculates the percentile value from a sorted slice
-func percentile(sorted []int64, p float64) int64 {
+func percentile(sorted []int64, p float64) float64 {
 	if len(sorted) == 0 {
 		return 0
 	}
@@ -118,11 +129,11 @@ func percentile(sorted []int64, p float64) int64 {
 	upper := lower + 1
 
 	if upper >= len(sorted) {
-		return sorted[len(sorted)-1]
+		return float64(sorted[len(sorted)-1])
 	}
 
 	// Linear interpolation between lower and upper values
 	weight := index - float64(lower)
 	value := float64(sorted[lower])*(1.0-weight) + float64(sorted[upper])*weight
-	return int64(value)
+	return value
 }

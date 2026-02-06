@@ -26,9 +26,9 @@ type TracePercentiles struct {
 
 // PercentilesProvider supplies trace percentile values.
 type PercentilesProvider interface {
-	P50Value() int64
-	P95Value() int64
-	P99Value() int64
+	P50Value() float64
+	P95Value() float64
+	P99Value() float64
 }
 
 // DetectorProcessor manages detector runner state and score computation.
@@ -120,6 +120,7 @@ func (dp *DetectorProcessor) buildTelemetry(
 }
 
 func buildTelemetrySignal(signalType string, values map[string]float64) collector.TelemetrySignal {
+	normalizeValues(values)
 	return collector.TelemetrySignal{
 		Type:   signalType,
 		Values: values,
@@ -174,8 +175,28 @@ func errorValues(logMessages []string) map[string]float64 {
 		}
 		values[grouped.Message] += float64(grouped.Count)
 	}
-
 	return values
+}
+
+func normalizeValues(values map[string]float64) {
+	if len(values) == 0 {
+		return
+	}
+
+	maxValue := 0.0
+	for _, value := range values {
+		if value > maxValue {
+			maxValue = value
+		}
+	}
+
+	if maxValue <= 0 {
+		return
+	}
+
+	for key, value := range values {
+		values[key] = value / maxValue
+	}
 }
 
 func metricTimeseries(metrics map[string]float64) []collector.MetricTimeseries {
@@ -195,5 +216,5 @@ func percentilesToFloat(percentiles PercentilesProvider) (float64, float64, floa
 		return 0, 0, 0
 	}
 
-	return float64(percentiles.P50Value()), float64(percentiles.P95Value()), float64(percentiles.P99Value())
+	return percentiles.P50Value(), percentiles.P95Value(), percentiles.P99Value()
 }
