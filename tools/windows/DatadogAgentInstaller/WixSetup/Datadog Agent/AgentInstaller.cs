@@ -319,6 +319,32 @@ namespace WixSetup.Datadog_Agent
             project.WixSourceGenerated += document =>
             {
                 WixSourceGenerated?.Invoke(document);
+
+                // WiX 5 migration: Convert StandardDirectory to Directory with explicit Name attribute.
+                // This is required for MSI administrative install (msiexec /a) to work correctly.
+                // 
+                // Background: WiX 5 uses StandardDirectory for well-known folders like ProgramFiles64Folder.
+                // During admin install, StandardDirectory produces a short name (e.g., "PFiles64") instead 
+                // of the full name ("ProgramFiles64Folder") because it doesn't populate the Name attribute.
+                // 
+                // The datadog-installer bootstrap uses admin install to extract files from the MSI and 
+                // expects the path: ...\ProgramFiles64Folder\Datadog\Datadog Agent\bin\datadog-installer.exe
+                // See: pkg/fleet/installer/paths/installer_paths_windows.go - GetAdminInstallerBinaryPath()
+                var standardDir = document.FindAll("StandardDirectory")
+                    .FirstOrDefault(x => x.HasAttribute("Id", "ProgramFiles64Folder"));
+                if (standardDir != null)
+                {
+                    var newDir = new XElement("Directory");
+                    newDir.SetAttributeValue("Id", "ProgramFiles64Folder");
+                    newDir.SetAttributeValue("Name", "ProgramFiles64Folder");
+                    foreach (var child in standardDir.Elements().ToList())
+                    {
+                        child.Remove();
+                        newDir.Add(child);
+                    }
+                    standardDir.ReplaceWith(newDir);
+                }
+
                 // WiX 5 migration: Product was renamed to Package in WiX 4/5
                 document
                     .Select("Wix/Package")
