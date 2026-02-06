@@ -312,6 +312,8 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		tlmSend.Inc(d.host, errorToTag(err))
 	}()
 
+	log.Debugf("[LONGLOG] HTTPDestination unconditionalSend received payload with %d encoded bytes (unencoded: %d bytes)", len(payload.Encoded), payload.UnencodedSize)
+
 	ctx := d.destinationsContext.Context()
 
 	if err != nil {
@@ -335,6 +337,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	metrics.EncodedBytesSent.Add(int64(len(payload.Encoded)))
 	metrics.TlmEncodedBytesSent.Add(float64(len(payload.Encoded)), sourceTag, compressionKind)
 
+	log.Debugf("[LONGLOG] HTTPDestination creating POST request to %s with %d bytes", d.url, len(payload.Encoded))
 	req, err := http.NewRequest("POST", d.url, bytes.NewReader(payload.Encoded))
 	if err != nil {
 		// the request could not be built,
@@ -361,12 +364,14 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	req.Header.Set("dd-current-timestamp", strconv.FormatInt(then.UnixMilli(), 10))
 
 	req = req.WithContext(ctx)
+	log.Debugf("[LONGLOG] HTTPDestination sending HTTP request...")
 	resp, err := d.client.Do(req)
 	latency := time.Since(then).Milliseconds()
 	metrics.TlmSenderLatency.Observe(float64(latency))
 	metrics.SenderLatency.Set(latency)
 
 	if err != nil {
+		log.Debugf("[LONGLOG] HTTPDestination request failed with error: %v", err)
 		if ctx.Err() == context.Canceled {
 			return ctx.Err()
 		}
@@ -374,6 +379,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		return client.NewRetryableError(err)
 	}
 
+	log.Debugf("[LONGLOG] HTTPDestination received response status=%d, protocol=%s", resp.StatusCode, resp.Proto)
 	defer resp.Body.Close()
 	response, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -383,6 +389,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		return err
 	}
 	log.Tracef("Log payload sent to %s. Response resolved with protocol %s in %d ms", d.url, resp.Proto, latency)
+	log.Debugf("[LONGLOG] HTTPDestination request completed successfully (status=%d, latency=%dms, response_size=%d bytes)", resp.StatusCode, latency, len(response))
 
 	metrics.DestinationHTTPRespByStatusAndURL.Add(strconv.Itoa(resp.StatusCode), 1)
 	metrics.TlmDestinationHTTPRespByStatusAndURL.Inc(strconv.Itoa(resp.StatusCode), d.url)

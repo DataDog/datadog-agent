@@ -86,6 +86,7 @@ func (b *batch) processMessage(m *message.Message, outputChan chan *message.Payl
 	if m.Origin != nil {
 		m.Origin.LogSource.LatencyStats.Add(m.GetLatency())
 	}
+	log.Debugf("[LONGLOG] Batch processMessage received message with %d bytes for pipeline=%s", len(m.GetContent()), b.pipelineName)
 	added, err := b.addMessage(m)
 	if err != nil {
 		log.Warn("Encoding failed - dropping payload", err)
@@ -93,11 +94,13 @@ func (b *batch) processMessage(m *message.Message, outputChan chan *message.Payl
 		return
 	}
 	if !added || b.buffer.IsFull() {
+		log.Debugf("[LONGLOG] Batch flushing buffer (added=%v, isFull=%v) for pipeline=%s", added, b.buffer.IsFull(), b.pipelineName)
 		b.flushBuffer(outputChan)
 	}
 	if !added {
 		// it's possible that the m could not be added because the buffer was full
 		// so we need to retry once again
+		log.Debugf("[LONGLOG] Batch retrying addMessage after flush for pipeline=%s", b.pipelineName)
 		added, err = b.addMessage(m)
 		if err != nil {
 			log.Warn("Encoding failed - dropping payload", err)
@@ -116,13 +119,18 @@ func (b *batch) addMessage(m *message.Message) (bool, error) {
 	b.utilization.Start()
 	defer b.utilization.Stop()
 
+	content := m.GetContent()
+	log.Debugf("[LONGLOG] Batch addMessage attempting to add %d bytes (limit: %d bytes), preview: %s", len(content), b.buffer.ContentSizeLimit(), previewContent(content))
 	if b.buffer.AddMessage(m) {
+		log.Debugf("[LONGLOG] Batch addMessage successfully added to buffer, serializing...")
 		err := b.serializer.Serialize(m, b.writeCounter)
 		if err != nil {
 			return false, err
 		}
+		log.Debugf("[LONGLOG] Batch addMessage serialized successfully")
 		return true, nil
 	}
+	log.Debugf("[LONGLOG] Batch addMessage buffer full, message NOT added")
 	return false, nil
 }
 
@@ -130,8 +138,12 @@ func (b *batch) addMessage(m *message.Message) (bool, error) {
 // forwards them to the the next stage of the pipeline
 func (b *batch) flushBuffer(outputChan chan *message.Payload) {
 	if b.buffer.IsEmpty() {
+		log.Debugf("[LONGLOG] Batch flushBuffer called but buffer is empty for pipeline=%s", b.pipelineName)
 		return
 	}
+
+	messagesMetadata := b.buffer.GetMessages()
+	log.Debugf("[LONGLOG] Batch flushBuffer flushing %d messages for pipeline=%s", len(messagesMetadata), b.pipelineName)
 
 	b.utilization.Start()
 	if err := b.serializer.Finish(b.writeCounter); err != nil {
@@ -141,7 +153,6 @@ func (b *batch) flushBuffer(outputChan chan *message.Payload) {
 		return
 	}
 
-	messagesMetadata := b.buffer.GetMessages()
 	b.buffer.Clear()
 	// Logging specifically for DBM pipelines, which seem to fail to send more often than other pipelines.
 	// pipelineName comes from epforwarder.passthroughPipelineDescs.eventType, and these names are constants in the epforwarder package.
@@ -161,7 +172,18 @@ func (b *batch) sendMessages(messagesMetadata []*message.MessageMetadata, output
 	}
 
 	unencodedSize := b.writeCounter.getWrittenBytes()
+	encodedBytes := b.encodedPayload.Bytes()
 	log.Debugf("Send messages for pipeline %s (msg_count:%d, content_size=%d, avg_msg_size=%.2f)", b.pipelineName, len(messagesMetadata), unencodedSize, float64(unencodedSize)/float64(len(messagesMetadata)))
+	log.Debugf("[LONGLOG] Batch sendMessages creating payload (unencoded_size=%d, encoded_size=%d, compression=%s) for pipeline=%s", unencodedSize, len(encodedBytes), b.compression.ContentEncoding(), b.pipelineName)
+
+	// Show a preview of the unencoded payload before compression
+	if unencodedSize > 0 {
+		// Decompress to see what we're actually sending
+		decompressed, err := b.compression.Decompress(encodedBytes)
+		if err == nil {
+			log.Debugf("[LONGLOG] Batch sendMessages payload preview (first 200 chars): %s", previewContent(decompressed))
+		}
+	}
 
 	if b.serverlessMeta.IsEnabled() {
 		// Increment the wait group so the flush doesn't finish until all payloads are sent to all destinations
@@ -171,12 +193,22 @@ func (b *batch) sendMessages(messagesMetadata []*message.MessageMetadata, output
 		b.serverlessMeta.Unlock()
 	}
 
-	p := message.NewPayload(messagesMetadata, b.encodedPayload.Bytes(), b.compression.ContentEncoding(), unencodedSize)
+	p := message.NewPayload(messagesMetadata, encodedBytes, b.compression.ContentEncoding(), unencodedSize)
+	log.Debugf("[LONGLOG] Batch sendMessages sending payload with %d encoded bytes to sender", len(p.Encoded))
 
 	b.utilization.Stop()
 	outputChan <- p
 	b.pipelineMonitor.ReportComponentEgress(p, metrics.StrategyTlmName, b.instanceID)
 	b.pipelineMonitor.ReportComponentIngress(p, metrics.SenderTlmName, metrics.SenderTlmInstanceID)
+}
+
+// previewContent returns a safe preview of content for logging (max 100 chars)
+func previewContent(content []byte) string {
+	maxLen := 100
+	if len(content) < maxLen {
+		return string(content)
+	}
+	return string(content[:maxLen]) + "..."
 }
 
 // writerCounter is a simple io.Writer that counts the number of bytes written to it

@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // serviceEnvVar is the environment variable of the service tag (this is used only for the serverless agent)
@@ -67,6 +68,7 @@ func (t *Tailer) run() {
 
 	// Loop terminates when the channel is closed.
 	for logline := range t.inputChan {
+		log.Debugf("[LONGLOG] ChannelTailer received message with %d bytes", len(logline.Content))
 		origin := message.NewOrigin(t.source)
 		origin.SetService(getServiceName())
 
@@ -82,7 +84,9 @@ func (t *Tailer) run() {
 			origin.SetTags(channelTags)
 		}
 
-		t.outputChan <- buildMessage(logline, origin)
+		msg := buildMessage(logline, origin)
+		log.Debugf("[LONGLOG] ChannelTailer sending message with %d bytes to pipeline", len(msg.GetContent()))
+		t.outputChan <- msg
 	}
 }
 

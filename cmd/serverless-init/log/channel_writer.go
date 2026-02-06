@@ -36,19 +36,24 @@ func NewChannelWriter(ch chan *logConfig.ChannelMessage, isError bool) *ChannelW
 func (cw *ChannelWriter) Write(p []byte) (n int, err error) {
 	// Flush full stacktrace without splitting by new line
 	if cw.IsError {
+		bytecount := len(p)
+		log.Debugf("[LONGLOG] Sending error of len %d from ChannelWriter", bytecount)
 		cw.sendPayload(p)
-		return len(p), nil
+		return bytecount, nil
 	}
 
 	n, err = cw.Buffer.Write(p)
+	log.Debugf("[LONGLOG] ChannelWriter wrote %d bytes", n)
 	if err != nil {
 		return n, err
 	}
 
 	for {
 		line, err := cw.Buffer.ReadBytes('\n')
+		log.Debugf("[LONGLOG] ChannelWriter read %d bytes from Buffer", len(line))
 		if err == io.EOF {
 			// If EOF, push the line back to buffer and wait for more data
+			log.Debugf("[LONGLOG] ChannelWriter encountered an EOF at %d bytes", len(line))
 			cw.Buffer.Write(line)
 			break
 		}
@@ -58,6 +63,7 @@ func (cw *ChannelWriter) Write(p []byte) (n int, err error) {
 
 		// This line is empty as it just contains a newline, we don't need to send it
 		if len(line) <= 0 {
+			log.Debug("[LONGLOG] ChannelWriter encountered an empty line.")
 			continue
 		}
 
@@ -67,8 +73,10 @@ func (cw *ChannelWriter) Write(p []byte) (n int, err error) {
 }
 
 func (cw *ChannelWriter) sendPayload(payload []byte) {
+	log.Debugf("[LONGLOG] ChannelWriter sending %d bytes to the Channel", len(payload))
 	bufCopy := make([]byte, len(payload))
 	copy(bufCopy, payload)
+	log.Debugf("[LONGLOG] ChannelWriter copied %d bytes to send.", len(bufCopy))
 
 	channelMessage := &logConfig.ChannelMessage{
 		Content: bufCopy,
@@ -78,6 +86,7 @@ func (cw *ChannelWriter) sendPayload(payload []byte) {
 	select {
 	case cw.Channel <- channelMessage:
 		// Success case -- the channel isn't full, and can accommodate our message
+		log.Debug("[LONGLOG] ChannelWriter log message sent to the channel")
 	default:
 		// Channel is full (i.e, we aren't flushing data to Datadog as our backend is down).
 		// message will be dropped.

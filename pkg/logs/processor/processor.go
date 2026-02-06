@@ -178,6 +178,7 @@ func (p *Processor) processMessage(msg *message.Message) {
 	p.utilization.Start()
 	defer p.utilization.Stop()
 	defer p.pipelineMonitor.ReportComponentEgress(msg, metrics.ProcessorTlmName, p.instanceID)
+	log.Debugf("[LONGLOG] Processor received message with %d bytes", len(msg.GetContent()))
 	metrics.LogsDecoded.Add(1)
 	metrics.TlmLogsDecoded.Inc()
 	// Record truncation metrics if the message is truncated
@@ -200,6 +201,7 @@ func (p *Processor) processMessage(msg *message.Message) {
 			return
 		}
 		msg.SetRendered(rendered)
+		log.Debugf("[LONGLOG] Processor rendered message to %d bytes", len(rendered))
 
 		// report this message to diagnostic receivers (e.g. `stream-logs` command)
 		p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")
@@ -213,8 +215,10 @@ func (p *Processor) processMessage(msg *message.Message) {
 			log.Error("unable to encode msg ", err)
 			return
 		}
+		log.Debugf("[LONGLOG] Processor encoded message to %d bytes", len(msg.GetContent()))
 
 		p.utilization.Stop() // Explicitly call stop here to avoid counting writing on the output channel as processing time
+		log.Debugf("[LONGLOG] Processor sending message with %d bytes to strategy", len(msg.GetContent()))
 		p.outputChan <- msg
 		p.pipelineMonitor.ReportComponentIngress(msg, metrics.StrategyTlmName, p.instanceID)
 	}

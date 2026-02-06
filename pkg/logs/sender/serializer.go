@@ -9,6 +9,7 @@ import (
 	"io"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Serializer transforms a batch of messages into a payload.
@@ -37,14 +38,18 @@ func NewArraySerializer() Serializer {
 // returns, "[{"message":"content1"},{"message":"content2"}]"
 func (s *arraySerializer) Serialize(message *message.Message, writer io.Writer) error {
 	if s.isFirstMessage {
+		log.Debugf("[LONGLOG] ArraySerializer starting new array with '[' bracket")
 		if _, err := writer.Write([]byte{'['}); err != nil {
 			return err
 		}
 		s.isFirstMessage = false
+		log.Debugf("[LONGLOG] ArraySerializer adding first message (%d bytes)", len(message.GetContent()))
 	} else {
+		log.Debugf("[LONGLOG] ArraySerializer adding comma separator before next message")
 		if _, err := writer.Write([]byte{','}); err != nil {
 			return err
 		}
+		log.Debugf("[LONGLOG] ArraySerializer adding message (%d bytes)", len(message.GetContent()))
 	}
 	_, err := writer.Write(message.GetContent())
 	return err
@@ -52,8 +57,10 @@ func (s *arraySerializer) Serialize(message *message.Message, writer io.Writer) 
 
 // Finish writes the closing bracket for JSON array
 func (s *arraySerializer) Finish(writer io.Writer) error {
+	log.Debugf("[LONGLOG] ArraySerializer finishing array with ']' bracket")
 	_, err := writer.Write([]byte{']'})
 	s.Reset()
+	log.Debugf("[LONGLOG] ArraySerializer reset complete, ready for next batch")
 	return err
 }
 
