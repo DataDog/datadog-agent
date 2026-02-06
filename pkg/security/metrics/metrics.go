@@ -492,10 +492,6 @@ var (
 	// Tags: -
 	MetricSecurityProfileV2TagResolutionCgroupsPending = newRuntimeMetric(".security_profile_v2.tag_resolution.cgroups_pending")
 
-	// MetricSecurityProfileV2TagResolutionCgroupsReceived is the name of the metric used to report total cgroups received (cumulative total of all unique cgroups ever seen)
-	// Tags: - (Gauge, monotonically increasing)
-	MetricSecurityProfileV2TagResolutionCgroupsReceived = newRuntimeMetric(".security_profile_v2.tag_resolution.cgroups_received")
-
 	// MetricSecurityProfileV2TagResolutionCgroupsResolved is the name of the metric used to report current cgroups with resolved tags (actively profiled)
 	// Tags: - (Gauge)
 	MetricSecurityProfileV2TagResolutionCgroupsResolved = newRuntimeMetric(".security_profile_v2.tag_resolution.cgroups_resolved")
@@ -505,7 +501,7 @@ var (
 	MetricSecurityProfileV2TagResolutionEventsDropped = newRuntimeMetric(".security_profile_v2.tag_resolution.events_dropped")
 
 	// MetricSecurityProfileV2TagResolutionCgroupsExpired is the name of the metric used to report cgroups cleaned up after 60s without ever resolving tags
-	// Tags: container_id
+	// Tags: -
 	MetricSecurityProfileV2TagResolutionCgroupsExpired = newRuntimeMetric(".security_profile_v2.tag_resolution.cgroups_expired")
 
 	// MetricSecurityProfileV2TagResolutionLatency is the name of the metric used to report the time between first event and successful tag resolution
