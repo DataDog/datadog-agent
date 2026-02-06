@@ -265,7 +265,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	if sess != nil {
 		profile, dynamicTags, values, err = d.getValuesAndTags(sess, deviceReachable)
 		if err != nil {
-			checkErr = fmt.Errorf("failed to fetch values: %w", err)
+			checkErr = err
 		}
 	}
 
