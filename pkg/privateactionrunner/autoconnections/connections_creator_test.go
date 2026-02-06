@@ -7,11 +7,9 @@ package autoconnections
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
@@ -171,8 +169,7 @@ func TestAutoCreateConnections_AllBundlesSuccess(t *testing.T) {
 	}
 
 	creator := ConnectionsCreator{
-		client:       *testClient,
-		configWriter: noopConfigWriter{},
+		client: *testClient,
 	}
 
 	runnerID := "144500f1-474a-4856-aa0a-6fd22e005893"
@@ -221,8 +218,7 @@ func TestAutoCreateConnections_PartialFailures(t *testing.T) {
 	}
 
 	creator := ConnectionsCreator{
-		client:       *testClient,
-		configWriter: noopConfigWriter{},
+		client: *testClient,
 	}
 
 	runnerID := "144500f1-474a-4856-aa0a-6fd22e005893"
@@ -291,8 +287,7 @@ func TestAutoCreateConnections_PartialAllowlist(t *testing.T) {
 	}
 
 	creator := ConnectionsCreator{
-		client:       *testClient,
-		configWriter: noopConfigWriter{},
+		client: *testClient,
 	}
 
 	runnerID := "144500f1-474a-4856-aa0a-6fd22e005893"
@@ -308,93 +303,4 @@ func TestAutoCreateConnections_PartialAllowlist(t *testing.T) {
 	assert.Contains(t, allBodies, `"name":"HTTP (runner-abc123)"`)
 	assert.Contains(t, allBodies, `"name":"Script (runner-abc123)"`)
 	assert.NotContains(t, allBodies, `"name":"Kubernetes (runner-abc123)"`, "Should not create Kubernetes connection")
-}
-func TestAutoCreateConnections_CreatesScriptConfigFile(t *testing.T) {
-	// Mock HTTPS server
-	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusCreated)
-		w.Write([]byte(`{"data": {"id": "conn-123"}}`))
-	}))
-	defer server.Close()
-
-	tempDir := t.TempDir()
-	configPath := tempDir + "/script-config.yaml"
-
-	allowlist := []string{"com.datadoghq.script.runPredefinedScript"}
-
-	testClient := &ConnectionsClient{
-		httpClient: server.Client(),
-		baseUrl:    server.URL,
-		apiKey:     "test-api-key",
-		appKey:     "test-app-key",
-	}
-
-	testWriter := DefaultConfigWriter{BaseDir: tempDir}
-	creator := ConnectionsCreator{*testClient, testWriter}
-
-	runnerID := "144500f1-474a-4856-aa0a-6fd22e005893"
-	runnerName := "runner-abc123"
-
-	// Verify file doesn't exist before
-	_, err := os.Stat(configPath)
-	assert.True(t, os.IsNotExist(err), "Config file should not exist before test")
-
-	// Run auto-create connections
-	err = creator.AutoCreateConnections(context.Background(), runnerID, runnerName, allowlist)
-	require.NoError(t, err, "AutoCreateConnections should succeed")
-
-	// Verify the script config file was created
-	_, err = os.Stat(configPath)
-	require.NoError(t, err, "Config file should exist after AutoCreateConnections")
-}
-
-func TestAutoCreateConnections_SkipsConnectionWhenConfigFileFails(t *testing.T) {
-	requestCount := 0
-
-	// Mock HTTPS server
-	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestCount++
-		w.WriteHeader(http.StatusCreated)
-		w.Write([]byte(`{"data": {"id": "conn-123"}}`))
-	}))
-	defer server.Close()
-
-	allowlist := []string{"com.datadoghq.script.runPredefinedScript"}
-
-	testClient := &ConnectionsClient{
-		httpClient: server.Client(),
-		baseUrl:    server.URL,
-		apiKey:     "test-api-key",
-		appKey:     "test-app-key",
-	}
-
-	// Create a ConfigWriter that always fails
-	creator := ConnectionsCreator{
-		client:       *testClient,
-		configWriter: failingConfigWriter{},
-	}
-
-	runnerID := "144500f1-474a-4856-aa0a-6fd22e005893"
-	runnerName := "runner-abc123"
-
-	// Run auto-create connections
-	err := creator.AutoCreateConnections(context.Background(), runnerID, runnerName, allowlist)
-	require.NoError(t, err, "AutoCreateConnections should not return error even if config file creation fails")
-
-	// Verify NO connection was created because config file creation failed
-	assert.Equal(t, 0, requestCount, "Should not attempt to create connection when config file creation fails")
-}
-
-// noopConfigWriter is a test double that succeeds without creating files
-type noopConfigWriter struct{}
-
-func (n noopConfigWriter) EnsureScriptBundleConfig() (bool, error) {
-	return true, nil
-}
-
-// failingConfigWriter is a test double that always fails
-type failingConfigWriter struct{}
-
-func (f failingConfigWriter) EnsureScriptBundleConfig() (bool, error) {
-	return false, errors.New("oh no")
 }

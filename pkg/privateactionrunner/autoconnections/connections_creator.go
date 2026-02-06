@@ -12,12 +12,11 @@ import (
 )
 
 type ConnectionsCreator struct {
-	client       ConnectionsClient
-	configWriter ConfigWriter
+	client ConnectionsClient
 }
 
 func NewConnectionsCreator(client ConnectionsClient) ConnectionsCreator {
-	return ConnectionsCreator{client, NewDefaultConfigWriter()}
+	return ConnectionsCreator{client}
 }
 
 func (c ConnectionsCreator) AutoCreateConnections(ctx context.Context, runnerID, runnerName string, allowlist []string) error {
@@ -28,13 +27,6 @@ func (c ConnectionsCreator) AutoCreateConnections(ctx context.Context, runnerID,
 	}
 
 	for _, definition := range definitions {
-		// First, ensure required config files exist
-		if err := c.ensureConfigFileForConnection(definition); err != nil {
-			log.Warnf("Failed to ensure config file for %s, skipping connection creation: %v", definition.IntegrationType, err)
-			continue // Skip this connection if config file creation failed
-		}
-
-		// Only create connection if config file creation succeeded (or wasn't needed)
 		err := c.client.CreateConnection(ctx, definition, runnerID, runnerName)
 		if err != nil {
 			log.Warnf("Failed to create %s connection: %v", definition.IntegrationType, err)
@@ -45,22 +37,4 @@ func (c ConnectionsCreator) AutoCreateConnections(ctx context.Context, runnerID,
 	}
 
 	return nil
-}
-
-// ensureConfigFileForConnection creates required configuration files for a connection
-func (c ConnectionsCreator) ensureConfigFileForConnection(def ConnectionDefinition) error {
-	switch def.IntegrationType {
-	case "Script":
-		created, err := c.configWriter.EnsureScriptBundleConfig()
-		if err != nil {
-			return err
-		}
-		if created {
-			log.Infof("Auto-created configuration file for %s connection at %s",
-				def.IntegrationType, GetScriptConfigPath())
-		}
-		return nil
-	default:
-		return nil
-	}
 }

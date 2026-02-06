@@ -14,8 +14,6 @@ import (
 const (
 	PrivateActionRunnerRelativeDir = "private-action-runner"
 	ScriptConfigFileName           = "script-config.yaml"
-	ConfigDirPermissions           = 0755 // rwxr-xr-x
-	ConfigFilePermissions          = 0640 // rw-r-----
 )
 
 func GetPrivateActionRunnerDir() string {
