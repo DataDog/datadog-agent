@@ -40,25 +40,25 @@ var supportedConnections = map[string]ConnectionDefinition{
 	},
 }
 
-func allowlistContainsBundle(allowlist []string, bundleID string) bool {
-	for _, pattern := range allowlist {
-		// The agent allowlist only supports FQNs
-		if strings.HasPrefix(pattern, bundleID+".") {
+func bundleAllowlistContainsBundle(bundleAllowlist []string, bundleID string) bool {
+	for _, pattern := range bundleAllowlist {
+		// The agent bundleAllowlist only supports FQNs
+		if strings.HasPrefix(pattern, bundleID) {
 			return true
 		}
 	}
 	return false
 }
 
-func DetermineConnectionsToCreate(allowlist []string) []ConnectionDefinition {
-	if len(allowlist) == 0 {
+func DetermineConnectionsToCreate(bundleAllowlist []string) []ConnectionDefinition {
+	if len(bundleAllowlist) == 0 {
 		return []ConnectionDefinition{}
 	}
 
 	var result []ConnectionDefinition
 
 	for _, definition := range supportedConnections {
-		if allowlistContainsBundle(allowlist, definition.BundleID) {
+		if bundleAllowlistContainsBundle(bundleAllowlist, definition.BundleID) {
 			result = append(result, definition)
 		}
 	}

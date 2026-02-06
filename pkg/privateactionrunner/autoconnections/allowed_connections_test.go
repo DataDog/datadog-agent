@@ -12,9 +12,9 @@ import (
 )
 
 func TestDetermineConnectionsToCreate_AllBundles(t *testing.T) {
-	allowlist := []string{"com.datadoghq.http.request", "com.datadoghq.kubernetes.core.getPod", "com.datadoghq.script.runPredefinedScript"}
+	bundleAllowlist := []string{"com.datadoghq.http", "com.datadoghq.kubernetes.core", "com.datadoghq.script"}
 
-	definitions := DetermineConnectionsToCreate(allowlist)
+	definitions := DetermineConnectionsToCreate(bundleAllowlist)
 
 	assert.Len(t, definitions, 3)
 
@@ -48,30 +48,30 @@ func TestDetermineConnectionsToCreate_AllBundles(t *testing.T) {
 
 func TestDetermineConnectionsToCreate_SingleBundle(t *testing.T) {
 	tests := []struct {
-		name           string
-		allowlist      []string
-		expectedBundle string
+		name            string
+		bundleAllowlist []string
+		expectedBundle  string
 	}{
 		{
-			name:           "http bundle",
-			allowlist:      []string{"com.datadoghq.http.request"},
-			expectedBundle: "com.datadoghq.http",
+			name:            "http bundle",
+			bundleAllowlist: []string{"com.datadoghq.http"},
+			expectedBundle:  "com.datadoghq.http",
 		},
 		{
-			name:           "kubernetes bundle",
-			allowlist:      []string{"com.datadoghq.kubernetes.core.getPod"},
-			expectedBundle: "com.datadoghq.kubernetes",
+			name:            "kubernetes bundle",
+			bundleAllowlist: []string{"com.datadoghq.kubernetes.core"},
+			expectedBundle:  "com.datadoghq.kubernetes",
 		},
 		{
-			name:           "script bundle",
-			allowlist:      []string{"com.datadoghq.script.runPredefinedScript"},
-			expectedBundle: "com.datadoghq.script",
+			name:            "script bundle",
+			bundleAllowlist: []string{"com.datadoghq.script"},
+			expectedBundle:  "com.datadoghq.script",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			definitions := DetermineConnectionsToCreate(tt.allowlist)
+			definitions := DetermineConnectionsToCreate(tt.bundleAllowlist)
 
 			assert.Len(t, definitions, 1)
 			assert.Equal(t, tt.expectedBundle, definitions[0].BundleID)
@@ -80,31 +80,31 @@ func TestDetermineConnectionsToCreate_SingleBundle(t *testing.T) {
 }
 
 func TestDetermineConnectionsToCreate_NoRelevantBundles(t *testing.T) {
-	allowlist := []string{"com.datadoghq.gitlab.issues.createIssue"}
+	bundleAllowlist := []string{"com.datadoghq.gitlab.issues"}
 
-	definitions := DetermineConnectionsToCreate(allowlist)
+	definitions := DetermineConnectionsToCreate(bundleAllowlist)
 
 	assert.Len(t, definitions, 0)
 }
 
 func TestDetermineConnectionsToCreate_EmptyAndNilAllowlist(t *testing.T) {
 	tests := []struct {
-		name      string
-		allowlist []string
+		name            string
+		bundleAllowlist []string
 	}{
 		{
-			name:      "nil allowlist",
-			allowlist: nil,
+			name:            "nil bundleAllowlist",
+			bundleAllowlist: nil,
 		},
 		{
-			name:      "empty slice",
-			allowlist: []string{},
+			name:            "empty slice",
+			bundleAllowlist: []string{},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			definitions := DetermineConnectionsToCreate(tt.allowlist)
+			definitions := DetermineConnectionsToCreate(tt.bundleAllowlist)
 
 			assert.Len(t, definitions, 0)
 			assert.NotNil(t, definitions)

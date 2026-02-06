@@ -170,7 +170,11 @@ func performSelfEnrollment(ctx context.Context, log log.Component, ddConfig conf
 	cfg.RunnerId = urnParts.RunnerID
 
 	// Auto-create connections for enrolled runner
-	actionsAllowlist := ddConfig.GetStringSlice("privateactionrunner.actions_allowlist")
+	var actionsAllowlist = make([]string, 0, len(cfg.ActionsAllowlist))
+	for bundleID := range cfg.ActionsAllowlist {
+		actionsAllowlist = append(actionsAllowlist, bundleID)
+	}
+
 	if len(actionsAllowlist) > 0 {
 		client, err := autoconnections.NewConnectionsAPIClient(ddConfig, ddSite, apiKey, appKey)
 		if err != nil {
