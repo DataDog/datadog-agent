@@ -10,6 +10,7 @@ import (
 	"expvar"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 var (
@@ -44,8 +45,11 @@ var (
 	// BytesSent is the total number of sent bytes before encoding if any
 	BytesSent = expvar.Int{}
 	// TlmBytesSent is the total number of sent bytes before encoding if any
+	// The remote_agent tag identifies which agent sent the logs. Use GetAgentIdentityTag()
+	// to get the correct value for the current agent. This tag is used by COAT to partition
+	// log bytes by agent type.
 	TlmBytesSent = telemetry.NewCounter("logs", "bytes_sent",
-		[]string{"source"}, "Total number of bytes sent before encoding if any")
+		[]string{"remote_agent", "source"}, "Total number of bytes sent before encoding if any")
 	// RetryCount is the total number of times we have retried payloads that failed to send
 	RetryCount = expvar.Int{}
 	// TlmRetryCount is the total number of times we have retried payloads that failed to send
@@ -151,4 +155,27 @@ func init() {
 	LogsExpvars.Set("SenderLatency", &SenderLatency)
 	LogsExpvars.Set("HttpDestinationStats", &DestinationExpVars)
 	LogsExpvars.Set("LogsTruncated", &LogsTruncated)
+}
+
+// GetAgentIdentityTag returns the appropriate remote_agent tag value for the current agent.
+// This should be used when recording metrics that need to be partitioned by agent type.
+// Returns values like "agent", "system-probe", "trace-agent", etc.
+func GetAgentIdentityTag() string {
+	switch flavor.GetFlavor() {
+	case flavor.DefaultAgent:
+		return "agent"
+	case flavor.SystemProbe:
+		return "system-probe"
+	case flavor.TraceAgent:
+		return "trace-agent"
+	case flavor.ProcessAgent:
+		return "process-agent"
+	case flavor.SecurityAgent:
+		return "security-agent"
+	case flavor.ClusterAgent:
+		return "cluster-agent"
+	default:
+		// For unknown flavors, return the raw flavor string
+		return flavor.GetFlavor()
+	}
 }
