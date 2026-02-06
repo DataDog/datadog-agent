@@ -20,6 +20,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	eventmonitor "github.com/DataDog/datadog-agent/comp/system-probe/eventmonitor/def"
+	"github.com/DataDog/datadog-agent/comp/system-probe/processeventconsumer"
 	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -38,7 +39,7 @@ type Requires struct {
 	Ipc            ipc.Component
 	Log            log.Component
 
-	GPUProcessEventConsumer eventmonitor.ProcessEventConsumerComponent `name:"gpu" optional:"true"`
+	GPUProcessEventConsumer processeventconsumer.ProcessEventConsumer `name:"gpu" optional:"true"`
 }
 
 // Provides defines the output of the eventmonitor component

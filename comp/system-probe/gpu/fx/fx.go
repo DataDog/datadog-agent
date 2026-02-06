@@ -13,6 +13,8 @@ import (
 
 	gpu "github.com/DataDog/datadog-agent/comp/system-probe/gpu/def"
 	gpuimpl "github.com/DataDog/datadog-agent/comp/system-probe/gpu/impl"
+	"github.com/DataDog/datadog-agent/comp/system-probe/processeventconsumer"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -24,7 +26,12 @@ func Module() fxutil.Module {
 		),
 		fxutil.ProvideOptional[gpu.Component](),
 		fx.Provide(fx.Annotate(
-			gpuimpl.NewProcessEventConsumer,
+			func() processeventconsumer.ProcessEventConsumer {
+				return processeventconsumer.New("gpu", 100, []consumers.ProcessConsumerEventTypes{
+					consumers.ExecEventType,
+					consumers.ExitEventType,
+				})
+			},
 			fx.ResultTags(`name:"gpu"`),
 		)),
 	)

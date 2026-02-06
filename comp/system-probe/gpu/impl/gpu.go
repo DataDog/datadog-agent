@@ -16,8 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	eventmonitor "github.com/DataDog/datadog-agent/comp/system-probe/eventmonitor/def"
 	gpudef "github.com/DataDog/datadog-agent/comp/system-probe/gpu/def"
+	"github.com/DataDog/datadog-agent/comp/system-probe/processeventconsumer"
 	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	"github.com/DataDog/datadog-agent/pkg/gpu"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
@@ -31,7 +31,7 @@ type Requires struct {
 	SysprobeConfig  sysprobeconfig.Component
 	Telemetry       telemetry.Component
 	WMeta           workloadmeta.Component
-	ProcessConsumer eventmonitor.ProcessEventConsumerComponent `name:"gpu"`
+	ProcessConsumer processeventconsumer.ProcessEventConsumer `name:"gpu"`
 }
 
 // Provides defines the output of the gpu component

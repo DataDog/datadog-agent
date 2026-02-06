@@ -18,7 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	eventmonitor "github.com/DataDog/datadog-agent/comp/system-probe/eventmonitor/def"
+	"github.com/DataDog/datadog-agent/comp/system-probe/processeventconsumer"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -108,7 +108,7 @@ type ProbeDependencies struct {
 	WorkloadMeta workloadmeta.Component
 
 	// ProcessEventConsumer is the process monitor
-	ProcessEventConsumer eventmonitor.ProcessEventConsumerComponent
+	ProcessEventConsumer processeventconsumer.ProcessEventConsumer
 }
 
 // Probe represents the GPU monitoring probe

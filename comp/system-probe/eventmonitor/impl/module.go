@@ -22,7 +22,7 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
-	eventmonitordef "github.com/DataDog/datadog-agent/comp/system-probe/eventmonitor/def"
+	"github.com/DataDog/datadog-agent/comp/system-probe/processeventconsumer"
 	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
@@ -47,7 +47,7 @@ type dependencies struct {
 	Hostname       hostname.Component
 	Ipc            ipc.Component
 
-	GPUProcessEventConsumer eventmonitordef.ProcessEventConsumerComponent
+	GPUProcessEventConsumer processeventconsumer.ProcessEventConsumer
 }
 
 func createEventMonitorModule(deps dependencies) (types.SystemProbeModule, error) {

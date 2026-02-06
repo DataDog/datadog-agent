@@ -23,7 +23,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	eventmonitor "github.com/DataDog/datadog-agent/comp/system-probe/eventmonitor/def"
+	"github.com/DataDog/datadog-agent/comp/system-probe/processeventconsumer"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
 	consumerstestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -493,7 +493,7 @@ func GetTotalExpectedDevices() int {
 	return numPhysical + numMIG
 }
 
-func GetProcessConsumerComponent(tb testing.TB) eventmonitor.ProcessEventConsumerComponent {
+func GetProcessConsumerComponent(tb testing.TB) processeventconsumer.ProcessEventConsumer {
 	c := consumer{
 		pc: consumerstestutil.NewTestProcessConsumer(tb),
 	}
