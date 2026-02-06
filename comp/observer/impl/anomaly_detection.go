@@ -28,6 +28,8 @@ type AnomalyDetection struct {
 	traceBuffer         []*traceObs
 	traceMutex          sync.Mutex
 	tracePercentileCalc *TracePercentileCalculator
+	logBuffer           []*logObs
+	logMutex            sync.Mutex
 	stopChan            chan struct{}
 	wg                  sync.WaitGroup
 }
@@ -58,18 +60,26 @@ func (a *AnomalyDetection) Stop() {
 func (a *AnomalyDetection) ProcessMetric(metric *metricObs) {
 	if !strings.HasPrefix(metric.name, "datadog") && !strings.HasPrefix(metric.name, "runtime.") {
 		a.metricSumsMutex.Lock()
-		a.metricSums[metric.name] += metric.value
+		if len(a.metricSums) < 10000 {
+			a.metricSums[metric.name] += metric.value
+		}
 		a.metricSumsMutex.Unlock()
 	}
 }
 
 func (a *AnomalyDetection) ProcessLog(log *logObs) {
-	a.log.Debugf("Processing log: %v", log)
+	a.logMutex.Lock()
+	defer a.logMutex.Unlock()
+	if len(a.logBuffer) < 10000 {
+		a.logBuffer = append(a.logBuffer, log)
+	}
 }
 
 func (a *AnomalyDetection) ProcessTrace(trace *traceObs) {
 	a.traceMutex.Lock()
-	a.traceBuffer = append(a.traceBuffer, trace)
+	if len(a.traceBuffer) < 10000 {
+		a.traceBuffer = append(a.traceBuffer, trace)
+	}
 	a.traceMutex.Unlock()
 }
 
@@ -77,7 +87,7 @@ func (a *AnomalyDetection) ProcessProfile(profile *profileObs) {
 	if profile.profileType == "go" {
 		// Store the profile in the buffer
 		a.profileMutex.Lock()
-		if len(a.profileBuffer) < 1000 {
+		if len(a.profileBuffer) < 10000 {
 			a.profileBuffer = append(a.profileBuffer, profile.rawData)
 		}
 		a.profileMutex.Unlock()
@@ -114,6 +124,11 @@ func (a *AnomalyDetection) processProfilesPeriodically() {
 			a.log.Infof("Trace percentiles (from %d traces): P50=%d, P95=%d, P99=%d",
 				len(traces), percentiles.P50, percentiles.P95, percentiles.P99)
 
+			logs := a.drainLogs()
+			if len(logs) > 0 {
+				a.log.Infof("Processing %d accumulated logs", len(logs))
+
+			}
 		case <-a.stopChan:
 
 			return
@@ -130,6 +145,15 @@ func (a *AnomalyDetection) drainBuffer() [][]byte {
 	copy(profiles, a.profileBuffer)
 	a.profileBuffer = a.profileBuffer[:0]
 	return profiles
+}
+
+func (a *AnomalyDetection) drainLogs() []*logObs {
+	a.logMutex.Lock()
+	defer a.logMutex.Unlock()
+
+	logs := a.logBuffer
+	a.logBuffer = nil
+	return logs
 }
 
 func (a *AnomalyDetection) drainTraces() []*traceObs {

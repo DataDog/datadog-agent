@@ -9,8 +9,10 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"math/rand"
+	"os"
 	"time"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
@@ -23,11 +25,20 @@ var (
 	agentAddr    = flag.String("agent", "localhost:8126", "Datadog agent address")
 	env          = flag.String("env", "dev", "Environment name")
 	statsdAddr   = flag.String("statsd", "localhost:8125", "DogStatsD address")
+	logFilePath  = flag.String("log-file", "/tmp/go-traced-app.log", "Log file path")
 	statsdClient ddgostatsd.ClientInterface
 )
 
 func main() {
 	flag.Parse()
+
+	logFile, err := os.OpenFile(*logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		log.Printf("Warning: Failed to open log file %s: %v", *logFilePath, err)
+	} else {
+		log.SetOutput(io.MultiWriter(os.Stdout, logFile))
+		defer logFile.Close()
+	}
 
 	// Start the Datadog tracer
 	// Configure to send to local trace-agent (default: localhost:8126)
@@ -41,7 +52,7 @@ func main() {
 	defer tracer.Stop()
 
 	// Start the profiler for CPU and memory profiling
-	err := profiler.Start(
+	err = profiler.Start(
 		profiler.WithService(*serviceName),
 		profiler.WithEnv(*env),
 		profiler.WithVersion("1.0.0"),
@@ -86,6 +97,7 @@ func runDemo() {
 	defer ticker.Stop()
 
 	for range ticker.C {
+		log.Println("Synthetic error: simulated request failure for log collection")
 		// Create a root span for a simulated web request
 		span := tracer.StartSpan("web.request",
 			tracer.ResourceName("/api/users"),
