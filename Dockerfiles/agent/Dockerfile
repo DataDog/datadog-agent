@@ -86,7 +86,8 @@ RUN apt full-upgrade -y \
   # When the network check will have switched from using ss to directly parsing /proc/net/tcp,
   # this can be removed
   # Install libseccomp2 as required by `nosys-seccomp` wrapper
-  && apt install --no-install-recommends -y iproute2 libseccomp2 tzdata adduser sudo
+  && apt install --no-install-recommends -y iproute2 libseccomp2 tzdata adduser sudo \
+  && chmod o-w /usr/lib/systemd/system/sudo.service
 
 ARG WITH_JMX
 ARG WITH_JMX_FIPS
@@ -200,7 +201,6 @@ RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agen
   && adduser --system --no-create-home --disabled-password dd-scriptuser \
   && echo "dd-agent ALL=(dd-scriptuser) NOPASSWD: ALL" > /etc/sudoers.d/dd-agent \
   && chmod 440 /etc/sudoers.d/dd-agent \
-  && chmod o-w /usr/lib/systemd/system/sudo.service \
   && rm /var/run && mkdir -p /var/run/s6 && mkdir -p /var/run/datadog && mkdir -p /opt/datadog-agent/run \
   && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run \
   && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run \
