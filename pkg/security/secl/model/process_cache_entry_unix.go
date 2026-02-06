@@ -164,6 +164,10 @@ func (pc *ProcessCacheEntry) copyNSFrom(parent *ProcessCacheEntry) {
 	if pc.NetNS == 0 {
 		pc.NetNS = parent.NetNS
 	}
+
+	if pc.MntNS == 0 {
+		pc.MntNS = parent.MntNS
+	}
 }
 
 // GetAncestorsPIDs return the ancestors list PIDs

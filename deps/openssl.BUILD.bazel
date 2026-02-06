@@ -1,8 +1,7 @@
+load("@//bazel/rules:cc_shared_library_wrapper.bzl", "cc_shared_library_wrapper")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
-load("@bazel_skylib//rules:copy_directory.bzl", "copy_directory")
-load("@rules_cc//cc:cc_import.bzl", "cc_import")
-load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
+load("@bazel_skylib//rules:select_file.bzl", "select_file")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
@@ -24,6 +23,8 @@ DEFAULT_CONFIG = [
     "no-ssl3",
     "no-gost",
     "--libdir=lib",
+    # This instructs openssl to dynamically *load* zlib at runtime, not
+    # dynamically *link* with it at build time
     "zlib-dynamic",
 ]
 
@@ -121,15 +122,12 @@ configure_make(
     }),
     lib_source = ":all_srcs",
     out_include_dir = "include",
-    out_static_libs = select({
+    out_interface_libs = select({
         "@platforms//os:windows": [
-            "libssl.dll.a",
-            "libcrypto.dll.a",
+            "libssl.lib",
+            "libcrypto.lib",
         ],
-        "//conditions:default": [
-            "libssl.a",
-            "libcrypto.a",
-        ],
+        "//conditions:default": [],
     }),
     out_shared_libs = select({
         "@platforms//os:linux": [
@@ -157,8 +155,6 @@ configure_make(
     }),
     deps = select({
         "//conditions:default": [
-            "@bzip2//:libbz2",
-            "@xz//:liblzma",
             "@zlib//:zlib",
         ],
         "@platforms//os:windows": [],
@@ -182,15 +178,21 @@ configure_make(
         """ + FIX_OPENSSL_PATHS + """
         codesign -s - -f $$INSTALLDIR/lib/libcrypto.dylib $$INSTALLDIR/lib/libssl.dylib
         """,
+        # Rename .dll.a files into the appropriate extension for import libraries (.lib)
+        "@platforms//os:windows": """
+        mv $$INSTALLDIR/lib/libcrypto.dll.a $$INSTALLDIR/lib/libcrypto.lib
+        mv $$INSTALLDIR/lib/libssl.dll.a $$INSTALLDIR/lib/libssl.lib
+        """,
         "//conditions:default": """
             LIBS="$$INSTALLDIR/lib/libcrypto.so $$INSTALLDIR/lib/libssl.so"
         """ + FIX_OPENSSL_PATHS,
     }),
 )
 
-########################################################################
-
-# Now we have to use filegroups to pull the outputs of configure_make into targets.
+cc_shared_library_wrapper(
+    name = "openssl_shared",
+    input = ":openssl",
+)
 
 filegroup(
     name = "headers",
@@ -198,29 +200,7 @@ filegroup(
     output_group = "include",
 )
 
-copy_directory(
-    name = "copy_headers",
-    src = ":headers",
-    out = "copied_headers",
-)
-
-cc_library(
-    name = "imported_ssl_headers",
-    hdrs = [":copy_headers"],
-    includes = ["copied_headers"],
-)
-
-# The static library built with configure/make
-filegroup(
-    name = "libssl_static",
-    srcs = [":openssl"],
-    output_group = select({
-        "@platforms//os:windows": "libssl.dll.a",
-        "//conditions:default": "libssl.a",
-    }),
-)
-
-# The dynmamic library built with configure/make. Even though the name
+# The dynamic library built with configure/make. Even though the name
 # is libssl.so, it is not actually the same folder, so we can have our
 # own libssl.so shadow it.
 filegroup(
@@ -233,43 +213,6 @@ filegroup(
     }),
 )
 
-# If you need to depend on openssl to build, you want this target.
-# If you depend on this, you must also depend on ":imported_ssl_headers".
-cc_import(
-    name = "ssl",
-    # hrs seems to have no effect in practice, but we have it here because
-    # the docs say this should work
-    hdrs = [":imported_ssl_headers"],
-    static_library = ":libssl_static",
-    shared_library = ":libssl_shared_file",
-)
-
-cc_shared_library(
-    name = "ssl_shared",
-    shared_lib_name = select({
-        "@platforms//os:windows": WIN_LIBSSL,
-        "@platforms//os:macos": MACOS_LIBSSL,
-        "@platforms//os:linux": LINUX_LIBSSL,
-    }),
-    deps = [
-        ":ssl",
-        ":imported_ssl_headers",
-    ],
-    dynamic_deps = [
-        ":crypto_shared",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-filegroup(
-    name = "libcrypto_static",
-    srcs = [":openssl"],
-    output_group = select({
-        "@platforms//os:windows": "libcrypto.dll.a",
-        "//conditions:default": "libcrypto.a",
-    }),
-)
-
 filegroup(
     name = "libcrypto_shared_file",
     srcs = [":openssl"],
@@ -278,28 +221,6 @@ filegroup(
         "@platforms//os:macos": MACOS_LIBCRYPTO,
         "@platforms//os:linux": LINUX_LIBCRYPTO,
     }),
-)
-
-# Do not depend both on this and imported_ssl
-# If you depend on this, you must also depend on ":imported_ssl_headers".
-cc_import(
-    name = "crypto",
-    # hrs seems to have no effect in practice, but we have it here because
-    # the docs say this should work
-    # hdrs = [":imported_ssl_headers"],
-    static_library = ":libcrypto_static",
-    shared_library = ":libcrypto_shared_file",
-)
-
-cc_shared_library(
-    name = "crypto_shared",
-    shared_lib_name = select({
-        "@platforms//os:windows": WIN_LIBCRYPTO,
-        "@platforms//os:macos": MACOS_LIBCRYPTO,
-        "@platforms//os:linux": LINUX_LIBCRYPTO,
-    }),
-    deps = [":crypto"],
-    visibility = ["//visibility:public"],
 )
 
 #####
@@ -349,25 +270,26 @@ filegroup(
     output_group = "pkgconfig",
 )
 
-filegroup(
-    name = "libcrypto_dll_a",
-    srcs = [":openssl"],
-    output_group = "libcrypto.dll.a",
+# "interface libs" are not exposed as output groups, therefore we use a more versatile rule to get these
+select_file(
+    name = "libcrypto_import_lib",
+    srcs = ":openssl",
+    subpath = "openssl/lib/libcrypto.lib",
     target_compatible_with = ["@platforms//os:windows"],
 )
 
-filegroup(
-    name = "libssl_dll_a",
-    srcs = [":openssl"],
-    output_group = "libssl.dll.a",
+select_file(
+    name = "libssl_import_lib",
+    srcs = ":openssl",
+    subpath = "openssl/lib/libssl.lib",
     target_compatible_with = ["@platforms//os:windows"],
 )
 
 pkg_files(
-    name = "dll_a",
+    name = "import_lib_files",
     srcs = [
-        ":libcrypto_dll_a",
-        ":libssl_dll_a",
+        ":libcrypto_import_lib",
+        ":libssl_import_lib",
     ],
     prefix = "lib",
     target_compatible_with = ["@platforms//os:windows"],
@@ -407,7 +329,7 @@ pkg_install(
         ":libcrypto_with_symlink",
     ] + select({
         "@platforms//os:windows": [
-            ":dll_a",
+            ":import_lib_files",
             ":openssl_exe_file",
         ],
         "//conditions:default": [
