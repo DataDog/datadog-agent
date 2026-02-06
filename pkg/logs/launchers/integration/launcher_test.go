@@ -547,6 +547,201 @@ func (suite *LauncherTestSuite) TestScanInitialFilesDeletesProperly() {
 	assert.Equal(suite.T(), 1, fileCount)
 }
 
+// TestFileRotationDeleteAndRecreate ensures that when a file exceeds the size limit,
+// the launcher deletes the old file and creates a new one (delete-and-recreate rotation).
+// This prevents data loss on Linux where the tailer can continue reading the deleted file
+// via its open file descriptor until it reaches EOF.
+func (suite *LauncherTestSuite) TestFileRotationDeleteAndRecreate() {
+	// Set up a small file size limit to trigger rotation
+	suite.s.fileSizeMax = 100 // 100 bytes
+	suite.s.combinedUsageMax = 1000
+
+	filename := "sample_integration_123.log"
+	fileWithPath := filepath.Join(suite.s.runPath, filename)
+
+	// Create initial file with data close to the limit
+	initialData := make([]byte, 80) // 80 bytes
+	for i := range initialData {
+		initialData[i] = 'A'
+	}
+	file, err := suite.fs.Create(fileWithPath)
+	assert.NoError(suite.T(), err)
+	_, err = file.Write(initialData)
+	assert.NoError(suite.T(), err)
+	file.Close()
+
+	// Track the file in the launcher
+	suite.s.integrationToFile = make(map[string]*fileInfo)
+	suite.s.integrationToFile["sample_integration:123"] = &fileInfo{
+		fileWithPath: fileWithPath,
+		size:         int64(len(initialData)),
+		lastModified: time.Now(),
+	}
+	suite.s.combinedUsageSize = int64(len(initialData))
+
+	// Send a log that will exceed the file size limit
+	logThatExceedsLimit := make([]byte, 30) // 80 + 30 = 110 > 100
+	for i := range logThatExceedsLimit {
+		logThatExceedsLimit[i] = 'B'
+	}
+
+	integrationLog := integrations.IntegrationLog{
+		Log:           string(logThatExceedsLimit),
+		IntegrationID: "sample_integration:123",
+	}
+
+	// Receive the log - this should trigger rotation (delete and recreate)
+	suite.s.receiveLogs(integrationLog)
+
+	// Verify the file still exists at the same path (recreated)
+	fileInfo, err := suite.fs.Stat(fileWithPath)
+	assert.NoError(suite.T(), err, "File should exist after rotation")
+
+	// Verify the file size matches only the new log (not old + new)
+	expectedSize := int64(len(logThatExceedsLimit) + 1) // +1 for newline
+	assert.Equal(suite.T(), expectedSize, fileInfo.Size(), "File should contain only new log after rotation")
+
+	// Verify the file contents are only the new log (old data was deleted)
+	fileContents, err := afero.ReadFile(suite.fs, fileWithPath)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), string(logThatExceedsLimit)+"\n", string(fileContents), "File should contain only new log")
+
+	// Verify the launcher's internal tracking was updated
+	assert.Equal(suite.T(), expectedSize, suite.s.integrationToFile["sample_integration:123"].size)
+	assert.Equal(suite.T(), expectedSize, suite.s.combinedUsageSize)
+}
+
+// TestMultipleRotations ensures the launcher can handle multiple rotations
+// for the same integration file without issues
+func (suite *LauncherTestSuite) TestMultipleRotations() {
+	suite.s.fileSizeMax = 100 // File size limit
+	suite.s.combinedUsageMax = 1000
+
+	filename := "sample_integration_456.log"
+	fileWithPath := filepath.Join(suite.s.runPath, filename)
+
+	// Initialize with file that has 80 bytes (close to limit)
+	suite.s.integrationToFile = make(map[string]*fileInfo)
+	initialData := make([]byte, 80)
+	for i := range initialData {
+		initialData[i] = 'I'
+	}
+
+	// Create initial file with data
+	file, err := suite.fs.Create(fileWithPath)
+	assert.NoError(suite.T(), err)
+	file.Write(initialData)
+	file.Close()
+
+	suite.s.integrationToFile["sample_integration:456"] = &fileInfo{
+		fileWithPath: fileWithPath,
+		size:         int64(len(initialData)),
+		lastModified: time.Now(),
+	}
+	suite.s.combinedUsageSize = int64(len(initialData))
+
+	// Send 5 logs, each should trigger a rotation
+	// After rotation, file has the previous log (~70 bytes + newline = 71 bytes)
+	// New log is 70 bytes, so 71 + 70 = 141 > 100, triggers rotation
+	for i := 0; i < 5; i++ {
+		log := make([]byte, 70) // Large enough that when added to existing, always triggers rotation
+		for j := range log {
+			log[j] = byte('0' + i) // Different content each time
+		}
+
+		integrationLog := integrations.IntegrationLog{
+			Log:           string(log),
+			IntegrationID: "sample_integration:456",
+		}
+
+		suite.s.receiveLogs(integrationLog)
+
+		// After each rotation, verify the file contains only the latest log
+		fileContents, err := afero.ReadFile(suite.fs, fileWithPath)
+		assert.NoError(suite.T(), err)
+		assert.Equal(suite.T(), string(log)+"\n", string(fileContents),
+			"After rotation %d, file should contain only the latest log", i+1)
+	}
+
+	// Verify final state
+	fileInfo, err := suite.fs.Stat(fileWithPath)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), int64(71), fileInfo.Size()) // 70 bytes + newline
+}
+
+// TestRotationPreservesOtherFiles ensures rotation of one file doesn't affect other integration files
+func (suite *LauncherTestSuite) TestRotationPreservesOtherFiles() {
+	suite.s.fileSizeMax = 100
+	suite.s.combinedUsageMax = 1000
+
+	// Create two integration files
+	file1Path := filepath.Join(suite.s.runPath, "integration1_abc.log")
+	file2Path := filepath.Join(suite.s.runPath, "integration2_def.log")
+
+	suite.s.integrationToFile = make(map[string]*fileInfo)
+
+	// Write initial data to both files
+	initialData1 := "Initial log for integration 1"
+	initialData2 := "Initial log for integration 2"
+
+	// Create initial empty files
+	file1, err := suite.fs.Create(file1Path)
+	assert.NoError(suite.T(), err)
+	file1.Close()
+
+	file2, err := suite.fs.Create(file2Path)
+	assert.NoError(suite.T(), err)
+	file2.Close()
+
+	suite.s.integrationToFile["integration1:abc"] = &fileInfo{
+		fileWithPath: file1Path,
+		size:         0,
+		lastModified: time.Now(),
+	}
+	suite.s.integrationToFile["integration2:def"] = &fileInfo{
+		fileWithPath: file2Path,
+		size:         0,
+		lastModified: time.Now(),
+	}
+
+	// Write to file 1
+	log1 := integrations.IntegrationLog{
+		Log:           initialData1,
+		IntegrationID: "integration1:abc",
+	}
+	suite.s.receiveLogs(log1)
+
+	// Write to file 2
+	log2 := integrations.IntegrationLog{
+		Log:           initialData2,
+		IntegrationID: "integration2:def",
+	}
+	suite.s.receiveLogs(log2)
+
+	// Trigger rotation on file 1 by sending a log that will exceed limit
+	// Current file1 size: 30 bytes (initialData1) + 1 (newline) = 31 bytes
+	// Send 80 byte log: 31 + 80 = 111 > 100, triggers rotation
+	largeLog := make([]byte, 80)
+	for i := range largeLog {
+		largeLog[i] = 'X'
+	}
+	rotationLog := integrations.IntegrationLog{
+		Log:           string(largeLog),
+		IntegrationID: "integration1:abc",
+	}
+	suite.s.receiveLogs(rotationLog)
+
+	// Verify file 1 was rotated (contains only new log)
+	file1Contents, err := afero.ReadFile(suite.fs, file1Path)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), string(largeLog)+"\n", string(file1Contents))
+
+	// Verify file 2 was NOT affected (still has original data)
+	file2Contents, err := afero.ReadFile(suite.fs, file2Path)
+	assert.NoError(suite.T(), err)
+	assert.Equal(suite.T(), initialData2+"\n", string(file2Contents))
+}
+
 func TestLauncherTestSuite(t *testing.T) {
 	suite.Run(t, new(LauncherTestSuite))
 }
