@@ -47,7 +47,7 @@ type fixture struct {
 	clock           *clock.FakeClock
 	recorder        *record.FakeRecorder
 	store           *store
-	autoscalingHeap *autoscaling.HashHeap
+	autoscalingHeap *autoscaling.HashHeap[model.PodAutoscalerInternal]
 	scaler          *fakeScaler
 	podWatcher      *fakePodWatcher
 }
@@ -59,7 +59,7 @@ func newFixture(t *testing.T, testTime time.Time) *fixture {
 
 	clock := clock.NewFakeClock(testTime)
 	recorder := record.NewFakeRecorder(100)
-	hashHeap := autoscaling.NewHashHeap(testMaxAutoscalerObjects, store)
+	hashHeap := autoscaling.NewHashHeap(testMaxAutoscalerObjects, store, (*model.PodAutoscalerInternal).CreationTimestamp)
 	scaler := newFakeScaler()
 	podWatcher := newFakePodWatcher()
 	return &fixture{
@@ -197,13 +197,13 @@ func TestLeaderCreateDeleteRemote(t *testing.T) {
 		Spec: dpaSpec,
 		Status: datadoghqcommon.DatadogPodAutoscalerStatus{
 			Conditions: []datadoghqcommon.DatadogPodAutoscalerCondition{
-				condition(datadoghqcommon.DatadogPodAutoscalerErrorCondition, corev1.ConditionFalse, "", testTime),
-				condition(datadoghqcommon.DatadogPodAutoscalerActiveCondition, corev1.ConditionTrue, "", testTime),
-				condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, corev1.ConditionUnknown, "", testTime),
-				condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, corev1.ConditionUnknown, "", testTime),
-				condition(datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, corev1.ConditionFalse, "", testTime),
-				condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToScaleCondition, corev1.ConditionUnknown, "", testTime),
-				condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, corev1.ConditionUnknown, "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerErrorCondition, corev1.ConditionFalse, "", "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerActiveCondition, corev1.ConditionTrue, "", "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, corev1.ConditionUnknown, "", "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, corev1.ConditionUnknown, "", "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, corev1.ConditionFalse, "", "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToScaleCondition, corev1.ConditionUnknown, "", "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, corev1.ConditionUnknown, "", "", testTime),
 			},
 		},
 	}
@@ -265,13 +265,13 @@ func TestLeaderCreateDeleteRemoteDefaultedSpec(t *testing.T) {
 		Spec: dpaSpec,
 		Status: datadoghqcommon.DatadogPodAutoscalerStatus{
 			Conditions: []datadoghqcommon.DatadogPodAutoscalerCondition{
-				condition(datadoghqcommon.DatadogPodAutoscalerErrorCondition, corev1.ConditionFalse, "", testTime),
-				condition(datadoghqcommon.DatadogPodAutoscalerActiveCondition, corev1.ConditionTrue, "", testTime),
-				condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, corev1.ConditionUnknown, "", testTime),
-				condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, corev1.ConditionUnknown, "", testTime),
-				condition(datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, corev1.ConditionFalse, "", testTime),
-				condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToScaleCondition, corev1.ConditionUnknown, "", testTime),
-				condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, corev1.ConditionUnknown, "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerErrorCondition, corev1.ConditionFalse, "", "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerActiveCondition, corev1.ConditionTrue, "", "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, corev1.ConditionUnknown, "", "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, corev1.ConditionUnknown, "", "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, corev1.ConditionFalse, "", "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToScaleCondition, corev1.ConditionUnknown, "", "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, corev1.ConditionUnknown, "", "", testTime),
 			},
 		},
 	}
@@ -412,13 +412,13 @@ func TestDatadogPodAutoscalerTargetingClusterAgentErrors(t *testing.T) {
 				},
 				Status: datadoghqcommon.DatadogPodAutoscalerStatus{
 					Conditions: []datadoghqcommon.DatadogPodAutoscalerCondition{
-						condition(datadoghqcommon.DatadogPodAutoscalerErrorCondition, corev1.ConditionTrue, "Autoscaling target cannot be set to the cluster agent", testTime),
-						condition(datadoghqcommon.DatadogPodAutoscalerActiveCondition, corev1.ConditionTrue, "", testTime),
-						condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, corev1.ConditionUnknown, "", testTime),
-						condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, corev1.ConditionUnknown, "", testTime),
-						condition(datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, corev1.ConditionFalse, "", testTime),
-						condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToScaleCondition, corev1.ConditionUnknown, "", testTime),
-						condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, corev1.ConditionUnknown, "", testTime),
+						condition(datadoghqcommon.DatadogPodAutoscalerErrorCondition, corev1.ConditionTrue, "InvalidTarget", "Autoscaling target cannot be set to the cluster agent", testTime),
+						condition(datadoghqcommon.DatadogPodAutoscalerActiveCondition, corev1.ConditionTrue, "", "", testTime),
+						condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, corev1.ConditionUnknown, "", "", testTime),
+						condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, corev1.ConditionUnknown, "", "", testTime),
+						condition(datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, corev1.ConditionFalse, "", "", testTime),
+						condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToScaleCondition, corev1.ConditionUnknown, "", "", testTime),
+						condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, corev1.ConditionUnknown, "", "", testTime),
 					},
 				},
 			}
@@ -428,7 +428,7 @@ func TestDatadogPodAutoscalerTargetingClusterAgentErrors(t *testing.T) {
 			assert.Len(t, f.store.GetAll(), 1)
 			pai, found := f.store.Get(id)
 			assert.Truef(t, found, "Expected to find DatadogPodAutoscaler in store")
-			assert.Equal(t, errors.New("Autoscaling target cannot be set to the cluster agent"), pai.Error())
+			assert.EqualError(t, pai.Error(), "Autoscaling target cannot be set to the cluster agent")
 		})
 	}
 }
@@ -538,13 +538,13 @@ func TestPodAutoscalerClearStatusOnScalingModeChange(t *testing.T) {
 		Status: datadoghqcommon.DatadogPodAutoscalerStatus{
 			CurrentReplicas: pointer.Ptr[int32](1),
 			Conditions: []datadoghqcommon.DatadogPodAutoscalerCondition{
-				condition(datadoghqcommon.DatadogPodAutoscalerErrorCondition, corev1.ConditionFalse, "", testTime),
-				condition(datadoghqcommon.DatadogPodAutoscalerActiveCondition, corev1.ConditionTrue, "", testTime),
-				condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, corev1.ConditionTrue, "", testTime),
-				condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, corev1.ConditionFalse, "no data available", testTime),
-				condition(datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, corev1.ConditionFalse, "", testTime),
-				condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToScaleCondition, corev1.ConditionTrue, "", testTime),
-				condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, corev1.ConditionTrue, "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerErrorCondition, corev1.ConditionFalse, "", "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerActiveCondition, corev1.ConditionTrue, "", "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, corev1.ConditionTrue, "", "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, corev1.ConditionFalse, "", "no data available", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, corev1.ConditionFalse, "", "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToScaleCondition, corev1.ConditionTrue, "", "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, corev1.ConditionTrue, "", "", testTime),
 			},
 			Horizontal: &datadoghqcommon.DatadogPodAutoscalerHorizontalStatus{
 				Target: &datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
@@ -590,13 +590,13 @@ func TestPodAutoscalerClearStatusOnScalingModeChange(t *testing.T) {
 	expectedDPA.Generation = 1
 	expectedDPA.Status.Vertical = nil
 	expectedDPA.Status.Conditions = []datadoghqcommon.DatadogPodAutoscalerCondition{
-		condition(datadoghqcommon.DatadogPodAutoscalerErrorCondition, corev1.ConditionFalse, "", testTime),
-		condition(datadoghqcommon.DatadogPodAutoscalerActiveCondition, corev1.ConditionTrue, "", testTime),
-		condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, corev1.ConditionTrue, "", testTime),
-		condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, corev1.ConditionUnknown, "", testTime),
-		condition(datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, corev1.ConditionFalse, "", testTime),
-		condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToScaleCondition, corev1.ConditionTrue, "", testTime),
-		condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, corev1.ConditionUnknown, "", testTime),
+		condition(datadoghqcommon.DatadogPodAutoscalerErrorCondition, corev1.ConditionFalse, "", "", testTime),
+		condition(datadoghqcommon.DatadogPodAutoscalerActiveCondition, corev1.ConditionTrue, "", "", testTime),
+		condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, corev1.ConditionTrue, "", "", testTime),
+		condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, corev1.ConditionUnknown, "", "", testTime),
+		condition(datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, corev1.ConditionFalse, "", "", testTime),
+		condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToScaleCondition, corev1.ConditionTrue, "", "", testTime),
+		condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, corev1.ConditionUnknown, "", "", testTime),
 	}
 
 	// Check current status is as expected
@@ -689,13 +689,13 @@ func TestPodAutoscalerLocalOwnerObjectsLimit(t *testing.T) {
 		},
 		Status: datadoghqcommon.DatadogPodAutoscalerStatus{
 			Conditions: []datadoghqcommon.DatadogPodAutoscalerCondition{
-				condition(datadoghqcommon.DatadogPodAutoscalerErrorCondition, corev1.ConditionTrue, fmt.Sprintf("Autoscaler disabled as maximum number per cluster reached (%d)", testMaxAutoscalerObjects), testTime),
-				condition(datadoghqcommon.DatadogPodAutoscalerActiveCondition, corev1.ConditionTrue, "", testTime),
-				condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, corev1.ConditionUnknown, "", testTime),
-				condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, corev1.ConditionUnknown, "", testTime),
-				condition(datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, corev1.ConditionFalse, "", testTime),
-				condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToScaleCondition, corev1.ConditionUnknown, "", testTime),
-				condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, corev1.ConditionUnknown, "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerErrorCondition, corev1.ConditionTrue, "ClusterAutoscalerLimitReached", fmt.Sprintf("Autoscaler disabled as maximum number per cluster reached (%d)", testMaxAutoscalerObjects), testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerActiveCondition, corev1.ConditionTrue, "", "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, corev1.ConditionUnknown, "", "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, corev1.ConditionUnknown, "", "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, corev1.ConditionFalse, "", "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToScaleCondition, corev1.ConditionUnknown, "", "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, corev1.ConditionUnknown, "", "", testTime),
 			},
 		},
 	}
@@ -769,13 +769,13 @@ func TestPodAutoscalerRemoteOwnerObjectsLimit(t *testing.T) {
 	// Should create object in Kubernetes
 	expectedStatus := datadoghqcommon.DatadogPodAutoscalerStatus{
 		Conditions: []datadoghqcommon.DatadogPodAutoscalerCondition{
-			condition(datadoghqcommon.DatadogPodAutoscalerErrorCondition, corev1.ConditionFalse, "", testTime),
-			condition(datadoghqcommon.DatadogPodAutoscalerActiveCondition, corev1.ConditionTrue, "", testTime),
-			condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, corev1.ConditionUnknown, "", testTime),
-			condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, corev1.ConditionUnknown, "", testTime),
-			condition(datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, corev1.ConditionFalse, "", testTime),
-			condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToScaleCondition, corev1.ConditionUnknown, "", testTime),
-			condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, corev1.ConditionUnknown, "", testTime),
+			condition(datadoghqcommon.DatadogPodAutoscalerErrorCondition, corev1.ConditionFalse, "", "", testTime),
+			condition(datadoghqcommon.DatadogPodAutoscalerActiveCondition, corev1.ConditionTrue, "", "", testTime),
+			condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, corev1.ConditionUnknown, "", "", testTime),
+			condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, corev1.ConditionUnknown, "", "", testTime),
+			condition(datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, corev1.ConditionFalse, "", "", testTime),
+			condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToScaleCondition, corev1.ConditionUnknown, "", "", testTime),
+			condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, corev1.ConditionUnknown, "", "", testTime),
 		},
 	}
 	expectedUnstructured, _ := newFakePodAutoscaler("default", "dpa-0", -1, time.Time{}, dpaSpec, expectedStatus)
@@ -831,13 +831,13 @@ func TestPodAutoscalerRemoteOwnerObjectsLimit(t *testing.T) {
 		},
 		Status: datadoghqcommon.DatadogPodAutoscalerStatus{
 			Conditions: []datadoghqcommon.DatadogPodAutoscalerCondition{
-				condition(datadoghqcommon.DatadogPodAutoscalerErrorCondition, corev1.ConditionTrue, fmt.Sprintf("Autoscaler disabled as maximum number per cluster reached (%d)", testMaxAutoscalerObjects), testTime),
-				condition(datadoghqcommon.DatadogPodAutoscalerActiveCondition, corev1.ConditionTrue, "", testTime),
-				condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, corev1.ConditionUnknown, "", testTime),
-				condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, corev1.ConditionUnknown, "", testTime),
-				condition(datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, corev1.ConditionFalse, "", testTime),
-				condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToScaleCondition, corev1.ConditionUnknown, "", testTime),
-				condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, corev1.ConditionUnknown, "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerErrorCondition, corev1.ConditionTrue, "ClusterAutoscalerLimitReached", fmt.Sprintf("Autoscaler disabled as maximum number per cluster reached (%d)", testMaxAutoscalerObjects), testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerActiveCondition, corev1.ConditionTrue, "", "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, corev1.ConditionUnknown, "", "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, corev1.ConditionUnknown, "", "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, corev1.ConditionFalse, "", "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToScaleCondition, corev1.ConditionUnknown, "", "", testTime),
+				condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, corev1.ConditionUnknown, "", "", testTime),
 			},
 		},
 	}
@@ -1249,11 +1249,12 @@ func mustUnstructured(t *testing.T, structIn any) *unstructured.Unstructured {
 	return unstructOut
 }
 
-func condition(conditionType datadoghqcommon.DatadogPodAutoscalerConditionType, status corev1.ConditionStatus, reason string, transitionTime time.Time) datadoghqcommon.DatadogPodAutoscalerCondition {
+func condition(conditionType datadoghqcommon.DatadogPodAutoscalerConditionType, status corev1.ConditionStatus, reason, message string, transitionTime time.Time) datadoghqcommon.DatadogPodAutoscalerCondition {
 	return datadoghqcommon.DatadogPodAutoscalerCondition{
 		Type:               conditionType,
 		Status:             status,
 		Reason:             reason,
+		Message:            message,
 		LastTransitionTime: metav1.NewTime(transitionTime),
 	}
 }
