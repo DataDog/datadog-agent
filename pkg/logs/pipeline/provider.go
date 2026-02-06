@@ -356,16 +356,39 @@ func (p *provider) forwardWithFailover() {
 }
 
 // hashOriginToPipeline returns a consistent pipeline index for a given message origin.
-// Uses FNV-1a hash of the origin identifier to ensure messages from the same source
+// Uses FNV-1a hash of the most stable available identifier to ensure messages from the same source
 // always route to the same primary pipeline. Falls back to round-robin if origin is nil.
 func (p *provider) hashOriginToPipeline(origin *message.Origin) uint32 {
-	if origin == nil || origin.Identifier == "" {
-		// Fallback to round-robin if no identifier (really unlikely)
-		return p.currentPipelineIndex.Inc() % uint32(len(p.pipelines))
+	pipelinesLen := uint32(len(p.pipelines))
+
+	// Find the first stable identifier
+	hashKey := p.getStableHashKey(origin)
+	if hashKey == ""{
+		return p.currentPipelineIndex.Inc() % pipelinesLen
 	}
+
 	pipelineHash := fnv.New32a()
-	pipelineHash.Write([]byte(origin.Identifier))
+	pipelineHash.Write([]byte(hashKey))
 	return pipelineHash.Sum32() % uint32(len(p.pipelines))
+}
+
+// getStableHashKey returns the most stable identifer for an origin.
+// Returns empty string if no stable identifer is available
+func (p *provider) getStableHashKey(origin *message.Origin) string {
+	if origin == nil {
+		return ""
+	}
+
+	switch {
+	case origin.Identifier != "":
+		return origin.Identifier
+	case origin.FilePath != "":
+		return origin.FilePath
+	case origin.LogSource != nil && origin.LogSource.Name != "":
+		return origin.LogSource.Name
+	default:
+		return ""
+	}
 }
 
 // trySendToPipeline attempts to send a message to a pipeline using non-blocking sends.

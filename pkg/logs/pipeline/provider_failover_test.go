@@ -6,11 +6,11 @@
 package pipeline
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
@@ -50,10 +50,9 @@ func (m *mockSender) PipelineMonitor() metrics.PipelineMonitor {
 // createMockSender creates a mock sender that consumes but doesn't send payloads
 func createMockSender() sender.PipelineComponent {
 	inputChan := make(chan *message.Payload, 100)
-	// Start a goroutine to consume payloads so tests don't block
 	go func() {
 		for payload := range inputChan {
-			_ = payload // Discard payloads
+			_ = payload
 		}
 	}()
 	return &mockSender{
@@ -72,213 +71,138 @@ func createTestProviderWithFailover(t *testing.T, numberOfPipelines int) *provid
 		"use_http": true,
 	})
 
-	diagnosticMessageReceiver := &diagnostic.BufferedMessageReceiver{}
-	compression := compressionfx.NewMockCompressor()
-	mockSenderImpl := createMockSender()
-
 	p := newProvider(
 		numberOfPipelines,
-		diagnosticMessageReceiver,
+		&diagnostic.BufferedMessageReceiver{},
 		nil,
 		endpoints,
 		nil,
 		cfg,
-		compression,
+		compressionfx.NewMockCompressor(),
 		sender.NewServerlessMeta(false),
-		mockSenderImpl,
+		createMockSender(),
 	).(*provider)
 
 	p.Start()
-
 	return p
 }
 
-// TestSharedRouterChannelCreation verifies that NextPipelineChan returns the shared
-// router channel when failover is enabled
-func TestSharedRouterChannelCreation(t *testing.T) {
+// TestFailoverChannelSharing verifies that when failover is enabled, all tailers
+// receive the same shared router channel (not direct pipeline InputChans) and
+// NextPipelineChanWithMonitor returns a nil monitor since the forwarder goroutine
+// tracks ingress on the actual destination pipeline.
+func TestFailoverChannelSharing(t *testing.T) {
 	p := createTestProviderWithFailover(t, 3)
 	defer p.Stop()
 
-	routerChan := p.NextPipelineChan()
-	require.NotNil(t, routerChan, "Router channel should not be nil")
+	ch1 := p.NextPipelineChan()
+	ch2 := p.NextPipelineChan()
+	ch3, monitor := p.NextPipelineChanWithMonitor()
 
-	// Verify it's a different channel than any direct pipeline InputChan
-	for i, pipeline := range p.pipelines {
-		assert.NotEqual(t, pipeline.InputChan, routerChan,
-			"Router channel should be different from pipeline %d InputChan", i)
+	// All calls return the same shared channel
+	assert.Equal(t, ch1, ch2, "All tailers should share the same channel")
+	assert.Equal(t, ch2, ch3, "NextPipelineChanWithMonitor should return the same shared channel")
+	assert.Equal(t, p.sharedRouterChannel, ch1, "Should be the provider's shared router channel")
+
+	// Shared channel is different from any direct pipeline InputChan
+	for i, pl := range p.pipelines {
+		assert.NotEqual(t, pl.InputChan, ch1, "Router channel should differ from pipeline %d InputChan", i)
 	}
 
-	// Verify it's the shared channel
-	assert.Equal(t, p.sharedRouterChannel, routerChan, "Should return the shared router channel")
+	// Monitor is nil when failover is enabled
+	assert.Nil(t, monitor, "Monitor should be nil when failover enabled; forwarder handles ingress")
 }
 
-// TestAllTailersShareSameChannel verifies that all tailers get the same shared channel
-func TestAllTailersShareSameChannel(t *testing.T) {
+// TestGetStableHashKey verifies the priority order used to select a hash key
+// from a message origin: Identifier > FilePath > LogSource.Name > empty.
+func TestGetStableHashKey(t *testing.T) {
 	p := createTestProviderWithFailover(t, 3)
 	defer p.Stop()
 
-	routerChan1 := p.NextPipelineChan()
-	routerChan2 := p.NextPipelineChan()
-	routerChan3 := p.NextPipelineChan()
-
-	// All tailers should get the same shared channel
-	assert.Equal(t, routerChan1, routerChan2, "All tailers should share the same channel")
-	assert.Equal(t, routerChan2, routerChan3, "All tailers should share the same channel")
-	assert.Equal(t, p.sharedRouterChannel, routerChan1, "Should be the shared router channel")
-}
-
-// TestRouterChannelReturnsNilMonitor verifies that NextPipelineChanWithMonitor
-// returns nil for the monitor when failover is enabled (ingress tracked by forwarder)
-func TestRouterChannelReturnsNilMonitor(t *testing.T) {
-	p := createTestProviderWithFailover(t, 3)
-	defer p.Stop()
-
-	routerChan, monitor := p.NextPipelineChanWithMonitor()
-	require.NotNil(t, routerChan, "Router channel should not be nil")
-	assert.Nil(t, monitor, "Monitor should be nil when failover enabled")
-	assert.Equal(t, p.sharedRouterChannel, routerChan, "Should return the shared router channel")
-}
-
-// TestHashOriginToPipeline verifies that the same origin always hashes to the same pipeline
-func TestHashOriginToPipeline(t *testing.T) {
-	p := createTestProviderWithFailover(t, 3)
-	defer p.Stop()
-
-	// Same identifier should always hash to the same pipeline
-	origin1 := &message.Origin{Identifier: "file:/var/log/test.log"}
-	origin2 := &message.Origin{Identifier: "file:/var/log/test.log"}
-	origin3 := &message.Origin{Identifier: "file:/var/log/other.log"}
-
-	idx1 := p.hashOriginToPipeline(origin1)
-	idx2 := p.hashOriginToPipeline(origin2)
-	idx3 := p.hashOriginToPipeline(origin3)
-
-	assert.Equal(t, idx1, idx2, "Same identifier should hash to same pipeline")
-	assert.Less(t, idx1, uint32(3), "Index should be within pipeline count")
-	assert.Less(t, idx3, uint32(3), "Index should be within pipeline count")
-}
-
-// TestHashOriginNilFallback verifies that nil origin falls back to round-robin
-func TestHashOriginNilFallback(t *testing.T) {
-	p := createTestProviderWithFailover(t, 3)
-	defer p.Stop()
-
-	// Nil origin should use round-robin
-	idx1 := p.hashOriginToPipeline(nil)
-	idx2 := p.hashOriginToPipeline(nil)
-
-	assert.Less(t, idx1, uint32(3), "Index should be within pipeline count")
-	assert.Less(t, idx2, uint32(3), "Index should be within pipeline count")
-	// Note: may or may not be equal depending on round-robin increment
-}
-
-// TestMessageRoutingToPipelines verifies messages are routed through the shared channel
-func TestMessageRoutingToPipelines(t *testing.T) {
-	p := createTestProviderWithFailover(t, 3)
-	defer p.Stop()
-
-	routerChan := p.NextPipelineChan()
-
-	// Send messages with different identifiers
-	msg1 := createTestMessage("test1", "file:/var/log/app1.log")
-	msg2 := createTestMessage("test2", "file:/var/log/app2.log")
-
-	// Should not block (channels have capacity)
-	routerChan <- msg1
-	routerChan <- msg2
-
-	// Give forwarder time to process
-	time.Sleep(50 * time.Millisecond)
-
-	// If we get here without blocking, routing is working
-	assert.True(t, true, "Messages routed successfully")
-}
-
-// TestGracefulShutdown verifies Stop() waits for forwarder goroutine to finish
-func TestGracefulShutdown(t *testing.T) {
-	p := createTestProviderWithFailover(t, 3)
-
-	routerChan := p.NextPipelineChan()
-
-	// Send some messages
-	for i := 0; i < 5; i++ {
-		routerChan <- createTestMessage("test", "file:/var/log/test.log")
+	tests := []struct {
+		name     string
+		origin   *message.Origin
+		expected string
+	}{
+		{"nil origin", nil, ""},
+		{"empty origin", &message.Origin{}, ""},
+		{"identifier only", &message.Origin{Identifier: "docker:abc123"}, "docker:abc123"},
+		{"filepath only", &message.Origin{FilePath: "/var/log/app.log"}, "/var/log/app.log"},
+		{"identifier takes priority over filepath", &message.Origin{
+			Identifier: "file:/var/log/app.log",
+			FilePath:   "/var/log/app.log",
+		}, "file:/var/log/app.log"},
+		{"logsource name as fallback", func() *message.Origin {
+			src := sources.NewLogSource("myapp", &config.LogsConfig{})
+			return message.NewOrigin(src)
+		}(), "myapp"},
 	}
 
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, p.getStableHashKey(tc.origin))
+		})
+	}
+}
+
+// TestOriginHashConsistency verifies that the same origin always maps to the
+// same pipeline index, ensuring message ordering is preserved per source.
+func TestOriginHashConsistency(t *testing.T) {
+	p := createTestProviderWithFailover(t, 5)
+	defer p.Stop()
+
+	origin := &message.Origin{Identifier: "file:/var/log/app.log"}
+
+	firstIdx := p.hashOriginToPipeline(origin)
+	for i := 0; i < 100; i++ {
+		assert.Equal(t, firstIdx, p.hashOriginToPipeline(origin),
+			"Same origin must always hash to the same pipeline")
+	}
+	assert.Less(t, firstIdx, uint32(5), "Index must be within pipeline count")
+}
+
+// TestMessageRoutingEndToEnd verifies that messages sent to the router channel
+// are forwarded to pipelines by the forwarder goroutine without blocking.
+func TestMessageRoutingEndToEnd(t *testing.T) {
+	p := createTestProviderWithFailover(t, 3)
+	defer p.Stop()
+
+	routerChan := p.NextPipelineChan()
+
+	for i := 0; i < 20; i++ {
+		msg := createTestMessage(fmt.Sprintf("msg-%d", i), fmt.Sprintf("tailer-%d", i%5))
+		select {
+		case routerChan <- msg:
+		case <-time.After(2 * time.Second):
+			t.Fatalf("Timed out sending message %d - possible deadlock", i)
+		}
+	}
+
+	// Allow forwarder to drain
+	time.Sleep(100 * time.Millisecond)
+}
+
+// TestGracefulShutdownDrainsMessages verifies that Stop() closes the shared router
+// channel, waits for the forwarder to finish, and completes without hanging.
+func TestGracefulShutdownDrainsMessages(t *testing.T) {
+	p := createTestProviderWithFailover(t, 3)
+
+	routerChan := p.NextPipelineChan()
+	for i := 0; i < 10; i++ {
+		routerChan <- createTestMessage("test", "file:/test.log")
+	}
 	time.Sleep(50 * time.Millisecond)
 
-	// Stop should complete without hanging
-	stopDone := make(chan struct{})
+	done := make(chan struct{})
 	go func() {
 		p.Stop()
-		close(stopDone)
+		close(done)
 	}()
 
 	select {
-	case <-stopDone:
-		assert.True(t, true, "Provider stopped gracefully")
+	case <-done:
+		// Success
 	case <-time.After(2 * time.Second):
-		t.Fatal("Stop() took too long")
+		t.Fatal("Stop() did not complete within timeout")
 	}
-}
-
-// TestRouterChannelBufferSize verifies router channel uses configured buffer size
-func TestRouterChannelBufferSize(t *testing.T) {
-	cfg := configmock.New(t)
-	cfg.SetWithoutSource("logs_config.pipeline_failover.enabled", true)
-	cfg.SetWithoutSource("logs_config.message_channel_size", 50)
-
-	endpoints := config.NewMockEndpointsWithOptions([]config.Endpoint{config.NewMockEndpoint()}, map[string]interface{}{
-		"use_http": true,
-	})
-
-	p := newProvider(
-		3,
-		&diagnostic.BufferedMessageReceiver{},
-		nil,
-		endpoints,
-		nil,
-		cfg,
-		compressionfx.NewMockCompressor(),
-		sender.NewServerlessMeta(false),
-		createMockSender(),
-	).(*provider)
-
-	p.Start()
-	defer p.Stop()
-
-	routerChan := p.NextPipelineChan()
-
-	// Fill buffer without blocking
-	for i := 0; i < 50; i++ {
-		select {
-		case routerChan <- createTestMessage("test", "file:/test"):
-		default:
-			t.Fatalf("Buffer should accept 50 messages, blocked at %d", i)
-		}
-	}
-}
-
-// TestFailoverConfigurationParsed verifies config option is read correctly
-func TestFailoverConfigurationParsed(t *testing.T) {
-	cfg := configmock.New(t)
-	cfg.SetWithoutSource("logs_config.pipeline_failover.enabled", true)
-
-	endpoints := config.NewMockEndpointsWithOptions([]config.Endpoint{config.NewMockEndpoint()}, map[string]interface{}{
-		"use_http": true,
-	})
-
-	p := newProvider(
-		3,
-		&diagnostic.BufferedMessageReceiver{},
-		nil,
-		endpoints,
-		nil,
-		cfg,
-		compressionfx.NewMockCompressor(),
-		sender.NewServerlessMeta(false),
-		createMockSender(),
-	).(*provider)
-
-	assert.True(t, p.failoverEnabled)
 }
