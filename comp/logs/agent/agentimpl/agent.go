@@ -33,6 +33,7 @@ import (
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	recorder "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
@@ -89,6 +90,7 @@ type dependencies struct {
 	Compression        logscompression.Component
 	HealthPlatform     option.Option[healthplatform.Component]
 	Observer           option.Option[observer.Component]
+	Recorder           option.Option[recorder.Component]
 }
 
 type provides struct {
@@ -153,9 +155,15 @@ func newLogsAgent(deps dependencies) provides {
 		integrationsLogs := integrationsimpl.NewLogsIntegration()
 
 		// Initialize observer handle if observer component is available
+		// If recorder is available, wrap the observer handle to enable log recording
 		var observerHandle observer.Handle
 		if obs, ok := deps.Observer.Get(); ok {
-			observerHandle = obs.GetHandle("logs")
+			handleFunc := obs.GetHandle
+			// Wrap with recorder if available (enables log recording to disk)
+			if rec, ok := deps.Recorder.Get(); ok {
+				handleFunc = rec.GetHandle(handleFunc)
+			}
+			observerHandle = handleFunc("logs")
 		}
 
 		logsAgent := &logAgent{

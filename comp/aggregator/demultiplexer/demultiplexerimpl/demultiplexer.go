@@ -23,6 +23,7 @@ import (
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	recorder "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -50,6 +51,7 @@ type dependencies struct {
 	Hostname               hostnameinterface.Component
 	FilterList             filterlist.Component
 	Observer               observer.Component `optional:"true"`
+	Recorder               recorder.Component `optional:"true"`
 
 	Params Params
 }
@@ -91,7 +93,8 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 		hostnameDetected,
 	)
 	// Wire observer via setter to avoid changing the constructor signature (for POC)
-	agentDemultiplexer.SetObserver(deps.Observer)
+	// If recorder is available, handles are wrapped to enable recording to disk
+	agentDemultiplexer.SetObserver(deps.Observer, deps.Recorder)
 	demultiplexer := demultiplexer{
 		AgentDemultiplexer: agentDemultiplexer,
 	}

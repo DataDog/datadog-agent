@@ -20,6 +20,7 @@ import (
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	recorder "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -321,7 +322,8 @@ func (d *AgentDemultiplexer) AddAgentStartupTelemetry(agentVersion string) {
 // SetObserver wires an observer component into the demultiplexer.
 // This should be called after construction to enable mirroring of check metrics
 // and events to the observer for local analysis/correlation.
-func (d *AgentDemultiplexer) SetObserver(obs observer.Component) {
+// If a recorder is provided, handles are wrapped to enable recording to disk.
+func (d *AgentDemultiplexer) SetObserver(obs observer.Component, rec recorder.Component) {
 	if obs == nil {
 		return
 	}
@@ -332,8 +334,15 @@ func (d *AgentDemultiplexer) SetObserver(obs observer.Component) {
 		return
 	}
 
+	// Create handle function, optionally wrapped with recorder
+	handleFunc := obs.GetHandle
+	if rec != nil {
+		handleFunc = rec.GetHandle(handleFunc)
+		d.log.Info("Observer handles wrapped with recorder for metric/event recording")
+	}
+
 	// Wire all metric paths with a single global handle
-	metricsHandle := obs.GetHandle("all-metrics")
+	metricsHandle := handleFunc("all-metrics")
 
 	// Metrics: mirror raw check samples into the observer via the CheckSampler hook.
 	d.aggregator.SetObserverHandle(metricsHandle)
@@ -349,7 +358,7 @@ func (d *AgentDemultiplexer) SetObserver(obs observer.Component) {
 	}
 
 	// Events: forward lifecycle events as best-effort log observations (used as event signals for correlation).
-	eventsHandle := obs.GetHandle("check-events")
+	eventsHandle := handleFunc("check-events")
 	d.aggregator.SetObserverEventSink(func(e event.Event) {
 		// Copy tags to avoid mutating the underlying slice that is also stored in agg.events.
 		tags := make([]string, len(e.Tags), len(e.Tags)+3)
