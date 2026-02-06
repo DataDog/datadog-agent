@@ -622,9 +622,75 @@ CustomActions.EnsureAdminCaller
 
 ---
 
+## Iteration 17: StandardDirectory Breaks MSI Admin Install
+
+### Runtime Error
+```
+Error starting experiment: error starting experiment: could not install experiment: run failed: 
+fork/exec C:\ProgramData\Datadog\Installer\tmp\bootstrap...\datadog-installer\ProgramFiles64Folder\Datadog\Datadog Agent\bin\datadog-installer.exe: 
+The system cannot find the path specified.
+```
+
+### Root Cause
+WiX 5 introduced `<StandardDirectory>` elements to reference standard Windows directories. This breaks MSI administrative install (`msiexec /a`) which the `datadog-installer` uses to extract files from the MSI.
+
+**WiX 3 output:**
+```xml
+<Directory Id="ProgramFiles64Folder" Name="ProgramFiles64Folder" ShortName="ahdhsqhf">
+```
+
+**WiX 5 output:**
+```xml
+<StandardDirectory Id="ProgramFiles64Folder">
+```
+
+### Verified Behavior (via msiexec /a testing)
+
+| WiX Version | Admin Install Extracted Path |
+|-------------|------------------------------|
+| WiX 3 | `C:\extract\ProgramFiles64Folder\Datadog\Datadog Agent\...` |
+| WiX 5 (StandardDirectory) | `C:\extract\PFiles64\Datadog\Datadog Agent\...` |
+
+WiX 5's `StandardDirectory` produces a **short name** (`PFiles64`) instead of the full name (`ProgramFiles64Folder`) because it doesn't populate the `Name` attribute in the Directory table.
+
+The Go code in `pkg/fleet/installer/paths/installer_paths_windows.go` expects:
+```go
+func GetAdminInstallerBinaryPath(path string) string {
+    return filepath.Join(path, "ProgramFiles64Folder", "Datadog", "Datadog Agent", "bin", "datadog-installer.exe")
+}
+```
+
+### Alternative Considered: Fix Go Code Instead
+We considered updating the Go code to use the new path (`PFiles64`), but:
+1. Short names are unpredictable and could vary across builds
+2. It relies on an implementation detail that could change in future WiX versions
+3. The safer approach is to ensure the MSI produces a consistent, predictable structure
+
+### Fix Applied
+Convert `StandardDirectory` back to `Directory` with explicit `Name` attribute in `WixSourceGenerated`:
+
+```csharp
+var standardDir = document.FindAll("StandardDirectory")
+    .FirstOrDefault(x => x.HasAttribute("Id", "ProgramFiles64Folder"));
+if (standardDir != null)
+{
+    var newDir = new XElement("Directory");
+    newDir.SetAttributeValue("Id", "ProgramFiles64Folder");
+    newDir.SetAttributeValue("Name", "ProgramFiles64Folder");
+    foreach (var child in standardDir.Elements().ToList())
+    {
+        child.Remove();
+        newDir.Add(child);
+    }
+    standardDir.ReplaceWith(newDir);
+}
+```
+
+---
+
 ## Current Status
 
-The MSI should now run without the DLL entry point error. Continue testing installation.
+The MSI should now work correctly with MSI administrative install (`msiexec /a`). The fix ensures backward compatibility with the datadog-installer bootstrap process.
 
 ---
 
@@ -639,7 +705,7 @@ The MSI should now run without the DLL entry point error. Continue testing insta
 | `CustomActions.Tests/CustomActions.Tests.csproj` | Package refs, target framework |
 | `WixSetup/WixSharpCompatExtensions.cs` | **NEW FILE** - NineDigit replacement |
 | `WixSetup/Program.cs` | Compiler options migration |
-| `WixSetup/Datadog Agent/AgentInstaller.cs` | Removed NineDigit using, fixed Dirs, removed InstallPrivileges, WixFailWhenDeferred→util:FailWhenDeferred, SummaryInformation |
+| `WixSetup/Datadog Agent/AgentInstaller.cs` | Removed NineDigit using, fixed Dirs, removed InstallPrivileges, WixFailWhenDeferred→util:FailWhenDeferred, SummaryInformation, StandardDirectory→Directory |
 | `WixSetup/Datadog Installer/DatadogInstaller.cs` | Removed NineDigit using, removed InstallPrivileges, added XElement using, WixFailWhenDeferred→util:FailWhenDeferred, SummaryInformation |
 | `WixSetup/Datadog Agent/AgentCustomActions.cs` | Lambda→method group for all 36 custom actions |
 | `WixSetup/Datadog Installer/DatadogInstallerCustomActions.cs` | Lambda→method group for all 9 custom actions |
