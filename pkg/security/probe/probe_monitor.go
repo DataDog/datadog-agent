@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/adsample"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/approver"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/discarder"
@@ -34,6 +35,7 @@ type EBPFMonitors struct {
 	approverMonitor    *approver.Monitor
 	syscallsMonitor    *syscalls.Monitor
 	dnsMonitor         *dns.Monitor
+	adsampleMonitor    *adsample.Monitor
 }
 
 // NewEBPFMonitors returns a new instance of a ProbeMonitor
@@ -77,6 +79,11 @@ func (m *EBPFMonitors) Init() error {
 		if err != nil {
 			return fmt.Errorf("couldn't create the DNS monitor: %w", err)
 		}
+	}
+
+	m.adsampleMonitor, err = adsample.NewADSampleMonitor(p.Manager, p.statsdClient)
+	if err != nil {
+		return fmt.Errorf("couldn't create the activity dump sample monitor: %w", err)
 	}
 
 	return nil
@@ -159,6 +166,10 @@ func (m *EBPFMonitors) SendStats() error {
 		if err := m.syscallsMonitor.SendStats(); err != nil {
 			return fmt.Errorf("failed to send evaluation set stats: %w", err)
 		}
+	}
+
+	if err := m.adsampleMonitor.SendStats(); err != nil {
+		return fmt.Errorf("failed to send activity dump sample stats: %w", err)
 	}
 
 	return nil

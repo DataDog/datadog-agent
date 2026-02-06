@@ -20,6 +20,12 @@ struct approver_stats_t {
     u64 event_approved_by_in_upper_layer;
 };
 
+// Activity dump sampling stats (per event type)
+struct activity_dump_sample_stats_t {
+    u64 events_total;    // Total events that hit the sampling logic
+    u64 events_sampled;  // Events that were flagged for activity dump
+};
+
 struct basename_t {
     char value[BASENAME_FILTER_SIZE];
 };
