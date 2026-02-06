@@ -17,6 +17,7 @@ import (
 	"math/rand"
 	"os"
 	"strings"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -73,24 +74,29 @@ type Resolver struct {
 	missCounters map[counterEntry]*atomic.Int64
 
 	// debug tracing
+	traceMu         sync.Mutex
 	activeTrace     *[]model.ProcessingCheckpoint
 	activeStartTime time.Time
 }
 
 // traceCheckpoint appends a checkpoint to the active trace if set
 func (dr *Resolver) traceCheckpoint(name string) {
+	dr.traceMu.Lock()
 	if dr.activeTrace != nil && !dr.activeStartTime.IsZero() {
 		*dr.activeTrace = append(*dr.activeTrace, model.ProcessingCheckpoint{
 			Name:      name,
 			ElapsedUs: time.Since(dr.activeStartTime).Microseconds(),
 		})
 	}
+	dr.traceMu.Unlock()
 }
 
 // SetActiveTrace sets the trace target for subsequent calls
 func (dr *Resolver) SetActiveTrace(trace *[]model.ProcessingCheckpoint, startTime time.Time) {
+	dr.traceMu.Lock()
 	dr.activeTrace = trace
 	dr.activeStartTime = startTime
+	dr.traceMu.Unlock()
 }
 
 // ErrEntryNotFound is thrown when a path key was not found in the cache
