@@ -22,7 +22,7 @@ func NewConnectionsCreator(client ConnectionsClient) ConnectionsCreator {
 func (c ConnectionsCreator) AutoCreateConnections(ctx context.Context, runnerID, runnerName string, bundleAllowlist []string) error {
 	definitions := DetermineConnectionsToCreate(bundleAllowlist)
 	if len(definitions) == 0 {
-		log.Info("No bundles in bundleAllowlist for auto-connection creation")
+		log.Info("No bundles in action allowlist for auto-connection creation")
 		return nil
 	}
 

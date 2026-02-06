@@ -34,7 +34,7 @@ var supportedConnections = map[string]ConnectionDefinition{
 		Credentials: CredentialConfig{
 			Type: "Script",
 			AdditionalFields: map[string]interface{}{
-				"configFileLocation": GetScriptConfigPath(),
+				"configFileLocation": getScriptConfigPath(),
 			},
 		},
 	},

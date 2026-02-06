@@ -12,20 +12,20 @@ import (
 )
 
 const (
-	PrivateActionRunnerRelativeDir = "private-action-runner"
-	ScriptConfigFileName           = "script-config.yaml"
+	privateActionRunnerRelativeDir = "private-action-runner"
+	scriptConfigFileName           = "script-config.yaml"
 
-	CreateConnectionEndpoint = "/api/v2/actions/connections"
-	APIKeyHeader             = "DD-API-KEY"
-	AppKeyHeader             = "DD-APPLICATION-KEY"
-	ContentTypeHeader        = "Content-Type"
-	ContentType              = "application/vnd.api+json"
-	UserAgentHeader          = "User-Agent"
+	createConnectionEndpoint = "/api/v2/actions/connections"
+	apiKeyHeader             = "DD-API-KEY"
+	appKeyHeader             = "DD-APPLICATION-KEY"
+	contentTypeHeader        = "Content-Type"
+	contentType              = "application/vnd.api+json"
+	userAgentHeader          = "User-Agent"
 )
 
-func GetPrivateActionRunnerDir() string {
-	return filepath.Join(defaultpaths.ConfPath, PrivateActionRunnerRelativeDir)
+func getPrivateActionRunnerDir() string {
+	return filepath.Join(defaultpaths.ConfPath, privateActionRunnerRelativeDir)
 }
-func GetScriptConfigPath() string {
-	return filepath.Join(GetPrivateActionRunnerDir(), ScriptConfigFileName)
+func getScriptConfigPath() string {
+	return filepath.Join(getPrivateActionRunnerDir(), scriptConfigFileName)
 }

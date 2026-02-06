@@ -42,7 +42,7 @@ func TestDetermineConnectionsToCreate_AllBundles(t *testing.T) {
 	assert.Equal(t, "Script", scriptDef.Credentials.Type)
 	assert.NotNil(t, scriptDef.Credentials.AdditionalFields)
 	// Verify configFileLocation uses static path
-	assert.Equal(t, GetScriptConfigPath(),
+	assert.Equal(t, getScriptConfigPath(),
 		scriptDef.Credentials.AdditionalFields["configFileLocation"])
 }
 
