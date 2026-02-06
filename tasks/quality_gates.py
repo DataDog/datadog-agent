@@ -26,13 +26,13 @@ from tasks.static_quality_gates.experimental_gates import (
     compare_inventory as _compare_inventory,
 )
 from tasks.static_quality_gates.experimental_gates import (
-    display_change_summary as _display_change_summary,
-)
-from tasks.static_quality_gates.experimental_gates import (
     measure_image_local as _measure_image_local,
 )
 from tasks.static_quality_gates.experimental_gates import (
     measure_package_local as _measure_package_local,
+)
+from tasks.static_quality_gates.experimental_gates import (
+    print_inventory_diff as _print_inventory_diff,
 )
 from tasks.static_quality_gates.gates import (
     GateMetricHandler,
@@ -1107,23 +1107,7 @@ def compare_inventory(ctx, parent_inventory_report, current_inventory_report):
     if len(added) == 0 and len(removed) == 0 and len(changed) == 0:
         print(color_message('✅ No change detected', 'green'))
         return True
-    success = True
-    if len(added) > 0:
-        success = False
-        print(color_message('➕ New files added:', "orange"))
-        for f in added:
-            print(color_message(f'    - {f.relative_path} ({byte_to_string(f.size_bytes)})', "orange"))
-    if len(removed) > 0:
-        success = False
-        print(color_message('❌ Old files removed:', "orange"))
-        for f in removed:
-            print(color_message(f'    - {f.relative_path} ({byte_to_string(f.size_bytes)})', "orange"))
-    if len(changed) > 0:
-        success = False
-        print(color_message('⚠️ Some files modifications need review:', "orange"))
-        for change in changed.values():
-            _display_change_summary(change)
-    return success
+    _print_inventory_diff(added, removed, changed)
 
 
 @task
