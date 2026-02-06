@@ -3,7 +3,6 @@ msi namespaced tasks
 """
 
 import hashlib
-import mmap
 import os
 import re
 import shutil
