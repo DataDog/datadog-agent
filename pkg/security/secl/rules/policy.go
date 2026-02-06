@@ -96,7 +96,7 @@ func (r *PolicyRule) isFiltered() bool {
 	return !r.Accepted && r.Error == nil
 }
 
-func applyOverride(rd1, rd2 *PolicyRule) {
+func applyOverride(rd1, rd2 *PolicyRule) bool {
 	// keep track of the combine
 	rd1.Def.Combine = rd2.Def.Combine
 
@@ -144,12 +144,14 @@ func applyOverride(rd1, rd2 *PolicyRule) {
 	}
 
 	if wasOverridden {
-		rd1.Policy = rd2.Policy
+		rd1.Policy.InternalType = rd2.Policy.InternalType
 	}
+
+	return wasOverridden
 }
 
 // MergeWith merges rule r2 into r
-func (r *PolicyRule) MergeWith(r2 *PolicyRule) {
+func (r *PolicyRule) MergeWith(r2 *PolicyRule) bool {
 
 	if r2.Def.Disabled {
 		r.EnableCount--
@@ -157,30 +159,36 @@ func (r *PolicyRule) MergeWith(r2 *PolicyRule) {
 		r.EnableCount++
 	}
 
+	wasOverridden := false
+
 	switch r2.Def.Combine {
 	case OverridePolicy:
 		if !r2.Def.Disabled {
-			applyOverride(r, r2)
+			wasOverridden = applyOverride(r, r2)
 		}
 	default:
 		if r.Def.Disabled == r2.Def.Disabled {
-			return
+			return false
 		}
 	}
 
 	if r.Def.Disabled {
 		r.Def.Disabled = r2.Def.Disabled
-		r.Policy = r2.Policy
+		r.Policy.InternalType = r2.Policy.InternalType
 	} else {
 		if r.Policy.InternalType == DefaultPolicyType && r2.Policy.InternalType == CustomPolicyType {
 			if !r2.Def.Disabled || (r2.Def.Disabled && r.EnableCount < 0) {
 				r.Def.Disabled = r2.Def.Disabled
-				r.Policy = r2.Policy
+				r.Policy.InternalType = r2.Policy.InternalType
+
+				wasOverridden = true
 			}
 		}
 	}
 
 	r.ModifiedBy = append(r.ModifiedBy, r2.Policy)
+
+	return wasOverridden
 }
 
 // InternalPolicyType represents the internal type of a policy
