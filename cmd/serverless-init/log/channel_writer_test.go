@@ -98,6 +98,21 @@ func TestChannelWriter_WriteError(t *testing.T) {
 	if string(msg.Content) != message {
 		t.Fatalf("Expected message content '%s' but got '%s'", message, msg.Content)
 	}
+
+	// Test two separate Write() calls should produce two separate messages
+	cw.Write([]byte("Some error\n"))
+	cw.Write([]byte("Some error\n"))
+	if len(ch) != 2 {
+		t.Fatalf("Expected channel to have 2 messages, but it has %d", len(ch))
+	}
+	msg1 := <-ch
+	msg2 := <-ch
+	if string(msg1.Content) != "Some error\n" {
+		t.Fatalf("Expected first message content 'Some error\\n' but got '%s'", msg1.Content)
+	}
+	if string(msg2.Content) != "Some error\n" {
+		t.Fatalf("Expected second message content 'Some error\\n' but got '%s'", msg2.Content)
+	}
 }
 
 func TestChannelWriter_ReturnsLength(t *testing.T) {
@@ -124,5 +139,41 @@ func TestChannelWriter_ReturnsLength(t *testing.T) {
 	msg := <-ch
 	if string(msg.Content) != string(payload) {
 		t.Fatalf("Expected channel content %q, got %q", string(payload), msg.Content)
+	}
+}
+
+func TestChannelWriter_LargeErrorLog(t *testing.T) {
+	ch := make(chan *logConfig.ChannelMessage, 1)
+	cw := NewChannelWriter(ch, true)
+
+	// Generate a 33KB random string for testing
+	const logSize = 33 * 1024 // 33KB
+	payload := make([]byte, logSize)
+	for i := range logSize {
+		// Generate printable ASCII characters (avoiding control characters)
+		payload[i] = byte(32 + (i % 95)) // ASCII 32-126
+	}
+
+	n, err := cw.Write(payload)
+	if err != nil {
+		t.Fatalf("Write returned an error: %v", err)
+	}
+	if n != logSize {
+		t.Fatalf("Write returned %d bytes; expected %d", n, logSize)
+	}
+
+	if len(ch) != 1 {
+		t.Fatalf("Expected 1 message in channel, got %d", len(ch))
+	}
+
+	msg := <-ch
+	if len(msg.Content) != logSize {
+		t.Fatalf("Expected message content length %d, got %d", logSize, len(msg.Content))
+	}
+	if string(msg.Content) != string(payload) {
+		t.Fatalf("Message content does not match original payload")
+	}
+	if !msg.IsError {
+		t.Fatalf("Expected IsError to be true")
 	}
 }
