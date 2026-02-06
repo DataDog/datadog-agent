@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -28,6 +29,7 @@ func main() {
 	authToken := flag.String("auth-token", "", "Auth token (reads from auth_token file if not provided)")
 	clientName := flag.String("name", "test-client", "Client name for subscription")
 	duration := flag.Duration("duration", 30*time.Second, "How long to listen for config events")
+	maxSamples := flag.Int("max-samples", 5, "Maximum number of sample settings to display from snapshot")
 	flag.Parse()
 
 	// Read auth token from file if not provided via flag
@@ -102,7 +104,7 @@ func main() {
 
 	snapshotReceived := false
 	updateCount := 0
-	var lastSeqID int32
+	var maxSeqID int32 // Tracks the largest sequence ID seen (not necessarily the most recent)
 
 	// Listen for events
 	for {
@@ -115,7 +117,7 @@ func main() {
 		switch e := event.Event.(type) {
 		case *pb.ConfigEvent_Snapshot:
 			snapshotReceived = true
-			lastSeqID = e.Snapshot.SequenceId
+			maxSeqID = e.Snapshot.SequenceId
 			fmt.Printf("✓ SNAPSHOT received (seq_id=%d, settings=%d)\n",
 				e.Snapshot.SequenceId,
 				len(e.Snapshot.Settings))
@@ -124,8 +126,8 @@ func main() {
 			fmt.Printf("  Sample settings:\n")
 			count := 0
 			for _, setting := range e.Snapshot.Settings {
-				if count >= 5 {
-					fmt.Printf("  ... (%d more settings)\n", len(e.Snapshot.Settings)-5)
+				if count >= *maxSamples {
+					fmt.Printf("  ... (%d more settings)\n", len(e.Snapshot.Settings)-*maxSamples)
 					break
 				}
 				fmt.Printf("    %s = %v (source: %s)\n",
@@ -143,17 +145,22 @@ func main() {
 				updateCount,
 				currentSeqID)
 
-			if snapshotReceived && currentSeqID <= lastSeqID {
-				fmt.Printf("  ⚠️  WARNING: Out of order sequence! Previous=%d, Current=%d\n",
-					lastSeqID, currentSeqID)
-			}
+			if snapshotReceived {
+				if currentSeqID <= maxSeqID {
+					fmt.Printf("  ⚠️  WARNING: Out of order sequence! Max seen=%d, Current=%d\n",
+						maxSeqID, currentSeqID)
+				}
 
-			if snapshotReceived && currentSeqID > lastSeqID+1 {
-				fmt.Printf("  ⚠️  WARNING: Gap detected! Previous=%d, Current=%d, Gap=%d\n",
-					lastSeqID, currentSeqID, currentSeqID-lastSeqID-1)
-			}
+				if currentSeqID > maxSeqID+1 {
+					fmt.Printf("  ⚠️  WARNING: Gap detected! Max seen=%d, Current=%d, Gap=%d\n",
+						maxSeqID, currentSeqID, currentSeqID-maxSeqID-1)
+				}
 
-			lastSeqID = currentSeqID
+				// Only update maxSeqID if we see a larger value
+				if currentSeqID > maxSeqID {
+					maxSeqID = currentSeqID
+				}
+			}
 
 			setting := e.Update.Setting
 			fmt.Printf("  Key: %s\n", setting.Key)
@@ -173,7 +180,7 @@ func main() {
 		fmt.Printf("✗ Snapshot received: NO\n")
 	}
 	fmt.Printf("  Total updates: %d\n", updateCount)
-	fmt.Printf("  Last sequence ID: %d\n", lastSeqID)
+	fmt.Printf("  Max sequence ID seen: %d\n", maxSeqID)
 
 	fmt.Printf("\n=========================\n")
 	fmt.Printf("Verification of config stream functionality\n")
@@ -204,18 +211,19 @@ func main() {
 	}
 }
 
-func formatValue(v interface{}) string {
-	switch val := v.(type) {
-	case string:
-		if len(val) > 50 {
-			return fmt.Sprintf("%q... (truncated, len=%d)", val[:50], len(val))
-		}
-		return fmt.Sprintf("%q", val)
-	default:
-		str := fmt.Sprintf("%v", val)
-		if len(str) > 50 {
-			return str[:50] + "... (truncated)"
-		}
-		return str
+func formatValue(v *structpb.Value) string {
+	if v == nil {
+		return "<nil>"
 	}
+
+	// Convert to Go value and format
+	val := v.AsInterface()
+	str := fmt.Sprintf("%v", val)
+
+	// Truncate long strings
+	if len(str) > 50 {
+		return str[:50] + "... (truncated)"
+	}
+
+	return str
 }

@@ -111,14 +111,36 @@ All validations passed!
 
 While the client is running, trigger config updates in another terminal:
 
-```bash
-# Change log level via agent CLI
-datadog-agent config set log_level debug
+### Method: Using Agent CLI (Recommended)
 
-# Or via HTTP API
-curl -X POST "http://localhost:5001/config/v1/log_level?value=debug" \\
-  -H "Authorization: Bearer $(cat /etc/datadog-agent/auth_token)"
+The easiest way to trigger config updates is using the `agent config set` command:
+
+```bash
+# List available runtime-configurable settings
+datadog-agent config list-runtime
+
+# Change a setting (e.g., log_level)
+datadog-agent config set log_level debug
 ```
+
+**Note**: You must run this command while the agent is running. The command connects to the running agent via IPC to change the setting.
+
+### Verifying Updates
+
+When a config update is successfully triggered, you should see output in your stream client like:
+
+```
+✓ UPDATE #1 received (seq_id=4)
+  Key: log_level
+  Value: debug
+  Source: cli
+```
+
+### Common Issues
+
+- **"Setting not found"**: The setting name might not be registered for runtime changes. Use `agent config list-runtime` to see available settings
+- **"No update received"**: Verify the setting change was successful and that the configstream component is enabled
+- **"Connection refused"**: Make sure the agent is running and the IPC server is accessible
 
 The test client should immediately receive an update event.
 
@@ -174,15 +196,6 @@ This indicates the client's session_id is not recognized by the core-agent. Poss
 3. **Client registration failed** - Check that RAR registration completed successfully before subscribing to config stream
 
 The test client automatically handles registration, but if you see this error, the core-agent may have been restarted since the client registered.
-
-## Integration Testing
-
-For automated testing without a running agent, use the unit tests:
-
-```bash
-cd comp/core/configstream/impl
-go test -tags test -v -run TestClientConnectsAndReceivesStream
-```
 
 ## What This Client Tests
 
