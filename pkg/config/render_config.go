@@ -162,16 +162,6 @@ func mkContext(buildType string) context {
 			OS:            runtime.GOOS,
 			SecurityAgent: true,
 		}
-	case "apm-injection":
-		return context{
-			OS:           runtime.GOOS,
-			APMInjection: true,
-		}
-	case "application-monitoring":
-		return context{
-			OS:                    runtime.GOOS,
-			ApplicationMonitoring: true,
-		}
 	}
 
 	return context{}
