@@ -13,6 +13,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
     struct qstr qstr;
     struct dentry *dentry = input->dentry;
     struct dentry *d_parent = NULL;
+    unsigned long ino_parent = 0;
 
     u32 zero = 0;
     struct is_discarded_by_inode_t *params = bpf_map_lookup_elem(&is_discarded_by_inode_gen, &zero);
@@ -35,8 +36,9 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
         bpf_probe_read(&d_parent, sizeof(d_parent), &dentry->d_parent);
 
         key = next_key;
+        ino_parent = get_dentry_ino(d_parent);
         if (dentry != d_parent) {
-            next_key.ino = get_dentry_ino(d_parent);
+            next_key.ino = ino_parent;
         } else {
             next_key.ino = 0;
             next_key.mount_id = 0;
@@ -71,7 +73,19 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
 
         map_value.parent = next_key;
 
+        int update = 1;
+        if (key.ino == ino_parent && dentry != d_parent) {
+            // It's not expected to have 2 different dentries with the same inode in the same mount
+            // In case of btrfs, it might be the root of the subvolume
+            struct dentry *d_parent_parent = NULL;
+            bpf_probe_read(&d_parent_parent, sizeof(d_parent_parent), &d_parent->d_parent);
+            if (d_parent == d_parent_parent) {
+                update = 0;
+            }
+        }
+        if (update) {
         bpf_map_update_elem(&pathnames, &key, &map_value, BPF_ANY);
+    }
 
         dentry = d_parent;
         if (next_key.ino == 0) {
