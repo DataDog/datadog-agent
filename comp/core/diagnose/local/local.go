@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
+	diagnoseimpl "github.com/DataDog/datadog-agent/comp/core/diagnose/impl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -57,6 +58,9 @@ func Run(
 		},
 		diagnose.CoreEndpointsConnectivity: func(diagCfg diagnose.Config) []diagnose.Diagnosis {
 			return connectivity.Diagnose(diagCfg, log)
+		},
+		diagnose.ForwarderTriage: func(diagCfg diagnose.Config) []diagnose.Diagnosis {
+			return diagnoseimpl.ForwarderTriageSuite(diagCfg)
 		},
 	}
 
