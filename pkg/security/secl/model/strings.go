@@ -6,7 +6,11 @@
 // Package model holds model related files
 package model
 
-import "unicode"
+import (
+	"unicode"
+
+	"golang.org/x/net/publicsuffix"
+)
 
 var (
 	alphaNumericRange = []*unicode.RangeTable{unicode.L, unicode.Digit}
@@ -35,4 +39,15 @@ func IsPrintableASCII(s string) bool {
 		}
 	}
 	return true
+}
+
+// GetPublicTLD returns the public top-level domain (eTLD+1) from an FQDN.
+// For example: "www.google.com" returns "google.com", "www.abc.co.uk" returns "abc.co.uk".
+// If the input is invalid or cannot be parsed, it returns the input unchanged.
+func GetPublicTLD(fqdn string) string {
+	etldPlusOne, err := publicsuffix.EffectiveTLDPlusOne(fqdn)
+	if err != nil {
+		return fqdn
+	}
+	return etldPlusOne
 }
