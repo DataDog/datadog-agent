@@ -1,8 +1,6 @@
 ---
 include:
-  - local: .adms/npm/gitlab.yaml
-  - local: .adms/go/gitlab.yaml
-  - local: .adms/python/gitlab.yaml
+  - local: .adms/**/*.yaml
   - local: .gitlab/.pre/**.yml
   - local: .gitlab/build/**.yml
   - local: .gitlab/deploy/**.yml
@@ -139,7 +137,7 @@ variables:
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
   CI_IMAGE_GITLAB_AGENT_DEPLOY: v91623141-e13c2467
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v91623141-e13c2467
+  CI_IMAGE_LINUX: v93279297-c459726e
   CI_IMAGE_LINUX_SUFFIX: ""
   CI_IMAGE_RPM_X64: v91623141-e13c2467
   CI_IMAGE_RPM_X64_SUFFIX: ""
@@ -147,9 +145,9 @@ variables:
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
   CI_IMAGE_RPM_ARMHF: v91623141-e13c2467
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v91623141-e13c2467
+  CI_IMAGE_WIN_LTSC2022_X64: v94029061-83297652
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v91623141-e13c2467
+  CI_IMAGE_WIN_LTSC2025_X64: v94029061-83297652
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -216,7 +214,7 @@ variables:
   DDA_FEATURE_FLAGS_CI_VAULT_KEY: token
   DDA_FEATURE_FLAGS_CI_VAULT_PATH: k8s/gitlab-runner-datadog-agent/datadog-agent/$DDA_CLIENT_TOKEN
 
-  DD_PKG_VERSION: "0.6.0-beta.4"
+  DD_PKG_VERSION: "latest"
   DD_PKG_GITLAB_URL: "https://artifact-gateway.us1.ddbuild.io/internal/artifact-gateway/api/v4"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
 
@@ -356,6 +354,8 @@ variables:
     - BUILD.bazel
     - MODULE.bazel
     - release.json
+    # SMP regression detector experiments
+    - test/regression/**/*
 
 .if_coverage_pipeline: &if_coverage_pipeline
   if: $E2E_COVERAGE_PIPELINE == "true"
@@ -563,6 +563,7 @@ workflow:
   - test/new-e2e/scenarios/system-probe/**/*
   - test/e2e-framework/testing/runner/**/*
   - test/e2e-framework/testing/utils/**/*
+  - test/e2e-framework/scenarios/aws/microVMs/**/*
   - test/new-e2e/go.mod
   - go.mod
   - tasks/security_agent.py
@@ -618,6 +619,7 @@ workflow:
   - test/new-e2e/scenarios/system-probe/**/*
   - test/e2e-framework/testing/runner/**/*
   - test/e2e-framework/testing/utils/**/*
+  - test/e2e-framework/scenarios/aws/microVMs/**/*
   - test/new-e2e/go.mod
   - go.mod
   - tasks/system_probe.py
@@ -987,9 +989,9 @@ workflow:
         - pkg/clusteragent/admission/controllers/webhook/**/*
         - comp/core/workloadmeta/collectors/internal/kubeapiserver/**/*
         - comp/languagedetection/**/*
+        - pkg/ssi/**/*
         - test/new-e2e/tests/ssi/**/*
       compare_to: $COMPARE_TO_BRANCH
-    when: on_success
 
 .on_windows_service_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]

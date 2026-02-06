@@ -124,6 +124,22 @@ func (m *installerMock) UninstrumentAPMInjector(_ context.Context, _ string) err
 	return nil
 }
 
+func (m *installerMock) InstallExtensions(_ context.Context, _ string, _ []string) error {
+	return nil
+}
+
+func (m *installerMock) RemoveExtensions(_ context.Context, _ string, _ []string) error {
+	return nil
+}
+
+func (m *installerMock) SaveExtensions(_ context.Context, _ string, _ string) error {
+	return nil
+}
+
+func (m *installerMock) RestoreExtensions(_ context.Context, _ string, _ string) error {
+	return nil
+}
+
 func (m *installerMock) Close() error {
 	return nil
 }

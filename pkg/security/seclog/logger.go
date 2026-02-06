@@ -141,6 +141,14 @@ func (l *PatternLogger) IsTracing() bool {
 	return true
 }
 
+// IsDebugging returns true if the debug level is enabled
+func (l *PatternLogger) IsDebugging() bool {
+	if logLevel, err := log.GetLogLevel(); err != nil || logLevel != log.DebugLvl {
+		return false
+	}
+	return true
+}
+
 // Debugf is used to print a trace level log
 func (l *PatternLogger) Debugf(format string, params ...interface{}) {
 	log.DebugStackDepth(depth-1, fmt.Sprintf(format, params...))
