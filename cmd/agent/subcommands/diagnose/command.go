@@ -366,10 +366,10 @@ This command print the host system info metadata payload.`,
 	}
 
 	payloadHealthPlatformIssuesCmd := &cobra.Command{
-		Use:   "health-platform-issues",
-		Short: "[internal] Print health platform issues detected by the agent.",
+		Use:   "health-issues",
+		Short: "[internal] Print health issues detected by the agent.",
 		Long: `
-This command prints health platform issues detected by the agent.
+This command prints health issues detected by the agent.
 Health platform must be enabled for issues to be reported.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(printHealthPlatformIssues,
