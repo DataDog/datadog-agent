@@ -41,6 +41,7 @@ load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@@//bazel/rules:rewrite_rpath/rewrite_rpath.bzl", "rewrite_rpath")
 
 package(
     default_applicable_licenses = [":license"],

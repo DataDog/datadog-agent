@@ -3,11 +3,11 @@
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
-load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@@//bazel/rules:rewrite_rpath/rewrite_rpath.bzl", "rewrite_rpath")
 
 package(
     default_package_metadata = [":license"],
@@ -118,9 +118,14 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
+rewrite_rpath(
+    name = "lzma_rpath",
+    input = ":lzma",
+)
+
 so_symlink(
     name = "lib_files",
-    src = ":lzma",
+    src = ":lzma_rpath",
     libname = "liblzma",
     version = VERSION,
 )
@@ -137,28 +142,11 @@ pkg_files(
     prefix = "include/lzma",
 )
 
-expand_template(
-    name = "gen_pkgconfig",
-    template = "@@//deps/xz:liblzma.pc.in",
-    out = "liblzma.pc",
-    substitutions = {
-        "{{VERSION}}": VERSION,
-    },
-    visibility = ["//visibility:public"],
-)
-
-pkg_files(
-    name = "pkgconfig",
-    srcs = [":gen_pkgconfig"],
-    prefix = "lib/pkgconfig",
-)
-
 pkg_install(
     name = "install",
     srcs = [
         ":main_header",
         ":api_headers",
         ":lib_files",
-        ":pkgconfig",
     ],
 )
