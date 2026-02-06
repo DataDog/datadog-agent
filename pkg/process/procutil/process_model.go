@@ -94,7 +94,7 @@ func IsSameProcess(a, b *Process) bool {
 
 // hashCmdline computes a fast FNV-1a hash of the command line arguments.
 // Only hashes first 100 args to bound work for processes with huge cmdlines (some have 70K+ args).
-// 100 args covers ~p99.9 of real-world processes (per process_discovery.command_args_per_process metric).
+// 100 args covers ~p99.9 of real-world processes
 func hashCmdline(cmdline []string) uint64 {
 	const maxArgs = 100
 	if len(cmdline) > maxArgs {
