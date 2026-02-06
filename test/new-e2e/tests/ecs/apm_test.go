@@ -78,11 +78,12 @@ func (suite *ecsAPMSuite) getCommonECSTagPatterns(clusterName, taskName, appName
 		// When DD_APM_ENABLE_CONTAINER_TAGS_BUFFER=true, container tags are bundled into a single _dd.tags.container tag
 		// Format: _dd.tags.container:task_name:X,cluster_name:Y,ecs_cluster_name:Y,container_name:Z,...
 		// We validate that this bundled tag contains the required ECS metadata
+		// Patterns match: key:value (followed by comma or end of string)
 		return []string{
-			`^_dd\.tags\.container:.*cluster_name:` + regexp.QuoteMeta(clusterName),
-			`^_dd\.tags\.container:.*ecs_cluster_name:` + regexp.QuoteMeta(clusterName),
-			`^_dd\.tags\.container:.*container_name:`,
-			`^_dd\.tags\.container:.*task_arn:`,
+			`^_dd\.tags\.container:.*cluster_name:` + regexp.QuoteMeta(clusterName) + `(,|$)`,
+			`^_dd\.tags\.container:.*ecs_cluster_name:` + regexp.QuoteMeta(clusterName) + `(,|$)`,
+			`^_dd\.tags\.container:.*container_name:[^,]+(,|$)`,
+			`^_dd\.tags\.container:.*task_arn:[^,]+(,|$)`,
 		}
 	}
 

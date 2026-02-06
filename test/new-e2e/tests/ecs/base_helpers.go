@@ -715,7 +715,9 @@ func (suite *BaseSuite[Env]) AssertAPMTrace(args *TestAPMTraceArgs) {
 						traceTags = append(traceTags, k+":"+v)
 					}
 				}
-				err := assertTags(traceTags, expectedTags, []*regexp.Regexp{}, false)
+				// Set acceptUnexpectedTags=true for bundled tag format (DD_APM_ENABLE_CONTAINER_TAGS_BUFFER=true)
+				// The bundled _dd.tags.container tag contains many comma-separated key:value pairs
+				err := assertTags(traceTags, expectedTags, []*regexp.Regexp{}, true)
 				assert.NoErrorf(c, err, "Tags mismatch on `%s`", prettyTraceQuery)
 			}
 
