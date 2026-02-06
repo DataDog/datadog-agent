@@ -53,7 +53,7 @@ bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
 # Temporary until rules_pkg > 1.2.0 is in BCR
 git_override(
     module_name = "rules_pkg",
-    commit = "a9358d57a797f793cedd460939188496c7d30bbf",  # main as of Feb 4, 2026
+    commit = "2bd928123ad46f5b96970f537af073e0acb5b654",  # main as of Feb 10, 2026
     remote = "https://github.com/bazelbuild/rules_pkg.git",
 )
 
