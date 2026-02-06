@@ -90,6 +90,7 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 		Config:       chk.orchestratorConfig,
 		MsgGroupRef:  chk.groupID,
 		AgentVersion: chk.agentVersion,
+		StopCh:       chk.stopCh,
 	}
 	terminatedResourceRunCfg := &collectors.CollectorRunConfig{
 		K8sCollectorRunConfig: runCfg.K8sCollectorRunConfig,
@@ -98,7 +99,10 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 		MsgGroupRef:           runCfg.MsgGroupRef,
 		TerminatedResources:   true,
 	}
+
 	manifestBuffer := NewManifestBuffer(chk)
+	terminatedResourceBundle := NewTerminatedResourceBundle(chk, terminatedResourceRunCfg, manifestBuffer)
+	runCfg.TerminatedResourceHandler = terminatedResourceBundle.Add
 
 	bundle := &CollectorBundle{
 		discoverCollectors:       chk.orchestratorConfig.CollectorDiscoveryEnabled,
@@ -109,8 +113,9 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 		manifestBuffer:           manifestBuffer,
 		collectorDiscovery:       discovery.NewDiscoveryCollectorForInventory(),
 		activatedCollectors:      map[string]struct{}{},
-		terminatedResourceBundle: NewTerminatedResourceBundle(chk, terminatedResourceRunCfg, manifestBuffer),
+		terminatedResourceBundle: terminatedResourceBundle,
 	}
+
 	bundle.prepare()
 
 	return bundle
@@ -317,6 +322,12 @@ func (cb *CollectorBundle) initialize() {
 
 		collector.Init(cb.runCfg)
 		informer := collector.Informer()
+
+		// special case of improved terminated pod collector that is not using an informer
+		// TODO: improve the initialization logic to avoid leaking collector implementation details to the bundle.
+		if informer == nil {
+			continue
+		}
 
 		if _, found := informerSynced[informer]; !found {
 			informersToSync[apiserver.InformerName(collectorFullName)] = informer

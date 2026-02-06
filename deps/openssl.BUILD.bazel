@@ -23,6 +23,8 @@ DEFAULT_CONFIG = [
     "no-ssl3",
     "no-gost",
     "--libdir=lib",
+    # This instructs openssl to dynamically *load* zlib at runtime, not
+    # dynamically *link* with it at build time
     "zlib-dynamic",
 ]
 
@@ -153,8 +155,6 @@ configure_make(
     }),
     deps = select({
         "//conditions:default": [
-            "@bzip2//:libbz2",
-            "@xz//:liblzma",
             "@zlib//:zlib",
         ],
         "@platforms//os:windows": [],
