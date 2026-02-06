@@ -352,19 +352,19 @@ type observerImpl struct {
 func (o *observerImpl) run() {
 	for obs := range o.obsCh {
 		if obs.metric != nil {
-			o.processMetric(obs.source, obs.metric)
+			//	o.processMetric(obs.source, obs.metric)
 			o.anomalyDetection.ProcessMetric(obs.metric)
 		}
 		if obs.log != nil {
-			o.processLog(obs.source, obs.log)
+			//	o.processLog(obs.source, obs.log)
 			o.anomalyDetection.ProcessLog(obs.log)
 		}
 		if obs.trace != nil {
-			o.processTrace(obs.source, obs.trace)
+			//	o.processTrace(obs.source, obs.trace)
 			o.anomalyDetection.ProcessTrace(obs.trace)
 		}
 		if obs.profile != nil {
-			o.processProfile(obs.source, obs.profile)
+			//o.processProfile(obs.source, obs.profile)
 			o.anomalyDetection.ProcessProfile(obs.profile)
 		}
 	}
