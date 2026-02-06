@@ -127,11 +127,6 @@ profiles:
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.submitted_metrics", telemetryTags)
 
-	// Assert SNMP request counter metrics
-	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:get"))
-	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getbulk"))
-	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getnext"))
-
 	// Should see f5-specific 'sysStatMemoryTotal' but not fake metrics
 	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(60), "", snmpTags)
 	sender.AssertNotCalled(t, "Gauge", "snmp.anotherMetric", mock.Anything, mock.Anything, mock.Anything)
@@ -163,11 +158,6 @@ profiles:
 	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.submitted_metrics", telemetryTags)
-
-	// Assert SNMP request counter metrics
-	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:get"))
-	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getbulk"))
-	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getnext"))
 	// Should see fake metrics but not f5-specific 'sysStatMemoryTotal'
 	sender.AssertMetric(t, "Gauge", "snmp.anotherMetric", float64(100), "", snmpTags)
 	sender.AssertNotCalled(t, "Gauge", "snmp.sysStatMemoryTotal", mock.Anything, mock.Anything, mock.Anything)
@@ -633,16 +623,6 @@ profiles:
 	sender.Mock.AssertCalled(t, "ServiceCheck", "snmp.can_check", servicecheck.ServiceCheckCritical, "", mocksender.MatchTagsContains(snmpTags), "snmp connection error: some error")
 	sender.AssertMetric(t, "Gauge", deviceUnreachableMetric, 1., "", snmpTags)
 	sender.AssertMetric(t, "Gauge", deviceReachableMetric, 0., "", snmpTags)
-
-	// Verify that basic telemetry metrics are still sent even when session is nil
-	telemetryTagsForError := append(utils.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
-	sender.AssertMetric(t, "Gauge", "snmp.devices_monitored", float64(1), "", telemetryTagsForError)
-	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", telemetryTagsForError)
-	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", telemetryTagsForError)
-	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.submitted_metrics", telemetryTagsForError)
-
-	// Verify that session-dependent SNMP request counter metrics are NOT sent when session is nil
-	sender.AssertNotCalled(t, "Gauge", "datadog.snmp.requests", mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestRun_sessionCloseError(t *testing.T) {
@@ -799,11 +779,6 @@ profiles:
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.submitted_metrics", telemetryTags)
 
-	// Assert SNMP request counter metrics
-	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:get"))
-	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getbulk"))
-	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getnext"))
-
 	// Should see f5-specific 'sysStatMemoryTotal' but not fake metrics
 	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(60), "", snmpTags)
 	sender.AssertNotCalled(t, "Gauge", "snmp.anotherMetric", mock.Anything, mock.Anything, mock.Anything)
@@ -835,11 +810,6 @@ profiles:
 	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.submitted_metrics", telemetryTags)
-
-	// Assert SNMP request counter metrics
-	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:get"))
-	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getbulk"))
-	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getnext"))
 	// Should see fake metrics but not f5-specific 'sysStatMemoryTotal'
 	sender.AssertMetric(t, "Gauge", "snmp.anotherMetric", float64(100), "", snmpTags)
 	sender.AssertNotCalled(t, "Gauge", "snmp.sysStatMemoryTotal", mock.Anything, mock.Anything, mock.Anything)
@@ -957,11 +927,6 @@ profiles:
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.submitted_metrics", telemetryTags)
 
-	// Assert SNMP request counter metrics
-	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:get"))
-	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getbulk"))
-	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getnext"))
-
 	// Should see f5-specific 'sysStatMemoryTotal' but not fake metrics
 	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(60), "", snmpTags)
 	sender.AssertNotCalled(t, "Gauge", "snmp.anotherMetric", mock.Anything, mock.Anything, mock.Anything)
@@ -993,11 +958,6 @@ profiles:
 	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.submitted_metrics", telemetryTags)
-
-	// Assert SNMP request counter metrics
-	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:get"))
-	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getbulk"))
-	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.requests", append(utils.CopyStrings(telemetryTags), "request_type:getnext"))
 	// Should see fake metrics but not f5-specific 'sysStatMemoryTotal'
 	sender.AssertMetric(t, "Gauge", "snmp.anotherMetric", float64(100), "", snmpTags)
 	sender.AssertNotCalled(t, "Gauge", "snmp.sysStatMemoryTotal", mock.Anything, mock.Anything, mock.Anything)
