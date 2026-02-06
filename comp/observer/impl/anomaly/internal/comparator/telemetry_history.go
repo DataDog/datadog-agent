@@ -7,8 +7,8 @@ package comparator
 import (
 	"log"
 
-	"github.com/apm-signal-detector/collector"
-	"github.com/apm-signal-detector/detector"
+	"github.com/DataDog/datadog-agent/comp/observer/impl/anomaly/internal/collector"
+	"github.com/DataDog/datadog-agent/comp/observer/impl/anomaly/internal/detector"
 )
 
 // TelemetryHistory manages historical telemetry data for comparison purposes
