@@ -1,7 +1,9 @@
+import glob
 import os
 import random
 import re
 import sys
+import tempfile
 import traceback
 import typing
 from dataclasses import dataclass
@@ -24,6 +26,9 @@ from tasks.libs.package.size import InfraError
 from tasks.static_quality_gates.experimental_gates import FileInfo
 from tasks.static_quality_gates.experimental_gates import (
     compare_inventory as _compare_inventory,
+)
+from tasks.static_quality_gates.experimental_gates import (
+    inventory_changes_to_comment as _inventory_changes_to_comment,
 )
 from tasks.static_quality_gates.experimental_gates import (
     measure_image_local as _measure_image_local,
@@ -1096,7 +1101,7 @@ def measure_image_local(
 
 
 @task
-def compare_inventory(ctx, parent_inventory_report, current_inventory_report):
+def compare_inventories(ctx, parent_inventory_report, current_inventory_report):
     with open(parent_inventory_report) as f:
         parent_inventory = yaml.safe_load(f)
     with open(current_inventory_report) as f:
@@ -1106,8 +1111,11 @@ def compare_inventory(ctx, parent_inventory_report, current_inventory_report):
     added, removed, changed = _compare_inventory(parent_file_inventory, current_file_inventory)
     if len(added) == 0 and len(removed) == 0 and len(changed) == 0:
         print(color_message('✅ No change detected', 'green'))
-        return True
-    _print_inventory_diff(added, removed, changed)
+        body = "No change detected"
+    else:
+        _print_inventory_diff(added, removed, changed)
+        body = _inventory_changes_to_comment(added, removed, changed)
+    return body
 
 
 @task
@@ -1119,3 +1127,42 @@ def get_parent_report(ctx, branch, gate_name: str, output: str):
     aws_cmd = "aws.exe" if sys.platform == 'win32' else "aws"
     s3_url = f"s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/GATE_REPORTS/{parent_sha}/{gate_name}_size_report_{parent_sha[:8]}.yml"
     ctx.run(f"{aws_cmd} s3 cp --only-show-errors {s3_url} {output}", warn=True)
+
+
+@task
+def check_files(ctx, branch_name, reports_folder):
+    pr_comment = "File checks results:\n"
+    package_types = ['deb', 'rpm']
+    for package_type in package_types:
+        for artifact in glob.glob(f'{reports_folder}/datadog-agent*.{package_type}'):
+            # deb pattern is $packagename-$version
+            # rpm pattern is $packagename_$version
+            if '-dbg-' in artifact or '-dbg_' in artifact:
+                continue
+            pr_comment += f'## Results for {artifact}:\n'
+            arch = "amd64"
+            if 'aarch64' in artifact or 'arm64' in artifact:
+                arch = "arm64"
+            gate_name = f'agent_{package_type}_{arch}'
+            report_filename = f'{gate_name}_{arch}_size_report_{os.environ["CI_COMMIT_SHORT_SHA"]}.yml'
+            measure_package_local(
+                ctx,
+                artifact,
+                gate_name,
+                output_path=report_filename,
+                build_job_name=os.environ['CI_JOB_NAME'],
+                debug=True,
+            )
+            # Upload the report to S3
+            bucket_base_path = "s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/GATE_REPORTS/"
+            ctx.run(
+                f'aws s3 cp --only-show-errors --region us-east-1 --sse AES256 {report_filename} {bucket_base_path}/{report_filename}'
+            )
+
+            parent_report_file = tempfile.NamedTemporaryFile()
+            get_parent_report(ctx, branch_name, gate_name, parent_report_file.path)
+            body = compare_inventories(ctx, parent_report_file.path, report_filename)
+            pr_comment += body
+
+    pr = get_pr_for_branch(branch_name)
+    pr_commenter(ctx, title='File checks summary', body=pr_comment, pr=pr)
