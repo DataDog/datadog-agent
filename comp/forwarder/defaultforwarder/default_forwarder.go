@@ -325,9 +325,6 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 		log.Infof("Retry queue storage on disk is disabled")
 	} else if agentName != "" {
 		storagePath := config.GetString("forwarder_storage_path")
-		if storagePath == "" {
-			storagePath = path.Join(config.GetString("run_path"), "transactions_to_retry")
-		}
 		outdatedFileInDays := config.GetInt("forwarder_outdated_file_in_days")
 		var err error
 

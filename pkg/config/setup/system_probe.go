@@ -14,6 +14,7 @@ import (
 	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 type transformerFunction func(string) []map[string]string
@@ -73,7 +74,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// logging
 	cfg.BindEnvAndSetDefault("system_probe_config.log_file", "")
 	cfg.BindEnvAndSetDefault("system_probe_config.log_level", "")
-	cfg.BindEnvAndSetDefault("log_file", defaultSystemProbeLogFilePath)
+	cfg.BindEnvAndSetDefault("log_file", defaultpaths.GetDefaultSystemProbeLogFile())
 	cfg.BindEnvAndSetDefault("log_level", "info", "DD_LOG_LEVEL", "LOG_LEVEL")
 	cfg.BindEnvAndSetDefault("syslog_uri", "")
 	cfg.BindEnvAndSetDefault("syslog_rfc", false)
