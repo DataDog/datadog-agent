@@ -288,6 +288,25 @@ def get_pr_number_from_commit(ctx) -> str | None:
         return None
 
 
+def get_pr_author(pr_number: str) -> str | None:
+    """
+    Get the author (login) of a PR by its number.
+
+    Args:
+        pr_number: The PR number as a string
+
+    Returns:
+        The PR author's GitHub login, or None if not found.
+    """
+    try:
+        github = GithubAPI()
+        pr = github.get_pr(int(pr_number))
+        return pr.user.login if pr and pr.user else None
+    except Exception as e:
+        print(color_message(f"[WARN] Failed to get PR author for PR #{pr_number}: {e}", "orange"))
+        return None
+
+
 # Main table pattern for on-disk metrics (primary view)
 body_pattern = """### {}
 
@@ -612,16 +631,25 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     # Skip for release branches since they don't have associated PRs
     pr = None
     pr_number = None
+    pr_author = None
     if not is_a_release_branch(ctx, branch):
         pr = get_pr_for_branch(branch)
         if pr:
             print(color_message(f"Found PR #{pr.number}: {pr.title}", "cyan"))
             pr_number = str(pr.number)
+            # Extract author directly from PR object
+            if pr.user:
+                pr_author = pr.user.login
+                print(color_message(f"PR author: {pr_author}", "cyan"))
         else:
             # On main branch (or when no open PR), extract PR number from commit message
             pr_number = get_pr_number_from_commit(ctx)
             if pr_number:
                 print(color_message(f"Extracted PR #{pr_number} from commit message", "cyan"))
+                # Fetch author for the PR number
+                pr_author = get_pr_author(pr_number)
+                if pr_author:
+                    print(color_message(f"PR author: {pr_author}", "cyan"))
 
     for gate in gate_list:
         result = None
@@ -675,7 +703,7 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
                 }
             )
         finally:
-            # Build tags dict - only include pr_number if we have a PR
+            # Build tags dict - only include pr_number and pr_author if we have a PR
             gate_tags = {
                 "gate_name": gate.config.gate_name,
                 "arch": gate.config.arch,
@@ -686,6 +714,8 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
             }
             if pr_number:
                 gate_tags["pr_number"] = pr_number
+            if pr_author:
+                gate_tags["pr_author"] = pr_author
 
             metric_handler.register_gate_tags(gate.config.gate_name, **gate_tags)
             metric_handler.register_metric(gate.config.gate_name, "max_on_wire_size", gate.config.max_on_wire_size)
