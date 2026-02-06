@@ -31,6 +31,13 @@ func GetWorkloadmetaInit() workloadmeta.InitHelper {
 			sbomScanner.Start(ctx)
 		}
 
+		// Initialize CEL-based service naming subscriber if enabled (only when 'cel' build tag is set).
+		// The implementation of initServiceNaming is in servicenaming_cel.go (with cel tag)
+		// or servicenaming_stub.go (without cel tag).
+		if err := initServiceNaming(ctx, wm, cfg); err != nil {
+			return err
+		}
+
 		return nil
 	}
 }
