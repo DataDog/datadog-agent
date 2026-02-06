@@ -22,6 +22,7 @@ DEFAULT_CONFIG = [
     "shared",
     "no-ssl3",
     "no-gost",
+    "no-filenames",
     "--libdir=lib",
     # This instructs openssl to dynamically *load* zlib at runtime, not
     # dynamically *link* with it at build time
