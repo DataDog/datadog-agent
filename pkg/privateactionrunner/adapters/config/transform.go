@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
+	parconfigkeys "github.com/DataDog/datadog-agent/pkg/privateactionrunner/configkeys"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -69,12 +69,12 @@ func FromDDConfig(config config.Component) (*Config, error) {
 	}
 
 	var taskTimeoutSeconds *int32
-	if v := config.GetInt32(setup.PARTaskTimeoutSeconds); v != 0 {
+	if v := config.GetInt32(parconfigkeys.PARTaskTimeoutSeconds); v != 0 {
 		taskTimeoutSeconds = &v
 	}
 
 	httpTimeout := defaultHTTPTimeout
-	if v := config.GetInt32(setup.PARHttpTimeoutSeconds); v != 0 {
+	if v := config.GetInt32(parconfigkeys.PARHttpTimeoutSeconds); v != 0 {
 		httpTimeout = time.Duration(v) * time.Second
 	}
 
@@ -100,8 +100,8 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		Version:                   version.AgentVersion,
 		MetricsClient:             &statsd.NoOpClient{},
 		ActionsAllowlist:          makeActionsAllowlist(config),
-		Allowlist:                 config.GetStringSlice(setup.PARHttpAllowlist),
-		AllowIMDSEndpoint:         config.GetBool(setup.PARHttpAllowImdsEndpoint),
+		Allowlist:                 config.GetStringSlice(parconfigkeys.PARHttpAllowlist),
+		AllowIMDSEndpoint:         config.GetBool(parconfigkeys.PARHttpAllowImdsEndpoint),
 		DDHost:                    strings.Join([]string{"api", ddSite}, "."),
 		Modes:                     []modes.Mode{modes.ModePull},
 		OrgId:                     orgID,
@@ -114,7 +114,7 @@ func FromDDConfig(config config.Component) (*Config, error) {
 
 func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 	allowlist := make(map[string]sets.Set[string])
-	actionFqns := config.GetStringSlice(setup.PARActionsAllowlist)
+	actionFqns := config.GetStringSlice(parconfigkeys.PARActionsAllowlist)
 	for _, fqn := range actionFqns {
 		bundleName, actionName := actions.SplitFQN(fqn)
 		previous, ok := allowlist[bundleName]

@@ -20,10 +20,10 @@ import (
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/parversion"
 	pkgrcclient "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
+	parconfigkeys "github.com/DataDog/datadog-agent/pkg/privateactionrunner/configkeys"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
@@ -33,7 +33,7 @@ import (
 
 // isEnabled checks if the private action runner is enabled in the configuration
 func isEnabled(cfg config.Component) bool {
-	return cfg.GetBool(setup.PAREnabled)
+	return cfg.GetBool(parconfigkeys.PAREnabled)
 }
 
 // Requires defines the dependencies for the privateactionrunner component
@@ -87,8 +87,8 @@ func NewPrivateActionRunner(
 		return nil, fmt.Errorf("self-enrollment failed: %w", err)
 	}
 	if persistedIdentity != nil {
-		coreConfig.Set(setup.PARPrivateKey, persistedIdentity.PrivateKey, model.SourceAgentRuntime)
-		coreConfig.Set(setup.PARUrn, persistedIdentity.URN, model.SourceAgentRuntime)
+		coreConfig.Set(parconfigkeys.PARPrivateKey, persistedIdentity.PrivateKey, model.SourceAgentRuntime)
+		coreConfig.Set(parconfigkeys.PARUrn, persistedIdentity.URN, model.SourceAgentRuntime)
 	}
 
 	cfg, err := parconfig.FromDDConfig(coreConfig)
@@ -96,15 +96,15 @@ func NewPrivateActionRunner(
 		return nil, err
 	}
 
-	canSelfEnroll := coreConfig.GetBool(setup.PARSelfEnroll)
+	canSelfEnroll := coreConfig.GetBool(parconfigkeys.PARSelfEnroll)
 	if cfg.IdentityIsIncomplete() && canSelfEnroll {
 		logger.Info("Identity not found and self-enrollment enabled. Self-enrolling private action runner")
 		updatedCfg, err := performSelfEnrollment(ctx, logger, coreConfig, hostnameGetter, cfg)
 		if err != nil {
 			return nil, fmt.Errorf("self-enrollment failed: %w", err)
 		}
-		coreConfig.Set(setup.PARPrivateKey, updatedCfg.PrivateKey, model.SourceAgentRuntime)
-		coreConfig.Set(setup.PARUrn, updatedCfg.Urn, model.SourceAgentRuntime)
+		coreConfig.Set(parconfigkeys.PARPrivateKey, updatedCfg.PrivateKey, model.SourceAgentRuntime)
+		coreConfig.Set(parconfigkeys.PARUrn, updatedCfg.Urn, model.SourceAgentRuntime)
 		cfg = updatedCfg
 	} else if cfg.IdentityIsIncomplete() {
 		return nil, errors.New("identity not found and self-enrollment disabled. Please provide a valid URN and private key")
