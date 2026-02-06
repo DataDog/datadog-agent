@@ -1034,6 +1034,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_pods_improved.enabled", false)
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.ootb.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.kubelet_config_check.enabled", true, "DD_ORCHESTRATOR_EXPLORER_KUBELET_CONFIG_CHECK_ENABLED")
+	config.BindEnvAndSetDefault("auto_team_tag_collection", true)
 
 	// Container lifecycle configuration
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", true)
