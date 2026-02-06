@@ -54,10 +54,10 @@ if linux_target?
         ]
       
       command_on_repo_root "bazelisk run -- //deps/msodbcsql18:install --destdir='#{install_dir}'"
+      # (TODO(agent-build): Check if we still need pc files)
       command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded' " \
         + lib_files.map{ |l| "#{install_dir}/embedded/lib/#{l}" }.join(' ') \
         + " " \
-        # (TODO(agent-build): Check if we still need pc files)
         + pc_files.map{ |pc| "#{install_dir}/embedded/lib/pkgconfig/#{pc}" }.join(' ') \
         + " " \
         + bin_files.map{ |bin| "#{install_dir}/embedded/bin/#{bin}" }.join(' ') \
