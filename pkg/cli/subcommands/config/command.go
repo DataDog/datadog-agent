@@ -23,6 +23,8 @@ import (
 	ddflareextensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+	"gopkg.in/yaml.v2"
 
 	"github.com/spf13/cobra"
 )
@@ -117,6 +119,14 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 		RunE:  oneShotRunE(otelAgentCfg),
 	}
 	cmd.AddCommand(otelCmd)
+
+	sysProbeCmd := &cobra.Command{
+		Use:   "system-probe",
+		Short: "Print the system-probe config as loaded by the core Agent",
+		Long:  ``,
+		RunE:  oneShotRunE(systemProbeCfg),
+	}
+	cmd.AddCommand(sysProbeCmd)
 
 	return cmd
 }
@@ -242,5 +252,42 @@ func otelAgentCfg(_ log.Component, config config.Component, client ipc.HTTPClien
 		return err
 	}
 	fmt.Println(extensionResp.RuntimeConfig)
+	return nil
+}
+
+// systemProbeCfg prints the system-probe configuration as loaded by the core Agent.
+// This is not the live system-probe process runtime, but the Agent's merged view
+// (defaults + files + env). Secrets are scrubbed.
+func systemProbeCfg(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) error {
+	// Fetch the running Agent's config over IPC, then extract the system-probe subtree.
+	c, err := cliParams.SettingsBuilder(client)
+	if err != nil {
+		return err
+	}
+	full, err := c.FullConfig() // include defaults to match Agent's resolved view
+	if err != nil {
+		return err
+	}
+	// Unmarshal YAML to map, extract "system_probe_config"
+	var cfg map[string]interface{}
+	if err := yaml.Unmarshal([]byte(full), &cfg); err != nil {
+		return err
+	}
+	sp, ok := cfg["system_probe_config"]
+	if !ok {
+		fmt.Println("# system-probe config not loaded by the Agent")
+		return nil
+	}
+	// Marshal only the system_probe_config subtree
+	raw, err := yaml.Marshal(sp)
+	if err != nil {
+		return err
+	}
+	// Scrub secrets and print
+	scrubbed, err := scrubber.ScrubBytes(raw)
+	if err != nil {
+		return err
+	}
+	fmt.Print(string(scrubbed))
 	return nil
 }
