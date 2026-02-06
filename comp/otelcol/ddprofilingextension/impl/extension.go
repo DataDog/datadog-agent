@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"os"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -18,9 +19,9 @@ import (
 	ddprofilingextensiondef "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/def"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 
+	"github.com/DataDog/dd-trace-go/v2/profiler"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
-	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 )
@@ -101,14 +102,11 @@ func (e *ddExtension) startForOCB() error {
 	if string(e.cfg.API.Key) == "" {
 		return errAPIKeyMissing
 	}
-	// agentless
-	profilerOptions = append(profilerOptions,
-		profiler.WithAgentlessUpload(),
-		profiler.WithAPIKey(string(e.cfg.API.Key)),
-	)
-
+	// In dd-trace-go v2, agentless mode is configured via environment variables.
+	os.Setenv("DD_PROFILING_AGENTLESS", "true")
+	os.Setenv("DD_API_KEY", string(e.cfg.API.Key))
 	if string(e.cfg.API.Site) != "" {
-		profilerOptions = append(profilerOptions, profiler.WithSite(string(e.cfg.API.Site)))
+		os.Setenv("DD_SITE", string(e.cfg.API.Site))
 	}
 
 	source, err := e.sourceProvider.Source(context.Background())
