@@ -29,6 +29,7 @@ DEFAULT_CONFIG = [
     "shared",
     "no-ssl3",
     "no-gost",
+    "no-filenames",
     "--libdir=lib",
     "zlib-dynamic",
 ]
