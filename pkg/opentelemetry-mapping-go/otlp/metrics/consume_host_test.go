@@ -63,6 +63,7 @@ func TestHostsConsumed(t *testing.T) {
 			require.NoError(t, err)
 			translator, err := NewDefaultTranslator(set, attributesTranslator,
 				WithOriginProduct(OriginProductDatadogAgent),
+				WithRuntimeMetricMappings(),
 			)
 			require.NoError(t, err)
 			AssertTranslatorMap(t, translator, testinstance.otlpfile, testinstance.ddogfile)

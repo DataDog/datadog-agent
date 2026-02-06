@@ -16,6 +16,7 @@ package metrics
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -107,6 +108,7 @@ func newTranslatorWithStatsChannel(t *testing.T, logger *zap.Logger, ch chan []b
 		WithNumberMode(NumberModeCumulativeToDelta),
 		WithHistogramAggregations(),
 		WithStatsOut(ch),
+		WithRuntimeMetricMappings(),
 	}
 
 	set := componenttest.NewNopTelemetrySettings()
@@ -1086,7 +1088,7 @@ func TestMapRuntimeMetricsHasMapping(t *testing.T) {
 
 func TestMapRuntimeMetricsHasMappingCollector(t *testing.T) {
 	ctx := context.Background()
-	tr := NewTestTranslator(t, WithRemapping())
+	tr := NewTestTranslator(t, WithRemapping(), WithRuntimeMetricMappings())
 	consumer := &mockFullConsumer{}
 	exampleDims = newDims("process.runtime.go.goroutines")
 	exampleOtelDims := newDims("otel.process.runtime.go.goroutines")
@@ -1113,7 +1115,7 @@ func TestMapRuntimeMetricsHasMappingCollector(t *testing.T) {
 func TestMapSystemMetricsRenamedWithOTelPrefix(t *testing.T) {
 	ctx := context.Background()
 	// WithOTelPrefix() is used to rename the system metrics, this overrides WithRemapping.
-	tr := NewTestTranslator(t, WithOTelPrefix())
+	tr := NewTestTranslator(t, WithOTelPrefix(), WithRuntimeMetricMappings())
 	consumer := &mockFullConsumer{}
 	systemDims := newDims("system.cpu.utilization")
 	processDims := newDims("process.runtime.go.goroutines")
@@ -1175,7 +1177,7 @@ func TestMapSumRuntimeMetricWithAttributesHasMapping(t *testing.T) {
 
 func TestMapSumRuntimeMetricWithAttributesHasMappingCollector(t *testing.T) {
 	ctx := context.Background()
-	tr := NewTestTranslator(t, WithRemapping())
+	tr := NewTestTranslator(t, WithRemapping(), WithRuntimeMetricMappings())
 	consumer := &mockFullConsumer{}
 	attributes := []runtimeMetricAttribute{{
 		key:    "generation",
@@ -1276,7 +1278,7 @@ func TestMapHistogramRuntimeMetricWithAttributesHasMapping(t *testing.T) {
 
 func TestMapRuntimeMetricWithTwoAttributesHasMapping(t *testing.T) {
 	ctx := context.Background()
-	tr := newTranslator(t, zap.NewNop())
+	tr := NewTestTranslator(t, WithRuntimeMetricMappings(), WithFallbackSourceProvider(testProvider(fallbackHostname)))
 	consumer := &mockFullConsumer{}
 	attributes := []runtimeMetricAttribute{{
 		key:    "pool",
@@ -1303,7 +1305,7 @@ func TestMapRuntimeMetricWithTwoAttributesHasMapping(t *testing.T) {
 
 func TestMapRuntimeMetricWithTwoAttributesMultipleDataPointsHasMapping(t *testing.T) {
 	ctx := context.Background()
-	tr := newTranslator(t, zap.NewNop())
+	tr := NewTestTranslator(t, WithRuntimeMetricMappings(), WithFallbackSourceProvider(testProvider(fallbackHostname)))
 	consumer := &mockFullConsumer{}
 	attributes := []runtimeMetricAttribute{{
 		key:    "pool",
@@ -1336,7 +1338,7 @@ func TestMapRuntimeMetricWithTwoAttributesMultipleDataPointsHasMapping(t *testin
 
 func TestMapRuntimeMetricsMultipleLanguageTags(t *testing.T) {
 	ctx := context.Background()
-	tr := newTranslator(t, zap.NewNop())
+	tr := NewTestTranslator(t, WithRuntimeMetricMappings())
 	consumer := &mockFullConsumer{}
 	exampleDims = newDims("process.runtime.go.goroutines")
 	md1 := createTestIntCumulativeMonotonicMetrics(false, exampleDims)
@@ -1376,7 +1378,7 @@ func TestMapRuntimeMetricsMultipleLanguageTags(t *testing.T) {
 
 func TestMapGaugeRuntimeMetricWithInvalidAttributes(t *testing.T) {
 	ctx := context.Background()
-	tr := newTranslator(t, zap.NewNop())
+	tr := NewTestTranslator(t, WithRuntimeMetricMappings(), WithFallbackSourceProvider(testProvider(fallbackHostname)))
 	consumer := &mockFullConsumer{}
 	attributes := []runtimeMetricAttribute{{
 		key:    "type",
@@ -1417,73 +1419,75 @@ func TestMapRuntimeMetricsNoMapping(t *testing.T) {
 	assert.Empty(t, rmt.Languages)
 }
 
-func TestWithoutRuntimeMetricMappings(t *testing.T) {
+func TestWithRuntimeMetricMappings(t *testing.T) {
 	tests := []struct {
 		name         string
 		mappedName   string
-		skipMappings bool
+		withMappings bool
 		expectedLang string
 	}{
 		{
 			name:         "process.runtime.go.goroutines",
+			withMappings: true,
 			mappedName:   "runtime.go.num_goroutine",
 			expectedLang: "go",
 		},
 		{
-			name:         "process.runtime.go.goroutines",
-			skipMappings: true,
+			name: "process.runtime.go.goroutines",
 		},
 		{
 			name:         "process.runtime.dotnet.exceptions.count",
+			withMappings: true,
 			mappedName:   "runtime.dotnet.exceptions.count",
 			expectedLang: "dotnet",
 		},
 		{
-			name:         "process.runtime.dotnet.exceptions.count",
-			skipMappings: true,
+			name: "process.runtime.dotnet.exceptions.count",
 		},
 		{
 			name:         "jvm.thread.count",
+			withMappings: true,
 			mappedName:   "jvm.thread_count",
 			expectedLang: "jvm",
 		},
 		{
-			name:         "jvm.thread.count",
-			skipMappings: true,
+			name: "jvm.thread.count",
 		},
 		{
 			name:         "process.runtime.jvm.threads.count",
+			withMappings: true,
 			mappedName:   "jvm.thread_count",
 			expectedLang: "jvm",
 		},
 		{
-			name:         "process.runtime.jvm.threads.count",
-			skipMappings: true,
+			name: "process.runtime.jvm.threads.count",
 		},
 	}
 
 	for _, tt := range tests {
-		var opts []TranslatorOption
-		if tt.skipMappings {
-			opts = append(opts, WithoutRuntimeMetricMappings())
-		}
-		tr := NewTestTranslator(t, opts...)
-		consumer := &mockTimeSeriesConsumer{}
-		metric := createTestMetricWithAttributes(tt.name, pmetric.MetricTypeGauge, nil, 1)
+		t.Run(fmt.Sprintf("%s/%v", tt.name, tt.withMappings), func(t *testing.T) {
+			var opts []TranslatorOption
+			if tt.withMappings {
+				opts = append(opts, WithRuntimeMetricMappings())
+			}
+			tr := NewTestTranslator(t, opts...)
+			consumer := &mockTimeSeriesConsumer{}
+			metric := createTestMetricWithAttributes(tt.name, pmetric.MetricTypeGauge, nil, 1)
 
-		rmt, err := tr.MapMetrics(t.Context(), metric, consumer, nil)
-		require.NoError(t, err)
+			rmt, err := tr.MapMetrics(t.Context(), metric, consumer, nil)
+			require.NoError(t, err)
 
-		if tt.skipMappings {
-			require.Len(t, consumer.metrics, 1)
-			assert.Equal(t, tt.name, consumer.metrics[0].name)
-			assert.Empty(t, rmt.Languages)
-		} else {
-			require.Len(t, consumer.metrics, 2)
-			assert.Equal(t, tt.name, consumer.metrics[0].name)
-			assert.Equal(t, tt.mappedName, consumer.metrics[1].name)
-			assert.Equal(t, []string{tt.expectedLang}, rmt.Languages)
-		}
+			if tt.withMappings {
+				require.Len(t, consumer.metrics, 2)
+				assert.Equal(t, tt.name, consumer.metrics[0].name)
+				assert.Equal(t, tt.mappedName, consumer.metrics[1].name)
+				assert.Equal(t, []string{tt.expectedLang}, rmt.Languages)
+			} else {
+				require.Len(t, consumer.metrics, 1)
+				assert.Equal(t, tt.name, consumer.metrics[0].name)
+				assert.Empty(t, rmt.Languages)
+			}
+		})
 	}
 }
 
