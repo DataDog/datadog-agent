@@ -297,6 +297,16 @@ func (e EntityMeta) String(verbose bool) string {
 	return sb.String()
 }
 
+// FilterForNonVerbose returns a copy of EntityMeta with verbose-only fields removed.
+func (e *EntityMeta) FilterForNonVerbose() *EntityMeta {
+	// Non-verbose shows Name and Namespace
+	return &EntityMeta{
+		Name:      e.Name,
+		Namespace: e.Namespace,
+		// Zero out verbose-only fields: Annotations, Labels, UID
+	}
+}
+
 // ContainerImage is the an image used by a container.
 // For historical reason, The imageId from containerd runtime and kubernetes refer to different fields.
 // For containerd, it is the digest of the image config.
@@ -355,6 +365,16 @@ func (c ContainerImage) String(verbose bool) string {
 	return sb.String()
 }
 
+// FilterForNonVerbose returns a copy of ContainerImage with verbose-only fields removed.
+func (c *ContainerImage) FilterForNonVerbose() *ContainerImage {
+	// Non-verbose shows Name and Tag
+	return &ContainerImage{
+		Name: c.Name,
+		Tag:  c.Tag,
+		// Zero out verbose-only fields: ID, RawName, ShortName, Registry, RepoDigest
+	}
+}
+
 // ContainerState is the state of a container.
 type ContainerState struct {
 	Running    bool            `json:"running"`
@@ -383,6 +403,15 @@ func (c ContainerState) String(verbose bool) string {
 	}
 
 	return sb.String()
+}
+
+// FilterForNonVerbose returns a copy of ContainerState with verbose-only fields removed.
+func (c *ContainerState) FilterForNonVerbose() *ContainerState {
+	// Non-verbose only shows Running field
+	return &ContainerState{
+		Running: c.Running,
+		// Zero out verbose-only fields: Status, Health, CreatedAt, StartedAt, FinishedAt, ExitCode
+	}
 }
 
 // ContainerPort is a port open in the container.
@@ -562,6 +591,18 @@ func (o OrchestratorContainer) String(verbose bool) string {
 		_, _ = fmt.Fprint(&sb, o.Resources.String(true))
 	}
 	return sb.String()
+}
+
+// FilterForNonVerbose returns a copy of OrchestratorContainer with verbose-only fields removed.
+// Non-verbose output shows: ID, Name, Image (name and tag only)
+// Verbose-only fields removed: Resources
+func (o OrchestratorContainer) FilterForNonVerbose() OrchestratorContainer {
+	return OrchestratorContainer{
+		ID:    o.ID,
+		Name:  o.Name,
+		Image: *o.Image.FilterForNonVerbose(),
+		// Resources omitted in non-verbose
+	}
 }
 
 // ECSContainer is a reference to a container running in ECS
@@ -757,6 +798,29 @@ func (c Container) String(verbose bool) string {
 	}
 
 	return sb.String()
+}
+
+// FilterForNonVerbose returns a copy of the Container with verbose-only fields removed.
+// This ensures consistency between text output (String method) and JSON output.
+func (c *Container) FilterForNonVerbose() *Container {
+	filtered := *c // Copy the struct
+
+	// Clear verbose-only fields (must match what String(verbose=false) excludes)
+	// Based on Container.String() verbose blocks:
+	filtered.Hostname = ""
+	filtered.NetworkIPs = nil
+	filtered.PID = 0
+	filtered.CgroupPath = ""
+	filtered.Ports = nil
+	filtered.ResizePolicy = ContainerResizePolicy{}
+	filtered.EnvVars = nil
+
+	// Filter nested structures
+	filtered.State = *filtered.State.FilterForNonVerbose()
+	filtered.Image = *filtered.Image.FilterForNonVerbose()
+	filtered.EntityMeta = *filtered.EntityMeta.FilterForNonVerbose()
+
+	return &filtered
 }
 
 // PodSecurityContext is the Security Context of a Kubernetes pod
@@ -988,6 +1052,58 @@ func (p KubernetesPod) String(verbose bool) string {
 // GetAllContainers returns all containers, including init containers and ephemeral containers.
 func (p KubernetesPod) GetAllContainers() []OrchestratorContainer {
 	return append(append(p.InitContainers, p.Containers...), p.EphemeralContainers...)
+}
+
+// FilterForNonVerbose returns a copy of KubernetesPod with verbose-only fields removed.
+// Non-verbose output shows: EntityID, EntityMeta (name/namespace only), Phase, Ready, IP, Containers
+// Verbose-only fields removed: CreationTimestamp, DeletionTimestamp, StartTime, HostIP, HostNetwork,
+// InitContainerStatuses, ContainerStatuses, EphemeralContainerStatuses, Conditions, Volumes, Tolerations,
+// PersistentVolumeClaimNames, NamespaceLabels, NamespaceAnnotations
+func (p *KubernetesPod) FilterForNonVerbose() *KubernetesPod {
+	filtered := *p // Copy the struct
+
+	// Filter EntityMeta
+	filtered.EntityMeta = *filtered.EntityMeta.FilterForNonVerbose()
+
+	// Clear verbose-only fields
+	filtered.CreationTimestamp = time.Time{}
+	filtered.DeletionTimestamp = nil
+	filtered.StartTime = nil
+	filtered.HostIP = ""
+	filtered.HostNetwork = false
+	filtered.InitContainerStatuses = nil
+	filtered.ContainerStatuses = nil
+	filtered.EphemeralContainerStatuses = nil
+	filtered.Conditions = nil
+	filtered.Volumes = nil
+	filtered.Tolerations = nil
+	filtered.PersistentVolumeClaimNames = nil
+	filtered.NamespaceLabels = nil
+	filtered.NamespaceAnnotations = nil
+
+	// Filter containers to show only basic info
+	if len(p.InitContainers) > 0 {
+		filtered.InitContainers = make([]OrchestratorContainer, len(p.InitContainers))
+		for i, c := range p.InitContainers {
+			filtered.InitContainers[i] = c.FilterForNonVerbose()
+		}
+	}
+
+	if len(p.Containers) > 0 {
+		filtered.Containers = make([]OrchestratorContainer, len(p.Containers))
+		for i, c := range p.Containers {
+			filtered.Containers[i] = c.FilterForNonVerbose()
+		}
+	}
+
+	if len(p.EphemeralContainers) > 0 {
+		filtered.EphemeralContainers = make([]OrchestratorContainer, len(p.EphemeralContainers))
+		for i, c := range p.EphemeralContainers {
+			filtered.EphemeralContainers[i] = c.FilterForNonVerbose()
+		}
+	}
+
+	return &filtered
 }
 
 var _ Entity = &KubernetesPod{}
@@ -1245,6 +1361,21 @@ func (m *KubernetesMetadata) String(verbose bool) string {
 	return sb.String()
 }
 
+// FilterForNonVerbose returns a copy of KubernetesMetadata with verbose-only fields removed.
+// Non-verbose output shows: EntityID, EntityMeta (name/namespace only)
+// Verbose-only fields removed: GVR (GroupVersionResource)
+func (m *KubernetesMetadata) FilterForNonVerbose() *KubernetesMetadata {
+	filtered := *m // Copy the struct
+
+	// Filter EntityMeta
+	filtered.EntityMeta = *filtered.EntityMeta.FilterForNonVerbose()
+
+	// Clear verbose-only fields
+	filtered.GVR = nil
+
+	return &filtered
+}
+
 var _ Entity = &KubernetesMetadata{}
 
 // KubeletConfigSpec is the kubelet configuration, only the
@@ -1314,6 +1445,22 @@ func (ku *Kubelet) String(verbose bool) string {
 	}
 
 	return sb.String()
+}
+
+// FilterForNonVerbose returns a copy of Kubelet with verbose-only fields removed.
+// Non-verbose output shows: EntityID, EntityMeta (name/namespace only), NodeName
+// Verbose-only fields removed: ConfigDocument, RawConfig
+func (ku *Kubelet) FilterForNonVerbose() *Kubelet {
+	filtered := *ku // Copy the struct
+
+	// Filter EntityMeta
+	filtered.EntityMeta = *filtered.EntityMeta.FilterForNonVerbose()
+
+	// Clear verbose-only fields
+	filtered.ConfigDocument = KubeletConfigDocument{}
+	filtered.RawConfig = nil
+
+	return &filtered
 }
 
 var _ Entity = &Kubelet{}
@@ -1404,6 +1551,17 @@ func (d KubernetesDeployment) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "----------- Detected Languages -----------")
 	langPrinter(d.DetectedLanguages)
 	return sb.String()
+}
+
+// FilterForNonVerbose returns a copy of KubernetesDeployment with verbose-only fields removed.
+// KubernetesDeployment.String() doesn't have verbose-specific logic, but we filter EntityMeta for consistency.
+func (d *KubernetesDeployment) FilterForNonVerbose() *KubernetesDeployment {
+	filtered := *d // Copy the struct
+
+	// Filter EntityMeta
+	filtered.EntityMeta = *filtered.EntityMeta.FilterForNonVerbose()
+
+	return &filtered
 }
 
 var _ Entity = &KubernetesDeployment{}
@@ -1506,6 +1664,23 @@ func (t ECSTask) String(verbose bool) string {
 	}
 
 	return sb.String()
+}
+
+// FilterForNonVerbose returns a copy of ECSTask with verbose-only fields removed.
+// Non-verbose output shows: EntityID, EntityMeta, Containers (basic info)
+// Verbose-only fields removed: Tags, ContainerInstanceTags, EphemeralStorageMetrics
+func (t *ECSTask) FilterForNonVerbose() *ECSTask {
+	filtered := *t // Copy the struct
+
+	// Filter EntityMeta
+	filtered.EntityMeta = *filtered.EntityMeta.FilterForNonVerbose()
+
+	// Clear verbose-only fields
+	filtered.Tags = nil
+	filtered.ContainerInstanceTags = nil
+	filtered.EphemeralStorageMetrics = nil
+
+	return &filtered
 }
 
 var _ Entity = &ECSTask{}
@@ -1646,6 +1821,28 @@ func printHistory(out io.Writer, history *v1.History) {
 	_, _ = fmt.Fprintln(out, "- createdBy:", history.CreatedBy)
 	_, _ = fmt.Fprintln(out, "- comment:", history.Comment)
 	_, _ = fmt.Fprintln(out, "- emptyLayer:", history.EmptyLayer)
+}
+
+// FilterForNonVerbose returns a copy of ContainerImageMetadata with verbose-only fields removed.
+// Non-verbose output shows: EntityID, EntityMeta (name/namespace only), RepoTags, RepoDigests
+// Verbose-only fields removed: MediaType, SizeBytes, OS, OSVersion, Architecture, Variant, Layers, SBOM
+func (i *ContainerImageMetadata) FilterForNonVerbose() *ContainerImageMetadata {
+	filtered := *i // Copy the struct
+
+	// Filter EntityMeta
+	filtered.EntityMeta = *filtered.EntityMeta.FilterForNonVerbose()
+
+	// Clear verbose-only fields
+	filtered.MediaType = ""
+	filtered.SizeBytes = 0
+	filtered.OS = ""
+	filtered.OSVersion = ""
+	filtered.Architecture = ""
+	filtered.Variant = ""
+	filtered.Layers = nil
+	filtered.SBOM = nil
+
+	return &filtered
 }
 
 var _ Entity = &ContainerImageMetadata{}
@@ -1839,6 +2036,36 @@ func (p Process) String(verbose bool) string {
 	// TODO: add new fields once the new wlm process collector can be enabled
 
 	return sb.String()
+}
+
+// FilterForNonVerbose returns a copy of Process with verbose-only fields removed.
+// Non-verbose output shows: PID, Name, Exe, Cmdline, NsPid, ContainerID, CreationTime, Language, InjectionState, Service.GeneratedName
+// Verbose-only fields removed: Comm, Cwd, Uids, Gids, Service verbose fields
+func (p *Process) FilterForNonVerbose() *Process {
+	filtered := *p // Copy the struct
+
+	// Clear verbose-only fields
+	filtered.Comm = ""
+	filtered.Cwd = ""
+	filtered.Uids = nil
+	filtered.Gids = nil
+
+	// Filter Service if present
+	if p.Service != nil {
+		filteredService := *p.Service
+		filteredService.GeneratedNameSource = ""
+		filteredService.AdditionalGeneratedNames = nil
+		filteredService.TracerMetadata = nil
+		filteredService.TCPPorts = nil
+		filteredService.UDPPorts = nil
+		filteredService.APMInstrumentation = false
+		filteredService.Type = ""
+		filteredService.UST = UST{}
+		filteredService.LogFiles = nil
+		filtered.Service = &filteredService
+	}
+
+	return &filtered
 }
 
 // HostTags is an Entity that represents host tags
@@ -2124,6 +2351,17 @@ func (g GPU) SlicingMode() string {
 	return "none"
 }
 
+// FilterForNonVerbose returns a copy of GPU with verbose-only fields removed.
+// GPU.String() doesn't have verbose-specific logic, but we filter EntityMeta for consistency.
+func (g *GPU) FilterForNonVerbose() *GPU {
+	filtered := *g // Copy the struct
+
+	// Filter EntityMeta
+	filtered.EntityMeta = *filtered.EntityMeta.FilterForNonVerbose()
+
+	return &filtered
+}
+
 // GPUComputeCapability represents the compute capability version of a GPU.
 type GPUComputeCapability struct {
 	// Major represents the major version of the compute capability.
@@ -2200,6 +2438,17 @@ func (crd CRD) String(verbose bool) string {
 	return sb.String()
 }
 
+// FilterForNonVerbose returns a copy of CRD with verbose-only fields removed.
+// CRD.String() doesn't have verbose-specific logic, but we filter EntityMeta for consistency.
+func (crd *CRD) FilterForNonVerbose() *CRD {
+	filtered := *crd // Copy the struct
+
+	// Filter EntityMeta
+	filtered.EntityMeta = *filtered.EntityMeta.FilterForNonVerbose()
+
+	return &filtered
+}
+
 // FeatureGateStage represents the maturity level of a Kubernetes feature gate
 type FeatureGateStage string
 
@@ -2267,4 +2516,19 @@ func (kc KubeCapabilities) String(verbose bool) string {
 	}
 
 	return sb.String()
+}
+
+// FilterForNonVerbose returns a copy of KubeCapabilities with verbose-only fields removed.
+// Non-verbose output shows: EntityID, EntityMeta (name/namespace only), Version
+// Verbose-only fields removed: FeatureGates
+func (kc *KubeCapabilities) FilterForNonVerbose() *KubeCapabilities {
+	filtered := *kc // Copy the struct
+
+	// Filter EntityMeta
+	filtered.EntityMeta = *filtered.EntityMeta.FilterForNonVerbose()
+
+	// Clear verbose-only fields
+	filtered.FeatureGates = nil
+
+	return &filtered
 }

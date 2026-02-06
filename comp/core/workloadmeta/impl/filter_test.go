@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+//go:build test
+
 package workloadmetaimpl
 
 import (
@@ -234,102 +236,102 @@ func TestFilterEntitiesForVerbose(t *testing.T) {
 	}
 }
 
-func TestBuildWorkloadResponse_Performance(t *testing.T) {
-	// Test that verbose mode doesn't create unnecessary copies
-	t.Run("verbose mode uses original response", func(t *testing.T) {
-		mock := &mockWorkloadMeta{
-			structuredResp: wmdef.WorkloadDumpStructuredResponse{
-				Entities: map[string][]wmdef.Entity{
-					"container": {
-						&wmdef.Container{EntityID: wmdef.EntityID{Kind: wmdef.KindContainer, ID: "c1"}},
-					},
-				},
-			},
-		}
+func TestBuildWorkloadResponse(t *testing.T) {
+	store := newWorkloadmetaObject(t)
 
-		_, err := BuildWorkloadResponse(mock, true, true, "")
+	// Add test containers
+	container1 := &wmdef.Container{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindContainer,
+			ID:   "container-1",
+		},
+		EntityMeta: wmdef.EntityMeta{
+			Name:      "test-container-1",
+			Namespace: "default",
+		},
+		Hostname: "host1",
+		PID:      12345,
+	}
+
+	container2 := &wmdef.Container{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindContainer,
+			ID:   "nginx-123",
+		},
+		EntityMeta: wmdef.EntityMeta{
+			Name:      "nginx",
+			Namespace: "default",
+		},
+		Hostname: "host2",
+		PID:      67890,
+	}
+
+	pod := &wmdef.KubernetesPod{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesPod,
+			ID:   "pod-1",
+		},
+		EntityMeta: wmdef.EntityMeta{
+			Name:      "test-pod",
+			Namespace: "default",
+		},
+	}
+
+	// Push entities to store using handleEvents (synchronous) like dump_test.go does
+	store.handleEvents([]wmdef.CollectorEvent{
+		{
+			Type:   wmdef.EventTypeSet,
+			Source: wmdef.Source("test"),
+			Entity: container1,
+		},
+		{
+			Type:   wmdef.EventTypeSet,
+			Source: wmdef.Source("test"),
+			Entity: container2,
+		},
+		{
+			Type:   wmdef.EventTypeSet,
+			Source: wmdef.Source("test"),
+			Entity: pod,
+		},
+	})
+
+	t.Run("structured format with verbose", func(t *testing.T) {
+		jsonBytes, err := BuildWorkloadResponse(store, true, true, "")
+		require.NoError(t, err)
+		require.NotEmpty(t, jsonBytes)
+
+		// Verify it's valid JSON
+		assert.True(t, len(jsonBytes) > 0)
+	})
+
+	t.Run("structured format without verbose", func(t *testing.T) {
+		jsonBytes, err := BuildWorkloadResponse(store, false, true, "")
+		require.NoError(t, err)
+		require.NotEmpty(t, jsonBytes)
+	})
+
+	t.Run("text format", func(t *testing.T) {
+		jsonBytes, err := BuildWorkloadResponse(store, false, false, "")
+		require.NoError(t, err)
+		require.NotEmpty(t, jsonBytes)
+	})
+
+	t.Run("filter by kind", func(t *testing.T) {
+		jsonBytes, err := BuildWorkloadResponse(store, false, true, "container")
 		require.NoError(t, err)
 
-		// If verbose mode works correctly, it should not allocate new maps
-		// This is more of a documentation test - the real test would be a benchmark
+		// Should contain containers
+		assert.Contains(t, string(jsonBytes), "container")
+		// Should not contain pods when filtering for containers
+		assert.NotContains(t, string(jsonBytes), "kubernetes_pod")
 	})
 
-	t.Run("returns error for invalid type assertion", func(t *testing.T) {
-		// This test ensures we handle type assertion errors gracefully
-		// In practice this shouldn't happen, but we test the safety check
-		mock := &mockWorkloadMeta{
-			structuredResp: wmdef.WorkloadDumpStructuredResponse{
-				Entities: map[string][]wmdef.Entity{},
-			},
-		}
+	t.Run("filter by entity ID", func(t *testing.T) {
+		jsonBytes, err := BuildWorkloadResponse(store, false, true, "nginx")
+		require.NoError(t, err)
 
-		// Valid case should not error
-		_, err := BuildWorkloadResponse(mock, true, true, "test")
-		assert.NoError(t, err)
+		// Should contain the nginx container
+		assert.Contains(t, string(jsonBytes), "nginx")
 	})
 }
-
-// mockWorkloadMeta is a minimal mock for testing
-type mockWorkloadMeta struct {
-	structuredResp wmdef.WorkloadDumpStructuredResponse
-	textResp       wmdef.WorkloadDumpResponse
-}
-
-func (m *mockWorkloadMeta) DumpStructured(_ bool) wmdef.WorkloadDumpStructuredResponse {
-	return m.structuredResp
-}
-
-func (m *mockWorkloadMeta) Dump(_ bool) wmdef.WorkloadDumpResponse {
-	return m.textResp
-}
-
-// Implement remaining Component interface methods as no-ops
-func (m *mockWorkloadMeta) Subscribe(string, wmdef.SubscriberPriority, *wmdef.Filter) chan wmdef.EventBundle {
-	return nil
-}
-func (m *mockWorkloadMeta) Unsubscribe(chan wmdef.EventBundle)            {}
-func (m *mockWorkloadMeta) GetContainer(string) (*wmdef.Container, error) { return nil, nil }
-func (m *mockWorkloadMeta) ListContainers() []*wmdef.Container            { return nil }
-func (m *mockWorkloadMeta) ListContainersWithFilter(wmdef.EntityFilterFunc[*wmdef.Container]) []*wmdef.Container {
-	return nil
-}
-func (m *mockWorkloadMeta) GetKubernetesPod(string) (*wmdef.KubernetesPod, error) { return nil, nil }
-func (m *mockWorkloadMeta) GetKubernetesPodForContainer(string) (*wmdef.KubernetesPod, error) {
-	return nil, nil
-}
-func (m *mockWorkloadMeta) GetKubernetesPodByName(string, string) (*wmdef.KubernetesPod, error) {
-	return nil, nil
-}
-func (m *mockWorkloadMeta) ListKubernetesPods() []*wmdef.KubernetesPod { return nil }
-func (m *mockWorkloadMeta) ListKubernetesMetadata(wmdef.EntityFilterFunc[*wmdef.KubernetesMetadata]) []*wmdef.KubernetesMetadata {
-	return nil
-}
-func (m *mockWorkloadMeta) ListECSTasks() []*wmdef.ECSTask                         { return nil }
-func (m *mockWorkloadMeta) GetECSTask(string) (*wmdef.ECSTask, error)              { return nil, nil }
-func (m *mockWorkloadMeta) ListImages() []*wmdef.ContainerImageMetadata            { return nil }
-func (m *mockWorkloadMeta) GetImage(string) (*wmdef.ContainerImageMetadata, error) { return nil, nil }
-func (m *mockWorkloadMeta) GetProcess(int32) (*wmdef.Process, error)               { return nil, nil }
-func (m *mockWorkloadMeta) ListProcesses() []*wmdef.Process                        { return nil }
-func (m *mockWorkloadMeta) ListProcessesWithFilter(wmdef.EntityFilterFunc[*wmdef.Process]) []*wmdef.Process {
-	return nil
-}
-func (m *mockWorkloadMeta) GetContainerForProcess(string) (*wmdef.Container, error) {
-	return nil, nil
-}
-func (m *mockWorkloadMeta) GetGPU(string) (*wmdef.GPU, error)                     { return nil, nil }
-func (m *mockWorkloadMeta) ListGPUs() []*wmdef.GPU                                { return nil }
-func (m *mockWorkloadMeta) GetKubelet() (*wmdef.Kubelet, error)                   { return nil, nil }
-func (m *mockWorkloadMeta) GetKubeletMetrics() (*wmdef.KubeletMetrics, error)     { return nil, nil }
-func (m *mockWorkloadMeta) GetKubeCapabilities() (*wmdef.KubeCapabilities, error) { return nil, nil }
-func (m *mockWorkloadMeta) GetKubernetesDeployment(string) (*wmdef.KubernetesDeployment, error) {
-	return nil, nil
-}
-func (m *mockWorkloadMeta) GetKubernetesMetadata(wmdef.KubeMetadataEntityID) (*wmdef.KubernetesMetadata, error) {
-	return nil, nil
-}
-func (m *mockWorkloadMeta) GetCRD(string) (*wmdef.CRD, error)           { return nil, nil }
-func (m *mockWorkloadMeta) Push(wmdef.Source, ...wmdef.Event) error     { return nil }
-func (m *mockWorkloadMeta) Notify([]wmdef.CollectorEvent)               {}
-func (m *mockWorkloadMeta) Reset([]wmdef.Entity, wmdef.Source)          {}
-func (m *mockWorkloadMeta) ResetProcesses([]wmdef.Entity, wmdef.Source) {}
-func (m *mockWorkloadMeta) IsInitialized() bool                         { return true }

@@ -110,10 +110,9 @@ func workloadList(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) 
 	r, err := client.Get(url, ipchttp.WithCloseConnection)
 	if err != nil {
 		if r != nil && string(r) != "" {
-			fmt.Fprintf(color.Output, "The agent ran into an error while getting the workload store information: %s\n", string(r))
-		} else {
-			fmt.Fprintf(color.Output, "Failed to query the agent (running?): %s\n", err)
+			return fmt.Errorf("the agent ran into an error while getting the workload store information: %s", string(r))
 		}
+		return fmt.Errorf("failed to query the agent (running?): %w", err)
 	}
 
 	// Handle structured vs text format
