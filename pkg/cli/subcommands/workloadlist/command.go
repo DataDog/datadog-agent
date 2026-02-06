@@ -159,11 +159,11 @@ func workloadURL(verbose bool, structuredFormat bool, search string) (string, er
 		return "", err
 	}
 
-	var baseURL string
+	var prefix string
 	if flavor.GetFlavor() == flavor.ClusterAgent {
-		baseURL = fmt.Sprintf("https://%v:%v/workload-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
+		prefix = fmt.Sprintf("https://%v:%v/workload-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
 	} else {
-		baseURL = fmt.Sprintf("https://%v:%v/agent/workload-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
+		prefix = fmt.Sprintf("https://%v:%v/agent/workload-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
 	}
 
 	// Build query parameters using url.Values for proper encoding
@@ -179,8 +179,8 @@ func workloadURL(verbose bool, structuredFormat bool, search string) (string, er
 	}
 
 	if len(params) > 0 {
-		return baseURL + "?" + params.Encode(), nil
+		return prefix + "?" + params.Encode(), nil
 	}
 
-	return baseURL, nil
+	return prefix, nil
 }
