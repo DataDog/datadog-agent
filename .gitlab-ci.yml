@@ -951,7 +951,7 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - cmd/system-probe/modules/traceroute.go
+        - comp/system-probe/traceroute/**/*
         - pkg/collector/corechecks/networkpath/**/*
         - pkg/networkpath/**/*
         - comp/networkpath/**/*
