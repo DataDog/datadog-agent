@@ -154,6 +154,7 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 
 		workloadContainer.EnvVars = envs
 		workloadContainer.Hostname = spec.Hostname
+		workloadContainer.GPUDeviceIDs = util.ExtractGPUDeviceIDsFromEnvMap(envs)
 		if spec.Linux != nil {
 			workloadContainer.CgroupPath = extractCgroupPath(spec.Linux.CgroupsPath)
 		}
