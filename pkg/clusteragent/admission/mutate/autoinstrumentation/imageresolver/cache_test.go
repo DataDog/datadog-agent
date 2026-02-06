@@ -62,15 +62,28 @@ func (m *mockRoundTripper) CallCount() int {
 }
 
 func mockHTTPDigestCache(ttl time.Duration) (*httpDigestCache, *mockRoundTripper) {
-	cache := newHTTPDigestCache(ttl)
 	transport := &mockRoundTripper{
 		responses: make(map[string]*http.Response),
 	}
-	cache.fetcher.client = &http.Client{
+	client := &http.Client{
 		Transport: transport,
 		Timeout:   5 * time.Second,
 	}
-	return cache, transport
+	cache := registryCache{
+		"registry":      make(repositoryCache),
+		"registry1":     make(repositoryCache),
+		"registry2":     make(repositoryCache),
+		"test-registry": make(repositoryCache),
+	}
+	c := httpDigestCache{
+		cache: cache,
+		ttl:   ttl,
+		mu:    sync.RWMutex{},
+		fetcher: &httpDigestFetcher{
+			client: client,
+		},
+	}
+	return &c, transport
 }
 
 func TestHttpDigestCache_Get_Success(t *testing.T) {
@@ -88,33 +101,31 @@ func TestHttpDigestCache_Get_Success(t *testing.T) {
 			name: "cache_hit_unexpired",
 			ttl:  100 * time.Minute,
 			setupCache: func(cc *httpDigestCache) {
-				cc.cache["dd-lib-python-init"] = tagCache{
-					"v1": {
-						resolvedImage: &ResolvedImage{
-							FullImageRef:     "test-registry/dd-lib-python-init@sha256:aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000",
-							CanonicalVersion: "v1",
+				cc.cache["test-registry"] = repositoryCache{
+					"dd-lib-python-init": tagCache{
+						"v1": {
+							digest:     "sha256:aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000",
+							whenCached: time.Now(),
 						},
-						whenCached: time.Now(),
 					},
 				}
 			},
 			setupMock:         func(_ *mockRoundTripper) {},
 			repository:        "dd-lib-python-init",
 			tag:               "v1",
-			expectedDigest:    "test-registry/dd-lib-python-init@sha256:aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000",
+			expectedDigest:    "sha256:aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000",
 			expectedCallCount: 0,
 		},
 		{
 			name: "cache_hit_expired",
 			ttl:  0 * time.Minute,
 			setupCache: func(cc *httpDigestCache) {
-				cc.cache["dd-lib-python-init"] = tagCache{
-					"v1": {
-						resolvedImage: &ResolvedImage{
-							FullImageRef:     "test-registry/dd-lib-python-init@sha256:0000000000000000000000000000000000000000000000000000000000000000",
-							CanonicalVersion: "v1",
+				cc.cache["test-registry"] = repositoryCache{
+					"dd-lib-python-init": tagCache{
+						"v1": {
+							digest:     "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+							whenCached: time.Now().Add(-1 * time.Minute),
 						},
-						whenCached: time.Now().Add(-1 * time.Minute),
 					},
 				}
 			},
@@ -123,7 +134,7 @@ func TestHttpDigestCache_Get_Success(t *testing.T) {
 			},
 			repository:        "dd-lib-python-init",
 			tag:               "v1",
-			expectedDigest:    "test-registry/dd-lib-python-init@sha256:eeee1111eeee1111eeee1111eeee1111eeee1111eeee1111eeee1111eeee1111",
+			expectedDigest:    "sha256:eeee1111eeee1111eeee1111eeee1111eeee1111eeee1111eeee1111eeee1111",
 			expectedCallCount: 1,
 		},
 	}
@@ -138,8 +149,7 @@ func TestHttpDigestCache_Get_Success(t *testing.T) {
 
 			require.True(t, ok, "Expected successful get")
 			require.NotNil(t, resolved, "Expected non-nil resolved image")
-			require.Equal(t, tt.expectedDigest, resolved.FullImageRef)
-			require.Equal(t, tt.tag, resolved.CanonicalVersion)
+			require.Equal(t, tt.expectedDigest, resolved)
 			require.Equal(t, tt.expectedCallCount, transport.CallCount())
 		})
 	}
@@ -150,7 +160,7 @@ func TestHttpDigestCache_Get_Failure(t *testing.T) {
 	resolved, ok := cc.get("test-registry", "dd-lib-python-init", "v1")
 
 	require.False(t, ok, "Expected failed get")
-	require.Nil(t, resolved, "Expected nil resolved image")
+	require.Empty(t, resolved, "Expected empty digest")
 	require.Equal(t, 1, transport.CallCount())
 }
 
@@ -164,8 +174,8 @@ func TestHttpDigestCache_Get_MultipleRepositories(t *testing.T) {
 
 	require.True(t, ok1, "Should fetch python lib")
 	require.True(t, ok2, "Should fetch java lib")
-	require.Equal(t, "registry1/dd-lib-python-init@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", resolved1.FullImageRef)
-	require.Equal(t, "registry2/dd-lib-java-init@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", resolved2.FullImageRef)
+	require.Equal(t, "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", resolved1)
+	require.Equal(t, "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", resolved2)
 	require.Equal(t, 2, transport.CallCount(), "Should have fetched digest twice")
 }
 
@@ -182,9 +192,9 @@ func TestHttpDigestCache_Get_SameRepoMultipleTags(t *testing.T) {
 	require.True(t, ok1)
 	require.True(t, ok2)
 	require.True(t, ok3)
-	require.Equal(t, "registry/dd-lib-python-init@sha256:1111111111111111111111111111111111111111111111111111111111111111", resolved1.FullImageRef)
-	require.Equal(t, "registry/dd-lib-python-init@sha256:2222222222222222222222222222222222222222222222222222222222222222", resolved2.FullImageRef)
-	require.Equal(t, "registry/dd-lib-python-init@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", resolved3.FullImageRef)
+	require.Equal(t, "sha256:1111111111111111111111111111111111111111111111111111111111111111", resolved1)
+	require.Equal(t, "sha256:2222222222222222222222222222222222222222222222222222222222222222", resolved2)
+	require.Equal(t, "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", resolved3)
 	require.Equal(t, 3, transport.CallCount(), "Should have fetched digest three times")
 }
 
@@ -206,7 +216,7 @@ func TestHttpDigestCache_Get_ConcurrentCacheHit(t *testing.T) {
 			resolved, ok := cc.get("registry", "repo", "v1")
 			require.True(t, ok)
 			require.NotNil(t, resolved)
-			require.Equal(t, "registry/repo@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890", resolved.FullImageRef)
+			require.Equal(t, "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890", resolved)
 		}()
 	}
 	wg.Wait()

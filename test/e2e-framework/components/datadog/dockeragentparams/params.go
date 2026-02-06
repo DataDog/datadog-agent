@@ -47,6 +47,8 @@ type Params struct {
 	Repository string
 	// JMX is true if the JMX image is needed
 	JMX bool
+	// WindowsImage is true if Windows-compatible image is needed
+	WindowsImage bool
 	// AgentServiceEnvironment is a map of environment variables to set in the docker compose agent service's environment.
 	AgentServiceEnvironment pulumi.Map
 	// ExtraComposeManifests is a list of extra docker compose manifests to add beside the agent service.
@@ -65,6 +67,7 @@ func NewParams(e config.Env, options ...Option) (*Params, error) {
 	version := &Params{
 		AgentServiceEnvironment: pulumi.Map{},
 		EnvironmentVariables:    pulumi.StringMap{},
+		WindowsImage:            !e.AgentLinuxOnly(),
 	}
 
 	for k, v := range e.AgentExtraEnvVars() {
@@ -100,6 +103,14 @@ func WithJMX() func(*Params) error {
 func WithFIPS() func(*Params) error {
 	return func(p *Params) error {
 		p.FIPS = true
+		return nil
+	}
+}
+
+// WithWindowsImage makes the image Windows-compatible (multi-arch with Windows)
+func WithWindowsImage() func(*Params) error {
+	return func(p *Params) error {
+		p.WindowsImage = true
 		return nil
 	}
 }
