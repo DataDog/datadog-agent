@@ -112,7 +112,7 @@ func getLog(w http.ResponseWriter, r *http.Request, config configmodel.Reader) {
 
 	logFile := config.GetString("log_file")
 	if logFile == "" {
-		logFile = defaultpaths.LogFile
+		logFile = defaultpaths.GetDefaultLogFile()
 	}
 
 	logFileContents, e := os.ReadFile(logFile)

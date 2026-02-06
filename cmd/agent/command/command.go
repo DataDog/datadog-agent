@@ -58,8 +58,12 @@ type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
 // GetDefaultCoreBundleParams returns the default params for the Core Bundle (config loaded from the "datadog" file
 // and logger disabled).
 func GetDefaultCoreBundleParams(globalParams *GlobalParams) core.BundleParams {
+	configOpts := []func(*config.Params){
+		config.WithExtraConfFiles(globalParams.ExtraConfFilePath),
+		config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
+	}
 	return core.BundleParams{
-		ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
+		ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, configOpts...),
 		LogParams:    log.ForOneShot(LoggerName, "off", true)}
 }
 

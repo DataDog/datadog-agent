@@ -278,7 +278,7 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 		if runtime.GOOS == "windows" {
 			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "bin", "secret-generic-connector.exe")
 		} else {
-			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "..", "..", "embedded", "bin", "secret-generic-connector")
+			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "embedded", "bin", "secret-generic-connector")
 		}
 		r.embeddedBackendPermissiveRights = true
 	}

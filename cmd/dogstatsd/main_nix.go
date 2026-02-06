@@ -12,16 +12,15 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/dogstatsd/command"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const defaultLogFile = "/var/log/datadog/dogstatsd.log"
-
 func main() {
 	flavor.SetFlavor(flavor.Dogstatsd)
 
-	if err := command.MakeRootCommand(defaultLogFile).Execute(); err != nil {
+	if err := command.MakeRootCommand(defaultpaths.GetDefaultDogstatsDServiceLogFile()).Execute(); err != nil {
 		log.Error(err)
 		os.Exit(-1)
 	}
