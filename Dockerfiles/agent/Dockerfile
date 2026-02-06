@@ -87,7 +87,7 @@ RUN apt full-upgrade -y \
   # this can be removed
   # Install libseccomp2 as required by `nosys-seccomp` wrapper
   && apt install --no-install-recommends -y iproute2 libseccomp2 tzdata adduser sudo \
-  && chmod o-w /usr/lib/systemd/system/sudo.service
+  && rm -f /usr/lib/systemd/system/sudo.service
 
 ARG WITH_JMX
 ARG WITH_JMX_FIPS
