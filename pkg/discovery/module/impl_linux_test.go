@@ -555,13 +555,22 @@ func TestParseHexIP(t *testing.T) {
 }
 
 func TestParseEstablishedConnLineIPv6Mapped(t *testing.T) {
-	// Test that parseEstablishedConnLineBytes correctly normalizes IPv6-mapped IPv4 addresses
+	// Test that processNetTCPLine correctly normalizes IPv6-mapped IPv4 addresses
 	// This simulates a line from /proc/net/tcp6 with IPv6-mapped IPv4 addresses
 	// Example: cluster-agent listening on 10.244.1.11:5005, agent connecting from 10.244.1.12:46538
 	// Line format: sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode ...
 	line := []byte("   0: 0000000000000000FFFF00000B01F40A:138D 0000000000000000FFFF00000C01F40A:B5CA 01 00000000:00000000 00:00000000 00000000  1000        0 12345 1 0000000000000000 100 0 0 10 0")
-	connInfo, inode, err := parseEstablishedConnLineBytes(line, "v6")
-	require.NoError(t, err)
+
+	listening := make(map[uint64]uint16)
+	established := make(map[uint64]*establishedConnInfo)
+
+	processNetTCPLine(line, "v6", listening, established)
+
+	require.Empty(t, listening, "Should not extract listening socket from established connection")
+	require.Len(t, established, 1, "Should extract one established connection")
+
+	connInfo, ok := established[12345]
+	require.True(t, ok, "Connection should be keyed by inode 12345")
 	require.NotNil(t, connInfo)
 
 	// Verify that IPv6-mapped addresses are normalized to plain IPv4
@@ -570,7 +579,6 @@ func TestParseEstablishedConnLineIPv6Mapped(t *testing.T) {
 	require.Equal(t, "10.244.1.12", connInfo.remoteIP, "Remote IP should be normalized to plain IPv4")
 	require.Equal(t, uint16(46538), connInfo.remotePort)
 	require.Equal(t, "v4", connInfo.family, "Family should be v4 for IPv6-mapped IPv4 addresses")
-	require.Equal(t, uint64(12345), inode)
 }
 
 func TestParseNetTCPComplete(t *testing.T) {

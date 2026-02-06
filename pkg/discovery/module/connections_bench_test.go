@@ -52,21 +52,25 @@ func BenchmarkParseEstablishedConnLine(b *testing.B) {
 	lineV6Mapped := []byte("   0: 0000000000000000FFFF00000B01F40A:138D 0000000000000000FFFF00000C01F40A:B5CA 01 00000000:00000000 00:00000000 00000000  1000        0 12345 1 0000000000000000 100 0 0 10 0")
 
 	b.Run("IPv4", func(b *testing.B) {
+		listening := make(map[uint64]uint16)
+		established := make(map[uint64]*establishedConnInfo)
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
-			parseEstablishedConnLineBytes(lineV4, "v4")
+			processNetTCPLine(lineV4, "v4", listening, established)
 		}
 	})
 
 	b.Run("IPv6MappedIPv4", func(b *testing.B) {
+		listening := make(map[uint64]uint16)
+		established := make(map[uint64]*establishedConnInfo)
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
-			parseEstablishedConnLineBytes(lineV6Mapped, "v6")
+			processNetTCPLine(lineV6Mapped, "v6", listening, established)
 		}
 	})
 }
 
-func BenchmarkGetEstablishedConnections(b *testing.B) {
+func BenchmarkParseNetTCPComplete(b *testing.B) {
 	// Create some established connections for the benchmark
 	listeners := make([]net.Listener, 0, 10)
 	conns := make([]net.Conn, 0, 20)
@@ -105,19 +109,11 @@ func BenchmarkGetEstablishedConnections(b *testing.B) {
 
 	pid := os.Getpid()
 
-	b.Run("IPv4", func(b *testing.B) {
+	b.Run("Combined", func(b *testing.B) {
 		b.ReportAllocs()
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			getEstablishedConnections(pid, "v4")
-		}
-	})
-
-	b.Run("IPv6", func(b *testing.B) {
-		b.ReportAllocs()
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			getEstablishedConnections(pid, "v6")
+			parseNetTCPComplete(pid)
 		}
 	})
 }
