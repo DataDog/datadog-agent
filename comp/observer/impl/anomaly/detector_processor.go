@@ -15,6 +15,25 @@ import (
 	"github.com/DataDog/datadog-agent/comp/observer/impl/anomaly/internal/detector"
 	"github.com/DataDog/datadog-agent/comp/observer/impl/anomaly/internal/log_grouping"
 	"github.com/DataDog/datadog-agent/comp/observer/impl/anomaly/internal/types"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+)
+
+var (
+	// ProcessedRequests tracks the number requests processed by the handler
+	SingleAnomalyScore = telemetry.NewGauge(
+		"anomaly",
+		"single_score",
+		[]string{"type"},
+		"",
+	)
+
+	// ProcessedRequests tracks the number requests processed by the handler
+	AggregatedAnomalyScore = telemetry.NewGauge(
+		"anomaly",
+		"aggregated_score",
+		[]string{"algorithm_type"},
+		"Aggregated score of all anomalies detected",
+	)
 )
 
 // TracePercentiles contains percentile values for trace durations.
@@ -91,6 +110,13 @@ func (dp *DetectorProcessor) ComputeScores(
 	}
 
 	dp.log.Infof("**** Telemetry comparison result *** \n%v\n", results)
+	SingleAnomalyScore.Set(results.CPU, "cpu")
+	SingleAnomalyScore.Set(results.Mem, "mem")
+	SingleAnomalyScore.Set(results.Err, "error")
+	SingleAnomalyScore.Set(results.TraceP50, "trace_p50")
+	SingleAnomalyScore.Set(results.TraceP95, "trace_p95")
+	SingleAnomalyScore.Set(results.TraceP99, "trace_p99")
+	SingleAnomalyScore.Set(results.Metrics, "metrics")
 
 	scores, err := dp.detectorRunner.ComputeScores(results, dp.currentStep)
 	if err != nil {
@@ -99,6 +125,7 @@ func (dp *DetectorProcessor) ComputeScores(
 
 	dp.log.Infof("**** Detector scores *** \n")
 	for name, score := range scores {
+		AggregatedAnomalyScore.Set(score.Score, name)
 		dp.log.Infof("  %s: %v (best: %v)", name, score.Score, score.BestScore)
 	}
 
