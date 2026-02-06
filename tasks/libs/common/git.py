@@ -232,12 +232,6 @@ def get_main_parent_commit(ctx) -> str:
 
 
 def get_current_pr(branch_name: str | None):
-    # First, check if COMPARE_TO_BRANCH is set (used in GitLab CI)
-    compare_to_branch = os.environ.get("COMPARE_TO_BRANCH")
-    if compare_to_branch:
-        print(f"Using COMPARE_TO_BRANCH environment variable: {compare_to_branch}")
-        return compare_to_branch
-
     # Fall back to GitHub API to find the PR's target branch
     from tasks.libs.ciproviders.github_api import GithubAPI
 
@@ -250,7 +244,7 @@ def get_current_pr(branch_name: str | None):
 
         if len(prs) == 0:
             print(f"No PR found for branch {branch_name}, using default branch")
-            return get_default_branch()
+            return None
 
         if len(prs) > 1:
             print(f"Warning: Multiple PRs found for branch {branch_name}, using first PR's base")
@@ -282,6 +276,12 @@ def get_ancestor_base_branch(branch_name: str | None = None) -> str:
     Returns:
         The base branch name to use for ancestor calculation.
     """
+    # First, check if COMPARE_TO_BRANCH is set (used in GitLab CI)
+    compare_to_branch = os.environ.get("COMPARE_TO_BRANCH")
+    if compare_to_branch:
+        print(f"Using COMPARE_TO_BRANCH environment variable: {compare_to_branch}")
+        return compare_to_branch
+
     pr = get_current_pr(branch_name)
     if not pr:
         return get_default_branch()
