@@ -243,15 +243,6 @@
 /cmd/serverless-init/                   @DataDog/serverless-azure-gcp
 /cmd/sbomgen/                           @DataDog/agent-security
 /cmd/system-probe/                      @DataDog/ebpf-platform
-/cmd/system-probe/modules/oom_kill_probe*   @DataDog/container-integrations
-/cmd/system-probe/modules/process*      @DataDog/container-experiences
-/cmd/system-probe/modules/eventmonitor* @DataDog/agent-security
-/cmd/system-probe/modules/compliance*   @DataDog/agent-cspm
-/cmd/system-probe/modules/tcp_queue_tracer* @DataDog/container-integrations
-/cmd/system-probe/modules/traceroute*  @DataDog/cloud-network-monitoring @DataDog/network-path
-/cmd/system-probe/modules/ping*         @DataDog/ndm-core
-/cmd/system-probe/modules/language_detection* @DataDog/container-experiences @DataDog/agent-discovery
-/cmd/system-probe/modules/dynamic_instrumentation* @DataDog/debugger-go
 /cmd/system-probe/windows/              @DataDog/windows-products
 /cmd/system-probe/windows_resources/    @DataDog/windows-products
 /cmd/system-probe/main_windows*.go      @DataDog/windows-products
@@ -417,6 +408,7 @@
 /comp/core/remoteagent/impl-trace @DataDog/agent-runtimes @DataDog/agent-apm
 /comp/core/remoteagent/impl-securityagent @DataDog/agent-runtimes @DataDog/agent-security
 
+/comp/system-probe  @DataDog/ebpf-platform
 /comp/system-probe/networktracer/impl/usm*   @DataDog/universal-service-monitoring
 
 # pkg
