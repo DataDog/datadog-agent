@@ -69,11 +69,22 @@ Groups metrics that anomaly at the exact same time (within 1 second).
 - Fast processing, but doesn't understand relationships
 """
 
+LEADLAG_CONTEXT = """
+**LeadLag Correlator:**
+Tracks temporal ordering to detect "A leads B by N seconds".
+- Maintains lag histograms for each source pair
+- Reports edges with leader, follower, typical_lag, and confidence
+- Good for: cascading failures where root cause propagates
+- e.g. "network.retransmits leads connection.errors by ~5s"
+"""
+
 JSON_CONTEXT = """
 **JSON fields:**
 - total_anomalies: How many anomaly events were detected
 - unique_sources_in_anomalies: How many different metrics had anomalies
-- correlations: Groups of metrics that anomalied together
+- correlations: Groups of metrics that anomalied together (TimeCluster)
+- leadlag_edges (if present): Pairs showing "A leads B by N seconds" with confidence
+- surprise_edges (if present): Pairs with unexpected co-occurrence (high lift)
 - edges (if GraphSketch): Pairs of metrics and how often they co-occurred
 - sample_anomalies: A few example anomalies for context
 """
@@ -81,9 +92,9 @@ JSON_CONTEXT = """
 def build_context(args):
     """Build context string based on flags."""
     parts = [BASE_CONTEXT]
-    
-    include_all = args.all or not (args.cusum or args.lightesd or args.graphsketch or args.timecluster)
-    
+
+    include_all = args.all or not (args.cusum or args.lightesd or args.graphsketch or args.timecluster or args.leadlag)
+
     if args.cusum or include_all:
         parts.append(CUSUM_CONTEXT)
     if args.lightesd or include_all:
@@ -92,7 +103,9 @@ def build_context(args):
         parts.append(GRAPHSKETCH_CONTEXT)
     if args.timecluster or include_all:
         parts.append(TIMECLUSTER_CONTEXT)
-    
+    if args.leadlag or include_all:
+        parts.append(LEADLAG_CONTEXT)
+
     parts.append(JSON_CONTEXT)
     return "\n".join(parts)
 
@@ -170,6 +183,7 @@ def main():
     parser.add_argument('--lightesd', action='store_true', help='Add LightESD detector context')
     parser.add_argument('--graphsketch', action='store_true', help='Add GraphSketch correlator context')
     parser.add_argument('--timecluster', action='store_true', help='Add TimeCluster correlator context')
+    parser.add_argument('--leadlag', action='store_true', help='Add LeadLag correlator context')
     parser.add_argument('--all', action='store_true', help='Add all context (default)')
     parser.add_argument('--model', default='gpt-5.2-2025-12-11', help='OpenAI model (default: gpt-5.2-2025-12-11)')
     

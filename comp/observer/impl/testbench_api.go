@@ -604,14 +604,35 @@ func (api *TestBenchAPI) buildAnalysisInput() (string, error) {
 		uniqueSources[a.Source] = true
 	}
 
-	sampleAnomalies := anomalies
-	if len(sampleAnomalies) > 20 {
-		sampleAnomalies = sampleAnomalies[:20]
+	// Prioritize container anomalies in the sample — they're the most diagnostic
+	// but often outnumbered by system-level noise.
+	var containerAnomalies, systemAnomalies []AnomalySnapshot
+	for _, a := range anomalies {
+		if strings.HasPrefix(a.Source, "container.") || strings.HasPrefix(a.Source, "docker.") {
+			containerAnomalies = append(containerAnomalies, a)
+		} else {
+			systemAnomalies = append(systemAnomalies, a)
+		}
 	}
+	// All container anomalies + fill remaining slots with system anomalies
+	sampleAnomalies := containerAnomalies
+	remaining := 30 - len(sampleAnomalies)
+	if remaining > 0 && len(systemAnomalies) > 0 {
+		if len(systemAnomalies) > remaining {
+			systemAnomalies = systemAnomalies[:remaining]
+		}
+		sampleAnomalies = append(sampleAnomalies, systemAnomalies...)
+	}
+
 	sampleCorrelations := correlations
 	if len(sampleCorrelations) > 20 {
 		sampleCorrelations = sampleCorrelations[:20]
 	}
+
+	// Collect all correlator outputs (LeadLag, Surprise) — let the LLM script
+	// decide what to include in the prompt.
+	leadLagEdges, _ := api.tb.GetLeadLagEdges()
+	surpriseEdges, _ := api.tb.GetSurpriseEdges()
 
 	// NOTE: ground_truth_markers intentionally excluded — including them
 	// leaks the answer to the LLM and inflates diagnosis scores.
@@ -623,6 +644,12 @@ func (api *TestBenchAPI) buildAnalysisInput() (string, error) {
 		"sample_anomalies":           sampleAnomalies,
 		"health":                     health,
 		"log_buffer_stats":           logStats,
+	}
+	if len(leadLagEdges) > 0 {
+		input["leadlag_edges"] = leadLagEdges
+	}
+	if len(surpriseEdges) > 0 {
+		input["surprise_edges"] = surpriseEdges
 	}
 
 	tmpFile, err := os.CreateTemp("", "observer-analysis-*.json")
@@ -670,7 +697,7 @@ func (api *TestBenchAPI) handleDiagnosisRun(w http.ResponseWriter, r *http.Reque
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "python3", scriptPath, inputFile, "--cusum", "--timecluster")
+	cmd := exec.CommandContext(ctx, "python3", scriptPath, inputFile, "--cusum", "--timecluster", "--leadlag")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		api.writeError(w, http.StatusInternalServerError, fmt.Sprintf("script failed: %v\nOutput: %s", err, string(output)))
