@@ -9,12 +9,14 @@
 package tests
 
 import (
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/stretchr/testify/assert"
-	"golang.org/x/sys/unix"
 	"syscall"
 	"testing"
 	"time"
+
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/stretchr/testify/assert"
+	"golang.org/x/sys/unix"
 )
 
 func TmpMountAtLegacyAPI(dir string) error {
@@ -48,7 +50,7 @@ func TestUmount(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	mnt, _, _, err := p.Resolvers.MountResolver.ResolveMount(mountID, 0)
+	mnt, _, _, err := p.Resolvers.MountResolver.ResolveMount(model.PathKey{MountID: mountID}, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +68,7 @@ func TestUmount(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	// Resolve the mount after detaching, without using redemption or reloading. Should return nil
-	mnt, _, _, err = p.Resolvers.MountResolver.ResolveMount(mountID, 0)
+	mnt, _, _, err = p.Resolvers.MountResolver.ResolveMount(model.PathKey{MountID: mountID}, 0)
 	if err == nil {
 		t.Fatal("No error")
 	}
