@@ -29,7 +29,7 @@ from tasks.libs.package.utils import (
 from tasks.libs.pipeline.utils import get_pipeline_id
 
 
-def parse_pipeline_name(pipeline_name: str) -> tuple[str, str, str, str]:
+def parse_job_name(job_name: str) -> tuple[str, str, str, str]:
     """
     Parse a pipeline name to extract binary, type, flavor, and arch.
 
@@ -43,7 +43,7 @@ def parse_pipeline_name(pipeline_name: str) -> tuple[str, str, str, str]:
     Raises: Exit if pipeline name cannot be parsed
     """
     # Remove dd-gitlab prefix if present
-    name = pipeline_name.replace("dd-gitlab/", "")
+    name = job_name.replace("dd-gitlab/", "")
 
     # Replace hyphens with underscores for consistent parsing
     name = name.replace("-", "_")
@@ -117,41 +117,41 @@ def parse_pipeline_name(pipeline_name: str) -> tuple[str, str, str, str]:
         i += 1
 
     # Special cases for docker pipelines
-    if "docker" in parts or "docker_build" in pipeline_name:
+    if "docker" in parts or "docker_build" in job_name:
         if not _type:
             _type = "docker"
         if not binary:
             # Try to find binary in the original name
-            if "agent" in pipeline_name and "cluster" not in pipeline_name and "dogstatsd" not in pipeline_name:
+            if "agent" in job_name and "cluster" not in job_name and "dogstatsd" not in job_name:
                 binary = "agent"
-            elif "cluster_agent" in pipeline_name:
+            elif "cluster_agent" in job_name:
                 binary = "cluster_agent"
-            elif "dogstatsd" in pipeline_name:
+            elif "dogstatsd" in job_name:
                 binary = "dogstatsd"
 
     # Validate and set defaults
     if not binary:
-        raise Exit(code=1, message=f"Could not determine binary from pipeline name: {pipeline_name}")
+        raise Exit(code=1, message=f"Could not determine binary from pipeline name: {job_name}")
 
     if not _type:
         # Try to infer type from binary or pipeline name
-        if "deb" in pipeline_name:
+        if "deb" in job_name:
             _type = "deb"
-        elif "rpm" in pipeline_name:
+        elif "rpm" in job_name:
             _type = "rpm"
-        elif "docker" in pipeline_name:
+        elif "docker" in job_name:
             _type = "docker"
-        elif "msi" in pipeline_name:
+        elif "msi" in job_name:
             _type = "msi"
-        elif "dmg" in pipeline_name:
+        elif "dmg" in job_name:
             _type = "dmg"
-        elif "oci" in pipeline_name:
+        elif "oci" in job_name:
             _type = "oci"
         else:
-            raise Exit(code=1, message=f"Could not determine package type from pipeline name: {pipeline_name}")
+            raise Exit(code=1, message=f"Could not determine package type from pipeline name: {job_name}")
 
     if not arch:
-        raise Exit(code=1, message=f"Could not determine architecture from pipeline name: {pipeline_name}")
+        raise Exit(code=1, message=f"Could not determine architecture from pipeline name: {job_name}")
 
     return binary, _type, flavor, arch
 
@@ -313,7 +313,7 @@ def download_by_test(
     """
 
     # Parse the pipeline name
-    binary, _type, flavor, arch = parse_pipeline_name(pipeline_name=job_name)
+    binary, _type, flavor, arch = parse_job_name(job_name=job_name)
 
     # Determine the pipeline ID
     if pipeline_id is None:
