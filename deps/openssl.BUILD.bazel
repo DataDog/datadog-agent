@@ -1,9 +1,12 @@
+load("@//bazel/rules:cc_shared_library_wrapper.bzl", "cc_shared_library_wrapper")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
-load("@bazel_skylib//lib:selects.bzl", "selects")
+load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
+load("@bazel_skylib//rules:select_file.bzl", "select_file")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 
+# This should be private. We can fix it in another PR
 package(default_visibility = ["//visibility:public"])
 
 filegroup(
@@ -19,7 +22,10 @@ DEFAULT_CONFIG = [
     "shared",
     "no-ssl3",
     "no-gost",
+    "no-filenames",
     "--libdir=lib",
+    # This instructs openssl to dynamically *load* zlib at runtime, not
+    # dynamically *link* with it at build time
     "zlib-dynamic",
 ]
 
@@ -117,10 +123,10 @@ configure_make(
     }),
     lib_source = ":all_srcs",
     out_include_dir = "include",
-    out_static_libs = select({
+    out_interface_libs = select({
         "@platforms//os:windows": [
-            "libssl.dll.a",
-            "libcrypto.dll.a",
+            "libssl.lib",
+            "libcrypto.lib",
         ],
         "//conditions:default": [],
     }),
@@ -150,13 +156,14 @@ configure_make(
     }),
     deps = select({
         "//conditions:default": [
-            "@bzip2//:libbz2",
-            "@xz//:liblzma",
             "@zlib//:zlib",
         ],
         "@platforms//os:windows": [],
     }),
-    copts = ["-O2"],
+    copts = ["-O2"] + select({
+        "@platforms//os:windows": ["-DSIO_UDP_NETRESET=_WSAIOW\\(IOC_VENDOR,15\\)"],
+        "//conditions:default": [],
+    }),
     targets = ["depend", "", "install_sw", "install_ssldirs"],
     # Fix install names, as openssl's build system might not get them right
     postfix_script = select({
@@ -169,15 +176,36 @@ configure_make(
                 done
             done
             LIBS="$$INSTALLDIR/lib/libcrypto.dylib $$INSTALLDIR/lib/libssl.dylib"
-        """ + FIX_OPENSSL_PATHS,
+        """ + FIX_OPENSSL_PATHS + """
+        codesign -s - -f $$INSTALLDIR/lib/libcrypto.dylib $$INSTALLDIR/lib/libssl.dylib
+        """,
+        # Rename .dll.a files into the appropriate extension for import libraries (.lib)
+        "@platforms//os:windows": """
+        mv $$INSTALLDIR/lib/libcrypto.dll.a $$INSTALLDIR/lib/libcrypto.lib
+        mv $$INSTALLDIR/lib/libssl.dll.a $$INSTALLDIR/lib/libssl.lib
+        """,
         "//conditions:default": """
             LIBS="$$INSTALLDIR/lib/libcrypto.so $$INSTALLDIR/lib/libssl.so"
         """ + FIX_OPENSSL_PATHS,
     }),
 )
 
+cc_shared_library_wrapper(
+    name = "openssl_shared",
+    input = ":openssl",
+)
+
 filegroup(
-    name = "libssl",
+    name = "headers",
+    srcs = [":openssl"],
+    output_group = "include",
+)
+
+# The dynamic library built with configure/make. Even though the name
+# is libssl.so, it is not actually the same folder, so we can have our
+# own libssl.so shadow it.
+filegroup(
+    name = "libssl_shared_file",
     srcs = [":openssl"],
     output_group = select({
         "@platforms//os:windows": WIN_LIBSSL,
@@ -187,7 +215,7 @@ filegroup(
 )
 
 filegroup(
-    name = "libcrypto",
+    name = "libcrypto_shared_file",
     srcs = [":openssl"],
     output_group = select({
         "@platforms//os:windows": WIN_LIBCRYPTO,
@@ -196,24 +224,24 @@ filegroup(
     }),
 )
 
+#####
+#
+# Packaging
+#
+#####
+
 so_symlink(
     name = "libssl_with_symlink",
-    src = ":libssl",
+    src = ":libssl_shared_file",
     libname = "libssl",
-    version = "3.5.4",
+    version = OPENSSL_VERSION,
 )
 
 so_symlink(
     name = "libcrypto_with_symlink",
-    src = ":libcrypto",
+    src = ":libcrypto_shared_file",
     libname = "libcrypto",
-    version = "3.5.4",
-)
-
-filegroup(
-    name = "headers",
-    srcs = [":openssl"],
-    output_group = "include",
+    version = OPENSSL_VERSION,
 )
 
 pkg_files(
@@ -243,25 +271,26 @@ filegroup(
     output_group = "pkgconfig",
 )
 
-filegroup(
-    name = "libcrypto_dll_a",
-    srcs = [":openssl"],
-    output_group = "libcrypto.dll.a",
+# "interface libs" are not exposed as output groups, therefore we use a more versatile rule to get these
+select_file(
+    name = "libcrypto_import_lib",
+    srcs = ":openssl",
+    subpath = "openssl/lib/libcrypto.lib",
     target_compatible_with = ["@platforms//os:windows"],
 )
 
-filegroup(
-    name = "libssl_dll_a",
-    srcs = [":openssl"],
-    output_group = "libssl.dll.a",
+select_file(
+    name = "libssl_import_lib",
+    srcs = ":openssl",
+    subpath = "openssl/lib/libssl.lib",
     target_compatible_with = ["@platforms//os:windows"],
 )
 
 pkg_files(
-    name = "dll_a",
+    name = "import_lib_files",
     srcs = [
-        ":libcrypto_dll_a",
-        ":libssl_dll_a",
+        ":libcrypto_import_lib",
+        ":libssl_import_lib",
     ],
     prefix = "lib",
     target_compatible_with = ["@platforms//os:windows"],
@@ -290,6 +319,7 @@ pkg_files(
         "@platforms//os:windows": ["@platforms//:incompatible"],
         "//conditions:default": [],
     }),
+    visibility = ["//visibility:public"],
 )
 
 pkg_install(
@@ -300,7 +330,7 @@ pkg_install(
         ":libcrypto_with_symlink",
     ] + select({
         "@platforms//os:windows": [
-            ":dll_a",
+            ":import_lib_files",
             ":openssl_exe_file",
         ],
         "//conditions:default": [

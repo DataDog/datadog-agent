@@ -69,6 +69,7 @@ type RuleEngine struct {
 	pid              uint32
 	wg               sync.WaitGroup
 	ipc              ipc.Component
+	hostname         string
 
 	// userspace filtering metrics (avoid statsd calls in event hot path)
 	noMatchCounters []atomic.Uint64
@@ -82,7 +83,7 @@ type APIServer interface {
 }
 
 // NewRuleEngine returns a new rule engine
-func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, probe *probe.Probe, rateLimiter *events.RateLimiter, apiServer APIServer, sender events.EventSender, statsdClient statsd.ClientInterface, ipc ipc.Component, rulesetListeners ...rules.RuleSetListener) (*RuleEngine, error) {
+func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, probe *probe.Probe, rateLimiter *events.RateLimiter, apiServer APIServer, sender events.EventSender, statsdClient statsd.ClientInterface, hostname string, ipc ipc.Component, rulesetListeners ...rules.RuleSetListener) (*RuleEngine, error) {
 	engine := &RuleEngine{
 		probe:            probe,
 		config:           config,
@@ -96,6 +97,7 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 		statsdClient:     statsdClient,
 		rulesetListeners: rulesetListeners,
 		pid:              utils.Getpid(),
+		hostname:         hostname,
 		ipc:              ipc,
 	}
 
@@ -168,7 +170,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}) erro
 		COREEnabled: e.probe.Config.Probe.EnableCORE,
 		Origin:      e.probe.Origin(),
 	}
-	ruleFilterModel, err := filtermodel.NewRuleFilterModel(rfmCfg, e.ipc)
+	ruleFilterModel, err := filtermodel.NewRuleFilterModel(rfmCfg, e.hostname)
 	if err != nil {
 		return fmt.Errorf("failed to create rule filter: %w", err)
 	}
@@ -397,10 +399,6 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 
 	e.currentRuleSet.Store(rs)
 
-	if replayEvents {
-		e.probe.ReplayEvents()
-	}
-
 	if err := e.probe.FlushDiscarders(); err != nil {
 		return fmt.Errorf("failed to flush discarders: %w", err)
 	}
@@ -413,6 +411,10 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 
 	// update the stats of auto-suppression rules
 	e.AutoSuppression.Apply(rs)
+
+	if replayEvents {
+		e.probe.ReplayEvents()
+	}
 
 	e.notifyAPIServer(ruleIDs, policies)
 

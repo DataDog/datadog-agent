@@ -83,9 +83,9 @@ func (l *ProcessListener) createProcessService(entity workloadmeta.Entity) {
 	}
 
 	// Build ports from Service.TCPPorts
-	ports := make([]ContainerPort, 0, len(process.Service.TCPPorts))
+	ports := make([]workloadmeta.ContainerPort, 0, len(process.Service.TCPPorts))
 	for _, port := range process.Service.TCPPorts {
-		ports = append(ports, ContainerPort{
+		ports = append(ports, workloadmeta.ContainerPort{
 			Port: int(port),
 		})
 	}
@@ -115,7 +115,7 @@ type ProcessService struct {
 	process  *workloadmeta.Process
 	tagsHash string
 	hosts    map[string]string
-	ports    []ContainerPort
+	ports    []workloadmeta.ContainerPort
 	pid      int
 	ready    bool
 	tagger   tagger.Component
@@ -155,7 +155,7 @@ func (s *ProcessService) GetHosts() (map[string]string, error) {
 }
 
 // GetPorts returns the ports exposed by the service.
-func (s *ProcessService) GetPorts() ([]ContainerPort, error) {
+func (s *ProcessService) GetPorts() ([]workloadmeta.ContainerPort, error) {
 	return s.ports, nil
 }
 

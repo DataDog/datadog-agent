@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/aws"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -188,9 +189,9 @@ func (d *DBMRdsService) GetHosts() (map[string]string, error) {
 }
 
 // GetPorts returns the port for the rds endpoint
-func (d *DBMRdsService) GetPorts() ([]ContainerPort, error) {
+func (d *DBMRdsService) GetPorts() ([]workloadmeta.ContainerPort, error) {
 	port := int(d.instance.Port)
-	return []ContainerPort{{port, fmt.Sprintf("p%d", port)}}, nil
+	return []workloadmeta.ContainerPort{{Port: port, Name: fmt.Sprintf("p%d", port)}}, nil
 }
 
 // GetTags returns the list of container tags - currently always empty

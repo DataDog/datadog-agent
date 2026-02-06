@@ -3,12 +3,10 @@ name "python3"
 default_version "3.13.11"
 
 unless windows?
-  dependency "libffi"
   dependency "zlib"
   dependency "bzip2"
   dependency "libsqlite3"
   dependency "liblzma"
-  dependency "libyaml"
 end
 dependency "openssl3"
 
@@ -23,49 +21,13 @@ build do
 
   if !windows_target?
     env = with_standard_compiler_flags(with_embedded_path)
-    python_configure_options = [
-      "--without-readline",  # Disables readline support
-      "--with-ensurepip=yes", # We upgrade pip later, in the pip3 software definition
-      "--without-static-libpython" # We only care about the shared library
-    ]
-
-    if mac_os_x?
-      python_configure_options.push("--enable-ipv6",
-                            "--with-universal-archs=#{arm_target? ? "universal2" : "intel"}",
-                            "--enable-shared")
-    elsif linux_target?
-      python_configure_options.push("--enable-shared",
-                            "--enable-ipv6")
-    elsif aix?
-      # something here...
-    end
-
-    python_configure_options.push("--with-dbmliborder=")
-
-    # Force different defaults for the "optimization settings"
-    # This removes the debug symbol generation and doesn't enable all warnings
-    env["OPT"] = "-DNDEBUG -fwrapv"
-    configure(*python_configure_options, :env => env)
-    command "make -j #{workers}", :env => env
-    command "make install", :env => env
-
-    # There exists no configure flag to tell Python to not compile readline support :(
-    major, minor, bugfix = version.split(".")
-
-    # Don't forward CC and CXX to python extensions Makefile, it's quite unlikely that any non default
-    # compiler we use would end up being available in the system/docker image used by customers
-    if linux_target? && env["CC"]
-      command "sed -i \"s/^CC=[[:space:]]*${CC}/CC=gcc/\" #{install_dir}/embedded/lib/python#{major}.#{minor}/config-#{major}.#{minor}-*-linux-gnu/Makefile", :env => env
-      command "sed -i \"s/${CC}/gcc/g\" #{install_dir}/embedded/lib/python#{major}.#{minor}/_sysconfigdata__linux_*-linux-gnu.py", :env => env
-    end
-    if linux_target? && env["CXX"]
-      command "sed -i \"s/^CXX=[[:space:]]*${CXX}/CC=g++/\" #{install_dir}/embedded/lib/python#{major}.#{minor}/config-#{major}.#{minor}-*-linux-gnu/Makefile", :env => env
-      command "sed -i \"s/${CXX}/g++/g\" #{install_dir}/embedded/lib/python#{major}.#{minor}/_sysconfigdata__linux_*-linux-gnu.py", :env => env
-    end
-    delete "#{install_dir}/embedded/lib/python#{major}.#{minor}/test"
-    block do
-      FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python#{major}.#{minor}/distutils/command/wininst-*.exe"))
-    end
+    command_on_repo_root "bazelisk run -- @cpython//:install --destdir='#{install_dir}/embedded'"
+    sh_ext = if linux_target? then "so" else "dylib" end
+    command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+      " #{install_dir}/embedded/lib/pkgconfig/python*.pc" \
+      " #{install_dir}/embedded/lib/libpython3.*#{sh_ext}" \
+      " #{install_dir}/embedded/lib/python3.13/lib-dynload/*.so" \
+      " #{install_dir}/embedded/bin/python3*"
   elsif fips_mode?
     ###############################
     # Setup openssl dependency... #
@@ -81,10 +43,10 @@ build do
     python_arch = "amd64"
 
     mkdir "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\include"
-    # Copy the import library to have them point at our own built versions, regardless of
+    # Link the import library to have them point at our own built versions, regardless of
     # their names in usual python builds
-    copy "#{install_dir}\\embedded3\\lib\\libcrypto.dll.a", "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\libcrypto.lib"
-    copy "#{install_dir}\\embedded3\\lib\\libssl.dll.a", "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\libssl.lib"
+    link "#{install_dir}\\embedded3\\lib\\libcrypto.lib", "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\libcrypto.lib"
+    link "#{install_dir}\\embedded3\\lib\\libssl.lib", "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\libssl.lib"
     # Copy the actual DLLs, be sure to keep the same name since that's what the IMPLIBs expect
     copy "#{install_dir}\\embedded3\\bin\\libssl-3-x64.dll", "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\libssl-3.dll"
     # Create empty PDBs since python's build system require those to be present

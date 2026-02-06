@@ -1247,14 +1247,14 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 	// libraries for the detected language are injected
 	if languageShouldBeAutoDetected {
 
-		suite.Require().EventuallyWithTf(func(_ *assert.CollectT) {
+		suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
 			appPod, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("workload-mutated-lib-injection").List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("app", name).String(),
 				Limit:         1,
 			})
 
-			suite.Require().NoError(err)
-			suite.Require().Len(appPod.Items, 1)
+			require.NoError(c, err)
+			require.Len(c, appPod.Items, 1)
 
 			nodeName := appPod.Items[0].Spec.NodeName
 
@@ -1264,27 +1264,21 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 				Limit:         1,
 			})
 
-			suite.Require().NoError(err)
-			suite.Require().Len(agentPod.Items, 1)
+			require.NoError(c, err)
+			require.Len(c, agentPod.Items, 1)
 
 			stdout, _, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", agentPod.Items[0].Name, "agent", []string{"agent", "workload-list", "-v"})
-			suite.Require().NoError(err)
-			suite.Contains(stdout, "Language: python")
-			if suite.T().Failed() {
+			require.NoError(c, err)
+			if !assert.Contains(c, stdout, "Language: python") {
 				suite.T().Log(stdout)
 			}
 		}, 5*time.Minute, 10*time.Second, "Language python was never detected by node agent.")
 
 		suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
 			deployment, err := suite.Env().KubernetesCluster.Client().AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
-			if !assert.NoError(c, err) {
-				c.Errorf("deployment with name %s in namespace %s not found", name, namespace)
-				return
-			}
+			require.NoErrorf(c, err, "deployment with name %s in namespace %s not found", name, namespace)
 
-			if deployment.Status.AvailableReplicas == 0 {
-				c.Errorf("deployment with name %s in namespace %s has 0 available replicas", name, namespace)
-			}
+			assert.NotZerof(c, deployment.Status.AvailableReplicas, "deployment with name %s in namespace %s has 0 available replicas", name, namespace)
 
 			detectedLangsLabelIsSet := false
 			detectedLangsAnnotationRegex := regexp.MustCompile(`^internal\.dd\.datadoghq\.com/.*\.detected_langs$`)
@@ -1601,6 +1595,7 @@ func (suite *k8sSuite) TestSBOM() {
 				regexp.MustCompile(`^image_name:ghcr\.io/datadog/apps-nginx-server$`),
 				regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`),
 				regexp.MustCompile(`^os_name:linux$`),
+				regexp.MustCompile(`^scan_method:(filesystem|tarball|overlayfs)$`),
 				regexp.MustCompile(`^short_image:apps-nginx-server$`),
 			}
 			err = assertTags(image.GetTags(), expectedTags, []*regexp.Regexp{}, false)

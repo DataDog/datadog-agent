@@ -21,6 +21,7 @@ import (
 	"github.com/vishvananda/netns"
 	"go4.org/netipx"
 
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -73,6 +74,7 @@ func TestConntrackers(t *testing.T) {
 
 func runConntrackerTest(t *testing.T, name string, createFn func(*testing.T, *config.Config) (netlink.Conntracker, error)) {
 	t.Run("IPv4", func(t *testing.T) {
+		mock.NewSystemProbe(t)
 		cfg := config.New()
 		ct, err := createFn(t, cfg)
 		require.NoError(t, err)
@@ -83,6 +85,7 @@ func runConntrackerTest(t *testing.T, name string, createFn func(*testing.T, *co
 		testConntracker(t, net.ParseIP("1.1.1.1"), net.ParseIP("2.2.2.2"), ct, cfg)
 	})
 	t.Run("IPv6", func(t *testing.T) {
+		mock.NewSystemProbe(t)
 		cfg := config.New()
 		ct, err := createFn(t, cfg)
 		require.NoError(t, err)
@@ -93,6 +96,7 @@ func runConntrackerTest(t *testing.T, name string, createFn func(*testing.T, *co
 		testConntracker(t, net.ParseIP("fd00::1"), net.ParseIP("fd00::2"), ct, cfg)
 	})
 	t.Run("cross namespace - NAT rule on test namespace", func(t *testing.T) {
+		mock.NewSystemProbe(t)
 		if name == "netlink" {
 			if kv >= kernel.VersionCode(5, 19, 0) && kv < kernel.VersionCode(6, 3, 0) {
 				// see https://lore.kernel.org/netfilter-devel/CALvGib_xHOVD2+6tKm2Sf0wVkQwut2_z2gksZPcGw30tOvOAAA@mail.gmail.com/T/#u
@@ -109,6 +113,7 @@ func runConntrackerTest(t *testing.T, name string, createFn func(*testing.T, *co
 		testConntrackerCrossNamespace(t, ct)
 	})
 	t.Run("cross namespace - NAT rule on root namespace", func(t *testing.T) {
+		mock.NewSystemProbe(t)
 		cfg := config.New()
 		cfg.EnableConntrackAllNamespaces = true
 		ct, err := createFn(t, cfg)
@@ -151,6 +156,7 @@ func runAlternateProbesTest(t *testing.T, testFn func(t *testing.T)) {
 
 func runNFConntrackHashCheckInsertTest(t *testing.T, createFn func(*testing.T, *config.Config) (netlink.Conntracker, error)) {
 	t.Run("IPv4", func(t *testing.T) {
+		mock.NewSystemProbe(t)
 		cfg := config.New()
 		ct, err := createFn(t, cfg)
 		require.NoError(t, err)
@@ -161,6 +167,7 @@ func runNFConntrackHashCheckInsertTest(t *testing.T, createFn func(*testing.T, *
 		testNFConntrackHashCheckInsert(t, "10.0.0.100", "2.2.2.2", "1.1.1.1", network.AFINET, ct, cfg)
 	})
 	t.Run("IPv6", func(t *testing.T) {
+		mock.NewSystemProbe(t)
 		cfg := config.New()
 		ct, err := createFn(t, cfg)
 		require.NoError(t, err)
@@ -171,6 +178,7 @@ func runNFConntrackHashCheckInsertTest(t *testing.T, createFn func(*testing.T, *
 		testNFConntrackHashCheckInsert(t, "fd00::100", "fd00::2", "fd00::1", network.AFINET6, ct, cfg)
 	})
 	t.Run("cross namespace - NAT rule on test namespace", func(t *testing.T) {
+		mock.NewSystemProbe(t)
 		cfg := config.New()
 		cfg.EnableConntrackAllNamespaces = true
 		ct, err := createFn(t, cfg)
@@ -180,6 +188,7 @@ func runNFConntrackHashCheckInsertTest(t *testing.T, createFn func(*testing.T, *
 		testNFConntrackHashCheckInsertCrossNamespace(t, ct)
 	})
 	t.Run("cross namespace - NAT rule on root namespace", func(t *testing.T) {
+		mock.NewSystemProbe(t)
 		cfg := config.New()
 		cfg.EnableConntrackAllNamespaces = true
 		ct, err := createFn(t, cfg)
@@ -195,6 +204,7 @@ func testNFConntrackHashCheckInsert(t *testing.T, srcIP, dstIP, replySrcIP strin
 	require.NoError(t, err)
 
 	t.Run("TCP", func(t *testing.T) {
+		mock.NewSystemProbe(t)
 		srcPort := 54320
 		dstPort := 8080
 
@@ -220,6 +230,7 @@ func testNFConntrackHashCheckInsert(t *testing.T, srcIP, dstIP, replySrcIP strin
 	})
 
 	t.Run("UDP", func(t *testing.T) {
+		mock.NewSystemProbe(t)
 		if family == network.AFINET6 && !cfg.CollectUDPv6Conns {
 			t.Skip("UDPv6 disabled")
 		}

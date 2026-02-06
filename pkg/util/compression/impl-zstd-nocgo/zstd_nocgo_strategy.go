@@ -44,11 +44,24 @@ func New(reqs Requires) compression.Compressor {
 	}
 	log.Debugf("native zstd concurrency %d", conc)
 	log.Debugf("native zstd window size %d", window)
+	// WithZeroFrames(true) ensures empty input produces a valid zstd frame.
+	// Without this, klauspost/compress returns empty output for empty
+	// input, which the CGO zstd library cannot decompress. By enabling
+	// WithZeroFrames we ensure that the cgo and nocgo zstd strategies are
+	// identical in their behavior.
+	//
+	// See also FuzzZstdCrossCompatibility.
+	//
+	// REF
+	//  * https://github.com/klauspost/compress/pull/155 ->
+	//  * https://github.com/IBM/sarama/pull/1477 ->
+	//  * https://github.com/IBM/sarama/issues/1252
 	encoder, err := zstd.NewWriter(nil,
 		zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(level)),
 		zstd.WithEncoderConcurrency(conc),
 		zstd.WithLowerEncoderMem(true),
-		zstd.WithWindowSize(window))
+		zstd.WithWindowSize(window),
+		zstd.WithZeroFrames(true))
 	if err != nil {
 		_ = log.Errorf("Error creating zstd encoder: %v", err)
 		return nil
@@ -83,6 +96,9 @@ func (s *ZstdNoCgoStrategy) ContentEncoding() string {
 
 // NewStreamCompressor returns a new zstd Writer
 func (s *ZstdNoCgoStrategy) NewStreamCompressor(output *bytes.Buffer) compression.StreamCompressor {
-	writer, _ := zstd.NewWriter(output, zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(s.level)))
+	// WithZeroFrames(true) for CGO compatibility, see New() for details.
+	writer, _ := zstd.NewWriter(output,
+		zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(s.level)),
+		zstd.WithZeroFrames(true))
 	return writer
 }

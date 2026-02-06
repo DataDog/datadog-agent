@@ -1,0 +1,13 @@
+---
+issuer: https://token.actions.githubusercontent.com
+
+subject: repo:DataDog/datadog-agent:pull_request
+
+claim_pattern:
+  event_name: (pull_request|pull_request_target)
+  ref: refs/(pull/[0-9]+/merge|heads/main)
+  job_workflow_ref: DataDog/datadog-agent/\.github/workflows/(add-label-pr|add-label-community-pr)\.yml@refs/(pull/[0-9]+/merge|heads/main)
+
+permissions:
+  contents: read
+  pull_requests: write

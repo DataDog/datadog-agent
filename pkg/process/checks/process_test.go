@@ -280,6 +280,36 @@ func TestProcessCheckChunking(t *testing.T) {
 	}
 }
 
+func TestProcessCheckEmpty(t *testing.T) {
+	processCheck, probe, wmeta := processCheckWithMocks(t)
+
+	mockProcesses(processCheck.WLMProcessCollectionEnabled(), probe, wmeta, nil, nil)
+
+	// The first run returns nothing because processes must be observed on two consecutive runs
+	first, err := processCheck.run(0, false)
+	require.NoError(t, err)
+	assert.Equal(t, CombinedRunResult{}, first)
+
+	actual, err := processCheck.run(0, false)
+	require.NoError(t, err)
+	assert.Equal(t, CombinedRunResult{}, actual)
+}
+
+func TestProcessCheckEmptyWithRealtime(t *testing.T) {
+	processCheck, probe, wmeta := processCheckWithMocks(t)
+
+	mockProcesses(processCheck.WLMProcessCollectionEnabled(), probe, wmeta, nil, nil)
+
+	// The first run returns nothing because processes must be observed on two consecutive runs
+	first, err := processCheck.run(0, true)
+	require.NoError(t, err)
+	assert.Equal(t, CombinedRunResult{}, first)
+
+	actual, err := processCheck.run(0, true)
+	require.NoError(t, err)
+	assert.Equal(t, CombinedRunResult{}, actual)
+}
+
 func TestProcessCheckWithRealtime(t *testing.T) {
 	processCheck, probe, wmeta := processCheckWithMocks(t)
 	proc1 := makeProcess(1, "git clone google.com")

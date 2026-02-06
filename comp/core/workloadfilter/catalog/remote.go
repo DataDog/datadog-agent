@@ -11,10 +11,8 @@ import (
 
 	"github.com/patrickmn/go-cache"
 
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
-	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/telemetry"
 )
 
 const (
@@ -23,13 +21,13 @@ const (
 )
 
 // NewRemoteProgram creates a new remote program.
-func NewRemoteProgram(name string, objectType workloadfilter.ResourceType, logger log.Component, telemetryStore *telemetry.Store, provider program.ClientProvider) program.FilterProgram {
+func NewRemoteProgram(name string, objectType workloadfilter.ResourceType, builder *ProgramBuilder, provider program.ClientProvider) program.FilterProgram {
 	return &program.RemoteProgram{
 		Name:           name,
 		ObjectType:     string(objectType),
-		Logger:         logger,
-		Provider:       provider,
-		TelemetryStore: telemetryStore,
+		Logger:         builder.logger,
+		TelemetryStore: builder.telemetryStore,
 		Cache:          cache.New(defaultCacheExpire, defaultCachePurge),
+		Provider:       provider,
 	}
 }
