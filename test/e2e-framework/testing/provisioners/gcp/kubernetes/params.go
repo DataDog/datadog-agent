@@ -24,20 +24,22 @@ import (
 
 // ProvisionerParams contains all the parameters needed to create the environment
 type ProvisionerParams struct {
-	name              string
-	fakeintakeOptions []fakeintake.Option
-	agentOptions      []kubernetesagentparams.Option
-	gkeOptions        []gke.Option
-	workloadAppFuncs  []WorkloadAppFunc
-	extraConfigParams runner.ConfigMap
+	name                           string
+	fakeintakeOptions              []fakeintake.Option
+	agentOptions                   []kubernetesagentparams.Option
+	gkeOptions                     []gke.Option
+	workloadAppFuncs               []WorkloadAppFunc
+	agentDependentWorkloadAppFuncs []kubeComp.AgentDependentWorkloadAppFunc
+	extraConfigParams              runner.ConfigMap
 }
 
 func newProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 	params := &ProvisionerParams{
-		name:              "gke",
-		fakeintakeOptions: []fakeintake.Option{},
-		agentOptions:      []kubernetesagentparams.Option{},
-		workloadAppFuncs:  []WorkloadAppFunc{},
+		name:                           "gke",
+		fakeintakeOptions:              []fakeintake.Option{},
+		agentOptions:                   []kubernetesagentparams.Option{},
+		workloadAppFuncs:               []WorkloadAppFunc{},
+		agentDependentWorkloadAppFuncs: []kubeComp.AgentDependentWorkloadAppFunc{},
 	}
 	err := optional.ApplyOptions(params, opts)
 	if err != nil {
@@ -96,6 +98,14 @@ type WorkloadAppFunc func(e config.Env, kubeProvider *kubernetes.Provider) (*kub
 func WithWorkloadApp(appFunc WorkloadAppFunc) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.workloadAppFuncs = append(params.workloadAppFuncs, appFunc)
+		return nil
+	}
+}
+
+// WithAgentDependentWorkloadApp adds a workload app that depends on the agent being deployed first
+func WithAgentDependentWorkloadApp(appFunc kubeComp.AgentDependentWorkloadAppFunc) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.agentDependentWorkloadAppFuncs = append(params.agentDependentWorkloadAppFuncs, appFunc)
 		return nil
 	}
 }

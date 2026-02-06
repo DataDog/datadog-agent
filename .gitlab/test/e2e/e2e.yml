@@ -1007,6 +1007,11 @@ new-e2e-ssi-eks:
   variables:
     E2E_PROVISIONER: eks
 
+new-e2e-ssi-gke:
+  extends: .new-e2e_ssi
+  variables:
+    E2E_PROVISIONER: gke
+
 .new-e2e_package_signing:
   variables:
     TARGETS: ./tests/agent-platform/package-signing
