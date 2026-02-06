@@ -330,6 +330,7 @@ type parsingContext struct {
 	procRoot             string
 	netNsInfo            map[uint32]*namespaceInfo
 	establishedConnsInfo map[uint32]*establishedConnsNsInfo
+	completeNsInfo       map[uint32]*completeNsInfo // Combined parsing cache for getConnections
 	readlinkBuffer       []byte
 }
 
@@ -338,6 +339,7 @@ func newParsingContext() parsingContext {
 		procRoot:             kernel.ProcFSRoot(),
 		netNsInfo:            make(map[uint32]*namespaceInfo),
 		establishedConnsInfo: make(map[uint32]*establishedConnsNsInfo),
+		completeNsInfo:       make(map[uint32]*completeNsInfo),
 		readlinkBuffer:       make([]byte, readlinkBufferSize),
 	}
 }
@@ -646,6 +648,14 @@ type establishedConnsNsInfo struct {
 	v6 map[uint64]*establishedConnInfo
 }
 
+// completeNsInfo contains both listening sockets and established connections
+// for a network namespace. This allows us to parse /proc/<pid>/net/tcp{,6}
+// files only once per namespace.
+type completeNsInfo struct {
+	listening   *namespaceInfo
+	established *establishedConnsNsInfo
+}
+
 // byteFieldIterator provides zero-allocation field iteration over a byte slice.
 // It yields fields separated by whitespace without allocating new strings.
 type byteFieldIterator struct {
@@ -920,6 +930,244 @@ func getEstablishedConnections(pid int, family string) (map[uint64]*establishedC
 	}
 
 	return connections, nil
+}
+
+// parseNetTCPComplete parses /proc/<pid>/net/tcp{,6} files once and extracts both
+// listening sockets and established connections. This is more efficient than calling
+// getNsInfo and getEstablishedConnections separately, which would read the same files twice.
+func parseNetTCPComplete(pid int) (*completeNsInfo, error) {
+	// Parse TCP files for both listening and established connections
+	tcpV4Listening := make(map[uint64]uint16)
+	tcpV4Established := make(map[uint64]*establishedConnInfo)
+
+	tcpFile := kernel.HostProc(fmt.Sprintf("%d/net/tcp", pid))
+	if err := parseNetTCPFile(tcpFile, "v4", tcpV4Listening, tcpV4Established); err != nil {
+		log.Debugf("couldn't parse TCP file for pid %d: %v", pid, err)
+	}
+
+	// Parse TCP6
+	tcpV6Listening := make(map[uint64]uint16)
+	tcpV6Established := make(map[uint64]*establishedConnInfo)
+
+	tcp6File := kernel.HostProc(fmt.Sprintf("%d/net/tcp6", pid))
+	if err := parseNetTCPFile(tcp6File, "v6", tcpV6Listening, tcpV6Established); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			log.Debugf("couldn't parse TCP6 file for pid %d: %v", pid, err)
+		}
+	}
+
+	// Parse UDP files (only for listening)
+	udp, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/udp", pid)), udpListen,
+		func(port uint16) bool {
+			return network.IsPortInEphemeralRange(network.AFINET, network.UDP, port) == network.EphemeralTrue
+		})
+	if err != nil {
+		log.Debugf("couldn't snapshot UDP sockets: %v", err)
+	}
+	udpv6, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/udp6", pid)), udpListen,
+		func(port uint16) bool {
+			return network.IsPortInEphemeralRange(network.AFINET6, network.UDP, port) == network.EphemeralTrue
+		})
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		log.Debugf("couldn't snapshot UDP6 sockets: %v", err)
+	}
+
+	// Build listening socket maps
+	tcpSockets := make(map[uint64]socketInfo, len(tcpV4Listening)+len(tcpV6Listening))
+	udpSockets := make(map[uint64]socketInfo, len(udp)+len(udpv6))
+
+	for inode, port := range tcpV4Listening {
+		tcpSockets[inode] = socketInfo{port: port}
+	}
+	for inode, port := range tcpV6Listening {
+		tcpSockets[inode] = socketInfo{port: port}
+	}
+	for inode, port := range udp {
+		udpSockets[inode] = socketInfo{port: port}
+	}
+	for inode, port := range udpv6 {
+		udpSockets[inode] = socketInfo{port: port}
+	}
+
+	return &completeNsInfo{
+		listening: &namespaceInfo{
+			tcpSockets: tcpSockets,
+			udpSockets: udpSockets,
+		},
+		established: &establishedConnsNsInfo{
+			v4: tcpV4Established,
+			v6: tcpV6Established,
+		},
+	}, nil
+}
+
+// parseNetTCPFile parses a single /proc/net/tcp{,6} file and extracts both
+// listening sockets and established connections in one pass.
+func parseNetTCPFile(filename string, family string, listening map[uint64]uint16, established map[uint64]*establishedConnInfo) error {
+	f, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	lr := io.LimitReader(f, readLimit)
+	reader := bufio.NewReader(lr)
+
+	// Skip header line
+	_, err = reader.ReadSlice('\n')
+	if err != nil {
+		return nil // empty file or just header
+	}
+
+	for {
+		line, err := reader.ReadSlice('\n')
+		if err != nil {
+			if err == io.EOF {
+				// Process final line if it doesn't end with newline
+				if len(line) > 0 {
+					processNetTCPLine(line, family, listening, established)
+				}
+				break
+			}
+			return err
+		}
+
+		processNetTCPLine(line, family, listening, established)
+	}
+
+	return nil
+}
+
+// processNetTCPLine processes a single line from /proc/net/tcp{,6} and extracts
+// either listening socket info or established connection info based on the state.
+func processNetTCPLine(line []byte, family string, listening map[uint64]uint16, established map[uint64]*establishedConnInfo) {
+	iter := byteFieldIterator{data: line}
+
+	// Field 0: sl (slot number, skip)
+	if iter.nextField() == nil {
+		return
+	}
+
+	// Field 1: local_address (IP:PORT)
+	localAddr := iter.nextField()
+	if localAddr == nil {
+		return
+	}
+
+	// Field 2: rem_address (IP:PORT)
+	remAddr := iter.nextField()
+	if remAddr == nil {
+		return
+	}
+
+	// Field 3: st (state)
+	stateField := iter.nextField()
+	if stateField == nil {
+		return
+	}
+
+	// Parse state to determine what to extract
+	if len(stateField) != 2 {
+		return
+	}
+
+	// Check for ESTABLISHED state (01)
+	if stateField[0] == '0' && stateField[1] == '1' {
+		// Skip fields 4-8
+		for i := 0; i < 5; i++ {
+			if iter.nextField() == nil {
+				return
+			}
+		}
+
+		// Field 9: inode
+		inodeField := iter.nextField()
+		if inodeField == nil {
+			return
+		}
+
+		// Parse local address
+		colonIdx := bytes.IndexByte(localAddr, ':')
+		if colonIdx == -1 {
+			return
+		}
+		localIP, localFamily, err := parseHexIPBytes(localAddr[:colonIdx], family)
+		if err != nil {
+			return
+		}
+		localPort, err := parseHexPortBytes(localAddr[colonIdx+1:])
+		if err != nil {
+			return
+		}
+
+		// Parse remote address
+		colonIdx = bytes.IndexByte(remAddr, ':')
+		if colonIdx == -1 {
+			return
+		}
+		remoteIP, remoteFamily, err := parseHexIPBytes(remAddr[:colonIdx], family)
+		if err != nil {
+			return
+		}
+		remotePort, err := parseHexPortBytes(remAddr[colonIdx+1:])
+		if err != nil {
+			return
+		}
+
+		// Parse inode
+		inode, err := parseUint64Bytes(inodeField)
+		if err != nil {
+			return
+		}
+
+		// Use the local address family
+		actualFamily := localFamily
+		if localFamily != remoteFamily {
+			log.Debugf("Family mismatch in connection: local=%s, remote=%s", localFamily, remoteFamily)
+		}
+
+		established[inode] = &establishedConnInfo{
+			localIP:    localIP,
+			localPort:  localPort,
+			remoteIP:   remoteIP,
+			remotePort: remotePort,
+			family:     actualFamily,
+		}
+		return
+	}
+
+	// Check for LISTEN state (0A)
+	if stateField[0] == '0' && stateField[1] == 'A' {
+		// Parse local port
+		colonIdx := bytes.IndexByte(localAddr, ':')
+		if colonIdx == -1 {
+			return
+		}
+		localPort, err := parseHexPortBytes(localAddr[colonIdx+1:])
+		if err != nil {
+			return
+		}
+
+		// Skip fields 4-8
+		for i := 0; i < 5; i++ {
+			if iter.nextField() == nil {
+				return
+			}
+		}
+
+		// Field 9: inode
+		inodeField := iter.nextField()
+		if inodeField == nil {
+			return
+		}
+
+		inode, err := parseUint64Bytes(inodeField)
+		if err != nil {
+			return
+		}
+
+		listening[inode] = localPort
+	}
 }
 
 // dockerProxyTarget represents the target address of a docker-proxy instance.
@@ -1238,40 +1486,27 @@ func (s *discovery) getConnections() (*model.ConnectionsResponse, error) {
 			continue
 		}
 
-		// Cache listening ports per namespace
-		if _, ok := pctx.netNsInfo[ns]; !ok {
-			nsInfo, err := getNsInfo(pid)
+		// Cache complete namespace info (both listening and established) per namespace.
+		// This parses /proc/<pid>/net/tcp{,6} files only once per namespace instead of
+		// reading them separately for listening sockets and established connections.
+		completeInfo, ok := pctx.completeNsInfo[ns]
+		if !ok {
+			var err error
+			completeInfo, err = parseNetTCPComplete(pid)
 			if err != nil {
+				log.Debugf("couldn't parse network namespace info for pid %d: %v", pid, err)
 				continue
 			}
-			pctx.netNsInfo[ns] = nsInfo
+			pctx.completeNsInfo[ns] = completeInfo
+
 			// Add listening ports to the global set
-			for _, info := range nsInfo.tcpSockets {
+			for _, info := range completeInfo.listening.tcpSockets {
 				listeningPorts[info.port] = struct{}{}
 			}
 		}
 
-		// Cache established connections per namespace (similar to getNsInfo caching above).
-		// /proc/<pid>/net/tcp{,6} is shared across all processes in the same network namespace,
-		// so we only need to read it once per namespace.
-		establishedInfo, ok := pctx.establishedConnsInfo[ns]
-		if !ok {
-			v4Conns, err := getEstablishedConnections(pid, "v4")
-			if err != nil {
-				log.Debugf("couldn't get established connections for pid %d family v4: %v", pid, err)
-				v4Conns = nil
-			}
-			v6Conns, err := getEstablishedConnections(pid, "v6")
-			if err != nil {
-				// IPv6 may be disabled, not an error
-				if !errors.Is(err, os.ErrNotExist) {
-					log.Debugf("couldn't get established connections for pid %d family v6: %v", pid, err)
-				}
-				v6Conns = nil
-			}
-			establishedInfo = &establishedConnsNsInfo{v4: v4Conns, v6: v6Conns}
-			pctx.establishedConnsInfo[ns] = establishedInfo
-		}
+		// Extract established info from the combined result
+		establishedInfo := completeInfo.established
 
 		// Get the socket inodes owned by this process
 		openFileInfo, err := getOpenFilesInfo(int32(pid), pctx.readlinkBuffer)

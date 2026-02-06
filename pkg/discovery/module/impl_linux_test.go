@@ -572,3 +572,109 @@ func TestParseEstablishedConnLineIPv6Mapped(t *testing.T) {
 	require.Equal(t, "v4", connInfo.family, "Family should be v4 for IPv6-mapped IPv4 addresses")
 	require.Equal(t, uint64(12345), inode)
 }
+
+func TestParseNetTCPComplete(t *testing.T) {
+	// Test that parseNetTCPComplete correctly extracts both listening and established
+	// connections by parsing the files once.
+	// We'll create a test process and verify the parsing works correctly.
+
+	// Start a TCP server (listening socket)
+	serverFile, serverAddr := startTCPServer(t, "tcp", "127.0.0.1:0")
+	defer serverFile.Close()
+
+	// Start a TCP client (established connection)
+	clientFile, clientAddr := startTCPClient(t, "tcp", serverAddr)
+	defer clientFile.Close()
+
+	// Parse the current process's network namespace
+	completeInfo, err := parseNetTCPComplete(os.Getpid())
+	require.NoError(t, err)
+	require.NotNil(t, completeInfo)
+	require.NotNil(t, completeInfo.listening)
+	require.NotNil(t, completeInfo.established)
+
+	// Get the socket inodes for our test sockets
+	serverStat, err := serverFile.Stat()
+	require.NoError(t, err)
+	serverInode := serverStat.Sys().(*syscall.Stat_t).Ino
+
+	clientStat, err := clientFile.Stat()
+	require.NoError(t, err)
+	clientInode := clientStat.Sys().(*syscall.Stat_t).Ino
+
+	// Verify the listening socket is in the tcpSockets map
+	serverInfo, ok := completeInfo.listening.tcpSockets[serverInode]
+	require.True(t, ok, "Server socket should be in listening sockets map")
+	require.Equal(t, uint16(serverAddr.Port), serverInfo.port, "Server port should match")
+
+	// Verify the established connection is in the established map
+	// The client connection should be in the v4 established connections
+	clientConnInfo, ok := completeInfo.established.v4[clientInode]
+	require.True(t, ok, "Client socket should be in established connections map")
+	require.Equal(t, "127.0.0.1", clientConnInfo.localIP, "Client local IP should be 127.0.0.1")
+	require.Equal(t, uint16(clientAddr.Port), clientConnInfo.localPort, "Client local port should match")
+	require.Equal(t, "127.0.0.1", clientConnInfo.remoteIP, "Client remote IP should be 127.0.0.1")
+	require.Equal(t, uint16(serverAddr.Port), clientConnInfo.remotePort, "Client remote port should match server port")
+	require.Equal(t, "v4", clientConnInfo.family, "Connection family should be v4")
+}
+
+func TestProcessNetTCPLine(t *testing.T) {
+	// Test that processNetTCPLine correctly handles both listening and established states
+	tests := []struct {
+		name              string
+		line              string
+		expectListening   bool
+		expectEstablished bool
+		expectedPort      uint16
+		expectedInode     uint64
+	}{
+		{
+			name: "listening socket",
+			// State 0A = listening (10 in hex)
+			line:            "   0: 0100007F:1F90 00000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 12345 1 0000000000000000 100 0 0 10 0",
+			expectListening: true,
+			expectedPort:    8080,
+			expectedInode:   12345,
+		},
+		{
+			name: "established connection",
+			// State 01 = established (1 in hex)
+			line:              "   0: 0100007F:1F91 0100007F:1F90 01 00000000:00000000 00:00000000 00000000  1000        0 54321 1 0000000000000000 100 0 0 10 0",
+			expectEstablished: true,
+			expectedInode:     54321,
+		},
+		{
+			name: "other state (should be ignored)",
+			// State 02 = SYN_SENT
+			line:              "   0: 0100007F:1F91 0100007F:1F90 02 00000000:00000000 00:00000000 00000000  1000        0 99999 1 0000000000000000 100 0 0 10 0",
+			expectListening:   false,
+			expectEstablished: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			listening := make(map[uint64]uint16)
+			established := make(map[uint64]*establishedConnInfo)
+
+			processNetTCPLine([]byte(tt.line), "v4", listening, established)
+
+			if tt.expectListening {
+				port, ok := listening[tt.expectedInode]
+				require.True(t, ok, "Expected inode should be in listening map")
+				require.Equal(t, tt.expectedPort, port, "Port should match")
+			} else {
+				require.Empty(t, listening, "Listening map should be empty")
+			}
+
+			if tt.expectEstablished {
+				connInfo, ok := established[tt.expectedInode]
+				require.True(t, ok, "Expected inode should be in established map")
+				require.NotNil(t, connInfo)
+				require.Equal(t, "127.0.0.1", connInfo.localIP)
+			} else {
+				require.Empty(t, established, "Established map should be empty")
+			}
+		})
+	}
+}
