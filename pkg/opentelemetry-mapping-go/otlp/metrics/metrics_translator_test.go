@@ -108,7 +108,6 @@ func newTranslatorWithStatsChannel(t *testing.T, logger *zap.Logger, ch chan []b
 		WithNumberMode(NumberModeCumulativeToDelta),
 		WithHistogramAggregations(),
 		WithStatsOut(ch),
-		WithRuntimeMetricMappings(),
 	}
 
 	set := componenttest.NewNopTelemetrySettings()
@@ -1088,7 +1087,7 @@ func TestMapRuntimeMetricsHasMapping(t *testing.T) {
 
 func TestMapRuntimeMetricsHasMappingCollector(t *testing.T) {
 	ctx := context.Background()
-	tr := NewTestTranslator(t, WithRemapping(), WithRuntimeMetricMappings())
+	tr := NewTestTranslator(t, WithRemapping())
 	consumer := &mockFullConsumer{}
 	exampleDims = newDims("process.runtime.go.goroutines")
 	exampleOtelDims := newDims("otel.process.runtime.go.goroutines")
@@ -1115,7 +1114,7 @@ func TestMapRuntimeMetricsHasMappingCollector(t *testing.T) {
 func TestMapSystemMetricsRenamedWithOTelPrefix(t *testing.T) {
 	ctx := context.Background()
 	// WithOTelPrefix() is used to rename the system metrics, this overrides WithRemapping.
-	tr := NewTestTranslator(t, WithOTelPrefix(), WithRuntimeMetricMappings())
+	tr := NewTestTranslator(t, WithOTelPrefix())
 	consumer := &mockFullConsumer{}
 	systemDims := newDims("system.cpu.utilization")
 	processDims := newDims("process.runtime.go.goroutines")
@@ -1177,7 +1176,7 @@ func TestMapSumRuntimeMetricWithAttributesHasMapping(t *testing.T) {
 
 func TestMapSumRuntimeMetricWithAttributesHasMappingCollector(t *testing.T) {
 	ctx := context.Background()
-	tr := NewTestTranslator(t, WithRemapping(), WithRuntimeMetricMappings())
+	tr := NewTestTranslator(t, WithRemapping())
 	consumer := &mockFullConsumer{}
 	attributes := []runtimeMetricAttribute{{
 		key:    "generation",
@@ -1278,7 +1277,7 @@ func TestMapHistogramRuntimeMetricWithAttributesHasMapping(t *testing.T) {
 
 func TestMapRuntimeMetricWithTwoAttributesHasMapping(t *testing.T) {
 	ctx := context.Background()
-	tr := NewTestTranslator(t, WithRuntimeMetricMappings(), WithFallbackSourceProvider(testProvider(fallbackHostname)))
+	tr := newTranslator(t, zap.NewNop())
 	consumer := &mockFullConsumer{}
 	attributes := []runtimeMetricAttribute{{
 		key:    "pool",
@@ -1305,7 +1304,7 @@ func TestMapRuntimeMetricWithTwoAttributesHasMapping(t *testing.T) {
 
 func TestMapRuntimeMetricWithTwoAttributesMultipleDataPointsHasMapping(t *testing.T) {
 	ctx := context.Background()
-	tr := NewTestTranslator(t, WithRuntimeMetricMappings(), WithFallbackSourceProvider(testProvider(fallbackHostname)))
+	tr := newTranslator(t, zap.NewNop())
 	consumer := &mockFullConsumer{}
 	attributes := []runtimeMetricAttribute{{
 		key:    "pool",
@@ -1338,7 +1337,7 @@ func TestMapRuntimeMetricWithTwoAttributesMultipleDataPointsHasMapping(t *testin
 
 func TestMapRuntimeMetricsMultipleLanguageTags(t *testing.T) {
 	ctx := context.Background()
-	tr := NewTestTranslator(t, WithRuntimeMetricMappings())
+	tr := newTranslator(t, zap.NewNop())
 	consumer := &mockFullConsumer{}
 	exampleDims = newDims("process.runtime.go.goroutines")
 	md1 := createTestIntCumulativeMonotonicMetrics(false, exampleDims)
@@ -1378,7 +1377,7 @@ func TestMapRuntimeMetricsMultipleLanguageTags(t *testing.T) {
 
 func TestMapGaugeRuntimeMetricWithInvalidAttributes(t *testing.T) {
 	ctx := context.Background()
-	tr := NewTestTranslator(t, WithRuntimeMetricMappings(), WithFallbackSourceProvider(testProvider(fallbackHostname)))
+	tr := newTranslator(t, zap.NewNop())
 	consumer := &mockFullConsumer{}
 	attributes := []runtimeMetricAttribute{{
 		key:    "type",
@@ -1467,8 +1466,8 @@ func TestWithRuntimeMetricMappings(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("%s/%v", tt.name, tt.withMappings), func(t *testing.T) {
 			var opts []TranslatorOption
-			if tt.withMappings {
-				opts = append(opts, WithRuntimeMetricMappings())
+			if !tt.withMappings {
+				opts = append(opts, WithoutRuntimeMetricMappings())
 			}
 			tr := NewTestTranslator(t, opts...)
 			consumer := &mockTimeSeriesConsumer{}

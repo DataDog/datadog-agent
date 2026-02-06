@@ -125,6 +125,7 @@ func NewDefaultTranslator(set component.TelemetrySettings, attributesTranslator 
 		deltaTTL:                             3600,
 		fallbackSourceProvider:               &noSourceProvider{},
 		originProduct:                        OriginProductUnknown,
+		withRuntimeRemapping:                 true,
 	}
 
 	for _, opt := range options {

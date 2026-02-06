@@ -250,10 +250,10 @@ func WithInferDeltaInterval() TranslatorOption {
 	}
 }
 
-// WithRuntimeMetricMappings enables mapping of runtime metrics.
-func WithRuntimeMetricMappings() TranslatorOption {
+// WithoutRuntimeMetricMappings enables mapping of runtime metrics.
+func WithoutRuntimeMetricMappings() TranslatorOption {
 	return func(t *translatorConfig) error {
-		t.withRuntimeRemapping = true
+		t.withRuntimeRemapping = false
 		return nil
 	}
 }

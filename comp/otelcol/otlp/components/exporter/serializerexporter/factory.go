@@ -98,7 +98,6 @@ func newFactoryForAgentWithType(
 	ipath ingestionPath,
 ) exp.Factory {
 	var options []otlpmetrics.TranslatorOption
-	options = append(options, otlpmetrics.WithRuntimeMetricMappings())
 	if !pkgdatadog.MetricRemappingDisabledFeatureGate.IsEnabled() {
 		options = append(options, otlpmetrics.WithOTelPrefix())
 	}
