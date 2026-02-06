@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	bolt "go.etcd.io/bbolt"
 )
@@ -102,7 +103,7 @@ func (b BoltDB) Get(key string) ([]byte, error) {
 		if bucket == nil {
 			return fmt.Errorf("bucket %s not found", boltBucket)
 		}
-		res = bucket.Get([]byte(key))
+		res = slices.Clone(bucket.Get([]byte(key)))
 		return nil
 	})
 }
