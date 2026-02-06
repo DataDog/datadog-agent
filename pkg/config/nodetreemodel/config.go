@@ -941,7 +941,11 @@ func (c *ntmConfig) AllFlattenedSettingsWithSequenceID() (map[string]interface{}
 	keys := c.collectFlattenedKeys()
 	settings := make(map[string]interface{}, len(keys))
 	for _, key := range keys {
-		settings[key] = c.getNodeValue(key)
+		v, err := c.inferTypeFromDefault(key, c.getNodeValue(key))
+		if err != nil {
+			log.Warnf("failed to get configuration value for key %q: %s", key, err)
+		}
+		settings[key] = v
 	}
 	return settings, c.sequenceID
 }
