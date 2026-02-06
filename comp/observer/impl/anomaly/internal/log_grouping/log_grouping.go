@@ -7,8 +7,8 @@ package log_grouping
 import (
 	"time"
 
-	"github.com/apm-signal-detector/ml_pattern"
-	"github.com/apm-signal-detector/types"
+	"github.com/DataDog/datadog-agent/comp/observer/impl/anomaly/internal/ml_pattern"
+	"github.com/DataDog/datadog-agent/comp/observer/impl/anomaly/internal/types"
 )
 
 // LogGrouper handles grouping and clustering of log errors

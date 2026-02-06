@@ -11,7 +11,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/apm-signal-detector/types"
+	"github.com/DataDog/datadog-agent/comp/observer/impl/anomaly/internal/types"
 )
 
 // MLPatternDetector implements machine learning-based pattern detection

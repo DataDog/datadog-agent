@@ -7,7 +7,7 @@ package ml_pattern
 import (
 	"testing"
 
-	"github.com/apm-signal-detector/types"
+	"github.com/DataDog/datadog-agent/comp/observer/impl/anomaly/internal/types"
 )
 
 func TestNormalizeDynamicValues(t *testing.T) {

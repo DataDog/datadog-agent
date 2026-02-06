@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/apm-signal-detector/types"
+	"github.com/DataDog/datadog-agent/comp/observer/impl/anomaly/internal/types"
 )
 
 // PatternDetector handles pattern detection in log messages

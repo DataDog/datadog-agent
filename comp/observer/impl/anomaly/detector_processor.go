@@ -13,6 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/observer/impl/anomaly/internal/collector"
 	"github.com/DataDog/datadog-agent/comp/observer/impl/anomaly/internal/comparator"
 	"github.com/DataDog/datadog-agent/comp/observer/impl/anomaly/internal/detector"
+	"github.com/DataDog/datadog-agent/comp/observer/impl/anomaly/internal/log_grouping"
+	"github.com/DataDog/datadog-agent/comp/observer/impl/anomaly/internal/types"
 )
 
 // TracePercentiles contains percentile values for trace durations.
@@ -142,6 +144,8 @@ func memValues(topFuncs TopFunctions) map[string]float64 {
 
 func errorValues(logMessages []string) map[string]float64 {
 	values := make(map[string]float64)
+	logErrors := make([]types.LogError, 0, len(logMessages))
+	now := time.Now()
 	for _, message := range logMessages {
 		msg := strings.TrimSpace(message)
 		if msg == "" {
@@ -149,9 +153,28 @@ func errorValues(logMessages []string) map[string]float64 {
 		}
 		lower := strings.ToLower(msg)
 		if strings.Contains(lower, "error") || strings.Contains(lower, "exception") || strings.Contains(lower, "failure") {
-			values[msg]++
+			logErrors = append(logErrors, types.LogError{
+				Message:   msg,
+				Count:     1,
+				Timestamp: now,
+			})
 		}
 	}
+
+	if len(logErrors) == 0 {
+		return values
+	}
+
+	// Group similar logs using DBSCAN clustering
+	grouper := log_grouping.NewLogGrouper()
+	groupedLogs := grouper.GroupWithDBSCAN(logErrors)
+	for _, grouped := range groupedLogs {
+		if strings.TrimSpace(grouped.Message) == "" {
+			continue
+		}
+		values[grouped.Message] += float64(grouped.Count)
+	}
+
 	return values
 }
 
