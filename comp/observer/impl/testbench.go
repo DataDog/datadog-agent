@@ -31,6 +31,7 @@ type TestBenchConfig struct {
 	EnableOverrides map[string]bool
 
 	// Config params (not component toggles)
+	EnableRRCF        bool // Enable RRCF multivariate anomaly detector (default: false)
 	CUSUMIncludeCount bool // CUSUM: include :count metrics (default: false, skips them)
 }
 
@@ -48,7 +49,8 @@ type TestBench struct {
 	logProcessors []observerdef.LogProcessor
 
 	// Registry-managed components
-	components map[string]*registeredComponent
+	components   map[string]*registeredComponent
+	rrcfAnalysis *RRCFAnalysis // RRCF is managed separately (MultiSeriesAnalysis, not in registry)
 
 	// Results (computed eagerly on scenario load)
 	anomalies    []observerdef.AnomalyOutput                          // all anomalies from TS analyses
@@ -97,6 +99,7 @@ type StatusResponse struct {
 // ServerConfig exposes server-side configuration to the UI.
 type ServerConfig struct {
 	Components     map[string]bool `json:"components"`
+	RRCFEnabled    bool            `json:"rrcfEnabled"`
 	CUSUMSkipCount bool            `json:"cusumSkipCount"` // true = filtering out :count metrics
 }
 
@@ -129,7 +132,6 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 			},
 			&ConnectionErrorExtractor{},
 		},
-
 		components: make(map[string]*registeredComponent),
 		anomalies:  []observerdef.AnomalyOutput{},
 		byAnalyzer: make(map[string][]observerdef.AnomalyOutput),
@@ -147,6 +149,13 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 			Instance:     reg.Factory(tb),
 			Enabled:      enabled,
 		}
+	}
+
+	// RRCF is a MultiSeriesAnalysis and runs outside the registry
+	if config.EnableRRCF {
+		rrcfConfig := DefaultRRCFConfig()
+		rrcfConfig.Metrics = TestBenchRRCFMetrics()
+		tb.rrcfAnalysis = NewRRCFAnalysis(rrcfConfig)
 	}
 
 	tb.api = NewTestBenchAPI(tb)
@@ -240,6 +249,10 @@ func (tb *TestBench) LoadScenario(name string) error {
 
 	// Reset ALL correlators (not just enabled) so disabled ones clear stale state
 	tb.resetAllProcessors()
+	// Reset RRCF state if enabled
+	if tb.rrcfAnalysis != nil {
+		tb.rrcfAnalysis.Reset()
+	}
 
 	// Load data from scenario
 	scenarioStart := time.Now()
@@ -451,6 +464,7 @@ func (tb *TestBench) GetStatus() StatusResponse {
 		ScenarioEnd:           scenarioEndPtr,
 		ServerConfig: ServerConfig{
 			Components:     compMap,
+			RRCFEnabled:    tb.config.EnableRRCF,
 			CUSUMSkipCount: !tb.config.CUSUMIncludeCount,
 		},
 	}
@@ -562,6 +576,29 @@ func (tb *TestBench) rerunAnalysesLocked() {
 						}
 					}
 				}
+			}
+		}
+	}
+
+	// Phase 1b (sync): Run RRCF if enabled (MultiSeriesAnalysis, pull-based)
+	if tb.rrcfAnalysis != nil {
+		tb.rrcfAnalysis.Reset()
+		dataTime := tb.storage.MaxTimestamp()
+		rrcfAnomalies := tb.rrcfAnalysis.Analyze(tb.storage, dataTime)
+		for _, anomaly := range rrcfAnomalies {
+			if dedup != nil {
+				ts := anomaly.Timestamp
+				if ts == 0 {
+					ts = anomaly.TimeRange.End
+				}
+				if !dedup.ShouldProcess(string(anomaly.SourceSeriesID), ts) {
+					continue
+				}
+			}
+			tb.anomalies = append(tb.anomalies, anomaly)
+			tb.byAnalyzer[anomaly.AnalyzerName] = append(tb.byAnalyzer[anomaly.AnalyzerName], anomaly)
+			if anomaly.SourceSeriesID != "" {
+				tb.bySeriesID[anomaly.SourceSeriesID] = append(tb.bySeriesID[anomaly.SourceSeriesID], anomaly)
 			}
 		}
 	}
@@ -838,6 +875,16 @@ func (tb *TestBench) GetGraphSketchEdges() ([]EdgeInfo, bool) {
 		return edges, enabled
 	}
 	return nil, enabled
+}
+
+// GetRRCFScoreStats returns RRCF score distribution stats if RRCF is enabled.
+func (tb *TestBench) GetRRCFScoreStats() RRCFScoreStats {
+	tb.mu.RLock()
+	defer tb.mu.RUnlock()
+	if tb.rrcfAnalysis == nil {
+		return RRCFScoreStats{Enabled: false}
+	}
+	return tb.rrcfAnalysis.GetScoreStats()
 }
 
 // GetCorrelatorStats returns stats from all correlators (enabled or not).

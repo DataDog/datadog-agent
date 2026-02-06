@@ -12,6 +12,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -48,6 +49,7 @@ func (api *TestBenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/surprise", api.cors(api.handleSurprise))
 	mux.HandleFunc("/api/graphsketch", api.cors(api.handleGraphSketch))
 	mux.HandleFunc("/api/stats", api.cors(api.handleStats))
+	mux.HandleFunc("/api/rrcf-scores", api.cors(api.handleRRCFScores))
 	mux.HandleFunc("/api/config", api.cors(api.handleConfigUpdate))
 	mux.HandleFunc("/api/components/", api.cors(api.handleComponentAction))
 	mux.HandleFunc("/api/correlators/", api.cors(api.handleCorrelatorData))
@@ -569,6 +571,12 @@ func (api *TestBenchAPI) handleCompressedCorrelations(w http.ResponseWriter, r *
 	api.writeJSON(w, groups)
 }
 
+// handleRRCFScores returns RRCF score distribution and full score history.
+func (api *TestBenchAPI) handleRRCFScores(w http.ResponseWriter, r *http.Request) {
+	stats := api.tb.GetRRCFScoreStats()
+	api.writeJSON(w, stats)
+}
+
 // handleConfigUpdate handles POST /api/config to update server configuration.
 func (api *TestBenchAPI) handleConfigUpdate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
@@ -591,12 +599,70 @@ func (api *TestBenchAPI) handleConfigUpdate(w http.ResponseWriter, r *http.Reque
 	api.writeJSON(w, api.tb.GetStatus())
 }
 
-// writeJSON writes a JSON response.
+// writeJSON writes a JSON response, sanitizing Inf/NaN floats that Go's
+// json package cannot encode.
 func (api *TestBenchAPI) writeJSON(w http.ResponseWriter, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(data); err != nil {
-		log.Printf("Failed to encode JSON: %v", err)
-		http.Error(w, `{"error":"encoding error"}`, http.StatusInternalServerError)
+
+	buf, err := json.Marshal(data)
+	if err != nil {
+		// Likely contains Inf/NaN — sanitize and retry
+		buf = sanitizeJSONFloats(data)
+		if buf == nil {
+			log.Printf("Failed to encode JSON: %v", err)
+			return
+		}
+	}
+	w.Write(buf)
+	w.Write([]byte("\n"))
+}
+
+// sanitizeJSONFloats marshals data by replacing Inf/NaN with 0 using
+// reflect-based traversal.
+func sanitizeJSONFloats(data interface{}) []byte {
+	sanitizeValue(reflect.ValueOf(data))
+	buf, err := json.Marshal(data)
+	if err != nil {
+		log.Printf("Failed to encode JSON after sanitization: %v", err)
+		return nil
+	}
+	return buf
+}
+
+func sanitizeValue(v reflect.Value) {
+	switch v.Kind() {
+	case reflect.Ptr, reflect.Interface:
+		if !v.IsNil() {
+			sanitizeValue(v.Elem())
+		}
+	case reflect.Struct:
+		for i := 0; i < v.NumField(); i++ {
+			sanitizeValue(v.Field(i))
+		}
+	case reflect.Slice, reflect.Array:
+		for i := 0; i < v.Len(); i++ {
+			sanitizeValue(v.Index(i))
+		}
+	case reflect.Map:
+		for _, key := range v.MapKeys() {
+			val := v.MapIndex(key)
+			if val.Kind() == reflect.Float64 || val.Kind() == reflect.Float32 {
+				f := val.Float()
+				if math.IsInf(f, 0) || math.IsNaN(f) {
+					v.SetMapIndex(key, reflect.ValueOf(0.0))
+				}
+			} else {
+				// For non-float map values, we can't easily sanitize in-place
+				// since MapIndex returns unaddressable values
+			}
+		}
+	case reflect.Float64, reflect.Float32:
+		if v.CanSet() {
+			f := v.Float()
+			if math.IsInf(f, 0) || math.IsNaN(f) {
+				v.SetFloat(0)
+			}
+		}
 	}
 }
 
