@@ -387,7 +387,7 @@ func (suite *k8sSuite) testAgentCLI() {
 	})
 
 	suite.Run("agent workload-list --json", func() {
-		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "workload-list", "--json"})
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "workload-list", "--json"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `agent workload-list --json` should be empty")
 
@@ -411,7 +411,7 @@ func (suite *k8sSuite) testAgentCLI() {
 	})
 
 	suite.Run("agent workload-list --json container", func() {
-		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "workload-list", "--json", "container"})
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "workload-list", "--json", "container"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `agent workload-list --json container` should be empty")
 
@@ -440,7 +440,7 @@ func (suite *k8sSuite) testAgentCLI() {
 	})
 
 	suite.Run("agent workload-list --json kubernetes_pod", func() {
-		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "workload-list", "--json", "kubernetes_pod"})
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "workload-list", "--json", "kubernetes_pod"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `agent workload-list --json kubernetes_pod` should be empty")
 
@@ -474,7 +474,7 @@ func (suite *k8sSuite) testAgentCLI() {
 	})
 
 	suite.Run("agent tagger-list --json", func() {
-		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "tagger-list", "--json"})
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "tagger-list", "--json"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `agent tagger-list --json` should be empty")
 
@@ -511,7 +511,7 @@ func (suite *k8sSuite) testAgentCLI() {
 	})
 
 	suite.Run("agent tagger-list --json container_id", func() {
-		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "tagger-list", "--json", "container_id"})
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "tagger-list", "--json", "container_id"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `agent tagger-list --json container_id` should be empty")
 
