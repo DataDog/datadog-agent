@@ -152,7 +152,7 @@ namespace Datadog.CustomActions
             /// </summary>
             /// This function starts with the first pattern and tries to match it
             /// against the <paramref name="input"/>. If it matches, it saves the
-            /// index where it found the match, and and tries to match the next
+            /// index where it found the match, and tries to match the next
             /// pattern starting at the index of the previous match.
             /// It continues until all the patterns have been matched.
             /// If a pattern didn't match, the function returns false.

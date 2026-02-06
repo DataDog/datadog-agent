@@ -49,7 +49,7 @@ func TestEmptyUpdateZeroTypes(t *testing.T) {
 	updatedProducts, err := r.Update(emptyUpdate)
 	assert.Nil(t, err)
 	assert.Equal(t, 0, len(updatedProducts), "An empty update shouldn't indicate any updated products")
-	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)), "An empty update shoudldn't add any APM configs")
+	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)), "An empty update shouldn't add any APM configs")
 	assert.Equal(t, 0, len(r.GetConfigs(ProductCWSDD)), "An empty update shouldn't add any CWSDD configs")
 
 	state, err := r.CurrentState()
@@ -66,7 +66,7 @@ func TestEmptyUpdateZeroTypes(t *testing.T) {
 	updatedProducts, err = r.Update(emptyUpdate)
 	assert.Nil(t, err)
 	assert.Equal(t, 0, len(updatedProducts), "An empty update shouldn't indicate any updated products")
-	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)), "An empty update shoudldn't add any APM configs")
+	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)), "An empty update shouldn't add any APM configs")
 	assert.Equal(t, 0, len(r.GetConfigs(ProductCWSDD)), "An empty update shouldn't add any CWSDD configs")
 
 	state, err = r.CurrentState()
@@ -170,7 +170,7 @@ func TestEmptyUpdateNilTypes(t *testing.T) {
 	updatedProducts, err := r.Update(emptyUpdate)
 	assert.Nil(t, err)
 	assert.Equal(t, 0, len(updatedProducts), "An empty update shouldn't indicate any updated products")
-	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)), "An empty update shoudldn't add any APM configs")
+	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)), "An empty update shouldn't add any APM configs")
 	assert.Equal(t, 0, len(r.GetConfigs(ProductCWSDD)), "An empty update shouldn't add any CWSDD configs")
 
 	state, err := r.CurrentState()
@@ -187,7 +187,7 @@ func TestEmptyUpdateNilTypes(t *testing.T) {
 	updatedProducts, err = r.Update(emptyUpdate)
 	assert.Nil(t, err)
 	assert.Equal(t, 0, len(updatedProducts), "An empty update shouldn't indicate any updated products")
-	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)), "An empty update shoudldn't add any APM configs")
+	assert.Equal(t, 0, len(r.GetConfigs(ProductAPMSampling)), "An empty update shouldn't add any APM configs")
 	assert.Equal(t, 0, len(r.GetConfigs(ProductCWSDD)), "An empty update shouldn't add any CWSDD configs")
 
 	state, err = r.CurrentState()
