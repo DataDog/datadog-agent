@@ -648,7 +648,7 @@ func TestBucketTagResolver_Resolve(t *testing.T) {
 		assert.Equal(t, resolved1.FullImageRef, resolved2.FullImageRef, "Both tags should resolve to same image")
 	})
 
-	t.Run("canonical_versions_not_normalized", func(t *testing.T) {
+	t.Run("canonical_versions_not_bucket_tagged", func(t *testing.T) {
 		resolver := newMockBucketTagResolver(5*time.Minute, "5")
 
 		resolver.cache.cache["gcr.io/datadoghq"] = repositoryCache{
