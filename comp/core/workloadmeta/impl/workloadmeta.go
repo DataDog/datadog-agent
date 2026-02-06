@@ -151,7 +151,7 @@ func BuildWorkloadResponse(wmeta wmdef.Component, verbose, structured bool, sear
 				Entities: make(map[string][]wmdef.Entity, len(structuredResp.Entities)),
 			}
 			for kind, entities := range structuredResp.Entities {
-				filteredResp.Entities[kind] = FilterEntitiesForVerbose(entities, false)
+				filteredResp.Entities[kind] = wmdef.FilterEntitiesForVerbose(entities, false)
 			}
 			structuredResp = filteredResp
 		}

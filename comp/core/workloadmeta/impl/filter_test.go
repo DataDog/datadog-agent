@@ -230,7 +230,7 @@ func TestFilterEntitiesForVerbose(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := FilterEntitiesForVerbose(tt.entities, tt.verbose)
+			result := wmdef.FilterEntitiesForVerbose(tt.entities, tt.verbose)
 			tt.check(t, result)
 		})
 	}

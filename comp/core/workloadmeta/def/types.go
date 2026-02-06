@@ -258,6 +258,46 @@ type Entity interface {
 	String(verbose bool) string
 }
 
+// FilterEntitiesForVerbose filters entities to only include fields shown in non-verbose output.
+// This ensures consistency between text output (String method) and JSON output by using the
+// centralized FilterForNonVerbose methods defined on each entity type.
+func FilterEntitiesForVerbose(entities []Entity, verbose bool) []Entity {
+	if verbose {
+		return entities
+	}
+
+	filtered := make([]Entity, len(entities))
+	for i, entity := range entities {
+		switch e := entity.(type) {
+		case *Container:
+			filtered[i] = e.FilterForNonVerbose()
+		case *KubernetesPod:
+			filtered[i] = e.FilterForNonVerbose()
+		case *ECSTask:
+			filtered[i] = e.FilterForNonVerbose()
+		case *Process:
+			filtered[i] = e.FilterForNonVerbose()
+		case *ContainerImageMetadata:
+			filtered[i] = e.FilterForNonVerbose()
+		case *GPU:
+			filtered[i] = e.FilterForNonVerbose()
+		case *KubeCapabilities:
+			filtered[i] = e.FilterForNonVerbose()
+		case *Kubelet:
+			filtered[i] = e.FilterForNonVerbose()
+		case *KubernetesDeployment:
+			filtered[i] = e.FilterForNonVerbose()
+		case *KubernetesMetadata:
+			filtered[i] = e.FilterForNonVerbose()
+		case *CRD:
+			filtered[i] = e.FilterForNonVerbose()
+		default:
+			filtered[i] = entity
+		}
+	}
+	return filtered
+}
+
 // EntityID represents the ID of an Entity.  Note that entities from different sources
 // may have the same EntityID.
 type EntityID struct {
