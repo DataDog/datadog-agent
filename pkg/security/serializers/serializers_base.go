@@ -484,7 +484,7 @@ func NewBaseEventSerializer(event *model.Event, rule *rules.Rule, scrubber *util
 		ProcessContextSerializer: newProcessContextSerializer(pc, event, rule),
 		Date:                     utils.NewEasyjsonTime(event.ResolveEventTime()),
 		ProcessingTimeMicrosec:   processingTimeMicrosec,
-		ProcessingTrace:          event.ProcessingTrace,
+		ProcessingTrace:          append([]model.ProcessingCheckpoint(nil), event.ProcessingTrace...),
 	}
 
 	if event.IsAnomalyDetectionEvent() && len(event.Rules) > 0 {
