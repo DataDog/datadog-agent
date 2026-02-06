@@ -161,7 +161,7 @@ visual_studio(
 # Keep in sync with .python-version
 PYTHON_VERSION = "3.12"
 
-bazel_dep(name = "rules_python", version = "1.6.3")
+bazel_dep(name = "rules_python", version = "1.8.3")
 
 python = use_extension("@rules_python//python/extensions:python.bzl", "python")
 python.defaults(python_version = PYTHON_VERSION)
