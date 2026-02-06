@@ -92,7 +92,7 @@ func printTaggerEntities(w io.Writer, tr *types.TaggerListResponse) {
 		slices.Sort(sources)
 
 		for _, source := range sources {
-			fmt.Fprintf(w, "== Source %s =\n=", source)
+			fmt.Fprintf(w, "== Source %s ==\n", source)
 
 			fmt.Fprint(w, "Tags: [")
 
