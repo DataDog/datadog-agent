@@ -107,6 +107,7 @@ type ProbeDependencies struct {
 	// on the host
 	WorkloadMeta workloadmeta.Component
 
+	// ProcessEventConsumer is the process monitor
 	ProcessEventConsumer eventmonitor.ProcessEventConsumerComponent
 }
 

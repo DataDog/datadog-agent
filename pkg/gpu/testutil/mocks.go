@@ -23,6 +23,9 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	eventmonitor "github.com/DataDog/datadog-agent/comp/system-probe/eventmonitor/def"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
+	consumerstestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -488,4 +491,38 @@ func GetTotalExpectedDevices() int {
 		numMIG += count
 	}
 	return numPhysical + numMIG
+}
+
+func GetProcessConsumerComponent(tb testing.TB) eventmonitor.ProcessEventConsumerComponent {
+	c := consumer{
+		pc: consumerstestutil.NewTestProcessConsumer(tb),
+	}
+	return &c
+}
+
+type consumer struct {
+	pc *consumers.ProcessConsumer
+}
+
+func (c *consumer) ID() string {
+	return "test"
+}
+
+func (c *consumer) ChanSize() int {
+	return 100
+}
+
+func (c *consumer) EventTypes() []consumers.ProcessConsumerEventTypes {
+	return []consumers.ProcessConsumerEventTypes{
+		consumers.ExecEventType,
+		consumers.ExitEventType,
+	}
+}
+
+func (c *consumer) Set(processConsumer *consumers.ProcessConsumer) {
+	c.pc = processConsumer
+}
+
+func (c *consumer) Get() *consumers.ProcessConsumer {
+	return c.pc
 }
