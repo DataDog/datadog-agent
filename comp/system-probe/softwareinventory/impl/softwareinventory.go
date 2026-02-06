@@ -12,6 +12,7 @@ import (
 	softwareinventory "github.com/DataDog/datadog-agent/comp/system-probe/softwareinventory/def"
 	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 // Requires defines the dependencies for the softwareinventory component
