@@ -213,6 +213,11 @@ build do
 
   end
 
+  # sd-agent (service discovery agent)
+  if ENV['SD_AGENT_BIN'] && linux_target?
+    copy ENV['SD_AGENT_BIN'], "#{install_dir}/embedded/bin/sd-agent"
+  end
+
   # Security agent
   secagent_support = (not heroku_target?) and (not windows_target? or (ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?))
   if secagent_support
