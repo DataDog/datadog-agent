@@ -53,7 +53,9 @@ var datadogAgentPackage = hooks{
 	preStopConfigExperiment:     preStopConfigExperimentDatadogAgent,
 	postPromoteConfigExperiment: postPromoteConfigExperimentDatadogAgent,
 
+	preInstallExtension:  preInstallExtensionDatadogAgent,
 	postInstallExtension: postInstallExtensionDatadogAgent,
+	preRemoveExtension:   preRemoveExtensionDatadogAgent,
 }
 
 const (
@@ -460,31 +462,6 @@ func postPromoteConfigExperimentDatadogAgent(ctx HookContext) error {
 	return nil
 }
 
-func postInstallExtensionDatadogAgent(ctx HookContext) (err error) {
-	span, ctx := ctx.StartSpan("setup_extension_permissions")
-	defer func() {
-		span.Finish(err)
-	}()
-
-	// Reconstruct the extension path
-	extensionPath := filepath.Join(ctx.PackagePath, "ext", ctx.Extension)
-	if _, err := os.Stat(extensionPath); os.IsNotExist(err) {
-		// Extension might be at system path for DEB/RPM installations
-		extensionPath = filepath.Join("/opt/datadog-agent", "ext", ctx.Extension)
-	}
-
-	// Set ownership recursively to dd-agent:dd-agent
-	extensionPermissions := file.Permissions{
-		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
-	}
-
-	if err := extensionPermissions.Ensure(ctx, extensionPath); err != nil {
-		return fmt.Errorf("failed to set extension ownership: %w", err)
-	}
-
-	return nil
-}
-
 type datadogAgentConfig struct {
 	Installer installerConfig `yaml:"installer"`
 }
@@ -498,6 +475,46 @@ type installerRegistryConfig struct {
 	Auth     string `yaml:"auth,omitempty"`
 	Username string `yaml:"username,omitempty"`
 	Password string `yaml:"password,omitempty"`
+}
+
+// preInstallExtensionDatadogAgent runs pre-installation steps for agent extensions
+func preInstallExtensionDatadogAgent(ctx HookContext) error {
+	switch ctx.Extension {
+	case "ddot":
+		return preInstallDDOTExtension(ctx)
+	default:
+		return nil
+	}
+}
+
+// postInstallExtensionDatadogAgent runs post-installation steps for agent extensions
+func postInstallExtensionDatadogAgent(ctx HookContext) error {
+	extensionPath := filepath.Join(ctx.PackagePath, "ext", ctx.Extension)
+
+	// Set ownership recursively to dd-agent:dd-agent for all extensions
+	extensionPermissions := file.Permissions{
+		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
+	}
+	if err := extensionPermissions.Ensure(ctx, extensionPath); err != nil {
+		return fmt.Errorf("failed to set extension ownerships: %v", err)
+	}
+
+	switch ctx.Extension {
+	case "ddot":
+		return postInstallDDOTExtension(ctx)
+	default:
+		return nil
+	}
+}
+
+// preRemoveExtensionDatadogAgent runs pre-removal steps for agent extensions
+func preRemoveExtensionDatadogAgent(ctx HookContext) error {
+	switch ctx.Extension {
+	case "ddot":
+		return preRemoveDDOTExtension(ctx)
+	default:
+		return nil
+	}
 }
 
 // setRegistryConfig is a best effort to get the `installer` block from `datadog.yaml` and update the env.
