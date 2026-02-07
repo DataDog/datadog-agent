@@ -287,6 +287,11 @@ func (c *TimeClusterCorrelator) GetStats() map[string]interface{} {
 	}
 }
 
+// GetExtraData implements CorrelatorDataProvider.
+func (c *TimeClusterCorrelator) GetExtraData() interface{} {
+	return c.GetClusters()
+}
+
 // ActiveCorrelations returns clusters that meet the minimum size threshold.
 // Implements CorrelationState interface.
 func (c *TimeClusterCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {

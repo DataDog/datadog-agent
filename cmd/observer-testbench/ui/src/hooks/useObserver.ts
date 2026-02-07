@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../api/client';
 import type {
   StatusResponse, ScenarioInfo, ComponentInfo, SeriesInfo, Anomaly, Correlation,
-  LeadLagEdge, SurpriseEdge, GraphSketchEdge, CorrelatorStats
+  CorrelatorDataResponse, CorrelatorStats
 } from '../api/client';
 
 export type ConnectionState = 'disconnected' | 'connected' | 'loading' | 'ready';
@@ -15,13 +15,8 @@ export interface ObserverState {
   series: SeriesInfo[];
   anomalies: Anomaly[];
   correlations: Correlation[];
-  // New correlator data
-  leadLagEdges: LeadLagEdge[];
-  leadLagEnabled: boolean;
-  surpriseEdges: SurpriseEdge[];
-  surpriseEnabled: boolean;
-  graphSketchEdges: GraphSketchEdge[];
-  graphSketchEnabled: boolean;
+  // Generic correlator data keyed by correlator name
+  correlatorData: Map<string, CorrelatorDataResponse>;
   correlatorStats: CorrelatorStats | null;
   activeScenario: string | null;
   error: string | null;
@@ -30,6 +25,7 @@ export interface ObserverState {
 export interface ObserverActions {
   loadScenario: (name: string) => Promise<void>;
   refresh: () => Promise<void>;
+  toggleComponent: (name: string) => Promise<void>;
 }
 
 const POLL_INTERVAL = 2000;
@@ -42,13 +38,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
   const [series, setSeries] = useState<SeriesInfo[]>([]);
   const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
   const [correlations, setCorrelations] = useState<Correlation[]>([]);
-  // New correlator state
-  const [leadLagEdges, setLeadLagEdges] = useState<LeadLagEdge[]>([]);
-  const [leadLagEnabled, setLeadLagEnabled] = useState(false);
-  const [surpriseEdges, setSurpriseEdges] = useState<SurpriseEdge[]>([]);
-  const [surpriseEnabled, setSurpriseEnabled] = useState(false);
-  const [graphSketchEdges, setGraphSketchEdges] = useState<GraphSketchEdge[]>([]);
-  const [graphSketchEnabled, setGraphSketchEnabled] = useState(false);
+  const [correlatorData, setCorrelatorData] = useState<Map<string, CorrelatorDataResponse>>(new Map());
   const [correlatorStats, setCorrelatorStats] = useState<CorrelatorStats | null>(null);
   const [activeScenario, setActiveScenario] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -67,10 +57,10 @@ export function useObserver(): [ObserverState, ObserverActions] {
 
   const fetchAll = useCallback(async (): Promise<boolean> => {
     try {
+      // First fetch components and basic data
       const [
         statusData, scenariosData, componentsData, seriesData,
-        anomaliesData, correlationsData, leadLagData, surpriseData,
-        graphSketchData, statsData
+        anomaliesData, correlationsData, statsData
       ] = await Promise.all([
           api.getStatus(),
           api.getScenarios(),
@@ -78,11 +68,24 @@ export function useObserver(): [ObserverState, ObserverActions] {
           api.getSeries(),
           api.getAnomalies(),
           api.getCorrelations(),
-          api.getLeadLag(),
-          api.getSurprise(),
-          api.getGraphSketch(),
           api.getStats(),
         ]);
+
+      // Discover correlator names from components and fetch their data
+      const correlatorNames = componentsData
+        .filter((c: ComponentInfo) => c.category === 'correlator')
+        .map((c: ComponentInfo) => c.name);
+
+      const correlatorResults = await Promise.all(
+        correlatorNames.map(async (name: string) => {
+          try {
+            const data = await api.getCorrelatorData(name);
+            return [name, data] as [string, CorrelatorDataResponse];
+          } catch {
+            return [name, { enabled: false, data: null }] as [string, CorrelatorDataResponse];
+          }
+        })
+      );
 
       setStatus(statusData);
       setScenarios(scenariosData);
@@ -90,13 +93,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
       setSeries(seriesData);
       setAnomalies(anomaliesData);
       setCorrelations(correlationsData);
-      // New correlator data
-      setLeadLagEdges(leadLagData.edges ?? []);
-      setLeadLagEnabled(leadLagData.enabled);
-      setSurpriseEdges(surpriseData.edges ?? []);
-      setSurpriseEnabled(surpriseData.enabled);
-      setGraphSketchEdges(graphSketchData.edges ?? []);
-      setGraphSketchEnabled(graphSketchData.enabled);
+      setCorrelatorData(new Map(correlatorResults));
       setCorrelatorStats(statsData);
       setError(null);
 
@@ -185,6 +182,16 @@ export function useObserver(): [ObserverState, ObserverActions] {
     await fetchAll();
   }, [fetchAll]);
 
+  const toggleComponent = useCallback(async (name: string) => {
+    try {
+      await api.toggleComponent(name);
+      await fetchAll();
+    } catch (e) {
+      console.error('Failed to toggle component:', e);
+      setError(e instanceof Error ? e.message : 'Failed to toggle component');
+    }
+  }, [fetchAll]);
+
   return [
     {
       connectionState,
@@ -194,12 +201,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
       series,
       anomalies,
       correlations,
-      leadLagEdges,
-      leadLagEnabled,
-      surpriseEdges,
-      surpriseEnabled,
-      graphSketchEdges,
-      graphSketchEnabled,
+      correlatorData,
       correlatorStats,
       activeScenario,
       error,
@@ -207,6 +209,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
     {
       loadScenario,
       refresh,
+      toggleComponent,
     },
   ];
 }

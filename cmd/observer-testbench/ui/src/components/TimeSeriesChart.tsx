@@ -3,14 +3,27 @@ import * as d3 from 'd3';
 import type { Point, AnomalyMarker } from '../api/client';
 import type { CorrelationRange, TimeRange } from './ChartWithAnomalyDetails';
 
-// Analyzer colors for distinguishing different detection algorithms
-const ANALYZER_COLORS: Record<string, { fill: string; stroke: string }> = {
-  cusum_detector: { fill: 'rgba(239, 68, 68, 0.2)', stroke: '#ef4444' },    // red
-  robust_zscore: { fill: 'rgba(59, 130, 246, 0.2)', stroke: '#3b82f6' },    // blue
-  arima_detector: { fill: 'rgba(34, 197, 94, 0.2)', stroke: '#22c55e' },    // green
-  mad_detector: { fill: 'rgba(251, 191, 36, 0.2)', stroke: '#f59e0b' },     // amber
-  default: { fill: 'rgba(168, 85, 247, 0.2)', stroke: '#a855f7' },          // purple
-};
+// Analyzer color palette - colors are assigned by stable index
+const ANALYZER_PALETTE: { fill: string; stroke: string }[] = [
+  { fill: 'rgba(239, 68, 68, 0.2)', stroke: '#ef4444' },    // red
+  { fill: 'rgba(59, 130, 246, 0.2)', stroke: '#3b82f6' },    // blue
+  { fill: 'rgba(34, 197, 94, 0.2)', stroke: '#22c55e' },     // green
+  { fill: 'rgba(251, 191, 36, 0.2)', stroke: '#f59e0b' },    // amber
+  { fill: 'rgba(168, 85, 247, 0.2)', stroke: '#a855f7' },    // purple
+  { fill: 'rgba(6, 182, 212, 0.2)', stroke: '#06b6d4' },     // cyan
+];
+
+// Build a stable name-to-color mapping from palette
+const analyzerColorCache = new Map<string, { fill: string; stroke: string }>();
+let nextAnalyzerColorIndex = 0;
+
+function getAnalyzerColorStable(analyzerName: string) {
+  if (!analyzerColorCache.has(analyzerName)) {
+    analyzerColorCache.set(analyzerName, ANALYZER_PALETTE[nextAnalyzerColorIndex % ANALYZER_PALETTE.length]);
+    nextAnalyzerColorIndex++;
+  }
+  return analyzerColorCache.get(analyzerName)!;
+}
 
 // Correlation range colors - distinct from analyzer colors
 const CORRELATION_COLORS = [
@@ -36,7 +49,7 @@ const LINE_COLORS = [
 ];
 
 function getAnalyzerColor(analyzerName: string) {
-  return ANALYZER_COLORS[analyzerName] || ANALYZER_COLORS.default;
+  return getAnalyzerColorStable(analyzerName);
 }
 
 function getCorrelationColor(index: number) {
@@ -461,8 +474,7 @@ export function TimeSeriesChart({
           {/* Detector legend - only show if there are anomalies */}
           {filteredAnomalies.length > 0 && Array.from(new Set(filteredAnomalies.map((a) => a.analyzerName))).map((analyzer) => {
             const color = getAnalyzerColor(analyzer);
-            const displayName = analyzer === 'cusum_detector' ? 'CUSUM' :
-                               analyzer === 'robust_zscore' ? 'Z-Score' : analyzer;
+            const displayName = analyzer;
             return (
               <span
                 key={analyzer}

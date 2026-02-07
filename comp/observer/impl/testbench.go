@@ -24,20 +24,14 @@ type TestBenchConfig struct {
 	HTTPAddr     string
 	Recorder     recorderdef.Component // Optional: for loading parquet scenarios
 
-	// Correlator selection (at least one should be true)
-	EnableTimeCluster bool // Default: true - time-based clustering
-	EnableLeadLag     bool // Temporal lead-lag pattern detection
-	EnableSurprise    bool // Lift-based surprise pattern detection
-	EnableGraphSketch bool // Co-occurrence frequency learning
+	// EnableOverrides controls which components are enabled at startup.
+	// Keys are component names (e.g. "cusum", "lead_lag", "dedup").
+	// If a name is present, its value overrides the registry DefaultEnabled.
+	// Components not listed use their registry default.
+	EnableOverrides map[string]bool
 
-	// Deduplication
-	EnableDedup        bool  // Enable anomaly deduplication before correlation
-	DedupBucketSeconds int64 // Time bucket for dedup (default: 5)
-
-	// Time series analyzers
-	EnableCUSUM        bool // Enable CUSUM change-point detector (default: true)
-	EnableZScore       bool // Enable Robust Z-Score detector (default: true)
-	CUSUMIncludeCount  bool // CUSUM: include :count metrics (default: false, skips them)
+	// Config params (not component toggles)
+	CUSUMIncludeCount bool // CUSUM: include :count metrics (default: false, skips them)
 }
 
 // TestBench is the main controller for the observer test bench.
@@ -50,17 +44,11 @@ type TestBench struct {
 	loadedScenario string
 	ready          bool
 
-	// Components
-	logProcessors     []observerdef.LogProcessor
-	tsAnalyses        []observerdef.TimeSeriesAnalysis
-	anomalyProcessors []observerdef.AnomalyProcessor
+	// Components (log processors are not registry-managed)
+	logProcessors []observerdef.LogProcessor
 
-	// Specific correlator references (for accessing extra methods)
-	timeClusterCorrelator *TimeClusterCorrelator
-	leadLagCorrelator     *LeadLagCorrelator
-	surpriseCorrelator    *SurpriseCorrelator
-	graphSketchCorrelator *GraphSketchCorrelator
-	deduplicator          *AnomalyDeduplicator
+	// Registry-managed components
+	components map[string]*registeredComponent
 
 	// Results (computed eagerly on scenario load)
 	anomalies    []observerdef.AnomalyOutput            // all anomalies from TS analyses
@@ -83,8 +71,9 @@ type ScenarioInfo struct {
 // ComponentInfo describes a registered component.
 type ComponentInfo struct {
 	Name        string `json:"name"`
-	Type        string `json:"type"` // "log_processor", "ts_analysis", "anomaly_processor"
-	Description string `json:"description,omitempty"`
+	DisplayName string `json:"displayName"`
+	Category    string `json:"category"` // "analyzer", "correlator", "processing"
+	Enabled     bool   `json:"enabled"`
 }
 
 // StatusResponse is the response for /api/status.
@@ -99,14 +88,8 @@ type StatusResponse struct {
 
 // ServerConfig exposes server-side configuration to the UI.
 type ServerConfig struct {
-	CUSUMEnabled       bool `json:"cusumEnabled"`
-	CUSUMSkipCount     bool `json:"cusumSkipCount"` // true = filtering out :count metrics
-	ZScoreEnabled      bool `json:"zscoreEnabled"`
-	TimeClusterEnabled bool `json:"timeClusterEnabled"`
-	LeadLagEnabled     bool `json:"leadLagEnabled"`
-	SurpriseEnabled    bool `json:"surpriseEnabled"`
-	GraphSketchEnabled bool `json:"graphSketchEnabled"`
-	DedupEnabled       bool `json:"dedupEnabled"`
+	Components     map[string]bool `json:"components"`
+	CUSUMSkipCount bool            `json:"cusumSkipCount"` // true = filtering out :count metrics
 }
 
 // NewTestBench creates a new test bench instance.
@@ -119,25 +102,15 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 		}
 	}
 
-	// Default to ALL correlators enabled
-	if !config.EnableTimeCluster && !config.EnableLeadLag && !config.EnableSurprise && !config.EnableGraphSketch {
-		config.EnableTimeCluster = true
-		config.EnableLeadLag = true
-		config.EnableSurprise = true
-		config.EnableGraphSketch = true
-	}
-
-	// Default to both analyzers if neither is explicitly set
-	if !config.EnableCUSUM && !config.EnableZScore {
-		config.EnableCUSUM = true
-		config.EnableZScore = true
+	if config.EnableOverrides == nil {
+		config.EnableOverrides = make(map[string]bool)
 	}
 
 	tb := &TestBench{
 		config:  config,
 		storage: newTimeSeriesStorage(),
 
-		// Register default components
+		// Log processors are not registry-managed
 		logProcessors: []observerdef.LogProcessor{
 			&LogTimeSeriesAnalysis{
 				MaxEvalBytes: 4096,
@@ -148,70 +121,23 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 			},
 			&ConnectionErrorExtractor{},
 		},
-		tsAnalyses:        []observerdef.TimeSeriesAnalysis{},
-		anomalyProcessors: []observerdef.AnomalyProcessor{},
 
+		components: make(map[string]*registeredComponent),
 		anomalies:  []observerdef.AnomalyOutput{},
 		byAnalyzer: make(map[string][]observerdef.AnomalyOutput),
 	}
 
-	// Add time series analyzers based on config
-	if config.EnableCUSUM {
-		cusum := NewCUSUMDetector()
-		cusum.SkipCountMetrics = !config.CUSUMIncludeCount // Default: skip count metrics
-		tb.tsAnalyses = append(tb.tsAnalyses, cusum)
-	}
-	if config.EnableZScore {
-		tb.tsAnalyses = append(tb.tsAnalyses, NewRobustZScoreDetector())
-	}
-
-	// Create deduplicator if enabled
-	if config.EnableDedup {
-		bucketSize := config.DedupBucketSeconds
-		if bucketSize == 0 {
-			bucketSize = 5
+	// Instantiate all registry components
+	for _, reg := range defaultRegistry {
+		enabled := reg.DefaultEnabled
+		if override, ok := config.EnableOverrides[reg.Name]; ok {
+			enabled = override
 		}
-		tb.deduplicator = NewAnomalyDeduplicator(AnomalyDedupConfig{
-			BucketSizeSeconds: bucketSize,
-		})
-	}
-
-	// Create correlators based on config
-	if config.EnableTimeCluster {
-		tc := NewTimeClusterCorrelator(TimeClusterConfig{
-			ProximitySeconds: 10,
-			MinClusterSize:   2,
-			WindowSeconds:    120,
-		})
-		tb.timeClusterCorrelator = tc
-		tb.anomalyProcessors = append(tb.anomalyProcessors, tc)
-	}
-
-	if config.EnableLeadLag {
-		ll := NewLeadLagCorrelator(LeadLagConfig{
-			MaxLagSeconds:       30,
-			MinObservations:     3,
-			ConfidenceThreshold: 0.6,
-			WindowSeconds:       120,
-		})
-		tb.leadLagCorrelator = ll
-		tb.anomalyProcessors = append(tb.anomalyProcessors, ll)
-	}
-
-	if config.EnableSurprise {
-		sc := NewSurpriseCorrelator(SurpriseConfig{
-			WindowSizeSeconds: 10,
-			MinLift:           2.0,
-			MinSupport:        2,
-		})
-		tb.surpriseCorrelator = sc
-		tb.anomalyProcessors = append(tb.anomalyProcessors, sc)
-	}
-
-	if config.EnableGraphSketch {
-		gs := NewGraphSketchCorrelator(DefaultGraphSketchCorrelatorConfig())
-		tb.graphSketchCorrelator = gs
-		tb.anomalyProcessors = append(tb.anomalyProcessors, gs)
+		tb.components[reg.Name] = &registeredComponent{
+			Registration: reg,
+			Instance:     reg.Factory(tb),
+			Enabled:      enabled,
+		}
 	}
 
 	tb.api = NewTestBenchAPI(tb)
@@ -302,19 +228,8 @@ func (tb *TestBench) LoadScenario(name string) error {
 	tb.ready = false
 	tb.loadedScenario = name
 
-	// Reset anomaly processors (use Reset() if available, otherwise Flush())
-	for _, proc := range tb.anomalyProcessors {
-		if resetter, ok := proc.(interface{ Reset() }); ok {
-			resetter.Reset()
-		} else {
-			proc.Flush()
-		}
-	}
-
-	// Reset deduplicator if it exists
-	if tb.deduplicator != nil {
-		tb.deduplicator.Reset()
-	}
+	// Reset ALL correlators (not just enabled) so disabled ones clear stale state
+	tb.resetAllProcessors()
 
 	// Load data from scenario
 	scenarioStart := time.Now()
@@ -458,6 +373,8 @@ func (tb *TestBench) loadEventsDir(dir string) error {
 		return err
 	}
 
+	enabledProcs := tb.enabledCorrelators()
+
 	totalEvents := 0
 	for _, file := range files {
 		events, err := LoadEventFile(file)
@@ -466,9 +383,9 @@ func (tb *TestBench) loadEventsDir(dir string) error {
 			continue
 		}
 
-		// Send events to anomaly processors that support them
+		// Send events to enabled anomaly processors that support them
 		for _, event := range events {
-			for _, proc := range tb.anomalyProcessors {
+			for _, proc := range enabledProcs {
 				if receiver, ok := proc.(observerdef.EventSignalReceiver); ok {
 					receiver.AddEventSignal(event)
 				}
@@ -483,24 +400,33 @@ func (tb *TestBench) loadEventsDir(dir string) error {
 	return nil
 }
 
+// resetAllProcessors resets all correlators and the deduplicator.
+func (tb *TestBench) resetAllProcessors() {
+	for _, proc := range tb.allCorrelators() {
+		if resetter, ok := proc.(interface{ Reset() }); ok {
+			resetter.Reset()
+		} else {
+			proc.Flush()
+		}
+	}
+	if dedup := tb.getDeduplicator(); dedup != nil {
+		dedup.Reset()
+	}
+}
+
 // runAnalyses runs all time series analyses on all stored series.
 func (tb *TestBench) runAnalyses() {
-	// Get all unique series keys
-	type seriesKey struct {
-		namespace string
-		name      string
-		tags      []string
-	}
+	analyzers := tb.enabledAnalyzers()
+	correlators := tb.enabledCorrelators()
+	dedup := tb.getDeduplicator()
 
-	// Collect all series
+	// Collect all series from all namespaces
 	collectStart := time.Now()
 	var allSeries []observerdef.Series
 	for _, agg := range []Aggregate{AggregateAverage, AggregateCount} {
-		// Get series from all namespaces
-		for _, ns := range []string{"parquet", "logs", "demo"} {
+		for _, ns := range tb.storage.Namespaces() {
 			series := tb.storage.AllSeries(ns, agg)
 			for _, s := range series {
-				// Append aggregation suffix to name
 				sCopy := s
 				sCopy.Name = s.Name + ":" + aggSuffix(agg)
 				allSeries = append(allSeries, sCopy)
@@ -516,7 +442,7 @@ func (tb *TestBench) runAnalyses() {
 	processorTime := make(map[string]time.Duration)
 	dedupedCount := 0
 	for _, series := range allSeries {
-		for _, analysis := range tb.tsAnalyses {
+		for _, analysis := range analyzers {
 			t0 := time.Now()
 			result := analysis.Analyze(series)
 			analyzerTime[analysis.Name()] += time.Since(t0)
@@ -528,15 +454,15 @@ func (tb *TestBench) runAnalyses() {
 				tb.byAnalyzer[anomaly.AnalyzerName] = append(tb.byAnalyzer[anomaly.AnalyzerName], anomaly)
 
 				// Apply deduplication if enabled
-				if tb.deduplicator != nil {
-					if !tb.deduplicator.ShouldProcess(anomaly.Source, anomaly.Timestamp) {
+				if dedup != nil {
+					if !dedup.ShouldProcess(anomaly.Source, anomaly.Timestamp) {
 						dedupedCount++
 						continue // Skip duplicate
 					}
 				}
 
-				// Send to anomaly processors
-				for _, proc := range tb.anomalyProcessors {
+				// Send to enabled anomaly processors
+				for _, proc := range correlators {
 					t1 := time.Now()
 					proc.Process(anomaly)
 					processorTime[proc.Name()] += time.Since(t1)
@@ -552,20 +478,20 @@ func (tb *TestBench) runAnalyses() {
 		fmt.Printf("    Processor %s: %s\n", name, d)
 	}
 
-	if tb.deduplicator != nil && dedupedCount > 0 {
+	if dedup != nil && dedupedCount > 0 {
 		fmt.Printf("    Deduplication: filtered %d duplicate anomalies\n", dedupedCount)
 	}
 
 	// Flush processors to get correlations
 	flushStart := time.Now()
-	for _, proc := range tb.anomalyProcessors {
+	for _, proc := range correlators {
 		proc.Flush()
 	}
 	fmt.Printf("    Processor flush: %s\n", time.Since(flushStart))
 
 	// Collect correlations from processors that support it
 	collectCorrelationsStart := time.Now()
-	for _, proc := range tb.anomalyProcessors {
+	for _, proc := range correlators {
 		if cs, ok := proc.(interface {
 			ActiveCorrelations() []observerdef.ActiveCorrelation
 		}); ok {
@@ -580,21 +506,20 @@ func (tb *TestBench) GetStatus() StatusResponse {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
+	compMap := make(map[string]bool)
+	for name, comp := range tb.components {
+		compMap[name] = comp.Enabled
+	}
+
 	return StatusResponse{
 		Ready:          tb.ready,
 		Scenario:       tb.loadedScenario,
 		SeriesCount:    tb.seriesCount(),
 		AnomalyCount:   len(tb.anomalies),
-		ComponentCount: len(tb.logProcessors) + len(tb.tsAnalyses) + len(tb.anomalyProcessors),
+		ComponentCount: len(tb.logProcessors) + len(tb.components),
 		ServerConfig: ServerConfig{
-			CUSUMEnabled:       tb.config.EnableCUSUM,
-			CUSUMSkipCount:     !tb.config.CUSUMIncludeCount, // true = filtering out :count
-			ZScoreEnabled:      tb.config.EnableZScore,
-			TimeClusterEnabled: tb.config.EnableTimeCluster,
-			LeadLagEnabled:     tb.config.EnableLeadLag,
-			SurpriseEnabled:    tb.config.EnableSurprise,
-			GraphSketchEnabled: tb.config.EnableGraphSketch,
-			DedupEnabled:       tb.config.EnableDedup,
+			Components:     compMap,
+			CUSUMSkipCount: !tb.config.CUSUMIncludeCount,
 		},
 	}
 }
@@ -618,8 +543,8 @@ func (tb *TestBench) UpdateConfigAndReanalyze(req ConfigUpdateRequest) error {
 		oldSkip := !tb.config.CUSUMIncludeCount
 		if newSkip != oldSkip {
 			tb.config.CUSUMIncludeCount = !newSkip
-			for _, a := range tb.tsAnalyses {
-				if cusum, ok := a.(*CUSUMDetector); ok {
+			if comp, ok := tb.components["cusum"]; ok {
+				if cusum, ok := comp.Instance.(*CUSUMDetector); ok {
 					cusum.SkipCountMetrics = newSkip
 				}
 			}
@@ -629,16 +554,17 @@ func (tb *TestBench) UpdateConfigAndReanalyze(req ConfigUpdateRequest) error {
 
 	// Update dedup
 	if req.DedupEnabled != nil {
-		if *req.DedupEnabled != tb.config.EnableDedup {
-			tb.config.EnableDedup = *req.DedupEnabled
-			if *req.DedupEnabled && tb.deduplicator == nil {
-				tb.deduplicator = NewAnomalyDeduplicator(AnomalyDedupConfig{
-					BucketSizeSeconds: 5,
-				})
-			} else if !*req.DedupEnabled {
-				tb.deduplicator = nil
+		if comp, ok := tb.components["dedup"]; ok {
+			if *req.DedupEnabled != comp.Enabled {
+				comp.Enabled = *req.DedupEnabled
+				if comp.Enabled {
+					// Reset the deduplicator when re-enabling
+					if d, ok := comp.Instance.(*AnomalyDeduplicator); ok {
+						d.Reset()
+					}
+				}
+				configChanged = true
 			}
-			configChanged = true
 		}
 	}
 
@@ -659,38 +585,30 @@ func (tb *TestBench) rerunAnalysesLocked() {
 		delete(tb.byAnalyzer, k)
 	}
 
-	// Reset anomaly processors (use Reset() if available, otherwise Flush())
-	for _, proc := range tb.anomalyProcessors {
-		if resetter, ok := proc.(interface{ Reset() }); ok {
-			resetter.Reset()
-		} else {
-			proc.Flush()
-		}
-	}
+	// Reset ALL correlators (not just enabled) so disabled ones clear stale state
+	tb.resetAllProcessors()
 
-	// Reset deduplicator if enabled
-	if tb.deduplicator != nil {
-		tb.deduplicator.Reset()
-	}
+	analyzers := tb.enabledAnalyzers()
+	correlators := tb.enabledCorrelators()
+	dedup := tb.getDeduplicator()
 
 	// Re-run time series analyses
-	for _, ns := range []string{"parquet", "logs", "demo"} {
+	for _, ns := range tb.storage.Namespaces() {
 		for _, agg := range []Aggregate{AggregateAverage, AggregateCount} {
 			allSeries := tb.storage.AllSeries(ns, agg)
 			for _, series := range allSeries {
-				// Append aggregation suffix to name (same as runAnalyses)
 				seriesCopy := series
 				seriesCopy.Name = series.Name + ":" + aggSuffix(agg)
 
-				for _, analyzer := range tb.tsAnalyses {
+				for _, analyzer := range analyzers {
 					result := analyzer.Analyze(seriesCopy)
 					for _, anomaly := range result.Anomalies {
 						anomaly.AnalyzerName = analyzer.Name()
 						anomaly.Source = seriesCopy.Name
 
 						// Apply deduplication if enabled
-						if tb.deduplicator != nil {
-							if !tb.deduplicator.ShouldProcess(anomaly.Source, anomaly.Timestamp) {
+						if dedup != nil {
+							if !dedup.ShouldProcess(anomaly.Source, anomaly.Timestamp) {
 								continue
 							}
 						}
@@ -698,8 +616,8 @@ func (tb *TestBench) rerunAnalysesLocked() {
 						tb.anomalies = append(tb.anomalies, anomaly)
 						tb.byAnalyzer[anomaly.AnalyzerName] = append(tb.byAnalyzer[anomaly.AnalyzerName], anomaly)
 
-						// Send to anomaly processors
-						for _, proc := range tb.anomalyProcessors {
+						// Send to enabled anomaly processors
+						for _, proc := range correlators {
 							proc.Process(anomaly)
 						}
 					}
@@ -709,12 +627,12 @@ func (tb *TestBench) rerunAnalysesLocked() {
 	}
 
 	// Flush processors to get correlations
-	for _, proc := range tb.anomalyProcessors {
+	for _, proc := range correlators {
 		proc.Flush()
 	}
 
 	// Collect correlations
-	for _, proc := range tb.anomalyProcessors {
+	for _, proc := range correlators {
 		if cs, ok := proc.(interface {
 			ActiveCorrelations() []observerdef.ActiveCorrelation
 		}); ok {
@@ -730,24 +648,17 @@ func (tb *TestBench) GetComponents() []ComponentInfo {
 
 	var components []ComponentInfo
 
-	for _, p := range tb.logProcessors {
+	// Return registry components in registry order
+	for _, reg := range defaultRegistry {
+		comp := tb.components[reg.Name]
+		if comp == nil {
+			continue
+		}
 		components = append(components, ComponentInfo{
-			Name: p.Name(),
-			Type: "log_processor",
-		})
-	}
-
-	for _, a := range tb.tsAnalyses {
-		components = append(components, ComponentInfo{
-			Name: a.Name(),
-			Type: "ts_analysis",
-		})
-	}
-
-	for _, p := range tb.anomalyProcessors {
-		components = append(components, ComponentInfo{
-			Name: p.Name(),
-			Type: "anomaly_processor",
+			Name:        reg.Name,
+			DisplayName: reg.DisplayName,
+			Category:    reg.Category,
+			Enabled:     comp.Enabled,
 		})
 	}
 
@@ -804,57 +715,68 @@ func (tb *TestBench) seriesCount() int {
 }
 
 // GetLeadLagEdges returns lead-lag edges if the correlator is enabled.
-// Returns (edges, enabled) where enabled indicates if the correlator is configured.
 func (tb *TestBench) GetLeadLagEdges() ([]LeadLagEdge, bool) {
-	tb.mu.RLock()
-	defer tb.mu.RUnlock()
-	if tb.leadLagCorrelator == nil {
-		return nil, false
+	data, enabled := tb.GetCorrelatorData("lead_lag")
+	if edges, ok := data.([]LeadLagEdge); ok {
+		return edges, enabled
 	}
-	return tb.leadLagCorrelator.GetEdges(), true
+	return nil, enabled
 }
 
 // GetSurpriseEdges returns surprise edges if the correlator is enabled.
-// Returns (edges, enabled) where enabled indicates if the correlator is configured.
 func (tb *TestBench) GetSurpriseEdges() ([]SurpriseEdge, bool) {
-	tb.mu.RLock()
-	defer tb.mu.RUnlock()
-	if tb.surpriseCorrelator == nil {
-		return nil, false
+	data, enabled := tb.GetCorrelatorData("surprise")
+	if edges, ok := data.([]SurpriseEdge); ok {
+		return edges, enabled
 	}
-	return tb.surpriseCorrelator.GetEdges(), true
+	return nil, enabled
 }
 
 // GetGraphSketchEdges returns graph sketch edges if the correlator is enabled.
-// Returns (edges, enabled) where enabled indicates if the correlator is configured.
 func (tb *TestBench) GetGraphSketchEdges() ([]EdgeInfo, bool) {
-	tb.mu.RLock()
-	defer tb.mu.RUnlock()
-	if tb.graphSketchCorrelator == nil {
-		return nil, false
+	data, enabled := tb.GetCorrelatorData("graph_sketch")
+	if edges, ok := data.([]EdgeInfo); ok {
+		return edges, enabled
 	}
-	return tb.graphSketchCorrelator.GetLearnedEdges(), true
+	return nil, enabled
 }
 
-// GetCorrelatorStats returns stats from all enabled correlators.
+// GetCorrelatorStats returns stats from all correlators (enabled or not).
 func (tb *TestBench) GetCorrelatorStats() map[string]interface{} {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
 	stats := make(map[string]interface{})
-	if tb.timeClusterCorrelator != nil {
-		stats["time_cluster"] = tb.timeClusterCorrelator.GetStats()
-	}
-	if tb.leadLagCorrelator != nil {
-		stats["lead_lag"] = tb.leadLagCorrelator.GetStats()
-	}
-	if tb.surpriseCorrelator != nil {
-		stats["surprise"] = tb.surpriseCorrelator.GetStats()
-	}
-	if tb.graphSketchCorrelator != nil {
-		stats["graph_sketch"] = tb.graphSketchCorrelator.GetStats()
+	for name, comp := range tb.components {
+		if comp.Registration.Category == "correlator" {
+			if statter, ok := comp.Instance.(interface {
+				GetStats() map[string]interface{}
+			}); ok {
+				stats[name] = statter.GetStats()
+			}
+		}
 	}
 	return stats
+}
+
+// ToggleComponent toggles a component's enabled state and re-runs analyses if needed.
+func (tb *TestBench) ToggleComponent(name string) error {
+	tb.mu.Lock()
+	defer tb.mu.Unlock()
+
+	comp, ok := tb.components[name]
+	if !ok {
+		return fmt.Errorf("unknown component: %s", name)
+	}
+
+	comp.Enabled = !comp.Enabled
+
+	// Re-run analyses if a scenario is loaded
+	if tb.ready && tb.storage != nil {
+		tb.rerunAnalysesLocked()
+	}
+
+	return nil
 }
 
 // loadDemoScenario generates synthetic demo data directly into storage.
@@ -870,10 +792,8 @@ func (tb *TestBench) loadDemoScenario() error {
 	tb.ready = false
 	tb.loadedScenario = "demo"
 
-	// Reset anomaly processors
-	for _, proc := range tb.anomalyProcessors {
-		proc.Flush()
-	}
+	// Reset all processors
+	tb.resetAllProcessors()
 
 	fmt.Println("Generating demo scenario data...")
 

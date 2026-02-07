@@ -842,6 +842,15 @@ func (g *GraphSketchCorrelator) PrintDebugState() {
 	fmt.Println("=====================================")
 }
 
+// GetExtraData implements CorrelatorDataProvider.
+func (g *GraphSketchCorrelator) GetExtraData() interface{} {
+	edges := g.GetLearnedEdges()
+	if edges == nil {
+		edges = []EdgeInfo{}
+	}
+	return edges
+}
+
 // Ensure GraphSketchCorrelator implements both interfaces
 var _ observer.AnomalyProcessor = (*GraphSketchCorrelator)(nil)
 var _ observer.CorrelationState = (*GraphSketchCorrelator)(nil)

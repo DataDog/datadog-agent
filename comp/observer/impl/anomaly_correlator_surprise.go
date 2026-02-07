@@ -411,3 +411,12 @@ func (c *SurpriseCorrelator) GetStats() map[string]interface{} {
 		"current_data_time":      c.currentDataTime,
 	}
 }
+
+// GetExtraData implements CorrelatorDataProvider.
+func (c *SurpriseCorrelator) GetExtraData() interface{} {
+	edges := c.GetEdges()
+	if edges == nil {
+		edges = []SurpriseEdge{}
+	}
+	return edges
+}

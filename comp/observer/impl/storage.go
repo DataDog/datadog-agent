@@ -209,6 +209,20 @@ func (s *timeSeriesStorage) GetSeriesSince(namespace, name string, tags []string
 	}
 }
 
+// Namespaces returns the set of namespaces that have data.
+func (s *timeSeriesStorage) Namespaces() []string {
+	seen := make(map[string]struct{})
+	for _, stats := range s.series {
+		seen[stats.Namespace] = struct{}{}
+	}
+	result := make([]string, 0, len(seen))
+	for ns := range seen {
+		result = append(result, ns)
+	}
+	sort.Strings(result)
+	return result
+}
+
 // AllSeries returns all series in a namespace using the specified aggregation.
 func (s *timeSeriesStorage) AllSeries(namespace string, agg Aggregate) []observer.Series {
 	var result []observer.Series

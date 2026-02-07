@@ -471,3 +471,12 @@ func (c *LeadLagCorrelator) GetStats() map[string]interface{} {
 		"current_data_time":    c.currentDataTime,
 	}
 }
+
+// GetExtraData implements CorrelatorDataProvider.
+func (c *LeadLagCorrelator) GetExtraData() interface{} {
+	edges := c.GetEdges()
+	if edges == nil {
+		edges = []LeadLagEdge{}
+	}
+	return edges
+}

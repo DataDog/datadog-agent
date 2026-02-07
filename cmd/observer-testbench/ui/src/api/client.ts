@@ -3,14 +3,8 @@
 const API_BASE = '/api';
 
 export interface ServerConfig {
-  cusumEnabled: boolean;
+  components: Record<string, boolean>;
   cusumSkipCount: boolean;  // true = filtering out :count metrics
-  zscoreEnabled: boolean;
-  timeClusterEnabled: boolean;
-  leadLagEnabled: boolean;
-  surpriseEnabled: boolean;
-  graphSketchEnabled: boolean;
-  dedupEnabled: boolean;
 }
 
 export interface StatusResponse {
@@ -32,8 +26,9 @@ export interface ScenarioInfo {
 
 export interface ComponentInfo {
   name: string;
-  type: 'log_processor' | 'ts_analysis' | 'anomaly_processor';
-  description?: string;
+  displayName: string;
+  category: 'analyzer' | 'correlator' | 'processing';
+  enabled: boolean;
 }
 
 export interface SeriesInfo {
@@ -109,11 +104,6 @@ export interface LeadLagEdge {
   observations: number;
 }
 
-export interface LeadLagResponse {
-  enabled: boolean;
-  edges: LeadLagEdge[];
-}
-
 // Surprise edge represents unexpected co-occurrence (high lift)
 export interface SurpriseEdge {
   source1: string;
@@ -123,11 +113,6 @@ export interface SurpriseEdge {
   source1_count: number;   // Total anomalies from source1
   source2_count: number;   // Total anomalies from source2
   is_surprising: boolean;  // true if lift > MinLift
-}
-
-export interface SurpriseResponse {
-  enabled: boolean;
-  edges: SurpriseEdge[];
 }
 
 // GraphSketch edge represents learned co-occurrence patterns
@@ -140,32 +125,15 @@ export interface GraphSketchEdge {
   FirstSeenUnix: number;
 }
 
-export interface GraphSketchResponse {
+// Generic correlator data response
+export interface CorrelatorDataResponse {
   enabled: boolean;
-  edges: GraphSketchEdge[];
+  data: unknown;
 }
 
 // Stats response from correlators
 export interface CorrelatorStats {
-  leadlag?: {
-    enabled: boolean;
-    edgeCount: number;
-    sourceCount: number;
-  };
-  surprise?: {
-    enabled: boolean;
-    edgeCount: number;
-    totalWindows: number;
-  };
-  graphsketch?: {
-    enabled: boolean;
-    edgeCount: number;
-    signalCount: number;
-  };
-  timecluster?: {
-    enabled: boolean;
-    clusterCount: number;
-  };
+  [key: string]: Record<string, unknown>;
 }
 
 class ApiClient {
@@ -196,6 +164,12 @@ class ApiClient {
     return this.fetch('/components');
   }
 
+  async toggleComponent(name: string): Promise<StatusResponse> {
+    return this.fetch(`/components/${encodeURIComponent(name)}/toggle`, {
+      method: 'POST',
+    });
+  }
+
   async getSeries(): Promise<SeriesInfo[]> {
     return this.fetch('/series');
   }
@@ -213,15 +187,20 @@ class ApiClient {
     return this.fetch('/correlations');
   }
 
-  async getLeadLag(): Promise<LeadLagResponse> {
+  async getCorrelatorData(name: string): Promise<CorrelatorDataResponse> {
+    return this.fetch(`/correlators/${encodeURIComponent(name)}`);
+  }
+
+  // Legacy endpoints (thin wrappers for backward compat)
+  async getLeadLag(): Promise<{ enabled: boolean; edges: LeadLagEdge[] }> {
     return this.fetch('/leadlag');
   }
 
-  async getSurprise(): Promise<SurpriseResponse> {
+  async getSurprise(): Promise<{ enabled: boolean; edges: SurpriseEdge[] }> {
     return this.fetch('/surprise');
   }
 
-  async getGraphSketch(): Promise<GraphSketchResponse> {
+  async getGraphSketch(): Promise<{ enabled: boolean; edges: GraphSketchEdge[] }> {
     return this.fetch('/graphsketch');
   }
 

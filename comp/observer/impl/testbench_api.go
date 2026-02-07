@@ -47,6 +47,8 @@ func (api *TestBenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/graphsketch", api.cors(api.handleGraphSketch))
 	mux.HandleFunc("/api/stats", api.cors(api.handleStats))
 	mux.HandleFunc("/api/config", api.cors(api.handleConfigUpdate))
+	mux.HandleFunc("/api/components/", api.cors(api.handleComponentAction))
+	mux.HandleFunc("/api/correlators/", api.cors(api.handleCorrelatorData))
 
 	api.server = &http.Server{
 		Addr:    addr,
@@ -158,7 +160,7 @@ func (api *TestBenchAPI) handleSeriesList(w http.ResponseWriter, r *http.Request
 	var allSeries []seriesInfo
 
 	// Get series from all namespaces with both aggregations
-	for _, ns := range []string{"parquet", "logs", "demo"} {
+	for _, ns := range storage.Namespaces() {
 		for _, agg := range []Aggregate{AggregateAverage, AggregateCount} {
 			series := storage.AllSeries(ns, agg)
 			for _, s := range series {
@@ -438,6 +440,44 @@ func (api *TestBenchAPI) handleGraphSketch(w http.ResponseWriter, r *http.Reques
 func (api *TestBenchAPI) handleStats(w http.ResponseWriter, r *http.Request) {
 	stats := api.tb.GetCorrelatorStats()
 	api.writeJSON(w, stats)
+}
+
+// handleComponentAction handles POST /api/components/{name}/toggle.
+func (api *TestBenchAPI) handleComponentAction(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/components/")
+	parts := strings.Split(path, "/")
+	if len(parts) < 2 {
+		api.writeError(w, http.StatusBadRequest, "expected /api/components/{name}/{action}")
+		return
+	}
+
+	name := parts[0]
+	action := parts[1]
+
+	switch action {
+	case "toggle":
+		if r.Method != "POST" {
+			api.writeError(w, http.StatusMethodNotAllowed, "use POST to toggle")
+			return
+		}
+		if err := api.tb.ToggleComponent(name); err != nil {
+			api.writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		api.writeJSON(w, api.tb.GetStatus())
+	default:
+		api.writeError(w, http.StatusBadRequest, "unknown action: "+action)
+	}
+}
+
+// handleCorrelatorData handles GET /api/correlators/{name}.
+func (api *TestBenchAPI) handleCorrelatorData(w http.ResponseWriter, r *http.Request) {
+	name := strings.TrimPrefix(r.URL.Path, "/api/correlators/")
+	data, enabled := api.tb.GetCorrelatorData(name)
+	api.writeJSON(w, map[string]interface{}{
+		"enabled": enabled,
+		"data":    data,
+	})
 }
 
 // handleConfigUpdate handles POST /api/config to update server configuration.

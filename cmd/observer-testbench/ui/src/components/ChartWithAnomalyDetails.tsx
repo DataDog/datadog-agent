@@ -54,6 +54,14 @@ export function ChartWithAnomalyDetails({
     return v.toFixed(decimals);
   };
 
+  const formatFieldName = (key: string) => {
+    // Convert camelCase to Title Case: "baselineMean" -> "Baseline Mean"
+    return key
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/^./, (s) => s.toUpperCase())
+      .trim();
+  };
+
   // Filter anomalies by enabled analyzers
   const filteredAnomalies = anomalies.filter((a) => enabledAnalyzers.has(a.analyzerName));
 
@@ -83,7 +91,6 @@ export function ChartWithAnomalyDetails({
             {filteredAnomalies.map((anomaly, idx) => {
               const isExpanded = expandedIndex === idx;
               const debug = anomaly.debugInfo;
-              const isCUSUM = anomaly.analyzerName === 'cusum_detector';
 
               return (
                 <div key={`${anomaly.analyzerName}-${anomaly.timestamp}-${idx}`} className="text-xs">
@@ -92,12 +99,8 @@ export function ChartWithAnomalyDetails({
                     onClick={() => setExpandedIndex(isExpanded ? null : idx)}
                     className="w-full text-left flex items-center gap-2 py-1 hover:bg-slate-700/50 rounded px-1 -mx-1"
                   >
-                    <span
-                      className={`px-1.5 py-0.5 rounded text-[10px] ${
-                        isCUSUM ? 'bg-red-900/50 text-red-400' : 'bg-blue-900/50 text-blue-400'
-                      }`}
-                    >
-                      {isCUSUM ? 'CUSUM' : 'Z-Score'}
+                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-700 text-slate-300">
+                      {anomaly.analyzerName}
                     </span>
                     <span className="text-slate-400">
                       {formatTimestamp(anomaly.timestamp)}
@@ -108,35 +111,34 @@ export function ChartWithAnomalyDetails({
                     <span className="text-slate-500">{isExpanded ? '▼' : '▶'}</span>
                   </button>
 
-                  {/* Expanded details */}
+                  {/* Expanded details - rendered generically */}
                   {isExpanded && debug && (
                     <div className="ml-1 mt-1 mb-2 p-2 bg-slate-900/50 rounded border border-slate-700/50">
                       <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                        <div className="text-slate-500">Baseline:</div>
-                        <div className="text-slate-300">
-                          {isCUSUM
-                            ? `μ=${formatValue(debug.baselineMean)}, σ=${formatValue(debug.baselineStddev)}`
-                            : `median=${formatValue(debug.baselineMedian)}, MAD=${formatValue(debug.baselineMAD)}`}
-                        </div>
-                        <div className="text-slate-500">Threshold:</div>
-                        <div className="text-slate-300">{formatValue(debug.threshold)}</div>
-                        {isCUSUM && debug.slackParam !== undefined && (
-                          <>
-                            <div className="text-slate-500">Slack (k):</div>
-                            <div className="text-slate-300">{formatValue(debug.slackParam)}</div>
-                          </>
-                        )}
-                        <div className="text-slate-500">Value at trigger:</div>
-                        <div className="text-slate-300">{formatValue(debug.currentValue)}</div>
-                        <div className="text-slate-500">Deviation:</div>
-                        <div className={debug.deviationSigma > 0 ? 'text-red-400' : 'text-blue-400'}>
-                          {debug.deviationSigma > 0 ? '+' : ''}
-                          {formatValue(debug.deviationSigma)}σ
-                        </div>
+                        {Object.entries(debug).map(([key, value]) => {
+                          // Skip array fields in the grid (rendered separately below)
+                          if (Array.isArray(value)) return null;
+                          // Skip zero/null values
+                          if (value === 0 && key !== 'deviationSigma') return null;
+                          return (
+                            <div key={key} className="contents">
+                              <div className="text-slate-500">{formatFieldName(key)}:</div>
+                              <div className={
+                                key === 'deviationSigma'
+                                  ? (typeof value === 'number' && value > 0 ? 'text-red-400' : 'text-blue-400')
+                                  : 'text-slate-300'
+                              }>
+                                {key === 'deviationSigma'
+                                  ? `${typeof value === 'number' && value > 0 ? '+' : ''}${formatValue(value as number)}σ`
+                                  : formatValue(value as number)}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
 
-                      {/* CUSUM sparkline */}
-                      {isCUSUM && debug.cusumValues && debug.cusumValues.length > 1 && (
+                      {/* CUSUM sparkline - gated on field existence, not algorithm name */}
+                      {debug.cusumValues && debug.cusumValues.length > 1 && (
                         <div className="mt-2">
                           <div className="text-slate-500 mb-1">CUSUM accumulator:</div>
                           <CUSUMSparkline values={debug.cusumValues} threshold={debug.threshold} />
