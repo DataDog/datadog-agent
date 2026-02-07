@@ -36,15 +36,16 @@ type Config struct {
 
 // ConfigParams instance contains config relayed parameters
 type ConfigParams struct {
-	AWS       AWS    `yaml:"aws"`
-	Azure     Azure  `yaml:"azure"`
-	GCP       GCP    `yaml:"gcp"`
-	Local     Local  `yaml:"local"`
-	Agent     Agent  `yaml:"agent"`
-	OutputDir string `yaml:"outputDir"`
-	Pulumi    Pulumi `yaml:"pulumi"`
-	DevMode   string `yaml:"devMode"`
-	DevLocal  string `yaml:"devLocal"`
+	AWS         AWS    `yaml:"aws"`
+	Azure       Azure  `yaml:"azure"`
+	GCP         GCP    `yaml:"gcp"`
+	Local       Local  `yaml:"local"`
+	Agent       Agent  `yaml:"agent"`
+	OutputDir   string `yaml:"outputDir"`
+	Pulumi      Pulumi `yaml:"pulumi"`
+	DevMode     string `yaml:"devMode"`
+	DevLocal    string `yaml:"devLocal"`
+	Provisioner string `yaml:"provisioner"`
 }
 
 // AWS instance contains AWS related parameters
@@ -203,6 +204,8 @@ func (s configFileValueStore) get(key StoreKey) (string, error) {
 		value = s.config.ConfigParams.DevMode
 	case DevLocal:
 		value = s.config.ConfigParams.DevLocal
+	case Provisioner:
+		value = s.config.ConfigParams.Provisioner
 	}
 
 	if value == "" {

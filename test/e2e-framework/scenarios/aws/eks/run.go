@@ -204,5 +204,14 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env output
 			return err
 		}
 	}
+
+	// Deploy agent-dependent workloads (these depend on the agent being ready)
+	for _, appFunc := range params.agentDependentWorkloadAppFuncs {
+		_, err := appFunc(&awsEnv, cluster.KubeProvider, dependsOnDDAgent)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

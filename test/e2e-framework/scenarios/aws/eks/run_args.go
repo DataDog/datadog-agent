@@ -26,16 +26,17 @@ const (
 
 // RunParams collects high-level scenario parameters for the EKS scenario.
 type RunParams struct {
-	Name               string
-	vmOptions          []ec2.VMOption
-	agentOptions       []kubernetesagentparams.Option
-	fakeintakeOptions  []fakeintake.Option
-	eksOptions         []Option
-	extraConfigParams  runner.ConfigMap
-	workloadAppFuncs   []kubecomp.WorkloadAppFunc
-	operatorOptions    []operatorparams.Option
-	operatorDDAOptions []agentwithoperatorparams.Option
-	ciliumOptions      []cilium.Option
+	Name                          string
+	vmOptions                     []ec2.VMOption
+	agentOptions                  []kubernetesagentparams.Option
+	fakeintakeOptions             []fakeintake.Option
+	eksOptions                    []Option
+	extraConfigParams             runner.ConfigMap
+	workloadAppFuncs              []kubecomp.WorkloadAppFunc
+	agentDependentWorkloadAppFuncs []kubecomp.AgentDependentWorkloadAppFunc
+	operatorOptions               []operatorparams.Option
+	operatorDDAOptions            []agentwithoperatorparams.Option
+	ciliumOptions                 []cilium.Option
 
 	eksLinuxNodeGroup        bool
 	eksLinuxARMNodeGroup     bool
@@ -52,16 +53,17 @@ type RunOption = func(*RunParams) error
 
 func GetRunParams(opts ...RunOption) *RunParams {
 	params := &RunParams{
-		Name:               defaultEKSName,
-		vmOptions:          []ec2.VMOption{},
-		agentOptions:       []kubernetesagentparams.Option{},
-		fakeintakeOptions:  []fakeintake.Option{},
-		eksOptions:         []Option{},
-		extraConfigParams:  runner.ConfigMap{},
-		workloadAppFuncs:   []kubecomp.WorkloadAppFunc{},
-		operatorOptions:    []operatorparams.Option{},
-		operatorDDAOptions: []agentwithoperatorparams.Option{},
-		ciliumOptions:      []cilium.Option{},
+		Name:                           defaultEKSName,
+		vmOptions:                      []ec2.VMOption{},
+		agentOptions:                   []kubernetesagentparams.Option{},
+		fakeintakeOptions:              []fakeintake.Option{},
+		eksOptions:                     []Option{},
+		extraConfigParams:              runner.ConfigMap{},
+		workloadAppFuncs:               []kubecomp.WorkloadAppFunc{},
+		agentDependentWorkloadAppFuncs: []kubecomp.AgentDependentWorkloadAppFunc{},
+		operatorOptions:                []operatorparams.Option{},
+		operatorDDAOptions:             []agentwithoperatorparams.Option{},
+		ciliumOptions:                  []cilium.Option{},
 	}
 	err := optional.ApplyOptions(params, opts)
 	if err != nil {
@@ -186,6 +188,14 @@ func WithExtraConfigParams(configMap runner.ConfigMap) RunOption {
 func WithWorkloadApp(appFunc kubecomp.WorkloadAppFunc) RunOption {
 	return func(params *RunParams) error {
 		params.workloadAppFuncs = append(params.workloadAppFuncs, appFunc)
+		return nil
+	}
+}
+
+// WithAgentDependentWorkloadApp adds a workload app that depends on the agent being deployed first
+func WithAgentDependentWorkloadApp(appFunc kubecomp.AgentDependentWorkloadAppFunc) RunOption {
+	return func(params *RunParams) error {
+		params.agentDependentWorkloadAppFuncs = append(params.agentDependentWorkloadAppFuncs, appFunc)
 		return nil
 	}
 }
