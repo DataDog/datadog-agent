@@ -842,6 +842,9 @@ func (tb *TestBench) GetCorrelatorStats() map[string]interface{} {
 	defer tb.mu.RUnlock()
 
 	stats := make(map[string]interface{})
+	if tb.timeClusterCorrelator != nil {
+		stats["time_cluster"] = tb.timeClusterCorrelator.GetStats()
+	}
 	if tb.leadLagCorrelator != nil {
 		stats["lead_lag"] = tb.leadLagCorrelator.GetStats()
 	}
