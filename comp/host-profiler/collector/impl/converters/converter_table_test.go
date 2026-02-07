@@ -14,12 +14,20 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
 	"gopkg.in/yaml.v3"
 )
 
 var updateGolden = flag.Bool("update", false, "update golden test files")
+
+const testVersion = "7.0.0-test"
+
+func init() {
+	// Override version for tests to ensure golden files are version-independent
+	version.AgentVersion = testVersion
+}
 
 // converter is an interface that both converterWithAgent and converterWithoutAgent implement
 type converter interface {
