@@ -572,6 +572,7 @@
 /pkg/util/docker/                       @DataDog/container-integrations
 /pkg/util/ecs/                          @DataDog/ecs-experiences
 /pkg/util/fargate/                      @DataDog/ecs-experiences
+/pkg/util/filesystem/                   @DataDog/agent-runtimes @DataDog/agent-configuration
 /pkg/util/funcs/                        @DataDog/ebpf-platform
 /pkg/util/gpu/                          @DataDog/container-platform
 /pkg/util/installinfo/                  @DataDog/agent-configuration
