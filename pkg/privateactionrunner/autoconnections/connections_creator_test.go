@@ -158,7 +158,7 @@ func TestAutoCreateConnections_AllBundlesSuccess(t *testing.T) {
 	}))
 	defer server.Close()
 
-	allowlist := []string{"com.datadoghq.http.request", "com.datadoghq.kubernetes.core.getPod", "com.datadoghq.script.runPredefinedScript"}
+	bundleAllowlist := []string{"com.datadoghq.http", "com.datadoghq.kubernetes.core", "com.datadoghq.script"}
 
 	// Use server's client which is pre-configured for TLS
 	testClient := &ConnectionsClient{
@@ -168,12 +168,14 @@ func TestAutoCreateConnections_AllBundlesSuccess(t *testing.T) {
 		appKey:     "test-app-key",
 	}
 
-	creator := NewConnectionsCreator(*testClient)
+	creator := ConnectionsCreator{
+		client: *testClient,
+	}
 
 	runnerID := "144500f1-474a-4856-aa0a-6fd22e005893"
 	runnerName := "runner-abc123"
 
-	err := creator.AutoCreateConnections(context.Background(), runnerID, runnerName, allowlist)
+	err := creator.AutoCreateConnections(context.Background(), runnerID, runnerName, bundleAllowlist)
 
 	require.NoError(t, err, "AutoCreateConnections should return nil")
 	assert.Len(t, createdConnections, 3, "Should create 3 connections")
@@ -205,7 +207,7 @@ func TestAutoCreateConnections_PartialFailures(t *testing.T) {
 	}))
 	defer server.Close()
 
-	allowlist := []string{"com.datadoghq.http.request", "com.datadoghq.kubernetes.core.getPod", "com.datadoghq.script.runPredefinedScript"}
+	bundleAllowlist := []string{"com.datadoghq.http", "com.datadoghq.kubernetes.core", "com.datadoghq.script"}
 
 	// Use server's client which is pre-configured for TLS
 	testClient := &ConnectionsClient{
@@ -215,12 +217,14 @@ func TestAutoCreateConnections_PartialFailures(t *testing.T) {
 		appKey:     "test-app-key",
 	}
 
-	creator := NewConnectionsCreator(*testClient)
+	creator := ConnectionsCreator{
+		client: *testClient,
+	}
 
 	runnerID := "144500f1-474a-4856-aa0a-6fd22e005893"
 	runnerName := "runner-abc123"
 
-	err := creator.AutoCreateConnections(context.Background(), runnerID, runnerName, allowlist)
+	err := creator.AutoCreateConnections(context.Background(), runnerID, runnerName, bundleAllowlist)
 
 	// Should return nil even with failures (non-blocking)
 	require.NoError(t, err, "AutoCreateConnections should not propagate errors")
@@ -238,7 +242,7 @@ func TestAutoCreateConnections_NoRelevantBundles(t *testing.T) {
 	}))
 	defer server.Close()
 
-	allowlist := []string{"com.datadoghq.gitlab.issues.getIssue"} // No matching bundles
+	bundleAllowlist := []string{"com.datadoghq.gitlab.issues"} // No matching bundles
 
 	// Use server's client which is pre-configured for TLS
 	testClient := &ConnectionsClient{
@@ -253,7 +257,7 @@ func TestAutoCreateConnections_NoRelevantBundles(t *testing.T) {
 	runnerID := "144500f1-474a-4856-aa0a-6fd22e005893"
 	runnerName := "runner-abc123"
 
-	err := creator.AutoCreateConnections(context.Background(), runnerID, runnerName, allowlist)
+	err := creator.AutoCreateConnections(context.Background(), runnerID, runnerName, bundleAllowlist)
 
 	require.NoError(t, err, "AutoCreateConnections should return nil")
 	assert.Equal(t, 0, requestCount, "Should not make any HTTP requests")
@@ -272,7 +276,7 @@ func TestAutoCreateConnections_PartialAllowlist(t *testing.T) {
 	}))
 	defer server.Close()
 
-	allowlist := []string{"com.datadoghq.http.request", "com.datadoghq.script.runPredefinedScript"} // Only HTTP and Script
+	bundleAllowlist := []string{"com.datadoghq.http", "com.datadoghq.script"} // Only HTTP and Script
 
 	// Use server's client which is pre-configured for TLS
 	testClient := &ConnectionsClient{
@@ -282,12 +286,14 @@ func TestAutoCreateConnections_PartialAllowlist(t *testing.T) {
 		appKey:     "test-app-key",
 	}
 
-	creator := NewConnectionsCreator(*testClient)
+	creator := ConnectionsCreator{
+		client: *testClient,
+	}
 
 	runnerID := "144500f1-474a-4856-aa0a-6fd22e005893"
 	runnerName := "runner-abc123"
 
-	err := creator.AutoCreateConnections(context.Background(), runnerID, runnerName, allowlist)
+	err := creator.AutoCreateConnections(context.Background(), runnerID, runnerName, bundleAllowlist)
 
 	require.NoError(t, err, "AutoCreateConnections should return nil")
 	assert.Len(t, createdConnections, 2, "Should create 2 connections")
