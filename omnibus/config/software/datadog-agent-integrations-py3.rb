@@ -228,6 +228,15 @@ build do
   # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
   command "#{python} -m pip check"
 
+  # Remove documentation from botocore to reduce package size
+  block "Remove botocore documentation" do
+    botocore_data_path = "#{site_packages_path}/botocore/data"
+    if File.exist?(botocore_data_path)
+      remove_docs_script = File.expand_path("../../scripts/remove_botocore_docs.py", __FILE__)
+      shellout! "#{python} #{remove_docs_script} #{botocore_data_path}"
+    end
+  end
+
   # Removing tests that don't need to be shipped in the embedded folder
   # This dependency doesn't come from the integrations-core lockfiles, so its tests need to be removed here
   delete "#{site_packages_path}/../idlelib/idle_test/"
