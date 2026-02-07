@@ -55,6 +55,10 @@ type TestBench struct {
 	correlations []observerdef.ActiveCorrelation        // from anomaly processors
 	byAnalyzer   map[string][]observerdef.AnomalyOutput // anomalies grouped by analyzer
 
+	// Async correlator processing
+	correlatorsProcessing bool  // true while background correlator goroutine is running
+	correlatorGen         int64 // generation counter, incremented each rerun
+
 	// API server
 	api *TestBenchAPI
 }
@@ -78,12 +82,13 @@ type ComponentInfo struct {
 
 // StatusResponse is the response for /api/status.
 type StatusResponse struct {
-	Ready          bool         `json:"ready"`
-	Scenario       string       `json:"scenario,omitempty"`
-	SeriesCount    int          `json:"seriesCount"`
-	AnomalyCount   int          `json:"anomalyCount"`
-	ComponentCount int          `json:"componentCount"`
-	ServerConfig   ServerConfig `json:"serverConfig"`
+	Ready                 bool         `json:"ready"`
+	Scenario              string       `json:"scenario,omitempty"`
+	SeriesCount           int          `json:"seriesCount"`
+	AnomalyCount          int          `json:"anomalyCount"`
+	ComponentCount        int          `json:"componentCount"`
+	CorrelatorsProcessing bool         `json:"correlatorsProcessing"`
+	ServerConfig          ServerConfig `json:"serverConfig"`
 }
 
 // ServerConfig exposes server-side configuration to the UI.
@@ -272,13 +277,11 @@ func (tb *TestBench) LoadScenario(name string) error {
 	}
 	fmt.Printf("  Event loading took %s\n", time.Since(eventsStart))
 
-	// Run analyses on all loaded data
+	// Run analyses on all loaded data (analyzers sync, correlators async)
 	analysisStart := time.Now()
-	tb.runAnalyses()
-	fmt.Printf("  Analyses took %s\n", time.Since(analysisStart))
-	fmt.Printf("  Total scenario load took %s\n", time.Since(scenarioStart))
-
-	tb.ready = true
+	tb.rerunAnalysesLocked()
+	fmt.Printf("  Analyzer phase took %s\n", time.Since(analysisStart))
+	fmt.Printf("  Total scenario load took %s (correlators running in background)\n", time.Since(scenarioStart))
 	fmt.Printf("Scenario loaded: %d series, %d anomalies\n", tb.seriesCount(), len(tb.anomalies))
 
 	return nil
@@ -414,93 +417,6 @@ func (tb *TestBench) resetAllProcessors() {
 	}
 }
 
-// runAnalyses runs all time series analyses on all stored series.
-func (tb *TestBench) runAnalyses() {
-	analyzers := tb.enabledAnalyzers()
-	correlators := tb.enabledCorrelators()
-	dedup := tb.getDeduplicator()
-
-	// Collect all series from all namespaces
-	collectStart := time.Now()
-	var allSeries []observerdef.Series
-	for _, agg := range []Aggregate{AggregateAverage, AggregateCount} {
-		for _, ns := range tb.storage.Namespaces() {
-			series := tb.storage.AllSeries(ns, agg)
-			for _, s := range series {
-				sCopy := s
-				sCopy.Name = s.Name + ":" + aggSuffix(agg)
-				allSeries = append(allSeries, sCopy)
-			}
-		}
-	}
-	fmt.Printf("    Collect series: %s\n", time.Since(collectStart))
-
-	fmt.Printf("  Running analyses on %d series\n", len(allSeries))
-
-	// Run analyses
-	analyzerTime := make(map[string]time.Duration)
-	processorTime := make(map[string]time.Duration)
-	dedupedCount := 0
-	for _, series := range allSeries {
-		for _, analysis := range analyzers {
-			t0 := time.Now()
-			result := analysis.Analyze(series)
-			analyzerTime[analysis.Name()] += time.Since(t0)
-			for _, anomaly := range result.Anomalies {
-				anomaly.AnalyzerName = analysis.Name()
-				tb.anomalies = append(tb.anomalies, anomaly)
-
-				// Group by analyzer
-				tb.byAnalyzer[anomaly.AnalyzerName] = append(tb.byAnalyzer[anomaly.AnalyzerName], anomaly)
-
-				// Apply deduplication if enabled
-				if dedup != nil {
-					if !dedup.ShouldProcess(anomaly.Source, anomaly.Timestamp) {
-						dedupedCount++
-						continue // Skip duplicate
-					}
-				}
-
-				// Send to enabled anomaly processors
-				for _, proc := range correlators {
-					t1 := time.Now()
-					proc.Process(anomaly)
-					processorTime[proc.Name()] += time.Since(t1)
-				}
-			}
-		}
-	}
-
-	for name, d := range analyzerTime {
-		fmt.Printf("    Analyzer %s: %s\n", name, d)
-	}
-	for name, d := range processorTime {
-		fmt.Printf("    Processor %s: %s\n", name, d)
-	}
-
-	if dedup != nil && dedupedCount > 0 {
-		fmt.Printf("    Deduplication: filtered %d duplicate anomalies\n", dedupedCount)
-	}
-
-	// Flush processors to get correlations
-	flushStart := time.Now()
-	for _, proc := range correlators {
-		proc.Flush()
-	}
-	fmt.Printf("    Processor flush: %s\n", time.Since(flushStart))
-
-	// Collect correlations from processors that support it
-	collectCorrelationsStart := time.Now()
-	for _, proc := range correlators {
-		if cs, ok := proc.(interface {
-			ActiveCorrelations() []observerdef.ActiveCorrelation
-		}); ok {
-			tb.correlations = append(tb.correlations, cs.ActiveCorrelations()...)
-		}
-	}
-	fmt.Printf("    Collect correlations: %s\n", time.Since(collectCorrelationsStart))
-}
-
 // GetStatus returns the current status.
 func (tb *TestBench) GetStatus() StatusResponse {
 	tb.mu.RLock()
@@ -512,11 +428,12 @@ func (tb *TestBench) GetStatus() StatusResponse {
 	}
 
 	return StatusResponse{
-		Ready:          tb.ready,
-		Scenario:       tb.loadedScenario,
-		SeriesCount:    tb.seriesCount(),
-		AnomalyCount:   len(tb.anomalies),
-		ComponentCount: len(tb.logProcessors) + len(tb.components),
+		Ready:                 tb.ready,
+		Scenario:              tb.loadedScenario,
+		SeriesCount:           tb.seriesCount(),
+		AnomalyCount:          len(tb.anomalies),
+		ComponentCount:        len(tb.logProcessors) + len(tb.components),
+		CorrelatorsProcessing: tb.correlatorsProcessing,
 		ServerConfig: ServerConfig{
 			Components:     compMap,
 			CUSUMSkipCount: !tb.config.CUSUMIncludeCount,
@@ -577,6 +494,8 @@ func (tb *TestBench) UpdateConfigAndReanalyze(req ConfigUpdateRequest) error {
 }
 
 // rerunAnalysesLocked re-runs all analyses on current data. Caller must hold lock.
+// Analyzers run synchronously (fast), then correlators run asynchronously in a
+// background goroutine so the UI is not blocked by slow correlators like GraphSketch.
 func (tb *TestBench) rerunAnalysesLocked() {
 	// Clear existing results
 	tb.anomalies = tb.anomalies[:0]
@@ -589,10 +508,9 @@ func (tb *TestBench) rerunAnalysesLocked() {
 	tb.resetAllProcessors()
 
 	analyzers := tb.enabledAnalyzers()
-	correlators := tb.enabledCorrelators()
 	dedup := tb.getDeduplicator()
 
-	// Re-run time series analyses
+	// Phase 1 (sync): Run time series analyzers to collect anomalies
 	for _, ns := range tb.storage.Namespaces() {
 		for _, agg := range []Aggregate{AggregateAverage, AggregateCount} {
 			allSeries := tb.storage.AllSeries(ns, agg)
@@ -615,30 +533,60 @@ func (tb *TestBench) rerunAnalysesLocked() {
 
 						tb.anomalies = append(tb.anomalies, anomaly)
 						tb.byAnalyzer[anomaly.AnalyzerName] = append(tb.byAnalyzer[anomaly.AnalyzerName], anomaly)
-
-						// Send to enabled anomaly processors
-						for _, proc := range correlators {
-							proc.Process(anomaly)
-						}
 					}
 				}
 			}
 		}
 	}
 
-	// Flush processors to get correlations
-	for _, proc := range correlators {
-		proc.Flush()
-	}
+	// Mark scenario ready now that analyzers are done — anomalies are available
+	tb.ready = true
 
-	// Collect correlations
-	for _, proc := range correlators {
-		if cs, ok := proc.(interface {
-			ActiveCorrelations() []observerdef.ActiveCorrelation
-		}); ok {
-			tb.correlations = append(tb.correlations, cs.ActiveCorrelations()...)
+	// Snapshot anomalies and enabled correlators for the background goroutine
+	anomalySnapshot := make([]observerdef.AnomalyOutput, len(tb.anomalies))
+	copy(anomalySnapshot, tb.anomalies)
+	correlators := tb.enabledCorrelators()
+
+	// Phase 2 (async): Run correlators in a background goroutine
+	tb.correlatorGen++
+	gen := tb.correlatorGen
+	tb.correlatorsProcessing = true
+
+	go func() {
+		// Process all anomalies through each correlator.
+		// Each correlator has its own internal mutex, so this is thread-safe.
+		for _, anomaly := range anomalySnapshot {
+			for _, proc := range correlators {
+				proc.Process(anomaly)
+			}
 		}
-	}
+
+		// Flush processors
+		for _, proc := range correlators {
+			proc.Flush()
+		}
+
+		// Collect correlations under lock
+		tb.mu.Lock()
+		defer tb.mu.Unlock()
+
+		// Check if a newer rerun has superseded us
+		if tb.correlatorGen != gen {
+			return // Stale — a newer rerun is in progress or completed
+		}
+
+		// Update correlations from processors
+		tb.correlations = tb.correlations[:0]
+		for _, proc := range correlators {
+			if cs, ok := proc.(interface {
+				ActiveCorrelations() []observerdef.ActiveCorrelation
+			}); ok {
+				tb.correlations = append(tb.correlations, cs.ActiveCorrelations()...)
+			}
+		}
+
+		tb.correlatorsProcessing = false
+	}()
 }
 
 // GetComponents returns all registered components.
@@ -759,6 +707,13 @@ func (tb *TestBench) GetCorrelatorStats() map[string]interface{} {
 	return stats
 }
 
+// IsCorrelatorsProcessing returns true if correlators are running in the background.
+func (tb *TestBench) IsCorrelatorsProcessing() bool {
+	tb.mu.Lock()
+	defer tb.mu.Unlock()
+	return tb.correlatorsProcessing
+}
+
 // ToggleComponent toggles a component's enabled state and re-runs analyses if needed.
 func (tb *TestBench) ToggleComponent(name string) error {
 	tb.mu.Lock()
@@ -832,11 +787,9 @@ func (tb *TestBench) loadDemoScenario() error {
 
 	fmt.Printf("  Generated %d seconds of demo data\n", totalSeconds)
 
-	// Run analyses on all loaded data
-	tb.runAnalyses()
-
-	tb.ready = true
-	fmt.Printf("Demo scenario loaded: %d series, %d anomalies\n", tb.seriesCount(), len(tb.anomalies))
+	// Run analyses on all loaded data (analyzers sync, correlators async)
+	tb.rerunAnalysesLocked()
+	fmt.Printf("Demo scenario loaded: %d series, %d anomalies (correlators running in background)\n", tb.seriesCount(), len(tb.anomalies))
 
 	return nil
 }

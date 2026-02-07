@@ -97,7 +97,7 @@ var defaultRegistry = []ComponentRegistration{
 		Name:           "graph_sketch",
 		DisplayName:    "GraphSketch",
 		Category:       "correlator",
-		DefaultEnabled: true,
+		DefaultEnabled: false,
 		Factory: func(_ *TestBench) interface{} {
 			return NewGraphSketchCorrelator(DefaultGraphSketchCorrelatorConfig())
 		},

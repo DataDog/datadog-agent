@@ -13,6 +13,7 @@ export interface StatusResponse {
   seriesCount: number;
   anomalyCount: number;
   componentCount: number;
+  correlatorsProcessing: boolean;
   serverConfig: ServerConfig;
 }
 
