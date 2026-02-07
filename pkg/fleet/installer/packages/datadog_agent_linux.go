@@ -489,6 +489,16 @@ func preInstallExtensionDatadogAgent(ctx HookContext) error {
 
 // postInstallExtensionDatadogAgent runs post-installation steps for agent extensions
 func postInstallExtensionDatadogAgent(ctx HookContext) error {
+	extensionPath := filepath.Join(ctx.PackagePath, "ext", ctx.Extension)
+
+	// Set ownership recursively to dd-agent:dd-agent for all extensions
+	extensionPermissions := file.Permissions{
+		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
+	}
+	if err := extensionPermissions.Ensure(ctx, extensionPath); err != nil {
+		return fmt.Errorf("failed to set extension ownerships: %v", err)
+	}
+
 	switch ctx.Extension {
 	case "ddot":
 		return postInstallDDOTExtension(ctx)
