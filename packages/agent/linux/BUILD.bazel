@@ -1,5 +1,6 @@
 """Agent package components specific to linux."""
 
+load("@rules_pkg//pkg:deb.bzl", "pkg_deb")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load(
     "@rules_pkg//pkg:mappings.bzl",
@@ -7,13 +8,15 @@ load(
     "pkg_filegroup",
     "pkg_mkdirs",
 )
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("//bazel/rules:dd_agent_pkg_mklink.bzl", "dd_agent_pkg_mklink")
 load("//compliance:package_licenses.bzl", "package_licenses")
 
 package(default_visibility = ["//packages:__subpackages__"])
 
 # This is a placeholder for an eventual group containg (the future) top level binaries
-# such as //cmd/agent:agent
+# such as //cmd/agent:agent.  The individual items here will become dependencies of
+# those targets.
 filegroup(
     name = "all_deps",
     srcs = [
@@ -30,6 +33,69 @@ filegroup(
 package_licenses(
     name = "license_files",
     src = ":all_deps",
+)
+
+# This is good enough for today. It will go away as part of
+# https://datadoghq.atlassian.net/browse/ABLD-363
+pkg_filegroup(
+    name = "whole_distro",
+    srcs = [
+        ":license_files",
+        "//deps/msodbcsql18:all_files",
+        "//deps/nfsiostat:all_files",
+        "//deps/openscap:all_files",
+        "//packages/install_dir:embedded",
+        "//packages/install_dir:etc",
+        "@freetds//:all_files",
+        "@krb5//:all_files",
+        "@nghttp2//:all_files",
+    ],
+    prefix = "/opt/datadog-agent",
+)
+
+pkg_tar(
+    name = "whole_distro_tar",
+    srcs = [":whole_distro"] + select({
+        "//:is_standard_install": [
+            ":datadog_agent_installer_symlinks",
+        ],
+        "//conditions:default": [],
+    }),
+    extension = "tar.xz",
+    # TODO: account for pipeline injected compression level.
+    # https://datadoghq.atlassian.net/browse/ABLD-364
+    # compression_threads COMPRESSION_THREADS
+    # compression_level COMPRESSION_LEVEL
+    owner = "0.0",
+)
+
+# TODO: Look at omnibus/config/projects/agent.rb for more content here.
+pkg_deb(
+    name = "debian",
+    data = ":whole_distro_tar",
+    description = """Datadog Monitoring Agent
+The Datadog Monitoring Agent is a lightweight process that monitors system
+processes and services, and sends information back to your Datadog account.
+.
+This package installs and runs the advanced Agent daemon, which queues and
+forwards metrics from your applications as well as system services.
+.
+See http://www.datadoghq.com/ for more information
+""",
+    # epoch 1
+    # vendor = "Datadog <package@datadoghq.com>",
+    license = "Apache License Version 2.0",
+    maintainer = "Datadog Packages <package@datadoghq.com>",
+    package = "datadog-agent",
+    priority = "extra",
+    section = "utils",
+    version = "7",
+
+    # This does not make sense for architecture, but for testing, compilation
+    # mode is more stable than cpu.
+    # architecture = "$(COMPILATION_MODE)",
+    # config = "config",
+    #distribution = "trusty",
 )
 
 # Replacement for datadog-agent-installer-symlinks.rb
@@ -76,6 +142,7 @@ dd_agent_pkg_mklink(
 pkg_filegroup(
     name = "datadog_agent_installer_symlinks",
     srcs = [
+        ":dirs",
         ":experiment_link",
         ":stable_link",
         ":version_to_install_link",
