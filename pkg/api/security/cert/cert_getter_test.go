@@ -439,7 +439,7 @@ func TestBuildClusterClientTLSConfig_ValidationError(t *testing.T) {
 	config, err := caData.buildClusterClientTLSConfig()
 	assert.Error(t, err)
 	assert.Nil(t, config)
-	assert.Contains(t, err.Error(), "cluster_trust_chain.enable_tls_verification cannot be true")
+	assert.Contains(t, err.Error(), "cluster_trust_chain.enable_tls_verification is true but no CA certificate available. Set ca_cert_file_path/ca_key_file_path or ca_cert_secret_name/ca_cert_secret_namespace")
 
 	// Test case: TLS verification disabled - should work fine without CA
 	caDataDisabled := &clusterCAData{

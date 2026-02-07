@@ -70,6 +70,11 @@ type Webhook struct {
 	isKubeletAPILoggingEnabled   bool
 	clusterAgentCmdPort          int
 	clusterAgentServiceName      string
+
+	// TLS verification configuration for Fargate sidecars
+	isTLSVerificationEnabled bool
+	caSecretName             string
+	caSecretNamespace        string
 }
 
 // NewWebhook returns a new Webhook
@@ -104,6 +109,11 @@ func NewWebhook(datadogConfig config.Component) *Webhook {
 		isKubeletAPILoggingEnabled:   datadogConfig.GetBool("admission_controller.agent_sidecar.kubelet_api_logging.enabled"),
 		isLangDetectEnabled:          datadogConfig.GetBool("language_detection.enabled"),
 		isLangDetectReportingEnabled: datadogConfig.GetBool("language_detection.reporting.enabled"),
+
+		// TLS verification configuration for Fargate sidecars
+		isTLSVerificationEnabled: datadogConfig.GetBool("admission_controller.agent_sidecar.cluster_agent.tls_verify"),
+		caSecretName:             datadogConfig.GetString("admission_controller.agent_sidecar.cluster_agent.ca_cert_secret_name"),
+		caSecretNamespace:        datadogConfig.GetString("admission_controller.agent_sidecar.cluster_agent.ca_cert_secret_namespace"),
 	}
 }
 
@@ -425,6 +435,25 @@ func (w *Webhook) getDefaultSidecarTemplate() *corev1.Container {
 			Name:  "DD_ORCHESTRATOR_EXPLORER_ENABLED",
 			Value: "true",
 		})
+
+		// Add TLS verification configuration for Fargate sidecars
+		// This allows the sidecar to fetch the CA certificate from a K8s Secret
+		if w.isTLSVerificationEnabled && w.caSecretName != "" && w.caSecretNamespace != "" {
+			_, _ = withEnvOverrides(agentContainer,
+				corev1.EnvVar{
+					Name:  "DD_CLUSTER_TRUST_CHAIN_ENABLE_TLS_VERIFICATION",
+					Value: "true",
+				},
+				corev1.EnvVar{
+					Name:  "DD_CLUSTER_TRUST_CHAIN_CA_CERT_SECRET_NAME",
+					Value: w.caSecretName,
+				},
+				corev1.EnvVar{
+					Name:  "DD_CLUSTER_TRUST_CHAIN_CA_CERT_SECRET_NAMESPACE",
+					Value: w.caSecretNamespace,
+				},
+			)
+		}
 	}
 
 	if w.isKubeletAPILoggingEnabled {
