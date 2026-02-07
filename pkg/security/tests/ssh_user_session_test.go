@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -670,4 +671,171 @@ func TestSSHUserSessionBlocking(t *testing.T) {
 	exitArgs = append(exitArgs, "-O", "exit", host)
 	_ = exec.Command("ssh", exitArgs...).Run()
 
+}
+
+func TestSSHUserSessionSnapshot(t *testing.T) {
+	SkipIfNotAvailable(t)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+
+	isLogFileExist, _, _ := getLogFile()
+	// We skip test when we don't have a log file because we don't use journalctl for now
+	if !isLogFileExist {
+		t.Skip("Skip test if log file does not exist")
+	}
+
+	testUser, err := createTestUser()
+	if err != nil {
+		t.Fatalf("failed to create test user: %v", err)
+	}
+	defer func() {
+		if err := testUser.cleanup(); err != nil {
+			t.Logf("warning: failed to cleanup test user: %v", err)
+		}
+	}()
+
+	cmdChan := make(chan string, 10)
+	stopChan := make(chan struct{})
+	doneChan := make(chan struct{})
+
+	args := []string{
+		"-i", testUser.KeyPath,
+		"-o", "StrictHostKeyChecking=no",
+		"-o", "UserKnownHostsFile=/dev/null",
+		"-o", "PasswordAuthentication=no",
+		"-o", "PubkeyAuthentication=yes",
+		"-o", "LogLevel=ERROR",
+		testUser.Username + "@localhost",
+		"bash -s",
+	}
+
+	cmd := exec.Command("ssh", args...)
+
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		t.Fatalf("Failed to create stdin pipe: %v", err)
+	}
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("Failed to start SSH session: %v", err)
+	}
+	// Go routine to send commands to the SSH session
+	go func() {
+		defer close(doneChan)
+		for {
+			select {
+			case <-stopChan:
+				stdin.Close()
+				if cmd.Process != nil {
+					_ = cmd.Process.Kill()
+					_ = cmd.Wait()
+				}
+				return
+			case command := <-cmdChan:
+				_, err := fmt.Fprintf(stdin, "%s\n", command)
+				if err != nil {
+					t.Logf("Failed to send command '%s': %v", command, err)
+				}
+			}
+		}
+	}()
+
+	defer func() {
+		close(stopChan)
+		<-doneChan
+	}()
+
+	// Wait for ssh session to start
+	time.Sleep(2 * time.Second)
+
+	// Helper to send commands
+	sendCommand := func(command string) {
+		cmdChan <- command
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_ssh_user_session_snapshot",
+			Expression: `exec.file.name != "" && process.comm == "ls"`,
+		},
+	}
+
+	commands := []string{
+		"ls",
+		"whoami",
+		"pwd",
+		"pwd",
+	}
+
+	for _, command := range commands {
+		sendCommand(command)
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, withForceReload())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	t.Run("ssh_session_started_before_agent", func(t *testing.T) {
+		err = test.GetEventSent(t, func() error {
+			sendCommand("ls")
+			commands = append(commands, "ls")
+
+			return nil
+		}, func(_ *rules.Rule, event *model.Event) bool {
+			eventSSHSessionID := event.ProcessContext.UserSession.SSHSessionID
+
+			if eventSSHSessionID == 0 {
+				t.Logf("SSH Session ID is 0 for %s", event.ProcessContext.Comm)
+				return false
+			}
+			// Now we check if we got all the executed commands
+			i := len(commands) - 1
+			ancestor := event.ProcessContext.Ancestor
+			for ancestor != nil && !strings.HasPrefix(ancestor.Comm, "sshd") {
+				if ancestor.UserSession.SSHSessionID != eventSSHSessionID && ancestor.ProcessContext.Comm != commands[i] {
+					t.Logf("SSH Session incorrect: expected %s with id %d, got %s with id %d",
+						ancestor.Comm, ancestor.UserSession.SSHSessionID, event.ProcessContext.Comm, eventSSHSessionID)
+					return false
+				}
+				ancestor = ancestor.Ancestor
+			}
+			// Now we check if we end with sshd
+			if ancestor == nil {
+				t.Log("ancestor is nil")
+				return false
+			}
+			if !strings.HasPrefix(ancestor.Comm, "sshd") || ancestor.UserSession.SSHSessionID != 0 {
+				t.Logf("sshd not found with id 0, got %s with id %d (current session had id %d)", ancestor.Comm, ancestor.UserSession.SSHSessionID, eventSSHSessionID)
+				return false
+			}
+			return true
+		}, time.Second*10, "test_rule_ssh_user_session_snapshot")
+
+		if err != nil {
+			t.Error(err)
+		}
+		err = retry.Do(func() error {
+			msg := test.msgSender.getMsg("test_rule_ssh_user_session_snapshot")
+			if msg == nil {
+				return errors.New("not found")
+			}
+			validateMessageSchema(t, string(msg.Data))
+
+			// Check that the field is unknown since the connection was started before the resolver
+			expectedAuthType := "unknown"
+			expected := &SSHUserSessionExpected{
+				AuthMethod: &expectedAuthType,
+			}
+			checkSSHUserSessionJSON(test, t, msg.Data, expected)
+			return nil
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		assert.NoError(t, err)
+	})
 }
