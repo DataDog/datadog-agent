@@ -6,6 +6,8 @@
 package fleet
 
 import (
+	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -229,17 +231,12 @@ func (s *extensionsSuite) getExtensionPath(pkg, version, extensionName string) s
 
 // getAgentPackageURL returns the platform-specific agent package URL
 func (s *extensionsSuite) getAgentPackageURL() string {
-	// In E2E tests, this would typically point to a test registry or local package
-	// For now, we'll use a placeholder that would be configured in the test environment
-	switch s.Env().RemoteHost.OSFamily {
-	case e2eos.LinuxFamily:
-		return "oci://install.datadoghq.com/datadog-agent:latest"
-	case e2eos.WindowsFamily:
-		return "oci://install.datadoghq.com/datadog-agent:latest-windows"
-	default:
-		s.T().Fatalf("unsupported OS: %v", s.Env().RemoteHost.OSFamily)
-		return ""
+	// Use pipeline-specific URL for E2E tests
+	pipelineID := os.Getenv("E2E_PIPELINE_ID")
+	if pipelineID == "" {
+		s.T().Fatal("E2E_PIPELINE_ID environment variable not set")
 	}
+	return fmt.Sprintf("oci://installtesting.datad0g.com.internal.dda-testing.com/datadog-agent:pipeline-%s", pipelineID)
 }
 
 // getDDOTBinaryPath returns the platform-specific DDOT binary path
