@@ -72,7 +72,6 @@ export function TSAnalysisView({
   const components = state.components ?? [];
   const series = state.series ?? [];
   const allAnomalies = state.anomalies ?? [];
-  const correlations = state.correlations ?? [];
 
   // Filter anomalies by enabled analyzers
   const anomalies = useMemo(
@@ -133,9 +132,9 @@ export function TSAnalysisView({
   useEffect(() => {
     if (!state.activeScenario || state.connectionState !== 'ready') return;
     if (autoSelectedScenario !== state.activeScenario) {
-      if (anomalies.length > 0 && series.length > 0) {
+      if (series.length > 0) {
         const anomalyCount = new Map<string, number>();
-        anomalies.forEach((a) => {
+        allAnomalies.forEach((a) => {
           anomalyCount.set(a.source, (anomalyCount.get(a.source) || 0) + 1);
         });
         const matching = series
@@ -155,7 +154,7 @@ export function TSAnalysisView({
         onTimeRangeChange(null);
       }
     }
-  }, [state.activeScenario, state.connectionState, anomalies, series, autoSelectedScenario, onTimeRangeChange]);
+  }, [state.activeScenario, state.connectionState, allAnomalies, series, autoSelectedScenario, onTimeRangeChange]);
 
   // Track previous selection to detect changes
   const prevSelectedSeriesRef = useRef<Set<string>>(new Set());
@@ -385,20 +384,10 @@ export function TSAnalysisView({
 
         {state.connectionState === 'ready' && (
           <div className="space-y-6">
-            {/* Correlations - clickable to select related series */}
-            {correlations.length > 0 && (
-              <CorrelationBanner
-                correlations={correlations}
-                series={series}
-                selectedSeries={selectedSeries}
-                onSelectionChange={setSelectedSeries}
-              />
-            )}
-
             {/* Charts */}
             {selectedSeries.size === 0 ? (
               <div className="text-center py-10 text-slate-500">
-                Select series from the sidebar or click a correlation to view charts
+                Select series from the sidebar to view charts
               </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -406,14 +395,6 @@ export function TSAnalysisView({
                   const data = seriesData.get(key);
                   if (!data) return null;
                   const seriesAnomalies = anomalies.filter((a) => a.source === data.name);
-                  const seriesCorrelations = correlations
-                    .filter((c) => c.anomalies.some((a) => a.source === data.name))
-                    .map((c, idx) => ({
-                      id: idx,
-                      title: c.title,
-                      start: c.firstSeen,
-                      end: c.lastUpdated,
-                    }));
 
                   let splitSeries: SplitSeries[] | undefined;
                   if (splitByTag) {
@@ -438,7 +419,7 @@ export function TSAnalysisView({
                       points={data.points}
                       anomalyMarkers={data.anomalies}
                       anomalies={seriesAnomalies}
-                      correlationRanges={seriesCorrelations}
+                      correlationRanges={[]}
                       enabledAnalyzers={enabledAnalyzers}
                       timeRange={timeRange}
                       onTimeRangeChange={onTimeRangeChange}
@@ -502,93 +483,3 @@ function ScenarioSelector({
   );
 }
 
-function CorrelationBanner({
-  correlations,
-  series,
-  selectedSeries,
-  onSelectionChange,
-}: {
-  correlations: ObserverState['correlations'];
-  series: SeriesInfo[];
-  selectedSeries: Set<string>;
-  onSelectionChange: (s: Set<string>) => void;
-}) {
-  const [expanded, setExpanded] = useState(true);
-
-  return (
-    <div className="bg-slate-800 rounded-lg">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full p-4 flex items-center justify-between hover:bg-slate-700/30 rounded-lg transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          <span className="text-slate-500">{expanded ? '▼' : '▶'}</span>
-          <h2 className="text-sm font-semibold text-slate-300">
-            Time Clusters ({correlations.length})
-          </h2>
-        </div>
-        <span className="text-xs text-slate-500">
-          {expanded ? 'Shift+click to select multiple' : 'Click to expand'}
-        </span>
-      </button>
-      {expanded && (
-        <div className="space-y-2 px-4 pb-4">
-          {correlations.map((c, i) => {
-            const correlatedSources = new Set(c.anomalies.map((a) => a.source));
-            const correlatedSeriesKeys = series
-              .filter((s) => correlatedSources.has(s.name))
-              .map((s) => `${s.namespace}/${s.name}`);
-            const isSelected = correlatedSeriesKeys.length > 0 &&
-              correlatedSeriesKeys.every((k) => selectedSeries.has(k));
-
-            return (
-              <button
-                key={i}
-                onClick={(e) => {
-                  if (correlatedSeriesKeys.length > 0) {
-                    if (e.shiftKey || e.metaKey || e.ctrlKey) {
-                      const next = new Set(selectedSeries);
-                      correlatedSeriesKeys.forEach((k) => next.add(k));
-                      onSelectionChange(next);
-                    } else {
-                      onSelectionChange(new Set(correlatedSeriesKeys));
-                    }
-                  }
-                }}
-                className={`w-full text-left rounded p-3 transition-colors ${
-                  isSelected
-                    ? 'bg-purple-900/30 border border-purple-500/50'
-                    : 'bg-slate-700/50 hover:bg-slate-700 border border-transparent'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="font-medium text-purple-400">{c.title}</div>
-                  <span className="text-xs text-slate-500">
-                    {correlatedSeriesKeys.length} series
-                  </span>
-                </div>
-                <div className="text-sm text-slate-400 mt-1">
-                  Pattern: {c.pattern}
-                </div>
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {c.signals.map((signal, j) => (
-                    <span
-                      key={j}
-                      className="text-xs px-2 py-0.5 bg-slate-600/50 rounded text-slate-300"
-                    >
-                      {signal}
-                    </span>
-                  ))}
-                </div>
-                <div className="text-xs text-slate-500 mt-2">
-                  {new Date(c.firstSeen * 1000).toLocaleTimeString()} -{' '}
-                  {new Date(c.lastUpdated * 1000).toLocaleTimeString()}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
