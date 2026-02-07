@@ -384,7 +384,7 @@ func deleteServiceIfExists(name string) error {
 // DDOT Extension methods for datadog-agent package
 
 // preInstallDDOTExtension stops the existing DDOT service before extension installation
-func preInstallDDOTExtension(ctx HookContext) error {
+func preInstallDDOTExtension(_ HookContext) error {
 	// Best effort - ignore errors
 	_ = stopServiceIfExists(otelServiceName)
 	_ = deleteServiceIfExists(otelServiceName)
@@ -442,7 +442,7 @@ func postInstallDDOTExtension(ctx HookContext) error {
 
 // preRemoveDDOTExtension stops and removes the DDOT service before extension removal
 // IMPORTANT: This hook does NOT restart the main Agent services.
-func preRemoveDDOTExtension(ctx HookContext) error {
+func preRemoveDDOTExtension(_ HookContext) error {
 	// Best effort - ignore errors
 	_ = stopServiceIfExists(otelServiceName)
 	_ = deleteServiceIfExists(otelServiceName)
