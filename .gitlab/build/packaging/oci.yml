@@ -127,7 +127,7 @@ agent_win_oci:
     WIN_ARTIFACT_PATTERN: "datadog-agent-[0-9]*-x86_64.msi"
   script:
     - |
-      set -u pipefail
+      set -euo pipefail
       PIPE_DIR="$OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID"
       ARTIFACT=$(ls -1 "${PIPE_DIR}"/${WIN_ARTIFACT_PATTERN} 2>/dev/null)
       if [ -z "$ARTIFACT" ]; then
@@ -144,7 +144,7 @@ agent_win_oci:
       EXTRA_FLAGS=""
       cp "${ARTIFACT}" "${SRC_DIR}/"
     - |
-      DDOT_ARTIFACT=$(ls -1 "${PIPE_DIR}"/datadog-agent-ddot-*x86_64.zip 2>/dev/null)
+      DDOT_ARTIFACT=$(ls -1 "${PIPE_DIR}"/datadog-agent-ddot-*x86_64.zip 2>/dev/null || true)
       if [ -n "$DDOT_ARTIFACT" ]; then
         DDOT_INPUT_DIR="$(mktemp -d)"
         DDOT_EXTENSION_DIR="$(mktemp -d)"
@@ -153,11 +153,11 @@ agent_win_oci:
 
         if [ -d "${DDOT_INPUT_DIR}/bin" ]; then
           mkdir -p "${DDOT_EXTENSION_DIR}/embedded/bin"
-          cp -r "${DDOT_INPUT_DIR}/bin/"* "${DDOT_EXTENSION_DIR}/embedded/bin/"
+          cp -r "${DDOT_INPUT_DIR}/bin/." "${DDOT_EXTENSION_DIR}/embedded/bin/"
         fi
         if [ -d "${DDOT_INPUT_DIR}/etc/datadog-agent" ]; then
           mkdir -p "${DDOT_EXTENSION_DIR}/etc/datadog-agent"
-          cp -r "${DDOT_INPUT_DIR}/etc/datadog-agent/"* "${DDOT_EXTENSION_DIR}/etc/datadog-agent/"
+          cp -r "${DDOT_INPUT_DIR}/etc/datadog-agent/." "${DDOT_EXTENSION_DIR}/etc/datadog-agent/"
         fi
 
         EXTRA_FLAGS="${EXTRA_FLAGS} --extension ddot=${DDOT_EXTENSION_DIR}"

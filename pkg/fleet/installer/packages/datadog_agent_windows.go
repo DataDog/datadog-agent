@@ -843,18 +843,34 @@ func launchPackageCommandInBackground(ctx context.Context, env *env.Env, command
 	return nil
 }
 
-// preInstallExtensionDatadogAgent performs pre-installation steps for extensions
+// preInstallExtensionDatadogAgent performs pre-installation steps for extensions.
+// For DDOT extension: Ensures any existing DDOT service is stopped and removed
+// to allow clean installation of the new version.
 func preInstallExtensionDatadogAgent(ctx HookContext) error {
 	if ctx.Extension != "ddot" {
 		return nil
 	}
 
-	_ = stopServiceIfExists(otelServiceName)
-	_ = deleteServiceIfExists(otelServiceName)
+	if err := stopServiceIfExists(otelServiceName); err != nil {
+		log.Warnf("failed to stop %s service: %v", otelServiceName, err)
+	}
+	if err := deleteServiceIfExists(otelServiceName); err != nil {
+		log.Warnf("failed to delete %s service: %v", otelServiceName, err)
+	}
 	return nil
 }
 
-// postInstallExtensionDatadogAgent performs post-installation steps for extensions
+// postInstallExtensionDatadogAgent performs post-installation steps for extensions.
+// For DDOT extension:
+//  1. Writes otel-config.yaml with API key substitution
+//  2. Enables otelcollector in datadog.yaml
+//  3. Creates/updates the DDOT Windows service
+//  4. Starts DDOT service if conditions are met
+//
+// IMPORTANT: This hook does NOT restart the main Agent services. The Agent must be
+// manually restarted after extension installation for otelcollector config to take effect.
+// This is different from standalone DDOT package installation which does restart services.
+// Extension hooks are designed to be non-disruptive to the running Agent.
 func postInstallExtensionDatadogAgent(ctx HookContext) error {
 	if ctx.Extension != "ddot" {
 		return nil
@@ -871,26 +887,70 @@ func postInstallExtensionDatadogAgent(ctx HookContext) error {
 	}
 
 	binaryPath := filepath.Join(extensionPath, "embedded", "bin", "otel-agent.exe")
+	// Verify binary exists before creating service
+	if _, err := os.Stat(binaryPath); err != nil {
+		return fmt.Errorf("DDOT binary not found at %s: %w", binaryPath, err)
+	}
+
 	if err := ensureDDOTServiceForExtension(binaryPath); err != nil {
 		return fmt.Errorf("failed to create DDOT service: %w", err)
 	}
 
+	// Start DDOT service only if core Agent is running and API key exists
+	// Handle race condition where Agent may be in StartPending state
 	running, _ := winutil.IsServiceRunning(coreAgentService)
-	if running && readAPIKeyFromDatadogYAML() != "" {
-		_ = startServiceIfExists(otelServiceName)
+	if !running {
+		// If core Agent is still starting, wait briefly for it to leave StartPending
+		ctxCA, cancelCA := context.WithTimeout(ctx.Context, 30*time.Second)
+		defer cancelCA()
+		if st, err := winutil.WaitForPendingStateChange(ctxCA, coreAgentService, svc.StartPending); err != nil || st != svc.Running {
+			log.Warnf("DDOT: skipping service start (core Agent not running; state=%d, err=%v)", st, err)
+			return nil
+		}
+	}
+	if ak := readAPIKeyFromDatadogYAML(); ak == "" {
+		log.Warnf("DDOT: skipping service start (no API key configured)")
+		return nil
+	}
+	if err := startServiceIfExists(otelServiceName); err != nil {
+		log.Warnf("DDOT: failed to start service: %v", err)
+		return nil
+	}
+
+	// Wait for service to reach Running state (fail-fast if it exits immediately)
+	ctxWait, cancel := context.WithTimeout(ctx.Context, 30*time.Second)
+	defer cancel()
+	state, err := winutil.WaitForPendingStateChange(ctxWait, otelServiceName, svc.StartPending)
+	if err != nil {
+		log.Warnf("DDOT: service %q did not reach Running state: %s", otelServiceName, err)
+		return nil
+	}
+	if state != svc.Running {
+		log.Warnf("DDOT: service %q transitioned to state %d instead of Running", otelServiceName, state)
+		return nil
 	}
 
 	return nil
 }
 
-// preRemoveExtensionDatadogAgent performs pre-removal steps for extensions
+// preRemoveExtensionDatadogAgent performs pre-removal steps for extensions.
+// For DDOT extension:
+//  1. Stops and deletes the DDOT service
+//  2. Disables otelcollector in datadog.yaml
+//
+// IMPORTANT: This hook does NOT restart the main Agent services. The Agent must be
+// manually restarted after extension removal for config changes to take effect.
 func preRemoveExtensionDatadogAgent(ctx HookContext) error {
 	if ctx.Extension != "ddot" {
 		return nil
 	}
 
-	_ = stopServiceIfExists(otelServiceName)
-	_ = deleteServiceIfExists(otelServiceName)
+	if err := stopServiceIfExists(otelServiceName); err != nil {
+		log.Warnf("failed to stop %s service: %v", otelServiceName, err)
+	}
+	if err := deleteServiceIfExists(otelServiceName); err != nil {
+		log.Warnf("failed to delete %s service: %v", otelServiceName, err)
+	}
 
 	if err := disableOtelCollectorConfigWindows(); err != nil {
 		log.Warnf("failed to disable otelcollector: %s", err)
