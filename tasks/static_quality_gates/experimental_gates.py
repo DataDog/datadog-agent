@@ -10,15 +10,18 @@ import stat
 import tempfile
 from dataclasses import dataclass
 from datetime import datetime
+from enum import IntFlag, auto
 from pathlib import Path
 from typing import Any, Protocol
 
 import yaml
 from invoke import Context
 
+from tasks.libs.common.color import color_message
 from tasks.libs.package.size import extract_package, file_size
 from tasks.static_quality_gates.gates import (
     QualityGateConfig,
+    byte_to_string,
     create_quality_gate_config,
 )
 
@@ -79,6 +82,28 @@ class FileInfo(SizeMixin):
         self._validate_size_bytes(self.size_bytes)
         if self.is_symlink and not self.symlink_target:
             raise ValueError("symlink_target must be provided when is_symlink is True")
+
+
+@dataclass(frozen=True)
+class FileChange:
+    """
+    Encapsulate a detected file change when comparing 2 inventories
+    """
+
+    class Flags(IntFlag):
+        Size = auto()
+        Permissions = auto()
+        Owner = auto()
+        Group = auto()
+
+    flags: Flags
+    previous: FileInfo
+    current: FileInfo
+    size_percent: float | None
+
+    def __post_init__(self):
+        if self.flags | FileChange.Flags.Size == 0 and self.size_percent is not None:
+            raise ValueError("size_percent can only be provided when the size change flag is set")
 
 
 @dataclass(frozen=True)
@@ -279,6 +304,9 @@ class FileUtilities:
         file_inventory = []
         files_processed = 0
 
+        # Fetch the pipeline id to potentially omit some files that include it.
+        pipeline_id = os.environ.get('CI_PIPELINE_ID')
+
         if debug:
             all_items = list(directory_path.rglob('*'))
             files_count = sum(1 for item in all_items if item.is_file())
@@ -292,6 +320,9 @@ class FileUtilities:
 
             try:
                 relative_path = str(file_path.relative_to(directory_path))
+                # Avoid files such as opt/datadog-packages/run/datadog-agent/7.76.0-devel.git.716.8d5ec09.pipeline.91823583
+                if pipeline_id and f'pipeline.{relative_path}' in relative_path:
+                    continue
                 # Regular file - use lstat to not follow symlinks
                 file_stat = file_path.lstat()
                 chmod = stat.S_IMODE(file_stat.st_mode)
@@ -1246,7 +1277,6 @@ def measure_image_local(
     Example:
         dda inv experimental-gates.measure-image-local --image-ref nginx:latest --gate-name static_quality_gate_docker_agent_amd64
     """
-    from tasks.libs.common.color import color_message
 
     if not os.path.exists(config_path):
         print(color_message(f"❌ Configuration file not found: {config_path}", "red"))
@@ -1360,3 +1390,93 @@ def measure_image_local(
     except Exception as e:
         print(color_message(f"❌ Image measurement failed: {e}", "red"))
         raise
+
+
+def compare_inventory(
+    previous_inventory: list[FileInfo], current_inventory: list[FileInfo]
+) -> tuple[list[FileInfo], list[FileInfo], dict[str, FileChange]]:
+    removed_files = []
+    added_files = []
+    changed_files = {}
+
+    previous_files = {info.relative_path: info for info in previous_inventory}
+    current_files = {info.relative_path: info for info in current_inventory}
+    for path, previous in previous_files.items():
+        if path not in current_files:
+            removed_files.append(previous)
+            continue
+        current = current_files[path]
+        size_change = previous.size_bytes - current.size_bytes
+        changed_flags = FileChange.Flags(0)
+        size_percent = None
+        if size_change:
+            size_percent = (current.size_bytes - previous.size_bytes) / previous.size_bytes * 100
+            if size_percent > 10:
+                changed_flags |= FileChange.Flags.Size
+        if current.chmod != previous.chmod:
+            changed_flags |= FileChange.Flags.Permissions
+        if current.owner != previous.owner:
+            changed_flags |= FileChange.Flags.Owner
+        if current.group != previous.group:
+            changed_flags |= FileChange.Flags.Group
+
+        if changed_flags:
+            changed_files[path] = FileChange(
+                flags=changed_flags, previous=previous, current=current, size_percent=size_percent
+            )
+        # Remove entries that were present in both parent & current so that when we're done
+        # the current list only contains new files
+        del current_files[path]
+    added_files = list(current_files.values())
+    return added_files, removed_files, changed_files
+
+
+def _display_change_summary(change: FileChange):
+    print(color_message(f'Summary of changes to {change.current.relative_path}', "orange"))
+    if change.flags & FileChange.Flags.Permissions:
+        print(f'    Permission changed: {oct(change.previous.chmod)} -> {oct(change.current.chmod)}')
+    if change.flags & FileChange.Flags.Size:
+        color = "red" if change.size_percent > 0 else "green"
+        change_str = color_message(f'{change.size_percent:.2f}%', color)
+        print(
+            f'    Size changed by {change_str} ({byte_to_string(change.previous.size_bytes)} -> {byte_to_string(change.current.size_bytes)})'
+        )
+    if change.flags & (FileChange.Flags.Owner | FileChange.Flags.Group):
+        print(
+            f'    File owner/group changed: {change.previous.owner}:{change.previous.group} -> {change.current.owner}:{change.current.group}'
+        )
+
+
+def print_inventory_diff(added, removed, changed):
+    if len(added) > 0:
+        print(color_message('➕ New files added:', "orange"))
+        for f in added:
+            print(color_message(f'    - {f.relative_path} ({byte_to_string(f.size_bytes)})', "orange"))
+    if len(removed) > 0:
+        print(color_message('❌ Old files removed:', "orange"))
+        for f in removed:
+            print(color_message(f'    - {f.relative_path} ({byte_to_string(f.size_bytes)})', "orange"))
+    if len(changed) > 0:
+        print(color_message('⚠️ Some files modifications need review:', "orange"))
+        for change in changed.values():
+            _display_change_summary(change)
+
+
+def inventory_changes_to_comment(added, removed, changed):
+    body = "Detected file changes:\nAdded files:\n"
+    for f in added:
+        body += f"* {f.relative_path} ({byte_to_string(f.size_bytes)})\n"
+    body += "Removed files:\n"
+    for f in removed:
+        body += f"* {f.relative_path} ({byte_to_string(f.size_bytes)})\n"
+    body += "Changed files:\n"
+    for path, change in changed.values():
+        change_str = f"* {path}:\n"
+        if change.flags & FileChange.Flags.Permissions:
+            change_str += f"** Permission changed: {oct(change.previous.chmod)} -> {oct(change.current.chmod)}"
+        if change.flags & FileChange.Flags.Size:
+            change_str += f'** Size changed: {change.size_percent:+.2f}% ({byte_to_string(change.previous.size_bytes)} -> {byte_to_string(change.current.size_bytes)})\n'
+        if change.flags & (FileChange.Flags.Owner | FileChange.Flags.Group):
+            change_str += f'** File owner/group changed: {change.previous.owner}:{change.previous.group} -> {change.current.owner}:{change.current.group}'
+        body += change_str
+    return body
