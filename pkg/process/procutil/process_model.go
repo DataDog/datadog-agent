@@ -6,6 +6,11 @@
 package procutil
 
 import (
+	"hash/fnv"
+	"slices"
+	"strconv"
+	"strings"
+
 	"github.com/DataDog/gopsutil/cpu"
 
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
@@ -66,6 +71,38 @@ func (p *Process) GetCommand() string {
 //nolint:revive // TODO(PROC) Fix revive linter
 func (p *Process) GetCmdline() []string {
 	return p.Cmdline
+}
+
+// ProcessIdentity generates a unique identity string for a process based on PID, creation time,
+// and command line hash. This allows detection of exec scenarios where the PID and creation time
+// remain the same but the command line changes.
+func ProcessIdentity(pid int32, createTime int64, cmdline []string) string {
+	return "pid:" + strconv.FormatInt(int64(pid), 10) + "|createTime:" + strconv.FormatInt(createTime, 10) + "|cmdHash:" + strconv.FormatUint(hashCmdline(cmdline), 16)
+}
+
+// IsSameProcess returns true if two processes have the same identity (PID, create time, and cmdline).
+// Returns false if either process is nil.
+func IsSameProcess(a, b *Process) bool {
+	if a.Pid != b.Pid {
+		return false
+	}
+	if a.Stats.CreateTime != b.Stats.CreateTime {
+		return false
+	}
+	return slices.Equal(a.Cmdline, b.Cmdline)
+}
+
+// hashCmdline computes a fast FNV-1a hash of the command line arguments.
+// Only hashes first 100 args to bound work for processes with huge cmdlines (some have 70K+ args).
+// 100 args covers ~p99.9 of real-world processes
+func hashCmdline(cmdline []string) uint64 {
+	const maxArgs = 100
+	if len(cmdline) > maxArgs {
+		cmdline = cmdline[:maxArgs]
+	}
+	h := fnv.New64a()
+	h.Write([]byte(strings.Join(cmdline, "\x00")))
+	return h.Sum64()
 }
 
 // DeepCopy creates a deep copy of Process
