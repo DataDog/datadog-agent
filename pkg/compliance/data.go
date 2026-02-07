@@ -212,9 +212,9 @@ const (
 	Unscoped RuleScope = "none"
 	// DockerScope used for rules requiring a Docker daemon running.
 	DockerScope RuleScope = "docker"
-	// KubernetesNodeScope used for rules requireing a kubelet process running.
+	// KubernetesNodeScope used for rules requiring a kubelet process running.
 	KubernetesNodeScope RuleScope = "kubernetesNode"
-	// KubernetesClusterScope used for rules requireing a kube-apiserver process running.
+	// KubernetesClusterScope used for rules requiring a kube-apiserver process running.
 	KubernetesClusterScope RuleScope = "kubernetesCluster"
 )
 
