@@ -269,7 +269,7 @@ func RunLoginUIDTest() error {
 }
 
 func main() {
-	flag.BoolVar(&bpfLoad, "load-bpf", false, "load the eBPF progams")
+	flag.BoolVar(&bpfLoad, "load-bpf", false, "load the eBPF programs")
 	flag.BoolVar(&bpfClone, "clone-bpf", false, "clone maps")
 	flag.BoolVar(&capsetProcessCreds, "process-credentials-capset", false, "capset test content")
 	flag.BoolVar(&k8sUserSession, "k8s-user-session", false, "user session test")

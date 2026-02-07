@@ -95,7 +95,7 @@ func (s *Snapshot) Snapshot(ignoredBaseNames []string, kernelCompilationFlags ma
 	}
 
 	if err := s.snapshotSys(ignoredBaseNames); err != nil {
-		return fmt.Errorf("coudln't snapshot /sys: %w", err)
+		return fmt.Errorf("couldn't snapshot /sys: %w", err)
 	}
 
 	if err := s.snapshotCPUFlags(); err != nil {
