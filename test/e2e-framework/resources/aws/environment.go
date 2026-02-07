@@ -31,9 +31,10 @@ const (
 	DDInfraDefaultVPCIDParamName           = "aws/defaultVPCID"
 	DDInfraDefaultSubnetsParamName         = "aws/defaultSubnets"
 	DDInfraDefaultSecurityGroupsParamName  = "aws/defaultSecurityGroups"
-	DDInfraDefaultInstanceTypeParamName    = "aws/defaultInstanceType"
-	DDInfraDefaultInstanceProfileParamName = "aws/defaultInstanceProfile"
-	DDInfraDefaultARMInstanceTypeParamName = "aws/defaultARMInstanceType"
+	DDInfraDefaultInstanceTypeParamName        = "aws/defaultInstanceType"
+	DDInfraDefaultInstanceProfileParamName     = "aws/defaultInstanceProfile"
+	DDInfraDefaultARMInstanceTypeParamName     = "aws/defaultARMInstanceType"
+	DDInfraDefaultWindowsInstanceTypeParamName = "aws/defaultWindowsInstanceType"
 	DDInfraDefaultKeyPairParamName         = "aws/defaultKeyPairName"
 	DDinfraDefaultPublicKeyPath            = "aws/defaultPublicKeyPath"
 	DDInfraDefaultPrivateKeyPath           = "aws/defaultPrivateKeyPath"
@@ -267,6 +268,10 @@ func (e *Environment) DefaultInstanceProfileName() string {
 
 func (e *Environment) DefaultARMInstanceType() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultARMInstanceTypeParamName, e.envDefault.ddInfra.defaultARMInstanceType)
+}
+
+func (e *Environment) DefaultWindowsInstanceType() string {
+	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultWindowsInstanceTypeParamName, e.envDefault.ddInfra.defaultWindowsInstanceType)
 }
 
 func (e *Environment) DefaultKeyPairName() string {
