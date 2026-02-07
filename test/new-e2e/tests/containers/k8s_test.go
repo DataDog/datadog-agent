@@ -386,12 +386,157 @@ func (suite *k8sSuite) testAgentCLI() {
 		}
 	})
 
+	suite.Run("agent workload-list --json", func() {
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "workload-list", "--json"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `agent workload-list --json` should be empty")
+
+		// Validate JSON
+		suite.Truef(json.Valid([]byte(stdout)), "Output of `agent workload-list --json` isn't valid JSON")
+
+		// Unmarshal and validate structure
+		var result map[string]any
+		err = json.Unmarshal([]byte(stdout), &result)
+		suite.Require().NoError(err)
+
+		// Check for expected fields
+		entities, ok := result["entities"].(map[string]any)
+		suite.Require().True(ok, "expected 'entities' field in JSON output")
+		suite.NotEmpty(entities, "entities map should not be empty")
+		suite.Contains(entities, "container", "expected 'container' kind in entities")
+
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
+	})
+
+	suite.Run("agent workload-list --json container", func() {
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "workload-list", "--json", "container"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `agent workload-list --json container` should be empty")
+
+		// Validate JSON
+		suite.Truef(json.Valid([]byte(stdout)), "Output of `agent workload-list --json container` isn't valid JSON")
+
+		// Unmarshal and validate structure
+		var result map[string]any
+		err = json.Unmarshal([]byte(stdout), &result)
+		suite.Require().NoError(err)
+
+		// Check for expected fields
+		entities, ok := result["entities"].(map[string]any)
+		suite.Require().True(ok, "expected 'entities' field in JSON output")
+
+		// Search term "container" uses substring matching on kind names
+		// Should match "container" and may also match "container_image_metadata" if present
+		suite.Contains(entities, "container", "expected 'container' kind in filtered entities")
+
+		// Verify no unrelated kinds (like kubernetes_pod) are included
+		suite.NotContains(entities, "kubernetes_pod", "kubernetes_pod should not match 'container' filter")
+
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
+	})
+
+	suite.Run("agent workload-list --json kubernetes_pod", func() {
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "workload-list", "--json", "kubernetes_pod"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `agent workload-list --json kubernetes_pod` should be empty")
+
+		// Validate JSON
+		suite.Truef(json.Valid([]byte(stdout)), "Output of `agent workload-list --json kubernetes_pod` isn't valid JSON")
+
+		// Unmarshal and validate structure
+		var result map[string]any
+		err = json.Unmarshal([]byte(stdout), &result)
+		suite.Require().NoError(err)
+
+		// Check for expected fields
+		entities, ok := result["entities"].(map[string]any)
+		suite.Require().True(ok, "expected 'entities' field in JSON output")
+		suite.Contains(entities, "kubernetes_pod", "expected 'kubernetes_pod' kind in filtered entities")
+
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
+	})
+
 	suite.Run("agent tagger-list", func() {
 		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "tagger-list"})
 		suite.Require().NoError(err)
 		suite.Empty(stderr, "Standard error of `agent tagger-list` should be empty")
 		suite.Contains(stdout, "=== Entity container_id://")
 		suite.Contains(stdout, "=== Entity kubernetes_pod_uid://")
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
+	})
+
+	suite.Run("agent tagger-list --json", func() {
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "tagger-list", "--json"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `agent tagger-list --json` should be empty")
+
+		// Validate JSON
+		suite.Truef(json.Valid([]byte(stdout)), "Output of `agent tagger-list --json` isn't valid JSON")
+
+		// Unmarshal and validate structure
+		var result map[string]any
+		err = json.Unmarshal([]byte(stdout), &result)
+		suite.Require().NoError(err)
+
+		// Check for expected fields
+		entities, ok := result["entities"].(map[string]any)
+		suite.Require().True(ok, "expected 'entities' field in JSON output")
+		suite.NotEmpty(entities, "entities map should not be empty")
+
+		// Check for expected entity types
+		foundContainer := false
+		foundPod := false
+		for key := range entities {
+			if strings.HasPrefix(key, "container_id://") {
+				foundContainer = true
+			}
+			if strings.HasPrefix(key, "kubernetes_pod_uid://") {
+				foundPod = true
+			}
+		}
+		suite.True(foundContainer, "expected at least one container_id entity")
+		suite.True(foundPod, "expected at least one kubernetes_pod_uid entity")
+
+		if suite.T().Failed() {
+			suite.T().Log(stdout)
+		}
+	})
+
+	suite.Run("agent tagger-list --json container_id", func() {
+		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "tagger-list", "--json", "container_id"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `agent tagger-list --json container_id` should be empty")
+
+		// Validate JSON
+		suite.Truef(json.Valid([]byte(stdout)), "Output of `agent tagger-list --json container_id` isn't valid JSON")
+
+		// Unmarshal and validate structure
+		var result map[string]any
+		err = json.Unmarshal([]byte(stdout), &result)
+		suite.Require().NoError(err)
+
+		// Check for expected fields
+		entities, ok := result["entities"].(map[string]any)
+		suite.Require().True(ok, "expected 'entities' field in JSON output")
+
+		// Filter by "container_id" should match entities starting with "container_id://"
+		foundContainer := false
+		for key := range entities {
+			if strings.HasPrefix(key, "container_id://") {
+				foundContainer = true
+				break
+			}
+		}
+		suite.True(foundContainer, "expected at least one container_id entity in filtered results")
+
 		if suite.T().Failed() {
 			suite.T().Log(stdout)
 		}

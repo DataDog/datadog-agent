@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
 	dcametadata "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
 	clusterchecksmetadata "github.com/DataDog/datadog-agent/comp/metadata/clusterchecks/def"
 
@@ -222,21 +223,20 @@ func getTaggerList(w http.ResponseWriter, _ *http.Request, taggerComp tagger.Com
 }
 
 func getWorkloadList(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
-	verbose := false
 	params := r.URL.Query()
-	if v, ok := params["verbose"]; ok {
-		if len(v) >= 1 && v[0] == "true" {
-			verbose = true
-		}
-	}
 
-	response := wmeta.Dump(verbose)
-	jsonDump, err := json.Marshal(response)
+	jsonDump, err := workloadmetaimpl.BuildWorkloadResponse(
+		wmeta,
+		params.Get("verbose") == "true",
+		params.Get("format") == "json",
+		params.Get("search"),
+	)
 	if err != nil {
-		httputils.SetJSONError(w, log.Errorf("Unable to marshal workload list response: %v", err), 500)
+		httputils.SetJSONError(w, log.Errorf("Unable to build workload list response: %v", err), 500)
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.Write(jsonDump)
 }
 

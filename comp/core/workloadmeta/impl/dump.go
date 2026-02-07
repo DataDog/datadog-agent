@@ -83,3 +83,34 @@ func (w *workloadmeta) Dump(verbose bool) wmdef.WorkloadDumpResponse {
 
 	return workloadList
 }
+
+// DumpStructured implements Store#DumpStructured
+func (w *workloadmeta) DumpStructured(verbose bool) wmdef.WorkloadDumpStructuredResponse {
+	workloadList := wmdef.WorkloadDumpStructuredResponse{
+		Entities: make(map[string][]wmdef.Entity),
+	}
+
+	w.storeMut.RLock()
+	defer w.storeMut.RUnlock()
+
+	for kind, store := range w.store {
+		entities := make([]wmdef.Entity, 0, len(store))
+		for _, cachedEntity := range store {
+			// For verbose mode, include all source entities
+			if verbose && len(cachedEntity.sources) > 1 {
+				for _, entity := range cachedEntity.sources {
+					entities = append(entities, entity)
+				}
+			}
+
+			// Always include the merged entity
+			entities = append(entities, cachedEntity.cached)
+		}
+
+		if len(entities) > 0 {
+			workloadList.Entities[string(kind)] = entities
+		}
+	}
+
+	return workloadList
+}

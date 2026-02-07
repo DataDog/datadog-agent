@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -118,20 +119,116 @@ func NewWorkloadMeta(deps Dependencies) Provider {
 }
 
 func (w *workloadmeta) writeResponse(writer http.ResponseWriter, r *http.Request) {
-	verbose := false
 	params := r.URL.Query()
-	if v, ok := params["verbose"]; ok {
-		if len(v) >= 1 && v[0] == "true" {
-			verbose = true
-		}
-	}
 
-	response := w.Dump(verbose)
-	jsonDump, err := json.Marshal(response)
+	jsonDump, err := BuildWorkloadResponse(
+		w,
+		params.Get("verbose") == "true",
+		params.Get("format") == "json",
+		params.Get("search"),
+	)
 	if err != nil {
-		httputils.SetJSONError(writer, w.log.Errorf("Unable to marshal workload list response: %v", err), 500)
+		httputils.SetJSONError(writer, w.log.Errorf("Unable to build workload list response: %v", err), 500)
 		return
 	}
 
+	writer.Header().Set("Content-Type", "application/json")
 	writer.Write(jsonDump)
+}
+
+// BuildWorkloadResponse builds a JSON response for workload-list with filtering
+func BuildWorkloadResponse(wmeta wmdef.Component, verbose, structured bool, search string) ([]byte, error) {
+	if structured {
+		// Use structured format for JSON
+		structuredResp := wmeta.DumpStructured(verbose)
+
+		// Filter entities based on verbose flag
+		// Non-verbose: only include fields shown in text output
+		// Verbose: include all fields (no filtering needed)
+		if !verbose {
+			// Non-verbose: filter out verbose-only fields
+			filteredResp := wmdef.WorkloadDumpStructuredResponse{
+				Entities: make(map[string][]wmdef.Entity, len(structuredResp.Entities)),
+			}
+			for kind, entities := range structuredResp.Entities {
+				filteredResp.Entities[kind] = wmdef.FilterEntitiesForVerbose(entities, false)
+			}
+			structuredResp = filteredResp
+		}
+
+		// Apply search filter if provided
+		if search != "" {
+			structuredResp = FilterStructuredResponse(structuredResp, search)
+		}
+
+		return json.Marshal(structuredResp)
+	}
+
+	// Text format
+	textResp := wmeta.Dump(verbose)
+
+	// Apply search filter if provided
+	if search != "" {
+		textResp = FilterTextResponse(textResp, search)
+	}
+
+	return json.Marshal(textResp)
+}
+
+// FilterStructuredResponse filters entities by kind or entity ID
+func FilterStructuredResponse(response wmdef.WorkloadDumpStructuredResponse, search string) wmdef.WorkloadDumpStructuredResponse {
+	filtered := wmdef.WorkloadDumpStructuredResponse{
+		Entities: make(map[string][]wmdef.Entity),
+	}
+
+	for kind, entities := range response.Entities {
+		if strings.Contains(kind, search) {
+			// Kind matches - include all entities
+			filtered.Entities[kind] = entities
+			continue
+		}
+
+		// Filter by entity ID
+		var matchingEntities []wmdef.Entity
+		for _, entity := range entities {
+			if strings.Contains(entity.GetID().ID, search) {
+				matchingEntities = append(matchingEntities, entity)
+			}
+		}
+
+		if len(matchingEntities) > 0 {
+			filtered.Entities[kind] = matchingEntities
+		}
+	}
+
+	return filtered
+}
+
+// FilterTextResponse filters text-formatted entities by kind or entity ID
+func FilterTextResponse(response wmdef.WorkloadDumpResponse, search string) wmdef.WorkloadDumpResponse {
+	filtered := wmdef.WorkloadDumpResponse{
+		Entities: make(map[string]wmdef.WorkloadEntity),
+	}
+
+	for kind, workloadEntity := range response.Entities {
+		if strings.Contains(kind, search) {
+			// Kind matches - include all entities
+			filtered.Entities[kind] = workloadEntity
+			continue
+		}
+
+		// Filter by entity ID
+		filteredInfos := make(map[string]string)
+		for entityID, info := range workloadEntity.Infos {
+			if strings.Contains(entityID, search) {
+				filteredInfos[entityID] = info
+			}
+		}
+
+		if len(filteredInfos) > 0 {
+			filtered.Entities[kind] = wmdef.WorkloadEntity{Infos: filteredInfos}
+		}
+	}
+
+	return filtered
 }
