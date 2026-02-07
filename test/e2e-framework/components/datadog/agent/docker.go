@@ -112,7 +112,7 @@ func dockerAgentComposeManifest(agentImagePath string, apiKey pulumi.StringInput
 						"/var/run/docker.sock:/var/run/docker.sock",
 						"/proc/:/host/proc",
 						"/sys/fs/cgroup/:/host/sys/fs/cgroup",
-						"/var/run/datadog:/var/run/datadog",
+						"/opt/datadog-agent/run:/opt/datadog-agent/run",
 						"/sys/kernel/tracing:/sys/kernel/tracing",
 					},
 					Environment: map[string]any{

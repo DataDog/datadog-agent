@@ -6,10 +6,16 @@
 package pidfile
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 // isProcess checks to see if a given pid is currently valid in the process table
 func isProcess(pid int) bool {
 	return winutil.IsProcess(pid)
+}
+
+// Path returns a suitable location for the pidfile under Windows
+func Path() string {
+	return defaultpaths.GetDefaultPidFilePath()
 }

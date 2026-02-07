@@ -687,7 +687,7 @@ func runCheck(cliParams *cliParams, c check.Check, _ aggregator.Demultiplexer) *
 const checkFlareDirPerms = 0750
 
 func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
-	writeCheckToFileInDir(checkName, checkFileOutput, defaultpaths.CheckFlareDirectory)
+	writeCheckToFileInDir(checkName, checkFileOutput, defaultpaths.GetDefaultCheckFlareDirectory())
 }
 
 func writeCheckToFileInDir(checkName string, checkFileOutput *bytes.Buffer, dir string) {

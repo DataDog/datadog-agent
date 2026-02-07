@@ -163,7 +163,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 
 	logFile := pkgconfigsetup.Datadog().GetString("log_file")
 	if logFile == "" {
-		logFile = defaultpaths.DCALogFile
+		logFile = defaultpaths.GetDefaultDCALogFile()
 	}
 	filePath, err := clusterAgentFlare.CreateDCAArchive(false, defaultpaths.GetDistPath(), logFile, profile, statusComponent, diagnoseComponent, ipc)
 	if err != nil || filePath == "" {

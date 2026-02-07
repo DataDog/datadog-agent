@@ -95,8 +95,8 @@ func runUDSTraceGenerator(h *components.RemoteHost, service string, addSpanTags 
 	h.MustExecute(rm) // kill any existing leftover container
 
 	run := "docker run -d --rm --name " + service +
-		" -v /var/run/datadog/:/var/run/datadog/ " +
-		" -e DD_TRACE_AGENT_URL=unix:///var/run/datadog/apm.socket " +
+		" -v /opt/datadog-agent/run/:/opt/datadog-agent/run/ " +
+		" -e DD_TRACE_AGENT_URL=unix:///opt/datadog-agent/run/apm.socket " +
 		" -e DD_SERVICE=" + service +
 		" -e DD_GIT_COMMIT_SHA=abcd1234 " +
 		" -e TRACEGEN_ADDSPANTAGS=" + addSpanTags +

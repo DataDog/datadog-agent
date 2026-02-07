@@ -7,9 +7,18 @@
 
 package flags
 
-const (
-	// DefaultConfPath points to the location of datadog.yaml
-	DefaultConfPath = "/etc/datadog-agent/datadog.yaml"
-	// DefaultSysProbeConfPath points to the location of system-probe.yaml
-	DefaultSysProbeConfPath = "/etc/datadog-agent/system-probe.yaml"
+import (
+	"path/filepath"
+
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
+
+// DefaultConfPath returns the default location of datadog.yaml
+func DefaultConfPath() string {
+	return filepath.Join(defaultpaths.GetDefaultConfPath(), "datadog.yaml")
+}
+
+// DefaultSysProbeConfPath returns the default location of system-probe.yaml
+func DefaultSysProbeConfPath() string {
+	return filepath.Join(defaultpaths.GetDefaultConfPath(), "system-probe.yaml")
+}

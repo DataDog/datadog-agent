@@ -15,6 +15,7 @@ import (
 	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -151,7 +152,7 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 	)
 	procBindEnv(config, "process_config.intervals.connections")
 	procBindEnvAndSetDefault(config, "process_config.expvar_port", DefaultProcessExpVarPort)
-	procBindEnvAndSetDefault(config, "process_config.log_file", DefaultProcessAgentLogFile)
+	procBindEnvAndSetDefault(config, "process_config.log_file", defaultpaths.GetDefaultProcessAgentLogFile())
 	procBindEnvAndSetDefault(config, "process_config.internal_profiling.enabled", false)
 	procBindEnvAndSetDefault(config, "process_config.grpc_connection_timeout_secs", DefaultGRPCConnectionTimeoutSecs)
 	procBindEnvAndSetDefault(config, "process_config.disable_realtime_checks", false)

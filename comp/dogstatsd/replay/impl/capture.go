@@ -9,7 +9,6 @@ package replayimpl
 import (
 	"context"
 	"errors"
-	"path"
 	"sync"
 	"time"
 
@@ -124,11 +123,7 @@ func (tc *trafficCapture) Enqueue(msg *replay.CaptureBuffer) bool {
 }
 
 func (tc *trafficCapture) defaultlocation() string {
-	location := tc.config.GetString("dogstatsd_capture_path")
-	if location == "" {
-		location = path.Join(tc.config.GetString("run_path"), "dsd_capture")
-	}
-	return location
+	return tc.config.GetString("dogstatsd_capture_path")
 }
 
 func (tc *trafficCapture) GetStartUpError() error {

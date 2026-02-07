@@ -62,12 +62,9 @@ func ECSLinuxDaemonDefinition(e aws.Environment, name string, apiKeySSMParamName
 					Name:     pulumi.String("cgroup"),
 				},
 				classicECS.TaskDefinitionVolumeArgs{
+					// Single volume for both log pointers and sockets (same directory)
 					HostPath: pulumi.StringPtr("/opt/datadog-agent/run"),
-					Name:     pulumi.String("dd-logpointdir"),
-				},
-				classicECS.TaskDefinitionVolumeArgs{
-					HostPath: pulumi.StringPtr("/var/run/datadog"),
-					Name:     pulumi.String("dd-sockets"),
+					Name:     pulumi.String("dd-run"),
 				},
 				classicECS.TaskDefinitionVolumeArgs{
 					HostPath: pulumi.StringPtr("/sys/kernel/debug"),
@@ -118,7 +115,7 @@ func ecsLinuxAgentSingleContainerDefinition(e config.Env, apiKeySSMParamName pul
 
 			ecs.TaskDefinitionKeyValuePairArgs{
 				Name:  pulumi.StringPtr("DD_DOGSTATSD_SOCKET"),
-				Value: pulumi.StringPtr("/var/run/datadog/dsd.socket"),
+				Value: pulumi.StringPtr("/opt/datadog-agent/run/dsd.socket"),
 			},
 			ecs.TaskDefinitionKeyValuePairArgs{
 				Name:  pulumi.StringPtr("DD_LOGS_ENABLED"),
@@ -173,13 +170,9 @@ func ecsLinuxAgentSingleContainerDefinition(e config.Env, apiKeySSMParamName pul
 				ReadOnly:      pulumi.BoolPtr(true),
 			},
 			ecs.TaskDefinitionMountPointArgs{
+				// Single mount for log pointers and sockets
 				ContainerPath: pulumi.StringPtr("/opt/datadog-agent/run"),
-				SourceVolume:  pulumi.StringPtr("dd-logpointdir"),
-				ReadOnly:      pulumi.BoolPtr(false),
-			},
-			ecs.TaskDefinitionMountPointArgs{
-				ContainerPath: pulumi.StringPtr("/var/run/datadog"),
-				SourceVolume:  pulumi.StringPtr("dd-sockets"),
+				SourceVolume:  pulumi.StringPtr("dd-run"),
 				ReadOnly:      pulumi.BoolPtr(false),
 			},
 			ecs.TaskDefinitionMountPointArgs{

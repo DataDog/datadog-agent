@@ -228,7 +228,7 @@ func (h *Host) WaitForFileExists(useSudo bool, filePaths ...string) {
 func (h *Host) WaitForTraceAgentSocketReady() {
 	require.EventuallyWithT(h.t(), func(t *assert.CollectT) {
 		// this endpoint is no-op but it will fail if the trace agent is not ready
-		_, err := h.remote.Execute("curl -XGET --unix-socket /var/run/datadog/apm.socket http:/services")
+		_, err := h.remote.Execute("curl -XGET --unix-socket /opt/datadog-agent/run/apm.socket http:/services")
 		require.NoError(t, err)
 	}, 30*time.Second, 1*time.Second, "trace agent did not become ready")
 }

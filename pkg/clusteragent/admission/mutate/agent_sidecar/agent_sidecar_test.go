@@ -367,21 +367,15 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 					corev1.EnvVar{
 						Name:  "DD_APM_RECEIVER_SOCKET",
-						Value: "/var/run/datadog/apm.socket",
+						Value: "/opt/datadog-agent/run/apm.socket",
 					},
 					corev1.EnvVar{
 						Name:  "DD_DOGSTATSD_SOCKET",
-						Value: "/var/run/datadog/dsd.socket",
+						Value: "/opt/datadog-agent/run/dsd.socket",
 					},
 				)
 
-				sidecar.VolumeMounts = append(sidecar.VolumeMounts, []corev1.VolumeMount{
-					{
-						Name:      "ddsockets",
-						MountPath: "/var/run/datadog",
-						ReadOnly:  false,
-					},
-				}...)
+				// Note: ddsockets mount is not added to sidecar because agent-option already mounts at /opt/datadog-agent/run
 
 				return &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
@@ -399,17 +393,17 @@ func TestInjectAgentSidecar(t *testing.T) {
 								Env: []corev1.EnvVar{
 									{
 										Name:  "DD_TRACE_AGENT_URL",
-										Value: "unix:///var/run/datadog/apm.socket",
+										Value: "unix:///opt/datadog-agent/run/apm.socket",
 									},
 									{
 										Name:  "DD_DOGSTATSD_URL",
-										Value: "unix:///var/run/datadog/dsd.socket",
+										Value: "unix:///opt/datadog-agent/run/dsd.socket",
 									},
 								},
 								VolumeMounts: []corev1.VolumeMount{
 									{
 										Name:      "ddsockets",
-										MountPath: "/var/run/datadog",
+										MountPath: "/opt/datadog-agent/run",
 										ReadOnly:  false,
 									},
 								},
@@ -476,11 +470,11 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 					corev1.EnvVar{
 						Name:  "DD_APM_RECEIVER_SOCKET",
-						Value: "/var/run/datadog/apm.socket",
+						Value: "/opt/datadog-agent/run/apm.socket",
 					},
 					corev1.EnvVar{
 						Name:  "DD_DOGSTATSD_SOCKET",
-						Value: "/var/run/datadog/dsd.socket",
+						Value: "/opt/datadog-agent/run/dsd.socket",
 					},
 					corev1.EnvVar{
 						Name: "ENV_VAR_1",
@@ -502,13 +496,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 					Requests: corev1.ResourceList{"cpu": resource.MustParse("0.5"), "memory": resource.MustParse("256Mi")},
 				})
 
-				sidecar.VolumeMounts = append(sidecar.VolumeMounts, []corev1.VolumeMount{
-					{
-						Name:      "ddsockets",
-						MountPath: "/var/run/datadog",
-						ReadOnly:  false,
-					},
-				}...)
+				// Note: ddsockets mount is not added to sidecar because agent-option already mounts at /opt/datadog-agent/run
 
 				return &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
@@ -526,17 +514,17 @@ func TestInjectAgentSidecar(t *testing.T) {
 								Env: []corev1.EnvVar{
 									{
 										Name:  "DD_TRACE_AGENT_URL",
-										Value: "unix:///var/run/datadog/apm.socket",
+										Value: "unix:///opt/datadog-agent/run/apm.socket",
 									},
 									{
 										Name:  "DD_DOGSTATSD_URL",
-										Value: "unix:///var/run/datadog/dsd.socket",
+										Value: "unix:///opt/datadog-agent/run/dsd.socket",
 									},
 								},
 								VolumeMounts: []corev1.VolumeMount{
 									{
 										Name:      "ddsockets",
-										MountPath: "/var/run/datadog",
+										MountPath: "/opt/datadog-agent/run",
 										ReadOnly:  false,
 									},
 								},

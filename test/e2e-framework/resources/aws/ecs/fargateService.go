@@ -105,13 +105,11 @@ func FargateTaskDefinitionWithAgent(
 		PidMode: pulumi.StringPtr("task"),
 		Volumes: classicECS.TaskDefinitionVolumeArray{
 			classicECS.TaskDefinitionVolumeArgs{
-				Name: pulumi.String("dd-sockets"),
+				// Single volume for sockets and agent run directory
+				Name: pulumi.String("dd-run"),
 			},
 			classicECS.TaskDefinitionVolumeArgs{
 				Name: pulumi.String("agent-config"),
-			},
-			classicECS.TaskDefinitionVolumeArgs{
-				Name: pulumi.String("agent-option"),
 			},
 			classicECS.TaskDefinitionVolumeArgs{
 				Name: pulumi.String("agent-tmp"),

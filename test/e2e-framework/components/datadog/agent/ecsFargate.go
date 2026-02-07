@@ -51,7 +51,7 @@ func ECSFargateLinuxContainerDefinition(e config.Env, image string, apiKeySSMPar
 		Environment: append(append(ecs.TaskDefinitionKeyValuePairArray{
 			ecs.TaskDefinitionKeyValuePairArgs{
 				Name:  pulumi.StringPtr("DD_DOGSTATSD_SOCKET"),
-				Value: pulumi.StringPtr("/var/run/datadog/dsd.socket"),
+				Value: pulumi.StringPtr("/opt/datadog-agent/run/dsd.socket"),
 			},
 			ecs.TaskDefinitionKeyValuePairArgs{
 				Name:  pulumi.StringPtr("ECS_FARGATE"),
@@ -86,16 +86,13 @@ func ECSFargateLinuxContainerDefinition(e config.Env, image string, apiKeySSMPar
 		},
 		MountPoints: ecs.TaskDefinitionMountPointArray{
 			ecs.TaskDefinitionMountPointArgs{
-				ContainerPath: pulumi.StringPtr("/var/run/datadog"),
-				SourceVolume:  pulumi.StringPtr("dd-sockets"),
+				// Single mount for sockets and agent options (same directory)
+				ContainerPath: pulumi.StringPtr("/opt/datadog-agent/run"),
+				SourceVolume:  pulumi.StringPtr("dd-run"),
 			},
 			ecs.TaskDefinitionMountPointArgs{
 				ContainerPath: pulumi.StringPtr("/etc/datadog-agent"),
 				SourceVolume:  pulumi.StringPtr("agent-config"),
-			},
-			ecs.TaskDefinitionMountPointArgs{
-				ContainerPath: pulumi.StringPtr("/opt/datadog-agent/run"),
-				SourceVolume:  pulumi.StringPtr("agent-option"),
 			},
 			ecs.TaskDefinitionMountPointArgs{
 				ContainerPath: pulumi.StringPtr("/tmp"),

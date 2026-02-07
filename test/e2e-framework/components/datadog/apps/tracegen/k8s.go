@@ -108,7 +108,7 @@ func generateTracegenUdsSpec(namespace string, serviceAccountName pulumi.StringP
 							Env: &corev1.EnvVarArray{
 								&corev1.EnvVarArgs{
 									Name:  pulumi.String("DD_TRACE_AGENT_URL"),
-									Value: pulumi.String("unix:///var/run/datadog/apm.socket"),
+									Value: pulumi.String("unix:///opt/datadog-agent/run/apm.socket"),
 								},
 							},
 							Resources: &corev1.ResourceRequirementsArgs{
@@ -124,7 +124,7 @@ func generateTracegenUdsSpec(namespace string, serviceAccountName pulumi.StringP
 							VolumeMounts: &corev1.VolumeMountArray{
 								&corev1.VolumeMountArgs{
 									Name:      pulumi.String("apmsocketpath"),
-									MountPath: pulumi.String("/var/run/datadog"),
+									MountPath: pulumi.String("/opt/datadog-agent/run"),
 								},
 							},
 						},
@@ -133,7 +133,7 @@ func generateTracegenUdsSpec(namespace string, serviceAccountName pulumi.StringP
 						&corev1.VolumeArgs{
 							Name: pulumi.String("apmsocketpath"),
 							HostPath: &corev1.HostPathVolumeSourceArgs{
-								Path: pulumi.String("/var/run/datadog"),
+								Path: pulumi.String("/opt/datadog-agent/run"),
 							},
 						},
 					},
