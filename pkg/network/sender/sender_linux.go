@@ -133,11 +133,6 @@ func New(
 		}
 	}
 
-	hash := fnv.New32()
-	_, _ = hash.Write([]byte(hostName))
-	_, _ = hash.Write([]byte(strconv.Itoa(rootPID)))
-	hostNamePIDHash := (uint64(hash.Sum32()) & hashMask) << chunkNumberOfBits
-
 	syscfg := deps.Sysprobeconfig
 	ctx, cancel := context.WithCancel(ctx)
 	ds := directSender{
@@ -165,7 +160,7 @@ func New(
 		hostname:            hostName,
 		containerHostType:   getContainerHostType(),
 		sysProbePID:         uint32(rootPID),
-		requestIDCachedHash: hostNamePIDHash,
+		requestIDCachedHash: hostnameHash(hostName, rootPID),
 
 		maxConnsPerMessage: syscfg.SysProbeObject().MaxConnsPerMessage,
 		queryTypeEnabled:   syscfg.GetBool("network_config.enable_dns_by_querytype"),
@@ -178,6 +173,13 @@ func New(
 
 	ds.start()
 	return &ds, nil
+}
+
+func hostnameHash(hostName string, rootPID int) uint64 {
+	hash := fnv.New32()
+	_, _ = hash.Write([]byte(hostName))
+	_, _ = hash.Write([]byte(strconv.Itoa(rootPID)))
+	return (uint64(hash.Sum32()) & hashMask) << chunkNumberOfBits
 }
 
 type directSender struct {

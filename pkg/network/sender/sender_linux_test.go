@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strconv"
 	"testing"
+	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
@@ -518,4 +519,32 @@ func TestNetworkConnectionBatchingWithResolvConf(t *testing.T) {
 
 	connMissing := cc.Connections[1]
 	require.Equal(t, int32(-1), connMissing.ResolvConfIdx, "connection without resolv.conf should have idx=-1")
+}
+
+func TestGetRequestID(t *testing.T) {
+	d := mockDirectSender(t)
+
+	fixedDate1 := time.Date(2022, 9, 1, 0, 0, 1, 0, time.Local)
+	id1 := d.getRequestID(fixedDate1, 1)
+	id2 := d.getRequestID(fixedDate1, 1)
+	// The calculation should be deterministic, so making sure the parameters generates the same id.
+	assert.Equal(t, id1, id2)
+	fixedDate2 := time.Date(2022, 9, 1, 0, 0, 2, 0, time.Local)
+	id3 := d.getRequestID(fixedDate2, 1)
+
+	// The request id is based on time, so if the difference it only the time, then the new ID should be greater.
+	id1Num, _ := strconv.ParseUint(id1, 10, 64)
+	id3Num, _ := strconv.ParseUint(id3, 10, 64)
+	assert.Greater(t, id3Num, id1Num)
+
+	// Increasing the chunk index should increase the id.
+	id4 := d.getRequestID(fixedDate2, 3)
+	id4Num, _ := strconv.ParseUint(id4, 10, 64)
+	assert.Equal(t, id3Num+2, id4Num)
+
+	// Changing the host -> changing the hash.
+	d.hostname = "host2"
+	d.requestIDCachedHash = hostnameHash("host2", int(d.sysProbePID))
+	id5 := d.getRequestID(fixedDate1, 1)
+	assert.NotEqual(t, id1, id5)
 }
