@@ -18,6 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/system-probe/processeventconsumer"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -102,12 +103,12 @@ type ProbeDependencies struct {
 	// Telemetry is the telemetry component
 	Telemetry telemetry.Component
 
-	// ProcessMonitor is the process monitor interface
-	ProcessMonitor uprobes.ProcessMonitor
-
 	// WorkloadMeta used to retrieve data about workloads (containers, processes) running
 	// on the host
 	WorkloadMeta workloadmeta.Component
+
+	// ProcessEventConsumer is the process monitor
+	ProcessEventConsumer processeventconsumer.ProcessEventConsumer
 }
 
 // Probe represents the GPU monitoring probe
@@ -199,7 +200,7 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 	attachCfg := getAttacherConfig(cfg)
 	p.attacher, err = uprobes.NewUprobeAttacher(consts.GpuModuleName, consts.GpuAttacherName, attachCfg, p.m, nil, uprobes.AttacherDependencies{
 		Inspector:      &uprobes.NativeBinaryInspector{},
-		ProcessMonitor: deps.ProcessMonitor,
+		ProcessMonitor: deps.ProcessEventConsumer.Get(),
 		Telemetry:      deps.Telemetry,
 	})
 	if err != nil {
@@ -212,7 +213,7 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		sysCtx:         sysCtx,
 		cfg:            cfg,
 		telemetry:      deps.Telemetry,
-		processMonitor: deps.ProcessMonitor,
+		processMonitor: deps.ProcessEventConsumer.Get(),
 		streamHandlers: p.streamHandlers,
 		eventHandler:   p.eventHandler,
 		ringFlusher:    p.ringBuffer,

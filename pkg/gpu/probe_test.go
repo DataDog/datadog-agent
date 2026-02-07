@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	consumerstestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
@@ -74,9 +73,9 @@ func (s *probeTestSuite) getProbe() *Probe {
 
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	deps := ProbeDependencies{
-		ProcessMonitor: consumerstestutil.NewTestProcessConsumer(t),
-		WorkloadMeta:   testutil.GetWorkloadMetaMock(t),
-		Telemetry:      testutil.GetTelemetryMock(t),
+		ProcessEventConsumer: testutil.GetProcessConsumerComponent(t),
+		WorkloadMeta:         testutil.GetWorkloadMetaMock(t),
+		Telemetry:            testutil.GetTelemetryMock(t),
 	}
 	probe, err := NewProbe(cfg, deps)
 	require.NoError(t, err)
@@ -377,9 +376,9 @@ func BenchmarkProbeEventProcessing(b *testing.B) {
 
 	ddnvml.WithMockNVML(b, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	deps := ProbeDependencies{
-		ProcessMonitor: consumerstestutil.NewTestProcessConsumer(b),
-		WorkloadMeta:   testutil.GetWorkloadMetaMock(b),
-		Telemetry:      testutil.GetTelemetryMock(b),
+		ProcessEventConsumer: testutil.GetProcessConsumerComponent(b),
+		WorkloadMeta:         testutil.GetWorkloadMetaMock(b),
+		Telemetry:            testutil.GetTelemetryMock(b),
 	}
 	probe, err := NewProbe(cfg, deps)
 	require.NoError(b, err)

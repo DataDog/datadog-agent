@@ -16,9 +16,10 @@ import (
 	gorilla "github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/debug"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	"github.com/DataDog/datadog-agent/pkg/api/coverage"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
@@ -29,15 +30,14 @@ import (
 )
 
 // StartServer starts the HTTP and gRPC servers for the system-probe, which registers endpoints from all enabled modules.
-func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, rcclient rcclient.Component, deps module.FactoryDependencies) error {
+func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, rcclient rcclient.Component, telemetry telemetry.Component, mods []types.SystemProbeModuleComponent) error {
 	conn, err := server.NewListener(cfg.SocketAddress)
 	if err != nil {
 		return err
 	}
 
 	mux := gorilla.NewRouter()
-
-	err = module.Register(cfg, mux, modules.All(), rcclient, deps)
+	err = module.Register(cfg, telemetry, mux, mods, rcclient)
 	if err != nil {
 		_ = conn.Close()
 		return fmt.Errorf("failed to create system probe: %s", err)
@@ -50,14 +50,14 @@ func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, rcclie
 		utils.WriteAsJSON(w, module.GetStats(), utils.CompactOutput)
 	}))
 
-	setupConfigHandlers(mux, settings)
+	setupConfigHandlers(mux, settings, mods)
 
 	// Module-restart handler
-	mux.HandleFunc("/module-restart/{module-name}", func(w http.ResponseWriter, r *http.Request) { restartModuleHandler(w, r, deps) }).Methods("POST")
+	mux.HandleFunc("/module-restart/{module-name}", func(w http.ResponseWriter, r *http.Request) { restartModuleHandler(w, r, mods) }).Methods("POST")
 
 	mux.PathPrefix("/debug/pprof").Handler(http.DefaultServeMux)
 	mux.Handle("/debug/vars", http.DefaultServeMux)
-	mux.Handle("/telemetry", deps.Telemetry.Handler())
+	mux.Handle("/telemetry", telemetry.Handler())
 
 	if runtime.GOOS == "linux" {
 		mux.HandleFunc("/debug/ebpf_btf_loader_info", ebpf.HandleBTFLoaderInfo)

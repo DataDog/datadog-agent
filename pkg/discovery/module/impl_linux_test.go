@@ -59,7 +59,7 @@ func setupDiscoveryModule(t *testing.T) *testDiscoveryModule {
 	t.Helper()
 	mux := gorillamux.NewRouter()
 
-	mod, err := NewDiscoveryModule(nil, module.FactoryDependencies{})
+	mod, err := NewDiscoveryModule()
 	require.NoError(t, err)
 	discovery := mod.(*discovery)
 
@@ -216,7 +216,7 @@ func buildFakeServer(t *testing.T) string {
 }
 
 func newDiscovery() *discovery {
-	mod, err := NewDiscoveryModule(nil, module.FactoryDependencies{})
+	mod, err := NewDiscoveryModule()
 	if err != nil {
 		panic(err)
 	}

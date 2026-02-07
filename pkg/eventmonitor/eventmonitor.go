@@ -17,13 +17,13 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -56,10 +56,10 @@ type EventMonitor struct {
 	cwsStatusProvider CWSStatusProvider
 }
 
-var _ module.Module = &EventMonitor{}
+var _ types.SystemProbeModule = &EventMonitor{}
 
 // Register the event monitoring module
-func (m *EventMonitor) Register(_ *module.Router) error {
+func (m *EventMonitor) Register(_ types.SystemProbeRouter) error {
 	if err := m.Init(); err != nil {
 		return err
 	}
