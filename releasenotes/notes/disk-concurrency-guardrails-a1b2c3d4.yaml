@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Disk check: Added guardrails to limit concurrency when remote filesystems (NFS/CIFS) become unresponsive. The disk check now caps concurrent disk usage calls to prevent unbounded thread growth, improving Agent stability. When a remote mount is stuck, usage metrics for that mount are skipped to keep the Agent healthy.
