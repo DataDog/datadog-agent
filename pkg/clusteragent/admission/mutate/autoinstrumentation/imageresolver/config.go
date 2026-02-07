@@ -37,6 +37,7 @@ type Config struct {
 	MaxInitRetries int
 	InitRetryDelay time.Duration
 	BucketID       string
+	DigestCacheTTL time.Duration
 }
 
 func calculateRolloutBucket(apiKey string) string {
@@ -46,7 +47,6 @@ func calculateRolloutBucket(apiKey string) string {
 	return strconv.Itoa(int(hashInt % rolloutBucketCount))
 }
 
-// NewConfig creates a new Config
 func NewConfig(cfg config.Component, rcClient RemoteConfigClient) Config {
 	return Config{
 		Site:           cfg.GetString("site"),
@@ -55,5 +55,6 @@ func NewConfig(cfg config.Component, rcClient RemoteConfigClient) Config {
 		MaxInitRetries: 5,
 		InitRetryDelay: 1 * time.Second,
 		BucketID:       calculateRolloutBucket(cfg.GetString("api_key")),
+		DigestCacheTTL: 1 * time.Hour, // DEV: Make this configurable
 	}
 }

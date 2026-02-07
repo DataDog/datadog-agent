@@ -9,6 +9,7 @@ package imageresolver
 
 import (
 	"fmt"
+	"net/http"
 	"reflect"
 	"strings"
 	"sync"
@@ -211,6 +212,54 @@ func (r *rcResolver) processUpdate(update map[string]state.RawConfig, applyState
 	}
 }
 
+type bucketTagResolver struct {
+	cache               *httpDigestCache
+	bucketID            string
+	datadoghqRegistries map[string]struct{}
+}
+
+func (r *bucketTagResolver) createBucketTag(tag string) string {
+	normalizedTag := strings.TrimPrefix(tag, "v")
+
+	// DEV: Only create bucket tag for major versions (single number like "1" or "v1")
+	if !strings.Contains(normalizedTag, ".") {
+		return fmt.Sprintf("%s-gr%s", normalizedTag, r.bucketID)
+	}
+	return normalizedTag
+}
+
+func (r *bucketTagResolver) Resolve(registry string, repository string, tag string) (*ResolvedImage, bool) {
+	if !isDatadoghqRegistry(registry, r.datadoghqRegistries) {
+		log.Debugf("%s is not a Datadoghq registry, not resolving", registry)
+		metrics.ImageResolutionAttempts.Inc(repository, tag, tag)
+		return nil, false
+	}
+
+	bucketTag := r.createBucketTag(tag)
+
+	digest, err := r.cache.get(registry, repository, bucketTag)
+	if err != nil {
+		log.Debugf("cache miss for %s/%s:%s - %v", registry, repository, bucketTag, err)
+		metrics.ImageResolutionAttempts.Inc(repository, bucketTag, tag)
+		return nil, false
+	}
+	log.Debugf("cache hit for %s/%s:%s", registry, repository, bucketTag)
+	metrics.ImageResolutionAttempts.Inc(repository, bucketTag, digest)
+	return &ResolvedImage{
+		FullImageRef:     registry + "/" + repository + "@" + digest,
+		CanonicalVersion: tag, // DEV: This is the customer provided tag
+	}, true
+}
+
+func newBucketTagResolver(cfg Config) *bucketTagResolver {
+	rt := http.DefaultTransport.(*http.Transport).Clone()
+	return &bucketTagResolver{
+		cache:               newHTTPDigestCache(cfg.DigestCacheTTL, cfg.DDRegistries, rt),
+		bucketID:            cfg.BucketID,
+		datadoghqRegistries: cfg.DDRegistries,
+	}
+}
+
 // New creates the appropriate Resolver based on whether
 // a remote config client is available.
 func New(cfg Config) Resolver {
@@ -218,6 +267,5 @@ func New(cfg Config) Resolver {
 		log.Debugf("No remote config client available")
 		return NewNoOpResolver()
 	}
-
 	return newRcResolver(cfg)
 }
