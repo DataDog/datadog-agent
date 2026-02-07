@@ -39,6 +39,7 @@ type StatSpan struct {
 	//Fields below this are derived on creation
 
 	spanKind         string
+	serviceSource    string
 	statusCode       uint32
 	isTopLevel       bool
 	matchingPeerTags []string
@@ -194,6 +195,7 @@ func (sc *SpanConcentrator) NewStatSpanWithConfig(config StatSpanConfig) (statSp
 		start:            config.Start,
 		duration:         config.Duration,
 		spanKind:         config.Meta[tagSpanKind],
+		serviceSource:    config.Meta[tagServiceSource],
 		statusCode:       getStatusCode(config.Meta, config.Metrics),
 		isTopLevel:       isTopLevel,
 		matchingPeerTags: matchingPeerTags(config.Meta, config.PeerTags),

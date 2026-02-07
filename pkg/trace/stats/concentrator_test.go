@@ -1008,6 +1008,68 @@ func TestLangInStats(t *testing.T) {
 	})
 }
 
+func TestServiceSourceInStats(t *testing.T) {
+	now := time.Now()
+	c := NewTestConcentrator(now)
+	alignedNow := alignTs(now.UnixNano(), c.bsize)
+	c.spanConcentrator.oldestTs = alignedNow - int64(c.spanConcentrator.bufferLen)*c.bsize
+
+	spans := []*pb.Span{
+		testSpan(now, 1, 0, 50, 0, "A1", "resource1", 0, map[string]string{"_dd.svc_src": "1"}),
+		testSpan(now, 2, 0, 30, 0, "A1", "resource1", 0, map[string]string{"_dd.svc_src": "1"}),
+		testSpan(now, 3, 0, 60, 0, "A1", "resource1", 0, map[string]string{"_dd.svc_src": "spring_app"}),
+		testSpan(now, 4, 0, 40, 0, "A1", "resource1", 1, map[string]string{"_dd.svc_src": "spring_app"}),
+		testSpan(now, 5, 0, 70, 0, "A1", "resource1", 0, nil),
+		testSpan(now, 6, 0, 10, 0, "A1", "resource1", 0, nil),
+	}
+	traceutil.ComputeTopLevel(spans)
+	testTrace := toProcessedTrace(spans, "none", "", "", "", "", "")
+	c.addNow(testTrace, infraTags{})
+
+	stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
+	require.Len(t, stats.Stats, 1)
+	require.Len(t, stats.Stats[0].Stats, 1)
+
+	expected := []*pb.ClientGroupedStats{
+		{
+			Service:       "A1",
+			Resource:      "resource1",
+			Type:          "db",
+			Name:          "query",
+			Duration:      80,
+			Hits:          2,
+			TopLevelHits:  2,
+			Errors:        0,
+			IsTraceRoot:   pb.Trilean_TRUE,
+			ServiceSource: "1",
+		},
+		{
+			Service:       "A1",
+			Resource:      "resource1",
+			Type:          "db",
+			Name:          "query",
+			Duration:      100,
+			Hits:          2,
+			TopLevelHits:  2,
+			Errors:        1,
+			IsTraceRoot:   pb.Trilean_TRUE,
+			ServiceSource: "spring_app",
+		},
+		{
+			Service:      "A1",
+			Resource:     "resource1",
+			Type:         "db",
+			Name:         "query",
+			Duration:     80,
+			Hits:         2,
+			TopLevelHits: 2,
+			Errors:       0,
+			IsTraceRoot:  pb.Trilean_TRUE,
+		},
+	}
+	assertCountsEqual(t, expected, stats.Stats[0].Stats[0].Stats)
+}
+
 func TestComputeStatsForSpanKind(t *testing.T) {
 	assert := assert.New(t)
 
