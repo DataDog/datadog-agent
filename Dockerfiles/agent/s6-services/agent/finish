@@ -4,5 +4,9 @@
 
 foreground { /initlog.sh "AGENT EXITED WITH CODE ${1}, SIGNAL ${2}, KILLING CONTAINER" }
 
+# Propagate the agent's exit code to the container exit code
+# by writing it to the s6 stage3 environment directory
+foreground { redirfd -w 1 /var/run/s6/env-stage3/S6_STAGE2_EXITED s6-echo -n -- ${1} }
+
 # If the container is stopped via docker, s6 is already closing, silencing the error
 redirfd -w 2 /dev/null s6-svscanctl -t /var/run/s6/services
