@@ -55,16 +55,37 @@ func (f *deploymentRolloutFactory) MetricFamilyGenerators() []generator.FamilyGe
 			basemetrics.ALPHA,
 			"",
 			wrapDeploymentFunc(func(d *appsv1.Deployment) *metric.Family {
+				// Get the current revision annotation - this changes on actual rollouts/rollbacks
+				// but NOT on scaling, pause, or other non-template changes
+				currentRevision := d.Annotations[RevisionAnnotationKey]
 
-				// if the generation changes we should consider the rollout ongoing,
-				// but if the generation didn't change, and there's also no rollout
-				// status, this could be a temporary pod issue, or something like
-				// node migration where pods are spun down and moved to another node,
-				// so we don't consider that ongoing, or we'd emit a metric for deployments
-				// that have been stable for a while and then were migrated.
-				isNewRollout := d.Generation != d.Status.ObservedGeneration
+				// Check if this is a generation mismatch (Kubernetes hasn't caught up yet)
+				generationMismatch := d.Generation != d.Status.ObservedGeneration
+
+				// Check if the revision actually changed - this distinguishes real rollouts
+				// from scaling/pause operations which change generation but not revision
+				revisionChanged := f.rolloutTracker.HasRevisionChanged(d.Namespace, d.Name, currentRevision)
+
+				// Check if we're already tracking this deployment
+				isActivelyTracked := f.rolloutTracker.HasActiveRollout(d)
+
+				// Check if Kubernetes reports an active rollout condition
 				hasRolloutCondition := f.rolloutTracker.HasRolloutCondition(d)
-				isOngoing := isNewRollout || hasRolloutCondition
+
+				// A rollout is ongoing if:
+				// 1. Revision changed AND (generation mismatch OR rollout condition active)
+				//    - This catches both normal rollouts AND fast reconciliation cases where
+				//      generation catches up quickly but pods are still rolling
+				// 2. OR we're already tracking AND has rollout condition (continuing rollout)
+				//
+				// Note: If a rollout completes entirely between checks (< 15s), we won't report it.
+				// This is acceptable - we only need to report rollouts that are ongoing when checked.
+				isOngoing := (revisionChanged && (generationMismatch || hasRolloutCondition)) ||
+					(isActivelyTracked && hasRolloutCondition)
+
+				// Always update the last seen revision to track state across scrapes
+				// This must be called regardless of isOngoing to maintain accurate revision tracking
+				defer f.rolloutTracker.UpdateLastSeenRevision(d.Namespace, d.Name, currentRevision)
 
 				if isOngoing {
 					f.rolloutTracker.StoreDeployment(d)
