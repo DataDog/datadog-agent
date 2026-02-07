@@ -27,7 +27,6 @@ import (
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 	"golang.org/x/sys/windows/svc"
-	"golang.org/x/sys/windows/svc/mgr"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/msi"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
@@ -853,15 +852,6 @@ func preInstallExtensionDatadogAgent(ctx HookContext) error {
 	}
 }
 
-// preInstallDDOTExtension ensures any existing DDOT service is stopped and removed
-// to allow clean installation of the new version.
-func preInstallDDOTExtension(ctx HookContext) error {
-	// Best effort - ignore errors
-	_ = stopServiceIfExists(otelServiceName)
-	_ = deleteServiceIfExists(otelServiceName)
-	return nil
-}
-
 // postInstallExtensionDatadogAgent performs post-installation steps for extensions.
 func postInstallExtensionDatadogAgent(ctx HookContext) error {
 	switch ctx.Extension {
@@ -872,66 +862,6 @@ func postInstallExtensionDatadogAgent(ctx HookContext) error {
 	}
 }
 
-// postInstallDDOTExtension performs post-installation steps for DDOT extension.
-// Steps:
-//  1. Writes otel-config.yaml with API key substitution
-//  2. Enables otelcollector in datadog.yaml
-//  3. Creates/updates the DDOT Windows service
-//  4. Starts DDOT service if conditions are met
-//
-// IMPORTANT: This hook does NOT restart the main Agent services. The Agent must be
-// manually restarted after extension installation for otelcollector config to take effect.
-// This is different from standalone DDOT package installation which does restart services.
-// Extension hooks are designed to be non-disruptive to the running Agent.
-func postInstallDDOTExtension(ctx HookContext) error {
-	extensionPath := filepath.Join(ctx.PackagePath, "ext", ctx.Extension)
-
-	if err := writeOTelConfigWindowsExtension(extensionPath); err != nil {
-		return fmt.Errorf("failed to write otel-config.yaml: %w", err)
-	}
-
-	if err := enableOtelCollectorConfigWindows(ctx.Context); err != nil {
-		return fmt.Errorf("failed to enable otelcollector: %w", err)
-	}
-
-	binaryPath := filepath.Join(extensionPath, "embedded", "bin", "otel-agent.exe")
-	// Verify binary exists before creating service
-	if _, err := os.Stat(binaryPath); err != nil {
-		return fmt.Errorf("DDOT binary not found at %s: %w", binaryPath, err)
-	}
-
-	if err := ensureDDOTServiceForExtension(binaryPath); err != nil {
-		return fmt.Errorf("failed to create DDOT service: %w", err)
-	}
-
-	// Start DDOT service only if core Agent is running and API key exists
-	// Handle race condition where Agent may be in StartPending state
-	running, _ := winutil.IsServiceRunning(coreAgentService)
-	if !running {
-		// If core Agent is still starting, wait briefly for it to leave StartPending
-		ctxCA, cancelCA := context.WithTimeout(ctx.Context, 30*time.Second)
-		defer cancelCA()
-		if st, err := winutil.WaitForPendingStateChange(ctxCA, coreAgentService, svc.StartPending); err != nil || st != svc.Running {
-			// Core Agent not running - skip DDOT service start
-			return nil
-		}
-	}
-	if ak := readAPIKeyFromDatadogYAML(); ak == "" {
-		// No API key configured - skip DDOT service start
-		return nil
-	}
-
-	// Best effort service start - ignore errors
-	_ = startServiceIfExists(otelServiceName)
-
-	// Wait for service to reach Running state (fail-fast if it exits immediately)
-	ctxWait, cancel := context.WithTimeout(ctx.Context, 30*time.Second)
-	defer cancel()
-	_, _ = winutil.WaitForPendingStateChange(ctxWait, otelServiceName, svc.StartPending)
-
-	return nil
-}
-
 // preRemoveExtensionDatadogAgent performs pre-removal steps for extensions.
 func preRemoveExtensionDatadogAgent(ctx HookContext) error {
 	switch ctx.Extension {
@@ -940,86 +870,4 @@ func preRemoveExtensionDatadogAgent(ctx HookContext) error {
 	default:
 		return nil
 	}
-}
-
-// preRemoveDDOTExtension performs pre-removal steps for DDOT extension.
-// Steps:
-//  1. Stops and deletes the DDOT service
-//  2. Disables otelcollector in datadog.yaml
-//
-// IMPORTANT: This hook does NOT restart the main Agent services. The Agent must be
-// manually restarted after extension removal for config changes to take effect.
-func preRemoveDDOTExtension(ctx HookContext) error {
-	// Best effort - ignore errors
-	_ = stopServiceIfExists(otelServiceName)
-	_ = deleteServiceIfExists(otelServiceName)
-	_ = disableOtelCollectorConfigWindows()
-
-	return nil
-}
-
-// writeOTelConfigWindowsExtension writes otel-config.yaml for extension
-func writeOTelConfigWindowsExtension(extensionPath string) error {
-	ddYaml := filepath.Join(paths.DatadogDataDir, "datadog.yaml")
-	templatePath := filepath.Join(extensionPath, "etc", "datadog-agent", "otel-config.yaml.example")
-	outPath := filepath.Join(paths.DatadogDataDir, "otel-config.yaml")
-
-	return writeOTelConfigCommon(ddYaml, templatePath, outPath, true, 0o640)
-}
-
-// ensureDDOTServiceForExtension ensures the DDOT service exists and is configured correctly for extension
-func ensureDDOTServiceForExtension(binaryPath string) error {
-	m, err := mgr.Connect()
-	if err != nil {
-		return err
-	}
-	defer m.Disconnect()
-
-	s, err := m.OpenService(otelServiceName)
-	if err == nil {
-		defer s.Close()
-		cfg, errC := s.Config()
-		if errC != nil {
-			return errC
-		}
-		changed := false
-		if cfg.BinaryPathName != binaryPath {
-			cfg.BinaryPathName = binaryPath
-			changed = true
-		}
-		if cfg.StartType != mgr.StartManual {
-			cfg.StartType = mgr.StartManual
-			changed = true
-		}
-		if len(cfg.Dependencies) > 0 {
-			cfg.Dependencies = nil
-			changed = true
-		}
-		if changed {
-			if errU := s.UpdateConfig(cfg); errU != nil {
-				return errU
-			}
-		}
-		if err := configureDDOTServiceCredentials(s); err != nil {
-			return err
-		}
-		configureDDOTServicePermissions(s)
-		return nil
-	}
-
-	s, err = m.CreateService(otelServiceName, binaryPath, mgr.Config{
-		DisplayName:      "Datadog Distribution of OpenTelemetry Collector",
-		Description:      "Datadog OpenTelemetry Collector",
-		StartType:        mgr.StartManual,
-		ServiceStartName: "",
-	})
-	if err != nil {
-		return err
-	}
-	defer s.Close()
-	if err := configureDDOTServiceCredentials(s); err != nil {
-		return err
-	}
-	configureDDOTServicePermissions(s)
-	return nil
 }

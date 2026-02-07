@@ -380,3 +380,134 @@ func deleteServiceIfExists(name string) error {
 	defer s.Close()
 	return s.Delete()
 }
+
+// DDOT Extension methods for datadog-agent package
+
+// preInstallDDOTExtension stops the existing DDOT service before extension installation
+func preInstallDDOTExtension(ctx HookContext) error {
+	// Best effort - ignore errors
+	_ = stopServiceIfExists(otelServiceName)
+	_ = deleteServiceIfExists(otelServiceName)
+	return nil
+}
+
+// postInstallDDOTExtension sets up the DDOT extension after files are extracted
+// IMPORTANT: This hook does NOT restart the main Agent services. The Agent must be
+// manually restarted after extension installation for otelcollector config to take effect.
+func postInstallDDOTExtension(ctx HookContext) error {
+	extensionPath := filepath.Join(ctx.PackagePath, "ext", ctx.Extension)
+
+	if err := writeOTelConfigWindowsExtension(extensionPath); err != nil {
+		return fmt.Errorf("failed to write otel-config.yaml: %w", err)
+	}
+
+	if err := enableOtelCollectorConfigWindows(ctx.Context); err != nil {
+		return fmt.Errorf("failed to enable otelcollector: %w", err)
+	}
+
+	binaryPath := filepath.Join(extensionPath, "embedded", "bin", "otel-agent.exe")
+	if _, err := os.Stat(binaryPath); err != nil {
+		return fmt.Errorf("DDOT binary not found at %s: %w", binaryPath, err)
+	}
+
+	if err := ensureDDOTServiceForExtension(binaryPath); err != nil {
+		return fmt.Errorf("failed to create DDOT service: %w", err)
+	}
+
+	// Start DDOT service only if core Agent is running and API key exists
+	running, _ := winutil.IsServiceRunning(coreAgentService)
+	if !running {
+		ctxCA, cancelCA := context.WithTimeout(ctx.Context, 30*time.Second)
+		defer cancelCA()
+		if st, err := winutil.WaitForPendingStateChange(ctxCA, coreAgentService, svc.StartPending); err != nil || st != svc.Running {
+			return nil
+		}
+	}
+	if ak := readAPIKeyFromDatadogYAML(); ak == "" {
+		return nil
+	}
+
+	// Best effort service start - ignore errors
+	_ = startServiceIfExists(otelServiceName)
+	ctxWait, cancel := context.WithTimeout(ctx.Context, 30*time.Second)
+	defer cancel()
+	_, _ = winutil.WaitForPendingStateChange(ctxWait, otelServiceName, svc.StartPending)
+
+	return nil
+}
+
+// preRemoveDDOTExtension stops and removes the DDOT service before extension removal
+// IMPORTANT: This hook does NOT restart the main Agent services.
+func preRemoveDDOTExtension(ctx HookContext) error {
+	// Best effort - ignore errors
+	_ = stopServiceIfExists(otelServiceName)
+	_ = deleteServiceIfExists(otelServiceName)
+	_ = disableOtelCollectorConfigWindows()
+
+	return nil
+}
+
+// writeOTelConfigWindowsExtension writes otel-config.yaml for extension
+func writeOTelConfigWindowsExtension(extensionPath string) error {
+	ddYaml := filepath.Join(paths.DatadogDataDir, "datadog.yaml")
+	templatePath := filepath.Join(extensionPath, "etc", "datadog-agent", "otel-config.yaml.example")
+	outPath := filepath.Join(paths.DatadogDataDir, "otel-config.yaml")
+	return writeOTelConfigCommon(ddYaml, templatePath, outPath, true, 0o640)
+}
+
+// ensureDDOTServiceForExtension ensures the DDOT service exists and is configured correctly for extension
+func ensureDDOTServiceForExtension(binaryPath string) error {
+	m, err := mgr.Connect()
+	if err != nil {
+		return err
+	}
+	defer m.Disconnect()
+
+	s, err := m.OpenService(otelServiceName)
+	if err == nil {
+		defer s.Close()
+		cfg, errC := s.Config()
+		if errC != nil {
+			return errC
+		}
+		changed := false
+		if cfg.BinaryPathName != binaryPath {
+			cfg.BinaryPathName = binaryPath
+			changed = true
+		}
+		if cfg.StartType != mgr.StartManual {
+			cfg.StartType = mgr.StartManual
+			changed = true
+		}
+		if len(cfg.Dependencies) > 0 {
+			cfg.Dependencies = nil
+			changed = true
+		}
+		if changed {
+			if errU := s.UpdateConfig(cfg); errU != nil {
+				return errU
+			}
+		}
+		if err := configureDDOTServiceCredentials(s); err != nil {
+			return err
+		}
+		configureDDOTServicePermissions(s)
+		return nil
+	}
+
+	s, err = m.CreateService(otelServiceName, binaryPath, mgr.Config{
+		DisplayName:      "Datadog Distribution of OpenTelemetry Collector",
+		Description:      "Datadog OpenTelemetry Collector",
+		StartType:        mgr.StartManual,
+		ServiceStartName: "",
+	})
+	if err != nil {
+		return err
+	}
+	defer s.Close()
+	if err := configureDDOTServiceCredentials(s); err != nil {
+		return err
+	}
+	configureDDOTServicePermissions(s)
+	return nil
+}

@@ -477,43 +477,34 @@ type installerRegistryConfig struct {
 	Password string `yaml:"password,omitempty"`
 }
 
-// agentExtensionHandler defines the interface for extension-specific lifecycle hooks
-type agentExtensionHandler interface {
-	preInstall(ctx HookContext) error
-	postInstall(ctx HookContext) error
-	preRemove(ctx HookContext) error
-}
-
-// agentExtensionHandlers maps extension names to their handlers
-var agentExtensionHandlers = map[string]agentExtensionHandler{
-	"ddot": &ddotExtensionHandler{},
-}
-
 // preInstallExtensionDatadogAgent runs pre-installation steps for agent extensions
 func preInstallExtensionDatadogAgent(ctx HookContext) error {
-	handler, exists := agentExtensionHandlers[ctx.Extension]
-	if !exists {
+	switch ctx.Extension {
+	case "ddot":
+		return preInstallDDOTExtension(ctx)
+	default:
 		return nil
 	}
-	return handler.preInstall(ctx)
 }
 
 // postInstallExtensionDatadogAgent runs post-installation steps for agent extensions
 func postInstallExtensionDatadogAgent(ctx HookContext) error {
-	handler, exists := agentExtensionHandlers[ctx.Extension]
-	if !exists {
+	switch ctx.Extension {
+	case "ddot":
+		return postInstallDDOTExtension(ctx)
+	default:
 		return nil
 	}
-	return handler.postInstall(ctx)
 }
 
 // preRemoveExtensionDatadogAgent runs pre-removal steps for agent extensions
 func preRemoveExtensionDatadogAgent(ctx HookContext) error {
-	handler, exists := agentExtensionHandlers[ctx.Extension]
-	if !exists {
+	switch ctx.Extension {
+	case "ddot":
+		return preRemoveDDOTExtension(ctx)
+	default:
 		return nil
 	}
-	return handler.preRemove(ctx)
 }
 
 // setRegistryConfig is a best effort to get the `installer` block from `datadog.yaml` and update the env.

@@ -229,25 +229,21 @@ func writeOTelConfig() error {
 	return writeOTelConfigCommon(datadogYamlPath, "/etc/datadog-agent/otel-config.yaml.example", "/etc/datadog-agent/otel-config.yaml", false, 0644)
 }
 
-// preInstall stops the existing DDOT service before extension installation
-func (h *ddotExtensionHandler) preInstall(ctx HookContext) error {
+// DDOT Extension methods
+
+// preInstallDDOTExtension stops the existing DDOT service before extension installation
+func preInstallDDOTExtension(ctx HookContext) error {
 	span, ctx := ctx.StartSpan("pre_install_extension_ddot")
 	defer span.Finish(nil)
 
-	if err := agentDDOTService.StopStable(ctx); err != nil {
-		log.Warnf("failed to stop DDOT service: %s", err)
-	}
+	// Best effort - ignore errors
+	_ = agentDDOTService.StopStable(ctx)
 
 	return nil
 }
 
-// DDOT Extension methods
-
-// ddotExtensionHandler implements agentExtensionHandler for the DDOT extension
-type ddotExtensionHandler struct{}
-
-// postInstall sets up the DDOT extension after files are extracted
-func (h *ddotExtensionHandler) postInstall(ctx HookContext) (err error) {
+// postInstallDDOTExtension sets up the DDOT extension after files are extracted
+func postInstallDDOTExtension(ctx HookContext) (err error) {
 	span, ctx := ctx.StartSpan("post_install_extension_ddot")
 	defer func() {
 		span.Finish(err)
@@ -255,31 +251,8 @@ func (h *ddotExtensionHandler) postInstall(ctx HookContext) (err error) {
 
 	extensionPath := filepath.Join(ctx.PackagePath, "ext", "ddot")
 
-	if err = user.EnsureAgentUserAndGroup(ctx, "/opt/datadog-agent"); err != nil {
-		return fmt.Errorf("failed to create dd-agent user and group: %v", err)
-	}
-
-	if err = ddotDirectories.Ensure(ctx); err != nil {
-		return fmt.Errorf("failed to create DDOT directories: %v", err)
-	}
-
-	if err = ddotPackagePermissions.Ensure(ctx, extensionPath); err != nil {
-		return fmt.Errorf("failed to set DDOT extension ownerships: %v", err)
-	}
-
-	if err = writeDDOTExtensionOTelConfig(extensionPath); err != nil {
-		fmt.Printf("could not write otel-config.yaml file: %s\n", err)
-		log.Warnf("could not write otel-config.yaml file: %s", err)
-	} else {
-		// Ensure correct ownership and secure permissions on the generated config files
-		otelConfigPermissions := file.Permissions{
-			{Path: "otel-config.yaml", Owner: "dd-agent", Group: "dd-agent", Mode: 0640},
-			{Path: "otel-config.yaml.example", Owner: "dd-agent", Group: "dd-agent", Mode: 0640},
-		}
-		if err := otelConfigPermissions.Ensure(ctx, "/etc/datadog-agent"); err != nil {
-			log.Warnf("failed to set ownership on otel-config files: %v", err)
-		}
-	}
+	// Write otel-config.yaml - best effort, ignore errors
+	_ = writeDDOTExtensionOTelConfig(extensionPath)
 
 	if err := enableOtelCollectorConfig(ctx); err != nil {
 		return fmt.Errorf("failed to enable otelcollector in datadog.yaml: %v", err)
@@ -293,30 +266,21 @@ func (h *ddotExtensionHandler) postInstall(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to enable DDOT service: %s", err)
 	}
 
-	if err := agentDDOTService.RestartStable(ctx); err != nil {
-		fmt.Printf("failed to start DDOT service: %s\n", err)
-		log.Warnf("failed to start DDOT service: %s", err)
-	}
+	// Best effort service start - ignore errors
+	_ = agentDDOTService.RestartStable(ctx)
 
 	return nil
 }
 
-// preRemove stops and disables the DDOT service before extension removal
-func (h *ddotExtensionHandler) preRemove(ctx HookContext) error {
+// preRemoveDDOTExtension stops and disables the DDOT service before extension removal
+func preRemoveDDOTExtension(ctx HookContext) error {
 	span, ctx := ctx.StartSpan("pre_remove_extension_ddot")
 	defer span.Finish(nil)
 
-	if err := agentDDOTService.StopStable(ctx); err != nil {
-		log.Warnf("failed to stop DDOT service: %s", err)
-	}
-
-	if err := agentDDOTService.DisableStable(ctx); err != nil {
-		log.Warnf("failed to disable DDOT service: %s", err)
-	}
-
-	if err := agentDDOTService.RemoveStable(ctx); err != nil {
-		log.Warnf("failed to remove DDOT service units: %s", err)
-	}
+	// Best effort - ignore errors
+	_ = agentDDOTService.StopStable(ctx)
+	_ = agentDDOTService.DisableStable(ctx)
+	_ = agentDDOTService.RemoveStable(ctx)
 
 	return nil
 }
