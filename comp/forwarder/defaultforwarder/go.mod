@@ -26,6 +26,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.72.2
 	github.com/DataDog/datadog-agent/pkg/version v0.72.2
+	github.com/benbjohnson/clock v1.3.5
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/atomic v1.11.0
