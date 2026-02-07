@@ -1248,8 +1248,9 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) ([]
 
 		for _, rule := range policy.GetAcceptedRules() {
 			if existingRule := rulesIndex[rule.Def.ID]; existingRule != nil {
-				existingRule.UsedBy = append(existingRule.UsedBy, rule.Policy)
-				existingRule.MergeWith(rule)
+				if !existingRule.MergeWith(rule) {
+					existingRule.UsedBy = append(existingRule.UsedBy, rule.Policy)
+				}
 			} else {
 				rulesIndex[rule.Def.ID] = rule
 				allRules = append(allRules, rule)
