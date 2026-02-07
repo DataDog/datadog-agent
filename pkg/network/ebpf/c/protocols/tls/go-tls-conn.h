@@ -131,19 +131,56 @@ static __always_inline bool __tuple_via_limited_conn(tls_conn_layout_t* cl, void
     return __tuple_via_tcp_conn(cl, inner_conn_iface_ptr, output);
 }
 
-static __always_inline conn_tuple_t* conn_tup_from_tls_conn(tls_offsets_data_t* pd, void* conn) {
-    conn_tuple_t* tup = bpf_map_lookup_elem(&conn_tup_by_go_tls_conn, &conn);
-    if (tup != NULL) {
-        return tup;
+// Reads the conn_fd_ptr (pointer to netFD struct) from Go memory.
+// This is used as a fingerprint to uniquely identify a connection.
+static __always_inline __u64 __read_conn_fd_ptr(tls_conn_layout_t* cl, void* inner_conn_iface_ptr) {
+    void* conn_fd_ptr = NULL;
+
+    // Try direct tcp_conn path
+    if (bpf_probe_read_user(&conn_fd_ptr, sizeof(conn_fd_ptr),
+            inner_conn_iface_ptr + cl->tcp_conn_inner_conn_offset + cl->conn_fd_offset) == 0 && conn_fd_ptr != NULL) {
+        return (__u64)conn_fd_ptr;
     }
 
-    // The tls.Conn struct has a `conn` field of type `net.Conn` (interface)
-    // Here we obtain the pointer to the concrete type behind this interface.
+    // Try via limited_conn path
+    void *limited_inner_ptr = resolve_interface(inner_conn_iface_ptr + cl->limited_conn_inner_conn_offset);
+    if (limited_inner_ptr != NULL) {
+        if (bpf_probe_read_user(&conn_fd_ptr, sizeof(conn_fd_ptr),
+                limited_inner_ptr + cl->tcp_conn_inner_conn_offset + cl->conn_fd_offset) == 0) {
+            return (__u64)conn_fd_ptr;
+        }
+    }
+
+    return 0;
+}
+
+static __always_inline conn_tuple_t* conn_tup_from_tls_conn(tls_offsets_data_t* pd, void* conn) {
+    // Resolve inner connection interface
     void *inner_conn_iface_ptr = resolve_interface(conn + pd->conn_layout.tls_conn_inner_conn_offset);
     if (inner_conn_iface_ptr == NULL) {
         return NULL;
     }
 
+    // Read conn_fd_ptr as fingerprint - this uniquely identifies the underlying TCP connection
+    __u64 conn_fd_ptr = __read_conn_fd_ptr(&pd->conn_layout, inner_conn_iface_ptr);
+    if (conn_fd_ptr == 0) {
+        return NULL;
+    }
+
+    // Form composite key: (tls.Conn pointer, conn_fd_ptr)
+    // This ensures we get a cache miss if Go reuses the tls.Conn address for a new connection
+    go_tls_conn_key_t key = {
+        .tls_conn_ptr = (__u64)conn,
+        .conn_fd_ptr = conn_fd_ptr,
+    };
+
+    // Lookup with composite key - if found, it's guaranteed to be the correct entry
+    conn_tuple_t* tup = bpf_map_lookup_elem(&conn_tup_by_go_tls_conn, &key);
+    if (tup != NULL) {
+        return tup;
+    }
+
+    // Cache miss - create new entry
     conn_tuple_t tuple = {
         .pid = GET_USER_MODE_PID(bpf_get_current_pid_tgid()),
         .metadata = CONN_TYPE_TCP,
@@ -158,9 +195,9 @@ static __always_inline conn_tuple_t* conn_tup_from_tls_conn(tls_offsets_data_t* 
         }
     }
 
-    bpf_map_update_with_telemetry(conn_tup_by_go_tls_conn, &conn, &tuple, BPF_ANY);
-    bpf_map_update_with_telemetry(go_tls_conn_by_tuple, &tuple, &conn, BPF_ANY);
-    return bpf_map_lookup_elem(&conn_tup_by_go_tls_conn, &conn);
+    bpf_map_update_with_telemetry(conn_tup_by_go_tls_conn, &key, &tuple, BPF_ANY);
+    bpf_map_update_with_telemetry(go_tls_conn_by_tuple, &tuple, &key, BPF_ANY);
+    return bpf_map_lookup_elem(&conn_tup_by_go_tls_conn, &key);
 }
 
 #endif //__GO_TLS_CONN_H
