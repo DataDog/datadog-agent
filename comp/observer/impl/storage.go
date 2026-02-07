@@ -7,6 +7,7 @@ package observerimpl
 
 import (
 	"encoding/json"
+	"math"
 	"os"
 	"sort"
 	"strings"
@@ -93,7 +94,11 @@ func newTimeSeriesStorage() *timeSeriesStorage {
 }
 
 // Add records a data point for a named metric in a namespace.
+// Non-finite values (Inf, NaN) are silently dropped.
 func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp int64, tags []string) {
+	if math.IsInf(value, 0) || math.IsNaN(value) {
+		return
+	}
 	key := seriesKey(namespace, name, tags)
 
 	stats, exists := s.series[key]

@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
@@ -316,10 +317,12 @@ func (tb *TestBench) LoadScenario(name string) error {
 	}
 
 	// Load data from scenario
+	scenarioStart := time.Now()
 	fmt.Printf("Loading scenario: %s\n", name)
 
 	// Load parquet files
 	parquetDir := filepath.Join(scenarioPath, "parquet")
+	parquetStart := time.Now()
 	if _, err := os.Stat(parquetDir); err == nil {
 		if err := tb.loadParquetDir(parquetDir); err != nil {
 			return fmt.Errorf("failed to load parquet data: %w", err)
@@ -332,25 +335,33 @@ func (tb *TestBench) LoadScenario(name string) error {
 			}
 		}
 	}
+	fmt.Printf("  Parquet loading took %s\n", time.Since(parquetStart))
 
 	// Load log files
 	logsDir := filepath.Join(scenarioPath, "logs")
+	logsStart := time.Now()
 	if _, err := os.Stat(logsDir); err == nil {
 		if err := tb.loadLogsDir(logsDir); err != nil {
 			return fmt.Errorf("failed to load logs: %w", err)
 		}
 	}
+	fmt.Printf("  Log loading took %s\n", time.Since(logsStart))
 
 	// Load event files
 	eventsDir := filepath.Join(scenarioPath, "events")
+	eventsStart := time.Now()
 	if _, err := os.Stat(eventsDir); err == nil {
 		if err := tb.loadEventsDir(eventsDir); err != nil {
 			return fmt.Errorf("failed to load events: %w", err)
 		}
 	}
+	fmt.Printf("  Event loading took %s\n", time.Since(eventsStart))
 
 	// Run analyses on all loaded data
+	analysisStart := time.Now()
 	tb.runAnalyses()
+	fmt.Printf("  Analyses took %s\n", time.Since(analysisStart))
+	fmt.Printf("  Total scenario load took %s\n", time.Since(scenarioStart))
 
 	tb.ready = true
 	fmt.Printf("Scenario loaded: %d series, %d anomalies\n", tb.seriesCount(), len(tb.anomalies))
@@ -482,6 +493,7 @@ func (tb *TestBench) runAnalyses() {
 	}
 
 	// Collect all series
+	collectStart := time.Now()
 	var allSeries []observerdef.Series
 	for _, agg := range []Aggregate{AggregateAverage, AggregateCount} {
 		// Get series from all namespaces
@@ -495,14 +507,19 @@ func (tb *TestBench) runAnalyses() {
 			}
 		}
 	}
+	fmt.Printf("    Collect series: %s\n", time.Since(collectStart))
 
 	fmt.Printf("  Running analyses on %d series\n", len(allSeries))
 
 	// Run analyses
+	analyzerTime := make(map[string]time.Duration)
+	processorTime := make(map[string]time.Duration)
 	dedupedCount := 0
 	for _, series := range allSeries {
 		for _, analysis := range tb.tsAnalyses {
+			t0 := time.Now()
 			result := analysis.Analyze(series)
+			analyzerTime[analysis.Name()] += time.Since(t0)
 			for _, anomaly := range result.Anomalies {
 				anomaly.AnalyzerName = analysis.Name()
 				tb.anomalies = append(tb.anomalies, anomaly)
@@ -520,22 +537,34 @@ func (tb *TestBench) runAnalyses() {
 
 				// Send to anomaly processors
 				for _, proc := range tb.anomalyProcessors {
+					t1 := time.Now()
 					proc.Process(anomaly)
+					processorTime[proc.Name()] += time.Since(t1)
 				}
 			}
 		}
 	}
 
+	for name, d := range analyzerTime {
+		fmt.Printf("    Analyzer %s: %s\n", name, d)
+	}
+	for name, d := range processorTime {
+		fmt.Printf("    Processor %s: %s\n", name, d)
+	}
+
 	if tb.deduplicator != nil && dedupedCount > 0 {
-		fmt.Printf("  Deduplication: filtered %d duplicate anomalies\n", dedupedCount)
+		fmt.Printf("    Deduplication: filtered %d duplicate anomalies\n", dedupedCount)
 	}
 
 	// Flush processors to get correlations
+	flushStart := time.Now()
 	for _, proc := range tb.anomalyProcessors {
 		proc.Flush()
 	}
+	fmt.Printf("    Processor flush: %s\n", time.Since(flushStart))
 
 	// Collect correlations from processors that support it
+	collectCorrelationsStart := time.Now()
 	for _, proc := range tb.anomalyProcessors {
 		if cs, ok := proc.(interface {
 			ActiveCorrelations() []observerdef.ActiveCorrelation
@@ -543,6 +572,7 @@ func (tb *TestBench) runAnalyses() {
 			tb.correlations = append(tb.correlations, cs.ActiveCorrelations()...)
 		}
 	}
+	fmt.Printf("    Collect correlations: %s\n", time.Since(collectCorrelationsStart))
 }
 
 // GetStatus returns the current status.
