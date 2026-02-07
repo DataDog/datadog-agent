@@ -62,6 +62,7 @@ build do
   ]
   configure(*configure_options, env: env)
 
-  command "make -j #{workers}", env: env
-  command "make install"
+  command "make -j #{workers}", env: env,  :live_stream => Omnibus.logger.live_stream(:info)
+  command "echo === OMNI ENV; printenv | sort ; echo === OMNI CONFIG ; cat lib/curl_config.h", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+  command "make install",  :live_stream => Omnibus.logger.live_stream(:info)
 end
