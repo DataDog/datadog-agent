@@ -6,7 +6,6 @@
 package fleet
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -236,7 +235,7 @@ func (s *extensionsSuite) getAgentPackageURL() string {
 	if pipelineID == "" {
 		s.T().Fatal("E2E_PIPELINE_ID environment variable not set")
 	}
-	return fmt.Sprintf("oci://installtesting.datad0g.com.internal.dda-testing.com/datadog-agent:pipeline-%s", pipelineID)
+	return "oci://installtesting.datad0g.com.internal.dda-testing.com/datadog-agent:pipeline-" + pipelineID
 }
 
 // getDDOTBinaryPath returns the platform-specific DDOT binary path
