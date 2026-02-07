@@ -103,25 +103,14 @@ class TestInfraDefinitionsRepo(Requirement):
     def check(self, ctx: Context, fix: bool) -> RequirementState:
         repo_path = self.get_repo_path()
         if repo_path is not None:
-            return RequirementState(Status.OK, "test-infra-definitions repository found.")
+            return RequirementState(Status.OK, "e2e-framework directory found.")
 
         candidate_paths = TestInfraDefinitionsRepo.get_candidate_paths()
-        if not fix:
-            return RequirementState(
-                Status.FAIL,
-                f"test-infra-definitions repository not found in any of the expected locations {', '.join(map(os.fspath, candidate_paths))}.",
-                fixable=True,
-            )
-
-        clone_opts = "--depth 1 --single-branch --branch=main" if os.environ.get("CI") else ""
-        repo_access = "https://github.com/" if os.environ.get("CI") else "git@github.com:"
-
-        try:
-            ctx.run(f"git clone {repo_access}DataDog/test-infra-definitions.git {candidate_paths[0]} {clone_opts}")
-        except Exception as e:
-            return RequirementState(Status.FAIL, f"test-infra-definitions could not be cloned: {e}", fixable=True)
-
-        return RequirementState(Status.OK, "test-infra-definitions repository cloned.")
+        return RequirementState(
+            Status.FAIL,
+            f"e2e-framework directory not found in any of the expected locations {', '.join(map(os.fspath, candidate_paths))}.",
+            fixable=False,
+        )
 
 
 class PulumiPlugin(Requirement):
