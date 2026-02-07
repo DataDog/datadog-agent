@@ -151,6 +151,63 @@ func (s *extensionsSuite) TestExtensionSaveAndRestore() {
 	s.Require().True(exists, "Extension should be restored at %s", extensionPath)
 }
 
+// TestDDOTExtension tests installing DDOT as an extension on all platforms
+func (s *extensionsSuite) TestDDOTExtension() {
+	// Install base agent
+	s.Agent.MustInstall()
+	defer s.Agent.MustUninstall()
+
+	// Get installed agent version
+	agentVersion := "stable"
+
+	// Install DDOT extension from the agent package
+	// Note: In production, the agent OCI package includes DDOT as an extension layer
+	// For E2E tests, we assume the package is already available
+	packageURL := s.getAgentPackageURL()
+
+	// Install DDOT extension from the package
+	output, err := s.Installer.InstallExtension(packageURL, "ddot")
+	s.Require().NoError(err, "Failed to install DDOT extension: %s", output)
+	defer func() {
+		_, _ = s.Installer.RemoveExtension("datadog-agent", "ddot")
+	}()
+
+	// Verify extension directory exists
+	extensionPath := s.getExtensionPath("datadog-agent", agentVersion, "ddot")
+	exists, err := s.Host.DirExists(extensionPath)
+	s.Require().NoError(err)
+	s.Require().True(exists, "DDOT extension directory should exist at %s", extensionPath)
+
+	// Verify binary exists (platform-specific path)
+	binaryPath := s.getDDOTBinaryPath(extensionPath)
+	exists, err = s.Env().RemoteHost.FileExists(binaryPath)
+	s.Require().NoError(err)
+	s.Require().True(exists, "DDOT binary should exist at %s", binaryPath)
+
+	// Platform-specific verification
+	switch s.Env().RemoteHost.OSFamily {
+	case e2eos.LinuxFamily:
+		s.verifyDDOTExtensionLinux(extensionPath)
+	case e2eos.WindowsFamily:
+		s.verifyDDOTExtensionWindows()
+	}
+
+	// Remove extension
+	output, err = s.Installer.RemoveExtension("datadog-agent", "ddot")
+	s.Require().NoError(err, "Failed to remove DDOT extension: %s", output)
+
+	// Verify cleanup
+	exists, err = s.Host.DirExists(extensionPath)
+	s.Require().NoError(err)
+	s.Require().False(exists, "DDOT extension should be removed")
+
+	// Platform-specific cleanup verification
+	switch s.Env().RemoteHost.OSFamily {
+	case e2eos.WindowsFamily:
+		s.verifyDDOTServiceRemoved()
+	}
+}
+
 // Helper methods
 
 // getExtensionPath returns the path to an extension directory.
@@ -168,4 +225,77 @@ func (s *extensionsSuite) getExtensionPath(pkg, version, extensionName string) s
 		return ""
 	}
 	return filepath.Join(basePath, "ext", extensionName)
+}
+
+// getAgentPackageURL returns the platform-specific agent package URL
+func (s *extensionsSuite) getAgentPackageURL() string {
+	// In E2E tests, this would typically point to a test registry or local package
+	// For now, we'll use a placeholder that would be configured in the test environment
+	switch s.Env().RemoteHost.OSFamily {
+	case e2eos.LinuxFamily:
+		return "oci://install.datadoghq.com/datadog-agent:latest"
+	case e2eos.WindowsFamily:
+		return "oci://install.datadoghq.com/datadog-agent:latest-windows"
+	default:
+		s.T().Fatalf("unsupported OS: %v", s.Env().RemoteHost.OSFamily)
+		return ""
+	}
+}
+
+// getDDOTBinaryPath returns the platform-specific DDOT binary path
+func (s *extensionsSuite) getDDOTBinaryPath(extensionPath string) string {
+	switch s.Env().RemoteHost.OSFamily {
+	case e2eos.LinuxFamily:
+		return filepath.Join(extensionPath, "embedded", "bin", "otel-agent")
+	case e2eos.WindowsFamily:
+		return filepath.Join(extensionPath, "embedded", "bin", "otel-agent.exe")
+	default:
+		s.T().Fatalf("unsupported OS: %v", s.Env().RemoteHost.OSFamily)
+		return ""
+	}
+}
+
+// verifyDDOTExtensionLinux verifies DDOT extension on Linux
+func (s *extensionsSuite) verifyDDOTExtensionLinux(extensionPath string) {
+	// Verify otel-config.yaml created
+	configPath := "/etc/datadog-agent/otel-config.yaml"
+	exists, err := s.Env().RemoteHost.FileExists(configPath)
+	s.Require().NoError(err)
+	s.Require().True(exists, "otel-config.yaml should exist")
+
+	// Verify extension ownership (tests postInstallExtension hook)
+	output, err := s.Env().RemoteHost.Execute("stat -c '%U:%G' " + extensionPath)
+	s.Require().NoError(err)
+	s.Require().Contains(output, "dd-agent:dd-agent", "Extension should be owned by dd-agent")
+}
+
+// verifyDDOTExtensionWindows verifies DDOT extension on Windows
+func (s *extensionsSuite) verifyDDOTExtensionWindows() {
+	// Verify otel-config.yaml created
+	configPath := `C:\ProgramData\Datadog\otel-config.yaml`
+	exists, err := s.Env().RemoteHost.FileExists(configPath)
+	s.Require().NoError(err)
+	s.Require().True(exists, "otel-config.yaml should exist")
+
+	// Verify Windows service created and running
+	serviceName := "datadog-otel-agent"
+	output, err := s.Env().RemoteHost.Execute(`sc query "` + serviceName + `"`)
+	s.Require().NoError(err, "DDOT service should exist")
+	s.Require().Contains(output, "RUNNING", "DDOT service should be running")
+
+	// Verify datadog.yaml has otelcollector enabled
+	ddYamlPath := `C:\ProgramData\Datadog\datadog.yaml`
+	content, err := s.Env().RemoteHost.ReadFile(ddYamlPath)
+	s.Require().NoError(err)
+	s.Require().Contains(string(content), "otelcollector:")
+	s.Require().Contains(string(content), "enabled: true")
+}
+
+// verifyDDOTServiceRemoved verifies DDOT service removal on Windows
+func (s *extensionsSuite) verifyDDOTServiceRemoved() {
+	serviceName := "datadog-otel-agent"
+	output, err := s.Env().RemoteHost.Execute(`sc query "` + serviceName + `"`)
+	// Service should not exist (error expected)
+	s.Require().Error(err, "DDOT service should not exist after removal")
+	s.Require().Contains(output, "does not exist", "Service should be deleted")
 }
