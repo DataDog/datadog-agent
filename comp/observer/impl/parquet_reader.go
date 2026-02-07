@@ -381,7 +381,7 @@ func getAt(slice []string, idx int) string {
 }
 
 func getUInt64PtrAt(slice []uint64, idx int) *uint64 {
-	if idx < len(slice) && slice[idx] != 0 {
+	if idx < len(slice) {
 		v := slice[idx]
 		return &v
 	}
@@ -389,7 +389,7 @@ func getUInt64PtrAt(slice []uint64, idx int) *uint64 {
 }
 
 func getFloat64PtrAt(slice []float64, idx int) *float64 {
-	if idx < len(slice) && slice[idx] != 0 {
+	if idx < len(slice) {
 		v := slice[idx]
 		return &v
 	}

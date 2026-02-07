@@ -80,6 +80,9 @@ func (c *TimeClusterCorrelator) Name() string {
 
 // Process adds an anomaly, either to an existing cluster or a new one.
 func (c *TimeClusterCorrelator) Process(anomaly observer.AnomalyOutput) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	// Update current data time
 	if anomaly.Timestamp > c.currentDataTime {
 		c.currentDataTime = anomaly.Timestamp
@@ -188,7 +191,9 @@ func (c *TimeClusterCorrelator) mergeClusters(clusters []*timeCluster) *timeClus
 
 // Flush evicts old clusters and returns empty (reporters pull state via ActiveCorrelations).
 func (c *TimeClusterCorrelator) Flush() []observer.ReportOutput {
-	c.evictOldClusters()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.evictOldClustersLocked()
 	return nil
 }
 
@@ -201,8 +206,9 @@ func (c *TimeClusterCorrelator) Reset() {
 	c.currentDataTime = 0
 }
 
-// evictOldClusters removes clusters whose latest timestamp is outside the window.
-func (c *TimeClusterCorrelator) evictOldClusters() {
+// evictOldClustersLocked removes clusters whose latest timestamp is outside the window.
+// Caller must hold c.mu.
+func (c *TimeClusterCorrelator) evictOldClustersLocked() {
 	cutoff := c.currentDataTime - c.config.WindowSeconds
 	newClusters := c.clusters[:0]
 	for _, cluster := range c.clusters {
@@ -224,6 +230,9 @@ type TimeClusterInfo struct {
 
 // GetClusters returns clusters that meet the minimum size threshold for visualization.
 func (c *TimeClusterCorrelator) GetClusters() []TimeClusterInfo {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
 	var result []TimeClusterInfo
 	for _, cluster := range c.clusters {
 		// Only include clusters that meet minimum size
@@ -256,6 +265,9 @@ func (c *TimeClusterCorrelator) GetClusters() []TimeClusterInfo {
 
 // GetStats returns statistics about the correlator state.
 func (c *TimeClusterCorrelator) GetStats() map[string]interface{} {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
 	totalAnomalies := 0
 	maxClusterSize := 0
 	for _, cluster := range c.clusters {
@@ -278,6 +290,9 @@ func (c *TimeClusterCorrelator) GetStats() map[string]interface{} {
 // ActiveCorrelations returns clusters that meet the minimum size threshold.
 // Implements CorrelationState interface.
 func (c *TimeClusterCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
 	var result []observer.ActiveCorrelation
 
 	for _, cluster := range c.clusters {

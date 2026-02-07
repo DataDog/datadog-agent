@@ -418,18 +418,23 @@ func (g *GraphSketchCorrelator) clusterAnomaly(anomaly observer.AnomalyOutput) {
 }
 
 // addToCluster adds an anomaly to a cluster and updates its time range.
+// Deduplicates by source, keeping the most recent anomaly.
 func (g *GraphSketchCorrelator) addToCluster(cluster *graphCluster, anomaly observer.AnomalyOutput) {
-	if _, exists := cluster.anomalies[anomaly.Source]; !exists {
-		cluster.anomalies[anomaly.Source] = anomaly
-		anomalyTime := getAnomalyTime(anomaly)
-		if anomalyTime < cluster.timeRange.Start || cluster.timeRange.Start == 0 {
-			cluster.timeRange.Start = anomalyTime
+	anomalyTime := getAnomalyTime(anomaly)
+	if existing, exists := cluster.anomalies[anomaly.Source]; exists {
+		// Keep the more recent anomaly from the same source
+		if anomalyTime <= getAnomalyTime(existing) {
+			return
 		}
-		if anomalyTime > cluster.timeRange.End {
-			cluster.timeRange.End = anomalyTime
-		}
-		g.updateClusterStrength(cluster)
 	}
+	cluster.anomalies[anomaly.Source] = anomaly
+	if anomalyTime < cluster.timeRange.Start || cluster.timeRange.Start == 0 {
+		cluster.timeRange.Start = anomalyTime
+	}
+	if anomalyTime > cluster.timeRange.End {
+		cluster.timeRange.End = anomalyTime
+	}
+	g.updateClusterStrength(cluster)
 }
 
 // updateClusterStrength recalculates the average edge strength within a cluster.
