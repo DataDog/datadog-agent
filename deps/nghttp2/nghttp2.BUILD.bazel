@@ -168,7 +168,7 @@ pkg_filegroup(
         ":lib_files",
         ":fetch_ocsp_response",
     ],
-    visibility = ["//packages:__subpackages__"],
+    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
 #  This is generally installed with destdir={install_dir}
