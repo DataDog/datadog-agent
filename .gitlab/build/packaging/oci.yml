@@ -106,6 +106,17 @@
           echo "Unknown WIN_SOURCE_TYPE: ${WIN_SOURCE_TYPE}"; exit 1
           ;;
       esac
+    - |
+      # Add installer binary for datadog-agent OCI package
+      if [ "${OCI_PRODUCT}" = "datadog-agent" ]; then
+        INSTALLER_BIN=$(ls -1 "${PIPE_DIR}"/datadog-installer-*-x86_64.exe 2>/dev/null | head -1)
+        if [ -n "$INSTALLER_BIN" ]; then
+          EXTRA_FLAGS="${EXTRA_FLAGS} --installer ${INSTALLER_BIN}"
+        else
+          echo "ERROR: No installer binary found for datadog-agent OCI package"
+          exit 1
+        fi
+      fi
     - export PATH="$PATH:$(go env GOPATH)/bin"
     - datadog-package create --version "${PACKAGE_VERSION}" --package "${OCI_PRODUCT}" --os windows --arch amd64 --archive --archive-path "${PIPE_DIR}/${OCI_PRODUCT}-${PACKAGE_VERSION}-windows-amd64.oci.tar" ${EXTRA_FLAGS} "${SRC_DIR}/"
     - ls -l "${PIPE_DIR}"
