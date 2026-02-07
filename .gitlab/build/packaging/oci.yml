@@ -76,6 +76,7 @@
 .package_oci_win:
   extends: .package_oci
   script:
+    - !reference [.retrieve_linux_go_tools_deps]
     - |
       set -u pipefail
       PIPE_DIR="$OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID"
@@ -140,6 +141,7 @@ agent_win_oci:
   needs:
     - job: "windows_msi_and_bosh_zip_x64-a7"
       artifacts: true
+    - go_tools_deps
   variables:
     OCI_PRODUCT: "datadog-agent"
     WIN_SOURCE_TYPE: "msi"
@@ -175,6 +177,7 @@ ddot_win_oci:
   needs:
     - job: "windows_zip_ddot_x64"
       artifacts: true
+    - go_tools_deps
   variables:
     OCI_PRODUCT: "datadog-agent-ddot"
     WIN_SOURCE_TYPE: "zip"
