@@ -163,6 +163,13 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 		return workloadmeta.Container{}, err
 	}
 
+	// Check if this is a sandbox/pause container
+	isSandbox, err := containerdClient.IsSandbox(namespace, container)
+	if err != nil {
+		log.Debugf("cannot determine if container %s is a sandbox: %v", container.ID(), err)
+	}
+	workloadContainer.IsSandbox = isSandbox
+
 	return workloadContainer, nil
 }
 

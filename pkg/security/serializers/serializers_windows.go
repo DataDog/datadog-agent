@@ -165,7 +165,8 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 
 	if len(ps.ContainerContext.ContainerID) != 0 {
 		psSerializer.Container = &ContainerContextSerializer{
-			ID: string(ps.ContainerContext.ContainerID),
+			ID:        string(ps.ContainerContext.ContainerID),
+			IsSandbox: ps.ContainerContext.IsSandbox,
 		}
 	}
 	return psSerializer
