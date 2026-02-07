@@ -16,6 +16,7 @@ import (
 // This interface avoids an import cycle with pkg/serverless/trace.
 type TraceAgent interface {
 	Process(*api.Payload)
+	ProcessV1(*api.PayloadV1)
 	Flush()
 	Stop()
 }

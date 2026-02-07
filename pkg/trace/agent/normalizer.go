@@ -441,7 +441,7 @@ func (a *Agent) normalizeTraceChunkV1(ts *info.TagStats, t *idx.InternalTraceChu
 		}
 		if _, ok := spanIDs[span.SpanID()]; ok {
 			ts.SpansMalformed.DuplicateSpanID.Inc()
-			log.Debugf("Found malformed trace with duplicate span ID (reason:duplicate_span_id): %s", span)
+			log.Debugf("Found malformed trace with duplicate span ID (reason:duplicate_span_id): service=%s, name=%s", span.Service(), span.Name())
 		}
 		spanIDs[span.SpanID()] = struct{}{}
 	}

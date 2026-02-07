@@ -26,9 +26,9 @@ func newCCObfuscator(config *CreditCardsConfig) *creditCard {
 	}
 }
 
-// ObfuscateCreditCardNumber obfuscates any "credit card like" numbers in value for keys not in the allow-list
-func (o *Obfuscator) ObfuscateCreditCardNumber(key, val string) string {
-	// These tags are known to not be credit card numbers
+// ShouldObfuscateCCKey returns true if the value for the given key should be obfuscated
+// This is used to skip known safe attributes and specifically configured safe tags
+func (o *Obfuscator) ShouldObfuscateCCKey(key string) bool {
 	switch key {
 	case "_sample_rate",
 		"_sampling_priority_v1",
@@ -64,14 +64,20 @@ func (o *Obfuscator) ObfuscateCreditCardNumber(key, val string) string {
 		"databricks_task_run_id",
 		"config.spark_app_startTime",
 		"config.spark_databricks_job_parentRunId":
-		return val
+		// these tags are known to not be credit card numbers
+		return false
 	}
 	if strings.HasPrefix(key, "_") {
-		return val
+		return false
 	}
 	if _, ok := o.ccObfuscator.keepValues[key]; ok {
-		return val
+		return false
 	}
+	return true
+}
+
+// ObfuscateCreditCardNumber obfuscates any "credit card like" numbers in value
+func (o *Obfuscator) ObfuscateCreditCardNumber(val string) string {
 	if o.ccObfuscator.IsCardNumber(val) {
 		return "?"
 	}
@@ -83,8 +89,8 @@ func (o *Obfuscator) ObfuscateCreditCardNumber(key, val string) string {
 func (cc *creditCard) IsCardNumber(b string) (ok bool) {
 	//
 	// Just credit card numbers for now, based on:
-	// • https://baymard.com/checkout-usability/credit-card-patterns
-	// • https://www.regular-expressions.info/creditcard.html
+	// • https://baymard.com/checkout-usability/credit-card-patterns
+	// • https://www.regular-expressions.info/creditcard.html
 	//
 	if len(b) == 0 {
 		return false
@@ -161,8 +167,8 @@ loop:
 // str is expected to contain exclusively digits at all positions.
 //
 // See:
-// • https://en.wikipedia.org/wiki/Luhn_algorithm
-// • https://dev.to/shiraazm/goluhn-a-simple-library-for-generating-calculating-and-verifying-luhn-numbers-588j
+// • https://en.wikipedia.org/wiki/Luhn_algorithm
+// • https://dev.to/shiraazm/goluhn-a-simple-library-for-generating-calculating-and-verifying-luhn-numbers-588j
 func luhnValid(str []byte) bool {
 	var (
 		sum int

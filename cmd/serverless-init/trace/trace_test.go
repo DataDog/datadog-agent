@@ -17,82 +17,89 @@ import (
 // mockProcessor is a mock implementation of the Processor interface for testing
 type mockProcessor struct {
 	processCalled bool
-	lastPayload   *api.Payload
+	lastPayload   *api.PayloadV1
 }
 
-func (m *mockProcessor) Process(p *api.Payload) {
+func (m *mockProcessor) ProcessV1(p *api.PayloadV1) {
 	m.processCalled = true
 	m.lastPayload = p
 }
 
-func TestInitSpan(t *testing.T) {
+func TestInitChunk(t *testing.T) {
 	startTime := time.Now().UnixNano()
 	tags := map[string]string{
-		"env":     "test",
-		"service": "my-service",
-		"version": "1.0",
+		"key1": "value1",
+		"env":  "test",
 	}
 
-	span := InitSpan("test-service", "test.operation", "test-resource", "web", startTime, tags)
+	chunk := InitChunk("test-service", "test.operation", "test-resource", "web", startTime, tags)
 
-	assert.NotNil(t, span)
-	assert.Equal(t, "test-service", span.Service)
-	assert.Equal(t, "test.operation", span.Name)
-	assert.Equal(t, "test-resource", span.Resource)
-	assert.Equal(t, "web", span.Type)
-	assert.Equal(t, startTime, span.Start)
-	assert.NotZero(t, span.TraceID)
-	assert.NotZero(t, span.SpanID)
-	assert.Equal(t, uint64(0), span.ParentID)
-	assert.Equal(t, tags, span.Meta)
+	assert.NotNil(t, chunk)
+	assert.Len(t, chunk.Spans, 1)
+
+	span := chunk.Spans[0]
+	assert.Equal(t, "test-service", span.Service())
+	assert.Equal(t, "test.operation", span.Name())
+	assert.Equal(t, "test-resource", span.Resource())
+	assert.Equal(t, "web", span.Type())
+	assert.Equal(t, uint64(startTime), span.Start())
+	assert.NotZero(t, chunk.LegacyTraceID())
+	assert.NotZero(t, span.SpanID())
+	assert.Equal(t, uint64(0), span.ParentID())
+
+	// Check tags - some have been promoted out of field (env) so we check those separately
+	val, found := span.GetAttributeAsString("key1")
+	assert.True(t, found)
+	assert.Equal(t, "value1", val)
+	assert.Equal(t, "test", span.Env())
 }
 
-func TestInitSpanGeneratesUniqueIDs(t *testing.T) {
+func TestInitChunkGeneratesUniqueIDs(t *testing.T) {
 	startTime := time.Now().UnixNano()
 	tags := map[string]string{}
 
-	span1 := InitSpan("service", "name", "resource", "type", startTime, tags)
-	span2 := InitSpan("service", "name", "resource", "type", startTime, tags)
+	chunk1 := InitChunk("service", "name", "resource", "type", startTime, tags)
+	chunk2 := InitChunk("service", "name", "resource", "type", startTime, tags)
 
 	// TraceIDs and SpanIDs should be different
-	assert.NotEqual(t, span1.TraceID, span2.TraceID)
-	assert.NotEqual(t, span1.SpanID, span2.SpanID)
+	assert.NotEqual(t, chunk1.LegacyTraceID(), chunk2.LegacyTraceID())
+	assert.NotEqual(t, chunk1.Spans[0].SpanID(), chunk2.Spans[0].SpanID())
 }
 
-func TestSubmitSpanWithNilSpan(t *testing.T) {
+func TestSubmitSpanWithNilChunk(t *testing.T) {
 	mockAgent := &mockProcessor{}
 
-	// Should not panic and should not call Process
+	// Should not panic and should not call ProcessV1
 	SubmitSpan(nil, "test-origin", mockAgent)
 
 	assert.False(t, mockAgent.processCalled)
 }
 
 func TestSubmitSpanWithNilTraceAgent(_ *testing.T) {
-	span := InitSpan("test-service", "test.operation", "test-resource", "web", time.Now().UnixNano(), nil)
+	chunk := InitChunk("test-service", "test.operation", "test-resource", "web", time.Now().UnixNano(), nil)
 
 	// Should not panic
-	SubmitSpan(span, "test-origin", nil)
+	SubmitSpan(chunk, "test-origin", nil)
 }
 
 func TestSubmitSpanWithValidProcessor(t *testing.T) {
 	startTime := time.Now().UnixNano()
 	tags := map[string]string{"env": "test"}
-	span := InitSpan("test-service", "test.operation", "test-resource", "web", startTime, tags)
-	span.Duration = 1000000 // 1ms
+	chunk := InitChunk("test-service", "test.operation", "test-resource", "web", startTime, tags)
+	chunk.Spans[0].SetDuration(1000000) // 1ms
 
 	mockAgent := &mockProcessor{}
 
-	SubmitSpan(span, "test-origin", mockAgent)
+	SubmitSpan(chunk, "test-origin", mockAgent)
 
 	assert.True(t, mockAgent.processCalled)
 	assert.NotNil(t, mockAgent.lastPayload)
 	assert.NotNil(t, mockAgent.lastPayload.TracerPayload)
 	assert.Len(t, mockAgent.lastPayload.TracerPayload.Chunks, 1)
 
-	chunk := mockAgent.lastPayload.TracerPayload.Chunks[0]
-	assert.Equal(t, "test-origin", chunk.Origin)
-	assert.Equal(t, int32(1), chunk.Priority)
-	assert.Len(t, chunk.Spans, 1)
-	assert.Equal(t, span, chunk.Spans[0])
+	resultChunk := mockAgent.lastPayload.TracerPayload.Chunks[0]
+	assert.Equal(t, "test-origin", resultChunk.Origin())
+	assert.Equal(t, int32(1), resultChunk.Priority)
+	assert.Len(t, resultChunk.Spans, 1)
+	assert.Equal(t, chunk.Spans[0], resultChunk.Spans[0])
 }
