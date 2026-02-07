@@ -169,6 +169,7 @@ require (
 	github.com/DataDog/datadog-operator/api v0.0.0-20260130110400-4fcb91d49671
 	github.com/DataDog/datadog-traceroute v1.0.3
 	github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20260123165136-9ed3effd2c0e
+	github.com/DataDog/dd-trace-go/v2 v2.5.0
 	github.com/DataDog/ebpf-manager v0.7.15
 	github.com/DataDog/go-sqllexer v0.1.12
 	github.com/DataDog/gopsutil v1.2.3
@@ -401,7 +402,6 @@ require (
 	google.golang.org/grpc v1.78.0
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
 	google.golang.org/protobuf v1.36.11
-	gopkg.in/DataDog/dd-trace-go.v1 v1.72.2
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
