@@ -4,6 +4,8 @@ http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "ht
 
 http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
 
+dd_http = use_extension("//deps:dd_http.bzl", "dd_http")
+
 sqlite_ver = ("3", "50", "04")
 
 # TODO(agent-build): switch to "bare" `sqlite-amalgamation` when we drop the need for .pc files
@@ -28,7 +30,7 @@ http_file(
     )],
 )
 
-http_archive(
+dd_http.archive(
     name = "xz",
     build_file = "//deps:xz.BUILD.bazel",
     files = {
@@ -38,24 +40,14 @@ http_archive(
         "config.lzma-osx-x86_64.h": "//deps/xz:config.lzma-osx-x86_64.h",
         "config.lzma-windows.h": "//deps/xz:config.lzma-windows.h",
     },
-    sha256 = "507825b599356c10dca1cd720c9d0d0c9d5400b9de300af00e4d1ea150795543",
-    strip_prefix = "xz-5.8.1",
-    urls = [
-        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/xz-5.8.1.tar.gz",
-        "https://tukaani.org/xz/xz-5.8.1.tar.gz",
-    ],
 )
+use_repo(dd_http, "xz")
 
-http_archive(
+dd_http.archive(
     name = "zlib",
     build_file = "//deps:zlib.BUILD.bazel",
-    sha256 = "9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23",
-    strip_prefix = "zlib-1.3.1",
-    urls = [
-        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/zlib-1.3.1.tar.gz",
-        "https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz",
-    ],
 )
+use_repo(dd_http, "zlib")
 
 http_archive(
     name = "bzip2",
