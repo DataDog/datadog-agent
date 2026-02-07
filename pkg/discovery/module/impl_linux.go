@@ -7,10 +7,13 @@ package module
 
 import (
 	"bufio"
+	"bytes"
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"regexp"
@@ -18,9 +21,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/shirou/gopsutil/v4/process"
+	"golang.org/x/sys/unix"
 
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/discovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/discovery/core"
 	"github.com/DataDog/datadog-agent/pkg/discovery/language"
@@ -30,6 +36,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/discovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	"github.com/DataDog/datadog-agent/pkg/network"
+	netconfig "github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/netlink"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
@@ -39,7 +48,8 @@ import (
 )
 
 const (
-	pathServices = "/services"
+	pathServices    = "/services"
+	pathConnections = "/connections"
 )
 
 var (
@@ -60,6 +70,9 @@ type discovery struct {
 
 	// privilegedDetector is used to detect the language of a process.
 	privilegedDetector privileged.LanguageDetector
+
+	// ciliumConntracker reads Cilium eBPF maps for NAT-translated connections.
+	ciliumConntracker *ciliumConntracker
 }
 
 // NewDiscoveryModule creates a new discovery system probe module.
@@ -88,6 +101,7 @@ func (s *discovery) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/status", s.handleStatusEndpoint)
 	httpMux.HandleFunc("/state", s.handleStateEndpoint)
 	httpMux.HandleFunc(pathServices, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleServices))
+	httpMux.HandleFunc(pathConnections, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleConnections))
 
 	return nil
 }
@@ -96,6 +110,12 @@ func (s *discovery) Register(httpMux *module.Router) error {
 func (s *discovery) Close() {
 	s.mux.Lock()
 	defer s.mux.Unlock()
+
+	if s.ciliumConntracker != nil {
+		if err := s.ciliumConntracker.Close(); err != nil {
+			log.Warnf("Failed to close Cilium conntracker: %v", err)
+		}
+	}
 
 	s.core.Close()
 }
@@ -150,7 +170,8 @@ type namespaceInfo struct {
 
 // Lifted from pkg/network/proc_net.go
 const (
-	tcpListen uint64 = 10
+	tcpEstablished uint64 = 1
+	tcpListen      uint64 = 10
 
 	// tcpClose is also used to indicate a UDP connection where the other end hasn't been established
 	tcpClose  uint64 = 7
@@ -306,16 +327,20 @@ func getNsInfo(pid int) (*namespaceInfo, error) {
 // parsingContext holds temporary context not preserved between invocations of
 // the endpoint.
 type parsingContext struct {
-	procRoot       string
-	netNsInfo      map[uint32]*namespaceInfo
-	readlinkBuffer []byte
+	procRoot             string
+	netNsInfo            map[uint32]*namespaceInfo
+	establishedConnsInfo map[uint32]*establishedConnsNsInfo
+	completeNsInfo       map[uint32]*completeNsInfo // Combined parsing cache for getConnections
+	readlinkBuffer       []byte
 }
 
 func newParsingContext() parsingContext {
 	return parsingContext{
-		procRoot:       kernel.ProcFSRoot(),
-		netNsInfo:      make(map[uint32]*namespaceInfo),
-		readlinkBuffer: make([]byte, readlinkBufferSize),
+		procRoot:             kernel.ProcFSRoot(),
+		netNsInfo:            make(map[uint32]*namespaceInfo),
+		establishedConnsInfo: make(map[uint32]*establishedConnsNsInfo),
+		completeNsInfo:       make(map[uint32]*completeNsInfo),
+		readlinkBuffer:       make([]byte, readlinkBufferSize),
 	}
 }
 
@@ -592,4 +617,947 @@ func detectAPMInjectorFromMapsReader(reader io.Reader) bool {
 	}
 
 	return false
+}
+
+// handleConnections handles the /discovery/connections endpoint.
+func (s *discovery) handleConnections(w http.ResponseWriter, _ *http.Request) {
+	connections, err := s.getConnections()
+	if err != nil {
+		_ = log.Errorf("failed to handle /discovery%s: %v", pathConnections, err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	utils.WriteAsJSON(w, connections, utils.CompactOutput)
+}
+
+// establishedConnInfo stores information about an established TCP connection.
+type establishedConnInfo struct {
+	localIP    string
+	localPort  uint16
+	remoteIP   string
+	remotePort uint16
+	family     string // "v4" or "v6"
+}
+
+// establishedConnsNsInfo caches established connections per network namespace.
+// Since /proc/<pid>/net/tcp{,6} is shared across all processes in the same
+// network namespace, we only need to read it once per namespace.
+type establishedConnsNsInfo struct {
+	v4 map[uint64]*establishedConnInfo
+	v6 map[uint64]*establishedConnInfo
+}
+
+// completeNsInfo contains both listening sockets and established connections
+// for a network namespace. This allows us to parse /proc/<pid>/net/tcp{,6}
+// files only once per namespace.
+type completeNsInfo struct {
+	listening   *namespaceInfo
+	established *establishedConnsNsInfo
+}
+
+// byteFieldIterator provides zero-allocation field iteration over a byte slice.
+// It yields fields separated by whitespace without allocating new strings.
+type byteFieldIterator struct {
+	data []byte
+}
+
+// nextField returns the next whitespace-separated field from the data.
+// Returns nil when no more fields are available.
+func (iter *byteFieldIterator) nextField() []byte {
+	// Skip any leading whitespace
+	for len(iter.data) > 0 && iter.data[0] == ' ' {
+		iter.data = iter.data[1:]
+	}
+	if len(iter.data) == 0 {
+		return nil
+	}
+
+	// Read field up until the first whitespace char or end
+	for i, b := range iter.data {
+		if b == ' ' || b == '\n' {
+			result := iter.data[:i]
+			iter.data = iter.data[i:]
+			return result
+		}
+	}
+
+	// No whitespace found, return remainder
+	result := iter.data
+	iter.data = nil
+	return result
+}
+
+// parseHexIPBytes converts a hexadecimal IP address from /proc/net/tcp{,6} to a human-readable string.
+// This is a zero-allocation version that works with byte slices directly.
+// Returns the IP string, the actual family (which may differ from input for IPv6-mapped IPv4), and an error.
+func parseHexIPBytes(hexIP []byte, family string) (string, string, error) {
+	if family == "v6" {
+		// IPv6 is 32 hex chars (128 bits)
+		if len(hexIP) != 32 {
+			return "", "", errors.New("invalid IPv6 length")
+		}
+		// IPv6 in /proc/net/tcp6 is stored as 4 little-endian 32-bit words.
+		var ipBytes [16]byte
+		for i := 0; i < 4; i++ {
+			word := hexIP[i*8 : (i+1)*8]
+			// Reverse byte order within each 32-bit word
+			b0 := hexByteToUint8(word[6], word[7])
+			b1 := hexByteToUint8(word[4], word[5])
+			b2 := hexByteToUint8(word[2], word[3])
+			b3 := hexByteToUint8(word[0], word[1])
+			ipBytes[i*4] = b0
+			ipBytes[i*4+1] = b1
+			ipBytes[i*4+2] = b2
+			ipBytes[i*4+3] = b3
+		}
+
+		// Check if this is an IPv6-mapped IPv4 address (::ffff:x.x.x.x)
+		if ipBytes[0] == 0 && ipBytes[1] == 0 && ipBytes[2] == 0 && ipBytes[3] == 0 &&
+			ipBytes[4] == 0 && ipBytes[5] == 0 && ipBytes[6] == 0 && ipBytes[7] == 0 &&
+			ipBytes[8] == 0 && ipBytes[9] == 0 && ipBytes[10] == 0xff && ipBytes[11] == 0xff {
+			ip := net.IPv4(ipBytes[12], ipBytes[13], ipBytes[14], ipBytes[15])
+			return ip.String(), "v4", nil
+		}
+
+		ip := net.IP(ipBytes[:])
+		return ip.String(), "v6", nil
+	}
+
+	// IPv4 is 8 hex chars (32 bits), stored in little-endian
+	if len(hexIP) != 8 {
+		return "", "", errors.New("invalid IPv4 length")
+	}
+	b0 := hexByteToUint8(hexIP[6], hexIP[7])
+	b1 := hexByteToUint8(hexIP[4], hexIP[5])
+	b2 := hexByteToUint8(hexIP[2], hexIP[3])
+	b3 := hexByteToUint8(hexIP[0], hexIP[1])
+	ip := net.IPv4(b0, b1, b2, b3)
+	return ip.String(), "v4", nil
+}
+
+// hexByteToUint8 converts two hex characters to a uint8.
+// Assumes valid hex input (0-9, A-F, a-f).
+func hexByteToUint8(high, low byte) byte {
+	return hexCharToNibble(high)<<4 | hexCharToNibble(low)
+}
+
+// hexCharToNibble converts a hex character to its 4-bit value.
+func hexCharToNibble(c byte) byte {
+	if c >= '0' && c <= '9' {
+		return c - '0'
+	}
+	if c >= 'A' && c <= 'F' {
+		return c - 'A' + 10
+	}
+	if c >= 'a' && c <= 'f' {
+		return c - 'a' + 10
+	}
+	return 0
+}
+
+// parseHexPortBytes parses a hex port from a byte slice.
+func parseHexPortBytes(b []byte) (uint16, error) {
+	if len(b) == 0 || len(b) > 4 {
+		return 0, errors.New("invalid port length")
+	}
+	var port uint16
+	for _, c := range b {
+		port = port<<4 | uint16(hexCharToNibble(c))
+	}
+	return port, nil
+}
+
+// parseUint64Bytes parses a decimal uint64 from a byte slice.
+func parseUint64Bytes(b []byte) (uint64, error) {
+	if len(b) == 0 {
+		return 0, errors.New("empty input")
+	}
+	var result uint64
+	for _, c := range b {
+		if c < '0' || c > '9' {
+			return 0, errors.New("invalid digit")
+		}
+		result = result*10 + uint64(c-'0')
+	}
+	return result, nil
+}
+
+// parseNetTCPComplete parses /proc/<pid>/net/tcp{,6} files once and extracts both
+// listening sockets and established connections. This is more efficient than calling
+// getNsInfo and getEstablishedConnections separately, which would read the same files twice.
+func parseNetTCPComplete(pid int) (*completeNsInfo, error) {
+	// Parse TCP files for both listening and established connections
+	tcpV4Listening := make(map[uint64]uint16)
+	tcpV4Established := make(map[uint64]*establishedConnInfo)
+
+	tcpFile := kernel.HostProc(fmt.Sprintf("%d/net/tcp", pid))
+	if err := parseNetTCPFile(tcpFile, "v4", tcpV4Listening, tcpV4Established); err != nil {
+		log.Debugf("couldn't parse TCP file for pid %d: %v", pid, err)
+	}
+
+	// Parse TCP6
+	tcpV6Listening := make(map[uint64]uint16)
+	tcpV6Established := make(map[uint64]*establishedConnInfo)
+
+	tcp6File := kernel.HostProc(fmt.Sprintf("%d/net/tcp6", pid))
+	if err := parseNetTCPFile(tcp6File, "v6", tcpV6Listening, tcpV6Established); err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			log.Debugf("couldn't parse TCP6 file for pid %d: %v", pid, err)
+		}
+	}
+
+	// Parse UDP files (only for listening)
+	udp, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/udp", pid)), udpListen,
+		func(port uint16) bool {
+			return network.IsPortInEphemeralRange(network.AFINET, network.UDP, port) == network.EphemeralTrue
+		})
+	if err != nil {
+		log.Debugf("couldn't snapshot UDP sockets: %v", err)
+	}
+	udpv6, err := newNetIPSocket(kernel.HostProc(fmt.Sprintf("%d/net/udp6", pid)), udpListen,
+		func(port uint16) bool {
+			return network.IsPortInEphemeralRange(network.AFINET6, network.UDP, port) == network.EphemeralTrue
+		})
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		log.Debugf("couldn't snapshot UDP6 sockets: %v", err)
+	}
+
+	// Build listening socket maps
+	tcpSockets := make(map[uint64]socketInfo, len(tcpV4Listening)+len(tcpV6Listening))
+	udpSockets := make(map[uint64]socketInfo, len(udp)+len(udpv6))
+
+	for inode, port := range tcpV4Listening {
+		tcpSockets[inode] = socketInfo{port: port}
+	}
+	for inode, port := range tcpV6Listening {
+		tcpSockets[inode] = socketInfo{port: port}
+	}
+	for inode, port := range udp {
+		udpSockets[inode] = socketInfo{port: port}
+	}
+	for inode, port := range udpv6 {
+		udpSockets[inode] = socketInfo{port: port}
+	}
+
+	return &completeNsInfo{
+		listening: &namespaceInfo{
+			tcpSockets: tcpSockets,
+			udpSockets: udpSockets,
+		},
+		established: &establishedConnsNsInfo{
+			v4: tcpV4Established,
+			v6: tcpV6Established,
+		},
+	}, nil
+}
+
+// parseNetTCPFile parses a single /proc/net/tcp{,6} file and extracts both
+// listening sockets and established connections in one pass.
+func parseNetTCPFile(filename string, family string, listening map[uint64]uint16, established map[uint64]*establishedConnInfo) error {
+	f, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	lr := io.LimitReader(f, readLimit)
+	reader := bufio.NewReader(lr)
+
+	// Skip header line
+	_, err = reader.ReadSlice('\n')
+	if err != nil {
+		return nil // empty file or just header
+	}
+
+	for {
+		line, err := reader.ReadSlice('\n')
+		if err != nil {
+			if err == io.EOF {
+				// Process final line if it doesn't end with newline
+				if len(line) > 0 {
+					processNetTCPLine(line, family, listening, established)
+				}
+				break
+			}
+			return err
+		}
+
+		processNetTCPLine(line, family, listening, established)
+	}
+
+	return nil
+}
+
+// processNetTCPLine processes a single line from /proc/net/tcp{,6} and extracts
+// either listening socket info or established connection info based on the state.
+func processNetTCPLine(line []byte, family string, listening map[uint64]uint16, established map[uint64]*establishedConnInfo) {
+	iter := byteFieldIterator{data: line}
+
+	// Field 0: sl (slot number, skip)
+	if iter.nextField() == nil {
+		return
+	}
+
+	// Field 1: local_address (IP:PORT)
+	localAddr := iter.nextField()
+	if localAddr == nil {
+		return
+	}
+
+	// Field 2: rem_address (IP:PORT)
+	remAddr := iter.nextField()
+	if remAddr == nil {
+		return
+	}
+
+	// Field 3: st (state)
+	stateField := iter.nextField()
+	if stateField == nil {
+		return
+	}
+
+	// Parse state to determine what to extract
+	if len(stateField) != 2 {
+		return
+	}
+
+	// Check for ESTABLISHED state (01)
+	if stateField[0] == '0' && stateField[1] == '1' {
+		// Skip fields 4-8
+		for i := 0; i < 5; i++ {
+			if iter.nextField() == nil {
+				return
+			}
+		}
+
+		// Field 9: inode
+		inodeField := iter.nextField()
+		if inodeField == nil {
+			return
+		}
+
+		// Parse local address
+		colonIdx := bytes.IndexByte(localAddr, ':')
+		if colonIdx == -1 {
+			return
+		}
+		localIP, localFamily, err := parseHexIPBytes(localAddr[:colonIdx], family)
+		if err != nil {
+			return
+		}
+		localPort, err := parseHexPortBytes(localAddr[colonIdx+1:])
+		if err != nil {
+			return
+		}
+
+		// Parse remote address
+		colonIdx = bytes.IndexByte(remAddr, ':')
+		if colonIdx == -1 {
+			return
+		}
+		remoteIP, remoteFamily, err := parseHexIPBytes(remAddr[:colonIdx], family)
+		if err != nil {
+			return
+		}
+		remotePort, err := parseHexPortBytes(remAddr[colonIdx+1:])
+		if err != nil {
+			return
+		}
+
+		// Parse inode
+		inode, err := parseUint64Bytes(inodeField)
+		if err != nil {
+			return
+		}
+
+		// Use the local address family
+		actualFamily := localFamily
+		if localFamily != remoteFamily {
+			log.Debugf("Family mismatch in connection: local=%s, remote=%s", localFamily, remoteFamily)
+		}
+
+		established[inode] = &establishedConnInfo{
+			localIP:    localIP,
+			localPort:  localPort,
+			remoteIP:   remoteIP,
+			remotePort: remotePort,
+			family:     actualFamily,
+		}
+		return
+	}
+
+	// Check for LISTEN state (0A)
+	if stateField[0] == '0' && stateField[1] == 'A' {
+		// Parse local port
+		colonIdx := bytes.IndexByte(localAddr, ':')
+		if colonIdx == -1 {
+			return
+		}
+		localPort, err := parseHexPortBytes(localAddr[colonIdx+1:])
+		if err != nil {
+			return
+		}
+
+		// Skip fields 4-8
+		for i := 0; i < 5; i++ {
+			if iter.nextField() == nil {
+				return
+			}
+		}
+
+		// Field 9: inode
+		inodeField := iter.nextField()
+		if inodeField == nil {
+			return
+		}
+
+		inode, err := parseUint64Bytes(inodeField)
+		if err != nil {
+			return
+		}
+
+		listening[inode] = localPort
+	}
+}
+
+// dockerProxyTarget represents the target address of a docker-proxy instance.
+// Docker-proxy is used to forward traffic from host ports to container ports.
+type dockerProxyTarget struct {
+	containerIP   string
+	containerPort uint16
+	proxyIP       string // discovered from connections
+}
+
+// detectDockerProxy checks if a process is docker-proxy and extracts its target address.
+// Docker-proxy command line looks like:
+// /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 32769 -container-ip 172.17.0.2 -container-port 6379
+func detectDockerProxy(pid int) *dockerProxyTarget {
+	cmdlinePath := kernel.HostProc(fmt.Sprintf("%d/cmdline", pid))
+	data, err := os.ReadFile(cmdlinePath)
+	if err != nil {
+		return nil
+	}
+
+	// cmdline is null-separated
+	args := strings.Split(string(data), "\x00")
+	if len(args) == 0 {
+		return nil
+	}
+
+	// Check if this is docker-proxy
+	if !strings.HasSuffix(args[0], "docker-proxy") {
+		return nil
+	}
+
+	target := &dockerProxyTarget{}
+	for i := 0; i < len(args)-1; i++ {
+		switch args[i] {
+		case "-container-ip":
+			target.containerIP = args[i+1]
+		case "-container-port":
+			port, err := strconv.ParseUint(args[i+1], 10, 16)
+			if err != nil {
+				return nil
+			}
+			target.containerPort = uint16(port)
+		}
+	}
+
+	if target.containerIP == "" || target.containerPort == 0 {
+		return nil
+	}
+
+	return target
+}
+
+// isDockerProxiedConnection checks if a connection is internal docker-proxy forwarding traffic.
+// Returns true if the connection should be filtered out.
+func isDockerProxiedConnection(conn *model.Connection, proxies map[string]*dockerProxyTarget) bool {
+	// Check if local address matches a proxy target
+	laddrKey := fmt.Sprintf("%s:%d", conn.Laddr.IP, conn.Laddr.Port)
+	if proxy, ok := proxies[laddrKey]; ok {
+		// If the other end is the proxy IP, this is internal proxy traffic
+		if proxy.proxyIP != "" && conn.Raddr.IP == proxy.proxyIP {
+			return true
+		}
+	}
+
+	// Check if remote address matches a proxy target
+	raddrKey := fmt.Sprintf("%s:%d", conn.Raddr.IP, conn.Raddr.Port)
+	if proxy, ok := proxies[raddrKey]; ok {
+		// If the other end is the proxy IP, this is internal proxy traffic
+		if proxy.proxyIP != "" && conn.Laddr.IP == proxy.proxyIP {
+			return true
+		}
+	}
+
+	return false
+}
+
+// connKey represents a connection tuple for conntrack lookup
+type connKey struct {
+	srcIP   string
+	srcPort uint16
+	dstIP   string
+	dstPort uint16
+}
+
+func makeConnKey(srcIP string, srcPort uint16, dstIP string, dstPort uint16) connKey {
+	return connKey{
+		srcIP:   srcIP,
+		srcPort: srcPort,
+		dstIP:   dstIP,
+		dstPort: dstPort,
+	}
+}
+
+// dumpConntrackTable creates a temporary conntrack snapshot and returns a lookup map
+func (s *discovery) dumpConntrackTable(ctx context.Context) (map[connKey]*network.IPTranslation, error) {
+	if !s.config.EnableConntrack {
+		return nil, nil
+	}
+
+	// Create config for the netlink consumer
+	cfg := netconfig.New()
+	cfg.ProcRoot = "/proc"
+
+	// Respect the system-wide conntrack all namespaces setting
+	// This is critical for Kubernetes environments where connections
+	// originate in pod namespaces but we need to match them with
+	// conntrack entries from the same namespace
+	sysCfg := ddconfig.SystemProbe()
+	cfg.EnableConntrackAllNamespaces = sysCfg.GetBool("system_probe_config.enable_conntrack_all_namespaces")
+	if !sysCfg.IsSet("system_probe_config.enable_conntrack_all_namespaces") {
+		// Default to true for discovery module to support Kubernetes pod connections
+		cfg.EnableConntrackAllNamespaces = true
+	}
+
+	log.Debugf("Conntrack consumer: enable_conntrack_all_namespaces=%v", cfg.EnableConntrackAllNamespaces)
+
+	// Create a consumer for dumping the conntrack table
+	consumer, err := netlink.NewConsumer(cfg, nil)
+	if err != nil {
+		if errors.Is(err, netlink.ErrNotPermitted) {
+			log.Warnf("Cannot dump conntrack table: insufficient permissions (need CAP_NET_ADMIN)")
+		} else {
+			log.Warnf("Failed to create netlink consumer: %v", err)
+		}
+		return nil, err
+	}
+	defer consumer.Stop()
+
+	// Dump IPv4 table
+	events, err := consumer.DumpTable(unix.AF_INET)
+	if err != nil {
+		log.Warnf("Failed to dump conntrack table: %v", err)
+		return nil, err
+	}
+
+	// Build lookup map
+	decoder := netlink.NewDecoder()
+	translations := make(map[connKey]*network.IPTranslation)
+
+	// Process events with timeout
+	timeoutTimer := time.NewTimer(5 * time.Second)
+	defer timeoutTimer.Stop()
+
+processLoop:
+	for {
+		select {
+		case event, ok := <-events:
+			if !ok {
+				// Channel closed, dump complete
+				break processLoop
+			}
+
+			// Decode the event
+			conns := decoder.DecodeAndReleaseEvent(event)
+			for _, conn := range conns {
+				// Skip non-NAT connections
+				if !netlink.IsNAT(conn) {
+					continue
+				}
+
+				// Build key from original tuple
+				// Origin is the original source/dest, Reply is the translated dest/source
+				key := makeConnKey(
+					conn.Origin.Src.Addr().String(),
+					conn.Origin.Src.Port(),
+					conn.Origin.Dst.Addr().String(),
+					conn.Origin.Dst.Port(),
+				)
+
+				// Create IPTranslation from the Reply tuple
+				// For NAT: Origin -> Reply translation
+				// Reply.Dst is the translated source (what the source becomes)
+				// Reply.Src is the translated destination (what the destination becomes)
+				translations[key] = &network.IPTranslation{
+					ReplSrcIP:   util.Address{Addr: conn.Reply.Dst.Addr()},
+					ReplSrcPort: conn.Reply.Dst.Port(),
+					ReplDstIP:   util.Address{Addr: conn.Reply.Src.Addr()},
+					ReplDstPort: conn.Reply.Src.Port(),
+				}
+			}
+
+		case <-ctx.Done():
+			log.Warnf("Conntrack dump cancelled: %v", ctx.Err())
+			return translations, ctx.Err()
+
+		case <-timeoutTimer.C:
+			log.Warnf("Conntrack dump timed out after 5 seconds")
+			return translations, errors.New("timeout")
+		}
+	}
+
+	log.Debugf("Built conntrack translation map with %d entries", len(translations))
+
+	// Log the full translation map at trace level for debugging
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef("Conntrack translation map (%d entries):", len(translations))
+		for key, trans := range translations {
+			log.Tracef("  %s:%d -> %s:%d  =>  %s:%d -> %s:%d",
+				key.srcIP, key.srcPort,
+				key.dstIP, key.dstPort,
+				trans.ReplSrcIP.String(), trans.ReplSrcPort,
+				trans.ReplDstIP.String(), trans.ReplDstPort)
+		}
+	}
+
+	return translations, nil
+}
+
+// translateConnectionWithMap applies NAT translation from the conntrack lookup map
+func translateConnectionWithMap(conn *model.Connection, translations map[connKey]*network.IPTranslation) {
+	if len(translations) == 0 {
+		return
+	}
+
+	// Build lookup key from connection
+	key := makeConnKey(
+		conn.Laddr.IP,
+		conn.Laddr.Port,
+		conn.Raddr.IP,
+		conn.Raddr.Port,
+	)
+
+	// Look up translation
+	translation, found := translations[key]
+	if !found {
+		log.Tracef("No NAT translation found for connection %s:%d -> %s:%d (netns=%d)",
+			conn.Laddr.IP, conn.Laddr.Port,
+			conn.Raddr.IP, conn.Raddr.Port,
+			conn.NetNS)
+		return // no NAT translation for this connection
+	}
+
+	// Apply translation to connection
+	conn.TranslatedLaddr = &model.Address{
+		IP:   translation.ReplSrcIP.String(),
+		Port: translation.ReplSrcPort,
+	}
+	conn.TranslatedRaddr = &model.Address{
+		IP:   translation.ReplDstIP.String(),
+		Port: translation.ReplDstPort,
+	}
+
+	log.Tracef("NAT translation applied (PID=%d, netns=%d): %s:%d -> %s:%d  =>  %s:%d -> %s:%d",
+		conn.PID, conn.NetNS,
+		conn.Laddr.IP, conn.Laddr.Port,
+		conn.Raddr.IP, conn.Raddr.Port,
+		conn.TranslatedLaddr.IP, conn.TranslatedLaddr.Port,
+		conn.TranslatedRaddr.IP, conn.TranslatedRaddr.Port)
+}
+
+// getConnections collects all established TCP connections from all processes.
+func (s *discovery) getConnections() (*model.ConnectionsResponse, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
+	// Get the list of listening ports to determine direction
+	pctx := newParsingContext()
+	listeningPorts := make(map[uint16]struct{})
+
+	// We need to scan processes to find all sockets and their owners
+	procDir, err := os.Open(kernel.HostProc())
+	if err != nil {
+		return nil, fmt.Errorf("failed to open /proc: %w", err)
+	}
+	defer procDir.Close()
+
+	entries, err := procDir.Readdirnames(-1)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read /proc entries: %w", err)
+	}
+
+	var connections []model.Connection
+
+	// Track seen connections to avoid duplicates (same connection from different process views)
+	type connKey struct {
+		localIP    string
+		localPort  uint16
+		remoteIP   string
+		remotePort uint16
+	}
+	seenConns := make(map[connKey]struct{})
+
+	// Track docker-proxy processes and their targets
+	// Key is "containerIP:containerPort"
+	dockerProxies := make(map[string]*dockerProxyTarget)
+	dockerProxyPIDs := make(map[int]struct{})
+
+	// First pass: detect docker-proxy processes
+	for _, entry := range entries {
+		pid, err := strconv.Atoi(entry)
+		if err != nil {
+			continue
+		}
+		if target := detectDockerProxy(pid); target != nil {
+			key := fmt.Sprintf("%s:%d", target.containerIP, target.containerPort)
+			dockerProxies[key] = target
+			dockerProxyPIDs[pid] = struct{}{}
+			log.Debugf("detected docker-proxy pid=%d target=%s:%d", pid, target.containerIP, target.containerPort)
+		}
+	}
+
+	for _, entry := range entries {
+		pid, err := strconv.Atoi(entry)
+		if err != nil {
+			continue // not a PID directory
+		}
+
+		// Skip docker-proxy processes - we don't want their connections
+		if _, isProxy := dockerProxyPIDs[pid]; isProxy {
+			continue
+		}
+
+		// Get network namespace info (for listening ports)
+		ns, err := netns.GetNetNsInoFromPid(pctx.procRoot, pid)
+		if err != nil {
+			continue
+		}
+
+		// Cache complete namespace info (both listening and established) per namespace.
+		// This parses /proc/<pid>/net/tcp{,6} files only once per namespace instead of
+		// reading them separately for listening sockets and established connections.
+		completeInfo, ok := pctx.completeNsInfo[ns]
+		if !ok {
+			var err error
+			completeInfo, err = parseNetTCPComplete(pid)
+			if err != nil {
+				log.Debugf("couldn't parse network namespace info for pid %d: %v", pid, err)
+				continue
+			}
+			pctx.completeNsInfo[ns] = completeInfo
+
+			// Add listening ports to the global set
+			for _, info := range completeInfo.listening.tcpSockets {
+				listeningPorts[info.port] = struct{}{}
+			}
+		}
+
+		// Extract established info from the combined result
+		establishedInfo := completeInfo.established
+
+		// Get the socket inodes owned by this process
+		openFileInfo, err := getOpenFilesInfo(int32(pid), pctx.readlinkBuffer)
+		if err != nil {
+			continue
+		}
+
+		// Use cached data to match socket inodes to established connections
+		for _, family := range []string{"v4", "v6"} {
+			var establishedConns map[uint64]*establishedConnInfo
+			if family == "v4" {
+				establishedConns = establishedInfo.v4
+			} else {
+				establishedConns = establishedInfo.v6
+			}
+			if establishedConns == nil {
+				continue
+			}
+
+			// Match socket inodes to established connections
+			for _, socketInode := range openFileInfo.sockets {
+				connInfo, ok := establishedConns[socketInode]
+				if !ok {
+					continue
+				}
+
+				// Skip if we've already seen this connection
+				key := connKey{
+					localIP:    connInfo.localIP,
+					localPort:  connInfo.localPort,
+					remoteIP:   connInfo.remoteIP,
+					remotePort: connInfo.remotePort,
+				}
+				if _, seen := seenConns[key]; seen {
+					continue
+				}
+				seenConns[key] = struct{}{}
+
+				// Determine direction based on whether local port is a listening port
+				direction := "outgoing"
+				if _, isListening := listeningPorts[connInfo.localPort]; isListening {
+					direction = "incoming"
+				}
+
+				connections = append(connections, model.Connection{
+					Laddr: model.Address{
+						IP:   connInfo.localIP,
+						Port: connInfo.localPort,
+					},
+					Raddr: model.Address{
+						IP:   connInfo.remoteIP,
+						Port: connInfo.remotePort,
+					},
+					Family:    connInfo.family,
+					Type:      0, // TCP
+					Direction: direction,
+					PID:       uint32(pid),
+					NetNS:     ns,
+				})
+			}
+		}
+	}
+
+	// Discover proxy IPs from connections and filter proxied connections
+	if len(dockerProxies) > 0 {
+		// Discover proxy IPs: for each connection, if one end matches a proxy target,
+		// the other end is the proxy IP
+		for i := range connections {
+			conn := &connections[i]
+			laddrKey := fmt.Sprintf("%s:%d", conn.Laddr.IP, conn.Laddr.Port)
+			if proxy, ok := dockerProxies[laddrKey]; ok && proxy.proxyIP == "" {
+				proxy.proxyIP = conn.Raddr.IP
+				log.Debugf("discovered docker-proxy IP %s for target %s", proxy.proxyIP, laddrKey)
+			}
+			raddrKey := fmt.Sprintf("%s:%d", conn.Raddr.IP, conn.Raddr.Port)
+			if proxy, ok := dockerProxies[raddrKey]; ok && proxy.proxyIP == "" {
+				proxy.proxyIP = conn.Laddr.IP
+				log.Debugf("discovered docker-proxy IP %s for target %s", proxy.proxyIP, raddrKey)
+			}
+		}
+
+		// Filter out proxied connections
+		filtered := make([]model.Connection, 0, len(connections))
+		for _, conn := range connections {
+			if isDockerProxiedConnection(&conn, dockerProxies) {
+				log.Debugf("filtering docker-proxied connection %s:%d -> %s:%d",
+					conn.Laddr.IP, conn.Laddr.Port, conn.Raddr.IP, conn.Raddr.Port)
+				continue
+			}
+			filtered = append(filtered, conn)
+		}
+		connections = filtered
+	}
+
+	// Collect Cilium connections if enabled
+	var ciliumConnections []model.Connection
+	if s.config.EnableCiliumConntracker {
+		if s.ciliumConntracker == nil {
+			var err error
+			s.ciliumConntracker, err = newCiliumConntracker()
+			if err != nil {
+				log.Warnf("Failed to initialize Cilium conntracker: %v", err)
+			}
+		}
+		if s.ciliumConntracker != nil {
+			ciliumConns, err := s.ciliumConntracker.getConnections()
+			if err != nil {
+				log.Warnf("Failed to get Cilium connections: %v", err)
+			} else {
+				ciliumConnections = ciliumConns
+				log.Debugf("Retrieved %d connections from Cilium", len(ciliumConnections))
+			}
+		}
+	}
+
+	// Merge connections (prefer Cilium NAT if both sources have same connection)
+	connections = mergeConnections(connections, ciliumConnections)
+
+	// Apply NAT translations using conntrack
+	if s.config.EnableConntrack {
+		ctxTimeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		translations, err := s.dumpConntrackTable(ctxTimeout)
+		if err != nil {
+			log.Warnf("Failed to dump conntrack table, continuing without NAT resolution: %v", err)
+		} else if translations != nil {
+			translationsFound := 0
+			for i := range connections {
+				translateConnectionWithMap(&connections[i], translations)
+				if connections[i].TranslatedLaddr != nil || connections[i].TranslatedRaddr != nil {
+					translationsFound++
+				}
+			}
+
+			if translationsFound > 0 {
+				log.Debugf("Found NAT translations for %d/%d connections", translationsFound, len(connections))
+			}
+		}
+	}
+
+	return &model.ConnectionsResponse{
+		Connections: connections,
+	}, nil
+}
+
+// mergeConnections enriches /proc connections with NAT information from Cilium.
+// Only connections that exist in /proc are kept (we need PID information).
+// Cilium-only connections are skipped since they lack PID info.
+func mergeConnections(procConns, ciliumConns []model.Connection) []model.Connection {
+	if len(ciliumConns) == 0 {
+		return procConns
+	}
+
+	// Map Cilium connections by 4-tuple key for quick lookup
+	type connKey struct {
+		localIP    string
+		localPort  uint16
+		remoteIP   string
+		remotePort uint16
+	}
+
+	ciliumNATMap := make(map[connKey]*model.Address)
+
+	// Build lookup map of Cilium NAT translations
+	for i := range ciliumConns {
+		if ciliumConns[i].TranslatedRaddr != nil {
+			key := connKey{
+				localIP:    ciliumConns[i].Laddr.IP,
+				localPort:  ciliumConns[i].Laddr.Port,
+				remoteIP:   ciliumConns[i].Raddr.IP,
+				remotePort: ciliumConns[i].Raddr.Port,
+			}
+			ciliumNATMap[key] = ciliumConns[i].TranslatedRaddr
+		}
+	}
+
+	// Enrich /proc connections with Cilium NAT info
+	enrichedCount := 0
+	for i := range procConns {
+		key := connKey{
+			localIP:    procConns[i].Laddr.IP,
+			localPort:  procConns[i].Laddr.Port,
+			remoteIP:   procConns[i].Raddr.IP,
+			remotePort: procConns[i].Raddr.Port,
+		}
+
+		if translatedAddr, ok := ciliumNATMap[key]; ok {
+			procConns[i].TranslatedRaddr = translatedAddr
+			enrichedCount++
+			log.Debugf("Enriched connection with Cilium NAT: %s:%d -> %s:%d (translated to %s:%d)",
+				procConns[i].Laddr.IP, procConns[i].Laddr.Port,
+				procConns[i].Raddr.IP, procConns[i].Raddr.Port,
+				translatedAddr.IP, translatedAddr.Port)
+		}
+	}
+
+	if enrichedCount > 0 {
+		log.Debugf("Enriched %d connections with Cilium NAT information", enrichedCount)
+	}
+
+	return procConns
 }

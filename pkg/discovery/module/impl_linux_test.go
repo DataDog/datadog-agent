@@ -452,3 +452,237 @@ func TestRustBinary(t *testing.T) {
 	require.Contains(t, string(output), "Discovery is disabled")
 	require.Equal(t, 0, cmd.ProcessState.ExitCode(), "Binary should exit with code 0", string(output))
 }
+
+func TestParseHexIP(t *testing.T) {
+	tests := []struct {
+		name           string
+		hexIP          string
+		inputFamily    string
+		expectedIP     string
+		expectedFamily string
+		expectError    bool
+	}{
+		{
+			name:           "IPv6-mapped IPv4 address (10.244.1.11)",
+			hexIP:          "0000000000000000FFFF00000B01F40A",
+			inputFamily:    "v6",
+			expectedIP:     "10.244.1.11",
+			expectedFamily: "v4",
+			expectError:    false,
+		},
+		{
+			name:           "IPv6-mapped IPv4 address (10.244.1.12)",
+			hexIP:          "0000000000000000FFFF00000C01F40A",
+			inputFamily:    "v6",
+			expectedIP:     "10.244.1.12",
+			expectedFamily: "v4",
+			expectError:    false,
+		},
+		{
+			name:           "Regular IPv6 address (2001:db8::1)",
+			hexIP:          "B80D0120000000000000000001000000",
+			inputFamily:    "v6",
+			expectedIP:     "2001:db8::1",
+			expectedFamily: "v6",
+			expectError:    false,
+		},
+		{
+			name:           "Regular IPv6 address (fe80::1)",
+			hexIP:          "000080FE000000000000000001000000",
+			inputFamily:    "v6",
+			expectedIP:     "fe80::1",
+			expectedFamily: "v6",
+			expectError:    false,
+		},
+		{
+			name:           "Plain IPv4 address (10.244.1.11)",
+			hexIP:          "0B01F40A",
+			inputFamily:    "v4",
+			expectedIP:     "10.244.1.11",
+			expectedFamily: "v4",
+			expectError:    false,
+		},
+		{
+			name:           "Plain IPv4 address (192.168.1.1)",
+			hexIP:          "0101A8C0",
+			inputFamily:    "v4",
+			expectedIP:     "192.168.1.1",
+			expectedFamily: "v4",
+			expectError:    false,
+		},
+		{
+			name:           "IPv6 zero address (::)",
+			hexIP:          "00000000000000000000000000000000",
+			inputFamily:    "v6",
+			expectedIP:     "::",
+			expectedFamily: "v6",
+			expectError:    false,
+		},
+		{
+			name:           "IPv4 zero address (0.0.0.0)",
+			hexIP:          "00000000",
+			inputFamily:    "v4",
+			expectedIP:     "0.0.0.0",
+			expectedFamily: "v4",
+			expectError:    false,
+		},
+		{
+			name:        "Invalid IPv6 length",
+			hexIP:       "0000000000000000FFFF00000B01F4",
+			inputFamily: "v6",
+			expectError: true,
+		},
+		{
+			name:        "Invalid IPv4 length",
+			hexIP:       "0B01F4",
+			inputFamily: "v4",
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ip, family, err := parseHexIPBytes([]byte(tt.hexIP), tt.inputFamily)
+			if tt.expectError {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedIP, ip, "IP address mismatch")
+			require.Equal(t, tt.expectedFamily, family, "Family mismatch")
+		})
+	}
+}
+
+func TestParseEstablishedConnLineIPv6Mapped(t *testing.T) {
+	// Test that processNetTCPLine correctly normalizes IPv6-mapped IPv4 addresses
+	// This simulates a line from /proc/net/tcp6 with IPv6-mapped IPv4 addresses
+	// Example: cluster-agent listening on 10.244.1.11:5005, agent connecting from 10.244.1.12:46538
+	// Line format: sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode ...
+	line := []byte("   0: 0000000000000000FFFF00000B01F40A:138D 0000000000000000FFFF00000C01F40A:B5CA 01 00000000:00000000 00:00000000 00000000  1000        0 12345 1 0000000000000000 100 0 0 10 0")
+
+	listening := make(map[uint64]uint16)
+	established := make(map[uint64]*establishedConnInfo)
+
+	processNetTCPLine(line, "v6", listening, established)
+
+	require.Empty(t, listening, "Should not extract listening socket from established connection")
+	require.Len(t, established, 1, "Should extract one established connection")
+
+	connInfo, ok := established[12345]
+	require.True(t, ok, "Connection should be keyed by inode 12345")
+	require.NotNil(t, connInfo)
+
+	// Verify that IPv6-mapped addresses are normalized to plain IPv4
+	require.Equal(t, "10.244.1.11", connInfo.localIP, "Local IP should be normalized to plain IPv4")
+	require.Equal(t, uint16(5005), connInfo.localPort)
+	require.Equal(t, "10.244.1.12", connInfo.remoteIP, "Remote IP should be normalized to plain IPv4")
+	require.Equal(t, uint16(46538), connInfo.remotePort)
+	require.Equal(t, "v4", connInfo.family, "Family should be v4 for IPv6-mapped IPv4 addresses")
+}
+
+func TestParseNetTCPComplete(t *testing.T) {
+	// Test that parseNetTCPComplete correctly extracts both listening and established
+	// connections by parsing the files once.
+	// We'll create a test process and verify the parsing works correctly.
+
+	// Start a TCP server (listening socket)
+	serverFile, serverAddr := startTCPServer(t, "tcp", "127.0.0.1:0")
+	defer serverFile.Close()
+
+	// Start a TCP client (established connection)
+	clientFile, clientAddr := startTCPClient(t, "tcp", serverAddr)
+	defer clientFile.Close()
+
+	// Parse the current process's network namespace
+	completeInfo, err := parseNetTCPComplete(os.Getpid())
+	require.NoError(t, err)
+	require.NotNil(t, completeInfo)
+	require.NotNil(t, completeInfo.listening)
+	require.NotNil(t, completeInfo.established)
+
+	// Get the socket inodes for our test sockets
+	serverStat, err := serverFile.Stat()
+	require.NoError(t, err)
+	serverInode := serverStat.Sys().(*syscall.Stat_t).Ino
+
+	clientStat, err := clientFile.Stat()
+	require.NoError(t, err)
+	clientInode := clientStat.Sys().(*syscall.Stat_t).Ino
+
+	// Verify the listening socket is in the tcpSockets map
+	serverInfo, ok := completeInfo.listening.tcpSockets[serverInode]
+	require.True(t, ok, "Server socket should be in listening sockets map")
+	require.Equal(t, uint16(serverAddr.Port), serverInfo.port, "Server port should match")
+
+	// Verify the established connection is in the established map
+	// The client connection should be in the v4 established connections
+	clientConnInfo, ok := completeInfo.established.v4[clientInode]
+	require.True(t, ok, "Client socket should be in established connections map")
+	require.Equal(t, "127.0.0.1", clientConnInfo.localIP, "Client local IP should be 127.0.0.1")
+	require.Equal(t, uint16(clientAddr.Port), clientConnInfo.localPort, "Client local port should match")
+	require.Equal(t, "127.0.0.1", clientConnInfo.remoteIP, "Client remote IP should be 127.0.0.1")
+	require.Equal(t, uint16(serverAddr.Port), clientConnInfo.remotePort, "Client remote port should match server port")
+	require.Equal(t, "v4", clientConnInfo.family, "Connection family should be v4")
+}
+
+func TestProcessNetTCPLine(t *testing.T) {
+	// Test that processNetTCPLine correctly handles both listening and established states
+	tests := []struct {
+		name              string
+		line              string
+		expectListening   bool
+		expectEstablished bool
+		expectedPort      uint16
+		expectedInode     uint64
+	}{
+		{
+			name: "listening socket",
+			// State 0A = listening (10 in hex)
+			line:            "   0: 0100007F:1F90 00000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 12345 1 0000000000000000 100 0 0 10 0",
+			expectListening: true,
+			expectedPort:    8080,
+			expectedInode:   12345,
+		},
+		{
+			name: "established connection",
+			// State 01 = established (1 in hex)
+			line:              "   0: 0100007F:1F91 0100007F:1F90 01 00000000:00000000 00:00000000 00000000  1000        0 54321 1 0000000000000000 100 0 0 10 0",
+			expectEstablished: true,
+			expectedInode:     54321,
+		},
+		{
+			name: "other state (should be ignored)",
+			// State 02 = SYN_SENT
+			line:              "   0: 0100007F:1F91 0100007F:1F90 02 00000000:00000000 00:00000000 00000000  1000        0 99999 1 0000000000000000 100 0 0 10 0",
+			expectListening:   false,
+			expectEstablished: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			listening := make(map[uint64]uint16)
+			established := make(map[uint64]*establishedConnInfo)
+
+			processNetTCPLine([]byte(tt.line), "v4", listening, established)
+
+			if tt.expectListening {
+				port, ok := listening[tt.expectedInode]
+				require.True(t, ok, "Expected inode should be in listening map")
+				require.Equal(t, tt.expectedPort, port, "Port should match")
+			} else {
+				require.Empty(t, listening, "Listening map should be empty")
+			}
+
+			if tt.expectEstablished {
+				connInfo, ok := established[tt.expectedInode]
+				require.True(t, ok, "Expected inode should be in established map")
+				require.NotNil(t, connInfo)
+				require.Equal(t, "127.0.0.1", connInfo.localIP)
+			} else {
+				require.Empty(t, established, "Established map should be empty")
+			}
+		})
+	}
+}

@@ -38,3 +38,29 @@ type ServicesResponse struct {
 	Services     []Service `json:"services"`
 	InjectedPIDs []int     `json:"injected_pids"`
 }
+
+// Connection represents a TCP connection for service dependency mapping.
+type Connection struct {
+	Laddr     Address `json:"laddr"`
+	Raddr     Address `json:"raddr"`
+	Family    string  `json:"family"`    // "v4" or "v6"
+	Type      int     `json:"type"`      // 0 = TCP
+	Direction string  `json:"direction"` // "incoming", "outgoing"
+	PID       uint32  `json:"pid"`
+	NetNS     uint32  `json:"netns"`
+	// TranslatedLaddr is the NAT-translated local address (nil if no NAT)
+	TranslatedLaddr *Address `json:"translated_laddr,omitempty"`
+	// TranslatedRaddr is the NAT-translated remote address (nil if no NAT)
+	TranslatedRaddr *Address `json:"translated_raddr,omitempty"`
+}
+
+// Address represents an IP:port pair.
+type Address struct {
+	IP   string `json:"ip"`
+	Port uint16 `json:"port"`
+}
+
+// ConnectionsResponse is the response for /discovery/connections endpoint.
+type ConnectionsResponse struct {
+	Connections []Connection `json:"connections"`
+}

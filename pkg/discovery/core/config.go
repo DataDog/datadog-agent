@@ -26,7 +26,9 @@ const (
 
 // DiscoveryConfig holds the configuration for service discovery.
 type DiscoveryConfig struct {
-	IgnoreComms map[string]struct{}
+	IgnoreComms             map[string]struct{}
+	EnableConntrack         bool
+	EnableCiliumConntracker bool
 }
 
 // NewConfig creates a new DiscoveryConfig with default values.
@@ -37,6 +39,18 @@ func NewConfig() *DiscoveryConfig {
 	conf := &DiscoveryConfig{}
 
 	conf.loadIgnoredComms(cfg.GetStringSlice(join(discoveryNS, "ignored_command_names")))
+
+	// Enable conntrack by default for NAT resolution
+	conf.EnableConntrack = cfg.GetBool(join(discoveryNS, "enable_conntrack"))
+	if !cfg.IsSet(join(discoveryNS, "enable_conntrack")) {
+		conf.EnableConntrack = true // default to true
+	}
+
+	// Enable Cilium conntracker by default (gracefully degrades if maps unavailable)
+	conf.EnableCiliumConntracker = cfg.GetBool(join(discoveryNS, "enable_cilium_conntracker"))
+	if !cfg.IsSet(join(discoveryNS, "enable_cilium_conntracker")) {
+		conf.EnableCiliumConntracker = true // default to true
+	}
 
 	return conf
 }
