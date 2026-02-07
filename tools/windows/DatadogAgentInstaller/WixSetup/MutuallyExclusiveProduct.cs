@@ -64,10 +64,11 @@ namespace WixSetup
             upgradeElement.Add(upgradeVersionElement);
             context.XParent.Add(upgradeElement);
 
-            var conditionElement = new XElement("Condition",
+            // WiX 5 migration: Condition element under Package was replaced with Launch element
+            var conditionElement = new XElement("Launch",
                 new XAttribute("Message",
                 $"This product cannot be installed at the same time as {ProductName}. Please uninstall {ProductName} before continuing."),
-                $"NOT {propertyName}");
+                new XAttribute("Condition", $"NOT {propertyName}"));
             context.XParent.Add(conditionElement);
 
             // The property specified in this column must be a public property and the
