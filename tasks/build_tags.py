@@ -504,7 +504,7 @@ def _compute_build_size(ctx, build_exclude=None, flavor=AgentFlavor.base):
 
     from .agent import build as agent_build
 
-    agent_build(ctx, build_exclude=build_exclude, skip_assets=True, flavor=flavor)
+    agent_build(ctx, build_exclude=build_exclude, skip_assets=True, flavor=flavor.name)
 
     statinfo = os.stat('bin/agent/agent')
     return statinfo.st_size
