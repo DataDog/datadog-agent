@@ -108,6 +108,18 @@ The component is configured via an OpenTelemetry Collector YAML file. See [`dist
 - **`exporters.otlphttp`**: Datadog profiling intake endpoint configuration
 - **`extensions.ddprofiling`**: Datadog profiling extension (Agent mode only)
 
+### Configuration Inference
+
+Configuration inference is enabled by default in bundled mode when symbol_endpoints and otlphttp exporters are not explicitly configured.
+
+The host profiler searches for the following nodes in the core agent's configuration file:
+- **`apm_config`**:
+    - **`profiling_dd_url`**: URL from which the site is extracted (takes priority)
+    - **`profiling_additional_endpoints`**: additional endpoints with a url to extract `site` and `n` number of api keys
+- **`site`**: secondary site (if `profiling_dd_url` isn't configured) for symbol endpoints and otlphttp's `profiles_endpoint`
+- **`api_key`**: main api key for `site`
+
+This inference will create as many symbol endpoints and otlphttp exporters as there are site+key combinations.
 
 ## CLI Flags
 
