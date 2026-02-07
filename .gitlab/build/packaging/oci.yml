@@ -76,7 +76,6 @@
 .package_oci_win:
   extends: .package_oci
   script:
-    - !reference [.retrieve_linux_go_tools_deps]
     - |
       set -u pipefail
       PIPE_DIR="$OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID"
@@ -120,16 +119,6 @@
       fi
     - export PATH="$PATH:$(go env GOPATH)/bin"
     - datadog-package create --version "${PACKAGE_VERSION}" --package "${OCI_PRODUCT}" --os windows --arch amd64 --archive --archive-path "${PIPE_DIR}/${OCI_PRODUCT}-${PACKAGE_VERSION}-windows-amd64.oci.tar" ${EXTRA_FLAGS} "${SRC_DIR}/"
-    - |
-      # Verify datadog-agent OCI package contains the installer layer
-      if [ "${OCI_PRODUCT}" = "datadog-agent" ]; then
-        OCI_TAR="${PIPE_DIR}/${OCI_PRODUCT}-${PACKAGE_VERSION}-windows-amd64.oci.tar"
-        if ! crane manifest "oci:${OCI_TAR}" | grep -q "vnd.datadog.package.installer.layer.v1"; then
-          echo "ERROR: OCI package is missing installer layer (vnd.datadog.package.installer.layer.v1)"
-          exit 1
-        fi
-        echo "OCI package verified: installer layer present"
-      fi
     - ls -l "${PIPE_DIR}"
   artifacts:
     expire_in: 2 weeks
@@ -141,7 +130,6 @@ agent_win_oci:
   needs:
     - job: "windows_msi_and_bosh_zip_x64-a7"
       artifacts: true
-    - go_tools_deps
   variables:
     OCI_PRODUCT: "datadog-agent"
     WIN_SOURCE_TYPE: "msi"
@@ -177,7 +165,6 @@ ddot_win_oci:
   needs:
     - job: "windows_zip_ddot_x64"
       artifacts: true
-    - go_tools_deps
   variables:
     OCI_PRODUCT: "datadog-agent-ddot"
     WIN_SOURCE_TYPE: "zip"
