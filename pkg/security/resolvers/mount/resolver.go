@@ -16,7 +16,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -26,19 +25,18 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/lru/simplelru"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const (
-	numAllowedMountIDsToResolvePerPeriod = 5
-	fallbackLimiterPeriod                = time.Second
 	// mounts LRU limit: 100000 mounts
 	mountsLimit       = 100000
 	danglingListLimit = 2000
+	pidNsLimit        = 100000
+	// maxMountPathDepth is the maximum depth of a mount path resolution chain
+	maxMountPathDepth = 128
 )
 
 // ResolverOpts defines mount resolver options
@@ -49,15 +47,14 @@ type ResolverOpts struct {
 
 // Resolver represents a cache for mountpoints and the corresponding file systems
 type Resolver struct {
-	opts            ResolverOpts
-	dentryResolver  *dentry.Resolver
-	cgroupsResolver *cgroup.Resolver
-	statsdClient    statsd.ClientInterface
-	lock            sync.RWMutex
-	mounts          *simplelru.LRU[uint32, *model.Mount]
-	minMountID      uint32 // used to find the first userspace visible mount ID
-	dangling        *simplelru.LRU[uint32, *model.Mount]
-	fallbackLimiter *utils.Limiter[uint64]
+	opts           ResolverOpts
+	dentryResolver *dentry.Resolver
+	statsdClient   statsd.ClientInterface
+	lock           sync.RWMutex
+	mounts         *simplelru.LRU[uint32, *model.Mount]
+	minMountID     uint32 // used to find the first userspace visible mount ID
+	dangling       *simplelru.LRU[uint32, *model.Mount]
+	pidNs          *simplelru.LRU[uint32, uint32]
 
 	// stats
 	cacheHitsStats atomic.Int64
@@ -94,7 +91,7 @@ func (mr *Resolver) syncCacheFromListMount() error {
 	return nil
 }
 
-// syncCacheFromProcfs Snapshots the current mountpoints using the listmount api
+// syncCacheFromProcfs Snapshots the current mountpoints using procfs
 func (mr *Resolver) syncCacheFromProcfs() error {
 	nrMounts := 0
 	err := GetAllProcfs(kernel.ProcFSRoot(), func(sm *model.Mount) {
@@ -133,7 +130,7 @@ func (mr *Resolver) syncCache() error {
 	return err
 }
 
-// syncCacheFromListMount Snapshots the current mountpoints using procfs
+// syncPidProcfs Snapshots the mounts of the pid namespace using procfs
 func (mr *Resolver) syncPidProcfs(pid uint32) error {
 	nrMounts := 0
 	mounts := []*model.Mount{}
@@ -155,7 +152,7 @@ func (mr *Resolver) syncPidProcfs(pid uint32) error {
 	return nil
 }
 
-// syncCacheFromProcfs Snapshots the mounts of the pid namespace using the listmount api
+// syncPidListmount Snapshots the mounts of the pid namespace using the listmount api
 func (mr *Resolver) syncPidListmount(pid uint32) error {
 	nrMounts := 0
 	mounts := []*model.Mount{}
@@ -180,19 +177,49 @@ func (mr *Resolver) syncPidListmount(pid uint32) error {
 // syncPidNamespace snapshots the namespace of the pid
 func (mr *Resolver) syncPidNamespace(pid uint32) error {
 	var err error
+	var syncPid func(uint32) error
 	if mr.opts.SnapshotUsingListMount {
-		err = mr.syncPidListmount(pid)
-		// TODO: Decide if it makes sense to fully regress to procfs when it fails only once
-		if err != nil {
-			mr.opts.SnapshotUsingListMount = false
+		syncPid = func(p uint32) error {
+			err := mr.syncPidListmount(p)
+
+			// TODO: Decide if it makes sense to fully regress to procfs when it fails only once
+			if err != nil {
+				mr.opts.SnapshotUsingListMount = false
+				err = mr.syncPidProcfs(p)
+			}
+
+			return err
+		}
+	} else {
+		syncPid = mr.syncPidProcfs
+	}
+
+	err = syncPid(pid)
+	if err == nil {
+		return nil
+	}
+
+	// If it failed to sync the pid, try to sync from other pids from the pid's namespace.
+	// Use Peek to avoid mutating the LRU ordering during iteration.
+	ns, ok := mr.pidNs.Peek(pid)
+	if ok {
+		for k := range mr.pidNs.KeysIter() {
+			if k == pid {
+				continue
+			}
+			v, _ := mr.pidNs.Peek(k)
+			if v != ns {
+				continue
+			}
+
+			err = syncPid(k)
+			if err == nil {
+				return nil
+			}
 		}
 	}
 
-	if !mr.opts.SnapshotUsingListMount {
-		err = mr.syncPidProcfs(pid)
-	}
-
-	return err
+	return fmt.Errorf("failed to sync PID namespace for pid %d / namespace %d: %w", pid, ns, err)
 }
 
 // SyncCache Snapshots the current mount points of the system by reading through /proc/[pid]/mountinfo.
@@ -420,7 +447,7 @@ func (mr *Resolver) lookupMount(mountID uint32) (*model.Mount, model.MountSource
 	return mount, model.MountSourceMountID, mount.Origin
 }
 
-func (mr *Resolver) _getMountPath(mountID uint32, pid uint32, cache map[uint32]bool) (string, model.MountSource, model.MountOrigin, error) {
+func (mr *Resolver) _getMountPath(mountID uint32, pid uint32, depth int) (string, model.MountSource, model.MountOrigin, error) {
 	if _, err := mr.IsMountIDValid(mountID); err != nil {
 		return "", model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
@@ -440,10 +467,9 @@ func (mr *Resolver) _getMountPath(mountID uint32, pid uint32, cache map[uint32]b
 	}
 
 	// avoid infinite loop
-	if _, exists := cache[mountID]; exists {
+	if depth >= maxMountPathDepth {
 		return "", source, mount.Origin, ErrMountLoop
 	}
-	cache[mountID] = true
 
 	if mount.Detached {
 		return "/", source, mount.Origin, nil
@@ -453,7 +479,7 @@ func (mr *Resolver) _getMountPath(mountID uint32, pid uint32, cache map[uint32]b
 		return "", source, mount.Origin, ErrParentMountUndefined
 	}
 
-	parentMountPath, parentSource, parentOrigin, err := mr._getMountPath(mount.ParentPathKey.MountID, pid, cache)
+	parentMountPath, parentSource, parentOrigin, err := mr._getMountPath(mount.ParentPathKey.MountID, pid, depth+1)
 	if err != nil {
 		return "", parentSource, parentOrigin, err
 	}
@@ -477,7 +503,7 @@ func (mr *Resolver) _getMountPath(mountID uint32, pid uint32, cache map[uint32]b
 }
 
 func (mr *Resolver) getMountPath(mountID uint32, pid uint32) (string, model.MountSource, model.MountOrigin, error) {
-	return mr._getMountPath(mountID, pid, map[uint32]bool{})
+	return mr._getMountPath(mountID, pid, 0)
 }
 
 // ResolveMountRoot returns the root of a mount identified by its mount ID.
@@ -588,7 +614,15 @@ func (mr *Resolver) SendStats() error {
 		return err
 	}
 
-	return mr.statsdClient.Gauge(metrics.MetricMountResolverCacheSize, float64(mr.mounts.Len()), []string{}, 1.0)
+	if err := mr.statsdClient.Gauge(metrics.MetricMountResolverCacheSize, float64(mr.mounts.Len()), []string{}, 1.0); err != nil {
+		return err
+	}
+
+	if err := mr.statsdClient.Gauge(metrics.MetricMountResolverDanglingCacheSize, float64(mr.dangling.Len()), []string{}, 1.0); err != nil {
+		return err
+	}
+
+	return mr.statsdClient.Gauge(metrics.MetricMountResolverPidNsCacheSize, float64(mr.pidNs.Len()), []string{}, 1.0)
 }
 
 // ToJSON return a json version of the cache
@@ -621,7 +655,7 @@ func (mr *Resolver) Iterate(cb func(*model.Mount)) {
 }
 
 // NewResolver instantiates a new mount resolver
-func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Resolver, dentryResolver *dentry.Resolver, opts ResolverOpts) (*Resolver, error) {
+func NewResolver(statsdClient statsd.ClientInterface, dentryResolver *dentry.Resolver, opts ResolverOpts) (*Resolver, error) {
 	mounts, err := simplelru.NewLRU[uint32, *model.Mount](mountsLimit, nil)
 	if err != nil {
 		return nil, err
@@ -632,26 +666,38 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Re
 		return nil, err
 	}
 
-	mr := &Resolver{
-		opts:            opts,
-		statsdClient:    statsdClient,
-		cgroupsResolver: cgroupsResolver,
-		lock:            sync.RWMutex{},
-		mounts:          mounts,
-		dentryResolver:  dentryResolver,
-		dangling:        dangling,
-	}
-
-	// create a rate limiter that allows for 64 mount IDs
-	limiter, err := utils.NewLimiter[uint64](64, numAllowedMountIDsToResolvePerPeriod, fallbackLimiterPeriod)
+	pidNs, err := simplelru.NewLRU[uint32, uint32](pidNsLimit, nil)
 	if err != nil {
 		return nil, err
 	}
-	mr.fallbackLimiter = limiter
+
+	mr := &Resolver{
+		opts:           opts,
+		statsdClient:   statsdClient,
+		lock:           sync.RWMutex{},
+		mounts:         mounts,
+		dentryResolver: dentryResolver,
+		dangling:       dangling,
+		pidNs:          pidNs,
+	}
 
 	if mr.opts.SnapshotUsingListMount && !HasListMount() {
 		mr.opts.SnapshotUsingListMount = false
 	}
 
 	return mr, nil
+}
+
+// SetPidMntNs sets the pid mount namespace in the cache
+func (mr *Resolver) SetPidMntNs(pid uint32, ns uint32) {
+	mr.lock.Lock()
+	defer mr.lock.Unlock()
+	mr.pidNs.Add(pid, ns)
+}
+
+// DeletePid deletes a pid from the pid/ns cache
+func (mr *Resolver) DeletePid(pid uint32) {
+	mr.lock.Lock()
+	defer mr.lock.Unlock()
+	mr.pidNs.Remove(pid)
 }
