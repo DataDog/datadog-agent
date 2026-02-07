@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	discv1 "k8s.io/api/discovery/v1"
 
 	v1 "k8s.io/api/core/v1"
 )
@@ -89,14 +90,29 @@ func ResolveEndpointConfigAuto(conf *integration.Config, addr v1.EndpointAddress
 	if targetRef := addr.TargetRef; targetRef != nil && targetRef.Kind == kubePodKind {
 		// The endpoint is backed by a pod.
 		// We add the pod uid as AD identifiers so the check can get the pod tags.
-		podUID := string(targetRef.UID)
-		conf.ADIdentifiers = append(conf.ADIdentifiers, getPodEntity(podUID))
-		if nodeName := addr.NodeName; nodeName != nil {
-			// Set the node name to schedule the endpoint check on the correct node.
-			// This field needs to be set only when the endpoint is backed by a pod.
-			conf.NodeName = *nodeName
+		var nodeName string
+		if addr.NodeName != nil {
+			nodeName = *addr.NodeName
 		}
+		resolveTargetRefToConfig(conf, targetRef, nodeName)
 	}
+}
+
+func ResolveEndpointSliceConfigAuto(conf *integration.Config, endpoint discv1.Endpoint) {
+	log.Debugf("using 'auto' resolve for config: %s, entity: %s", conf.Name, conf.ServiceID)
+	if endpoint.TargetRef != nil && endpoint.TargetRef.Kind == kubePodKind {
+		var nodeName string
+		if endpoint.NodeName != nil {
+			nodeName = *endpoint.NodeName
+		}
+		resolveTargetRefToConfig(conf, endpoint.TargetRef, nodeName)
+	}
+}
+
+func resolveTargetRefToConfig(conf *integration.Config, targetRef *v1.ObjectReference, nodeName string) {
+	podUID := string(targetRef.UID)
+	conf.ADIdentifiers = append(conf.ADIdentifiers, getPodEntity(podUID))
+	conf.NodeName = nodeName
 }
 
 // getPodEntity returns pod entity

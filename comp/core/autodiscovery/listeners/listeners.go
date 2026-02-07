@@ -21,12 +21,11 @@ const (
 )
 
 // RegisterListeners registers the available autodiscovery listerners.
-func RegisterListeners(serviceListenerFactories map[string]ServiceListenerFactory) {
+func RegisterListeners(serviceListenerFactories map[string]ServiceListenerFactory, useEndpointSlicesListener bool) {
 	// register the available listeners
 	Register(cloudFoundryBBSListenerName, NewCloudFoundryListener, serviceListenerFactories)
 	Register(containerListenerName, NewContainerListener, serviceListenerFactories)
 	Register(environmentListenerName, NewEnvironmentListener, serviceListenerFactories)
-	Register(kubeEndpointsListenerName, NewKubeEndpointsListener, serviceListenerFactories)
 	Register(kubeServicesListenerName, NewKubeServiceListener, serviceListenerFactories)
 	Register(kubeletListenerName, NewKubeletListener, serviceListenerFactories)
 	Register(processListenerName, NewProcessListener, serviceListenerFactories)
@@ -34,4 +33,10 @@ func RegisterListeners(serviceListenerFactories map[string]ServiceListenerFactor
 	Register(staticConfigListenerName, NewStaticConfigListener, serviceListenerFactories)
 	Register(dbmAuroraListenerName, NewDBMAuroraListener, serviceListenerFactories)
 	Register(dbmRdsListenerName, NewDBMRdsListener, serviceListenerFactories)
+
+	endpointsListener := NewKubeEndpointsListener
+	if useEndpointSlicesListener {
+		endpointsListener = NewKubeEndpointSlicesListener
+	}
+	Register(kubeEndpointsListenerName, endpointsListener, serviceListenerFactories)
 }
