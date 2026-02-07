@@ -200,8 +200,6 @@ github.com/DataDog/datadog-operator/api v0.0.0-20260130110400-4fcb91d49671 h1:AO
 github.com/DataDog/datadog-operator/api v0.0.0-20260130110400-4fcb91d49671/go.mod h1:qrisxX+IMicFX01uVrzmPWTxhSQrrmyb6fUTQdjQdN8=
 github.com/DataDog/datadog-traceroute v1.0.3 h1:84fcvLfsOmdm7T6+7Y07KmQfXJR8gjMdmD4j+vuf8Qo=
 github.com/DataDog/datadog-traceroute v1.0.3/go.mod h1:aA+OKmKRPghOH/DPIrepgLXos++CHZQ5L/uCCeaaNII=
-github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20260123165136-9ed3effd2c0e h1:OMhVn9YYbnrvMZfWFr6wEeXqiAfVz5QM+YqSaJnVWVg=
-github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20260123165136-9ed3effd2c0e/go.mod h1:jb1UKSHdXrQ3H2kpQXU4jNKdM9Svioly9DdpQTQpxE0=
 github.com/DataDog/ddtrivy v0.0.0-20260115083325-07614fb0b8d5 h1:R6uhWnfvq23xRAoV3vK9sc6D5pDHxEEDYBgs2YbcX8s=
 github.com/DataDog/ddtrivy v0.0.0-20260115083325-07614fb0b8d5/go.mod h1:oz6zVBIVeK9I/AFP9k7TljSGtA9Opslmay0FcXg0fuQ=
 github.com/DataDog/ebpf-manager v0.7.15 h1:14PbnvXFQccV3zexENfNuADAxCuwHNori7sK55CP0SU=
@@ -2539,8 +2537,6 @@ github.com/uptrace/bun/driver/pgdriver v1.2.16 h1:b1kpXKUxtTSGYow5Vlsb+dKV3z0R7a
 github.com/uptrace/bun/driver/pgdriver v1.2.16/go.mod h1:H6lUZ9CBfp1X5Vq62YGSV7q96/v94ja9AYFjKvdoTk0=
 github.com/urfave/cli v1.21.0/go.mod h1:lxDj6qX9Q6lWQxIrbrT0nwecwUtRnhVZAJjJZrVUZZQ=
 github.com/urfave/cli/v2 v2.3.0/go.mod h1:LJmUH05zAU44vOAcrfzZQKsZbVcdbOG8rtL3/XcUArI=
-github.com/urfave/cli/v3 v3.1.1 h1:bNnl8pFI5dxPOjeONvFCDFoECLQsceDG4ejahs4Jtxk=
-github.com/urfave/cli/v3 v3.1.1/go.mod h1:FJSKtM/9AiiTOJL4fJ6TbMUkxBXn7GO9guZqoZtpYpo=
 github.com/urfave/negroni v1.0.0 h1:kIimOitoypq34K7TG7DUaJ9kq/N4Ofuwi1sjz0KipXc=
 github.com/urfave/negroni v1.0.0/go.mod h1:Meg73S6kFm/4PpbYdq35yYWoCZ9mS/YSx+lKnmiohz4=
 github.com/valyala/fastjson v1.6.7 h1:ZE4tRy0CIkh+qDc5McjatheGX2czdn8slQjomexVpBM=
