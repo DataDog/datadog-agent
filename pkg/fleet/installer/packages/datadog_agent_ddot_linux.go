@@ -226,7 +226,7 @@ func enableOtelCollectorConfig(ctx context.Context) error {
 
 // writeOTelConfig creates otel-config.yaml by substituting API key and site values from datadog.yaml
 func writeOTelConfig() error {
-	return writeOTelConfigCommon(datadogYamlPath, "/etc/datadog-agent/otel-config.yaml.example", "/etc/datadog-agent/otel-config.yaml", false, 0644)
+	return writeOTelConfigCommon(datadogYamlPath, "/etc/datadog-agent/otel-config.yaml.example", "/etc/datadog-agent/otel-config.yaml", false, 0640)
 }
 
 // DDOT Extension methods

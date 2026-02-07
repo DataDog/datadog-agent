@@ -422,6 +422,10 @@ func postInstallDDOTExtension(ctx HookContext) error {
 		if st, err := winutil.WaitForPendingStateChange(ctxCA, coreAgentService, svc.StartPending); err != nil || st != svc.Running {
 			return nil
 		}
+		// Re-verify the service is actually running after the wait
+		if running, _ = winutil.IsServiceRunning(coreAgentService); !running {
+			return nil
+		}
 	}
 	if ak := readAPIKeyFromDatadogYAML(); ak == "" {
 		return nil
