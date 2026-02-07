@@ -3399,7 +3399,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 		case action.Def.Kill != nil:
 			// do not handle kill action on event with error
 			if ev.Error != nil {
-				return
+				continue
 			}
 
 			tryToKill, report := p.processKiller.KillAndReport(action.Def.Kill, rule, ev)
@@ -3425,7 +3425,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 			}
 		case action.Def.NetworkFilter != nil:
 			if !p.config.RuntimeSecurity.EnforcementEnabled {
-				return
+				continue
 			}
 
 			var policy rawpacket.Policy
