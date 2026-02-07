@@ -16,6 +16,6 @@ import (
 )
 
 // Mock returns a mock for connectionsforwarder component.
-func Mock(_ *testing.T) connectionsforwarder.Component {
+func Mock(_ testing.TB) connectionsforwarder.Component {
 	return &defaultforwarder.MockedForwarder{}
 }

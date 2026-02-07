@@ -58,6 +58,8 @@ import (
 const clientID = "local_client"
 const telemetrySubsystem = "sender__connections"
 
+var autoStart = true
+
 var senderTelemetry = struct {
 	queueSize       telemetry.Gauge
 	queueBytes      telemetry.Gauge
@@ -171,7 +173,9 @@ func New(
 		checkInterval: checkInterval,
 	}
 
-	ds.start()
+	if autoStart {
+		ds.start()
+	}
 	return &ds, nil
 }
 

@@ -12,12 +12,13 @@ import (
 	"strings"
 	"testing"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 type mockDependencies struct {
@@ -42,7 +43,7 @@ func MockModule() fxutil.Module {
 //
 // While this method use FX internally it abstract if from the caller making the migration of sysprobeconfig mock transparent
 // for its users.
-func NewMock(t *testing.T) sysprobeconfig.Component {
+func NewMock(t testing.TB) sysprobeconfig.Component {
 	return fxutil.Test[sysprobeconfig.Component](t, MockModule())
 }
 

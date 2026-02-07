@@ -9,6 +9,7 @@ package sender
 
 import (
 	"fmt"
+	"io"
 	"slices"
 	"strconv"
 	"testing"
@@ -40,6 +41,7 @@ import (
 	evmodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	utilintern "github.com/DataDog/datadog-agent/pkg/util/intern"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func makeConnection(pid int32) network.ConnectionStats {
@@ -62,14 +64,16 @@ func makeConnections(n int) []network.ConnectionStats {
 	return conns
 }
 
-type fakeConnectionSource struct{}
+type fakeConnectionSource struct {
+	conns *network.Connections
+}
 
 func (f *fakeConnectionSource) RegisterClient(_ string) error { return nil }
 func (f *fakeConnectionSource) GetActiveConnections(_ string) (*network.Connections, func(), error) {
-	return nil, nil, nil
+	return f.conns, func() {}, nil
 }
 
-func mockDirectSender(t *testing.T) *directSender {
+func mockDirectSender(t testing.TB) *directSender {
 	hostnameComp, _ := hostname.NewMock("test")
 	wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Supply(config.Params{}),
@@ -80,6 +84,40 @@ func mockDirectSender(t *testing.T) *directSender {
 	d, err := New(t.Context(), &fakeConnectionSource{}, Dependencies{
 		Config:         config.NewMock(t),
 		Logger:         logmock.New(t),
+		Sysprobeconfig: sysprobeconfigimpl.NewMock(t),
+		Tagger:         taggernoop.NewComponent(),
+		Wmeta:          wmeta,
+		Hostname:       hostnameComp,
+		Forwarder:      connectionsforwardermock.Mock(t),
+		NPCollector:    npcollectorimpl.NewMock().Comp,
+	})
+	require.NoError(t, err)
+	return d.(*directSender)
+}
+
+func mockLogDirectSender(t testing.TB, l log.Component) *directSender {
+	iface, err := pkglog.LoggerFromWriterWithMinLevelAndFullFormat(io.Discard, pkglog.TraceLvl)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	t.Cleanup(func() {
+		// stop using the logger to avoid a race condition
+		pkglog.ChangeLogLevel(pkglog.Default(), pkglog.DebugLvl)
+		iface.Flush()
+	})
+	pkglog.ChangeLogLevel(iface, pkglog.DebugLvl)
+
+	hostnameComp, _ := hostname.NewMock("test")
+	wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Supply(config.Params{}),
+		fx.Provide(func() log.Component { return l }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	d, err := New(t.Context(), &fakeConnectionSource{}, Dependencies{
+		Config:         config.NewMock(t),
+		Logger:         l,
 		Sysprobeconfig: sysprobeconfigimpl.NewMock(t),
 		Tagger:         taggernoop.NewComponent(),
 		Wmeta:          wmeta,
@@ -547,4 +585,87 @@ func TestGetRequestID(t *testing.T) {
 	d.requestIDCachedHash = hostnameHash("host2", int(d.sysProbePID))
 	id5 := d.getRequestID(fixedDate1, 1)
 	assert.NotEqual(t, id1, id5)
+}
+
+func BenchmarkCollect(b *testing.B) {
+	autoStart = false
+	d := mockLogDirectSender(b, &noopLog{})
+	// consume everything in the queue
+	go func() {
+		for {
+			select {
+			case <-b.Context().Done():
+				d.resultsQueue.Stop()
+				return
+			default:
+				_, ok := d.resultsQueue.Poll()
+				if !ok {
+					return
+				}
+			}
+		}
+	}()
+
+	cs := d.tracer.(*fakeConnectionSource)
+	conns := makeConnections(255)
+	cs.conns = &network.Connections{BufferedData: network.BufferedData{Conns: conns}}
+	for b.Loop() {
+		d.collect()
+	}
+}
+
+var _ log.Component = &noopLog{}
+
+type noopLog struct{}
+
+func (n noopLog) Trace(v ...interface{}) {
+
+}
+
+func (n noopLog) Tracef(format string, params ...interface{}) {
+
+}
+
+func (n noopLog) Debug(v ...interface{}) {
+
+}
+
+func (n noopLog) Debugf(format string, params ...interface{}) {
+
+}
+
+func (n noopLog) Info(v ...interface{}) {
+
+}
+
+func (n noopLog) Infof(format string, params ...interface{}) {
+
+}
+
+func (n noopLog) Warn(v ...interface{}) error {
+	return nil
+}
+
+func (n noopLog) Warnf(format string, params ...interface{}) error {
+	return nil
+}
+
+func (n noopLog) Error(v ...interface{}) error {
+	return nil
+}
+
+func (n noopLog) Errorf(format string, params ...interface{}) error {
+	return nil
+}
+
+func (n noopLog) Critical(v ...interface{}) error {
+	return nil
+}
+
+func (n noopLog) Criticalf(format string, params ...interface{}) error {
+	return nil
+}
+
+func (n noopLog) Flush() {
+
 }
