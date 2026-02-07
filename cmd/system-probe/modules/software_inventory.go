@@ -3,12 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build darwin || windows
+
 package modules
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/inventory/software"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/pkg/inventory/software"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
@@ -29,8 +31,7 @@ var SoftwareInventory = &module.Factory{
 
 var _ module.Module = &softwareInventoryModule{}
 
-type softwareInventoryModule struct {
-}
+type softwareInventoryModule struct{}
 
 func (sim *softwareInventoryModule) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, _ *http.Request) {
@@ -54,6 +55,4 @@ func (sim *softwareInventoryModule) GetStats() map[string]interface{} {
 	return map[string]interface{}{}
 }
 
-func (sim *softwareInventoryModule) Close() {
-
-}
+func (sim *softwareInventoryModule) Close() {}
