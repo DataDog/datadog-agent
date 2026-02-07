@@ -170,8 +170,10 @@ type LogsUploaderFactory[LU LogsUploader] interface {
 // LogsUploader is an interface that enables the Controller to send logs to the
 // backend.
 type LogsUploader interface {
-	// Enqueue adds a message to the uploader's queue.
-	Enqueue(data json.RawMessage)
+	// EnqueueLog adds a message to the uploader's queue.
+	EnqueueLog(data json.RawMessage)
+	// EnqueueSnapshot adds a snapshot to the uploader's queue.
+	EnqueueSnapshot(data json.RawMessage)
 	// Close closes the uploader.
 	Close()
 }

@@ -133,6 +133,7 @@ func testDyninst(
 	cfg.TestingKnobs.LoaderOptions = loaderOpts
 	cfg.DiskCacheConfig.DirPath = filepath.Join(tempDir, "disk-cache")
 	cfg.LogUploaderURL = testServer.getLogsURL()
+	cfg.SnapshotsUploaderURL = testServer.getSnapshotsURL()
 	cfg.DiagsUploaderURL = testServer.getDiagsURL()
 	var sendUpdate fakeProcessSubscriber
 	cfg.TestingKnobs.ProcessSubscriberOverride = func(
@@ -234,12 +235,20 @@ func testDyninst(
 	t.Logf("Triggering function calls at %s", time.Now().Format(time.RFC3339))
 	sampleStdin.Write([]byte("\n"))
 
-	var totalExpectedEvents int
+	var totalExpectedLogs, totalExpectedSnapshots int
 	if rewriteEnabled {
-		totalExpectedEvents = math.MaxInt
+		totalExpectedLogs = math.MaxInt
+		totalExpectedSnapshots = math.MaxInt
 	} else {
 		for _, p := range probes {
-			totalExpectedEvents += len(expOut[resultNames[p.GetID()]])
+			switch p.GetKind() {
+			case ir.ProbeKindSnapshot:
+				totalExpectedSnapshots += len(expOut[resultNames[p.GetID()]])
+			case ir.ProbeKindLog:
+				totalExpectedLogs += len(expOut[resultNames[p.GetID()]])
+			default:
+				t.Fatalf("unexpected probe type: %d", p.GetKind())
+			}
 		}
 	}
 
@@ -251,16 +260,19 @@ func testDyninst(
 		timeout = 30*time.Second + 10*time.Since(start)
 	}
 	deadline := time.Now().Add(timeout)
-	var n int
+	var logs, snaps int
 	for time.Now().Before(deadline) {
-		if n = len(testServer.getLogs()); n >= totalExpectedEvents {
+		logs = len(testServer.getLogs())
+		snaps = len(testServer.getSnapshots())
+		if logs >= totalExpectedLogs && snaps >= totalExpectedSnapshots {
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
 	if !rewriteEnabled {
 		t.Logf("function calls completed at %s", time.Now().Format(time.RFC3339))
-		require.GreaterOrEqual(t, n, totalExpectedEvents, "expected at least %d events, got %d", totalExpectedEvents, n)
+		require.GreaterOrEqual(t, logs, totalExpectedLogs, "expected at least %d logs, got %d (also got %d snapshots)", totalExpectedLogs, logs, snaps)
+		require.GreaterOrEqual(t, snaps, totalExpectedSnapshots, "expected at least %d snapshots, got %d (also got %d logs)", totalExpectedSnapshots, snaps, logs)
 	}
 	require.NoError(t, sampleProc.Wait())
 	sendUpdate(process.ProcessesUpdate{
@@ -275,7 +287,10 @@ func testDyninst(
 	redactors := append(defaultRedactors[:len(defaultRedactors):len(defaultRedactors)],
 		makeRedactorForManyFloats(testProgConfig.GOARCH),
 		makeRedactorForFunctionWithChangingState())
-	for _, log := range testServer.getLogs() {
+
+	allEvents := testServer.getLogs()
+	allEvents = append(allEvents, testServer.getSnapshots()...)
+	for _, log := range allEvents {
 		redacted := redactJSON(t, "", log.body, redactors)
 		if debugEnabled {
 			t.Logf("Output: %v\n", string(log.body))
@@ -603,27 +618,32 @@ type fakeAgent struct {
 	t  *testing.T
 	mu struct {
 		sync.Mutex
-		logs  []receivedLog
-		diags []receivedDiag
+		logs      []receivedLog
+		snapshots []receivedLog
+		diags     []receivedDiag
 	}
 }
 
 const (
-	logPath  = "/logs"
-	diagPath = "/diags"
+	logPath      = "/logs"
+	snapshotPath = "/snapshots"
+	diagPath     = "/diags"
 )
 
 func newFakeAgent(t *testing.T) *fakeAgent {
 	f := &fakeAgent{t: t}
 	mux := http.NewServeMux()
-	mux.HandleFunc("/logs", http.HandlerFunc(f.handleLogsUpload))
-	mux.HandleFunc("/diags", http.HandlerFunc(f.handleDiagsUpload))
+	mux.HandleFunc(logPath, http.HandlerFunc(f.handleLogsUpload))
+	mux.HandleFunc(snapshotPath, http.HandlerFunc(f.handleSnapshotsUpload))
+
+	mux.HandleFunc(diagPath, http.HandlerFunc(f.handleDiagsUpload))
 	f.s = httptest.NewServer(mux)
 	return f
 }
 
-func (f *fakeAgent) getLogsURL() string  { return f.s.URL + logPath }
-func (f *fakeAgent) getDiagsURL() string { return f.s.URL + diagPath }
+func (f *fakeAgent) getLogsURL() string      { return f.s.URL + logPath }
+func (f *fakeAgent) getSnapshotsURL() string { return f.s.URL + snapshotPath }
+func (f *fakeAgent) getDiagsURL() string     { return f.s.URL + diagPath }
 
 type receivedLog struct {
 	id        string
@@ -636,6 +656,12 @@ func (f *fakeAgent) getLogs() []receivedLog {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.mu.logs
+}
+
+func (f *fakeAgent) getSnapshots() []receivedLog {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.mu.snapshots
 }
 
 type receivedDiag struct {
@@ -660,6 +686,19 @@ func (f *fakeAgent) handleLogsUpload(w http.ResponseWriter, req *http.Request) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.mu.logs = append(f.mu.logs, logs...)
+}
+
+func (f *fakeAgent) handleSnapshotsUpload(w http.ResponseWriter, req *http.Request) {
+	snaps, err := readLogs(req)
+	if err != nil {
+		f.t.Errorf("failed to read logs: %v", err)
+		http.Error(w, "failed to read logs", http.StatusBadRequest)
+		return
+	}
+	defer w.WriteHeader(http.StatusOK)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.mu.snapshots = append(f.mu.snapshots, snaps...)
 }
 
 func (f *fakeAgent) handleDiagsUpload(w http.ResponseWriter, req *http.Request) {
