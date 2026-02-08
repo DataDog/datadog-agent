@@ -258,7 +258,6 @@ type Entity interface {
 	String(verbose bool) string
 }
 
-
 // EntityID represents the ID of an Entity.  Note that entities from different sources
 // may have the same EntityID.
 type EntityID struct {
@@ -298,7 +297,6 @@ func (e EntityMeta) String(verbose bool) string {
 	return sb.String()
 }
 
-// FilterForNonVerbose returns a copy of EntityMeta with verbose-only fields removed.
 // ContainerImage is the an image used by a container.
 // For historical reason, The imageId from containerd runtime and kubernetes refer to different fields.
 // For containerd, it is the digest of the image config.
@@ -357,7 +355,6 @@ func (c ContainerImage) String(verbose bool) string {
 	return sb.String()
 }
 
-// FilterForNonVerbose returns a copy of ContainerImage with verbose-only fields removed.
 // ContainerState is the state of a container.
 type ContainerState struct {
 	Running    bool
@@ -388,7 +385,6 @@ func (c ContainerState) String(verbose bool) string {
 	return sb.String()
 }
 
-// FilterForNonVerbose returns a copy of ContainerState with verbose-only fields removed.
 // ContainerPort is a port open in the container.
 type ContainerPort struct {
 	Name     string
@@ -472,10 +468,10 @@ const RequestAllGPUs = -1
 
 // ContainerResources is resources requests or limitations for a container
 type ContainerResources struct {
-	GPURequest    *int64    // Number of GPUs requested (-1 for all GPUs, used in Docker runtimes)
-	GPULimit      *int64      // Number of GPUs limit (-1 for no limit, used in Docker runtimes)
+	GPURequest    *int64   // Number of GPUs requested (-1 for all GPUs, used in Docker runtimes)
+	GPULimit      *int64   // Number of GPUs limit (-1 for no limit, used in Docker runtimes)
 	GPUVendorList []string // The type of GPU requested (eg. nvidia, amd, intel)
-	CPURequest    *float64    // Percentage 0-100*numCPU (aligned with CPU Limit from metrics provider)
+	CPURequest    *float64 // Percentage 0-100*numCPU (aligned with CPU Limit from metrics provider)
 	CPULimit      *float64
 	MemoryRequest *uint64 // Bytes
 	MemoryLimit   *uint64
@@ -568,9 +564,6 @@ func (o OrchestratorContainer) String(verbose bool) string {
 	return sb.String()
 }
 
-// FilterForNonVerbose returns a copy of OrchestratorContainer with verbose-only fields removed.
-// Non-verbose output shows: ID, Name, Image (name and tag only)
-// Verbose-only fields removed: Resources
 // ECSContainer is a reference to a container running in ECS
 type ECSContainer struct {
 	DisplayName   string
@@ -766,8 +759,6 @@ func (c Container) String(verbose bool) string {
 	return sb.String()
 }
 
-// FilterForNonVerbose returns a copy of the Container with verbose-only fields removed.
-// This ensures consistency between text output (String method) and JSON output.
 // PodSecurityContext is the Security Context of a Kubernetes pod
 type PodSecurityContext struct {
 	RunAsUser  int32
@@ -999,11 +990,6 @@ func (p KubernetesPod) GetAllContainers() []OrchestratorContainer {
 	return append(append(p.InitContainers, p.Containers...), p.EphemeralContainers...)
 }
 
-// FilterForNonVerbose returns a copy of KubernetesPod with verbose-only fields removed.
-// Non-verbose output shows: EntityID, EntityMeta (name/namespace only), Phase, Ready, IP, Containers
-// Verbose-only fields removed: CreationTimestamp, DeletionTimestamp, StartTime, HostIP, HostNetwork,
-// InitContainerStatuses, ContainerStatuses, EphemeralContainerStatuses, Conditions, Volumes, Tolerations,
-// PersistentVolumeClaimNames, NamespaceLabels, NamespaceAnnotations
 var _ Entity = &KubernetesPod{}
 
 // KubernetesPodOwner is extracted from a pod's owner references.
@@ -1182,7 +1168,7 @@ type KubeMetadataEntityID string
 type KubernetesMetadata struct {
 	EntityID
 	EntityMeta
-	GVR        *schema.GroupVersionResource
+	GVR *schema.GroupVersionResource
 }
 
 // GetID implements Entity#GetID.
@@ -1227,8 +1213,6 @@ func (km KubeletMetrics) DeepCopy() Entity {
 	return &ckm
 }
 
-// FilterForNonVerbose implements Entity#FilterForNonVerbose.
-// KubeletMetrics has no verbose-only fields, so returns a copy unchanged.
 // String implements Entity#String
 func (km *KubeletMetrics) String(verbose bool) string {
 	var sb strings.Builder
@@ -1261,21 +1245,18 @@ func (m *KubernetesMetadata) String(verbose bool) string {
 	return sb.String()
 }
 
-// FilterForNonVerbose returns a copy of KubernetesMetadata with verbose-only fields removed.
-// Non-verbose output shows: EntityID, EntityMeta (name/namespace only)
-// Verbose-only fields removed: GVR (GroupVersionResource)
 var _ Entity = &KubernetesMetadata{}
 
 // KubeletConfigSpec is the kubelet configuration, only the
 // necessary fields are stored
 type KubeletConfigSpec struct {
-	CPUManagerPolicy string
+	CPUManagerPolicy string `json:"cpuManagerPolicy"`
 }
 
 // KubeletConfigDocument is the wrapper struct that holds
 // the kubelet config
 type KubeletConfigDocument struct {
-	KubeletConfig KubeletConfigSpec
+	KubeletConfig KubeletConfigSpec `json:"kubeletconfig"`
 }
 
 // String implements KubeletConfig#String
@@ -1335,18 +1316,15 @@ func (ku *Kubelet) String(verbose bool) string {
 	return sb.String()
 }
 
-// FilterForNonVerbose returns a copy of Kubelet with verbose-only fields removed.
-// Non-verbose output shows: EntityID, EntityMeta (name/namespace only), NodeName
-// Verbose-only fields removed: ConfigDocument, RawConfig
 var _ Entity = &Kubelet{}
 
 // KubernetesDeployment is an Entity representing a Kubernetes Deployment.
 type KubernetesDeployment struct {
 	EntityID
 	EntityMeta
-	Env        string
-	Service    string
-	Version    string
+	Env     string
+	Service string
+	Version string
 
 	// InjectableLanguages indicate containers languages that can be injected by the admission controller
 	// These languages are determined by parsing the deployment annotations
@@ -1428,8 +1406,6 @@ func (d KubernetesDeployment) String(verbose bool) string {
 	return sb.String()
 }
 
-// FilterForNonVerbose returns a copy of KubernetesDeployment with verbose-only fields removed.
-// KubernetesDeployment.String() doesn't have verbose-specific logic, but we filter EntityMeta for consistency.
 var _ Entity = &KubernetesDeployment{}
 
 // ECSTaskKnownStatusStopped is the known status of an ECS task that has stopped.
@@ -1532,9 +1508,6 @@ func (t ECSTask) String(verbose bool) string {
 	return sb.String()
 }
 
-// FilterForNonVerbose returns a copy of ECSTask with verbose-only fields removed.
-// Non-verbose output shows: EntityID, EntityMeta, Containers (basic info)
-// Verbose-only fields removed: Tags, ContainerInstanceTags, EphemeralStorageMetrics
 var _ Entity = &ECSTask{}
 
 // ContainerImageMetadata is an Entity that represents container image metadata
@@ -1675,9 +1648,6 @@ func printHistory(out io.Writer, history *v1.History) {
 	_, _ = fmt.Fprintln(out, "- emptyLayer:", history.EmptyLayer)
 }
 
-// FilterForNonVerbose returns a copy of ContainerImageMetadata with verbose-only fields removed.
-// Non-verbose output shows: EntityID, EntityMeta (name/namespace only), RepoTags, RepoDigests
-// Verbose-only fields removed: MediaType, SizeBytes, OS, OSVersion, Architecture, Variant, Layers, SBOM
 var _ Entity = &ContainerImageMetadata{}
 
 // Service contains service discovery information for a process
@@ -1759,16 +1729,16 @@ func (i InjectionState) String() string {
 type Process struct {
 	EntityID // EntityID.ID is the PID
 
-	Pid            int32     // Process ID -- /proc/[pid]
-	NsPid          int32   // Namespace PID -- /proc/[pid]/status
+	Pid            int32    // Process ID -- /proc/[pid]
+	NsPid          int32    // Namespace PID -- /proc/[pid]/status
 	Ppid           int32    // Parent Process ID -- /proc/[pid]/stat
-	Name           string    // Name -- /proc/[pid]/status
-	Cwd            string     // Current Working Directory -- /proc/[pid]/cwd
-	Exe            string     // Exceutable Path -- /proc[pid]/exe
-	Comm           string    // Short Command Name -- /proc/[pid]/comm
+	Name           string   // Name -- /proc/[pid]/status
+	Cwd            string   // Current Working Directory -- /proc/[pid]/cwd
+	Exe            string   // Exceutable Path -- /proc[pid]/exe
+	Comm           string   // Short Command Name -- /proc/[pid]/comm
 	Cmdline        []string // Command Line -- /proc/[pid]/cmdline
-	Uids           []int32    // User IDs -- /proc/[pid]/status
-	Gids           []int32    // Group IDs -- /proc/[pid]/status
+	Uids           []int32  // User IDs -- /proc/[pid]/status
+	Gids           []int32  // Group IDs -- /proc/[pid]/status
 	ContainerID    string
 	CreationTime   time.Time // Process Start Time -- /proc/[pid]/stat
 	Language       *languagemodels.Language
@@ -1871,9 +1841,6 @@ func (p Process) String(verbose bool) string {
 	return sb.String()
 }
 
-// FilterForNonVerbose returns a copy of Process with verbose-only fields removed.
-// Non-verbose output shows: PID, Name, Exe, Cmdline, NsPid, ContainerID, CreationTime, Language, InjectionState, Service.GeneratedName
-// Verbose-only fields removed: Comm, Cwd, Uids, Gids, Service verbose fields
 // HostTags is an Entity that represents host tags
 type HostTags struct {
 	EntityID
@@ -1904,8 +1871,6 @@ func (p *HostTags) Merge(e Entity) error {
 	return merge(p, otherHost)
 }
 
-// FilterForNonVerbose implements Entity#FilterForNonVerbose.
-// HostTags has no verbose-only fields, so returns a copy unchanged.
 // String implements Entity#String.
 func (p HostTags) String(verbose bool) string {
 	var sb strings.Builder
@@ -2159,8 +2124,6 @@ func (g GPU) SlicingMode() string {
 	return "none"
 }
 
-// FilterForNonVerbose returns a copy of GPU with verbose-only fields removed.
-// GPU.String() doesn't have verbose-specific logic, but we filter EntityMeta for consistency.
 // GPUComputeCapability represents the compute capability version of a GPU.
 type GPUComputeCapability struct {
 	// Major represents the major version of the compute capability.
@@ -2191,9 +2154,9 @@ const (
 type CRD struct {
 	EntityID
 	EntityMeta
-	Group      string
-	Kind       string
-	Version    string
+	Group   string
+	Kind    string
+	Version string
 }
 
 var _ Entity = &CRD{}
@@ -2237,8 +2200,6 @@ func (crd CRD) String(verbose bool) string {
 	return sb.String()
 }
 
-// FilterForNonVerbose returns a copy of CRD with verbose-only fields removed.
-// CRD.String() doesn't have verbose-specific logic, but we filter EntityMeta for consistency.
 // FeatureGateStage represents the maturity level of a Kubernetes feature gate
 type FeatureGateStage string
 
@@ -2307,7 +2268,3 @@ func (kc KubeCapabilities) String(verbose bool) string {
 
 	return sb.String()
 }
-
-// FilterForNonVerbose returns a copy of KubeCapabilities with verbose-only fields removed.
-// Non-verbose output shows: EntityID, EntityMeta (name/namespace only), Version
-// Verbose-only fields removed: FeatureGates
