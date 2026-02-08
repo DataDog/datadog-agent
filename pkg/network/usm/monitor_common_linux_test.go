@@ -64,3 +64,19 @@ func TestHTTPMonitorIntegrationWithResponseBodyCommon(t *testing.T) {
 		},
 	})
 }
+
+// TestHTTPMonitorLoadWithIncompleteBuffersCommon runs the incomplete buffers test on Linux.
+func TestHTTPMonitorLoadWithIncompleteBuffersCommon(t *testing.T) {
+	skipTestIfKernelNotSupported(t)
+
+	slowServerPort := tracetestutil.FreeTCPPort(t)
+	fastServerPort := tracetestutil.FreeTCPPort(t)
+
+	runHTTPMonitorLoadWithIncompleteBuffersTest(t, httpLoadTestParams{
+		slowServerPort: slowServerPort,
+		fastServerPort: fastServerPort,
+		setupMonitor: func(t *testing.T) TestMonitor {
+			return setupLinuxTestMonitor(t, getHTTPCfg())
+		},
+	})
+}
