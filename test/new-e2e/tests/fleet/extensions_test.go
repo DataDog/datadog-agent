@@ -235,7 +235,7 @@ func (s *extensionsSuite) getAgentPackageURL() string {
 	if pipelineID == "" {
 		s.T().Fatal("E2E_PIPELINE_ID environment variable not set")
 	}
-	return "oci://installtesting.datad0g.com.internal.dda-testing.com/datadog-agent:pipeline-" + pipelineID
+	return "oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-" + pipelineID
 }
 
 // getDDOTBinaryPath returns the platform-specific DDOT binary path
