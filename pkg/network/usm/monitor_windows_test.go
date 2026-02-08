@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	iistestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	tracetestutil "github.com/DataDog/datadog-agent/pkg/trace/testutil"
@@ -65,99 +64,12 @@ func setupWindowsMonitor(t *testing.T, cfg *config.Config) Monitor {
 	return monitor
 }
 
-// statusCodeCount holds the expected status code and count for validation.
-type statusCodeCount struct {
-	statusCode uint16
-	count      int
-}
-
-// getHTTPLikeProtocolStats extracts HTTP protocol stats from the monitor.
-func getHTTPLikeProtocolStats(t *testing.T, monitor Monitor, protocolType protocols.ProtocolType) map[http.Key]*http.RequestStats {
+// verifyHTTPStatsWindows validates HTTP stats using the Windows Monitor interface.
+// This is a convenience wrapper around the common verifyHTTPStats for Windows-specific tests.
+func verifyHTTPStatsWindows(t *testing.T, monitor Monitor, expectedEndpoints map[http.Key]statusCodeCount, serverPort int, additionalValidator func(*testing.T, *http.RequestStat) bool) bool {
 	t.Helper()
-
-	allStats := monitor.GetHTTPStats()
-	if allStats == nil {
-		return nil
-	}
-
-	statsObj, ok := allStats[protocolType]
-	if !ok {
-		return nil
-	}
-
-	stats, ok := statsObj.(map[http.Key]*http.RequestStats)
-	if !ok {
-		return nil
-	}
-
-	return stats
-}
-
-// verifyHTTPStats validates that the expected HTTP endpoints are present in the stats.
-// expectedEndpoints maps http.Key (without connection details) to expected status code and count.
-// serverPort is used to filter stats to only those matching the server port.
-// additionalValidator is optional - if provided, performs custom validation on each RequestStat.
-// Returns true if all expected endpoints are found with matching status codes and counts.
-func verifyHTTPStats(t *testing.T, monitor Monitor, expectedEndpoints map[http.Key]statusCodeCount, serverPort int, additionalValidator func(*testing.T, *http.RequestStat) bool) bool {
-	t.Helper()
-
-	stats := getHTTPLikeProtocolStats(t, monitor, protocols.HTTP)
-	if len(stats) == 0 {
-		return false
-	}
-
-	// Build result map from actual stats
-	result := make(map[http.Key]statusCodeCount)
-
-	for key, reqStats := range stats {
-		// Only check stats matching the server port
-		if key.SrcPort != uint16(serverPort) && key.DstPort != uint16(serverPort) {
-			continue
-		}
-
-		// Iterate through all status codes in the stats
-		for statusCode, stat := range reqStats.Data {
-			if stat == nil || stat.Count == 0 {
-				continue
-			}
-
-			// Run additional validation if provided
-			if additionalValidator != nil && !additionalValidator(t, stat) {
-				continue
-			}
-
-			// Create a simplified key for comparison (normalize path and method only)
-			simpleKey := http.Key{
-				Method: key.Method,
-				Path: http.Path{
-					Content: key.Path.Content,
-				},
-			}
-
-			// Store in result map
-			result[simpleKey] = statusCodeCount{
-				statusCode: statusCode,
-				count:      stat.Count,
-			}
-		}
-	}
-
-	// Compare result with expected endpoints
-	if len(result) != len(expectedEndpoints) {
-		return false
-	}
-
-	for key, expected := range expectedEndpoints {
-		actual, ok := result[key]
-		if !ok {
-			return false
-		}
-		if actual.statusCode != expected.statusCode || actual.count != expected.count {
-			return false
-		}
-	}
-
-	return true
+	// Windows Monitor interface satisfies TestMonitor, so we can cast directly
+	return verifyHTTPStats(t, monitor, expectedEndpoints, serverPort, additionalValidator)
 }
 
 // makeIISTagValidator creates a validator function that checks for expected IIS dynamic tags.
@@ -250,6 +162,6 @@ func TestHTTPStatsWithIIS(t *testing.T) {
 
 	// Verify the monitor captured the HTTP traffic with IIS tags
 	require.Eventuallyf(t, func() bool {
-		return verifyHTTPStats(t, monitor, expectedEndpoints, serverPort, makeIISTagValidator(expectedTags))
+		return verifyHTTPStatsWindows(t, monitor, expectedEndpoints, serverPort, makeIISTagValidator(expectedTags))
 	}, 5*time.Second, 100*time.Millisecond, "HTTP connection to IIS not found for %s", serverAddr)
 }
