@@ -52,6 +52,7 @@ const (
 	eventTypeDBMActivity        = "dbm-activity"
 	eventTypeDBMMetadata        = "dbm-metadata"
 	eventTypeDBMHealth          = "dbm-health"
+	eventTypeDBMColumnStats     = "dbm-column-stats"
 	eventTypeDataStreamsMessage = "data-streams-message"
 )
 
@@ -130,7 +131,23 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 			// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
 			defaultInputChanSize: 500,
-		}, {
+		},
+		{
+			eventType:   eventTypeDBMColumnStats,
+			contentType: logshttp.JSONContentType,
+			// set the endpoint config to "metrics" since column stats will hit the same endpoint
+			// as metrics, so there is no need to add an extra config endpoint.
+			endpointsConfigPrefix:  "database_monitoring.metrics.",
+			hostnameEndpointPrefix: "dbm-metrics-intake.",
+			intakeTrackType:        "dbmcolumnstats",
+			// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
+			defaultBatchMaxConcurrentSend: 10,
+			defaultBatchMaxContentSize:    20e6,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
+			defaultInputChanSize: 500,
+		},
+		{
 			eventType:                     eventplatform.EventTypeNetworkDevicesMetadata,
 			category:                      "NDM",
 			contentType:                   logshttp.JSONContentType,
