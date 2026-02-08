@@ -44,8 +44,8 @@ type statusCodeCount struct {
 	count      int
 }
 
-// getHTTPLikeProtocolStatsGeneric extracts HTTP protocol stats from any monitor implementing TestMonitor.
-func getHTTPLikeProtocolStatsGeneric(t *testing.T, monitor TestMonitor, protocolType protocols.ProtocolType) map[http.Key]*http.RequestStats {
+// getHTTPStats extracts HTTP protocol stats from any monitor implementing TestMonitor.
+func getHTTPStats(t *testing.T, monitor TestMonitor) map[http.Key]*http.RequestStats {
 	t.Helper()
 
 	allStats := monitor.GetHTTPStats()
@@ -53,7 +53,7 @@ func getHTTPLikeProtocolStatsGeneric(t *testing.T, monitor TestMonitor, protocol
 		return nil
 	}
 
-	statsObj, ok := allStats[protocolType]
+	statsObj, ok := allStats[protocols.HTTP]
 	if !ok {
 		return nil
 	}
@@ -74,7 +74,7 @@ func getHTTPLikeProtocolStatsGeneric(t *testing.T, monitor TestMonitor, protocol
 func verifyHTTPStats(t *testing.T, monitor TestMonitor, expectedEndpoints map[http.Key]statusCodeCount, serverPort int, additionalValidator func(*testing.T, *http.RequestStat) bool) bool {
 	t.Helper()
 
-	stats := getHTTPLikeProtocolStatsGeneric(t, monitor, protocols.HTTP)
+	stats := getHTTPStats(t, monitor)
 	if len(stats) == 0 {
 		return false
 	}
@@ -472,7 +472,7 @@ func runHTTPMonitorLoadWithIncompleteBuffersTest(t *testing.T, params httpLoadTe
 	// then we are using a variable to check if "we ever found it" among the iterations.
 	for i := 0; i < 10; i++ {
 		time.Sleep(10 * time.Millisecond)
-		stats := getHTTPLikeProtocolStatsGeneric(t, monitor, protocols.HTTP)
+		stats := getHTTPStats(t, monitor)
 		for req := range abortedRequests {
 			checkRequestIncluded(t, stats, req, false)
 		}
@@ -527,7 +527,7 @@ func runRSTPacketRegressionTest(t *testing.T, params rstPacketTestParams) {
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
-		stats := getHTTPLikeProtocolStatsGeneric(t, monitor, protocols.HTTP)
+		stats := getHTTPStats(t, monitor)
 		return countRequestOccurrences(stats, &nethttp.Request{URL: reqURL, Method: nethttp.MethodGet}) >= 1
 	}, 3*time.Second, 100*time.Millisecond, "HTTP request with RST termination not captured")
 }
@@ -607,7 +607,38 @@ func runKeepAliveWithIncompleteResponseRegressionTest(t *testing.T, params keepA
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
-		stats := getHTTPLikeProtocolStatsGeneric(t, monitor, protocols.HTTP)
+		stats := getHTTPStats(t, monitor)
 		return countRequestOccurrences(stats, &nethttp.Request{URL: reqURL, Method: nethttp.MethodGet}) >= 1
 	}, 3*time.Second, 100*time.Millisecond, "HTTP request with incomplete response not captured")
+}
+
+// emptyConfigTestParams holds parameters for the empty config test.
+type emptyConfigTestParams struct {
+	// validateMonitorCreation is a platform-specific function to validate monitor creation with empty config.
+	// On Linux: expects nil monitor with no error.
+	// On Windows: expects non-nil monitor (Windows always creates a monitor).
+	validateMonitorCreation func(t *testing.T)
+}
+
+// runEmptyConfigTest checks that NewUSMEmptyConfig returns a config with ServiceMonitoringEnabled=true
+// and all protocols disabled. Platform-specific behavior for monitor creation is validated separately.
+func runEmptyConfigTest(t *testing.T, params emptyConfigTestParams) {
+	cfg := NewUSMEmptyConfig()
+
+	// Verify ServiceMonitoringEnabled is true
+	require.True(t, cfg.ServiceMonitoringEnabled, "ServiceMonitoringEnabled should be true in empty config")
+
+	// Verify all protocols are disabled
+	require.False(t, cfg.EnableHTTPMonitoring, "EnableHTTPMonitoring should be false")
+	require.False(t, cfg.EnableHTTP2Monitoring, "EnableHTTP2Monitoring should be false")
+	require.False(t, cfg.EnableKafkaMonitoring, "EnableKafkaMonitoring should be false")
+	require.False(t, cfg.EnablePostgresMonitoring, "EnablePostgresMonitoring should be false")
+	require.False(t, cfg.EnableRedisMonitoring, "EnableRedisMonitoring should be false")
+	require.False(t, cfg.EnableNativeTLSMonitoring, "EnableNativeTLSMonitoring should be false")
+	require.False(t, cfg.EnableGoTLSSupport, "EnableGoTLSSupport should be false")
+
+	// Platform-specific monitor creation validation
+	if params.validateMonitorCreation != nil {
+		params.validateMonitorCreation(t)
+	}
 }
