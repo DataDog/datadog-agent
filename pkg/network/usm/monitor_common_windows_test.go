@@ -48,10 +48,7 @@ func TestHTTPStatsCommon(t *testing.T) {
 
 // TestHTTPMonitorIntegrationWithResponseBodyCommon runs the HTTP body size test on Windows.
 func TestHTTPMonitorIntegrationWithResponseBodyCommon(t *testing.T) {
-	serverPort := tracetestutil.FreeTCPPort(t)
-
 	runHTTPMonitorIntegrationWithResponseBodyTest(t, httpBodySizeTestParams{
-		serverPort: serverPort,
 		setupMonitor: func(t *testing.T) TestMonitor {
 			return setupWindowsTestMonitor(t, getHTTPCfg())
 		},

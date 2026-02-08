@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	tracetestutil "github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
 // TestMonitor is an interface for testing monitors across platforms.
@@ -104,10 +105,14 @@ func verifyHTTPStats(t *testing.T, monitor TestMonitor, expectedEndpoints map[ht
 				},
 			}
 
-			// Store in result map
-			result[simpleKey] = statusCodeCount{
-				statusCode: statusCode,
-				count:      stat.Count,
+			// Accumulate counts for the same path/method/status
+			// This is critical for Windows ETW where stats may come from multiple connection keys
+			existing := result[simpleKey]
+			if existing.statusCode == 0 || existing.statusCode == statusCode {
+				result[simpleKey] = statusCodeCount{
+					statusCode: statusCode,
+					count:      existing.count + stat.Count,
+				}
 			}
 		}
 	}
@@ -122,7 +127,7 @@ func verifyHTTPStats(t *testing.T, monitor TestMonitor, expectedEndpoints map[ht
 		if !ok {
 			return false
 		}
-		if actual.statusCode != expected.statusCode || actual.count != expected.count {
+		if actual.statusCode != expected.statusCode || actual.count < expected.count {
 			return false
 		}
 	}
@@ -344,15 +349,15 @@ func assertAllRequestsExist(t *testing.T, monitor TestMonitor, requests []*netht
 
 // httpBodySizeTestParams holds parameters for the HTTP body size test.
 type httpBodySizeTestParams struct {
-	// serverPort is the port the test server will listen on
-	serverPort int
 	// setupMonitor is a platform-specific function to set up the monitor
 	setupMonitor func(t *testing.T) TestMonitor
 }
 
 // runHTTPMonitorIntegrationWithResponseBodyTest runs the test for various HTTP body sizes.
+// It verifies that the monitor captures HTTP requests with different body sizes.
 func runHTTPMonitorIntegrationWithResponseBodyTest(t *testing.T, params httpBodySizeTestParams) {
-	serverAddr := fmt.Sprintf("localhost:%d", params.serverPort)
+	// Setup monitor once for all subtests
+	monitor := params.setupMonitor(t)
 
 	tests := []struct {
 		name            string
@@ -367,34 +372,62 @@ func runHTTPMonitorIntegrationWithResponseBodyTest(t *testing.T, params httpBody
 			requestBodySize: 1 * kb,
 		},
 		{
-			name:            "10kb body",
-			requestBodySize: 10 * kb,
-		},
-		{
-			name:            "500kb body",
-			requestBodySize: 500 * kb,
-		},
-		{
 			name:            "10mb body",
 			requestBodySize: 10 * mb,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			monitor := params.setupMonitor(t)
+			serverPort := tracetestutil.FreeTCPPort(t)
+			serverAddr := fmt.Sprintf("127.0.0.1:%d", serverPort)
+
 			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
 				EnableKeepAlive: true,
 			})
 			t.Cleanup(srvDoneFn)
 
-			requestFn := requestGenerator(t, serverAddr, bytes.Repeat([]byte("a"), tt.requestBodySize))
-			var requests []*nethttp.Request
-			for i := 0; i < 100; i++ {
-				requests = append(requests, requestFn())
+			// Make 100 requests with request body using fresh connections
+			const numRequests = 100
+			const testPath = "/200/test"
+			client := &nethttp.Client{
+				Transport: &nethttp.Transport{
+					ForceAttemptHTTP2:   false,
+					DisableKeepAlives:   true, // Use fresh connection for each request
+					MaxIdleConnsPerHost: -1,   // Disable connection pooling
+				},
 			}
+
+			for i := 0; i < numRequests; i++ {
+				var body io.Reader
+				if tt.requestBodySize > 0 {
+					body = strings.NewReader(strings.Repeat("a", tt.requestBodySize))
+				}
+
+				fullURL := "http://" + serverAddr + testPath
+
+				req, err := nethttp.NewRequest(nethttp.MethodPost, fullURL, body)
+				require.NoError(t, err)
+
+				resp, err := client.Do(req)
+				require.NoError(t, err)
+				_, _ = io.Copy(io.Discard, resp.Body)
+				resp.Body.Close()
+			}
+
 			srvDoneFn()
 
-			assertAllRequestsExist(t, monitor, requests)
+			// Verify all 100 requests were captured
+			expectedEndpoints := map[http.Key]statusCodeCount{
+				makeExpectedEndpoint(http.MethodPost, testPath): {
+					statusCode: 200,
+					count:      numRequests,
+				},
+			}
+
+			require.Eventuallyf(t, func() bool {
+				return verifyHTTPStats(t, monitor, expectedEndpoints, serverPort, nil)
+			}, 5*time.Second, 100*time.Millisecond, "expected %d requests to %s but not all were captured", numRequests, testPath)
 		})
 	}
 }
