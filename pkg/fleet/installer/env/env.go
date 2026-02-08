@@ -50,6 +50,7 @@ const (
 
 	// install script
 	envApmInstrumentationEnabled   = "DD_APM_INSTRUMENTATION_ENABLED"
+	envApmInjectorMode             = "DD_APM_INJECTOR_MODE"
 	envRuntimeMetricsEnabled       = "DD_RUNTIME_METRICS_ENABLED"
 	envLogsInjection               = "DD_LOGS_INJECTION"
 	envAPMTracingEnabled           = "DD_APM_TRACING_ENABLED"
@@ -96,6 +97,7 @@ var defaultEnv = Env{
 
 	InstallScript: InstallScriptEnv{
 		APMInstrumentationEnabled: "",
+		APMInjectorMode:           APMInjectorModeDirect,
 		RuntimeMetricsEnabled:     nil,
 		LogsInjection:             nil,
 		APMTracingEnabled:         nil,
@@ -127,6 +129,13 @@ const (
 	APMInstrumentationNotSet = "not_set"
 )
 
+const (
+	// APMInjectorModeDirect uses InjectorInstaller directly (default/legacy behavior)
+	APMInjectorModeDirect = "direct"
+	// APMInjectorModeService creates a systemd service to run apm-injector binary
+	APMInjectorModeService = "service"
+)
+
 // MsiParamsEnv contains the environment variables for options that are passed to the MSI.
 type MsiParamsEnv struct {
 	AgentUserName            string
@@ -139,6 +148,7 @@ type MsiParamsEnv struct {
 type InstallScriptEnv struct {
 	// SSI
 	APMInstrumentationEnabled string
+	APMInjectorMode           string
 
 	// APM features toggles
 	RuntimeMetricsEnabled       *bool
@@ -262,6 +272,7 @@ func FromEnv() *Env {
 
 		InstallScript: InstallScriptEnv{
 			APMInstrumentationEnabled:   getEnvOrDefault(envApmInstrumentationEnabled, APMInstrumentationNotSet),
+			APMInjectorMode:             getEnvOrDefault(envApmInjectorMode, APMInjectorModeDirect),
 			RuntimeMetricsEnabled:       getBoolEnv(envRuntimeMetricsEnabled),
 			LogsInjection:               getBoolEnv(envLogsInjection),
 			APMTracingEnabled:           getBoolEnv(envAPMTracingEnabled),
@@ -308,6 +319,7 @@ func appendStringEnv(env []string, key string, value string, skipIfEqual string)
 // ToEnv returns a slice of environment variables from the InstallScriptEnv struct
 func (e *InstallScriptEnv) ToEnv(env []string) []string {
 	env = appendStringEnv(env, envApmInstrumentationEnabled, e.APMInstrumentationEnabled, "")
+	env = appendStringEnv(env, envApmInjectorMode, e.APMInjectorMode, "")
 	env = appendBoolEnv(env, envRuntimeMetricsEnabled, e.RuntimeMetricsEnabled)
 	env = appendBoolEnv(env, envLogsInjection, e.LogsInjection)
 	env = appendBoolEnv(env, envAPMTracingEnabled, e.APMTracingEnabled)
@@ -496,6 +508,14 @@ func getProxySetting(ddEnv string, env string) string {
 func ValidateAPMInstrumentationEnabled(value string) error {
 	if value != APMInstrumentationEnabledAll && value != APMInstrumentationEnabledDocker && value != APMInstrumentationEnabledHost && value != APMInstrumentationNotSet {
 		return fmt.Errorf("invalid value for %s: %s", envApmInstrumentationEnabled, value)
+	}
+	return nil
+}
+
+// ValidateAPMInjectorMode validates the value of the DD_APM_INJECTOR_MODE environment variable.
+func ValidateAPMInjectorMode(value string) error {
+	if value != APMInjectorModeDirect && value != APMInjectorModeService {
+		return fmt.Errorf("invalid value for %s: %s (expected 'direct' or 'service')", envApmInjectorMode, value)
 	}
 	return nil
 }

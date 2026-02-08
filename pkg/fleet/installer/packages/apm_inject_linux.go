@@ -49,8 +49,18 @@ func preInstallAPMInjector(ctx HookContext) (err error) {
 func postInstallAPMInjector(ctx HookContext) (err error) {
 	span, ctx := ctx.StartSpan("setup_injector")
 	defer func() { span.Finish(err) }()
+
 	installer := apminject.NewInstaller()
 	defer func() { installer.Finish(err) }()
+
+	// Check if we should use systemd service mode
+	if installer.Env.InstallScript.APMInjectorMode == "service" {
+		// Install using systemd service
+		serviceMgr := apminject.NewSystemdServiceManager()
+		return serviceMgr.Install(ctx)
+	}
+
+	// Default: use direct mode (existing behavior)
 	return installer.Setup(ctx)
 }
 
@@ -58,8 +68,18 @@ func postInstallAPMInjector(ctx HookContext) (err error) {
 func preRemoveAPMInjector(ctx HookContext) (err error) {
 	span, ctx := ctx.StartSpan("remove_injector")
 	defer func() { span.Finish(err) }()
+
 	installer := apminject.NewInstaller()
 	defer func() { installer.Finish(err) }()
+
+	// Check if we should use systemd service mode
+	if installer.Env.InstallScript.APMInjectorMode == "service" {
+		// Uninstall using systemd service
+		serviceMgr := apminject.NewSystemdServiceManager()
+		return serviceMgr.Uninstall(ctx)
+	}
+
+	// Default: use direct mode (existing behavior)
 	return installer.Remove(ctx)
 }
 
