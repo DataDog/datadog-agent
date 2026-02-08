@@ -84,9 +84,9 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 		},
 	}
 
-	workloadListCommand.Flags().BoolVarP(&cliParams.verboseList, "verbose", "v", false, "print out a full dump of the workload store")
-	workloadListCommand.Flags().BoolVarP(&cliParams.json, "json", "j", false, "print out raw json")
-	workloadListCommand.Flags().BoolVarP(&cliParams.prettyJSON, "pretty-json", "p", false, "pretty print json (takes priority over --json)")
+	workloadListCommand.Flags().BoolVarP(&cliParams.verboseList, "verbose", "v", false, "print out a full dump of the workload store (ignored for JSON format)")
+	workloadListCommand.Flags().BoolVarP(&cliParams.json, "json", "j", false, "print out raw json (always verbose)")
+	workloadListCommand.Flags().BoolVarP(&cliParams.prettyJSON, "pretty-json", "p", false, "pretty print json (always verbose, takes priority over --json)")
 
 	return workloadListCommand
 }
@@ -117,7 +117,6 @@ func workloadList(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) 
 
 	// Handle structured vs text format
 	if needsStructuredFormat {
-		// Server already filtered, just pretty print the JSON
 		var rawJSON any
 		err = json.Unmarshal(r, &rawJSON)
 		if err != nil {
@@ -133,7 +132,10 @@ func workloadList(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) 
 			}
 		}
 
-		return jsonutil.PrintJSON(color.Output, rawJSON, cliParams.prettyJSON)
+		// Remove empty fields before printing
+		cleaned := jsonutil.RemoveEmptyFields(rawJSON)
+
+		return jsonutil.PrintJSON(color.Output, cleaned, cliParams.prettyJSON)
 	}
 
 	// Text format (legacy) - server already filtered

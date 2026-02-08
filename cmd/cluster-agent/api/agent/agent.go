@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	jsonutil "github.com/DataDog/datadog-agent/pkg/util/json"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -234,6 +235,22 @@ func getWorkloadList(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.
 	if err != nil {
 		httputils.SetJSONError(w, log.Errorf("Unable to build workload list response: %v", err), 500)
 		return
+	}
+
+	// For structured JSON format, remove empty fields
+	if params.Get("format") == "json" {
+		var rawJSON any
+		if err := json.Unmarshal(jsonDump, &rawJSON); err != nil {
+			httputils.SetJSONError(w, log.Errorf("Unable to unmarshal workload list response: %v", err), 500)
+			return
+		}
+
+		cleaned := jsonutil.RemoveEmptyFields(rawJSON)
+		jsonDump, err = json.Marshal(cleaned)
+		if err != nil {
+			httputils.SetJSONError(w, log.Errorf("Unable to marshal cleaned workload list response: %v", err), 500)
+			return
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

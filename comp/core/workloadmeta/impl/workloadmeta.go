@@ -139,22 +139,8 @@ func (w *workloadmeta) writeResponse(writer http.ResponseWriter, r *http.Request
 // BuildWorkloadResponse builds a JSON response for workload-list with filtering
 func BuildWorkloadResponse(wmeta wmdef.Component, verbose, structured bool, search string) ([]byte, error) {
 	if structured {
-		// Use structured format for JSON
-		structuredResp := wmeta.DumpStructured(verbose)
-
-		// Filter entities based on verbose flag
-		// Non-verbose: only include fields shown in text output
-		// Verbose: include all fields (no filtering needed)
-		if !verbose {
-			// Non-verbose: filter out verbose-only fields
-			filteredResp := wmdef.WorkloadDumpStructuredResponse{
-				Entities: make(map[string][]wmdef.Entity, len(structuredResp.Entities)),
-			}
-			for kind, entities := range structuredResp.Entities {
-				filteredResp.Entities[kind] = wmdef.FilterEntitiesForVerbose(entities, false)
-			}
-			structuredResp = filteredResp
-		}
+		// Use structured format for JSON - always verbose (all fields shown)
+		structuredResp := wmeta.DumpStructured(true)
 
 		// Apply search filter if provided
 		if search != "" {

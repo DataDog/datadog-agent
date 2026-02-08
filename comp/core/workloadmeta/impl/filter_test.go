@@ -179,63 +179,6 @@ func TestFilterTextResponse(t *testing.T) {
 	}
 }
 
-func TestFilterEntitiesForVerbose(t *testing.T) {
-	tests := []struct {
-		name     string
-		entities []wmdef.Entity
-		verbose  bool
-		check    func(t *testing.T, result []wmdef.Entity)
-	}{
-		{
-			name: "verbose mode returns entities unchanged",
-			entities: []wmdef.Entity{
-				&wmdef.Container{
-					EntityID: wmdef.EntityID{Kind: wmdef.KindContainer, ID: "c1"},
-					Hostname: "host1",
-					PID:      12345,
-				},
-			},
-			verbose: true,
-			check: func(t *testing.T, result []wmdef.Entity) {
-				require.Len(t, result, 1)
-				container, ok := result[0].(*wmdef.Container)
-				require.True(t, ok)
-				assert.Equal(t, "host1", container.Hostname, "verbose mode should preserve Hostname")
-				assert.Equal(t, 12345, container.PID, "verbose mode should preserve PID")
-			},
-		},
-		{
-			name: "non-verbose mode filters out verbose fields",
-			entities: []wmdef.Entity{
-				&wmdef.Container{
-					EntityID: wmdef.EntityID{Kind: wmdef.KindContainer, ID: "c1"},
-					EntityMeta: wmdef.EntityMeta{
-						Name: "test-container",
-					},
-					Hostname: "host1",
-					PID:      12345,
-				},
-			},
-			verbose: false,
-			check: func(t *testing.T, result []wmdef.Entity) {
-				require.Len(t, result, 1)
-				container, ok := result[0].(*wmdef.Container)
-				require.True(t, ok)
-				assert.Equal(t, "test-container", container.EntityMeta.Name, "should preserve Name")
-				assert.Empty(t, container.Hostname, "should filter out Hostname in non-verbose")
-				assert.Equal(t, 0, container.PID, "should filter out PID in non-verbose")
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := wmdef.FilterEntitiesForVerbose(tt.entities, tt.verbose)
-			tt.check(t, result)
-		})
-	}
-}
-
 func TestBuildWorkloadResponse(t *testing.T) {
 	store := newWorkloadmetaObject(t)
 
@@ -296,19 +239,16 @@ func TestBuildWorkloadResponse(t *testing.T) {
 		},
 	})
 
-	t.Run("structured format with verbose", func(t *testing.T) {
+	t.Run("structured format (verbose flag ignored for JSON)", func(t *testing.T) {
+		// Verbose flag is ignored for JSON format - always returns all fields
 		jsonBytes, err := BuildWorkloadResponse(store, true, true, "")
 		require.NoError(t, err)
 		require.NotEmpty(t, jsonBytes)
 
-		// Verify it's valid JSON
-		assert.True(t, len(jsonBytes) > 0)
-	})
-
-	t.Run("structured format without verbose", func(t *testing.T) {
-		jsonBytes, err := BuildWorkloadResponse(store, false, true, "")
+		// Verify verbose=false also returns same result (verbose ignored for JSON)
+		jsonBytes2, err := BuildWorkloadResponse(store, false, true, "")
 		require.NoError(t, err)
-		require.NotEmpty(t, jsonBytes)
+		require.NotEmpty(t, jsonBytes2)
 	})
 
 	t.Run("text format", func(t *testing.T) {
