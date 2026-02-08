@@ -55,10 +55,7 @@ func TestHTTPStatsCommon(t *testing.T) {
 func TestHTTPMonitorIntegrationWithResponseBodyCommon(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
-	serverPort := tracetestutil.FreeTCPPort(t)
-
 	runHTTPMonitorIntegrationWithResponseBodyTest(t, httpBodySizeTestParams{
-		serverPort: serverPort,
 		setupMonitor: func(t *testing.T) TestMonitor {
 			return setupLinuxTestMonitor(t, getHTTPCfg())
 		},
