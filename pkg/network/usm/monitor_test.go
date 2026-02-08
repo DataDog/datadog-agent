@@ -14,7 +14,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
 	"net"
 	nethttp "net/http"
 	"net/url"
@@ -60,14 +59,8 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-const (
-	kb = 1024
-	mb = 1024 * kb
-)
-
 var (
-	emptyBody = []byte(nil)
-	kv        = kernel.MustHostVersion()
+	kv = kernel.MustHostVersion()
 )
 
 func TestMonitorProtocolFail(t *testing.T) {
@@ -316,13 +309,6 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 	}
 }
 
-func testNameHelper(optionTrue, optionFalse string, value bool) string {
-	if value {
-		return optionTrue
-	}
-	return optionFalse
-}
-
 // TestSanity checks that USM capture a random generated 100 requests send to a local HTTP server under the following
 // conditions:
 // 1. Server and client support keep alive, and there is no NAT.
@@ -535,116 +521,6 @@ func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp
 			}
 		}
 	}
-}
-
-var (
-	httpMethods         = []string{nethttp.MethodGet, nethttp.MethodHead, nethttp.MethodPost, nethttp.MethodPut, nethttp.MethodPatch, nethttp.MethodDelete, nethttp.MethodOptions, nethttp.MethodTrace}
-	httpMethodsWithBody = []string{nethttp.MethodPost, nethttp.MethodPut, nethttp.MethodPatch, nethttp.MethodDelete}
-	statusCodes         = []int{nethttp.StatusOK, nethttp.StatusMultipleChoices, nethttp.StatusBadRequest, nethttp.StatusInternalServerError}
-)
-
-func requestGenerator(t *testing.T, targetAddr string, reqBody []byte) func() *nethttp.Request {
-	var (
-		random  = rand.New(rand.NewSource(time.Now().Unix()))
-		idx     = 0
-		client  = new(nethttp.Client)
-		reqBuf  = make([]byte, 0, len(reqBody))
-		respBuf = make([]byte, 512)
-	)
-
-	// Disabling http2
-	tr := nethttp.DefaultTransport.(*nethttp.Transport).Clone()
-	tr.ForceAttemptHTTP2 = false
-	tr.TLSNextProto = make(map[string]func(authority string, c *tls.Conn) nethttp.RoundTripper)
-
-	client.Transport = tr
-
-	return func() *nethttp.Request {
-		idx++
-		var method string
-		var body io.Reader
-		var finalBody []byte
-		if len(reqBody) > 0 {
-			finalBody = reqBuf[:0]
-			finalBody = append(finalBody, []byte(strings.Repeat(" ", idx))...)
-			finalBody = append(finalBody, reqBody...)
-			body = bytes.NewReader(finalBody)
-
-			// save resized-buffer
-			reqBuf = finalBody
-
-			method = httpMethodsWithBody[random.Intn(len(httpMethodsWithBody))]
-		} else {
-			method = httpMethods[random.Intn(len(httpMethods))]
-		}
-		status := statusCodes[random.Intn(len(statusCodes))]
-		url := fmt.Sprintf("http://%s/%d/request-%d", targetAddr, status, idx)
-		req, err := nethttp.NewRequest(method, url, body)
-		require.NoError(t, err)
-
-		resp, err := client.Do(req)
-		if strings.Contains(targetAddr, "ignore") {
-			return req
-		}
-		require.NoError(t, err)
-		defer resp.Body.Close()
-		if len(reqBody) > 0 {
-			for {
-				n, err := resp.Body.Read(respBuf)
-				require.True(t, n <= len(finalBody))
-				require.Equal(t, respBuf[:n], finalBody[:n])
-				if err != nil {
-					assert.Equal(t, io.EOF, err)
-					break
-				}
-				finalBody = finalBody[n:]
-			}
-		}
-		return req
-	}
-}
-
-func checkRequestIncluded(t *testing.T, allStats map[http.Key]*http.RequestStats, req *nethttp.Request, expectedToBeIncluded bool) {
-	included, err := isRequestIncludedOnce(allStats, req)
-	require.NoError(t, err)
-	if included != expectedToBeIncluded {
-		t.Errorf(
-			"%s not find HTTP transaction matching the following criteria:\n path=%s method=%s status=%d",
-			testNameHelper("could", "should", expectedToBeIncluded),
-			req.URL.Path,
-			req.Method,
-			testutil.StatusFromPath(req.URL.Path),
-		)
-	}
-}
-
-func isRequestIncludedOnce(allStats map[http.Key]*http.RequestStats, req *nethttp.Request) (bool, error) {
-	occurrences := countRequestOccurrences(allStats, req)
-
-	if occurrences == 1 {
-		return true, nil
-	} else if occurrences == 0 {
-		return false, nil
-	}
-	return false, fmt.Errorf("expected to find 1 occurrence of %v, but found %d instead", req, occurrences)
-}
-
-func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *nethttp.Request) int {
-	expectedStatus := testutil.StatusFromPath(req.URL.Path)
-	occurrences := 0
-	for key, stats := range allStats {
-		if key.Method.String() != req.Method {
-			continue
-		}
-		if key.Path.Content.Get() != req.URL.Path {
-			continue
-		}
-		if requests, exists := stats.Data[expectedStatus]; exists && requests.Count > 0 {
-			occurrences++
-		}
-	}
-
-	return occurrences
 }
 
 func skipIfNotSupported(t *testing.T, err error) {

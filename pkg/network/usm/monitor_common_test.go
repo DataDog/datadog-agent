@@ -16,6 +16,7 @@ import (
 	nethttp "net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -195,6 +196,10 @@ func runHTTPStatsTest(t *testing.T, params httpStatsTestParams) {
 const (
 	kb = 1024
 	mb = 1024 * kb
+)
+
+var (
+	emptyBody = []byte(nil)
 )
 
 var (
@@ -392,4 +397,87 @@ func runHTTPMonitorIntegrationWithResponseBodyTest(t *testing.T, params httpBody
 			assertAllRequestsExist(t, monitor, requests)
 		})
 	}
+}
+
+// testNameHelper returns optionTrue if value is true, otherwise optionFalse.
+func testNameHelper(optionTrue, optionFalse string, value bool) string {
+	if value {
+		return optionTrue
+	}
+	return optionFalse
+}
+
+// checkRequestIncluded verifies if a request is included (or not) in the stats.
+func checkRequestIncluded(t *testing.T, allStats map[http.Key]*http.RequestStats, req *nethttp.Request, expectedToBeIncluded bool) {
+	included, err := isRequestIncludedOnce(allStats, req)
+	require.NoError(t, err)
+	if included != expectedToBeIncluded {
+		t.Errorf(
+			"%s not find HTTP transaction matching the following criteria:\n path=%s method=%s status=%d",
+			testNameHelper("could", "should", expectedToBeIncluded),
+			req.URL.Path,
+			req.Method,
+			testutil.StatusFromPath(req.URL.Path),
+		)
+	}
+}
+
+// httpLoadTestParams holds parameters for the HTTP load with incomplete buffers test.
+type httpLoadTestParams struct {
+	// slowServerPort is the port for the slow server
+	slowServerPort int
+	// fastServerPort is the port for the fast server
+	fastServerPort int
+	// setupMonitor is a platform-specific function to set up the monitor
+	setupMonitor func(t *testing.T) TestMonitor
+}
+
+// runHTTPMonitorLoadWithIncompleteBuffersTest sends thousands of requests without getting responses for them,
+// in parallel we send another request. We expect to capture the other request but not the incomplete requests.
+func runHTTPMonitorLoadWithIncompleteBuffersTest(t *testing.T, params httpLoadTestParams) {
+	slowServerAddr := fmt.Sprintf("localhost:%d", params.slowServerPort)
+	fastServerAddr := fmt.Sprintf("localhost:%d", params.fastServerPort)
+
+	monitor := params.setupMonitor(t)
+	slowSrvDoneFn := testutil.HTTPServer(t, slowServerAddr, testutil.Options{
+		SlowResponse: time.Millisecond * 500, // Half a second.
+		WriteTimeout: time.Millisecond * 200,
+		ReadTimeout:  time.Millisecond * 200,
+	})
+
+	fastSrvDoneFn := testutil.HTTPServer(t, fastServerAddr, testutil.Options{})
+	abortedRequestFn := requestGenerator(t, slowServerAddr+"/ignore", emptyBody)
+	wg := sync.WaitGroup{}
+	abortedRequests := make(chan *nethttp.Request, 100)
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			req := abortedRequestFn()
+			abortedRequests <- req
+		}()
+	}
+	fastReq := requestGenerator(t, fastServerAddr, emptyBody)()
+	wg.Wait()
+	close(abortedRequests)
+	slowSrvDoneFn()
+	fastSrvDoneFn()
+
+	foundFastReq := false
+	// We are iterating for a couple of iterations and making sure the aborted requests will never be found.
+	// Since every call for monitor.GetHTTPStats will delete/pop all entries, and we want to find fastReq
+	// then we are using a variable to check if "we ever found it" among the iterations.
+	for i := 0; i < 10; i++ {
+		time.Sleep(10 * time.Millisecond)
+		stats := getHTTPLikeProtocolStatsGeneric(t, monitor, protocols.HTTP)
+		for req := range abortedRequests {
+			checkRequestIncluded(t, stats, req, false)
+		}
+
+		included, err := isRequestIncludedOnce(stats, fastReq)
+		require.NoError(t, err)
+		foundFastReq = foundFastReq || included
+	}
+
+	require.True(t, foundFastReq)
 }

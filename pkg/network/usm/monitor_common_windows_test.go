@@ -57,3 +57,17 @@ func TestHTTPMonitorIntegrationWithResponseBodyCommon(t *testing.T) {
 		},
 	})
 }
+
+// TestHTTPMonitorLoadWithIncompleteBuffersCommon runs the incomplete buffers test on Windows.
+func TestHTTPMonitorLoadWithIncompleteBuffersCommon(t *testing.T) {
+	slowServerPort := tracetestutil.FreeTCPPort(t)
+	fastServerPort := tracetestutil.FreeTCPPort(t)
+
+	runHTTPMonitorLoadWithIncompleteBuffersTest(t, httpLoadTestParams{
+		slowServerPort: slowServerPort,
+		fastServerPort: fastServerPort,
+		setupMonitor: func(t *testing.T) TestMonitor {
+			return setupWindowsTestMonitor(t, getHTTPCfg())
+		},
+	})
+}
