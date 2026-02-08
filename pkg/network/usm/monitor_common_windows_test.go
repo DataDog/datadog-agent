@@ -68,3 +68,27 @@ func TestHTTPMonitorLoadWithIncompleteBuffersCommon(t *testing.T) {
 		},
 	})
 }
+
+// TestRSTPacketRegressionCommon runs the RST packet regression test on Windows.
+func TestRSTPacketRegressionCommon(t *testing.T) {
+	serverPort := tracetestutil.FreeTCPPort(t)
+
+	runRSTPacketRegressionTest(t, rstPacketTestParams{
+		serverPort: serverPort,
+		setupMonitor: func(t *testing.T) TestMonitor {
+			return setupWindowsTestMonitor(t, getHTTPCfg())
+		},
+	})
+}
+
+// TestKeepAliveWithIncompleteResponseRegressionCommon runs the keep-alive with incomplete response test on Windows.
+func TestKeepAliveWithIncompleteResponseRegressionCommon(t *testing.T) {
+	serverPort := tracetestutil.FreeTCPPort(t)
+
+	runKeepAliveWithIncompleteResponseRegressionTest(t, keepAliveWithIncompleteResponseTestParams{
+		serverPort: serverPort,
+		setupMonitor: func(t *testing.T) TestMonitor {
+			return setupWindowsTestMonitor(t, getHTTPCfg())
+		},
+	})
+}
