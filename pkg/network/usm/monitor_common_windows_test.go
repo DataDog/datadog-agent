@@ -10,6 +10,8 @@ package usm
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	tracetestutil "github.com/DataDog/datadog-agent/pkg/trace/testutil"
@@ -89,6 +91,20 @@ func TestKeepAliveWithIncompleteResponseRegressionCommon(t *testing.T) {
 		serverPort: serverPort,
 		setupMonitor: func(t *testing.T) TestMonitor {
 			return setupWindowsTestMonitor(t, getHTTPCfg())
+		},
+	})
+}
+
+// TestEmptyConfigCommon runs the empty config test on Windows.
+func TestEmptyConfigCommon(t *testing.T) {
+	runEmptyConfigTest(t, emptyConfigTestParams{
+		validateMonitorCreation: func(t *testing.T) {
+			// On Windows, the monitor is always created even with empty config.
+			// It just configures which protocols to capture via SetCapturedProtocols.
+			// We verify this by creating a monitor with empty config and checking it's not nil.
+			cfg := NewUSMEmptyConfig()
+			monitor := setupWindowsMonitor(t, cfg)
+			require.NotNil(t, monitor, "Windows monitor should be created even with empty config")
 		},
 	})
 }

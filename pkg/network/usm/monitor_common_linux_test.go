@@ -10,6 +10,8 @@ package usm
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	tracetestutil "github.com/DataDog/datadog-agent/pkg/trace/testutil"
@@ -102,6 +104,22 @@ func TestKeepAliveWithIncompleteResponseRegressionCommon(t *testing.T) {
 		serverPort: serverPort,
 		setupMonitor: func(t *testing.T) TestMonitor {
 			return setupLinuxTestMonitor(t, getHTTPCfg())
+		},
+	})
+}
+
+// TestEmptyConfigCommon runs the empty config test on Linux.
+func TestEmptyConfigCommon(t *testing.T) {
+	skipTestIfKernelNotSupported(t)
+
+	runEmptyConfigTest(t, emptyConfigTestParams{
+		validateMonitorCreation: func(t *testing.T) {
+			cfg := NewUSMEmptyConfig()
+			// On Linux, the monitor should not start and not return an error
+			// when no protocols are enabled.
+			monitor, err := NewMonitor(cfg, nil, nil)
+			require.Nil(t, monitor, "monitor should be nil when no protocols are enabled")
+			require.NoError(t, err, "should not return error when no protocols are enabled")
 		},
 	})
 }

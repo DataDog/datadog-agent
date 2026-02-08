@@ -14,7 +14,6 @@ import (
 	"io"
 	"net"
 	nethttp "net/http"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -35,7 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
@@ -225,22 +223,6 @@ func (s *HTTPTestSuite) TestSanity() {
 			}
 		})
 	}
-}
-
-// TestEmptyConfig checks the test helper indeed returns a config with no
-// protocols enable, by checking it prevents USM from running.
-// If this test fails after enabling a protocol by default, you MUST NOT change
-// this test, and instead update `NewUSMEmptyConfig` to make sure it disables the
-// new protocol.
-func TestEmptyConfig(t *testing.T) {
-	cfg := NewUSMEmptyConfig()
-	require.True(t, cfg.ServiceMonitoringEnabled)
-
-	// The monitor should not start, and not return an error when no protocols
-	// are enabled.
-	monitor, err := NewMonitor(cfg, nil, nil)
-	require.Nil(t, monitor)
-	require.NoError(t, err)
 }
 
 func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp.Request) {
