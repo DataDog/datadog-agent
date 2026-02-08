@@ -307,46 +307,6 @@ func isRequestIncludedOnce(allStats map[http.Key]*http.RequestStats, req *nethtt
 	return false, fmt.Errorf("expected to find 1 occurrence of %v, but found %d instead", req, occurrences)
 }
 
-// assertAllRequestsExist verifies that all given requests were captured by the monitor.
-func assertAllRequestsExist(t *testing.T, monitor TestMonitor, requests []*nethttp.Request) {
-	requestsExist := make([]bool, len(requests))
-
-	assert.Eventually(t, func() bool {
-		stats := getHTTPLikeProtocolStatsGeneric(t, monitor, protocols.HTTP)
-
-		if len(stats) == 0 {
-			return false
-		}
-
-		for reqIndex, req := range requests {
-			if !requestsExist[reqIndex] {
-				exists, err := isRequestIncludedOnce(stats, req)
-				require.NoError(t, err)
-				requestsExist[reqIndex] = exists
-			}
-		}
-
-		// Slight optimization here, if one is missing, then go into another cycle of checking the new connections.
-		// otherwise, if all present, abort.
-		for _, exists := range requestsExist {
-			if !exists {
-				return false
-			}
-		}
-
-		return true
-	}, 3*time.Second, time.Millisecond*100, "connection not found")
-
-	if t.Failed() {
-		for reqIndex, exists := range requestsExist {
-			if !exists {
-				// reqIndex is 0 based, while the number is requests[reqIndex] is 1 based.
-				t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
-			}
-		}
-	}
-}
-
 // httpBodySizeTestParams holds parameters for the HTTP body size test.
 type httpBodySizeTestParams struct {
 	// setupMonitor is a platform-specific function to set up the monitor
