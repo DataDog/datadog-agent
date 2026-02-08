@@ -515,9 +515,10 @@ func runHTTPMonitorLoadWithIncompleteBuffersTest(t *testing.T, params httpLoadTe
 			checkRequestIncluded(t, stats, req, false)
 		}
 
-		included, err := isRequestIncludedOnce(stats, fastReq)
-		require.NoError(t, err)
-		foundFastReq = foundFastReq || included
+		// Use countRequestOccurrences instead of isRequestIncludedOnce because on Windows ETW
+		// the same request may be captured from both connection endpoints, resulting in count > 1
+		occurrences := countRequestOccurrences(stats, fastReq)
+		foundFastReq = foundFastReq || occurrences >= 1
 	}
 
 	require.True(t, foundFastReq)
