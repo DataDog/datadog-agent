@@ -77,3 +77,31 @@ func TestHTTPMonitorLoadWithIncompleteBuffersCommon(t *testing.T) {
 		},
 	})
 }
+
+// TestRSTPacketRegressionCommon runs the RST packet regression test on Linux.
+func TestRSTPacketRegressionCommon(t *testing.T) {
+	skipTestIfKernelNotSupported(t)
+
+	serverPort := tracetestutil.FreeTCPPort(t)
+
+	runRSTPacketRegressionTest(t, rstPacketTestParams{
+		serverPort: serverPort,
+		setupMonitor: func(t *testing.T) TestMonitor {
+			return setupLinuxTestMonitor(t, getHTTPCfg())
+		},
+	})
+}
+
+// TestKeepAliveWithIncompleteResponseRegressionCommon runs the keep-alive with incomplete response test on Linux.
+func TestKeepAliveWithIncompleteResponseRegressionCommon(t *testing.T) {
+	skipTestIfKernelNotSupported(t)
+
+	serverPort := tracetestutil.FreeTCPPort(t)
+
+	runKeepAliveWithIncompleteResponseRegressionTest(t, keepAliveWithIncompleteResponseTestParams{
+		serverPort: serverPort,
+		setupMonitor: func(t *testing.T) TestMonitor {
+			return setupLinuxTestMonitor(t, getHTTPCfg())
+		},
+	})
+}

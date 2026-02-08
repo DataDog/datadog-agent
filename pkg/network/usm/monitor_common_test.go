@@ -13,7 +13,9 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"net"
 	nethttp "net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -482,4 +484,130 @@ func runHTTPMonitorLoadWithIncompleteBuffersTest(t *testing.T, params httpLoadTe
 	}
 
 	require.True(t, foundFastReq)
+}
+
+// rstPacketTestParams holds parameters for the RST packet regression test.
+type rstPacketTestParams struct {
+	// serverPort is the port the test server will listen on
+	serverPort int
+	// setupMonitor is a platform-specific function to set up the monitor
+	setupMonitor func(t *testing.T) TestMonitor
+}
+
+// runRSTPacketRegressionTest checks that USM captures a request that was forcefully terminated by a RST packet.
+func runRSTPacketRegressionTest(t *testing.T, params rstPacketTestParams) {
+	serverAddr := fmt.Sprintf("127.0.0.1:%d", params.serverPort)
+
+	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
+		EnableKeepAlive: true,
+	})
+	t.Cleanup(srvDoneFn)
+
+	monitor := params.setupMonitor(t)
+
+	// Create a "raw" TCP socket that will serve as our HTTP client
+	// We do this in order to configure the socket option SO_LINGER
+	// so we can force a RST packet to be sent during termination
+	c, err := net.DialTimeout("tcp", serverAddr, 5*time.Second)
+	require.NoError(t, err)
+
+	// Issue HTTP request
+	requestPath := "/200/foobar"
+	c.Write([]byte(fmt.Sprintf("GET %s HTTP/1.1\nHost: %s\n\n", requestPath, serverAddr)))
+	io.Copy(io.Discard, c)
+
+	// Configure SO_LINGER to 0 so that triggers an RST when the socket is terminated
+	require.NoError(t, c.(*net.TCPConn).SetLinger(0))
+	c.Close()
+
+	srvDoneFn()
+
+	// Assert that the HTTP request was correctly handled despite its forceful termination
+	reqURL, err := url.Parse(fmt.Sprintf("http://%s%s", serverAddr, requestPath))
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		stats := getHTTPLikeProtocolStatsGeneric(t, monitor, protocols.HTTP)
+		return countRequestOccurrences(stats, &nethttp.Request{URL: reqURL, Method: nethttp.MethodGet}) >= 1
+	}, 3*time.Second, 100*time.Millisecond, "HTTP request with RST termination not captured")
+}
+
+// keepAliveWithIncompleteResponseTestParams holds parameters for the keep-alive with incomplete response test.
+type keepAliveWithIncompleteResponseTestParams struct {
+	// serverPort is the port the test server will listen on
+	serverPort int
+	// setupMonitor is a platform-specific function to set up the monitor
+	setupMonitor func(t *testing.T) TestMonitor
+}
+
+// runKeepAliveWithIncompleteResponseRegressionTest checks that USM captures a request, although we initially saw a
+// response and then a request with its response. This emulates the case where the monitor started in the middle of
+// a request/response cycle.
+func runKeepAliveWithIncompleteResponseRegressionTest(t *testing.T, params keepAliveWithIncompleteResponseTestParams) {
+	serverAddr := fmt.Sprintf("127.0.0.1:%d", params.serverPort)
+
+	const req = "GET /200/foobar HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n"
+	const rsp = "HTTP/1.1 200 OK\r\n\r\n"
+
+	srvFn := func(c net.Conn) {
+		// emulates a half-transaction (beginning with a response)
+		n, err := c.Write([]byte(rsp))
+		require.NoError(t, err)
+		require.Equal(t, len(rsp), n)
+
+		// now we read the request from the client on the same connection
+		b := make([]byte, len(req))
+		n, err = c.Read(b)
+		require.NoError(t, err)
+		require.Equal(t, len(req), n)
+		require.Equal(t, string(b), req)
+
+		// and finally send the response completing a full HTTP transaction
+		n, err = c.Write([]byte(rsp))
+		require.NoError(t, err)
+		require.Equal(t, len(rsp), n)
+		c.Close()
+	}
+
+	srv := testutil.NewTCPServer(serverAddr, srvFn, false)
+	done := make(chan struct{})
+	srv.Run(done)
+	t.Cleanup(func() { close(done) })
+
+	monitor := params.setupMonitor(t)
+
+	c, err := net.DialTimeout("tcp", serverAddr, 5*time.Second)
+	require.NoError(t, err)
+
+	// ensure we're beginning the connection with a "headless" response from the
+	// server. this emulates the case where system-probe started in the middle of
+	// request/response cycle
+	b := make([]byte, len(rsp))
+	n, err := c.Read(b)
+	require.NoError(t, err)
+	require.Equal(t, len(rsp), n)
+	require.Equal(t, string(b), rsp)
+
+	// now perform a request
+	n, err = c.Write([]byte(req))
+	require.NoError(t, err)
+	require.Equal(t, len(req), n)
+
+	// and read the response completing a full transaction
+	n, err = c.Read(b)
+	require.NoError(t, err)
+	require.Equal(t, len(rsp), n)
+	require.Equal(t, string(b), rsp)
+
+	c.Close()
+
+	// after this response, request, response cycle we should ensure that
+	// we got a full HTTP transaction
+	reqURL, err := url.Parse(fmt.Sprintf("http://%s/200/foobar", serverAddr))
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		stats := getHTTPLikeProtocolStatsGeneric(t, monitor, protocols.HTTP)
+		return countRequestOccurrences(stats, &nethttp.Request{URL: reqURL, Method: nethttp.MethodGet}) >= 1
+	}, 3*time.Second, 100*time.Millisecond, "HTTP request with incomplete response not captured")
 }
