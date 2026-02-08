@@ -372,6 +372,14 @@ func runHTTPMonitorIntegrationWithResponseBodyTest(t *testing.T, params httpBody
 			requestBodySize: 1 * kb,
 		},
 		{
+			name:            "10kb body",
+			requestBodySize: 10 * kb,
+		},
+		{
+			name:            "500kb body",
+			requestBodySize: 500 * kb,
+		},
+		{
 			name:            "10mb body",
 			requestBodySize: 10 * mb,
 		},
