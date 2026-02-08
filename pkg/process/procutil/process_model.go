@@ -76,18 +76,28 @@ func (p *Process) GetCmdline() []string {
 // ProcessIdentity generates a unique identity string for a process based on PID, creation time,
 // and command line hash. This allows detection of exec scenarios where the PID and creation time
 // remain the same but the command line changes.
+//
+// IMPORTANT: This function uses the same identity fields as IsSameProcess (pid, createTime, cmdline).
+// If you modify the identity fields here, update IsSameProcess as well.
+// See TestProcessIdentityAndIsSameProcessInSync for enforcement.
 func ProcessIdentity(pid int32, createTime int64, cmdline []string) string {
 	return "pid:" + strconv.FormatInt(int64(pid), 10) + "|createTime:" + strconv.FormatInt(createTime, 10) + "|cmdHash:" + strconv.FormatUint(hashCmdline(cmdline), 16)
 }
 
 // IsSameProcess returns true if two processes have the same identity (PID, create time, and cmdline).
-// Returns false if either process is nil.
+//
+// IMPORTANT: This function uses the same identity fields as ProcessIdentity (pid, createTime, cmdline).
+// If you modify the identity fields here, update ProcessIdentity as well.
+// See TestProcessIdentityAndIsSameProcessInSync for enforcement.
 func IsSameProcess(a, b *Process) bool {
 	if a.Pid != b.Pid {
 		return false
 	}
-	if a.Stats.CreateTime != b.Stats.CreateTime {
-		return false
+	// Only check CreateTime if both processes have Stats populated
+	if a.Stats != nil && b.Stats != nil {
+		if a.Stats.CreateTime != b.Stats.CreateTime {
+			return false
+		}
 	}
 	return slices.Equal(a.Cmdline, b.Cmdline)
 }

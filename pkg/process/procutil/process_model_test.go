@@ -191,12 +191,127 @@ func TestIsSameProcess(t *testing.T) {
 			},
 			expected: false,
 		},
+		{
+			name:     "nil Stats in procA skips CreateTime check",
+			procA:    &Process{Pid: 1234, Cmdline: []string{"bash"}, Stats: nil},
+			procB:    &Process{Pid: 1234, Cmdline: []string{"bash"}, Stats: &Stats{CreateTime: createTime}},
+			expected: true,
+		},
+		{
+			name:     "nil Stats in procB skips CreateTime check",
+			procA:    &Process{Pid: 1234, Cmdline: []string{"bash"}, Stats: &Stats{CreateTime: createTime}},
+			procB:    &Process{Pid: 1234, Cmdline: []string{"bash"}, Stats: nil},
+			expected: true,
+		},
+		{
+			name:     "nil Stats in both skips CreateTime check",
+			procA:    &Process{Pid: 1234, Cmdline: []string{"bash"}, Stats: nil},
+			procB:    &Process{Pid: 1234, Cmdline: []string{"bash"}, Stats: nil},
+			expected: true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := IsSameProcess(tt.procA, tt.procB)
 			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestProcessIdentityAndIsSameProcessInSync ensures that ProcessIdentity and IsSameProcess
+// use the same fields to determine process identity. If one is modified, this test should
+// fail to remind developers to update the other.
+func TestProcessIdentityAndIsSameProcessInSync(t *testing.T) {
+	createTime := int64(1000000)
+
+	// Create pairs of processes that differ in each identity field
+	testCases := []struct {
+		name         string
+		procA        *Process
+		procB        *Process
+		shouldBeSame bool
+		description  string
+	}{
+		{
+			name: "same identity fields",
+			procA: &Process{
+				Pid:     1234,
+				Cmdline: []string{"bash", "-c", "echo"},
+				Stats:   &Stats{CreateTime: createTime},
+			},
+			procB: &Process{
+				Pid:     1234,
+				Cmdline: []string{"bash", "-c", "echo"},
+				Stats:   &Stats{CreateTime: createTime},
+			},
+			shouldBeSame: true,
+			description:  "processes with identical identity fields should match in both functions",
+		},
+		{
+			name: "different pid",
+			procA: &Process{
+				Pid:     1234,
+				Cmdline: []string{"bash"},
+				Stats:   &Stats{CreateTime: createTime},
+			},
+			procB: &Process{
+				Pid:     5678,
+				Cmdline: []string{"bash"},
+				Stats:   &Stats{CreateTime: createTime},
+			},
+			shouldBeSame: false,
+			description:  "different PID should be detected by both functions",
+		},
+		{
+			name: "different createTime",
+			procA: &Process{
+				Pid:     1234,
+				Cmdline: []string{"bash"},
+				Stats:   &Stats{CreateTime: createTime},
+			},
+			procB: &Process{
+				Pid:     1234,
+				Cmdline: []string{"bash"},
+				Stats:   &Stats{CreateTime: createTime + 1000},
+			},
+			shouldBeSame: false,
+			description:  "different createTime should be detected by both functions",
+		},
+		{
+			name: "different cmdline (exec scenario)",
+			procA: &Process{
+				Pid:     1234,
+				Cmdline: []string{"bash"},
+				Stats:   &Stats{CreateTime: createTime},
+			},
+			procB: &Process{
+				Pid:     1234,
+				Cmdline: []string{"htop"},
+				Stats:   &Stats{CreateTime: createTime},
+			},
+			shouldBeSame: false,
+			description:  "different cmdline should be detected by both functions",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Check ProcessIdentity
+			identityA := ProcessIdentity(tc.procA.Pid, tc.procA.Stats.CreateTime, tc.procA.Cmdline)
+			identityB := ProcessIdentity(tc.procB.Pid, tc.procB.Stats.CreateTime, tc.procB.Cmdline)
+			identitySame := identityA == identityB
+
+			// Check IsSameProcess
+			isSame := IsSameProcess(tc.procA, tc.procB)
+
+			// Both functions should agree
+			assert.Equal(t, tc.shouldBeSame, identitySame,
+				"ProcessIdentity: %s - got identitySame=%v, want %v", tc.description, identitySame, tc.shouldBeSame)
+			assert.Equal(t, tc.shouldBeSame, isSame,
+				"IsSameProcess: %s - got isSame=%v, want %v", tc.description, isSame, tc.shouldBeSame)
+			assert.Equal(t, identitySame, isSame,
+				"ProcessIdentity and IsSameProcess disagree! This likely means one was modified without updating the other. %s", tc.description)
 		})
 	}
 }
