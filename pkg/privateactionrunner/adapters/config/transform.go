@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
@@ -68,12 +69,12 @@ func FromDDConfig(config config.Component) (*Config, error) {
 	}
 
 	var taskTimeoutSeconds *int32
-	if v := config.GetInt32("privateactionrunner.task_timeout_seconds"); v != 0 {
+	if v := config.GetInt32(setup.PARTaskTimeoutSeconds); v != 0 {
 		taskTimeoutSeconds = &v
 	}
 
 	httpTimeout := defaultHTTPTimeout
-	if v := config.GetInt32("privateactionrunner.http_timeout_seconds"); v != 0 {
+	if v := config.GetInt32(setup.PARHttpTimeoutSeconds); v != 0 {
 		httpTimeout = time.Duration(v) * time.Second
 	}
 
@@ -99,8 +100,8 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		Version:                   version.AgentVersion,
 		MetricsClient:             &statsd.NoOpClient{},
 		ActionsAllowlist:          makeActionsAllowlist(config),
-		Allowlist:                 strings.Split(config.GetString("privateactionrunner.allowlist"), ","),
-		AllowIMDSEndpoint:         config.GetBool("privateactionrunner.allow_imds_endpoint"),
+		Allowlist:                 config.GetStringSlice(setup.PARHttpAllowlist),
+		AllowIMDSEndpoint:         config.GetBool(setup.PARHttpAllowImdsEndpoint),
 		DDHost:                    strings.Join([]string{"api", ddSite}, "."),
 		Modes:                     []modes.Mode{modes.ModePull},
 		OrgId:                     orgID,
@@ -113,7 +114,7 @@ func FromDDConfig(config config.Component) (*Config, error) {
 
 func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 	allowlist := make(map[string]sets.Set[string])
-	actionFqns := config.GetStringSlice("privateactionrunner.actions_allowlist")
+	actionFqns := config.GetStringSlice(setup.PARActionsAllowlist)
 	for _, fqn := range actionFqns {
 		bundleName, actionName := actions.SplitFQN(fqn)
 		previous, ok := allowlist[bundleName]

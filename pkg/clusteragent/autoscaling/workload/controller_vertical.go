@@ -62,6 +62,12 @@ func newVerticalController(clock clock.Clock, eventRecorder record.EventRecorder
 }
 
 func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, autoscalerInternal *model.PodAutoscalerInternal, targetGVK schema.GroupVersionKind, target NamespacedPodOwner) (autoscaling.ProcessResult, error) {
+	// If vertical scaling is disabled, clear vertical state and exit.
+	if !autoscalerInternal.IsVerticalScalingEnabled() {
+		autoscalerInternal.ClearVerticalState()
+		return autoscaling.NoRequeue, nil
+	}
+
 	scalingValues := autoscalerInternal.ScalingValues()
 
 	// Check if the autoscaler has a vertical scaling recommendation

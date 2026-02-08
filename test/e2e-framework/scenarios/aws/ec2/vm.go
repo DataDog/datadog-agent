@@ -165,6 +165,9 @@ func defaultVMArgs(e aws.Environment, vmArgs *vmArgs) error {
 		if vmArgs.osInfo.Architecture == os.ARM64Arch {
 			vmArgs.instanceType = e.DefaultARMInstanceType()
 		}
+		if vmArgs.osInfo.Family() == os.WindowsFamily {
+			vmArgs.instanceType = e.DefaultWindowsInstanceType()
+		}
 	}
 
 	// macOS dedicated host defaults
