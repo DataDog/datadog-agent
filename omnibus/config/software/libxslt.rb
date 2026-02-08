@@ -17,8 +17,6 @@
 name "libxslt"
 default_version "1.1.43"
 
-dependency "zlib"
-
 skip_transitive_dependency_licensing true
 
 build do
