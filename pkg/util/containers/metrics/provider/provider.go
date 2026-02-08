@@ -28,6 +28,7 @@ const (
 	RuntimeNameCRIO       Runtime = "cri-o"
 	RuntimeNameGarden     Runtime = "garden"
 	RuntimeNamePodman     Runtime = "podman"
+	RuntimeNamePouch      Runtime = "pouch"
 	RuntimeNameECSFargate Runtime = "ecsfargate"
 )
 
@@ -55,6 +56,7 @@ var (
 		RuntimeNameCRIO,
 		RuntimeNameGarden,
 		RuntimeNamePodman,
+		RuntimeNamePouch,
 		RuntimeNameECSFargate,
 	}
 
