@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 // PeekSender returns a Sender with passed ID or an error if the sender is not registered
@@ -38,4 +39,20 @@ func NewForwarderTest(log log.Component) defaultforwarder.Forwarder {
 	options, _ := defaultforwarder.NewOptions(pkgconfigsetup.Datadog(), log, nil)
 	options.Secrets = secretsnoop.NewComponent().Comp
 	return defaultforwarder.NewDefaultForwarder(pkgconfigsetup.Datadog(), log, options)
+}
+
+// GetRecurrentSeries returns a copy of the recurrent series for testing
+func GetRecurrentSeries() []*metrics.Serie {
+	recurrentSeriesLock.Lock()
+	defer recurrentSeriesLock.Unlock()
+	result := make([]*metrics.Serie, len(recurrentSeries))
+	copy(result, recurrentSeries)
+	return result
+}
+
+// ClearRecurrentSeries clears the recurrent series for testing
+func ClearRecurrentSeries() {
+	recurrentSeriesLock.Lock()
+	defer recurrentSeriesLock.Unlock()
+	recurrentSeries = metrics.Series{}
 }

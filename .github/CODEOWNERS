@@ -263,7 +263,7 @@
 /cmd/system-probe/subcommands/ebpf/     @DataDog/ebpf-platform @DataDog/universal-service-monitoring
 /cmd/system-probe/subcommands/compliance/     @DataDog/agent-cspm
 /cmd/systray/                           @DataDog/windows-products
-/cmd/secret-backend/                    @DataDog/agent-configuration
+/cmd/secret-generic-connector/          @DataDog/agent-configuration
 /cmd/security-agent/                    @DataDog/agent-security
 /cmd/security-agent/subcommands/compliance/ @DataDog/agent-cspm
 /cmd/installer/                         @DataDog/fleet @DataDog/windows-products
