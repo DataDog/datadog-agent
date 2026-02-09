@@ -54,7 +54,8 @@ func TestMain(m *testing.M) {
 }
 
 var (
-	kv = kernel.MustHostVersion()
+	emptyBody = []byte(nil)
+	kv        = kernel.MustHostVersion()
 )
 
 func TestMonitorProtocolFail(t *testing.T) {
