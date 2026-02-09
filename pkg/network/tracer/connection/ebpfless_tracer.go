@@ -104,16 +104,15 @@ func (t *ebpfLessTracer) Start(closeCallback func(*network.ConnectionStats)) err
 		var udp layers.UDP
 		decoded := make([]gopacket.LayerType, 0, 5)
 
-		// Use the LayerType from the packet source to initialize parser correctly
-		// Linux: packets include Ethernet header (LayerTypeEthernet)
-		// Darwin: packets start at IP layer - link layer is stripped by PacketSource (LayerTypeIPv4)
+		// Use the LayerType from the packet source to initialize the parser.
+		// Both Linux (AFPacket) and Darwin (libpcap) return Ethernet frames,
+		// so LayerTypeEthernet is expected. The else branch handles any future
+		// packet source that strips the link layer.
 		layerType := t.packetSrc.LayerType()
 		var parser *gopacket.DecodingLayerParser
 		if layerType == layers.LayerTypeEthernet {
-			// Linux: Include Ethernet layer
 			parser = gopacket.NewDecodingLayerParser(layerType, &eth, &ip4, &ip6, &tcp, &udp)
 		} else {
-			// Darwin: Start at IP layer
 			parser = gopacket.NewDecodingLayerParser(layerType, &ip4, &ip6, &tcp, &udp)
 		}
 		parser.IgnoreUnsupported = true
