@@ -45,11 +45,12 @@ import (
 )
 
 func makeConnection(pid int32) network.ConnectionStats {
+	a, b := pid%256, (pid/256)+1
 	return network.ConnectionStats{
 		ConnectionTuple: network.ConnectionTuple{
 			Pid:    uint32(pid),
-			Source: util.AddressFromString(fmt.Sprintf("1.1.1.%d", pid)),
-			Dest:   util.AddressFromString(fmt.Sprintf("1.1.%d.1", pid)),
+			Source: util.AddressFromString(fmt.Sprintf("1.1.%d.%d", b, a)),
+			Dest:   util.AddressFromString(fmt.Sprintf("%d.%d.1.1", a, b)),
 		},
 	}
 }
@@ -196,7 +197,7 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 	conns := &network.Connections{
 		BufferedData: network.BufferedData{Conns: p},
 		DNS: map[util.Address][]dns.Hostname{
-			util.AddressFromString("1.1.4.1"): {dns.ToHostname("datacat.edu")},
+			p[3].Dest: {dns.ToHostname("datacat.edu")},
 		},
 	}
 	chunks := slices.Collect(d.batches(conns, 1))
@@ -607,7 +608,7 @@ func BenchmarkCollect(b *testing.B) {
 	}()
 
 	cs := d.tracer.(*fakeConnectionSource)
-	conns := makeConnections(255)
+	conns := makeConnections(2000)
 	cs.conns = &network.Connections{BufferedData: network.BufferedData{Conns: conns}}
 	for b.Loop() {
 		d.collect()
