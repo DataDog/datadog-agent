@@ -182,14 +182,8 @@ agent_win_oci:
         echo "Extracting DDOT to ${DDOT_INPUT_DIR}"
         unzip -q "${DDOT_ARTIFACT}" -d "${DDOT_INPUT_DIR}"
 
-        if [ -d "${DDOT_INPUT_DIR}/bin" ]; then
-          mkdir -p "${DDOT_EXTENSION_DIR}/embedded/bin"
-          cp -r "${DDOT_INPUT_DIR}/bin/." "${DDOT_EXTENSION_DIR}/embedded/bin/"
-        fi
-        if [ -d "${DDOT_INPUT_DIR}/etc/datadog-agent" ]; then
-          mkdir -p "${DDOT_EXTENSION_DIR}/etc/datadog-agent"
-          cp -r "${DDOT_INPUT_DIR}/etc/datadog-agent/." "${DDOT_EXTENSION_DIR}/etc/datadog-agent/"
-        fi
+        # Copy entire DDOT structure to extension directory
+        cp -r "${DDOT_INPUT_DIR}"/* "${DDOT_EXTENSION_DIR}"/
 
         EXTRA_FLAGS="${EXTRA_FLAGS} --extension ddot=${DDOT_EXTENSION_DIR}"
       fi
