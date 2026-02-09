@@ -1478,20 +1478,20 @@ def inventory_changes_to_comment(added, removed, changed):
     if len(added):
         body += "### Added files:\n"
         for f in added:
-            body += f"* {f.relative_path} ({byte_to_string(f.size_bytes)})\n"
+            body += f"* `{f.relative_path}` ({byte_to_string(f.size_bytes)})\n"
     if len(removed):
         body += "### Removed files:\n"
         for f in removed:
-            body += f"* {f.relative_path} ({byte_to_string(f.size_bytes)})\n"
+            body += f"* `{f.relative_path}` ({byte_to_string(f.size_bytes)})\n"
     if len(changed):
         body += "### Changed files:\n"
         for path, change in changed.items():
-            change_str = f"* {path}:\n"
+            change_str = f"* `{path}`:\n"
             if change.flags & FileChange.Flags.Permissions:
-                change_str += f"** Permission changed: {oct(change.previous.chmod)} -> {oct(change.current.chmod)}"
+                change_str += f"  * Permission changed: {oct(change.previous.chmod)} -> {oct(change.current.chmod)}"
             if change.flags & FileChange.Flags.Size:
-                change_str += f'** Size changed: {change.size_percent:+.2f}% ({byte_to_string(change.previous.size_bytes)} -> {byte_to_string(change.current.size_bytes)})\n'
+                change_str += f'  * Size changed: {change.size_percent:+.2f}% ({byte_to_string(change.previous.size_bytes)} -> {byte_to_string(change.current.size_bytes)})\n'
             if change.flags & (FileChange.Flags.Owner | FileChange.Flags.Group):
-                change_str += f'** File owner/group changed: {change.previous.owner}:{change.previous.group} -> {change.current.owner}:{change.current.group}'
+                change_str += f'  * File owner/group changed: {change.previous.owner}:{change.previous.group} -> {change.current.owner}:{change.current.group}'
             body += change_str
     return body
