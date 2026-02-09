@@ -138,13 +138,15 @@ func (p *NetPoller) poll() {
 			})
 		} else {
 			// Rate: emit (current - prev) / elapsed
+			// Skip zero-diff — don't flood the observer with "0 retransmits/sec"
+			// every poll. Only emit when there's actual activity.
 			prevVal, ok := p.prev[metricName]
 			if !ok {
 				continue
 			}
 			diff := value - prevVal
-			if diff < 0 {
-				diff = 0 // counter wrapped
+			if diff <= 0 {
+				continue // no change or counter wrapped
 			}
 			rate := float64(diff) / elapsed
 			p.handle.ObserveMetric(&netMetric{

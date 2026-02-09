@@ -67,21 +67,13 @@ resources:
     "network-latency": """
 ## Ground Truth: Network Latency Scenario
 
-The injected fault is artificial network latency on the Redis pod's network interface. The scenario uses Linux traffic control (tc) with the netem (network emulator) module to add 200ms ± 50ms of delay to all network packets on the Redis container's eth0 interface:
+The injected fault is artificial network degradation on a container's network interface using Linux traffic control (tc) with the netem module: 500ms delay with 200ms jitter, 15% packet loss, and 5% packet duplication.
 
-```python
-# From scenario.py apply_network_latency() - lines 1392-1414
-tc_result = subprocess.run(
-    [
-        "kubectl", "exec", "-n", namespace, pod_name, "--",
-        "tc", "qdisc", "add", "dev", "eth0", "root", "netem",
-        "delay", "200ms", "50ms",  # 200ms base delay ± 50ms jitter
-    ],
-    ...
-)
-```
+**Mechanism:** tc qdisc netem on eth0 causes the kernel TCP stack to experience real retransmits, timeouts, and increased round-trip times. Connections slow down, some time out entirely.
 
-**Root cause:** Network-level latency injection via tc qdisc netem on the Redis pod, simulating a network partition, congested link, or cross-datacenter communication delay.
+**Root cause:** Network-level latency and packet loss injection via tc netem, simulating a degraded network link, congested path, or cross-datacenter communication issues.
+
+**Key indicators:** TCP retransmit rate spike, TCP timeout increase, increased connection errors/resets, possible listen queue overflows. System-level net.tcp.retransmits, net.tcp.timeouts, net.tcp.in_errors should all shift from baseline.
 """,
 
     "crash-loop": """
