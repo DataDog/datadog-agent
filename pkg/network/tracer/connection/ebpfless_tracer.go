@@ -330,6 +330,14 @@ func (t *ebpfLessTracer) guessConnectionDirection(conn *network.ConnectionStats,
 		}
 	}
 
+	// system ports are always servers
+	if conn.SPort < 1024 {
+		return network.INCOMING, nil
+	}
+	if conn.DPort < 1024 {
+		return network.OUTGOING, nil
+	}
+
 	switch pktType {
 	case unix.PACKET_HOST:
 		return network.INCOMING, nil
