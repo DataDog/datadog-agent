@@ -185,22 +185,11 @@ func errorValues(logMessages []string) map[string]float64 {
 	logErrors := make([]types.LogError, 0, len(logMessages))
 	now := time.Now()
 	for _, message := range logMessages {
-		msg := strings.TrimSpace(message)
-		if msg == "" {
-			continue
-		}
-		lower := strings.ToLower(msg)
-		if strings.Contains(lower, "error") || strings.Contains(lower, "exception") || strings.Contains(lower, "failure") {
-			logErrors = append(logErrors, types.LogError{
-				Message:   msg,
-				Count:     1,
-				Timestamp: now,
-			})
-		}
-	}
-
-	if len(logErrors) == 0 {
-		return values
+		logErrors = append(logErrors, types.LogError{
+			Message:   message,
+			Count:     1,
+			Timestamp: now,
+		})
 	}
 
 	// Group similar logs using DBSCAN clustering
@@ -220,19 +209,17 @@ func normalizeValues(values map[string]float64) {
 		return
 	}
 
-	maxValue := 0.0
+	sum := 0.0
 	for _, value := range values {
-		if value > maxValue {
-			maxValue = value
-		}
+		sum += value
 	}
 
-	if maxValue <= 0 {
+	if sum <= 0 {
 		return
 	}
 
 	for key, value := range values {
-		values[key] = value / maxValue
+		values[key] = value / sum
 	}
 }
 

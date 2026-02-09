@@ -29,7 +29,7 @@ type AnomalyDetection struct {
 	traceBuffer         []*traceObs
 	traceMutex          sync.Mutex
 	tracePercentileCalc *TracePercentileCalculator
-	logBuffer           []*logObs
+	logBuffer           []string
 	logMutex            sync.Mutex
 	stopChan            chan struct{}
 	wg                  sync.WaitGroup
@@ -70,10 +70,28 @@ func (a *AnomalyDetection) ProcessMetric(metric *metricObs) {
 }
 
 func (a *AnomalyDetection) ProcessLog(log *logObs) {
+	if log == nil || len(log.content) == 0 {
+		return
+	}
+
+	if len(log.content) > 300 {
+		log.content = log.content[:300]
+	}
+
+	message := strings.TrimSpace(string(log.content))
+	if message == "" {
+		return
+	}
+
+	lower := strings.ToLower(message)
+	if !strings.Contains(lower, "error") && !strings.Contains(lower, "exception") && !strings.Contains(lower, "failure") {
+		return
+	}
+
 	a.logMutex.Lock()
 	defer a.logMutex.Unlock()
 	if len(a.logBuffer) < 10000 {
-		a.logBuffer = append(a.logBuffer, log)
+		a.logBuffer = append(a.logBuffer, message)
 	}
 }
 
@@ -119,18 +137,7 @@ func (a *AnomalyDetection) processProfilesPeriodically() {
 			percentiles := a.tracePercentileCalc.CalculatePercentiles(traces)
 
 			logs := a.drainLogs()
-			logsMessages := make([]string, 0, len(logs))
-			for _, log := range logs {
-				if log != nil && len(log.content) > 0 {
-					content := string(log.content)
-					if len(content) > 300 {
-						content = content[:300]
-					}
-					logsMessages = append(logsMessages, content)
-				}
-			}
-
-			a.processAnomalyScores(topFuncs, metricSums, logsMessages, percentiles)
+			a.processAnomalyScores(topFuncs, metricSums, logs, percentiles)
 		case <-a.stopChan:
 
 			return
@@ -149,7 +156,7 @@ func (a *AnomalyDetection) drainBuffer() [][]byte {
 	return profiles
 }
 
-func (a *AnomalyDetection) drainLogs() []*logObs {
+func (a *AnomalyDetection) drainLogs() []string {
 	a.logMutex.Lock()
 	defer a.logMutex.Unlock()
 

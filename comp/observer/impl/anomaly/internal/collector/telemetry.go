@@ -25,6 +25,10 @@ type TraceMetrics struct {
 	P99Duration float64
 }
 
+func (t TraceMetrics) String() string {
+	return fmt.Sprintf("P50: %v, P95: %v, P99: %v", t.P50Duration, t.P95Duration, t.P99Duration)
+}
+
 // MetricTimeseries contains the time series data for a metric
 type MetricTimeseries struct {
 	MetricName string
