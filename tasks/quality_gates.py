@@ -6,6 +6,7 @@ import sys
 import tempfile
 import traceback
 import typing
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import yaml
@@ -1030,6 +1031,7 @@ def measure_package_local(
     output_path=None,
     build_job_name="local_test",
     debug=False,
+    filter: Callable[[str], bool] = None,
 ):
     """
     Run the in-place package measurer locally for testing and development.
@@ -1056,6 +1058,7 @@ def measure_package_local(
         output_path=output_path,
         build_job_name=build_job_name,
         debug=debug,
+        filter=filter,
     )
 
 
