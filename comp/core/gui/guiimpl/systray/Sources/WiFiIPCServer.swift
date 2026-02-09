@@ -234,7 +234,7 @@ class WiFiIPCServer {
         
         data.withUnsafeBytes { ptr in
             let bytesPtr = ptr.baseAddress?.assumingMemoryBound(to: UInt8.self)
-            let bytesWritten = write(clientFD, bytesPtr, data.count)
+            var bytesWritten = write(clientFD, bytesPtr, data.count)
 
             // Handle write errors gracefully (client may disconnect before response is fully sent)
             // With SIGPIPE ignored in main.swift, write() returns -1 instead of crashing the app
@@ -247,7 +247,31 @@ class WiFiIPCServer {
                 }
             } else if bytesWritten < data.count {
                 // Partial write - rare but possible if socket buffer is full
-                Logger.info("Partial write: \(bytesWritten)/\(data.count) bytes sent", context: "WiFiIPCServer")
+                Logger.info("Partial write: \(bytesWritten)/\(data.count) bytes sent, retrying...", context: "WiFiIPCServer")
+
+                // Retry once for remaining bytes
+                guard let validBytesPtr = bytesPtr else {
+                    Logger.error("Cannot retry: invalid buffer pointer", context: "WiFiIPCServer")
+                    return
+                }
+
+                let remaining = data.count - bytesWritten
+                let remainingPtr = validBytesPtr.advanced(by: bytesWritten)
+                let retryWritten = write(clientFD, remainingPtr, remaining)
+
+                if retryWritten < 0 {
+                    if errno == EPIPE {
+                        Logger.debug("Client disconnected during retry (EPIPE)", context: "WiFiIPCServer")
+                    } else {
+                        Logger.error("Retry write failed: \(String(cString: strerror(errno)))", context: "WiFiIPCServer")
+                    }
+                } else if retryWritten < remaining {
+                    // Still partial after retry - log error (rare)
+                    Logger.error("Partial write after retry: \(bytesWritten + retryWritten)/\(data.count) bytes sent", context: "WiFiIPCServer")
+                } else {
+                    // Retry succeeded
+                    Logger.debug("Retry write completed successfully", context: "WiFiIPCServer")
+                }
             }
             // Success case (bytesWritten == data.count) - no logging needed for normal operation
         }
