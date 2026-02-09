@@ -26,6 +26,7 @@
 /.adms/                                 @DataDog/agent-build
 /.bazel*                                @DataDog/agent-build
 /bazel/                                 @DataDog/agent-build
+/bazel/configs/sdagent_rc               @DataDog/agent-discovery
 /MODULE.bazel*                          @DataDog/agent-build
 # Temporary during Bazel migration
 /**/BUILD.bazel                         @DataDog/agent-build
@@ -220,7 +221,7 @@
 /cmd/agent/dist/conf.d/container_image.d/      @DataDog/container-integrations
 /cmd/agent/dist/conf.d/container_lifecycle.d/  @DataDog/container-integrations
 /cmd/agent/dist/conf.d/discovery.d/          @DataDog/agent-discovery
-/cmd/agent/dist/conf.d/jetson.d/        @DataDog/agent-devx
+/cmd/agent/dist/conf.d/jetson.d/        @DataDog/agent-runtimes
 /cmd/agent/dist/conf.d/oracle.d/    @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/oracle-dbm.d/    @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/network_path.d/ @DataDog/cloud-network-monitoring @DataDog/network-path
@@ -571,6 +572,7 @@
 /pkg/util/docker/                       @DataDog/container-integrations
 /pkg/util/ecs/                          @DataDog/ecs-experiences
 /pkg/util/fargate/                      @DataDog/ecs-experiences
+/pkg/util/filesystem/                   @DataDog/agent-runtimes @DataDog/agent-configuration
 /pkg/util/funcs/                        @DataDog/ebpf-platform
 /pkg/util/gpu/                          @DataDog/container-platform
 /pkg/util/installinfo/                  @DataDog/agent-configuration

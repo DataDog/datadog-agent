@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-package secretsimpl
+package filesystem
 
 import (
 	"fmt"
@@ -14,7 +14,11 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func checkRights(path string, allowGroupExec bool) error {
+// CheckRights checks if a file has restricted permissions for group and others
+//
+// This function is used by the secret component `comp/core/secrets`
+// Modifications to this function should be made carefully
+func CheckRights(path string, allowGroupExec bool) error {
 	var stat syscall.Stat_t
 	if err := syscall.Stat(path, &stat); err != nil {
 		return fmt.Errorf("invalid executable '%s': can't stat it: %s", path, err)
