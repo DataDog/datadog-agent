@@ -60,3 +60,45 @@ func TestBOCPDDetector_DetectsStepChange(t *testing.T) {
 		assert.GreaterOrEqual(t, result.Anomalies[0].Timestamp, int64(21))
 	}
 }
+
+func TestBOCPDDetector_DetectsDownwardStepChange(t *testing.T) {
+	d := NewBOCPDDetector()
+
+	points := make([]observer.Point, 50)
+	for i := 0; i < 25; i++ {
+		points[i] = observer.Point{Timestamp: int64(i + 1), Value: 100}
+	}
+	for i := 25; i < 50; i++ {
+		points[i] = observer.Point{Timestamp: int64(i + 1), Value: 70}
+	}
+
+	series := observer.Series{Name: "test.metric", Points: points}
+	result := d.Analyze(series)
+
+	if assert.Len(t, result.Anomalies, 1) {
+		assert.Contains(t, result.Anomalies[0].Title, "BOCPD")
+		assert.Contains(t, result.Anomalies[0].Description, "exceeded threshold")
+	}
+}
+
+func TestBOCPDDetector_DetectsSustainedShiftViaShortRunMass(t *testing.T) {
+	d := NewBOCPDDetector()
+	d.CPThreshold = 0.99     // discourage pure r_t=0 triggers
+	d.CPMassThreshold = 0.55 // allow short-run posterior mass trigger
+	d.ShortRunLength = 6
+
+	points := make([]observer.Point, 60)
+	for i := 0; i < 30; i++ {
+		points[i] = observer.Point{Timestamp: int64(i + 1), Value: 100}
+	}
+	for i := 30; i < 60; i++ {
+		points[i] = observer.Point{Timestamp: int64(i + 1), Value: 115}
+	}
+
+	series := observer.Series{Name: "test.metric", Points: points}
+	result := d.Analyze(series)
+
+	if assert.Len(t, result.Anomalies, 1) {
+		assert.Contains(t, result.Anomalies[0].Description, "short-run posterior mass")
+	}
+}

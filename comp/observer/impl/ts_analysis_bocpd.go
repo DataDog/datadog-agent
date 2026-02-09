@@ -33,6 +33,16 @@ type BOCPDDetector struct {
 	// Default: 0.6
 	CPThreshold float64
 
+	// ShortRunLength is the run-length horizon k for short-run posterior mass P(r_t <= k).
+	// Default: 5
+	ShortRunLength int
+
+	// CPMassThreshold is the threshold for short-run posterior mass P(r_t <= k).
+	// This improves sensitivity to sustained regime shifts while remaining
+	// within BOCPD posterior-based detection.
+	// Default: 0.7
+	CPMassThreshold float64
+
 	// MaxRunLength caps tracked run-length hypotheses for bounded compute.
 	// Default: 200
 	MaxRunLength int
@@ -53,6 +63,8 @@ func NewBOCPDDetector() *BOCPDDetector {
 		BaselineFraction:   0.25,
 		Hazard:             0.05,
 		CPThreshold:        0.6,
+		ShortRunLength:     5,
+		CPMassThreshold:    0.7,
 		MaxRunLength:       200,
 		PriorVarianceScale: 10.0,
 		SkipCountMetrics:   true,
@@ -85,6 +97,14 @@ func (b *BOCPDDetector) Analyze(series observer.Series) observer.TimeSeriesAnaly
 	threshold := b.CPThreshold
 	if threshold <= 0 || threshold >= 1 {
 		threshold = 0.6
+	}
+	shortRunLength := b.ShortRunLength
+	if shortRunLength <= 0 {
+		shortRunLength = 5
+	}
+	cpMassThreshold := b.CPMassThreshold
+	if cpMassThreshold <= 0 || cpMassThreshold >= 1 {
+		cpMassThreshold = 0.7
 	}
 	maxRunLength := b.MaxRunLength
 	if maxRunLength <= 0 {
@@ -141,14 +161,25 @@ func (b *BOCPDDetector) Analyze(series observer.Series) observer.TimeSeriesAnaly
 
 		normalizeProbs(newRunProbs)
 		cpProb := newRunProbs[0]
+		shortRunMass := shortRunLengthMass(newRunProbs, shortRunLength)
 
-		if i >= minPoints-1 && cpProb >= threshold {
+		triggeredByPeak := cpProb >= threshold
+		triggeredByShift := shortRunMass >= cpMassThreshold
+		if i >= minPoints-1 && (triggeredByPeak || triggeredByShift) {
 			deviation := (x - baselineMean) / baselineStddev
+			triggerType := "short-run posterior mass"
+			triggerValue := shortRunMass
+			triggerThreshold := cpMassThreshold
+			if triggeredByPeak {
+				triggerType = "changepoint probability"
+				triggerValue = cpProb
+				triggerThreshold = threshold
+			}
 			anomaly := observer.AnomalyOutput{
 				Source: series.Name,
 				Title:  fmt.Sprintf("BOCPD changepoint detected: %s", series.Name),
-				Description: fmt.Sprintf("%s changepoint probability %.2f exceeded threshold %.2f",
-					series.Name, cpProb, threshold),
+				Description: fmt.Sprintf("%s %s %.2f exceeded threshold %.2f (cp=%.2f, short-run<=%d mass=%.2f)",
+					series.Name, triggerType, triggerValue, triggerThreshold, cpProb, shortRunLength, shortRunMass),
 				Tags:      series.Tags,
 				Timestamp: p.Timestamp,
 				DebugInfo: &observer.AnomalyDebugInfo{
@@ -187,6 +218,18 @@ func (b *BOCPDDetector) Analyze(series observer.Series) observer.TimeSeriesAnaly
 	}
 
 	return observer.TimeSeriesAnalysisResult{}
+}
+
+func shortRunLengthMass(runProbs []float64, shortRunLength int) float64 {
+	maxIdx := shortRunLength
+	if maxIdx > len(runProbs)-1 {
+		maxIdx = len(runProbs) - 1
+	}
+	var mass float64
+	for i := 0; i <= maxIdx; i++ {
+		mass += runProbs[i]
+	}
+	return mass
 }
 
 func normalPosterior(priorMean, priorPrecision, x, obsVar float64) (mean, precision float64) {
