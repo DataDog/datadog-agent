@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0.0",
+  "event_type": "agent-health",
+  "emitted_at": "2025-02-02T18:30:00Z",
+  "host": {
+    "hostname": "docker-test-host",
+    "agent_version": "7.60.0",
+    "par_ids": []
+  },
+  "issues": {
+    "docker-permission-issue": {
+      "id": "docker-permission-issue",
+      "issue_name": "docker-permission-issue",
+      "title": "Docker Socket Permission Denied",
+      "description": "The Datadog Agent cannot access the Docker socket at /var/run/docker.sock due to insufficient permissions. The agent needs to be added to the docker group or run with appropriate permissions to monitor Docker containers.",
+      "category": "permissions",
+      "location": "/var/run/docker.sock",
+      "severity": "error",
+      "detected_at": "2025-02-02T18:30:00Z",
+      "source": "docker-integration",
+      "tags": [
+        "integration:docker",
+        "component:core",
+        "os:linux"
+      ]
+    }
+  }
+}
