@@ -1068,6 +1068,23 @@ func (a *testBenchFlareAdapter) GetCorrelations() []CorrelationSnapshot {
 	return a.tb.GetCorrelationsSnapshot()
 }
 
+func (a *testBenchFlareAdapter) GetFindings() []Finding {
+	var findings []Finding
+	if a.tb.timeClusterCorrelator != nil {
+		findings = append(findings, a.tb.timeClusterCorrelator.Findings()...)
+	}
+	if a.tb.leadLagCorrelator != nil {
+		findings = append(findings, a.tb.leadLagCorrelator.Findings()...)
+	}
+	if a.tb.surpriseCorrelator != nil {
+		findings = append(findings, a.tb.surpriseCorrelator.Findings()...)
+	}
+	if a.tb.graphSketchCorrelator != nil {
+		findings = append(findings, a.tb.graphSketchCorrelator.Findings()...)
+	}
+	return findings
+}
+
 // AsFlareDataProvider returns the TestBench as a FlareDataProvider.
 func (tb *TestBench) AsFlareDataProvider() FlareDataProvider {
 	return &testBenchFlareAdapter{tb: tb}

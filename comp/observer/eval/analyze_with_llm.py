@@ -137,16 +137,52 @@ def call_openai(prompt, model, api_key):
         print(f"Connection error: {e}")
         sys.exit(1)
 
+def prepare_data(filepath):
+    """Load and clean data for LLM consumption. Strip verbose debug arrays,
+    keep only diagnostic fields."""
+    with open(filepath, 'r') as f:
+        raw = json.load(f)
+
+    # Clean anomalies: strip cusumValues, keep only useful debug fields
+    cleaned_anomalies = []
+    for a in raw.get('sample_anomalies', []):
+        clean = {
+            'source': a.get('source'),
+            'analyzer': a.get('analyzerName'),
+            'description': a.get('description'),
+            'tags': a.get('tags', []),
+            'timestamp': a.get('timestamp'),
+        }
+        debug = a.get('debugInfo', {})
+        if debug:
+            clean['baseline_mean'] = debug.get('baselineMean')
+            clean['current_value'] = debug.get('currentValue')
+            clean['deviation_sigma'] = debug.get('deviationSigma')
+        cleaned_anomalies.append(clean)
+
+    cleaned = {
+        'total_anomalies': raw.get('total_anomalies'),
+        'unique_sources_in_anomalies': raw.get('unique_sources_in_anomalies'),
+        'anomalies': cleaned_anomalies,
+        'correlations': raw.get('correlations', []),
+        'health': raw.get('health', {}),
+    }
+    if raw.get('leadlag_edges'):
+        cleaned['leadlag_edges'] = raw['leadlag_edges']
+    if raw.get('surprise_edges'):
+        cleaned['surprise_edges'] = raw['surprise_edges']
+
+    return json.dumps(cleaned, indent=2)
+
 def analyze(filepath, context, model):
     api_key = os.environ.get('OPENAI_API_KEY')
     if not api_key:
         print("Error: Set OPENAI_API_KEY environment variable")
         print("  export OPENAI_API_KEY='sk-...'")
         sys.exit(1)
-    
-    with open(filepath, 'r') as f:
-        data = f.read()
-    
+
+    data = prepare_data(filepath)
+
     prompt = f"""{context}
 
 Here is the data:
@@ -154,12 +190,12 @@ Here is the data:
 {data}
 
 Be concise. Answer:
-1. What do the correlations tell you?
+1. What do the correlations and leadlag edges tell you about causality?
 2. Is there a problem? (yes/no/unclear)
-3. If yes, what is it? (one sentence)
+3. If yes, what is it? (one sentence, name the specific failure mode)
 4. Confidence level (high/medium/low)
 5. If not high confidence: what are the alternative possibilities and why are you uncertain?
-6. Supporting evidence (bullet points from the data)"""
+6. Supporting evidence (bullet points citing specific metrics, values, and tags)"""
     
     print("="*60)
     print("PROMPT (context only, JSON data omitted):")

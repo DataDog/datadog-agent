@@ -1,0 +1,12 @@
+{{ with .observerStats }}
+<div class="stat">
+  <span class="stat_title">Observer</span>
+  <span class="stat_data">
+    Health: {{ .Score }}/100 ({{ .Status }})
+    <br>Anomalies: {{ .TotalAnomalies }} across {{ .UniqueMetrics }} metrics
+    {{- if .HasIncident }}
+    <br><strong>Incident detected - run 'agent flare' for full report</strong>
+    {{- end }}
+  </span>
+</div>
+{{ end }}

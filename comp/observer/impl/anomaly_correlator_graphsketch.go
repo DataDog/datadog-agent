@@ -524,6 +524,25 @@ func (g *GraphSketchCorrelator) evictOldClustersLocked() {
 	g.clusters = newClusters
 }
 
+// Findings returns learned co-occurrence patterns as generic Findings.
+func (g *GraphSketchCorrelator) Findings() []Finding {
+	edges := g.GetLearnedEdges()
+	findings := make([]Finding, 0, len(edges))
+	for _, e := range edges {
+		// Normalize frequency to confidence (0-1)
+		conf := math.Min(e.Frequency/10.0, 1.0) // frequency 10+ = full confidence
+		sources := g.splitEdge(e.EdgeKey)
+		findings = append(findings, Finding{
+			Category:   "learned",
+			Summary:    fmt.Sprintf("%s and %s frequently co-occur (%d observations, frequency=%.1f)", sources[0], sources[1], e.Observations, e.Frequency),
+			Sources:    sources,
+			Confidence: conf,
+			Timestamp:  e.FirstSeenUnix,
+		})
+	}
+	return findings
+}
+
 // ActiveCorrelations returns clusters that meet the minimum size threshold.
 // Implements CorrelationState interface.
 func (g *GraphSketchCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {

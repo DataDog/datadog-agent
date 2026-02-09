@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
@@ -273,6 +274,34 @@ func (c *TimeClusterCorrelator) GetStats() map[string]interface{} {
 		"min_cluster_size":     c.config.MinClusterSize,
 		"current_data_time":    c.currentDataTime,
 	}
+}
+
+// Findings returns time clusters as generic Findings.
+func (c *TimeClusterCorrelator) Findings() []Finding {
+	var findings []Finding
+	for _, cluster := range c.clusters {
+		if len(cluster.anomalies) < c.config.MinClusterSize {
+			continue
+		}
+		sources := make([]string, 0, len(cluster.anomalies))
+		for source := range cluster.anomalies {
+			sources = append(sources, source)
+		}
+		sort.Strings(sources)
+
+		// Confidence scales with cluster size: 2 = 0.5, 5 = 0.8, 10+ = 1.0
+		conf := 1.0 - 1.0/float64(len(sources))
+
+		findings = append(findings, Finding{
+			Category:   "simultaneous",
+			Summary:    fmt.Sprintf("%d metrics shifted at the same time: %s", len(sources), strings.Join(sources, ", ")),
+			Sources:    sources,
+			Confidence: conf,
+			Timestamp:  cluster.minTimestamp,
+			EndTime:    cluster.maxTimestamp,
+		})
+	}
+	return findings
 }
 
 // ActiveCorrelations returns clusters that meet the minimum size threshold.

@@ -405,6 +405,21 @@ func (c *LeadLagCorrelator) GetEdges() []LeadLagEdge {
 	return edges
 }
 
+// Findings returns lead-lag edges as generic Findings for flare reports.
+func (c *LeadLagCorrelator) Findings() []Finding {
+	edges := c.GetEdges()
+	findings := make([]Finding, 0, len(edges))
+	for _, e := range edges {
+		findings = append(findings, Finding{
+			Category:   "causal",
+			Summary:    fmt.Sprintf("%s leads %s by %ds (%d%% confidence, %d observations)", e.Leader, e.Follower, e.TypicalLag, int(e.Confidence*100), e.Observations),
+			Sources:    []string{e.Leader, e.Follower},
+			Confidence: e.Confidence,
+		})
+	}
+	return findings
+}
+
 // ActiveCorrelations returns lead-lag patterns as correlations for reporting.
 // Implements CorrelationState interface.
 func (c *LeadLagCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {

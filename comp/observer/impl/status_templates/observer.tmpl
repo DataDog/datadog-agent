@@ -1,0 +1,29 @@
+{{ with .observerStats }}
+{{- if .Healthy }}
+  Health: {{ .Score }}/100 ({{ .Status }})
+{{- else }}
+  Health: {{ .Score }}/100 ({{ .Status }})
+  {{- range .Factors }}
+    -{{ .Contribution }}pts  {{ .Name }} ({{ printf "%.1f" .Value }})
+  {{- end }}
+{{- end }}
+
+  Anomalies: {{ .TotalAnomalies }} across {{ .UniqueMetrics }} metrics
+{{- if gt .TotalAnomalies 0 }}
+  Top signals:
+  {{- range .TopAnomalies }}
+    {{ .Source }}  {{ printf "%.1f" .Severity }}s {{ .Direction }} baseline
+  {{- end }}
+{{- end }}
+
+{{- if gt (len .Findings) 0 }}
+  Correlations:
+  {{- range .Findings }}
+    {{ .Summary }}
+  {{- end }}
+{{- end }}
+
+{{- if .HasIncident }}
+  ** Incident detected - run 'agent flare' for full report **
+{{- end }}
+{{ end }}

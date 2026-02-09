@@ -319,6 +319,26 @@ func (c *SurpriseCorrelator) GetEdges() []SurpriseEdge {
 	return edges
 }
 
+// Findings returns surprise edges as generic Findings for flare reports.
+func (c *SurpriseCorrelator) Findings() []Finding {
+	edges := c.GetEdges()
+	findings := make([]Finding, 0, len(edges))
+	for _, e := range edges {
+		// Normalize lift to 0-1 confidence: lift=2 → 0.5, lift=5 → 0.8, lift=10 → 0.9
+		conf := 1.0 - 1.0/e.Lift
+		if conf < 0 {
+			conf = 0
+		}
+		findings = append(findings, Finding{
+			Category:   "co_occurrence",
+			Summary:    fmt.Sprintf("%s and %s co-occur unexpectedly (lift=%.1f, %d co-occurrences)", e.Source1, e.Source2, e.Lift, e.Support),
+			Sources:    []string{e.Source1, e.Source2},
+			Confidence: conf,
+		})
+	}
+	return findings
+}
+
 // ActiveCorrelations returns surprise patterns as correlations for reporting.
 // Implements CorrelationState interface.
 func (c *SurpriseCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {

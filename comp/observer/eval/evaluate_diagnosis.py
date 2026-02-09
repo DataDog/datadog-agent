@@ -32,6 +32,7 @@ PROBLEM_TYPES = {
     "slow-serialization": "slow serialization",
     "memory-exhaustion": "memory exhaustion",
     "traffic-spike": "traffic spike",
+    "cpu-spike": "CPU spike",
 }
 
 # Built-in ground truths for common scenarios
@@ -177,6 +178,17 @@ The injected fault is an 18x sudden increase in requests per second.
 **Root cause:** 18x RPS spike overwhelming system - backend and Redis at 100% CPU, 48% success, 42% overload errors (503), 10% timeout.
 
 **Key indicators:** Request rate spike, CPU saturation across services, high error rate, mixed error types (overload + timeout).
+""",
+    "cpu-spike": """
+## Ground Truth: CPU Spike Scenario
+
+The injected fault is a container running a CPU stress test that saturates multiple cores for ~60 seconds.
+
+**Mechanism:** A container runs `yes > /dev/null` on 6 cores, consuming all available CPU. System load spikes, other processes are starved.
+
+**Root cause:** Container CPU saturation — a single container consuming all available CPU cycles, causing system-wide load increase and potential impact on co-located workloads.
+
+**Key indicators:** system.cpu.user spike, system.load increase, container.cpu.usage at limit, system.cpu.idle drop, possible I/O wait increase from scheduling contention.
 """
 }
 

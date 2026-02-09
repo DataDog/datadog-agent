@@ -16,6 +16,7 @@ import (
 	"time"
 
 	recorder "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
+	statuscomp "github.com/DataDog/datadog-agent/comp/core/status"
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -41,7 +42,8 @@ type AgentInternalLogTapConfig struct {
 
 // Provides defines the output of the observer component.
 type Provides struct {
-	Comp observerdef.Component
+	Comp           observerdef.Component
+	StatusProvider statuscomp.InformationProvider
 }
 
 // observation is a message sent from handles to the observer.
@@ -227,7 +229,24 @@ func NewComponent(deps Requires) Provides {
 		})
 	}
 
-	return Provides{Comp: obs}
+	// Start network poller if enabled (reads /proc/net/snmp + netstat at high frequency)
+	if cfg.GetBool("observer.network_poller.enabled") {
+		interval := cfg.GetDuration("observer.network_poller.interval")
+		if interval <= 0 {
+			interval = 2 * time.Second
+		}
+		netHandle := obs.GetHandle("network")
+		if deps.Recorder != nil {
+			netHandle = deps.Recorder.GetHandle(obs.GetHandle)("network")
+		}
+		poller := NewNetPoller(netHandle, NetPollerConfig{Interval: interval})
+		poller.Start()
+	}
+
+	return Provides{
+		Comp:           obs,
+		StatusProvider: statuscomp.NewInformationProvider(observerStatus{obs: obs}),
+	}
 }
 
 func samplePass(rate float64, n uint64) bool {

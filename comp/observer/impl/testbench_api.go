@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"sort"
 	"path/filepath"
 	"strings"
 	"time"
@@ -59,6 +60,7 @@ func (api *TestBenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/stats", api.cors(api.handleStats))
 	mux.HandleFunc("/api/markers", api.cors(api.handleMarkers))
 	mux.HandleFunc("/api/config", api.cors(api.handleConfigUpdate))
+	mux.HandleFunc("/api/incident-report", api.cors(api.handleIncidentReport))
 	mux.HandleFunc("/api/diagnosis/run", api.cors(api.handleDiagnosisRun))
 	mux.HandleFunc("/api/evaluation/run", api.cors(api.handleEvaluationRun))
 
@@ -574,6 +576,20 @@ func (api *TestBenchAPI) handleMarkers(w http.ResponseWriter, _ *http.Request) {
 	api.writeJSON(w, markers)
 }
 
+// handleIncidentReport returns the human-readable incident report (summary.txt content).
+func (api *TestBenchAPI) handleIncidentReport(w http.ResponseWriter, _ *http.Request) {
+	provider := api.tb.AsFlareDataProvider()
+	health := provider.GetHealth()
+	anomalies := provider.GetAnomalies()
+	packets := provider.GetContextPackets()
+	findings := provider.GetFindings()
+
+	report := generateIncidentReport(health, anomalies, packets, findings)
+
+	w.Header().Set("Content-Type", "text/plain")
+	w.Write([]byte(report)) //nolint:errcheck
+}
+
 // findEvalScript locates a Python eval script relative to the working directory or GOPATH.
 func findEvalScript(name string) (string, error) {
 	candidates := []string{
@@ -604,24 +620,25 @@ func (api *TestBenchAPI) buildAnalysisInput() (string, error) {
 		uniqueSources[a.Source] = true
 	}
 
-	// Prioritize container anomalies in the sample — they're the most diagnostic
-	// but often outnumbered by system-level noise.
-	var containerAnomalies, systemAnomalies []AnomalySnapshot
+	// Sort by severity — most anomalous signals first, regardless of
+	// whether they're container or system metrics. Dedup by source (keep highest).
+	bestBySource := make(map[string]AnomalySnapshot)
 	for _, a := range anomalies {
-		if strings.HasPrefix(a.Source, "container.") || strings.HasPrefix(a.Source, "docker.") {
-			containerAnomalies = append(containerAnomalies, a)
-		} else {
-			systemAnomalies = append(systemAnomalies, a)
+		existing, ok := bestBySource[a.Source]
+		if !ok || math.Abs(a.Severity) > math.Abs(existing.Severity) {
+			bestBySource[a.Source] = a
 		}
 	}
-	// All container anomalies + fill remaining slots with system anomalies
-	sampleAnomalies := containerAnomalies
-	remaining := 30 - len(sampleAnomalies)
-	if remaining > 0 && len(systemAnomalies) > 0 {
-		if len(systemAnomalies) > remaining {
-			systemAnomalies = systemAnomalies[:remaining]
-		}
-		sampleAnomalies = append(sampleAnomalies, systemAnomalies...)
+	dedupedAnomalies := make([]AnomalySnapshot, 0, len(bestBySource))
+	for _, a := range bestBySource {
+		dedupedAnomalies = append(dedupedAnomalies, a)
+	}
+	sort.Slice(dedupedAnomalies, func(i, j int) bool {
+		return math.Abs(dedupedAnomalies[i].Severity) > math.Abs(dedupedAnomalies[j].Severity)
+	})
+	sampleAnomalies := dedupedAnomalies
+	if len(sampleAnomalies) > 30 {
+		sampleAnomalies = sampleAnomalies[:30]
 	}
 
 	sampleCorrelations := correlations
@@ -744,6 +761,14 @@ func (api *TestBenchAPI) handleEvaluationRun(w http.ResponseWriter, r *http.Requ
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Scenario == "" {
 		api.writeError(w, http.StatusBadRequest, "request body must include 'scenario' field")
 		return
+	}
+
+	// Map directory names to eval scenario types
+	scenarioMap := map[string]string{
+		"live-cpu-spike": "cpu-spike",
+	}
+	if mapped, ok := scenarioMap[req.Scenario]; ok {
+		req.Scenario = mapped
 	}
 
 	// Check we have a diagnosis to evaluate

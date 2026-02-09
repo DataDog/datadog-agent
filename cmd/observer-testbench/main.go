@@ -229,6 +229,13 @@ func run(recorder recorderdef.Component, params CLIParams) error {
 	fmt.Println("  GET  /api/surprise            - Surprise edges (if enabled)")
 	fmt.Println("  GET  /api/graphsketch         - GraphSketch edges (if enabled)")
 	fmt.Println("  GET  /api/stats               - Correlator statistics")
+	fmt.Println("  GET  /api/markers             - Ground truth markers")
+	fmt.Println("  GET  /api/health              - Health score and factors")
+	fmt.Println("  GET  /api/context-packets     - Incident snapshots")
+	fmt.Println("  GET  /api/incident-report     - Human-readable incident report")
+	fmt.Println("  GET  /api/flare-data          - Full flare data (JSON)")
+	fmt.Println("  POST /api/diagnosis/run       - Run LLM diagnosis")
+	fmt.Println("  POST /api/evaluation/run      - Evaluate diagnosis against ground truth")
 	fmt.Println()
 
 	// Wait for interrupt signal
