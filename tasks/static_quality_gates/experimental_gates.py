@@ -1485,7 +1485,7 @@ def inventory_changes_to_comment(added, removed, changed):
             body += f"* {f.relative_path} ({byte_to_string(f.size_bytes)})\n"
     if len(changed):
         body += "### Changed files:\n"
-        for path, change in changed.values():
+        for path, change in changed.items():
             change_str = f"* {path}:\n"
             if change.flags & FileChange.Flags.Permissions:
                 change_str += f"** Permission changed: {oct(change.previous.chmod)} -> {oct(change.current.chmod)}"
