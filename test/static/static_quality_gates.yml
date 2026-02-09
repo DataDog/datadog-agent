@@ -39,7 +39,7 @@ static_quality_gate_docker_agent_amd64:
   max_on_wire_size: 277.4 MiB
 static_quality_gate_docker_agent_arm64:
   max_on_disk_size: 819.6 MiB
-  max_on_wire_size: 265.33 MiB
+  max_on_wire_size: 265.32 MiB
 static_quality_gate_docker_agent_jmx_amd64:
   max_on_disk_size: 1007.33 MiB
   max_on_wire_size: 346.02 MiB
