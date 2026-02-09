@@ -60,6 +60,50 @@ show_installation_error() {
     fi
 }
 
+# ============================================================================
+# Check for conflicts FIRST - before touching any running services
+# ============================================================================
+
+# For per-user installations (no marker file), check if system-wide exists
+if [ ! -f "/tmp/install-ddagent/system-wide" ]; then
+  # This is a per-user installation attempt
+  if [ -f "/Library/LaunchDaemons/com.datadoghq.agent.plist" ]; then
+      show_installation_error "System-wide agent installation detected at:
+    /Library/LaunchDaemons/com.datadoghq.agent.plist
+
+Cannot proceed with per-user installation.
+
+To proceed, remove the system-wide components:
+    sudo launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
+    sudo rm -f /Library/LaunchDaemons/com.datadoghq.agent.plist
+    sudo rm -f /Library/LaunchAgents/com.datadoghq.gui.plist
+
+Then rerun this installation."
+      exit 1
+  fi
+
+  # Also check for orphaned system-wide GUI plist
+  if [ -f "/Library/LaunchAgents/com.datadoghq.gui.plist" ]; then
+      show_installation_error "System-wide GUI installation detected at:
+    /Library/LaunchAgents/com.datadoghq.gui.plist
+
+This may be from a partial or incomplete system-wide installation.
+Cannot proceed with per-user installation.
+
+To proceed, remove the system-wide components:
+    sudo launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
+    sudo rm -f /Library/LaunchDaemons/com.datadoghq.agent.plist
+    sudo rm -f /Library/LaunchAgents/com.datadoghq.gui.plist
+
+Then rerun this installation."
+      exit 1
+  fi
+fi
+
+# ============================================================================
+# Validation passed - safe to proceed with installation
+# ============================================================================
+
 # Stop any running GUI instances before installation/upgrade
 # This prevents "Load failed" errors when KeepAlive=true
 echo "# Stopping GUI app if running"
@@ -148,50 +192,6 @@ fi
 
 # Get the user home directory (needed for both installation modes)
 USER_HOME=$(sudo -Hu "$INSTALL_USER" sh -c 'echo $HOME')
-
-# ============================================================================
-# Check for conflicts BEFORE creating any files
-# ============================================================================
-
-# For per-user installations (no marker file), check if system-wide exists
-if [ ! -f "/tmp/install-ddagent/system-wide" ]; then
-  # This is a per-user installation attempt
-  if [ -f "/Library/LaunchDaemons/com.datadoghq.agent.plist" ]; then
-      show_installation_error "System-wide agent installation detected at:
-    /Library/LaunchDaemons/com.datadoghq.agent.plist
-
-Cannot proceed with per-user installation.
-
-To proceed, remove the system-wide components:
-    sudo launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
-    sudo rm -f /Library/LaunchDaemons/com.datadoghq.agent.plist
-    sudo rm -f /Library/LaunchAgents/com.datadoghq.gui.plist
-
-Then rerun this installation."
-      exit 1
-  fi
-
-  # Also check for orphaned system-wide GUI plist
-  if [ -f "/Library/LaunchAgents/com.datadoghq.gui.plist" ]; then
-      show_installation_error "System-wide GUI installation detected at:
-    /Library/LaunchAgents/com.datadoghq.gui.plist
-
-This may be from a partial or incomplete system-wide installation.
-Cannot proceed with per-user installation.
-
-To proceed, remove the system-wide components:
-    sudo launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
-    sudo rm -f /Library/LaunchDaemons/com.datadoghq.agent.plist
-    sudo rm -f /Library/LaunchAgents/com.datadoghq.gui.plist
-
-Then rerun this installation."
-      exit 1
-  fi
-fi
-
-# ============================================================================
-# Validation passed - safe to create files now
-# ============================================================================
 
 # Create agent plist (both modes need it)
 # For system-wide: install_mac_os.sh will move it to /Library/LaunchDaemons/
