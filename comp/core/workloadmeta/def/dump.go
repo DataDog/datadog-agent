@@ -45,30 +45,6 @@ type WorkloadDumpStructuredResponse struct {
 	Entities map[string][]Entity `json:"entities"`
 }
 
-// WriteText converts structured response to human-readable text format.
-// Uses existing String(verbose) methods to format each entity.
-func (w WorkloadDumpStructuredResponse) WriteText(writer io.Writer, verbose bool) {
-	if writer != color.Output {
-		color.NoColor = true
-	}
-
-	for kind, entities := range w.Entities {
-		if len(entities) == 0 {
-			continue
-		}
-
-		for _, entity := range entities {
-			entityID := entity.GetID()
-			fmt.Fprintf(writer, "\n=== Entity %s %s ===\n", color.GreenString(string(kind)), color.GreenString(entityID.ID))
-
-			// Use existing String(verbose) method - it handles field filtering
-			fmt.Fprint(writer, entity.String(verbose))
-
-			fmt.Fprintln(writer, "===")
-		}
-	}
-}
-
 // BuildWorkloadResponse builds a JSON response for workload-list with filtering.
 //
 // Backend does all processing to avoid client-side unmarshaling issues:
