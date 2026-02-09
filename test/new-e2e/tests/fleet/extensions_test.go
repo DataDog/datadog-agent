@@ -156,7 +156,8 @@ func (s *extensionsSuite) TestExtensionSaveAndRestore() {
 func (s *extensionsSuite) TestDDOTExtension() {
 	// Install base agent
 	s.Agent.MustInstall()
-	defer s.Agent.MustUninstall()
+	// COMMENTED OUT FOR DEBUGGING: Keep VM state for investigation
+	// defer s.Agent.MustUninstall()
 
 	// Get installed agent version
 	agentVersion := "stable"
@@ -173,9 +174,10 @@ func (s *extensionsSuite) TestDDOTExtension() {
 		s.T().Logf("DDOT extension installation error: %v", err)
 		s.T().Logf("Installation output: %s", output)
 	}
-	defer func() {
-		_, _ = s.Installer.RemoveExtension("datadog-agent", "ddot")
-	}()
+	// COMMENTED OUT FOR DEBUGGING: Keep extension installed for investigation
+	// defer func() {
+	// 	_, _ = s.Installer.RemoveExtension("datadog-agent", "ddot")
+	// }()
 
 	// Fail now if installation returned an error
 	s.Require().NoError(err, "Failed to install DDOT extension")
