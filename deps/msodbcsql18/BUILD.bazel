@@ -1,0 +1,116 @@
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_license//rules:license_kind.bzl", "license_kind")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "pkg_mklink")
+
+package(
+    default_package_metadata = [":license"],
+    default_visibility = ["//visibility:public"],
+)
+
+SO_VERSION = "18.3"
+
+SO_FULL_VERSION = "3.1"
+
+SO_FILENAME = "libmsodbcsql-%s.so.%s" % (SO_VERSION, SO_FULL_VERSION)
+
+SO_LINK_NAME = "libmsodbcsql-%s.so" % SO_VERSION
+
+# I couldn't find a license kind in sdpx
+# so had to create a new kind.
+# Also, this license agreement isn't available
+# under any URL.
+license_kind(
+    name = "msodbcsql18_eula_license",
+    conditions = [],
+)
+
+license(
+    name = "license",
+    license_kinds = [":msodbcsql18_eula_license"],
+    license_text = "LICENSE.txt",
+    visibility = ["//visibility:public"],
+)
+
+genrule(
+    name = "extract",
+    srcs = select({
+        "//:linux_x86_64": ["@msodbcsql18_deb_amd64//file"],
+        "//:linux_arm64": ["@msodbcsql18_deb_arm64//file"],
+    }),
+    outs = [
+        SO_FILENAME,
+        "msodbcsqlr18.rll",
+    ],
+    cmd = """
+        set -e
+
+        # Extract deb package
+        $(location @libarchive//tar) -xOf $(SRCS) 'data.tar.*' | $(location @libarchive//tar) -xf -
+
+        # Copy the files we need
+        cp opt/microsoft/msodbcsql18/lib64/{so_filename} $(location {so_filename})
+        cp opt/microsoft/msodbcsql18/share/resources/en_US/msodbcsqlr18.rll $(location msodbcsqlr18.rll)
+    """.format(so_filename = SO_FILENAME),
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    tools = ["@libarchive//tar"],
+    visibility = ["//visibility:public"],
+)
+
+pkg_mklink(
+    name = "lib_symlink",
+    attributes = pkg_attributes(mode = "0755"),
+    link_name = "embedded/msodbcsql/lib/%s" % SO_LINK_NAME,
+    target = "../lib64/%s" % SO_FILENAME,
+)
+
+pkg_files(
+    name = "lib64_files",
+    srcs = [SO_FILENAME],
+    prefix = "embedded/msodbcsql/lib64",
+)
+
+pkg_files(
+    name = "resource_files",
+    srcs = ["msodbcsqlr18.rll"],
+    prefix = "embedded/msodbcsql/share/resources/en_US",
+)
+
+pkg_files(
+    name = "license_files",
+    srcs = ["LICENSE.txt"],
+    # TODO(ABLD-351): Review location
+    prefix = "embedded/msodbcsql/share/doc/msodbcsql18",
+)
+
+pkg_filegroup(
+    name = "msodbcsql_files",
+    srcs = [
+        ":lib64_files",
+        ":lib_symlink",
+        ":license_files",
+        ":resource_files",
+    ],
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":msodbcsql_files",
+        "@krb5//:all_libs",
+        "@krb5//:bin_files",
+        "@krb5//:hdr_files",
+    ],
+    visibility = ["//packages:__subpackages__"],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+        "@krb5//:pc_files",
+    ],
+)

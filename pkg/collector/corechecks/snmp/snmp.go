@@ -162,7 +162,8 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 		c.discovery = discovery.NewDiscovery(c.config, c.sessionFactory, c.agentConfig, c.scanManager)
 		c.discovery.Start()
 	} else {
-		c.singleDeviceCk, err = devicecheck.NewDeviceCheck(c.config, c.config.IPAddress, c.sessionFactory, c.agentConfig)
+		connMgr := devicecheck.NewConnectionManager(c.config, c.sessionFactory)
+		c.singleDeviceCk, err = devicecheck.NewDeviceCheck(c.config, connMgr, c.agentConfig)
 		if err != nil {
 			return fmt.Errorf("failed to create device check: %s", err)
 		}

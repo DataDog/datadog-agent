@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 
 	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/regions"
@@ -37,7 +38,7 @@ type PersistedIdentity struct {
 }
 
 // SelfEnroll performs self-registration of a private action runner using API credentials
-func SelfEnroll(ddSite, runnerName, apiKey, appKey string) (*Result, error) {
+func SelfEnroll(ctx context.Context, ddSite, runnerName, apiKey, appKey string) (*Result, error) {
 	privateJwk, publicJwk, err := util.GenerateKeys()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate key pair: %w", err)
@@ -46,7 +47,6 @@ func SelfEnroll(ddSite, runnerName, apiKey, appKey string) (*Result, error) {
 	ddBaseURL := "https://api." + ddSite
 	publicClient := opms.NewPublicClient(ddBaseURL)
 
-	ctx := context.Background()
 	runnerModes := []modes.Mode{modes.ModePull}
 
 	createRunnerResponse, err := publicClient.EnrollWithApiKey(
@@ -99,7 +99,7 @@ func GetIdentityFromPreviousEnrollment(cfg configModel.Reader) (*PersistedIdenti
 
 // getIdentityFilePath returns the path to the file which contains the identity of the private action runner when doing self-enrollment
 func getIdentityFilePath(cfg configModel.Reader) string {
-	if configPath := cfg.GetString("privateactionrunner.identity_file_path"); configPath != "" {
+	if configPath := cfg.GetString(setup.PARIdentityFilePath); configPath != "" {
 		return configPath
 	}
 	// similarly to pkg/api/security/cert/cert_getter.go we also check if auth_token_file_path as a fallback since customers would probably want these files to be next to each other
