@@ -48,10 +48,6 @@ func isEmpty(v any) bool {
 	switch val := v.(type) {
 	case string:
 		return val == ""
-	case bool:
-		return !val
-	case float64: // JSON numbers are always float64
-		return val == 0
 	case map[string]any, []any:
 		return false // handled by len check in RemoveEmptyFields
 	default:
@@ -60,9 +56,13 @@ func isEmpty(v any) bool {
 }
 
 // PrintJSON writes JSON output to the provided writer, optionally pretty-printed
-func PrintJSON(w io.Writer, rawJSON any, prettyPrintJSON bool) error {
+func PrintJSON(w io.Writer, rawJSON any, prettyPrintJSON bool, removeEmptyFields bool) error {
 	var result []byte
 	var err error
+
+	if removeEmptyFields {
+		rawJSON = RemoveEmptyFields(rawJSON)
+	}
 
 	// convert to bytes and indent
 	if prettyPrintJSON {

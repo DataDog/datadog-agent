@@ -132,10 +132,7 @@ func workloadList(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) 
 			}
 		}
 
-		// Remove empty fields before printing
-		cleaned := jsonutil.RemoveEmptyFields(rawJSON)
-
-		return jsonutil.PrintJSON(color.Output, cleaned, cliParams.prettyJSON)
+		return jsonutil.PrintJSON(color.Output, rawJSON, cliParams.prettyJSON, true)
 	}
 
 	// Text format (legacy) - server already filtered

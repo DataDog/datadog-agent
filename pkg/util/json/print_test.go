@@ -25,7 +25,7 @@ func TestPrintJSON(t *testing.T) {
 
 	t.Run("compact output", func(t *testing.T) {
 		var buf bytes.Buffer
-		err := PrintJSON(&buf, testData, false)
+		err := PrintJSON(&buf, testData, false, true)
 		require.NoError(t, err)
 
 		output := buf.String()
@@ -36,7 +36,7 @@ func TestPrintJSON(t *testing.T) {
 
 	t.Run("pretty output", func(t *testing.T) {
 		var buf bytes.Buffer
-		err := PrintJSON(&buf, testData, true)
+		err := PrintJSON(&buf, testData, true, true)
 		require.NoError(t, err)
 
 		output := buf.String()
@@ -50,7 +50,7 @@ func TestPrintJSON(t *testing.T) {
 		var buf bytes.Buffer
 		// channels cannot be marshaled to JSON
 		invalidData := make(chan int)
-		err := PrintJSON(&buf, invalidData, false)
+		err := PrintJSON(&buf, invalidData, false, true)
 		assert.Error(t, err)
 		// Error comes directly from json.Marshal
 		assert.Contains(t, err.Error(), "json")

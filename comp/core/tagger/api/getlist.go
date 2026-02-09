@@ -48,7 +48,7 @@ func GetTaggerList(c ipc.HTTPClient, w io.Writer, url string, jsonFlag bool, pre
 	}
 
 	if jsonFlag || prettyJSON {
-		return jsonutil.PrintJSON(w, &tr, prettyJSON)
+		return jsonutil.PrintJSON(w, &tr, prettyJSON, false)
 	}
 
 	printTaggerEntities(w, &tr)
