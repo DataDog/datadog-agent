@@ -31,7 +31,7 @@ namespace WixSetup
         ///
         /// Example WiX:
         ///   <Upgrade Id="PUT-GUID-HERE">
-        ///     <UpgradeVersion Minimum="0.0.0.0" IncludeMinimum="yes" OnlyDetect="yes" Maximum="255.255.0.0" IncludeMaximum="no" Property="MUTUALLY_EXCLUSIVE_PRODUCTS_1" />
+        ///     <UpgradeVersion Minimum="0.0.0" IncludeMinimum="yes" OnlyDetect="yes" Property="MUTUALLY_EXCLUSIVE_PRODUCTS_1" />
         ///   </Upgrade>
         ///   <Condition Message="This product cannot be installed at the same time as [ProductName]. Please uninstall [ProductName] before continuing.">NOT MUTUALLY_EXCLUSIVE_PRODUCTS_1</Condition>
         ///   <Property Id="MUTUALLY_EXCLUSIVE_PRODUCTS_1" Secure="yes" />
@@ -51,14 +51,13 @@ namespace WixSetup
             var upgradeElement = new XElement("Upgrade");
             upgradeElement.SetAttributeValue("Id", UpgradeCode);
 
+            // Note: UpgradeVersion does NOT have an Id attribute in WiX 5
+            // Detect all versions of the conflicting product.
+            // Omitting Maximum means "no upper bound" - detects all versions >= Minimum.
             var upgradeVersionElement = new XElement("UpgradeVersion",
-                new XAttribute("Minimum", "0.0.0.0"),
+                new XAttribute("Minimum", "0.0.0"),
                 new XAttribute("IncludeMinimum", "yes"),
                 new XAttribute("OnlyDetect", "yes"),
-                // 255 is the maximum
-                // https://learn.microsoft.com/en-us/windows/win32/msi/productversion
-                new XAttribute("Maximum", "255.255.0.0"),
-                new XAttribute("IncludeMaximum", "yes"),
                 new XAttribute("Property", propertyName)
             );
             upgradeElement.Add(upgradeVersionElement);

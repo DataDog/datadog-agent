@@ -17,7 +17,7 @@ from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
-from tasks.libs.common.utils import download_to_tempfile, timed
+from tasks.libs.common.utils import download_to_tempfile, running_in_ci, timed
 from tasks.libs.dependencies import get_effective_dependencies_env
 from tasks.libs.releasing.version import VERSION_RE, _create_version_from_match, get_version
 
@@ -135,6 +135,11 @@ def _ensure_wix_tools(ctx):
     # Note: .NET global tools are invoked directly by name, not with 'dotnet' prefix
     result = ctx.run('wix --version', warn=True, hide=True)
     if not result or result.return_code != 0:
+        if running_in_ci():
+            raise Exit(
+                "WiX tools not found in CI.",
+                code=1,
+            )
         # Install WiX 5.x globally
         print(f"WiX tools not found. Installing WiX {WIX_VERSION} globally...")
         result = ctx.run(f'dotnet tool install --global wix --version {WIX_VERSION}', warn=True)
@@ -177,11 +182,14 @@ def _ensure_wix_extensions(ctx, extensions, version):
                 print(f"WiX extension {expected} already installed")
                 continue
             else:
+                if running_in_ci():
+                    raise Exit(
+                        f"WiX extension {ext} has wrong version {installed_extensions[ext]} in CI, need {version}.",
+                        code=1,
+                    )
                 # Wrong version installed - remove it first
                 print(f"Removing incompatible WiX extension {ext}/{installed_extensions[ext]}...")
                 ctx.run(f'wix extension remove -g {ext}', warn=True, hide=True)
-
-        # Install the extension with the correct version
         print(f"Installing WiX extension {expected}...")
         result = ctx.run(f'wix extension add -g {expected}', warn=True)
         if not result or result.return_code != 0:
@@ -278,6 +286,7 @@ def _build_wxs(ctx, env, outdir, ca_dll):
         raise Exit("Failed to build the MSI WXS.", code=1)
 
     # sign the MakeSfxCA output files
+    # If signing fails due to corrupted PE file / signature, it may be a regression caused by the makesfxca template DLL being previously signed before the embedded files were added to it. For more information refer to `_fix_makesfxca_dll` from `msi.py` in the git history.
     sign_file(ctx, os.path.join(outdir, ca_dll))
 
 
@@ -551,7 +560,9 @@ def validate_msi_createfolder_table(db, allowlist):
 
 
 @task
-def validate_msi(_, allowlist, msi=None):
+def validate_msi(ctx, allowlist, msi=None):
+    print(f"Validating MSI")
+    ctx.run(f'wix msi validate "{msi}"')
     with MsiClosing(msilib.OpenDatabase(msi, msilib.MSIDBOPEN_READONLY)) as db:
         validate_msi_createfolder_table(db, allowlist)
 

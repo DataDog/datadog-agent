@@ -362,7 +362,10 @@ namespace WixSetup.Datadog_Agent
                 // to be left behind on uninstall.
                 document.FindAll("CreateFolder")
                     .ForEach(x => x.Remove());
+                // Remove auto-generated RemoveFolder elements, except for ProgramMenuDatadog which is needed
+                // for ICE64 compliance (user profile directories must be in RemoveFile table).
                 document.FindAll("RemoveFolder")
+                    .Where(x => !x.HasAttribute("Id", value => value.Contains("ProgramMenuDatadog")))
                     .ForEach(x => x.Remove());
 
                 // Wix# is auto-adding components for the following directories for some reason, which causes them to be placed
