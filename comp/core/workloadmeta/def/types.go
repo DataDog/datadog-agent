@@ -1250,13 +1250,13 @@ var _ Entity = &KubernetesMetadata{}
 // KubeletConfigSpec is the kubelet configuration, only the
 // necessary fields are stored
 type KubeletConfigSpec struct {
-	CPUManagerPolicy string `json:"cpuManagerPolicy"`
+	CPUManagerPolicy string
 }
 
 // KubeletConfigDocument is the wrapper struct that holds
 // the kubelet config
 type KubeletConfigDocument struct {
-	KubeletConfig KubeletConfigSpec `json:"kubeletconfig"`
+	KubeletConfig KubeletConfigSpec
 }
 
 // String implements KubeletConfig#String
