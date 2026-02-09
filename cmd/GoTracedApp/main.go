@@ -26,6 +26,7 @@ var (
 	env          = flag.String("env", "dev", "Environment name")
 	statsdAddr   = flag.String("statsd", "localhost:8125", "DogStatsD address")
 	logFilePath  = flag.String("log-file", "/tmp/go-traced-app.log", "Log file path")
+	startDelay   = flag.Duration("start-delay", 0, "Delay before starting the simulation (e.g. 5s, 1m)")
 	statsdClient ddgostatsd.ClientInterface
 )
 
@@ -87,6 +88,11 @@ func main() {
 	log.Printf("Sending metrics to %s", *statsdAddr)
 	log.Printf("Environment: %s", *env)
 	log.Println("Press Ctrl+C to stop")
+
+	if *startDelay > 0 {
+		log.Printf("Delaying simulation start by %s", startDelay.String())
+		time.Sleep(*startDelay)
+	}
 
 	// Run the demo workload
 	runDemo()
