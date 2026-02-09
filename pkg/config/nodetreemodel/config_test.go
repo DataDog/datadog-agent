@@ -361,6 +361,7 @@ func TestAllSettingsBySource(t *testing.T) {
 				"c": 123,
 			},
 		},
+		model.SourceSecretBackend:      map[string]interface{}{},
 		model.SourceLocalConfigProcess: map[string]interface{}{},
 		model.SourceRC:                 map[string]interface{}{},
 		model.SourceCLI:                map[string]interface{}{},
