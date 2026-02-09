@@ -26,11 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-<<<<<<< HEAD
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
-=======
-	"github.com/stretchr/testify/assert"
->>>>>>> a3c252d183 (Generate SBOMs for running containers from system-probe)
 
 	"github.com/avast/retry-go/v4"
 )

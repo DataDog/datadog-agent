@@ -1322,6 +1322,6 @@ func (p *testPolicyProvider) Close() error {
 	return nil
 }
 
-func (p *testPolicyProvider) SetOnNewPoliciesReadyCb(_ func()) {
+func (p *testPolicyProvider) SetOnNewPoliciesReadyCb(_ func(silent bool)) {
 	// No-op for test provider
 }
