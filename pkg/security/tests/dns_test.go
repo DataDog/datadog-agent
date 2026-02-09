@@ -55,13 +55,12 @@ func TestDNS(t *testing.T) {
 		},
 		{
 			ID:         "test_rule_dns_tld",
-			Expression: fmt.Sprintf(`dns.question.type == A && dns.question.name.tld == "yahoo.com" && process.file.name == "%s" && process.netns == network.device.netns && dns.question.name.tld != ${process.tld}`, path.Base(executable)),
+			Expression: fmt.Sprintf(`dns.question.type == A && dns.question.name.tld == "yahoo.com" && process.file.name == "%s" && process.netns == network.device.netns && dns.question.name.tld != ${tld}`, path.Base(executable)),
 			Actions: []*rules.ActionDefinition{
 				{
 					Set: &rules.SetDefinition{
 						Name:         "tld",
 						Expression:   `dns.question.name.tld`,
-						Scope:        "process",
 						DefaultValue: "",
 					},
 				},
@@ -82,7 +81,7 @@ func TestDNS(t *testing.T) {
 				return err
 			}
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "perdu.com", event.DNS.Question.Name, "wrong domain name")
 
 			test.validateDNSSchema(t, event)
@@ -96,7 +95,7 @@ func TestDNS(t *testing.T) {
 				return err
 			}
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "MICROSOFT.COM", event.DNS.Question.Name, "wrong domain name")
 
 			test.validateDNSSchema(t, event)
@@ -110,7 +109,7 @@ func TestDNS(t *testing.T) {
 				return err
 			}
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "www.yahoo.com", event.DNS.Question.Name, "wrong domain name")
 
 			test.validateDNSSchema(t, event)
@@ -136,7 +135,7 @@ func TestDNS(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
 			net.LookupIP(longDomain)
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "dns", event.GetType(), "wrong event type")
 			assert.Equal(t, longDomain, event.DNS.Question.Name, "wrong domain name")
 

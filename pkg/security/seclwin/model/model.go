@@ -605,11 +605,6 @@ func (it *ProcessAncestorsIterator) Len(ctx *eval.Context) int {
 	return size
 }
 
-// GetPublicTLD returns the public TLD of the given domain
-func (it *ProcessAncestorsIterator) GetPublicTLD(ctx *eval.Context, tld string) string {
-	return eval.GetPublicTLD(tld)
-}
-
 // HasParent returns whether the process has a parent
 func (p *ProcessContext) HasParent() bool {
 	return p.Parent != nil

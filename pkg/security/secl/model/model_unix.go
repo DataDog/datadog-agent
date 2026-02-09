@@ -1042,11 +1042,6 @@ func (it *FlowsIterator) Len(ctx *eval.Context) int {
 	return len(ctx.Event.(*Event).NetworkFlowMonitor.Flows)
 }
 
-// GetPublicTLD returns the public TLD of the given domain
-func (it *FlowsIterator) GetPublicTLD(ctx *eval.Context, tld string) string {
-	return eval.GetPublicTLD(tld)
-}
-
 // SysCtlEvent is used to represent a system control parameter event
 type SysCtlEvent struct {
 	Action            uint32 `field:"action"`              // SECLDoc[action] Definition:`Action performed on the system control parameter` Constants:`SysCtl Actions`

@@ -271,9 +271,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 						return {{$ReturnType}}({{$Return}})
 						{{else}}
 							{{if $Field.IsTLD}}
-								{{- if $Field.IsIterator}}
-									return iterator.GetPublicTLD(ctx, {{".tld" | TrimSuffix $Return}})
-								{{else}}
+								{{- if not $Field.IsIterator}}
 									return eval.GetPublicTLD({{".tld" | TrimSuffix $Return}})
 								{{end}}
 							{{else}}

@@ -1290,10 +1290,6 @@ func main() {
 func GenerateContent(output string, module *common.Module, tmplCode string) error {
 	tmpl := template.Must(template.New("header").Funcs(funcMap).Funcs(sprig.TxtFuncMap()).Parse(tmplCode))
 
-	for _, field := range module.Fields {
-		fmt.Printf("field: %s\n", field.Name)
-	}
-
 	buffer := bytes.Buffer{}
 	if err := tmpl.Execute(&buffer, module); err != nil {
 		return err
