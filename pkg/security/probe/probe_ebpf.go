@@ -863,7 +863,10 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 	})
 
 	for _, event := range events {
-		p.HandleSSHUserSession(event)
+		if p.ruleSetVersion == 1 {
+			// Only handle ssh user session events when we start the agent and not every time we reload the rules
+			p.HandleSSHUserSession(event)
+		}
 		p.DispatchEvent(event, notifyConsumers)
 		p.putBackPoolEvent(event)
 	}
