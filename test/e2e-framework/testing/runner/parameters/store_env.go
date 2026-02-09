@@ -50,6 +50,7 @@ var envVariablesByStoreKey = map[StoreKey]string{
 	FIPS:                         "E2E_FIPS",
 	CoveragePipeline:             "E2E_COVERAGE_PIPELINE",
 	CoverageOutDir:               "E2E_COVERAGE_OUT_DIR",
+	StackNameSuffix:              "E2E_STACK_NAME_SUFFIX",
 }
 
 type envValueStore struct {

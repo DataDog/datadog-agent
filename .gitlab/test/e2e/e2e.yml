@@ -993,6 +993,45 @@ new-e2e-otel:
     TEAM: otel
     ON_NIGHTLY_FIPS: "true"
 
+# SSI init jobs - provision environment early
+.new-e2e_ssi_init:
+  stage: e2e_init
+  extends: .new_e2e_template
+  needs:
+    - go_e2e_deps
+    - go_tools_deps
+  rules:
+    - !reference [.on_ssi_or_e2e_changes]
+    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/ssi
+    TEAM: injection-platform
+    E2E_INIT_ONLY: "true"
+    SHOULD_RUN_IN_FLAKES_FINDER: "false"
+    PRE_BUILT_BINARIES_FLAG: ""
+  allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestWorkloadSelectionSuite
+      - EXTRA_PARAMS: --run TestNamespaceSelectionSuite
+      - EXTRA_PARAMS: --run TestInjectionModeSuite
+      - EXTRA_PARAMS: --run TestLocalSDKInjectionSuite
+
+new-e2e-ssi-kind-init:
+  extends: .new-e2e_ssi_init
+  variables:
+    E2E_PROVISIONER: kind
+    E2E_STACK_NAME_SUFFIX: kind
+
+new-e2e-ssi-eks-init:
+  extends: .new-e2e_ssi_init
+  variables:
+    E2E_PROVISIONER: eks
+    E2E_STACK_NAME_SUFFIX: eks
+
+# SSI test jobs - run tests after init
 .new-e2e_ssi:
   extends: .new_e2e_template
   rules:
@@ -1007,15 +1046,30 @@ new-e2e-otel:
   variables:
     TARGETS: ./tests/ssi
     TEAM: injection-platform
+    E2E_PRE_INITIALIZED: "true"
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestWorkloadSelectionSuite
+      - EXTRA_PARAMS: --run TestNamespaceSelectionSuite
+      - EXTRA_PARAMS: --run TestInjectionModeSuite
+      - EXTRA_PARAMS: --run TestLocalSDKInjectionSuite
 
 new-e2e-ssi-kind:
   extends: .new-e2e_ssi
+  needs:
+    - !reference [.new-e2e_ssi, needs]
+    - new-e2e-ssi-kind-init
   variables:
     E2E_PROVISIONER: kind
+    E2E_STACK_NAME_SUFFIX: kind
 
 new-e2e-ssi-eks:
   extends: .new-e2e_ssi
+  needs:
+    - !reference [.new-e2e_ssi, needs]
+    - new-e2e-ssi-eks-init
   variables:
+    E2E_STACK_NAME_SUFFIX: eks
     E2E_PROVISIONER: eks
 
 .new-e2e_package_signing:
