@@ -34,7 +34,7 @@ macro_rules! generate_ffi {
             init_config_cstr: *const std::ffi::c_char,
             instance_config_cstr: *const std::ffi::c_char,
             aggregator_ptr: *const core::Aggregator,
-        ) -> anyhow::Result<()> {
+        ) -> Result<(), Box<dyn std::error::Error>> {
             // convert C args to Rust structs
             let check_id = core::to_rust_string(check_id_cstr)?;
 
@@ -51,7 +51,9 @@ macro_rules! generate_ffi {
                 core::AgentCheck::new(check_id, init_config, instance_config, aggregator);
 
             // run the custom implementation
-            $check_function(&agent_check)
+            $check_function(&agent_check)?;
+
+            Ok(())
         }
 
         /// Get the version of the check
