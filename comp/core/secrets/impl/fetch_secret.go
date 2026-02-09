@@ -18,6 +18,7 @@ import (
 	json "github.com/json-iterator/go"
 
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -128,7 +129,7 @@ func (r *secretResolver) fetchSecretBackendVersion() (string, error) {
 	defer done()
 
 	if !r.embeddedBackendPermissiveRights {
-		if err := checkRights(cmd.Path, r.commandAllowGroupExec); err != nil {
+		if err := filesystem.CheckRights(cmd.Path, r.commandAllowGroupExec); err != nil {
 			return "", err
 		}
 	}
