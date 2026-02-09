@@ -128,9 +128,20 @@ export function ChartWithAnomalyDetails({
     () => filteredAnomalies.map((a) => getAnomalyId(a)),
     [filteredAnomalies]
   );
+  const anomalySeriesIDByAnomalyID = useMemo(() => {
+    const map = new Map<string, string | undefined>();
+    filteredAnomalies.forEach((a) => {
+      map.set(getAnomalyId(a), a.sourceSeriesId);
+    });
+    return map;
+  }, [filteredAnomalies]);
 
   const expandedAnomalyId = expandedIndex !== null ? filteredAnomalyIds[expandedIndex] ?? null : null;
   const activeAnomalyId = hoveredAnomalyId ?? expandedAnomalyId;
+  const activeSeriesId = useMemo(() => {
+    if (!activeAnomalyId) return null;
+    return anomalySeriesIDByAnomalyID.get(activeAnomalyId) ?? null;
+  }, [activeAnomalyId, anomalySeriesIDByAnomalyID]);
 
   useEffect(() => {
     if (expandedIndex !== null && expandedIndex >= filteredAnomalies.length) {
@@ -174,6 +185,7 @@ export function ChartWithAnomalyDetails({
         seriesVariants={seriesVariants}
         visibleSeriesIds={seriesVariants && seriesVariants.length > 0 ? visibleSeriesIds : undefined}
         onToggleSeriesVisibility={handleToggleSeriesVisibility}
+        highlightedSeriesId={activeSeriesId}
         highlightedMarkerId={activeAnomalyId}
         onMarkerHover={setHoveredAnomalyId}
         onMarkerClick={handleMarkerClick}
@@ -185,7 +197,7 @@ export function ChartWithAnomalyDetails({
           <div className="text-xs text-slate-500 mb-1">
             {filteredAnomalies.length} anomal{filteredAnomalies.length === 1 ? 'y' : 'ies'} detected
           </div>
-          <div className="space-y-1">
+          <div className="space-y-0">
             {filteredAnomalies.map((anomaly, idx) => {
               const isExpanded = expandedIndex === idx;
               const debug = anomaly.debugInfo;
@@ -198,7 +210,7 @@ export function ChartWithAnomalyDetails({
               return (
                 <div
                   key={`${anomaly.analyzerName}-${anomaly.timestamp}-${idx}`}
-                  className={`text-xs rounded ${isLinked ? 'bg-slate-700/40 ring-1 ring-slate-500/70' : ''}`}
+                  className={`text-xs rounded border-b border-slate-700/50 last:border-b-0 ${isLinked ? 'bg-slate-700/40 ring-1 ring-slate-500/70' : ''}`}
                   ref={(el) => {
                     if (el) {
                       anomalyRowRefs.current.set(anomalyId, el);

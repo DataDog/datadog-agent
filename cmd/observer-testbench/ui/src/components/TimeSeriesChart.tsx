@@ -85,6 +85,7 @@ interface TimeSeriesChartProps {
   seriesVariants?: SeriesVariant[];  // When provided, renders multiple lines instead of single points array
   visibleSeriesIds?: Set<string>;
   onToggleSeriesVisibility?: (seriesId: string) => void;
+  highlightedSeriesId?: string | null;
   highlightedMarkerId?: string | null;
   onMarkerHover?: (markerId: string | null) => void;
   onMarkerClick?: (markerId: string) => void;
@@ -103,12 +104,14 @@ export function TimeSeriesChart({
   seriesVariants,
   visibleSeriesIds,
   onToggleSeriesVisibility,
+  highlightedSeriesId = null,
   highlightedMarkerId = null,
   onMarkerHover,
   onMarkerClick,
 }: TimeSeriesChartProps) {
   const [showCorrelationLegend, setShowCorrelationLegend] = useState(false);
   const [showSeriesLegend, setShowSeriesLegend] = useState(false);
+  const [hoveredLegendSeriesId, setHoveredLegendSeriesId] = useState<string | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isBrushingRef = useRef(false);
@@ -165,6 +168,7 @@ export function TimeSeriesChart({
     if (!orderedSeriesVariants) return undefined;
     return orderedSeriesVariants.filter((s) => isSeriesVisible(s.seriesId));
   }, [orderedSeriesVariants, visibleSeriesIds]);
+  const activeHighlightedSeriesId = hoveredLegendSeriesId ?? highlightedSeriesId;
 
   const setAllSeriesVisibility = (visible: boolean) => {
     if (!orderedSeriesVariants || !onToggleSeriesVisibility) return;
@@ -276,6 +280,7 @@ export function TimeSeriesChart({
       y: number;
       color: { fill: string; stroke: string };
       selected: boolean;
+      sourceSeriesId?: string;
     };
 
     const markerData: MarkerRenderDatum[] = [];
@@ -307,6 +312,7 @@ export function TimeSeriesChart({
           y: baseY,
           color,
           selected: markerId === highlightedMarkerId,
+          sourceSeriesId: anomaly.sourceSeriesId,
         });
       });
     });
@@ -324,7 +330,16 @@ export function TimeSeriesChart({
       .attr('fill', (d) => d.color.stroke)
       .attr('stroke', (d) => (d.selected ? '#f8fafc' : '#1e293b'))
       .attr('stroke-width', (d) => (d.selected ? 2.5 : 1.5))
-      .attr('opacity', (d) => (highlightedMarkerId && !d.selected ? 0.45 : 1))
+      .attr('opacity', (d) => {
+        let opacity = 1;
+        if (activeHighlightedSeriesId && d.sourceSeriesId && d.sourceSeriesId !== activeHighlightedSeriesId) {
+          opacity = 0.25;
+        }
+        if (highlightedMarkerId && !d.selected) {
+          opacity = Math.min(opacity, 0.45);
+        }
+        return opacity;
+      })
       .style('cursor', 'pointer');
 
     markerSelection
@@ -352,11 +367,13 @@ export function TimeSeriesChart({
         if (series.points.length === 0) return;
         const colorIdx = orderedSeriesVariants?.findIndex((s) => s.seriesId === series.seriesId && s.label === series.label) ?? 0;
         const color = getSeriesVariantColor(Math.max(colorIdx, 0));
+        const isHighlighted = !activeHighlightedSeriesId || !series.seriesId || series.seriesId === activeHighlightedSeriesId;
         g.append('path')
           .datum(series.points)
           .attr('fill', 'none')
           .attr('stroke', color)
-          .attr('stroke-width', 1.5)
+          .attr('stroke-width', isHighlighted ? 1.9 : 1.2)
+          .attr('opacity', isHighlighted ? 1 : 0.2)
           .attr('d', line);
       });
 
@@ -451,6 +468,7 @@ export function TimeSeriesChart({
     orderedSeriesVariants,
     visibleOrderedSeriesVariants,
     highlightedMarkerId,
+    activeHighlightedSeriesId,
     onMarkerHover,
     onMarkerClick,
   ]);
@@ -638,7 +656,7 @@ export function TimeSeriesChart({
         </div>
       )}
       {showSeriesLegend && orderedSeriesVariants && orderedSeriesVariants.length > 1 && (
-        <div className="mt-2 p-2 bg-slate-900/50 rounded text-[10px] flex flex-wrap gap-1.5">
+        <div className="mt-2 p-2 bg-slate-900/50 rounded text-[10px] flex flex-wrap gap-0">
           {orderedSeriesVariants.map((series, idx) => (
             <button
               key={`${series.seriesId ?? series.label}-${idx}`}
@@ -652,6 +670,8 @@ export function TimeSeriesChart({
                   onToggleSeriesVisibility(series.seriesId);
                 }
               }}
+              onMouseEnter={() => setHoveredLegendSeriesId(series.seriesId ?? null)}
+              onMouseLeave={() => setHoveredLegendSeriesId(null)}
             >
               <span
                 className="w-3 h-0.5 rounded-full"
