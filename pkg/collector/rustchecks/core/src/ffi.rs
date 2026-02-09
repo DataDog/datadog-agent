@@ -3,6 +3,7 @@
 macro_rules! generate_ffi {
     ($check_function:ident, $version:ident) => {
         use std::ffi;
+        use std::error;
 
         /// Entrypoint of the check
         #[unsafe(no_mangle)]
@@ -15,7 +16,7 @@ macro_rules! generate_ffi {
         }
 
         /// Build the check structure and execute its custom implementation
-        fn create_and_run_check(check_id_str: *const ffi::c_char, init_config_str: *const ffi::c_char, instance_config_str: *const ffi::c_char, aggregator_ptr: *const core::Aggregator) -> anyhow::Result<()> {
+        fn create_and_run_check(check_id_str: *const ffi::c_char, init_config_str: *const ffi::c_char, instance_config_str: *const ffi::c_char, aggregator_ptr: *const core::Aggregator) -> Result<(), Box<dyn error::Error>> {
             // convert C args to Rust structs
             let check_id = core::to_rust_string(check_id_str)?;
 
@@ -28,7 +29,9 @@ macro_rules! generate_ffi {
             let agent_check = core::AgentCheck::new(&check_id, &init_config, &instance_config, aggregator)?;
 
             // run the custom implementation
-            $check_function(&agent_check)
+            $check_function(&agent_check)?;
+
+            Ok(())
         }
 
         /// Get the version of the check
