@@ -17,6 +17,10 @@ type ConnectionDefinition struct {
 	// Example: "HTTP", "Kubernetes", "Script"
 	IntegrationType string
 
+	// IntegrationFields contains integration-level configuration fields
+	// Example: {"base_url": "https://example.com"}
+	IntegrationFields map[string]interface{}
+
 	Credentials CredentialConfig
 }
 
