@@ -277,6 +277,21 @@ func (p *PodAutoscalerInternal) UpdateFromVerticalAction(action *datadoghqcommon
 	}
 }
 
+// ClearHorizontalState clears horizontal scaling status data when horizontal scaling is disabled.
+func (p *PodAutoscalerInternal) ClearHorizontalState() {
+	p.horizontalLastActions = nil
+	p.horizontalLastRecommendations = nil
+	p.horizontalLastLimitReason = ""
+	p.horizontalLastActionError = nil
+}
+
+// ClearVerticalState clears vertical scaling status data when vertical scaling is disabled.
+func (p *PodAutoscalerInternal) ClearVerticalState() {
+	p.verticalLastAction = nil
+	p.verticalLastActionError = nil
+	p.scaledReplicas = nil
+}
+
 // SetGeneration sets the generation of the PodAutoscaler
 func (p *PodAutoscalerInternal) SetGeneration(generation int64) {
 	p.generation = generation
@@ -401,6 +416,34 @@ func (p *PodAutoscalerInternal) Spec() *datadoghq.DatadogPodAutoscalerSpec {
 	return p.spec
 }
 
+func (p *PodAutoscalerInternal) IsHorizontalScalingEnabled() bool {
+	if p.spec == nil || p.spec.ApplyPolicy == nil {
+		return true
+	}
+
+	scaleUpDisabled := p.spec.ApplyPolicy.ScaleUp != nil &&
+		p.spec.ApplyPolicy.ScaleUp.Strategy != nil &&
+		*p.spec.ApplyPolicy.ScaleUp.Strategy == datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect
+
+	scaleDownDisabled := p.spec.ApplyPolicy.ScaleDown != nil &&
+		p.spec.ApplyPolicy.ScaleDown.Strategy != nil &&
+		*p.spec.ApplyPolicy.ScaleDown.Strategy == datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect
+
+	return !(scaleUpDisabled && scaleDownDisabled)
+}
+
+func (p *PodAutoscalerInternal) IsVerticalScalingEnabled() bool {
+	if p.spec == nil || p.spec.ApplyPolicy == nil {
+		return true
+	}
+
+	if p.spec.ApplyPolicy.Update == nil {
+		return true
+	}
+
+	return p.spec.ApplyPolicy.Update.Strategy != datadoghqcommon.DatadogPodAutoscalerDisabledUpdateStrategy
+}
+
 // SettingsTimestamp returns the timestamp of the last settings update
 func (p *PodAutoscalerInternal) SettingsTimestamp() time.Time {
 	return p.settingsTimestamp
@@ -503,13 +546,16 @@ func (p *PodAutoscalerInternal) CustomRecommenderConfiguration() *RecommenderCon
 func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStatus *datadoghqcommon.DatadogPodAutoscalerStatus) datadoghqcommon.DatadogPodAutoscalerStatus {
 	status := datadoghqcommon.DatadogPodAutoscalerStatus{}
 
+	verticalEnabled := p.IsVerticalScalingEnabled()
+	horizontalEnabled := p.IsHorizontalScalingEnabled()
+
 	// Syncing current replicas
 	if p.currentReplicas != nil {
 		status.CurrentReplicas = p.currentReplicas
 	}
 
 	// Produce Horizontal status only if we have a desired number of replicas
-	if p.scalingValues.Horizontal != nil {
+	if horizontalEnabled && p.scalingValues.Horizontal != nil {
 		status.Horizontal = &datadoghqcommon.DatadogPodAutoscalerHorizontalStatus{
 			Target: &datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
 				Source:      p.scalingValues.Horizontal.Source,
@@ -532,7 +578,7 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 	}
 
 	// Produce Vertical status only if we have a desired container resources
-	if p.scalingValues.Vertical != nil {
+	if verticalEnabled && p.scalingValues.Vertical != nil {
 		cpuReqSum, memReqSum := p.scalingValues.Vertical.SumCPUMemoryRequests()
 
 		status.Vertical = &datadoghqcommon.DatadogPodAutoscalerVerticalStatus{
@@ -585,7 +631,7 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 
 	// Building errors related to compute recommendations
 	var horizontalAbleToRecommend datadoghqcommon.DatadogPodAutoscalerCondition
-	if p.scalingValues.HorizontalError != nil || p.scalingValues.Horizontal != nil {
+	if horizontalEnabled && (p.scalingValues.HorizontalError != nil || p.scalingValues.Horizontal != nil) {
 		horizontalAbleToRecommend = newConditionFromError(false, currentTime, p.scalingValues.HorizontalError, datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, existingConditions)
 	} else {
 		horizontalAbleToRecommend = newCondition(corev1.ConditionUnknown, "", currentTime, datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, existingConditions)
@@ -593,7 +639,7 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 	status.Conditions = append(status.Conditions, horizontalAbleToRecommend)
 
 	var verticalAbleToRecommend datadoghqcommon.DatadogPodAutoscalerCondition
-	if p.scalingValues.VerticalError != nil || p.scalingValues.Vertical != nil {
+	if verticalEnabled && (p.scalingValues.VerticalError != nil || p.scalingValues.Vertical != nil) {
 		verticalAbleToRecommend = newConditionFromError(false, currentTime, p.scalingValues.VerticalError, datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, existingConditions)
 	} else {
 		verticalAbleToRecommend = newCondition(corev1.ConditionUnknown, "", currentTime, datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, existingConditions)
@@ -601,7 +647,7 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 	status.Conditions = append(status.Conditions, verticalAbleToRecommend)
 
 	// Horizontal: handle scaling limited condition
-	if p.horizontalLastLimitReason != "" {
+	if horizontalEnabled && p.horizontalLastLimitReason != "" {
 		status.Conditions = append(status.Conditions, newCondition(corev1.ConditionTrue, p.horizontalLastLimitReason, currentTime, datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, existingConditions))
 	} else {
 		status.Conditions = append(status.Conditions, newCondition(corev1.ConditionFalse, "", currentTime, datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, existingConditions))
