@@ -1132,6 +1132,18 @@ def get_parent_report(ctx, branch, gate_name: str, output: str):
     ctx.run(f"{aws_cmd} s3 cp --only-show-errors {s3_url} {output}", warn=True)
 
 
+def _filter_files(path: str) -> bool:
+    pipeline_id = os.environ.get('CI_PIPELINE_ID')
+    # Avoid files such as opt/datadog-packages/run/datadog-agent/7.76.0-devel.git.716.8d5ec09.pipeline.91823583
+    if pipeline_id and f'pipeline.{pipeline_id}' in path:
+        return False
+    return path not in [
+        # Installer symlinks which we don't want to include
+        'opt/datadog-packages/datadog-agent/experiment',
+        'opt/datadog-packages/datadog-agent/stable',
+    ]
+
+
 @task
 def check_files(ctx, branch_name, reports_folder):
     pr_comment = "File checks results:\n"
@@ -1155,6 +1167,7 @@ def check_files(ctx, branch_name, reports_folder):
                 output_path=report_filename,
                 build_job_name=os.environ['CI_JOB_NAME'],
                 debug=True,
+                filter=_filter_files,
             )
             # Upload the report to S3
             bucket_base_path = "s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/GATE_REPORTS/"
