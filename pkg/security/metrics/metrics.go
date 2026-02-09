@@ -242,9 +242,6 @@ var (
 	// MetricActivityDumpActiveDumps is the name of the metric used to report the number of active dumps
 	// Tags: -
 	MetricActivityDumpActiveDumps = newRuntimeMetric(".activity_dump.active_dumps")
-	// MetricActivityDumpLoadControllerTriggered is the name of the metric used to report that the ADM load controller reduced the config envelope
-	// Tags:reduction, event_type
-	MetricActivityDumpLoadControllerTriggered = newRuntimeMetric(".activity_dump.load_controller_triggered")
 	// MetricActivityDumpActiveDumpSizeInMemory is the size of an activity dump in memory
 	// Tags: dump_index
 	MetricActivityDumpActiveDumpSizeInMemory = newRuntimeMetric(".activity_dump.size_in_memory")
