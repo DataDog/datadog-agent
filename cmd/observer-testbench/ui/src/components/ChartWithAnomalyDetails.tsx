@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState } from 'react';
-import { TimeSeriesChart } from './TimeSeriesChart';
-import type { SplitSeries } from './TimeSeriesChart';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { TimeSeriesChart, getSeriesVariantColor } from './TimeSeriesChart';
+import type { SeriesVariant } from './TimeSeriesChart';
 import type { Point, AnomalyMarker, Anomaly } from '../api/client';
 
 export interface CorrelationRange {
@@ -25,7 +25,37 @@ interface ChartWithAnomalyDetailsProps {
   timeRange?: TimeRange | null;
   onTimeRangeChange?: (range: TimeRange | null) => void;
   smoothLines?: boolean;
-  splitSeries?: SplitSeries[];
+  seriesVariants?: SeriesVariant[];
+}
+
+function buildSeriesIDSet(seriesVariants?: SeriesVariant[]): Set<string> {
+  const set = new Set<string>();
+  (seriesVariants ?? []).forEach((s) => {
+    if (s.seriesId) set.add(s.seriesId);
+  });
+  return set;
+}
+
+function seriesIDSignature(seriesVariants?: SeriesVariant[]): string {
+  const ids = Array.from(buildSeriesIDSet(seriesVariants)).sort();
+  return ids.join('|');
+}
+
+function buildSeriesVariantColorMap(seriesVariants?: SeriesVariant[]): Map<string, string> {
+  const map = new Map<string, string>();
+  if (!seriesVariants || seriesVariants.length === 0) return map;
+
+  const ordered = [...seriesVariants].sort((a, b) => {
+    const labelCmp = a.label.localeCompare(b.label);
+    if (labelCmp !== 0) return labelCmp;
+    return (a.seriesId ?? '').localeCompare(b.seriesId ?? '');
+  });
+
+  ordered.forEach((series, idx) => {
+    if (!series.seriesId) return;
+    map.set(series.seriesId, getSeriesVariantColor(idx));
+  });
+  return map;
 }
 
 function getAnomalyId(anomaly: {
@@ -49,11 +79,14 @@ export function ChartWithAnomalyDetails({
   timeRange,
   onTimeRangeChange,
   smoothLines = true,
-  splitSeries,
+  seriesVariants,
 }: ChartWithAnomalyDetailsProps) {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [hoveredAnomalyId, setHoveredAnomalyId] = useState<string | null>(null);
+  const [visibleSeriesIds, setVisibleSeriesIds] = useState<Set<string>>(() => buildSeriesIDSet(seriesVariants));
   const anomalyRowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const seriesVariantsSig = useMemo(() => seriesIDSignature(seriesVariants), [seriesVariants]);
+  const seriesVariantColorByID = useMemo(() => buildSeriesVariantColorMap(seriesVariants), [seriesVariants]);
 
   const formatTimestamp = (ts: number) => {
     return new Date(ts * 1000).toLocaleTimeString();
@@ -75,9 +108,20 @@ export function ChartWithAnomalyDetails({
       .trim();
   };
 
-  // Filter anomalies by enabled analyzers
-  const filteredAnomalies = anomalies.filter((a) =>
-    enabledAnalyzers.has(a.analyzerComponent ?? a.analyzerName)
+  useEffect(() => {
+    setVisibleSeriesIds(buildSeriesIDSet(seriesVariants));
+  }, [seriesVariantsSig]);
+
+  // Filter anomalies by enabled analyzers and visible series variants.
+  const filteredAnomalies = useMemo(
+    () =>
+      anomalies.filter((a) => {
+        if (!enabledAnalyzers.has(a.analyzerComponent ?? a.analyzerName)) return false;
+        if (!seriesVariants || seriesVariants.length === 0) return true;
+        if (!a.sourceSeriesId) return true;
+        return visibleSeriesIds.has(a.sourceSeriesId);
+      }),
+    [anomalies, enabledAnalyzers, seriesVariants, visibleSeriesIds]
   );
 
   const filteredAnomalyIds = useMemo(
@@ -87,6 +131,24 @@ export function ChartWithAnomalyDetails({
 
   const expandedAnomalyId = expandedIndex !== null ? filteredAnomalyIds[expandedIndex] ?? null : null;
   const activeAnomalyId = hoveredAnomalyId ?? expandedAnomalyId;
+
+  useEffect(() => {
+    if (expandedIndex !== null && expandedIndex >= filteredAnomalies.length) {
+      setExpandedIndex(null);
+    }
+  }, [expandedIndex, filteredAnomalies.length]);
+
+  const handleToggleSeriesVisibility = (seriesId: string) => {
+    setVisibleSeriesIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(seriesId)) {
+        next.delete(seriesId);
+      } else {
+        next.add(seriesId);
+      }
+      return next;
+    });
+  };
 
   const handleMarkerClick = (markerId: string) => {
     const idx = filteredAnomalyIds.findIndex((id) => id === markerId);
@@ -109,7 +171,9 @@ export function ChartWithAnomalyDetails({
         onTimeRangeChange={onTimeRangeChange}
         height={200}
         smoothLines={smoothLines}
-        splitSeries={splitSeries}
+        seriesVariants={seriesVariants}
+        visibleSeriesIds={seriesVariants && seriesVariants.length > 0 ? visibleSeriesIds : undefined}
+        onToggleSeriesVisibility={handleToggleSeriesVisibility}
         highlightedMarkerId={activeAnomalyId}
         onMarkerHover={setHoveredAnomalyId}
         onMarkerClick={handleMarkerClick}
@@ -127,6 +191,9 @@ export function ChartWithAnomalyDetails({
               const debug = anomaly.debugInfo;
               const anomalyId = getAnomalyId(anomaly);
               const isLinked = activeAnomalyId === anomalyId;
+              const seriesColor = anomaly.sourceSeriesId
+                ? (seriesVariantColorByID.get(anomaly.sourceSeriesId) ?? '#64748b')
+                : '#64748b';
 
               return (
                 <div
@@ -152,7 +219,7 @@ export function ChartWithAnomalyDetails({
                   >
                     <span
                       className={`w-2 h-2 rounded-full flex-shrink-0 ${isLinked ? 'ring-2 ring-slate-200' : ''}`}
-                      style={{ backgroundColor: isLinked ? '#f8fafc' : '#64748b' }}
+                      style={{ backgroundColor: seriesColor }}
                     />
                     <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-700 text-slate-300">
                       {anomaly.analyzerName}

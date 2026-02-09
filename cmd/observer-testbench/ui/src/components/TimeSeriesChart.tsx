@@ -34,7 +34,7 @@ const CORRELATION_COLORS = [
   { fill: 'rgba(139, 92, 246, 0.15)', stroke: '#8b5cf6' },   // violet
 ];
 
-// Line colors for split series - distinct, vibrant colors
+// Line colors for per-series variants - distinct, vibrant colors
 const LINE_COLORS = [
   '#8b5cf6', // violet (default/primary)
   '#f59e0b', // amber
@@ -56,7 +56,7 @@ function getCorrelationColor(index: number) {
   return CORRELATION_COLORS[index % CORRELATION_COLORS.length];
 }
 
-function getLineColor(index: number) {
+export function getSeriesVariantColor(index: number) {
   return LINE_COLORS[index % LINE_COLORS.length];
 }
 
@@ -65,8 +65,8 @@ function getAnomalyMarkerId(anomaly: AnomalyMarker): string {
   return `${analyzerId}:${anomaly.sourceSeriesId ?? 'unknown'}:${anomaly.timestamp}:${anomaly.title}`;
 }
 
-// Represents a single series line when splitting by tag
-export interface SplitSeries {
+// Represents one concrete tagged series variant drawn as a separate line.
+export interface SeriesVariant {
   label: string;  // The tag value (e.g., "host:web1")
   points: Point[];
   seriesId?: string;
@@ -82,7 +82,9 @@ interface TimeSeriesChartProps {
   onTimeRangeChange?: (range: TimeRange | null) => void;
   height?: number;
   smoothLines?: boolean;
-  splitSeries?: SplitSeries[];  // When provided, renders multiple lines instead of single points array
+  seriesVariants?: SeriesVariant[];  // When provided, renders multiple lines instead of single points array
+  visibleSeriesIds?: Set<string>;
+  onToggleSeriesVisibility?: (seriesId: string) => void;
   highlightedMarkerId?: string | null;
   onMarkerHover?: (markerId: string | null) => void;
   onMarkerClick?: (markerId: string) => void;
@@ -98,11 +100,15 @@ export function TimeSeriesChart({
   onTimeRangeChange,
   height = 200,
   smoothLines = true,
-  splitSeries,
+  seriesVariants,
+  visibleSeriesIds,
+  onToggleSeriesVisibility,
   highlightedMarkerId = null,
   onMarkerHover,
   onMarkerClick,
 }: TimeSeriesChartProps) {
+  const [showCorrelationLegend, setShowCorrelationLegend] = useState(false);
+  const [showSeriesLegend, setShowSeriesLegend] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isBrushingRef = useRef(false);
@@ -113,15 +119,20 @@ export function TimeSeriesChart({
   const panStartRangeRef = useRef<TimeRange | null>(null);
   const xScaleRef = useRef<d3.ScaleTime<number, number> | null>(null);
 
-  // Filter anomalies by enabled analyzers
+  const isSeriesVisible = (seriesId?: string): boolean => {
+    if (!seriesId || !visibleSeriesIds) return true;
+    return visibleSeriesIds.has(seriesId);
+  };
+
+  // Filter anomalies by enabled analyzers (and visible series variants when present)
   const filteredAnomalies = useMemo(
     () =>
       (anomalies ?? []).filter((a): a is AnomalyMarker => {
         if (!a) return false;
         const analyzerID = a.analyzerComponent ?? a.analyzerName;
-        return !!analyzerID && enabledAnalyzers.has(analyzerID);
+        return !!analyzerID && enabledAnalyzers.has(analyzerID) && isSeriesVisible(a.sourceSeriesId);
       }),
-    [anomalies, enabledAnalyzers]
+    [anomalies, enabledAnalyzers, visibleSeriesIds]
   );
 
   // Filter points by time range
@@ -130,42 +141,49 @@ export function TimeSeriesChart({
     return points.filter((p) => p.timestamp >= timeRange.start && p.timestamp <= timeRange.end);
   }, [points, timeRange]);
 
-  // Filter split series points by time range
-  const displaySplitSeries = useMemo(() => {
-    if (!splitSeries) return undefined;
-    if (!timeRange) return splitSeries;
-    return splitSeries.map((s) => ({
+  // Filter variant series points by time range
+  const displaySeriesVariants = useMemo(() => {
+    if (!seriesVariants) return undefined;
+    if (!timeRange) return seriesVariants;
+    return seriesVariants.map((s) => ({
       ...s,
       points: s.points.filter((p) => p.timestamp >= timeRange.start && p.timestamp <= timeRange.end),
     }));
-  }, [splitSeries, timeRange]);
+  }, [seriesVariants, timeRange]);
 
-  // Order split series by anomaly count so the legend highlights most relevant lines first.
-  const orderedSplitSeries = useMemo(() => {
-    if (!displaySplitSeries) return undefined;
-    const anomalyCountBySeries = new Map<string, number>();
-    filteredAnomalies.forEach((a) => {
-      if (!a.sourceSeriesId) return;
-      anomalyCountBySeries.set(a.sourceSeriesId, (anomalyCountBySeries.get(a.sourceSeriesId) ?? 0) + 1);
+  // Keep a stable variant order so legend positions/colors don't shift when toggling visibility.
+  const orderedSeriesVariants = useMemo(() => {
+    if (!displaySeriesVariants) return undefined;
+    return [...displaySeriesVariants].sort((a, b) => {
+      const labelCmp = a.label.localeCompare(b.label);
+      if (labelCmp !== 0) return labelCmp;
+      return (a.seriesId ?? '').localeCompare(b.seriesId ?? '');
     });
+  }, [displaySeriesVariants]);
 
-    return [...displaySplitSeries].sort((a, b) => {
-      const aCount = anomalyCountBySeries.get(a.seriesId ?? '') ?? 0;
-      const bCount = anomalyCountBySeries.get(b.seriesId ?? '') ?? 0;
-      if (aCount !== bCount) return bCount - aCount;
-      return a.label.localeCompare(b.label);
+  const visibleOrderedSeriesVariants = useMemo(() => {
+    if (!orderedSeriesVariants) return undefined;
+    return orderedSeriesVariants.filter((s) => isSeriesVisible(s.seriesId));
+  }, [orderedSeriesVariants, visibleSeriesIds]);
+
+  const setAllSeriesVisibility = (visible: boolean) => {
+    if (!orderedSeriesVariants || !onToggleSeriesVisibility) return;
+    orderedSeriesVariants.forEach((series) => {
+      if (!series.seriesId) return;
+      const currentlyVisible = isSeriesVisible(series.seriesId);
+      if (currentlyVisible !== visible) {
+        onToggleSeriesVisibility(series.seriesId);
+      }
     });
-  }, [displaySplitSeries, filteredAnomalies]);
+  };
 
   // Stable callback ref for brush
   const onTimeRangeChangeRef = useRef(onTimeRangeChange);
   onTimeRangeChangeRef.current = onTimeRangeChange;
 
   useEffect(() => {
-    const hasSplitData = orderedSplitSeries && orderedSplitSeries.length > 0 && orderedSplitSeries.some(s => s.points.length > 0);
-    const hasMainData = points.length > 0;
-
-    if (!svgRef.current || !containerRef.current || (!hasMainData && !hasSplitData)) return;
+    const variantMode = !!(orderedSeriesVariants && orderedSeriesVariants.length > 0);
+    if (!svgRef.current || !containerRef.current) return;
 
     // Skip redraw if user is currently brushing to prevent visual disruption
     // (Panning should update live, so we don't skip for that)
@@ -188,20 +206,30 @@ export function TimeSeriesChart({
     const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
 
     // Determine which data to use for scales and rendering
-    const useSplitData = hasSplitData;
+    const useVariantData = variantMode;
     const pointsToRender = displayPoints.length > 0 ? displayPoints : points;
+    const allVariantPoints = orderedSeriesVariants?.flatMap((s) => s.points) ?? [];
+    const visibleVariantPoints = visibleOrderedSeriesVariants?.flatMap((s) => s.points) ?? [];
 
-    // Calculate extents - when split, combine all series for proper scaling
+    // Calculate extents - when using series variants, combine all visible variants for scaling
     let xExtent: [number, number];
     let yExtent: [number, number];
 
-    if (useSplitData && orderedSplitSeries) {
-      const allPoints = orderedSplitSeries.flatMap(s => s.points);
-      xExtent = d3.extent(allPoints, (d) => d.timestamp * 1000) as [number, number];
-      yExtent = d3.extent(allPoints, (d) => d.value) as [number, number];
+    if (useVariantData) {
+      const scalePoints = visibleVariantPoints.length > 0
+        ? visibleVariantPoints
+        : allVariantPoints.length > 0
+          ? allVariantPoints
+          : pointsToRender;
+      xExtent = d3.extent(scalePoints, (d) => d.timestamp * 1000) as [number, number];
+      yExtent = d3.extent(scalePoints, (d) => d.value) as [number, number];
     } else {
       xExtent = d3.extent(pointsToRender, (d) => d.timestamp * 1000) as [number, number];
       yExtent = d3.extent(pointsToRender, (d) => d.value) as [number, number];
+    }
+
+    if (xExtent?.[0] === undefined || xExtent?.[1] === undefined || yExtent?.[0] === undefined || yExtent?.[1] === undefined) {
+      return;
     }
 
     // Add padding to y extent
@@ -260,11 +288,11 @@ export function TimeSeriesChart({
 
       anomaliesAtTime.forEach((anomaly, idx) => {
         let dataPoint: Point | undefined;
-        if (useSplitData && orderedSplitSeries && anomaly.sourceSeriesId) {
-          const match = orderedSplitSeries.find((s) => s.seriesId === anomaly.sourceSeriesId);
+        if (useVariantData && visibleOrderedSeriesVariants && anomaly.sourceSeriesId) {
+          const match = visibleOrderedSeriesVariants.find((s) => s.seriesId === anomaly.sourceSeriesId);
           dataPoint = match?.points.find((p) => p.timestamp === timestamp);
         }
-        if (!dataPoint) {
+        if (!dataPoint && !useVariantData) {
           dataPoint = points.find((p) => p.timestamp === timestamp);
         }
         if (!dataPoint) return;
@@ -318,11 +346,12 @@ export function TimeSeriesChart({
       .curve(smoothLines ? d3.curveMonotoneX : d3.curveLinear);
 
     // Draw the line(s)
-    if (useSplitData && orderedSplitSeries) {
-      // Draw multiple lines for split series
-      orderedSplitSeries.forEach((series, idx) => {
+    if (useVariantData && visibleOrderedSeriesVariants) {
+      // Draw multiple lines for per-series variants
+      visibleOrderedSeriesVariants.forEach((series) => {
         if (series.points.length === 0) return;
-        const color = getLineColor(idx);
+        const colorIdx = orderedSeriesVariants?.findIndex((s) => s.seriesId === series.seriesId && s.label === series.label) ?? 0;
+        const color = getSeriesVariantColor(Math.max(colorIdx, 0));
         g.append('path')
           .datum(series.points)
           .attr('fill', 'none')
@@ -419,7 +448,8 @@ export function TimeSeriesChart({
     height,
     timeRange,
     smoothLines,
-    orderedSplitSeries,
+    orderedSeriesVariants,
+    visibleOrderedSeriesVariants,
     highlightedMarkerId,
     onMarkerHover,
     onMarkerClick,
@@ -526,8 +556,6 @@ export function TimeSeriesChart({
     );
   }
 
-  const [showCorrelationLegend, setShowCorrelationLegend] = useState(false);
-
   return (
     <div className="bg-slate-800 rounded-lg p-4">
       <div className="flex justify-between items-center mb-2 gap-2">
@@ -584,16 +612,60 @@ export function TimeSeriesChart({
       <div ref={containerRef} className="w-full">
         <svg ref={svgRef} />
       </div>
-      {orderedSplitSeries && orderedSplitSeries.length > 1 && (
-        <div className="mt-2 p-2 bg-slate-900/50 rounded text-[10px] space-y-1 max-h-24 overflow-y-auto">
-          {orderedSplitSeries.map((series, idx) => (
-            <div key={`${series.seriesId ?? series.label}-${idx}`} className="flex items-center gap-2">
+      {orderedSeriesVariants && orderedSeriesVariants.length > 1 && (
+        <div className="mt-2 flex items-center gap-1">
+          <button
+            onClick={() => setShowSeriesLegend(!showSeriesLegend)}
+            className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/80 text-slate-400 hover:bg-slate-600 flex items-center gap-1"
+          >
+            {orderedSeriesVariants.length} series
+            <span className="text-[8px]">{showSeriesLegend ? '▲' : '▼'}</span>
+          </button>
+          <button
+            onClick={() => setAllSeriesVisibility(true)}
+            className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/60 text-slate-400 hover:bg-slate-600"
+            title="Show all series"
+          >
+            All
+          </button>
+          <button
+            onClick={() => setAllSeriesVisibility(false)}
+            className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/60 text-slate-400 hover:bg-slate-600"
+            title="Hide all series"
+          >
+            None
+          </button>
+        </div>
+      )}
+      {showSeriesLegend && orderedSeriesVariants && orderedSeriesVariants.length > 1 && (
+        <div className="mt-2 p-2 bg-slate-900/50 rounded text-[10px] flex flex-wrap gap-1.5">
+          {orderedSeriesVariants.map((series, idx) => (
+            <button
+              key={`${series.seriesId ?? series.label}-${idx}`}
+              type="button"
+              className={`text-left flex items-center gap-1.5 rounded border border-slate-700/50 bg-slate-800/40 px-2 py-1 transition-colors ${
+                series.seriesId ? 'hover:bg-slate-800/70' : 'cursor-not-allowed opacity-60'
+              }`}
+              disabled={!series.seriesId}
+              onClick={() => {
+                if (series.seriesId && onToggleSeriesVisibility) {
+                  onToggleSeriesVisibility(series.seriesId);
+                }
+              }}
+            >
               <span
                 className="w-3 h-0.5 rounded-full"
-                style={{ backgroundColor: getLineColor(idx) }}
+                style={{
+                  backgroundColor: getSeriesVariantColor(idx),
+                  opacity: isSeriesVisible(series.seriesId) ? 1 : 0.35,
+                }}
               />
-              <span className="text-slate-400 break-all">{series.label}</span>
-            </div>
+              <span
+                className={`${isSeriesVisible(series.seriesId) ? 'text-slate-300' : 'text-slate-600 line-through'}`}
+              >
+                {series.label}
+              </span>
+            </button>
           ))}
         </div>
       )}

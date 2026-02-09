@@ -3,7 +3,7 @@ import { ChartWithAnomalyDetails } from './ChartWithAnomalyDetails';
 import { SeriesTree } from './SeriesTree';
 import { api } from '../api/client';
 import type { SeriesData, SeriesInfo, ScenarioInfo } from '../api/client';
-import type { SplitSeries } from './TimeSeriesChart';
+import type { SeriesVariant } from './TimeSeriesChart';
 import type { TimeRange } from './ChartWithAnomalyDetails';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
 
@@ -392,7 +392,7 @@ export function TSAnalysisView({
                   const seriesAnomalies = anomalies.filter((a) => a.sourceSeriesId && seriesIDs.has(a.sourceSeriesId));
                   const anomalyMarkers = chartSeries.flatMap((d) => d.anomalies);
 
-                  const splitSeries: SplitSeries[] = chartSeries.map((d) => ({
+                  const seriesVariants: SeriesVariant[] = chartSeries.map((d) => ({
                     label: formatSeriesLabel(d.tags),
                     points: d.points,
                     seriesId: d.id,
@@ -412,7 +412,7 @@ export function TSAnalysisView({
                       timeRange={timeRange}
                       onTimeRangeChange={onTimeRangeChange}
                       smoothLines={smoothLines}
-                      splitSeries={splitSeries}
+                      seriesVariants={seriesVariants}
                     />
                   );
                 })}
