@@ -667,7 +667,17 @@ func (p *EBPFLessProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 		case action.Def.Hash != nil:
-			if p.fileHasher.HashAndReport(rule, action.Def.Hash, ev) {
+			fileEvent, err := ev.GetFileField(action.Def.Hash.Field)
+			if err != nil {
+				seclog.Errorf("failed to get file field %s: %v", action.Def.Hash.Field, err)
+				continue
+			}
+
+			if p.fieldHandlers.ResolveFilePath(ev, fileEvent) == "" {
+				continue
+			}
+
+			if p.fileHasher.HashAndReport(rule, action.Def.Hash, ev, fileEvent) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 		}
