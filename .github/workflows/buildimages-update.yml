@@ -37,7 +37,7 @@ jobs:
 
     steps:
       - name: Checkout branch
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           # credentials are needed to create the PR at the end of the workflow
           persist-credentials: true
@@ -55,7 +55,7 @@ jobs:
           fi
 
       - name: Checkout branch
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         if: ${{ steps.branch_fetch.outputs.RESULT == 'true' }}
         with:
           ref: ${{ inputs.branch }}
