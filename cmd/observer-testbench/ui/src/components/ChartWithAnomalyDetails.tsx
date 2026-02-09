@@ -108,6 +108,13 @@ export function ChartWithAnomalyDetails({
       .trim();
   };
 
+  const formatDebugFieldValue = (key: string, value: number) => {
+    if (key === 'baselineStart' || key === 'baselineEnd') {
+      return new Date(value * 1000).toLocaleString();
+    }
+    return formatValue(value);
+  };
+
   useEffect(() => {
     setVisibleSeriesIds(buildSeriesIDSet(seriesVariants));
   }, [seriesVariantsSig]);
@@ -264,7 +271,7 @@ export function ChartWithAnomalyDetails({
                               }>
                                 {key === 'deviationSigma'
                                   ? `${typeof value === 'number' && value > 0 ? '+' : ''}${formatValue(value as number)}σ`
-                                  : formatValue(value as number)}
+                                  : formatDebugFieldValue(key, value as number)}
                               </div>
                             </div>
                           );
