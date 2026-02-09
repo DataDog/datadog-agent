@@ -161,14 +161,18 @@ func (lp *languagePatcher) run(ctx context.Context) {
 
 // handleEvents handles events from workloadmeta
 func (lp *languagePatcher) handleEvents(events []workloadmeta.Event) {
-	lp.logger.Tracef("Processing %d events", len(events))
+	lp.logger.Debugf("[lang-detection-patcher] received %d events from workloadmeta", len(events))
 
 	for _, event := range events {
+		lp.logger.Debugf("[lang-detection-patcher] processing event type=%v kind=%s id=%s",
+			event.Type, event.Entity.GetID().Kind, event.Entity.GetID().ID)
+
 		owner, err := lp.extractOwnerFromEvent(event)
 
 		if err != nil {
-			lp.logger.Errorf("failed to handle event: %v", err)
+			lp.logger.Errorf("[lang-detection-patcher] failed to handle event: %v", err)
 		} else {
+			lp.logger.Debugf("[lang-detection-patcher] adding %s %s/%s to patching queue", owner.Kind, owner.Namespace, owner.Name)
 			lp.queue.Add(*owner)
 		}
 	}
@@ -210,15 +214,21 @@ func (lp *languagePatcher) startProcessingPatchingRequests(ctx context.Context) 
 		for {
 			owner, shutdown := lp.queue.Get()
 			if shutdown {
+				lp.logger.Debug("[lang-detection-patcher] queue shutdown, stopping worker")
 				break
 			}
 
+			lp.logger.Debugf("[lang-detection-patcher] processing %s %s/%s from queue (queue length: %d)",
+				owner.Kind, owner.Namespace, owner.Name, lp.queue.Len())
+
 			err := lp.processOwner(ctx, owner)
 			if err != nil {
-				lp.logger.Errorf("Failed processing %s: %s/%s. It will be retried later: %v", owner.Kind, owner.Namespace, owner.Name, err)
+				lp.logger.Errorf("[lang-detection-patcher] failed processing %s: %s/%s, will retry with rate limiting: %v",
+					owner.Kind, owner.Namespace, owner.Name, err)
 				Patches.Inc(owner.Kind, owner.Name, owner.Namespace, statusError)
 				lp.queue.AddRateLimited(owner)
 			} else {
+				lp.logger.Debugf("[lang-detection-patcher] successfully processed %s %s/%s", owner.Kind, owner.Namespace, owner.Name)
 				lp.queue.Forget(owner)
 			}
 
@@ -267,11 +277,14 @@ func (lp *languagePatcher) processOwner(ctx context.Context, owner langUtil.Name
 func (lp *languagePatcher) handleDeployment(ctx context.Context, owner langUtil.NamespacedOwnerReference) error {
 	deploymentID := owner.Namespace + "/" + owner.Name
 
+	lp.logger.Debugf("[lang-detection-patcher] handling deployment %s", deploymentID)
+
 	// get the complete entity
 	deployment, err := lp.store.GetKubernetesDeployment(deploymentID)
 
 	if err != nil {
-		lp.logger.Info("Didn't find deployment in store, skipping")
+		lp.logger.Infof("[lang-detection-patcher] deployment %s not found in workloadmeta store, skipping (this is expected if deployment was deleted): %v",
+			deploymentID, err)
 		// skip if not in store
 		return nil
 	}
@@ -279,11 +292,36 @@ func (lp *languagePatcher) handleDeployment(ctx context.Context, owner langUtil.
 	detectedLanguages := deployment.DetectedLanguages
 	injectableLanguages := deployment.InjectableLanguages
 
+	lp.logger.Debugf("[lang-detection-patcher] deployment %s: detectedLanguages=%d containers, injectableLanguages=%d containers",
+		deploymentID, len(detectedLanguages), len(injectableLanguages))
+
+	// Log detected languages details
+	for container, langs := range detectedLanguages {
+		langNames := make([]string, 0, len(langs))
+		for lang := range langs {
+			langNames = append(langNames, string(lang))
+		}
+		lp.logger.Debugf("[lang-detection-patcher] deployment %s container %s (init=%v): detected languages=%v",
+			deploymentID, container.Name, container.Init, langNames)
+	}
+
 	// Calculate annotations patch
 	annotationsPatch := lp.generateAnnotationsPatch(injectableLanguages, detectedLanguages)
+	lp.logger.Debugf("[lang-detection-patcher] deployment %s: generated %d annotation patches", deploymentID, len(annotationsPatch))
+
 	if len(annotationsPatch) > 0 {
+		for k, v := range annotationsPatch {
+			lp.logger.Debugf("[lang-detection-patcher] deployment %s: annotation patch %s=%v", deploymentID, k, v)
+		}
+		lp.logger.Debugf("[lang-detection-patcher] patching deployment %s with %d annotations", deploymentID, len(annotationsPatch))
 		err = lp.patchOwner(ctx, &owner, annotationsPatch)
+		if err != nil {
+			lp.logger.Errorf("[lang-detection-patcher] failed to patch deployment %s: %v", deploymentID, err)
+		} else {
+			lp.logger.Debugf("[lang-detection-patcher] successfully patched deployment %s", deploymentID)
+		}
 	} else {
+		lp.logger.Debugf("[lang-detection-patcher] deployment %s: no annotations to patch, skipping", deploymentID)
 		Patches.Inc(owner.Kind, owner.Name, owner.Namespace, statusSkip)
 	}
 
@@ -326,13 +364,20 @@ func (lp *languagePatcher) patchOwner(ctx context.Context, namespacedOwnerRef *l
 	errs := validation.ValidateAnnotations(setAnnotations, field.NewPath("annotations"))
 
 	if len(errs) > 0 {
+		lp.logger.Errorf("[lang-detection-patcher] annotation validation failed for %s %s/%s: %v",
+			namespacedOwnerRef.Kind, namespacedOwnerRef.Namespace, namespacedOwnerRef.Name, errs.ToAggregate().Error())
 		return errors.New(errs.ToAggregate().Error())
 	}
 
 	ownerGVR, err := langUtil.GetGVR(namespacedOwnerRef)
 	if err != nil {
+		lp.logger.Errorf("[lang-detection-patcher] failed to get GVR for %s %s/%s: %v",
+			namespacedOwnerRef.Kind, namespacedOwnerRef.Namespace, namespacedOwnerRef.Name, err)
 		return err
 	}
+
+	lp.logger.Debugf("[lang-detection-patcher] calling k8s API to patch %s %s/%s",
+		namespacedOwnerRef.Kind, namespacedOwnerRef.Namespace, namespacedOwnerRef.Name)
 
 	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		// Serialize the patch data
@@ -342,11 +387,14 @@ func (lp *languagePatcher) patchOwner(ctx context.Context, namespacedOwnerRef *l
 			},
 		})
 		if err != nil {
+			lp.logger.Errorf("[lang-detection-patcher] failed to marshal patch data: %v", err)
 			return err
 		}
 
 		_, err = lp.k8sClient.Resource(ownerGVR).Namespace(namespacedOwnerRef.Namespace).Patch(ctx, namespacedOwnerRef.Name, types.MergePatchType, patchData, metav1.PatchOptions{})
 		if err != nil {
+			lp.logger.Warnf("[lang-detection-patcher] k8s API patch failed for %s %s/%s (will retry on conflict): %v",
+				namespacedOwnerRef.Kind, namespacedOwnerRef.Namespace, namespacedOwnerRef.Name, err)
 			Patches.Inc(namespacedOwnerRef.Kind, namespacedOwnerRef.Name, namespacedOwnerRef.Namespace, statusRetry)
 		}
 
