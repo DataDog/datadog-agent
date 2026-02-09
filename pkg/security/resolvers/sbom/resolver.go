@@ -525,8 +525,6 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 		return scanErr
 	}
 
-	// r.NotifyListeners(SBOMComputed, report)
-
 	data := &Data{
 		files: newFileQuerier(report),
 	}
@@ -543,6 +541,16 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 	r.removePendingScan(sb.ContainerID)
 
 	seclog.Infof("new sbom generated for '%s': %d files added", sb.ContainerID, data.files.len())
+
+	// Notify listeners with enriched SBOM (includes LastAccess if available)
+	packagesReport := NewPackagesReport(report, sb.ContainerID)
+	scanResult := &sbom.ScanResult{
+		Report:           packagesReport,
+		CreatedAt:        time.Now(),
+		GenerationMethod: "security-agent",
+		RequestID:        string(sb.ContainerID),
+	}
+	r.NotifyListeners(SBOMComputed, scanResult)
 
 	// Notify policy generator if callback is set
 	r.policyGenLock.RLock()
