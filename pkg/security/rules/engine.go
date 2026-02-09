@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/rules/filtermodel"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/monitor"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -71,6 +72,7 @@ type RuleEngine struct {
 	wg               sync.WaitGroup
 	ipc              ipc.Component
 	hostname         string
+	bundledProvider  *bundled.PolicyProvider
 
 	// userspace filtering metrics (avoid statsd calls in event hot path)
 	noMatchCounters []atomic.Uint64
@@ -196,7 +198,10 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}) erro
 	go func() {
 		defer e.wg.Done()
 
-		for range e.policyLoader.NewPolicyReady() {
+		for notification := range e.policyLoader.NewPolicyReady() {
+			// Reload policies regardless of whether the notification is silent
+			// The silent flag only affects heartbeat reporting
+			_ = notification
 			if err := e.ReloadPolicies(); err != nil {
 				seclog.Errorf("failed to reload policies: %s", err)
 			}
@@ -228,6 +233,10 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}) erro
 
 	e.startSendHeartbeatEvents(ctx)
 
+	// Connect the SBOM resolver to the bundled policy provider
+	// This allows SBOM-generated policies to be automatically loaded
+	e.ConnectSBOMResolver()
+
 	return nil
 }
 
@@ -249,11 +258,15 @@ func (e *RuleEngine) startSendHeartbeatEvents(ctx context.Context) {
 			select {
 			case <-ctx.Done():
 				return
-			case <-e.policyLoader.NewPolicyReady():
-				heartBeatCounter = 5
-				heartbeatTicker.Reset(1 * time.Minute)
-				// we report a heartbeat anyway
-				e.policyMonitor.ReportHeartbeatEvent(e.probe.GetAgentContainerContext(), e.eventSender)
+			case notification := <-e.policyLoader.NewPolicyReady():
+				// Only send heartbeat and reset counter for non-silent reloads
+				// Silent reloads (like SBOM updates) don't trigger heartbeat events
+				if !notification.Silent {
+					heartBeatCounter = 5
+					heartbeatTicker.Reset(1 * time.Minute)
+					// we report a heartbeat anyway
+					e.policyMonitor.ReportHeartbeatEvent(e.probe.GetAgentContainerContext(), e.eventSender)
+				}
 			case <-heartbeatTicker.C:
 				e.policyMonitor.ReportHeartbeatEvent(e.probe.GetAgentContainerContext(), e.eventSender)
 				if heartBeatCounter > 0 {
@@ -265,6 +278,32 @@ func (e *RuleEngine) startSendHeartbeatEvents(ctx context.Context) {
 			}
 		}
 	}()
+}
+
+// ConnectSBOMResolver connects the SBOM resolver to the bundled policy provider
+// so that SBOM-generated policies are automatically loaded when SBOMs are computed
+func (e *RuleEngine) ConnectSBOMResolver() {
+	if e.bundledProvider == nil {
+		return
+	}
+
+	// Get the eBPF probe to access resolvers
+	ebpfProbe, ok := e.probe.PlatformProbe.(*probe.EBPFProbe)
+	if !ok || ebpfProbe.Resolvers == nil || ebpfProbe.Resolvers.SBOMResolver == nil {
+		return
+	}
+
+	ebpfProbe.Resolvers.SBOMResolver.SetPolicyGeneratorCallback(func(workloadKey string, containerID containerutils.ContainerID, policyDef *rules.PolicyDef) {
+		// Set the SBOM-generated policy definition on the bundled provider
+		// This will trigger a silent reload (no heartbeat event)
+		if policyDef != nil {
+			seclog.Infof("Setting SBOM-generated policy for workload %s (container %s) with %d macros and %d rules",
+				workloadKey, containerID, len(policyDef.Macros), len(policyDef.Rules))
+			e.bundledProvider.SetSBOMPolicyDef(workloadKey, policyDef)
+		}
+	})
+
+	seclog.Infof("SBOM resolver connected to bundled policy provider")
 }
 
 // StartRunningMetrics starts sending the running metrics
@@ -490,7 +529,9 @@ func (e *RuleEngine) fillCommonSECLVariables(rsVariables map[string]eval.SECLVar
 func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
 	var policyProviders []rules.PolicyProvider
 
-	policyProviders = append(policyProviders, bundled.NewPolicyProvider(e.config))
+	// Create and store bundled policy provider
+	e.bundledProvider = bundled.NewPolicyProvider(e.config)
+	policyProviders = append(policyProviders, e.bundledProvider)
 
 	// add remote config as config provider if enabled.
 	if e.config.RemoteConfigurationEnabled {
