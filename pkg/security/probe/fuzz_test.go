@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/google/gopacket/layers"
 	"go.uber.org/atomic"
+	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
@@ -86,9 +87,6 @@ func newFuzzEBPFProbe(tb testing.TB) *EBPFProbe {
 		eventPool: ddsync.NewTypedPool(func() *model.Event {
 			return &model.Event{}
 		}),
-		monitors: &EBPFMonitors{
-			eventStreamMonitor: &eventstream.Monitor{},
-		},
 		profileManager:      securityprofile.NewTestManager(cfg),
 		processKiller:       &ProcessKiller{},
 		fileHasher:          &FileHasher{},
@@ -99,6 +97,14 @@ func newFuzzEBPFProbe(tb testing.TB) *EBPFProbe {
 		numCPU:              1,
 		BPFFilterTruncated:  atomic.NewUint64(0),
 		MetricNameTruncated: atomic.NewUint64(0),
+		onDemandManager:     &OnDemandProbesManager{},
+		onDemandRateLimiter: rate.NewLimiter(rate.Inf, 1),
+	}
+
+	// Set up monitors with back-reference to EBPFProbe
+	ep.monitors = &EBPFMonitors{
+		ebpfProbe:          ep,
+		eventStreamMonitor: eventstream.NewTestMonitor(),
 	}
 
 	ep.probe = &Probe{
