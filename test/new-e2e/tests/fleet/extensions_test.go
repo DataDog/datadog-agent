@@ -180,26 +180,7 @@ func (s *extensionsSuite) TestDDOTExtension() {
 	// Fail now if installation returned an error
 	s.Require().NoError(err, "Failed to install DDOT extension")
 
-	// Windows: Restart agent services to enable otelcollector endpoint (port 5009)
-	// The DDOT service needs this endpoint for config sync
-	if s.Env().RemoteHost.OSFamily == e2eos.WindowsFamily {
-		s.T().Log("Restarting agent services to enable otelcollector endpoint")
-		_, err := s.Env().RemoteHost.Execute(`Restart-Service datadogagent -Force`)
-		s.Require().NoError(err, "Failed to restart agent services")
-
-		// Wait for agent to fully restart
-		_, _ = s.Env().RemoteHost.Execute(`Start-Sleep -Seconds 5`)
-
-		// Start the DDOT service now that the agent is listening on port 5009
-		s.T().Log("Starting DDOT service")
-		_, err = s.Env().RemoteHost.Execute(`Start-Service datadog-otel-agent`)
-		s.Require().NoError(err, "Failed to start DDOT service")
-
-		// Wait for DDOT service to fully start
-		_, _ = s.Env().RemoteHost.Execute(`Start-Sleep -Seconds 3`)
-	}
-
-	// Run diagnostics after restart (useful for local debugging)
+	// Run diagnostics (useful for local debugging)
 	extensionPath := s.getExtensionPath("datadog-agent", agentVersion, "ddot")
 	if s.Env().RemoteHost.OSFamily == e2eos.WindowsFamily {
 		s.logWindowsDiagnostics(extensionPath)
