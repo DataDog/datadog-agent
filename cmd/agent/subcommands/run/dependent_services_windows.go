@@ -87,7 +87,7 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 				"private_action_runner.enabled": coreConf,
 			},
 			serviceName:    "datadog-private-action-runner",
-			serviceInit:    nil,
+			serviceInit:    parInit,
 			shouldShutdown: true,
 		},
 		{
@@ -123,6 +123,10 @@ func installerInit() error {
 }
 
 func otelInit() error {
+	return nil
+}
+
+func parInit() error {
 	return nil
 }
 
