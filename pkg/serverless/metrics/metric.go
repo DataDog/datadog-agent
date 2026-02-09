@@ -111,12 +111,26 @@ func (c *ServerlessMetricAgent) GetExtraTags() []string {
 	return c.tags
 }
 
-func (c *ServerlessMetricAgent) AddMetric(name string, value float64, metricSource metrics.MetricSource, metricType metrics.MetricType, extraTags ...string) {
+// AddMetric reports a new distribution metric value to the intake with an automatically generated timestamp.
+func (c *ServerlessMetricAgent) AddMetric(name string, value float64, metricSource metrics.MetricSource, extraTags ...string) {
+	c.sendMetricSample(name, value, metricSource, metrics.DistributionType, 0, extraTags...)
+}
+
+// AddMetricWithTimestamp reports a new distribution metric value to the intake with the given timestamp.
+func (c *ServerlessMetricAgent) AddMetricWithTimestamp(name string, value float64, metricSource metrics.MetricSource, metricType metrics.MetricType, timestamp float64, extraTags ...string) {
+	c.sendMetricSample(name, value, metricSource, metricType, timestamp, extraTags...)
+}
+
+func (c *ServerlessMetricAgent) sendMetricSample(name string, value float64, metricSource metrics.MetricSource, metricType metrics.MetricType, timestamp float64, extraTags ...string) {
 	if c.Demux == nil {
 		log.Debugf("Cannot add metric %s, the metric agent is not running", name)
 		return
 	}
-	metricTimestamp := float64(time.Now().UnixNano()) / float64(time.Second)
+
+	if timestamp == 0 {
+		timestamp = float64(time.Now().UnixNano()) / float64(time.Second)
+	}
+
 	tags := c.GetExtraTags()
 	if len(extraTags) > 0 {
 		tags = append(append([]string{}, tags...), extraTags...)
@@ -127,7 +141,7 @@ func (c *ServerlessMetricAgent) AddMetric(name string, value float64, metricSour
 		Mtype:      metricType,
 		Tags:       tags,
 		SampleRate: 1,
-		Timestamp:  metricTimestamp,
+		Timestamp:  timestamp,
 		Source:     metricSource,
 	})
 }

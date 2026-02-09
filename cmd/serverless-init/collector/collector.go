@@ -40,22 +40,27 @@ type ServerlessCPUStats struct {
 	Limit *float64 // CPU limit in nanocores
 }
 
-// ServerlessContainerStats wraps container metrics for serverless environments
-// Similar to metrics.ContainerStats but simplified for serverless use cases
+// ServerlessContainerStats stores raw container metrics for serverless environments
 type ServerlessContainerStats struct {
-	Timestamp time.Time
-	CPU       *ServerlessCPUStats
+	CollectionTime time.Time
+	CPU            *ServerlessCPUStats
 }
 
-// ServerlessRateMetrics holds previous values for rate calculation
-// Similar to ContainerRateMetrics in the process agent
-type ServerlessRateMetrics struct {
-	StatsTimestamp time.Time
+// ServerlessEnhancedMetrics stores computed metrics ready to be sent
+type ServerlessEnhancedMetrics struct {
+	CPULimit  float64 // CPU limit in nanocores
+	CPUUsage  float64 // Total CPU usage in nanocores( nanoseconds per second)
+	Timestamp float64 // Unix timestamp in seconds
+}
+
+// ServerlessRateStats stores previous stat values for rate calculation
+type ServerlessRateStats struct {
+	CollectionTime time.Time
 	TotalCPU       float64
 }
 
-// NullServerlessRateMetrics can be safely used when there are no previous rate values
-var NullServerlessRateMetrics = ServerlessRateMetrics{
+// NullServerlessRateStats can be safely used when there are no previous rate values
+var NullServerlessRateStats = ServerlessRateStats{
 	TotalCPU: -1,
 }
 
@@ -67,7 +72,7 @@ type Collector struct {
 	cancelFunc         context.CancelFunc
 	metricPrefix       string
 	// Previous stats for rate calculation
-	previousRateMetrics ServerlessRateMetrics
+	previousRateStats ServerlessRateStats
 }
 
 func NewCollector(metricAgent *serverlessMetrics.ServerlessMetricAgent, metricSource metrics.MetricSource, metricPrefix string) (*Collector, error) {
@@ -81,10 +86,11 @@ func NewCollector(metricAgent *serverlessMetrics.ServerlessMetricAgent, metricSo
 	}
 
 	return &Collector{
-		metricAgent:  metricAgent,
-		metricSource: metricSource,
-		cgroupReader: cgroupReader,
-		metricPrefix: metricPrefix + ".enhanced.test.",
+		metricAgent:       metricAgent,
+		metricSource:      metricSource,
+		cgroupReader:      cgroupReader,
+		metricPrefix:      metricPrefix + ".enhanced.test.",
+		previousRateStats: NullServerlessRateStats,
 	}, nil
 }
 
@@ -138,29 +144,47 @@ func (c *Collector) collect() {
 		log.Debugf("Incomplete cgroup stats: %v", errs)
 	}
 
-	// Capture timestamp right after collecting stats to accurately reflect when data was collected
-	collectionTime := time.Now()
-	containerStats := c.convertToServerlessContainerStats(stats.CPU, collectionTime)
-	c.processCPUStats(containerStats)
+	containerStats := c.convertToServerlessContainerStats(stats)
+	enhancedMetrics := c.computeContainerMetrics(containerStats)
+	c.sendMetrics(containerStats, enhancedMetrics)
 }
 
-func (c *Collector) convertToServerlessContainerStats(cpuStats *cgroups.CPUStats, timestamp time.Time) *ServerlessContainerStats {
-	if cpuStats == nil {
-		return nil
-	}
-
+func (c *Collector) convertToServerlessContainerStats(stats *cgroups.Stats) *ServerlessContainerStats {
 	serverlessStats := &ServerlessContainerStats{
-		Timestamp: timestamp,
-		CPU:       &ServerlessCPUStats{},
+		CollectionTime: time.Now(),
+		CPU:            &ServerlessCPUStats{},
 	}
 
-	if cpuStats.Total != nil {
-		serverlessStats.CPU.Total = pointer.Ptr(float64(*cpuStats.Total))
+	if stats.CPU.Total != nil {
+		serverlessStats.CPU.Total = pointer.Ptr(float64(*stats.CPU.Total))
 	}
 
-	serverlessStats.CPU.Limit = computeCPULimit(cpuStats)
+	serverlessStats.CPU.Limit = computeCPULimit(stats.CPU)
 
 	return serverlessStats
+}
+
+func (c *Collector) computeContainerMetrics(inStats *ServerlessContainerStats) ServerlessEnhancedMetrics {
+	enhancedMetrics := ServerlessEnhancedMetrics{Timestamp: float64(inStats.CollectionTime.UnixNano()) / float64(time.Second)}
+
+	if inStats == nil {
+		return enhancedMetrics
+	}
+
+	// Store current collection time for next calculation
+	c.previousRateStats.CollectionTime = inStats.CollectionTime
+
+	if inStats.CPU != nil {
+		currentTotal := statValue(inStats.CPU.Total, -1)
+		enhancedMetrics.CPUUsage = c.calculateCPUUsage(currentTotal, c.previousRateStats.TotalCPU, inStats.CollectionTime, c.previousRateStats.CollectionTime)
+
+		// Store current cpu total for next calculation
+		c.previousRateStats.TotalCPU = currentTotal
+
+		enhancedMetrics.CPULimit = statValue(inStats.CPU.Limit, 0)
+	}
+
+	return enhancedMetrics
 }
 
 func computeCPULimit(cgs *cgroups.CPUStats) *float64 {
@@ -192,66 +216,45 @@ func computeCPULimit(cgs *cgroups.CPUStats) *float64 {
 	return &limitNanos
 }
 
-func (c *Collector) processCPUStats(containerStats *ServerlessContainerStats) {
-	if containerStats == nil || containerStats.CPU == nil {
-		log.Debug("Container stats or CPU stats are nil, skipping")
-		return
-	}
-
-	c.sendCPUMetrics(containerStats)
-}
-
-func (c *Collector) sendCPUMetrics(containerStats *ServerlessContainerStats) {
-	if containerStats.CPU.Total != nil {
-		currentTotal := *containerStats.CPU.Total
-
-		// Calculate CPU rate (nanocores per second) similar to process agent
-		cpuRate := c.calculateCPURate(currentTotal, containerStats.Timestamp, c.previousRateMetrics)
-
-		if cpuRate >= 0 {
-			// Submit as distribution metric
-			c.metricAgent.AddMetric(c.metricPrefix+"cpu.usage", cpuRate, c.metricSource, metrics.DistributionType)
-		}
-
-		// Store current values for next calculation
-		c.previousRateMetrics = ServerlessRateMetrics{
-			StatsTimestamp: containerStats.Timestamp,
-			TotalCPU:       currentTotal,
-		}
-	}
-
-	if containerStats.CPU.Limit != nil {
-		// CPU limit in nanocores - also submit as distribution
-		c.metricAgent.AddMetric(c.metricPrefix+"cpu.limit", *containerStats.CPU.Limit, c.metricSource, metrics.DistributionType)
-	}
-}
-
-// calculateCPURate calculates the CPU usage rate in nanocores per second
-// Similar to cpuRateValue in the process agent
-// Returns -1 if rate cannot be calculated (first run or invalid data)
-func (c *Collector) calculateCPURate(currentTotal float64, currentTime time.Time, previous ServerlessRateMetrics) float64 {
-	// First run - no previous value
-	if previous.StatsTimestamp.IsZero() {
+// calculateCPUUsage calculates the CPU usage rate in nanoseconds per second (nanocores)
+// Returns -1 if invalid data or first run, returns 0 if unable to calculate using values and times provided
+func (c *Collector) calculateCPUUsage(currentTotal float64, previousTotal float64, currentTime time.Time, previousTime time.Time) float64 {
+	if currentTotal == -1 || previousTotal == -1 {
 		return -1
 	}
 
-	// Check for invalid previous values (similar to process agent's -1 check)
-	if previous.TotalCPU == -1 {
-		return -1
+	if previousTime.IsZero() {
+		return 0
 	}
 
-	timeDiff := currentTime.Sub(previous.StatsTimestamp).Seconds()
+	timeDiff := currentTime.Sub(previousTime).Seconds()
 	if timeDiff <= 0 {
-		return -1
+		return 0
 	}
 
-	valueDiff := currentTotal - previous.TotalCPU
-	// Handle counter reset or negative diff
-	if valueDiff < 0 {
-		return -1
+	valueDiff := currentTotal - previousTotal
+	if valueDiff <= 0 {
+		return 0
 	}
 
-	// Calculate rate: (current - previous) / time_diff
-	// Result is in nanocores per second
 	return valueDiff / timeDiff
+}
+
+func (c *Collector) sendMetrics(inStats *ServerlessContainerStats, enhancedMetrics ServerlessEnhancedMetrics) {
+	// CPU usage in nanocores
+	c.metricAgent.AddMetricWithTimestamp(c.metricPrefix+"cpu.usage", enhancedMetrics.CPUUsage, c.metricSource, metrics.DistributionType, enhancedMetrics.Timestamp)
+
+	// CPU usage in nanocores
+	c.metricAgent.AddMetricWithTimestamp(c.metricPrefix+"cpu.usage.rate", enhancedMetrics.CPUUsage, c.metricSource, metrics.RateType, enhancedMetrics.Timestamp)
+
+	// CPU limit in nanocores
+	c.metricAgent.AddMetricWithTimestamp(c.metricPrefix+"cpu.limit", enhancedMetrics.CPULimit, c.metricSource, metrics.DistributionType, enhancedMetrics.Timestamp)
+
+}
+
+func statValue(val *float64, def float64) float64 {
+	if val != nil {
+		return *val
+	}
+	return def
 }

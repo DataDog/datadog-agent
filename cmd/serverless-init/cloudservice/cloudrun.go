@@ -165,7 +165,7 @@ func (c *CloudRun) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent,
 		c.collector.Stop()
 	}
 
-	metricAgent.AddMetric(cloudRunPrefix+".enhanced.shutdown", 1.0, c.GetSource(), metrics.DistributionType)
+	metricAgent.AddMetric(cloudRunPrefix+".enhanced.shutdown", 1.0, c.GetSource())
 }
 
 func (c *CloudRun) StartEnhancedMetrics(metricAgent *serverlessMetrics.ServerlessMetricAgent) {

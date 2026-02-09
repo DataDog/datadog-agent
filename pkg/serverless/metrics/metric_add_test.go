@@ -31,10 +31,10 @@ const (
 
 func TestAdd(t *testing.T) {
 	demux := createDemultiplexer(t)
-	mockAgent := metrics.ServerlessMetricAgent{
+	mockAgent := ServerlessMetricAgent{
 		Demux: demux,
 	}
-	mockAgent.AddMetric("a.super.metric", 1.0, mockMetricSource, mockAgent)
+	mockAgent.AddMetric("a.super.metric", 1.0, mockMetricSource)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 1, len(generatedMetrics))
@@ -44,10 +44,10 @@ func TestAdd(t *testing.T) {
 
 func TestAddStartMetric(t *testing.T) {
 	demux := createDemultiplexer(t)
-	mockAgent := metrics.ServerlessMetricAgent{
+	mockAgent := ServerlessMetricAgent{
 		Demux: demux,
 	}
-	mockAgent.AddMetric(mockStartMetricName, 1.0, mockMetricSource, mockAgent)
+	mockAgent.AddMetric(mockStartMetricName, 1.0, mockMetricSource)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 1, len(generatedMetrics))
@@ -58,10 +58,10 @@ func TestAddStartMetric(t *testing.T) {
 
 func TestAddShutdownMetric(t *testing.T) {
 	demux := createDemultiplexer(t)
-	mockAgent := metrics.ServerlessMetricAgent{
+	mockAgent := ServerlessMetricAgent{
 		Demux: demux,
 	}
-	mockAgent.AddMetric(mockShutdownMetricName, 1.0, mockMetricSource, mockAgent)
+	mockAgent.AddMetric(mockShutdownMetricName, 1.0, mockMetricSource)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 1, len(generatedMetrics))
@@ -72,10 +72,10 @@ func TestAddShutdownMetric(t *testing.T) {
 
 func TestAddExtraTags(t *testing.T) {
 	demux := createDemultiplexer(t)
-	mockAgent := metrics.ServerlessMetricAgent{
+	mockAgent := ServerlessMetricAgent{
 		Demux: demux,
 	}
-	mockAgent.AddMetric("tagged.metric", 1.0, mockMetricSource, mockAgent, "exit_code:1")
+	mockAgent.AddMetric("tagged.metric", 1.0, mockMetricSource, "exit_code:1")
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 1, len(generatedMetrics))
@@ -86,12 +86,12 @@ func TestAddExtraTags(t *testing.T) {
 
 func TestNilDemuxDoesNotPanic(t *testing.T) {
 	demux := createDemultiplexer(t)
-	mockAgent := metrics.ServerlessMetricAgent{
+	mockAgent := ServerlessMetricAgent{
 		Demux: nil, // Pass nil for demux to mimic when a port is blocked and dogstatsd does not start properly.
 	}
 	mockAgent.SetExtraTags([]string{"taga:valuea", "tagb:valueb"})
 	// This previously led to a panic and segmentation fault
-	mockAgent.AddMetric("metric", 1.0, mockMetricSource, mockAgent)
+	mockAgent.AddMetric("metric", 1.0, mockMetricSource)
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Equal(t, 0, len(timedMetrics))
 	assert.Equal(t, 0, len(generatedMetrics))

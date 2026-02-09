@@ -50,7 +50,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/otlp"
 	serverlessTag "github.com/DataDog/datadog-agent/pkg/serverless/tags"
@@ -166,7 +165,7 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 	metricTags := serverlessInitTag.MakeMetricAgentTags(tags)
 	metricAgent := setupMetricAgent(metricTags, tagger, cloudService.ShouldForceFlushAllOnForceFlushToSerializer())
 
-	metricAgent.AddMetric(cloudService.GetStartMetricName(), 1.0, cloudService.GetSource(), metrics.DistributionType)
+	metricAgent.AddMetric(cloudService.GetStartMetricName(), 1.0, cloudService.GetSource())
 
 	cloudService.StartEnhancedMetrics(metricAgent)
 
