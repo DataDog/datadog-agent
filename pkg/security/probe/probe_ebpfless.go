@@ -660,7 +660,7 @@ func (p *EBPFLessProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 		case action.Def.Kill != nil:
 			// do not handle kill action on event with error
 			if ev.Error != nil {
-				return
+				continue
 			}
 			tryToKill, _ := p.processKiller.KillAndReport(action.Def.Kill, rule, ev)
 			if tryToKill {
