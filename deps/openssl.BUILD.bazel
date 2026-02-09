@@ -202,7 +202,7 @@ configure_make(
         ],
         "@platforms//os:windows": [],
     }),
-    copts = ["-O2"] + select({
+    copts = ["-O0"] + select({
         "@platforms//os:windows": ["-DSIO_UDP_NETRESET=_WSAIOW\\(IOC_VENDOR,15\\)"],
         "//conditions:default": [],
     }),
