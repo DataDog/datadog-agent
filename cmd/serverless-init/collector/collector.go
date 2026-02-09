@@ -165,14 +165,13 @@ func (c *Collector) convertToServerlessContainerStats(stats *cgroups.Stats) *Ser
 }
 
 func (c *Collector) computeContainerMetrics(inStats *ServerlessContainerStats) ServerlessEnhancedMetrics {
-	enhancedMetrics := ServerlessEnhancedMetrics{Timestamp: float64(inStats.CollectionTime.UnixNano()) / float64(time.Second)}
+	enhancedMetrics := ServerlessEnhancedMetrics{}
 
 	if inStats == nil {
 		return enhancedMetrics
 	}
 
-	// Store current collection time for next calculation
-	c.previousRateStats.CollectionTime = inStats.CollectionTime
+	enhancedMetrics.Timestamp = float64(inStats.CollectionTime.UnixNano()) / float64(time.Second)
 
 	if inStats.CPU != nil {
 		currentTotal := statValue(inStats.CPU.Total, -1)
@@ -183,6 +182,9 @@ func (c *Collector) computeContainerMetrics(inStats *ServerlessContainerStats) S
 
 		enhancedMetrics.CPULimit = statValue(inStats.CPU.Limit, 0)
 	}
+
+	// Store current collection time for next calculation
+	c.previousRateStats.CollectionTime = inStats.CollectionTime
 
 	return enhancedMetrics
 }
@@ -219,6 +221,9 @@ func computeCPULimit(cgs *cgroups.CPUStats) *float64 {
 // calculateCPUUsage calculates the CPU usage rate in nanoseconds per second (nanocores)
 // Returns -1 if invalid data or first run, returns 0 if unable to calculate using values and times provided
 func (c *Collector) calculateCPUUsage(currentTotal float64, previousTotal float64, currentTime time.Time, previousTime time.Time) float64 {
+	log.Debugf("calculateCPUUsage: currentTotal=%.0f, previousTotal=%.0f, currentTime=%v, previousTime=%v",
+		currentTotal, previousTotal, currentTime, previousTime)
+
 	if currentTotal == -1 || previousTotal == -1 {
 		return -1
 	}
@@ -245,7 +250,7 @@ func (c *Collector) sendMetrics(inStats *ServerlessContainerStats, enhancedMetri
 	c.metricAgent.AddMetricWithTimestamp(c.metricPrefix+"cpu.usage", enhancedMetrics.CPUUsage, c.metricSource, metrics.DistributionType, enhancedMetrics.Timestamp)
 
 	// CPU usage in nanocores
-	c.metricAgent.AddMetricWithTimestamp(c.metricPrefix+"cpu.usage.rate", enhancedMetrics.CPUUsage, c.metricSource, metrics.RateType, enhancedMetrics.Timestamp)
+	c.metricAgent.AddMetricWithTimestamp(c.metricPrefix+"cpu.usage.rate", statValue(inStats.CPU.Total, -1), c.metricSource, metrics.RateType, enhancedMetrics.Timestamp)
 
 	// CPU limit in nanocores
 	c.metricAgent.AddMetricWithTimestamp(c.metricPrefix+"cpu.limit", enhancedMetrics.CPULimit, c.metricSource, metrics.DistributionType, enhancedMetrics.Timestamp)
