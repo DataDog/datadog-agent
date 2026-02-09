@@ -145,8 +145,8 @@ func makeExpectedEndpoint(method http.Method, path string) http.Key {
 	}
 }
 
-// httpStatsTestParams holds parameters for the common HTTP stats test.
-type httpStatsTestParams struct {
+// commonTestParams holds shared parameters for common test functions.
+type commonTestParams struct {
 	// serverPort is the port the test server will listen on
 	serverPort int
 	// setupMonitor is a platform-specific function to set up the monitor
@@ -154,7 +154,7 @@ type httpStatsTestParams struct {
 }
 
 // runHTTPStatsTest runs the common HTTP stats test logic.
-func runHTTPStatsTest(t *testing.T, params httpStatsTestParams) {
+func runHTTPStatsTest(t *testing.T, params commonTestParams) {
 	serverAddr := fmt.Sprintf("127.0.0.1:%d", params.serverPort)
 	t.Logf("Using server address: %s (port: %d)", serverAddr, params.serverPort)
 
@@ -203,10 +203,6 @@ func runHTTPStatsTest(t *testing.T, params httpStatsTestParams) {
 const (
 	kb = 1024
 	mb = 1024 * kb
-)
-
-var (
-	emptyBody = []byte(nil)
 )
 
 var (
@@ -303,17 +299,15 @@ func isRequestIncludedOnce(allStats map[http.Key]*http.RequestStats, req *nethtt
 
 	if occurrences == 1 {
 		return true, nil
-	} else if occurrences == 0 {
+	}
+	if occurrences == 0 {
 		return false, nil
 	}
 	return false, fmt.Errorf("expected to find 1 occurrence of %v, but found %d instead", req, occurrences)
 }
 
 // httpBodySizeTestParams holds parameters for the HTTP body size test.
-type httpBodySizeTestParams struct {
-	// setupMonitor is a platform-specific function to set up the monitor
-	setupMonitor func(t *testing.T) TestMonitor
-}
+type httpBodySizeTestParams = commonTestParams
 
 // runHTTPMonitorIntegrationWithResponseBodyTest runs the test for various HTTP body sizes.
 // It verifies that the monitor captures HTTP requests with different body sizes.
@@ -449,7 +443,7 @@ func runHTTPMonitorLoadWithIncompleteBuffersTest(t *testing.T, params httpLoadTe
 	})
 
 	fastSrvDoneFn := testutil.HTTPServer(t, fastServerAddr, testutil.Options{})
-	abortedRequestFn := requestGenerator(t, slowServerAddr+"/ignore", emptyBody)
+	abortedRequestFn := requestGenerator(t, slowServerAddr+"/ignore", nil)
 	wg := sync.WaitGroup{}
 	abortedRequests := make(chan *nethttp.Request, 100)
 	for i := 0; i < 100; i++ {
@@ -460,7 +454,7 @@ func runHTTPMonitorLoadWithIncompleteBuffersTest(t *testing.T, params httpLoadTe
 			abortedRequests <- req
 		}()
 	}
-	fastReq := requestGenerator(t, fastServerAddr, emptyBody)()
+	fastReq := requestGenerator(t, fastServerAddr, nil)()
 	wg.Wait()
 	close(abortedRequests)
 	slowSrvDoneFn()
@@ -487,12 +481,7 @@ func runHTTPMonitorLoadWithIncompleteBuffersTest(t *testing.T, params httpLoadTe
 }
 
 // rstPacketTestParams holds parameters for the RST packet regression test.
-type rstPacketTestParams struct {
-	// serverPort is the port the test server will listen on
-	serverPort int
-	// setupMonitor is a platform-specific function to set up the monitor
-	setupMonitor func(t *testing.T) TestMonitor
-}
+type rstPacketTestParams = commonTestParams
 
 // runRSTPacketRegressionTest checks that USM captures a request that was forcefully terminated by a RST packet.
 func runRSTPacketRegressionTest(t *testing.T, params rstPacketTestParams) {
@@ -513,7 +502,7 @@ func runRSTPacketRegressionTest(t *testing.T, params rstPacketTestParams) {
 
 	// Issue HTTP request
 	requestPath := "/200/foobar"
-	c.Write([]byte(fmt.Sprintf("GET %s HTTP/1.1\nHost: %s\n\n", requestPath, serverAddr)))
+	c.Write([]byte(fmt.Sprintf("GET %s HTTP/1.1\r\nHost: %s\r\n\r\n", requestPath, serverAddr)))
 	io.Copy(io.Discard, c)
 
 	// Configure SO_LINGER to 0 so that triggers an RST when the socket is terminated
@@ -533,12 +522,7 @@ func runRSTPacketRegressionTest(t *testing.T, params rstPacketTestParams) {
 }
 
 // keepAliveWithIncompleteResponseTestParams holds parameters for the keep-alive with incomplete response test.
-type keepAliveWithIncompleteResponseTestParams struct {
-	// serverPort is the port the test server will listen on
-	serverPort int
-	// setupMonitor is a platform-specific function to set up the monitor
-	setupMonitor func(t *testing.T) TestMonitor
-}
+type keepAliveWithIncompleteResponseTestParams = commonTestParams
 
 // runKeepAliveWithIncompleteResponseRegressionTest checks that USM captures a request, although we initially saw a
 // response and then a request with its response. This emulates the case where the monitor started in the middle of

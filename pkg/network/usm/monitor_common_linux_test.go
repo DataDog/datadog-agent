@@ -39,79 +39,49 @@ func setupLinuxTestMonitor(t *testing.T, cfg *config.Config) TestMonitor {
 	}
 }
 
-// TestHTTPStatsCommon runs the common HTTP stats test on Linux.
+// newLinuxCommonTestParams creates commonTestParams for Linux with a free port.
+func newLinuxCommonTestParams(t *testing.T) commonTestParams {
+	return commonTestParams{
+		serverPort: tracetestutil.FreeTCPPort(t),
+		setupMonitor: func(t *testing.T) TestMonitor {
+			return setupLinuxTestMonitor(t, getHTTPCfg())
+		},
+	}
+}
+
 func TestHTTPStatsCommon(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
-
-	serverPort := tracetestutil.FreeTCPPort(t)
-
-	runHTTPStatsTest(t, httpStatsTestParams{
-		serverPort: serverPort,
-		setupMonitor: func(t *testing.T) TestMonitor {
-			return setupLinuxTestMonitor(t, getHTTPCfg())
-		},
-	})
+	runHTTPStatsTest(t, newLinuxCommonTestParams(t))
 }
 
-// TestHTTPMonitorIntegrationWithResponseBodyCommon runs the HTTP body size test on Linux.
 func TestHTTPMonitorIntegrationWithResponseBodyCommon(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
-
-	runHTTPMonitorIntegrationWithResponseBodyTest(t, httpBodySizeTestParams{
-		setupMonitor: func(t *testing.T) TestMonitor {
-			return setupLinuxTestMonitor(t, getHTTPCfg())
-		},
-	})
+	runHTTPMonitorIntegrationWithResponseBodyTest(t, newLinuxCommonTestParams(t))
 }
 
-// TestHTTPMonitorLoadWithIncompleteBuffersCommon runs the incomplete buffers test on Linux.
 func TestHTTPMonitorLoadWithIncompleteBuffersCommon(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
-
-	slowServerPort := tracetestutil.FreeTCPPort(t)
-	fastServerPort := tracetestutil.FreeTCPPort(t)
-
 	runHTTPMonitorLoadWithIncompleteBuffersTest(t, httpLoadTestParams{
-		slowServerPort: slowServerPort,
-		fastServerPort: fastServerPort,
+		slowServerPort: tracetestutil.FreeTCPPort(t),
+		fastServerPort: tracetestutil.FreeTCPPort(t),
 		setupMonitor: func(t *testing.T) TestMonitor {
 			return setupLinuxTestMonitor(t, getHTTPCfg())
 		},
 	})
 }
 
-// TestRSTPacketRegressionCommon runs the RST packet regression test on Linux.
 func TestRSTPacketRegressionCommon(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
-
-	serverPort := tracetestutil.FreeTCPPort(t)
-
-	runRSTPacketRegressionTest(t, rstPacketTestParams{
-		serverPort: serverPort,
-		setupMonitor: func(t *testing.T) TestMonitor {
-			return setupLinuxTestMonitor(t, getHTTPCfg())
-		},
-	})
+	runRSTPacketRegressionTest(t, newLinuxCommonTestParams(t))
 }
 
-// TestKeepAliveWithIncompleteResponseRegressionCommon runs the keep-alive with incomplete response test on Linux.
 func TestKeepAliveWithIncompleteResponseRegressionCommon(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
-
-	serverPort := tracetestutil.FreeTCPPort(t)
-
-	runKeepAliveWithIncompleteResponseRegressionTest(t, keepAliveWithIncompleteResponseTestParams{
-		serverPort: serverPort,
-		setupMonitor: func(t *testing.T) TestMonitor {
-			return setupLinuxTestMonitor(t, getHTTPCfg())
-		},
-	})
+	runKeepAliveWithIncompleteResponseRegressionTest(t, newLinuxCommonTestParams(t))
 }
 
-// TestEmptyConfigCommon runs the empty config test on Linux.
 func TestEmptyConfigCommon(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
-
 	runEmptyConfigTest(t, emptyConfigTestParams{
 		validateMonitorCreation: func(t *testing.T) {
 			cfg := NewUSMEmptyConfig()

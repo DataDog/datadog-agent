@@ -64,14 +64,6 @@ func setupWindowsMonitor(t *testing.T, cfg *config.Config) Monitor {
 	return monitor
 }
 
-// verifyHTTPStatsWindows validates HTTP stats using the Windows Monitor interface.
-// This is a convenience wrapper around the common verifyHTTPStats for Windows-specific tests.
-func verifyHTTPStatsWindows(t *testing.T, monitor Monitor, expectedEndpoints map[http.Key]statusCodeCount, serverPort int, additionalValidator func(*testing.T, *http.RequestStat) bool) bool {
-	t.Helper()
-	// Windows Monitor interface satisfies TestMonitor, so we can cast directly
-	return verifyHTTPStats(t, monitor, expectedEndpoints, serverPort, additionalValidator)
-}
-
 // makeIISTagValidator creates a validator function that checks for expected IIS dynamic tags.
 func makeIISTagValidator(expectedTags map[string]struct{}) func(*testing.T, *http.RequestStat) bool {
 	return func(t *testing.T, stat *http.RequestStat) bool {
@@ -162,6 +154,6 @@ func TestHTTPStatsWithIIS(t *testing.T) {
 
 	// Verify the monitor captured the HTTP traffic with IIS tags
 	require.Eventuallyf(t, func() bool {
-		return verifyHTTPStatsWindows(t, monitor, expectedEndpoints, serverPort, makeIISTagValidator(expectedTags))
+		return verifyHTTPStats(t, monitor, expectedEndpoints, serverPort, makeIISTagValidator(expectedTags))
 	}, 5*time.Second, 100*time.Millisecond, "HTTP connection to IIS not found for %s", serverAddr)
 }
