@@ -682,6 +682,9 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 		a.Replacer.ReplaceV1(chunk)
 
 		a.setRootSpanTagsV1(root)
+		if !p.ClientComputedTopLevel {
+			traceutil.ComputeTopLevelV1(chunk)
+		}
 
 		pt := processedTraceV1(p, chunk, root, imageTag, gitCommitSha)
 		if !p.ClientComputedStats {
