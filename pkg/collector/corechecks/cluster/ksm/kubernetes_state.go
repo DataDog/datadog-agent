@@ -744,6 +744,7 @@ func (k *KSMCheck) Run() error {
 		}
 	}
 
+	k.flushAggregators(sender, labelJoiner)
 	k.sendTelemetry(sender)
 
 	return nil
@@ -802,6 +803,13 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 			log.Tracef("KSM metric '%s' is unknown for the check, ignoring it", metricFamily.Name)
 		}
 	}
+}
+
+// flushAggregators flushes all metric aggregators. This must be called once
+// after all stores have been processed so that aggregators that correlate
+// metrics across different stores (e.g. podTimeToReadyCorrelator) see
+// the complete data before flushing.
+func (k *KSMCheck) flushAggregators(sender sender.Sender, labelJoiner *labelJoiner) {
 	for _, aggregator := range k.metricAggregators {
 		aggregator.flush(sender, k, labelJoiner)
 	}

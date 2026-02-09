@@ -324,8 +324,14 @@ func Test_ParsersProduceSameOutput(t *testing.T) {
 			Phase: corev1.PodRunning,
 			Conditions: []corev1.PodCondition{
 				{
-					Type:   corev1.PodReady,
-					Status: corev1.ConditionTrue,
+					Type:               corev1.PodScheduled,
+					Status:             corev1.ConditionTrue,
+					LastTransitionTime: metav1.NewTime(time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC)),
+				},
+				{
+					Type:               corev1.PodReady,
+					Status:             corev1.ConditionTrue,
+					LastTransitionTime: metav1.NewTime(time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)),
 				},
 			},
 			PodIP:    "10.0.0.1",

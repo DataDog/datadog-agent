@@ -9,6 +9,8 @@ package workload
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,6 +39,12 @@ type PodPatcher interface {
 	// observedPodCallback is called when a pod is observed by the pod watcher.
 	// It allows to generate events based on the observed pod.
 	observedPodCallback(ctx context.Context, pod *workloadmeta.KubernetesPod)
+
+	// annotateFirstReady adds the first-ready-time annotation to a pod.
+	// The annotation value is the Ready condition's LastTransitionTime as a
+	// Unix timestamp. When preExisting is true the pod was already Ready
+	// before the agent started, so a staleness heuristic is applied.
+	annotateFirstReady(ctx context.Context, pod *workloadmeta.KubernetesPod, preExisting bool)
 }
 
 type podPatcher struct {
@@ -194,6 +202,57 @@ func (pa podPatcher) observedPodCallback(ctx context.Context, pod *workloadmeta.
 		log.Warnf("Failed to patch POD %s/%s with event emitted annotation, event may be generated multiple times, err: %v", pod.Namespace, pod.Name, err)
 	}
 	log.Debugf("Event sent and POD %s/%s patched with event annotation", pod.Namespace, pod.Name)
+}
+
+func (pa podPatcher) annotateFirstReady(ctx context.Context, pod *workloadmeta.KubernetesPod, preExisting bool) {
+	log.Infof("annotateFirstReady called for pod %s/%s (preExisting=%v, conditions=%d)",
+		pod.Namespace, pod.Name, preExisting, len(pod.Conditions))
+
+	if !pa.isLeader() {
+		log.Debugf("Pod %s/%s: not leader, skipping first-ready annotation", pod.Namespace, pod.Name)
+		return
+	}
+
+	// Find the Ready and PodScheduled condition timestamps
+	var readyTime, scheduledTime time.Time
+	for _, cond := range pod.Conditions {
+		log.Debugf("Pod %s/%s: condition Type=%s Status=%s LastTransitionTime=%v",
+			pod.Namespace, pod.Name, cond.Type, cond.Status, cond.LastTransitionTime)
+		if cond.Type == "Ready" && cond.Status == "True" && !cond.LastTransitionTime.IsZero() {
+			readyTime = cond.LastTransitionTime
+		}
+		if cond.Type == "PodScheduled" && cond.Status == "True" && !cond.LastTransitionTime.IsZero() {
+			scheduledTime = cond.LastTransitionTime
+		}
+	}
+	if readyTime.IsZero() {
+		log.Infof("Pod %s/%s: no Ready=True condition with LastTransitionTime found, skipping", pod.Namespace, pod.Name)
+		return
+	}
+
+	log.Infof("Pod %s/%s: readyTime=%v scheduledTime=%v preExisting=%v gap=%v",
+		pod.Namespace, pod.Name, readyTime, scheduledTime, preExisting, readyTime.Sub(scheduledTime))
+
+	// For pre-existing pods (already Ready when the agent started), we cannot
+	// know whether LastTransitionTime reflects the original first-ready time
+	// or a subsequent ready->unready->ready cycle. If the gap between the
+	// scheduled time and the ready time is larger than 1 hour, the data is
+	// likely stale or from a cycle, so we skip it.
+	// NOTE: this is a known tradeoff documented in the RFC.
+	if preExisting && !scheduledTime.IsZero() && readyTime.Sub(scheduledTime) > time.Hour {
+		log.Infof("Pod %s/%s: pre-existing with ready-scheduled gap %v > 1h, skipping", pod.Namespace, pod.Name, readyTime.Sub(scheduledTime))
+		return
+	}
+
+	timestamp := fmt.Sprintf("%d", readyTime.Unix())
+	podPatch := []byte(`{"metadata": {"annotations": {"` + model.FirstReadyTimeAnnotation + `": "` + timestamp + `"}}}`)
+	log.Infof("Pod %s/%s: patching with first-ready-time annotation value=%s", pod.Namespace, pod.Name, timestamp)
+	_, err := pa.client.Resource(podGVR).Namespace(pod.Namespace).Patch(ctx, pod.Name, types.StrategicMergePatchType, podPatch, metav1.PatchOptions{})
+	if err != nil {
+		log.Warnf("Failed to annotate first ready time for pod %s/%s: %v", pod.Namespace, pod.Name, err)
+		return
+	}
+	log.Infof("Pod %s/%s: successfully annotated with first ready time %s", pod.Namespace, pod.Name, timestamp)
 }
 
 // K8s guarantees that the name for an init container or normal container are unique among all containers.

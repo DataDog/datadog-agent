@@ -22,8 +22,7 @@ var _ metricAggregator = &countObjectsAggregator{}
 var _ metricAggregator = &lastCronJobCompleteAggregator{}
 var _ metricAggregator = &lastCronJobFailedAggregator{}
 var _ metricAggregator = &podScheduledTimeAggregator{}
-var _ metricAggregator = &podReadyTimeAggregator{}
-var _ metricAggregator = &podContainerRestartsAggregator{}
+var _ metricAggregator = &podFirstReadyTimeAggregator{}
 
 func Test_counterAggregator(t *testing.T) {
 	tests := []struct {
@@ -325,12 +324,11 @@ func Test_podTimeToReadyAggregator(t *testing.T) {
 	tests := []struct {
 		name             string
 		scheduledMetrics []ksmstore.DDMetric
-		readyMetrics     []ksmstore.DDMetric
-		restartsMetrics  []ksmstore.DDMetric
+		firstReadyMetrics []ksmstore.DDMetric
 		expected         []metricsExpected
 	}{
 		{
-			name: "Single pod with both metrics and no restarts",
+			name: "Single pod with both metrics",
 			scheduledMetrics: []ksmstore.DDMetric{
 				{
 					Labels: map[string]string{
@@ -341,24 +339,14 @@ func Test_podTimeToReadyAggregator(t *testing.T) {
 					Val: 1000.0, // scheduled at time 1000
 				},
 			},
-			readyMetrics: []ksmstore.DDMetric{
+			firstReadyMetrics: []ksmstore.DDMetric{
 				{
 					Labels: map[string]string{
 						"namespace": "default",
 						"pod":       "my-pod",
 						"uid":       "abc123",
 					},
-					Val: 1005.0, // ready at time 1005
-				},
-			},
-			restartsMetrics: []ksmstore.DDMetric{
-				{
-					Labels: map[string]string{
-						"namespace": "default",
-						"pod":       "my-pod",
-						"container": "main",
-					},
-					Val: 0, // no restarts
+					Val: 1005.0, // first ready at time 1005
 				},
 			},
 			expected: []metricsExpected{
@@ -370,7 +358,7 @@ func Test_podTimeToReadyAggregator(t *testing.T) {
 			},
 		},
 		{
-			name: "Multiple pods with no restarts",
+			name: "Multiple pods",
 			scheduledMetrics: []ksmstore.DDMetric{
 				{
 					Labels: map[string]string{
@@ -387,7 +375,7 @@ func Test_podTimeToReadyAggregator(t *testing.T) {
 					Val: 200.0,
 				},
 			},
-			readyMetrics: []ksmstore.DDMetric{
+			firstReadyMetrics: []ksmstore.DDMetric{
 				{
 					Labels: map[string]string{
 						"namespace": "ns1",
@@ -403,7 +391,6 @@ func Test_podTimeToReadyAggregator(t *testing.T) {
 					Val: 230.0,
 				},
 			},
-			restartsMetrics: []ksmstore.DDMetric{},
 			expected: []metricsExpected{
 				{
 					name: "kubernetes_state.pod.time_to_ready",
@@ -418,7 +405,7 @@ func Test_podTimeToReadyAggregator(t *testing.T) {
 			},
 		},
 		{
-			name: "Pod with only scheduled time (no ready metric)",
+			name: "Pod with only scheduled time (no first-ready annotation)",
 			scheduledMetrics: []ksmstore.DDMetric{
 				{
 					Labels: map[string]string{
@@ -428,14 +415,13 @@ func Test_podTimeToReadyAggregator(t *testing.T) {
 					Val: 1000.0,
 				},
 			},
-			readyMetrics:    []ksmstore.DDMetric{},
-			restartsMetrics: []ksmstore.DDMetric{},
-			expected:        []metricsExpected{}, // No metric emitted
+			firstReadyMetrics: []ksmstore.DDMetric{},
+			expected:          []metricsExpected{}, // No metric emitted
 		},
 		{
-			name:             "Pod with only ready time (no scheduled metric)",
+			name:             "Pod with only first-ready time (no scheduled metric)",
 			scheduledMetrics: []ksmstore.DDMetric{},
-			readyMetrics: []ksmstore.DDMetric{
+			firstReadyMetrics: []ksmstore.DDMetric{
 				{
 					Labels: map[string]string{
 						"namespace": "default",
@@ -444,140 +430,29 @@ func Test_podTimeToReadyAggregator(t *testing.T) {
 					Val: 1005.0,
 				},
 			},
-			restartsMetrics: []ksmstore.DDMetric{},
-			expected:        []metricsExpected{}, // No metric emitted (scheduledTime == 0)
+			expected: []metricsExpected{}, // No metric emitted (scheduledTime == 0)
 		},
 		{
-			name: "Pod with container restarts - metric NOT emitted",
+			name: "Pod where first-ready time is before scheduled time - skipped",
 			scheduledMetrics: []ksmstore.DDMetric{
 				{
 					Labels: map[string]string{
 						"namespace": "default",
-						"pod":       "restarted-pod",
+						"pod":       "bad-data-pod",
 					},
-					Val: 1000.0,
+					Val: 2000.0,
 				},
 			},
-			readyMetrics: []ksmstore.DDMetric{
+			firstReadyMetrics: []ksmstore.DDMetric{
 				{
 					Labels: map[string]string{
 						"namespace": "default",
-						"pod":       "restarted-pod",
+						"pod":       "bad-data-pod",
 					},
-					Val: 1050.0, // ready time after restart
+					Val: 1000.0, // before scheduled time
 				},
 			},
-			restartsMetrics: []ksmstore.DDMetric{
-				{
-					Labels: map[string]string{
-						"namespace": "default",
-						"pod":       "restarted-pod",
-						"container": "main",
-					},
-					Val: 2, // has restarts
-				},
-			},
-			expected: []metricsExpected{}, // No metric emitted because pod has restarts
-		},
-		{
-			name: "Multiple pods - one with restarts, one without",
-			scheduledMetrics: []ksmstore.DDMetric{
-				{
-					Labels: map[string]string{
-						"namespace": "default",
-						"pod":       "healthy-pod",
-					},
-					Val: 1000.0,
-				},
-				{
-					Labels: map[string]string{
-						"namespace": "default",
-						"pod":       "restarted-pod",
-					},
-					Val: 1000.0,
-				},
-			},
-			readyMetrics: []ksmstore.DDMetric{
-				{
-					Labels: map[string]string{
-						"namespace": "default",
-						"pod":       "healthy-pod",
-					},
-					Val: 1005.0,
-				},
-				{
-					Labels: map[string]string{
-						"namespace": "default",
-						"pod":       "restarted-pod",
-					},
-					Val: 1100.0,
-				},
-			},
-			restartsMetrics: []ksmstore.DDMetric{
-				{
-					Labels: map[string]string{
-						"namespace": "default",
-						"pod":       "healthy-pod",
-						"container": "main",
-					},
-					Val: 0, // no restarts
-				},
-				{
-					Labels: map[string]string{
-						"namespace": "default",
-						"pod":       "restarted-pod",
-						"container": "main",
-					},
-					Val: 1, // has restarts
-				},
-			},
-			expected: []metricsExpected{
-				{
-					name: "kubernetes_state.pod.time_to_ready",
-					val:  5.0, // Only healthy-pod emits metric
-					tags: []string{"kube_namespace:default", "pod_name:healthy-pod"},
-				},
-			},
-		},
-		{
-			name: "Pod with multiple containers - one container has restarts",
-			scheduledMetrics: []ksmstore.DDMetric{
-				{
-					Labels: map[string]string{
-						"namespace": "default",
-						"pod":       "multi-container-pod",
-					},
-					Val: 1000.0,
-				},
-			},
-			readyMetrics: []ksmstore.DDMetric{
-				{
-					Labels: map[string]string{
-						"namespace": "default",
-						"pod":       "multi-container-pod",
-					},
-					Val: 1010.0,
-				},
-			},
-			restartsMetrics: []ksmstore.DDMetric{
-				{
-					Labels: map[string]string{
-						"namespace": "default",
-						"pod":       "multi-container-pod",
-						"container": "main",
-					},
-					Val: 0, // no restarts
-				},
-				{
-					Labels: map[string]string{
-						"namespace": "default",
-						"pod":       "multi-container-pod",
-						"container": "sidecar",
-					},
-					Val: 1, // sidecar has restarts
-				},
-			},
-			expected: []metricsExpected{}, // No metric emitted because one container has restarts
+			expected: []metricsExpected{}, // No metric emitted (negative time)
 		},
 	}
 
@@ -593,26 +468,20 @@ func Test_podTimeToReadyAggregator(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			correlator := newPodTimeToReadyCorrelator()
 			aggScheduled := &podScheduledTimeAggregator{correlator: correlator}
-			aggReady := &podReadyTimeAggregator{correlator: correlator}
-			aggRestarts := &podContainerRestartsAggregator{correlator: correlator}
+			aggFirstReady := &podFirstReadyTimeAggregator{correlator: correlator}
 
 			// Accumulate scheduled metrics
 			for _, metric := range tt.scheduledMetrics {
 				aggScheduled.accumulate(metric)
 			}
-			// Accumulate ready metrics
-			for _, metric := range tt.readyMetrics {
-				aggReady.accumulate(metric)
-			}
-			// Accumulate restarts metrics
-			for _, metric := range tt.restartsMetrics {
-				aggRestarts.accumulate(metric)
+			// Accumulate first-ready metrics (from annotation)
+			for _, metric := range tt.firstReadyMetrics {
+				aggFirstReady.accumulate(metric)
 			}
 
 			// Flush all aggregators
 			aggScheduled.flush(s, ksmCheck, newLabelJoiner(ksmCheck.instance.labelJoins))
-			aggReady.flush(s, ksmCheck, newLabelJoiner(ksmCheck.instance.labelJoins))
-			aggRestarts.flush(s, ksmCheck, newLabelJoiner(ksmCheck.instance.labelJoins))
+			aggFirstReady.flush(s, ksmCheck, newLabelJoiner(ksmCheck.instance.labelJoins))
 
 			s.AssertNumberOfCalls(t, "Gauge", len(tt.expected))
 			for _, expected := range tt.expected {

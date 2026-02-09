@@ -9,6 +9,7 @@ package kubernetesresourceparsers
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -25,6 +26,8 @@ func TestPodParser_Parse(t *testing.T) {
 
 	parser, err := NewPodParser(filterAnnotations)
 	assert.NoError(t, err)
+
+	readyTime := time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC)
 
 	referencePod := corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -84,8 +87,9 @@ func TestPodParser_Parse(t *testing.T) {
 			Phase: corev1.PodRunning,
 			Conditions: []corev1.PodCondition{
 				{
-					Type:   corev1.PodReady,
-					Status: corev1.ConditionTrue,
+					Type:               corev1.PodReady,
+					Status:             corev1.ConditionTrue,
+					LastTransitionTime: metav1.NewTime(readyTime),
 				},
 			},
 			PodIP:    "127.0.0.1",
@@ -132,6 +136,13 @@ func TestPodParser_Parse(t *testing.T) {
 		PriorityClass: "priorityClass",
 		GPUVendorList: []string{"nvidia", "intel"},
 		QOSClass:      "Guaranteed",
+		Conditions: []workloadmeta.KubernetesPodCondition{
+			{
+				Type:               "Ready",
+				Status:             "True",
+				LastTransitionTime: readyTime,
+			},
+		},
 	}
 
 	opt := cmpopts.SortSlices(func(a, b string) bool {

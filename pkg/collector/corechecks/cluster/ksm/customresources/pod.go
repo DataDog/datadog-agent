@@ -9,7 +9,9 @@ package customresources
 
 import (
 	"context"
+	"strconv"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -126,6 +128,37 @@ func (f *extendedPodFactory) MetricFamilyGenerators() []generator.FamilyGenerato
 			"",
 			wrapPodFunc(func(p *v1.Pod) *metric.Family {
 				return f.customResourceOwnerGenerator(p, resourcelimits, Init)
+			}),
+		),
+		*generator.NewFamilyGeneratorWithStability(
+			"kube_pod_first_ready_time",
+			"Unix timestamp of when the pod first became ready, from the autoscaling first-ready-time annotation.",
+			metric.Gauge,
+			basemetrics.ALPHA,
+			"",
+			wrapPodFunc(func(p *v1.Pod) *metric.Family {
+				if p.Annotations == nil {
+					log.Debugf("kube_pod_first_ready_time: pod %s/%s has no annotations", p.Namespace, p.Name)
+					return &metric.Family{}
+				}
+				val, ok := p.Annotations[model.FirstReadyTimeAnnotation]
+				if !ok || val == "" {
+					log.Debugf("kube_pod_first_ready_time: pod %s/%s missing annotation %s (ok=%v, val=%q)", p.Namespace, p.Name, model.FirstReadyTimeAnnotation, ok, val)
+					return &metric.Family{}
+				}
+				timestamp, err := strconv.ParseFloat(val, 64)
+				if err != nil {
+					log.Debugf("kube_pod_first_ready_time: pod %s/%s failed to parse annotation value %q: %v", p.Namespace, p.Name, val, err)
+					return &metric.Family{}
+				}
+				log.Debugf("kube_pod_first_ready_time: pod %s/%s emitting metric with value %f", p.Namespace, p.Name, timestamp)
+				return &metric.Family{
+					Metrics: []*metric.Metric{
+						{
+							Value: timestamp,
+						},
+					},
+				}
 			}),
 		),
 	}

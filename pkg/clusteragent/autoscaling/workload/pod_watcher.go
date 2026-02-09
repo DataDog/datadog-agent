@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -45,6 +46,14 @@ type PodWatcher interface {
 	GetReadyPodsForOwner(NamespacedPodOwner) int32
 }
 
+// firstReadyEvent is sent to the firstReadyChan when a pod becomes ready.
+type firstReadyEvent struct {
+	pod *workloadmeta.KubernetesPod
+	// preExisting is true when the pod was already Ready the first time the
+	// watcher saw it (i.e., a pod that existed before the agent started).
+	preExisting bool
+}
+
 // PodWatcherImpl is the implementation of the autoscaling PodWatcher
 type PodWatcherImpl struct {
 	mutex sync.RWMutex
@@ -52,6 +61,7 @@ type PodWatcherImpl struct {
 	wlm                  workloadmeta.Component
 	patcher              PodPatcher
 	patcherChan          chan *workloadmeta.KubernetesPod
+	firstReadyChan       chan firstReadyEvent
 	podsPerPodOwner      map[NamespacedPodOwner]map[string]*workloadmeta.KubernetesPod
 	readyPodsPerPodOwner map[NamespacedPodOwner]int32
 }
@@ -104,6 +114,11 @@ func (pw *PodWatcherImpl) Run(ctx context.Context) {
 	pw.patcherChan = make(chan *workloadmeta.KubernetesPod, patcherQueueSize)
 	defer close(pw.patcherChan)
 	go pw.runPatcher(ctx)
+
+	// Start the goroutine to annotate pods with their first-ready time
+	pw.firstReadyChan = make(chan firstReadyEvent, patcherQueueSize)
+	defer close(pw.firstReadyChan)
+	go pw.runFirstReadyAnnotator(ctx)
 
 	for {
 		select {
@@ -170,13 +185,37 @@ func (pw *PodWatcherImpl) handleSetEvent(pod *workloadmeta.KubernetesPod) {
 
 	pw.podsPerPodOwner[podOwner][pod.ID] = pod
 
+	if pw.patcher == nil {
+		log.Debugf("Pod %s/%s: patcher is nil, skipping patcher and first-ready checks", pod.Namespace, pod.Name)
+		return
+	}
+
 	// Write to patcher channel if POD is managed by an autoscaler, just to not pollute queue with non-autoscaler PODs.
 	// We don't patcher inline to avoid lagging behind on the workloadmeta events, which would result in inaccurate POD counts.
-	if pw.patcher != nil && pw.patcher.shouldObservePod(pod) {
+	if pw.patcher.shouldObservePod(pod) {
 		select {
 		case pw.patcherChan <- pod:
 		default:
 			log.Debugf("Patcher queue is full, skipping pod %s", pod.ID)
+		}
+	}
+
+	// If a pod just became ready and doesn't already have the first-ready annotation,
+	// queue it for annotation so the KSM check can compute time_to_ready.
+	justBecameReady := (!exists || !oldPod.Ready) && pod.Ready
+	log.Debugf("Pod %s/%s: exists=%v, pod.Ready=%v, oldPod.Ready=%v, justBecameReady=%v, hasAnnotation=%v",
+		pod.Namespace, pod.Name, exists, pod.Ready, exists && oldPod.Ready, justBecameReady,
+		pod.Annotations[model.FirstReadyTimeAnnotation] != "")
+	if justBecameReady && pod.Annotations[model.FirstReadyTimeAnnotation] == "" {
+		// A pod is "pre-existing" if it was already Ready the first time we saw it.
+		// This means it existed before the agent started, and its LastTransitionTime
+		// may not reflect the original first-ready time.
+		preExisting := !exists && pod.Ready
+		log.Infof("Pod %s/%s: queueing first-ready annotation (preExisting=%v)", pod.Namespace, pod.Name, preExisting)
+		select {
+		case pw.firstReadyChan <- firstReadyEvent{pod: pod, preExisting: preExisting}:
+		default:
+			log.Warnf("First-ready queue is full, skipping pod %s/%s", pod.Namespace, pod.Name)
 		}
 	}
 }
@@ -217,6 +256,17 @@ func (pw *PodWatcherImpl) runPatcher(ctx context.Context) {
 		}
 
 		pw.patcher.observedPodCallback(ctx, pod)
+	}
+}
+
+func (pw *PodWatcherImpl) runFirstReadyAnnotator(ctx context.Context) {
+	for {
+		event, more := <-pw.firstReadyChan
+		if !more {
+			return
+		}
+
+		pw.patcher.annotateFirstReady(ctx, event.pod, event.preExisting)
 	}
 }
 

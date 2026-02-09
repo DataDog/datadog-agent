@@ -17,6 +17,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
+// ConvertPodConditions converts corev1.PodCondition objects from the Kubernetes
+// API into workloadmeta.KubernetesPodCondition objects.
+func ConvertPodConditions(conditions []corev1.PodCondition) []workloadmeta.KubernetesPodCondition {
+	if conditions == nil {
+		return nil
+	}
+
+	result := make([]workloadmeta.KubernetesPodCondition, len(conditions))
+	for i, condition := range conditions {
+		result[i] = workloadmeta.KubernetesPodCondition{
+			Type:               string(condition.Type),
+			Status:             string(condition.Status),
+			Reason:             condition.Reason,
+			LastTransitionTime: condition.LastTransitionTime.Time,
+		}
+	}
+
+	return result
+}
+
 type podParser struct {
 	annotationsFilter []*regexp.Regexp
 }
@@ -119,5 +139,6 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 		RuntimeClass:               rtcName,
 		GPUVendorList:              gpuVendorList,
 		Containers:                 containersList,
+		Conditions:                 ConvertPodConditions(pod.Status.Conditions),
 	}
 }

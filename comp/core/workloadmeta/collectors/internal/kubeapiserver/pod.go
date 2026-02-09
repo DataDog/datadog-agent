@@ -338,6 +338,7 @@ func (p minimalPodParser) Parse(obj interface{}) workloadmeta.Entity {
 		RuntimeClass:               rtcName,
 		GPUVendorList:              gpuVendorList,
 		Containers:                 containersList,
+		Conditions:                 kubernetesresourceparsers.ConvertPodConditions(pod.Status.Conditions),
 	}
 }
 

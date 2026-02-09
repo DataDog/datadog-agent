@@ -753,6 +753,7 @@ func TestProcessMetrics(t *testing.T) {
 			labelJoiner.insertFamily(metricFam)
 		}
 		kubeStateMetricsCheck.processMetrics(mocked, test.metricsToProcess, labelJoiner, time.Now())
+		kubeStateMetricsCheck.flushAggregators(mocked, labelJoiner)
 		t.Run(test.name, func(t *testing.T) {
 			for _, expectMetric := range test.expected {
 				mocked.AssertMetric(t, "Gauge", expectMetric.name, expectMetric.val, expectMetric.hostname, expectMetric.tags)

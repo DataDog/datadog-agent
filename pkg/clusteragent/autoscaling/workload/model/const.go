@@ -16,6 +16,11 @@ const (
 	RecommendationAppliedEventGeneratedAnnotation = "autoscaling.datadoghq.com/event"
 	// RolloutTimestampAnnotation is the annotation key used to store the rollout timestamp
 	RolloutTimestampAnnotation = "autoscaling.datadoghq.com/rolloutAt"
+	// FirstReadyTimeAnnotation is the annotation key used to store the Unix timestamp
+	// of when a pod first became ready. This is set once and never updated, so that
+	// readiness probe failures that cause ready->unready->ready transitions don't
+	// affect the recorded first-ready time.
+	FirstReadyTimeAnnotation = "autoscaling.datadoghq.com/first-ready-time"
 
 	// RecommendationAppliedEventReason is the event reason when a recommendation is applied
 	RecommendationAppliedEventReason = "RecommendationApplied"

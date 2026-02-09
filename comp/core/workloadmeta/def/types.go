@@ -921,6 +921,10 @@ func (p KubernetesPod) String(verbose bool) string {
 			_, _ = fmt.Fprintln(&sb, "Creation Timestamp:", p.CreationTimestamp)
 		}
 
+		if p.DeletionTimestamp != nil {
+			_, _ = fmt.Fprintln(&sb, "Deletion Timestamp:", *p.DeletionTimestamp)
+		}
+
 		if p.StartTime != nil {
 			_, _ = fmt.Fprintln(&sb, "Start Time:", *p.StartTime)
 		}
@@ -945,6 +949,13 @@ func (p KubernetesPod) String(verbose bool) string {
 		if len(p.ContainerStatuses) > 0 {
 			_, _ = fmt.Fprintln(&sb, "----------- Container Statuses -----------")
 			for _, cs := range p.ContainerStatuses {
+				_, _ = fmt.Fprint(&sb, cs.String(verbose))
+			}
+		}
+
+		if len(p.EphemeralContainerStatuses) > 0 {
+			_, _ = fmt.Fprintln(&sb, "----------- Ephemeral Container Statuses -----------")
+			for _, cs := range p.EphemeralContainerStatuses {
 				_, _ = fmt.Fprint(&sb, cs.String(verbose))
 			}
 		}
@@ -1087,7 +1098,14 @@ type KubernetesPodCondition struct {
 
 // String returns a string representation of KubernetesPodCondition.
 func (c KubernetesPodCondition) String(_ bool) string {
-	return fmt.Sprintf("Type: %s, Status: %s", c.Type, c.Status)
+	s := fmt.Sprintf("Type: %s, Status: %s", c.Type, c.Status)
+	if c.Reason != "" {
+		s += fmt.Sprintf(", Reason: %s", c.Reason)
+	}
+	if !c.LastTransitionTime.IsZero() {
+		s += fmt.Sprintf(", LastTransitionTime: %s", c.LastTransitionTime)
+	}
+	return s
 }
 
 // KubernetesContainerStatus represents the status of a container in a Kubernetes pod.

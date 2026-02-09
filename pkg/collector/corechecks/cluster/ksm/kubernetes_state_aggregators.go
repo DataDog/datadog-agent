@@ -90,7 +90,6 @@ type podTimingState struct {
 	labels        map[string]string
 	scheduledTime float64
 	readyTime     float64
-	hasRestarts   bool // true if any container in the pod has restarts > 0
 }
 
 // podTimeToReadyCorrelator correlates pod scheduled and ready times
@@ -104,15 +103,12 @@ type podScheduledTimeAggregator struct {
 	correlator *podTimeToReadyCorrelator
 }
 
-// podReadyTimeAggregator accumulates kube_pod_status_ready_time metrics
-// and emits the computed time_to_ready metric
-type podReadyTimeAggregator struct {
-	correlator *podTimeToReadyCorrelator
-}
-
-// podContainerRestartsAggregator accumulates kube_pod_container_status_restarts_total metrics
-// to track whether any container in a pod has restarted
-type podContainerRestartsAggregator struct {
+// podFirstReadyTimeAggregator accumulates kube_pod_first_ready_time metrics
+// (from the autoscaling first-ready-time annotation) and emits the computed
+// time_to_ready metric. Unlike the previous approach using lastTransitionTime,
+// the annotation records the FIRST time a pod became ready, so readiness probe
+// failures that cause ready->unready->ready cycles don't inflate the metric.
+type podFirstReadyTimeAggregator struct {
 	correlator *podTimeToReadyCorrelator
 }
 
@@ -280,11 +276,13 @@ func (a *lastCronJobAggregator) accumulate(metric ksmstore.DDMetric, state servi
 func (a *podScheduledTimeAggregator) accumulate(metric ksmstore.DDMetric) {
 	namespace, found := metric.Labels["namespace"]
 	if !found {
+		log.Debug("podScheduledTimeAggregator: metric missing 'namespace' label, skipping")
 		return
 	}
 
 	pod, found := metric.Labels["pod"]
 	if !found {
+		log.Debugf("podScheduledTimeAggregator: metric for namespace=%s missing 'pod' label, skipping", namespace)
 		return
 	}
 
@@ -301,16 +299,20 @@ func (a *podScheduledTimeAggregator) accumulate(metric ksmstore.DDMetric) {
 		a.correlator.correlator[podID] = state
 	}
 	state.scheduledTime = metric.Val
+	a.correlator.correlator[podID] = state
+	log.Debugf("podScheduledTimeAggregator: pod %s/%s scheduledTime=%f", namespace, pod, metric.Val)
 }
 
-func (a *podReadyTimeAggregator) accumulate(metric ksmstore.DDMetric) {
+func (a *podFirstReadyTimeAggregator) accumulate(metric ksmstore.DDMetric) {
 	namespace, found := metric.Labels["namespace"]
 	if !found {
+		log.Debug("podFirstReadyTimeAggregator: metric missing 'namespace' label, skipping")
 		return
 	}
 
 	pod, found := metric.Labels["pod"]
 	if !found {
+		log.Debugf("podFirstReadyTimeAggregator: metric for namespace=%s missing 'pod' label, skipping", namespace)
 		return
 	}
 
@@ -327,33 +329,8 @@ func (a *podReadyTimeAggregator) accumulate(metric ksmstore.DDMetric) {
 		a.correlator.correlator[podID] = state
 	}
 	state.readyTime = metric.Val
-}
-
-func (a *podContainerRestartsAggregator) accumulate(metric ksmstore.DDMetric) {
-	// If any container has restarts > 0, mark the pod as having restarts
-	if metric.Val <= 0 {
-		return
-	}
-
-	namespace, found := metric.Labels["namespace"]
-	if !found {
-		return
-	}
-
-	pod, found := metric.Labels["pod"]
-	if !found {
-		return
-	}
-
-	podID := podIdentifier{namespace: namespace, pod: pod}
-	state, exists := a.correlator.correlator[podID]
-	if !exists {
-		state = &podTimingState{
-			labels: make(map[string]string),
-		}
-		a.correlator.correlator[podID] = state
-	}
-	state.hasRestarts = true
+	a.correlator.correlator[podID] = state
+	log.Debugf("podFirstReadyTimeAggregator: pod %s/%s readyTime=%f (existing scheduledTime=%f)", namespace, pod, metric.Val, state.scheduledTime)
 }
 
 func (a *counterAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
@@ -425,36 +402,35 @@ func (a *podScheduledTimeAggregator) flush(_ sender.Sender, _ *KSMCheck, _ *labe
 	// No-op: the podReadyTimeAggregator handles flushing to avoid double emission
 }
 
-func (a *podReadyTimeAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
-	for _, state := range a.correlator.correlator {
+func (a *podFirstReadyTimeAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
+	log.Debugf("podFirstReadyTimeAggregator.flush: correlator has %d pods", len(a.correlator.correlator))
+	for podID, state := range a.correlator.correlator {
+		log.Debugf("podFirstReadyTimeAggregator.flush: pod %s/%s scheduledTime=%f readyTime=%f labels=%v",
+			podID.namespace, podID.pod, state.scheduledTime, state.readyTime, state.labels)
+
 		// Only emit metrics for pods that have both scheduled and ready times
 		if state.scheduledTime == 0 || state.readyTime == 0 {
-			continue
-		}
-
-		// Skip pods with container restarts - we cannot accurately compute
-		// the initial time-to-ready if the agent started after restarts occurred
-		if state.hasRestarts {
+			log.Debugf("podFirstReadyTimeAggregator.flush: pod %s/%s skipped (scheduledTime=%f readyTime=%f)",
+				podID.namespace, podID.pod, state.scheduledTime, state.readyTime)
 			continue
 		}
 
 		timeToReady := state.readyTime - state.scheduledTime
 		if timeToReady < 0 {
-			// Skip invalid timing data
+			log.Debugf("podFirstReadyTimeAggregator.flush: pod %s/%s skipped negative time_to_ready=%f",
+				podID.namespace, podID.pod, timeToReady)
 			continue
 		}
 
 		// Use hostnameAndTags to apply label joins and get owner reference tags
 		hostname, tags := k.hostnameAndTags(state.labels, labelJoiner, labelsMapperOverride("kube_pod"))
+		log.Debugf("podFirstReadyTimeAggregator.flush: pod %s/%s emitting time_to_ready=%f hostname=%s tags=%v",
+			podID.namespace, podID.pod, timeToReady, hostname, tags)
 		sender.Gauge(ksmMetricPrefix+"pod.time_to_ready", timeToReady, hostname, tags)
 	}
 
 	// Reset the correlator for the next check run
 	a.correlator.correlator = make(map[podIdentifier]*podTimingState)
-}
-
-func (a *podContainerRestartsAggregator) flush(_ sender.Sender, _ *KSMCheck, _ *labelJoiner) {
-	// No-op: the podReadyTimeAggregator handles flushing
 }
 
 func defaultMetricAggregators() map[string]metricAggregator {
@@ -601,8 +577,7 @@ func defaultMetricAggregators() map[string]metricAggregator {
 			[]string{"namespace", "container", "owner_name", "owner_kind"},
 			[]string{"cpu", "memory", "gpu", "mig"},
 		),
-		"kube_pod_status_scheduled_time":           &podScheduledTimeAggregator{correlator: podTimeToReadyCorrelator},
-		"kube_pod_status_ready_time":               &podReadyTimeAggregator{correlator: podTimeToReadyCorrelator},
-		"kube_pod_container_status_restarts_total": &podContainerRestartsAggregator{correlator: podTimeToReadyCorrelator},
+		"kube_pod_status_scheduled_time": &podScheduledTimeAggregator{correlator: podTimeToReadyCorrelator},
+		"kube_pod_first_ready_time":      &podFirstReadyTimeAggregator{correlator: podTimeToReadyCorrelator},
 	}
 }
