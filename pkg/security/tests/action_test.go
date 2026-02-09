@@ -1077,7 +1077,7 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 				assert.Equal(t, "SIGKILL", killReport.Signal, "unexpected signal")
 				assert.Equal(t, "cgroup", killReport.Scope, "unexpected scope")
 				// we might get "partially kill" status if like we start by killing the container entrypoint and we're not able to kill the tail because it's already stopped
-				assert.True(t, killReport.Status == sprobe.KillActionStatusPerformed || killReport.Status == sprobe.KillActionStatusPartiallyPerformed, "unexpected status")
+				assert.Contains(t, []sprobe.KillActionStatus{sprobe.KillActionStatusPerformed, sprobe.KillActionStatusPartiallyPerformed}, killReport.Status, "unexpected status")
 			}
 		}
 		return true
