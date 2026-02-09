@@ -11,6 +11,7 @@ package autoinstrumentation
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -19,14 +20,27 @@ import (
 	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	kubecommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"k8s.io/client-go/discovery"
 )
 
 // NewAutoInstrumentation is a helper function to create a fully initialized webhook for SSI. Our webhook is made up of
 // several components, but consumers of this webhook should not need to care about how the webhook is wired together.
-func NewAutoInstrumentation(datadogConfig config.Component, wmeta workloadmeta.Component, rcClient *rcclient.Client) (*Webhook, error) {
+func NewAutoInstrumentation(datadogConfig config.Component, wmeta workloadmeta.Component, rcClient *rcclient.Client, discoveryCl discovery.DiscoveryInterface) (*Webhook, error) {
 	config, err := NewConfig(datadogConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auto instrumentation config: %v", err)
+	}
+
+	// Populate Kubernetes server version for feature gating.
+	if discoveryCl != nil {
+		if serverVersion, err := kubecommon.KubeServerVersion(discoveryCl, 10*time.Second); err != nil {
+			log.Warnf("Failed to get Kubernetes server version for SSI feature gating: %v", err)
+		} else {
+			config.kubeServerVersion = serverVersion
+		}
 	}
 
 	imageResolver := imageresolver.New(imageresolver.NewConfig(datadogConfig, rcClient))

@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/version"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
@@ -75,6 +76,11 @@ type Config struct {
 	// This is used for picking a default service name for a given pod,
 	// see [[serviceNameMutator]].
 	podMetaAsTags podMetaAsTags
+
+	// kubeServerVersion is the Kubernetes API server version.
+	// It's populated by the webhook constructor (not from static config) and can be used
+	// to gate features that require a minimum Kubernetes version.
+	kubeServerVersion *version.Info
 }
 
 var excludedContainerNames = map[string]bool{

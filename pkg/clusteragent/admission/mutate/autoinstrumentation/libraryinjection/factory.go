@@ -8,6 +8,8 @@
 package libraryinjection
 
 import (
+	"fmt"
+
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
@@ -65,9 +67,10 @@ func (f *ProviderFactory) GetProviderForPod(pod *corev1.Pod, cfg LibraryInjectio
 	case InjectionModeCSI:
 		return NewCSIProvider(cfg)
 	case InjectionModeImageVolume:
-		if !versionCompatible() {
-			log.Warnf("Image volume provider is not compatible with the current version of the injector, stopping injection")
-			return nil
+		if !IsImageVolumeSupported(cfg.KubeServerVersion) {
+			err := fmt.Errorf("image volume provider requires kubernetes version %s or higher", minImageVolumeKubeVersion)
+			log.Warnf("%v; stopping injection for pod %s/%s", err, pod.Namespace, pod.Name)
+			return newNoopProvider(err)
 		}
 		return NewImageVolumeProvider(cfg)
 	}

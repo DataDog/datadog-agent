@@ -141,7 +141,7 @@ func TestAutoInstrumentation(t *testing.T) {
 			))
 
 			// Create APM webhook.
-			apm, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, wmeta, nil)
+			apm, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, wmeta, nil, nil)
 			assert.NoError(t, err)
 
 			// Create request.

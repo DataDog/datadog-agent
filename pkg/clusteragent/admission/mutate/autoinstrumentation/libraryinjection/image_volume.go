@@ -113,11 +113,5 @@ func (p *ImageVolumeProvider) InjectLibrary(pod *corev1.Pod, cfg LibraryConfig) 
 	}
 }
 
-// versionCompatible checks if the Kubernetes API server version is compatible with the ImageVolumeProvider.
-func versionCompatible() bool {
-	// TODO: Implement version compatibility check
-	return true
-}
-
 // Verify that InitContainerProvider implements LibraryInjectionProvider.
 var _ LibraryInjectionProvider = (*ImageVolumeProvider)(nil)
