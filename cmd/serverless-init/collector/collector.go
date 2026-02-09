@@ -8,7 +8,9 @@
 /*
 TODO:
 
-only start for in process, not sidecar OR collect for sidecar and tag appropriately. Some sort of container or sidecar tag?
+only start for in process, not sidecar OR collect for sidecar and tag appropriately. Some sort of container_type or sidecar tag?
+calculate diff for usage ourselves and submit as a distribution metric
+also submit limit as a distribution metric
 
 rename to enhanced metrics collector? Or otherwise organize file structure?
 look into simplifying cpu limit and fallbacks, is it valid in Cloud Run?
@@ -16,7 +18,6 @@ Check in Cloud Run Functions, Cloud Run Jobs, Azure Web Apps
 
 Refactor to move go routine to main.go?
 Clean up sendCPUMetrics to look more like what's used in the container collector
-What about updating some of the helper methods for conversion?
 
 Check for any other odd debug logs
 */
