@@ -13,15 +13,19 @@ package safenvml
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // getCriticalAPIs returns the list of critical NVML APIs
@@ -288,6 +292,47 @@ func populateCapabilities(lib nvml.Interface) (map[string]struct{}, error) {
 	return capabilities, nil
 }
 
+func generateDefaultLibraryPaths() []string {
+	systemPaths := []string{
+		"/usr/lib/x86_64-linux-gnu/libnvidia-ml.so",                  // default system install
+		"run/nvidia/driver/usr/lib/x86_64-linux-gnu/libnvidia-ml.so", // nvidia-gpu-operator install
+	}
+
+	if !env.IsContainerized() {
+		return systemPaths
+	}
+
+	hostRoot := os.Getenv("HOST_ROOT")
+	if hostRoot == "" {
+		hostRoot = "/host" // default host root for containerized environments
+	}
+
+	var containerizedPaths []string
+	for _, path := range systemPaths {
+		containerizedPaths = append(containerizedPaths, filepath.Join(hostRoot, path))
+	}
+	return containerizedPaths
+}
+
+func tryCandidateNvmlPaths(paths []string, nvmlNewFunc func(opts ...nvml.LibraryOption) nvml.Interface) (nvml.Interface, error) {
+	for _, path := range paths {
+		log.Debugf("Trying to load NVML library from path '%s'", path)
+
+		lib := nvmlNewFunc(nvml.WithLibraryPath(path))
+		if lib == nil {
+			return nil, errors.New("failed to create NVML library")
+		}
+		ret := lib.Init()
+		if ret == nvml.SUCCESS {
+			return lib, nil
+		} else if ret != nvml.ERROR_LIBRARY_NOT_FOUND {
+			return nil, NewNvmlAPIErrorOrNil("Init", ret)
+		}
+	}
+
+	return nil, fmt.Errorf("failed to find NVML library in any of the candidate paths, searched: %v", paths)
+}
+
 // ensureInitWithOpts initializes the NVML library with the given options (used for testing)
 func (s *safeNvml) ensureInitWithOpts(nvmlNewFunc func(opts ...nvml.LibraryOption) nvml.Interface) error {
 	// If the library is already initialized, return nil without locking
@@ -317,18 +362,15 @@ func (s *safeNvml) ensureInitWithOpts(nvmlNewFunc func(opts ...nvml.LibraryOptio
 		libpath = cfg.GetString("gpu.nvml_lib_path")
 	}
 
-	lib := nvmlNewFunc(nvml.WithLibraryPath(libpath))
-	if lib == nil {
-		return errors.New("failed to create NVML library")
-	}
+	libPaths := []string{libpath}
+	libPaths = append(libPaths, generateDefaultLibraryPaths()...)
 
-	ret := lib.Init()
-	if ret != nvml.SUCCESS && ret != nvml.ERROR_ALREADY_INITIALIZED {
-		return NewNvmlAPIErrorOrNil("Init", ret)
+	lib, err := tryCandidateNvmlPaths(libPaths, nvmlNewFunc)
+	if err != nil {
+		return err
 	}
 
 	// Populate and verify critical capabilities
-	var err error
 	s.capabilities, err = populateCapabilities(lib)
 	if err != nil {
 		return fmt.Errorf("failed to verify NVML capabilities: %w", err)
