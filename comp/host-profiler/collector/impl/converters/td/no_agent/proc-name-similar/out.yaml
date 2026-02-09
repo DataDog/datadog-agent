@@ -9,11 +9,11 @@ processors:
         other_config: value
     myinfraat tributes:
         some_config: value
-    resource/host-profiler-default:
+    resource/profiler-metadata:
         attributes:
             - action: upsert
               key: profiler_name
-              value: host_profiler
+              value: host-profiler
             - action: upsert
               key: profiler_version
               value: 7.0.0-test
@@ -44,6 +44,6 @@ service:
                 - infraattributes_custom
                 - batch
                 - resourcedetection/default
-                - resource/host-profiler-default
+                - resource/profiler-metadata
             receivers:
                 - hostprofiler

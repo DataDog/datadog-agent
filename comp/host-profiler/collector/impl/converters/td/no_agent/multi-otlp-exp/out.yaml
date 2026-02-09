@@ -7,11 +7,11 @@ exporters:
         headers:
             dd-api-key: staging-key
 processors:
-    resource/host-profiler-default:
+    resource/profiler-metadata:
         attributes:
             - action: upsert
               key: profiler_name
-              value: host_profiler
+              value: host-profiler
             - action: upsert
               key: profiler_version
               value: 7.0.0-test
@@ -41,6 +41,6 @@ service:
                 - logging
             processors:
                 - resourcedetection/default
-                - resource/host-profiler-default
+                - resource/profiler-metadata
             receivers:
                 - hostprofiler
