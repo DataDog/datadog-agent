@@ -309,6 +309,7 @@ type CoreDumpDefinition struct {
 type HashDefinition struct {
 	DefaultActionDefinition `yaml:"-" json:"-"`
 	Field                   string `yaml:"field,omitempty" json:"field,omitempty"`
+	MaxFileSize             int64  `yaml:"max_file_size,omitempty" json:"max_file_size,omitempty"`
 }
 
 // PostCheck returns an error if the hash action is invalid after parsing
@@ -366,7 +367,7 @@ type LogDefinition struct {
 // PreCheck returns an error if the log action is invalid
 func (l *LogDefinition) PreCheck(_ PolicyLoaderOpts) error {
 	if l.Level == "" {
-		return errors.New("a valid log level must be specified to the the 'log' action")
+		return errors.New("a valid log level must be specified to the 'log' action")
 	}
 
 	return nil

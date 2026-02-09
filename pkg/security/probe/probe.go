@@ -36,7 +36,7 @@ const (
 	defaultConsumerChanSize = 50
 )
 
-// PlatformProbe defines a platform dependant probe
+// PlatformProbe defines a platform dependent probe
 type PlatformProbe interface {
 	Init() error
 	Start() error
@@ -423,6 +423,7 @@ func (p *Probe) NewRuleSet(eventTypeEnabled map[eval.EventType]bool) *rules.Rule
 	ruleOpts.WithSupportedDiscarders(SupportedDiscarders)
 	ruleOpts.WithSupportedMultiDiscarder(SupportedMultiDiscarder)
 	ruleOpts.WithRuleActionPerformedCb(p.onRuleActionPerformed)
+	ruleOpts.WithRuleCacheEnabled(p.Config.RuntimeSecurity.RuleCacheEnabled)
 	evalOpts.WithTelemetry(&eval.Telemetry{TotalVariables: probeTelemetry.totalVariables})
 
 	eventCtor := func() eval.Event {

@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 func TestActionKill(t *testing.T) {
@@ -749,6 +750,7 @@ func TestActionHash(t *testing.T) {
 	})
 
 	t.Run("exec", func(t *testing.T) {
+		flake.MarkOnJobName(t, "ubuntu_25.10")
 		test.msgSender.flush()
 		test.WaitSignalFromRule(t, func() error {
 			cmd := exec.Command(testExecutable, "/tmp/aaa")
@@ -782,6 +784,79 @@ func TestActionHash(t *testing.T) {
 			return nil
 		}, retry.Delay(500*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
 		assert.NoError(t, err)
+	})
+
+	t.Run("open-force-path", func(t *testing.T) {
+		// test that we correctly force a path resolution when we run the hash action
+		newRuleDefs := []*rules.RuleDefinition{
+			{
+				ID:         "hash_action_open_no_path",
+				Expression: `open.flags&O_CREAT == O_CREAT && process.file.name == "syscall_tester"`,
+				Actions: []*rules.ActionDefinition{
+					{
+						Hash: &rules.HashDefinition{
+							Field: "open.file",
+						},
+					},
+				},
+			},
+		}
+
+		// Set the new policy and reload (without closing/restarting the module)
+		// On reload, exec events are replayed for running processes, so the kill rule should trigger
+		if err := setTestPolicy(commonCfgDir, nil, newRuleDefs); err != nil {
+			t.Fatalf("failed to set new policy: %v", err)
+		}
+
+		err := test.reloadPolicies()
+		if err != nil {
+			t.Fatalf("failed to reload policies: %v", err)
+		}
+
+		test.msgSender.flush()
+		test.WaitSignalFromRule(t, func() error {
+			go func() {
+				timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+
+				if err := runSyscallTesterFunc(
+					timeoutCtx, t, syscallTester,
+					"slow-write", "2", testFile, "aaa",
+				); err != nil {
+					t.Error(err)
+				}
+
+				done <- true
+			}()
+			return nil
+		}, func(_ *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "hash_action_open_no_path")
+		}, "hash_action_open_no_path")
+
+		err = retry.Do(func() error {
+			msg := test.msgSender.getMsg("hash_action_open_no_path")
+			if msg == nil {
+				return errors.New("not found")
+			}
+			validateMessageSchema(t, string(msg.Data))
+
+			jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.state == 'Done')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.trigger == 'process_exit')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+				if el, err := jsonpath.JsonPathLookup(obj, `$.file.hashes`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+			})
+
+			return nil
+		}, retry.Delay(500*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		assert.NoError(t, err)
+
+		<-done
 	})
 }
 
@@ -950,6 +1025,7 @@ func TestActionKillWithSignature(t *testing.T) {
 
 func TestActionKillContainerWithSignature(t *testing.T) {
 	SkipIfNotAvailable(t)
+	flake.MarkOnJobName(t, "cws_host")
 
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
@@ -1038,8 +1114,9 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 			Actions: []*rules.ActionDefinition{
 				{
 					Kill: &rules.KillDefinition{
-						Signal:                    "SIGKILL",
-						Scope:                     "container",
+						Signal: "SIGKILL",
+						// Scope cgroup is the scope that will be sent from the BE for remediation actions
+						Scope:                     "cgroup",
 						DisableContainerDisarmer:  true,
 						DisableExecutableDisarmer: true,
 					},
@@ -1072,7 +1149,7 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 			report := event.ActionReports[0]
 			if killReport, ok := report.(*sprobe.KillActionReport); ok {
 				assert.Equal(t, "SIGKILL", killReport.Signal, "unexpected signal")
-				assert.Equal(t, "container", killReport.Scope, "unexpected scope")
+				assert.Equal(t, "cgroup", killReport.Scope, "unexpected scope")
 				assert.Equal(t, sprobe.KillActionStatusPerformed, killReport.Status, "unexpected status")
 			}
 		}
@@ -1156,6 +1233,7 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 
 func TestActionKillContainerWithSignatureBroadRule(t *testing.T) {
 	SkipIfNotAvailable(t)
+	flake.MarkOnJobName(t, "cws_host")
 
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
@@ -1320,10 +1398,17 @@ func TestRemediationCustomEvents(t *testing.T) {
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
-			ID:         "kill_remediation",
-			Expression: `process.file.name == "syscall_tester" && open.file.path == "{{.Root}}/test-kill-remediation"`,
+			ID: "kill_remediation",
+			Expression: `process.file.name == "syscall_tester" && open.file.path == "{{.Root}}/test-kill-remediation" 
+			&& ${process.kill_remediation_performed} != "done"`,
 			Actions: []*rules.ActionDefinition{
 				{
+					Set: &rules.SetDefinition{
+						Scope: "process",
+						Name:  "kill_remediation_performed",
+						Value: "done",
+					},
+				}, {
 					Kill: &rules.KillDefinition{
 						Signal: "SIGKILL",
 						Scope:  "process",
@@ -1339,9 +1424,35 @@ func TestRemediationCustomEvents(t *testing.T) {
 			},
 		},
 		{
-			ID:         "network_remediation",
-			Expression: `exec.file.name == "sleep" && exec.args in ["123"]`,
+			ID: "kill_no_tags",
+			Expression: `process.file.name == "syscall_tester" && open.file.path == "{{.Root}}/test-kill-no-tags" 
+			&& ${process.kill_no_tags_performed} != "done"`,
 			Actions: []*rules.ActionDefinition{
+				{
+					Set: &rules.SetDefinition{
+						Scope: "process",
+						Name:  "kill_no_tags_performed",
+						Value: "done",
+					},
+				}, {
+					Kill: &rules.KillDefinition{
+						Signal: "SIGKILL",
+						Scope:  "process",
+					},
+				},
+			},
+		},
+		{
+			ID:         "network_remediation",
+			Expression: `exec.file.name == "sleep" && exec.args in ["123"] && ${process.network_remediation_performed} != "done"`,
+			Actions: []*rules.ActionDefinition{
+				{
+					Set: &rules.SetDefinition{
+						Scope: "process",
+						Name:  "network_remediation_performed",
+						Value: "done",
+					},
+				},
 				{
 					NetworkFilter: &rules.NetworkFilterDefinition{
 						BPFFilter: "port 53",
@@ -1449,6 +1560,77 @@ func TestRemediationCustomEvents(t *testing.T) {
 		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
 		assert.NoError(t, err)
 	})
+	t.Run("kill-no-tags", func(t *testing.T) {
+		testFile, _, err := test.Path("test-kill-no-tags")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(testFile)
+
+		err = test.GetEventSent(t, func() error {
+			ch := make(chan bool, 1)
+
+			go func() {
+				timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+
+				cmd := exec.CommandContext(timeoutCtx, syscallTester, "open", testFile, ";", "sleep", "1", ";")
+				_ = cmd.Run()
+
+				ch <- true
+			}()
+
+			select {
+			case <-ch:
+			case <-time.After(time.Second * 3):
+				t.Error("signal timeout")
+			}
+			return nil
+		}, func(_ *rules.Rule, _ *model.Event) bool {
+			return true
+		}, time.Second*5, "kill_no_tags")
+
+		if err != nil {
+			t.Error(err)
+		}
+
+		err = retry.Do(func() error {
+			msg := test.msgSender.getMsg("remediation_status")
+			if msg == nil {
+				return errors.New("not found")
+			}
+
+			jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_id`); err != nil || el != "remediation_status" {
+					t.Errorf("agent.rule_id should be 'remediation_status': %s => %v", string(msg.Data), err)
+				}
+
+				if el, err := jsonpath.JsonPathLookup(obj, `$.event_type`); err != nil || el != "remediation_status" {
+					t.Errorf("event_type should be 'remediation_status': %s => %v", string(msg.Data), err)
+				}
+
+				if el, err := jsonpath.JsonPathLookup(obj, `$.remediation_action`); err != nil || el != "kill" {
+					t.Errorf("rule_action should be 'kill': %s => %v", string(msg.Data), err)
+				}
+
+				if el, err := jsonpath.JsonPathLookup(obj, `$.status`); err != nil || el != "performed" {
+					t.Errorf("status should be 'performed': %s => %v", string(msg.Data), err)
+				}
+
+				if el, err := jsonpath.JsonPathLookup(obj, `$.scope`); err != nil || el != "process" {
+					t.Errorf("scope should be 'process': %s => %v", string(msg.Data), err)
+				}
+
+				if el, err := jsonpath.JsonPathLookup(obj, `$.process.pid`); err != nil || el == nil {
+					t.Errorf("process.pid not found: %s => %v", string(msg.Data), err)
+				}
+			})
+
+			return nil
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		assert.NoError(t, err)
+	})
+
 	t.Run("network-isolation-remediation-status", func(t *testing.T) {
 		err = test.GetEventSent(t, func() error {
 			cmd := exec.Command("sleep", "123")
@@ -1485,7 +1667,7 @@ func TestRemediationCustomEvents(t *testing.T) {
 					t.Errorf("event_type should be 'remediation_status': %s => %v", string(msg.Data), err)
 				}
 
-				if el, err := jsonpath.JsonPathLookup(obj, `$.remediation_action`); err != nil || el != "network_isolation" {
+				if el, err := jsonpath.JsonPathLookup(obj, `$.remediation_action`); err != nil || el != sprobe.RemediationTypeNetworkIsolationStr {
 					t.Errorf("rule_action should be 'network_isolation': %s => %v", string(msg.Data), err)
 				}
 
