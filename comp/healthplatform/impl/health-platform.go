@@ -27,9 +27,11 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues"
-	"github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/checkfailure"
-	"github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/dockerpermissions"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
+	// Import issue modules to trigger their init() registration
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/checkfailure"
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/dockerpermissions"
 )
 
 // Requires defines the dependencies for the health-platform component
@@ -104,10 +106,11 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	reqs.Log.Info("Creating health platform component")
 
-	// Create unified issue registry and register all modules
+	// Create unified issue registry and register all self-registered modules
 	issueRegistry := issuesmod.NewRegistry()
-	issueRegistry.RegisterModule(dockerpermissions.NewModule())
-	issueRegistry.RegisterModule(checkfailure.NewModule())
+	for _, module := range issuesmod.GetAllModules() {
+		issueRegistry.RegisterModule(module)
+	}
 
 	// Initialize the health platform implementation
 	comp := &healthPlatformImpl{

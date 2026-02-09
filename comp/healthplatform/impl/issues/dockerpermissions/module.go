@@ -11,6 +11,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues"
 )
 
+func init() {
+	issues.RegisterModuleFactory(NewModule)
+}
+
 const (
 	// IssueID is the unique identifier for Docker permission issues
 	IssueID = "docker-file-tailing-disabled"

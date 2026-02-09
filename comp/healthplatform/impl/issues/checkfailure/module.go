@@ -12,6 +12,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues"
 )
 
+func init() {
+	issues.RegisterModuleFactory(NewModule)
+}
+
 const (
 	// IssueID is the unique identifier for check failure issues
 	IssueID = "check-execution-failure"
