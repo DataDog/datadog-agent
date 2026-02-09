@@ -8,7 +8,8 @@
 // Package model holds model related files
 //
 // Run all fuzz targets locally for 30s each:
-//   for f in $(go test -list 'Fuzz.*' . | grep '^Fuzz'); do echo "=== $f ===" && go test -run '^$' -fuzz="^${f}\$" -fuzztime=30s . || break; done
+//
+//	for f in $(go test -list 'Fuzz.*' . | grep '^Fuzz'); do echo "=== $f ===" && go test -run '^$' -fuzz="^${f}\$" -fuzztime=30s . || break; done
 package model
 
 import (
@@ -199,6 +200,13 @@ func FuzzMProtectEvent_UnmarshalBinary(f *testing.F) {
 
 func FuzzLoadModuleEvent_UnmarshalBinary(f *testing.F) {
 	fuzzUnmarshaller(f, func() BinaryUnmarshaler { return &LoadModuleEvent{} }, 268)
+}
+
+// panic: runtime error: slice bounds out of range [:272] with capacity 268 [recovered, repanicked]
+func TestRegressionUnmarshalBinary(t *testing.T) {
+	e := &LoadModuleEvent{}
+	data := make([]byte, 268)
+	_, _ = e.UnmarshalBinary(data)
 }
 
 func FuzzUnloadModuleEvent_UnmarshalBinary(f *testing.F) {
