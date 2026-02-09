@@ -69,19 +69,15 @@ func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[enviro
 	runParams := scenwin.GetRunParams(params.runOptions...)
 
 	provisioner := provisioners.NewTypedPulumiProvisioner(provisionerBaseID+runParams.Name, func(ctx *pulumi.Context, env *environments.WindowsHost) error {
+		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
+		// and it's easy to forget about it, leading to hard to debug issues.
+		params := GetProvisionerParams(opts...)
+		runParams := scenwin.GetRunParams(params.runOptions...)
+
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
 			return err
 		}
-
-		// Start from environment-based params (reads WINDOWS_DDNPM_DRIVER, etc.)
-		// then layer programmatic RunOptions on top so callers can override.
-		runParams := scenwin.ParamsFromEnvironment(awsEnv)
-		params := GetProvisionerParams(opts...)
-		if err := optional.ApplyOptions(runParams, params.runOptions); err != nil {
-			return err
-		}
-
 		return scenwin.RunWithEnv(ctx, awsEnv, env, runParams)
 
 	}, nil)
