@@ -27,10 +27,6 @@ const (
 	defaultSnapLen      = 4096
 	pcapTimeout         = time.Second
 
-	// Packet direction constants (matching Linux values for compatibility)
-	packetHost     = 0 // Packet is for this host (incoming)
-	packetOutgoing = 4 // Packet is outgoing
-
 	// localAddrRefreshInterval is how often we refresh local addresses
 	localAddrRefreshInterval = 30 * time.Second
 
@@ -72,7 +68,7 @@ func putBuffer(buf []byte) {
 type packetWithInfo struct {
 	data      []byte // Copied data from pool, caller must return via putBuffer
 	timestamp time.Time
-	direction uint8 // packetHost or packetOutgoing
+	direction uint8 // PACKET_HOST or PACKET_OUTGOING
 }
 
 // interfaceHandle holds a pcap handle and its associated local addresses
@@ -90,22 +86,23 @@ type LibpcapSource struct {
 	interfaces []*interfaceHandle
 	snapLen    int
 
-	// pcapMu is used to synchronize access to pcap.Handles
-	// Consumers use a read lock, and Close() uses an exclusive lock
-	pcapMu sync.RWMutex
-	exit   chan struct{}
+	exit chan struct{}
+
+	// packetChan is a persistent channel fed by reader goroutines started once
+	// in the constructor. VisitPackets drains this channel.
+	packetChan chan packetWithInfo
+	// errChan receives errors from reader goroutines
+	errChan chan error
+	// readerWg tracks reader goroutines so Close() can wait for them to finish
+	// before closing pcap handles
+	readerWg sync.WaitGroup
 }
 
 // DarwinPacketInfo holds information about a packet on Darwin
 type DarwinPacketInfo struct {
 	// PktType indicates packet direction
-	// packetHost (0) for incoming, packetOutgoing (4) for outgoing
+	// PACKET_HOST (0) for incoming, PACKET_OUTGOING (4) for outgoing
 	PktType uint8
-}
-
-// Type implements PacketInfo interface
-func (d *DarwinPacketInfo) Type() uint8 {
-	return d.PktType
 }
 
 // OptSnapLen specifies the maximum length of the packet to read
@@ -135,6 +132,8 @@ func NewLibpcapSource(size int, opts ...interface{}) (*LibpcapSource, error) {
 		interfaces: make([]*interfaceHandle, 0, len(ifaceNames)),
 		snapLen:    snapLen,
 		exit:       make(chan struct{}),
+		packetChan: make(chan packetWithInfo, packetChannelSize),
+		errChan:    make(chan error, len(ifaceNames)),
 	}
 
 	// Open a handle for each interface
@@ -148,6 +147,20 @@ func NewLibpcapSource(size int, opts ...interface{}) (*LibpcapSource, error) {
 			return nil, err
 		}
 		ps.interfaces = append(ps.interfaces, ih)
+	}
+
+	// Start persistent reader goroutines (one per interface)
+	for _, ih := range ps.interfaces {
+		ps.readerWg.Add(1)
+		go func(ih *interfaceHandle) {
+			defer ps.readerWg.Done()
+			if err := ps.readPacketsFromInterface(ih); err != nil {
+				select {
+				case ps.errChan <- fmt.Errorf("interface %s error: %w", ih.ifaceName, err):
+				case <-ps.exit:
+				}
+			}
+		}(ih)
 	}
 
 	// Start background goroutines
@@ -186,33 +199,16 @@ func (p *LibpcapSource) openInterface(ifaceName string, snapLen int) (*interface
 	return ih, nil
 }
 
-// VisitPackets reads packets from all interfaces and invokes the visitor callback for each
+// VisitPackets reads packets from the persistent channel and invokes the visitor callback for each.
+// Reader goroutines are started once in the constructor, so calling VisitPackets multiple times
+// (e.g. on retry) does not leak goroutines.
 func (p *LibpcapSource) VisitPackets(visitor func(data []byte, info PacketInfo, timestamp time.Time) error) error {
-	p.pcapMu.RLock()
-	defer p.pcapMu.RUnlock()
-
-	// Channel to receive packets from all interfaces
-	packetChan := make(chan packetWithInfo, packetChannelSize)
-	errChan := make(chan error, len(p.interfaces))
-
-	// Start a goroutine for each interface
-	for _, ih := range p.interfaces {
-		go func(ih *interfaceHandle) {
-			if err := p.readPacketsFromInterface(ih, packetChan); err != nil {
-				select {
-				case errChan <- fmt.Errorf("interface %s error: %w", ih.ifaceName, err):
-				case <-p.exit:
-				}
-			}
-		}(ih)
-	}
-
 	packetInfo := &DarwinPacketInfo{}
 
-	// Process packets from the merged channel
+	// Process packets from the persistent channel
 	for {
 		select {
-		case pkt := <-packetChan:
+		case pkt := <-p.packetChan:
 			packetInfo.PktType = pkt.direction
 
 			// Call visitor with packet data
@@ -227,7 +223,7 @@ func (p *LibpcapSource) VisitPackets(visitor func(data []byte, info PacketInfo, 
 
 			packetSourceTelemetry.processed.Add(1)
 
-		case err := <-errChan:
+		case err := <-p.errChan:
 			return err
 
 		case <-p.exit:
@@ -236,8 +232,9 @@ func (p *LibpcapSource) VisitPackets(visitor func(data []byte, info PacketInfo, 
 	}
 }
 
-// readPacketsFromInterface reads packets from a single interface and sends them to the channel
-func (p *LibpcapSource) readPacketsFromInterface(ih *interfaceHandle, packetChan chan<- packetWithInfo) error {
+// readPacketsFromInterface reads packets from a single interface and sends them to the persistent channel.
+// This runs for the lifetime of the LibpcapSource.
+func (p *LibpcapSource) readPacketsFromInterface(ih *interfaceHandle) error {
 	for {
 		select {
 		case <-p.exit:
@@ -265,7 +262,7 @@ func (p *LibpcapSource) readPacketsFromInterface(ih *interfaceHandle, packetChan
 
 		// Send to channel
 		select {
-		case packetChan <- packetWithInfo{
+		case p.packetChan <- packetWithInfo{
 			data:      buf,
 			timestamp: ci.Timestamp,
 			direction: direction,
@@ -278,20 +275,23 @@ func (p *LibpcapSource) readPacketsFromInterface(ih *interfaceHandle, packetChan
 }
 
 // LayerType returns the layer type for packets from this source
-// Returns LayerTypeEthernet since we return full Ethernet frames
+// Returns LayerTypeEthernet since libpcap on macOS returns full Ethernet frames
 func (p *LibpcapSource) LayerType() gopacket.LayerType {
 	return layers.LayerTypeEthernet
 }
 
-// Close stops packet capture and cleans up resources
+// Close stops packet capture and cleans up resources.
+// It signals all goroutines to stop, waits for reader goroutines to finish,
+// then closes pcap handles.
 func (p *LibpcapSource) Close() {
-	// Signal goroutines to exit
+	// Signal all goroutines to exit
 	close(p.exit)
 
-	// Get exclusive lock to close handles
-	p.pcapMu.Lock()
-	defer p.pcapMu.Unlock()
+	// Wait for reader goroutines to finish before closing handles.
+	// Readers check p.exit and will return after at most one pcap timeout (1s).
+	p.readerWg.Wait()
 
+	// Now safe to close handles - no goroutines are reading from them
 	for _, ih := range p.interfaces {
 		if ih.handle != nil {
 			ih.handle.Close()
@@ -369,11 +369,11 @@ func (ih *interfaceHandle) isLocalAddr(ip []byte) bool {
 }
 
 // determinePacketDirection examines the packet's IP addresses to determine direction
-// Returns packetOutgoing if source is local, packetHost if destination is local
+// Returns PACKET_OUTGOING if source is local, PACKET_HOST if destination is local
 func (ih *interfaceHandle) determinePacketDirection(data []byte) uint8 {
 	// Need at least Ethernet header (14 bytes)
 	if len(data) < 14 {
-		return packetHost
+		return PACKET_HOST
 	}
 
 	// EtherType is at offset 12-13
@@ -382,7 +382,7 @@ func (ih *interfaceHandle) determinePacketDirection(data []byte) uint8 {
 	switch etherType {
 	case 0x0800: // IPv4
 		if len(data) < 34 { // Ethernet (14) + IPv4 header minimum (20)
-			return packetHost
+			return PACKET_HOST
 		}
 		// Source IP at offset 26-29 (14 + 12)
 		// Destination IP at offset 30-33 (14 + 16)
@@ -392,14 +392,18 @@ func (ih *interfaceHandle) determinePacketDirection(data []byte) uint8 {
 		srcIsLocal := ih.isLocalAddr(srcIP)
 		dstIsLocal := ih.isLocalAddr(dstIP)
 
+		log.Debugf("srcIP: %s, dstIP: %s", net.IP(srcIP).String(), net.IP(dstIP).String())
+		log.Debugf("srcIsLocal: %v, dstIsLocal: %v", srcIsLocal, dstIsLocal)
+
 		if srcIsLocal && !dstIsLocal {
-			return packetOutgoing
+			log.Debugf("returning PACKET_OUTGOING")
+			return PACKET_OUTGOING
 		}
-		return packetHost
+		return PACKET_HOST
 
 	case 0x86DD: // IPv6
 		if len(data) < 54 { // Ethernet (14) + IPv6 header minimum (40)
-			return packetHost
+			return PACKET_HOST
 		}
 		// Source IP at offset 22-37 (14 + 8)
 		// Destination IP at offset 38-53 (14 + 24)
@@ -409,13 +413,17 @@ func (ih *interfaceHandle) determinePacketDirection(data []byte) uint8 {
 		srcIsLocal := ih.isLocalAddr(srcIP)
 		dstIsLocal := ih.isLocalAddr(dstIP)
 
+		log.Debugf("srcIP: %s, dstIP: %s", net.IP(srcIP).String(), net.IP(dstIP).String())
+		log.Debugf("srcIsLocal: %v, dstIsLocal: %v", srcIsLocal, dstIsLocal)
+
 		if srcIsLocal && !dstIsLocal {
-			return packetOutgoing
+			log.Debugf("returning PACKET_OUTGOING")
+			return PACKET_OUTGOING
 		}
-		return packetHost
+		return PACKET_HOST
 
 	default:
-		return packetHost
+		return PACKET_HOST
 	}
 }
 
@@ -430,8 +438,6 @@ func (p *LibpcapSource) pollStats() {
 	for {
 		select {
 		case <-ticker.C:
-			p.pcapMu.RLock()
-
 			for _, ih := range p.interfaces {
 				stats, err := ih.handle.Stats()
 				if err != nil {
@@ -455,8 +461,6 @@ func (p *LibpcapSource) pollStats() {
 					dropped:  uint64(stats.PacketsDropped),
 				}
 			}
-
-			p.pcapMu.RUnlock()
 
 		case <-p.exit:
 			return
