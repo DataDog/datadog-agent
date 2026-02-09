@@ -89,13 +89,20 @@ type HashHeap struct {
 
 // NewHashHeap returns a new MaxHeap with the given max size
 func NewHashHeap(maxSize int, store *store) *HashHeap {
-	return &HashHeap{
+	h := &HashHeap{
 		MaxHeap: *NewMaxHeap(),
 		Keys:    make(map[string]bool),
 		maxSize: maxSize,
 		mu:      sync.RWMutex{},
 		store:   store,
 	}
+
+	store.RegisterObserver(Observer{
+		SetFunc:    h.InsertIntoHeap,
+		DeleteFunc: h.DeleteFromHeap,
+	})
+
+	return h
 }
 
 // InsertIntoHeap returns true if the key already exists in the max heap or was inserted correctly
