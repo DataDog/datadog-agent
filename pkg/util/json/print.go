@@ -11,13 +11,13 @@ import (
 	"io"
 )
 
-// RemoveEmptyFields recursively removes empty/zero-value fields from JSON data.
-func RemoveEmptyFields(data any) any {
+// removeEmptyFields recursively removes empty/zero-value fields from JSON data.
+func removeEmptyFields(data any) any {
 	switch v := data.(type) {
 	case map[string]any:
 		result := make(map[string]any)
 		for key, val := range v {
-			if cleaned := RemoveEmptyFields(val); !isEmpty(cleaned) {
+			if cleaned := removeEmptyFields(val); !isEmpty(cleaned) {
 				result[key] = cleaned
 			}
 		}
@@ -28,7 +28,7 @@ func RemoveEmptyFields(data any) any {
 	case []any:
 		result := make([]any, 0, len(v))
 		for _, elem := range v {
-			if cleaned := RemoveEmptyFields(elem); !isEmpty(cleaned) {
+			if cleaned := removeEmptyFields(elem); !isEmpty(cleaned) {
 				result = append(result, cleaned)
 			}
 		}
@@ -56,12 +56,36 @@ func isEmpty(v any) bool {
 }
 
 // PrintJSON writes JSON output to the provided writer, optionally pretty-printed
-func PrintJSON(w io.Writer, rawJSON any, prettyPrintJSON bool, removeEmptyFields bool) error {
+func PrintJSON(w io.Writer, rawJSON any, prettyPrintJSON bool, removeEmpty bool) error {
 	var result []byte
 	var err error
 
-	if removeEmptyFields {
-		rawJSON = RemoveEmptyFields(rawJSON)
+	// If we need to remove empty fields and input is raw bytes, unmarshal first
+	if removeEmpty {
+		// Check if input is json.RawMessage or []byte
+		var needsUnmarshal bool
+		var rawBytes []byte
+
+		switch v := rawJSON.(type) {
+		case json.RawMessage:
+			needsUnmarshal = true
+			rawBytes = []byte(v)
+		case []byte:
+			needsUnmarshal = true
+			rawBytes = v
+		}
+
+		if needsUnmarshal {
+			// Unmarshal to map[string]any so removeEmptyFields can process it
+			var unmarshaled any
+			if err := json.Unmarshal(rawBytes, &unmarshaled); err != nil {
+				return err
+			}
+			rawJSON = removeEmptyFields(unmarshaled)
+		} else {
+			// Already unmarshaled data
+			rawJSON = removeEmptyFields(rawJSON)
+		}
 	}
 
 	// convert to bytes and indent

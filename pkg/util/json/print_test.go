@@ -7,6 +7,7 @@ package json
 
 import (
 	"bytes"
+	. "encoding/json"
 	"strings"
 	"testing"
 
@@ -54,5 +55,54 @@ func TestPrintJSON(t *testing.T) {
 		assert.Error(t, err)
 		// Error comes directly from json.Marshal
 		assert.Contains(t, err.Error(), "json")
+	})
+
+	t.Run("remove empty fields from json.RawMessage", func(t *testing.T) {
+		// Simulate what workload-list does: backend returns JSON bytes with empty fields
+		rawJSON := []byte(`{
+			"name": "test",
+			"value": 123,
+			"empty_string": "",
+			"null_field": null,
+			"empty_array": [],
+			"empty_object": {},
+			"nested": {
+				"key": "val",
+				"empty": "",
+				"null": null
+			}
+		}`)
+
+		var buf bytes.Buffer
+		err := PrintJSON(&buf, RawMessage(rawJSON), false, true)
+		require.NoError(t, err)
+
+		output := buf.String()
+		// Should keep non-empty fields
+		assert.Contains(t, output, `"name":"test"`)
+		assert.Contains(t, output, `"value":123`)
+		assert.Contains(t, output, `"nested"`)
+		assert.Contains(t, output, `"key":"val"`)
+
+		// Should remove empty fields
+		assert.NotContains(t, output, `"empty_string"`)
+		assert.NotContains(t, output, `"null_field"`)
+		assert.NotContains(t, output, `"empty_array"`)
+		assert.NotContains(t, output, `"empty_object"`)
+		assert.NotContains(t, output, `"empty"`)
+		assert.NotContains(t, output, `"null"`)
+	})
+
+	t.Run("remove empty fields from []byte", func(t *testing.T) {
+		rawJSON := []byte(`{"name":"test","empty":"","null":null}`)
+
+		var buf bytes.Buffer
+		err := PrintJSON(&buf, rawJSON, false, true)
+		require.NoError(t, err)
+
+		output := buf.String()
+		assert.Contains(t, output, `"name":"test"`)
+		assert.NotContains(t, output, `"empty"`)
+		assert.NotContains(t, output, `"null"`)
 	})
 }
