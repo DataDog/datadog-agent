@@ -13,18 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Dump implements Store#Dump
-func (w *workloadmeta) Dump(verbose bool) wmdef.WorkloadDumpResponse {
-	return w.dump(verbose, "")
-}
-
-// DumpFiltered implements Store#DumpFiltered
-func (w *workloadmeta) DumpFiltered(verbose bool, search string) wmdef.WorkloadDumpResponse {
-	return w.dump(verbose, search)
-}
-
-// dump is the internal implementation that supports optional filtering
-func (w *workloadmeta) dump(verbose bool, search string) wmdef.WorkloadDumpResponse {
+// Dump implements Store#Dump with optional filtering by kind or entity ID.
+func (w *workloadmeta) Dump(verbose bool, search string) wmdef.WorkloadDumpResponse {
 	workloadList := wmdef.WorkloadDumpResponse{
 		Entities: make(map[string]wmdef.WorkloadEntity),
 	}

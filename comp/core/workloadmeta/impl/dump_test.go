@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package workloadmetaimpl
 
 import (
@@ -75,7 +77,7 @@ func TestDump(t *testing.T) {
 		},
 	})
 
-	shortDump := s.Dump(false)
+	shortDump := s.Dump(false, "")
 	expectedShort := wmdef.WorkloadDumpResponse{
 		Entities: map[string]wmdef.WorkloadEntity{
 			"container": {
@@ -104,7 +106,7 @@ Name: nvidia.com/gpu, ID: GPU-1234
 
 	assert.EqualValues(t, expectedShort, shortDump)
 
-	verboseDump := s.Dump(true)
+	verboseDump := s.Dump(true, "")
 	expectedVerbose := wmdef.WorkloadDumpResponse{
 		Entities: map[string]wmdef.WorkloadEntity{
 			"container": {

@@ -65,8 +65,8 @@ func BuildWorkloadResponse(wmeta Component, verbose bool, search string, jsonFor
 		return json.Marshal(structuredResp)
 	}
 
-	// Text format - use DumpFiltered which preserves source info format
-	return json.Marshal(wmeta.DumpFiltered(verbose, search))
+	// Text format - use Dump which preserves source info format
+	return json.Marshal(wmeta.Dump(verbose, search))
 }
 
 // FilterStructuredResponse filters entities by kind or entity ID
