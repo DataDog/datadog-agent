@@ -12,6 +12,7 @@ import (
 )
 
 // removeEmptyFields recursively removes empty/zero-value fields from JSON data.
+// Preserves empty maps and arrays as they may be part of the API contract.
 func removeEmptyFields(data any) any {
 	switch v := data.(type) {
 	case map[string]any:
@@ -21,9 +22,7 @@ func removeEmptyFields(data any) any {
 				result[key] = cleaned
 			}
 		}
-		if len(result) == 0 {
-			return nil
-		}
+		// Keep empty maps - they may be expected in API responses
 		return result
 	case []any:
 		result := make([]any, 0, len(v))
@@ -32,9 +31,7 @@ func removeEmptyFields(data any) any {
 				result = append(result, cleaned)
 			}
 		}
-		if len(result) == 0 {
-			return nil
-		}
+		// Keep empty arrays - they may be expected in API responses
 		return result
 	default:
 		return data
@@ -49,7 +46,8 @@ func isEmpty(v any) bool {
 	case string:
 		return val == ""
 	case map[string]any, []any:
-		return false // handled by len check in RemoveEmptyFields
+		// Empty containers are preserved (not considered "empty" for removal)
+		return false
 	default:
 		return false
 	}

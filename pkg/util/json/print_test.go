@@ -84,13 +84,15 @@ func TestPrintJSON(t *testing.T) {
 		assert.Contains(t, output, `"nested"`)
 		assert.Contains(t, output, `"key":"val"`)
 
-		// Should remove empty fields
+		// Should remove null and empty string fields
 		assert.NotContains(t, output, `"empty_string"`)
 		assert.NotContains(t, output, `"null_field"`)
-		assert.NotContains(t, output, `"empty_array"`)
-		assert.NotContains(t, output, `"empty_object"`)
 		assert.NotContains(t, output, `"empty"`)
 		assert.NotContains(t, output, `"null"`)
+
+		// Should preserve empty containers (API contract)
+		assert.Contains(t, output, `"empty_array"`)
+		assert.Contains(t, output, `"empty_object"`)
 	})
 
 	t.Run("remove empty fields from []byte", func(t *testing.T) {
