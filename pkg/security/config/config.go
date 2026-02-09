@@ -303,6 +303,8 @@ type RuntimeSecurityConfig struct {
 	SecurityProfileNodeEvictionTimeout time.Duration
 	// SecurityProfileCleanupDelay defines the delay before removing a profile after all its cgroups are deleted
 	SecurityProfileCleanupDelay time.Duration
+	// SecurityProfileV2EventTypes defines the list of event types that should be captured by the V2 security profile manager
+	SecurityProfileV2EventTypes []model.EventType
 
 	// SecurityProfileAutoSuppressionEnabled do not send event if part of a profile
 	SecurityProfileAutoSuppressionEnabled bool
@@ -605,6 +607,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SecurityProfileDNSMatchMaxDepth:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.dns_match_max_depth"),
 		SecurityProfileNodeEvictionTimeout: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.node_eviction_timeout"),
 		SecurityProfileCleanupDelay:        pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.profile_cleanup_delay"),
+		SecurityProfileV2EventTypes:        parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.v2.event_types")),
 
 		// auto suppression
 		SecurityProfileAutoSuppressionEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.auto_suppression.enabled"),
