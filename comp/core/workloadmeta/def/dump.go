@@ -77,34 +77,25 @@ func (w WorkloadDumpStructuredResponse) WriteText(writer io.Writer, verbose bool
 //  3. Convert to requested format:
 //     - jsonFormat=true: Return structured JSON (for -j/-p flags)
 //     - jsonFormat=false: Convert to text format using entity.String(verbose)
-//
-// This approach leverages the backend's access to concrete entity types, avoiding the
-// unmarshaling problem where clients can't reconstruct interface types from JSON.
 func BuildWorkloadResponse(wmeta Component, verbose bool, search string, jsonFormat bool) ([]byte, error) {
 	// Get structured data from workloadmeta store (has concrete entity types)
 	structuredResp := wmeta.DumpStructured(verbose)
 
-	// Apply search filter on structured data (single filtering logic - no duplication!)
 	if search != "" {
 		structuredResp = FilterStructuredResponse(structuredResp, search)
 	}
 
 	// Backend decides output format based on client request
 	if jsonFormat {
-		// Return structured JSON for JSON display (-j or -p flags)
 		return json.Marshal(structuredResp)
 	}
 
 	// Convert to text format for text display (no flags)
-	// This conversion happens here because backend has concrete types
 	textResp := convertStructuredToText(structuredResp, verbose)
 	return json.Marshal(textResp)
 }
 
-// convertStructuredToText converts structured entities to text format by calling String(verbose).
-// Note: This simplified conversion doesn't preserve individual source information that Dump() shows
-// in verbose mode, as DumpStructured() returns merged entities only. The merged entity (which combines
-// data from all sources) is sufficient for most use cases.
+// convertStructuredToText converts structured entities to text format by calling String(verbose)
 func convertStructuredToText(structured WorkloadDumpStructuredResponse, verbose bool) WorkloadDumpResponse {
 	textResp := WorkloadDumpResponse{
 		Entities: make(map[string]WorkloadEntity),
@@ -113,7 +104,7 @@ func convertStructuredToText(structured WorkloadDumpStructuredResponse, verbose 
 	for kind, entities := range structured.Entities {
 		infos := make(map[string]string)
 		for _, entity := range entities {
-			// Use entity ID as key (simpler than Dump's "sources(merged):[...] id: xyz" format)
+			// Use entity ID as key
 			infos[entity.GetID().ID] = entity.String(verbose)
 		}
 		if len(infos) > 0 {
