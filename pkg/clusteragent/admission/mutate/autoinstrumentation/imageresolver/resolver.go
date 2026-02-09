@@ -32,6 +32,8 @@ type Resolver interface {
 // This is used when no remote config client is available.
 type noOpResolver struct{}
 
+var _ Resolver = (*noOpResolver)(nil)
+
 // NewNoOpResolver creates a new noOpImageResolver.
 // This is useful for testing or when image resolution is not needed.
 func NewNoOpResolver() Resolver {
@@ -58,6 +60,8 @@ type rcResolver struct {
 	maxRetries int
 	retryDelay time.Duration
 }
+
+var _ Resolver = (*rcResolver)(nil)
 
 func newRcResolver(cfg Config) Resolver {
 	resolver := &rcResolver{
@@ -212,11 +216,16 @@ func (r *rcResolver) processUpdate(update map[string]state.RawConfig, applyState
 	}
 }
 
+// bucketTagResolver resolves image references using bucket tags.
+// It maintains a cache of image digests and resolves bucket tags to digests if possible.
+// Defaults to returning the original tag if resolution fails for any reason.
 type bucketTagResolver struct {
 	cache               *httpDigestCache
 	bucketID            string
 	datadoghqRegistries map[string]struct{}
 }
+
+var _ Resolver = (*bucketTagResolver)(nil)
 
 func (r *bucketTagResolver) createBucketTag(tag string) string {
 	normalizedTag := strings.TrimPrefix(tag, "v")
@@ -229,22 +238,23 @@ func (r *bucketTagResolver) createBucketTag(tag string) string {
 }
 
 func (r *bucketTagResolver) Resolve(registry string, repository string, tag string) (*ResolvedImage, bool) {
+	var result = tag
+	defer metrics.ImageResolutionAttempts.Inc(repository, tag, result)
 	if !isDatadoghqRegistry(registry, r.datadoghqRegistries) {
-		log.Debugf("%s is not a Datadoghq registry, not resolving", registry)
-		metrics.ImageResolutionAttempts.Inc(repository, tag, tag)
+		log.Debugf("%s is not a Datadoghq registry, not opting into gradual rollout", registry)
 		return nil, false
 	}
 
 	bucketTag := r.createBucketTag(tag)
 
 	digest, err := r.cache.get(registry, repository, bucketTag)
+	tag = bucketTag
 	if err != nil {
-		log.Debugf("cache miss for %s/%s:%s - %v", registry, repository, bucketTag, err)
-		metrics.ImageResolutionAttempts.Inc(repository, bucketTag, tag)
+		log.Debugf("Failed to resolve %s/%s:%s for gradual rollout - %v", registry, repository, bucketTag, err)
+		tag = bucketTag
 		return nil, false
 	}
-	log.Debugf("cache hit for %s/%s:%s", registry, repository, bucketTag)
-	metrics.ImageResolutionAttempts.Inc(repository, bucketTag, digest)
+	result = digest
 	return &ResolvedImage{
 		FullImageRef:     registry + "/" + repository + "@" + digest,
 		CanonicalVersion: tag, // DEV: This is the customer provided tag
