@@ -979,10 +979,7 @@ func collectFlattenedKeysFromNode(node *nodeImpl, prefix string, keys *[]string)
 		if err != nil {
 			continue
 		}
-		fullKey := name
-		if prefix != "" {
-			fullKey = prefix + "." + name
-		}
+		fullKey := joinKey(prefix, name)
 		if child.IsLeafNode() {
 			*keys = append(*keys, fullKey)
 		} else if child.IsInnerNode() {
