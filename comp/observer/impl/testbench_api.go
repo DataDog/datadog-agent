@@ -11,6 +11,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"net/url"
 	"reflect"
 	"strings"
 	"time"
@@ -39,6 +40,7 @@ func (api *TestBenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/scenarios/", api.cors(api.handleScenarioAction))
 	mux.HandleFunc("/api/components", api.cors(api.handleComponents))
 	mux.HandleFunc("/api/series", api.cors(api.handleSeriesList))
+	mux.HandleFunc("/api/series/id/", api.cors(api.handleSeriesDataByID))
 	mux.HandleFunc("/api/series/", api.cors(api.handleSeriesData))
 	mux.HandleFunc("/api/anomalies", api.cors(api.handleAnomalies))
 	mux.HandleFunc("/api/correlations", api.cors(api.handleCorrelations))
@@ -151,6 +153,7 @@ func (api *TestBenchAPI) handleSeriesList(w http.ResponseWriter, r *http.Request
 	}
 
 	type seriesInfo struct {
+		ID         string   `json:"id"`
 		Namespace  string   `json:"namespace"`
 		Name       string   `json:"name"`
 		Tags       []string `json:"tags"`
@@ -164,9 +167,11 @@ func (api *TestBenchAPI) handleSeriesList(w http.ResponseWriter, r *http.Request
 		for _, agg := range []Aggregate{AggregateAverage, AggregateCount} {
 			series := storage.AllSeries(ns, agg)
 			for _, s := range series {
+				nameWithAgg := s.Name + ":" + aggSuffix(agg)
 				allSeries = append(allSeries, seriesInfo{
+					ID:         seriesKey(s.Namespace, nameWithAgg, s.Tags),
 					Namespace:  s.Namespace,
-					Name:       s.Name + ":" + aggSuffix(agg),
+					Name:       nameWithAgg,
 					Tags:       s.Tags,
 					PointCount: len(s.Points),
 				})
@@ -175,6 +180,26 @@ func (api *TestBenchAPI) handleSeriesList(w http.ResponseWriter, r *http.Request
 	}
 
 	api.writeJSON(w, allSeries)
+}
+
+// handleSeriesDataByID returns data for a specific series by canonical id.
+func (api *TestBenchAPI) handleSeriesDataByID(w http.ResponseWriter, r *http.Request) {
+	encodedID := strings.TrimPrefix(r.URL.Path, "/api/series/id/")
+	if encodedID == "" {
+		api.writeError(w, http.StatusBadRequest, "path should be /api/series/id/{id}")
+		return
+	}
+	seriesID, err := url.PathUnescape(encodedID)
+	if err != nil {
+		api.writeError(w, http.StatusBadRequest, "invalid series id encoding")
+		return
+	}
+	namespace, nameWithAgg, tags, ok := parseSeriesKey(seriesID)
+	if !ok {
+		api.writeError(w, http.StatusBadRequest, "invalid series id")
+		return
+	}
+	api.handleSeriesDataForSeries(w, namespace, nameWithAgg, tags, seriesID)
 }
 
 // handleSeriesData returns data for a specific series.
@@ -190,6 +215,11 @@ func (api *TestBenchAPI) handleSeriesData(w http.ResponseWriter, r *http.Request
 
 	namespace := parts[0]
 	nameWithAgg := parts[1]
+	api.handleSeriesDataForSeries(w, namespace, nameWithAgg, nil, "")
+}
+
+func (api *TestBenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace, nameWithAgg string, tags []string, requestedID string) {
+	seriesID := requestedID
 
 	// Parse aggregation suffix (e.g., "metric:avg" or "metric:count")
 	name := nameWithAgg
@@ -217,29 +247,42 @@ func (api *TestBenchAPI) handleSeriesData(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	series := storage.GetSeries(namespace, name, nil, agg)
+	series := storage.GetSeries(namespace, name, tags, agg)
 	if series == nil {
 		api.writeError(w, http.StatusNotFound, "series not found")
 		return
 	}
+	if seriesID == "" {
+		seriesID = seriesKey(series.Namespace, nameWithAgg, series.Tags)
+	}
 
 	// Get anomalies for this series to include in response
 	anomalies := api.tb.GetAnomalies()
-	seriesSource := name + ":" + aggSuffix(agg)
+	seriesSource := nameWithAgg
 
 	type anomalyMarker struct {
-		Timestamp    int64  `json:"timestamp"`
-		AnalyzerName string `json:"analyzerName"`
-		Title        string `json:"title"`
+		Timestamp         int64  `json:"timestamp"`
+		AnalyzerName      string `json:"analyzerName"`
+		AnalyzerComponent string `json:"analyzerComponent"`
+		SourceSeriesID    string `json:"sourceSeriesId"`
+		Title             string `json:"title"`
 	}
 
 	var markers []anomalyMarker
+	analyzerComponentMap := api.tb.GetAnalyzerComponentMap()
 	for _, a := range anomalies {
-		if a.Source == seriesSource {
+		if a.AnalyzerName == "" || a.Timestamp == 0 {
+			log.Printf("skipping malformed anomaly marker for series %q: analyzer=%q ts=%d",
+				seriesID, a.AnalyzerName, a.Timestamp)
+			continue
+		}
+		if (a.SourceSeriesID != "" && a.SourceSeriesID == seriesID) || (a.SourceSeriesID == "" && a.Source == seriesSource) {
 			markers = append(markers, anomalyMarker{
-				Timestamp:    a.Timestamp,
-				AnalyzerName: a.AnalyzerName,
-				Title:        a.Title,
+				Timestamp:         a.Timestamp,
+				AnalyzerName:      a.AnalyzerName,
+				AnalyzerComponent: analyzerComponentMap[a.AnalyzerName],
+				SourceSeriesID:    seriesID,
+				Title:             a.Title,
 			})
 		}
 	}
@@ -250,6 +293,7 @@ func (api *TestBenchAPI) handleSeriesData(w http.ResponseWriter, r *http.Request
 	}
 
 	type seriesResponse struct {
+		ID        string          `json:"id"`
 		Namespace string          `json:"namespace"`
 		Name      string          `json:"name"`
 		Tags      []string        `json:"tags"`
@@ -258,6 +302,7 @@ func (api *TestBenchAPI) handleSeriesData(w http.ResponseWriter, r *http.Request
 	}
 
 	resp := seriesResponse{
+		ID:        seriesID,
 		Namespace: series.Namespace,
 		Name:      nameWithAgg,
 		Tags:      series.Tags,
@@ -299,23 +344,29 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 	}
 
 	type anomalyResponse struct {
-		Source       string             `json:"source"`
-		AnalyzerName string             `json:"analyzerName"`
-		Title        string             `json:"title"`
-		Description  string             `json:"description"`
-		Tags         []string           `json:"tags"`
-		Timestamp    int64              `json:"timestamp"`
-		DebugInfo    *debugInfoResponse `json:"debugInfo,omitempty"`
+		Source            string             `json:"source"`
+		SourceSeriesID    string             `json:"sourceSeriesId"`
+		AnalyzerName      string             `json:"analyzerName"`
+		AnalyzerComponent string             `json:"analyzerComponent"`
+		Title             string             `json:"title"`
+		Description       string             `json:"description"`
+		Tags              []string           `json:"tags"`
+		Timestamp         int64              `json:"timestamp"`
+		DebugInfo         *debugInfoResponse `json:"debugInfo,omitempty"`
 	}
+
+	analyzerComponentMap := api.tb.GetAnalyzerComponentMap()
 
 	toResponse := func(a observerdef.AnomalyOutput) anomalyResponse {
 		resp := anomalyResponse{
-			Source:       a.Source,
-			AnalyzerName: a.AnalyzerName,
-			Title:        a.Title,
-			Description:  a.Description,
-			Tags:         a.Tags,
-			Timestamp:    a.Timestamp,
+			Source:            a.Source,
+			SourceSeriesID:    a.SourceSeriesID,
+			AnalyzerName:      a.AnalyzerName,
+			AnalyzerComponent: analyzerComponentMap[a.AnalyzerName],
+			Title:             a.Title,
+			Description:       a.Description,
+			Tags:              a.Tags,
+			Timestamp:         a.Timestamp,
 		}
 		if a.DebugInfo != nil {
 			resp.DebugInfo = &debugInfoResponse{
@@ -342,6 +393,11 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 		byAnalyzer := api.tb.GetAnomaliesByAnalyzer()
 		if anomalies, ok := byAnalyzer[analyzerFilter]; ok {
 			for _, a := range anomalies {
+				if a.AnalyzerName == "" || a.Timestamp == 0 {
+					log.Printf("skipping malformed anomaly response: analyzer=%q source=%q ts=%d",
+						a.AnalyzerName, a.Source, a.Timestamp)
+					continue
+				}
 				response = append(response, toResponse(a))
 			}
 		}
@@ -349,6 +405,11 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 		// Return all anomalies
 		anomalies := api.tb.GetAnomalies()
 		for _, a := range anomalies {
+			if a.AnalyzerName == "" || a.Timestamp == 0 {
+				log.Printf("skipping malformed anomaly response: analyzer=%q source=%q ts=%d",
+					a.AnalyzerName, a.Source, a.Timestamp)
+				continue
+			}
 			response = append(response, toResponse(a))
 		}
 	}
@@ -571,4 +632,3 @@ func zeroNonFiniteFloats(v reflect.Value) reflect.Value {
 	}
 	return v
 }
-

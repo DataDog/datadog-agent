@@ -33,6 +33,7 @@ export interface ComponentInfo {
 }
 
 export interface SeriesInfo {
+  id: string;
   namespace: string;
   name: string;
   tags: string[];
@@ -47,10 +48,13 @@ export interface Point {
 export interface AnomalyMarker {
   timestamp: number;
   analyzerName: string;
+  analyzerComponent?: string;
+  sourceSeriesId?: string;
   title: string;
 }
 
 export interface SeriesData {
+  id: string;
   namespace: string;
   name: string;
   tags: string[];
@@ -74,7 +78,9 @@ export interface AnomalyDebugInfo {
 
 export interface Anomaly {
   source: string;
+  sourceSeriesId?: string;
   analyzerName: string;
+  analyzerComponent?: string;
   title: string;
   description: string;
   tags: string[];
@@ -177,6 +183,10 @@ class ApiClient {
 
   async getSeriesData(namespace: string, name: string): Promise<SeriesData> {
     return this.fetch(`/series/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}`);
+  }
+
+  async getSeriesDataByID(id: string): Promise<SeriesData> {
+    return this.fetch(`/series/id/${encodeURIComponent(id)}`);
   }
 
   async getAnomalies(analyzer?: string): Promise<Anomaly[]> {

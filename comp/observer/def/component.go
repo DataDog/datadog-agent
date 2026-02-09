@@ -94,6 +94,8 @@ type TimeRange struct {
 type AnomalyOutput struct {
 	// Source identifies which metric/signal the anomaly is about (e.g., "network.retransmits").
 	Source string
+	// SourceSeriesID uniquely identifies the source series (namespace + name + tags).
+	SourceSeriesID string
 	// AnalyzerName identifies which TimeSeriesAnalysis or LogProcessor produced this anomaly.
 	AnalyzerName string
 	Title        string
@@ -274,4 +276,3 @@ type RawAnomalyState interface {
 	// RawAnomalies returns all anomalies detected by TimeSeriesAnalysis implementations.
 	RawAnomalies() []AnomalyOutput
 }
-

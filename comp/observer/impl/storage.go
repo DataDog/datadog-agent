@@ -241,6 +241,21 @@ func seriesKey(namespace, name string, tags []string) string {
 	return namespace + "|" + name + "|" + strings.Join(sortedTags, ",")
 }
 
+// parseSeriesKey parses a series key back into its parts.
+func parseSeriesKey(key string) (namespace, name string, tags []string, ok bool) {
+	parts := strings.SplitN(key, "|", 3)
+	if len(parts) != 3 {
+		return "", "", nil, false
+	}
+	namespace = parts[0]
+	name = parts[1]
+	if parts[2] == "" {
+		return namespace, name, nil, true
+	}
+	tags = strings.Split(parts[2], ",")
+	return namespace, name, tags, true
+}
+
 // copyTags creates a copy of tags slice.
 func copyTags(tags []string) []string {
 	if tags == nil {

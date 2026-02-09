@@ -523,6 +523,12 @@ func (tb *TestBench) rerunAnalysesLocked() {
 					for _, anomaly := range result.Anomalies {
 						anomaly.AnalyzerName = analyzer.Name()
 						anomaly.Source = seriesCopy.Name
+						anomaly.SourceSeriesID = seriesKey(seriesCopy.Namespace, seriesCopy.Name, seriesCopy.Tags)
+						if anomaly.AnalyzerName == "" || anomaly.Source == "" || anomaly.Timestamp == 0 {
+							fmt.Printf("  Warning: dropping invalid anomaly (analyzer=%q source=%q ts=%d)\n",
+								anomaly.AnalyzerName, anomaly.Source, anomaly.Timestamp)
+							continue
+						}
 
 						// Apply deduplication if enabled
 						if dedup != nil {
@@ -640,6 +646,26 @@ func (tb *TestBench) GetAnomaliesByAnalyzer() map[string][]observerdef.AnomalyOu
 		copied := make([]observerdef.AnomalyOutput, len(v))
 		copy(copied, v)
 		result[k] = copied
+	}
+	return result
+}
+
+// GetAnalyzerComponentMap returns a mapping from analyzer implementation name
+// (e.g. "cusum_detector") to component registry name (e.g. "cusum").
+func (tb *TestBench) GetAnalyzerComponentMap() map[string]string {
+	tb.mu.RLock()
+	defer tb.mu.RUnlock()
+
+	result := make(map[string]string)
+	for componentName, comp := range tb.components {
+		if comp.Registration.Category != "analyzer" {
+			continue
+		}
+		analyzer, ok := comp.Instance.(observerdef.TimeSeriesAnalysis)
+		if !ok {
+			continue
+		}
+		result[analyzer.Name()] = componentName
 	}
 	return result
 }
