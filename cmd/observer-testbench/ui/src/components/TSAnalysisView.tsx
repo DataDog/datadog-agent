@@ -389,6 +389,10 @@ export function TSAnalysisView({
               <div className="text-center py-10 text-slate-500">
                 Select series from the sidebar to view charts
               </div>
+            ) : seriesData.size === 0 ? (
+              <div className="text-center py-10 text-slate-500">
+                Loading series data...
+              </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {Array.from(selectedSeries).map((key) => {

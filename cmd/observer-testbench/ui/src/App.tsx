@@ -214,8 +214,8 @@ function App() {
           onMouseDown={handleResizeStart}
         />
 
-        {/* Tab content */}
-        {activeTab === 'timeseries' && (
+        {/* Tab content - both tabs stay mounted to preserve state */}
+        <div className={`flex-1 flex ${activeTab !== 'timeseries' ? 'hidden' : ''}`}>
           <TSAnalysisView
             state={state}
             actions={actions}
@@ -225,14 +225,14 @@ function App() {
             smoothLines={smoothLines}
             splitByTag={splitByTag}
           />
-        )}
-        {activeTab === 'correlators' && (
+        </div>
+        <div className={`flex-1 flex ${activeTab !== 'correlators' ? 'hidden' : ''}`}>
           <CorrelatorView
             state={state}
             actions={actions}
             sidebarWidth={sidebarWidth}
           />
-        )}
+        </div>
       </div>
     </div>
   );
