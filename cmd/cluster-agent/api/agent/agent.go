@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
 	dcametadata "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
 	clusterchecksmetadata "github.com/DataDog/datadog-agent/comp/metadata/clusterchecks/def"
 
@@ -225,7 +224,7 @@ func getTaggerList(w http.ResponseWriter, _ *http.Request, taggerComp tagger.Com
 func getWorkloadList(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
 	params := r.URL.Query()
 
-	jsonDump, err := workloadmetaimpl.BuildWorkloadResponse(
+	jsonDump, err := workloadmeta.BuildWorkloadResponse(
 		wmeta,
 		params.Get("verbose") == "true",
 		params.Get("search"),

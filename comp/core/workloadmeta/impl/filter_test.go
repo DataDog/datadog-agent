@@ -92,7 +92,7 @@ func TestFilterStructuredResponse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := FilterStructuredResponse(tt.response, tt.search)
+			result := wmdef.FilterStructuredResponse(tt.response, tt.search)
 
 			// Check that only expected kinds are present
 			assert.Equal(t, len(tt.expectedKinds), len(result.Entities), "unexpected number of kinds")
@@ -181,7 +181,7 @@ func TestBuildWorkloadResponse(t *testing.T) {
 
 	t.Run("JSON format verbose", func(t *testing.T) {
 		// JSON format returns structured data
-		jsonBytes, err := BuildWorkloadResponse(store, true, "", true)
+		jsonBytes, err := wmdef.BuildWorkloadResponse(store, true, "", true)
 		require.NoError(t, err)
 		require.NotEmpty(t, jsonBytes)
 		assert.Contains(t, string(jsonBytes), "container")
@@ -189,14 +189,14 @@ func TestBuildWorkloadResponse(t *testing.T) {
 
 	t.Run("JSON format non-verbose", func(t *testing.T) {
 		// JSON format returns structured data
-		jsonBytes, err := BuildWorkloadResponse(store, false, "", true)
+		jsonBytes, err := wmdef.BuildWorkloadResponse(store, false, "", true)
 		require.NoError(t, err)
 		require.NotEmpty(t, jsonBytes)
 	})
 
 	t.Run("text format", func(t *testing.T) {
 		// Text format returns WorkloadDumpResponse with strings
-		jsonBytes, err := BuildWorkloadResponse(store, false, "", false)
+		jsonBytes, err := wmdef.BuildWorkloadResponse(store, false, "", false)
 		require.NoError(t, err)
 		require.NotEmpty(t, jsonBytes)
 
@@ -208,7 +208,7 @@ func TestBuildWorkloadResponse(t *testing.T) {
 	})
 
 	t.Run("filter by kind", func(t *testing.T) {
-		jsonBytes, err := BuildWorkloadResponse(store, false, "container", true)
+		jsonBytes, err := wmdef.BuildWorkloadResponse(store, false, "container", true)
 		require.NoError(t, err)
 
 		// Should contain containers
@@ -218,7 +218,7 @@ func TestBuildWorkloadResponse(t *testing.T) {
 	})
 
 	t.Run("filter by entity ID", func(t *testing.T) {
-		jsonBytes, err := BuildWorkloadResponse(store, false, "nginx", true)
+		jsonBytes, err := wmdef.BuildWorkloadResponse(store, false, "nginx", true)
 		require.NoError(t, err)
 
 		// Should contain the nginx container

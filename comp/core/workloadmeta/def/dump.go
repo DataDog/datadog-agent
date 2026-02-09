@@ -6,8 +6,10 @@
 package workloadmeta
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/fatih/color"
 )
@@ -65,4 +67,88 @@ func (w WorkloadDumpStructuredResponse) WriteText(writer io.Writer, verbose bool
 			fmt.Fprintln(writer, "===")
 		}
 	}
+}
+
+// BuildWorkloadResponse builds a JSON response for workload-list with filtering.
+//
+// Backend does all processing to avoid client-side unmarshaling issues:
+//  1. Get structured entities (DumpStructured returns concrete types from workloadmeta store)
+//  2. Apply search filtering on structured data (single filtering function)
+//  3. Convert to requested format:
+//     - jsonFormat=true: Return structured JSON (for -j/-p flags)
+//     - jsonFormat=false: Convert to text format using entity.String(verbose)
+//
+// This approach leverages the backend's access to concrete entity types, avoiding the
+// unmarshaling problem where clients can't reconstruct interface types from JSON.
+func BuildWorkloadResponse(wmeta Component, verbose bool, search string, jsonFormat bool) ([]byte, error) {
+	// Get structured data from workloadmeta store (has concrete entity types)
+	structuredResp := wmeta.DumpStructured(verbose)
+
+	// Apply search filter on structured data (single filtering logic - no duplication!)
+	if search != "" {
+		structuredResp = FilterStructuredResponse(structuredResp, search)
+	}
+
+	// Backend decides output format based on client request
+	if jsonFormat {
+		// Return structured JSON for JSON display (-j or -p flags)
+		return json.Marshal(structuredResp)
+	}
+
+	// Convert to text format for text display (no flags)
+	// This conversion happens here because backend has concrete types
+	textResp := convertStructuredToText(structuredResp, verbose)
+	return json.Marshal(textResp)
+}
+
+// convertStructuredToText converts structured entities to text format by calling String(verbose).
+// Note: This simplified conversion doesn't preserve individual source information that Dump() shows
+// in verbose mode, as DumpStructured() returns merged entities only. The merged entity (which combines
+// data from all sources) is sufficient for most use cases.
+func convertStructuredToText(structured WorkloadDumpStructuredResponse, verbose bool) WorkloadDumpResponse {
+	textResp := WorkloadDumpResponse{
+		Entities: make(map[string]WorkloadEntity),
+	}
+
+	for kind, entities := range structured.Entities {
+		infos := make(map[string]string)
+		for _, entity := range entities {
+			// Use entity ID as key (simpler than Dump's "sources(merged):[...] id: xyz" format)
+			infos[entity.GetID().ID] = entity.String(verbose)
+		}
+		if len(infos) > 0 {
+			textResp.Entities[kind] = WorkloadEntity{Infos: infos}
+		}
+	}
+
+	return textResp
+}
+
+// FilterStructuredResponse filters entities by kind or entity ID
+func FilterStructuredResponse(response WorkloadDumpStructuredResponse, search string) WorkloadDumpStructuredResponse {
+	filtered := WorkloadDumpStructuredResponse{
+		Entities: make(map[string][]Entity),
+	}
+
+	for kind, entities := range response.Entities {
+		if strings.Contains(kind, search) {
+			// Kind matches - include all entities
+			filtered.Entities[kind] = entities
+			continue
+		}
+
+		// Filter by entity ID
+		var matchingEntities []Entity
+		for _, entity := range entities {
+			if strings.Contains(entity.GetID().ID, search) {
+				matchingEntities = append(matchingEntities, entity)
+			}
+		}
+
+		if len(matchingEntities) > 0 {
+			filtered.Entities[kind] = matchingEntities
+		}
+	}
+
+	return filtered
 }
