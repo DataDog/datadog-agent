@@ -108,8 +108,10 @@ func (s *settingsRegistry) getFullConfigHandler(includeDefaults bool, namespaces
 
 		var allSettings map[string]interface{}
 		if includeDefaults {
-			allSettings = s.config.AllSettings()
+			allSettings = s.config.AllSettingsWithoutSecrets()
 		} else {
+			// TODO: AllSettingsWithoutDefault still includes secrets in the
+			// merged result. There should be a without Default + Without Secrets method
 			allSettings = s.config.AllSettingsWithoutDefault()
 		}
 
