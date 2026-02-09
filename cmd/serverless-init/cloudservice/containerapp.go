@@ -174,7 +174,7 @@ func (c *ContainerApp) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAg
 		c.collector.Stop()
 	}
 
-	metricAgent.AddMetric(containerAppPrefix+".enhanced.shutdown", 1.0, c.GetSource(), metrics.DistributionType)
+	metricAgent.AddMetric(containerAppPrefix+".enhanced.shutdown", 1.0, c.GetSource())
 }
 
 func (c *ContainerApp) StartEnhancedMetrics(metricAgent *serverlessMetrics.ServerlessMetricAgent) {

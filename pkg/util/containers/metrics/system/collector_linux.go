@@ -373,9 +373,7 @@ func buildMemoryStats(cgs *cgroups.MemoryStats) *provider.ContainerMemStats {
 	return cs
 }
 
-// BuildCPUStats converts cgroup CPU stats to provider.ContainerCPUStats
-// parentCPUStatsRetriever is an optional function to retrieve parent cgroup CPU stats for limit calculation
-func BuildCPUStats(cgs *cgroups.CPUStats, parentCPUStatsRetriever func(parentCPUStats *cgroups.CPUStats) error) *provider.ContainerCPUStats {
+func buildCPUStats(cgs *cgroups.CPUStats, parentCPUStatsRetriever func(parentCPUStats *cgroups.CPUStats) error) *provider.ContainerCPUStats {
 	if cgs == nil {
 		return nil
 	}
@@ -396,11 +394,6 @@ func BuildCPUStats(cgs *cgroups.CPUStats, parentCPUStatsRetriever func(parentCPU
 	cs.Limit, cs.DefaultedLimit = computeCPULimitPct(cgs, parentCPUStatsRetriever)
 
 	return cs
-}
-
-// buildCPUStats is the internal version, kept for backwards compatibility
-func buildCPUStats(cgs *cgroups.CPUStats, parentCPUStatsRetriever func(parentCPUStats *cgroups.CPUStats) error) *provider.ContainerCPUStats {
-	return BuildCPUStats(cgs, parentCPUStatsRetriever)
 }
 
 func computeCPULimitPct(cgs *cgroups.CPUStats, parentCPUStatsRetriever func(parentCPUStats *cgroups.CPUStats) error) (*float64, bool) {

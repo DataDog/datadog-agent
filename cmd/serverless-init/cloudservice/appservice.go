@@ -81,7 +81,7 @@ func (a *AppService) Init(_ *TracingContext) error {
 
 // Shutdown emits the shutdown metric for AppService
 func (a *AppService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, _ error) {
-	metricAgent.AddMetric(appServicePrefix+".enhanced.shutdown", 1.0, a.GetSource(), metrics.DistributionType)
+	metricAgent.AddMetric(appServicePrefix+".enhanced.shutdown", 1.0, a.GetSource())
 }
 
 func (c *AppService) StartEnhancedMetrics(metricAgent *serverlessMetrics.ServerlessMetricAgent) {

@@ -130,7 +130,7 @@ func (c *CloudRunJobs) Init(ctx *TracingContext) error {
 func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, runErr error) {
 	durationMetricName := cloudRunJobsPrefix + ".enhanced.task.duration"
 	duration := float64(time.Since(c.startTime).Milliseconds())
-	metricAgent.AddMetric(durationMetricName, duration, c.GetSource(), metrics.DistributionType)
+	metricAgent.AddMetric(durationMetricName, duration, c.GetSource())
 
 	shutdownMetricName := cloudRunJobsPrefix + ".enhanced.task.ended"
 	exitCode := exitcode.From(runErr)
@@ -138,7 +138,7 @@ func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAg
 	if exitCode != 0 {
 		succeededTag = "succeeded:false"
 	}
-	metricAgent.AddMetric(shutdownMetricName, 1.0, c.GetSource(), metrics.DistributionType, succeededTag)
+	metricAgent.AddMetric(shutdownMetricName, 1.0, c.GetSource(), succeededTag)
 
 	c.completeAndSubmitJobSpan(runErr)
 }

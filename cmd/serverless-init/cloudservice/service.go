@@ -112,7 +112,7 @@ func (l *LocalService) Init(_ *TracingContext) error {
 
 // Shutdown emits the shutdown metric for LocalService
 func (l *LocalService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, _ error) {
-	metricAgent.AddMetric(defaultPrefix+".enhanced.shutdown", 1.0, l.GetSource(), metrics.DistributionType)
+	metricAgent.AddMetric(defaultPrefix+".enhanced.shutdown", 1.0, l.GetSource())
 }
 
 func (c *LocalService) StartEnhancedMetrics(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
