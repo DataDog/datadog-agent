@@ -12,6 +12,9 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	stime "github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
@@ -31,12 +34,20 @@ func NewTestEBPFResolver() (*EBPFResolver, error) {
 		return nil, err
 	}
 
+	userGroupResolver, err := usergroup.NewResolver(nil)
+	if err != nil {
+		return nil, err
+	}
+
 	p := &EBPFResolver{
 		state:                     atomic.NewInt64(Snapshotting),
 		entryCache:                make(map[uint32]*model.ProcessCacheEntry),
 		SnapshottedBoundSockets:   make(map[uint32][]model.SnapshottedBoundSocket),
 		argsEnvsCache:             argsEnvsCache,
 		timeResolver:              timeResolver,
+		pathResolver:              &path.NoOpResolver{},
+		mountResolver:             &mount.NoOpResolver{},
+		userGroupResolver:         userGroupResolver,
 		hitsStats:                 make(map[string]*atomic.Int64),
 		missStats:                 atomic.NewInt64(0),
 		addedEntriesFromEvent:     atomic.NewInt64(0),
