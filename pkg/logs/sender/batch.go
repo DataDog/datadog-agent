@@ -9,6 +9,7 @@ package sender
 import (
 	"bytes"
 	"io"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -19,6 +20,20 @@ import (
 
 var (
 	tlmDroppedTooLarge = telemetry.NewCounter("logs_sender_batch_strategy", "dropped_too_large", []string{"pipeline"}, "Number of payloads dropped due to being too large")
+
+	// bufferPool pools bytes.Buffer objects used for encoded payloads to reduce allocations
+	bufferPool = sync.Pool{
+		New: func() interface{} {
+			return new(bytes.Buffer)
+		},
+	}
+
+	// writerCounterPool pools writerCounter objects to reduce allocations
+	writerCounterPool = sync.Pool{
+		New: func() interface{} {
+			return &writerCounter{}
+		},
+	}
 )
 
 type batch struct {
@@ -48,9 +63,10 @@ func makeBatch(
 	utilization metrics.UtilizationMonitor,
 	instanceID string,
 ) *batch {
-	var encodedPayload bytes.Buffer
-	compressor := compression.NewStreamCompressor(&encodedPayload)
-	wc := newWriterWithCounter(compressor)
+	encodedPayload := bufferPool.Get().(*bytes.Buffer)
+	encodedPayload.Reset()
+	compressor := compression.NewStreamCompressor(encodedPayload)
+	wc := getWriterCounter(compressor)
 	buffer := NewMessageBuffer(maxBatchSize, maxContentSize)
 	serializer := NewArraySerializer()
 
@@ -60,7 +76,7 @@ func makeBatch(
 		compression:     compression,
 		compressor:      compressor,
 		writeCounter:    wc,
-		encodedPayload:  &encodedPayload,
+		encodedPayload:  encodedPayload,
 		pipelineName:    pipelineName,
 		pipelineMonitor: pipelineMonitor,
 		instanceID:      instanceID,
@@ -73,13 +89,15 @@ func makeBatch(
 func (b *batch) resetBatch() {
 	b.buffer.Clear()
 	b.serializer.Reset()
-	var encodedPayload bytes.Buffer
-	compressor := b.compression.NewStreamCompressor(&encodedPayload)
 
-	wc := newWriterWithCounter(compressor)
+	encodedPayload := bufferPool.Get().(*bytes.Buffer)
+	encodedPayload.Reset()
+	compressor := b.compression.NewStreamCompressor(encodedPayload)
+	wc := getWriterCounter(compressor)
+
 	b.writeCounter = wc
 	b.compressor = compressor
-	b.encodedPayload = &encodedPayload
+	b.encodedPayload = encodedPayload
 }
 
 func (b *batch) processMessage(m *message.Message, outputChan chan *message.Payload) {
@@ -152,7 +170,12 @@ func (b *batch) flushBuffer(outputChan chan *message.Payload) {
 }
 
 func (b *batch) sendMessages(messagesMetadata []*message.MessageMetadata, outputChan chan *message.Payload) {
-	defer b.resetBatch()
+	defer func() {
+		// Return the old buffer and writerCounter to pools before resetBatch gets new ones
+		bufferPool.Put(b.encodedPayload)
+		b.writeCounter.release()
+		b.resetBatch()
+	}()
 
 	if err := b.compressor.Close(); err != nil {
 		log.Warn("Encoding failed - dropping payload", err)
@@ -171,7 +194,11 @@ func (b *batch) sendMessages(messagesMetadata []*message.MessageMetadata, output
 		b.serverlessMeta.Unlock()
 	}
 
-	p := message.NewPayload(messagesMetadata, b.encodedPayload.Bytes(), b.compression.ContentEncoding(), unencodedSize)
+	// Copy bytes since the buffer will be returned to the pool and reused.
+	// The Payload is sent to another goroutine via channel, so we must copy.
+	encoded := make([]byte, b.encodedPayload.Len())
+	copy(encoded, b.encodedPayload.Bytes())
+	p := message.NewPayload(messagesMetadata, encoded, b.compression.ContentEncoding(), unencodedSize)
 
 	b.utilization.Stop()
 	outputChan <- p
@@ -185,8 +212,18 @@ type writerCounter struct {
 	counter int
 }
 
-func newWriterWithCounter(w io.Writer) *writerCounter {
-	return &writerCounter{Writer: w}
+// getWriterCounter returns a writerCounter from the pool, initialized with the given writer
+func getWriterCounter(w io.Writer) *writerCounter {
+	wc := writerCounterPool.Get().(*writerCounter)
+	wc.Writer = w
+	wc.counter = 0
+	return wc
+}
+
+// release returns the writerCounter to the pool
+func (wc *writerCounter) release() {
+	wc.Writer = nil // Allow GC of underlying writer
+	writerCounterPool.Put(wc)
 }
 
 // Write writes the given bytes and increments the counter
