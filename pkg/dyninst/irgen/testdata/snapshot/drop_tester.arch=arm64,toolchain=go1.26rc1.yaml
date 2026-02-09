@@ -16560,8 +16560,8 @@ Types:
       GoKind: 5
 MaxTypeID: 1347
 Issues: []
-GoModuledataInfo: {FirstModuledataAddr: "0x500320", TypesOffset: 296}
-GoMapHashInfo: {UseAeshashAddr: "0x575eb3", AeskeyschedAddr: "0x576800"}
+GoModuledataInfo: {FirstModuledataAddr: "0x5002c0", TypesOffset: 296}
+GoMapHashInfo: {UseAeshashAddr: "0x575e53", AeskeyschedAddr: "0x5767a0"}
 CommonTypes:
     G: 24 StructureType runtime.g
     M: 31 StructureType runtime.m

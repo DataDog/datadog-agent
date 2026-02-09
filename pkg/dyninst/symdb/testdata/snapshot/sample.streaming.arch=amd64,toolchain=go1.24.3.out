@@ -272,9 +272,9 @@ Package: main
 			Arg: x: <T> (declared at line 67, available: [68-70])
 			Arg: k: <T> (declared at line 67, available: [68-70])
 			Arg: v: <T> (declared at line 67, available: [68-70])
-	Function: main.WithService.func1 (main.main.WithService.func1) in github.com/DataDog/dd-trace-go/v2@v2.2.3-rc.1/ddtrace/tracer/option.go [986:989] injectible: [986-989]
-		Arg: c: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.config (declared at line 986, available: [986-988])
-		Var: name: string (declared at line 987, available: [987-989])
+	Function: main.WithService.func1 (main.main.WithService.func1) in github.com/DataDog/dd-trace-go/v2@v2.6.1/ddtrace/tracer/option.go [886:889] injectible: [886-889]
+		Arg: c: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.config (declared at line 886, available: [886-888])
+		Var: name: string (declared at line 887, available: [887-889])
 	Type: main.aStruct
 		Field: aBool: bool
 		Field: aString: string
@@ -581,9 +581,6 @@ Package: main
 		Field: X: int
 		Field: Y: int
 	Type: main.something
-	Type: main.somethingImpl
-		Function: Do (main.(*somethingImpl).Do) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/esoteric.go [21:21] injectible: [21-21]
-			Arg: s: *main.somethingImpl (declared at line 21, available: [21-21])
 	Type: main.spws
 		Field: a: int
 		Field: x: *string
@@ -1494,12 +1491,12 @@ Package: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib
 	Type: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib2.Wrapper[...]
 		Field: Label: string
 		Field: Inner: <T>
-		Function: SetInner (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib2.(*Wrapper[...]).SetInner) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib2/lib2.go [37:39] injectible: [37-39]
-			Arg: w: <T> (declared at line 37, available: [37-38])
-			Arg: val: <T> (declared at line 37, available: [37-39])
 		Function: Unwrap (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib2.Wrapper[...].Unwrap) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib2/lib2.go [30:31] injectible: [30-31]
 			Arg: w: <T> (declared at line 30, available: [30-31])
 			Arg: ~r0: <T> (declared at line 30, available: )
+		Function: SetInner (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib2.(*Wrapper[...]).SetInner) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib2/lib2.go [37:39] injectible: [37-39]
+			Arg: w: <T> (declared at line 37, available: [37-38])
+			Arg: val: <T> (declared at line 37, available: [37-39])
 === yield 4 [final=true] ===
 Package: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2
 	Function: FooV2 (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib%2ev2.FooV2) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2/lib.go [21:30] injectible: [21-21], [29-30]
@@ -1511,5 +1508,5 @@ Package: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib
 			Arg: b: <T> (declared at line 51, available: [51-51])
 			Arg: ~r0: <T> (declared at line 51, available: )
 	Type: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2.V2Type
-		Function: MyMethod (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib%2ev2.(*V2Type).MyMethod) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2/lib.go [34:36] injectible: [34-36]
-			Arg: v: *github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib%2ev2.V2Type (declared at line 34, available: [34-35])
+		Function: MyMethod (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib%2ev2.(*V2Type).MyMethod) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2/lib.go [34:35] injectible: [35-35]
+			Arg: v: *github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib%2ev2.V2Type (declared at line 0, available: )

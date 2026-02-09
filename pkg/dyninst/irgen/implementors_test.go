@@ -39,6 +39,7 @@ var expectedImplementors = map[string][]string{
 		"context.withoutCancelCtx",
 	},
 	"net.Conn": {
+		"*http.unencryptedNetConnInTLSConn",
 		"*net.IPConn",
 		"*net.TCPConn",
 		"*net.UDPConn",
@@ -48,7 +49,7 @@ var expectedImplementors = map[string][]string{
 		"*net.tcpConnWithoutReadFrom",
 		"*net.tcpConnWithoutWriteTo",
 		"*tls.Conn",
-		"*transport.bufConn",
+		"http.unencryptedNetConnInTLSConn",
 		"net.dialResult",
 		"net.tcpConnWithoutReadFrom",
 		"net.tcpConnWithoutWriteTo",

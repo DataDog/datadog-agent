@@ -269,9 +269,9 @@ Package: main
 			Arg: x: <T> (declared at line 67, available: [68-70])
 			Arg: k: <T> (declared at line 67, available: [68-70])
 			Arg: v: <T> (declared at line 67, available: [68-70])
-	Function: main.WithService.func1 (main.main.WithService.func1) in github.com/DataDog/dd-trace-go/v2@v2.2.3-rc.1/ddtrace/tracer/option.go [986:989] injectible: [986-989]
-		Arg: c: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.config (declared at line 986, available: [986-988])
-		Var: name: string (declared at line 987, available: [987-989])
+	Function: main.WithService.func1 (main.main.WithService.func1) in github.com/DataDog/dd-trace-go/v2@v2.6.1/ddtrace/tracer/option.go [886:889] injectible: [886-889]
+		Arg: c: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.config (declared at line 886, available: [886-888])
+		Var: name: string (declared at line 887, available: [887-889])
 	Type: main.aStruct
 		Field: aBool: bool
 		Field: aString: string

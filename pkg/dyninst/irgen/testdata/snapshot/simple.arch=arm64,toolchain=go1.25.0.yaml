@@ -22772,8 +22772,8 @@ Issues:
       issue:
         Kind: 3
         Message: probe kind ProbeKindSpan is not supported
-GoModuledataInfo: {FirstModuledataAddr: "0x1a13a0", TypesOffset: 296}
-GoMapHashInfo: {UseAeshashAddr: "0x1d1369", AeskeyschedAddr: "0x1d1a00"}
+GoModuledataInfo: {FirstModuledataAddr: "0x1a1340", TypesOffset: 296}
+GoMapHashInfo: {UseAeshashAddr: "0x1d1309", AeskeyschedAddr: "0x1d19a0"}
 CommonTypes:
     G: 23 StructureType runtime.g
     M: 30 StructureType runtime.m

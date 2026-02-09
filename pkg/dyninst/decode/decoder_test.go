@@ -30,8 +30,6 @@ import (
 )
 
 const (
-	// goVersionHmap is the Go major version that uses hmap implementation.
-	goVersionHmap = "go1.23"
 	// goVersionSwissMap is the Go major version that uses swiss map implementation.
 	goVersionSwissMap = "go1.24"
 )
@@ -184,28 +182,14 @@ type testCase struct {
 var cases = []testCase{
 	{
 		probeName:        "stringArg",
-		goVersion:        goVersionHmap,
+		goVersion:        goVersionSwissMap,
 		eventConstructor: simpleStringArgEvent,
 		expected:         simpleStringArgExpected,
 		expectedMessage:  "s: abcdefghijklmnop",
 	},
 	{
-		probeName:        "mapArg",
-		goVersion:        goVersionHmap,
-		eventConstructor: simpleMapArgEvent,
-		expected:         simpleMapArgExpected,
-		expectedMessage:  "m: map[a: 1]",
-	},
-	{
-		probeName:        "bigMapArg",
-		goVersion:        goVersionHmap,
-		eventConstructor: simpleBigMapArgEvent,
-		expected:         simpleBigMapArgExpected,
-		expectedMessage:  "m: map[b: {Field1: 1, Field2: 0, Field3: 0, Field4: 0, Field5: 0, ...}}]",
-	},
-	{
 		probeName:        "PointerChainArg",
-		goVersion:        goVersionHmap,
+		goVersion:        goVersionSwissMap,
 		eventConstructor: simplePointerChainArgEvent,
 		expected:         simplePointerChainArgExpected,
 		expectedMessage:  "ptr: 17",
@@ -330,187 +314,6 @@ var simpleMapArgExpected = map[string]any{
 			},
 		},
 	},
-}
-
-func simpleMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
-	probe := slices.IndexFunc(irProg.Probes, func(p *ir.Probe) bool {
-		return p.GetID() == "mapArg"
-	})
-	require.NotEqual(t, -1, probe)
-	events := irProg.Probes[probe].Instances[0].Events
-	require.GreaterOrEqual(t, len(events), 1)
-	eventType := events[0].Type
-
-	var (
-		mapParamType  *ir.GoMapType
-		headerType    *ir.GoHMapHeaderType
-		bucketType    *ir.GoHMapBucketType
-		stringHdrType *ir.GoStringHeaderType
-	)
-
-	require.NotNil(t, eventType)
-	// Expect two expressions: template_segment and argument
-	require.GreaterOrEqual(t, len(eventType.Expressions), 2)
-	paramType := eventType.Expressions[0].Expression.Type
-	var ok bool
-	mapParamType, ok = paramType.(*ir.GoMapType)
-	require.True(t, ok, "expected map parameter type, got %T", paramType)
-	// 0th test config uses hmaps
-	headerType, ok = mapParamType.HeaderType.(*ir.GoHMapHeaderType)
-	require.True(t, ok, "expected hmap header type")
-	bucketType = headerType.BucketType
-	require.NotNil(t, bucketType)
-
-	// Key should be string
-	stringHdrType, ok = bucketType.KeyType.(*ir.GoStringHeaderType)
-	require.True(t, ok, "expected string key type, got %T", bucketType.KeyType)
-
-	// Offsets in header
-	countOff := fieldOffsetByName(t, headerType.RawFields, "count")
-	bucketsOff := fieldOffsetByName(t, headerType.RawFields, "buckets")
-	oldbucketsOff := fieldOffsetByName(t, headerType.RawFields, "oldbuckets")
-
-	// Offsets in bucket
-	topHashOff := fieldOffsetByName(t, bucketType.RawFields, "tophash")
-	keysOff := fieldOffsetByName(t, bucketType.RawFields, "keys")
-	valuesOff := fieldOffsetByName(t, bucketType.RawFields, "values")
-	overflowOff := fieldOffsetByName(t, bucketType.RawFields, "overflow")
-
-	// Offsets in string header
-	strPtrOff := fieldOffsetByName(t, stringHdrType.RawFields, "str")
-	strLenOff := fieldOffsetByName(t, stringHdrType.RawFields, "len")
-
-	// Sizes
-	rootLen := int(eventType.GetByteSize())
-	headerLen := int(headerType.GetByteSize())
-	bucketLen := int(bucketType.GetByteSize())
-	keyElemSize := int(bucketType.KeyType.GetByteSize())
-	valElemSize := int(bucketType.ValueType.GetByteSize())
-
-	// Addresses
-	const (
-		headerAddr  = uint64(0x100000001)
-		bucketsAddr = uint64(0x200000002)
-		strAddr     = uint64(0x300000003)
-	)
-
-	// Build root data item (expression status array + pointers to header)
-	rootData := make([]byte, rootLen)
-	// Set expression status to present for both expressions.
-	if eventType.ExprStatusArraySize > 0 {
-		rootData[0] = 5 // expr status: present (1) for expr 0 at bits [0:1], present (1) for expr 1 at bits [2:3]
-	}
-	// First expression (template_segment) at offset 1
-	ptrOff := int(eventType.Expressions[0].Offset)
-	binary.NativeEndian.PutUint64(rootData[ptrOff:ptrOff+8], headerAddr)
-	// Second expression (argument) at offset 9
-	templatePtrOff := int(eventType.Expressions[1].Offset)
-	binary.NativeEndian.PutUint64(rootData[templatePtrOff:templatePtrOff+8], headerAddr)
-
-	// Build header bytes
-	headerData := make([]byte, headerLen)
-	// count = 1
-	binary.NativeEndian.PutUint64(headerData[countOff:countOff+8], 1)
-	// buckets pointer
-	binary.NativeEndian.PutUint64(headerData[bucketsOff:bucketsOff+8], bucketsAddr)
-	// oldbuckets = 0
-	// Zero by default; explicitly set for clarity
-	binary.NativeEndian.PutUint64(headerData[oldbucketsOff:oldbucketsOff+8], 0)
-
-	// Build one bucket with one entry: ["a"] => 1
-	bucketData := make([]byte, bucketLen)
-	// tophash: mark first entry as non-empty (not 0,1,2..4)
-	bucketData[topHashOff] = 7
-	// key[0] string header
-	key0Off := keysOff + 0*uint32(keyElemSize)
-	binary.NativeEndian.PutUint64(bucketData[key0Off+strPtrOff:key0Off+strPtrOff+8], strAddr)
-	binary.NativeEndian.PutUint64(bucketData[key0Off+strLenOff:key0Off+strLenOff+8], 1)
-	// value[0] int = 1
-	val0Off := valuesOff + 0*uint32(valElemSize)
-	binary.NativeEndian.PutUint64(bucketData[val0Off:val0Off+8], 1)
-	// overflow = 0 (already zero)
-	_ = overflowOff
-
-	// String data bytes for "a"
-	strData := []byte("a")
-
-	// Compute total event length with padding
-	const (
-		eventHeaderSize    = int(unsafe.Sizeof(output.EventHeader{}))
-		dataItemHeaderSize = int(unsafe.Sizeof(output.DataItemHeader{}))
-	)
-	nextMultipleOf8 := func(v int) int { return (v + 7) & ^7 }
-
-	sz := eventHeaderSize // header
-	// no stack data
-	// root item
-	sz += dataItemHeaderSize + rootLen
-	sz = nextMultipleOf8(sz)
-	// header item
-	sz += dataItemHeaderSize + headerLen
-	sz = nextMultipleOf8(sz)
-	// buckets item (one bucket)
-	sz += dataItemHeaderSize + bucketLen
-	sz = nextMultipleOf8(sz)
-	// string data item
-	sz += dataItemHeaderSize + len(strData)
-	sz = nextMultipleOf8(sz)
-
-	var item []byte
-	eventHeader := output.EventHeader{
-		Data_byte_len:  uint32(sz),
-		Prog_id:        1,
-		Stack_byte_len: 0,
-		Stack_hash:     1,
-		Ktime_ns:       1,
-	}
-
-	// DataItem 0: root
-	rootHeader := output.DataItemHeader{
-		Type:    uint32(eventType.GetID()),
-		Length:  uint32(rootLen),
-		Address: 0,
-	}
-	// DataItem 1: header
-	mapHeader := output.DataItemHeader{
-		Type:    uint32(headerType.GetID()),
-		Length:  uint32(headerLen),
-		Address: headerAddr,
-	}
-	// DataItem 2: buckets backing array
-	bucketsHeader := output.DataItemHeader{
-		Type:    uint32(headerType.BucketsType.GetID()),
-		Length:  uint32(bucketLen),
-		Address: bucketsAddr,
-	}
-	// DataItem 3: string data for key
-	strHeader := output.DataItemHeader{
-		Type:    uint32(stringHdrType.Data.GetID()),
-		Length:  uint32(len(strData)),
-		Address: strAddr,
-	}
-
-	pad := func() {
-		for (len(item) % 8) != 0 {
-			item = append(item, 0)
-		}
-	}
-
-	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&eventHeader)), unsafe.Sizeof(eventHeader))...)
-	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&rootHeader)), unsafe.Sizeof(rootHeader))...)
-	item = append(item, rootData...)
-	pad()
-	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&mapHeader)), unsafe.Sizeof(mapHeader))...)
-	item = append(item, headerData...)
-	pad()
-	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&bucketsHeader)), unsafe.Sizeof(bucketsHeader))...)
-	item = append(item, bucketData...)
-	pad()
-	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&strHeader)), unsafe.Sizeof(strHeader))...)
-	item = append(item, strData...)
-	pad()
-
-	return item
 }
 
 func simpleSwissMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
@@ -953,199 +756,6 @@ func simpleSwissMapTablesArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	return item
 }
 
-var simpleBigMapArgExpected = map[string]any{
-	"m": map[string]any{
-		"type": "map[string]main.bigStruct",
-		"size": "1",
-		"entries": []any{
-			[]any{
-				map[string]any{"type": "string", "value": "b"},
-				map[string]any{
-					"type":    "*main.bigStruct", // This shouldn't be a pointer
-					"address": "0x700000007",     // or carry this address.
-					"fields": map[string]any{
-						"Field1": map[string]any{"type": "int", "value": "1"},
-						"Field2": map[string]any{"type": "int", "value": "0"},
-						"Field3": map[string]any{"type": "int", "value": "0"},
-						"Field4": map[string]any{"type": "int", "value": "0"},
-						"Field5": map[string]any{"type": "int", "value": "0"},
-						"Field6": map[string]any{"type": "int", "value": "0"},
-						"Field7": map[string]any{"type": "int", "value": "0"},
-						"data": map[string]any{
-							"type": "[128]uint8",
-							"size": "128",
-							"elements": slices.Repeat([]any{
-								map[string]any{"type": "uint8", "value": "0"},
-							}, 128),
-						},
-					},
-				},
-			},
-		},
-	},
-}
-
-func simpleBigMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
-	probe := slices.IndexFunc(irProg.Probes, func(p *ir.Probe) bool {
-		return p.GetID() == "bigMapArg"
-	})
-	require.NotEqual(t, -1, probe)
-	events := irProg.Probes[probe].Instances[0].Events
-	require.GreaterOrEqual(t, len(events), 1)
-	eventType := events[0].Type
-
-	var (
-		mapParamType   *ir.GoMapType
-		headerType     *ir.GoHMapHeaderType
-		bucketType     *ir.GoHMapBucketType
-		stringHdrType  *ir.GoStringHeaderType
-		valStructType  *ir.StructureType
-		valPointerType *ir.PointerType
-	)
-	paramType := eventType.Expressions[0].Expression.Type
-	var ok bool
-	mapParamType, ok = paramType.(*ir.GoMapType)
-	require.True(t, ok)
-	headerType, ok = mapParamType.HeaderType.(*ir.GoHMapHeaderType)
-	require.True(t, ok)
-	bucketType = headerType.BucketType
-	require.NotNil(t, bucketType)
-	stringHdrType, ok = bucketType.KeyType.(*ir.GoStringHeaderType)
-	require.True(t, ok)
-	valPointerType, ok = bucketType.ValueType.(*ir.PointerType)
-	require.True(t, ok)
-	valStructType, ok = valPointerType.Pointee.(*ir.StructureType)
-	require.True(t, ok)
-	require.Equal(t, "main.bigStruct", valStructType.GetName())
-
-	countOff := fieldOffsetByName(t, headerType.RawFields, "count")
-	bucketsOff := fieldOffsetByName(t, headerType.RawFields, "buckets")
-	oldbucketsOff := fieldOffsetByName(t, headerType.RawFields, "oldbuckets")
-	topHashOff := fieldOffsetByName(t, bucketType.RawFields, "tophash")
-	keysOff := fieldOffsetByName(t, bucketType.RawFields, "keys")
-	valuesOff := fieldOffsetByName(t, bucketType.RawFields, "values")
-	_ = fieldOffsetByName(t, bucketType.RawFields, "overflow")
-	strPtrOff := fieldOffsetByName(t, stringHdrType.RawFields, "str")
-	strLenOff := fieldOffsetByName(t, stringHdrType.RawFields, "len")
-
-	rootLen := int(eventType.GetByteSize())
-	headerLen := int(headerType.GetByteSize())
-	bucketLen := int(bucketType.GetByteSize())
-	keyElemSize := int(bucketType.KeyType.GetByteSize())
-	valElemSize := int(bucketType.ValueType.GetByteSize())
-
-	const (
-		headerAddr  = uint64(0x400000004)
-		bucketsAddr = uint64(0x500000005)
-		strAddr     = uint64(0x600000006)
-		structAddr  = uint64(0x700000007)
-	)
-
-	rootData := make([]byte, rootLen)
-	// Set expression status to present for both expressions.
-	if eventType.ExprStatusArraySize > 0 {
-		rootData[0] = 5 // expr status: present (1) for expr 0 at bits [0:1], present (1) for expr 1 at bits [2:3]
-	}
-	// First expression (template_segment) at offset 1
-	ptrOff := int(eventType.Expressions[0].Offset)
-	binary.NativeEndian.PutUint64(rootData[ptrOff:ptrOff+8], headerAddr)
-	// Second expression (argument) at offset 9
-	templatePtrOff := int(eventType.Expressions[1].Offset)
-	binary.NativeEndian.PutUint64(rootData[templatePtrOff:templatePtrOff+8], headerAddr)
-
-	headerData := make([]byte, headerLen)
-	binary.NativeEndian.PutUint64(headerData[countOff:countOff+8], 1)
-	binary.NativeEndian.PutUint64(headerData[bucketsOff:bucketsOff+8], bucketsAddr)
-	binary.NativeEndian.PutUint64(headerData[oldbucketsOff:oldbucketsOff+8], 0)
-
-	bucketData := make([]byte, bucketLen)
-	bucketData[topHashOff] = 7
-	key0Off := keysOff + 0*uint32(keyElemSize)
-	binary.NativeEndian.PutUint64(bucketData[key0Off+strPtrOff:key0Off+strPtrOff+8], strAddr)
-	binary.NativeEndian.PutUint64(bucketData[key0Off+strLenOff:key0Off+strLenOff+8], 1)
-	val0Off := valuesOff + 0*uint32(valElemSize)
-	// Build struct backing data and set Field1=1
-	field1Off := fieldOffsetByName(t, valStructType.RawFields, "Field1")
-	structData := make([]byte, int(valStructType.GetByteSize()))
-	binary.NativeEndian.PutUint64(structData[field1Off:field1Off+8], 1)
-	binary.NativeEndian.PutUint64(bucketData[val0Off:val0Off+8], structAddr)
-
-	strData := []byte("b")
-
-	const (
-		eventHeaderSize    = int(unsafe.Sizeof(output.EventHeader{}))
-		dataItemHeaderSize = int(unsafe.Sizeof(output.DataItemHeader{}))
-	)
-	nextMultipleOf8 := func(v int) int { return (v + 7) & ^7 }
-	sz := eventHeaderSize
-	sz += dataItemHeaderSize + rootLen
-	sz = nextMultipleOf8(sz)
-	sz += dataItemHeaderSize + headerLen
-	sz = nextMultipleOf8(sz)
-	sz += dataItemHeaderSize + bucketLen
-	sz = nextMultipleOf8(sz)
-	sz += dataItemHeaderSize + len(strData)
-	sz = nextMultipleOf8(sz)
-	sz += dataItemHeaderSize + len(structData)
-	sz = nextMultipleOf8(sz)
-
-	var item []byte
-	eventHeader := output.EventHeader{
-		Data_byte_len: uint32(sz),
-		Prog_id:       1,
-		Stack_hash:    1,
-		Ktime_ns:      1,
-	}
-	rootHeader := output.DataItemHeader{
-		Type:    uint32(eventType.GetID()),
-		Length:  uint32(rootLen),
-		Address: 0,
-	}
-	mapHeader := output.DataItemHeader{
-		Type:    uint32(headerType.GetID()),
-		Length:  uint32(headerLen),
-		Address: headerAddr,
-	}
-	bucketsHeader := output.DataItemHeader{
-		Type:    uint32(headerType.BucketsType.GetID()),
-		Length:  uint32(bucketLen),
-		Address: bucketsAddr,
-	}
-	strHeader := output.DataItemHeader{
-		Type:    uint32(stringHdrType.Data.GetID()),
-		Length:  uint32(len(strData)),
-		Address: strAddr,
-	}
-	structHeader := output.DataItemHeader{
-		Type:    uint32(valStructType.GetID()),
-		Length:  uint32(len(structData)),
-		Address: structAddr,
-	}
-
-	pad := func() {
-		for (len(item) % 8) != 0 {
-			item = append(item, 0)
-		}
-	}
-	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&eventHeader)), unsafe.Sizeof(eventHeader))...)
-	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&rootHeader)), unsafe.Sizeof(rootHeader))...)
-	item = append(item, rootData...)
-	pad()
-	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&mapHeader)), unsafe.Sizeof(mapHeader))...)
-	item = append(item, headerData...)
-	pad()
-	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&bucketsHeader)), unsafe.Sizeof(bucketsHeader))...)
-	item = append(item, bucketData...)
-	pad()
-	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&strHeader)), unsafe.Sizeof(strHeader))...)
-	item = append(item, strData...)
-	pad()
-	item = append(item, unsafe.Slice((*byte)(unsafe.Pointer(&structHeader)), unsafe.Sizeof(structHeader))...)
-	item = append(item, structData...)
-	pad()
-	return item
-}
-
 var simplePointerChainArgExpected = map[string]any{
 	"ptr": map[string]any{
 		"type":    "*****int",
@@ -1555,7 +1165,7 @@ func TestDecoderMissingReturnEventEvaluationError(t *testing.T) {
 // TestDecoderNilPointerCaptureExpression tests that a nil pointer dereference
 // during expression evaluation is reported as an evaluation error for captures.
 func TestDecoderNilPointerCaptureExpression(t *testing.T) {
-	irProg := generateIrForProbes(t, "simple", goVersionHmap, "stringArg")
+	irProg := generateIrForProbes(t, "simple", goVersionSwissMap, "stringArg")
 	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
 	require.NoError(t, err)
 	input := simpleStringArgEvent(t, irProg)
@@ -1596,7 +1206,7 @@ func TestDecoderNilPointerCaptureExpression(t *testing.T) {
 // TestDecoderNilPointerTemplateExpression tests that a nil pointer dereference
 // during template expression evaluation is formatted as an error in the message.
 func TestDecoderNilPointerTemplateExpression(t *testing.T) {
-	irProg := generateIrForProbes(t, "simple", goVersionHmap, "stringArg")
+	irProg := generateIrForProbes(t, "simple", goVersionSwissMap, "stringArg")
 	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
 	require.NoError(t, err)
 	input := simpleStringArgEvent(t, irProg)
