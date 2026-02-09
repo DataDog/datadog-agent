@@ -1121,12 +1121,10 @@ def compare_inventories(ctx, parent_inventory_report, current_inventory_report):
     return body
 
 
-@task
-def get_parent_report(ctx, branch, gate_name: str, output: str):
+def _get_parent_report(ctx, parent_sha, gate_name: str, output: str):
     """
     Fetch the quality gates report from the base commit.
     """
-    parent_sha = get_ancestor(ctx, branch)
     aws_cmd = "aws.exe" if sys.platform == 'win32' else "aws"
     s3_url = f"s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/GATE_REPORTS/{parent_sha}/{gate_name}_size_report_{parent_sha[:8]}.yml"
     ctx.run(f"{aws_cmd} s3 cp --only-show-errors {s3_url} {output}", warn=True)
@@ -1146,8 +1144,10 @@ def _filter_files(path: str) -> bool:
 
 @task
 def check_files(ctx, branch_name, reports_folder):
-    pr_comment = "File checks results:\n"
     package_types = ['deb', 'rpm']
+    parent_sha = get_ancestor(ctx, branch_name)
+    pr_comment = f"File checks results against ancestor [{parent_sha[:8]}](https://github.com/DataDog/datadog-agent/commit/{parent_sha}):\n\n"
+
     for package_type in package_types:
         for artifact in glob.glob(f'{reports_folder}/datadog-agent*.{package_type}'):
             # deb pattern is $packagename-$version
@@ -1176,7 +1176,7 @@ def check_files(ctx, branch_name, reports_folder):
             )
 
             parent_report_file = tempfile.NamedTemporaryFile()
-            get_parent_report(ctx, branch_name, gate_short_name, parent_report_file.file.name)
+            _get_parent_report(ctx, parent_sha, gate_short_name, parent_report_file.file.name)
             body = compare_inventories(ctx, parent_report_file.file.name, report_filename)
             pr_comment += body
 
