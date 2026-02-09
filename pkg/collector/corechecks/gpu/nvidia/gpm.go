@@ -39,13 +39,13 @@ type gpmMetric struct {
 
 var allGpmMetrics = map[nvml.GpmMetricId]gpmMetric{
 	nvml.GPM_METRIC_GRAPHICS_UTIL: {
-		// Despite the name, this GPM metric returns the percentage of SMs that were in use, not whether any of them were
-		// active in the interval like gr_engine_active does.
-		name:       "sm_utilization",
+		name:       "gr_engine_active",
 		metricType: metrics.GaugeType,
 	},
 	nvml.GPM_METRIC_SM_UTIL: {
-		name:       "sm_active",
+		// Despite the name, this GPM metric returns the percentage of SMs that were in use, not whether any of them were
+		// active in the interval like gr_engine_active does.
+		name:       "sm_utilization",
 		metricType: metrics.GaugeType,
 	},
 	nvml.GPM_METRIC_SM_OCCUPANCY: {
