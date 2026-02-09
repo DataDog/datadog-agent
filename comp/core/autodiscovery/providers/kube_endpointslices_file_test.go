@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build clusterchecks && kubeapiserver && cel
+//go:build clusterchecks && kubeapiserver
 
 package providers
 
@@ -46,7 +46,7 @@ func init() {
 	tplCelSlice.SetMatchingProgram(matchingProgram)
 }
 
-func TestEndponintSlices_BuildConfigStore(t *testing.T) {
+func TestEndpointSlices_BuildConfigStore(t *testing.T) {
 	tpl1 := &integration.Config{
 		Name: "check1",
 		AdvancedADIdentifiers: []integration.AdvancedADIdentifier{{
@@ -91,16 +91,14 @@ func TestEndponintSlices_BuildConfigStore(t *testing.T) {
 			templates: []integration.Config{*tpl1, *tpl2},
 			want: map[string]*epSliceConfig{
 				"ep-ns1/ep-name1": {
-					templates:     []integration.Config{*tpl1},
-					slices:        nil,
-					shouldCollect: false,
-					resolveMode:   kubeEndpointResolveAuto,
+					templates:   []integration.Config{*tpl1},
+					slices:      nil,
+					resolveMode: kubeEndpointResolveAuto,
 				},
 				"ep-ns2/ep-name2": {
-					templates:     []integration.Config{*tpl2},
-					slices:        nil,
-					shouldCollect: false,
-					resolveMode:   kubeEndpointResolveAuto,
+					templates:   []integration.Config{*tpl2},
+					slices:      nil,
+					resolveMode: kubeEndpointResolveAuto,
 				},
 			},
 		},
@@ -109,10 +107,9 @@ func TestEndponintSlices_BuildConfigStore(t *testing.T) {
 			templates: []integration.Config{*tpl3, *tpl4},
 			want: map[string]*epSliceConfig{
 				"ep-ns3/ep-name3": {
-					templates:     []integration.Config{*tpl3},
-					slices:        nil,
-					shouldCollect: false,
-					resolveMode:   kubeEndpointResolveAuto,
+					templates:   []integration.Config{*tpl3},
+					slices:      nil,
+					resolveMode: kubeEndpointResolveAuto,
 				},
 			},
 		},
@@ -121,10 +118,9 @@ func TestEndponintSlices_BuildConfigStore(t *testing.T) {
 			templates: []integration.Config{tplCelSlice},
 			want: map[string]*epSliceConfig{
 				celEndpointSliceID: {
-					templates:     []integration.Config{tplCelSlice},
-					slices:        nil,
-					shouldCollect: false,
-					resolveMode:   kubeEndpointResolveAuto,
+					templates:   []integration.Config{tplCelSlice},
+					slices:      nil,
+					resolveMode: kubeEndpointResolveAuto,
 				},
 			},
 		},
@@ -188,7 +184,7 @@ func TestStoreInsertEndpointSlice(t *testing.T) {
 		{
 			name: "found",
 			epSliceConfigs: map[string]*epSliceConfig{
-				"ns1/ep1": {templates: []integration.Config{tpl}, slices: nil, shouldCollect: false},
+				"ns1/ep1": {templates: []integration.Config{tpl}, slices: nil},
 			},
 			slice:             slice1,
 			want:              true,
@@ -215,7 +211,7 @@ func TestStoreInsertEndpointSlice(t *testing.T) {
 
 			assert.Equal(t, tt.want, got)
 			if tt.want && tt.wantShouldCollect {
-				assert.True(t, s.epSliceConfigs["ns1/ep1"].shouldCollect)
+				assert.True(t, s.epSliceConfigs["ns1/ep1"].shouldCollect())
 				assert.Contains(t, s.epSliceConfigs["ns1/ep1"].slices, "slice-uid")
 			}
 		})
@@ -425,14 +421,12 @@ func TestEndpointSlices_StoreGenerateConfigs(t *testing.T) {
 			name: "nominal case",
 			epSliceConfigs: map[string]*epSliceConfig{
 				"ns1/ep1": {
-					templates:     []integration.Config{tpl1},
-					slices:        map[string]*discv1.EndpointSlice{string(slice1.UID): slice1},
-					shouldCollect: true,
+					templates: []integration.Config{tpl1},
+					slices:    map[string]*discv1.EndpointSlice{string(slice1.UID): slice1},
 				},
 				"ns2/ep2": {
-					templates:     []integration.Config{tpl2},
-					slices:        nil,
-					shouldCollect: false,
+					templates: []integration.Config{tpl2},
+					slices:    nil,
 				},
 			},
 			want: []integration.Config{
@@ -460,9 +454,8 @@ func TestEndpointSlices_StoreGenerateConfigs(t *testing.T) {
 			name: "should not collect",
 			epSliceConfigs: map[string]*epSliceConfig{
 				"ns1/ep1": {
-					templates:     []integration.Config{tpl1},
-					slices:        map[string]*discv1.EndpointSlice{},
-					shouldCollect: false,
+					templates: []integration.Config{tpl1},
+					slices:    map[string]*discv1.EndpointSlice{},
 				},
 			},
 			want: []integration.Config{},
@@ -476,8 +469,7 @@ func TestEndpointSlices_StoreGenerateConfigs(t *testing.T) {
 						string(slice1.UID): slice1,
 						string(slice2.UID): slice2,
 					},
-					shouldCollect: true,
-					resolveMode:   kubeEndpointResolveAuto,
+					resolveMode: kubeEndpointResolveAuto,
 				},
 			},
 			want: []integration.Config{
