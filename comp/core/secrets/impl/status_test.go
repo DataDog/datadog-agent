@@ -15,6 +15,7 @@ import (
 
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
 func TestSecretStatusOutput(t *testing.T) {
@@ -105,7 +106,7 @@ func TestSecretStatusWithPermissions(t *testing.T) {
 		//GroupExecPerm: false,
 	})
 
-	defer func() { checkRightsFunc = checkRights }()
+	defer func() { checkRightsFunc = filesystem.CheckRights }()
 
 	checkRightsFunc = func(_ string, _ bool) error { return nil }
 
