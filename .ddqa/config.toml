@@ -57,6 +57,13 @@ jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "agent-build"
 github_labels = ["team/agent-build"]
 
+[teams."Action Platform"]
+jira_project = "ACTP"
+jira_issue_type = "Task"
+jira_statuses = ["To Do", "In Progress", "Done"]
+github_team = "action-platform"
+github_labels = ["team/action-platform"]
+
 [teams."Agent Discovery"]
 jira_project = "DSCVR"
 jira_issue_type = "Task"
