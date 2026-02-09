@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/confmap/xconfmap"
 )
 
 // NewFactoryWithoutAgent returns a new converterWithoutAgent factory.
@@ -221,6 +222,9 @@ func ensureKeyStringValue(config confMap, key string) bool {
 	case int, int32, int64, float32, float64, uint, uint32, uint64:
 		log.Debugf("converting %s value from %T to string", key, val)
 		config[key] = fmt.Sprintf("%v", v)
+		return true
+	case xconfmap.ExpandedValue:
+		// ExpandedValues should not be altered at conversion stage
 		return true
 	default:
 		log.Warnf("API key %s has unexpected type %T, cannot convert", key, val)
