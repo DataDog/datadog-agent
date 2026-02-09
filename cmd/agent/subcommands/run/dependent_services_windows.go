@@ -82,6 +82,15 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 			shouldShutdown: true,
 		},
 		{
+			name: "private-action-runner",
+			configKeys: map[string]model.Reader{
+				"privateactionrunner.enabled": coreConf,
+			},
+			serviceName:    "datadog-private-action-runner",
+			serviceInit:    nil,
+			shouldShutdown: true,
+		},
+		{
 			name: "otel",
 			configKeys: map[string]model.Reader{
 				"otelcollector.enabled": coreConf,
