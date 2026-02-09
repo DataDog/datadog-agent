@@ -27,6 +27,7 @@ def _parse_release_version_test(name):
     )
 
 def _release_version_test_impl(env, target):
+    # buildifier: disable=unused-variable
     subject = env.expect.that_target(target)
 
     # Get the parsing result from the provider
@@ -53,6 +54,7 @@ def _parse_snapshot_version_test(name):
     )
 
 def _snapshot_version_test_impl(env, target):
+    # buildifier: disable=unused-variable
     subject = env.expect.that_target(target)
 
     # Get the parsing result from the provider

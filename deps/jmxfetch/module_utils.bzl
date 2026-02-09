@@ -29,7 +29,7 @@ get_jmxfetch_using_release_constants_attrs = {
     "_release_info": attr.label(default = "//:release.json", allow_single_file = True),
 }
 
-def parse_jmxfetch_version(version):
+def _parse_jmxfetch_version(version):
     """Parse jmxfetch version to determine if it's release or snapshot.
 
     Returns a dict with:
@@ -49,7 +49,6 @@ def parse_jmxfetch_version(version):
 
     # Otherwise it's a snapshot version like 0.48.0-20230706.234900
     # Parse using regex to extract components
-    match = None
     for i in range(len(version)):
         if version[i] == "-":
             # Found first dash
@@ -98,7 +97,7 @@ def _get_jmxfetch_using_release_constants_impl(rctx):
     sha256 = vars["JMXFETCH_HASH"]
 
     # Parse version and get URL
-    version_info = parse_jmxfetch_version(version)
+    version_info = _parse_jmxfetch_version(version)
     url = version_info["url"]
     is_snapshot = version_info["is_snapshot"]
 
