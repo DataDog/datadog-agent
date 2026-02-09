@@ -25,9 +25,7 @@ type testOpts struct {
 	activityDumpRateLimiter                    int
 	activityDumpTagRules                       bool
 	activityDumpDuration                       time.Duration
-	activityDumpLoadControllerPeriod           time.Duration
 	activityDumpCleanupPeriod                  time.Duration
-	activityDumpLoadControllerTimeout          time.Duration
 	activityDumpTracedCgroupsCount             int
 	activityDumpCgroupDifferentiateArgs        bool
 	activityDumpAutoSuppressionEnabled         bool

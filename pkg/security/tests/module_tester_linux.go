@@ -141,14 +141,8 @@ runtime_security_config:
     tag_rules:
       enabled: {{ .ActivityDumpTagRules }}
     dump_duration: {{ .ActivityDumpDuration }}
-    {{if .ActivityDumpLoadControllerPeriod }}
-    load_controller_period: {{ .ActivityDumpLoadControllerPeriod }}
-    {{end}}
     {{if .ActivityDumpCleanupPeriod }}
     cleanup_period: {{ .ActivityDumpCleanupPeriod }}
-    {{end}}
-    {{if .ActivityDumpLoadControllerTimeout }}
-    min_timeout: {{ .ActivityDumpLoadControllerTimeout }}
     {{end}}
     trace_systemd_cgroups: {{ .TraceSystemdCgroups }}
     traced_cgroups_count: {{ .ActivityDumpTracedCgroupsCount }}
@@ -1554,25 +1548,6 @@ func (tm *testModule) addAllEventTypesOnDump(dockerInstance *dockerCmdWrapper, s
 	// imds
 	cmd = dockerInstance.Command(goSyscallTester, []string{"-run-imds-test"}, []string{})
 	_, _ = cmd.CombinedOutput()
-}
-
-//nolint:deadcode,unused
-func (tm *testModule) triggerLoadControllerReducer(_ *dockerCmdWrapper, id *activityDumpIdentifier) {
-	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
-	if !ok {
-		return
-	}
-
-	managers := p.GetProfileManager()
-	if managers == nil {
-		return
-	}
-	managers.FakeDumpOverweight(id.Name)
-
-	// wait until the dump learning has stopped
-	for tm.isDumpRunning(id) {
-		time.Sleep(time.Second * 1)
-	}
 }
 
 //nolint:deadcode,unused
