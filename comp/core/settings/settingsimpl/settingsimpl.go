@@ -110,9 +110,7 @@ func (s *settingsRegistry) getFullConfigHandler(includeDefaults bool, namespaces
 		if includeDefaults {
 			allSettings = s.config.AllSettingsWithoutSecrets()
 		} else {
-			// TODO: AllSettingsWithoutDefault still includes secrets in the
-			// merged result. There should be a without Default + Without Secrets method
-			allSettings = s.config.AllSettingsWithoutDefault()
+			allSettings = s.config.AllSettingsWithoutDefaultOrSecrets()
 		}
 
 		if !requiresAllNamespaces {
