@@ -9,6 +9,8 @@ package eval
 import (
 	"slices"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestStringValues(t *testing.T) {
@@ -290,5 +292,19 @@ func BenchmarkRegexpEvaluator(b *testing.B) {
 				b.Fatal("unexpected result")
 			}
 		}
+	})
+}
+
+func TestGetPublicTLD(t *testing.T) {
+	t.Run("valid-fqdn", func(t *testing.T) {
+		etldPlusOne := GetPublicTLD("www.yahoo.com")
+		assert.Equal(t, "yahoo.com", etldPlusOne)
+	})
+}
+
+func TestGetPublicTLDs(t *testing.T) {
+	t.Run("valid-fqdns", func(t *testing.T) {
+		etldPlusOnes := GetPublicTLDs([]string{"www.yahoo.com", "www.google.com", "ftp.yahoo.com"})
+		assert.Equal(t, []string{"yahoo.com", "google.com"}, etldPlusOnes)
 	})
 }

@@ -15,6 +15,7 @@ import (
 	"path"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -52,6 +53,20 @@ func TestDNS(t *testing.T) {
 			ID:         "test_rule_long_query",
 			Expression: fmt.Sprintf(`dns.question.type == A && dns.question.name.length > 60 && process.file.name == "%s" && process.netns == network.device.netns`, path.Base(executable)),
 		},
+		{
+			ID:         "test_rule_dns_tld",
+			Expression: fmt.Sprintf(`dns.question.type == A && dns.question.name.tld == "yahoo.com" && process.file.name == "%s" && process.netns == network.device.netns && dns.question.name.tld != ${process.tld}`, path.Base(executable)),
+			Actions: []*rules.ActionDefinition{
+				{
+					Set: &rules.SetDefinition{
+						Name:         "tld",
+						Expression:   `dns.question.name.tld`,
+						Scope:        "process",
+						DefaultValue: "",
+					},
+				},
+			},
+		},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -68,7 +83,6 @@ func TestDNS(t *testing.T) {
 			}
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_rule_dns_lowercase")
 			assert.Equal(t, "perdu.com", event.DNS.Question.Name, "wrong domain name")
 
 			test.validateDNSSchema(t, event)
@@ -83,11 +97,38 @@ func TestDNS(t *testing.T) {
 			}
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_rule_dns_uppercase")
 			assert.Equal(t, "MICROSOFT.COM", event.DNS.Question.Name, "wrong domain name")
 
 			test.validateDNSSchema(t, event)
 		}, "test_rule_dns_uppercase")
+	})
+
+	t.Run("dns-tld", func(t *testing.T) {
+		test.WaitSignalFromRule(t, func() error {
+			_, err = net.LookupIP("www.yahoo.com")
+			if err != nil {
+				return err
+			}
+			return nil
+		}, func(event *model.Event, rule *rules.Rule) {
+			assert.Equal(t, "www.yahoo.com", event.DNS.Question.Name, "wrong domain name")
+
+			test.validateDNSSchema(t, event)
+		}, "test_rule_dns_tld")
+
+		// shouldn't trigger anymore because of variable
+		err = test.GetEventSent(t, func() error {
+			_, err = net.LookupIP("news.yahoo.com")
+			if err != nil {
+				return err
+			}
+			return nil
+		}, func(_ *rules.Rule, _ *model.Event) bool {
+			return true
+		}, time.Second*3, "test_rule_dns_tld")
+		if err == nil {
+			t.Fatal("expected error")
+		}
 	})
 
 	t.Run("dns-long-domain", func(t *testing.T) {
@@ -96,7 +137,6 @@ func TestDNS(t *testing.T) {
 			net.LookupIP(longDomain)
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_rule_long_query")
 			assert.Equal(t, "dns", event.GetType(), "wrong event type")
 			assert.Equal(t, longDomain, event.DNS.Question.Name, "wrong domain name")
 

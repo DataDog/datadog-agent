@@ -184,14 +184,16 @@ func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefi
 	if _, ok := module.EventTypes[event]; !ok {
 		module.EventTypes[event] = common.NewEventTypeMetada()
 	}
+	module.EventTypes[event].Fields = append(module.EventTypes[event].Fields, alias)
+
+	aliasPrefix = alias
 
 	if field.lengthField {
-		name = name + ".length"
-		aliasPrefix = alias
-		alias = alias + ".length"
+		lengthName := name + ".length"
+		lengthAlias := alias + ".length"
 
 		newStructField := &common.StructField{
-			Name:         name,
+			Name:         lengthName,
 			BasicType:    "int",
 			ReturnType:   "int",
 			OrigType:     "int",
@@ -202,26 +204,26 @@ func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefi
 			CommentText:  doc.SECLDocForLength,
 			OpOverrides:  opOverrides,
 			Struct:       "string",
-			Alias:        alias,
+			Alias:        lengthAlias,
 			AliasPrefix:  aliasPrefix,
 			GettersOnly:  field.gettersOnly,
 			Ref:          field.ref,
 			RestrictedTo: restrictedTo,
 		}
 
-		module.Fields[alias] = newStructField
+		module.Fields[lengthAlias] = newStructField
+		module.EventTypes[event].Fields = append(module.EventTypes[event].Fields, lengthAlias)
 	}
 
 	if field.tldField {
-		name = name + ".tld"
-		aliasPrefix = alias
-		alias = alias + ".tld"
+		tldName := name + ".tld"
+		tldAlias := alias + ".tld"
 
 		newStructField := &common.StructField{
-			Name:         name,
-			BasicType:    "int",
-			ReturnType:   "int",
-			OrigType:     "int",
+			Name:         tldName,
+			BasicType:    "string",
+			ReturnType:   "string",
+			OrigType:     "string",
 			IsArray:      isArray,
 			IsTLD:        true,
 			Event:        event,
@@ -229,20 +231,15 @@ func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefi
 			CommentText:  doc.SECLDocForTLD,
 			OpOverrides:  opOverrides,
 			Struct:       "string",
-			Alias:        alias,
+			Alias:        tldAlias,
 			AliasPrefix:  aliasPrefix,
 			GettersOnly:  field.gettersOnly,
 			Ref:          field.ref,
 			RestrictedTo: restrictedTo,
 		}
 
-		module.Fields[alias] = newStructField
-	}
-
-	if _, ok := module.EventTypes[event]; !ok {
-		module.EventTypes[event] = common.NewEventTypeMetada(alias)
-	} else {
-		module.EventTypes[event].Fields = append(module.EventTypes[event].Fields, alias)
+		module.Fields[tldAlias] = newStructField
+		module.EventTypes[event].Fields = append(module.EventTypes[event].Fields, tldAlias)
 	}
 }
 
@@ -310,9 +307,9 @@ func addTLDOpField(module *common.Module, alias string, field *common.StructFiel
 	tldField := *field
 	tldField.IsTLD = true
 	tldField.Name += ".tld"
-	tldField.OrigType = "int"
-	tldField.BasicType = "int"
-	tldField.ReturnType = "int"
+	tldField.OrigType = "string"
+	tldField.BasicType = "string"
+	tldField.ReturnType = "string"
 	tldField.Struct = "string"
 	tldField.AliasPrefix = alias
 	tldField.Alias = alias + ".tld"
@@ -353,9 +350,11 @@ func handleIterator(module *common.Module, field seclField, fieldType, iterator,
 	lengthField.Iterator = module.Iterators[alias]
 	lengthField.IsIterator = true
 
-	tldField := addTLDOpField(module, alias, module.Iterators[alias])
-	tldField.Iterator = module.Iterators[alias]
-	tldField.IsIterator = true
+	if field.tldField {
+		tldField := addTLDOpField(module, alias, module.Iterators[alias])
+		tldField.Iterator = module.Iterators[alias]
+		tldField.IsIterator = true
+	}
 
 	return module.Iterators[alias]
 }
@@ -1290,6 +1289,10 @@ func main() {
 // GenerateContent generates with the given template
 func GenerateContent(output string, module *common.Module, tmplCode string) error {
 	tmpl := template.Must(template.New("header").Funcs(funcMap).Funcs(sprig.TxtFuncMap()).Parse(tmplCode))
+
+	for _, field := range module.Fields {
+		fmt.Printf("field: %s\n", field.Name)
+	}
 
 	buffer := bytes.Buffer{}
 	if err := tmpl.Execute(&buffer, module); err != nil {
