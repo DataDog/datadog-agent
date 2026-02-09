@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { TimeSeriesChart } from './TimeSeriesChart';
 import type { SplitSeries } from './TimeSeriesChart';
 import type { Point, AnomalyMarker, Anomaly } from '../api/client';
@@ -28,6 +28,17 @@ interface ChartWithAnomalyDetailsProps {
   splitSeries?: SplitSeries[];
 }
 
+function getAnomalyId(anomaly: {
+  analyzerName: string;
+  analyzerComponent?: string;
+  sourceSeriesId?: string;
+  timestamp: number;
+  title: string;
+}): string {
+  const analyzerId = anomaly.analyzerComponent ?? anomaly.analyzerName;
+  return `${analyzerId}:${anomaly.sourceSeriesId ?? 'unknown'}:${anomaly.timestamp}:${anomaly.title}`;
+}
+
 export function ChartWithAnomalyDetails({
   name,
   points,
@@ -41,6 +52,8 @@ export function ChartWithAnomalyDetails({
   splitSeries,
 }: ChartWithAnomalyDetailsProps) {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+  const [hoveredAnomalyId, setHoveredAnomalyId] = useState<string | null>(null);
+  const anomalyRowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   const formatTimestamp = (ts: number) => {
     return new Date(ts * 1000).toLocaleTimeString();
@@ -63,7 +76,25 @@ export function ChartWithAnomalyDetails({
   };
 
   // Filter anomalies by enabled analyzers
-  const filteredAnomalies = anomalies.filter((a) => enabledAnalyzers.has(a.analyzerName));
+  const filteredAnomalies = anomalies.filter((a) =>
+    enabledAnalyzers.has(a.analyzerComponent ?? a.analyzerName)
+  );
+
+  const filteredAnomalyIds = useMemo(
+    () => filteredAnomalies.map((a) => getAnomalyId(a)),
+    [filteredAnomalies]
+  );
+
+  const expandedAnomalyId = expandedIndex !== null ? filteredAnomalyIds[expandedIndex] ?? null : null;
+  const activeAnomalyId = hoveredAnomalyId ?? expandedAnomalyId;
+
+  const handleMarkerClick = (markerId: string) => {
+    const idx = filteredAnomalyIds.findIndex((id) => id === markerId);
+    if (idx === -1) return;
+    setExpandedIndex(idx);
+    setHoveredAnomalyId(markerId);
+    anomalyRowRefs.current.get(markerId)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  };
 
   return (
     <div className="bg-slate-800 rounded-lg overflow-hidden">
@@ -79,6 +110,9 @@ export function ChartWithAnomalyDetails({
         height={200}
         smoothLines={smoothLines}
         splitSeries={splitSeries}
+        highlightedMarkerId={activeAnomalyId}
+        onMarkerHover={setHoveredAnomalyId}
+        onMarkerClick={handleMarkerClick}
       />
 
       {/* Anomaly details - compact list below chart */}
@@ -91,14 +125,35 @@ export function ChartWithAnomalyDetails({
             {filteredAnomalies.map((anomaly, idx) => {
               const isExpanded = expandedIndex === idx;
               const debug = anomaly.debugInfo;
+              const anomalyId = getAnomalyId(anomaly);
+              const isLinked = activeAnomalyId === anomalyId;
 
               return (
-                <div key={`${anomaly.analyzerName}-${anomaly.timestamp}-${idx}`} className="text-xs">
+                <div
+                  key={`${anomaly.analyzerName}-${anomaly.timestamp}-${idx}`}
+                  className={`text-xs rounded ${isLinked ? 'bg-slate-700/40 ring-1 ring-slate-500/70' : ''}`}
+                  ref={(el) => {
+                    if (el) {
+                      anomalyRowRefs.current.set(anomalyId, el);
+                    } else {
+                      anomalyRowRefs.current.delete(anomalyId);
+                    }
+                  }}
+                  onMouseEnter={() => setHoveredAnomalyId(anomalyId)}
+                  onMouseLeave={() => setHoveredAnomalyId(null)}
+                >
                   {/* Compact header */}
                   <button
-                    onClick={() => setExpandedIndex(isExpanded ? null : idx)}
-                    className="w-full text-left flex items-center gap-2 py-1 hover:bg-slate-700/50 rounded px-1 -mx-1"
+                    onClick={() => {
+                      setExpandedIndex(isExpanded ? null : idx);
+                      setHoveredAnomalyId(anomalyId);
+                    }}
+                    className="w-full text-left flex items-center gap-2 py-1 hover:bg-slate-700/50 rounded px-1"
                   >
+                    <span
+                      className={`w-2 h-2 rounded-full flex-shrink-0 ${isLinked ? 'ring-2 ring-slate-200' : ''}`}
+                      style={{ backgroundColor: isLinked ? '#f8fafc' : '#64748b' }}
+                    />
                     <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-700 text-slate-300">
                       {anomaly.analyzerName}
                     </span>

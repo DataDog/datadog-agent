@@ -38,36 +38,16 @@ function formatTimeRange(range: TimeRange): string {
   return `${formatTime(range.start)} - ${formatTime(range.end)}`;
 }
 
-// Parse tag string "key:value" into parts
-function parseTag(tag: string): { key: string; value: string } | null {
-  const idx = tag.indexOf(':');
-  if (idx === -1) return null;
-  return { key: tag.slice(0, idx), value: tag.slice(idx + 1) };
-}
-
 function App() {
   const [state, actions] = useObserver();
   const [activeTab, setActiveTab] = useState<TabID>('timeseries');
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [timeRange, setTimeRange] = useState<TimeRange | null>(null);
   const [smoothLines, setSmoothLines] = useState(true);
-  const [splitByTag, setSplitByTag] = useState<string | null>(null);
   const isResizingRef = useRef(false);
 
   const series = state.series ?? [];
   const anomalies = state.anomalies ?? [];
-
-  // Extract available tag keys from all series
-  const availableTagKeys = (() => {
-    const tagKeys = new Set<string>();
-    series.forEach((s) => {
-      (s.tags ?? []).forEach((t) => {
-        const parsed = parseTag(t);
-        if (parsed) tagKeys.add(parsed.key);
-      });
-    });
-    return Array.from(tagKeys).sort();
-  })();
 
   // Sidebar resize handlers
   const handleResizeStart = (e: React.MouseEvent) => {
@@ -176,24 +156,6 @@ function App() {
                     />
                   </button>
                 </label>
-                {/* Split by Tag Dropdown */}
-                {availableTagKeys.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-400">Split by</span>
-                    <select
-                      value={splitByTag ?? ''}
-                      onChange={(e) => setSplitByTag(e.target.value || null)}
-                      className="text-xs bg-slate-700 text-slate-300 rounded px-2 py-1 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                    >
-                      <option value="">None</option>
-                      {availableTagKeys.map((key) => (
-                        <option key={key} value={key}>
-                          {key}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
               </>
             )}
             <ConnectionStatus state={state.connectionState} />
@@ -223,7 +185,6 @@ function App() {
             timeRange={timeRange}
             onTimeRangeChange={setTimeRange}
             smoothLines={smoothLines}
-            splitByTag={splitByTag}
           />
         </div>
         <div className={`flex-1 flex ${activeTab !== 'correlators' ? 'hidden' : ''}`}>

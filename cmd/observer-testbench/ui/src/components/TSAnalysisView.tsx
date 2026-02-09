@@ -7,13 +7,6 @@ import type { SplitSeries } from './TimeSeriesChart';
 import type { TimeRange } from './ChartWithAnomalyDetails';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
 
-// Parse tag string "key:value" into parts
-function parseTag(tag: string): { key: string; value: string } | null {
-  const idx = tag.indexOf(':');
-  if (idx === -1) return null;
-  return { key: tag.slice(0, idx), value: tag.slice(idx + 1) };
-}
-
 const AGGREGATION_TYPES = ['avg', 'count', 'sum', 'min', 'max'] as const;
 type AggregationType = typeof AGGREGATION_TYPES[number];
 
@@ -27,20 +20,20 @@ function getAggregationType(name: string): AggregationType | null {
   return match ? (match[1] as AggregationType) : null;
 }
 
-function findSeriesVariants(
-  baseName: string,
-  allSeries: SeriesInfo[],
-  splitByTag: string
-): SeriesInfo[] {
-  const base = getBaseMetricName(baseName);
-  return allSeries.filter((s) => {
-    const sBase = getBaseMetricName(s.name);
-    if (sBase !== base) return false;
-    return (s.tags ?? []).some((t) => {
-      const parsed = parseTag(t);
-      return parsed?.key === splitByTag;
-    });
-  });
+function getAnalyzerComponent(anomaly: { analyzerName: string; analyzerComponent?: string }): string {
+  return anomaly.analyzerComponent ?? anomaly.analyzerName;
+}
+
+function formatSeriesLabel(tags: string[]): string {
+  if (!tags || tags.length === 0) return 'untagged';
+  return tags.join(', ');
+}
+
+interface MetricGroup {
+  key: string;
+  namespace: string;
+  baseName: string;
+  members: SeriesInfo[];
 }
 
 interface TSAnalysisViewProps {
@@ -50,7 +43,6 @@ interface TSAnalysisViewProps {
   timeRange: TimeRange | null;
   onTimeRangeChange: (range: TimeRange | null) => void;
   smoothLines: boolean;
-  splitByTag: string | null;
 }
 
 export function TSAnalysisView({
@@ -60,29 +52,27 @@ export function TSAnalysisView({
   timeRange,
   onTimeRangeChange,
   smoothLines,
-  splitByTag,
 }: TSAnalysisViewProps) {
-  const [selectedSeries, setSelectedSeries] = useState<Set<string>>(new Set());
+  const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set());
   const [enabledAnalyzers, setEnabledAnalyzers] = useState<Set<string>>(new Set());
-  const [seriesData, setSeriesData] = useState<Map<string, SeriesData>>(new Map());
-  const [splitSeriesData, setSplitSeriesData] = useState<Map<string, SeriesData[]>>(new Map());
+  const [groupSeriesData, setGroupSeriesData] = useState<Map<string, SeriesData[]>>(new Map());
   const [aggregationType, setAggregationType] = useState<AggregationType>('avg');
+  const [showAnomalyOnlyGroups, setShowAnomalyOnlyGroups] = useState(false);
+  const [showAnomalyOnlySeriesLines, setShowAnomalyOnlySeriesLines] = useState(false);
 
   const scenarios = state.scenarios ?? [];
   const components = state.components ?? [];
-  const series = state.series ?? [];
+  const allSeries = state.series ?? [];
   const allAnomalies = state.anomalies ?? [];
 
-  // Filter anomalies by enabled analyzers
-  const anomalies = useMemo(
-    () => allAnomalies.filter((a) => enabledAnalyzers.has(a.analyzerName)),
-    [allAnomalies, enabledAnalyzers]
-  );
-
-  // Get unique analyzers from components
   const analyzerComponents = useMemo(
     () => components.filter((c) => c.category === 'analyzer'),
     [components]
+  );
+
+  const anomalies = useMemo(
+    () => allAnomalies.filter((a) => enabledAnalyzers.has(getAnalyzerComponent(a))),
+    [allAnomalies, enabledAnalyzers]
   );
 
   const tsAnalyzerNames = useMemo(
@@ -90,34 +80,66 @@ export function TSAnalysisView({
     [analyzerComponents]
   );
 
-  // Filter series by selected aggregation type and deduplicate by base name
-  const filteredSeries = useMemo(() => {
-    const withAggType = series.filter((s) => {
-      const aggType = getAggregationType(s.name);
-      return aggType === aggregationType;
-    });
-    const seen = new Set<string>();
-    return withAggType.filter((s) => {
+  const filteredSeries = useMemo(
+    () => allSeries.filter((s) => getAggregationType(s.name) === aggregationType),
+    [allSeries, aggregationType]
+  );
+
+  const metricGroups = useMemo(() => {
+    const groups = new Map<string, MetricGroup>();
+    filteredSeries.forEach((s) => {
       const baseName = getBaseMetricName(s.name);
       const key = `${s.namespace}/${baseName}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
+      if (!groups.has(key)) {
+        groups.set(key, {
+          key,
+          namespace: s.namespace,
+          baseName,
+          members: [],
+        });
+      }
+      groups.get(key)!.members.push(s);
     });
-  }, [series, aggregationType]);
 
-  // Create display series with stripped aggregation suffix
-  const displaySeries = useMemo(() => {
-    return filteredSeries.map((s) => ({
-      ...s,
-      displayName: getBaseMetricName(s.name),
-    }));
+    return Array.from(groups.values()).sort((a, b) => a.baseName.localeCompare(b.baseName));
   }, [filteredSeries]);
 
-  // Track which scenario we initialized analyzers for
-  const initializedScenarioRef = useRef<string | null>(null);
+  const groupByKey = useMemo(() => {
+    const map = new Map<string, MetricGroup>();
+    metricGroups.forEach((g) => map.set(g.key, g));
+    return map;
+  }, [metricGroups]);
 
-  // Initialize enabled analyzers when components load (once per scenario)
+  const anomalyCountByGroup = useMemo(() => {
+    const counts = new Map<string, number>();
+    metricGroups.forEach((group) => {
+      const memberIDs = new Set(group.members.map((m) => m.id));
+      const count = anomalies.filter((a) => a.sourceSeriesId && memberIDs.has(a.sourceSeriesId)).length;
+      counts.set(group.key, count);
+    });
+    return counts;
+  }, [metricGroups, anomalies]);
+
+  const anomalyCountBySeriesID = useMemo(() => {
+    const counts = new Map<string, number>();
+    anomalies.forEach((a) => {
+      if (!a.sourceSeriesId) return;
+      counts.set(a.sourceSeriesId, (counts.get(a.sourceSeriesId) ?? 0) + 1);
+    });
+    return counts;
+  }, [anomalies]);
+
+  const visibleGroups = useMemo(() => {
+    if (!showAnomalyOnlyGroups) return metricGroups;
+    return metricGroups.filter((g) => (anomalyCountByGroup.get(g.key) ?? 0) > 0);
+  }, [metricGroups, showAnomalyOnlyGroups, anomalyCountByGroup]);
+
+  const displayGroups = useMemo(
+    () => visibleGroups.map((g) => ({ key: g.key, name: g.baseName, displayName: g.baseName })),
+    [visibleGroups]
+  );
+
+  const initializedScenarioRef = useRef<string | null>(null);
   useEffect(() => {
     if (tsAnalyzerNames.length > 0 && state.activeScenario && initializedScenarioRef.current !== state.activeScenario) {
       initializedScenarioRef.current = state.activeScenario;
@@ -125,144 +147,93 @@ export function TSAnalysisView({
     }
   }, [tsAnalyzerNames, state.activeScenario]);
 
-  // Track which scenario we've auto-selected for
   const [autoSelectedScenario, setAutoSelectedScenario] = useState<string | null>(null);
-
-  // Auto-select series with anomalies when scenario data loads
   useEffect(() => {
     if (!state.activeScenario || state.connectionState !== 'ready') return;
-    if (autoSelectedScenario !== state.activeScenario) {
-      if (series.length > 0) {
-        const anomalyCount = new Map<string, number>();
-        allAnomalies.forEach((a) => {
-          anomalyCount.set(a.source, (anomalyCount.get(a.source) || 0) + 1);
-        });
-        const matching = series
-          .filter((s) => anomalyCount.has(s.name))
-          .sort((a, b) => {
-            const countDiff = (anomalyCount.get(b.name) || 0) - (anomalyCount.get(a.name) || 0);
-            if (countDiff !== 0) return countDiff;
-            return a.name.localeCompare(b.name);
-          });
-        if (matching.length > 0) {
-          setSelectedSeries(new Set(matching.slice(0, 6).map((s) => `${s.namespace}/${s.name}`)));
-        } else {
-          const sorted = [...series].sort((a, b) => a.name.localeCompare(b.name));
-          setSelectedSeries(new Set(sorted.slice(0, 6).map((s) => `${s.namespace}/${s.name}`)));
-        }
-        setAutoSelectedScenario(state.activeScenario);
-        onTimeRangeChange(null);
-      }
-    }
-  }, [state.activeScenario, state.connectionState, allAnomalies, series, autoSelectedScenario, onTimeRangeChange]);
+    if (autoSelectedScenario === state.activeScenario) return;
 
-  // Track previous selection to detect changes
-  const prevSelectedSeriesRef = useRef<Set<string>>(new Set());
+    const ranked = [...visibleGroups].sort((a, b) => {
+      const countDiff = (anomalyCountByGroup.get(b.key) ?? 0) - (anomalyCountByGroup.get(a.key) ?? 0);
+      if (countDiff !== 0) return countDiff;
+      return a.baseName.localeCompare(b.baseName);
+    });
 
-  // Fetch data for selected series
+    setSelectedGroups(new Set(ranked.slice(0, 6).map((g) => g.key)));
+    setAutoSelectedScenario(state.activeScenario);
+    onTimeRangeChange(null);
+  }, [state.activeScenario, state.connectionState, visibleGroups, anomalyCountByGroup, autoSelectedScenario, onTimeRangeChange]);
+
+  const prevSelectedGroupsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    if (selectedSeries.size === 0 || state.connectionState !== 'ready') {
-      if (seriesData.size > 0) setSeriesData(new Map());
+    if (selectedGroups.size === 0 || state.connectionState !== 'ready') {
+      if (groupSeriesData.size > 0) setGroupSeriesData(new Map());
       return;
     }
-    const selectionChanged = selectedSeries.size !== prevSelectedSeriesRef.current.size ||
-      [...selectedSeries].some(k => !prevSelectedSeriesRef.current.has(k));
+
+    const selectionChanged = selectedGroups.size !== prevSelectedGroupsRef.current.size ||
+      [...selectedGroups].some((k) => !prevSelectedGroupsRef.current.has(k));
     if (!selectionChanged) return;
-    prevSelectedSeriesRef.current = new Set(selectedSeries);
+    prevSelectedGroupsRef.current = new Set(selectedGroups);
 
     const fetchSeriesData = async () => {
-      const newData = new Map<string, SeriesData>();
-      for (const key of selectedSeries) {
-        const [namespace, ...nameParts] = key.split('/');
-        const name = nameParts.join('/');
-        try {
-          const data = await api.getSeriesData(namespace, name);
-          newData.set(key, data);
-        } catch (e) {
-          console.error(`Failed to fetch series ${key}:`, e);
-        }
-      }
-      setSeriesData(newData);
-    };
-    fetchSeriesData();
-  }, [selectedSeries, state.connectionState, state.activeScenario, seriesData.size]);
-
-  // Track previous split tag to detect changes
-  const prevSplitByTagRef = useRef<string | null>(null);
-
-  // Fetch split series data when splitByTag is enabled
-  useEffect(() => {
-    if (!splitByTag || selectedSeries.size === 0 || state.connectionState !== 'ready') {
-      if (splitSeriesData.size > 0) setSplitSeriesData(new Map());
-      prevSplitByTagRef.current = splitByTag;
-      return;
-    }
-    if (splitByTag === prevSplitByTagRef.current) return;
-    prevSplitByTagRef.current = splitByTag;
-
-    const fetchSplitData = async () => {
-      const newSplitData = new Map<string, SeriesData[]>();
-      for (const key of selectedSeries) {
-        const [_namespace, ...nameParts] = key.split('/');
-        void _namespace;
-        const name = nameParts.join('/');
-        const variants = findSeriesVariants(name, series, splitByTag);
-        if (variants.length > 1) {
-          const variantData: SeriesData[] = [];
-          for (const variant of variants) {
-            try {
-              const data = await api.getSeriesData(variant.namespace, variant.name);
-              variantData.push(data);
-            } catch (e) {
-              console.error(`Failed to fetch variant ${variant.name}:`, e);
-            }
+      const next = new Map<string, SeriesData[]>();
+      for (const groupKey of selectedGroups) {
+        const group = groupByKey.get(groupKey);
+        if (!group) continue;
+        const seriesList: SeriesData[] = [];
+        for (const s of group.members) {
+          try {
+            const data = await api.getSeriesDataByID(s.id);
+            seriesList.push(data);
+          } catch (e) {
+            console.error(`Failed to fetch series ${s.id}:`, e);
           }
-          newSplitData.set(key, variantData);
         }
+        next.set(groupKey, seriesList);
       }
-      setSplitSeriesData(newSplitData);
+      setGroupSeriesData(next);
     };
-    fetchSplitData();
-  }, [splitByTag, selectedSeries, series, state.connectionState, splitSeriesData.size]);
+
+    fetchSeriesData();
+  }, [selectedGroups, state.connectionState, state.activeScenario, groupByKey, groupSeriesData.size]);
 
   const toggleAnalyzer = (name: string) => {
-    const newSet = new Set(enabledAnalyzers);
-    if (newSet.has(name)) {
-      newSet.delete(name);
+    const next = new Set(enabledAnalyzers);
+    if (next.has(name)) {
+      next.delete(name);
     } else {
-      newSet.add(name);
+      next.add(name);
     }
-    setEnabledAnalyzers(newSet);
+    setEnabledAnalyzers(next);
   };
 
-  // Compute anomalous sources for the tree
-  const anomalousSources = useMemo(
-    () => new Set(anomalies.map((a) => a.source)),
-    [anomalies]
-  );
+  const anomalousGroupKeys = useMemo(() => {
+    const keys = new Set<string>();
+    metricGroups.forEach((g) => {
+      if ((anomalyCountByGroup.get(g.key) ?? 0) > 0) keys.add(g.key);
+    });
+    return keys;
+  }, [metricGroups, anomalyCountByGroup]);
 
   return (
     <div className="flex-1 flex">
-      {/* Sidebar */}
       <aside
         className="bg-slate-800 border-r border-slate-700 flex flex-col"
         style={{ width: sidebarWidth }}
       >
-        {/* Scenarios */}
         <ScenarioSelector
           scenarios={scenarios}
           activeScenario={state.activeScenario}
           onLoadScenario={actions.loadScenario}
         />
 
-        {/* Analyzers */}
         <div className="p-4 border-b border-slate-700">
           <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
             Analyzers
           </h2>
           <div className="space-y-1">
             {analyzerComponents.map((comp) => {
-              const count = allAnomalies.filter((a) => a.analyzerName === comp.name).length;
+              const count = allAnomalies.filter((a) => getAnalyzerComponent(a) === comp.name).length;
               return (
                 <label
                   key={comp.name}
@@ -284,59 +255,74 @@ export function TSAnalysisView({
           </div>
         </div>
 
-        {/* Aggregation Type */}
-        <div className="p-4 border-b border-slate-700">
-          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-            Aggregation
-          </h2>
-          <div className="flex gap-1 flex-wrap">
-            {AGGREGATION_TYPES.map((type) => (
-              <button
-                key={type}
-                onClick={() => setAggregationType(type)}
-                className={`text-xs px-2 py-1 rounded transition-colors ${
-                  aggregationType === type
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-                }`}
-              >
-                {type}
-              </button>
-            ))}
+        <div className="p-4 border-b border-slate-700 space-y-3">
+          <div>
+            <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+              Aggregation
+            </h2>
+            <div className="flex gap-1 flex-wrap">
+              {AGGREGATION_TYPES.map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setAggregationType(type)}
+                  className={`text-xs px-2 py-1 rounded transition-colors ${
+                    aggregationType === type
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
           </div>
+          <label className="flex items-center justify-between text-xs text-slate-300 bg-slate-700/40 rounded px-2 py-1.5 cursor-pointer">
+            <span>Show only groups with anomalies</span>
+            <input
+              type="checkbox"
+              checked={showAnomalyOnlyGroups}
+              onChange={(e) => setShowAnomalyOnlyGroups(e.target.checked)}
+              className="rounded border-slate-600 bg-slate-700 text-purple-600 focus:ring-purple-500"
+            />
+          </label>
+          <label className="flex items-center justify-between text-xs text-slate-300 bg-slate-700/40 rounded px-2 py-1.5 cursor-pointer">
+            <span>In charts, show only anomalous series</span>
+            <input
+              type="checkbox"
+              checked={showAnomalyOnlySeriesLines}
+              onChange={(e) => setShowAnomalyOnlySeriesLines(e.target.checked)}
+              className="rounded border-slate-600 bg-slate-700 text-purple-600 focus:ring-purple-500"
+            />
+          </label>
         </div>
 
-        {/* Series Tree */}
         <div className="flex-1 p-4 overflow-hidden flex flex-col min-h-0">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              Series ({displaySeries.length})
+              Metric Groups ({displayGroups.length})
             </h2>
             <div className="flex gap-1">
               <button
                 onClick={() => {
-                  const anomalousKeys = displaySeries
-                    .filter((s) => anomalies.some((a) => a.source === s.name || a.source === (s as any).displayName))
-                    .map((s) => `${s.namespace}/${s.name}`);
-                  setSelectedSeries(new Set(anomalousKeys));
+                  const anomalousKeys = displayGroups
+                    .filter((g) => anomalousGroupKeys.has(g.key))
+                    .map((g) => g.key);
+                  setSelectedGroups(new Set(anomalousKeys));
                 }}
                 className="text-xs px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 rounded text-slate-400"
-                title="Select all series with anomalies"
+                title="Select groups with anomalies"
               >
                 !
               </button>
               <button
-                onClick={() => {
-                  const allKeys = displaySeries.map((s) => `${s.namespace}/${s.name}`);
-                  setSelectedSeries(new Set(allKeys));
-                }}
+                onClick={() => setSelectedGroups(new Set(displayGroups.map((g) => g.key)))}
                 className="text-xs px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 rounded text-slate-400"
-                title="Select all series"
+                title="Select all groups"
               >
                 All
               </button>
               <button
-                onClick={() => setSelectedSeries(new Set())}
+                onClick={() => setSelectedGroups(new Set())}
                 className="text-xs px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 rounded text-slate-400"
                 title="Clear selection"
               >
@@ -345,15 +331,14 @@ export function TSAnalysisView({
             </div>
           </div>
           <SeriesTree
-            series={displaySeries}
-            selectedSeries={selectedSeries}
-            anomalousSources={anomalousSources}
-            onSelectionChange={setSelectedSeries}
+            series={displayGroups}
+            selectedSeries={selectedGroups}
+            anomalousSources={anomalousGroupKeys}
+            onSelectionChange={setSelectedGroups}
           />
         </div>
       </aside>
 
-      {/* Main Content - Charts */}
       <main className="flex-1 p-6 overflow-y-auto">
         {state.error && (
           <div className="bg-red-900/50 border border-red-700 rounded-lg p-4 mb-6">
@@ -384,44 +369,43 @@ export function TSAnalysisView({
 
         {state.connectionState === 'ready' && (
           <div className="space-y-6">
-            {/* Charts */}
-            {selectedSeries.size === 0 ? (
+            {selectedGroups.size === 0 ? (
               <div className="text-center py-10 text-slate-500">
-                Select series from the sidebar to view charts
+                Select metric groups from the sidebar to view charts
               </div>
-            ) : seriesData.size === 0 ? (
-              <div className="text-center py-10 text-slate-500">
-                Loading series data...
-              </div>
+            ) : groupSeriesData.size === 0 ? (
+              <div className="text-center py-10 text-slate-500">Loading series data...</div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {Array.from(selectedSeries).map((key) => {
-                  const data = seriesData.get(key);
-                  if (!data) return null;
-                  const seriesAnomalies = anomalies.filter((a) => a.source === data.name);
+                {Array.from(selectedGroups).map((groupKey) => {
+                  const group = groupByKey.get(groupKey);
+                  if (!group) return null;
+                  const dataList = groupSeriesData.get(groupKey) ?? [];
+                  if (dataList.length === 0) return null;
 
-                  let splitSeries: SplitSeries[] | undefined;
-                  if (splitByTag) {
-                    const variants = splitSeriesData.get(key);
-                    if (variants && variants.length > 1) {
-                      splitSeries = variants.map((v) => {
-                        const tagValue = (v.tags ?? [])
-                          .map((t) => parseTag(t))
-                          .find((p) => p?.key === splitByTag)?.value ?? 'unknown';
-                        return {
-                          label: `${splitByTag}:${tagValue}`,
-                          points: v.points,
-                        };
-                      });
-                    }
-                  }
+                  const chartSeries = showAnomalyOnlySeriesLines
+                    ? dataList.filter((d) => (anomalyCountBySeriesID.get(d.id) ?? 0) > 0)
+                    : dataList;
+                  if (chartSeries.length === 0) return null;
+
+                  const seriesIDs = new Set(chartSeries.map((d) => d.id));
+                  const seriesAnomalies = anomalies.filter((a) => a.sourceSeriesId && seriesIDs.has(a.sourceSeriesId));
+                  const anomalyMarkers = chartSeries.flatMap((d) => d.anomalies);
+
+                  const splitSeries: SplitSeries[] = chartSeries.map((d) => ({
+                    label: formatSeriesLabel(d.tags),
+                    points: d.points,
+                    seriesId: d.id,
+                  }));
+
+                  const primary = chartSeries[0];
 
                   return (
                     <ChartWithAnomalyDetails
-                      key={key}
-                      name={data.name}
-                      points={data.points}
-                      anomalyMarkers={data.anomalies}
+                      key={groupKey}
+                      name={primary.name}
+                      points={primary.points}
+                      anomalyMarkers={anomalyMarkers}
                       anomalies={seriesAnomalies}
                       correlationRanges={[]}
                       enabledAnalyzers={enabledAnalyzers}
@@ -486,4 +470,3 @@ function ScenarioSelector({
     </div>
   );
 }
-

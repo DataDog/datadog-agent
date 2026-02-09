@@ -60,10 +60,16 @@ function getLineColor(index: number) {
   return LINE_COLORS[index % LINE_COLORS.length];
 }
 
+function getAnomalyMarkerId(anomaly: AnomalyMarker): string {
+  const analyzerId = anomaly.analyzerComponent ?? anomaly.analyzerName;
+  return `${analyzerId}:${anomaly.sourceSeriesId ?? 'unknown'}:${anomaly.timestamp}:${anomaly.title}`;
+}
+
 // Represents a single series line when splitting by tag
 export interface SplitSeries {
   label: string;  // The tag value (e.g., "host:web1")
   points: Point[];
+  seriesId?: string;
 }
 
 interface TimeSeriesChartProps {
@@ -77,6 +83,9 @@ interface TimeSeriesChartProps {
   height?: number;
   smoothLines?: boolean;
   splitSeries?: SplitSeries[];  // When provided, renders multiple lines instead of single points array
+  highlightedMarkerId?: string | null;
+  onMarkerHover?: (markerId: string | null) => void;
+  onMarkerClick?: (markerId: string) => void;
 }
 
 export function TimeSeriesChart({
@@ -90,6 +99,9 @@ export function TimeSeriesChart({
   height = 200,
   smoothLines = true,
   splitSeries,
+  highlightedMarkerId = null,
+  onMarkerHover,
+  onMarkerClick,
 }: TimeSeriesChartProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -103,7 +115,12 @@ export function TimeSeriesChart({
 
   // Filter anomalies by enabled analyzers
   const filteredAnomalies = useMemo(
-    () => (anomalies ?? []).filter((a) => enabledAnalyzers.has(a.analyzerName)),
+    () =>
+      (anomalies ?? []).filter((a): a is AnomalyMarker => {
+        if (!a) return false;
+        const analyzerID = a.analyzerComponent ?? a.analyzerName;
+        return !!analyzerID && enabledAnalyzers.has(analyzerID);
+      }),
     [anomalies, enabledAnalyzers]
   );
 
@@ -123,12 +140,29 @@ export function TimeSeriesChart({
     }));
   }, [splitSeries, timeRange]);
 
+  // Order split series by anomaly count so the legend highlights most relevant lines first.
+  const orderedSplitSeries = useMemo(() => {
+    if (!displaySplitSeries) return undefined;
+    const anomalyCountBySeries = new Map<string, number>();
+    filteredAnomalies.forEach((a) => {
+      if (!a.sourceSeriesId) return;
+      anomalyCountBySeries.set(a.sourceSeriesId, (anomalyCountBySeries.get(a.sourceSeriesId) ?? 0) + 1);
+    });
+
+    return [...displaySplitSeries].sort((a, b) => {
+      const aCount = anomalyCountBySeries.get(a.seriesId ?? '') ?? 0;
+      const bCount = anomalyCountBySeries.get(b.seriesId ?? '') ?? 0;
+      if (aCount !== bCount) return bCount - aCount;
+      return a.label.localeCompare(b.label);
+    });
+  }, [displaySplitSeries, filteredAnomalies]);
+
   // Stable callback ref for brush
   const onTimeRangeChangeRef = useRef(onTimeRangeChange);
   onTimeRangeChangeRef.current = onTimeRangeChange;
 
   useEffect(() => {
-    const hasSplitData = displaySplitSeries && displaySplitSeries.length > 0 && displaySplitSeries.some(s => s.points.length > 0);
+    const hasSplitData = orderedSplitSeries && orderedSplitSeries.length > 0 && orderedSplitSeries.some(s => s.points.length > 0);
     const hasMainData = points.length > 0;
 
     if (!svgRef.current || !containerRef.current || (!hasMainData && !hasSplitData)) return;
@@ -161,8 +195,8 @@ export function TimeSeriesChart({
     let xExtent: [number, number];
     let yExtent: [number, number];
 
-    if (useSplitData && displaySplitSeries) {
-      const allPoints = displaySplitSeries.flatMap(s => s.points);
+    if (useSplitData && orderedSplitSeries) {
+      const allPoints = orderedSplitSeries.flatMap(s => s.points);
       xExtent = d3.extent(allPoints, (d) => d.timestamp * 1000) as [number, number];
       yExtent = d3.extent(allPoints, (d) => d.value) as [number, number];
     } else {
@@ -208,29 +242,73 @@ export function TimeSeriesChart({
       anomaliesByTimestamp.set(anomaly.timestamp, existing);
     });
 
-    // Draw anomaly markers - simple circles at data points
+    type MarkerRenderDatum = {
+      markerId: string;
+      x: number;
+      y: number;
+      color: { fill: string; stroke: string };
+      selected: boolean;
+    };
+
+    const markerData: MarkerRenderDatum[] = [];
+
+  // Draw anomaly markers - simple circles at data points
     anomaliesByTimestamp.forEach((anomaliesAtTime, timestamp) => {
       const x = xScale(timestamp * 1000);
-      const dataPoint = points.find((p) => p.timestamp === timestamp);
 
-      if (dataPoint) {
+      const numAnomalies = anomaliesAtTime.length;
+
+      anomaliesAtTime.forEach((anomaly, idx) => {
+        let dataPoint: Point | undefined;
+        if (useSplitData && orderedSplitSeries && anomaly.sourceSeriesId) {
+          const match = orderedSplitSeries.find((s) => s.seriesId === anomaly.sourceSeriesId);
+          dataPoint = match?.points.find((p) => p.timestamp === timestamp);
+        }
+        if (!dataPoint) {
+          dataPoint = points.find((p) => p.timestamp === timestamp);
+        }
+        if (!dataPoint) return;
+
         const baseY = yScale(dataPoint.value);
-        const numAnomalies = anomaliesAtTime.length;
-
-        anomaliesAtTime.forEach((anomaly, idx) => {
-          const color = getAnalyzerColor(anomaly.analyzerName);
-          const xOffset = numAnomalies > 1 ? (idx - (numAnomalies - 1) / 2) * 8 : 0;
-
-          g.append('circle')
-            .attr('cx', x + xOffset)
-            .attr('cy', baseY)
-            .attr('r', 4)
-            .attr('fill', color.stroke)
-            .attr('stroke', '#1e293b')
-            .attr('stroke-width', 1.5);
+        const color = getAnalyzerColor(anomaly.analyzerName);
+        const xOffset = numAnomalies > 1 ? (idx - (numAnomalies - 1) / 2) * 8 : 0;
+        const markerId = getAnomalyMarkerId(anomaly);
+        markerData.push({
+          markerId,
+          x: x + xOffset,
+          y: baseY,
+          color,
+          selected: markerId === highlightedMarkerId,
         });
-      }
+      });
     });
+
+    const markerSelection = g
+      .append('g')
+      .attr('class', 'anomaly-markers')
+      .selectAll('circle')
+      .data(markerData)
+      .enter()
+      .append('circle')
+      .attr('cx', (d) => d.x)
+      .attr('cy', (d) => d.y)
+      .attr('r', (d) => (d.selected ? 6 : 4))
+      .attr('fill', (d) => d.color.stroke)
+      .attr('stroke', (d) => (d.selected ? '#f8fafc' : '#1e293b'))
+      .attr('stroke-width', (d) => (d.selected ? 2.5 : 1.5))
+      .attr('opacity', (d) => (highlightedMarkerId && !d.selected ? 0.45 : 1))
+      .style('cursor', 'pointer');
+
+    markerSelection
+      .on('mouseenter', (_event, d) => {
+        if (onMarkerHover) onMarkerHover(d.markerId);
+      })
+      .on('mouseleave', () => {
+        if (onMarkerHover) onMarkerHover(null);
+      })
+      .on('click', (_event, d) => {
+        if (onMarkerClick) onMarkerClick(d.markerId);
+      });
 
     // Line generator
     const line = d3
@@ -240,9 +318,9 @@ export function TimeSeriesChart({
       .curve(smoothLines ? d3.curveMonotoneX : d3.curveLinear);
 
     // Draw the line(s)
-    if (useSplitData && displaySplitSeries) {
+    if (useSplitData && orderedSplitSeries) {
       // Draw multiple lines for split series
-      displaySplitSeries.forEach((series, idx) => {
+      orderedSplitSeries.forEach((series, idx) => {
         if (series.points.length === 0) return;
         const color = getLineColor(idx);
         g.append('path')
@@ -253,34 +331,6 @@ export function TimeSeriesChart({
           .attr('d', line);
       });
 
-      // Draw legend
-      const legendX = innerWidth - 10;
-      const legendY = 5;
-      const legendSpacing = 14;
-
-      displaySplitSeries.forEach((series, idx) => {
-        if (series.points.length === 0) return;
-        const color = getLineColor(idx);
-        const y = legendY + idx * legendSpacing;
-
-        // Color line
-        g.append('line')
-          .attr('x1', legendX - 35)
-          .attr('x2', legendX - 20)
-          .attr('y1', y)
-          .attr('y2', y)
-          .attr('stroke', color)
-          .attr('stroke-width', 2);
-
-        // Label
-        g.append('text')
-          .attr('x', legendX - 38)
-          .attr('y', y + 3)
-          .attr('text-anchor', 'end')
-          .attr('fill', '#94a3b8')
-          .attr('font-size', '9px')
-          .text(series.label.length > 20 ? series.label.slice(0, 20) + '…' : series.label);
-      });
     } else {
       // Draw single line
       g.append('path')
@@ -361,7 +411,19 @@ export function TimeSeriesChart({
       .attr('stroke', '#8b5cf6')
       .attr('stroke-width', 1);
 
-  }, [points, displayPoints, filteredAnomalies, correlationRanges, height, timeRange, smoothLines, displaySplitSeries]);
+  }, [
+    points,
+    displayPoints,
+    filteredAnomalies,
+    correlationRanges,
+    height,
+    timeRange,
+    smoothLines,
+    orderedSplitSeries,
+    highlightedMarkerId,
+    onMarkerHover,
+    onMarkerClick,
+  ]);
 
   // Handle resize
   useEffect(() => {
@@ -522,6 +584,19 @@ export function TimeSeriesChart({
       <div ref={containerRef} className="w-full">
         <svg ref={svgRef} />
       </div>
+      {orderedSplitSeries && orderedSplitSeries.length > 1 && (
+        <div className="mt-2 p-2 bg-slate-900/50 rounded text-[10px] space-y-1 max-h-24 overflow-y-auto">
+          {orderedSplitSeries.map((series, idx) => (
+            <div key={`${series.seriesId ?? series.label}-${idx}`} className="flex items-center gap-2">
+              <span
+                className="w-3 h-0.5 rounded-full"
+                style={{ backgroundColor: getLineColor(idx) }}
+              />
+              <span className="text-slate-400 break-all">{series.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

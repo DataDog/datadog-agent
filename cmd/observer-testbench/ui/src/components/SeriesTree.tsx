@@ -1,16 +1,16 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 
 interface SeriesInfo {
-  namespace: string;
+  key: string;
   name: string;
-  displayName?: string;  // Optional display name (without aggregation suffix)
+  displayName?: string;
 }
 
 interface TreeNode {
   name: string;
   fullPath: string;
   children: Map<string, TreeNode>;
-  seriesKeys: string[]; // All series keys under this node (for subtree selection)
+  seriesKeys: string[];
   isLeaf: boolean;
 }
 
@@ -21,7 +21,6 @@ interface SeriesTreeProps {
   onSelectionChange: (newSelection: Set<string>) => void;
 }
 
-// Build a tree structure from series names
 function buildTree(series: SeriesInfo[], anomalousSources: Set<string>): TreeNode {
   const root: TreeNode = {
     name: '',
@@ -31,22 +30,19 @@ function buildTree(series: SeriesInfo[], anomalousSources: Set<string>): TreeNod
     isLeaf: false,
   };
 
-  // Sort series: anomalous first, then alphabetically
   const sorted = [...series].sort((a, b) => {
     const aName = a.displayName ?? a.name;
     const bName = b.displayName ?? b.name;
-    const aHas = anomalousSources.has(a.name) || anomalousSources.has(aName);
-    const bHas = anomalousSources.has(b.name) || anomalousSources.has(bName);
+    const aHas = anomalousSources.has(a.key);
+    const bHas = anomalousSources.has(b.key);
     if (aHas && !bHas) return -1;
     if (!aHas && bHas) return 1;
     return aName.localeCompare(bName);
   });
 
   for (const s of sorted) {
-    const key = `${s.namespace}/${s.name}`;
-    // Use displayName if available, otherwise use name
+    const key = s.key;
     const nameForTree = s.displayName ?? s.name;
-    // Split on . to create hierarchy (not on : since we stripped the suffix)
     const parts = nameForTree.split('.');
 
     let current = root;
@@ -70,16 +66,10 @@ function buildTree(series: SeriesInfo[], anomalousSources: Set<string>): TreeNod
       current.seriesKeys.push(key);
     }
 
-    // Mark the last node as a leaf with the actual series key
     current.isLeaf = true;
   }
 
   return root;
-}
-
-// Get all series keys under a node
-function getSeriesKeysUnderNode(node: TreeNode): string[] {
-  return node.seriesKeys;
 }
 
 interface TreeNodeComponentProps {
@@ -90,7 +80,6 @@ interface TreeNodeComponentProps {
   onToggleNode: (keys: string[]) => void;
   expandedPaths: Set<string>;
   onToggleExpanded: (path: string) => void;
-  seriesNameMap: Map<string, string[]>; // key -> names (including displayName)
 }
 
 function TreeNodeComponent({
@@ -101,21 +90,14 @@ function TreeNodeComponent({
   onToggleNode,
   expandedPaths,
   onToggleExpanded,
-  seriesNameMap,
 }: TreeNodeComponentProps) {
   const isExpanded = expandedPaths.has(node.fullPath);
   const hasChildren = node.children.size > 0;
-  const keys = getSeriesKeysUnderNode(node);
+  const keys = node.seriesKeys;
 
-  // Check selection state
   const allSelected = keys.length > 0 && keys.every((k) => selectedSeries.has(k));
   const someSelected = keys.some((k) => selectedSeries.has(k));
-
-  // Check if any series under this node has anomalies
-  const hasAnomaly = keys.some((k) => {
-    const names = seriesNameMap.get(k);
-    return names && names.some((name) => anomalousSources.has(name));
-  });
+  const hasAnomaly = keys.some((k) => anomalousSources.has(k));
 
   const childNodes = Array.from(node.children.values());
 
@@ -127,7 +109,6 @@ function TreeNodeComponent({
         }`}
         style={{ paddingLeft: `${depth * 12}px` }}
       >
-        {/* Expand/collapse toggle */}
         {hasChildren && !node.isLeaf ? (
           <button
             onClick={(e) => {
@@ -142,7 +123,6 @@ function TreeNodeComponent({
           <span className="w-4" />
         )}
 
-        {/* Checkbox */}
         <input
           type="checkbox"
           checked={allSelected}
@@ -154,11 +134,8 @@ function TreeNodeComponent({
           onClick={(e) => e.stopPropagation()}
         />
 
-        {/* Label */}
         <span
-          className={`text-sm truncate flex-1 ${
-            hasAnomaly ? 'text-red-400' : 'text-slate-400'
-          }`}
+          className={`text-sm truncate flex-1 ${hasAnomaly ? 'text-red-400' : 'text-slate-400'}`}
           onClick={() => {
             if (hasChildren && !node.isLeaf) {
               onToggleExpanded(node.fullPath);
@@ -168,18 +145,13 @@ function TreeNodeComponent({
           {node.name}
         </span>
 
-        {/* Count badge for non-leaf nodes */}
         {hasChildren && !node.isLeaf && (
-          <span className="text-xs text-slate-500">
-            {keys.length}
-          </span>
+          <span className="text-xs text-slate-500">{keys.length}</span>
         )}
 
-        {/* Anomaly indicator */}
         {hasAnomaly && <span className="text-red-500 text-xs">!</span>}
       </div>
 
-      {/* Children */}
       {isExpanded && hasChildren && (
         <div>
           {childNodes.map((child) => (
@@ -192,7 +164,6 @@ function TreeNodeComponent({
               onToggleNode={onToggleNode}
               expandedPaths={expandedPaths}
               onToggleExpanded={onToggleExpanded}
-              seriesNameMap={seriesNameMap}
             />
           ))}
         </div>
@@ -207,26 +178,9 @@ export function SeriesTree({
   anomalousSources,
   onSelectionChange,
 }: SeriesTreeProps) {
-  // Track which paths are expanded - start with first level expanded
-  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => {
-    const initial = new Set<string>();
-    // Auto-expand nodes that have anomalies
-    return initial;
-  });
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
 
-  // Build tree structure
   const tree = useMemo(() => buildTree(series, anomalousSources), [series, anomalousSources]);
-
-  // Map from key to series name for anomaly lookup (includes both name and displayName)
-  const seriesNameMap = useMemo(() => {
-    const map = new Map<string, string[]>();
-    for (const s of series) {
-      const names = [s.name];
-      if (s.displayName) names.push(s.displayName);
-      map.set(`${s.namespace}/${s.name}`, names);
-    }
-    return map;
-  }, [series]);
 
   const toggleExpanded = (path: string) => {
     setExpandedPaths((prev) => {
@@ -245,10 +199,8 @@ export function SeriesTree({
     const newSelection = new Set(selectedSeries);
 
     if (allSelected) {
-      // Deselect all
       keys.forEach((k) => newSelection.delete(k));
     } else {
-      // Select all
       keys.forEach((k) => newSelection.add(k));
     }
 
@@ -272,10 +224,8 @@ export function SeriesTree({
   const collapseUnselected = () => {
     const pathsToKeep = new Set<string>();
 
-    // Find paths that lead to selected series
     for (const s of series) {
-      const key = `${s.namespace}/${s.name}`;
-      if (selectedSeries.has(key)) {
+      if (selectedSeries.has(s.key)) {
         const nameForTree = s.displayName ?? s.name;
         const parts = nameForTree.split('.');
         let pathSoFar = '';
@@ -289,11 +239,9 @@ export function SeriesTree({
     setExpandedPaths(pathsToKeep);
   };
 
-  // Track if we've done initial auto-expand and for which series set
   const hasAutoExpanded = useRef(false);
   const prevSeriesLength = useRef(0);
 
-  // Reset auto-expand flag when scenario changes (series array changes significantly)
   useEffect(() => {
     if (Math.abs(series.length - prevSeriesLength.current) > 5) {
       hasAutoExpanded.current = false;
@@ -301,7 +249,6 @@ export function SeriesTree({
     prevSeriesLength.current = series.length;
   }, [series.length]);
 
-  // Auto-expand to show anomalies on first render only
   useEffect(() => {
     if (hasAutoExpanded.current) return;
     if (anomalousSources.size === 0 || series.length === 0) return;
@@ -309,10 +256,9 @@ export function SeriesTree({
     hasAutoExpanded.current = true;
     const pathsToExpand = new Set<string>();
 
-    // Find paths that lead to anomalous series
     for (const s of series) {
-      const nameForTree = s.displayName ?? s.name;
-      if (anomalousSources.has(s.name) || anomalousSources.has(nameForTree)) {
+      if (anomalousSources.has(s.key)) {
+        const nameForTree = s.displayName ?? s.name;
         const parts = nameForTree.split('.');
         let pathSoFar = '';
         for (let i = 0; i < parts.length - 1; i++) {
@@ -322,43 +268,41 @@ export function SeriesTree({
       }
     }
 
-    if (pathsToExpand.size > 0) {
-      setExpandedPaths(pathsToExpand);
-    }
-  }, [series, anomalousSources]);
+    setExpandedPaths(pathsToExpand);
+  }, [anomalousSources, series]);
 
-  const childNodes = Array.from(tree.children.values());
+  if (series.length === 0) {
+    return <div className="text-sm text-slate-500">No series available</div>;
+  }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Expand/Collapse controls */}
-      <div className="flex gap-1 mb-2">
+    <div className="flex flex-col h-full min-h-0">
+      <div className="flex gap-1 mb-2 flex-wrap flex-shrink-0">
         <button
           onClick={expandAll}
-          className="text-xs px-2 py-0.5 bg-slate-700 hover:bg-slate-600 rounded text-slate-400"
-          title="Expand all nodes"
+          className="text-xs px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 rounded text-slate-400"
+          title="Expand all"
         >
-          Expand
+          +
         </button>
         <button
           onClick={collapseAll}
-          className="text-xs px-2 py-0.5 bg-slate-700 hover:bg-slate-600 rounded text-slate-400"
-          title="Collapse all nodes"
+          className="text-xs px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 rounded text-slate-400"
+          title="Collapse all"
         >
-          Collapse
+          -
         </button>
         <button
           onClick={collapseUnselected}
-          className="text-xs px-2 py-0.5 bg-slate-700 hover:bg-slate-600 rounded text-slate-400"
-          title="Collapse unselected subtrees, keep selected visible"
+          className="text-xs px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 rounded text-slate-400"
+          title="Focus selected"
         >
           Focus
         </button>
       </div>
 
-      {/* Tree */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden">
-        {childNodes.map((child) => (
+      <div className="overflow-y-auto flex-1 min-h-0 pr-1">
+        {Array.from(tree.children.values()).map((child) => (
           <TreeNodeComponent
             key={child.fullPath}
             node={child}
@@ -368,7 +312,6 @@ export function SeriesTree({
             onToggleNode={toggleNode}
             expandedPaths={expandedPaths}
             onToggleExpanded={toggleExpanded}
-            seriesNameMap={seriesNameMap}
           />
         ))}
       </div>
