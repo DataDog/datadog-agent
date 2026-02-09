@@ -419,17 +419,17 @@ func postInstallDDOTExtension(ctx HookContext) error {
 		return fmt.Errorf("failed to create DDOT service: %w", err)
 	}
 
-	// Start DDOT service only if core Agent is running and API key exists
+	// Verify core Agent is running before starting DDOT service
 	running, _ := winutil.IsServiceRunning(coreAgentService)
 	if !running {
 		ctxCA, cancelCA := context.WithTimeout(ctx.Context, 30*time.Second)
 		defer cancelCA()
 		if st, err := winutil.WaitForPendingStateChange(ctxCA, coreAgentService, svc.StartPending); err != nil || st != svc.Running {
-			return nil
+			return fmt.Errorf("cannot start DDOT service: core agent is not running (state=%d, err=%v)", st, err)
 		}
 		// Re-verify the service is actually running after the wait
 		if running, _ = winutil.IsServiceRunning(coreAgentService); !running {
-			return nil
+			return errors.New("cannot start DDOT service: core agent is not running")
 		}
 	}
 
@@ -442,11 +442,19 @@ func postInstallDDOTExtension(ctx HookContext) error {
 		return errors.New("DDOT service created but cannot start: API key not configured")
 	}
 
-	// Best effort service start - ignore errors
-	_ = startServiceIfExists(otelServiceName)
+	// Start DDOT service and verify it's running
+	if err := startServiceIfExists(otelServiceName); err != nil {
+		return fmt.Errorf("failed to start DDOT service: %w", err)
+	}
 	ctxWait, cancel := context.WithTimeout(ctx.Context, 30*time.Second)
 	defer cancel()
-	_, _ = winutil.WaitForPendingStateChange(ctxWait, otelServiceName, svc.StartPending)
+	state, err := winutil.WaitForPendingStateChange(ctxWait, otelServiceName, svc.StartPending)
+	if err != nil {
+		return fmt.Errorf("DDOT service did not reach running state: %w", err)
+	}
+	if state != svc.Running {
+		return fmt.Errorf("DDOT service transitioned to unexpected state %d instead of Running", state)
+	}
 
 	return nil
 }
