@@ -158,10 +158,7 @@ func (s *extensionsSuite) TestDDOTExtension() {
 	s.Agent.MustInstall()
 	defer s.Agent.MustUninstall()
 
-	packageURL := s.getAgentPackageURL()
-
-	// Install DDOT extension from the package
-	output, err := s.Installer.InstallExtension(packageURL, "ddot")
+	output, err := s.Installer.InstallExtension(s.getAgentPackageURL(), "ddot")
 	s.Require().NoError(err, "Failed to install DDOT extension: %s", output)
 	defer func() {
 		_, _ = s.Installer.RemoveExtension("datadog-agent", "ddot")
