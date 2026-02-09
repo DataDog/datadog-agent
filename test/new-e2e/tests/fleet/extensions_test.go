@@ -189,6 +189,14 @@ func (s *extensionsSuite) TestDDOTExtension() {
 
 		// Wait for agent to fully restart
 		_, _ = s.Env().RemoteHost.Execute(`Start-Sleep -Seconds 5`)
+
+		// Start the DDOT service now that the agent is listening on port 5009
+		s.T().Log("Starting DDOT service")
+		_, err = s.Env().RemoteHost.Execute(`Start-Service datadog-otel-agent`)
+		s.Require().NoError(err, "Failed to start DDOT service")
+
+		// Wait for DDOT service to fully start
+		_, _ = s.Env().RemoteHost.Execute(`Start-Sleep -Seconds 3`)
 	}
 
 	// Run diagnostics after restart (useful for local debugging)
