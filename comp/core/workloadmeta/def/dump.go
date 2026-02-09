@@ -14,12 +14,12 @@ import (
 
 // WorkloadDumpResponse is used to dump the store content.
 type WorkloadDumpResponse struct {
-	Entities map[string]WorkloadEntity
+	Entities map[string]WorkloadEntity `json:"entities"`
 }
 
 // WorkloadEntity contains entity data.
 type WorkloadEntity struct {
-	Infos map[string]string
+	Infos map[string]string `json:"infos"`
 }
 
 // Write writes the stores content in a given writer.
@@ -40,5 +40,5 @@ func (wdr WorkloadDumpResponse) Write(writer io.Writer) {
 
 // WorkloadDumpStructuredResponse is used to dump the store content with structured data.
 type WorkloadDumpStructuredResponse struct {
-	Entities map[string][]Entity
+	Entities map[string][]Entity `json:"entities"`
 }
