@@ -52,6 +52,15 @@ var defaultRegistry = []ComponentRegistration{
 			return NewRobustZScoreDetector()
 		},
 	},
+	{
+		Name:           "bocpd",
+		DisplayName:    "BOCPD",
+		Category:       "analyzer",
+		DefaultEnabled: true,
+		Factory: func(tb *TestBench) interface{} {
+			return NewBOCPDDetector()
+		},
+	},
 	// Correlators
 	{
 		Name:           "time_cluster",

@@ -257,8 +257,7 @@ func (api *TestBenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namesp
 	}
 
 	// Get anomalies for this series to include in response
-	anomalies := api.tb.GetAnomalies()
-	seriesSource := nameWithAgg
+	anomalies := api.tb.GetAnomaliesForSeries(seriesID)
 
 	type anomalyMarker struct {
 		Timestamp         int64  `json:"timestamp"`
@@ -276,15 +275,13 @@ func (api *TestBenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namesp
 				seriesID, a.AnalyzerName, a.Timestamp)
 			continue
 		}
-		if (a.SourceSeriesID != "" && a.SourceSeriesID == seriesID) || (a.SourceSeriesID == "" && a.Source == seriesSource) {
-			markers = append(markers, anomalyMarker{
-				Timestamp:         a.Timestamp,
-				AnalyzerName:      a.AnalyzerName,
-				AnalyzerComponent: analyzerComponentMap[a.AnalyzerName],
-				SourceSeriesID:    seriesID,
-				Title:             a.Title,
-			})
-		}
+		markers = append(markers, anomalyMarker{
+			Timestamp:         a.Timestamp,
+			AnalyzerName:      a.AnalyzerName,
+			AnalyzerComponent: analyzerComponentMap[a.AnalyzerName],
+			SourceSeriesID:    seriesID,
+			Title:             a.Title,
+		})
 	}
 
 	type pointOutput struct {

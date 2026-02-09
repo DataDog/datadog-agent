@@ -54,6 +54,7 @@ type TestBench struct {
 	anomalies    []observerdef.AnomalyOutput            // all anomalies from TS analyses
 	correlations []observerdef.ActiveCorrelation        // from anomaly processors
 	byAnalyzer   map[string][]observerdef.AnomalyOutput // anomalies grouped by analyzer
+	bySeriesID   map[string][]observerdef.AnomalyOutput // anomalies grouped by source series id
 
 	// Async correlator processing
 	correlatorsProcessing bool  // true while background correlator goroutine is running
@@ -130,6 +131,7 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 		components: make(map[string]*registeredComponent),
 		anomalies:  []observerdef.AnomalyOutput{},
 		byAnalyzer: make(map[string][]observerdef.AnomalyOutput),
+		bySeriesID: make(map[string][]observerdef.AnomalyOutput),
 	}
 
 	// Instantiate all registry components
@@ -230,6 +232,7 @@ func (tb *TestBench) LoadScenario(name string) error {
 	tb.anomalies = []observerdef.AnomalyOutput{}
 	tb.correlations = []observerdef.ActiveCorrelation{}
 	tb.byAnalyzer = make(map[string][]observerdef.AnomalyOutput)
+	tb.bySeriesID = make(map[string][]observerdef.AnomalyOutput)
 	tb.ready = false
 	tb.loadedScenario = name
 
@@ -503,6 +506,9 @@ func (tb *TestBench) rerunAnalysesLocked() {
 	for k := range tb.byAnalyzer {
 		delete(tb.byAnalyzer, k)
 	}
+	for k := range tb.bySeriesID {
+		delete(tb.bySeriesID, k)
+	}
 
 	// Reset ALL correlators (not just enabled) so disabled ones clear stale state
 	tb.resetAllProcessors()
@@ -539,6 +545,9 @@ func (tb *TestBench) rerunAnalysesLocked() {
 
 						tb.anomalies = append(tb.anomalies, anomaly)
 						tb.byAnalyzer[anomaly.AnalyzerName] = append(tb.byAnalyzer[anomaly.AnalyzerName], anomaly)
+						if anomaly.SourceSeriesID != "" {
+							tb.bySeriesID[anomaly.SourceSeriesID] = append(tb.bySeriesID[anomaly.SourceSeriesID], anomaly)
+						}
 					}
 				}
 			}
@@ -647,6 +656,17 @@ func (tb *TestBench) GetAnomaliesByAnalyzer() map[string][]observerdef.AnomalyOu
 		copy(copied, v)
 		result[k] = copied
 	}
+	return result
+}
+
+// GetAnomaliesForSeries returns anomalies associated with a specific series id.
+func (tb *TestBench) GetAnomaliesForSeries(seriesID string) []observerdef.AnomalyOutput {
+	tb.mu.RLock()
+	defer tb.mu.RUnlock()
+
+	anomalies := tb.bySeriesID[seriesID]
+	result := make([]observerdef.AnomalyOutput, len(anomalies))
+	copy(result, anomalies)
 	return result
 }
 
