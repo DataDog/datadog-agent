@@ -15,9 +15,6 @@ var supportedConnections = map[string]ConnectionDefinition{
 	"http": {
 		BundleID:        "com.datadoghq.http",
 		IntegrationType: "HTTP",
-		IntegrationFields: map[string]interface{}{
-			"base_url": "https://example.com",
-		},
 		Credentials: CredentialConfig{
 			Type:             "HTTPNoAuth",
 			AdditionalFields: nil,

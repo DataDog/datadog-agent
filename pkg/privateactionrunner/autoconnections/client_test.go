@@ -190,36 +190,10 @@ func TestCreateConnection_ErrorResponses(t *testing.T) {
 	}
 }
 
-func TestBuildConnectionRequest_HTTPWithBaseURL(t *testing.T) {
-	httpDef := ConnectionDefinition{
-		BundleID:        "com.datadoghq.http",
-		IntegrationType: "HTTP",
-		IntegrationFields: map[string]interface{}{
-			"base_url": "https://internal.example.com",
-		},
-		Credentials: CredentialConfig{
-			Type:             "HTTPNoAuth",
-			AdditionalFields: nil,
-		},
-	}
-	runnerID := "runner-123"
-	runnerName := "test-runner"
-
-	request := buildConnectionRequest(httpDef, runnerID, runnerName)
-
-	assert.Equal(t, "HTTP (test-runner)", request.Name)
-	assert.Equal(t, runnerID, request.RunnerID)
-	assert.Equal(t, "HTTP", request.Integration.Type)
-	assert.Equal(t, "https://internal.example.com", request.Integration.BaseURL)
-	assert.Equal(t, "HTTPNoAuth", request.Integration.Credentials["type"])
-	assert.Len(t, request.Integration.Credentials, 1)
-}
-
 func TestBuildConnectionRequest_KubernetesNoIntegrationFields(t *testing.T) {
 	k8sDef := ConnectionDefinition{
-		BundleID:          "com.datadoghq.kubernetes",
-		IntegrationType:   "Kubernetes",
-		IntegrationFields: nil,
+		BundleID:        "com.datadoghq.kubernetes",
+		IntegrationType: "Kubernetes",
 		Credentials: CredentialConfig{
 			Type:             "KubernetesServiceAccount",
 			AdditionalFields: nil,
@@ -233,7 +207,6 @@ func TestBuildConnectionRequest_KubernetesNoIntegrationFields(t *testing.T) {
 	assert.Equal(t, "Kubernetes (test-runner)", request.Name)
 	assert.Equal(t, runnerID, request.RunnerID)
 	assert.Equal(t, "Kubernetes", request.Integration.Type)
-	assert.Empty(t, request.Integration.BaseURL)
 	assert.Equal(t, "KubernetesServiceAccount", request.Integration.Credentials["type"])
 	assert.Len(t, request.Integration.Credentials, 1)
 }
@@ -246,31 +219,6 @@ func TestBuildConnectionRequest_JSONStructureMatchesAPISpec(t *testing.T) {
 		runnerName           string
 		expectedJSONContains []string
 	}{
-		{
-			name: "HTTP with base_url",
-			definition: ConnectionDefinition{
-				BundleID:        "com.datadoghq.http",
-				IntegrationType: "HTTP",
-				IntegrationFields: map[string]interface{}{
-					"base_url": "https://internal.example.com",
-				},
-				Credentials: CredentialConfig{
-					Type: "HTTPNoAuth",
-				},
-			},
-			runnerID:   "runner-123",
-			runnerName: "My OnPrem Connection",
-			expectedJSONContains: []string{
-				`"type":"action_connection"`,
-				`"name":"HTTP (My OnPrem Connection)"`,
-				`"runner_id":"runner-123"`,
-				`"integration":{`,
-				`"type":"HTTP"`,
-				`"base_url":"https://internal.example.com"`,
-				`"credentials":{`,
-				`"type":"HTTPNoAuth"`,
-			},
-		},
 		{
 			name: "Kubernetes with service account",
 			definition: ConnectionDefinition{

@@ -53,7 +53,6 @@ type ConnectionRequest struct {
 
 type IntegrationConfig struct {
 	Type        string                 `json:"type" validate:"required"`
-	BaseURL     string                 `json:"base_url,omitempty"`
 	Credentials map[string]interface{} `json:"credentials" validate:"required"`
 }
 
@@ -68,20 +67,13 @@ func buildConnectionRequest(definition ConnectionDefinition, runnerID, runnerNam
 		credentials[key] = value
 	}
 
-	integration := IntegrationConfig{
-		Type:        definition.IntegrationType,
-		Credentials: credentials,
-	}
-
-	// Merge integration-level fields
-	if baseURL, ok := definition.IntegrationFields["base_url"].(string); ok {
-		integration.BaseURL = baseURL
-	}
-
 	return ConnectionRequest{
-		Name:        connectionName,
-		RunnerID:    runnerID,
-		Integration: integration,
+		Name:     connectionName,
+		RunnerID: runnerID,
+		Integration: IntegrationConfig{
+			Type:        definition.IntegrationType,
+			Credentials: credentials,
+		},
 	}
 }
 
