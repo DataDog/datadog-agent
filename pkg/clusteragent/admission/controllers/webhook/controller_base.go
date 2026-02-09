@@ -9,11 +9,13 @@ package webhook
 
 import (
 	"fmt"
+	"time"
 
 	admiv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/informers/admissionregistration"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
@@ -36,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/validate/kubernetesadmissionevents"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	kubecommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -143,8 +146,18 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 	autoscalingWebhook := autoscaling.NewWebhook(pa, datadogConfig)
 	webhooks = append(webhooks, autoscalingWebhook)
 
+	// Fetch Kubernetes server version once for SSI feature gating.
+	var serverVersion *version.Info
+	if c.clientSet != nil {
+		if sv, err := kubecommon.KubeServerVersion(c.clientSet.Discovery(), 10*time.Second); err != nil {
+			log.Warnf("Failed to get Kubernetes server version for SSI feature gating: %v", err)
+		} else {
+			serverVersion = sv
+		}
+	}
+
 	// Setup APM Instrumentation webhook. APM Instrumentation webhook needs to be registered after the config webhook.
-	apmWebhook, err := autoinstrumentation.NewAutoInstrumentation(datadogConfig, wmeta, rcClient, c.clientSet.Discovery())
+	apmWebhook, err := autoinstrumentation.NewAutoInstrumentation(datadogConfig, wmeta, rcClient, serverVersion)
 	if err != nil {
 		log.Errorf("failed to register APM Instrumentation webhook: %v", err)
 	} else {
