@@ -220,7 +220,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/ssi/testutils v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/trace v0.73.0-rc.9
 	github.com/DataDog/datadog-go/v5 v5.8.3
-	github.com/DataDog/dd-trace-go/v2 v2.4.1
+	github.com/DataDog/dd-trace-go/v2 v2.5.0
 	github.com/DataDog/orchestrion v1.4.0
 	github.com/avast/retry-go/v4 v4.7.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.93.1
@@ -258,7 +258,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace/stats v0.71.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.71.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.73.2 // indirect
-	github.com/DataDog/go-libddwaf/v4 v4.6.1 // indirect
+	github.com/DataDog/go-libddwaf/v4 v4.8.0 // indirect
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20250721125240-fdf1ef85b633 // indirect
 	github.com/DataDog/go-sqllexer v0.1.12 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
@@ -344,6 +344,7 @@ require (
 	go.opentelemetry.io/collector/component v1.50.0 // indirect
 	go.opentelemetry.io/collector/featuregate v1.50.0 // indirect
 	go.opentelemetry.io/collector/pdata v1.50.0 // indirect
+	go.opentelemetry.io/collector/pdata/pprofile v0.144.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.39.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.9.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
