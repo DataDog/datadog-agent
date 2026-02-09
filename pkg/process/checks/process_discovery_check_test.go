@@ -51,7 +51,7 @@ func TestProcessDiscoveryCheck(t *testing.T) {
 	maxBatchSize := 10
 	getMaxBatchSize = func(pkgconfigmodel.Reader) int { return maxBatchSize }
 
-	check := NewProcessDiscoveryCheck(configmock.New(t))
+	check := NewProcessDiscoveryCheck(configmock.New(t), configmock.NewSystemProbe(t))
 	check.Init(
 		&SysProbeConfig{},
 		&HostInfo{
