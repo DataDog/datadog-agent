@@ -12,14 +12,6 @@ import (
 
 // supportedConnections defines all connection types that can be auto-created
 var supportedConnections = map[string]ConnectionDefinition{
-	"http": {
-		BundleID:        "com.datadoghq.http",
-		IntegrationType: "HTTP",
-		Credentials: CredentialConfig{
-			Type:             "HTTPNoAuth",
-			AdditionalFields: nil,
-		},
-	},
 	"kubernetes": {
 		BundleID:        "com.datadoghq.kubernetes",
 		IntegrationType: "Kubernetes",

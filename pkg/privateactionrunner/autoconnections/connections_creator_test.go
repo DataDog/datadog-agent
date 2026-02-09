@@ -46,16 +46,9 @@ func TestCreateConnection_CorrectHTTPRequest(t *testing.T) {
 		appKey:     "test-app-key",
 	}
 
-	httpDef := ConnectionDefinition{
-		BundleID:        "com.datadoghq.http",
-		IntegrationType: "HTTP",
-		Credentials: CredentialConfig{
-			Type:             "HTTPNoAuth",
-			AdditionalFields: nil,
-		},
-	}
+	definition := supportedConnections["kubernetes"]
 
-	err := client.CreateConnection(context.Background(), httpDef, "runner-id-abc123", "runner-name-abc123")
+	err := client.CreateConnection(context.Background(), definition, "runner-id-abc123", "runner-name-abc123")
 
 	require.NoError(t, err, "CreateConnection should not return error for 201 response")
 
@@ -66,7 +59,7 @@ func TestCreateConnection_CorrectHTTPRequest(t *testing.T) {
 	assert.Equal(t, "test-app-key", receivedHeaders.Get("DD-APPLICATION-KEY"), "DD-APPLICATION-KEY header should match")
 	assert.Equal(t, "application/vnd.api+json", receivedHeaders.Get("Content-Type"), "Content-Type should be application/vnd.api+json")
 	assert.Contains(t, receivedHeaders.Get("User-Agent"), "datadog-agent/", "User-Agent should contain datadog-agent/")
-	assert.Contains(t, receivedBody, `"name":"HTTP (runner-name-abc123)"`, "Body should contain connection name")
+	assert.Contains(t, receivedBody, `"name":"Kubernetes (runner-name-abc123)"`, "Body should contain connection name")
 }
 
 func TestCreateConnection_StatusCodeHandling(t *testing.T) {
@@ -123,16 +116,9 @@ func TestCreateConnection_StatusCodeHandling(t *testing.T) {
 				appKey:     "test-app-key",
 			}
 
-			httpDef := ConnectionDefinition{
-				BundleID:        "com.datadoghq.http",
-				IntegrationType: "HTTP",
-				Credentials: CredentialConfig{
-					Type:             "HTTPNoAuth",
-					AdditionalFields: nil,
-				},
-			}
+			definition := supportedConnections["kubernetes"]
 
-			err := client.CreateConnection(context.Background(), httpDef, "runner-id-abc123", "runner-name-abc123")
+			err := client.CreateConnection(context.Background(), definition, "runner-id-abc123", "runner-name-abc123")
 
 			if tt.expectedError {
 				require.Error(t, err, "Should return error for non-2xx status")
@@ -178,11 +164,10 @@ func TestAutoCreateConnections_AllBundlesSuccess(t *testing.T) {
 	err := creator.AutoCreateConnections(context.Background(), runnerID, runnerName, bundleAllowlist)
 
 	require.NoError(t, err, "AutoCreateConnections should return nil")
-	assert.Len(t, createdConnections, 3, "Should create 3 connections")
+	assert.Len(t, createdConnections, 2, "Should create 2 connections")
 
 	// Verify each connection was created
 	allBodies := strings.Join(createdConnections, " ")
-	assert.Contains(t, allBodies, `"name":"HTTP (runner-abc123)"`)
 	assert.Contains(t, allBodies, `"name":"Kubernetes (runner-abc123)"`)
 	assert.Contains(t, allBodies, `"name":"Script (runner-abc123)"`)
 }
@@ -195,8 +180,8 @@ func TestAutoCreateConnections_PartialFailures(t *testing.T) {
 		requestCount++
 		body, _ := io.ReadAll(r.Body)
 
-		// Fail if it's the HTTP bundle
-		if strings.Contains(string(body), `"name":"HTTP (runner-abc123)"`) {
+		// Fail if it's the Kubernetes bundle
+		if strings.Contains(string(body), `"name":"Kubernetes (runner-abc123)"`) {
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte(`{"errors": ["internal error"]}`))
 			return
@@ -228,7 +213,7 @@ func TestAutoCreateConnections_PartialFailures(t *testing.T) {
 
 	// Should return nil even with failures (non-blocking)
 	require.NoError(t, err, "AutoCreateConnections should not propagate errors")
-	assert.Equal(t, 3, requestCount, "Should attempt to create all 3 connections")
+	assert.Equal(t, 2, requestCount, "Should attempt to create all 2 connections")
 }
 
 func TestAutoCreateConnections_NoRelevantBundles(t *testing.T) {
@@ -276,7 +261,7 @@ func TestAutoCreateConnections_PartialAllowlist(t *testing.T) {
 	}))
 	defer server.Close()
 
-	bundleAllowlist := []string{"com.datadoghq.http", "com.datadoghq.script"} // Only HTTP and Script
+	bundleAllowlist := []string{"com.datadoghq.script"} // Only HTTP and Script
 
 	// Use server's client which is pre-configured for TLS
 	testClient := &ConnectionsClient{
@@ -296,11 +281,10 @@ func TestAutoCreateConnections_PartialAllowlist(t *testing.T) {
 	err := creator.AutoCreateConnections(context.Background(), runnerID, runnerName, bundleAllowlist)
 
 	require.NoError(t, err, "AutoCreateConnections should return nil")
-	assert.Len(t, createdConnections, 2, "Should create 2 connections")
+	assert.Len(t, createdConnections, 1, "Should create 2 connections")
 
 	// Verify only HTTP and Script were created
 	allBodies := strings.Join(createdConnections, " ")
-	assert.Contains(t, allBodies, `"name":"HTTP (runner-abc123)"`)
 	assert.Contains(t, allBodies, `"name":"Script (runner-abc123)"`)
 	assert.NotContains(t, allBodies, `"name":"Kubernetes (runner-abc123)"`, "Should not create Kubernetes connection")
 }

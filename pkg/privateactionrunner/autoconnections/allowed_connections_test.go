@@ -16,18 +16,12 @@ func TestDetermineConnectionsToCreate_AllBundles(t *testing.T) {
 
 	definitions := DetermineConnectionsToCreate(bundleAllowlist)
 
-	assert.Len(t, definitions, 3)
+	assert.Len(t, definitions, 2)
 
 	defMap := make(map[string]ConnectionDefinition)
 	for _, def := range definitions {
 		defMap[def.BundleID] = def
 	}
-
-	httpDef, ok := defMap["com.datadoghq.http"]
-	assert.True(t, ok)
-	assert.Equal(t, "com.datadoghq.http", httpDef.BundleID)
-	assert.Equal(t, "HTTP", httpDef.IntegrationType)
-	assert.Equal(t, "HTTPNoAuth", httpDef.Credentials.Type)
 
 	k8sDef, ok := defMap["com.datadoghq.kubernetes"]
 	assert.True(t, ok)
@@ -52,11 +46,6 @@ func TestDetermineConnectionsToCreate_SingleBundle(t *testing.T) {
 		bundleAllowlist []string
 		expectedBundle  string
 	}{
-		{
-			name:            "http bundle",
-			bundleAllowlist: []string{"com.datadoghq.http"},
-			expectedBundle:  "com.datadoghq.http",
-		},
 		{
 			name:            "kubernetes bundle",
 			bundleAllowlist: []string{"com.datadoghq.kubernetes.core"},
@@ -113,17 +102,11 @@ func TestDetermineConnectionsToCreate_EmptyAndNilAllowlist(t *testing.T) {
 }
 
 func TestGenerateConnectionName(t *testing.T) {
-	httpDef := ConnectionDefinition{
-		BundleID:        "com.datadoghq.http",
-		IntegrationType: "HTTP",
-		Credentials: CredentialConfig{
-			Type: "HTTPNoAuth",
-		},
-	}
+	definition := supportedConnections["kubernetes"]
 
 	runnerID := "runner-abc123"
 
-	name := GenerateConnectionName(httpDef, runnerID)
+	name := GenerateConnectionName(definition, runnerID)
 
-	assert.Equal(t, "HTTP (runner-abc123)", name)
+	assert.Equal(t, "Kubernetes (runner-abc123)", name)
 }
