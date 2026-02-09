@@ -118,7 +118,7 @@ func (a *AnomalyDetection) ProcessProfile(profile *profileObs) {
 func (a *AnomalyDetection) processProfilesPeriodically() {
 	defer a.wg.Done()
 
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
 	for {
