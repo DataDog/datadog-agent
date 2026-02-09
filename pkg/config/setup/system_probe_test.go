@@ -55,3 +55,32 @@ func TestSystemProbeDefaultConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestDiscoveryUseSdAgent(t *testing.T) {
+	t.Run("disabled by default", func(t *testing.T) {
+		cfg := newEmptyMockConf(t)
+		InitSystemProbeConfig(cfg)
+		assert.False(t, cfg.GetBool("discovery.use_sd_agent"))
+	})
+
+	t.Run("enabled from env var", func(t *testing.T) {
+		t.Setenv("DD_DISCOVERY_USE_SD_AGENT", "true")
+		cfg := newEmptyMockConf(t)
+		InitSystemProbeConfig(cfg)
+		assert.True(t, cfg.GetBool("discovery.use_sd_agent"))
+	})
+
+	t.Run("disabled from env var", func(t *testing.T) {
+		t.Setenv("DD_DISCOVERY_USE_SD_AGENT", "false")
+		cfg := newEmptyMockConf(t)
+		InitSystemProbeConfig(cfg)
+		assert.False(t, cfg.GetBool("discovery.use_sd_agent"))
+	})
+
+	t.Run("enabled from config", func(t *testing.T) {
+		cfg := newEmptyMockConf(t)
+		InitSystemProbeConfig(cfg)
+		cfg.SetWithoutSource("discovery.use_sd_agent", true)
+		assert.True(t, cfg.GetBool("discovery.use_sd_agent"))
+	})
+}
