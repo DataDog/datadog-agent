@@ -284,23 +284,10 @@ func ensureOtlpHTTPExporterConfig(conf confMap, exporterNames []any) error {
 	return nil
 }
 
+// addProfilerMetadataTags always creates a dedicated resource/profiler-metadata processor
+// without searching for existing resource processors.
 func addProfilerMetadataTags(conf confMap) error {
-	processors, err := Ensure[[]any](conf, "service::pipelines::profiles::processors")
-	if err != nil {
-		return err
-	}
-
-	resourceProcessorName := "resource/host-profiler-default"
-	isResourceProcessorInPipeline := false
-	for _, processorAny := range processors {
-		// by that point, processors pipeline has been verified to be only strings
-		processor := processorAny.(string)
-		if isComponentType(processor, "resource") {
-			resourceProcessorName = processor
-			isResourceProcessorInPipeline = true
-			break
-		}
-	}
+	const resourceProcessorName = "resource/profiler-metadata"
 
 	resourceProcessor, err := Ensure[confMap](conf, "processors::"+resourceProcessorName)
 	if err != nil {
@@ -310,6 +297,9 @@ func addProfilerMetadataTags(conf confMap) error {
 	attributes, err := Ensure[[]any](resourceProcessor, "attributes")
 	if err != nil {
 		return err
+	}
+	if len(attributes) != 0 {
+		log.Warnf("%s already exists! appending profiler_name and profiler_version", resourceProcessorName)
 	}
 
 	profilerNameElement := confMap{
@@ -325,15 +315,18 @@ func addProfilerMetadataTags(conf confMap) error {
 
 	attributes = append(attributes, profilerNameElement)
 	attributes = append(attributes, profilerVersionElement)
+	resourceProcessor["attributes"] = attributes
 	if err := Set(resourceProcessor, "attributes", attributes); err != nil {
 		return err
 	}
 
-	if !isResourceProcessorInPipeline {
-		processors = append(processors, resourceProcessorName)
-		if err := Set(conf, "service::pipelines::profiles::processors", processors); err != nil {
-			return err
-		}
+	processors, err := Ensure[[]any](conf, "service::pipelines::profiles::processors")
+	if err != nil {
+		return err
+	}
+	processors = append(processors, resourceProcessorName)
+	if err := Set(conf, "service::pipelines::profiles::processors", processors); err != nil {
+		return err
 	}
 
 	return nil
