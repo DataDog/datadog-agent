@@ -614,7 +614,7 @@ func (a *APIServer) ReloadPolicies(_ context.Context, _ *api.ReloadPoliciesParam
 		return nil, errors.New("no rule engine")
 	}
 
-	if err := a.cwsConsumer.ruleEngine.ReloadPolicies(); err != nil {
+	if err := a.cwsConsumer.ruleEngine.ReloadPolicies(true); err != nil {
 		return nil, err
 	}
 
