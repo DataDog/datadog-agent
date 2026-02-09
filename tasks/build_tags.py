@@ -253,7 +253,7 @@ OTEL_AGENT_TAGS = {"otlp", "zlib", "zstd"}
 
 LOADER_TAGS = set()
 
-FULL_HOST_PROFILER_TAGS = set()
+FULL_HOST_PROFILER_TAGS = {"osusergo", "netgo"}
 
 PRIVATEACTIONRUNNER_TAGS = set()
 
