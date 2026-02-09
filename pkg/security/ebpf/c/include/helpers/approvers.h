@@ -294,22 +294,28 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_by_flags(struct s
     return DISCARDED;
 }
 
-enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct file_t *file) {
-    // Track total open events that hit the sampling logic
-    monitor_ad_sample_total(EVENT_OPEN);
+enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct dentry *dentry, struct file_t *file) {
+    u32 pid = bpf_get_current_pid_tgid() >> 32;
 
-    // NOTE: should we consider to remove the path_id to limit the invalidation and let the LRU refreshing the entry ?
+    // Discard sampled open events from procfs, sysfs, cgroupfs, or devpts
+    if (is_procfs(dentry) || is_sysfs(dentry) || is_cgroupfs(dentry) || is_cgroup2fs(dentry) || is_devpts(dentry)) {
+        return DISCARDED;
+    }
+
+    struct pid_path_key_t key = {
+        .pid = pid,
+        .path_key = file->path_key,
+    };
+
     u8 value = 0;
-    if (bpf_map_update_elem(&open_samples, &file->path_key, &value, BPF_NOEXIST) < 0) {
+    if (bpf_map_update_elem(&open_samples, &key, &value, BPF_NOEXIST) < 0) {
         return DISCARDED;
     }
 
-    if (!global_limiter_allow(OPEN_SAMPLE_LIMITER, 500, 1)) {
+    if (!global_limiter_allow(OPEN_SAMPLE_LIMITER, 100, 1)) {
         return DISCARDED;
     }
 
-    // Track open events that were sampled
-    monitor_ad_sample_sampled(EVENT_OPEN);
     return SAMPLED;
 }
 
@@ -328,7 +334,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) open_approvers(struct syscall_
 
     // can return DISCARDED or SAMPLED
     if (state == DISCARDED) {
-        state = approve_open_sample(&syscall->open.file);
+        state = approve_open_sample(syscall->open.dentry, &syscall->open.file);
     }
 
     return state;
