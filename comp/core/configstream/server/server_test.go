@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -134,12 +135,12 @@ func TestStreamConfigEventsErrors(t *testing.T) {
 		unsubscribe := func() { unsubscribeCalled = true }
 		comp.On("Subscribe", testReq).Return((<-chan *pb.ConfigEvent)(eventsCh), unsubscribe).Once()
 
-		nonTerminalError := errors.New("some other error")
+		errNonTerminal := errors.New("some other error")
 		firstSendSignal := make(chan struct{})
 		secondSendSignal := make(chan struct{})
 
 		// First call fails and sends a signal that it has been processed
-		stream.On("Send", testEvent).Return(nonTerminalError).Run(func(_ mock.Arguments) {
+		stream.On("Send", testEvent).Return(errNonTerminal).Run(func(_ mock.Arguments) {
 			firstSendSignal <- struct{}{}
 		}).Once()
 
@@ -192,7 +193,7 @@ func TestRARAuthorization(t *testing.T) {
 		err := server.StreamConfigEvents(testReq, stream)
 		assert.Error(t, err)
 		assert.Equal(t, codes.Unauthenticated, status.Code(err))
-		assert.Contains(t, err.Error(), "missing gRPC metadata")
+		require.ErrorContains(t, err, "missing gRPC metadata")
 	})
 
 	t.Run("rejects request with missing session_id in metadata", func(t *testing.T) {
@@ -209,7 +210,7 @@ func TestRARAuthorization(t *testing.T) {
 		err := server.StreamConfigEvents(testReq, stream)
 		assert.Error(t, err)
 		assert.Equal(t, codes.Unauthenticated, status.Code(err))
-		assert.Contains(t, err.Error(), "session_id required in metadata")
+		require.ErrorContains(t, err, "session_id required in metadata")
 	})
 
 	t.Run("rejects request with empty session_id", func(t *testing.T) {
@@ -226,6 +227,6 @@ func TestRARAuthorization(t *testing.T) {
 		err := server.StreamConfigEvents(testReq, stream)
 		assert.Error(t, err)
 		assert.Equal(t, codes.Unauthenticated, status.Code(err))
-		assert.Contains(t, err.Error(), "session_id cannot be empty")
+		require.ErrorContains(t, err, "session_id cannot be empty")
 	})
 }

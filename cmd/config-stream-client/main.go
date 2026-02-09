@@ -105,6 +105,8 @@ func main() {
 	snapshotReceived := false
 	updateCount := 0
 	var maxSeqID int32 // Tracks the largest sequence ID seen (not necessarily the most recent)
+	hasOutOfOrder := false
+	hasGap := false
 
 	// Listen for events
 	for {
@@ -147,11 +149,13 @@ func main() {
 
 			if snapshotReceived {
 				if currentSeqID <= maxSeqID {
+					hasOutOfOrder = true
 					fmt.Printf("  ⚠️  WARNING: Out of order sequence! Max seen=%d, Current=%d\n",
 						maxSeqID, currentSeqID)
 				}
 
 				if currentSeqID > maxSeqID+1 {
+					hasGap = true
 					fmt.Printf("  ⚠️  WARNING: Gap detected! Max seen=%d, Current=%d, Gap=%d\n",
 						maxSeqID, currentSeqID, currentSeqID-maxSeqID-1)
 				}
@@ -197,7 +201,18 @@ func main() {
 	}
 
 	// 2. Ordered sequence IDs (checked during streaming)
-	fmt.Printf("✓ Ordered sequence IDs (validated during streaming)\n")
+	if hasOutOfOrder || hasGap {
+		fmt.Printf("✗ Ordered sequence IDs: Issues detected during streaming\n")
+		if hasOutOfOrder {
+			fmt.Printf("  - Out of order sequences detected\n")
+		}
+		if hasGap {
+			fmt.Printf("  - Gaps in sequence detected\n")
+		}
+		allPassed = false
+	} else {
+		fmt.Printf("✓ Ordered sequence IDs (validated during streaming)\n")
+	}
 
 	// 3. Correct typed values (we received and parsed them)
 	fmt.Printf("✓ Correct typed values (successfully parsed)\n")
@@ -216,9 +231,7 @@ func formatValue(v *structpb.Value) string {
 		return "<nil>"
 	}
 
-	// Convert to Go value and format
-	val := v.AsInterface()
-	str := fmt.Sprintf("%v", val)
+	str := fmt.Sprintf("%v", v)
 
 	// Truncate long strings
 	if len(str) > 50 {

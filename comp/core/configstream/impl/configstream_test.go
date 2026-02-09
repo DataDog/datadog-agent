@@ -30,7 +30,7 @@ import (
 func TestClientConnectsAndReceivesStream(t *testing.T) {
 	cfg := configmock.New(t)
 
-	// Register keys first (required for nodetreemodel config library)
+	// Register keys first
 	cfg.BindEnvAndSetDefault("test_string", "")
 	cfg.BindEnvAndSetDefault("test_int", 0)
 	cfg.BindEnvAndSetDefault("test_bool", false)
@@ -39,13 +39,13 @@ func TestClientConnectsAndReceivesStream(t *testing.T) {
 	cfg.BindEnvAndSetDefault("typed_bool", true)
 	cfg.BindEnvAndSetDefault("typed_float", 0.0)
 
-	// Now set initial values using Set() to trigger OnUpdate callbacks
+	// Set initial values (OnUpdate callbacks will be registered when configstream starts)
 	cfg.Set("test_string", "initial_value", model.SourceFile)
 	cfg.Set("test_int", 42, model.SourceFile)
 	cfg.Set("test_bool", true, model.SourceFile)
 
 	mockLog := logmock.New(t)
-	cs := newConfigStreamForTest(cfg, mockLog)
+	cs := newConfigStreamForTest(t, cfg, mockLog)
 
 	// Subscribe to the stream
 	// Note: session_id is only required at the gRPC server level (RAR-gated)
@@ -63,8 +63,8 @@ func TestClientConnectsAndReceivesStream(t *testing.T) {
 			snapshot := event.GetSnapshot()
 			require.NotNil(t, snapshot, "First event should be a snapshot")
 
-			assert.Greater(t, snapshot.SequenceId, int32(0), "Snapshot should have sequence ID > 0")
-			assert.NotEmpty(t, snapshot.Origin, "Snapshot should have origin field populated")
+			assert.Equal(t, int32(3), snapshot.SequenceId, "Snapshot should have sequence ID 3 (from initial config sets)")
+			assert.Equal(t, "core-agent", snapshot.Origin, "Snapshot should have origin 'core-agent'")
 			assert.NotEmpty(t, snapshot.Settings, "Snapshot should contain settings")
 
 			// Verify we can find our test settings
@@ -97,11 +97,8 @@ func TestClientConnectsAndReceivesStream(t *testing.T) {
 
 	t.Run("2. Updates received with ordered sequence IDs", func(t *testing.T) {
 		cfg.Set("test_string", "updated_value_1", model.SourceAgentRuntime)
-		time.Sleep(50 * time.Millisecond) // Allow update to propagate
 		cfg.Set("test_string", "updated_value_2", model.SourceAgentRuntime)
-		time.Sleep(50 * time.Millisecond)
 		cfg.Set("test_int", 100, model.SourceAgentRuntime)
-		time.Sleep(50 * time.Millisecond)
 
 		updates := make([]*pb.ConfigUpdate, 0)
 		timeout := time.After(2 * time.Second)
@@ -146,8 +143,6 @@ func TestClientConnectsAndReceivesStream(t *testing.T) {
 		cfg.Set("typed_bool", false, model.SourceAgentRuntime)
 		cfg.Set("typed_float", 3.14, model.SourceAgentRuntime)
 
-		time.Sleep(100 * time.Millisecond)
-
 		timeout := time.After(2 * time.Second)
 		typedValues := make(map[string]interface{})
 
@@ -174,18 +169,10 @@ func TestClientConnectsAndReceivesStream(t *testing.T) {
 			}
 		}
 
-		if val, ok := typedValues["typed_string"]; ok {
-			assert.Equal(t, "hello", val)
-		}
-		if val, ok := typedValues["typed_int"]; ok {
-			assert.Equal(t, float64(999), val)
-		}
-		if val, ok := typedValues["typed_bool"]; ok {
-			assert.Equal(t, false, val)
-		}
-		if val, ok := typedValues["typed_float"]; ok {
-			assert.InDelta(t, 3.14, val, 0.001)
-		}
+		assert.Equal(t, "hello", typedValues["typed_string"])
+		assert.Equal(t, float64(999), typedValues["typed_int"])
+		assert.Equal(t, false, typedValues["typed_bool"])
+		assert.InDelta(t, 3.14, typedValues["typed_float"], 0.001)
 	})
 }
 
@@ -196,7 +183,7 @@ func TestMultipleSubscribers(t *testing.T) {
 	cfg.BindEnvAndSetDefault("multi_test", "initial")
 
 	mockLog := logmock.New(t)
-	cs := newConfigStreamForTest(cfg, mockLog)
+	cs := newConfigStreamForTest(t, cfg, mockLog)
 
 	// Create 3 subscribers
 	subs := make([]<-chan *pb.ConfigEvent, 3)
@@ -229,7 +216,6 @@ func TestMultipleSubscribers(t *testing.T) {
 
 	// Update config
 	cfg.Set("multi_test", "updated", model.SourceAgentRuntime)
-	time.Sleep(100 * time.Millisecond)
 
 	// All subscribers should receive the update
 	for i, sub := range subs {
@@ -247,13 +233,14 @@ func TestMultipleSubscribers(t *testing.T) {
 	}
 }
 
-// TestDiscontinuityResync verifies that discontinuities are detected and resynced
+// TestDiscontinuityResync verifies that rapid config updates are handled gracefully
+// without panicking or deadlocking.
 func TestDiscontinuityResync(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.BindEnvAndSetDefault("rapid_update", 0)
 
 	mockLog := logmock.New(t)
-	cs := newConfigStreamForTest(cfg, mockLog)
+	cs := newConfigStreamForTest(t, cfg, mockLog)
 
 	req := &pb.ConfigStreamRequest{Name: "test-client"}
 	eventChan, unsubscribe := cs.Subscribe(req)
@@ -274,8 +261,6 @@ func TestDiscontinuityResync(t *testing.T) {
 		cfg.Set("rapid_update", i, model.SourceAgentRuntime)
 	}
 
-	time.Sleep(200 * time.Millisecond)
-
 	// Drain the channel - we should either get all updates or a resync snapshot
 	receivedSnapshot := false
 	for {
@@ -291,40 +276,25 @@ func TestDiscontinuityResync(t *testing.T) {
 		}
 	}
 done:
-
-	// The implementation should handle this gracefully (either all updates or resync)
-	// This test verifies no panic or deadlock occurs
-	t.Log("Discontinuity test completed successfully")
-	assert.True(t, true, "No panic or deadlock occurred")
 	if receivedSnapshot {
 		t.Log("✓ Resync mechanism working correctly")
 	}
 }
 
 // newConfigStreamForTest creates a config stream for testing without lifecycle
-func newConfigStreamForTest(cfg config.Component, logger log.Component) *configStream {
+func newConfigStreamForTest(t *testing.T, cfg config.Component, logger log.Component) *configStream {
 	telemetryComp := telemetrynoops.GetCompatComponent()
-
-	cs := &configStream{
-		config:          cfg,
-		log:             logger,
-		telemetry:       telemetryComp,
-		subscribers:     make(map[string]*subscription),
-		subscribeChan:   make(chan *subscription),
-		unsubscribeChan: make(chan string),
-		stopChan:        make(chan struct{}),
+	reqs := Requires{
+		Lifecycle: compdef.NewTestLifecycle(t), // Test lifecycle (hooks not executed)
+		Config:    cfg,
+		Log:       logger,
+		Telemetry: telemetryComp,
 	}
+	provides := NewComponent(reqs)
 
-	// Initialize telemetry metrics (same as NewComponent)
-	cs.subscribersGauge = telemetryComp.NewGauge("configstream", "subscribers", []string{}, "Number of active config stream subscribers")
-	cs.snapshotsSent = telemetryComp.NewCounter("configstream", "snapshots_sent", []string{}, "Number of config snapshots sent")
-	cs.updatesSent = telemetryComp.NewCounter("configstream", "updates_sent", []string{}, "Number of config updates sent")
-	cs.discontinuitiesCount = telemetryComp.NewCounter("configstream", "discontinuities", []string{}, "Number of discontinuities detected")
-	cs.droppedUpdates = telemetryComp.NewCounter("configstream", "dropped_updates", []string{}, "Number of dropped config updates due to full channels")
-
-	cs.origin = cs.getConfigOrigin()
-
-	// Start the run loop in the background
+	// Extract the underlying configStream
+	// and start the run loop manually since lifecycle hooks are not executed
+	cs := provides.Comp.(*configStream)
 	go cs.run()
 
 	return cs
@@ -356,7 +326,7 @@ func buildComponent(t *testing.T) (Provides, *configInterceptor) {
 	log := logmock.New(t)
 	cfg := configmock.New(t)
 
-	// Register keys used in tests (required for nodetreemodel config library)
+	// Register keys used in tests
 	cfg.BindEnvAndSetDefault("my.new.setting", "")
 	cfg.BindEnvAndSetDefault("dropped.setting", "")
 	cfg.BindEnvAndSetDefault("another.setting", 0)
