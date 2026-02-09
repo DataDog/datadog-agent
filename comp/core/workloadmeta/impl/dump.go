@@ -7,6 +7,7 @@ package workloadmetaimpl
 
 import (
 	"fmt"
+	"strings"
 
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -14,6 +15,16 @@ import (
 
 // Dump implements Store#Dump
 func (w *workloadmeta) Dump(verbose bool) wmdef.WorkloadDumpResponse {
+	return w.dump(verbose, "")
+}
+
+// DumpFiltered implements Store#DumpFiltered
+func (w *workloadmeta) DumpFiltered(verbose bool, search string) wmdef.WorkloadDumpResponse {
+	return w.dump(verbose, search)
+}
+
+// dump is the internal implementation that supports optional filtering
+func (w *workloadmeta) dump(verbose bool, search string) wmdef.WorkloadDumpResponse {
 	workloadList := wmdef.WorkloadDumpResponse{
 		Entities: make(map[string]wmdef.WorkloadEntity),
 	}
@@ -54,8 +65,29 @@ func (w *workloadmeta) Dump(verbose bool) wmdef.WorkloadDumpResponse {
 	defer w.storeMut.RUnlock()
 
 	for kind, store := range w.store {
+		// Apply kind filter if search is provided
+		kindStr := string(kind)
+		if search != "" && !strings.Contains(kindStr, search) {
+			// Kind doesn't match, check if any entities match by ID
+			hasMatch := false
+			for id := range store {
+				if strings.Contains(id, search) {
+					hasMatch = true
+					break
+				}
+			}
+			if !hasMatch {
+				continue
+			}
+		}
+
 		entities := wmdef.WorkloadEntity{Infos: make(map[string]string)}
 		for id, cachedEntity := range store {
+			// Apply entity ID filter if search is provided and kind didn't match
+			if search != "" && !strings.Contains(kindStr, search) && !strings.Contains(id, search) {
+				continue
+			}
+
 			if verbose && len(cachedEntity.sources) > 1 {
 				for source, entity := range cachedEntity.sources {
 					info, err := entityToString(entity)
@@ -78,7 +110,9 @@ func (w *workloadmeta) Dump(verbose bool) wmdef.WorkloadDumpResponse {
 			entities.Infos[fmt.Sprintf("sources(merged):%v", cachedEntity.sortedSources)+" id: "+id] = info
 		}
 
-		workloadList.Entities[string(kind)] = entities
+		if len(entities.Infos) > 0 {
+			workloadList.Entities[kindStr] = entities
+		}
 	}
 
 	return workloadList

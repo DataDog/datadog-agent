@@ -134,6 +134,9 @@ type Component interface {
 	// Dump lists the content of the store, for debugging purposes.
 	Dump(verbose bool) WorkloadDumpResponse
 
+	// DumpFiltered lists the content of the store with optional filtering by kind or entity ID.
+	DumpFiltered(verbose bool, search string) WorkloadDumpResponse
+
 	// DumpStructured lists the content of the store as structured entities.
 	DumpStructured(verbose bool) WorkloadDumpStructuredResponse
 

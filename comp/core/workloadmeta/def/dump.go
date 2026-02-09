@@ -48,47 +48,25 @@ type WorkloadDumpStructuredResponse struct {
 // BuildWorkloadResponse builds a JSON response for workload-list with filtering.
 //
 // Backend does all processing to avoid client-side unmarshaling issues:
-//  1. Get structured entities (DumpStructured returns concrete types from workloadmeta store)
-//  2. Apply search filtering on structured data (single filtering function)
-//  3. Convert to requested format:
+//  1. Get structured/text entities from workloadmeta store
+//  2. Apply search filtering if provided
+//  3. Return in requested format:
 //     - jsonFormat=true: Return structured JSON (for -j/-p flags)
-//     - jsonFormat=false: Convert to text format using entity.String(verbose)
+//     - jsonFormat=false: Return text format with preserved source info
+//
+// This approach leverages the backend's access to concrete entity types, avoiding the
+// unmarshaling problem where clients can't reconstruct interface types from JSON.
 func BuildWorkloadResponse(wmeta Component, verbose bool, search string, jsonFormat bool) ([]byte, error) {
-	// Get structured data from workloadmeta store (has concrete entity types)
-	structuredResp := wmeta.DumpStructured(verbose)
-
-	if search != "" {
-		structuredResp = FilterStructuredResponse(structuredResp, search)
-	}
-
-	// Backend decides output format based on client request
 	if jsonFormat {
+		structuredResp := wmeta.DumpStructured(verbose)
+		if search != "" {
+			structuredResp = FilterStructuredResponse(structuredResp, search)
+		}
 		return json.Marshal(structuredResp)
 	}
 
-	// Convert to text format for text display (no flags)
-	textResp := convertStructuredToText(structuredResp, verbose)
-	return json.Marshal(textResp)
-}
-
-// convertStructuredToText converts structured entities to text format by calling String(verbose)
-func convertStructuredToText(structured WorkloadDumpStructuredResponse, verbose bool) WorkloadDumpResponse {
-	textResp := WorkloadDumpResponse{
-		Entities: make(map[string]WorkloadEntity),
-	}
-
-	for kind, entities := range structured.Entities {
-		infos := make(map[string]string)
-		for _, entity := range entities {
-			// Use entity ID as key
-			infos[entity.GetID().ID] = entity.String(verbose)
-		}
-		if len(infos) > 0 {
-			textResp.Entities[kind] = WorkloadEntity{Infos: infos}
-		}
-	}
-
-	return textResp
+	// Text format - use DumpFiltered which preserves source info format
+	return json.Marshal(wmeta.DumpFiltered(verbose, search))
 }
 
 // FilterStructuredResponse filters entities by kind or entity ID
