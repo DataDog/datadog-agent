@@ -2,6 +2,7 @@
 members = [
     "core", 
     "checks/example",
+    "checks/httpcheck",
     "sharedlibrary-tester",
 ]
 resolver = "2"
