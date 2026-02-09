@@ -8,8 +8,6 @@
 package dockerpermissions
 
 import (
-	"time"
-
 	"github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues"
 )
 
@@ -22,9 +20,6 @@ const (
 
 	// CheckName is the human-readable name for the health check
 	CheckName = "Docker Socket Permissions"
-
-	// CheckInterval is the interval between health check runs
-	CheckInterval = 15 * time.Minute
 )
 
 // dockerPermissionsModule implements issues.Module
@@ -50,11 +45,11 @@ func (m *dockerPermissionsModule) IssueTemplate() issues.IssueTemplate {
 }
 
 // BuiltInCheck returns the built-in health check configuration
+// Interval is 0 to use the default (15 minutes)
 func (m *dockerPermissionsModule) BuiltInCheck() *issues.BuiltInCheck {
 	return &issues.BuiltInCheck{
-		ID:       CheckID,
-		Name:     CheckName,
-		CheckFn:  Check,
-		Interval: CheckInterval,
+		ID:      CheckID,
+		Name:    CheckName,
+		CheckFn: Check,
 	}
 }
