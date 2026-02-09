@@ -16,6 +16,7 @@ type Iterator[T any] interface {
 	Next(ctx *eval.Context) T
 	At(ctx *eval.Context, regID eval.RegisterID, pos int) T
 	Len(ctx *eval.Context) int
+	GetPublicTLD(ctx *eval.Context, tld string) string
 }
 
 // Helper function to check if a value is nil
