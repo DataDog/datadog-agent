@@ -35,7 +35,8 @@ def parse_jmxfetch_version(version):
     Args:
       version: jmxfetch version
 
-    Returns: dict(is_snapshot: bool, url: full download URL)
+    Returns:
+      dict: is_snapshot, url: full download URL
     """
     parts = version.split(".")
 
