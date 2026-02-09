@@ -9,15 +9,12 @@
 TODO:
 
 only start for in process, not sidecar OR collect for sidecar and tag appropriately. Some sort of container_type or sidecar tag?
-calculate diff for usage ourselves and submit as a distribution metric
-also submit limit as a distribution metric
 
 rename to enhanced metrics collector? Or otherwise organize file structure?
 look into simplifying cpu limit and fallbacks, is it valid in Cloud Run?
 Check in Cloud Run Functions, Cloud Run Jobs, Azure Web Apps
 
 Refactor to move go routine to main.go?
-Clean up sendCPUMetrics to look more like what's used in the container collector
 
 Check for any other odd debug logs
 */
@@ -32,11 +29,35 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	systemutils "github.com/DataDog/datadog-agent/pkg/util/system"
 )
+
+// ServerlessCPUStats stores CPU stats for serverless environments
+type ServerlessCPUStats struct {
+	Total *float64 // Total CPU usage in nanoseconds
+	Limit *float64 // CPU limit in nanocores
+}
+
+// ServerlessContainerStats wraps container metrics for serverless environments
+// Similar to metrics.ContainerStats but simplified for serverless use cases
+type ServerlessContainerStats struct {
+	Timestamp time.Time
+	CPU       *ServerlessCPUStats
+}
+
+// ServerlessRateMetrics holds previous values for rate calculation
+// Similar to ContainerRateMetrics in the process agent
+type ServerlessRateMetrics struct {
+	StatsTimestamp time.Time
+	TotalCPU       float64
+}
+
+// NullServerlessRateMetrics can be safely used when there are no previous rate values
+var NullServerlessRateMetrics = ServerlessRateMetrics{
+	TotalCPU: -1,
+}
 
 type Collector struct {
 	metricAgent        *serverlessMetrics.ServerlessMetricAgent
@@ -45,6 +66,8 @@ type Collector struct {
 	collectionInterval time.Duration
 	cancelFunc         context.CancelFunc
 	metricPrefix       string
+	// Previous stats for rate calculation
+	previousRateMetrics ServerlessRateMetrics
 }
 
 func NewCollector(metricAgent *serverlessMetrics.ServerlessMetricAgent, metricSource metrics.MetricSource, metricPrefix string) (*Collector, error) {
@@ -115,19 +138,29 @@ func (c *Collector) collect() {
 		log.Debugf("Incomplete cgroup stats: %v", errs)
 	}
 
-	c.processCPUStats(stats.CPU)
+	// Capture timestamp right after collecting stats to accurately reflect when data was collected
+	collectionTime := time.Now()
+	containerStats := c.convertToServerlessContainerStats(stats.CPU, collectionTime)
+	c.processCPUStats(containerStats)
 }
 
-func convertToContainerCPUStats(cpuStats *cgroups.CPUStats) *provider.ContainerCPUStats {
-	containerCPUStats := &provider.ContainerCPUStats{}
-
-	if cpuStats.Total != nil {
-		containerCPUStats.Total = pointer.Ptr(float64(*cpuStats.Total))
+func (c *Collector) convertToServerlessContainerStats(cpuStats *cgroups.CPUStats, timestamp time.Time) *ServerlessContainerStats {
+	if cpuStats == nil {
+		return nil
 	}
 
-	containerCPUStats.Limit = computeCPULimit(cpuStats)
+	serverlessStats := &ServerlessContainerStats{
+		Timestamp: timestamp,
+		CPU:       &ServerlessCPUStats{},
+	}
 
-	return containerCPUStats
+	if cpuStats.Total != nil {
+		serverlessStats.CPU.Total = pointer.Ptr(float64(*cpuStats.Total))
+	}
+
+	serverlessStats.CPU.Limit = computeCPULimit(cpuStats)
+
+	return serverlessStats
 }
 
 func computeCPULimit(cgs *cgroups.CPUStats) *float64 {
@@ -159,26 +192,66 @@ func computeCPULimit(cgs *cgroups.CPUStats) *float64 {
 	return &limitNanos
 }
 
-func (c *Collector) processCPUStats(cpuStats *cgroups.CPUStats) {
-	if cpuStats == nil {
-		log.Debug("CPU stats are nil, skipping")
+func (c *Collector) processCPUStats(containerStats *ServerlessContainerStats) {
+	if containerStats == nil || containerStats.CPU == nil {
+		log.Debug("Container stats or CPU stats are nil, skipping")
 		return
 	}
 
-	containerCPUStats := convertToContainerCPUStats(cpuStats)
-
-	c.sendCPUMetrics(containerCPUStats)
+	c.sendCPUMetrics(containerStats)
 }
 
-func (c *Collector) sendCPUMetrics(cpuStats *provider.ContainerCPUStats) {
+func (c *Collector) sendCPUMetrics(containerStats *ServerlessContainerStats) {
+	if containerStats.CPU.Total != nil {
+		currentTotal := *containerStats.CPU.Total
 
-	if cpuStats.Total != nil {
-		// CPU usage in nanoseconds/second (ie. nanocores)
-		c.metricAgent.AddMetric(c.metricPrefix+"cpu.usage", *cpuStats.Total, c.metricSource, metrics.RateType)
+		// Calculate CPU rate (nanocores per second) similar to process agent
+		cpuRate := c.calculateCPURate(currentTotal, containerStats.Timestamp, c.previousRateMetrics)
+
+		if cpuRate >= 0 {
+			// Submit as distribution metric
+			c.metricAgent.AddMetric(c.metricPrefix+"cpu.usage", cpuRate, c.metricSource, metrics.DistributionType)
+		}
+
+		// Store current values for next calculation
+		c.previousRateMetrics = ServerlessRateMetrics{
+			StatsTimestamp: containerStats.Timestamp,
+			TotalCPU:       currentTotal,
+		}
 	}
 
-	if cpuStats.Limit != nil {
-		// CPU limit in nanocores
-		c.metricAgent.AddMetric(c.metricPrefix+"cpu.limit", *cpuStats.Limit, c.metricSource, metrics.GaugeType)
+	if containerStats.CPU.Limit != nil {
+		// CPU limit in nanocores - also submit as distribution
+		c.metricAgent.AddMetric(c.metricPrefix+"cpu.limit", *containerStats.CPU.Limit, c.metricSource, metrics.DistributionType)
 	}
+}
+
+// calculateCPURate calculates the CPU usage rate in nanocores per second
+// Similar to cpuRateValue in the process agent
+// Returns -1 if rate cannot be calculated (first run or invalid data)
+func (c *Collector) calculateCPURate(currentTotal float64, currentTime time.Time, previous ServerlessRateMetrics) float64 {
+	// First run - no previous value
+	if previous.StatsTimestamp.IsZero() {
+		return -1
+	}
+
+	// Check for invalid previous values (similar to process agent's -1 check)
+	if previous.TotalCPU == -1 {
+		return -1
+	}
+
+	timeDiff := currentTime.Sub(previous.StatsTimestamp).Seconds()
+	if timeDiff <= 0 {
+		return -1
+	}
+
+	valueDiff := currentTotal - previous.TotalCPU
+	// Handle counter reset or negative diff
+	if valueDiff < 0 {
+		return -1
+	}
+
+	// Calculate rate: (current - previous) / time_diff
+	// Result is in nanocores per second
+	return valueDiff / timeDiff
 }
