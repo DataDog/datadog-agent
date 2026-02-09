@@ -7,7 +7,7 @@ load("@package_metadata//licenses/rules:license.bzl", "license")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(
     default_package_metadata = [":package_metadata"],
@@ -186,7 +186,7 @@ cc_binary(
     }),
     visibility = ["//visibility:public"],
     deps = [":pcre2test_dotc_headers", ":libpcre2", ":libpcre2-posix"],
-    dynamic_deps = [":pcre2-8", ":pcre2-posix"]
+    dynamic_deps = [":pcre2-8", ":pcre2-posix"],
 )
 
 filegroup(
@@ -287,12 +287,20 @@ pkg_files(
     prefix = "include",
 )
 
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":headers",
+        ":pcre2_libfiles",
+        ":pcre2posix_libfiles",
+    ],
+    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
+)
+
 pkg_install(
     name = "install",
     srcs = [
-        ":headers",
+        ":all_files",
         ":pkgconfig",
-        ":pcre2_libfiles",
-        ":pcre2posix_libfiles",
     ],
 )
