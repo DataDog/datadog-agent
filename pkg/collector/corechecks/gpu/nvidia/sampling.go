@@ -172,13 +172,13 @@ func createSampleAPIs() []apiCallInfo {
 		{
 			Name: "encoder_samples",
 			Handler: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-				return processSample(device, "encoder_utilization", nvml.ENC_UTILIZATION_SAMPLES, lastTimestamp)
+				return processSample(device, "encoder_active", nvml.ENC_UTILIZATION_SAMPLES, lastTimestamp)
 			},
 		},
 		{
 			Name: "decoder_samples",
 			Handler: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-				return processSample(device, "decoder_utilization", nvml.DEC_UTILIZATION_SAMPLES, lastTimestamp)
+				return processSample(device, "decoder_active", nvml.DEC_UTILIZATION_SAMPLES, lastTimestamp)
 			},
 		}}
 }
