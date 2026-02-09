@@ -77,7 +77,12 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 			return nil
 		}
 	}
-	if ak := readAPIKeyFromDatadogYAML(); ak == "" {
+	ak, err := readAPIKeyFromDatadogYAML()
+	if err != nil {
+		log.Warnf("DDOT: skipping service start: %v", err)
+		return nil
+	}
+	if ak == "" {
 		log.Warnf("DDOT: skipping service start (no API key configured)")
 		return nil
 	}
@@ -105,20 +110,20 @@ func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 // winutil.WaitForPendingStateChange and winutil.IsServiceRunning
 
 // readAPIKeyFromDatadogYAML reads the api_key from ProgramData datadog.yaml, returns empty string if unset/unknown
-func readAPIKeyFromDatadogYAML() string {
+func readAPIKeyFromDatadogYAML() (string, error) {
 	ddYaml := filepath.Join(paths.DatadogDataDir, "datadog.yaml")
 	data, err := os.ReadFile(ddYaml)
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("failed to read datadog.yaml from %s: %w", ddYaml, err)
 	}
 	var cfg map[string]any
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return ""
+		return "", fmt.Errorf("failed to parse datadog.yaml: %w", err)
 	}
-	if v, ok := cfg["api_key"].(string); ok {
-		return v
+	if v, ok := cfg["api_key"].(string); ok && v != "" {
+		return v, nil
 	}
-	return ""
+	return "", fmt.Errorf("api_key not found or empty in datadog.yaml")
 }
 
 // preRemoveDatadogAgentDdot performs pre-removal steps for the DDOT package on Windows
@@ -427,8 +432,14 @@ func postInstallDDOTExtension(ctx HookContext) error {
 			return nil
 		}
 	}
-	if ak := readAPIKeyFromDatadogYAML(); ak == "" {
-		return nil
+
+	// Check API key exists before starting service
+	ak, err := readAPIKeyFromDatadogYAML()
+	if err != nil {
+		return fmt.Errorf("DDOT service created but cannot start: %w", err)
+	}
+	if ak == "" {
+		return fmt.Errorf("DDOT service created but cannot start: API key not configured")
 	}
 
 	// Best effort service start - ignore errors
