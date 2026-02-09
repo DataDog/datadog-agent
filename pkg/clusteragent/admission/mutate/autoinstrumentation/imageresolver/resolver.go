@@ -240,7 +240,9 @@ func (r *bucketTagResolver) createBucketTag(tag string) string {
 func (r *bucketTagResolver) Resolve(registry string, repository string, tag string) (*ResolvedImage, bool) {
 	var result = tag
 	var resolvedTag = tag
-	defer metrics.ImageResolutionAttempts.Inc(repository, resolvedTag, result)
+	defer func() {
+		metrics.ImageResolutionAttempts.Inc(repository, resolvedTag, result)
+	}()
 	if !isDatadoghqRegistry(registry, r.datadoghqRegistries) {
 		log.Debugf("%s is not a Datadoghq registry, not opting into gradual rollout", registry)
 		return nil, false
@@ -252,7 +254,6 @@ func (r *bucketTagResolver) Resolve(registry string, repository string, tag stri
 	resolvedTag = bucketTag
 	if err != nil {
 		log.Debugf("Failed to resolve %s/%s:%s for gradual rollout - %v", registry, repository, bucketTag, err)
-		resolvedTag = bucketTag
 		return nil, false
 	}
 	result = digest
