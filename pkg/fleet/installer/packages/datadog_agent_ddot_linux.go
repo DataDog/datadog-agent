@@ -237,7 +237,10 @@ func preInstallDDOTExtension(ctx HookContext) error {
 	defer span.Finish(nil)
 
 	// Best effort - ignore errors
+	// Clean up any existing DDOT service before installing
 	_ = agentDDOTService.StopStable(ctx)
+	_ = agentDDOTService.DisableStable(ctx)
+	_ = agentDDOTService.RemoveStable(ctx)
 
 	return nil
 }
