@@ -118,7 +118,6 @@ func TestFilterStructuredResponse(t *testing.T) {
 	}
 }
 
-
 func TestBuildWorkloadResponse(t *testing.T) {
 	store := newWorkloadmetaObject(t)
 

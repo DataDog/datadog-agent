@@ -7,7 +7,7 @@ package json
 
 import (
 	"bytes"
-	. "encoding/json"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -57,7 +57,7 @@ func TestPrintJSON(t *testing.T) {
 		assert.Contains(t, err.Error(), "json")
 	})
 
-	t.Run("remove empty fields from json.RawMessage", func(t *testing.T) {
+	t.Run("remove empty fields from RawMessage", func(t *testing.T) {
 		// Simulate what workload-list does: backend returns JSON bytes with empty fields
 		rawJSON := []byte(`{
 			"name": "test",
@@ -74,7 +74,7 @@ func TestPrintJSON(t *testing.T) {
 		}`)
 
 		var buf bytes.Buffer
-		err := PrintJSON(&buf, RawMessage(rawJSON), false, true)
+		err := PrintJSON(&buf, json.RawMessage(rawJSON), false, true)
 		require.NoError(t, err)
 
 		output := buf.String()

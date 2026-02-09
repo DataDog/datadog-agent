@@ -133,4 +133,3 @@ func (w *workloadmeta) writeResponse(writer http.ResponseWriter, r *http.Request
 	writer.Header().Set("Content-Type", "application/json")
 	writer.Write(jsonDump)
 }
-
