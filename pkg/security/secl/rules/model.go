@@ -367,7 +367,7 @@ type LogDefinition struct {
 // PreCheck returns an error if the log action is invalid
 func (l *LogDefinition) PreCheck(_ PolicyLoaderOpts) error {
 	if l.Level == "" {
-		return errors.New("a valid log level must be specified to the the 'log' action")
+		return errors.New("a valid log level must be specified to the 'log' action")
 	}
 
 	return nil
