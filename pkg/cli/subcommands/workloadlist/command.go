@@ -100,9 +100,10 @@ func workloadList(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) 
 		searchTerm = cliParams.args[0]
 	}
 
-	// Determine if we need structured JSON format
-	needsStructuredFormat := cliParams.json || cliParams.prettyJSON
-	url, err := workloadURL(cliParams.verboseList, needsStructuredFormat, searchTerm)
+	// Build URL with format parameter for backend processing
+	// Backend will handle filtering and format conversion (text vs JSON)
+	isJSONFormat := cliParams.json || cliParams.prettyJSON
+	url, err := workloadURL(cliParams.verboseList, searchTerm, isJSONFormat)
 	if err != nil {
 		return err
 	}
@@ -115,27 +116,24 @@ func workloadList(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) 
 		return fmt.Errorf("failed to query the agent (running?): %w", err)
 	}
 
-	// Handle structured vs text format
-	if needsStructuredFormat {
-		var rawJSON any
-		err = json.Unmarshal(r, &rawJSON)
-		if err != nil {
-			return err
-		}
-
+	// Backend did all processing (filtering, search, format conversion)
+	// Client just displays the result
+	if isJSONFormat {
 		// Check if response is empty when search was provided
 		if searchTerm != "" {
-			if data, ok := rawJSON.(map[string]any); ok {
-				if entities, ok := data["entities"].(map[string]any); ok && len(entities) == 0 {
+			var check map[string]any
+			if err := json.Unmarshal(r, &check); err == nil {
+				if entities, ok := check["entities"].(map[string]any); ok && len(entities) == 0 {
 					return fmt.Errorf("no entities found matching %q", searchTerm)
 				}
 			}
 		}
 
-		return jsonutil.PrintJSON(color.Output, rawJSON, cliParams.prettyJSON, true)
+		// Display as JSON (raw bytes - backend returned structured format)
+		return jsonutil.PrintJSON(color.Output, json.RawMessage(r), cliParams.prettyJSON, true)
 	}
 
-	// Text format (legacy) - server already filtered
+	// Display as text (backend returned text format)
 	var workload workloadmeta.WorkloadDumpResponse
 	err = json.Unmarshal(r, &workload)
 	if err != nil {
@@ -148,11 +146,10 @@ func workloadList(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) 
 	}
 
 	workload.Write(color.Output)
-
 	return nil
 }
 
-func workloadURL(verbose bool, structuredFormat bool, search string) (string, error) {
+func workloadURL(verbose bool, search string, jsonFormat bool) (string, error) {
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", err
@@ -165,16 +162,16 @@ func workloadURL(verbose bool, structuredFormat bool, search string) (string, er
 		prefix = fmt.Sprintf("https://%v:%v/agent/workload-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
 	}
 
-	// Build query parameters using url.Values for proper encoding
+	// Build query parameters - backend will process format
 	params := url.Values{}
 	if verbose {
 		params.Set("verbose", "true")
 	}
-	if structuredFormat {
-		params.Set("format", "json")
-	}
 	if search != "" {
 		params.Set("search", search)
+	}
+	if jsonFormat {
+		params.Set("format", "json")
 	}
 
 	if len(params) > 0 {

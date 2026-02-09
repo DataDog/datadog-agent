@@ -228,8 +228,8 @@ func getWorkloadList(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.
 	jsonDump, err := workloadmetaimpl.BuildWorkloadResponse(
 		wmeta,
 		params.Get("verbose") == "true",
-		params.Get("format") == "json",
 		params.Get("search"),
+		params.Get("format") == "json",
 	)
 	if err != nil {
 		httputils.SetJSONError(w, log.Errorf("Unable to build workload list response: %v", err), 500)

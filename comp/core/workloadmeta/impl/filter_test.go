@@ -8,6 +8,7 @@
 package workloadmetaimpl
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -117,67 +118,6 @@ func TestFilterStructuredResponse(t *testing.T) {
 	}
 }
 
-func TestFilterTextResponse(t *testing.T) {
-	tests := []struct {
-		name           string
-		response       wmdef.WorkloadDumpResponse
-		search         string
-		expectedKinds  []string
-		expectedCounts map[string]int
-	}{
-		{
-			name: "filter by kind name",
-			response: wmdef.WorkloadDumpResponse{
-				Entities: map[string]wmdef.WorkloadEntity{
-					"container": {
-						Infos: map[string]string{
-							"c1": "container info 1",
-							"c2": "container info 2",
-						},
-					},
-					"kubernetes_pod": {
-						Infos: map[string]string{
-							"p1": "pod info 1",
-						},
-					},
-				},
-			},
-			search:         "container",
-			expectedKinds:  []string{"container"},
-			expectedCounts: map[string]int{"container": 2},
-		},
-		{
-			name: "filter by entity ID in infos",
-			response: wmdef.WorkloadDumpResponse{
-				Entities: map[string]wmdef.WorkloadEntity{
-					"container": {
-						Infos: map[string]string{
-							"nginx-123": "nginx container",
-							"redis-456": "redis container",
-						},
-					},
-				},
-			},
-			search:         "nginx",
-			expectedKinds:  []string{"container"},
-			expectedCounts: map[string]int{"container": 1},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := FilterTextResponse(tt.response, tt.search)
-
-			assert.Equal(t, len(tt.expectedKinds), len(result.Entities))
-
-			for _, kind := range tt.expectedKinds {
-				entity, ok := result.Entities[kind]
-				assert.True(t, ok, "expected kind %s not found", kind)
-				assert.Equal(t, tt.expectedCounts[kind], len(entity.Infos), "unexpected count for kind %s", kind)
-			}
-		})
-	}
-}
 
 func TestBuildWorkloadResponse(t *testing.T) {
 	store := newWorkloadmetaObject(t)
@@ -239,26 +179,36 @@ func TestBuildWorkloadResponse(t *testing.T) {
 		},
 	})
 
-	t.Run("structured format (verbose flag ignored for JSON)", func(t *testing.T) {
-		// Verbose flag is ignored for JSON format - always returns all fields
-		jsonBytes, err := BuildWorkloadResponse(store, true, true, "")
+	t.Run("JSON format verbose", func(t *testing.T) {
+		// JSON format returns structured data
+		jsonBytes, err := BuildWorkloadResponse(store, true, "", true)
 		require.NoError(t, err)
 		require.NotEmpty(t, jsonBytes)
+		assert.Contains(t, string(jsonBytes), "container")
+	})
 
-		// Verify verbose=false also returns same result (verbose ignored for JSON)
-		jsonBytes2, err := BuildWorkloadResponse(store, false, true, "")
+	t.Run("JSON format non-verbose", func(t *testing.T) {
+		// JSON format returns structured data
+		jsonBytes, err := BuildWorkloadResponse(store, false, "", true)
 		require.NoError(t, err)
-		require.NotEmpty(t, jsonBytes2)
+		require.NotEmpty(t, jsonBytes)
 	})
 
 	t.Run("text format", func(t *testing.T) {
-		jsonBytes, err := BuildWorkloadResponse(store, false, false, "")
+		// Text format returns WorkloadDumpResponse with strings
+		jsonBytes, err := BuildWorkloadResponse(store, false, "", false)
 		require.NoError(t, err)
 		require.NotEmpty(t, jsonBytes)
+
+		// Should be able to unmarshal as WorkloadDumpResponse
+		var textResp wmdef.WorkloadDumpResponse
+		err = json.Unmarshal(jsonBytes, &textResp)
+		require.NoError(t, err)
+		assert.NotEmpty(t, textResp.Entities)
 	})
 
 	t.Run("filter by kind", func(t *testing.T) {
-		jsonBytes, err := BuildWorkloadResponse(store, false, true, "container")
+		jsonBytes, err := BuildWorkloadResponse(store, false, "container", true)
 		require.NoError(t, err)
 
 		// Should contain containers
@@ -268,7 +218,7 @@ func TestBuildWorkloadResponse(t *testing.T) {
 	})
 
 	t.Run("filter by entity ID", func(t *testing.T) {
-		jsonBytes, err := BuildWorkloadResponse(store, false, true, "nginx")
+		jsonBytes, err := BuildWorkloadResponse(store, false, "nginx", true)
 		require.NoError(t, err)
 
 		// Should contain the nginx container
