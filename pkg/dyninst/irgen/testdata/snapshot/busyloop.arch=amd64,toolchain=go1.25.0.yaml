@@ -1405,7 +1405,7 @@ Types:
       GoKind: 26
 MaxTypeID: 115
 Issues: []
-GoModuledataInfo: {FirstModuledataAddr: "0x58b3a0", TypesOffset: 296}
+GoModuledataInfo: {FirstModuledataAddr: "0x58b340", TypesOffset: 296}
 CommonTypes:
     G: 22 StructureType runtime.g
     M: 29 StructureType runtime.m

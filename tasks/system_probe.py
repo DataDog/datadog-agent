@@ -2151,7 +2151,7 @@ def ninja_add_dyninst_test_programs(
             deps = (d for d in deps.split(" ") if d.startswith(progs_prefix))
             pkg_deps[pkg] = {d.removeprefix(progs_prefix) for d in deps}
 
-    go_versions = ["go1.23.11", "go1.24.3", "go1.25.0", "go1.26rc1"]
+    go_versions = ["go1.24.3", "go1.25.0", "go1.26rc1"]
     archs = ["amd64", "arm64"]
 
     # Avoiding cgo aids in reproducing the build environment. It's less good in

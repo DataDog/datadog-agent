@@ -2893,7 +2893,7 @@ Issues:
       issue:
         Kind: 3
         Message: probe kind ProbeKindSpan is not supported
-GoModuledataInfo: {FirstModuledataAddr: "0x191340", TypesOffset: 296}
+GoModuledataInfo: {FirstModuledataAddr: "0x1912e0", TypesOffset: 296}
 CommonTypes:
     G: 22 StructureType runtime.g
     M: 29 StructureType runtime.m
