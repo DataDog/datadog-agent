@@ -10,6 +10,10 @@ package containercheckimpl
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -19,9 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 )
 
 func TestContainerCheckIsEnabled(t *testing.T) {
@@ -98,6 +99,15 @@ func TestContainerCheckIsEnabled(t *testing.T) {
 			containerizedEnv: true,
 			flavor:           flavor.DefaultAgent,
 			enabled:          true,
+		},
+		{
+			name: "service discovery disables the container check",
+			configs: map[string]interface{}{
+				"process_config.process_collection.enabled":   false,
+				"process_config.container_collection.enabled": true,
+				"discovery.enabled":                           true,
+			},
+			enabled: false,
 		},
 	}
 

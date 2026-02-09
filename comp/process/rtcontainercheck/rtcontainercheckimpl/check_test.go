@@ -109,6 +109,15 @@ func TestRTContainerCheckIsEnabled(t *testing.T) {
 			flavor:           flavor.DefaultAgent,
 			enabled:          true,
 		},
+		{
+			name: "service discovery disables the real-time container check",
+			configs: map[string]interface{}{
+				"process_config.process_collection.enabled":   false,
+				"process_config.container_collection.enabled": true,
+				"discovery.enabled":                           true,
+			},
+			enabled: false,
+		},
 	}
 
 	for _, tc := range tests {
