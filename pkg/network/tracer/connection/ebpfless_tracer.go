@@ -229,7 +229,7 @@ func (t *ebpfLessTracer) processConnection(
 
 	if isNewConn && result.ShouldPersist() {
 		conn.Duration = time.Duration(time.Now().UnixNano())
-		direction, err := t.guessConnectionDirection(conn, pktType)
+		direction, err := guessConnectionDirection(conn, pktType, t.boundPorts)
 		if err != nil {
 			return err
 		}
@@ -310,21 +310,26 @@ func buildTuple(pktType uint8, ip4 *layers.IPv4, ip6 *layers.IPv6, udp *layers.U
 	return tuple, flags
 }
 
+// boundPortLookup is an interface for finding bound ports
+type boundPortLookup interface {
+	Find(proto network.ConnectionType, port uint16) bool
+}
+
 // guessConnectionDirection attempts to guess the connection direction based off bound ports
-func (t *ebpfLessTracer) guessConnectionDirection(conn *network.ConnectionStats, pktType uint8) (network.ConnectionDirection, error) {
+func guessConnectionDirection(conn *network.ConnectionStats, pktType uint8, ports boundPortLookup) (network.ConnectionDirection, error) {
 	// if we already have a direction, return that
 	if conn.Direction != network.UNKNOWN {
 		return conn.Direction, nil
 	}
 
-	ok := t.boundPorts.Find(conn.Type, conn.SPort)
+	ok := ports.Find(conn.Type, conn.SPort)
 	if ok {
 		// incoming connection
 		return network.INCOMING, nil
 	}
 	// for local connections - the destination could be a bound port
 	if conn.Dest.Addr.IsLoopback() {
-		ok := t.boundPorts.Find(conn.Type, conn.DPort)
+		ok := ports.Find(conn.Type, conn.DPort)
 		if ok {
 			return network.OUTGOING, nil
 		}
