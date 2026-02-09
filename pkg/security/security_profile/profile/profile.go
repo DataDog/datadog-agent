@@ -484,7 +484,7 @@ func (p *Profile) getGlobalState() model.EventFilteringProfileState {
 	return globalState // AutoLearning or StableEventType
 }
 
-// GetVersionContext returns the context of the givent version if any
+// GetVersionContext returns the context of the given version if any
 func (p *Profile) GetVersionContext(imageTag string) (*VersionContext, bool) {
 	p.Lock()
 	defer p.Unlock()
@@ -702,7 +702,7 @@ func (p *Profile) getTimeOrderedVersionContexts() []*VersionContext {
 	return orderedVersions
 }
 
-// GetVersionContextIndex returns the context of the givent version if any
+// GetVersionContextIndex returns the context of the given version if any
 func (p *Profile) GetVersionContextIndex(index int) *VersionContext {
 	p.Lock()
 	orderedVersions := p.getTimeOrderedVersionContexts()

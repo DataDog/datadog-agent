@@ -799,11 +799,19 @@ func (p *EBPFProbe) Start() error {
 	p.replayEvents(true)
 
 	// start new tc classifier loop
-	go p.startSetupNewTCClassifierLoop()
+	p.wg.Add(1)
+	go func() {
+		defer p.wg.Done()
+		p.startSetupNewTCClassifierLoop()
+	}()
 
 	if p.config.RuntimeSecurity.IsSysctlSnapshotEnabled() {
 		// start sysctl snapshot loop
-		go p.startSysCtlSnapshotLoop()
+		p.wg.Add(1)
+		go func() {
+			defer p.wg.Done()
+			p.startSysCtlSnapshotLoop()
+		}()
 	}
 
 	return p.eventStream.Start(&p.wg)
@@ -1179,8 +1187,8 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	offset += read
 
 	// save netns handle if applicable
-	_, _ = p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandleLazy(event.PIDContext.NetNS, func() *utils.NetNSPath {
-		return utils.NetNSPathFromPid(event.PIDContext.Pid)
+	_, _ = p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandleLazy(event.PIDContext.NetNS, func() *utils.NSPath {
+		return utils.NewNSPathFromPid(event.PIDContext.Pid, utils.NetNsType)
 	})
 
 	// handle exec and fork before process context resolution as they modify the process context resolution
@@ -1240,8 +1248,8 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			if err != nil {
 				seclog.Debugf("failed to get mount path: %v", err)
 			} else {
-				mountNetNSPath := utils.NetNSPathFromPath(mountPath)
-				_, _ = p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsid, mountNetNSPath)
+				netNSPath := utils.NewNSPathFromPath(mountPath, utils.NetNsType)
+				_, _ = p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsid, netNSPath)
 			}
 		}
 
@@ -3421,12 +3429,15 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 		case action.Def.Kill != nil:
 			// do not handle kill action on event with error
 			if ev.Error != nil {
-				return
+				continue
 			}
 
-			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev) {
+			tryToKill, report := p.processKiller.KillAndReport(action.Def.Kill, rule, ev)
+			if tryToKill {
 				p.probe.onRuleActionPerformed(rule, action.Def)
-				p.HandleKillRemediation(rule, ev)
+			}
+			if report != nil {
+				p.HandleKillRemediation(rule, ev, report, action)
 			}
 
 		case action.Def.CoreDump != nil:
@@ -3439,12 +3450,22 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 		case action.Def.Hash != nil:
-			if p.fileHasher.HashAndReport(rule, action.Def.Hash, ev) {
+			fileEvent, err := ev.GetFileField(action.Def.Hash.Field)
+			if err != nil {
+				seclog.Errorf("failed to get file field %s: %v", action.Def.Hash.Field, err)
+				continue
+			}
+
+			if p.fieldHandlers.ResolveFilePath(ev, fileEvent) == "" {
+				continue
+			}
+
+			if p.fileHasher.HashAndReport(rule, action.Def.Hash, ev, fileEvent) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 		case action.Def.NetworkFilter != nil:
 			if !p.config.RuntimeSecurity.EnforcementEnabled {
-				return
+				continue
 			}
 
 			var policy rawpacket.Policy
@@ -3481,7 +3502,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 			p.probe.onRuleActionPerformed(rule, action.Def)
 
-			p.HandleNetworkRemediation(rule, ev, report)
+			p.HandleNetworkRemediation(rule, ev, report, action)
 		}
 	}
 }

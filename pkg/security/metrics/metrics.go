@@ -211,6 +211,12 @@ var (
 	// MetricMountResolverMiss is the counter of unsuccessful mount resolution
 	// Tags: cache, procfs
 	MetricMountResolverMiss = newRuntimeMetric(".mount_resolver.miss")
+	// MetricMountResolverMiss is the counter of unsuccessful procfs mount resolution
+	// Tags: cache, procfs
+	MetricMountResolverProcfsMiss = newRuntimeMetric(".mount_resolver.procfs_miss")
+	// MetricMountResolverProcfsHits is the counter of successful procfs mount resolution
+	// Tags: cache, procfs
+	MetricMountResolverProcfsHits = newRuntimeMetric(".mount_resolver.procfs_hits")
 
 	// Activity dump metrics
 

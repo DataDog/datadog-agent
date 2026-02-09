@@ -18,6 +18,7 @@ import (
 type sshSessionPatcher interface {
 	IsResolved() error
 	PatchEvent(_ interface{})
+	MaxRetry() int
 }
 
 // createSSHSessionPatcher creates a no-op patcher for Windows
