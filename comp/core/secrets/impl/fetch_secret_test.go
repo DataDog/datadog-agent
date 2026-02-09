@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
@@ -116,20 +117,9 @@ func getBackendCommandBinary(t *testing.T) (string, func()) {
 	// compile it
 	t.Logf("compiling secret backend binary '%s'", targetBin)
 	build(t, targetBin)
-	setCorrectRight(targetBin)
+	filesystem.SetCorrectRight(targetBin)
 
 	return targetBin, cleanup
-}
-
-// TestMain runs before other tests in this package. It hooks the getDDAgentUserSID
-// function to make it work for Windows tests
-func TestMain(m *testing.M) {
-	// Windows-only fix for running on CI. Instead of checking the registry for
-	// permissions (the agent wasn't installed, so that wouldn't work), use a stub
-	// function that gets permissions info directly from the current User
-	testCheckRightsStub()
-
-	os.Exit(m.Run())
 }
 
 func TestExecCommandError(t *testing.T) {
