@@ -254,6 +254,22 @@ func postInstallDDOTExtension(ctx HookContext) (err error) {
 	// Write otel-config.yaml - best effort, ignore errors
 	_ = writeDDOTExtensionOTelConfig(extensionPath)
 
+	// Ensure the dd-agent user and group exist
+	if err = user.EnsureAgentUserAndGroup(ctx, "/opt/datadog-agent"); err != nil {
+		return fmt.Errorf("failed to create dd-agent user and group: %v", err)
+	}
+
+	// Ensure directories and files exist and have correct permissions
+	if err = ddotDirectories.Ensure(ctx); err != nil {
+		return fmt.Errorf("failed to create DDOT directories: %v", err)
+	}
+	if err = ddotPackagePermissions.Ensure(ctx, extensionPath); err != nil {
+		return fmt.Errorf("failed to set DDOT extension ownerships: %v", err)
+	}
+	if err = ddotConfigPermissionsOCI.Ensure(ctx, "/etc/datadog-agent"); err != nil {
+		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
+	}
+
 	if err := enableOtelCollectorConfig(ctx); err != nil {
 		return fmt.Errorf("failed to enable otelcollector in datadog.yaml: %v", err)
 	}
@@ -281,6 +297,7 @@ func preRemoveDDOTExtension(ctx HookContext) error {
 	_ = agentDDOTService.StopStable(ctx)
 	_ = agentDDOTService.DisableStable(ctx)
 	_ = agentDDOTService.RemoveStable(ctx)
+	_ = disableOtelCollectorConfigCommon(datadogYamlPath)
 
 	return nil
 }

@@ -398,7 +398,7 @@ func preInstallDDOTExtension(_ HookContext) error {
 
 // postInstallDDOTExtension sets up the DDOT extension after files are extracted
 // IMPORTANT: This hook does NOT restart the main Agent services. The Agent must be
-// manually restarted after extension installation for otelcollector config to take effect.
+// restarted externally (by setup scripts or experiment workers) for otelcollector config to take effect.
 func postInstallDDOTExtension(ctx HookContext) error {
 	extensionPath := filepath.Join(ctx.PackagePath, "ext", ctx.Extension)
 
@@ -408,12 +408,6 @@ func postInstallDDOTExtension(ctx HookContext) error {
 
 	if err := enableOtelCollectorConfigWindows(ctx.Context); err != nil {
 		return fmt.Errorf("failed to enable otelcollector: %w", err)
-	}
-
-	// Restart core agent to pick up otelcollector config
-	// The DDOT service needs the core agent listening on port 5009 for config sync
-	if err := windowssvc.NewWinServiceManager().RestartAgentServices(ctx.Context); err != nil {
-		return fmt.Errorf("failed to restart agent services: %w", err)
 	}
 
 	binaryPath := filepath.Join(extensionPath, "embedded", "bin", "otel-agent.exe")
@@ -471,7 +465,6 @@ func preRemoveDDOTExtension(ctx HookContext) error {
 	_ = stopServiceIfExists(otelServiceName)
 	_ = deleteServiceIfExists(otelServiceName)
 	_ = disableOtelCollectorConfigWindows()
-	_ = windowssvc.NewWinServiceManager().RestartAgentServices(ctx.Context)
 
 	return nil
 }
