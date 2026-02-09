@@ -12,7 +12,7 @@ modules:
     - ./pkg
     - ./cmd
     - ./comp
-  cmd/GoTracedApp: ignored
+  cmd/go_traced_app: default
   comp/anomalydetection/recorder/def:
     used_by_otel: true
   comp/api/api/def:
