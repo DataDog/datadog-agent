@@ -223,7 +223,6 @@ func TestStoreInsertEndpointSlice(t *testing.T) {
 }
 
 func TestEndpointSlices_CELSelector(t *testing.T) {
-	// Template 1: Only production namespace
 	tpl1 := integration.Config{
 		Name: "prod-check",
 		CELSelector: workloadfilter.Rules{
@@ -231,7 +230,6 @@ func TestEndpointSlices_CELSelector(t *testing.T) {
 		},
 	}
 
-	// Template 2: Only redis endpoints
 	tpl2 := integration.Config{
 		Name: "redis-check",
 		CELSelector: workloadfilter.Rules{
@@ -262,9 +260,9 @@ func TestEndpointSlices_CELSelector(t *testing.T) {
 	port80 := int32(80)
 	portName := "http"
 
-	// Create dummy EndpointSlices for each service
 	prodRedis := &discv1.EndpointSlice{
 		ObjectMeta: metav1.ObjectMeta{
+			UID:       types.UID("prod-redis-uid"),
 			Name:      "redis-abc",
 			Namespace: "production",
 			Labels: map[string]string{
@@ -277,6 +275,7 @@ func TestEndpointSlices_CELSelector(t *testing.T) {
 
 	devRedis := &discv1.EndpointSlice{
 		ObjectMeta: metav1.ObjectMeta{
+			UID:       types.UID("dev-redis-uid"),
 			Name:      "redis-xyz",
 			Namespace: "development",
 			Labels: map[string]string{
@@ -289,6 +288,7 @@ func TestEndpointSlices_CELSelector(t *testing.T) {
 
 	prodMongo := &discv1.EndpointSlice{
 		ObjectMeta: metav1.ObjectMeta{
+			UID:       types.UID("prod-mongo-uid"),
 			Name:      "mongo-abc",
 			Namespace: "production",
 			Labels: map[string]string{
@@ -301,6 +301,7 @@ func TestEndpointSlices_CELSelector(t *testing.T) {
 
 	devMongo := &discv1.EndpointSlice{
 		ObjectMeta: metav1.ObjectMeta{
+			UID:       types.UID("dev-mongo-uid"),
 			Name:      "mongo-xyz",
 			Namespace: "development",
 			Labels: map[string]string{
@@ -460,7 +461,7 @@ func TestEndpointSlices_StoreGenerateConfigs(t *testing.T) {
 			epSliceConfigs: map[string]*epSliceConfig{
 				"ns1/ep1": {
 					templates:     []integration.Config{tpl1},
-					slices:        map[string]*discv1.EndpointSlice{string(slice1.UID): slice1},
+					slices:        map[string]*discv1.EndpointSlice{},
 					shouldCollect: false,
 				},
 			},
@@ -578,13 +579,13 @@ func TestEndpointSliceChecksFromTemplateWithResolveMode(t *testing.T) {
 	}{
 		{
 			name:               "Auto mode",
-			resolveMode:        "auto",
+			resolveMode:        kubeEndpointResolveAuto,
 			expectedNodeNames:  []string{"node1", "node2"},
 			expectedServiceIDs: []string{"kube_endpoint_uid://ns1/ep1/10.0.0.1", "kube_endpoint_uid://ns1/ep1/10.0.0.2"},
 		},
 		{
 			name:               "IP mode",
-			resolveMode:        "ip",
+			resolveMode:        kubeEndpointResolveIP,
 			expectedNodeNames:  []string{"", ""},
 			expectedServiceIDs: []string{"kube_endpoint_uid://ns1/ep1/10.0.0.1", "kube_endpoint_uid://ns1/ep1/10.0.0.2"},
 		},
