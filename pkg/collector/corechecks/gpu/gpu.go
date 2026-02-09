@@ -11,6 +11,7 @@ package gpu
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -413,6 +414,10 @@ func (c *Check) emitSingleMetric(metric *nvidia.Metric, snd sender.Sender, curre
 
 	metricName := gpuMetricsNs + metric.Name
 	allTags := append(append(deviceTags, metricTags...), metric.Tags...)
+
+	if strings.Contains(metricName, "sm_active") {
+		log.Warnf("sm_active metric: %s, value: %f, tags: %v", metricName, metric.Value, allTags)
+	}
 
 	// Use the current execution time as the timestamp for the metrics, that way we can ensure that the metrics are aligned with the check interval.
 	// We need this to ensure weighted metrics are calibrated correctly.
