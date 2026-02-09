@@ -470,15 +470,8 @@ func preRemoveDDOTExtension(ctx HookContext) error {
 	// Best effort - ignore errors
 	_ = stopServiceIfExists(otelServiceName)
 	_ = deleteServiceIfExists(otelServiceName)
-
-	if err := disableOtelCollectorConfigWindows(); err != nil {
-		log.Warnf("failed to disable otelcollector: %s", err)
-	}
-
-	// Restart core agent to pick up config changes
-	if err := windowssvc.NewWinServiceManager().RestartAgentServices(ctx.Context); err != nil {
-		log.Warnf("failed to restart agent services: %s", err)
-	}
+	_ = disableOtelCollectorConfigWindows()
+	_ = windowssvc.NewWinServiceManager().RestartAgentServices(ctx.Context)
 
 	return nil
 }

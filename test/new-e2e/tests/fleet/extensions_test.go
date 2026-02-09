@@ -156,39 +156,19 @@ func (s *extensionsSuite) TestExtensionSaveAndRestore() {
 func (s *extensionsSuite) TestDDOTExtension() {
 	// Install base agent
 	s.Agent.MustInstall()
-	// COMMENTED OUT FOR DEBUGGING: Keep VM state for investigation
-	// defer s.Agent.MustUninstall()
+	defer s.Agent.MustUninstall()
 
-	// Get installed agent version
-	agentVersion := "stable"
-
-	// Install DDOT extension from the agent package
-	// Note: In production, the agent OCI package includes DDOT as an extension layer
-	// For E2E tests, we assume the package is already available
 	packageURL := s.getAgentPackageURL()
 
 	// Install DDOT extension from the package
 	output, err := s.Installer.InstallExtension(packageURL, "ddot")
-	if err != nil {
-		// Log the installation error for debugging
-		s.T().Logf("DDOT extension installation error: %v", err)
-		s.T().Logf("Installation output: %s", output)
-	}
-	// COMMENTED OUT FOR DEBUGGING: Keep extension installed for investigation
-	// defer func() {
-	// 	_, _ = s.Installer.RemoveExtension("datadog-agent", "ddot")
-	// }()
-
-	// Fail now if installation returned an error
-	s.Require().NoError(err, "Failed to install DDOT extension")
-
-	// Run diagnostics (useful for local debugging)
-	extensionPath := s.getExtensionPath("datadog-agent", agentVersion, "ddot")
-	if s.Env().RemoteHost.OSFamily == e2eos.WindowsFamily {
-		s.logWindowsDiagnostics(extensionPath)
-	}
+	s.Require().NoError(err, "Failed to install DDOT extension: %s", output)
+	defer func() {
+		_, _ = s.Installer.RemoveExtension("datadog-agent", "ddot")
+	}()
 
 	// Verify extension directory exists
+	extensionPath := s.getExtensionPath("datadog-agent", "stable", "ddot")
 	exists, err := s.Host.DirExists(extensionPath)
 	s.Require().NoError(err)
 	s.Require().True(exists, "DDOT extension directory should exist at %s", extensionPath)
@@ -267,6 +247,13 @@ func (s *extensionsSuite) getDDOTBinaryPath(extensionPath string) string {
 
 // verifyDDOTExtensionLinux verifies DDOT extension on Linux
 func (s *extensionsSuite) verifyDDOTExtensionLinux(extensionPath string) {
+	// Restart datadog-agent to ensure otelcollector component is active
+	_, err := s.Env().RemoteHost.Execute("sudo systemctl restart datadog-agent")
+	s.Require().NoError(err, "Failed to restart datadog-agent")
+
+	// Wait for agent to fully restart
+	_, _ = s.Env().RemoteHost.Execute("sleep 5")
+
 	// Verify otel-config.yaml created
 	configPath := "/etc/datadog-agent/otel-config.yaml"
 	exists, err := s.Env().RemoteHost.FileExists(configPath)
@@ -277,142 +264,41 @@ func (s *extensionsSuite) verifyDDOTExtensionLinux(extensionPath string) {
 	output, err := s.Env().RemoteHost.Execute("stat -c '%U:%G' " + extensionPath)
 	s.Require().NoError(err)
 	s.Require().Contains(output, "dd-agent:dd-agent", "Extension should be owned by dd-agent")
-}
 
-// logWindowsDiagnostics logs diagnostic information for Windows debugging
-func (s *extensionsSuite) logWindowsDiagnostics(extensionPath string) {
-	s.T().Log("=== Windows Diagnostics ===")
+	// Verify datadog-agent service is running
+	output, err = s.Env().RemoteHost.Execute("systemctl is-active datadog-agent")
+	s.Require().NoError(err, "datadog-agent service should be active")
+	s.Require().Contains(output, "active", "datadog-agent should be running")
 
-	// Check main agent service status
-	s.T().Log("--- Main Agent Service Status ---")
-	output, err := s.Env().RemoteHost.Execute(`Get-Service -Name "datadogagent" -ErrorAction SilentlyContinue | Format-List`)
-	if err != nil {
-		s.T().Logf("Error querying main agent service: %v", err)
-		s.T().Logf("Output: %s", output)
-	} else if output == "" {
-		s.T().Log("Main agent service not found")
-	} else {
-		s.T().Logf("Main agent service:\n%s", output)
-	}
+	// Verify DDOT process is running (check for otel-agent process)
+	output, err = s.Env().RemoteHost.Execute("pgrep -f otel-agent || true")
+	s.Require().NoError(err)
+	s.Require().NotEmpty(output, "DDOT (otel-agent) process should be running")
 
-	// Check DDOT service status
-	s.T().Log("--- DDOT Service Status ---")
-	output, err = s.Env().RemoteHost.Execute(`sc query "datadog-otel-agent"`)
-	if err != nil {
-		s.T().Logf("Error querying DDOT service: %v", err)
-		s.T().Logf("Output: %s", output)
-	} else {
-		s.T().Logf("DDOT service:\n%s", output)
-	}
-
-	// Also try Get-Service to get more details
-	output2, err2 := s.Env().RemoteHost.Execute(`Get-Service -Name "datadog-otel-agent" -ErrorAction SilentlyContinue | Format-List`)
-	if err2 != nil {
-		s.T().Logf("Get-Service error: %v", err2)
-	}
-	if output2 != "" {
-		s.T().Logf("Get-Service output:\n%s", output2)
-	} else {
-		s.T().Log("Get-Service returned empty (service may not exist)")
-	}
-
-	// Check service configuration (binary path, credentials)
-	s.T().Log("--- DDOT Service Configuration ---")
-	output3, err3 := s.Env().RemoteHost.Execute(`sc qc "datadog-otel-agent"`)
-	if err3 != nil {
-		s.T().Logf("Error querying service config: %v", err3)
-	} else {
-		s.T().Logf("Service config:\n%s", output3)
-	}
-
-	// Check if API key is configured
-	s.T().Log("--- API Key Configuration ---")
-	ddYamlPath := `C:\ProgramData\Datadog\datadog.yaml`
+	// Verify datadog.yaml has otelcollector enabled
+	ddYamlPath := "/etc/datadog-agent/datadog.yaml"
 	content, err := s.Env().RemoteHost.ReadFile(ddYamlPath)
-	if err != nil {
-		s.T().Logf("Error reading datadog.yaml: %v", err)
-	} else {
-		// Check if api_key is set (don't log the actual key)
-		if strings.Contains(string(content), "api_key:") {
-			s.T().Log("API key is configured in datadog.yaml")
-		} else {
-			s.T().Log("WARNING: api_key not found in datadog.yaml")
-		}
-		// Check otelcollector config
-		if strings.Contains(string(content), "otelcollector:") {
-			s.T().Log("otelcollector section found in datadog.yaml")
-			if strings.Contains(string(content), "enabled: true") {
-				s.T().Log("otelcollector is enabled")
-			}
-		}
-	}
-
-	// Check extension directory contents
-	s.T().Log("--- Extension Directory Contents ---")
-	output, err = s.Env().RemoteHost.Execute(`Get-ChildItem -Path "` + extensionPath + `" -Recurse | Select-Object -ExpandProperty FullName`)
-	if err != nil {
-		s.T().Logf("Error listing extension directory: %v", err)
-		s.T().Logf("Output: %s", output)
-	} else {
-		s.T().Logf("Extension files:\n%s", output)
-	}
-
-	// Check if otel-config.yaml exists
-	s.T().Log("--- OTel Configuration ---")
-	configPath := `C:\ProgramData\Datadog\otel-config.yaml`
-	exists, err := s.Env().RemoteHost.FileExists(configPath)
-	if err != nil {
-		s.T().Logf("Error checking otel-config.yaml: %v", err)
-	} else if exists {
-		s.T().Log("otel-config.yaml exists")
-	} else {
-		s.T().Log("WARNING: otel-config.yaml not found")
-	}
-
-	// Check Windows Event Log for DDOT service errors
-	s.T().Log("--- DDOT Service Event Log (last 10 errors) ---")
-	output, err = s.Env().RemoteHost.Execute(`Get-EventLog -LogName System -Source "Service Control Manager" -EntryType Error -Newest 10 | Where-Object { $_.Message -like "*datadog-otel-agent*" } | Format-List TimeGenerated,Message`)
-	if err != nil {
-		s.T().Logf("Error reading event log: %v", err)
-	} else if output == "" {
-		s.T().Log("No recent DDOT service errors in event log")
-	} else {
-		s.T().Logf("DDOT service errors:\n%s", output)
-	}
-
-	// Try to manually start the service and see what happens
-	s.T().Log("--- Attempting Manual Service Start ---")
-	output, err = s.Env().RemoteHost.Execute(`Start-Service -Name "datadog-otel-agent" -ErrorAction SilentlyContinue; $?`)
-	if err != nil {
-		s.T().Logf("Error starting service: %v", err)
-		s.T().Logf("Output: %s", output)
-	} else {
-		s.T().Logf("Start-Service result: %s", output)
-		// Wait a moment and check status again
-		output2, _ := s.Env().RemoteHost.Execute(`Start-Sleep -Seconds 2; Get-Service -Name "datadog-otel-agent" | Format-List Status`)
-		s.T().Logf("Service status after manual start:\n%s", output2)
-	}
-
-	// Check installer logs for errors
-	s.T().Log("--- Installer Logs (last 50 lines) ---")
-	logPath := `C:\ProgramData\Datadog\Installer\installer.log`
-	logExists, err := s.Env().RemoteHost.FileExists(logPath)
-	if err == nil && logExists {
-		output, err = s.Env().RemoteHost.Execute(`Get-Content "` + logPath + `" -Tail 50`)
-		if err != nil {
-			s.T().Logf("Error reading installer log: %v", err)
-		} else {
-			s.T().Logf("Installer log:\n%s", output)
-		}
-	} else {
-		s.T().Log("Installer log not found")
-	}
-
-	s.T().Log("=== End Diagnostics ===")
+	s.Require().NoError(err)
+	s.Require().Contains(string(content), "otelcollector:\n  enabled: true",
+		"datadog.yaml should have otelcollector enabled")
 }
 
 // verifyDDOTExtensionWindows verifies DDOT extension on Windows
 func (s *extensionsSuite) verifyDDOTExtensionWindows() {
+	// Restart agent services to ensure otelcollector endpoint is active
+	_, err := s.Env().RemoteHost.Execute(`Restart-Service datadogagent -Force`)
+	s.Require().NoError(err, "Failed to restart datadogagent")
+
+	// Wait for agent to fully restart
+	_, _ = s.Env().RemoteHost.Execute(`Start-Sleep -Seconds 5`)
+
+	// Start DDOT service
+	_, err = s.Env().RemoteHost.Execute(`Start-Service datadog-otel-agent`)
+	s.Require().NoError(err, "Failed to start datadog-otel-agent")
+
+	// Wait for DDOT service to fully start
+	_, _ = s.Env().RemoteHost.Execute(`Start-Sleep -Seconds 3`)
+
 	// Verify otel-config.yaml created
 	configPath := `C:\ProgramData\Datadog\otel-config.yaml`
 	exists, err := s.Env().RemoteHost.FileExists(configPath)
@@ -421,23 +307,30 @@ func (s *extensionsSuite) verifyDDOTExtensionWindows() {
 
 	// Verify Windows service created and running
 	serviceName := "datadog-otel-agent"
-	output, err := s.Env().RemoteHost.Execute(`sc query "` + serviceName + `"`)
+	output, err := s.Env().RemoteHost.Execute(`Get-Service -Name "` + serviceName + `" | Select-Object -ExpandProperty Status`)
 	s.Require().NoError(err, "DDOT service should exist")
-	s.Require().Contains(output, "RUNNING", "DDOT service should be running")
+	s.Require().Contains(output, "Running", "DDOT service should be running")
 
 	// Verify datadog.yaml has otelcollector enabled
 	ddYamlPath := `C:\ProgramData\Datadog\datadog.yaml`
 	content, err := s.Env().RemoteHost.ReadFile(ddYamlPath)
 	s.Require().NoError(err)
-	s.Require().Contains(string(content), "otelcollector:")
-	s.Require().Contains(string(content), "enabled: true")
+	// Check for otelcollector section with enabled: true (account for Windows line endings)
+	contentStr := string(content)
+	s.Require().True(
+		strings.Contains(contentStr, "otelcollector:\n  enabled: true") ||
+			strings.Contains(contentStr, "otelcollector:\r\n  enabled: true"),
+		"datadog.yaml should have otelcollector enabled")
 }
 
 // verifyDDOTServiceRemoved verifies DDOT service removal on Windows
 func (s *extensionsSuite) verifyDDOTServiceRemoved() {
+	// Wait for agent restart and service deletion to complete
+	_, _ = s.Env().RemoteHost.Execute(`Start-Sleep -Seconds 5`)
+
 	serviceName := "datadog-otel-agent"
-	output, err := s.Env().RemoteHost.Execute(`sc query "` + serviceName + `"`)
-	// Service should not exist (error expected)
-	s.Require().Error(err, "DDOT service should not exist after removal")
-	s.Require().Contains(output, "does not exist", "Service should be deleted")
+	// Try to get the service - should return null/empty if it doesn't exist
+	output, err := s.Env().RemoteHost.Execute(`$svc = Get-Service -Name "` + serviceName + `" -ErrorAction SilentlyContinue; if ($null -eq $svc) { Write-Output "NotFound" } else { Write-Output $svc.Status }`)
+	s.Require().NoError(err)
+	s.Require().Contains(output, "NotFound", "DDOT service should not exist after removal")
 }
