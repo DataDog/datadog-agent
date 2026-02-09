@@ -41,20 +41,28 @@ func newEndpointSliceStore() *endpointSliceStore {
 	return &endpointSliceStore{epSliceConfigs: make(map[string]*epSliceConfig)}
 }
 
+// epSliceConfig groups file-based config templates with the EndpointSlices that match them.
+// Since file configs target services by namespace/name (not annotations), and a single service
+// can have multiple EndpointSlices (N:1 relationship), we track all matching slices to generate
+// one config per endpoint IP.
+//
+// The slices map uses UID as key for stable tracking across EndpointSlice updates, and
+// shouldCollect indicates whether any slices are currently available for config generation.
 type epSliceConfig struct {
-	templates []integration.Config
-	// slice UID to EndpointSlice mapping
-	slices        map[string]*discv1.EndpointSlice
-	shouldCollect bool
-	resolveMode   endpointResolveMode
+	templates   []integration.Config
+	slices      map[string]*discv1.EndpointSlice
+	resolveMode endpointResolveMode
 }
 
 func newEpSliceConfig() *epSliceConfig {
 	return &epSliceConfig{
-		templates:     []integration.Config{},
-		shouldCollect: false,
-		resolveMode:   kubeEndpointResolveAuto, // default to auto mode
+		templates:   []integration.Config{},
+		resolveMode: kubeEndpointResolveAuto, // default to auto mode
 	}
+}
+
+func (s *epSliceConfig) shouldCollect() bool {
+	return len(s.slices) > 0
 }
 
 // KubeEndpointSlicesFileConfigProvider generates endpoints checks from check configurations defined in files.
@@ -66,7 +74,7 @@ type KubeEndpointSlicesFileConfigProvider struct {
 }
 
 // NewKubeEndpointSlicesFileConfigProvider returns a new KubeEndpointSlicesFileConfigProvider
-func NewKubeEndpointSlicesFileConfigProvider(*pkgconfigsetup.ConfigurationProviders, *telemetry.Store) (types.ConfigProvider, error) {
+func NewKubeEndpointSlicesFileConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, _ *telemetry.Store) (types.ConfigProvider, error) {
 	templates, _, err := ReadConfigFiles(WithAdvancedADOnly)
 	if err != nil {
 		return nil, err
@@ -296,7 +304,6 @@ func (s *endpointSliceStore) insertSlice(slice *discv1.EndpointSlice) bool {
 			epSliceConfig.slices = make(map[string]*discv1.EndpointSlice)
 		}
 		epSliceConfig.slices[string(slice.UID)] = slice
-		epSliceConfig.shouldCollect = true
 		return true
 	}
 
@@ -307,7 +314,6 @@ func (s *endpointSliceStore) insertSlice(slice *discv1.EndpointSlice) bool {
 			celEpSliceConfig.slices = make(map[string]*discv1.EndpointSlice)
 		}
 		celEpSliceConfig.slices[string(slice.UID)] = slice
-		celEpSliceConfig.shouldCollect = true
 		return true
 	}
 
@@ -315,7 +321,6 @@ func (s *endpointSliceStore) insertSlice(slice *discv1.EndpointSlice) bool {
 }
 
 // deleteSlice handles endpointslice objects deletion.
-// it marks the corresponding config as not collectable.
 func (s *endpointSliceStore) deleteSlice(slice *discv1.EndpointSlice) {
 	s.Lock()
 	defer s.Unlock()
@@ -323,10 +328,6 @@ func (s *endpointSliceStore) deleteSlice(slice *discv1.EndpointSlice) {
 	celEpSliceConfig, celFound := s.epSliceConfigs[celEndpointSliceID]
 	if celFound {
 		delete(celEpSliceConfig.slices, string(slice.UID))
-		if len(celEpSliceConfig.slices) == 0 {
-			// No more endpointslice object to monitor for this config, mark it as not collectable
-			celEpSliceConfig.shouldCollect = false
-		}
 	}
 
 	serviceName := slice.Labels[kubernetesServiceNameLabelProvider]
@@ -337,10 +338,6 @@ func (s *endpointSliceStore) deleteSlice(slice *discv1.EndpointSlice) {
 	epSliceConfig, found := s.epSliceConfigs[epSliceID(slice.Namespace, serviceName)]
 	if found {
 		delete(epSliceConfig.slices, string(slice.UID))
-		if len(epSliceConfig.slices) == 0 {
-			// No more endpointslice object to monitor for this config, mark it as not collectable
-			epSliceConfig.shouldCollect = false
-		}
 	}
 }
 
@@ -358,7 +355,7 @@ func (s *endpointSliceStore) generateConfigs() []integration.Config {
 
 	configs := []integration.Config{}
 	for _, epSliceConfig := range s.epSliceConfigs {
-		if epSliceConfig.shouldCollect {
+		if epSliceConfig.shouldCollect() {
 			for _, tpl := range epSliceConfig.templates {
 				for _, slice := range epSliceConfig.slices {
 					configs = append(configs, endpointSliceChecksFromTemplate(tpl, slice, epSliceConfig.resolveMode)...)
