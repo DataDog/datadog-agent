@@ -17,12 +17,8 @@ import (
 
 const minImageVolumeKubeVersion = "v1.33.0"
 
-// IsImageVolumeSupported returns whether the current Kubernetes API server version
-// supports image volumes (VolumeSource.Image / ImageVolumeSource).
-//
-// Kubernetes image volumes are supported in Kubernetes v1.31+, but subPath support was only added in v1.33.0.
-// To be even more accurate, we may check container runtime compatibility in the future,
-// but for now this is a good enough approximation.
+// IsImageVolumeSupported returns whether the Kubernetes API server version
+// supports image volumes and subPath (Kubernetes v1.33.0+).
 func IsImageVolumeSupported(serverVersion *version.Info) bool {
 	sv, ok := normalizeKubeSemver(serverVersion)
 	if !ok {
