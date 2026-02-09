@@ -188,7 +188,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}) erro
 		defer e.wg.Done()
 
 		for range reloadChan {
-			if err := e.ReloadPolicies(); err != nil {
+			if err := e.ReloadPolicies(true); err != nil {
 				seclog.Errorf("failed to reload policies: %s", err)
 			}
 		}
@@ -199,10 +199,10 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}) erro
 		defer e.wg.Done()
 
 		for notification := range e.policyLoader.NewPolicyReady() {
-			// Reload policies regardless of whether the notification is silent
-			// The silent flag only affects heartbeat reporting
-			_ = notification
-			if err := e.ReloadPolicies(); err != nil {
+			// For silent reloads (SBOM updates), don't send the ruleset_loaded report
+			// For normal reloads (user/RC updates), send the report
+			sendReport := !notification.Silent
+			if err := e.ReloadPolicies(sendReport); err != nil {
 				seclog.Errorf("failed to reload policies: %s", err)
 			}
 		}
@@ -366,10 +366,10 @@ func (e *RuleEngine) StartRunningMetrics(ctx context.Context) {
 }
 
 // ReloadPolicies reloads the policies
-func (e *RuleEngine) ReloadPolicies() error {
+func (e *RuleEngine) ReloadPolicies(sendLoadedReport bool) error {
 	seclog.Infof("reload policies")
 
-	return e.LoadPolicies(e.policyProviders, true)
+	return e.LoadPolicies(e.policyProviders, sendLoadedReport)
 }
 
 // AddPolicyProvider add a provider

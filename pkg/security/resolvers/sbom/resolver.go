@@ -343,8 +343,8 @@ func (r *Resolver) generateSBOMPolicyDef(containerID containerutils.ContainerID,
 			Expression: "open.file.path in " + macroName,
 			Silent:     true, // These are internal tracking rules
 			Tags: map[string]string{
-				"sbom_container":     string(containerID),
-				"sbom_package_name":  pkg.Package.Name,
+				"sbom_container":       string(containerID),
+				"sbom_package_name":    pkg.Package.Name,
 				"sbom_package_version": pkg.Package.Version,
 			},
 		})
