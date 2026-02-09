@@ -156,8 +156,11 @@ deploy_containers-a7-full-internal:
   extends: .deploy_containers-a7-full-base
   rules:
     !reference [.on_deploy_internal_manual_final]
-  variables:
-    IMG_SUFFIX: "full"
+  parallel:
+    matrix:
+      - IMG_SUFFIX:
+          - "full"
+          - "fips-full"
 
 deploy_containers-a7-fips_internal:
   extends: .deploy_containers-a7-base-fips
