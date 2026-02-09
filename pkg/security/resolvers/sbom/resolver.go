@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/avast/retry-go/v4"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
+	"github.com/samber/lo"
 	"github.com/skydive-project/go-debouncer"
 	"go.uber.org/atomic"
 
@@ -35,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -151,6 +154,10 @@ type Resolver struct {
 	sbomsCacheMiss        *atomic.Uint64
 
 	wmeta workloadmeta.Component
+
+	// Callback for when SBOM policies should be generated
+	policyGeneratorCb func(workloadKey string, containerID containerutils.ContainerID, policyDef *rules.PolicyDef)
+	policyGenLock     sync.RWMutex
 }
 
 type sbomCollector interface {
@@ -298,9 +305,64 @@ func (r *Resolver) generateSBOM(root string) ([]sbomtypes.PackageWithInstalledFi
 		return nil, fmt.Errorf("failed to generate SBOM for %s: %w", root, err)
 	}
 
-	seclog.Infof("SBOM successfully generated from %s", root)
+	seclog.Infof("SBOM successfully generated from %s with %d packages", root, len(report))
 
 	return report, nil
+}
+
+// generateSBOMPolicyDef generates a policy definition from SBOM packages
+func (r *Resolver) generateSBOMPolicyDef(containerID containerutils.ContainerID, packages []sbomtypes.PackageWithInstalledFiles) *rules.PolicyDef {
+	var sbomMacros []*rules.MacroDefinition
+	var sbomRules []*rules.RuleDefinition
+	fileCount := 0
+
+	for _, pkg := range packages {
+		if len(pkg.InstalledFiles) == 0 {
+			continue
+		}
+
+		fileCount += len(pkg.InstalledFiles)
+		pkgName := strings.ReplaceAll(pkg.Package.Name, "-", "_")
+		pkgName = strings.ReplaceAll(pkgName, ".", "_")
+		macroName := "sbom_pkg_files_" + strings.ToLower(pkgName)
+
+		// Build the macro expression with the list of files
+		macroExpression := "[ " + strings.Join(lo.Map(pkg.InstalledFiles, func(file string, i int) string {
+			return `"` + file + `"`
+		}), ", ") + " ]"
+
+		sbomMacros = append(sbomMacros, &rules.MacroDefinition{
+			ID:         macroName,
+			Expression: macroExpression,
+		})
+
+		// Create a rule that detects when files from this package are opened
+		ruleName := "sbom_detect_file_in_pkg_" + strings.ToLower(pkgName)
+		sbomRules = append(sbomRules, &rules.RuleDefinition{
+			ID:         ruleName,
+			Expression: "open.file.path in " + macroName,
+			Silent:     true, // These are internal tracking rules
+			Tags: map[string]string{
+				"sbom_container":     string(containerID),
+				"sbom_package_name":  pkg.Package.Name,
+				"sbom_package_version": pkg.Package.Version,
+			},
+		})
+
+		seclog.Debugf("Generated SBOM macro: %s with %d files", macroName, len(pkg.InstalledFiles))
+	}
+
+	if len(sbomMacros) == 0 {
+		return nil
+	}
+
+	seclog.Infof("Generated %d SBOM macros and %d rules for container %s (%d total files)",
+		len(sbomMacros), len(sbomRules), containerID, fileCount)
+
+	return &rules.PolicyDef{
+		Macros: sbomMacros,
+		Rules:  sbomRules,
+	}
 }
 
 func (r *Resolver) doScan(sbom *SBOM) ([]sbomtypes.PackageWithInstalledFiles, error) {
@@ -481,6 +543,20 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 	r.removePendingScan(sb.ContainerID)
 
 	seclog.Infof("new sbom generated for '%s': %d files added", sb.ContainerID, data.files.len())
+
+	// Notify policy generator if callback is set
+	r.policyGenLock.RLock()
+	cb := r.policyGeneratorCb
+	r.policyGenLock.RUnlock()
+
+	if cb != nil {
+		// Generate policy definition from SBOM packages
+		policyDef := r.generateSBOMPolicyDef(sb.ContainerID, report)
+		if policyDef != nil {
+			cb(string(sb.workloadKey), sb.ContainerID, policyDef)
+		}
+	}
+
 	return nil
 }
 
@@ -630,6 +706,14 @@ func (r *Resolver) deleteSBOM(sbom *SBOM) {
 
 	// should be called under sbom.Lock
 	r.sboms.Remove(sbom.ContainerID)
+}
+
+// SetPolicyGeneratorCallback sets a callback to be called when an SBOM is computed
+// This callback can be used to generate policies based on the SBOM data
+func (r *Resolver) SetPolicyGeneratorCallback(cb func(workloadKey string, containerID containerutils.ContainerID, policyDef *rules.PolicyDef)) {
+	r.policyGenLock.Lock()
+	defer r.policyGenLock.Unlock()
+	r.policyGeneratorCb = cb
 }
 
 // SendStats sends stats
