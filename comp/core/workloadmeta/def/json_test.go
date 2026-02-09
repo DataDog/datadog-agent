@@ -50,25 +50,25 @@ func TestContainerJSONMarshaling(t *testing.T) {
 	err = json.Unmarshal(jsonBytes, &result)
 	require.NoError(t, err)
 
-	// Verify the JSON structure uses camelCase
-	assert.Equal(t, "container", result["kind"])
-	assert.Equal(t, "test-container-123", result["id"])
-	assert.Equal(t, "test-container", result["name"])
-	assert.Equal(t, "default", result["namespace"])
-	assert.Equal(t, "test-host", result["hostname"])
-	assert.Equal(t, float64(1234), result["pid"])
+	// Verify the JSON structure uses Go default capitalized field names
+	assert.Equal(t, "container", result["Kind"])
+	assert.Equal(t, "test-container-123", result["ID"])
+	assert.Equal(t, "test-container", result["Name"])
+	assert.Equal(t, "default", result["Namespace"])
+	assert.Equal(t, "test-host", result["Hostname"])
+	assert.Equal(t, float64(1234), result["PID"])
 
 	// Check nested structures
-	state, ok := result["state"].(map[string]interface{})
+	state, ok := result["State"].(map[string]interface{})
 	assert.True(t, ok)
-	assert.Equal(t, true, state["running"])
+	assert.Equal(t, true, state["Running"])
 
-	image, ok := result["image"].(map[string]interface{})
+	image, ok := result["Image"].(map[string]interface{})
 	assert.True(t, ok)
-	assert.Equal(t, "nginx", image["name"])
-	assert.Equal(t, "latest", image["tag"])
+	assert.Equal(t, "nginx", image["Name"])
+	assert.Equal(t, "latest", image["Tag"])
 
-	labels, ok := result["labels"].(map[string]interface{})
+	labels, ok := result["Labels"].(map[string]interface{})
 	assert.True(t, ok)
 	assert.Equal(t, "test", labels["app"])
 }
@@ -109,25 +109,25 @@ func TestKubernetesPodJSONMarshaling(t *testing.T) {
 	err = json.Unmarshal(jsonBytes, &result)
 	require.NoError(t, err)
 
-	// Verify the JSON structure
-	assert.Equal(t, "kubernetes_pod", result["kind"])
-	assert.Equal(t, "test-pod-123", result["id"])
-	assert.Equal(t, "test-pod", result["name"])
-	assert.Equal(t, "default", result["namespace"])
-	assert.Equal(t, "Running", result["phase"])
-	assert.Equal(t, true, result["ready"])
-	assert.Equal(t, "10.0.0.1", result["ip"])
-	assert.Equal(t, "high", result["priorityClass"])
+	// Verify the JSON structure uses Go default capitalized field names
+	assert.Equal(t, "kubernetes_pod", result["Kind"])
+	assert.Equal(t, "test-pod-123", result["ID"])
+	assert.Equal(t, "test-pod", result["Name"])
+	assert.Equal(t, "default", result["Namespace"])
+	assert.Equal(t, "Running", result["Phase"])
+	assert.Equal(t, true, result["Ready"])
+	assert.Equal(t, "10.0.0.1", result["IP"])
+	assert.Equal(t, "high", result["PriorityClass"])
 
 	// Check containers array
-	containers, ok := result["containers"].([]interface{})
+	containers, ok := result["Containers"].([]interface{})
 	assert.True(t, ok)
 	assert.Len(t, containers, 1)
 
 	container, ok := containers[0].(map[string]interface{})
 	assert.True(t, ok)
-	assert.Equal(t, "container-1", container["id"])
-	assert.Equal(t, "nginx", container["name"])
+	assert.Equal(t, "container-1", container["ID"])
+	assert.Equal(t, "nginx", container["Name"])
 }
 
 func TestWorkloadDumpStructuredResponseJSONMarshaling(t *testing.T) {
@@ -158,8 +158,8 @@ func TestWorkloadDumpStructuredResponseJSONMarshaling(t *testing.T) {
 	err = json.Unmarshal(jsonBytes, &result)
 	require.NoError(t, err)
 
-	// Verify structure
-	entities, ok := result["entities"].(map[string]interface{})
+	// Verify structure uses Go default capitalized field names
+	entities, ok := result["Entities"].(map[string]interface{})
 	assert.True(t, ok)
 
 	containers, ok := entities["container"].([]interface{})
@@ -168,8 +168,8 @@ func TestWorkloadDumpStructuredResponseJSONMarshaling(t *testing.T) {
 
 	container, ok := containers[0].(map[string]interface{})
 	assert.True(t, ok)
-	assert.Equal(t, "container", container["kind"])
-	assert.Equal(t, "test-123", container["id"])
-	assert.Equal(t, "test-container", container["name"])
-	assert.Equal(t, "test-host", container["hostname"])
+	assert.Equal(t, "container", container["Kind"])
+	assert.Equal(t, "test-123", container["ID"])
+	assert.Equal(t, "test-container", container["Name"])
+	assert.Equal(t, "test-host", container["Hostname"])
 }
