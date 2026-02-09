@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	securityprofile "github.com/DataDog/datadog-agent/pkg/security/security_profile"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
@@ -83,7 +84,22 @@ func newFuzzEBPFProbe(tb testing.TB) *EBPFProbe {
 
 	noopSD := &statsd.NoOpClient{}
 
-	processResolver, err := process.NewTestEBPFResolver()
+	// Create shared resolvers that will be used by multiple components
+	timeResolver, err := ktime.NewResolver()
+	if err != nil {
+		tb.Fatalf("failed to create time resolver: %v", err)
+	}
+
+	pathResolver := &path.NoOpResolver{}
+	mountResolver := &mount.NoOpResolver{}
+
+	userGroupResolver, err := usergroup.NewResolver(nil)
+	if err != nil {
+		tb.Fatalf("failed to create usergroup resolver: %v", err)
+	}
+
+	// Create process resolver with shared dependencies
+	processResolver, err := process.NewTestEBPFResolver(timeResolver, pathResolver, mountResolver, userGroupResolver)
 	if err != nil {
 		tb.Fatalf("failed to create test process resolver: %v", err)
 	}
@@ -100,19 +116,14 @@ func newFuzzEBPFProbe(tb testing.TB) *EBPFProbe {
 
 	tagsResolver := tags.NewResolver(nil, nil, nil)
 
-	timeResolver, err := ktime.NewResolver()
-	if err != nil {
-		tb.Fatalf("failed to create time resolver: %v", err)
-	}
-
 	cgroupResolver, err := cgroup.NewResolver(noopSD, nil, dentryResolver)
 	if err != nil {
 		tb.Fatalf("failed to create cgroup resolver: %v", err)
 	}
 
 	ebpfResolvers := &resolvers.EBPFResolvers{
-		MountResolver:     &mount.NoOpResolver{},
-		PathResolver:      &path.NoOpResolver{},
+		MountResolver:     mountResolver,
+		PathResolver:      pathResolver,
 		ProcessResolver:   processResolver,
 		DentryResolver:    dentryResolver,
 		NamespaceResolver: nsResolver,

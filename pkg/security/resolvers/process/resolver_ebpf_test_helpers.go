@@ -23,18 +23,13 @@ import (
 // It initialises all unexported fields that are accessed during event processing
 // (caches, atomic counters, maps) so that methods like UpdateArgsEnvs, AddForkEntry,
 // AddExecEntry, Resolve, ApplyExitEntry, UpdateUID, UpdateGID, etc. do not panic.
-func NewTestEBPFResolver() (*EBPFResolver, error) {
+func NewTestEBPFResolver(
+	timeResolver *stime.Resolver,
+	pathResolver path.ResolverInterface,
+	mountResolver mount.ResolverInterface,
+	userGroupResolver *usergroup.Resolver,
+) (*EBPFResolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU[uint64, *argsEnvsCacheEntry](maxParallelArgsEnvs, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	timeResolver, err := stime.NewResolver()
-	if err != nil {
-		return nil, err
-	}
-
-	userGroupResolver, err := usergroup.NewResolver(nil)
 	if err != nil {
 		return nil, err
 	}
@@ -45,8 +40,8 @@ func NewTestEBPFResolver() (*EBPFResolver, error) {
 		SnapshottedBoundSockets:   make(map[uint32][]model.SnapshottedBoundSocket),
 		argsEnvsCache:             argsEnvsCache,
 		timeResolver:              timeResolver,
-		pathResolver:              &path.NoOpResolver{},
-		mountResolver:             &mount.NoOpResolver{},
+		pathResolver:              pathResolver,
+		mountResolver:             mountResolver,
 		userGroupResolver:         userGroupResolver,
 		hitsStats:                 make(map[string]*atomic.Int64),
 		missStats:                 atomic.NewInt64(0),
