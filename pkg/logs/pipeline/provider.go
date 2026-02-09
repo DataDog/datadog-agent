@@ -373,7 +373,7 @@ func (p *provider) hashOriginToPipeline(origin *message.Origin) uint32 {
 }
 
 // getStableHashKey returns the most stable identifier for an origin,
-// Returns empty string if no stable identifer is available
+// Returns empty string if no stable identifier is available
 func (p *provider) getStableHashKey(origin *message.Origin) string {
 	if origin == nil {
 		return ""
