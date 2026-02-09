@@ -7,61 +7,11 @@ package servicenaming
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// TestLoadAgentConfig_NewFormat tests loading the new query/value format
-func TestLoadAgentConfig_NewFormat(t *testing.T) {
-	yaml := `service_discovery:
-  enabled: true
-  service_definitions:
-    - name: "redis-from-label"
-      query: "container['labels']['app'] == 'redis'"
-      value: "container['labels']['service']"
-    - query: "container['image']['shortname'].startsWith('nginx')"
-      value: "container['image']['shortname']"
-    - query: "true"
-      value: "container['name']"
-`
-	tmpfile := createTempFile(t, yaml)
-
-	config, err := LoadAgentConfig(tmpfile)
-	require.NoError(t, err)
-	assert.True(t, config.Enabled)
-	assert.True(t, config.IsActive())
-	assert.Len(t, config.ServiceDefinitions, 3)
-	// First rule has a name
-	assert.Equal(t, "redis-from-label", config.ServiceDefinitions[0].Name)
-	assert.Equal(t, "container['labels']['app'] == 'redis'", config.ServiceDefinitions[0].Query)
-	assert.Equal(t, "container['labels']['service']", config.ServiceDefinitions[0].Value)
-	// Second rule has no name (optional)
-	assert.Equal(t, "", config.ServiceDefinitions[1].Name)
-}
-
-// TestLoadAgentConfig_FileNotExists tests graceful handling of missing file
-func TestLoadAgentConfig_FileNotExists(t *testing.T) {
-	config, err := LoadAgentConfig("/nonexistent/path.yaml")
-	require.NoError(t, err)
-	assert.Len(t, config.ServiceDefinitions, 0)
-}
-
-// TestLoadAgentConfig_EmptyConfig tests empty config is valid
-func TestLoadAgentConfig_EmptyConfig(t *testing.T) {
-	yaml := `service_discovery:
-  service_definitions: []
-`
-	tmpfile := createTempFile(t, yaml)
-
-	config, err := LoadAgentConfig(tmpfile)
-	require.NoError(t, err)
-	assert.Len(t, config.ServiceDefinitions, 0)
-	assert.False(t, config.IsActive(), "empty config should not be active")
-}
 
 // TestAgentConfig_IsActive tests the IsActive method
 func TestAgentConfig_IsActive(t *testing.T) {
@@ -398,13 +348,4 @@ func TestLoadFromReader_SliceOfMapsInterfaceInterface(t *testing.T) {
 	assert.True(t, config.Enabled)
 	assert.Len(t, config.ServiceDefinitions, 1)
 	assert.Equal(t, "rule2", config.ServiceDefinitions[0].Name)
-}
-
-// Helper function to create temporary YAML file
-func createTempFile(t *testing.T, content string) string {
-	tmpdir := t.TempDir()
-	tmpfile := filepath.Join(tmpdir, "config.yaml")
-	err := os.WriteFile(tmpfile, []byte(content), 0644)
-	require.NoError(t, err)
-	return tmpfile
 }

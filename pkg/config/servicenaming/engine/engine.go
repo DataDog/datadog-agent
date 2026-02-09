@@ -21,18 +21,7 @@ import (
 )
 
 const (
-	// evalTimeout is the maximum time allowed for CEL expression evaluation
-	evalTimeout = 100 * time.Millisecond
-
-	// maxServiceNameLen is the maximum allowed length for service names.
-	// This matches Datadog's service name length limit enforced by the backend platform.
-	// The 100-character limit is consistent across all Datadog products (APM, metrics, logs, RUM)
-	// to ensure service names are properly indexed and displayed in the UI.
-	//
-	// DO NOT change this value without confirming that:
-	// 1. The Datadog backend supports longer service names
-	// 2. All downstream consumers (UI, alerting, etc.) handle longer names
-	// 3. The change is coordinated across all agent features that use service names
+	evalTimeout       = 100 * time.Millisecond
 	maxServiceNameLen = 100
 )
 
@@ -129,8 +118,7 @@ func NewEngine(rules []Rule) (*Engine, error) {
 	}, nil
 }
 
-// Evaluate evaluates rules in order (first-match-wins) and returns the matching result.
-// Runtime errors are logged (rate-limited) and skip the failing rule.
+// Evaluate runs the CEL rules against the input and returns the first matching service discovery result.
 func (e *Engine) Evaluate(ctx context.Context, input CELInput) *ServiceDiscoveryResult {
 	if len(e.rules) == 0 {
 		return nil
@@ -149,8 +137,7 @@ func (e *Engine) Evaluate(ctx context.Context, input CELInput) *ServiceDiscovery
 	return nil
 }
 
-// evaluateRule evaluates a single rule with a dedicated timeout context.
-// Returns nil if the rule doesn't match or encounters an error.
+// evaluateRule evaluates a single CEL rule and returns the service discovery result if it matches, or nil otherwise.
 func (e *Engine) evaluateRule(ctx context.Context, rule compiledRule, vars map[string]any) *ServiceDiscoveryResult {
 	ruleID := getRuleID(rule)
 
@@ -231,8 +218,7 @@ func getRuleID(rule compiledRule) string {
 	return strconv.Itoa(rule.index)
 }
 
-// validateServiceName checks that service names meet Datadog requirements:
-// max 100 chars, alphanumeric plus [-_./:], no leading/trailing whitespace.
+// validateServiceName validates the service name against length, whitespace, and allowed characters rules.
 func validateServiceName(name string) error {
 	if len(name) > maxServiceNameLen {
 		return fmt.Errorf("exceeds maximum length of %d characters (got %d)", maxServiceNameLen, len(name))

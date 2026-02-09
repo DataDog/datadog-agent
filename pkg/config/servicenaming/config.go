@@ -8,10 +8,8 @@ package servicenaming
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/google/cel-go/cel"
-	"gopkg.in/yaml.v3"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/servicenaming/engine"
@@ -195,41 +193,6 @@ func toStringMap(v interface{}) (map[string]interface{}, error) {
 	default:
 		return nil, fmt.Errorf("expected map, got %T", v)
 	}
-}
-
-// LoadAgentConfig loads the agent-level service discovery configuration from a YAML file.
-// Deprecated: Use LoadFromAgentConfig instead, which integrates with the agent's config system.
-// This function is kept for backward compatibility and testing.
-func LoadAgentConfig(path string) (*AgentServiceDiscoveryConfig, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			// No config file = empty config (opt-in: will use legacy detectors)
-			return &AgentServiceDiscoveryConfig{}, nil
-		}
-		return nil, fmt.Errorf("failed to read config file: %w", err)
-	}
-
-	var wrapper struct {
-		ServiceDiscovery AgentServiceDiscoveryConfig `yaml:"service_discovery"`
-	}
-	if err := yaml.Unmarshal(data, &wrapper); err != nil {
-		return nil, fmt.Errorf("failed to parse YAML: %w", err)
-	}
-
-	config := &wrapper.ServiceDiscovery
-
-	// Skip validation when disabled to avoid blocking agent startup
-	// with syntax errors in unused configuration
-	if !config.Enabled {
-		return config, nil
-	}
-
-	if err := config.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid configuration: %w", err)
-	}
-
-	return config, nil
 }
 
 // IsActive returns true if CEL-based service discovery should be used.

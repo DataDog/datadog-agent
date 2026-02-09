@@ -15,7 +15,6 @@ import (
 	"sort"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -28,48 +27,36 @@ import (
 const (
 	subscriberName = "servicenaming-subscriber"
 
-	// cleanupInterval defines how often we check for stale container entries in our cache.
-	// This prevents unbounded memory growth if containers are removed without proper Unset events.
+	// Interval for cleaning up stale container entries to avoid unbounded cache growth.
 	cleanupInterval = 10 * time.Minute
 
-	// maxLabelsForHashing limits the number of labels processed during input hashing.
-	// This prevents DoS attacks from containers with excessive labels.
+	// Maximum number of labels included in input hashing to prevent DoS.
 	maxLabelsForHashing = 1000
 
-	// maxEnvsForHashing limits the number of env vars processed during input hashing.
+	// Maximum number of environment variables included in input hashing.
 	maxEnvsForHashing = 1000
 
-	// maxLabelValueLen limits the length of individual label/env values during hashing.
-	// Values exceeding this are truncated to prevent memory issues.
+	// Maximum length of a single label or env value used for hashing.
+	// Longer values are truncated to limit memory usage.
 	maxLabelValueLen = 10 * 1024 // 10KB
 )
 
 // Subscriber listens to workloadmeta container events and applies CEL-based
-// service naming rules, storing computed service names back into workloadmeta.
+// service naming rules, storing results back into workloadmeta.
 type Subscriber struct {
-	cfg   pkgconfigmodel.Reader
-	wmeta workloadmeta.Component
-	ch    chan workloadmeta.EventBundle
+	cfg    pkgconfigmodel.Reader
+	wmeta  workloadmeta.Component
+	ch     chan workloadmeta.EventBundle
+	engine *engine.Engine
 
-	// engineMu protects the engine field from concurrent access during hot-reload.
-	engineMu sync.RWMutex
-	engine   *engine.Engine
-
-	// mu protects serviceNameCache and inputHashCache from concurrent access.
+	// Protects serviceNameCache and inputHashCache.
 	mu sync.RWMutex
 
-	// serviceNameCache tracks the last service name computed for each container.
-	// Protected by mu.
+	// Last computed service name per container.
 	serviceNameCache map[string]string
 
-	// inputHashCache tracks a hash of the container metadata (labels, envs, image)
-	// used to compute the service name. This detects when container metadata changes.
-	// Protected by mu.
+	// Hash of container metadata (labels, envs, image) used for service name computation.
 	inputHashCache map[string]uint64
-
-	// started tracks whether Start() has been called. This prevents config callbacks
-	// from firing before the subscriber is fully initialized and ready to process events.
-	started atomic.Bool
 }
 
 // NewSubscriber creates a new servicenaming subscriber.
@@ -101,43 +88,11 @@ func NewSubscriber(cfg pkgconfigmodel.Reader, wmeta workloadmeta.Component) (*Su
 		inputHashCache:   make(map[string]uint64),
 	}
 
-	// Register config change callback for hot-reload support
-	// TODO: The config system (pkgconfigmodel.Reader.OnUpdate) doesn't provide a way to
-	// unregister callbacks, which causes a memory leak if the subscriber is stopped and
-	// recreated (e.g., in tests or if future agent features support dynamic component reloading).
-	// For MVP, this is acceptable because:
-	//   1. The subscriber lives as long as the agent process (typically weeks/months)
-	//   2. Config reloads are infrequent (manual updates only)
-	//   3. Memory leaked per callback registration is minimal (~hundreds of bytes)
-	// For production hardening, consider:
-	//   - Adding an unsubscribe mechanism to pkgconfigmodel.Reader
-	//   - Implementing a Stop() method that can unregister the callback
-	//   - Using weak references or callback IDs for lifecycle management
-	cfg.OnUpdate(func(setting string, source pkgconfigmodel.Source, _, _ any, _ uint64) {
-		// Only process config changes after Start() has been called to avoid race conditions
-		// where the callback fires during initialization (before event processing begins).
-		if !sub.started.Load() {
-			log.Debugf("CEL service naming: ignoring config change before subscriber started")
-			return
-		}
-
-		if setting == "service_discovery.enabled" || setting == "service_discovery.service_definitions" {
-			log.Infof("CEL service naming: config changed (%s from %v), reloading rules", setting, source)
-			if err := sub.reloadEngine(); err != nil {
-				log.Warnf("CEL service naming: failed to reload engine after config change: %v", err)
-			}
-		}
-	})
-
 	return sub, nil
 }
 
 // Start processes workloadmeta container events (call as goroutine: go sub.Start(ctx)).
 func (s *Subscriber) Start(ctx context.Context) {
-	// Mark subscriber as started before processing any events or config changes.
-	// This prevents the config reload callback from firing during initialization.
-	s.started.Store(true)
-
 	if s.ch == nil {
 		// Subscribe to SourceAll (runtime + orchestrators). We receive our own SourceServiceDiscovery
 		// events back, but idempotency checks prevent redundant evaluation.
@@ -221,11 +176,7 @@ func (s *Subscriber) processContainer(ctx context.Context, container *workloadme
 	input := buildCELInput(container)
 	engineInput := servicenaming.ToEngineInput(input)
 
-	s.engineMu.RLock()
-	currentEngine := s.engine
-	s.engineMu.RUnlock()
-
-	if currentEngine == nil {
+	if s.engine == nil {
 		if container.CELServiceDiscovery != nil {
 			log.Debugf("CEL service naming: disabled, clearing service discovery for container %s", container.ID)
 			s.clearServiceDiscovery(container)
@@ -234,7 +185,7 @@ func (s *Subscriber) processContainer(ctx context.Context, container *workloadme
 		return
 	}
 
-	result := currentEngine.Evaluate(ctx, engineInput)
+	result := s.engine.Evaluate(ctx, engineInput)
 
 	if result == nil {
 		log.Debugf("CEL service naming: no rule matched for container %s (name=%s, image=%s, labels=%d)",
@@ -426,58 +377,6 @@ func hashContainerInput(container *workloadmeta.Container) uint64 {
 	h.Write([]byte(container.Name))
 
 	return h.Sum64()
-}
-
-// reloadEngine reloads the CEL engine from current config.
-func (s *Subscriber) reloadEngine() error {
-	sdConfig, err := servicenaming.LoadFromAgentConfig(s.cfg)
-	if err != nil {
-		return err
-	}
-
-	if !sdConfig.IsActive() {
-		log.Warn("CEL service naming: config reloaded but is now inactive (disabled or no rules)")
-		s.engineMu.Lock()
-		s.engine = nil
-		s.engineMu.Unlock()
-		s.mu.Lock()
-		s.serviceNameCache = make(map[string]string)
-		s.inputHashCache = make(map[string]uint64)
-		s.mu.Unlock()
-		for _, container := range s.wmeta.ListContainers() {
-			if container.CELServiceDiscovery != nil {
-				s.clearServiceDiscovery(container)
-			}
-		}
-		return nil
-	}
-
-	newEngine, err := sdConfig.CompileEngine()
-	if err != nil {
-		return err
-	}
-
-	if newEngine == nil {
-		log.Warn("CEL service naming: config reloaded but engine is nil")
-		return nil
-	}
-
-	s.engineMu.Lock()
-	s.engine = newEngine
-	s.engineMu.Unlock()
-
-	log.Infof("CEL service naming: engine reloaded successfully with %d rules",
-		len(sdConfig.ServiceDefinitions))
-
-	s.mu.Lock()
-	s.serviceNameCache = make(map[string]string)
-	s.inputHashCache = make(map[string]uint64)
-	s.mu.Unlock()
-	for _, container := range s.wmeta.ListContainers() {
-		s.processContainer(context.Background(), container)
-	}
-
-	return nil
 }
 
 // buildCELInput converts workloadmeta.Container to servicenaming.CELInput.

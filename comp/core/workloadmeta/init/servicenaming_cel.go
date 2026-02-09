@@ -17,20 +17,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// initServiceNaming initializes the CEL-based service naming subscriber if enabled.
-// This function is only available when the 'cel' build tag is set.
+// initServiceNaming initializes the CEL-based service naming subscriber if the feature is enabled in the configuration.
 func initServiceNaming(ctx context.Context, wm workloadmeta.Component, cfg config.Component) error {
 	serviceNamingExplicitlyEnabled := cfg.GetBool("service_discovery.enabled")
 	serviceNamingSub, err := subscriber.NewSubscriber(cfg, wm)
+
 	if err != nil {
-		// Fail fast if user explicitly enabled the feature
+		// Handle initialization errors: block startup if explicitly enabled, otherwise just log a debug message.
 		if serviceNamingExplicitlyEnabled {
 			return fmt.Errorf("CEL service naming is enabled but failed to initialize: %w", err)
 		}
 		log.Debugf("CEL service naming subscriber not initialized: %v", err)
 	} else if serviceNamingSub != nil {
+		// Start the subscriber in a separate goroutine if it was successfully instantiated.
 		go serviceNamingSub.Start(ctx)
 		log.Infof("CEL service naming subscriber started successfully")
+	} else {
+		// Case where no error occurred but the subscriber is nil (e.g., feature disabled or no rules defined).
+		log.Debug("CEL service naming subscriber not created (disabled or no rules configured)")
 	}
 
 	return nil

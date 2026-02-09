@@ -619,8 +619,7 @@ type ContainerProbe struct {
 	InitialDelaySeconds int32
 }
 
-// CELServiceDiscovery contains service discovery information computed by CEL rules.
-// This is populated by the servicenaming subscriber when CEL-based service naming is enabled.
+// CELServiceDiscovery represents service discovery information computed by CEL rules for a Container
 type CELServiceDiscovery struct {
 	// ServiceName is the computed service name from CEL rules
 	ServiceName string
@@ -668,8 +667,7 @@ type Container struct {
 	CgroupPath   string
 	RestartCount int
 
-	// CELServiceDiscovery contains the service name computed by CEL-based service naming rules.
-	// Populated by the servicenaming subscriber when enabled. Nil if not computed.
+	// CELServiceDiscovery contains service discovery information computed by CEL rules.
 	CELServiceDiscovery *CELServiceDiscovery
 }
 
