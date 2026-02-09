@@ -217,13 +217,14 @@ pkg_filegroup(
     srcs = [
         ":hdr_files",
         ":lib_files",
-        ":pc_file",
     ],
+    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
 pkg_install(
     name = "install",
     srcs = [
         ":all_files",
+        ":pc_file",
     ],
 )

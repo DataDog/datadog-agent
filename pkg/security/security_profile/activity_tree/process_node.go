@@ -483,7 +483,7 @@ func (pn *ProcessNode) TagAllNodes(imageTag string, timestamp time.Time) {
 // also, recompute the list of dnsnames and syscalls
 func (pn *ProcessNode) EvictImageTag(imageTag string, DNSNames *utils.StringKeys, SyscallsMask map[int]int) bool {
 	if !pn.HasImageTag(imageTag) {
-		return false // this node don't have the tag, and all his childs/files/dns/etc shouldn't have neither
+		return false // this node doesn't have the tag, and all its children/files/dns/etc shouldn't have it either
 	}
 	IsNodeEmpty := pn.NodeBase.EvictImageTag(imageTag)
 	if IsNodeEmpty {

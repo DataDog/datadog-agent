@@ -10,7 +10,6 @@ package secretsimpl
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -18,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
 func TestGetExecutablePermissionsError(t *testing.T) {
@@ -40,12 +40,7 @@ func setupSecretCommmand(t *testing.T, resolver *secretResolver) {
 	require.NoError(t, err)
 	f.Close()
 
-	exec.Command("powershell", "test/setAcl.ps1",
-		"-file", fmt.Sprintf("\"%s\"", resolver.backendCommand),
-		"-removeAllUser", "0",
-		"-removeAdmin", "0",
-		"-removeLocalSystem", "0",
-		"-addDDuser", "1").Run()
+	filesystem.SetACL(fmt.Sprintf("%q", resolver.backendCommand), false, false, false, true)
 }
 
 func TestGetExecutablePermissionsSuccess(t *testing.T) {

@@ -502,7 +502,7 @@ func TestConfiguredMetricPriority(t *testing.T) {
 
 	// Set up the expected metric order. The first collector in the list should have the highest priority over the rest.
 	desiredMetricPriority := map[string][]CollectorName{
-		"sm_active":         {gpm, sampling, ebpf},
+		"sm_active":         {sampling, ebpf},
 		"process.sm_active": {sampling, ebpf},
 	}
 

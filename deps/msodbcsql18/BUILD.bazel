@@ -103,11 +103,14 @@ pkg_filegroup(
         "@krb5//:all_libs",
         "@krb5//:bin_files",
         "@krb5//:hdr_files",
-        "@krb5//:pc_files",
     ],
+    visibility = ["//packages:__subpackages__"],
 )
 
 pkg_install(
     name = "install",
-    srcs = [":all_files"],
+    srcs = [
+        ":all_files",
+        "@krb5//:pc_files",
+    ],
 )

@@ -6,7 +6,8 @@ instances:
 
   -
     ## @param tegrastats_path - string - optional
-    ## Path to the tegrastats binary.
+    ## Path to the tegrastats binary. Must be an absolute path containing
+    ## only valid Linux path characters.
     ## Defaults to `/usr/bin/tegrastats`
     #
     # tegrastats_path: <PATH_TO_TEGRASTATS_UTILITY>

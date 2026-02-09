@@ -24,6 +24,12 @@ type batch map[string]*podInfo
 
 func (b batch) getOrAddPodInfo(pod *workloadmeta.KubernetesPod) *podInfo {
 	if podInfo, ok := b[pod.Name]; ok {
+		// Refresh the containers list from the current pod state.
+		// This is needed because the first process event for a pod may arrive
+		// before the kubelet has fully populated the pod's container list in
+		// workloadmeta, resulting in an empty containers map that would cause
+		// hasCompleteLanguageInfo() to always return false.
+		podInfo.containers = getContainersFromPod(pod)
 		return podInfo
 	}
 	containers := getContainersFromPod(pod)

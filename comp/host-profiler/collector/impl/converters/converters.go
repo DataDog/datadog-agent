@@ -9,10 +9,10 @@
 package converters
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.opentelemetry.io/collector/confmap"
 )
@@ -23,8 +23,12 @@ func NewFactoryWithoutAgent() confmap.ConverterFactory {
 }
 
 // NewFactoryWithAgent returns a new converterWithAgent factory.
-func NewFactoryWithAgent() confmap.ConverterFactory {
-	return confmap.NewConverterFactory(newConverterWithAgent)
+func NewFactoryWithAgent(c config.Component) confmap.ConverterFactory {
+	newConverterWithAgentWrapper := func(settings confmap.ConverterSettings) confmap.Converter {
+		return newConverterWithAgent(settings, c)
+	}
+
+	return confmap.NewConverterFactory(newConverterWithAgentWrapper)
 }
 
 type confMap = map[string]any
@@ -58,6 +62,13 @@ const (
 	fieldDDAPIKey              = "dd-api-key"
 	fieldAPIKey                = "api_key"
 	fieldAppKey                = "app_key"
+)
+
+// OTEL config path prefixes
+const (
+	pathPrefixReceivers  = "receivers::"
+	pathPrefixExporters  = "exporters::"
+	pathPrefixProcessors = "processors::"
 )
 
 // isComponentType checks if a component name matches a specific type.
@@ -179,94 +190,4 @@ func ensureKeyStringValue(config confMap, key string) bool {
 		log.Warnf("API key %s has unexpected type %T, cannot convert", key, val)
 		return false
 	}
-}
-
-// fixReceiversPipeline ensures at least one hostprofiler receiver is configured in the pipeline
-// If none exists, it adds a minimal hostprofiler receiver with symbol_uploader disabled
-// warnFunc is called if a default hostprofiler is added
-func fixReceiversPipeline(conf confMap, receiverNames []any, warnFunc func(...any)) ([]any, error) {
-	// Check if hostprofiler is in the pipeline
-	hasHostProfiler := false
-	for _, nameAny := range receiverNames {
-		name, ok := nameAny.(string)
-		if !ok {
-			return nil, fmt.Errorf("receiver name must be a string, got %T", nameAny)
-		}
-
-		if !isComponentType(name, componentTypeHostProfiler) {
-			continue
-		}
-
-		hasHostProfiler = true
-
-		if hostProfilerConfig, ok := Get[confMap](conf, "receivers::"+name); ok {
-			if err := checkHostProfilerReceiverConfig(hostProfilerConfig); err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	if hasHostProfiler {
-		return receiverNames, nil
-	}
-
-	// Ensure default config exists if hostprofiler receiver is not configured
-	if err := Set(conf, "receivers::"+defaultHostProfilerName+"::"+pathSymbolUploaderEnabled, false); err != nil {
-		return nil, err
-	}
-
-	warnFunc("Added minimal hostprofiler receiver to user configuration")
-	return append(receiverNames, defaultHostProfilerName), nil
-}
-
-// checkHostProfilerReceiverConfig validates and normalizes hostprofiler receiver configuration
-// It ensures that if symbol_uploader is enabled, symbol_endpoints is properly configured
-// and all api_key/app_key values are strings
-func checkHostProfilerReceiverConfig(hostProfiler confMap) error {
-	if isEnabled, ok := Get[bool](hostProfiler, pathSymbolUploaderEnabled); !ok || !isEnabled {
-		return nil
-	}
-
-	endpoints, ok := Get[[]any](hostProfiler, pathSymbolEndpoints)
-
-	if !ok {
-		return errors.New("symbol_endpoints must be a list")
-	}
-
-	if len(endpoints) == 0 {
-		return errors.New("symbol_endpoints cannot be empty when symbol_uploader is enabled")
-	}
-
-	for _, epAny := range endpoints {
-		if ep, ok := epAny.(confMap); ok {
-			ensureKeyStringValue(ep, fieldAPIKey)
-			ensureKeyStringValue(ep, fieldAppKey)
-		}
-	}
-	return nil
-}
-
-func ensureOtlpHTTPExporterConfig(conf confMap, exporterNames []any) error {
-	// for each otlphttpexporter used, check if necessary api key is present
-	hasOtlpHTTP := false
-	for _, nameAny := range exporterNames {
-		if name, ok := nameAny.(string); ok && isComponentType(name, componentTypeOtlpHTTP) {
-			hasOtlpHTTP = true
-
-			headers, err := Ensure[confMap](conf, "exporters::"+name+"::headers")
-			if err != nil {
-				return err
-			}
-
-			if !ensureKeyStringValue(headers, fieldDDAPIKey) {
-				return fmt.Errorf("%s exporter missing required dd-api-key header", name)
-			}
-		}
-	}
-
-	if !hasOtlpHTTP {
-		return errors.New("no otlphttp exporter configured in profiles pipeline")
-	}
-
-	return nil
 }

@@ -347,6 +347,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	// Discovery config
 	cfg.BindEnv("discovery.enabled") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnvAndSetDefault("discovery.use_sd_agent", false)
 	cfg.BindEnvAndSetDefault("discovery.cpu_usage_update_delay", "60s")
 	cfg.BindEnvAndSetDefault("discovery.ignored_command_names", []string{"chronyd", "cilium-agent", "containerd", "dhclient", "dockerd", "kubelet", "livenessprobe", "local-volume-pr", "sshd", "systemd"})
 	cfg.BindEnvAndSetDefault("discovery.service_collection_interval", "60s")

@@ -166,7 +166,7 @@ func (a *Agent) makeFlare(w http.ResponseWriter, _ *http.Request) {
 func (a *Agent) refreshSecrets(w http.ResponseWriter, _ *http.Request) {
 	res, err := a.secrets.Refresh(true)
 	if err != nil {
-		log.Errorf("error while refresing secrets: %s", err)
+		log.Errorf("error while refreshing secrets: %s", err)
 		w.Header().Set("Content-Type", "application/json")
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})
 		http.Error(w, string(body), http.StatusInternalServerError)

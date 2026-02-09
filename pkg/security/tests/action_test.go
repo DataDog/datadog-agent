@@ -785,6 +785,79 @@ func TestActionHash(t *testing.T) {
 		}, retry.Delay(500*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
 		assert.NoError(t, err)
 	})
+
+	t.Run("open-force-path", func(t *testing.T) {
+		// test that we correctly force a path resolution when we run the hash action
+		newRuleDefs := []*rules.RuleDefinition{
+			{
+				ID:         "hash_action_open_no_path",
+				Expression: `open.flags&O_CREAT == O_CREAT && process.file.name == "syscall_tester"`,
+				Actions: []*rules.ActionDefinition{
+					{
+						Hash: &rules.HashDefinition{
+							Field: "open.file",
+						},
+					},
+				},
+			},
+		}
+
+		// Set the new policy and reload (without closing/restarting the module)
+		// On reload, exec events are replayed for running processes, so the kill rule should trigger
+		if err := setTestPolicy(commonCfgDir, nil, newRuleDefs); err != nil {
+			t.Fatalf("failed to set new policy: %v", err)
+		}
+
+		err := test.reloadPolicies()
+		if err != nil {
+			t.Fatalf("failed to reload policies: %v", err)
+		}
+
+		test.msgSender.flush()
+		test.WaitSignalFromRule(t, func() error {
+			go func() {
+				timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+
+				if err := runSyscallTesterFunc(
+					timeoutCtx, t, syscallTester,
+					"slow-write", "2", testFile, "aaa",
+				); err != nil {
+					t.Error(err)
+				}
+
+				done <- true
+			}()
+			return nil
+		}, func(_ *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "hash_action_open_no_path")
+		}, "hash_action_open_no_path")
+
+		err = retry.Do(func() error {
+			msg := test.msgSender.getMsg("hash_action_open_no_path")
+			if msg == nil {
+				return errors.New("not found")
+			}
+			validateMessageSchema(t, string(msg.Data))
+
+			jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.state == 'Done')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.trigger == 'process_exit')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+				if el, err := jsonpath.JsonPathLookup(obj, `$.file.hashes`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+			})
+
+			return nil
+		}, retry.Delay(500*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		assert.NoError(t, err)
+
+		<-done
+	})
 }
 
 func TestActionKillWithSignature(t *testing.T) {

@@ -2,7 +2,11 @@ receivers:
   hostprofiler:
     symbol_uploader:
       enabled: true
-      symbol_endpoints: not-a-list
+      symbol_endpoints:
+      - site: datadoghq.eu
+        api_key: custom-api-key-eu
+      - site: datadoghq.com
+        api_key: custom-api-key-us
 service:
   pipelines:
     profiles:
