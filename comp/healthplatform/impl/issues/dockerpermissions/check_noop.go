@@ -5,9 +5,13 @@
 
 //go:build !linux && !windows
 
-package healthplatformimpl
+package dockerpermissions
 
-// registerBuiltInChecks is a noop on unsupported platforms
-func (h *healthPlatformImpl) registerBuiltInChecks() {
-	// No built-in checks on this platform
+import (
+	"github.com/DataDog/agent-payload/v5/healthplatform"
+)
+
+// Check is a noop on unsupported platforms
+func Check() (*healthplatform.IssueReport, error) {
+	return nil, nil
 }

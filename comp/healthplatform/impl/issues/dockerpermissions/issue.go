@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package dockerpermissions provides remediation for Docker log file permission issues.
 package dockerpermissions
 
 import (
@@ -55,7 +54,7 @@ func (t *DockerPermissionIssue) BuildIssue(context map[string]string) (*healthpl
 	}
 
 	return &healthplatform.Issue{
-		Id:          "docker-file-tailing-disabled",
+		Id:          IssueID,
 		IssueName:   "docker_file_tailing_disabled",
 		Title:       "Host Agent Cannot Tail Docker Log Files",
 		Description: fmt.Sprintf("Docker file tailing is enabled by default but cannot work on this host install. The directory %s has restricted permissions, causing the agent to fall back to socket tailing. This becomes problematic with high volume Docker logs as socket tailing can hit limits.", dockerDir),

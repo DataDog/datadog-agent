@@ -5,7 +5,7 @@
 
 //go:build linux || windows
 
-package healthplatformimpl
+package dockerpermissions
 
 import (
 	"os"
@@ -23,25 +23,11 @@ const (
 	defaultWindowsDockerSocketPath = "//./pipe/docker_engine"
 	defaultHostMountPrefix         = "/host"
 
-	dockerSocketCheckInterval = 15 * time.Minute
-	socketTimeout             = 500 * time.Millisecond
+	socketTimeout = 500 * time.Millisecond
 )
 
-// registerBuiltInChecks registers all built-in periodic health checks
-func (h *healthPlatformImpl) registerBuiltInChecks() {
-	// Register Docker socket permission check
-	if err := h.RegisterCheck(
-		"docker-socket-permissions",
-		"Docker Socket Permissions",
-		checkDockerSocket,
-		dockerSocketCheckInterval,
-	); err != nil {
-		h.log.Warn("Failed to register Docker socket check: " + err.Error())
-	}
-}
-
-// checkDockerSocket checks if Docker socket exists but is not reachable (permission issue)
-func checkDockerSocket() (*healthplatform.IssueReport, error) {
+// Check checks if Docker socket exists but is not reachable (permission issue)
+func Check() (*healthplatform.IssueReport, error) {
 	// Check if DOCKER_HOST is set - if so, skip the check as user has custom config
 	if _, dockerHostSet := os.LookupEnv("DOCKER_HOST"); dockerHostSet {
 		return nil, nil
@@ -52,7 +38,7 @@ func checkDockerSocket() (*healthplatform.IssueReport, error) {
 		if exists && !reachable {
 			// Docker socket exists but is not reachable - permission issue
 			return &healthplatform.IssueReport{
-				IssueId: "docker-file-tailing-disabled",
+				IssueId: IssueID,
 				Context: map[string]string{
 					"dockerDir": socketPath,
 					"os":        runtime.GOOS,
