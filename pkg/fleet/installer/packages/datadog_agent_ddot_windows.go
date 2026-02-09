@@ -123,7 +123,7 @@ func readAPIKeyFromDatadogYAML() (string, error) {
 	if v, ok := cfg["api_key"].(string); ok && v != "" {
 		return v, nil
 	}
-	return "", fmt.Errorf("api_key not found or empty in datadog.yaml")
+	return "", errors.New("api_key not found or empty in datadog.yaml")
 }
 
 // preRemoveDatadogAgentDdot performs pre-removal steps for the DDOT package on Windows
@@ -439,7 +439,7 @@ func postInstallDDOTExtension(ctx HookContext) error {
 		return fmt.Errorf("DDOT service created but cannot start: %w", err)
 	}
 	if ak == "" {
-		return fmt.Errorf("DDOT service created but cannot start: API key not configured")
+		return errors.New("DDOT service created but cannot start: API key not configured")
 	}
 
 	// Best effort service start - ignore errors
