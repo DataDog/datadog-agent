@@ -46,9 +46,9 @@ func makeEventSeed(eventType model.EventType, extraData []byte) []byte {
 	buf := make([]byte, 96+len(extraData))
 
 	// Event header
-	binary.NativeEndian.PutUint64(buf[0:8], 1000000000)    // timestamp
+	binary.NativeEndian.PutUint64(buf[0:8], 1000000000)         // timestamp
 	binary.NativeEndian.PutUint32(buf[8:12], uint32(eventType)) // type
-	binary.NativeEndian.PutUint32(buf[12:16], 0)           // flags
+	binary.NativeEndian.PutUint32(buf[12:16], 0)                // flags
 
 	// PIDContext (40 bytes starting at offset 16)
 	binary.NativeEndian.PutUint32(buf[16:20], 1234) // pid
@@ -208,14 +208,14 @@ func FuzzHandleEvent(f *testing.F) {
 	f.Add(0, makeEventSeed(model.BindEventType, make([]byte, 128)))       // bind
 
 	// Invalid/boundary event types
-	f.Add(0, makeEventSeed(model.UnknownEventType, make([]byte, 64)))       // unknown (0)
-	f.Add(0, makeEventSeed(model.MaxKernelEventType-1, make([]byte, 64)))   // last valid
-	f.Add(0, makeEventSeed(model.MaxKernelEventType, make([]byte, 64)))     // boundary
-	f.Add(0, makeEventSeed(model.MaxKernelEventType+1, make([]byte, 64)))   // invalid
+	f.Add(0, makeEventSeed(model.UnknownEventType, make([]byte, 64)))     // unknown (0)
+	f.Add(0, makeEventSeed(model.MaxKernelEventType-1, make([]byte, 64))) // last valid
+	f.Add(0, makeEventSeed(model.MaxKernelEventType, make([]byte, 64)))   // boundary
+	f.Add(0, makeEventSeed(model.MaxKernelEventType+1, make([]byte, 64))) // invalid
 
 	p := newFuzzEBPFProbe(f)
 
-	f.Fuzz(func(t *testing.T, cpu int, data []byte) {
+	f.Fuzz(func(_ *testing.T, cpu int, data []byte) {
 		p.handleEvent(cpu%256, data)
 	})
 }
