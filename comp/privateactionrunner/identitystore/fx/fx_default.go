@@ -40,8 +40,9 @@ type Provides struct {
 
 // newIdentityStore creates a file-based identity store (K8s not available in this build)
 func newIdentityStore(reqs Requires) (Provides, error) {
-	if reqs.Config.GetBool("private_action_runner.use_k8s_secret") {
-		reqs.Log.Warn("Kubernetes secret store requested but not available in this build (kubeapiserver build tag required). Using file-based identity store.")
+	storeKind := reqs.Config.GetString("private_action_runner.identity_store.kind")
+	if storeKind == "k8s-secret" {
+		reqs.Log.Warn("Kubernetes secret store requested but not available in this build. Using file-based identity store.")
 	} else {
 		reqs.Log.Info("Using file-based identity store for PAR")
 	}

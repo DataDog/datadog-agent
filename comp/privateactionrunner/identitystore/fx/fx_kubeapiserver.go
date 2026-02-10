@@ -41,34 +41,32 @@ type Provides struct {
 
 // newIdentityStore selects the appropriate implementation based on configuration
 func newIdentityStore(reqs Requires) (Provides, error) {
-	// Determine which implementation to use based on config
-	useK8sSecret := reqs.Config.GetBool("privateactionrunner.use_k8s_secret")
-
-	if useK8sSecret {
+	storeKind := reqs.Config.GetString("private_action_runner.identity_store.kind")
+	if storeKind == "k8s-secret" {
 		reqs.Log.Info("Using Kubernetes secret-based identity store for PAR")
-
-		// Create K8s implementation
-		k8sReqs := k8sstoreimpl.Requires{
-			Config: reqs.Config,
-			Log:    reqs.Log,
-		}
-		k8sProvides, err := k8sstoreimpl.NewComponent(k8sReqs)
-		if err != nil {
-			// Fall back to file-based if K8s client fails
-			reqs.Log.Warnf("Failed to create K8s identity store, falling back to file-based: %v", err)
-			return Provides{Comp: createFileStore(reqs)}, nil
-		}
-		return Provides{Comp: k8sProvides.Comp}, nil
+		return createKubeAPIServerStore(reqs)
 	}
-
 	reqs.Log.Info("Using file-based identity store for PAR")
-	return Provides{Comp: createFileStore(reqs)}, nil
+	return createFileStore(reqs)
 }
 
-func createFileStore(reqs Requires) identitystore.Component {
+func createKubeAPIServerStore(reqs Requires) (Provides, error) {
+	k8sReqs := k8sstoreimpl.Requires{
+		Config: reqs.Config,
+		Log:    reqs.Log,
+	}
+	k8sProvides, err := k8sstoreimpl.NewComponent(k8sReqs)
+	if err != nil {
+		return Provides{}, err
+	}
+	return Provides{Comp: k8sProvides.Comp}, nil
+}
+
+func createFileStore(reqs Requires) (Provides, error) {
 	fileReqs := filestoreimpl.Requires{
 		Config: reqs.Config,
 		Log:    reqs.Log,
 	}
-	return filestoreimpl.NewComponent(fileReqs).Comp
+	fileProvides := filestoreimpl.NewComponent(fileReqs)
+	return Provides{Comp: fileProvides.Comp}, nil
 }

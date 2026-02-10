@@ -23,8 +23,7 @@ import (
 // These mirror the constants in pkg/config/setup but are defined here
 // because comp/ packages cannot import pkg/config/setup (depguard rule).
 const (
-	parIdentityUseK8sSecret = "private_action_runner.use_k8s_secret"
-	parIdentityFilePath     = "private_action_runner.identity_file_path"
+	parIdentityFilePath     = "private_action_runner.identity_store.file_path"
 	defaultIdentityFileName = "privateactionrunner_private_identity.json"
 )
 

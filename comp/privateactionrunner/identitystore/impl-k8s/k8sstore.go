@@ -30,11 +30,10 @@ import (
 // These mirror the constants in pkg/config/setup but are defined here
 // because comp/ packages cannot import pkg/config/setup (depguard rule).
 const (
-	parIdentityUseK8sSecret = "private_action_runner.use_k8s_secret"
-	parIdentitySecretName   = "private_action_runner.identity_secret_name"
-	defaultSecretName       = "private-action-runner-identity"
-	privateKeyField         = "private_key"
-	urnField                = "urn"
+	parIdentitySecretName = "private_action_runner.identity_store.secret_name"
+	defaultSecretName     = "private-action-runner-identity"
+	privateKeyField       = "private_key"
+	urnField              = "urn"
 )
 
 // Requires defines the dependencies for the K8s-based identity store
