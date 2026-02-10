@@ -43,6 +43,20 @@ pub enum Language {
 }
 
 impl Language {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Unknown => "unknown",
+            Self::Java => "jvm",
+            Self::NodeJS => "nodejs",
+            Self::Python => "python",
+            Self::Ruby => "ruby",
+            Self::DotNet => "dotnet",
+            Self::Go => "go",
+            Self::CPlusPlus => "cpp",
+            Self::PHP => "php",
+        }
+    }
+
     pub fn detect(pid: u32, exe: &Exe, cmdline: &Cmdline, open_files_info: &OpenFilesInfo) -> Self {
         info!("detect: exe={exe:?} cmdline={cmdline:?}");
         if let Some(lang) = Self::from_basename(cmdline) {
