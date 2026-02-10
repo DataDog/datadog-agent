@@ -12,7 +12,7 @@ import (
 	kubernetesNewProvider "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
+	agentComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/cpustress"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/dogstatsd"
@@ -39,67 +39,6 @@ import (
 
 const (
 	provisionerBaseID = "gcp-openshiftvm"
-	customAgentValues = `
-datadog:
-  kubelet:
-    tlsVerify: false
-  # https://docs.datadoghq.com/containers/troubleshooting/admission-controller/?tab=helm#openshift
-  apm:
-    portEnabled: true
-  sbom:
-    containerImage:
-      enabled: true
-      overlayFSDirectScan: true
-  criSocketPath: /var/run/crio/crio.sock
-  useHostPID: true
-  originDetectionUnified:
-    enabled: true
-  dogstatsd:
-    originDetection: true
-    tagCardinality: high
-agents:
-  enabled: true
-  tolerations:
-    # Deploy Agents on master nodes
-    - effect: NoSchedule
-      key: node-role.kubernetes.io/master
-      operator: Exists
-    # Deploy Agents on infra nodes
-    - effect: NoSchedule
-      key: node-role.kubernetes.io/infra
-      operator: Exists
-    # Tolerate disk pressure
-    - effect: NoSchedule
-      key: node.kubernetes.io/disk-pressure
-      operator: Exists
-  useHostNetwork: true
-  replicas: 1
-  podSecurity:
-    securityContextConstraints:
-      create: true
-  volumeMounts:
-    - name: trivycache
-      mountPath: /root/.cache/trivy
-    - name: imageoverlay
-      mountPath: /var/lib/containers/storage
-  volumes:
-    - name: trivycache
-      emptyDir: {}
-    - name: imageoverlay
-      hostPath:
-        path: /var/lib/containers/storage
-clusterAgent:
-  resources:
-    limits:
-      cpu: 300m
-      memory: 400Mi
-    requests:
-      cpu: 150m
-      memory: 300Mi
-  enabled: true
-  podSecurity:
-    securityContextConstraints:
-      create: true`
 )
 
 // OpenshiftVMProvisioner creates a new provisioner for OpenShift VM on GCP
@@ -183,10 +122,13 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 	}
 
 	// Deploy the agent
-	var agent *agent.KubernetesAgent
+	var agent *agentComp.KubernetesAgent
 	if params.agentOptions != nil {
 		params.agentOptions = append(params.agentOptions,
-			kubernetesagentparams.WithHelmValues(customAgentValues),
+			func(p *kubernetesagentparams.Params) error {
+				p.HelmValues = append(p.HelmValues, agentComp.BuildOpenShiftHelmValues().ToYAMLPulumiAssetOutput())
+				return nil
+			},
 			kubernetesagentparams.WithClusterName(openshiftCluster.ClusterName),
 			kubernetesagentparams.WithNamespace("datadog"),
 			// OpenShift deployments need more time due to security context constraints and slower startup
