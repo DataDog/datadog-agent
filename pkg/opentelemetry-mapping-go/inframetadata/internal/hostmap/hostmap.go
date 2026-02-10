@@ -163,6 +163,12 @@ func getCCRID(m pcommon.Map) (string, bool, error) {
 
 // Set a hardcoded host metadata payload.
 func (m *HostMap) Set(md payload.HostMetadata) error {
+	// We'll be modifying the payloads in the host map later, so clone to avoid data races
+	md, err := md.Clone()
+	if err != nil {
+		return err
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.hosts[md.Meta.Hostname] = md
@@ -332,6 +338,7 @@ func (m *HostMap) Update(host string, res pcommon.Resource) (changed bool, md pa
 	}
 
 	m.hosts[host] = md
+	md, err = md.Clone() // Clone to avoid accidentally mutating internal maps of returned value
 	changed = changed || !found
 	return
 }
