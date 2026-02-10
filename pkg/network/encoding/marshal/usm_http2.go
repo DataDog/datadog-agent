@@ -10,7 +10,6 @@ package marshal
 import (
 	"bytes"
 	"io"
-	"slices"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
@@ -35,12 +34,6 @@ func newHTTP2Encoder(http2Payloads map[http.Key]*http.RequestStats) *http2Encode
 		}),
 		http2AggregationsBuilder: model.NewHTTP2AggregationsBuilder(nil),
 	}
-}
-
-func (e *http2Encoder) EncodeConnectionDirect(c network.ConnectionStats, conn *model.Connection, buf *bytes.Buffer) (staticTags uint64, dynamicTags map[string]struct{}) {
-	staticTags, dynamicTags = e.encodeData(c, buf)
-	conn.Http2Aggregations = slices.Clone(buf.Bytes())
-	return
 }
 
 func (e *http2Encoder) EncodeConnection(c network.ConnectionStats, builder *model.ConnectionBuilder) (staticTags uint64, dynamicTags map[string]struct{}) {
