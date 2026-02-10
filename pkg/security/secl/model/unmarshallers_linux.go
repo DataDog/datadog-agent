@@ -912,7 +912,7 @@ func (e *LoadModuleEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 
-	if len(data)-read < 188 {
+	if len(data)-read < 192 {
 		return 0, ErrNotEnoughData
 	}
 
