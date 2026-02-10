@@ -120,6 +120,7 @@ export function TimeSeriesChart({
   const isPanningRef = useRef(false);
   const panStartXRef = useRef(0);
   const panStartRangeRef = useRef<TimeRange | null>(null);
+  const panTriggerRef = useRef<'middle' | 'meta-left' | null>(null);
   const xScaleRef = useRef<d3.ScaleTime<number, number> | null>(null);
 
   const isSeriesVisible = (seriesId?: string): boolean => {
@@ -420,6 +421,8 @@ export function TimeSeriesChart({
         [0, 0],
         [innerWidth, innerHeight],
       ])
+      // Keep cmd+left-drag free for panning (treated like middle-drag).
+      .filter((event: MouseEvent) => event.button === 0 && !event.metaKey)
       .on('start', () => {
         isBrushingRef.current = true;
       })
@@ -487,18 +490,22 @@ export function TimeSeriesChart({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Handle middle-click panning
+  // Handle middle-click or cmd+left-click panning
   useEffect(() => {
     const svg = svgRef.current;
     if (!svg) return;
 
+    const isMetaLeftPan = (e: MouseEvent) => e.button === 0 && e.metaKey;
+
     const handleMouseDown = (e: MouseEvent) => {
-      // Middle mouse button is button 1
-      if (e.button !== 1) return;
+      const middlePan = e.button === 1;
+      const metaLeftPan = isMetaLeftPan(e);
+      if (!middlePan && !metaLeftPan) return;
       if (!timeRange) return; // Can only pan when zoomed
 
       e.preventDefault();
       isPanningRef.current = true;
+      panTriggerRef.current = middlePan ? 'middle' : 'meta-left';
       panStartXRef.current = e.clientX;
       panStartRangeRef.current = { ...timeRange };
       svg.style.cursor = 'grabbing';
@@ -528,9 +535,14 @@ export function TimeSeriesChart({
     };
 
     const handleMouseUp = (e: MouseEvent) => {
-      if (e.button !== 1) return;
+      if (!isPanningRef.current) return;
+      const trigger = panTriggerRef.current;
+      const releasedMiddle = trigger === 'middle' && e.button === 1;
+      const releasedMetaLeft = trigger === 'meta-left' && e.button === 0;
+      if (!releasedMiddle && !releasedMetaLeft) return;
       if (isPanningRef.current) {
         isPanningRef.current = false;
+        panTriggerRef.current = null;
         panStartRangeRef.current = null;
         svg.style.cursor = '';
       }
@@ -540,6 +552,7 @@ export function TimeSeriesChart({
     const handleMouseLeave = () => {
       if (isPanningRef.current) {
         isPanningRef.current = false;
+        panTriggerRef.current = null;
         panStartRangeRef.current = null;
         svg.style.cursor = '';
       }

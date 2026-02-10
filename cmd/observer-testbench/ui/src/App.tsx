@@ -124,7 +124,7 @@ function App() {
                       {formatTimeRange(timeRange)}
                     </span>
                     <span className="text-xs text-slate-500 ml-1">
-                      (middle-drag to pan)
+                      (middle-drag or cmd+drag to pan)
                     </span>
                     <button
                       onClick={() => setTimeRange(null)}
@@ -137,7 +137,7 @@ function App() {
                 )}
                 {!timeRange && state.connectionState === 'ready' && (
                   <span className="text-xs text-slate-500">
-                    Drag to zoom, middle-drag to pan
+                    Drag to zoom, middle-drag or cmd+drag to pan
                   </span>
                 )}
                 {/* Smooth Lines Toggle */}
