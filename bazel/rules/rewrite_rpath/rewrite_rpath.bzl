@@ -11,7 +11,7 @@ def _rewrite_rpath_impl(ctx):
     if ctx.attr.os == "linux":
         toolchain = ctx.toolchains["@@//bazel/toolchains/patchelf:patchelf_toolchain_type"].patchelf
         args = ctx.actions.args()
-        args.add_all(["--set-rpath", rpath, input.path, "--output", processed_file.path])
+        args.add_all(["--set-rpath", rpath, "--force-rpath", input.path, "--output", processed_file.path])
         ctx.actions.run(
             inputs = [input],
             outputs = [processed_file],
