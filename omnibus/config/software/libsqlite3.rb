@@ -1,8 +1,6 @@
 name "libsqlite3"
 default_version "3.50.4"
 
-dependency "zlib"
-
 relative_path "sqlite-autoconf-3500400"
 
 skip_transitive_dependency_licensing true
