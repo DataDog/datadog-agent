@@ -1031,13 +1031,13 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 		t.Skip("Skip test spawning docker containers on docker")
 	}
 
-	checkKernelCompatibility(t, "skip on CentOS7", func(kv *kernel.Version) bool {
-		return kv.IsRH7Kernel()
-	})
-
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
+
+	checkKernelCompatibility(t, "skip on CentOS7", func(kv *kernel.Version) bool {
+		return kv.IsRH7Kernel()
+	})
 
 	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
 		return kv.IsSuse12Kernel()
@@ -1136,9 +1136,8 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 		if err != nil {
 			return fmt.Errorf("failed to reload policies: %w", err)
 		}
-		// Trigger a small event to force the replay of cached events.
-		// The replay only happens in handleEvent when a new eBPF event arrives.
-		exec.Command("true").Run()
+		// sleep to let the replay events trigger the rule
+		time.Sleep(time.Second)
 		return nil
 	}, func(rule *rules.Rule, event *model.Event) bool {
 		assertTriggeredRule(t, rule, "test_kill_container_with_signature")
@@ -1150,7 +1149,8 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 			if killReport, ok := report.(*sprobe.KillActionReport); ok {
 				assert.Equal(t, "SIGKILL", killReport.Signal, "unexpected signal")
 				assert.Equal(t, "cgroup", killReport.Scope, "unexpected scope")
-				assert.Equal(t, sprobe.KillActionStatusPerformed, killReport.Status, "unexpected status")
+				// we might get "partially kill" status if like we start by killing the container entrypoint and we're not able to kill the tail because it's already stopped
+				assert.Contains(t, []sprobe.KillActionStatus{sprobe.KillActionStatusPerformed, sprobe.KillActionStatusPartiallyPerformed}, killReport.Status, "unexpected status")
 			}
 		}
 		return true

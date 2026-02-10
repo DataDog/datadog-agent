@@ -270,9 +270,6 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 	}
 
 	var secProfEventTypes []model.EventType
-	if cfg.RuntimeSecurity.SecurityProfileAutoSuppressionEnabled {
-		secProfEventTypes = append(secProfEventTypes, cfg.RuntimeSecurity.SecurityProfileAutoSuppressionEventTypes...)
-	}
 	if cfg.RuntimeSecurity.AnomalyDetectionEnabled {
 		secProfEventTypes = append(secProfEventTypes, cfg.RuntimeSecurity.AnomalyDetectionEventTypes...)
 	}
