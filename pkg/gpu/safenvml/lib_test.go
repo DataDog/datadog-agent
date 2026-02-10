@@ -10,6 +10,7 @@ package safenvml
 import (
 	"errors"
 	"maps"
+	"strings"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -224,4 +225,102 @@ func TestInitMultipleTimes(t *testing.T) {
 
 	require.NoError(t, safenvml.ensureInitWithOpts(mockNewFunc))
 	require.NoError(t, safenvml.ensureInitWithOpts(mockNewFunc))
+}
+
+func TestInitMultiplePaths(t *testing.T) {
+	var configuredLibPath string
+	libpathToRetcode := map[string]nvml.Return{
+		"valid":                 nvml.SUCCESS,
+		"valid2":                nvml.SUCCESS,
+		"library-does-not-work": nvml.ERROR_UNKNOWN,
+		"already-initialized":   nvml.ERROR_ALREADY_INITIALIZED,
+	}
+
+	nvmlNewWithPath := func(path string) nvml.Interface {
+		configuredLibPath = path
+		return &nvmlmock.Interface{
+			InitFunc: func() nvml.Return {
+				retcode, ok := libpathToRetcode[path]
+				if !ok {
+					return nvml.ERROR_LIBRARY_NOT_FOUND
+				}
+				return retcode
+			},
+		}
+	}
+
+	testCases := []struct {
+		name            string
+		libpaths        []string
+		expectedLibPath string
+		expectsError    bool
+		expectedRetcode nvml.Return
+	}{
+		{"single valid path", []string{"valid"}, "valid", false, nvml.SUCCESS},
+		{"library error", []string{"library-does-not-work"}, "library-does-not-work", true, nvml.ERROR_UNKNOWN},
+		{"already initialized", []string{"already-initialized"}, "already-initialized", false, nvml.SUCCESS},
+		{"multiple unknown paths, one is valid", []string{"unknown-path", "valid"}, "valid", false, nvml.SUCCESS},
+		{"multiple valid paths, picks first one", []string{"valid", "valid2"}, "valid", false, nvml.SUCCESS},
+		{"multiple valid paths, one is already initialized", []string{"already-initialized", "valid"}, "already-initialized", false, nvml.SUCCESS},
+		{"multiple valid paths, one is library error", []string{"library-does-not-work", "valid"}, "library-does-not-work", true, nvml.ERROR_UNKNOWN},
+		{"multiple valid paths, one is already initialized and one is library error", []string{"already-initialized", "library-does-not-work"}, "already-initialized", false, nvml.SUCCESS},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			lib, err := tryCandidateNvmlPaths(tc.libpaths, nvmlNewWithPath)
+			require.Equal(t, tc.expectedLibPath, configuredLibPath)
+			if tc.expectsError {
+				var nvmlErr *NvmlAPIError
+				require.Error(t, err)
+				require.ErrorAs(t, err, &nvmlErr)
+				require.Equal(t, tc.expectedRetcode, nvmlErr.NvmlErrorCode)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, lib)
+		})
+	}
+}
+
+func TestGenerateDefaultLibraryPaths(t *testing.T) {
+	t.Run("non containerized", func(t *testing.T) {
+		paths := generateDefaultLibraryPaths()
+		for _, path := range paths {
+			require.NotContains(t, path, "/host")
+			require.True(t, strings.HasSuffix(path, "/libnvidia-ml.so"))
+			require.True(t, strings.HasPrefix(path, "/usr") || strings.HasPrefix(path, "/run/nvidia/driver/usr"), "invalid prefix for path: %s", path)
+		}
+	})
+
+	t.Run("containerized, no HOST_ROOT", func(t *testing.T) {
+		t.Setenv("DOCKER_DD_AGENT", "1")
+		t.Setenv("HOST_ROOT", "")
+		paths := generateDefaultLibraryPaths()
+		for _, path := range paths {
+			require.True(t, strings.HasPrefix(path, "/host"), "path %s does not start with /host", path)
+			require.True(t, strings.HasSuffix(path, "/libnvidia-ml.so"))
+		}
+	})
+
+	t.Run("kubernetes, with HOST_ROOT", func(t *testing.T) {
+		// IsContainerized() only returns true if DOCKER_DD_AGENT is set. In K8s the detection is done based on HOST_ROOT
+		t.Setenv("HOST_ROOT", "/k8s-root")
+		paths := generateDefaultLibraryPaths()
+		for _, path := range paths {
+			require.True(t, strings.HasPrefix(path, "/k8s-root"), "path %s does not start with /k8s-root", path)
+			require.True(t, strings.HasSuffix(path, "/libnvidia-ml.so"))
+		}
+	})
+
+	t.Run("containerized, with HOST_ROOT", func(t *testing.T) {
+		t.Setenv("DOCKER_DD_AGENT", "1")
+		t.Setenv("HOST_ROOT", "/something-else")
+		paths := generateDefaultLibraryPaths()
+		for _, path := range paths {
+			require.True(t, strings.HasPrefix(path, "/something-else"), "path %s does not start with /something-else", path)
+			require.True(t, strings.HasSuffix(path, "/libnvidia-ml.so"))
+		}
+	})
 }

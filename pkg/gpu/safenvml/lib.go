@@ -294,17 +294,18 @@ func populateCapabilities(lib nvml.Interface) (map[string]struct{}, error) {
 
 func generateDefaultLibraryPaths() []string {
 	systemPaths := []string{
-		"/usr/lib/x86_64-linux-gnu/libnvidia-ml.so",                  // default system install
-		"run/nvidia/driver/usr/lib/x86_64-linux-gnu/libnvidia-ml.so", // nvidia-gpu-operator install
-	}
-
-	if !env.IsContainerized() {
-		return systemPaths
+		"/usr/lib/x86_64-linux-gnu/libnvidia-ml.so",                   // default system install
+		"/run/nvidia/driver/usr/lib/x86_64-linux-gnu/libnvidia-ml.so", // nvidia-gpu-operator install
 	}
 
 	hostRoot := os.Getenv("HOST_ROOT")
 	if hostRoot == "" {
-		hostRoot = "/host" // default host root for containerized environments
+		if env.IsContainerized() {
+			hostRoot = "/host" // default host root for containerized environments without HOST_ROOT set
+		} else {
+			// no host root variable and not containerized, assume we are running on the bare host
+			return systemPaths
+		}
 	}
 
 	var containerizedPaths []string
@@ -314,16 +315,18 @@ func generateDefaultLibraryPaths() []string {
 	return containerizedPaths
 }
 
-func tryCandidateNvmlPaths(paths []string, nvmlNewFunc func(opts ...nvml.LibraryOption) nvml.Interface) (nvml.Interface, error) {
+// tryCandidateNvmlPaths tries to load the NVML library from the given paths, using the given function to create a new NVML library instance.
+// We use nvmlNewWithPath to wrap the nvmlNewFunc, so that we can more easily test this code (we can't inspect the NVML library options).
+func tryCandidateNvmlPaths(paths []string, nvmlNewWithPath func(path string) nvml.Interface) (nvml.Interface, error) {
 	for _, path := range paths {
 		log.Debugf("Trying to load NVML library from path '%s'", path)
 
-		lib := nvmlNewFunc(nvml.WithLibraryPath(path))
+		lib := nvmlNewWithPath(path)
 		if lib == nil {
 			return nil, errors.New("failed to create NVML library")
 		}
 		ret := lib.Init()
-		if ret == nvml.SUCCESS {
+		if ret == nvml.SUCCESS || ret == nvml.ERROR_ALREADY_INITIALIZED {
 			return lib, nil
 		} else if ret != nvml.ERROR_LIBRARY_NOT_FOUND {
 			return nil, NewNvmlAPIErrorOrNil("Init", ret)
@@ -365,7 +368,10 @@ func (s *safeNvml) ensureInitWithOpts(nvmlNewFunc func(opts ...nvml.LibraryOptio
 	libPaths := []string{libpath}
 	libPaths = append(libPaths, generateDefaultLibraryPaths()...)
 
-	lib, err := tryCandidateNvmlPaths(libPaths, nvmlNewFunc)
+	nvmlNewWithPath := func(path string) nvml.Interface {
+		return nvmlNewFunc(nvml.WithLibraryPath(path))
+	}
+	lib, err := tryCandidateNvmlPaths(libPaths, nvmlNewWithPath)
 	if err != nil {
 		return err
 	}
