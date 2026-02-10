@@ -11,7 +11,10 @@ package sbomcollector
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	"go.uber.org/fx"
@@ -23,6 +26,7 @@ import (
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -79,6 +83,11 @@ func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbom
 		return workloadmeta.Event{}, fmt.Errorf("failed to unmarshal SBOM: %w", err)
 	}
 
+	jsonBytes, err := json.Marshal(newBom)
+	if err == nil {
+		os.WriteFile("/tmp/sbom-"+event.ID+".json", jsonBytes, 0644)
+	}
+
 	if event.Kind != string(workloadmeta.KindContainer) {
 		return workloadmeta.Event{}, fmt.Errorf("expected KindContainer, got %s", event.Kind)
 	}
@@ -89,29 +98,68 @@ func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbom
 
 	log.Debugf("Received forwarded SBOM for container %s", event.ID)
 
-	// Get existing container to merge SBOM data
-	var finalBom *cyclonedx_v1_4.Bom
-	existingContainer, err := store.GetContainer(event.ID)
-	if err == nil && existingContainer != nil && existingContainer.SBOM != nil && existingContainer.SBOM.CycloneDXBOM != nil {
-		// Merge LastAccess properties from new BOM into existing BOM
-		finalBom = mergeLastAccessProperties(existingContainer.SBOM.CycloneDXBOM, &newBom)
-		log.Debugf("Merged LastAccess properties for container %s SBOM", event.ID)
-	} else {
-		// No existing SBOM, use the new one directly
-		finalBom = &newBom
-		log.Debugf("Using new SBOM for container %s (no existing SBOM to merge)", event.ID)
+	// Get container to find its image
+	container, err := store.GetContainer(event.ID)
+	if err != nil || container == nil {
+		return workloadmeta.Event{}, fmt.Errorf("container %s not found in workloadmeta: %w", event.ID, err)
 	}
 
+	// Get the image ID from the container
+	imageID := container.Image.ID
+	if imageID == "" {
+		return workloadmeta.Event{}, fmt.Errorf("container %s has no image ID", event.ID)
+	}
+
+	log.Debugf("Container %s uses image %s, updating image SBOM", event.ID, imageID)
+
+	// Get existing image to merge SBOM data
+	var finalBom *cyclonedx_v1_4.Bom
+	var finalCompressedSBOM *workloadmeta.CompressedSBOM
+
+	existingImage, err := store.GetImage(imageID)
+	if err == nil && existingImage != nil && existingImage.SBOM != nil {
+		// Decompress existing image SBOM to get CycloneDXBOM
+		existingSBOM, err := sbomutil.UncompressSBOM(existingImage.SBOM)
+		if err == nil && existingSBOM != nil && existingSBOM.CycloneDXBOM != nil {
+			// Merge LastAccess properties from new BOM into existing image SBOM
+			finalBom = mergeLastAccessProperties(existingSBOM.CycloneDXBOM, &newBom)
+			log.Debugf("Merged LastAccess properties for image %s SBOM", imageID)
+		} else {
+			// Decompression failed or no CycloneDXBOM, use the new one directly
+			finalBom = &newBom
+			if err != nil {
+				log.Warnf("Failed to decompress existing SBOM for image %s: %v, using new SBOM", imageID, err)
+			} else {
+				log.Debugf("No existing CycloneDXBOM for image %s, using new SBOM", imageID)
+			}
+		}
+	} else {
+		// No existing SBOM on image, use the new one directly
+		finalBom = &newBom
+		if err != nil {
+			log.Debugf("Could not get image %s from store: %v, using new SBOM", imageID, err)
+		} else {
+			log.Debugf("No existing SBOM for image %s, using new SBOM", imageID)
+		}
+	}
+
+	// Compress the final merged SBOM for storage
+	finalCompressedSBOM, err = sbomutil.CompressSBOM(&workloadmeta.SBOM{
+		CycloneDXBOM: finalBom,
+	})
+	if err != nil {
+		return workloadmeta.Event{}, fmt.Errorf("failed to compress SBOM for image %s: %w", imageID, err)
+	}
+
+	// Return event to update the ContainerImageMetadata entity
 	return workloadmeta.Event{
 		Type: workloadmeta.EventTypeSet,
-		Entity: &workloadmeta.Container{
+		Entity: &workloadmeta.ContainerImageMetadata{
 			EntityID: workloadmeta.EntityID{
-				Kind: workloadmeta.KindContainer,
-				ID:   event.ID,
+				Kind: workloadmeta.KindContainerImageMetadata,
+				ID:   imageID,
 			},
-			SBOM: &workloadmeta.SBOM{
-				CycloneDXBOM: finalBom,
-			},
+			SBOM: finalCompressedSBOM,
 		},
 	}, nil
 }
@@ -273,7 +321,26 @@ func (s *streamHandler) Port() int {
 }
 
 func (s *streamHandler) Address() string {
-	return s.GetString("runtime_security_config.socket")
+	// SBOM collector service is on the command socket, not the main runtime security socket
+	cmdSocket := s.GetString("runtime_security_config.cmd_socket")
+	if cmdSocket != "" {
+		return cmdSocket
+	}
+
+	// If cmd_socket not explicitly set, derive it from main socket (adds "cmd-" prefix)
+	mainSocket := s.GetString("runtime_security_config.socket")
+	if mainSocket == "" {
+		return ""
+	}
+
+	// Derive command socket path (same logic as server)
+	// For unix sockets: /path/to/runtime-security.sock -> /path/to/cmd-runtime-security.sock
+	if dir := mainSocket[:strings.LastIndex(mainSocket, "/")+1]; dir != "" {
+		filename := mainSocket[strings.LastIndex(mainSocket, "/")+1:]
+		return dir + "cmd-" + filename
+	}
+
+	return mainSocket
 }
 
 func (s *streamHandler) Credentials() credentials.TransportCredentials {
