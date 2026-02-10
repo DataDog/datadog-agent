@@ -94,7 +94,7 @@ matchingCriteria:
         - mountPath: /host/proc
           name: procdir
           readOnly: true
-        - mountPath: /var/run/datadog
+        - mountPath: /opt/datadog-agent/run
           name: dsdsocket
           readOnly: true
         - mountPath: /etc/datadog-agent/datadog.yaml
@@ -186,7 +186,7 @@ matchingCriteria:
         - mountPath: /host/var/run/containerd
           name: runtimesocketdir
           readOnly: true
-        - mountPath: /var/run/datadog
+        - mountPath: /opt/datadog-agent/run
           name: dsdsocket
         - mountPath: /host/proc
           name: procdir
@@ -291,7 +291,7 @@ matchingCriteria:
           name: logdatadog
         - mountPath: /tmp
           name: tmpdir
-        - mountPath: /var/run/datadog
+        - mountPath: /opt/datadog-agent/run
           name: dsdsocket
         - mountPath: /host/var/run/containerd
           name: runtimesocketdir
@@ -400,7 +400,7 @@ matchingCriteria:
         - mountPath: /host/proc
           name: procdir
           readOnly: true
-        - mountPath: /var/run/datadog
+        - mountPath: /opt/datadog-agent/run
           name: dsdsocket
           readOnly: true
         - mountPath: /etc/datadog-agent/datadog.yaml

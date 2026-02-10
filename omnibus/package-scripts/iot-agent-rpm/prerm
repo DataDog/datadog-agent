@@ -60,6 +60,20 @@ remove_remote_config_db()
     fi
 }
 
+cleanup_run_directory()
+{
+    # Clean up runtime-created files (sockets, pid files, etc.)
+    # These are created by the agent at runtime, not by the package.
+    rm -f "$INSTALL_DIR/run/dsd.socket" || true
+    rm -f "$INSTALL_DIR/run/apm.socket" || true
+    rm -f "$INSTALL_DIR/run/sysprobe.sock" || true
+    rm -f "$INSTALL_DIR/run/datadog-agent.pid" || true
+    rm -f "$INSTALL_DIR/run/agent_ipc.socket" || true
+
+    # Remove the run directory if empty
+    rmdir "$INSTALL_DIR/run" 2>/dev/null || true
+}
+
 stop_agent
 deregister_agent
 
@@ -68,6 +82,7 @@ case "$*" in
         # We're uninstalling.
         remove_version_history
         remove_remote_config_db
+        cleanup_run_directory
     ;;
     1)
         # We're upgrading.

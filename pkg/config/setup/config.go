@@ -29,6 +29,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
@@ -191,7 +192,7 @@ var (
 
 // GetDefaultSecurityProfilesDir is the default directory used to store Security Profiles by the runtime security module
 func GetDefaultSecurityProfilesDir() string {
-	return filepath.Join(defaultRunPath, "runtime-security", "profiles")
+	return filepath.Join(defaultpaths.GetDefaultRunPath(), "runtime-security", "profiles")
 }
 
 // List of integrations allowed to be configured by RC by default
@@ -1057,7 +1058,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("synthetics.collector.flush_interval", "10s")
 	bindEnvAndSetLogsConfigKeys(config, "synthetics.forwarder.")
 
-	config.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, "sbom-agent"))
+	config.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultpaths.GetDefaultRunPath(), "sbom-agent"))
 	config.BindEnvAndSetDefault("sbom.compute_dependencies", true)
 	config.BindEnvAndSetDefault("sbom.simplify_bom_refs", true)
 	config.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
@@ -1135,7 +1136,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Datadog security agent (common)
 	config.BindEnvAndSetDefault("security_agent.cmd_port", DefaultSecurityAgentCmdPort)
 	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
-	config.BindEnvAndSetDefault("security_agent.log_file", DefaultSecurityAgentLogFile)
+	config.BindEnvAndSetDefault("security_agent.log_file", defaultpaths.GetDefaultSecurityAgentLogFile())
 	config.BindEnvAndSetDefault("security_agent.disable_thp", true)
 
 	// debug config to enable a remote client to receive data from the workloadmeta agent without a timeout
@@ -1309,7 +1310,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Shared library check
 	config.BindEnvAndSetDefault("shared_library_check.enabled", false)
-	config.BindEnvAndSetDefault("shared_library_check.library_folder_path", defaultAdditionalChecksPath)
+	config.BindEnvAndSetDefault("shared_library_check.library_folder_path", defaultpaths.GetDefaultAdditionalChecksPath())
 
 	// Vsock
 	config.BindEnvAndSetDefault("vsock_addr", "")
@@ -1335,6 +1336,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.SetDefault("proxy.http", "")
 	config.SetDefault("proxy.https", "")
 	config.SetDefault("proxy.no_proxy", []string{})
+	config.BindEnvAndSetDefault("common_root", "", "DD_COMMON_ROOT") //nolint:forbidigo
 
 	config.BindEnvAndSetDefault("skip_ssl_validation", false)
 	config.BindEnvAndSetDefault("sslkeylogfile", "")
@@ -1349,13 +1351,13 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("origin_detection_unified", false)
 	config.BindEnv("env") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnvAndSetDefault("tag_value_split_separator", map[string]string{})
-	config.BindEnvAndSetDefault("conf_path", ".")
-	config.BindEnvAndSetDefault("confd_path", defaultConfdPath)
-	config.BindEnvAndSetDefault("additional_checksd", defaultAdditionalChecksPath)
-	config.BindEnvAndSetDefault("jmx_log_file", "")
+	config.BindEnvAndSetDefault("conf_path", defaultpaths.GetDefaultConfPath())
+	config.BindEnvAndSetDefault("confd_path", defaultpaths.GetDefaultConfdPath())
+	config.BindEnvAndSetDefault("additional_checksd", defaultpaths.GetDefaultAdditionalChecksPath())
+	config.BindEnvAndSetDefault("jmx_log_file", defaultpaths.GetDefaultJmxLogFile())
 	// If enabling log_payloads, ensure the log level is set to at least DEBUG to be able to see the logs
 	config.BindEnvAndSetDefault("log_payloads", false)
-	config.BindEnvAndSetDefault("log_file", "")
+	config.BindEnvAndSetDefault("log_file", defaultpaths.GetDefaultLogFile())
 	config.BindEnvAndSetDefault("log_file_max_size", "10Mb")
 	config.BindEnvAndSetDefault("log_file_max_rolls", 1)
 	config.BindEnvAndSetDefault("log_level", "info")
@@ -1370,7 +1372,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnv("ipc_address") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // deprecated: use `cmd_host` instead
 	config.BindEnvAndSetDefault("cmd_host", "localhost")
 	config.BindEnvAndSetDefault("cmd_port", 5001)
-	config.BindEnvAndSetDefault("agent_ipc.socket_path", filepath.Join(defaultRunPath, "agent_ipc.socket"))
+	config.BindEnvAndSetDefault("agent_ipc.socket_path", filepath.Join(defaultpaths.GetDefaultRunPath(), "agent_ipc.socket"))
 	config.BindEnvAndSetDefault("agent_ipc.use_socket", false)
 	config.BindEnvAndSetDefault("agent_ipc.host", "localhost")
 	config.BindEnvAndSetDefault("agent_ipc.port", 0)
@@ -1649,7 +1651,7 @@ func debugging(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("tracemalloc_exclude", "")
 	config.BindEnvAndSetDefault("tracemalloc_whitelist", "") // deprecated
 	config.BindEnvAndSetDefault("tracemalloc_blacklist", "") // deprecated
-	config.BindEnvAndSetDefault("run_path", defaultRunPath)
+	config.BindEnvAndSetDefault("run_path", defaultpaths.GetDefaultRunPath())
 	config.BindEnv("no_proxy_nonexact_match") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 }
 
@@ -1767,7 +1769,7 @@ func forwarder(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("forwarder_recovery_reset", false)
 
 	// Forwarder storage on disk
-	config.BindEnvAndSetDefault("forwarder_storage_path", "")
+	config.BindEnvAndSetDefault("forwarder_storage_path", filepath.Join(defaultpaths.GetDefaultRunPath(), "transactions_to_retry"))
 	config.BindEnvAndSetDefault("forwarder_outdated_file_in_days", 10)
 	config.BindEnvAndSetDefault("forwarder_flush_to_disk_mem_ratio", 0.5)
 	config.BindEnvAndSetDefault("forwarder_storage_max_size_in_bytes", 0)                // 0 means disabled. This is a BETA feature.
@@ -1814,8 +1816,8 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_queue_size", 1024)
 
 	config.BindEnvAndSetDefault("dogstatsd_non_local_traffic", false)
-	config.BindEnvAndSetDefault("dogstatsd_socket", defaultStatsdSocket) // Only enabled on unix systems
-	config.BindEnvAndSetDefault("dogstatsd_stream_socket", "")           // Experimental || Notice: empty means feature disabled
+	config.BindEnvAndSetDefault("dogstatsd_socket", defaultpaths.GetDefaultStatsdSocket()) // Only enabled on unix systems
+	config.BindEnvAndSetDefault("dogstatsd_stream_socket", "")                             // Experimental || Notice: empty means feature disabled
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_autoadjust", false)
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_count", 1)
 	config.BindEnvAndSetDefault("dogstatsd_stats_port", 5000)
@@ -1823,7 +1825,7 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_stats_buffer", 10)
 	config.BindEnvAndSetDefault("dogstatsd_telemetry_enabled_listener_id", false)
 	// Control how dogstatsd-stats logs can be generated
-	config.BindEnvAndSetDefault("dogstatsd_log_file", "")
+	config.BindEnvAndSetDefault("dogstatsd_log_file", defaultpaths.GetDefaultDogstatsDProtocolLogFile())
 	config.BindEnvAndSetDefault("dogstatsd_logging_enabled", true)
 	config.BindEnvAndSetDefault("dogstatsd_log_file_max_rolls", 3)
 	config.BindEnvAndSetDefault("dogstatsd_log_file_max_size", "10Mb")
@@ -1846,7 +1848,7 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	// Sends Dogstatsd parse errors to the Debug level instead of the Error level
 	config.BindEnvAndSetDefault("dogstatsd_disable_verbose_logs", false)
 	// Location to store dogstatsd captures by default
-	config.BindEnvAndSetDefault("dogstatsd_capture_path", "")
+	config.BindEnvAndSetDefault("dogstatsd_capture_path", filepath.Join(defaultpaths.GetDefaultRunPath(), "dsd_capture"))
 	// Depth of the channel the capture writer reads before persisting to disk.
 	// Default is 0 - blocking channel
 	config.BindEnvAndSetDefault("dogstatsd_capture_depth", 0)
@@ -1957,7 +1959,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// Configurable API client timeout while communicating with the kubelet to stream logs. Value in seconds.
 	config.BindEnvAndSetDefault("logs_config.kubelet_api_client_read_timeout", "30s")
 	// Internal Use Only: avoid modifying those configuration parameters, this could lead to unexpected results.
-	config.BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
+	config.BindEnvAndSetDefault("logs_config.run_path", defaultpaths.GetDefaultRunPath())
 	// DEPRECATED in favor of `logs_config.force_use_http`.
 	config.BindEnvAndSetDefault("logs_config.use_http", false)
 	config.BindEnvAndSetDefault("logs_config.force_use_http", false)
@@ -2096,7 +2098,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 100)
 
 	// Control how the stream-logs log file is managed
-	config.BindEnvAndSetDefault("logs_config.streaming.streamlogs_log_file", DefaultStreamlogsLogFile)
+	config.BindEnvAndSetDefault("logs_config.streaming.streamlogs_log_file", defaultpaths.GetDefaultStreamlogsLogFile())
 
 	// If true, then the registry file will be written atomically. This behavior is not supported on ECS Fargate.
 	config.BindEnvAndSetDefault("logs_config.atomic_registry_write", !pkgconfigenv.IsECSFargate())
@@ -2492,6 +2494,10 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 		return err
 	}
 
+	if config.GetString("common_root") != "" {
+		SetCommonRootPaths(config)
+	}
+
 	// We resolve proxy setting before secrets. This allows setting secrets through DD_PROXY_* env variables
 	LoadProxyFromEnv(config)
 
@@ -2526,6 +2532,27 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 	}
 
 	return setupFipsEndpoints(config)
+}
+
+// SetCommonRootPaths transforms path config values when --common-root CLI flag is used.
+// This is only needed for CLI flag because env var DD_COMMON_ROOT is handled at init() time.
+// It sets paths with SourceAgentRuntime to override values from config file.
+func SetCommonRootPaths(config pkgconfigmodel.Config) {
+	root := config.GetString("common_root")
+
+	// Set the common root in the defaultpaths package so getters return transformed paths
+	defaultpaths.SetCommonRoot(root)
+
+	// Override all path configs with transformed values
+	config.Set("conf_path", defaultpaths.GetDefaultConfPath(), pkgconfigmodel.SourceAgentRuntime)
+	config.Set("confd_path", defaultpaths.GetDefaultConfdPath(), pkgconfigmodel.SourceAgentRuntime)
+	config.Set("additional_checksd", defaultpaths.GetDefaultAdditionalChecksPath(), pkgconfigmodel.SourceAgentRuntime)
+	config.Set("log_file", defaultpaths.GetDefaultLogFile(), pkgconfigmodel.SourceAgentRuntime)
+	config.Set("dogstatsd_log_file", defaultpaths.GetDefaultDogstatsDProtocolLogFile(), pkgconfigmodel.SourceAgentRuntime)
+	config.Set("logs_config.streaming.streamlogs_log_file", defaultpaths.GetDefaultStreamlogsLogFile(), pkgconfigmodel.SourceAgentRuntime)
+	config.Set("dogstatsd_socket", defaultpaths.GetDefaultStatsdSocket(), pkgconfigmodel.SourceAgentRuntime)
+	config.Set("run_path", defaultpaths.GetDefaultRunPath(), pkgconfigmodel.SourceAgentRuntime)
+	config.Set("logs_config.run_path", defaultpaths.GetDefaultRunPath(), pkgconfigmodel.SourceAgentRuntime)
 }
 
 // LoadSystemProbe reads config files and initializes config with decrypted secrets for system-probe

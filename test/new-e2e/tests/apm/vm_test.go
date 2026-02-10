@@ -62,11 +62,11 @@ func (s *VMFakeintakeSuite) SetupSuite() {
 
 func vmProvisionerOpts(opts ...awshost.ProvisionerOption) []awshost.ProvisionerOption {
 	setupScript := `#!/bin/bash
-# /var/run/datadog directory is necessary for UDS socket creation
-sudo mkdir -p /var/run/datadog
+# /opt/datadog-agent/run directory is necessary for UDS socket creation
+sudo mkdir -p /opt/datadog-agent/run
 sudo groupadd -r dd-agent
 sudo useradd -r -M -g dd-agent dd-agent
-sudo chown dd-agent:dd-agent /var/run/datadog
+sudo chown dd-agent:dd-agent /opt/datadog-agent/run
 
 # Agent must be in the docker group to be able to open and read
 # container info from the docker socket.
@@ -76,7 +76,7 @@ sudo usermod -a -G docker dd-agent
 	opts = append(opts,
 		awshost.WithRunOptions(
 			ec2.WithDocker(),
-			// Create the /var/run/datadog directory and ensure
+			// Create the /opt/datadog-agent/run directory and ensure
 			// permissions are correct so the agent can create
 			// unix sockets for the UDS transport and communicate with the docker socket.
 			ec2.WithEC2InstanceOptions(ec2.WithUserData(setupScript)),
@@ -100,7 +100,7 @@ func vmAgentConfig(tr transport, extra string) string {
 	case uds:
 		cfg = `
 apm_config.enabled: true
-apm_config.receiver_socket: /var/run/datadog/apm.socket
+apm_config.receiver_socket: /opt/datadog-agent/run/apm.socket
 `
 	case tcp:
 		cfg = `

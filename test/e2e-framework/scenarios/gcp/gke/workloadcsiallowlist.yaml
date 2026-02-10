@@ -21,13 +21,13 @@ matchingCriteria:
       securityContext:
         privileged: true # privileged security context is needed to perform volume mounts on other pods.
       args:
-        - --apm-host-socket-path=/var/run/datadog/apm.socket
-        - --dsd-host-socket-path=/var/run/datadog/dsd.socket
+        - --apm-host-socket-path=/opt/datadog-agent/run/apm.socket
+        - --dsd-host-socket-path=/opt/datadog-agent/run/dsd.socket
       volumeMounts:
         - name: plugin-dir # stores the socket on which CSI node server service is exposed. It is created by the node server and needs to be writeable.
           mountPath: /csi
         - name: apm-socket
-          mountPath: /var/run/datadog
+          mountPath: /opt/datadog-agent/run
           readOnly: true
         - mountPath: /var/lib/kubelet/pods # write mode is required to perform a volume mount. csi driver has to create a subdirectory under /var/lib/kubelet/pods/<pod-uid>/volumes/kubernetes.io~csi/datadog/mount.
           name: mountpoint-dir
@@ -56,8 +56,8 @@ matchingCriteria:
         path: /var/lib/kubelet/pods
       name: mountpoint-dir
     - hostPath:
-        path: /var/run/datadog
+        path: /opt/datadog-agent/run
       name: apm-socket
     - hostPath:
-        path: /var/run/datadog
+        path: /opt/datadog-agent/run
       name: dsd-socket

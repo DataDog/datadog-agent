@@ -98,7 +98,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		if cliParams.saveFlare {
 			// Windows cannot accept ":" in file names
 			filenameSafeTimeStamp := strings.ReplaceAll(time.Now().UTC().Format(time.RFC3339), ":", "-")
-			cliParams.logFile = filepath.Join(defaultpaths.JMXFlareDirectory, "jmx_"+cliParams.command+"_"+filenameSafeTimeStamp+".log")
+			cliParams.logFile = filepath.Join(defaultpaths.GetDefaultJMXFlareDirectory(), "jmx_"+cliParams.command+"_"+filenameSafeTimeStamp+".log")
 			cliParams.jmxLogLevel = "debug"
 		}
 

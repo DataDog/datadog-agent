@@ -109,17 +109,17 @@ func TestApplyProviderOverrides(t *testing.T) {
 							Env: []corev1.EnvVar{
 								{
 									Name:  "DD_TRACE_AGENT_URL",
-									Value: "unix:///var/run/datadog/apm.socket",
+									Value: "unix:///opt/datadog-agent/run/apm.socket",
 								},
 								{
 									Name:  "DD_DOGSTATSD_URL",
-									Value: "unix:///var/run/datadog/dsd.socket",
+									Value: "unix:///opt/datadog-agent/run/dsd.socket",
 								},
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
 									Name:      "ddsockets",
-									MountPath: "/var/run/datadog",
+									MountPath: "/opt/datadog-agent/run",
 									ReadOnly:  false,
 								},
 							},
@@ -133,17 +133,17 @@ func TestApplyProviderOverrides(t *testing.T) {
 								},
 								{
 									Name:  "DD_APM_RECEIVER_SOCKET",
-									Value: "/var/run/datadog/apm.socket",
+									Value: "/opt/datadog-agent/run/apm.socket",
 								},
 								{
 									Name:  "DD_DOGSTATSD_SOCKET",
-									Value: "/var/run/datadog/dsd.socket",
+									Value: "/opt/datadog-agent/run/dsd.socket",
 								},
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
 									Name:      "ddsockets",
-									MountPath: "/var/run/datadog",
+									MountPath: "/opt/datadog-agent/run",
 									ReadOnly:  false,
 								},
 							},
@@ -218,17 +218,17 @@ func TestApplyProviderOverrides(t *testing.T) {
 							Env: []corev1.EnvVar{
 								{
 									Name:  "DD_TRACE_AGENT_URL",
-									Value: "unix:///var/run/datadog/apm.socket",
+									Value: "unix:///opt/datadog-agent/run/apm.socket",
 								},
 								{
 									Name:  "DD_DOGSTATSD_URL",
-									Value: "unix:///var/run/datadog/dsd.socket",
+									Value: "unix:///opt/datadog-agent/run/dsd.socket",
 								},
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
 									Name:      "ddsockets",
-									MountPath: "/var/run/datadog",
+									MountPath: "/opt/datadog-agent/run",
 									ReadOnly:  false,
 								},
 							},
@@ -242,17 +242,17 @@ func TestApplyProviderOverrides(t *testing.T) {
 								},
 								{
 									Name:  "DD_APM_RECEIVER_SOCKET",
-									Value: "/var/run/datadog/apm.socket",
+									Value: "/opt/datadog-agent/run/apm.socket",
 								},
 								{
 									Name:  "DD_DOGSTATSD_SOCKET",
-									Value: "/var/run/datadog/dsd.socket",
+									Value: "/opt/datadog-agent/run/dsd.socket",
 								},
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
 									Name:      "ddsockets",
-									MountPath: "/var/run/datadog",
+									MountPath: "/opt/datadog-agent/run",
 									ReadOnly:  false,
 								},
 							},
@@ -346,17 +346,17 @@ func TestApplyProviderOverrides(t *testing.T) {
 							Env: []corev1.EnvVar{
 								{
 									Name:  "DD_TRACE_AGENT_URL",
-									Value: "unix:///var/run/datadog/apm.socket",
+									Value: "unix:///opt/datadog-agent/run/apm.socket",
 								},
 								{
 									Name:  "DD_DOGSTATSD_URL",
-									Value: "unix:///var/run/datadog/dsd.socket",
+									Value: "unix:///opt/datadog-agent/run/dsd.socket",
 								},
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
 									Name:      "ddsockets",
-									MountPath: "/var/run/datadog",
+									MountPath: "/opt/datadog-agent/run",
 									ReadOnly:  false,
 								},
 							},
@@ -370,17 +370,17 @@ func TestApplyProviderOverrides(t *testing.T) {
 								},
 								{
 									Name:  "DD_APM_RECEIVER_SOCKET",
-									Value: "/var/run/datadog/apm.socket",
+									Value: "/opt/datadog-agent/run/apm.socket",
 								},
 								{
 									Name:  "DD_DOGSTATSD_SOCKET",
-									Value: "/var/run/datadog/dsd.socket",
+									Value: "/opt/datadog-agent/run/dsd.socket",
 								},
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
 									Name:      "ddsockets",
-									MountPath: "/var/run/datadog",
+									MountPath: "/opt/datadog-agent/run",
 									ReadOnly:  false,
 								},
 							},

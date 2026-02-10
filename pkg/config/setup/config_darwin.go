@@ -7,38 +7,38 @@ package setup
 
 import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 const (
-	defaultConfdPath            = "/opt/datadog-agent/etc/conf.d"
-	defaultAdditionalChecksPath = "/opt/datadog-agent/etc/checks.d"
-	defaultRunPath              = "/opt/datadog-agent/run"
-	defaultGuiPort              = 5002
-	// DefaultUpdaterLogFile is the default updater log file
-	DefaultUpdaterLogFile = "/opt/datadog-agent/logs/updater.log"
-	// DefaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
-	DefaultSecurityAgentLogFile = "/opt/datadog-agent/logs/security-agent.log"
-	// DefaultProcessAgentLogFile is the default process-agent log file
-	DefaultProcessAgentLogFile = "/opt/datadog-agent/logs/process-agent.log"
-	// DefaultOTelAgentLogFile is the default otel-agent log file
-	DefaultOTelAgentLogFile = "/opt/datadog-agent/logs/otel-agent.log"
-	// DefaultHostProfilerLogFile is the default host-profiler log file
-	DefaultHostProfilerLogFile = "/opt/datadog-agent/logs/host-profiler.log"
-	// DefaultPrivateActionRunnerLogFile is the default private-action-runner log file
-	DefaultPrivateActionRunnerLogFile = "/opt/datadog-agent/logs/private-action-runner.log"
-	// DefaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe
-	DefaultSystemProbeAddress     = "/opt/datadog-agent/run/sysprobe.sock"
-	defaultSystemProbeLogFilePath = "/opt/datadog-agent/logs/system-probe.log"
-	// DefaultDDAgentBin the process agent's binary
-	DefaultDDAgentBin = "/opt/datadog-agent/bin/agent/agent"
+	// defaultGuiPort is the default GUI port on Darwin
+	defaultGuiPort = 5002
 	// InstallPath is the default install path for the agent
 	InstallPath = "/opt/datadog-agent"
-	// defaultStatsdSocket is the default Unix Domain Socket path on which statsd will listen
-	defaultStatsdSocket = ""
-	// defaultReceiverSocket is the default Unix Domain Socket path on which Trace agent will listen
-	defaultReceiverSocket = ""
-	//DefaultStreamlogsLogFile points to the stream logs log file that will be used if not configured
-	DefaultStreamlogsLogFile = "/opt/datadog-agent/logs/streamlogs_info/streamlogs.log"
+)
+
+// Exported default paths - sourced from defaultpaths package (the source of truth)
+// These are used by external packages that need default paths for logging setup.
+// For runtime path access, use defaultpaths getters
+var (
+	// DefaultUpdaterLogFile is the default updater log file
+	DefaultUpdaterLogFile = defaultpaths.DefaultUpdaterLogFile
+	// DefaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
+	DefaultSecurityAgentLogFile = defaultpaths.DefaultSecurityAgentLogFile
+	// DefaultProcessAgentLogFile is the default process-agent log file
+	DefaultProcessAgentLogFile = defaultpaths.DefaultProcessAgentLogFile
+	// DefaultOTelAgentLogFile is the default otel-agent log file
+	DefaultOTelAgentLogFile = defaultpaths.DefaultOTelAgentLogFile
+	// DefaultHostProfilerLogFile is the default host-profiler log file
+	DefaultHostProfilerLogFile = defaultpaths.DefaultHostProfilerLogFile
+	// DefaultPrivateActionRunnerLogFile is the default private-action-runner log file
+	DefaultPrivateActionRunnerLogFile = defaultpaths.DefaultPrivateActionRunnerLogFile
+	// DefaultStreamlogsLogFile points to the stream logs log file that will be used if not configured
+	DefaultStreamlogsLogFile = defaultpaths.DefaultStreamlogsLogFile
+	// DefaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe
+	DefaultSystemProbeAddress = "/opt/datadog-agent/run/sysprobe.sock"
+	// DefaultDDAgentBin the process agent's binary
+	DefaultDDAgentBin = "/opt/datadog-agent/bin/agent/agent"
 )
 
 // called by init in config.go, to ensure any os-specific config is done

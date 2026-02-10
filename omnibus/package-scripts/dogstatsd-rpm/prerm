@@ -4,6 +4,7 @@
 #
 # .rpm: STEP 4 of 6
 
+INSTALL_DIR=/opt/datadog-dogstatsd
 SERVICE_NAME=datadog-dogstatsd
 
 stop_agent()
@@ -33,7 +34,30 @@ deregister_agent()
     fi
 }
 
+cleanup_run_directory()
+{
+    # Clean up runtime-created files (sockets, pid files, etc.)
+    # These are created by dogstatsd at runtime, not by the package.
+    rm -f "$INSTALL_DIR/run/dsd.socket" || true
+    rm -f "$INSTALL_DIR/run/dogstatsd.pid" || true
+
+    # Remove the run directory if empty
+    rmdir "$INSTALL_DIR/run" 2>/dev/null || true
+}
+
 stop_agent
 deregister_agent
+
+case "$*" in
+    0)
+        # We're uninstalling.
+        cleanup_run_directory
+    ;;
+    1)
+        # We're upgrading.
+    ;;
+    *)
+    ;;
+esac
 
 exit 0

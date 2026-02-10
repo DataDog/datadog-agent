@@ -81,7 +81,7 @@ func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]str
 
 	client := ipc.GetClient()
 
-	flarecommon.GetLogFiles(fb, logFilePath)
+	flarecommon.GetDefaultLogFiles(fb, logFilePath)
 	flarecommon.GetConfigFiles(fb, confSearchPaths)
 	getClusterAgentConfigCheck(fb, client) //nolint:errcheck
 	flarecommon.GetExpVar(fb)              //nolint:errcheck

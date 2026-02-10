@@ -215,14 +215,21 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	runE := func(*cobra.Command, []string) error {
 		// TODO: once the agent is represented as a component, and not a function (run),
 		// this will use `fxutil.Run` instead of `fxutil.OneShot`.
+		configOpts := []func(*config.Params){
+			config.WithExtraConfFiles(cliParams.ExtraConfFilePath),
+			config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath),
+		}
+		if globalParams.CommonRoot != "" {
+			configOpts = append(configOpts, config.WithCLIOverride("common_root", globalParams.CommonRoot))
+		}
 		return fxutil.OneShot(run,
 			fx.Invoke(func(_ log.Component) {
 				ddruntime.SetMaxProcs()
 			}),
 			fx.Supply(core.BundleParams{
-				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(cliParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
+				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, configOpts...),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath)),
-				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.LogFile),
+				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.GetDefaultLogFile()),
 			}),
 			secretsfx.Module(),
 			fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
@@ -395,11 +402,11 @@ func getSharedFxOption() fx.Option {
 	return fx.Options(
 		flare.Module(flare.NewParams(
 			defaultpaths.GetDistPath(),
-			defaultpaths.PyChecksPath,
-			defaultpaths.LogFile,
-			defaultpaths.JmxLogFile,
-			defaultpaths.DogstatsDLogFile,
-			defaultpaths.StreamlogsLogFile,
+			defaultpaths.GetDefaultPyChecksPath(),
+			defaultpaths.GetDefaultLogFile(),
+			defaultpaths.GetDefaultJmxLogFile(),
+			defaultpaths.GetDefaultDogstatsDProtocolLogFile(),
+			defaultpaths.GetDefaultStreamlogsLogFile(),
 		)),
 		core.Bundle(),
 		hostnameimpl.Module(),

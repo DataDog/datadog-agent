@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGetLogFiles(t *testing.T) {
+func TestGetDefaultLogFiles(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "test-log-files")
 	require.NoError(t, err)
 	defer os.RemoveAll(tempDir)
