@@ -114,6 +114,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/common v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.76.0-devel // indirect
+	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.76.0-devel // indirect
