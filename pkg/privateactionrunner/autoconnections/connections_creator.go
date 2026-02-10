@@ -19,10 +19,10 @@ func NewConnectionsCreator(client ConnectionsClient) ConnectionsCreator {
 	return ConnectionsCreator{client}
 }
 
-func (c ConnectionsCreator) AutoCreateConnections(ctx context.Context, runnerID, runnerName string, allowlist []string) error {
-	definitions := DetermineConnectionsToCreate(allowlist)
+func (c ConnectionsCreator) AutoCreateConnections(ctx context.Context, runnerID, runnerName string, actionsAllowlist []string) error {
+	definitions := DetermineConnectionsToCreate(actionsAllowlist)
 	if len(definitions) == 0 {
-		log.Info("No bundles in allowlist for auto-connection creation")
+		log.Info("No actions in actions_allowlist for auto-connection creation")
 		return nil
 	}
 

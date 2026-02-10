@@ -23,6 +23,7 @@ import (
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/parversion"
 	pkgrcclient "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/autoconnections"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
@@ -191,6 +192,27 @@ func performSelfEnrollment(ctx context.Context, log log.Component, ddConfig conf
 	}
 	cfg.OrgId = urnParts.OrgID
 	cfg.RunnerId = urnParts.RunnerID
+
+	// Auto-create connections for enrolled runner
+	var actionsAllowlist = make([]string, 0)
+	for _, set := range cfg.ActionsAllowlist {
+		for action := range set {
+			actionsAllowlist = append(actionsAllowlist, action)
+		}
+	}
+
+	if len(actionsAllowlist) > 0 {
+		client, err := autoconnections.NewConnectionsAPIClient(ddConfig, ddSite, apiKey, appKey)
+		if err != nil {
+			log.Warnf("Failed to create connections API client: %v", err)
+		} else {
+			creator := autoconnections.NewConnectionsCreator(*client)
+
+			if err := creator.AutoCreateConnections(context.Background(), urnParts.RunnerID, runnerName, actionsAllowlist); err != nil {
+				log.Warnf("Failed to auto-create connections: %v", err)
+			}
+		}
+	}
 
 	return cfg, nil
 }

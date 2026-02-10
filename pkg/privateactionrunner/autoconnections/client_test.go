@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/jsonapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -36,7 +37,7 @@ func TestNewConnectionAPIClient_ValidCredentials(t *testing.T) {
 
 func TestBuildConnectionRequest_NoAdditionalFields(t *testing.T) {
 	httpDef := ConnectionDefinition{
-		BundleID:        "com.datadoghq.http",
+		FQNPrefix:       "com.datadoghq.http",
 		IntegrationType: "HTTP",
 		Credentials: CredentialConfig{
 			Type:             "HTTPNoAuth",
@@ -58,7 +59,7 @@ func TestBuildConnectionRequest_NoAdditionalFields(t *testing.T) {
 
 func TestBuildConnectionRequest_WithAdditionalFields(t *testing.T) {
 	scriptDef := ConnectionDefinition{
-		BundleID:        "com.datadoghq.script",
+		FQNPrefix:       "com.datadoghq.script",
 		IntegrationType: "Script",
 		Credentials: CredentialConfig{
 			Type: "Script",
@@ -109,7 +110,7 @@ func TestCreateConnection_Success(t *testing.T) {
 	}
 
 	httpDef := ConnectionDefinition{
-		BundleID:        "com.datadoghq.http",
+		FQNPrefix:       "com.datadoghq.http",
 		IntegrationType: "HTTP",
 		Credentials: CredentialConfig{
 			Type:             "HTTPNoAuth",
@@ -172,7 +173,7 @@ func TestCreateConnection_ErrorResponses(t *testing.T) {
 			}
 
 			httpDef := ConnectionDefinition{
-				BundleID:        "com.datadoghq.http",
+				FQNPrefix:       "com.datadoghq.http",
 				IntegrationType: "HTTP",
 				Credentials: CredentialConfig{
 					Type:             "HTTPNoAuth",
@@ -185,6 +186,98 @@ func TestCreateConnection_ErrorResponses(t *testing.T) {
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.expectedError)
 			assert.Contains(t, err.Error(), tt.responseBody)
+		})
+	}
+}
+
+func TestBuildConnectionRequest_KubernetesNoIntegrationFields(t *testing.T) {
+	k8sDef := ConnectionDefinition{
+		FQNPrefix:       "com.datadoghq.kubernetes",
+		IntegrationType: "Kubernetes",
+		Credentials: CredentialConfig{
+			Type:             "KubernetesServiceAccount",
+			AdditionalFields: nil,
+		},
+	}
+	runnerID := "runner-123"
+	runnerName := "test-runner"
+
+	request := buildConnectionRequest(k8sDef, runnerID, runnerName)
+
+	assert.Equal(t, "Kubernetes (test-runner)", request.Name)
+	assert.Equal(t, runnerID, request.RunnerID)
+	assert.Equal(t, "Kubernetes", request.Integration.Type)
+	assert.Equal(t, "KubernetesServiceAccount", request.Integration.Credentials["type"])
+	assert.Len(t, request.Integration.Credentials, 1)
+}
+
+func TestBuildConnectionRequest_JSONStructureMatchesAPISpec(t *testing.T) {
+	tests := []struct {
+		name                 string
+		definition           ConnectionDefinition
+		runnerID             string
+		runnerName           string
+		expectedJSONContains []string
+	}{
+		{
+			name: "Kubernetes with service account",
+			definition: ConnectionDefinition{
+				FQNPrefix:       "com.datadoghq.kubernetes",
+				IntegrationType: "Kubernetes",
+				Credentials: CredentialConfig{
+					Type: "KubernetesServiceAccount",
+				},
+			},
+			runnerID:   "runner-123",
+			runnerName: "My Kubernetes OnPrem Connection",
+			expectedJSONContains: []string{
+				`"type":"action_connection"`,
+				`"name":"Kubernetes (My Kubernetes OnPrem Connection)"`,
+				`"runner_id":"runner-123"`,
+				`"integration":{`,
+				`"type":"Kubernetes"`,
+				`"credentials":{`,
+				`"type":"KubernetesServiceAccount"`,
+			},
+		},
+		{
+			name: "Script with config file location",
+			definition: ConnectionDefinition{
+				FQNPrefix:       "com.datadoghq.script",
+				IntegrationType: "Script",
+				Credentials: CredentialConfig{
+					Type: "Script",
+					AdditionalFields: map[string]interface{}{
+						"configFileLocation": "/path/to/config",
+					},
+				},
+			},
+			runnerID:   "runner-123",
+			runnerName: "My Script OnPrem Connection",
+			expectedJSONContains: []string{
+				`"type":"action_connection"`,
+				`"name":"Script (My Script OnPrem Connection)"`,
+				`"runner_id":"runner-123"`,
+				`"integration":{`,
+				`"type":"Script"`,
+				`"credentials":{`,
+				`"type":"Script"`,
+				`"configFileLocation":"/path/to/config"`,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			request := buildConnectionRequest(tt.definition, tt.runnerID, tt.runnerName)
+
+			jsonBytes, err := jsonapi.Marshal(request, jsonapi.MarshalClientMode())
+			require.NoError(t, err)
+
+			jsonString := string(jsonBytes)
+			for _, expected := range tt.expectedJSONContains {
+				assert.Contains(t, jsonString, expected, "JSON should contain: %s", expected)
+			}
 		})
 	}
 }

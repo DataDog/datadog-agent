@@ -5,3 +5,4 @@ crate.from_cargo(
     lockfile = "//pkg/discovery/module/rust:Cargo.Bazel.lock",
     manifests = ["//pkg/discovery/module/rust:Cargo.toml"],
 )
+use_repo(crate, "sdagent_crates")

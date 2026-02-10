@@ -3,25 +3,23 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package autoconnections provides functionality for automatically creating
-// PAR connections after successful auto-enrollment.
 package autoconnections
 
 // ConnectionDefinition defines all metadata needed to create a connection
 type ConnectionDefinition struct {
-	// BundleID is the bundle identifier used in allowlist matching
-	// Example: "com.datadoghq.http"
-	BundleID string
+	// FQNPrefix is the identifier used in allowlist matching
+	// Example: "com.datadoghq.script"
+	FQNPrefix string
 
 	// IntegrationType is the integration type sent to the API
-	// Example: "HTTP", "Kubernetes", "Script"
+	// Example: "Kubernetes", "Script"
 	IntegrationType string
 
 	Credentials CredentialConfig
 }
 
 type CredentialConfig struct {
-	// Example: "HTTPNoAuth", "KubernetesServiceAccount", "Script"
+	// Example: "KubernetesServiceAccount", "Script"
 	Type string
 
 	// AdditionalFields contains any extra fields needed in the credentials object
