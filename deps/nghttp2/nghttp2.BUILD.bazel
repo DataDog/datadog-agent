@@ -132,16 +132,6 @@ pkg_files(
     prefix = "embedded/include/nghttp2",
 )
 
-# Temporary: until we pick up all licenses via aspect on final package
-pkg_files(
-    name = "license_file",
-    srcs = ["COPYING"],
-    prefix = "LICENSES",
-    renames = {
-        "COPYING": "nghttp2-COPYING",
-    },
-)
-
 # This is a hack to work around a bug in rules_pkg.
 copy_file(
     name = "pull_fetch_ocsp_response",
@@ -163,7 +153,6 @@ pkg_files(
 pkg_filegroup(
     name = "all_files",
     srcs = [
-        ":license_file",
         ":header_files",
         ":lib_files",
         ":fetch_ocsp_response",
