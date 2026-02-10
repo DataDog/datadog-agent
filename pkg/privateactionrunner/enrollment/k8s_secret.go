@@ -75,7 +75,6 @@ func persistIdentityToK8sSecret(ctx context.Context, cfg configModel.Reader, res
 		return err
 	}
 
-	// Convert private key to the same format as file storage
 	privateKeyJWK, err := util.EcdsaToJWK(result.PrivateKey)
 	if err != nil {
 		return fmt.Errorf("failed to convert private key to JWK: %w", err)
@@ -108,19 +107,18 @@ func persistIdentityToK8sSecret(ctx context.Context, cfg configModel.Reader, res
 		},
 	}
 
-	// Try to create the secret
 	_, err = client.CoreV1().Secrets(ns).Create(ctx, secret, metav1.CreateOptions{})
 	if err != nil {
-		if k8serrors.IsAlreadyExists(err) {
-			// Secret already exists, update it
-			_, err = client.CoreV1().Secrets(ns).Update(ctx, secret, metav1.UpdateOptions{})
-			if err != nil {
-				return fmt.Errorf("failed to update existing secret: %w", err)
-			}
-			log.Infof("Updated PAR identity in K8s secret: %s/%s", ns, secretName)
-			return nil
+		if !k8serrors.IsAlreadyExists(err) {
+			return fmt.Errorf("failed to create secret: %w", err)
 		}
-		return fmt.Errorf("failed to create secret: %w", err)
+		// Secret already exists, update it
+		_, err = client.CoreV1().Secrets(ns).Update(ctx, secret, metav1.UpdateOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to update existing secret: %w", err)
+		}
+		log.Infof("Updated PAR identity in K8s secret: %s/%s", ns, secretName)
+		return nil
 	}
 
 	log.Infof("Created PAR identity in K8s secret: %s/%s", ns, secretName)
