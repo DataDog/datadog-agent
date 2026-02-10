@@ -8,9 +8,9 @@
 ---
 enhancements:
   - |
-    Added support for two new configurations for tag-based gradual rollout in K8s SSI deployments.
+    Added support for two new configurations for tag-based gradual rollout in Kubernetes SSI deployments.
     The gradual rollout can be configured using the following parameters:
     - ``DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_GRADUAL_ROLLOUT_ENABLED``: Whether to enable gradual rollout (default: true)
     - ``DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_GRADUAL_ROLLOUT_CACHE_TTL_HOURS``: The cache TTL in hours for the gradual rollout image cache (default: 1)
-       - This cache is used to store the mapping of mutable tags -> image digest for the gradual rollout, and setting this TTL helps prevent the image resolution from becoming stale.
+       - This cache is used to store the mapping of mutable tags to image digest for the gradual rollout, and setting this TTL helps prevent the image resolution from becoming stale.
 
