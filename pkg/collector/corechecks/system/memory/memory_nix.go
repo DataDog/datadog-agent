@@ -8,24 +8,39 @@
 package memory
 
 import (
+	"bufio"
 	"errors"
+	"os"
 	"runtime"
+	"strconv"
+	"strings"
 
 	"github.com/shirou/gopsutil/v4/mem"
+	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // For testing purpose
 var virtualMemory = mem.VirtualMemory
 var swapMemory = mem.SwapMemory
 var runtimeOS = runtime.GOOS
+var openProcFile = func(path string) (*os.File, error) {
+	return os.Open(path)
+}
 
-// Check doesn't need additional fields
+type memoryInstanceConfig struct {
+	CollectMemoryPressure bool `yaml:"collect_memory_pressure"`
+}
+
+// Check collects memory metrics
 type Check struct {
 	core.CheckBase
+	instanceConfig memoryInstanceConfig
 }
 
 const mbSize float64 = 1024 * 1024
@@ -96,6 +111,11 @@ func (c *Check) linuxSpecificVirtualMemoryCheck(v *mem.VirtualMemoryStat) error 
 	sender.Gauge("system.mem.commit_limit", float64(v.CommitLimit)/mbSize, "", nil)
 	sender.Gauge("system.mem.committed_as", float64(v.CommittedAS)/mbSize, "", nil)
 	sender.Gauge("system.swap.cached", float64(v.SwapCached)/mbSize, "", nil)
+
+	if c.instanceConfig.CollectMemoryPressure {
+		c.collectVMStatPressureMetrics(sender)
+	}
+
 	return nil
 }
 
@@ -107,4 +127,79 @@ func (c *Check) freebsdSpecificVirtualMemoryCheck(v *mem.VirtualMemoryStat) erro
 
 	sender.Gauge("system.mem.cached", float64(v.Cached)/mbSize, "", nil)
 	return nil
+}
+
+// Configure configures the memory check
+func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
+	err := c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source)
+	if err != nil {
+		return err
+	}
+
+	s, err := c.GetSender()
+	if err != nil {
+		return err
+	}
+	s.FinalizeCheckServiceTag()
+
+	return yaml.Unmarshal(rawInstance, &c.instanceConfig)
+}
+
+func (c *Check) collectVMStatPressureMetrics(sender sender.Sender) {
+	procfsPath := "/proc"
+	if pkgconfigsetup.Datadog().IsSet("procfs_path") {
+		procfsPath = pkgconfigsetup.Datadog().GetString("procfs_path")
+	}
+
+	filePath := procfsPath + "/vmstat"
+	file, err := openProcFile(filePath)
+	if err != nil {
+		log.Debugf("memory.Check: could not open %s: %v", filePath, err)
+		return
+	}
+	defer file.Close()
+
+	allocstallByZone := make(map[string]uint64)
+	var pgscanDirect, pgstealDirect uint64
+	var pgscanKswapd, pgstealKswapd uint64
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) < 2 {
+			continue
+		}
+
+		value, err := strconv.ParseUint(fields[1], 10, 64)
+		if err != nil {
+			continue
+		}
+
+		switch {
+		case strings.HasPrefix(fields[0], "allocstall_"):
+			zoneName := strings.TrimPrefix(fields[0], "allocstall_")
+			allocstallByZone[zoneName] = value
+		case fields[0] == "pgscan_direct":
+			pgscanDirect = value
+		case fields[0] == "pgsteal_direct":
+			pgstealDirect = value
+		case fields[0] == "pgscan_kswapd":
+			pgscanKswapd = value
+		case fields[0] == "pgsteal_kswapd":
+			pgstealKswapd = value
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Debugf("memory.Check: error reading %s: %v", filePath, err)
+		return
+	}
+
+	for zoneName, value := range allocstallByZone {
+		sender.MonotonicCount("system.mem.allocstall", float64(value), "", []string{"zone:" + zoneName})
+	}
+	sender.MonotonicCount("system.mem.pgscan_direct", float64(pgscanDirect), "", nil)
+	sender.MonotonicCount("system.mem.pgsteal_direct", float64(pgstealDirect), "", nil)
+	sender.MonotonicCount("system.mem.pgscan_kswapd", float64(pgscanKswapd), "", nil)
+	sender.MonotonicCount("system.mem.pgsteal_kswapd", float64(pgstealKswapd), "", nil)
 }

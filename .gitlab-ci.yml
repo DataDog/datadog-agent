@@ -510,6 +510,14 @@ workflow:
       <<: *artifacts_build_impacting_paths
       compare_to: $COMPARE_TO_BRANCH
 
+.on_dev_branches_with_artifact_changes_manual:
+  - !reference [.on_dev_branches]
+  - changes:
+      <<: *artifacts_build_impacting_paths
+      compare_to: $COMPARE_TO_BRANCH
+    when: manual
+    allow_failure: true
+
 .on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy
     when: always
