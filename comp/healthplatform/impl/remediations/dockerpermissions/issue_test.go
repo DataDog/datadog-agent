@@ -54,7 +54,7 @@ func TestBuildIssue_QuoteEscaping(t *testing.T) {
 			dockerDir: "C:\\Program\"Data\\docker",
 			osName:    "windows",
 			expectedInWindows: []string{
-				"icacls \"C:\\Program\"\"Data\\docker\\containers\"",
+				"icacls \"C:\\Program`\"Data\\docker\\containers\"",
 			},
 			shouldContainQuote: false,
 		},
@@ -147,8 +147,8 @@ func TestBuildWindows_EscapesDoubleQuotes(t *testing.T) {
 		}
 	}
 
-	// Should escape double quote by doubling it
-	assert.Contains(t, icaclsCmd, "\"C:\\path\\with\"\"quote\\containers\"")
+	// Should escape double quote using PowerShell backtick escape
+	assert.Contains(t, icaclsCmd, "\"C:\\path\\with`\"quote\\containers\"")
 }
 
 func TestRenderTemplate_WithSpecialCharacters(t *testing.T) {
