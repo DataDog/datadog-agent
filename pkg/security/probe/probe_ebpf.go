@@ -789,12 +789,22 @@ func (p *EBPFProbe) Start() error {
 	// Apply rules to the already stored data before starting the event stream to avoid concurrency issues
 	p.replayEvents(true)
 
-	// start new tc classifier loop
-	go p.startSetupNewTCClassifierLoop()
+	if p.probe.IsNetworkEnabled() {
+		// start new tc classifier loop
+		p.wg.Add(1)
+		go func() {
+			defer p.wg.Done()
+			p.startSetupNewTCClassifierLoop()
+		}()
+	}
 
 	if p.config.RuntimeSecurity.IsSysctlSnapshotEnabled() {
 		// start sysctl snapshot loop
-		go p.startSysCtlSnapshotLoop()
+		p.wg.Add(1)
+		go func() {
+			defer p.wg.Done()
+			p.startSysCtlSnapshotLoop()
+		}()
 	}
 
 	return p.eventStream.Start(&p.wg)
