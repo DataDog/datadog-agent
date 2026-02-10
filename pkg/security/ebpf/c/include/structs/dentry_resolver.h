@@ -9,6 +9,11 @@ struct path_key_t {
     u32 path_id;
 };
 
+struct pid_path_key_t {
+    u32 pid;
+    struct path_key_t path_key;
+};
+
 struct path_leaf_t {
     struct path_key_t parent;
     char name[DR_MAX_SEGMENT_LENGTH + 1];
