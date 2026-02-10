@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
@@ -295,17 +296,33 @@ func detectDevicePlugins(features FeatureMap, cfg model.Reader) {
 	log.Infof("Agent found device plugins socket path dir %s", socketDir)
 }
 
-func detectNVML(features FeatureMap, _ model.Reader) {
-	// Use dlopen to search for the library to avoid importing the go-nvml package here,
-	// which is 1MB in size and would increase the agent binary size, when we don't really
-	// need it for anything else.
-	if err := system.CheckLibraryExists(defaultNVMLLibraryName); err != nil {
-		log.Debugf("Agent did not find NVML library: %v", err)
-		return
+func detectNVML(features FeatureMap, cfg model.Reader) {
+	var defaultPaths []string
+	configuredNvmlPath := cfg.GetString("gpu.nvml_lib_path")
+	if configuredNvmlPath == "" {
+		defaultPaths = append(defaultPaths, defaultNVMLLibraryName) // non-absolute path will force dlopen to search for the library in the usual dlopen system paths
+	} else {
+		defaultPaths = append(defaultPaths, configuredNvmlPath)
 	}
 
-	features[NVML] = struct{}{}
-	log.Infof("Agent found NVML library")
+	// Add common paths for the NVML library as a fallback, matching the logic in the safenvml package.
+	defaultPaths = append(defaultPaths, gpu.GenerateDefaultNvmlPaths()...)
+
+	for _, path := range defaultPaths {
+		// Use dlopen to search for the library to avoid importing the go-nvml package here,
+		// which is 1MB in size and would increase the agent binary size, when we don't really
+		// need it for anything else.
+		if err := system.CheckLibraryExists(path); err == nil {
+			features[NVML] = struct{}{}
+			log.Infof("Agent found NVML library at %s", path)
+			return
+		} else {
+			log.Debugf("Agent did not find NVML library: %v", err)
+			return
+		}
+	}
+
+	log.Debugf("Agent did not find NVML library in any of the default paths: %v", defaultPaths)
 }
 
 func getHostMountPrefixes() []string {

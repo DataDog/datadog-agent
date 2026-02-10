@@ -13,18 +13,16 @@ package safenvml
 import (
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
-	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -292,29 +290,6 @@ func populateCapabilities(lib nvml.Interface) (map[string]struct{}, error) {
 	return capabilities, nil
 }
 
-func generateDefaultLibraryPaths() []string {
-	systemPaths := []string{
-		"/usr/lib/x86_64-linux-gnu/libnvidia-ml.so",                   // default system install
-		"/run/nvidia/driver/usr/lib/x86_64-linux-gnu/libnvidia-ml.so", // nvidia-gpu-operator install
-	}
-
-	hostRoot := os.Getenv("HOST_ROOT")
-	if hostRoot == "" {
-		if env.IsContainerized() {
-			hostRoot = "/host" // default host root for containerized environments without HOST_ROOT set
-		} else {
-			// no host root variable and not containerized, assume we are running on the bare host
-			return systemPaths
-		}
-	}
-
-	var containerizedPaths []string
-	for _, path := range systemPaths {
-		containerizedPaths = append(containerizedPaths, filepath.Join(hostRoot, path))
-	}
-	return containerizedPaths
-}
-
 // tryCandidateNvmlPaths tries to load the NVML library from the given paths, using the given function to create a new NVML library instance.
 // We use nvmlNewWithPath to wrap the nvmlNewFunc, so that we can more easily test this code (we can't inspect the NVML library options).
 func tryCandidateNvmlPaths(paths []string, nvmlNewWithPath func(path string) nvml.Interface) (nvml.Interface, error) {
@@ -373,7 +348,7 @@ func (s *safeNvml) ensureInitWithOpts(nvmlNewFunc func(opts ...nvml.LibraryOptio
 	// specify some common paths that might not be in the library search paths,
 	// specially in containerized environments.
 	libPaths := []string{libpath}
-	libPaths = append(libPaths, generateDefaultLibraryPaths()...)
+	libPaths = append(libPaths, gpu.GenerateDefaultNvmlPaths()...)
 
 	nvmlNewWithPath := func(path string) nvml.Interface {
 		return nvmlNewFunc(nvml.WithLibraryPath(path))
