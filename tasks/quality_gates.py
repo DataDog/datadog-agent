@@ -288,6 +288,25 @@ def get_pr_number_from_commit(ctx) -> str | None:
         return None
 
 
+def get_pr_author(pr_number: str) -> str | None:
+    """
+    Get the author (login) of a PR by its number.
+
+    Args:
+        pr_number: The PR number as a string
+
+    Returns:
+        The PR author's GitHub login, or None if not found.
+    """
+    try:
+        github = GithubAPI()
+        pr = github.get_pr(int(pr_number))
+        return pr.user.login if pr and pr.user else None
+    except Exception as e:
+        print(color_message(f"[WARN] Failed to get PR author for PR #{pr_number}: {e}", "orange"))
+        return None
+
+
 # Main table pattern for on-disk metrics (primary view)
 body_pattern = """### {}
 
@@ -462,6 +481,8 @@ def display_pr_comment(
     dashboard_link = (
         "[📊 Static Quality Gates Dashboard](https://app.datadoghq.com/dashboard/5np-man-vak/static-quality-gates)\n"
     )
+    job_url = os.environ.get("CI_JOB_URL", "")
+    job_link = f"[🔗 SQG Job]({job_url})\n" if job_url else ""
 
     # Main tables for on-disk metrics
     body_info = ""
@@ -476,6 +497,7 @@ def display_pr_comment(
     with_non_blocking_error = False
     significant_success_count = 0
     collapsed_success_count = 0
+    has_na_change = False
 
     # Sort gates by error_types to group in between NoError, AssertionError and StackTrace
     for gate in sorted(gate_states, key=lambda x: x["error_type"] is None):
@@ -484,6 +506,8 @@ def display_pr_comment(
 
         # Get change metrics for on-disk (delta with percentage and limit bounds)
         change_str, limit_bounds, is_neutral = get_change_metrics(gate['name'], metric_handler, metric_type="disk")
+        if change_str == "N/A":
+            has_na_change = True
 
         # Get change metrics for on-wire
         wire_change_str, wire_limit_bounds, _ = get_change_metrics(gate['name'], metric_handler, metric_type="wire")
@@ -559,7 +583,12 @@ def display_pr_comment(
         wire_section += body_wire
         wire_section += "\n</details>\n"
 
-    body = f"{SUCCESS_CHAR if final_state else FAIL_CHAR} Please find below the results from static quality gates\n{ancestor_info}{dashboard_link}{final_error_body}\n\n{success_section}\n{wire_section}"
+    # Add retry hint if some deltas are N/A (ancestor metrics not yet available due to race condition)
+    retry_hint = ""
+    if has_na_change and job_url:
+        retry_hint = f"SOME SIZE DELTAS ARE N/A (ANCESTOR METRICS NOT YET AVAILABLE). [RETRY JOB]({job_url})\n"
+
+    body = f"{SUCCESS_CHAR if final_state else FAIL_CHAR} Please find below the results from static quality gates\n{ancestor_info}{dashboard_link}{job_link}{retry_hint}{final_error_body}\n\n{success_section}\n{wire_section}"
 
     pr_commenter(ctx, title=title, body=body, pr=pr)
 
@@ -612,16 +641,25 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     # Skip for release branches since they don't have associated PRs
     pr = None
     pr_number = None
+    pr_author = None
     if not is_a_release_branch(ctx, branch):
         pr = get_pr_for_branch(branch)
         if pr:
             print(color_message(f"Found PR #{pr.number}: {pr.title}", "cyan"))
             pr_number = str(pr.number)
+            # Extract author directly from PR object
+            if pr.user:
+                pr_author = pr.user.login
+                print(color_message(f"PR author: {pr_author}", "cyan"))
         else:
             # On main branch (or when no open PR), extract PR number from commit message
             pr_number = get_pr_number_from_commit(ctx)
             if pr_number:
                 print(color_message(f"Extracted PR #{pr_number} from commit message", "cyan"))
+                # Fetch author for the PR number
+                pr_author = get_pr_author(pr_number)
+                if pr_author:
+                    print(color_message(f"PR author: {pr_author}", "cyan"))
 
     for gate in gate_list:
         result = None
@@ -675,7 +713,7 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
                 }
             )
         finally:
-            # Build tags dict - only include pr_number if we have a PR
+            # Build tags dict - only include pr_number and pr_author if we have a PR
             gate_tags = {
                 "gate_name": gate.config.gate_name,
                 "arch": gate.config.arch,
@@ -686,6 +724,8 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
             }
             if pr_number:
                 gate_tags["pr_number"] = pr_number
+            if pr_author:
+                gate_tags["pr_author"] = pr_author
 
             metric_handler.register_gate_tags(gate.config.gate_name, **gate_tags)
             metric_handler.register_metric(gate.config.gate_name, "max_on_wire_size", gate.config.max_on_wire_size)

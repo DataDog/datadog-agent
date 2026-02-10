@@ -310,7 +310,7 @@ func diffCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		&cliParams.format,
 		"format",
 		"json",
-		"output formeat",
+		"output format",
 	)
 
 	return []*cobra.Command{activityDumpDiffCmd}
