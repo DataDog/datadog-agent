@@ -897,7 +897,6 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	p.profileManager.LookupEventInProfiles(event)
 
 	// mark the events that have an associated activity dump
-	// this is needed for auto suppressions performed by the CWS rule engine
 	if p.profileManager.HasActiveActivityDump(event) {
 		event.AddToFlags(model.EventFlagsHasActiveActivityDump)
 	}
@@ -1601,9 +1600,9 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		}
 		pid := event.CgroupWrite.Pid
 
-		pce := p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, false, newEntryCb)
+		pce := p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, true, newEntryCb)
 		if pce == nil {
-			seclog.Errorf("failed to resolve process: %d", pid)
+			seclog.Debugf("failed to resolve process: %d", pid)
 			return false
 		}
 

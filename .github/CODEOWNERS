@@ -26,7 +26,7 @@
 /.adms/                                 @DataDog/agent-build
 /.bazel*                                @DataDog/agent-build
 /bazel/                                 @DataDog/agent-build
-/bazel/configs/sdagent_rc               @DataDog/agent-discovery
+/bazel/configs/sdagent.bazelrc               @DataDog/agent-discovery
 /MODULE.bazel*                          @DataDog/agent-build
 # Temporary during Bazel migration
 /**/BUILD.bazel                         @DataDog/agent-build
