@@ -159,7 +159,6 @@ func TestConsumerSnapshot(t *testing.T) {
 		_ = consumer.connectAndStream(startTime, &firstSnapshot)
 	}()
 
-	// Wait for ready
 	err := consumer.WaitReady(ctx)
 	require.NoError(t, err)
 
@@ -202,7 +201,6 @@ func TestConsumerUpdates(t *testing.T) {
 		_ = consumer.connectAndStream(startTime, &firstSnapshot)
 	}()
 
-	// Wait for ready
 	err := consumer.WaitReady(ctx)
 	require.NoError(t, err)
 
@@ -222,7 +220,6 @@ func TestConsumerUpdates(t *testing.T) {
 	// Wait a bit for the update to be processed
 	time.Sleep(100 * time.Millisecond)
 
-	// Verify update was applied
 	assert.Equal(t, "updated", consumer.Reader().GetString("test_key"))
 	assert.Equal(t, uint64(2), consumer.Reader().GetSequenceID())
 }
@@ -259,7 +256,6 @@ func TestConsumerStaleUpdates(t *testing.T) {
 		_ = consumer.connectAndStream(startTime, &firstSnapshot)
 	}()
 
-	// Wait for ready
 	err := consumer.WaitReady(ctx)
 	require.NoError(t, err)
 
@@ -320,7 +316,6 @@ func TestConsumerChangeSubscription(t *testing.T) {
 		_ = consumer.connectAndStream(startTime, &firstSnapshot)
 	}()
 
-	// Wait for ready
 	err := consumer.WaitReady(ctx)
 	require.NoError(t, err)
 
@@ -422,7 +417,7 @@ func mustNewValue(t *testing.T, v interface{}) *structpb.Value {
 	return val
 }
 
-func TestPhase1ExitCriteria(t *testing.T) {
+func TestConsumerAppliesUpdatesInOrder(t *testing.T) {
 	t.Run("Consumer can start and block until snapshot", func(t *testing.T) {
 		ipcComp := ipcmock.New(t)
 		_, serverAddr, events, cleanup := setupTestServer(t, ipcComp)
@@ -519,7 +514,7 @@ func TestPhase1ExitCriteria(t *testing.T) {
 	})
 }
 
-// TestUsagePatternBlocking tests Pattern 1 from README: Block until config ready
+// TestUsagePatternBlocking tests blocking until the config ready
 func TestUsagePatternBlocking(t *testing.T) {
 	ipcComp := ipcmock.New(t)
 	_, serverAddr, events, cleanup := setupTestServer(t, ipcComp)
@@ -555,7 +550,7 @@ func TestUsagePatternBlocking(t *testing.T) {
 		}
 	}()
 
-	// Block until config is ready (Pattern 1)
+	// Block until config is ready
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
@@ -582,7 +577,7 @@ func TestUsagePatternBlocking(t *testing.T) {
 	consumer.stop()
 }
 
-// TestUsagePatternNonBlocking tests Pattern 2 from README: Start immediately with eventual consistency
+// TestUsagePatternNonBlocking tests whether the consumer can start immediately with eventual consistency
 func TestUsagePatternNonBlocking(t *testing.T) {
 	ipcComp := ipcmock.New(t)
 	_, serverAddr, events, cleanup := setupTestServer(t, ipcComp)
@@ -595,7 +590,7 @@ func TestUsagePatternNonBlocking(t *testing.T) {
 	err := consumer.Start(context.Background())
 	require.NoError(t, err)
 
-	// DON'T call WaitReady() - proceed immediately (Pattern 2)
+	// DON'T call WaitReady() - proceed immediately
 
 	// Agent starts IMMEDIATELY without waiting
 	cfg := consumer.Reader()
