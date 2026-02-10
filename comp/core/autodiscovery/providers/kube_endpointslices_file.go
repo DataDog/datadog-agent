@@ -24,7 +24,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 
 	discv1 "k8s.io/api/discovery/v1"
-	disclisters "k8s.io/client-go/listers/discovery/v1"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -68,9 +67,8 @@ func (s *epSliceConfig) shouldCollect() bool {
 // KubeEndpointSlicesFileConfigProvider generates endpoints checks from check configurations defined in files.
 type KubeEndpointSlicesFileConfigProvider struct {
 	sync.RWMutex
-	epSliceLister disclisters.EndpointSliceLister
-	upToDate      bool
-	store         *endpointSliceStore
+	upToDate bool
+	store    *endpointSliceStore
 }
 
 // NewKubeEndpointSlicesFileConfigProvider returns a new KubeEndpointSlicesFileConfigProvider
@@ -97,7 +95,6 @@ func NewKubeEndpointSlicesFileConfigProvider(_ *pkgconfigsetup.ConfigurationProv
 		return nil, fmt.Errorf("cannot get endpointslice informer: %s", err)
 	}
 
-	provider.epSliceLister = epSliceInformer.Lister()
 	if _, err := epSliceInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    provider.addHandler,
 		UpdateFunc: provider.updateHandler,
@@ -229,7 +226,6 @@ func (p *KubeEndpointSlicesFileConfigProvider) buildConfigStore(templates []inte
 				continue
 			}
 			tpl.SetMatchingProgram(matchingProg)
-
 			p.store.insertTemplate(celEndpointSliceID, tpl, kubeEndpointResolveAuto)
 		}
 	}
@@ -297,6 +293,8 @@ func (s *endpointSliceStore) insertSlice(slice *discv1.EndpointSlice) bool {
 		return false
 	}
 
+	shouldUpdate := false
+
 	// Configuration defined using Advanced AD identifiers (exact namespace/name match)
 	epSliceConfig, found := s.epSliceConfigs[epSliceID(slice.Namespace, serviceName)]
 	if found {
@@ -304,7 +302,7 @@ func (s *endpointSliceStore) insertSlice(slice *discv1.EndpointSlice) bool {
 			epSliceConfig.slices = make(map[string]*discv1.EndpointSlice)
 		}
 		epSliceConfig.slices[string(slice.UID)] = slice
-		return true
+		shouldUpdate = true
 	}
 
 	// EndpointSlice matches any CEL template (CEL Selector based match)
@@ -314,10 +312,10 @@ func (s *endpointSliceStore) insertSlice(slice *discv1.EndpointSlice) bool {
 			celEpSliceConfig.slices = make(map[string]*discv1.EndpointSlice)
 		}
 		celEpSliceConfig.slices[string(slice.UID)] = slice
-		return true
+		shouldUpdate = true
 	}
 
-	return false
+	return shouldUpdate
 }
 
 // deleteSlice handles endpointslice objects deletion.

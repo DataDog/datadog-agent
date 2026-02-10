@@ -134,7 +134,7 @@ func TestEndpointSlices_BuildConfigStore(t *testing.T) {
 			if diff := cmp.Diff(tt.want, p.store.epSliceConfigs,
 				cmp.AllowUnexported(epSliceConfig{}),
 				cmpopts.IgnoreUnexported(integration.Config{})); diff != "" {
-				t.Errorf("buildConfigStore() mismatch (-want +got):\n%s", diff)
+				t.Errorf("buildConfigStore() mismatch (-wantShouldUpdate +got):\n%s", diff)
 			}
 		})
 	}
@@ -149,6 +149,13 @@ func TestStoreInsertEndpointSlice(t *testing.T) {
 		AdvancedADIdentifiers: []integration.AdvancedADIdentifier{{
 			KubeEndpoints: kubeEndpointIdentifier("ns1", "ep1", ""),
 		}},
+	}
+
+	tplcel := integration.Config{
+		Name: "check2",
+		CELSelector: workloadfilter.Rules{
+			KubeEndpoints: []string{`kube_endpoint.namespace == "ns1" && kube_endpoint.name == "ep1"`},
+		},
 	}
 
 	slice1 := &discv1.EndpointSlice{
@@ -172,23 +179,28 @@ func TestStoreInsertEndpointSlice(t *testing.T) {
 		name              string
 		epSliceConfigs    map[string]*epSliceConfig
 		slice             *discv1.EndpointSlice
-		want              bool
-		wantShouldCollect bool
+		wantShouldUpdate  bool
+		wantEpSliceConfig map[string]*epSliceConfig
 	}{
 		{
-			name:           "not found",
-			epSliceConfigs: make(map[string]*epSliceConfig),
-			slice:          slice1,
-			want:           false,
+			name:             "not found",
+			epSliceConfigs:   make(map[string]*epSliceConfig),
+			slice:            slice1,
+			wantShouldUpdate: false,
 		},
 		{
 			name: "found",
 			epSliceConfigs: map[string]*epSliceConfig{
 				"ns1/ep1": {templates: []integration.Config{tpl}, slices: nil},
 			},
-			slice:             slice1,
-			want:              true,
-			wantShouldCollect: true,
+			slice:            slice1,
+			wantShouldUpdate: true,
+			wantEpSliceConfig: map[string]*epSliceConfig{
+				"ns1/ep1": {
+					templates: []integration.Config{tpl},
+					slices:    map[string]*discv1.EndpointSlice{string(slice1.UID): slice1},
+				},
+			},
 		},
 		{
 			name: "not found with cel template",
@@ -198,8 +210,30 @@ func TestStoreInsertEndpointSlice(t *testing.T) {
 					slices:    nil,
 				},
 			},
-			slice: slice1,
-			want:  false,
+			slice:            slice1,
+			wantShouldUpdate: false,
+		},
+		{
+			name: "found and inserts into both AdvancedAD and CEL configurations",
+			epSliceConfigs: map[string]*epSliceConfig{
+				"ns1/ep1": {templates: []integration.Config{tpl}, slices: nil},
+				celEndpointSliceID: {
+					templates: []integration.Config{tplcel},
+					slices:    nil,
+				},
+			},
+			slice:            slice1,
+			wantShouldUpdate: true,
+			wantEpSliceConfig: map[string]*epSliceConfig{
+				"ns1/ep1": {
+					templates: []integration.Config{tpl},
+					slices:    map[string]*discv1.EndpointSlice{string(slice1.UID): slice1},
+				},
+				celEndpointSliceID: {
+					templates: []integration.Config{tplcel},
+					slices:    map[string]*discv1.EndpointSlice{string(slice1.UID): slice1},
+				},
+			},
 		},
 	}
 
@@ -209,10 +243,13 @@ func TestStoreInsertEndpointSlice(t *testing.T) {
 
 			got := s.insertSlice(tt.slice)
 
-			assert.Equal(t, tt.want, got)
-			if tt.want && tt.wantShouldCollect {
-				assert.True(t, s.epSliceConfigs["ns1/ep1"].shouldCollect())
-				assert.Contains(t, s.epSliceConfigs["ns1/ep1"].slices, "slice-uid")
+			assert.Equal(t, tt.wantShouldUpdate, got)
+			if tt.wantEpSliceConfig != nil {
+				if diff := cmp.Diff(tt.wantEpSliceConfig, s.epSliceConfigs,
+					cmp.AllowUnexported(epSliceConfig{}),
+					cmpopts.IgnoreUnexported(integration.Config{})); diff != "" {
+					t.Errorf("insertSlice() epSliceConfigs mismatch (-want +got):\n%s", diff)
+				}
 			}
 		})
 	}
