@@ -561,7 +561,7 @@ def validate_msi_createfolder_table(db, allowlist):
 
 @task
 def validate_msi(ctx, allowlist, msi=None):
-    print(f"Validating MSI")
+    print("Validating MSI")
     ctx.run(f'wix msi validate "{msi}"')
     with MsiClosing(msilib.OpenDatabase(msi, msilib.MSIDBOPEN_READONLY)) as db:
         validate_msi_createfolder_table(db, allowlist)
