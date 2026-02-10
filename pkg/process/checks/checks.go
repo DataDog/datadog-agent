@@ -129,9 +129,5 @@ func canEnableContainerChecks(config pkgconfigmodel.Reader, sysConfig pkgconfigm
 
 // isProcessCheckEnabled returns true if the process check is enabled by configuration either for live process collection or service discovery.
 func isProcessCheckEnabled(config pkgconfigmodel.Reader, sysConfig pkgconfigmodel.Reader) bool {
-	discoveryEnabled := false
-	if sysConfig != nil {
-		discoveryEnabled = sysConfig.GetBool("discovery.enabled")
-	}
-	return config.GetBool("process_config.process_collection.enabled") || discoveryEnabled
+	return config.GetBool("process_config.process_collection.enabled") || sysConfig.GetBool("discovery.enabled")
 }
