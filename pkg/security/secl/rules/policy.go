@@ -73,11 +73,6 @@ func (r *PolicyRule) AreActionsSupported(eventTypeEnabled map[eval.EventType]boo
 // Policies returns an iterator over the policies that this rule is part of.
 func (r *PolicyRule) Policies(includeInternalPolicies bool) iter.Seq[*PolicyInfo] {
 	return func(yield func(*PolicyInfo) bool) {
-		if !r.Policy.IsInternal || includeInternalPolicies {
-			if !yield(&r.Policy) {
-				return
-			}
-		}
 		for _, policy := range r.UsedBy {
 			if !policy.IsInternal || includeInternalPolicies {
 				if !yield(&policy) {
@@ -325,6 +320,7 @@ RULES:
 			Def:      ruleDef,
 			Accepted: true,
 			Policy:   p.Info, // copy the policy information as it can be modified on a per-rule basis when merging rules from different policies
+			UsedBy:   []PolicyInfo{p.Info},
 		}
 		p.Rules = append(p.Rules, rule)
 		for _, filter := range ruleFilters {
