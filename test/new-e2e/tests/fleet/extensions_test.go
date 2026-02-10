@@ -267,8 +267,8 @@ func (s *extensionsSuite) verifyDDOTExtensionLinux(extensionPath string) {
 		s.Require().Fail("unexpected stat output: %s", output)
 	}
 	s.Require().Equal("640", parts[0], "otel-config.yaml should be restricted (640)")
-	s.Require().Equal("dd-agent", output[1], "otel-config.yaml should be owned by dd-agent")
-	s.Require().Equal("dd-agent", output[2], "otel-config.yaml should have group dd-agent")
+	s.Require().Equal("dd-agent", parts[1], "otel-config.yaml should be owned by dd-agent")
+	s.Require().Equal("dd-agent", parts[2], "otel-config.yaml should have group dd-agent")
 
 	// Verify extension ownership (tests postInstallExtension hook)
 	output, err = s.Env().RemoteHost.Execute("stat -c '%U:%G' " + extensionPath)
