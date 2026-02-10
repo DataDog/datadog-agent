@@ -26,6 +26,7 @@ pkg_filegroup(
 filegroup(
     name = "all_deps",
     srcs = [
+        ":embedded",
         "//deps:all_deps",
     ] + select({
         "//packages/agent:linux_heroku": [],
