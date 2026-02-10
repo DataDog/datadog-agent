@@ -460,7 +460,7 @@ func postInstallDDOTExtension(ctx HookContext) error {
 }
 
 // preRemoveDDOTExtension stops and removes the DDOT service before extension removal
-func preRemoveDDOTExtension(ctx HookContext) error {
+func preRemoveDDOTExtension(_ HookContext) error {
 	// Best effort - ignore errors
 	_ = stopServiceIfExists(otelServiceName)
 	_ = deleteServiceIfExists(otelServiceName)
