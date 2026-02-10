@@ -165,7 +165,7 @@ func TestLoadModule(t *testing.T) {
 		t.Skip("skipping kernel module test in docker")
 	}
 
-	// before trying to load the module, some dependant modules might be needed, use modprobe to load them first
+	// before trying to load the module, some dependent modules might be needed, use modprobe to load them first
 	if _, err := loadModule(testModuleName); err != nil {
 		t.Skipf("failed to load %s module: %v", testModuleName, err)
 	}
@@ -336,7 +336,7 @@ func TestUnloadModule(t *testing.T) {
 		t.Skip("skipping kernel module test in docker")
 	}
 
-	// before trying to load the module, some dependant modules might be needed, use modprobe to load them first
+	// before trying to load the module, some dependent modules might be needed, use modprobe to load them first
 	if _, err := loadModule(testModuleName); err != nil {
 		t.Skipf("failed to load %s module: %v", testModuleName, err)
 	}

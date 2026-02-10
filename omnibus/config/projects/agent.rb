@@ -254,14 +254,14 @@ if do_build
     dependency "init-scripts-agent"
   end
 elsif do_package
+  dependency "init-scripts-agent"
+  dependency 'datadog-agent-installer-symlinks'
   if do_repackage?
     dependency "existing-agent-package"
     dependency "datadog-agent"
   else
     dependency "package-artifact"
   end
-  dependency "init-scripts-agent"
-  dependency 'datadog-agent-installer-symlinks'
 end
 
 # version manifest is based on the built softwares.
@@ -395,4 +395,10 @@ if linux_target? or windows_target?
   # in the debug package.
   strip_build windows_target? || do_build
   debug_path ".debug"  # the strip symbols will be in here
+end
+
+if linux_target?
+  # Strip runs before packaging, so restore final perms after strip.
+  chmod_before_packaging "#{install_dir}/embedded/bin/dd-compile-policy", 0555
+  chmod_before_packaging "#{install_dir}/embedded/bin/secret-generic-connector", 0500
 end

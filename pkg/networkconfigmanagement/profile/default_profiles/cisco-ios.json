@@ -21,12 +21,16 @@
           {
             "type": "valid_output",
             "pattern": "Building configuration..."
+          },
+          {
+            "type": "valid_output",
+            "pattern": "Current configuration :"
           }
         ],
         "redaction": [
           {
             "regex": "(?m)^(snmp-server community).*",
-            "replacement": "$1 <configuration removed>"
+            "replacement": "$1 <secret hidden>"
           },
           {
             "regex": "(?m)^(snmp-server host \\S+( vrf \\S+)?( informs?)?( version (1|2c))?) +\\S+( .*)?$",
@@ -118,7 +122,7 @@
           },
           {
             "regex": "(?m)^( +pre-shared-key).*",
-            "replacement": "$1 <configuration removed>"
+            "replacement": "$1 <secret hidden>"
           },
           {
             "regex": "(?m)^(.*server-key(?: \\d)?) \\S+",
@@ -173,7 +177,7 @@
         "redaction": [
           {
             "regex": "(?m)^(snmp-server community).*",
-            "replacement": "$1 <configuration removed>"
+            "replacement": "$1 <secret hidden>"
           },
           {
             "regex": "(?m)^(snmp-server host \\S+( vrf \\S+)?( informs?)?( version (1|2c))?) +\\S+( .*)?$",
@@ -265,7 +269,7 @@
           },
           {
             "regex": "(?m)^( +pre-shared-key).*",
-            "replacement": "$1 <configuration removed>"
+            "replacement": "$1 <secret hidden>"
           },
           {
             "regex": "(?m)^(.*server-key(?: \\d)?) \\S+",
