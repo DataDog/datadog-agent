@@ -34,11 +34,9 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.Windows
 	var osDesc compos.Descriptor
 	if descStr := awsEnv.InfraOSDescriptor(); descStr != "" {
 		osDesc = compos.DescriptorFromString(descStr, compos.WindowsServerDefault)
-		ctx.Log.Info(fmt.Sprintf("Using Windows Server version (from config): %s", osDesc.Version), nil)
 	} else {
 		versions := compos.WindowsServerVersionsForE2E
 		osDesc = versions[rand.Intn(len(versions))]
-		ctx.Log.Info(fmt.Sprintf("Using Windows Server version (randomly picked): %s", osDesc.Version), nil)
 	}
 	params.instanceOptions = append(params.instanceOptions, ec2.WithOS(osDesc))
 
