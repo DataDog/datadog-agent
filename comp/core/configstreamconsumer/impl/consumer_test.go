@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
@@ -605,13 +606,16 @@ func TestUsagePatternNonBlocking(t *testing.T) {
 	changes, unsubscribe := consumer.Subscribe()
 	defer unsubscribe()
 
-	// Track when config updates arrive
+	// Track when config updates arrive (mutex protects map from concurrent read/write)
+	var configUpdatesMu sync.Mutex
 	configUpdates := make(map[string]interface{})
 	changeReceived := make(chan bool, 1)
 
 	go func() {
 		for change := range changes {
+			configUpdatesMu.Lock()
 			configUpdates[change.Key] = change.NewValue
+			configUpdatesMu.Unlock()
 			if change.Key == "server.port" {
 				changeReceived <- true
 			}
@@ -643,9 +647,12 @@ func TestUsagePatternNonBlocking(t *testing.T) {
 	updatedPort := cfg.GetInt("server.port")
 	assert.Equal(t, 9090, updatedPort, "config should be updated")
 
-	// Verify change events were received
-	assert.Contains(t, configUpdates, "server.port")
-	assert.Equal(t, int64(9090), configUpdates["server.port"])
+	// Verify change events were received (lock to avoid race with subscriber goroutine)
+	configUpdatesMu.Lock()
+	portVal, hasPort := configUpdates["server.port"]
+	configUpdatesMu.Unlock()
+	assert.True(t, hasPort, "configUpdates should contain server.port")
+	assert.Equal(t, int64(9090), portVal)
 
 	// Agent can dynamically reconfigure based on updates
 	t.Logf("Agent dynamically reconfigured: port changed from %d to %d", initialPort, updatedPort)

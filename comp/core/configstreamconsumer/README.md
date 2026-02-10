@@ -23,11 +23,13 @@ This component eliminates the need for each remote agent (system-probe, trace-ag
 
 ## Quick Start
 
+You must supply **either** a fixed `SessionID` **or** a `SessionIDProvider` (e.g. from the remote agent component); the consumer uses the provider at connect time so RAR can register first.
+
 ```go
 // 1. Add to FX dependencies
-fx.Provide(configstreamconsumerimpl.NewComponent)
+configstreamconsumerfx.Module()
 
-// 2. Provide parameters (SessionID from RAR registration)
+// 2a. Fixed SessionID (when you already have it)
 fx.Provide(func() configstreamconsumerimpl.Params {
     return configstreamconsumerimpl.Params{
         ClientName:       "my-agent",
@@ -35,9 +37,14 @@ fx.Provide(func() configstreamconsumerimpl.Params {
         SessionID:        rarSessionID,
     }
 })
+
+// 2b. SessionIDProvider (recommended when using RAR: consumer waits for registration)
+//     Provide SessionIDProvider from your remote agent impl and optional ConfigWriter (e.g. config.Component) to mirror
+//     streamed config into the main config. When SessionIDProvider is nil the component is not created (e.g. RAR disabled).
 ```
 
-// 3. Inject consumer and use in your remote agent
+When `Params` is nil or both `SessionID` and `SessionIDProvider` are empty, the component is not created (e.g. when RAR is disabled). Inject the consumer and call `WaitReady(ctx)` before starting your agent for blocking startup.
+
 ## Usage Patterns
 
 The consumer supports two distinct startup patterns depending on your remote agent's requirements:
@@ -140,11 +147,30 @@ cd impl
 go test -tags test -v
 ```
 
+### Testing config streaming with system-probe
+
+**Manual testing**
+
+1. Start the core agent with RAR and config stream enabled (default in development).
+2. Enable the remote agent registry for system-probe in system-probe config (e.g. `remote_agent_registry.enabled: true`) and set `cmd_host` / `cmd_port` to the core agent IPC address.
+3. Start system-probe. With config streaming enabled, system-probe will:
+   - Log: `Waiting for initial configuration from core agent...`
+   - Block until the first config snapshot is received (up to 60s).
+   - Then log: `Initial configuration received, starting system-probe` and continue.
+4. If the core agent is not running or config stream is not ready, system-probe will exit with: `waiting for initial config snapshot: context deadline exceeded`.
+
+**Unit tests**
+
+The config stream consumer has unit tests in `impl/consumer_test.go` (build tag `test`). They cover blocking/non-blocking patterns, `WaitReady`, and snapshot/update ordering. They do not start the full system-probe process. To assert that system-probe blocks on `WaitReady` in integration, you would need an integration test that runs the system-probe FX graph with a mock config stream server and checks that startup does not complete until the mock sends a snapshot.
+
 ## Requirements
 
 - **Core Agent**: Must have `configstream` component enabled (Phase 0) and RAR enabled
 - **RAR Registration**: Remote agent must register with RAR before subscribing to config stream
-- **Authentication**: SessionID from RAR registration is required and passed via gRPC metadata
+- **Authentication**: SessionID is required and is passed via gRPC metadata. Supply either:
+  - **SessionID**: a fixed string (e.g. from an earlier RAR registration), or
+  - **SessionIDProvider**: an interface with `WaitSessionID(ctx) (string, error)` so the consumer obtains the session ID at connect time (e.g. from the remote agent component after RAR has registered).
+- **ConfigWriter** (optional): If set, streamed snapshot/updates are written to the given `model.Writer` with `SourceLocalConfigProcess`, so the main config stays in sync (replacing configsync-style behavior).
 - **IPC Component**: mTLS certificates for secure gRPC communication
 
 ## Team

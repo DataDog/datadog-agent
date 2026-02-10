@@ -108,16 +108,18 @@ import (
     configstreamconsumerimpl "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/impl"
 )
 
-// In your remote agent's FX module
+// In your remote agent's FX module: either fixed SessionID or SessionIDProvider
 func Module() fx.Option {
     return fx.Module("myremoteagent",
         // ... other dependencies ...
         configstreamconsumer.Module(),
-        fx.Provide(func() configstreamconsumerimpl.Params {
+        fx.Provide(func(c config.Component) configstreamconsumerimpl.Params {
             return configstreamconsumerimpl.Params{
                 ClientName:       "my-remote-agent",
-                CoreAgentAddress: net.JoinHostPort(cfg.GetString("cmd_host"), cfg.GetString("cmd_port")),
-                SessionID:        rarSessionID, // From RAR registration
+                CoreAgentAddress: net.JoinHostPort(c.GetString("cmd_host"), strconv.Itoa(c.GetInt("cmd_port"))),
+                SessionID:        rarSessionID,        // fixed; or leave empty and set SessionIDProvider
+                SessionIDProvider: nil,                // or your RAR component if it implements WaitSessionID
+                ConfigWriter:     c,                   // optional: mirror streamed config into main config
             }
         }),
     )
@@ -193,14 +195,13 @@ message ConfigEvent {
 
 The consumer authenticates with the core agent using the RAR session ID:
 
-1. **SessionID Parameter**: The consumer requires a `SessionID` parameter (obtained from RAR registration)
-2. **gRPC Metadata**: The consumer automatically adds the session_id to gRPC metadata when establishing the stream:
-   ```go
-   md := metadata.New(map[string]string{"session_id": sessionID})
-   ctxWithMetadata := metadata.NewOutgoingContext(ctx, md)
-   stream, err := client.StreamConfigEvents(ctxWithMetadata, request)
-   ```
-3. **Server Verification**: The core agent's configstream server verifies the session_id and ensures the client is a registered remote agent
+1. **SessionID or SessionIDProvider**: You must supply exactly one of:
+   - **SessionID**: a fixed string (e.g. from an earlier RAR registration), or
+   - **SessionIDProvider**: an interface with `WaitSessionID(ctx context.Context) (string, error)`. The consumer calls this at connect time so the remote agent can register with RAR first; the provider blocks until a session ID is available (e.g. `remoteagent` helper exposes `WaitSessionID`).
+2. **gRPC Metadata**: The consumer adds the session_id to gRPC metadata when establishing the stream (using either the fixed SessionID or the result of `SessionIDProvider.WaitSessionID`).
+3. **Server Verification**: The core agent's configstream server verifies the session_id and ensures the client is a registered remote agent.
+
+**Optional Params**: When `Params` is nil or both SessionID and SessionIDProvider are empty, the component is not created (e.g. when RAR is disabled). **ConfigWriter**: When set (e.g. to `config.Component`), the consumer writes snapshot/updates to it with `SourceLocalConfigProcess`, mirroring streamed config into the main config (replacing configsync-style behavior).
 
 ### Testing
 
@@ -236,11 +237,13 @@ go test -tags test -v
 
 To integrate a remote agent with the config stream consumer (Phase 2+):
 
-1. **Add FX dependency**: Include `configstreamconsumer.Module()` in your agent's FX options
-2. **Provide parameters**: Supply `ClientName`, `CoreAgentAddress`, and `SessionID` (from RAR)
-3. **Block on WaitReady**: Call `consumer.WaitReady(ctx)` before starting your agent
-4. **Use the Reader**: Replace local config with `consumer.Reader()`
-5. **Feature flag**: Guard with `use_rar_config_stream` feature flag for gradual rollout
+1. **Add FX dependency**: Include `configstreamconsumer.Module()` in your agent's FX options.
+2. **Provide parameters**: Supply `ClientName`, `CoreAgentAddress`, and either `SessionID` or `SessionIDProvider` (from RAR). Optionally set `ConfigWriter` (e.g. to `config.Component`) to mirror streamed config into the main config. When `SessionIDProvider` is nil and `SessionID` is empty, the component is not created (e.g. RAR disabled).
+3. **Block on WaitReady**: Call `consumer.WaitReady(ctx)` before starting your agent when the consumer is non-nil.
+4. **Use the Reader or main config**: Use `consumer.Reader()` for streamed config, or rely on `ConfigWriter` so the main config is updated and existing code keeps working.
+5. **Feature flag** (optional): Guard with a feature flag for gradual rollout.
+
+**System-probe**: Uses config streaming with blocking startup: it provides `SessionIDProvider` from the remote agent component, `ConfigWriter: config`, and blocks on `WaitReady` in `run()` before starting the API server.
 
 ## Next Steps: Phase 2+
 

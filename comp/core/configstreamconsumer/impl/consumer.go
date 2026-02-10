@@ -37,7 +37,14 @@ type Requires struct {
 	Log       log.Component
 	IPC       ipc.Component
 	Telemetry telemetry.Component
-	Params    Params
+	// Params is optional; when nil the component is not created (e.g. when RAR is disabled).
+	Params *Params `optional:"true"`
+}
+
+// SessionIDProvider supplies the RAR session ID, typically after registration completes.
+// When set, the consumer will call WaitSessionID at connect time instead of using Params.SessionID.
+type SessionIDProvider interface {
+	WaitSessionID(ctx context.Context) (string, error)
 }
 
 // Params defines the parameters for the configstreamconsumer component
@@ -46,8 +53,14 @@ type Params struct {
 	ClientName string
 	// CoreAgentAddress is the address of the core agent IPC endpoint
 	CoreAgentAddress string
-	// SessionID is the RAR session ID for authorization
+	// SessionID is the RAR session ID for authorization. Required if SessionIDProvider is nil.
 	SessionID string
+	// SessionIDProvider supplies the session ID at connect time (e.g. from remote agent component).
+	// When set, SessionID may be empty; the consumer will block on WaitSessionID before connecting.
+	SessionIDProvider SessionIDProvider
+	// ConfigWriter if set receives streamed config updates (same source as configsync: SourceLocalConfigProcess).
+	// Used by remote agents to mirror core agent config into the local config.Component.
+	ConfigWriter model.Writer
 }
 
 // Provides defines the output of the configstreamconsumer component
@@ -95,21 +108,31 @@ type consumer struct {
 
 // NewComponent creates a new configstreamconsumer component
 func NewComponent(reqs Requires) (Provides, error) {
-	if reqs.Params.ClientName == "" {
+	if reqs.Params == nil {
+		return Provides{}, nil
+	}
+	p := *reqs.Params
+	if p.ClientName == "" {
 		return Provides{}, errors.New("ClientName is required")
 	}
-	if reqs.Params.CoreAgentAddress == "" {
+	if p.CoreAgentAddress == "" {
 		return Provides{}, errors.New("CoreAgentAddress is required")
 	}
-	if reqs.Params.SessionID == "" {
-		return Provides{}, errors.New("SessionID is required")
+	// When both are empty the component is disabled (e.g. RAR not enabled).
+	if p.SessionID == "" && p.SessionIDProvider == nil {
+		return Provides{}, nil
+	}
+	hasID := p.SessionID != ""
+	hasProvider := p.SessionIDProvider != nil
+	if hasID == hasProvider {
+		return Provides{}, errors.New("exactly one of SessionID or SessionIDProvider must be set")
 	}
 
 	c := &consumer{
 		log:             reqs.Log,
 		ipc:             reqs.IPC,
 		telemetry:       reqs.Telemetry,
-		params:          reqs.Params,
+		params:          p,
 		effectiveConfig: make(map[string]interface{}),
 		readyCh:         make(chan struct{}),
 	}
@@ -241,8 +264,17 @@ func (c *consumer) connectAndStream(startTime time.Time, firstSnapshot *bool) er
 	c.client = pb.NewAgentSecureClient(conn)
 	c.streamLock.Unlock()
 
+	sessionID := c.params.SessionID
+	if c.params.SessionIDProvider != nil {
+		var err error
+		sessionID, err = c.params.SessionIDProvider.WaitSessionID(c.ctx)
+		if err != nil {
+			_ = conn.Close()
+			return fmt.Errorf("waiting for session ID: %w", err)
+		}
+	}
 	// Add session_id to gRPC metadata
-	md := metadata.New(map[string]string{"session_id": c.params.SessionID})
+	md := metadata.New(map[string]string{"session_id": sessionID})
 	ctxWithMetadata := metadata.NewOutgoingContext(c.ctx, md)
 
 	// Start streaming
@@ -329,6 +361,12 @@ func (c *consumer) applySnapshot(snapshot *pb.ConfigSnapshot, startTime time.Tim
 
 	c.emitChangeEvents(oldConfig, newConfig)
 
+	if c.params.ConfigWriter != nil {
+		for key, val := range newConfig {
+			c.params.ConfigWriter.Set(key, val, model.SourceLocalConfigProcess)
+		}
+	}
+
 	return nil
 }
 
@@ -364,6 +402,10 @@ func (c *consumer) applyUpdate(update *pb.ConfigUpdate) error {
 		OldValue: oldValue,
 		NewValue: newValue,
 	})
+
+	if c.params.ConfigWriter != nil {
+		c.params.ConfigWriter.Set(update.Setting.Key, newValue, model.SourceLocalConfigProcess)
+	}
 
 	return nil
 }
