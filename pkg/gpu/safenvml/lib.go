@@ -365,6 +365,13 @@ func (s *safeNvml) ensureInitWithOpts(nvmlNewFunc func(opts ...nvml.LibraryOptio
 		libpath = cfg.GetString("gpu.nvml_lib_path")
 	}
 
+	// Note that if the default "libpath" is empty, NVML will just invoke
+	// `dlopen` with no specified path, and the linker will try to open the
+	// library from the default library search paths. This is the default we
+	// want. The alternative paths are only used if the default path is not
+	// found, to make it more convenient and robust, without users having to
+	// specify some common paths that might not be in the library search paths,
+	// specially in containerized environments.
 	libPaths := []string{libpath}
 	libPaths = append(libPaths, generateDefaultLibraryPaths()...)
 
