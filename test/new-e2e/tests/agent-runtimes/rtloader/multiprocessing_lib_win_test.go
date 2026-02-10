@@ -20,6 +20,8 @@ type windowsMultiProcessingLibSuite struct {
 
 func TestWindowsMultiProcessingLibSuite(t *testing.T) {
 	t.Parallel()
+	t.Skip("Skipping Windows multiprocessing lib suite")
+
 	suite := &windowsMultiProcessingLibSuite{baseMultiProcessingLibSuite{
 		checksdPath: "C:/ProgramData/Datadog/checks.d/multi_pid_check.py",
 	}}

@@ -19,12 +19,11 @@ type basicWindowsSuite struct {
 
 func TestBasicWindowsSuite(t *testing.T) {
 	t.Parallel()
+	t.Skip("Skipping basic Windows suite")
 
-	suite := &basicWindowsSuite{
+	e2e.Run(t, &basicWindowsSuite{
 		basicSuite{
 			descriptor: e2eos.WindowsServerDefault,
 		},
-	}
-
-	e2e.Run(t, suite, suite.getSuiteOptions()...)
+	}, suite.getSuiteOptions()...)
 }

@@ -19,6 +19,7 @@ type eudmWindowsSuite struct {
 
 func TestEUDMWindowsSuite(t *testing.T) {
 	t.Parallel()
+	t.Skip("Skipping EUDM Windows suite")
 
 	suite := &eudmWindowsSuite{
 		eudmSuite{

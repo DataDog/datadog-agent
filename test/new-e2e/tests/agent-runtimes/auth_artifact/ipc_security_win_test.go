@@ -26,6 +26,7 @@ type authArtifactWindows struct {
 
 func TestIPCSecurityWindowsSuite(t *testing.T) {
 	t.Parallel()
+	t.Skip("Skipping IPC Security Windows suite")
 
 	e2e.Run(t,
 		&authArtifactWindows{

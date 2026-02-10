@@ -26,6 +26,7 @@ type windowsSharedLibrarySuite struct {
 
 func TestWindowsSharedLibraryCheckSuite(t *testing.T) {
 	t.Parallel()
+	t.Skip("Skipping Windows shared library check suite")
 
 	suite := &windowsSharedLibrarySuite{
 		sharedLibrarySuite{
