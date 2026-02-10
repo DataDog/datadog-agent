@@ -257,7 +257,9 @@ collect_bgp_neighbor_states: true
       "name": "GigabitEthernet4",
       "mac_address": "52:54:00:0b:6e:90",
       "admin_status": 1,
-      "oper_status": 1
+      "oper_status": 1,
+      "type": 6,
+      "is_physical": true
     }
   ],
   "ip_addresses": [
