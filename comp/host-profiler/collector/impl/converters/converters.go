@@ -13,8 +13,8 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.opentelemetry.io/collector/confmap"
 )
 
@@ -196,7 +196,7 @@ func ensureKeyStringValue(config confMap, key string) bool {
 // addProfilerMetadataTags always creates a dedicated resource/profiler-metadata processor
 // without searching for existing resource processors.
 func addProfilerMetadataTags(conf confMap) error {
-	const resourceProcessorName = "resource/profiler-metadata"
+	const resourceProcessorName = "resource/dd-profiler-internal-metadata"
 
 	resourceProcessor, err := Ensure[confMap](conf, "processors::"+resourceProcessorName)
 	if err != nil {
@@ -224,7 +224,6 @@ func addProfilerMetadataTags(conf confMap) error {
 
 	attributes = append(attributes, profilerNameElement)
 	attributes = append(attributes, profilerVersionElement)
-	resourceProcessor["attributes"] = attributes
 	if err := Set(resourceProcessor, "attributes", attributes); err != nil {
 		return err
 	}

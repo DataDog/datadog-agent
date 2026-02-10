@@ -5,7 +5,7 @@ exporters:
 processors:
     infraattributes/custom:
         allow_hostname_override: true
-    resource/profiler-metadata:
+    resource/dd-profiler-internal-metadata:
         attributes:
             - action: upsert
               key: profiler_name
@@ -27,6 +27,6 @@ service:
                 - otlphttp
             processors:
                 - infraattributes/custom
-                - resource/profiler-metadata
+                - resource/dd-profiler-internal-metadata
             receivers:
                 - hostprofiler
