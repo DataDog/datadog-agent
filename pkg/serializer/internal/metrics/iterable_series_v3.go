@@ -542,18 +542,22 @@ func (pb *payloadsBuilderV3) writeSketchToTxn(sketch *metrics.SketchSeries) {
 			pb.txn.Sint64(columnValueSint64, int64(pnt.Sketch.Basic.Sum))
 			pb.txn.Sint64(columnValueSint64, int64(pnt.Sketch.Basic.Min))
 			pb.txn.Sint64(columnValueSint64, int64(pnt.Sketch.Basic.Max))
+			pb.stats.valuesSint64 += 3
 		case valueFloat32:
 			pb.txn.Float32(columnValueFloat32, float32(pnt.Sketch.Basic.Sum))
 			pb.txn.Float32(columnValueFloat32, float32(pnt.Sketch.Basic.Min))
 			pb.txn.Float32(columnValueFloat32, float32(pnt.Sketch.Basic.Max))
+			pb.stats.valuesFloat32 += 3
 		case valueFloat64:
 			pb.txn.Float64(columnValueFloat64, pnt.Sketch.Basic.Sum)
 			pb.txn.Float64(columnValueFloat64, pnt.Sketch.Basic.Min)
 			pb.txn.Float64(columnValueFloat64, pnt.Sketch.Basic.Max)
+			pb.stats.valuesFloat64 += 3
 		}
 
 		// can share column with sum, min max, if so, cnt must be last.
 		pb.txn.Sint64(columnValueSint64, pnt.Sketch.Basic.Cnt)
+		pb.stats.valuesSint64++
 
 		k, n := pnt.Sketch.Cols()
 		deltaEncode(k)
