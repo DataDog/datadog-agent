@@ -1,12 +1,10 @@
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
-load("@rules_license//rules:license.bzl", "license")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
 
-package(default_package_metadata = [":license"])
+package(default_package_metadata = [":license"], default_visibility = ["//visibility:public"])
 
 license(
     name = "license",
@@ -17,29 +15,29 @@ license(
 
 filegroup(
     name = "all_srcs",
-    srcs = glob(["src/**/*"])
+    srcs = glob(["src/**/*"]),
 )
 
 SHARED_LIBS = {
-    'krb5/plugins/tls/k5tls.so': '',
-    'krb5/plugins/kdb/db2.so': '',
-    'krb5/plugins/preauth/test.so': '',
-    'krb5/plugins/preauth/spake.so': '',
-    'krb5/plugins/preauth/pkinit.so': '',
-    'krb5/plugins/preauth/otp.so': '',
-    'libcom_err.so': '3.0',
-    'libgssapi_krb5.so': '2.2',
-    'libgssrpc.so': '4.2',
-    'libk5crypto.so': '3.1',
-    'libkadm5clnt.so': '',
-    'libkadm5clnt_mit.so': '12.0',
-    'libkadm5srv.so': '',
-    'libkadm5srv_mit.so': '12.0',
-    'libkdb5.so': '10.0',
-    'libkrad.so': '0.0',
-    'libkrb5.so': '3.3',
-    'libkrb5support.so': '0.1',
-    'libverto.so': '0.0',
+    "krb5/plugins/tls/k5tls.so": "",
+    "krb5/plugins/kdb/db2.so": "",
+    "krb5/plugins/preauth/test.so": "",
+    "krb5/plugins/preauth/spake.so": "",
+    "krb5/plugins/preauth/pkinit.so": "",
+    "krb5/plugins/preauth/otp.so": "",
+    "libcom_err.so": "3.0",
+    "libgssapi_krb5.so": "2.2",
+    "libgssrpc.so": "4.2",
+    "libk5crypto.so": "3.1",
+    "libkadm5clnt.so": "",
+    "libkadm5clnt_mit.so": "12.0",
+    "libkadm5srv.so": "",
+    "libkadm5srv_mit.so": "12.0",
+    "libkdb5.so": "10.0",
+    "libkrad.so": "0.0",
+    "libkrb5.so": "3.3",
+    "libkrb5support.so": "0.1",
+    "libverto.so": "0.0",
 }
 
 configure_make(
@@ -48,9 +46,9 @@ configure_make(
         "-j 16",
     ],
     configure_options = [
-        "--without-keyutils", # this would require additional deps/system deps, disable it
-        "--without-system-verto", # do not prefer libverto from the system, if installed
-        "--without-libedit", # we don't want to link with libraries outside of the install dir
+        "--without-keyutils",  # this would require additional deps/system deps, disable it
+        "--without-system-verto",  # do not prefer libverto from the system, if installed
+        "--without-libedit",  # we don't want to link with libraries outside of the install dir
         "--disable-static",
         "--with-crypto-impl=openssl",
         "--with-tls-impl=openssl",
@@ -77,18 +75,20 @@ configure_make(
     filegroup(
         name = "_unversioned_lib_" + libname,
         srcs = [":krb5"],
-        output_group = libname.rpartition('/')[2]
+        output_group = libname.rpartition("/")[2],
     )
-    for (libname, libversion) in SHARED_LIBS.items() if not libversion
+    for (libname, libversion) in SHARED_LIBS.items()
+    if not libversion
 ]
 
 [
     pkg_files(
         name = "_lib_" + libname,
         srcs = [":_unversioned_lib_" + libname],
-        prefix = "lib/" + libname.rpartition('/')[0],
+        prefix = "lib/" + libname.rpartition("/")[0],
     )
-    for (libname, libversion) in SHARED_LIBS.items() if not libversion
+    for (libname, libversion) in SHARED_LIBS.items()
+    if not libversion
 ]
 
 # Now the same for versioned libs, except instead of an explicit pkg_file
@@ -99,7 +99,8 @@ configure_make(
         srcs = [":krb5"],
         output_group = libname,
     )
-    for (libname, libversion) in SHARED_LIBS.items() if libversion
+    for (libname, libversion) in SHARED_LIBS.items()
+    if libversion
 ]
 
 [
@@ -109,9 +110,10 @@ configure_make(
         libname = libname.removesuffix(".so"),
         version = libversion,
         # so_symlink already adds a lib/ folder
-        prefix = libname.rpartition('/')[0],
+        prefix = libname.rpartition("/")[0],
     )
-    for (libname, libversion) in SHARED_LIBS.items() if libversion
+    for (libname, libversion) in SHARED_LIBS.items()
+    if libversion
 ]
 
 filegroup(
@@ -123,13 +125,13 @@ filegroup(
 pkg_files(
     name = "pc_files",
     srcs = ["_pc_files"],
-    prefix = "lib/",
+    prefix = "embedded/lib/",
 )
 
 filegroup(
     name = "_headers",
     srcs = [":krb5"],
-    output_group = "include"
+    output_group = "include",
 )
 
 filegroup(
@@ -141,6 +143,7 @@ filegroup(
 pkg_files(
     name = "hdr_files",
     srcs = [":_headers"],
+    prefix = "embedded/",
 )
 
 pkg_files(
@@ -148,21 +151,30 @@ pkg_files(
     srcs = [
         ":_bins",
     ],
-    prefix = "bin",
+    prefix = "embedded/bin",
     attributes = pkg_attributes("0755"),
 )
 
 pkg_filegroup(
     name = "all_libs",
     srcs = [":_lib_" + libname for libname in SHARED_LIBS.keys()],
+    prefix = "embedded/",
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":hdr_files",
+        ":bin_files",
+        ":all_libs",
+    ],
+    visibility = ["@@//packages:__subpackages__"],
 )
 
 pkg_install(
     name = "install",
     srcs = [
-        ":hdr_files",
+        ":all_files",
         ":pc_files",
-        ":bin_files",
-        ":all_libs",
     ],
 )
