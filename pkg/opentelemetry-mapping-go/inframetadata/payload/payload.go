@@ -109,12 +109,12 @@ var _ marshaler.JSONMarshaler = (*HostMetadata)(nil)
 
 // Clone performs a deep clone of a HostMetadata struct.
 func (p *HostMetadata) Clone() (p2 HostMetadata, err error) {
-	var asJson []byte
-	asJson, err = json.Marshal(p)
+	var marshaled []byte
+	marshaled, err = json.Marshal(p)
 	if err != nil {
 		return
 	}
 	p2 = NewEmpty()
-	err = json.Unmarshal(asJson, &p2)
+	err = json.Unmarshal(marshaled, &p2)
 	return
 }
