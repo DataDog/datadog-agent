@@ -1601,9 +1601,9 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		}
 		pid := event.CgroupWrite.Pid
 
-		pce := p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, false, newEntryCb)
+		pce := p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, true, newEntryCb)
 		if pce == nil {
-			seclog.Errorf("failed to resolve process: %d", pid)
+			seclog.Debugf("failed to resolve process: %d", pid)
 			return false
 		}
 
