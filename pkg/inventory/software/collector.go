@@ -47,7 +47,8 @@ func warnf(format string, args ...interface{}) *Warning {
 // and system-specific information.
 type Entry struct {
 	// Source indicates the type or source of the software installation
-	// (e.g., "app", "pkg", "homebrew", "pip"). This field helps categorize
+	// (e.g., Windows: "desktop", "msstore", "msu"; MacOS: "app", "pkg",
+	// "homebrew", "mas", "kext", "sysext"). This field helps categorize
 	// software by its installation method or distribution channel.
 	// Placed first for easy identification when scanning JSON output.
 	Source string `json:"software_type"`
@@ -98,7 +99,9 @@ type Entry struct {
 	//   - "install path not found: /usr/local/bin"
 	//   - "Info.plist missing CFBundleExecutable" (macOS)
 	//   - "MSI record not found in registry" (Windows)
-	BrokenReason string `json:"broken_reason,omitempty"`
+	// NOTE: Currently excluded from backend payload (json:"-") but kept for
+	// internal use and future backend support.
+	BrokenReason string `json:"-"`
 
 	// ProductCode is a unique identifier for the software product,
 	// often used in package management systems or installation databases
@@ -112,14 +115,18 @@ type Entry struct {
 	//   - "mas": Installed from the Mac App Store
 	//   - "manual": Installed manually (drag-and-drop from DMG, etc.)
 	// This field is macOS-specific and helps understand the installation method.
-	InstallSource string `json:"install_source,omitempty"`
+	// NOTE: Currently excluded from backend payload (json:"-") but kept for
+	// internal use and future backend support.
+	InstallSource string `json:"-"`
 
 	// PkgID is the package identifier from the macOS installer receipt database.
 	// This field is populated when InstallSource is "pkg" and provides a link
 	// to the corresponding PKG receipt in /var/db/receipts/. This enables
 	// cross-referencing between application entries and their installation records.
 	// Example: "com.microsoft.Word" for Microsoft Word installed via PKG.
-	PkgID string `json:"pkg_id,omitempty"`
+	// NOTE: Currently excluded from backend payload (json:"-") but kept for
+	// internal use and future backend support.
+	PkgID string `json:"-"`
 
 	// InstallPath is the filesystem path where the software is installed.
 	// This field helps identify the exact location of an installation, which is
@@ -131,7 +138,9 @@ type Entry struct {
 	//   - System extensions: "/Library/SystemExtensions/.../com.example.extension.systemextension"
 	// For PKG receipts, this may be "N/A" if no single meaningful path exists;
 	// use InstallPaths for the full list of installation directories.
-	InstallPath string `json:"install_path,omitempty"`
+	// NOTE: Currently excluded from backend payload (json:"-") but kept for
+	// internal use and future backend support.
+	InstallPath string `json:"-"`
 
 	// InstallPaths contains the top-level directories where a PKG installed files.
 	// This field is specific to PKG receipts and provides visibility into where
@@ -140,7 +149,9 @@ type Entry struct {
 	// for packages that install to multiple directories (e.g., CLI tools that
 	// install binaries to /usr/local/bin and libraries to /usr/local/lib).
 	// Examples: ["/usr/local/bin", "/usr/local/ykman", "/Library/LaunchDaemons"]
-	InstallPaths []string `json:"install_paths,omitempty"`
+	// NOTE: Currently excluded from backend payload (json:"-") but kept for
+	// internal use and future backend support.
+	InstallPaths []string `json:"-"`
 }
 
 // GetID returns a unique identifier for the software entry.

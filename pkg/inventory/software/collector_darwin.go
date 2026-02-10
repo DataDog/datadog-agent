@@ -285,7 +285,29 @@ func extractCompanyFromCopyright(copyright string) string {
 	return ""
 }
 
-// getPublisherFromInfoPlist reads NSHumanReadableCopyright from an app's Info.plist
+// extractPublisherFromBundleID attempts to extract publisher from bundle ID
+// Examples:
+//   - "com.microsoft.Word" → "Microsoft"
+//   - "com.adobe.Photoshop" → "Adobe"
+//   - "com.apple.Safari" → "Apple"
+func extractPublisherFromBundleID(bundleID string) string {
+	// Split by dots and take the second component (company name)
+	parts := strings.Split(bundleID, ".")
+	if len(parts) >= 2 {
+		company := parts[1]
+		// Capitalize first letter
+		if len(company) > 0 {
+			return strings.ToUpper(company[:1]) + company[1:]
+		}
+	}
+	return ""
+}
+
+// getPublisherFromInfoPlist extracts publisher from Info.plist using multiple fields
+// Priority order:
+// 1. NSHumanReadableCopyright (extract company name)
+// 2. CFBundleIdentifier (extract from reverse DNS, e.g., com.microsoft.* → "Microsoft")
+// 3. CFBundleName (fallback, may contain company name)
 func getPublisherFromInfoPlist(bundlePath string) string {
 	infoPlistPath := filepath.Join(bundlePath, "Contents", "Info.plist")
 	plistData, err := readPlistFile(infoPlistPath)
@@ -293,85 +315,31 @@ func getPublisherFromInfoPlist(bundlePath string) string {
 		return ""
 	}
 
+	// Priority 1: NSHumanReadableCopyright
 	if copyright, ok := plistData["NSHumanReadableCopyright"]; ok && copyright != "" {
-		return extractCompanyFromCopyright(copyright)
-	}
-	return ""
-}
-
-// getPublisherFromCodeSign extracts the publisher/developer name from code signing certificate
-// Returns empty string if the bundle is not signed or an error occurs
-func getPublisherFromCodeSign(bundlePath string) string {
-	cmd := exec.Command("codesign", "-d", "--verbose=2", bundlePath)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		// Unsigned or invalid signature
-		return ""
-	}
-
-	outputStr := string(output)
-
-	// Check for Apple-signed apps (Mac App Store apps, Apple's own apps)
-	// These use "Apple Mac OS Application Signing" instead of "Developer ID Application"
-	if strings.Contains(outputStr, "Authority=Apple Mac OS Application Signing") {
-		return "Apple Inc."
-	}
-
-	// Check for macOS system apps (Safari, Mail, etc.) signed with "Software Signing"
-	// These are Apple's built-in apps
-	if strings.Contains(outputStr, "Authority=Software Signing") {
-		return "Apple Inc."
-	}
-
-	// Parse output for Authority line
-	// Example: "Authority=Developer ID Application: AgileBits Inc. (2BUA8C4S2C)"
-	// We want to extract "AgileBits Inc."
-	authorityRegex := regexp.MustCompile(`Authority=Developer ID Application: (.+?) \([A-Z0-9]+\)`)
-	matches := authorityRegex.FindSubmatch(output)
-	if len(matches) >= 2 {
-		return string(matches[1])
-	}
-
-	// Try alternative format: "Authority=Apple Development: Name (TEAMID)"
-	altRegex := regexp.MustCompile(`Authority=Apple Development: (.+?) \([A-Z0-9]+\)`)
-	matches = altRegex.FindSubmatch(output)
-	if len(matches) >= 2 {
-		return string(matches[1])
-	}
-
-	// Try to get just the first Authority line for other certificate types
-	simpleRegex := regexp.MustCompile(`Authority=([^\n]+)`)
-	matches = simpleRegex.FindSubmatch(output)
-	if len(matches) >= 2 {
-		authority := string(matches[1])
-		// Skip other Apple system certificates (but not the ones we already handled above)
-		if strings.HasPrefix(authority, "Apple") || strings.HasPrefix(authority, "Software Signing") {
-			return ""
+		if publisher := extractCompanyFromCopyright(copyright); publisher != "" {
+			return publisher
 		}
-		return authority
+	}
+
+	// Priority 2: Extract from CFBundleIdentifier (reverse DNS)
+	// e.g., "com.microsoft.Word" → "Microsoft"
+	if bundleID, ok := plistData["CFBundleIdentifier"]; ok && bundleID != "" {
+		if publisher := extractPublisherFromBundleID(bundleID); publisher != "" {
+			return publisher
+		}
+	}
+
+	// Priority 3: Try CFBundleName (may contain company name)
+	// This is less reliable but can help for some apps
+	if bundleName, ok := plistData["CFBundleName"]; ok && bundleName != "" {
+		// Only use if it looks like a company name
+		if looksLikeCompanyName(bundleName) {
+			return bundleName
+		}
 	}
 
 	return ""
-}
-
-// getPublisher gets the publisher for a bundle, using codesign as primary source
-// and falling back to NSHumanReadableCopyright if codesign returns what looks like a human name
-func getPublisher(bundlePath string) string {
-	publisher := getPublisherFromCodeSign(bundlePath)
-
-	// If we got a publisher that looks like a company name, use it
-	if publisher != "" && looksLikeCompanyName(publisher) {
-		return publisher
-	}
-
-	// If codesign returned empty or a human name, try to get company from Info.plist
-	copyrightPublisher := getPublisherFromInfoPlist(bundlePath)
-	if copyrightPublisher != "" {
-		return copyrightPublisher
-	}
-
-	// Fall back to codesign result (even if it's a human name)
-	return publisher
 }
 
 // pkgInfo contains information about a package installation from pkgutil
@@ -441,16 +409,34 @@ type entryWithPath struct {
 }
 
 // populatePublishersParallel gets publisher info for multiple entries in parallel
-// Note: Getting publisher info requires running external commands (codesign -d) for each app,
-// which could be slow for a large number of apps.
+// Uses a worker pool to limit concurrent operations
 func populatePublishersParallel(items []entryWithPath) {
-	var wg sync.WaitGroup // to track concurrent goroutines
-	for i := range items {
-		wg.Add(1)                      // increment the wait group counter
-		go func(item *entryWithPath) { // a new goroutine for each item
-			defer wg.Done() // decrement the wait group counter when the goroutine completes
-			item.entry.Publisher = getPublisher(item.path)
-		}(&items[i])
+	const maxWorkers = 10 // Limit concurrent operations
+
+	if len(items) == 0 {
+		return
 	}
-	wg.Wait() // wait for all goroutines to complete
+
+	jobs := make(chan *entryWithPath, len(items))
+	for i := range items {
+		jobs <- &items[i]
+	}
+	close(jobs)
+
+	var wg sync.WaitGroup
+	workerCount := maxWorkers
+	if len(items) < maxWorkers {
+		workerCount = len(items)
+	}
+	for i := 0; i < workerCount; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for item := range jobs {
+				item.entry.Publisher = getPublisherFromInfoPlist(item.path)
+			}
+		}()
+	}
+
+	wg.Wait()
 }

@@ -76,18 +76,39 @@ type appPkgLookup struct {
 }
 
 // populatePkgInfoParallel queries pkgutil for multiple apps in parallel
+// Uses a worker pool to limit concurrent pkgutil processes
 func populatePkgInfoParallel(items []appPkgLookup) {
-	var wg sync.WaitGroup
-	for i := range items {
-		wg.Add(1)
-		go func(item *appPkgLookup) {
-			defer wg.Done()
-			if pkgInfo := getPkgInfo(item.appPath); pkgInfo != nil {
-				item.entry.InstallSource = installSourcePkg
-				item.entry.PkgID = pkgInfo.PkgID
-			}
-		}(&items[i])
+	const maxWorkers = 10 // Limit concurrent pkgutil processes
+
+	if len(items) == 0 {
+		return
 	}
+
+	jobs := make(chan *appPkgLookup, len(items))
+	for i := range items {
+		jobs <- &items[i]
+	}
+	close(jobs)
+
+	var wg sync.WaitGroup
+	workerCount := maxWorkers
+	if len(items) < maxWorkers {
+		workerCount = len(items)
+	}
+
+	for i := 0; i < workerCount; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for item := range jobs {
+				if pkgInfo := getPkgInfo(item.appPath); pkgInfo != nil {
+					item.entry.InstallSource = installSourcePkg
+					item.entry.PkgID = pkgInfo.PkgID
+				}
+			}
+		}()
+	}
+
 	wg.Wait()
 }
 
@@ -95,6 +116,7 @@ func populatePkgInfoParallel(items []appPkgLookup) {
 // This includes apps in subdirectories like /Applications/SentinelOne/SentinelOne Extensions.app
 // It also scans ~/Applications for all local users on the system.
 func (c *applicationsCollector) Collect() ([]*Entry, []*Warning, error) {
+
 	var entries []*Entry
 	var warnings []*Warning
 	var itemsForPublisher []entryWithPath
@@ -142,7 +164,6 @@ func (c *applicationsCollector) Collect() ([]*Entry, []*Warning, error) {
 
 			// Don't descend into .app bundles - they're bundles, not folders to scan
 			// We'll process this .app and then skip its contents
-			defer func() {}() // The SkipDir is returned at the end
 
 			infoPlistPath := filepath.Join(appPath, "Contents", "Info.plist")
 
@@ -250,7 +271,7 @@ func (c *applicationsCollector) Collect() ([]*Entry, []*Warning, error) {
 	// This queries pkgutil --file-info to determine if the app was installed via PKG
 	populatePkgInfoParallel(itemsForPkgLookup)
 
-	// Populate publisher info in parallel using code signing
+	// Populate publisher info in parallel using Info.plist extraction
 	populatePublishersParallel(itemsForPublisher)
 
 	return entries, warnings, nil

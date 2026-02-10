@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 )
 
 // pkgReceiptsCollector collects software from PKG installer receipts
@@ -21,48 +22,116 @@ import (
 // by the applicationsCollector (apps in /Applications), to avoid confusing duplicates.
 type pkgReceiptsCollector struct{}
 
+// pkgFilesCacheEntry holds a cached file list with its timestamp for TTL checking
+type pkgFilesCacheEntry struct {
+	Files     []string
+	Timestamp time.Time
+}
+
 // pkgFilesCache holds cached results from pkgutil --files queries
 type pkgFilesCache struct {
 	mu    sync.RWMutex
-	cache map[string][]string // pkgID -> list of file paths
+	cache map[string]*pkgFilesCacheEntry // pkgID -> cache entry with files and timestamp
+	ttl   time.Duration                  // Time-to-live for cache entries
+}
+
+// Default TTL for pkgutil --files cache entries
+const defaultPkgFilesCacheTTL = 1 * time.Hour
+
+// Global cache instance for pkgutil --files results
+var (
+	globalPkgFilesCache *pkgFilesCache
+	globalCacheOnce     sync.Once
+)
+
+// getGlobalPkgFilesCache returns the global singleton cache instance
+// The cache persists across collection runs within the same process lifetime
+func getGlobalPkgFilesCache() *pkgFilesCache {
+	globalCacheOnce.Do(func() {
+		globalPkgFilesCache = &pkgFilesCache{
+			cache: make(map[string]*pkgFilesCacheEntry),
+			ttl:   defaultPkgFilesCacheTTL,
+		}
+	})
+	return globalPkgFilesCache
 }
 
 // newPkgFilesCache creates a new cache for pkgutil --files results
+// Deprecated: Use getGlobalPkgFilesCache() for persistent caching
 func newPkgFilesCache() *pkgFilesCache {
 	return &pkgFilesCache{
-		cache: make(map[string][]string),
+		cache: make(map[string]*pkgFilesCacheEntry),
+		ttl:   defaultPkgFilesCacheTTL,
 	}
 }
 
-// get retrieves cached file list for a package, or fetches it if not cached
+// get retrieves cached file list for a package, or fetches it if not cached or expired
 func (c *pkgFilesCache) get(pkgID string) []string {
+	now := time.Now()
+
+	// Check cache with read lock
 	c.mu.RLock()
-	if files, ok := c.cache[pkgID]; ok {
-		c.mu.RUnlock()
-		return files
+	entry, ok := c.cache[pkgID]
+	if ok && entry != nil {
+		// Check if entry is still valid (not expired)
+		age := now.Sub(entry.Timestamp)
+		if age < c.ttl {
+			// Cache hit - entry is valid
+			files := entry.Files
+			c.mu.RUnlock()
+			return files
+		}
+		// Entry exists but is expired - will fetch new data below
 	}
 	c.mu.RUnlock()
 
-	// Not in cache, fetch it
+	// Not in cache or expired, fetch it
 	files := fetchPkgFiles(pkgID)
 
+	// Update cache with write lock
 	c.mu.Lock()
-	c.cache[pkgID] = files
+	c.cache[pkgID] = &pkgFilesCacheEntry{
+		Files:     files,
+		Timestamp: now,
+	}
 	c.mu.Unlock()
 
 	return files
 }
 
 // prefetch fetches pkgutil --files for multiple packages in parallel
+// Uses a worker pool to limit concurrent pkgutil processes
 func (c *pkgFilesCache) prefetch(pkgIDs []string) {
-	var wg sync.WaitGroup
-	for _, pkgID := range pkgIDs {
-		wg.Add(1)
-		go func(id string) {
-			defer wg.Done()
-			c.get(id) // This will fetch and cache if not already cached
-		}(pkgID)
+	const maxWorkers = 10 // Limit concurrent pkgutil processes
+
+	if len(pkgIDs) == 0 {
+		return
 	}
+
+	// Create a channel for work items
+	jobs := make(chan string, len(pkgIDs))
+	for _, pkgID := range pkgIDs {
+		jobs <- pkgID
+	}
+	close(jobs)
+
+	// Start worker pool
+	var wg sync.WaitGroup
+	workerCount := maxWorkers
+	if len(pkgIDs) < maxWorkers {
+		workerCount = len(pkgIDs)
+	}
+
+	for i := 0; i < workerCount; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for pkgID := range jobs {
+				c.get(pkgID) // This will fetch and cache if not already cached
+			}
+		}()
+	}
+
 	wg.Wait()
 }
 
@@ -274,6 +343,7 @@ type pkgReceiptInfo struct {
 //   - Drivers and kernel extensions
 //   - Libraries and shared resources
 func (c *pkgReceiptsCollector) Collect() ([]*Entry, []*Warning, error) {
+
 	var entries []*Entry
 	var warnings []*Warning
 
@@ -332,7 +402,8 @@ func (c *pkgReceiptsCollector) Collect() ([]*Entry, []*Warning, error) {
 	}
 
 	// Prefetch all pkgutil --files results in parallel
-	cache := newPkgFilesCache()
+	// Use global cache that persists across collection runs
+	cache := getGlobalPkgFilesCache()
 	cache.prefetch(pkgIDsToFetch)
 
 	// Determine architecture

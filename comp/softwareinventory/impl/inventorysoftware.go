@@ -10,6 +10,7 @@ package softwareinventoryimpl
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -51,6 +52,32 @@ type sysProbeClient interface {
 	GetCheck(module types.ModuleName) ([]software.Entry, error)
 }
 
+// sysProbeEntryResponse is used to unmarshal system-probe responses that include InstallPath.
+// This type matches the systemProbeEntry type used in system-probe modules to ensure
+// InstallPath is preserved through JSON serialization/deserialization.
+type sysProbeEntryResponse struct {
+	software.Entry
+	// InstallPathInternal is the JSON field name used by system-probe
+	InstallPathInternal string `json:"install_path,omitempty"`
+}
+
+// UnmarshalJSON customizes JSON unmarshaling to restore InstallPath from the JSON field
+func (e *sysProbeEntryResponse) UnmarshalJSON(data []byte) error {
+	type Alias software.Entry
+	aux := &struct {
+		*Alias
+		InstallPathInternal string `json:"install_path,omitempty"`
+	}{
+		Alias: (*Alias)(&e.Entry),
+	}
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+	// Restore InstallPath from the JSON field
+	e.Entry.InstallPath = aux.InstallPathInternal
+	return nil
+}
+
 // sysProbeClientWrapper wraps the real sysprobeclient.CheckClient to implement mockSysProbeClient.
 // This wrapper provides a clean interface to the System Probe client while maintaining
 // compatibility with the existing client implementation.
@@ -62,13 +89,23 @@ type sysProbeClientWrapper struct {
 }
 
 // GetCheck implements mockSysProbeClient.GetCheck by delegating to the wrapped client.
-// This method uses the generic GetCheck function to retrieve software inventory data
-// from the System Probe with proper type safety.
+// This method uses an intermediate type to preserve InstallPath through JSON serialization,
+// then converts back to []software.Entry.
 func (w *sysProbeClientWrapper) GetCheck(module types.ModuleName) ([]software.Entry, error) {
 	if w.client == nil {
 		w.client = w.clientFn()
 	}
-	return sysprobeclient.GetCheck[[]software.Entry](w.client, module)
+	// Unmarshal into sysProbeEntryResponse to preserve InstallPath
+	responses, err := sysprobeclient.GetCheck[[]sysProbeEntryResponse](w.client, module)
+	if err != nil {
+		return nil, err
+	}
+	// Convert back to []software.Entry
+	entries := make([]software.Entry, len(responses))
+	for i, resp := range responses {
+		entries[i] = resp.Entry
+	}
+	return entries, nil
 }
 
 // softwareInventory is the implementation of the Component interface.

@@ -16,7 +16,7 @@ import (
 	"time"
 
 	// SQLite driver for MacPorts registry database
-	_ "modernc.org/sqlite"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 // softwareTypeMacPorts represents software installed via MacPorts package manager
@@ -71,7 +71,7 @@ func (c *macPortsCollector) Collect() ([]*Entry, []*Warning, error) {
 		}
 
 		// Open the SQLite database
-		db, err := sql.Open("sqlite", registryPath+"?mode=ro")
+		db, err := sql.Open("sqlite3", registryPath+"?mode=ro")
 		if err != nil {
 			warnings = append(warnings, warnf("failed to open MacPorts registry at %s: %v", registryPath, err))
 			continue

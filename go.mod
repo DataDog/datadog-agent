@@ -950,7 +950,7 @@ require (
 	k8s.io/kube-openapi v0.0.0-20250710124328-f3f2b991d03b // indirect
 	k8s.io/sample-controller v0.34.1 // indirect
 	mellium.im/sasl v0.3.2 // indirect
-	modernc.org/sqlite v1.36.2
+	modernc.org/sqlite v1.36.2 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.34.0 // indirect
 	sigs.k8s.io/controller-runtime v0.22.4 // indirect
 	sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8 // indirect
@@ -1157,7 +1157,6 @@ require (
 	github.com/moby/moby/api v1.52.0 // indirect
 	github.com/moby/moby/client v0.2.1 // indirect
 	github.com/montanaflynn/stats v0.7.1 // indirect
-	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/nexus-rpc/sdk-go v0.5.1 // indirect
 	github.com/nicolai86/scaleway-sdk v1.10.2-0.20180628010248-798f60e20bb2 // indirect
 	github.com/oklog/run v1.2.0 // indirect
@@ -1175,7 +1174,6 @@ require (
 	github.com/pquerna/otp v1.2.1-0.20191009055518-468c2dd2b58d // indirect
 	github.com/prometheus/client_golang/exp v0.0.0-20260101091701-2cd067eb23c9 // indirect
 	github.com/rboyer/safeio v0.2.3 // indirect
-	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/renier/xmlrpc v0.0.0-20170708154548-ce4a1a486c03 // indirect
 	github.com/robfig/cron v1.2.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
@@ -1196,9 +1194,6 @@ require (
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	gopkg.in/neurosnap/sentences.v1 v1.0.7 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
-	modernc.org/libc v1.61.13 // indirect
-	modernc.org/mathutil v1.7.1 // indirect
-	modernc.org/memory v1.8.2 // indirect
 )
 
 // github.com/aws/karpenter-provider-aws requires alpha versions of K8s libraries. We are only using some constants from these packages.
