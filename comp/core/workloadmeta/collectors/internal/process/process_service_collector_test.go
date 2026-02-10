@@ -352,8 +352,9 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 				})
 
 				c.collector.lastCollectedProcesses[process.Pid] = &procutil.Process{
-					Pid:   process.Pid,
-					Stats: &procutil.Stats{CreateTime: process.CreationTime.UnixMilli()}, // Use actual creation time from process entity
+					Pid:     process.Pid,
+					Cmdline: []string{"python3", "--version"},
+					Stats:   &procutil.Stats{CreateTime: process.CreationTime.UnixMilli()},
 				}
 			}
 
@@ -569,8 +570,9 @@ func TestServiceStoreLifetime(t *testing.T) {
 				})
 
 				c.collector.lastCollectedProcesses[process.Pid] = &procutil.Process{
-					Pid:   process.Pid,
-					Stats: &procutil.Stats{CreateTime: process.CreationTime.UnixMilli()}, // Use actual creation time from process entity
+					Pid:     process.Pid,
+					Cmdline: []string{"python3", "--version"},
+					Stats:   &procutil.Stats{CreateTime: process.CreationTime.UnixMilli()},
 				}
 
 				// If this is a process whose injection status we've reported (but has no service), add to tracking

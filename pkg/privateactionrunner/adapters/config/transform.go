@@ -44,14 +44,14 @@ const (
 
 func FromDDConfig(config config.Component) (*Config, error) {
 	ddSite := config.GetString("site")
-	encodedPrivateKey := config.GetString("privateactionrunner.private_key")
-	urn := config.GetString("privateactionrunner.urn")
+	encodedPrivateKey := config.GetString(setup.PARPrivateKey)
+	urn := config.GetString(setup.PARUrn)
 
 	var privateKey *ecdsa.PrivateKey
 	if encodedPrivateKey != "" {
 		jwk, err := util.Base64ToJWK(encodedPrivateKey)
 		if err != nil {
-			return nil, fmt.Errorf("failed to decode privateactionrunner.private_key: %w", err)
+			return nil, fmt.Errorf("failed to decode %s: %w", setup.PARPrivateKey, err)
 		}
 		privateKey = jwk.Key.(*ecdsa.PrivateKey)
 	}

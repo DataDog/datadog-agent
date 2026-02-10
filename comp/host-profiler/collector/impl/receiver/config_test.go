@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/dd-otel-host-profiler/reporter"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,12 +30,12 @@ func TestTracers(t *testing.T) {
 	require.NotContains(t, cfg.EbpfCollectorConfig.Tracers, "go")
 	require.NotContains(t, cfg.EbpfCollectorConfig.Tracers, "labels")
 
-	cfg.ReporterConfig.CollectContext = false
+	cfg.CollectContext = false
 	cfg.SymbolUploader.Enabled = false
 	require.NoError(t, cfg.Validate())
 	require.NotContains(t, cfg.EbpfCollectorConfig.Tracers, "labels")
 
-	cfg.ReporterConfig.CollectContext = true
+	cfg.CollectContext = true
 	require.NoError(t, cfg.Validate())
 	require.Contains(t, cfg.EbpfCollectorConfig.Tracers, "labels")
 }
@@ -50,7 +50,7 @@ func TestServiceNameEnvVars(t *testing.T) {
 
 	cfg.EnableSplitByService = true
 	require.NoError(t, cfg.Validate())
-	require.Equal(t, strings.Join(reporter.ServiceNameEnvVars, ","), cfg.EbpfCollectorConfig.IncludeEnvVars)
+	require.Equal(t, strings.Join(serviceNameEnvVars, ","), cfg.EbpfCollectorConfig.IncludeEnvVars)
 }
 
 func TestSymbolUploader(t *testing.T) {
@@ -62,7 +62,7 @@ func TestSymbolUploader(t *testing.T) {
 	cfg.SymbolUploader.Enabled = true
 	require.Error(t, errSymbolEndpointsRequired(), cfg.Validate())
 
-	cfg.SymbolUploader.SymbolEndpoints = []reporter.SymbolEndpoint{{}}
+	cfg.SymbolUploader.SymbolEndpoints = []symboluploader.SymbolEndpoint{{}}
 	require.Error(t, errSymbolEndpointsSiteRequired(), cfg.Validate())
 	cfg.SymbolUploader.SymbolEndpoints[0].Site = "datadoghq.com"
 	require.Error(t, errSymbolEndpointsAPIKeyRequired(), cfg.Validate())

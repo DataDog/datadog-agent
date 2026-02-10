@@ -168,7 +168,6 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.8.3
 	github.com/DataDog/datadog-operator/api v0.0.0-20260130110400-4fcb91d49671
 	github.com/DataDog/datadog-traceroute v1.0.3
-	github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20260123165136-9ed3effd2c0e
 	github.com/DataDog/ebpf-manager v0.7.15
 	github.com/DataDog/go-sqllexer v0.1.12
 	github.com/DataDog/gopsutil v1.2.3
@@ -561,7 +560,7 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/ebitengine/purego v0.9.1 // indirect
 	github.com/edsrzf/mmap-go v1.2.0 // indirect
-	github.com/elastic/go-freelru v0.16.0 // indirect
+	github.com/elastic/go-freelru v0.16.0
 	github.com/elastic/go-grok v0.3.1 // indirect
 	github.com/elastic/go-licenser v0.4.2 // indirect
 	github.com/elastic/go-perf v0.0.0-20241029065020-30bec95324b8 // indirect
@@ -639,7 +638,7 @@ require (
 	github.com/jaegertracing/jaeger-idl v0.6.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jlaffaye/ftp v0.1.0 // indirect
-	github.com/jonboulle/clockwork v0.5.0 // indirect
+	github.com/jonboulle/clockwork v0.5.0
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/jpillora/backoff v1.0.0 // indirect
 	github.com/julienschmidt/httprouter v1.3.0 // indirect
@@ -815,7 +814,6 @@ require (
 	github.com/ua-parser/uap-go v0.0.0-20240611065828-3a4781585db6 // indirect
 	github.com/ugorji/go/codec v1.2.11 // indirect
 	github.com/ulikunitz/xz v0.5.15 // indirect
-	github.com/urfave/cli/v3 v3.1.1 // indirect
 	github.com/vbatts/tar-split v0.12.2 // indirect
 	github.com/vito/go-sse v1.0.0 // indirect
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
@@ -994,6 +992,7 @@ require (
 	github.com/hashicorp/vault/api/auth/aws v0.11.0
 	github.com/hashicorp/vault/api/auth/ldap v0.11.0
 	github.com/hashicorp/vault/api/auth/userpass v0.11.0
+	github.com/jarcoal/httpmock v1.4.1
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
 	github.com/modelcontextprotocol/go-sdk v1.1.0
 	github.com/qri-io/jsonpointer v0.1.1

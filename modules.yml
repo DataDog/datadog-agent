@@ -89,6 +89,7 @@ modules:
     used_by_otel: true
   comp/forwarder/orchestrator/orchestratorinterface:
     used_by_otel: true
+  comp/host-profiler/symboluploader/testdata: ignored
   comp/logs-library:
     used_by_otel: true
   comp/logs/agent/config:

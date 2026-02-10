@@ -1163,7 +1163,7 @@ func (x *TaggerStateResponse) GetLoaded() bool {
 type ConfigStreamRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The name of the client subscribing to the config stream.
-	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"` // NOTE: session_id is passed via gRPC metadata (key: "session_id"), not in the message body.
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

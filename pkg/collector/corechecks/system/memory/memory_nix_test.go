@@ -9,6 +9,8 @@ package memory
 
 import (
 	"errors"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/shirou/gopsutil/v4/mem"
@@ -60,6 +62,29 @@ func TestMemoryCheckLinux(t *testing.T) {
 	virtualMemory = VirtualMemory
 	swapMemory = SwapMemory
 	memCheck := new(Check)
+	memCheck.instanceConfig.CollectMemoryPressure = true
+
+	vmstatContent := `nr_free_pages 12345
+allocstall_dma 10
+allocstall_dma32 20
+allocstall_normal 30
+allocstall_movable 40
+pgscan_kswapd 1000
+pgsteal_kswapd 900
+pgscan_direct 500
+pgsteal_direct 450
+`
+	openProcFile = func(path string) (*os.File, error) {
+		if strings.HasSuffix(path, "/vmstat") {
+			r, w, _ := os.Pipe()
+			go func() {
+				w.WriteString(vmstatContent)
+				w.Close()
+			}()
+			return r, nil
+		}
+		return nil, errors.New("file not found")
+	}
 
 	mock := mocksender.NewMockSender(memCheck.ID())
 
@@ -85,6 +110,17 @@ func TestMemoryCheckLinux(t *testing.T) {
 	mock.On("Gauge", "system.swap.cached", 25000000000.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Rate", "system.swap.swap_in", 21.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Rate", "system.swap.swap_out", 22.0/mbSize, "", []string(nil)).Return().Times(1)
+
+	// vmstat pressure metrics with zone tags
+	mock.On("MonotonicCount", "system.mem.allocstall", float64(10), "", []string{"zone:dma"}).Return().Times(1)
+	mock.On("MonotonicCount", "system.mem.allocstall", float64(20), "", []string{"zone:dma32"}).Return().Times(1)
+	mock.On("MonotonicCount", "system.mem.allocstall", float64(30), "", []string{"zone:normal"}).Return().Times(1)
+	mock.On("MonotonicCount", "system.mem.allocstall", float64(40), "", []string{"zone:movable"}).Return().Times(1)
+	mock.On("MonotonicCount", "system.mem.pgscan_direct", float64(500), "", []string(nil)).Return().Times(1)
+	mock.On("MonotonicCount", "system.mem.pgsteal_direct", float64(450), "", []string(nil)).Return().Times(1)
+	mock.On("MonotonicCount", "system.mem.pgscan_kswapd", float64(1000), "", []string(nil)).Return().Times(1)
+	mock.On("MonotonicCount", "system.mem.pgsteal_kswapd", float64(900), "", []string(nil)).Return().Times(1)
+
 	mock.On("FinalizeCheckServiceTag").Return().Times(1)
 	mock.On("Commit").Return().Times(1)
 	memCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "")
@@ -92,7 +128,8 @@ func TestMemoryCheckLinux(t *testing.T) {
 	require.Nil(t, err)
 
 	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "Gauge", 18)
+	mock.AssertNumberOfCalls(t, "Gauge", 18)         // Standard memory metrics
+	mock.AssertNumberOfCalls(t, "MonotonicCount", 8) // 4 allocstall zones + 4 other vmstat
 	mock.AssertNumberOfCalls(t, "Rate", 2)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 }
@@ -185,6 +222,11 @@ func TestSwapMemoryError(t *testing.T) {
 	virtualMemory = VirtualMemory
 	swapMemory = func() (*mem.SwapMemoryStat, error) { return nil, errors.New("some error") }
 	memCheck := new(Check)
+
+	// Mock proc files to return errors (simulates non-Linux or unavailable)
+	openProcFile = func(_ string) (*os.File, error) {
+		return nil, errors.New("file not found")
+	}
 
 	mock := mocksender.NewMockSender(memCheck.ID())
 

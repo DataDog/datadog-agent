@@ -146,6 +146,7 @@ message TaggerStateResponse {
 message ConfigStreamRequest {
   // The name of the client subscribing to the config stream.
   string name = 1;
+  // NOTE: session_id is passed via gRPC metadata (key: "session_id"), not in the message body.
 }
 
 message ConfigSetting {

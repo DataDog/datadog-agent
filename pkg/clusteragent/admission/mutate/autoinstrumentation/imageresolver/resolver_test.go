@@ -10,6 +10,7 @@ package imageresolver
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
@@ -131,7 +132,7 @@ func TestNew(t *testing.T) {
 	})
 }
 
-func TestNoOpImageResolver(t *testing.T) {
+func TestNoOpResolver_Resolve(t *testing.T) {
 	resolver := NewNoOpResolver()
 
 	testCases := []struct {
@@ -169,7 +170,7 @@ func TestNoOpImageResolver(t *testing.T) {
 	}
 }
 
-func TestRemoteConfigImageResolver_processUpdate(t *testing.T) {
+func TestRcResolver_processUpdate(t *testing.T) {
 	resolver := &rcResolver{
 		imageMappings: make(map[string]map[string]ImageInfo),
 	}
@@ -213,8 +214,7 @@ func TestRemoteConfigImageResolver_processUpdate(t *testing.T) {
 	})
 }
 
-// TestImageResolverEmptyConfig tests the behavior with no remote config data
-func TestImageResolverEmptyConfig(t *testing.T) {
+func TestRcResolver_EmptyConfig(t *testing.T) {
 	resolver := &rcResolver{
 		imageMappings: make(map[string]map[string]ImageInfo),
 	}
@@ -226,7 +226,7 @@ func TestImageResolverEmptyConfig(t *testing.T) {
 	assert.Nil(t, resolved, "Should not return resolved image with empty cache")
 }
 
-func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
+func TestRcResolver_Resolve(t *testing.T) {
 	mockRCClient := newMockRCClient("multi_repo.json")
 	resolver := newRcResolver(NewConfig(config.NewMock(t), mockRCClient))
 
@@ -314,7 +314,7 @@ func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 	})
 }
 
-func TestRemoteConfigImageResolver_ErrorHandling(t *testing.T) {
+func TestRcResolver_ErrorHandling(t *testing.T) {
 	resolver := &rcResolver{
 		imageMappings: make(map[string]map[string]ImageInfo),
 	}
@@ -377,7 +377,7 @@ func TestRemoteConfigImageResolver_ErrorHandling(t *testing.T) {
 	}
 }
 
-func TestRemoteConfigImageResolver_InvalidDigestValidation(t *testing.T) {
+func TestRcResolver_InvalidDigestValidation(t *testing.T) {
 	testConfigs, err := loadTestConfigFile("invalid_digest.json")
 	require.NoError(t, err)
 
@@ -412,7 +412,7 @@ func TestRemoteConfigImageResolver_InvalidDigestValidation(t *testing.T) {
 	})
 }
 
-func TestRemoteConfigImageResolver_ConcurrentAccess(t *testing.T) {
+func TestRcResolver_ConcurrentAccess(t *testing.T) {
 	resolver := newRcResolver(NewConfig(config.NewMock(t), newMockRCClient("multi_repo.json")))
 
 	t.Run("concurrent_read_write", func(_ *testing.T) {
@@ -489,7 +489,7 @@ func TestIsDatadoghqRegistry(t *testing.T) {
 	}
 }
 
-func TestAsyncInitialization(t *testing.T) {
+func TestRcResolver_AsyncInitialization(t *testing.T) {
 	t.Run("noop_during_initialization", func(t *testing.T) {
 		mockClient := newMockRCClient("multi_repo.json")
 		mockClient.setBlocking(true) // Block initialization
@@ -536,4 +536,200 @@ func TestAsyncInitialization(t *testing.T) {
 		assert.False(t, ok, "Should not complete image resolution after failed init")
 		assert.Nil(t, resolved, "Should return nil after failed init")
 	})
+}
+
+func newMockBucketTagResolver(ttl time.Duration, bucketID string) bucketTagResolver {
+	datadogRegistries := map[string]struct{}{
+		"gcr.io/datadoghq":       {},
+		"public.ecr.aws/datadog": {},
+	}
+	transport := &mockRoundTripper{
+		responses: make(map[string]*http.Response),
+	}
+	return bucketTagResolver{
+		cache:               newHTTPDigestCache(ttl, datadogRegistries, transport),
+		bucketID:            bucketID,
+		datadoghqRegistries: datadogRegistries,
+	}
+}
+
+func TestBucketTagResolver_Resolve(t *testing.T) {
+	t.Run("rejects_non_datadog_registry", func(t *testing.T) {
+		resolver := newMockBucketTagResolver(5*time.Minute, "3")
+
+		resolved, ok := resolver.Resolve("docker.io", "library/nginx", "latest")
+
+		assert.False(t, ok, "Should reject non-Datadog registry")
+		assert.Nil(t, resolved, "Should return nil for non-Datadog registry")
+	})
+
+	t.Run("accepts_allowed_registries", func(t *testing.T) {
+		resolver := newMockBucketTagResolver(5*time.Minute, "4")
+
+		resolver.cache.cache["gcr.io/datadoghq"] = repositoryCache{
+			"dd-lib-java-init": tagCache{
+				"1-gr4": {
+					digest:     "sha256:abc123",
+					whenCached: time.Now(),
+				},
+			},
+		}
+		resolver.cache.cache["public.ecr.aws/datadog"] = repositoryCache{
+			"dd-lib-java-init": tagCache{
+				"1-gr4": {
+					digest:     "sha256:abc123",
+					whenCached: time.Now(),
+				},
+			},
+		}
+
+		testCases := []struct {
+			registry string
+		}{
+			{"gcr.io/datadoghq"},
+			{"public.ecr.aws/datadog"},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.registry, func(t *testing.T) {
+				resolved, ok := resolver.Resolve(tc.registry, "dd-lib-java-init", "v1")
+				assert.True(t, ok, "Should accept allowed registry")
+				assert.NotNil(t, resolved, "Should return resolved image")
+			})
+		}
+	})
+
+	t.Run("cache_hit_returns_resolved_image", func(t *testing.T) {
+		resolver := newMockBucketTagResolver(5*time.Minute, "1")
+
+		resolver.cache.cache["gcr.io/datadoghq"] = repositoryCache{
+			"dd-lib-python-init": tagCache{
+				"3-gr1": {
+					digest:     "sha256:def456",
+					whenCached: time.Now(),
+				},
+			},
+		}
+
+		resolved, ok := resolver.Resolve("gcr.io/datadoghq", "dd-lib-python-init", "v3")
+
+		assert.True(t, ok, "Should resolve cached image")
+		require.NotNil(t, resolved, "Should return resolved image")
+		assert.Equal(t, "gcr.io/datadoghq/dd-lib-python-init@sha256:def456", resolved.FullImageRef)
+		assert.Equal(t, "v3", resolved.CanonicalVersion)
+	})
+
+	t.Run("cache_miss_returns_nil", func(t *testing.T) {
+		resolver := newMockBucketTagResolver(5*time.Minute, "2")
+
+		resolved, ok := resolver.Resolve("gcr.io/datadoghq", "dd-lib-java-init", "v1")
+
+		assert.False(t, ok, "Should return false on cache miss")
+		assert.Nil(t, resolved, "Should return nil on cache miss")
+	})
+
+	t.Run("v_prefix_normalization_for_major_versions", func(t *testing.T) {
+		resolver := newMockBucketTagResolver(5*time.Minute, "3")
+
+		resolver.cache.cache["gcr.io/datadoghq"] = repositoryCache{
+			"dd-lib-js-init": tagCache{
+				"2-gr3": {
+					digest:     "sha256:xyz789",
+					whenCached: time.Now(),
+				},
+			},
+		}
+
+		resolved1, ok1 := resolver.Resolve("gcr.io/datadoghq", "dd-lib-js-init", "v2")
+		resolved2, ok2 := resolver.Resolve("gcr.io/datadoghq", "dd-lib-js-init", "2")
+
+		require.True(t, ok1, "Should resolve v2")
+		require.True(t, ok2, "Should resolve 2")
+		assert.Equal(t, resolved1.FullImageRef, resolved2.FullImageRef, "Both tags should resolve to same image")
+	})
+
+	t.Run("canonical_versions_not_bucket_tagged", func(t *testing.T) {
+		resolver := newMockBucketTagResolver(5*time.Minute, "5")
+
+		resolver.cache.cache["gcr.io/datadoghq"] = repositoryCache{
+			"dd-lib-ruby-init": tagCache{
+				"1.2.3": {
+					digest:     "sha256:canonical",
+					whenCached: time.Now(),
+				},
+			},
+		}
+
+		resolved1, ok1 := resolver.Resolve("gcr.io/datadoghq", "dd-lib-ruby-init", "v1.2.3")
+		require.True(t, ok1, "Should resolve v1.2.3")
+		assert.Equal(t, "gcr.io/datadoghq/dd-lib-ruby-init@sha256:canonical", resolved1.FullImageRef)
+		resolved2, ok2 := resolver.Resolve("gcr.io/datadoghq", "dd-lib-ruby-init", "1.2.3")
+		assert.True(t, ok2, "Should resolve 1.2.3 (same as v1.2.3)")
+		assert.Equal(t, "gcr.io/datadoghq/dd-lib-ruby-init@sha256:canonical", resolved2.FullImageRef)
+	})
+}
+
+func TestBucketTagResolver_CreateBucketTag(t *testing.T) {
+	testCases := []struct {
+		name     string
+		bucketID string
+		inputTag string
+		expected string
+	}{
+		{
+			name:     "major_version_with_v_prefix",
+			bucketID: "2",
+			inputTag: "v3",
+			expected: "3-gr2",
+		},
+		{
+			name:     "major_version_without_v_prefix",
+			bucketID: "9",
+			inputTag: "1",
+			expected: "1-gr9",
+		},
+		{
+			name:     "latest_tag_gets_bucket",
+			bucketID: "3",
+			inputTag: "latest",
+			expected: "latest-gr3",
+		},
+		{
+			name:     "minor_version_with_v_prefix_normalized",
+			bucketID: "4",
+			inputTag: "v1.0",
+			expected: "1.0",
+		},
+		{
+			name:     "minor_version_without_v_prefix_unchanged",
+			bucketID: "5",
+			inputTag: "4.2",
+			expected: "4.2",
+		},
+		{
+			name:     "canonical_version_with_v_normalized",
+			bucketID: "6",
+			inputTag: "v1.2.3",
+			expected: "1.2.3",
+		},
+		{
+			name:     "canonical_version_without_v_unchanged",
+			bucketID: "7",
+			inputTag: "2.3.4",
+			expected: "2.3.4",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockConfig := Config{
+				DigestCacheTTL: 5 * time.Minute,
+				BucketID:       tc.bucketID,
+				DDRegistries:   map[string]struct{}{"gcr.io/datadoghq": {}},
+			}
+			resolver := newBucketTagResolver(mockConfig)
+			result := resolver.createBucketTag(tc.inputTag)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
 }

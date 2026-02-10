@@ -76,7 +76,7 @@ manual_gate_threshold_update:
   rules:
     - !reference [.except_coverage_pipeline] # Coverage pipeline creates a special artifact that will not pass the quality gate
     - !reference [.on_main_manual]
-    - !reference [.on_dev_branches_with_artifact_changes]
+    - !reference [.on_dev_branches_with_artifact_changes_manual]
     - when: manual
       allow_failure: true
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64

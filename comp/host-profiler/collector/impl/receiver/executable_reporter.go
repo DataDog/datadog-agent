@@ -13,20 +13,20 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/DataDog/dd-otel-host-profiler/reporter"
-
 	ebpfreporter "go.opentelemetry.io/ebpf-profiler/reporter"
+
+	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader"
 )
 
 var _ ebpfreporter.ExecutableReporter = (*executableReporter)(nil)
 
 type executableReporter struct {
-	symbolUploader *reporter.DatadogSymbolUploader
+	symbolUploader *symboluploader.DatadogSymbolUploader
 }
 
-func newExecutableReporter(config *reporter.SymbolUploaderConfig, _ *zap.Logger) (*executableReporter, error) {
+func newExecutableReporter(config *symboluploader.SymbolUploaderConfig, _ *zap.Logger) (*executableReporter, error) {
 	ctx := context.Background()
-	symbolUploader, err := reporter.NewDatadogSymbolUploader(ctx, config)
+	symbolUploader, err := symboluploader.NewDatadogSymbolUploader(ctx, config)
 	if err != nil {
 		return nil, err
 	}
