@@ -39,9 +39,29 @@ fx.Provide(func() configstreamconsumerimpl.Params {
 })
 
 // 2b. SessionIDProvider (recommended when using RAR: consumer waits for registration)
-//     Provide SessionIDProvider from your remote agent impl and optional ConfigWriter (e.g. config.Component) to mirror
-//     streamed config into the main config. When SessionIDProvider is nil the component is not created (e.g. RAR disabled).
+fx.Provide(func(ra remoteagent.Component) configstreamconsumerimpl.SessionIDProvider {
+    if ra == nil {
+        return nil
+    }
+    if p, ok := ra.(configstreamconsumerimpl.SessionIDProvider); ok {
+        return p
+    }
+    return nil
+})
+fx.Provide(func(c config.Component, deps struct {
+    fx.In
+    SessionProvider configstreamconsumerimpl.SessionIDProvider `optional:"true"`
+}) configstreamconsumerimpl.Params {
+    return configstreamconsumerimpl.Params{
+        ClientName:        "my-agent",
+        CoreAgentAddress:  net.JoinHostPort(c.GetString("cmd_host"), strconv.Itoa(c.GetInt("cmd_port"))),
+        SessionIDProvider: deps.SessionProvider,
+        ConfigWriter:      c, // optional: mirror streamed config into main config
+    }
+})
 ```
+
+For 2b, your remote agent component must implement `WaitSessionID(ctx) (string, error)` (e.g. by delegating to the RAR helper). When `SessionProvider` is nil (e.g. RAR disabled), the consumer is not created.
 
 When `Params` is nil or both `SessionID` and `SessionIDProvider` are empty, the component is not created (e.g. when RAR is disabled). Inject the consumer and call `WaitReady(ctx)` before starting your agent for blocking startup.
 
