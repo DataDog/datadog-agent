@@ -323,10 +323,9 @@ if windows_target?
     "#{install_dir}\\datadog-installer.exe"
   ]
 
-  if not fips_mode?
-    # TODO(AGENTCFG-XXX): SGC is not supported in FIPS mode
-    GO_BINARIES << "#{install_dir}\\bin\\agent\\secret-generic-connector.exe"
+  GO_BINARIES << "#{install_dir}\\bin\\agent\\secret-generic-connector.exe"
 
+  if not fips_mode?
     # TODO(ACTP-XXX): PAR is not enabled in Gov yet
     GO_BINARIES << "#{install_dir}\\bin\\agent\\privateactionrunner.exe"
   end
