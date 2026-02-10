@@ -316,9 +316,6 @@ func detectNVML(features FeatureMap, cfg model.Reader) {
 			features[NVML] = struct{}{}
 			log.Infof("Agent found NVML library at %s", path)
 			return
-		} else {
-			log.Debugf("Agent did not find NVML library: %v", err)
-			return
 		}
 	}
 
