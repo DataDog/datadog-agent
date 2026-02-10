@@ -11,18 +11,22 @@ import (
 
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	configstreamconsumerimpl "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/impl"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Module defines the fx options for this component
-func Module() fx.Option {
-	return fx.Module("configstreamconsumer",
-		fx.Provide(configstreamconsumerimpl.NewComponent))
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fxutil.ProvideComponentConstructor(configstreamconsumerimpl.NewComponent),
+		fxutil.ProvideOptional[configstreamconsumer.Component](),
+	)
 }
 
 // MockModule defines the fx options for the mock component
-func MockModule() fx.Option {
-	return fx.Module("configstreamconsumer",
+func MockModule() fxutil.Module {
+	return fxutil.Component(
 		fx.Provide(func() configstreamconsumer.Component {
 			return nil
-		}))
+		}),
+	)
 }

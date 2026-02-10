@@ -4,6 +4,8 @@
 // Copyright 2025-present Datadog, Inc.
 
 // Package configstreamconsumer implements a component that consumes config streams from the core agent.
+//
+// team: agent-metric-pipelines agent-configuration
 package configstreamconsumer
 
 import (
