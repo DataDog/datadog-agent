@@ -6,7 +6,6 @@
 package engine
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,7 +17,7 @@ func TestNewEngine_EmptyRules(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, eng)
 
-	result := eng.Evaluate(context.Background(), CELInput{})
+	result := eng.Evaluate(CELInput{})
 	assert.Nil(t, result)
 }
 
@@ -100,7 +99,7 @@ func TestEvaluate_FirstRuleMatches(t *testing.T) {
 		Container: map[string]any{"name": "web"},
 	}
 
-	result := eng.Evaluate(context.Background(), input)
+	result := eng.Evaluate(input)
 	require.NotNil(t, result)
 	assert.Equal(t, "first-service", result.ServiceName)
 	assert.Equal(t, "0", result.MatchedRule)
@@ -117,7 +116,7 @@ func TestEvaluate_NoRuleMatches(t *testing.T) {
 		Container: map[string]any{"name": "web"},
 	}
 
-	result := eng.Evaluate(context.Background(), input)
+	result := eng.Evaluate(input)
 	assert.Nil(t, result)
 }
 
@@ -132,7 +131,7 @@ func TestEvaluate_RuntimeErrorInQuery_RuleSkipped(t *testing.T) {
 		Container: nil,
 	}
 
-	result := eng.Evaluate(context.Background(), input)
+	result := eng.Evaluate(input)
 	require.NotNil(t, result)
 	assert.Equal(t, "fallback-service", result.ServiceName)
 	assert.Equal(t, "1", result.MatchedRule)
@@ -149,7 +148,7 @@ func TestEvaluate_ValueNotEvaluatedIfQueryFalse(t *testing.T) {
 		Container: nil,
 	}
 
-	result := eng.Evaluate(context.Background(), input)
+	result := eng.Evaluate(input)
 	require.NotNil(t, result)
 	assert.Equal(t, "success-service", result.ServiceName)
 	assert.Equal(t, "1", result.MatchedRule)
@@ -162,7 +161,7 @@ func TestEvaluate_EmptyValueSkipped(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	result := eng.Evaluate(context.Background(), CELInput{})
+	result := eng.Evaluate(CELInput{})
 	require.NotNil(t, result)
 	assert.Equal(t, "valid-name", result.ServiceName)
 	assert.Equal(t, "1", result.MatchedRule)
@@ -250,7 +249,7 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 			eng, err := NewEngine(tt.rules)
 			require.NoError(t, err)
 
-			result := eng.Evaluate(context.Background(), tt.input)
+			result := eng.Evaluate(tt.input)
 
 			if tt.wantNil {
 				assert.Nil(t, result)
@@ -269,12 +268,10 @@ func TestEvaluate_QueryRuntimeTypeMismatch(t *testing.T) {
 	// Query compiles as DynType but returns string at runtime
 	eng, err := NewEngine([]Rule{
 		{
-			Name:  "bad-query-rule",
 			Query: "container['name']", // Returns string, not bool
 			Value: "'should-not-reach'",
 		},
 		{
-			Name:  "fallback-rule",
 			Query: "true",
 			Value: "'fallback-service'",
 		},
@@ -289,26 +286,27 @@ func TestEvaluate_QueryRuntimeTypeMismatch(t *testing.T) {
 
 	// First rule should fail runtime type check (returns string, not bool)
 	// Fallback should be returned
-	result := eng.Evaluate(context.Background(), input)
+	result := eng.Evaluate(input)
 	require.NotNil(t, result)
 	assert.Equal(t, "fallback-service", result.ServiceName)
-	assert.Equal(t, "fallback-rule", result.MatchedRule)
+	assert.Equal(t, "1", result.MatchedRule) // Rule identified by index
 }
 
-// TestEvaluate_NilFieldAccess tests handling of nil/missing field access.
-func TestEvaluate_NilFieldAccess(t *testing.T) {
+// TestEvaluate_NilAndMissingFieldAccess tests handling of nil/missing field access and empty containers.
+func TestEvaluate_NilAndMissingFieldAccess(t *testing.T) {
 	tests := []struct {
 		name        string
 		rules       []Rule
 		input       CELInput
 		wantService string
 		wantMatched string
+		wantNil     bool
 	}{
 		{
 			name: "access missing map key with fallback",
 			rules: []Rule{
 				{
-					Query: "container['nonexistent'] == 'value'", // Missing key
+					Query: "container['nonexistent'] == 'value'",
 					Value: "'should-skip'",
 				},
 				{
@@ -344,31 +342,6 @@ func TestEvaluate_NilFieldAccess(t *testing.T) {
 			wantService: "default",
 			wantMatched: "1",
 		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			eng, err := NewEngine(tt.rules)
-			require.NoError(t, err)
-
-			result := eng.Evaluate(context.Background(), tt.input)
-			require.NotNil(t, result)
-			assert.Equal(t, tt.wantService, result.ServiceName)
-			assert.Equal(t, tt.wantMatched, result.MatchedRule)
-		})
-	}
-}
-
-// TestEvaluate_EmptyContainerInput tests behavior when container is nil or empty.
-func TestEvaluate_EmptyContainerInput(t *testing.T) {
-	tests := []struct {
-		name        string
-		rules       []Rule
-		input       CELInput
-		wantService string
-		wantMatched string
-		wantNil     bool
-	}{
 		{
 			name: "nil container access fails, fallback used",
 			rules: []Rule{
@@ -408,7 +381,7 @@ func TestEvaluate_EmptyContainerInput(t *testing.T) {
 			eng, err := NewEngine(tt.rules)
 			require.NoError(t, err)
 
-			result := eng.Evaluate(context.Background(), tt.input)
+			result := eng.Evaluate(tt.input)
 
 			if tt.wantNil {
 				assert.Nil(t, result)

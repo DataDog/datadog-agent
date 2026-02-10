@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !cel || !servicenaming
+//go:build !cel
 
 // Package subscriber provides a workloadmeta subscriber that evaluates CEL-based
 // service naming rules against container metadata.

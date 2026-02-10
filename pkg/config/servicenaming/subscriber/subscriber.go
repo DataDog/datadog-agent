@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build cel && servicenaming
+//go:build cel
 
 // Package subscriber provides a workloadmeta subscriber that evaluates CEL-based
 // service naming rules against container metadata.
@@ -11,11 +11,7 @@ package subscriber
 
 import (
 	"context"
-	"hash/fnv"
-	"sort"
-	"strconv"
 	"sync"
-	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -26,37 +22,20 @@ import (
 
 const (
 	subscriberName = "servicenaming-subscriber"
-
-	// Interval for cleaning up stale container entries to avoid unbounded cache growth.
-	cleanupInterval = 10 * time.Minute
-
-	// Maximum number of labels included in input hashing to prevent DoS.
-	maxLabelsForHashing = 1000
-
-	// Maximum number of environment variables included in input hashing.
-	maxEnvsForHashing = 1000
-
-	// Maximum length of a single label or env value used for hashing.
-	// Longer values are truncated to limit memory usage.
-	maxLabelValueLen = 10 * 1024 // 10KB
 )
 
 // Subscriber listens to workloadmeta container events and applies CEL-based
 // service naming rules, storing results back into workloadmeta.
 type Subscriber struct {
-	cfg    pkgconfigmodel.Reader
 	wmeta  workloadmeta.Component
 	ch     chan workloadmeta.EventBundle
 	engine *engine.Engine
 
-	// Protects serviceNameCache and inputHashCache.
+	// Protects serviceNameCache.
 	mu sync.RWMutex
 
-	// Last computed service name per container.
+	// Last computed service name per container, used to avoid re-pushing identical results.
 	serviceNameCache map[string]string
-
-	// Hash of container metadata (labels, envs, image) used for service name computation.
-	inputHashCache map[string]uint64
 }
 
 // NewSubscriber creates a new servicenaming subscriber.
@@ -81,11 +60,9 @@ func NewSubscriber(cfg pkgconfigmodel.Reader, wmeta workloadmeta.Component) (*Su
 	log.Infof("CEL service naming enabled with %d rules", len(sdConfig.ServiceDefinitions))
 
 	sub := &Subscriber{
-		cfg:              cfg,
 		wmeta:            wmeta,
 		engine:           eng,
 		serviceNameCache: make(map[string]string),
-		inputHashCache:   make(map[string]uint64),
 	}
 
 	return sub, nil
@@ -94,18 +71,17 @@ func NewSubscriber(cfg pkgconfigmodel.Reader, wmeta workloadmeta.Component) (*Su
 // Start processes workloadmeta container events (call as goroutine: go sub.Start(ctx)).
 func (s *Subscriber) Start(ctx context.Context) {
 	if s.ch == nil {
-		// Subscribe to SourceAll (runtime + orchestrators). We receive our own SourceServiceDiscovery
-		// events back, but idempotency checks prevent redundant evaluation.
+		// Subscribe to all container events (Set and Unset) from all sources.
+		// Workloadmeta already filters duplicate events using reflect.DeepEqual,
+		// so we only receive events when container metadata actually changed.
 		filter := workloadmeta.NewFilterBuilder().
 			SetSource(workloadmeta.SourceAll).
 			AddKind(workloadmeta.KindContainer).
 			Build()
 
 		s.ch = s.wmeta.Subscribe(subscriberName, workloadmeta.NormalPriority, filter)
-		log.Debug("servicenaming subscriber subscribed to workloadmeta events (all sources)")
+		log.Debug("servicenaming subscriber subscribed to workloadmeta container events")
 	}
-
-	go s.periodicCleanup(ctx)
 
 	log.Debug("servicenaming subscriber event loop started")
 
@@ -151,41 +127,16 @@ func (s *Subscriber) removeFromCache(containerID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.serviceNameCache, containerID)
-	delete(s.inputHashCache, containerID)
 }
 
 // processContainer evaluates CEL rules and updates workloadmeta with the result.
-func (s *Subscriber) processContainer(ctx context.Context, container *workloadmeta.Container) {
-	currentInputHash := hashContainerInput(container)
-
-	// Skip re-evaluation if input and output unchanged (idempotency check)
-	if container.CELServiceDiscovery != nil {
-		s.mu.RLock()
-		cachedService, exists := s.serviceNameCache[container.ID]
-		cachedHash, hashExists := s.inputHashCache[container.ID]
-		s.mu.RUnlock()
-
-		if exists && hashExists {
-			if container.CELServiceDiscovery.ServiceName == cachedService && currentInputHash == cachedHash {
-				log.Tracef("CEL service naming: skipping re-evaluation for container %s (input and output unchanged)", container.ID)
-				return
-			}
-		}
-	}
-
+// Note: workloadmeta already filters duplicate events using reflect.DeepEqual,
+// so this function only receives events when container metadata actually changed.
+func (s *Subscriber) processContainer(_ context.Context, container *workloadmeta.Container) {
 	input := buildCELInput(container)
 	engineInput := servicenaming.ToEngineInput(input)
 
-	if s.engine == nil {
-		if container.CELServiceDiscovery != nil {
-			log.Debugf("CEL service naming: disabled, clearing service discovery for container %s", container.ID)
-			s.clearServiceDiscovery(container)
-			s.removeFromCache(container.ID)
-		}
-		return
-	}
-
-	result := s.engine.Evaluate(ctx, engineInput)
+	result := s.engine.Evaluate(engineInput)
 
 	if result == nil {
 		log.Debugf("CEL service naming: no rule matched for container %s (name=%s, image=%s, labels=%d)",
@@ -199,20 +150,24 @@ func (s *Subscriber) processContainer(ctx context.Context, container *workloadme
 		return
 	}
 
-	if container.CELServiceDiscovery != nil {
-		existing := container.CELServiceDiscovery
-		if existing.ServiceName == result.ServiceName && existing.MatchedRule == result.MatchedRule {
-			log.Tracef("CEL service naming: container %s already has correct service name %q", container.ID, result.ServiceName)
-			s.updateCache(container.ID, result.ServiceName, currentInputHash)
-			return
-		}
+	// Check if we already computed this exact result to avoid redundant pushes
+	s.mu.RLock()
+	cachedServiceName, exists := s.serviceNameCache[container.ID]
+	s.mu.RUnlock()
+
+	if exists && cachedServiceName == result.ServiceName {
+		// We already pushed this service name and the container still matches
+		log.Tracef("CEL service naming: container %s already has service name %q, skipping push", container.ID, result.ServiceName)
+		return
 	}
 
 	log.Debugf("CEL service naming: container %s matched rule %q, service name: %s",
 		container.ID, result.MatchedRule, result.ServiceName)
 
-	// Update cache before push to prevent race condition if event returns immediately
-	s.updateCache(container.ID, result.ServiceName, currentInputHash)
+	// Update cache before push to prevent race condition
+	s.mu.Lock()
+	s.serviceNameCache[container.ID] = result.ServiceName
+	s.mu.Unlock()
 
 	err := s.wmeta.Push(workloadmeta.SourceServiceDiscovery, workloadmeta.Event{
 		Type: workloadmeta.EventTypeSet,
@@ -230,13 +185,6 @@ func (s *Subscriber) processContainer(ctx context.Context, container *workloadme
 	}
 }
 
-func (s *Subscriber) updateCache(containerID, serviceName string, inputHash uint64) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.serviceNameCache[containerID] = serviceName
-	s.inputHashCache[containerID] = inputHash
-}
-
 func (s *Subscriber) clearServiceDiscovery(container *workloadmeta.Container) {
 	log.Debugf("CEL service naming: clearing service discovery for container %s", container.ID)
 
@@ -249,134 +197,6 @@ func (s *Subscriber) clearServiceDiscovery(container *workloadmeta.Container) {
 	if err != nil {
 		log.Warnf("Failed to clear CEL service discovery for container %s: %v", container.ID, err)
 	}
-}
-
-// periodicCleanup removes stale cache entries every 10 minutes.
-func (s *Subscriber) periodicCleanup(ctx context.Context) {
-	ticker := time.NewTicker(cleanupInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			s.cleanupStaleEntries()
-		}
-	}
-}
-
-func (s *Subscriber) cleanupStaleEntries() {
-	containers := s.wmeta.ListContainers()
-	activeIDs := make(map[string]struct{}, len(containers))
-	for _, c := range containers {
-		activeIDs[c.ID] = struct{}{}
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	staleCount := 0
-	for containerID := range s.serviceNameCache {
-		if _, exists := activeIDs[containerID]; !exists {
-			delete(s.serviceNameCache, containerID)
-			delete(s.inputHashCache, containerID)
-			staleCount++
-		}
-	}
-
-	if staleCount > 0 {
-		log.Debugf("CEL service naming: cleaned up %d stale container entries from cache", staleCount)
-	}
-}
-
-// hashContainerInput computes a hash of CEL-relevant container metadata.
-func hashContainerInput(container *workloadmeta.Container) uint64 {
-	h := fnv.New64a()
-
-	h.Write([]byte(container.Image.Name))
-	h.Write([]byte(container.Image.ShortName))
-	h.Write([]byte(container.Image.Tag))
-	h.Write([]byte(container.Image.Registry))
-
-	if container.Labels != nil {
-		labelCount := len(container.Labels)
-		if labelCount > maxLabelsForHashing {
-			log.Warnf("Container %s has %d labels, only hashing first %d",
-				container.ID, labelCount, maxLabelsForHashing)
-		}
-
-		keys := make([]string, 0, len(container.Labels))
-		for k := range container.Labels {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-
-		count := 0
-		for _, k := range keys {
-			if count >= maxLabelsForHashing {
-				break
-			}
-			v := container.Labels[k]
-			if len(v) > maxLabelValueLen {
-				v = v[:maxLabelValueLen]
-			}
-			h.Write([]byte(k))
-			h.Write([]byte(v))
-			count++
-		}
-	}
-
-	if container.EnvVars != nil {
-		envCount := len(container.EnvVars)
-		if envCount > maxEnvsForHashing {
-			log.Warnf("Container %s has %d env vars, only hashing first %d",
-				container.ID, envCount, maxEnvsForHashing)
-		}
-
-		keys := make([]string, 0, len(container.EnvVars))
-		for k := range container.EnvVars {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-
-		count := 0
-		for _, k := range keys {
-			if count >= maxEnvsForHashing {
-				break
-			}
-			v := container.EnvVars[k]
-			if len(v) > maxLabelValueLen {
-				v = v[:maxLabelValueLen]
-			}
-			h.Write([]byte(k))
-			h.Write([]byte(v))
-			count++
-		}
-	}
-
-	if len(container.Ports) > 0 {
-		ports := make([]workloadmeta.ContainerPort, len(container.Ports))
-		copy(ports, container.Ports)
-		sort.Slice(ports, func(i, j int) bool {
-			if ports[i].Port != ports[j].Port {
-				return ports[i].Port < ports[j].Port
-			}
-			if ports[i].Protocol != ports[j].Protocol {
-				return ports[i].Protocol < ports[j].Protocol
-			}
-			return ports[i].Name < ports[j].Name
-		})
-		for _, p := range ports {
-			h.Write([]byte(p.Name))
-			h.Write([]byte(p.Protocol))
-			h.Write([]byte(strconv.Itoa(p.Port)))
-		}
-	}
-
-	h.Write([]byte(container.Name))
-
-	return h.Sum64()
 }
 
 // buildCELInput converts workloadmeta.Container to servicenaming.CELInput.

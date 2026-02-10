@@ -76,7 +76,6 @@ ALL_TAGS = {
     "zlib",
     "zstd",
     "cel",
-    "servicenaming",  # used for CEL-based service naming feature
     "cws_instrumentation_injector_only",  # used for building cws-instrumentation with only the injector code
 }.union(COMMON_TAGS)
 
@@ -113,7 +112,6 @@ AGENT_TAGS = {
     "zlib",
     "zstd",
     "cel",
-    "servicenaming",
 }
 
 # AGENT_HEROKU_TAGS lists the tags for Heroku agent build

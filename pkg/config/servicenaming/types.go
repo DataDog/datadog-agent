@@ -4,48 +4,38 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package servicenaming provides CEL-based service name calculation.
-//
-// These types define the schema exposed to CEL expressions. They are used
-// at runtime to map workloadmeta entities to CEL input variables, NOT for
-// compile-time type checking (we use DynType for flexibility).
-//
-// Example CEL expressions:
-//   - container['labels']['app']
-//   - container['image']['shortname']
-//   - container['envs']['DD_SERVICE']
-//   - container['ports'][0]['port']
 package servicenaming
 
 import "github.com/DataDog/datadog-agent/pkg/config/servicenaming/engine"
 
 // CELInput is the input structure for CEL evaluation.
 type CELInput struct {
-	Container *ContainerCEL `cel:"container"`
+	Container *ContainerCEL
 }
 
 // ContainerCEL represents a container in CEL expressions (maps from workloadmeta.Container).
 type ContainerCEL struct {
-	ID     string            `cel:"id"`
-	Name   string            `cel:"name"`
-	Image  ImageCEL          `cel:"image"`
-	Labels map[string]string `cel:"labels"` // Container labels only; pod annotations require separate lookup
-	Envs   map[string]string `cel:"envs"`   // Filtered env vars from pkg/util/containers/env_vars_filter.go
-	Ports  []PortCEL         `cel:"ports"`
+	ID     string
+	Name   string
+	Image  ImageCEL
+	Labels map[string]string
+	Envs   map[string]string
+	Ports  []PortCEL
 }
 
 // PortCEL represents a container port (maps from workloadmeta.ContainerPort).
 type PortCEL struct {
-	Name     string `cel:"name"`
-	Port     int    `cel:"port"`
-	Protocol string `cel:"protocol"`
+	Name     string
+	Port     int
+	Protocol string
 }
 
 // ImageCEL represents container image information (maps from workloadmeta.ContainerImage).
 type ImageCEL struct {
-	Name      string `cel:"name"`
-	ShortName string `cel:"shortname"`
-	Tag       string `cel:"tag"`
-	Registry  string `cel:"registry"`
+	Name      string
+	ShortName string
+	Tag       string
+	Registry  string
 }
 
 // ToEngineInput converts CELInput to engine.CELInput for CEL evaluation.

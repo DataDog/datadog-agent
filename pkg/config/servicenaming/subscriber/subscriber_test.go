@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build cel && servicenaming && test
+//go:build cel && test
 
-// Build tags: "cel" (requires CEL support) + "servicenaming" (servicenaming feature) + "test" (standard agent test tag).
+// Build tags: "cel" (requires CEL support) + "test" (standard agent test tag).
 // This pattern is used for feature-specific tests throughout the agent.
 
 package subscriber
@@ -592,126 +592,12 @@ service_discovery:
 	}, 2*time.Second, 10*time.Millisecond, "Re-added container should be evaluated with new properties")
 }
 
-func TestSubscriber_CleanupRemovesStaleEntries(t *testing.T) {
-	// Test that the periodic cleanup removes entries for deleted containers
-	yamlConfig := `
-service_discovery:
-  enabled: true
-  service_definitions:
-    - name: "test-rule"
-      query: "true"
-      value: "container['image']['shortname']"
-`
-	wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() config.Component {
-			return config.NewMockFromYAML(t, yamlConfig)
-		}),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	))
-
-	cfg := wmeta.GetConfig()
-
-	sub, err := NewSubscriber(cfg, wmeta)
-	require.NoError(t, err)
-	require.NotNil(t, sub)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	go sub.Start(ctx)
-
-	// Add a container
-	container := &workloadmeta.Container{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindContainer,
-			ID:   "cleanup-test-container",
-		},
-		EntityMeta: workloadmeta.EntityMeta{
-			Name: "cleanup-test",
-		},
-		Image: workloadmeta.ContainerImage{
-			ShortName: "nginx",
-		},
-	}
-	wmeta.Push(workloadmeta.SourceRuntime, workloadmeta.Event{
-		Type:   workloadmeta.EventTypeSet,
-		Entity: container,
-	})
-
-	// Wait for processing
-	require.Eventually(t, func() bool {
-		c, err := wmeta.GetContainer("cleanup-test-container")
-		return err == nil && c.CELServiceDiscovery != nil
-	}, 2*time.Second, 10*time.Millisecond, "Container should be processed")
-
-	// Verify cache entry exists
-	sub.mu.RLock()
-	_, existsBefore := sub.serviceNameCache["cleanup-test-container"]
-	cachedServiceName := sub.serviceNameCache["cleanup-test-container"]
-	sub.mu.RUnlock()
-	assert.True(t, existsBefore, "Cache entry should exist before cleanup")
-	assert.Equal(t, "nginx", cachedServiceName, "Cache should have the correct service name")
-
-	// Create a second container to remain in workloadmeta
-	container2 := &workloadmeta.Container{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindContainer,
-			ID:   "remaining-container",
-		},
-		EntityMeta: workloadmeta.EntityMeta{
-			Name: "remaining",
-		},
-		Image: workloadmeta.ContainerImage{
-			ShortName: "redis",
-		},
-	}
-	wmeta.Push(workloadmeta.SourceRuntime, workloadmeta.Event{
-		Type:   workloadmeta.EventTypeSet,
-		Entity: container2,
-	})
-
-	// Wait for processing
-	require.Eventually(t, func() bool {
-		c, err := wmeta.GetContainer("remaining-container")
-		return err == nil && c.CELServiceDiscovery != nil
-	}, 2*time.Second, 10*time.Millisecond, "Second container should be processed")
-
-	// Now manually delete the FIRST container from workloadmeta's internal store
-	// WITHOUT going through the normal event flow (simulating a missed Unset event)
-	// We do this by pushing an Unset without the subscriber processing it
-	// To simulate this properly, we'll just manually call cleanupStaleEntries
-	// after the container is gone from workloadmeta
-	wmeta.Push(workloadmeta.SourceRuntime, workloadmeta.Event{
-		Type:   workloadmeta.EventTypeUnset,
-		Entity: container,
-	})
-
-	// Give workloadmeta time to process the unset
-	time.Sleep(50 * time.Millisecond)
-
-	// Verify the first container is gone from workloadmeta but cache still has it
-	// (because handleEvents already cleaned it up, but let's test cleanupStaleEntries explicitly)
-	// To properly test cleanup of truly stale entries, we need to add a fake entry
-	sub.mu.Lock()
-	sub.serviceNameCache["fake-stale-container"] = "fake-service"
-	sub.inputHashCache["fake-stale-container"] = 12345
-	sub.mu.Unlock()
-
-	// Now manually trigger cleanup (instead of waiting 10 minutes)
-	sub.cleanupStaleEntries()
-
-	// Verify fake stale entry was removed
-	sub.mu.RLock()
-	_, fakeExists := sub.serviceNameCache["fake-stale-container"]
-	_, realExists := sub.serviceNameCache["remaining-container"]
-	sub.mu.RUnlock()
-	assert.False(t, fakeExists, "Fake stale cache entry should be removed after cleanup")
-	assert.True(t, realExists, "Real container entry should still exist after cleanup")
-}
+// TestSubscriber_CleanupRemovesStaleEntries was removed because periodic cleanup
+// is no longer necessary. The cache is automatically cleaned when containers are
+// deleted via EventTypeUnset events (tested in TestSubscriber_CleansUpOnContainerDelete).
 
 func TestSubscriber_ReevaluatesWhenPortsChange(t *testing.T) {
-	// Test that changes in ports trigger re-evaluation (hash includes ports)
+	// Test that changes in ports trigger re-evaluation (workloadmeta detects the change)
 	yamlConfig := `
 service_discovery:
   enabled: true

@@ -624,7 +624,7 @@ type CELServiceDiscovery struct {
 	// ServiceName is the computed service name from CEL rules
 	ServiceName string
 
-	// MatchedRule is the name or index of the rule that matched (for debugging)
+	// MatchedRule is the index of the rule that matched (for debugging)
 	MatchedRule string
 }
 

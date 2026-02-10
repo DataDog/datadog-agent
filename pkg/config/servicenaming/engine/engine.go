@@ -7,7 +7,6 @@
 package engine
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -21,14 +20,13 @@ import (
 )
 
 const (
-	evalTimeout       = 100 * time.Millisecond
 	maxServiceNameLen = 100
 )
 
 // ServiceDiscoveryResult contains the result of CEL rule evaluation.
 type ServiceDiscoveryResult struct {
 	ServiceName string
-	MatchedRule string // Rule name or index for debugging
+	MatchedRule string // Rule index for debugging
 }
 
 // CELInput is the input for CEL evaluation (Container must be a map).
@@ -38,7 +36,6 @@ type CELInput struct {
 
 // Rule represents a CEL rule with query (boolean) and value (string) expressions.
 type Rule struct {
-	Name  string // Optional name for debugging; index used if empty
 	Query string
 	Value string
 }
@@ -52,7 +49,6 @@ type Engine struct {
 type compiledRule struct {
 	queryProgram cel.Program
 	valueProgram cel.Program
-	name         string
 	index        int
 }
 
@@ -62,7 +58,7 @@ func NewEngine(rules []Rule) (*Engine, error) {
 		return &Engine{rules: []compiledRule{}}, nil
 	}
 
-	env, err := CreateCELEnvironment()
+	env, err := createCELEnvironment()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create CEL environment: %w", err)
 	}
@@ -107,7 +103,6 @@ func NewEngine(rules []Rule) (*Engine, error) {
 		compiled = append(compiled, compiledRule{
 			queryProgram: queryProgram,
 			valueProgram: valueProgram,
-			name:         rule.Name,
 			index:        i,
 		})
 	}
@@ -119,7 +114,7 @@ func NewEngine(rules []Rule) (*Engine, error) {
 }
 
 // Evaluate runs the CEL rules against the input and returns the first matching service discovery result.
-func (e *Engine) Evaluate(ctx context.Context, input CELInput) *ServiceDiscoveryResult {
+func (e *Engine) Evaluate(input CELInput) *ServiceDiscoveryResult {
 	if len(e.rules) == 0 {
 		return nil
 	}
@@ -127,8 +122,7 @@ func (e *Engine) Evaluate(ctx context.Context, input CELInput) *ServiceDiscovery
 	vars := map[string]any{"container": input.Container}
 
 	for _, rule := range e.rules {
-		// Evaluate each rule with its own timeout context to ensure fair budget distribution
-		result := e.evaluateRule(ctx, rule, vars)
+		result := e.evaluateRule(rule, vars)
 		if result != nil {
 			return result
 		}
@@ -138,22 +132,8 @@ func (e *Engine) Evaluate(ctx context.Context, input CELInput) *ServiceDiscovery
 }
 
 // evaluateRule evaluates a single CEL rule and returns the service discovery result if it matches, or nil otherwise.
-func (e *Engine) evaluateRule(ctx context.Context, rule compiledRule, vars map[string]any) *ServiceDiscoveryResult {
-	ruleID := getRuleID(rule)
-
-	// Create per-rule timeout context to ensure each rule gets the full timeout budget.
-	// This prevents later rules from being starved if earlier rules take time to evaluate.
-	evalCtx, cancel := context.WithTimeout(ctx, evalTimeout)
-	defer cancel()
-
-	select {
-	case <-evalCtx.Done():
-		if e.logLimiter.ShouldLog() {
-			log.Warnf("servicenaming: evaluation timeout or cancelled: %v", evalCtx.Err())
-		}
-		return nil
-	default:
-	}
+func (e *Engine) evaluateRule(rule compiledRule, vars map[string]any) *ServiceDiscoveryResult {
+	ruleID := strconv.Itoa(rule.index)
 
 	queryResult, _, err := rule.queryProgram.Eval(vars)
 	if err != nil {
@@ -211,13 +191,6 @@ func (e *Engine) evaluateRule(ctx context.Context, rule compiledRule, vars map[s
 	}
 }
 
-func getRuleID(rule compiledRule) string {
-	if rule.name != "" {
-		return rule.name
-	}
-	return strconv.Itoa(rule.index)
-}
-
 // validateServiceName validates the service name against length, whitespace, and allowed characters rules.
 func validateServiceName(name string) error {
 	if len(name) > maxServiceNameLen {
@@ -242,8 +215,8 @@ func isValidServiceNameChar(r rune) bool {
 		r == '.' || r == '_' || r == ':' || r == '/' || r == '-'
 }
 
-// CreateCELEnvironment creates the CEL environment for service naming with DynType container variable.
-func CreateCELEnvironment() (*cel.Env, error) {
+// createCELEnvironment creates the CEL environment for service naming with DynType container variable.
+func createCELEnvironment() (*cel.Env, error) {
 	return cel.NewEnv(
 		cel.Variable("container", cel.DynType),
 		ext.Strings(),
