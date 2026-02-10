@@ -90,6 +90,7 @@ namespace WixSetup.Datadog_Installer
             // Always generate a new GUID otherwise WixSharp will generate one based on
             // the version
             project.ProductId = Guid.NewGuid();
+            project.AlwaysScheduleInitRuntime = false;
             project
                 .SetCustomActions(_installerCustomActions)
                 .SetProjectInfo(

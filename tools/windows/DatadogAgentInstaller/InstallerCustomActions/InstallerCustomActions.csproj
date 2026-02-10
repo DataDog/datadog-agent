@@ -62,8 +62,7 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- WiX 5 migration: Replaced assembly reference with NuGet package -->
-    <!-- Note: Using 4.0.5 because WixSharp's MakeSfxCA expects DTF assembly version 4.0.0.0 -->
-    <PackageReference Include="WixToolset.Dtf.WindowsInstaller" Version="4.0.5" />
+    <PackageReference Include="WixToolset.Dtf.WindowsInstaller" Version="5.0.2" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="System" />

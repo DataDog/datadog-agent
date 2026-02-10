@@ -51,8 +51,6 @@ namespace WixSetup
             var upgradeElement = new XElement("Upgrade");
             upgradeElement.SetAttributeValue("Id", UpgradeCode);
 
-            // Note: UpgradeVersion does NOT have an Id attribute in WiX 5
-            // Detect all versions of the conflicting product.
             // Omitting Maximum means "no upper bound" - detects all versions >= Minimum.
             var upgradeVersionElement = new XElement("UpgradeVersion",
                 new XAttribute("Minimum", "0.0.0"),
