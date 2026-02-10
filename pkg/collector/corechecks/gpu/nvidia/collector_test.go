@@ -346,6 +346,7 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 			switch metric.Name {
 			case "memory.usage":
 				require.Equal(t, Medium, metric.Priority)
+				require.NotContains(t, metric.Tags, "pid:1003")
 				memoryUsageCount++
 			case "core.temp":
 				require.Equal(t, Medium, metric.Priority)
@@ -444,6 +445,21 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 			require.Len(t, result, 1)
 			require.Equal(t, "metric1", result[0].Name)
 		})
+	})
+
+	t.Run("PreservedTags", func(t *testing.T) {
+		tags := []string{"pid:1001", "pid:1002"}
+		allMetrics := map[CollectorName][]Metric{
+			sampling: {
+				{Name: "memory.limit", Priority: Medium, Tags: tags},
+			},
+			ebpf: {
+				{Name: "memory.limit", Priority: Medium, Tags: nil},
+			},
+		}
+		result := RemoveDuplicateMetrics(allMetrics)
+		require.Len(t, result, 1)
+		require.ElementsMatch(t, result[0].Tags, tags)
 	})
 }
 
