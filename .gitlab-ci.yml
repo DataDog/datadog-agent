@@ -375,6 +375,7 @@ workflow:
     - <<: *if_triggered_pipeline
     - <<: *if_main_branch
       variables:
+        BAZEL_CACHE_POLICY_SUFFIX: "-push"
         GO_TEST_SKIP_FLAKE: "false"
     - <<: *if_release_branch
     - <<: *if_deploy
