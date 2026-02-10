@@ -194,19 +194,21 @@ func performSelfEnrollment(ctx context.Context, log log.Component, ddConfig conf
 	cfg.RunnerId = urnParts.RunnerID
 
 	// Auto-create connections for enrolled runner
-	var bundleAllowlist = make([]string, 0, len(cfg.ActionsAllowlist))
-	for bundleID := range cfg.ActionsAllowlist {
-		bundleAllowlist = append(bundleAllowlist, bundleID)
+	var actionsAllowlist = make([]string, 0)
+	for _, set := range cfg.ActionsAllowlist {
+		for action := range set {
+			actionsAllowlist = append(actionsAllowlist, action)
+		}
 	}
 
-	if len(bundleAllowlist) > 0 {
+	if len(actionsAllowlist) > 0 {
 		client, err := autoconnections.NewConnectionsAPIClient(ddConfig, ddSite, apiKey, appKey)
 		if err != nil {
 			log.Warnf("Failed to create connections API client: %v", err)
 		} else {
 			creator := autoconnections.NewConnectionsCreator(*client)
 
-			if err := creator.AutoCreateConnections(context.Background(), urnParts.RunnerID, runnerName, bundleAllowlist); err != nil {
+			if err := creator.AutoCreateConnections(context.Background(), urnParts.RunnerID, runnerName, actionsAllowlist); err != nil {
 				log.Warnf("Failed to auto-create connections: %v", err)
 			}
 		}

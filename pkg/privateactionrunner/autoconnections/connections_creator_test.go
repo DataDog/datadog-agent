@@ -144,7 +144,7 @@ func TestAutoCreateConnections_AllBundlesSuccess(t *testing.T) {
 	}))
 	defer server.Close()
 
-	bundleAllowlist := []string{"com.datadoghq.http", "com.datadoghq.kubernetes.core", "com.datadoghq.script"}
+	actionsAllowlist := []string{"com.datadoghq.http.request", "com.datadoghq.kubernetes.core.getPods", "com.datadoghq.script.runPredefinedScipt"}
 
 	// Use server's client which is pre-configured for TLS
 	testClient := &ConnectionsClient{
@@ -161,7 +161,7 @@ func TestAutoCreateConnections_AllBundlesSuccess(t *testing.T) {
 	runnerID := "144500f1-474a-4856-aa0a-6fd22e005893"
 	runnerName := "runner-abc123"
 
-	err := creator.AutoCreateConnections(context.Background(), runnerID, runnerName, bundleAllowlist)
+	err := creator.AutoCreateConnections(context.Background(), runnerID, runnerName, actionsAllowlist)
 
 	require.NoError(t, err, "AutoCreateConnections should return nil")
 	assert.Len(t, createdConnections, 2, "Should create 2 connections")
@@ -180,7 +180,7 @@ func TestAutoCreateConnections_PartialFailures(t *testing.T) {
 		requestCount++
 		body, _ := io.ReadAll(r.Body)
 
-		// Fail if it's the Kubernetes bundle
+		// Fail if it's the Kubernetes
 		if strings.Contains(string(body), `"name":"Kubernetes (runner-abc123)"`) {
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte(`{"errors": ["internal error"]}`))
@@ -192,7 +192,7 @@ func TestAutoCreateConnections_PartialFailures(t *testing.T) {
 	}))
 	defer server.Close()
 
-	bundleAllowlist := []string{"com.datadoghq.http", "com.datadoghq.kubernetes.core", "com.datadoghq.script"}
+	actionsAllowlist := []string{"com.datadoghq.http.request", "com.datadoghq.kubernetes.core.getPods", "com.datadoghq.script.runPredefinedScipt"}
 
 	// Use server's client which is pre-configured for TLS
 	testClient := &ConnectionsClient{
@@ -209,7 +209,7 @@ func TestAutoCreateConnections_PartialFailures(t *testing.T) {
 	runnerID := "144500f1-474a-4856-aa0a-6fd22e005893"
 	runnerName := "runner-abc123"
 
-	err := creator.AutoCreateConnections(context.Background(), runnerID, runnerName, bundleAllowlist)
+	err := creator.AutoCreateConnections(context.Background(), runnerID, runnerName, actionsAllowlist)
 
 	// Should return nil even with failures (non-blocking)
 	require.NoError(t, err, "AutoCreateConnections should not propagate errors")
@@ -227,7 +227,7 @@ func TestAutoCreateConnections_NoRelevantBundles(t *testing.T) {
 	}))
 	defer server.Close()
 
-	bundleAllowlist := []string{"com.datadoghq.gitlab.issues"} // No matching bundles
+	actionsAllowlist := []string{"com.datadoghq.gitlab.issues.getIssue"}
 
 	// Use server's client which is pre-configured for TLS
 	testClient := &ConnectionsClient{
@@ -242,7 +242,7 @@ func TestAutoCreateConnections_NoRelevantBundles(t *testing.T) {
 	runnerID := "144500f1-474a-4856-aa0a-6fd22e005893"
 	runnerName := "runner-abc123"
 
-	err := creator.AutoCreateConnections(context.Background(), runnerID, runnerName, bundleAllowlist)
+	err := creator.AutoCreateConnections(context.Background(), runnerID, runnerName, actionsAllowlist)
 
 	require.NoError(t, err, "AutoCreateConnections should return nil")
 	assert.Equal(t, 0, requestCount, "Should not make any HTTP requests")
@@ -261,7 +261,7 @@ func TestAutoCreateConnections_PartialAllowlist(t *testing.T) {
 	}))
 	defer server.Close()
 
-	bundleAllowlist := []string{"com.datadoghq.script"} // Only HTTP and Script
+	actionsAllowlist := []string{"com.datadoghq.script.runPredefinedScipt"}
 
 	// Use server's client which is pre-configured for TLS
 	testClient := &ConnectionsClient{
@@ -278,7 +278,7 @@ func TestAutoCreateConnections_PartialAllowlist(t *testing.T) {
 	runnerID := "144500f1-474a-4856-aa0a-6fd22e005893"
 	runnerName := "runner-abc123"
 
-	err := creator.AutoCreateConnections(context.Background(), runnerID, runnerName, bundleAllowlist)
+	err := creator.AutoCreateConnections(context.Background(), runnerID, runnerName, actionsAllowlist)
 
 	require.NoError(t, err, "AutoCreateConnections should return nil")
 	assert.Len(t, createdConnections, 1, "Should create 2 connections")

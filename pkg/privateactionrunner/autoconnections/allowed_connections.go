@@ -13,7 +13,7 @@ import (
 // supportedConnections defines all connection types that can be auto-created
 var supportedConnections = map[string]ConnectionDefinition{
 	"kubernetes": {
-		BundleID:        "com.datadoghq.kubernetes",
+		FQNPrefix:       "com.datadoghq.kubernetes",
 		IntegrationType: "Kubernetes",
 		Credentials: CredentialConfig{
 			Type:             "KubernetesServiceAccount",
@@ -21,7 +21,7 @@ var supportedConnections = map[string]ConnectionDefinition{
 		},
 	},
 	"script": {
-		BundleID:        "com.datadoghq.script",
+		FQNPrefix:       "com.datadoghq.script",
 		IntegrationType: "Script",
 		Credentials: CredentialConfig{
 			Type: "Script",
@@ -32,25 +32,25 @@ var supportedConnections = map[string]ConnectionDefinition{
 	},
 }
 
-func bundleAllowlistContainsBundle(bundleAllowlist []string, bundleID string) bool {
-	for _, pattern := range bundleAllowlist {
-		// The agent bundleAllowlist only supports FQNs
-		if strings.HasPrefix(pattern, bundleID) {
+func actionsAllowlistContainsBundle(actionsAllowlist []string, fqnPrefix string) bool {
+	for _, fqn := range actionsAllowlist {
+		// The agent actionsAllowlist only supports FQNs
+		if strings.HasPrefix(fqn, fqnPrefix) {
 			return true
 		}
 	}
 	return false
 }
 
-func DetermineConnectionsToCreate(bundleAllowlist []string) []ConnectionDefinition {
-	if len(bundleAllowlist) == 0 {
+func DetermineConnectionsToCreate(actionsAllowlist []string) []ConnectionDefinition {
+	if len(actionsAllowlist) == 0 {
 		return []ConnectionDefinition{}
 	}
 
 	var result []ConnectionDefinition
 
 	for _, definition := range supportedConnections {
-		if bundleAllowlistContainsBundle(bundleAllowlist, definition.BundleID) {
+		if actionsAllowlistContainsBundle(actionsAllowlist, definition.FQNPrefix) {
 			result = append(result, definition)
 		}
 	}

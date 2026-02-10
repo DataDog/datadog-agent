@@ -37,7 +37,7 @@ func TestNewConnectionAPIClient_ValidCredentials(t *testing.T) {
 
 func TestBuildConnectionRequest_NoAdditionalFields(t *testing.T) {
 	httpDef := ConnectionDefinition{
-		BundleID:        "com.datadoghq.http",
+		FQNPrefix:       "com.datadoghq.http",
 		IntegrationType: "HTTP",
 		Credentials: CredentialConfig{
 			Type:             "HTTPNoAuth",
@@ -59,7 +59,7 @@ func TestBuildConnectionRequest_NoAdditionalFields(t *testing.T) {
 
 func TestBuildConnectionRequest_WithAdditionalFields(t *testing.T) {
 	scriptDef := ConnectionDefinition{
-		BundleID:        "com.datadoghq.script",
+		FQNPrefix:       "com.datadoghq.script",
 		IntegrationType: "Script",
 		Credentials: CredentialConfig{
 			Type: "Script",
@@ -110,7 +110,7 @@ func TestCreateConnection_Success(t *testing.T) {
 	}
 
 	httpDef := ConnectionDefinition{
-		BundleID:        "com.datadoghq.http",
+		FQNPrefix:       "com.datadoghq.http",
 		IntegrationType: "HTTP",
 		Credentials: CredentialConfig{
 			Type:             "HTTPNoAuth",
@@ -173,7 +173,7 @@ func TestCreateConnection_ErrorResponses(t *testing.T) {
 			}
 
 			httpDef := ConnectionDefinition{
-				BundleID:        "com.datadoghq.http",
+				FQNPrefix:       "com.datadoghq.http",
 				IntegrationType: "HTTP",
 				Credentials: CredentialConfig{
 					Type:             "HTTPNoAuth",
@@ -192,7 +192,7 @@ func TestCreateConnection_ErrorResponses(t *testing.T) {
 
 func TestBuildConnectionRequest_KubernetesNoIntegrationFields(t *testing.T) {
 	k8sDef := ConnectionDefinition{
-		BundleID:        "com.datadoghq.kubernetes",
+		FQNPrefix:       "com.datadoghq.kubernetes",
 		IntegrationType: "Kubernetes",
 		Credentials: CredentialConfig{
 			Type:             "KubernetesServiceAccount",
@@ -222,7 +222,7 @@ func TestBuildConnectionRequest_JSONStructureMatchesAPISpec(t *testing.T) {
 		{
 			name: "Kubernetes with service account",
 			definition: ConnectionDefinition{
-				BundleID:        "com.datadoghq.kubernetes",
+				FQNPrefix:       "com.datadoghq.kubernetes",
 				IntegrationType: "Kubernetes",
 				Credentials: CredentialConfig{
 					Type: "KubernetesServiceAccount",
@@ -243,7 +243,7 @@ func TestBuildConnectionRequest_JSONStructureMatchesAPISpec(t *testing.T) {
 		{
 			name: "Script with config file location",
 			definition: ConnectionDefinition{
-				BundleID:        "com.datadoghq.script",
+				FQNPrefix:       "com.datadoghq.script",
 				IntegrationType: "Script",
 				Credentials: CredentialConfig{
 					Type: "Script",
