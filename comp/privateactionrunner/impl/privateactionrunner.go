@@ -18,6 +18,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
+	identitystore "github.com/DataDog/datadog-agent/comp/privateactionrunner/identitystore/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
@@ -27,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 )
 
 // Configuration keys for the private action runner.
@@ -47,11 +47,12 @@ func isEnabled(cfg config.Component) bool {
 
 // Requires defines the dependencies for the privateactionrunner component
 type Requires struct {
-	Config    config.Component
-	Log       log.Component
-	Lifecycle compdef.Lifecycle
-	RcClient  rcclient.Component
-	Hostname  hostname.Component
+	Config        config.Component
+	Log           log.Component
+	Lifecycle     compdef.Lifecycle
+	RcClient      rcclient.Component
+	Hostname      hostname.Component
+	IdentityStore identitystore.Component
 }
 
 // Provides defines the output of the privateactionrunner component
@@ -73,7 +74,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
 
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.IdentityStore)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -90,10 +91,12 @@ func NewPrivateActionRunner(
 	hostnameGetter hostnameinterface.Component,
 	rcClient pkgrcclient.Client,
 	logger log.Component,
+	identityStore identitystore.Component,
 ) (*PrivateActionRunner, error) {
-	persistedIdentity, err := enrollment.GetIdentityFromPreviousEnrollment(coreConfig)
+	// Get identity from the identity store
+	persistedIdentity, err := identityStore.GetIdentity(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("self-enrollment failed: %w", err)
+		return nil, fmt.Errorf("failed to get identity: %w", err)
 	}
 	if persistedIdentity != nil {
 		coreConfig.Set(parPrivateKey, persistedIdentity.PrivateKey, model.SourceAgentRuntime)
@@ -108,13 +111,35 @@ func NewPrivateActionRunner(
 	canSelfEnroll := coreConfig.GetBool(parSelfEnroll)
 	if cfg.IdentityIsIncomplete() && canSelfEnroll {
 		logger.Info("Identity not found and self-enrollment enabled. Self-enrolling private action runner")
-		updatedCfg, err := performSelfEnrollment(ctx, logger, coreConfig, hostnameGetter, cfg)
+		enrollmentResult, err := performSelfEnrollment(ctx, logger, coreConfig, hostnameGetter, cfg)
 		if err != nil {
 			return nil, fmt.Errorf("self-enrollment failed: %w", err)
 		}
-		coreConfig.Set(parPrivateKey, updatedCfg.PrivateKey, model.SourceAgentRuntime)
-		coreConfig.Set(parUrn, updatedCfg.Urn, model.SourceAgentRuntime)
-		cfg = updatedCfg
+
+		// Convert enrollment result to identity format
+		privateKey, urn, err := enrollment.ConvertResultToIdentityData(enrollmentResult)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert enrollment result: %w", err)
+		}
+
+		// Persist via identity store
+		identity := &identitystore.Identity{
+			PrivateKey: privateKey,
+			URN:        urn,
+		}
+		if err := identityStore.PersistIdentity(ctx, identity); err != nil {
+			return nil, fmt.Errorf("failed to persist identity: %w", err)
+		}
+
+		// Update config
+		coreConfig.Set(parPrivateKey, privateKey, model.SourceAgentRuntime)
+		coreConfig.Set(parUrn, urn, model.SourceAgentRuntime)
+
+		// Re-parse config
+		cfg, err = parconfig.FromDDConfig(coreConfig)
+		if err != nil {
+			return nil, err
+		}
 	} else if cfg.IdentityIsIncomplete() {
 		return nil, errors.New("identity not found and self-enrollment disabled. Please provide a valid URN and private key")
 	}
@@ -159,7 +184,7 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 }
 
 // performSelfEnrollment handles the self-registration of a private action runner
-func performSelfEnrollment(ctx context.Context, log log.Component, ddConfig config.Component, hostnameComp hostnameinterface.Component, cfg *parconfig.Config) (*parconfig.Config, error) {
+func performSelfEnrollment(ctx context.Context, log log.Component, ddConfig config.Component, hostnameComp hostnameinterface.Component, cfg *parconfig.Config) (*enrollment.Result, error) {
 	ddSite := ddConfig.GetString("site")
 	apiKey := ddConfig.GetString("api_key")
 	appKey := ddConfig.GetString("app_key")
@@ -178,19 +203,5 @@ func performSelfEnrollment(ctx context.Context, log log.Component, ddConfig conf
 	}
 	log.Info("Self-enrollment successful")
 
-	if err := enrollment.PersistIdentity(ddConfig, enrollmentResult); err != nil {
-		return nil, fmt.Errorf("failed to persist enrollment identity: %w", err)
-	}
-
-	cfg.Urn = enrollmentResult.URN
-	cfg.PrivateKey = enrollmentResult.PrivateKey
-
-	urnParts, err := util.ParseRunnerURN(enrollmentResult.URN)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse enrollment URN: %w", err)
-	}
-	cfg.OrgId = urnParts.OrgID
-	cfg.RunnerId = urnParts.RunnerID
-
-	return cfg, nil
+	return enrollmentResult, nil
 }

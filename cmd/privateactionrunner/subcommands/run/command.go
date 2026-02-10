@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	privateactionrunnerfx "github.com/DataDog/datadog-agent/comp/privateactionrunner/fx"
+	identitystorefx "github.com/DataDog/datadog-agent/comp/privateactionrunner/identitystore/fx"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
@@ -69,6 +70,7 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 		rcserviceimpl.Module(),
 		rcclientimpl.Module(),
 		fx.Supply(rcclient.Params{AgentName: "private-action-runner", AgentVersion: version.AgentVersion}),
+		identitystorefx.Module(),
 		privateactionrunnerfx.Module(),
 	}
 

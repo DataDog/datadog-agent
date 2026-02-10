@@ -139,3 +139,19 @@ func PersistIdentity(cfg configModel.Reader, result *Result) error {
 	log.Infof("Private Runner identity successfully persisted to %s", filePath)
 	return nil
 }
+
+// ConvertResultToIdentityData converts an enrollment result to the data needed for identity storage
+func ConvertResultToIdentityData(result *Result) (privateKey string, urn string, err error) {
+	privateKeyJWK, err := util.EcdsaToJWK(result.PrivateKey)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to convert private key to JWK: %w", err)
+	}
+
+	marshalledPrivateKey, err := privateKeyJWK.MarshalJSON()
+	if err != nil {
+		return "", "", fmt.Errorf("failed to marshal private key to JSON: %w", err)
+	}
+
+	encodedPrivateKey := base64.RawURLEncoding.EncodeToString(marshalledPrivateKey)
+	return encodedPrivateKey, result.URN, nil
+}
