@@ -47,6 +47,7 @@ from tasks import (
     linter,
     loader,
     macos,
+    mini_agent,
     modules,
     msi,
     new_e2e_tests,
@@ -229,6 +230,7 @@ ns.add_collection(python_version, "python-version")
 ns.add_collection(notes)
 ns.add_collection(notify)
 ns.add_collection(oracle)
+ns.add_collection(mini_agent)
 ns.add_collection(otel_agent)
 ns.add_collection(full_host_profiler)
 ns.add_collection(selinux)
