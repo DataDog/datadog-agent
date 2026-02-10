@@ -7,8 +7,8 @@ always_build true
 build do
   # This is horrible.
   destdir = "/"
-  packager_input = ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"] || destdir
-  if linux_target? and packager_input != ""
+  packager_input = ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"] || ENV["OMNIBUS_PACKAGE_DIR"] || "/"
+  if linux_target? and packager_input != "" and packager_input != "/"
     if debian_target?
       command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //packages/ddot/debian:hacky_packager_install --verbose --destdir=#{packager_input}", :live_stream => Omnibus.logger.live_stream(:info)
 
