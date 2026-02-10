@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
-	"github.com/DataDog/datadog-agent/pkg/security/rules/autosuppression"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/filtermodel"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/monitor"
@@ -65,7 +64,6 @@ type RuleEngine struct {
 	statsdClient     statsd.ClientInterface
 	eventSender      events.EventSender
 	rulesetListeners []rules.RuleSetListener
-	AutoSuppression  autosuppression.AutoSuppression
 	pid              uint32
 	wg               sync.WaitGroup
 	ipc              ipc.Component
@@ -102,14 +100,6 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 	}
 
 	engine.noMatchCounters = make([]atomic.Uint64, model.MaxAllEventType)
-
-	engine.AutoSuppression.Init(autosuppression.Opts{
-		SecurityProfileEnabled:                config.SecurityProfileEnabled,
-		SecurityProfileAutoSuppressionEnabled: config.SecurityProfileAutoSuppressionEnabled,
-		ActivityDumpEnabled:                   config.ActivityDumpEnabled,
-		ActivityDumpAutoSuppressionEnabled:    config.ActivityDumpAutoSuppressionEnabled,
-		EventTypes:                            config.SecurityProfileAutoSuppressionEventTypes,
-	})
 
 	// register as event handler
 	if err := probe.AddEventHandler(engine); err != nil {
@@ -409,9 +399,6 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	// set the rate limiters on sending events to the backend
 	e.rateLimiter.Apply(rs, events.AllCustomRuleIDs())
 
-	// update the stats of auto-suppression rules
-	e.AutoSuppression.Apply(rs)
-
 	if replayEvents {
 		e.probe.ReplayEvents()
 	}
@@ -544,13 +531,9 @@ func (e *RuleEngine) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, fi
 func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.Event) bool {
 	ev := event.(*model.Event)
 
-	// add matched rules before any auto suppression check to ensure that this information is available in activity dumps
+	// add matched rules to ensure that this information is available in activity dumps
 	if ev.ProcessContext.Process.ContainerContext.ContainerID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
 		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Def.ID, rule.Def.Version, rule.Def.Tags, rule.Policy.Name, rule.Policy.Version))
-	}
-
-	if e.AutoSuppression.Suppresses(rule, ev) {
-		return false
 	}
 
 	e.probe.HandleActions(rule, event)
