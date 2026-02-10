@@ -60,7 +60,7 @@ func BuildWorkloadResponse(wmeta Component, verbose bool, search string, jsonFor
 	if jsonFormat {
 		structuredResp := wmeta.DumpStructured(verbose)
 		if search != "" {
-			structuredResp = FilterStructuredResponse(structuredResp, search)
+			structuredResp = filterStructuredResponse(structuredResp, search)
 		}
 		return json.Marshal(structuredResp)
 	}
@@ -68,13 +68,13 @@ func BuildWorkloadResponse(wmeta Component, verbose bool, search string, jsonFor
 	// Text format - use Dump which preserves source info format
 	textResp := wmeta.Dump(verbose)
 	if search != "" {
-		textResp = FilterTextResponse(textResp, search)
+		textResp = filterTextResponse(textResp, search)
 	}
 	return json.Marshal(textResp)
 }
 
-// FilterStructuredResponse filters entities by kind or entity ID
-func FilterStructuredResponse(response WorkloadDumpStructuredResponse, search string) WorkloadDumpStructuredResponse {
+// filterStructuredResponse filters entities by kind or entity ID
+func filterStructuredResponse(response WorkloadDumpStructuredResponse, search string) WorkloadDumpStructuredResponse {
 	filtered := WorkloadDumpStructuredResponse{
 		Entities: make(map[string][]Entity),
 	}
@@ -102,8 +102,8 @@ func FilterStructuredResponse(response WorkloadDumpStructuredResponse, search st
 	return filtered
 }
 
-// FilterTextResponse filters text response entities by kind or entity key (which includes ID)
-func FilterTextResponse(response WorkloadDumpResponse, search string) WorkloadDumpResponse {
+// filterTextResponse filters text response entities by kind or entity key (which includes ID)
+func filterTextResponse(response WorkloadDumpResponse, search string) WorkloadDumpResponse {
 	filtered := WorkloadDumpResponse{
 		Entities: make(map[string]WorkloadEntity),
 	}
