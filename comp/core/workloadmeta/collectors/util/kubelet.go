@@ -35,7 +35,7 @@ import (
 const dockerImageIDPrefix = "docker-pullable://"
 
 // ParseKubeletPods parses a list of kubelet pods and returns a list of workloadmeta events
-func ParseKubeletPods(pods []*kubelet.Pod, collectEphemeralContainers bool) []workloadmeta.CollectorEvent {
+func ParseKubeletPods(pods []*kubelet.Pod, collectEphemeralContainers bool, store workloadmeta.Component) []workloadmeta.CollectorEvent {
 	events := []workloadmeta.CollectorEvent{}
 
 	for _, pod := range pods {
@@ -108,6 +108,15 @@ func ParseKubeletPods(pods []*kubelet.Pod, collectEphemeralContainers bool) []wo
 			startTime = &pod.Status.StartTime
 		}
 
+		// Lookup cached namespace metadata
+		var namespaceLabels, namespaceAnnotations map[string]string
+		nsEntityID := GenerateKubeMetadataEntityID("", "namespaces", "", podMeta.Namespace)
+		nsEntity, err := store.GetKubernetesMetadata(nsEntityID)
+		if err == nil && nsEntity != nil {
+			namespaceLabels = nsEntity.Labels
+			namespaceAnnotations = nsEntity.Annotations
+		}
+
 		entity := &workloadmeta.KubernetesPod{
 			EntityID: podID,
 			EntityMeta: workloadmeta.EntityMeta{
@@ -128,6 +137,8 @@ func ParseKubeletPods(pods []*kubelet.Pod, collectEphemeralContainers bool) []wo
 			QOSClass:                   pod.Status.QOSClass,
 			GPUVendorList:              GPUVendors,
 			RuntimeClass:               RuntimeClassName,
+			NamespaceLabels:            namespaceLabels,
+			NamespaceAnnotations:       namespaceAnnotations,
 			SecurityContext:            PodSecurityContext,
 			CreationTimestamp:          podMeta.CreationTimestamp,
 			DeletionTimestamp:          podMeta.DeletionTimestamp,
