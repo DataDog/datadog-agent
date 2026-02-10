@@ -163,9 +163,10 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 	seclog.SetTags(cfg.LogTags...)
 
 	// setup gRPC servers
+	seclog.Debugf("Registering API server")
 	api.RegisterSecurityModuleCmdServer(c.grpcCmdServer.ServiceRegistrar(), c.apiServer)
 	if cfg.EventGRPCServer != "security-agent" {
-		seclog.Infof("start security module event grpc server")
+		seclog.Infof("start security module event grpc server with %s", cfg.SocketPath)
 
 		family := common.GetFamilyAddress(cfg.SocketPath)
 		c.grpcEventServer = grpcutils.NewServer(family, cfg.SocketPath)
@@ -173,6 +174,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		api.RegisterSecurityModuleEventServer(c.grpcEventServer.ServiceRegistrar(), c.apiServer)
 	}
 
+	seclog.Debugf("Registering SBOM collector server")
 	sbomapi.RegisterSBOMCollectorServer(c.grpcCmdServer.ServiceRegistrar(), c.apiServer)
 
 	// platform specific initialization
