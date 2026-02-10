@@ -79,7 +79,7 @@ func TestPayloadsBuilderV3(t *testing.T) {
 	r.Equal(uint64(2), pb.stats.valuesSint64)
 	r.Equal(uint64(0), pb.stats.valuesFloat32)
 	r.Equal(uint64(1), pb.stats.valuesFloat64)
-	
+
 	pb.finishPayload()
 	ps := pipelineContext.payloads
 	r.Len(ps, 1)
@@ -410,7 +410,7 @@ func TestPayloadsBuilderV3_Sketch(t *testing.T) {
 	r.Equal(uint64(7), pb.stats.valuesSint64)
 	r.Equal(uint64(3), pb.stats.valuesFloat32)
 	r.Equal(uint64(3), pb.stats.valuesFloat64)
-	
+
 	r.NoError(pb.finishPayload())
 	r.NotEmpty(pipelineContext.payloads)
 
