@@ -15,7 +15,7 @@ processors:
         attributes:
             - action: upsert
               key: profiler_name
-              value: host-profiler
+              value: full-host-profiler
             - action: upsert
               key: profiler_version
               value: 7.0.0-test
