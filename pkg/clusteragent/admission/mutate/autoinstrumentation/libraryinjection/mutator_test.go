@@ -46,5 +46,3 @@ func TestInjectAPMLibraries_StopsGracefullyWhenProviderUnavailable(t *testing.T)
 	require.True(t, ok)
 	require.Contains(t, val, "requires kubernetes version")
 }
-
-

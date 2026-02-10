@@ -44,5 +44,3 @@ func (p *NoopProvider) InjectLibrary(_ *corev1.Pod, _ LibraryConfig) MutationRes
 }
 
 var _ LibraryInjectionProvider = (*NoopProvider)(nil)
-
-

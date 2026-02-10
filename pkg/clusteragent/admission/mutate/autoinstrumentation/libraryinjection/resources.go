@@ -9,6 +9,7 @@ package libraryinjection
 
 import (
 	"fmt"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -60,7 +61,9 @@ func computeResourceRequirements(pod *corev1.Pod, defaultRequirements map[corev1
 	}
 
 	podRequirements := PodSumResourceRequirements(pod)
-	insufficientResourcesMessage := "The overall pod's containers limit is too low for " + opts.mode + " injection"
+	baseMessage := "The overall pod's containers limit is too low for " + opts.mode + " injection"
+	var insufficientResourcesMessage strings.Builder
+	insufficientResourcesMessage.WriteString(baseMessage)
 	shouldSkip := false
 
 	for _, k := range [2]corev1.ResourceName{corev1.ResourceCPU, corev1.ResourceMemory} {
@@ -78,7 +81,7 @@ func computeResourceRequirements(pod *corev1.Pod, defaultRequirements map[corev1
 			requirements.Requests[k] = q
 			if opts.enforceMinimumsOnConfigured && min.Cmp(q) == 1 {
 				shouldSkip = true
-				insufficientResourcesMessage += fmt.Sprintf(", %v configured=%v needed=%v", k, q.String(), min.String())
+				_, _ = fmt.Fprintf(&insufficientResourcesMessage, ", %v configured=%v needed=%v", k, q.String(), min.String())
 			}
 			continue
 		}
@@ -87,7 +90,7 @@ func computeResourceRequirements(pod *corev1.Pod, defaultRequirements map[corev1
 		if maxPodLim, ok := podRequirements.Limits[k]; ok {
 			if min.Cmp(maxPodLim) == 1 {
 				shouldSkip = true
-				insufficientResourcesMessage += fmt.Sprintf(", %v pod_limit=%v needed=%v", k, maxPodLim.String(), min.String())
+				_, _ = fmt.Fprintf(&insufficientResourcesMessage, ", %v pod_limit=%v needed=%v", k, maxPodLim.String(), min.String())
 			}
 			requirements.Limits[k] = maxPodLim
 		}
@@ -100,7 +103,7 @@ func computeResourceRequirements(pod *corev1.Pod, defaultRequirements map[corev1
 		return ResourceRequirementsResult{
 			Requirements: requirements,
 			ShouldSkip:   true,
-			Message:      insufficientResourcesMessage,
+			Message:      insufficientResourcesMessage.String(),
 		}
 	}
 	return ResourceRequirementsResult{
