@@ -9,7 +9,7 @@ package workload
 
 import (
 	"context"
-	"fmt"
+	"strconv"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -244,7 +244,7 @@ func (pa podPatcher) annotateFirstReady(ctx context.Context, pod *workloadmeta.K
 		return
 	}
 
-	timestamp := fmt.Sprintf("%d", readyTime.Unix())
+	timestamp := strconv.FormatInt(readyTime.Unix(), 10)
 	podPatch := []byte(`{"metadata": {"annotations": {"` + model.FirstReadyTimeAnnotation + `": "` + timestamp + `"}}}`)
 	log.Infof("Pod %s/%s: patching with first-ready-time annotation value=%s", pod.Namespace, pod.Name, timestamp)
 	_, err := pa.client.Resource(podGVR).Namespace(pod.Namespace).Patch(ctx, pod.Name, types.StrategicMergePatchType, podPatch, metav1.PatchOptions{})

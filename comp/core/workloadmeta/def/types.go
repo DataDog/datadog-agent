@@ -1100,7 +1100,7 @@ type KubernetesPodCondition struct {
 func (c KubernetesPodCondition) String(_ bool) string {
 	s := fmt.Sprintf("Type: %s, Status: %s", c.Type, c.Status)
 	if c.Reason != "" {
-		s += fmt.Sprintf(", Reason: %s", c.Reason)
+		s += ", Reason: " + c.Reason
 	}
 	if !c.LastTransitionTime.IsZero() {
 		s += fmt.Sprintf(", LastTransitionTime: %s", c.LastTransitionTime)

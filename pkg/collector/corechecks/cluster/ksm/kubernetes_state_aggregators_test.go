@@ -322,10 +322,10 @@ func Test_lastCronJobAggregator(t *testing.T) {
 
 func Test_podTimeToReadyAggregator(t *testing.T) {
 	tests := []struct {
-		name             string
-		scheduledMetrics []ksmstore.DDMetric
+		name              string
+		scheduledMetrics  []ksmstore.DDMetric
 		firstReadyMetrics []ksmstore.DDMetric
-		expected         []metricsExpected
+		expected          []metricsExpected
 	}{
 		{
 			name: "Single pod with both metrics",
