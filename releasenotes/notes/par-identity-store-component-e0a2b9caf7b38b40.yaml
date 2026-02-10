@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Private Action Runner now supports storing identity credentials in Kubernetes secrets.
+    Configure with ``private_action_runner.identity_store.kind``
+    set to ``k8s-secret`` to enable Kubernetes secret storage. The implementation is
+    backward compatible, defaulting to file-based storage when not explicitly configured.
