@@ -67,4 +67,4 @@ jobs:
             ### Describe how you validated your changes
             CI is considered enough to validate changes.
           team-reviewers: agent-runtimes
-          labels: team/agent-runtimes,qa/done,changelog/no-changelog,ask-review
+          labels: team/agent-runtimes,qa/done,changelog/no-changelog
