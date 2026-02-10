@@ -203,7 +203,7 @@ func FuzzLoadModuleEvent_UnmarshalBinary(f *testing.F) {
 }
 
 // panic: runtime error: slice bounds out of range [:272] with capacity 268 [recovered, repanicked]
-func TestRegressionUnmarshalBinary(t *testing.T) {
+func TestRegressionUnmarshalBinary(_ *testing.T) {
 	e := &LoadModuleEvent{}
 	data := make([]byte, 268)
 	_, _ = e.UnmarshalBinary(data)
