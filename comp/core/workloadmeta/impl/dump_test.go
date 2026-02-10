@@ -77,7 +77,7 @@ func TestDump(t *testing.T) {
 		},
 	})
 
-	shortDump := s.Dump(false, "")
+	shortDump := s.Dump(false)
 	expectedShort := wmdef.WorkloadDumpResponse{
 		Entities: map[string]wmdef.WorkloadEntity{
 			"container": {
@@ -106,7 +106,7 @@ Name: nvidia.com/gpu, ID: GPU-1234
 
 	assert.EqualValues(t, expectedShort, shortDump)
 
-	verboseDump := s.Dump(true, "")
+	verboseDump := s.Dump(true)
 	expectedVerbose := wmdef.WorkloadDumpResponse{
 		Entities: map[string]wmdef.WorkloadEntity{
 			"container": {

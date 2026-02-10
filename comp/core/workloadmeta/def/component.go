@@ -131,9 +131,8 @@ type Component interface {
 	// used by workloadmeta collectors.
 	Notify(events []CollectorEvent)
 
-	// Dump lists the content of the store with optional filtering by kind or entity ID.
-	// Pass empty string for search to get all entities.
-	Dump(verbose bool, search string) WorkloadDumpResponse
+	// Dump lists the content of the store, for debugging purposes.
+	Dump(verbose bool) WorkloadDumpResponse
 
 	// DumpStructured lists the content of the store as structured entities.
 	DumpStructured(verbose bool) WorkloadDumpStructuredResponse

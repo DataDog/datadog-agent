@@ -66,7 +66,11 @@ func BuildWorkloadResponse(wmeta Component, verbose bool, search string, jsonFor
 	}
 
 	// Text format - use Dump which preserves source info format
-	return json.Marshal(wmeta.Dump(verbose, search))
+	textResp := wmeta.Dump(verbose)
+	if search != "" {
+		textResp = FilterTextResponse(textResp, search)
+	}
+	return json.Marshal(textResp)
 }
 
 // FilterStructuredResponse filters entities by kind or entity ID
@@ -92,6 +96,35 @@ func FilterStructuredResponse(response WorkloadDumpStructuredResponse, search st
 
 		if len(matchingEntities) > 0 {
 			filtered.Entities[kind] = matchingEntities
+		}
+	}
+
+	return filtered
+}
+
+// FilterTextResponse filters text response entities by kind or entity key (which includes ID)
+func FilterTextResponse(response WorkloadDumpResponse, search string) WorkloadDumpResponse {
+	filtered := WorkloadDumpResponse{
+		Entities: make(map[string]WorkloadEntity),
+	}
+
+	for kind, workloadEntity := range response.Entities {
+		if strings.Contains(kind, search) {
+			// Kind matches - include all entities
+			filtered.Entities[kind] = workloadEntity
+			continue
+		}
+
+		// Filter by key (which includes entity ID in format "sources(merged):[...] id: <id>")
+		filteredInfos := make(map[string]string)
+		for key, info := range workloadEntity.Infos {
+			if strings.Contains(key, search) {
+				filteredInfos[key] = info
+			}
+		}
+
+		if len(filteredInfos) > 0 {
+			filtered.Entities[kind] = WorkloadEntity{Infos: filteredInfos}
 		}
 	}
 

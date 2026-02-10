@@ -15,7 +15,7 @@ import (
 )
 
 func workloadList(w http.ResponseWriter, verbose bool, wmeta workloadmeta.Component) {
-	response := wmeta.Dump(verbose, "")
+	response := wmeta.Dump(verbose)
 	jsonDump, err := json.Marshal(response)
 	if err != nil {
 		httputils.SetJSONError(w, log.Errorf("Unable to marshal workload list response: %v", err), 500)
