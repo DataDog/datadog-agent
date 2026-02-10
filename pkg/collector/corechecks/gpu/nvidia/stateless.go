@@ -140,7 +140,7 @@ func processMemoryUsage(device ddnvml.Device, usage []processMemoryUsageData, pr
 	// memory.limit and process.memory.usage.
 	metricLimitPriority := priority
 	if len(allWorkloadIDs) == 0 {
-		metricLimitPriority = Low
+		metricLimitPriority = MediumLow
 	}
 
 	// Add device memory limit
