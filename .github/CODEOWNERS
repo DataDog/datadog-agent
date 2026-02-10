@@ -723,6 +723,7 @@
 /tasks/quality_gates.py                 @DataDog/agent-build
 /tasks/static_quality_gates/            @DataDog/agent-build
 /tasks/rtloader.py                      @DataDog/agent-runtimes
+/tasks/secret_generic_connector.py      @DataDog/agent-configuration
 /tasks/security_agent.py                @DataDog/agent-security
 /tasks/sbomgen.py                       @DataDog/agent-security
 /tasks/libs/cws/                        @DataDog/agent-security
