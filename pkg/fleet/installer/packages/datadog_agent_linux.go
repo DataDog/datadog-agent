@@ -894,3 +894,11 @@ func getCurrentAgentVersion() string {
 	}
 	return v + "-1"
 }
+
+// RestartDatadogAgent restarts the datadog-agent service if it is running
+func RestartDatadogAgent(ctx context.Context) error {
+	if ok, err := systemd.IsRunning(); err != nil || !ok {
+		return nil
+	}
+	return systemd.RestartUnit(ctx, "datadog-agent.service")
+}

@@ -871,3 +871,8 @@ func preRemoveExtensionDatadogAgent(ctx HookContext) error {
 		return nil
 	}
 }
+
+// RestartDatadogAgent restarts the datadog-agent service if it is running
+func RestartDatadogAgent(ctx context.Context) error {
+	return windowssvc.NewWinServiceManager().RestartAgentServices(ctx)
+}

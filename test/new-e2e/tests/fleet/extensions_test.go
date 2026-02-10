@@ -285,7 +285,7 @@ func (s *extensionsSuite) verifyDDOTExtensionLinux(extensionPath string) {
 	ddYamlPath := "/etc/datadog-agent/datadog.yaml"
 	content, err := s.Env().RemoteHost.ReadFilePrivileged(ddYamlPath)
 	s.Require().NoError(err)
-	s.Require().Contains(content, "otelcollector:\n  enabled: true",
+	s.Require().Contains(string(content), "otelcollector:\n  enabled: true",
 		"datadog.yaml should have otelcollector enabled")
 }
 

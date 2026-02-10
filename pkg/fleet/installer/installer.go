@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -823,11 +822,8 @@ func (i *installerImpl) InstallExtensions(ctx context.Context, url string, exten
 	}
 
 	// Special case for Linux & datadog-agent: restart the Agent after installing Agent extensions.
-	if runtime.GOOS == "linux" && pkg.Name == packageDatadogAgent {
-		if ok, err := systemd.IsRunning(); err != nil || !ok {
-			return nil
-		}
-		return systemd.RestartUnit(ctx, "datadog-agent.service")
+	if pkg.Name == packageDatadogAgent {
+		return packages.RestartDatadogAgent(ctx)
 	}
 	return nil
 }
@@ -854,11 +850,8 @@ func (i *installerImpl) RemoveExtensions(ctx context.Context, pkg string, extens
 	}
 
 	// Special case for Linux & datadog-agent: restart the Agent after removing Agent extensions.
-	if runtime.GOOS == "linux" && pkg == packageDatadogAgent {
-		if ok, err := systemd.IsRunning(); err != nil || !ok {
-			return nil
-		}
-		return systemd.RestartUnit(ctx, "datadog-agent.service")
+	if pkg == packageDatadogAgent {
+		return packages.RestartDatadogAgent(ctx)
 	}
 	return nil
 }
@@ -886,12 +879,9 @@ func (i *installerImpl) RestoreExtensions(ctx context.Context, url string, path 
 		return fmt.Errorf("could not restore extensions: %w", err)
 	}
 
-	// Special case for Linux & datadog-agent: restart the Agent after restoring Agent extensions manually.
-	if runtime.GOOS == "linux" && pkg.Name == packageDatadogAgent {
-		if ok, err := systemd.IsRunning(); err != nil || !ok {
-			return nil
-		}
-		return systemd.RestartUnit(ctx, "datadog-agent.service")
+	// Special case for datadog-agent: restart the Agent after restoring Agent extensions manually.
+	if pkg.Name == packageDatadogAgent {
+		return packages.RestartDatadogAgent(ctx)
 	}
 	return nil
 }

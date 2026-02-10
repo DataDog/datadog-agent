@@ -129,18 +129,14 @@ func readAPIKeyFromDatadogYAML() (string, error) {
 // preRemoveDatadogAgentDdot performs pre-removal steps for the DDOT package on Windows
 // All the steps are allowed to fail
 func preRemoveDatadogAgentDdot(ctx HookContext) error {
-	_ = stopServiceIfExists(otelServiceName)
-	_ = deleteServiceIfExists(otelServiceName)
-
-	if !ctx.Upgrade {
-		// Preserve otel-config.yaml; only disable the feature in datadog.yaml
-		if err := disableOtelCollectorConfigWindows(); err != nil {
-			log.Warnf("failed to disable otelcollector in datadog.yaml: %s", err)
-		}
-		// Restart core agent to pick up reverted config
-		if err := windowssvc.NewWinServiceManager().RestartAgentServices(ctx.Context); err != nil {
-			log.Warnf("failed to restart agent services: %s", err)
-		}
+	if err := stopServiceIfExists(otelServiceName); err != nil {
+		log.Warnf("failed to stop DDOT service: %s", err)
+	}
+	if err := deleteServiceIfExists(otelServiceName); err != nil {
+		log.Warnf("failed to delete DDOT service: %s", err)
+	}
+	if err := disableOtelCollectorConfigWindows(); err != nil {
+		log.Warnf("failed to disable otelcollector in datadog.yaml: %s", err)
 	}
 	return nil
 }
@@ -418,44 +414,6 @@ func postInstallDDOTExtension(ctx HookContext) error {
 	if err := ensureDDOTServiceForExtension(binaryPath); err != nil {
 		return fmt.Errorf("failed to create DDOT service: %w", err)
 	}
-
-	// Verify core Agent is running before starting DDOT service
-	running, _ := winutil.IsServiceRunning(coreAgentService)
-	if !running {
-		ctxCA, cancelCA := context.WithTimeout(ctx.Context, 30*time.Second)
-		defer cancelCA()
-		if st, err := winutil.WaitForPendingStateChange(ctxCA, coreAgentService, svc.StartPending); err != nil || st != svc.Running {
-			return fmt.Errorf("cannot start DDOT service: core agent is not running (state=%d, err=%v)", st, err)
-		}
-		// Re-verify the service is actually running after the wait
-		if running, _ = winutil.IsServiceRunning(coreAgentService); !running {
-			return errors.New("cannot start DDOT service: core agent is not running")
-		}
-	}
-
-	// Check API key exists before starting service
-	ak, err := readAPIKeyFromDatadogYAML()
-	if err != nil {
-		return fmt.Errorf("DDOT service created but cannot start: %w", err)
-	}
-	if ak == "" {
-		return errors.New("DDOT service created but cannot start: API key not configured")
-	}
-
-	// Start DDOT service and verify it's running
-	if err := startServiceIfExists(otelServiceName); err != nil {
-		return fmt.Errorf("failed to start DDOT service: %w", err)
-	}
-	ctxWait, cancel := context.WithTimeout(ctx.Context, 30*time.Second)
-	defer cancel()
-	state, err := winutil.WaitForPendingStateChange(ctxWait, otelServiceName, svc.StartPending)
-	if err != nil {
-		return fmt.Errorf("DDOT service did not reach running state: %w", err)
-	}
-	if state != svc.Running {
-		return fmt.Errorf("DDOT service transitioned to unexpected state %d instead of Running", state)
-	}
-
 	return nil
 }
 
