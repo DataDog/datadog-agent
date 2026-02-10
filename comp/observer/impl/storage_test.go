@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -185,4 +186,36 @@ func TestAggSuffix(t *testing.T) {
 
 	// Test unknown aggregation type
 	assert.Equal(t, "unknown", aggSuffix(Aggregate(999)))
+}
+
+func TestTimeSeriesStorage_DropsNonFiniteValuesWithStats(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	s.Add("test", "my.metric", math.Inf(1), 1000, nil)
+	s.Add("test", "my.metric", math.NaN(), 1001, nil)
+
+	series := s.GetSeries("test", "my.metric", nil, AggregateAverage)
+	assert.Nil(t, series)
+
+	nonFinite, extreme, byMetric := s.DroppedValueStats()
+	assert.Equal(t, int64(2), nonFinite)
+	assert.Equal(t, int64(0), extreme)
+	assert.Equal(t, int64(2), byMetric["test|my.metric"])
+}
+
+func TestTimeSeriesStorage_DropsExtremeFiniteValuesWithStats(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	s.Add("test", "my.metric", math.MaxFloat64, 1000, nil)
+	s.Add("test", "my.metric", math.MaxFloat64/4, 1001, nil)
+
+	series := s.GetSeries("test", "my.metric", nil, AggregateAverage)
+	require.NotNil(t, series)
+	require.Len(t, series.Points, 1)
+	assert.Equal(t, math.MaxFloat64/4, series.Points[0].Value)
+
+	nonFinite, extreme, byMetric := s.DroppedValueStats()
+	assert.Equal(t, int64(0), nonFinite)
+	assert.Equal(t, int64(1), extreme)
+	assert.Equal(t, int64(1), byMetric["test|my.metric"])
 }

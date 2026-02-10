@@ -7,6 +7,7 @@ package observerimpl
 
 import (
 	"encoding/json"
+	"log"
 	"math"
 	"os"
 	"sort"
@@ -18,6 +19,12 @@ import (
 // timeSeriesStorage is an internal storage for time series data.
 type timeSeriesStorage struct {
 	series map[string]*seriesStats
+
+	// Drop accounting for invalid/unsafe input values.
+	droppedNonFinite int64
+	droppedExtreme   int64
+	droppedByMetric  map[string]int64
+	sampledDrops     map[string]int
 }
 
 // seriesStats contains accumulated statistics for a time series (internal).
@@ -89,14 +96,23 @@ func (s *seriesStats) toSeries(agg Aggregate) observer.Series {
 // newTimeSeriesStorage creates a new time series storage.
 func newTimeSeriesStorage() *timeSeriesStorage {
 	return &timeSeriesStorage{
-		series: make(map[string]*seriesStats),
+		series:          make(map[string]*seriesStats),
+		droppedByMetric: make(map[string]int64),
+		sampledDrops:    make(map[string]int),
 	}
 }
 
 // Add records a data point for a named metric in a namespace.
-// Non-finite values (Inf, NaN) are silently dropped.
+// Invalid values are dropped at ingest with accounting and sampled logging.
 func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp int64, tags []string) {
 	if math.IsInf(value, 0) || math.IsNaN(value) {
+		s.recordDroppedValue("non_finite", namespace, name, value, timestamp, tags)
+		return
+	}
+	// Guard against known finite sentinel values (MaxFloat64 used as "unlimited")
+	// that overflow downstream aggregation math when summed.
+	if value == math.MaxFloat64 {
+		s.recordDroppedValue("extreme", namespace, name, value, timestamp, tags)
 		return
 	}
 	key := seriesKey(namespace, name, tags)
@@ -148,6 +164,32 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 			return stats.Points[i].Timestamp < stats.Points[j].Timestamp
 		})
 	}
+}
+
+func (s *timeSeriesStorage) recordDroppedValue(reason, namespace, name string, value float64, timestamp int64, tags []string) {
+	switch reason {
+	case "non_finite":
+		s.droppedNonFinite++
+	case "extreme":
+		s.droppedExtreme++
+	}
+
+	metricKey := namespace + "|" + name
+	s.droppedByMetric[metricKey]++
+	sampled := s.sampledDrops[metricKey]
+	if sampled < 3 {
+		s.sampledDrops[metricKey] = sampled + 1
+		log.Printf("[observer] dropped %s metric value namespace=%q metric=%q value=%g ts=%d tags=%v sample=%d",
+			reason, namespace, name, value, timestamp, tags, sampled+1)
+	}
+}
+
+func (s *timeSeriesStorage) DroppedValueStats() (nonFinite int64, extreme int64, byMetric map[string]int64) {
+	byMetric = make(map[string]int64, len(s.droppedByMetric))
+	for k, v := range s.droppedByMetric {
+		byMetric[k] = v
+	}
+	return s.droppedNonFinite, s.droppedExtreme, byMetric
 }
 
 // GetSeries returns the series using the specified aggregation.

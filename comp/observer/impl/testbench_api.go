@@ -12,7 +12,6 @@ import (
 	"math"
 	"net/http"
 	"net/url"
-	"reflect"
 	"strings"
 	"time"
 
@@ -560,21 +559,13 @@ func (api *TestBenchAPI) handleConfigUpdate(w http.ResponseWriter, r *http.Reque
 	api.writeJSON(w, api.tb.GetStatus())
 }
 
-// writeJSON writes a JSON response, handling non-finite floats if necessary.
+// writeJSON writes a JSON response.
 func (api *TestBenchAPI) writeJSON(w http.ResponseWriter, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
-	buf, err := json.Marshal(data)
-	if err != nil {
-		// Most likely non-finite float values — sanitize and retry.
-		buf, err = json.Marshal(zeroNonFiniteFloats(reflect.ValueOf(data)).Interface())
-		if err != nil {
-			log.Printf("Failed to encode JSON: %v", err)
-			http.Error(w, `{"error":"encoding error"}`, http.StatusInternalServerError)
-			return
-		}
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		log.Printf("Failed to encode JSON: %v", err)
+		http.Error(w, `{"error":"encoding error"}`, http.StatusInternalServerError)
 	}
-	w.Write(buf)
-	w.Write([]byte("\n"))
 }
 
 // writeError writes an error response.
@@ -582,50 +573,4 @@ func (api *TestBenchAPI) writeError(w http.ResponseWriter, status int, message s
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(map[string]string{"error": message})
-}
-
-// zeroNonFiniteFloats returns a deep copy of v with +Inf, -Inf, and NaN replaced by 0.
-func zeroNonFiniteFloats(v reflect.Value) reflect.Value {
-	switch v.Kind() {
-	case reflect.Float32, reflect.Float64:
-		if f := v.Float(); math.IsInf(f, 0) || math.IsNaN(f) {
-			return reflect.Zero(v.Type())
-		}
-	case reflect.Ptr:
-		if !v.IsNil() {
-			elem := zeroNonFiniteFloats(v.Elem())
-			p := reflect.New(v.Type().Elem())
-			p.Elem().Set(elem)
-			return p
-		}
-	case reflect.Interface:
-		if !v.IsNil() {
-			return zeroNonFiniteFloats(v.Elem())
-		}
-	case reflect.Struct:
-		cp := reflect.New(v.Type()).Elem()
-		for i := 0; i < v.NumField(); i++ {
-			if f := v.Field(i); f.CanInterface() {
-				cp.Field(i).Set(zeroNonFiniteFloats(f))
-			}
-		}
-		return cp
-	case reflect.Slice:
-		if !v.IsNil() {
-			s := reflect.MakeSlice(v.Type(), v.Len(), v.Len())
-			for i := 0; i < v.Len(); i++ {
-				s.Index(i).Set(zeroNonFiniteFloats(v.Index(i)))
-			}
-			return s
-		}
-	case reflect.Map:
-		if !v.IsNil() {
-			m := reflect.MakeMapWithSize(v.Type(), v.Len())
-			for _, key := range v.MapKeys() {
-				m.SetMapIndex(key, zeroNonFiniteFloats(v.MapIndex(key)))
-			}
-			return m
-		}
-	}
-	return v
 }
