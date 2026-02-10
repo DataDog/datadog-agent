@@ -194,6 +194,14 @@ def _update_go_mods(warn: bool, version: str, include_otel_modules: bool, dry_ru
         major_minor_zero = f"{major_minor}.0"
         # $ only matches \n, not \r\n, so we need to use \r?$ to make it work on Windows
         update_file(warn, mod_file, f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$", f"go {major_minor_zero}", dry_run=dry_run)
+        if path == ".":  # only update `toolchain` directive in root go.mod
+            update_file(
+                warn,
+                mod_file,
+                f"^toolchain go{PATTERN_MAJOR_MINOR_BUGFIX}\r?$",
+                f"toolchain go{version}",
+                dry_run=dry_run,
+            )
 
 
 def _create_releasenote(ctx: Context, version: str):
