@@ -1638,6 +1638,9 @@ def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None
             continue
 
         install_dest = output_dir / source_path if output_dir else Path(source_path)
+        # Run the build separately first to ensure that the aspects (e.g.
+        # clippy) are run (on CI)
+        ctx.run(f"bazelisk build {platform_flag} -- @//{source_path}/...")
         ctx.run(f"bazelisk run {platform_flag} -- @//{source_path}:install --destdir={install_dest}")
 
 
