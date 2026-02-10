@@ -205,7 +205,7 @@ type PolicyInfo struct {
 	Source string
 	// InternalType is the internal type of the policy
 	InternalType InternalPolicyType
-	// Type is the type of content served by the policy (e.g. "policy" for a default policy, "detection_pack" or empty for others)
+	// Type is the type of content served by the policy (e.g. "policy" for a default policy, "content_pack" or empty for others)
 	Type string
 	// Version is the version of the policy, this field is copied from the policy definition
 	Version string

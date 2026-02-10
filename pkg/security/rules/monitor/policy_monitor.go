@@ -151,7 +151,7 @@ type PolicyMetadata struct {
 	Name string `json:"name"`
 	// Version is the version of the policy
 	Version string `json:"version,omitempty"`
-	// Type is the type of content served by the policy (e.g. "policy" for a default policy, "detection_pack" or empty for others)
+	// Type is the type of content served by the policy (e.g. "policy" for a default policy, "content_pack" or empty for others)
 	Type string `json:"type,omitempty"`
 	// Source is the source of the policy
 	Source string `json:"source"`
