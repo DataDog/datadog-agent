@@ -138,6 +138,10 @@ func processMemoryUsage(device ddnvml.Device, usage []processMemoryUsageData, pr
 	// data reported by the two APIs, we will still keep the high-priority
 	// metric, consistently sending the highest-priority metric for both
 	// memory.limit and process.memory.usage.
+	//
+	// We set MediumLow as the priority as we still want to ensure that any of the APIs
+	// for the stateless collector are higher priority than the eBPF collector, which should
+	// only emit metrics if neither of the NVML APIs are supported.
 	metricLimitPriority := priority
 	if len(allWorkloadIDs) == 0 {
 		metricLimitPriority = MediumLow
