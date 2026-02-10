@@ -204,15 +204,20 @@ func GetOTelContainerOrPodID(span ptrace.Span, res pcommon.Resource) string {
 }
 
 // GetOTelStatusCode returns the HTTP status code based on OTel span and resource attributes, with span taking precedence.
+// Note: This function checks ALL keys in span attributes before ANY key in resource attributes,
+// which differs from the standard semantic lookup pattern. This preserves the existing behavior
+// where span attributes have complete precedence over resource attributes.
 func GetOTelStatusCode(span ptrace.Span, res pcommon.Resource) uint32 {
 	sattr := span.Attributes()
 	rattr := res.Attributes()
+	// Check span attributes first (all fallback keys)
 	if code, ok := sattr.Get(string(semconv.HTTPStatusCodeKey)); ok {
 		return uint32(code.Int())
 	}
 	if code, ok := sattr.Get("http.response.status_code"); ok {
 		return uint32(code.Int())
 	}
+	// Then check resource attributes
 	if code, ok := rattr.Get(string(semconv.HTTPStatusCodeKey)); ok {
 		return uint32(code.Int())
 	}

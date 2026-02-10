@@ -31,7 +31,7 @@ require (
 	github.com/vmihailenco/msgpack/v4 v4.3.13
 	go.opentelemetry.io/collector/component v1.50.0 // indirect
 	go.opentelemetry.io/collector/consumer v1.50.0
-	go.opentelemetry.io/collector/pdata v1.50.0
+	go.opentelemetry.io/collector/pdata v1.51.0
 	go.opentelemetry.io/collector/processor/processortest v0.144.0
 	go.opentelemetry.io/otel v1.39.1-0.20260115134311-f809f7d71e2d
 	go.opentelemetry.io/otel/metric v1.39.1-0.20260115134311-f809f7d71e2d
@@ -53,6 +53,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/template v0.72.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.71.0
 	github.com/DataDog/datadog-agent/pkg/trace/otel v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/trace/semantics v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/trace/stats v0.71.0
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.71.0
 	github.com/shirou/gopsutil/v4 v4.25.12
@@ -75,7 +76,7 @@ require (
 require (
 	github.com/hashicorp/go-version v1.8.0 // indirect
 	go.opentelemetry.io/collector/consumer/xconsumer v0.144.0 // indirect
-	go.opentelemetry.io/collector/featuregate v1.50.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.51.0 // indirect
 	go.opentelemetry.io/collector/processor/processorhelper v0.144.0 // indirect
 	go.opentelemetry.io/collector/processor/xprocessor v0.144.0 // indirect
 )
@@ -282,6 +283,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/template => ../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace/log => ../../pkg/trace/log
 	github.com/DataDog/datadog-agent/pkg/trace/otel => ../../pkg/trace/otel
+	github.com/DataDog/datadog-agent/pkg/trace/semantics => ../../pkg/trace/semantics
 	github.com/DataDog/datadog-agent/pkg/trace/stats => ../../pkg/trace/stats
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil => ../../pkg/trace/traceutil
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../pkg/util/backoff

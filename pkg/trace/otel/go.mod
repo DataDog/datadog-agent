@@ -12,6 +12,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.74.1
 	github.com/DataDog/datadog-agent/pkg/trace v0.71.0
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.71.0
+	github.com/DataDog/datadog-agent/pkg/trace/semantics v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/trace/stats v0.71.0
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.71.0
 	github.com/DataDog/datadog-go/v5 v5.8.3
@@ -19,7 +20,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/component/componenttest v0.144.0
 	go.opentelemetry.io/collector/consumer v1.50.0
-	go.opentelemetry.io/collector/pdata v1.50.0
+	go.opentelemetry.io/collector/pdata v1.51.0
 	go.opentelemetry.io/collector/processor/processortest v0.144.0
 	go.opentelemetry.io/otel v1.39.1-0.20260115134311-f809f7d71e2d
 	go.opentelemetry.io/otel/metric v1.39.1-0.20260115134311-f809f7d71e2d
@@ -153,7 +154,7 @@ require (
 	go.opentelemetry.io/collector/component/componentstatus v0.144.0 // indirect
 	go.opentelemetry.io/collector/consumer/consumertest v0.144.0 // indirect
 	go.opentelemetry.io/collector/consumer/xconsumer v0.144.0 // indirect
-	go.opentelemetry.io/collector/featuregate v1.50.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.51.0 // indirect
 	go.opentelemetry.io/collector/internal/componentalias v0.144.0 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.144.0 // indirect
 	go.opentelemetry.io/collector/pdata/testdata v0.144.0 // indirect
@@ -320,6 +321,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/template => ../../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../pkg/trace
 	github.com/DataDog/datadog-agent/pkg/trace/log => ../../../pkg/trace/log
+	github.com/DataDog/datadog-agent/pkg/trace/semantics => ../../../pkg/trace/semantics
 	github.com/DataDog/datadog-agent/pkg/trace/stats => ../../../pkg/trace/stats
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil => ../../../pkg/trace/traceutil
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../pkg/util/backoff

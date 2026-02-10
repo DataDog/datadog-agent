@@ -63,6 +63,25 @@ const (
 	ConceptDDBaseService  Concept = "_dd.base_service"
 )
 
+// Service & Resource Identification
+const (
+	ConceptServiceName     Concept = "service.name"
+	ConceptResourceName    Concept = "resource.name"
+	ConceptOperationName   Concept = "operation.name"
+	ConceptSpanType        Concept = "span.type"
+	ConceptDBSystem        Concept = "db.system"
+	ConceptDBStatement     Concept = "db.statement"
+	ConceptDBQueryText     Concept = "db.query.text"
+	ConceptRPCSystem       Concept = "rpc.system"
+	ConceptRPCService      Concept = "rpc.service"
+	ConceptMessagingSystem Concept = "messaging.system"
+	ConceptMessagingDest   Concept = "messaging.destination"
+	ConceptDeploymentEnv   Concept = "deployment.environment"
+	ConceptServiceVersion  Concept = "service.version"
+	ConceptContainerID     Concept = "container.id"
+	ConceptK8sPodUID       Concept = "k8s.pod.uid"
+)
+
 // Obfuscation
 const (
 	ConceptDBQuery           Concept = "db.query"
