@@ -191,6 +191,7 @@ func (le *LeaderEngine) init() error {
 func (le *LeaderEngine) StartLeaderElectionRun() {
 	le.once.Do(
 		func() {
+			log.Infof("Starting leader election goroutine for %q", le.HolderIdentity)
 			go le.runLeaderElection()
 		},
 	)
@@ -209,14 +210,20 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 
 	le.StartLeaderElectionRun()
 
+	log.Infof("Waiting for leader election to determine a leader (timeout: %s)...", getLeaderTimeout)
 	timeout := time.After(getLeaderTimeout)
 	tick := time.NewTicker(time.Second)
 	defer tick.Stop()
 	for {
-		log.Tracef("Waiting for new leader identity...")
 		select {
 		case <-tick.C:
-			leaderIdentity := le.GetLeader()
+			// Query Kubernetes directly to see current leader, don't wait for callback
+			leaderIdentity, err := le.getCurrentLeader()
+			if err != nil {
+				log.Warnf("Error querying current leader: %v", err)
+				continue
+			}
+			log.Infof("Polling for leader: current leader identity = %q", leaderIdentity)
 			if leaderIdentity != "" {
 				log.Infof("Leader election running, current leader is %q", leaderIdentity)
 				le.running = true

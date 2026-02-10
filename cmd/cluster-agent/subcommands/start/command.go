@@ -557,7 +557,11 @@ func start(log log.Component,
 	}
 
 	if config.GetBool("private_action_runner.enabled") {
+<<<<<<< HEAD
 		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, log, taggerComp, tracerouteComp, eventPlatform)
+=======
+		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, le, log, taggerComp, tracerouteComp)
+>>>>>>> 9266f4b7d6 (leader election and unique par identity)
 		if err != nil {
 			log.Errorf("Cannot start private action runner: %v", err)
 		} else {
@@ -691,6 +695,7 @@ func startPrivateActionRunner(
 	config config.Component,
 	hostnameGetter hostnameinterface.Component,
 	rcClient *rcclient.Client,
+	le *leaderelection.LeaderEngine,
 	log log.Component,
 	tagger tagger.Component,
 	tracerouteComp traceroute.Component,
@@ -699,7 +704,18 @@ func startPrivateActionRunner(
 	if rcClient == nil {
 		return nil, errors.New("Remote config is disabled or failed to initialize, remote config is a required dependency for private action runner")
 	}
+<<<<<<< HEAD
 	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform)
+=======
+	if !config.GetBool("leader_election") {
+		return nil, errors.New("leader election is not enabled on the Cluster Agent. The private action runner needs leader election for identity coordination across replicas")
+	}
+	err := le.EnsureLeaderElectionRuns()
+	if err != nil {
+		return nil, err
+	}
+	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp)
+>>>>>>> 9266f4b7d6 (leader election and unique par identity)
 	if err != nil {
 		return nil, err
 	}

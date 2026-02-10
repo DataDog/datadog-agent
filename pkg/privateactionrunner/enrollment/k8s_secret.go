@@ -46,27 +46,25 @@ func getIdentityFromK8sSecret(ctx context.Context, cfg configModel.Reader) (*Per
 	ns := namespace.GetResourcesNamespace()
 	secretName := getSecretName(cfg)
 
-	// Check if we're a follower - if so, we may need to wait for leader to create the secret
 	le, err := leaderelection.GetLeaderEngine()
-	isFollower := err == nil && !le.IsLeader()
+	if err != nil {
+		return nil, err
+	}
 
 	secret, err := client.CoreV1().Secrets(ns).Get(ctx, secretName, metav1.GetOptions{})
 	if err != nil {
-		if k8serrors.IsNotFound(err) {
-			// If we're a follower and secret doesn't exist, wait for leader to create it
-			if isFollower {
-				log.Info("Follower replica: waiting for leader to create PAR identity secret")
-				secret, err = waitForSecretCreation(ctx, client, ns, secretName)
-				if err != nil {
-					return nil, err
-				}
-				// Continue to parse the secret below
-			} else {
-				// Leader or no leader election - return nil to trigger self-enrollment
-				return nil, nil
-			}
-		} else {
+		if !k8serrors.IsNotFound(err) {
 			return nil, fmt.Errorf("failed to get identity secret: %w", err)
+		}
+		if le.IsLeader() {
+			// Leader - return nil to trigger self-enrollment
+			return nil, nil
+		}
+		// Follower - since secret doesn't exist, wait for leader to create it
+		log.Info("Follower replica: waiting for leader to create PAR identity secret")
+		secret, err = waitForSecretCreation(ctx, client, ns, secretName)
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -90,12 +88,11 @@ func getIdentityFromK8sSecret(ctx context.Context, cfg configModel.Reader) (*Per
 
 // persistIdentityToK8sSecret saves the enrollment result to a Kubernetes secret
 func persistIdentityToK8sSecret(ctx context.Context, cfg configModel.Reader, result *Result) error {
-	// Check if this replica is the leader before creating the secret
 	le, err := leaderelection.GetLeaderEngine()
 	if err != nil {
-		log.Warnf("Failed to get leader engine, proceeding without leader check: %v", err)
-		// Fall through to create secret anyway if leader election is not available
-	} else if !le.IsLeader() {
+		return err
+	}
+	if !le.IsLeader() {
 		log.Info("Not leader, skipping PAR identity secret creation (leader will handle it)")
 		return nil
 	}
