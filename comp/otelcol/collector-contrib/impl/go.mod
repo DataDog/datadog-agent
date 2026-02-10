@@ -68,7 +68,6 @@ require (
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0 // indirect
 	github.com/Code-Hex/go-generics-cache v1.5.1 // indirect
 	github.com/DataDog/agent-payload/v5 v5.0.179 // indirect
-	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.76.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.76.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.76.0-rc.2 // indirect
@@ -89,6 +88,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.76.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/api v0.76.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.76.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.76.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.76.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.76.0-rc.2 // indirect
@@ -134,7 +134,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.76.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.76.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.76.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.76.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.76.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.76.0-rc.2 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.54.0 // indirect
