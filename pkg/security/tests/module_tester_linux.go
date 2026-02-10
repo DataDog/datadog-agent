@@ -147,8 +147,6 @@ runtime_security_config:
     trace_systemd_cgroups: {{ .TraceSystemdCgroups }}
     traced_cgroups_count: {{ .ActivityDumpTracedCgroupsCount }}
     cgroup_differentiate_args: {{ .ActivityDumpCgroupDifferentiateArgs }}
-    auto_suppression:
-      enabled: {{ .ActivityDumpAutoSuppressionEnabled }}
     traced_event_types: {{range .ActivityDumpTracedEventTypes}}
     - {{. -}}
     {{- end}}
@@ -166,11 +164,6 @@ runtime_security_config:
     dir: {{ .SecurityProfileDir }}
     watch_dir: {{ .SecurityProfileWatchDir }}
     node_eviction_timeout: {{ .SecurityProfileNodeEvictionTimeout }}
-    auto_suppression:
-      enabled: {{ .EnableAutoSuppression }}
-      event_types: {{range .AutoSuppressionEventTypes}}
-      - {{. -}}
-      {{- end}}
     anomaly_detection:
       enabled: {{ .EnableAnomalyDetection }}
       event_types: {{range .AnomalyDetectionEventTypes}}

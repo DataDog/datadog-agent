@@ -28,7 +28,6 @@ type testOpts struct {
 	activityDumpCleanupPeriod                  time.Duration
 	activityDumpTracedCgroupsCount             int
 	activityDumpCgroupDifferentiateArgs        bool
-	activityDumpAutoSuppressionEnabled         bool
 	activityDumpTracedEventTypes               []string
 	activityDumpLocalStorageDirectory          string
 	activityDumpLocalStorageCompression        bool
@@ -39,8 +38,6 @@ type testOpts struct {
 	securityProfileDir                         string
 	securityProfileWatchDir                    bool
 	securityProfileNodeEvictionTimeout         time.Duration
-	enableAutoSuppression                      bool
-	autoSuppressionEventTypes                  []string
 	enableAnomalyDetection                     bool
 	anomalyDetectionEventTypes                 []string
 	anomalyDetectionDefaultMinimumStablePeriod time.Duration

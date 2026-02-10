@@ -887,7 +887,6 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	p.profileManager.LookupEventInProfiles(event)
 
 	// mark the events that have an associated activity dump
-	// this is needed for auto suppressions performed by the CWS rule engine
 	if p.profileManager.HasActiveActivityDump(event) {
 		event.AddToFlags(model.EventFlagsHasActiveActivityDump)
 	}
