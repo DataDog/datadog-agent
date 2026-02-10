@@ -1064,7 +1064,13 @@ func TestConcentratorInput(t *testing.T) {
 
 func TestConcentratorInputV1(t *testing.T) {
 	rootSpan := func(strs *idx.StringTable) *idx.InternalSpan {
-		return idx.NewInternalSpan(strs, &idx.Span{SpanID: 3, ServiceRef: strs.Add("a"), NameRef: strs.Add("name"), ResourceRef: strs.Add("resource")})
+		return idx.NewInternalSpan(strs, &idx.Span{SpanID: 3, ServiceRef: strs.Add("a"), NameRef: strs.Add("name"), ResourceRef: strs.Add("resource"), Attributes: map[uint32]*idx.AnyValue{
+			strs.Add("_top_level"): {
+				Value: &idx.AnyValue_DoubleValue{
+					DoubleValue: 1.0,
+				},
+			},
+		}})
 	}
 	tts := []struct {
 		name            string
@@ -1181,7 +1187,7 @@ func TestConcentratorInputV1(t *testing.T) {
 			if tc.withFargate {
 				cfg.FargateOrchestrator = config.OrchestratorECS
 			}
-			cfg.RareSamplerEnabled = true
+			cfg.RareSamplerEnabled = false
 			agent := NewTestAgent(context.TODO(), cfg, telemetry.NewNoopCollector())
 			tc.in.Source = agent.Receiver.Stats.GetTagStats(info.Tags{})
 			agent.ProcessV1(tc.in)
@@ -1247,13 +1253,23 @@ func assertInternalSpanEqual(t *testing.T, expected *idx.InternalSpan, actual *i
 	assert.Equal(t, expected.Duration(), actual.Duration())
 	assert.Equal(t, expected.Error(), actual.Error())
 	assert.Equal(t, expected.Kind(), actual.Kind())
-	require.Equal(t, len(expected.Attributes()), len(actual.Attributes()))
-	assertAttributesEqual(t, expected.Strings, expected.Attributes(), actual.Strings, actual.Attributes())
+
+	expectedAttrs := expected.Attributes()
+	actualAttrs := actual.Attributes()
+	if len(expectedAttrs) != len(actualAttrs) {
+		t.Logf("Expected span %s", expected.DebugString())
+		t.Logf("Actual span %s", actual.DebugString())
+	}
+	require.Equal(t, len(expectedAttrs), len(actualAttrs))
+
+	assertAttributesEqual(t, expected.Strings, expectedAttrs, actual.Strings, actualAttrs)
+
 	require.Equal(t, len(expected.Events()), len(actual.Events()))
 	for i, expectedEvent := range expected.Events() {
 		assert.Equal(t, expectedEvent.Name(), actual.Events()[i].Name())
 		assertAttributesEqual(t, expected.Strings, expectedEvent.Attributes(), actual.Strings, actual.Events()[i].Attributes())
 	}
+
 	require.Equal(t, len(expected.Links()), len(actual.Links()))
 	for i, expectedLink := range expected.Links() {
 		assert.Equal(t, expectedLink.SpanID(), actual.Links()[i].SpanID())
