@@ -789,12 +789,22 @@ func (p *EBPFProbe) Start() error {
 	// Apply rules to the already stored data before starting the event stream to avoid concurrency issues
 	p.replayEvents(true)
 
-	// start new tc classifier loop
-	go p.startSetupNewTCClassifierLoop()
+	if p.probe.IsNetworkEnabled() {
+		// start new tc classifier loop
+		p.wg.Add(1)
+		go func() {
+			defer p.wg.Done()
+			p.startSetupNewTCClassifierLoop()
+		}()
+	}
 
 	if p.config.RuntimeSecurity.IsSysctlSnapshotEnabled() {
 		// start sysctl snapshot loop
-		go p.startSysCtlSnapshotLoop()
+		p.wg.Add(1)
+		go func() {
+			defer p.wg.Done()
+			p.startSysCtlSnapshotLoop()
+		}()
 	}
 
 	return p.eventStream.Start(&p.wg)
@@ -887,7 +897,6 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	p.profileManager.LookupEventInProfiles(event)
 
 	// mark the events that have an associated activity dump
-	// this is needed for auto suppressions performed by the CWS rule engine
 	if p.profileManager.HasActiveActivityDump(event) {
 		event.AddToFlags(model.EventFlagsHasActiveActivityDump)
 	}
@@ -1591,9 +1600,9 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		}
 		pid := event.CgroupWrite.Pid
 
-		pce := p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, false, newEntryCb)
+		pce := p.Resolvers.ProcessResolver.Resolve(pid, pid, 0, true, newEntryCb)
 		if pce == nil {
-			seclog.Errorf("failed to resolve process: %d", pid)
+			seclog.Debugf("failed to resolve process: %d", pid)
 			return false
 		}
 
@@ -3399,7 +3408,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 		case action.Def.Kill != nil:
 			// do not handle kill action on event with error
 			if ev.Error != nil {
-				return
+				continue
 			}
 
 			tryToKill, report := p.processKiller.KillAndReport(action.Def.Kill, rule, ev)
@@ -3420,12 +3429,22 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 		case action.Def.Hash != nil:
-			if p.fileHasher.HashAndReport(rule, action.Def.Hash, ev) {
+			fileEvent, err := ev.GetFileField(action.Def.Hash.Field)
+			if err != nil {
+				seclog.Errorf("failed to get file field %s: %v", action.Def.Hash.Field, err)
+				continue
+			}
+
+			if p.fieldHandlers.ResolveFilePath(ev, fileEvent) == "" {
+				continue
+			}
+
+			if p.fileHasher.HashAndReport(rule, action.Def.Hash, ev, fileEvent) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 		case action.Def.NetworkFilter != nil:
 			if !p.config.RuntimeSecurity.EnforcementEnabled {
-				return
+				continue
 			}
 
 			var policy rawpacket.Policy

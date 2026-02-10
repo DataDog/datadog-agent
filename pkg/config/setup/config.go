@@ -1034,6 +1034,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_pods_improved.enabled", false)
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.ootb.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.kubelet_config_check.enabled", true, "DD_ORCHESTRATOR_EXPLORER_KUBELET_CONFIG_CHECK_ENABLED")
+	config.BindEnvAndSetDefault("auto_team_tag_collection", true)
 
 	// Container lifecycle configuration
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", true)
@@ -1420,7 +1421,7 @@ func agent(config pkgconfigmodel.Setup) {
 
 	// Infrastructure mode
 	// The infrastructure mode is used to determine the features that are available to the agent.
-	// The possible values are: full, basic, end_user_device.
+	// The possible values are: full, basic, end_user_device, none.
 	config.BindEnvAndSetDefault("infrastructure_mode", "full")
 
 	// Infrastructure full mode section (default mode, allows all checks)
@@ -3144,6 +3145,9 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 		config.Set("process_config.process_collection.enabled", true, pkgconfigmodel.SourceInfraMode)
 		config.Set("software_inventory.enabled", true, pkgconfigmodel.SourceInfraMode)
 		config.Set("notable_events.enabled", true, pkgconfigmodel.SourceInfraMode)
+	} else if infraMode == "none" {
+		// Disable integrations (no host metrics collection)
+		config.Set("integration.enabled", false, pkgconfigmodel.SourceInfraMode)
 	}
 }
 

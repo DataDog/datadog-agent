@@ -242,25 +242,24 @@ pub fn get_log_level(config: &Result<Option<Yaml>>) -> log::Level {
 
 /// Determines whether to run sd-agent, fallback to system-probe, or exit cleanly
 pub fn determine_action(config: &Result<Option<Yaml>>) -> FallbackDecision {
-    if has_non_discovery_env_vars() {
+    let Some(yaml_doc) = config.as_ref().ok() else {
+        warn!("Failed to load YAML config. Falling back to system-probe.");
         return FallbackDecision::FallbackToSystemProbe;
-    }
-
-    // Use the pre-loaded config
-    let yaml_doc = match config {
-        Ok(Some(doc)) => Some(doc.clone()),
-        Ok(None) => None,
-        Err(_) => {
-            warn!("Failed to load YAML config. Falling back to system-probe.");
-            return FallbackDecision::FallbackToSystemProbe;
-        }
     };
+    let use_sd_agent = is_config_enabled(
+        "DD_DISCOVERY_USE_SD_AGENT",
+        "discovery.use_sd_agent",
+        yaml_doc,
+    );
 
-    if has_non_discovery_yaml_keys(&yaml_doc) {
+    if use_sd_agent.is_none_or(|enabled| !enabled)
+        || has_non_discovery_env_vars()
+        || has_non_discovery_yaml_keys(yaml_doc)
+    {
         return FallbackDecision::FallbackToSystemProbe;
     }
 
-    if let Some(enabled) = is_config_enabled("DD_DISCOVERY_ENABLED", "discovery.enabled", &yaml_doc)
+    if let Some(enabled) = is_config_enabled("DD_DISCOVERY_ENABLED", "discovery.enabled", yaml_doc)
         && !enabled
     {
         return FallbackDecision::ExitCleanly;
@@ -295,10 +294,16 @@ mod tests {
 
     #[test]
     fn test_discovery_only_no_fallback() {
-        temp_env::with_var("DD_DISCOVERY_ENABLED", Some("true"), || {
-            let decision = determine_action_no_config();
-            assert_eq!(decision, FallbackDecision::RunSdAgent);
-        });
+        temp_env::with_vars(
+            [
+                ("DD_DISCOVERY_ENABLED", Some("true")),
+                ("DD_DISCOVERY_USE_SD_AGENT", Some("true")),
+            ],
+            || {
+                let decision = determine_action_no_config();
+                assert_eq!(decision, FallbackDecision::RunSdAgent);
+            },
+        );
     }
 
     #[test]
@@ -383,7 +388,7 @@ discovery:
 
     #[test]
     fn test_no_modules_enabled() {
-        temp_env::with_vars(Vec::<(String, Option<String>)>::new(), || {
+        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
             // Use an empty config file to avoid picking up system config at /etc/datadog-agent/system-probe.yaml
             let decision = determine_action_no_config();
             assert_eq!(decision, FallbackDecision::RunSdAgent);
@@ -566,7 +571,7 @@ system_probe_config:
 
     #[test]
     fn test_determine_action_discovery_only_yaml() {
-        temp_env::with_vars(Vec::<(String, Option<String>)>::new(), || {
+        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
             let yaml = r#"
 discovery:
   enabled: true
@@ -580,15 +585,21 @@ discovery:
 
     #[test]
     fn test_determine_action_discovery_only_env() {
-        temp_env::with_var("DD_DISCOVERY_ENABLED", Some("true"), || {
-            let decision = determine_action_no_config();
-            assert_eq!(decision, FallbackDecision::RunSdAgent);
-        });
+        temp_env::with_vars(
+            [
+                ("DD_DISCOVERY_ENABLED", Some("true")),
+                ("DD_DISCOVERY_USE_SD_AGENT", Some("true")),
+            ],
+            || {
+                let decision = determine_action_no_config();
+                assert_eq!(decision, FallbackDecision::RunSdAgent);
+            },
+        );
     }
 
     #[test]
     fn test_determine_action_no_config_runs_sd_agent() {
-        temp_env::with_vars(Vec::<(String, Option<String>)>::new(), || {
+        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
             let decision = determine_action_no_config();
             assert!(decision == FallbackDecision::RunSdAgent);
         });
@@ -646,10 +657,16 @@ discovery:
 
     #[test]
     fn test_determine_action_exit_cleanly_disabled_env() {
-        temp_env::with_var("DD_DISCOVERY_ENABLED", Some("false"), || {
-            let decision = determine_action_no_config();
-            assert_eq!(decision, FallbackDecision::ExitCleanly);
-        });
+        temp_env::with_vars(
+            [
+                ("DD_DISCOVERY_ENABLED", Some("false")),
+                ("DD_DISCOVERY_USE_SD_AGENT", Some("true")),
+            ],
+            || {
+                let decision = determine_action_no_config();
+                assert_eq!(decision, FallbackDecision::ExitCleanly);
+            },
+        );
     }
 
     #[test]
@@ -946,5 +963,91 @@ log_level: 12345
             let level = get_log_level(&Ok(None));
             assert_eq!(level, log::Level::Error, "Should map 'off' to Error level");
         });
+    }
+
+    // Killswitch tests
+    #[test]
+    fn test_killswitch_disabled_forces_fallback() {
+        temp_env::with_vars(
+            [
+                ("DD_DISCOVERY_USE_SD_AGENT", Some("false")),
+                ("DD_DISCOVERY_ENABLED", Some("true")),
+            ],
+            || {
+                let decision = determine_action(&Ok(None));
+                assert_eq!(
+                    decision,
+                    FallbackDecision::FallbackToSystemProbe,
+                    "Should fallback when killswitch is false via env var"
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn test_killswitch_not_set_defaults_to_fallback() {
+        temp_env::with_var("DD_DISCOVERY_ENABLED", Some("true"), || {
+            let decision = determine_action(&Ok(None));
+            assert_eq!(
+                decision,
+                FallbackDecision::FallbackToSystemProbe,
+                "Should fallback when killswitch is not set (safe default)"
+            );
+        });
+    }
+
+    #[test]
+    fn test_killswitch_enabled_allows_sd_agent() {
+        temp_env::with_vars(
+            [
+                ("DD_DISCOVERY_USE_SD_AGENT", Some("true")),
+                ("DD_DISCOVERY_ENABLED", Some("true")),
+            ],
+            || {
+                let decision = determine_action(&Ok(None));
+                assert_eq!(
+                    decision,
+                    FallbackDecision::RunSdAgent,
+                    "Should run sd-agent when killswitch is true via env var"
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn test_killswitch_enabled_respects_other_fallback_logic() {
+        temp_env::with_vars(
+            [
+                ("DD_DISCOVERY_USE_SD_AGENT", Some("true")),
+                ("DD_DISCOVERY_ENABLED", Some("true")),
+                ("DD_NETWORK_CONFIG_ENABLED", Some("true")), // Non-discovery module
+            ],
+            || {
+                let decision = determine_action(&Ok(None));
+                assert_eq!(
+                    decision,
+                    FallbackDecision::FallbackToSystemProbe,
+                    "Should still fallback for non-discovery modules even when killswitch is true"
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn test_killswitch_enabled_with_discovery_disabled_exits_cleanly() {
+        temp_env::with_vars(
+            [
+                ("DD_DISCOVERY_USE_SD_AGENT", Some("true")),
+                ("DD_DISCOVERY_ENABLED", Some("false")),
+            ],
+            || {
+                let decision = determine_action(&Ok(None));
+                assert_eq!(
+                    decision,
+                    FallbackDecision::ExitCleanly,
+                    "Should exit cleanly when discovery is disabled, even if killswitch is true"
+                );
+            },
+        );
     }
 }
