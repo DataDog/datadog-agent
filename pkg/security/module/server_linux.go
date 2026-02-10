@@ -9,6 +9,7 @@ package module
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -314,9 +315,11 @@ func (a *APIServer) collectSBOMS() {
 	}
 
 	if sbomResolver := ebpfProbe.Resolvers.SBOMResolver; sbomResolver != nil {
+		seclog.Debugf("registering SBOM listener")
 		if err := sbomResolver.RegisterListener(sbom.SBOMComputed, func(sbom *sbompkg.ScanResult) {
 			select {
 			case a.sboms <- sbom:
+				seclog.Debugf("SBOM for %s sent to APIServer channel", sbom.RequestID)
 			default:
 				seclog.Warnf("dropping SBOM event")
 			}
@@ -335,7 +338,13 @@ func (a *APIServer) GetSBOMStream(_ *sbompb.SBOMStreamParams, stream sbompb.SBOM
 		case <-a.stopChan:
 			return nil
 		case sbom := <-a.sboms:
+			seclog.Debugf("received SBOM for %s, forwarding to core agent", sbom.RequestID)
+
 			bom := sbom.Report.ToCycloneDX()
+
+			if jsonBytes, err := json.MarshalIndent(bom, "", "  "); err == nil {
+				os.WriteFile("/tmp/sbom-forward-"+sbom.RequestID+".json", jsonBytes, 0666)
+			}
 
 			data, err := proto.Marshal(bom)
 			if err != nil {
