@@ -53,9 +53,12 @@ type PolicyRule struct {
 	Accepted bool
 	Error    error
 	// FilterType is used to keep track of the type of filter that caused the rule to be filtered out
-	FilterType  FilterType
-	Policy      PolicyInfo
-	ModifiedBy  []PolicyInfo
+	FilterType FilterType
+	// Policy includes policy information that might be updated when merging rules coming from multiple policies
+	Policy PolicyInfo
+	// ModifiedBy includes policy information of the rules that modified this rule (e.g. rule overrides or default rule activation)
+	ModifiedBy []PolicyInfo
+	// UsedBy includes policy information for all the policies that this rule is part of. These shouldn't change based when a rule is modified.
 	UsedBy      []PolicyInfo
 	EnableCount int // tracks the number of times the rule was enabled/disabled.It is only updated when merging conflicting rules.
 }
@@ -319,8 +322,8 @@ RULES:
 		rule := &PolicyRule{
 			Def:      ruleDef,
 			Accepted: true,
-			Policy:   p.Info, // copy the policy information as it can be modified on a per-rule basis when merging rules from different policies
-			UsedBy:   []PolicyInfo{p.Info},
+			Policy:   p.Info,
+			UsedBy:   []PolicyInfo{p.Info}, // get a copy of the policy information in the UsedBy field as well as the Policy field can be modified on a per-rule basis when merging rules from different policies
 		}
 		p.Rules = append(p.Rules, rule)
 		for _, filter := range ruleFilters {
