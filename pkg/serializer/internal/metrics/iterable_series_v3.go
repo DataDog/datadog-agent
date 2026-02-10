@@ -538,6 +538,7 @@ func (pb *payloadsBuilderV3) writeSketchToTxn(sketch *metrics.SketchSeries) {
 
 		switch valueType {
 		case valueZero:
+			pb.stats.valuesZero += 3
 		case valueSint64:
 			pb.txn.Sint64(columnValueSint64, int64(pnt.Sketch.Basic.Sum))
 			pb.txn.Sint64(columnValueSint64, int64(pnt.Sketch.Basic.Min))
