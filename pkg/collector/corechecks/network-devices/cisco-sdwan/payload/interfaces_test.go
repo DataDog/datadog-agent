@@ -26,6 +26,7 @@ var testInterfaces = []CiscoInterface{
 			Desc:            "Description",
 			Hwaddr:          "00:01:02:03",
 			IPAddress:       "10.1.1.5/24",
+			EncapType:       "null",
 		},
 	},
 	&CEdgeInterface{
@@ -60,6 +61,7 @@ func TestProcessInterfacesMetadata(t *testing.T) {
 			MacAddress:  "00:01:02:03",
 			OperStatus:  devicemetadata.OperStatusUp,
 			AdminStatus: devicemetadata.AdminStatusDown,
+			IsPhysical:  boolPtr(true),
 		},
 		{
 			DeviceID:    "test-ns:10.0.0.2",

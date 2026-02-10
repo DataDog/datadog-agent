@@ -101,7 +101,7 @@ func (itf *CEdgeInterface) Metadata(namespace string) (devicemetadata.InterfaceM
 		OperStatus:  convertOperStatus(cEdgeOperStatusMap, itf.IfOperStatus),
 		AdminStatus: convertAdminStatus(cEdgeAdminStatusMap, itf.IfAdminStatus),
 		Type:        convertInterfaceType(itf.InterfaceType),
-		IsPhysical:  isPhysicalInterface(itf.InterfaceType),
+		IsPhysical:  isPhysicalCEdgeInterface(itf.InterfaceType),
 	}, nil
 }
 
@@ -181,7 +181,7 @@ func convertInterfaceType(ifType string) int32 {
 	return cEdgeInterfaceTypeMap[ifType]
 }
 
-func isPhysicalInterface(ifType string) *bool {
+func isPhysicalCEdgeInterface(ifType string) *bool {
 	isPhysical := ifType == "iana-iftype-ethernet-csmacd"
 	return &isPhysical
 }

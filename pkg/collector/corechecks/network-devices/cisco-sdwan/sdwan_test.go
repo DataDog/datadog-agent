@@ -246,7 +246,8 @@ collect_bgp_neighbor_states: true
       "index": 3,
       "name": "system",
       "admin_status": 1,
-      "oper_status": 1
+      "oper_status": 1,
+      "is_physical": false
     },
     {
       "device_id": "test:10.10.1.17",
