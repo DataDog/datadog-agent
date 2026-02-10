@@ -14,10 +14,11 @@ const (
 	PARLogFile = "private_action_runner.log_file"
 
 	// Identity / enrollment configuration
-	PARSelfEnroll       = "private_action_runner.self_enroll"
-	PARIdentityFilePath = "private_action_runner.identity_file_path"
-	PARPrivateKey       = "private_action_runner.private_key"
-	PARUrn              = "private_action_runner.urn"
+	PARSelfEnroll         = "private_action_runner.self_enroll"
+	PARIdentityFilePath   = "private_action_runner.identity_file_path"
+	PARIdentitySecretName = "private_action_runner.identity_secret_name"
+	PARPrivateKey         = "private_action_runner.private_key"
+	PARUrn                = "private_action_runner.urn"
 
 	// General config
 	PARTaskTimeoutSeconds = "private_action_runner.task_timeout_seconds"
@@ -40,6 +41,7 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	// Identity / enrollment configuration
 	config.BindEnvAndSetDefault(PARSelfEnroll, true)
 	config.BindEnvAndSetDefault(PARIdentityFilePath, "")
+	config.BindEnvAndSetDefault(PARIdentitySecretName, "private-action-runner-identity")
 	config.BindEnvAndSetDefault(PARPrivateKey, "")
 	config.BindEnvAndSetDefault(PARUrn, "")
 
