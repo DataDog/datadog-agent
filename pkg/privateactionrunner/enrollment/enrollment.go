@@ -17,8 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 )
 
-const defaultIdentityFileName = "privateactionrunner_private_identity.json"
-
 // Result contains the result of a successful enrollment
 type Result struct {
 	PrivateKey *ecdsa.PrivateKey
