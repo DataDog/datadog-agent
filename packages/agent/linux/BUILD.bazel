@@ -72,6 +72,7 @@ pkg_tar(
 # TODO: Look at omnibus/config/projects/agent.rb for more content here.
 pkg_deb(
     name = "debian",
+    conflicts = ["datadog-iot-agent"],
     data = ":whole_distro_tar",
     description = """Datadog Monitoring Agent
 The Datadog Monitoring Agent is a lightweight process that monitors system
@@ -82,17 +83,19 @@ forwards metrics from your applications as well as system services.
 .
 See http://www.datadoghq.com/ for more information
 """,
+    homepage = "http://www.datadoghq.com",
     # epoch 1
     # vendor = "Datadog <package@datadoghq.com>",
     license = "Apache License Version 2.0",
     maintainer = "Datadog Packages <package@datadoghq.com>",
     package = "datadog-agent",
     priority = "extra",
+    recommends = ["datadog-signing-keys (>= 1:1.4.0)"],
     section = "utils",
+    # TODO: Stamp in pipeline: 1:7.77.0~devel.git.394.fe0d0bb.pipeline.95313893-1
     version = "7",
 
-    # This does not make sense for architecture, but for testing, compilation
-    # mode is more stable than cpu.
+    # TODO: pull in target_cpu as arch.
     # architecture = "$(COMPILATION_MODE)",
     # config = "config",
     #distribution = "trusty",
