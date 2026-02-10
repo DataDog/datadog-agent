@@ -69,17 +69,6 @@ func toSystemProbeEntries(entries []*software.Entry) []*systemProbeEntry {
 	return result
 }
 
-// fromSystemProbeEntries converts []*systemProbeEntry back to []*software.Entry
-func fromSystemProbeEntries(entries []*systemProbeEntry) []*software.Entry {
-	result := make([]*software.Entry, len(entries))
-	for i, entry := range entries {
-		// Create a copy to avoid modifying the original
-		e := entry.Entry
-		result[i] = &e
-	}
-	return result
-}
-
 func init() { registerModule(SoftwareInventory) }
 
 // SoftwareInventory Factory
