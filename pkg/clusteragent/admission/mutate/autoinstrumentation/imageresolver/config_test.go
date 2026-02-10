@@ -34,9 +34,6 @@ func TestNewConfig(t *testing.T) {
 			expectedState: Config{
 				Site:           "datadoghq.com",
 				DDRegistries:   map[string]struct{}{"gcr.io/datadoghq": {}, "docker.io/datadog": {}, "public.ecr.aws/datadog": {}},
-				RCClient:       nil,
-				MaxInitRetries: 5,
-				InitRetryDelay: 1 * time.Second,
 				BucketID:       "2",
 				DigestCacheTTL: 1 * time.Hour,
 				Enabled:        true,
@@ -53,9 +50,6 @@ func TestNewConfig(t *testing.T) {
 			expectedState: Config{
 				Site:           "datadoghq.com",
 				DDRegistries:   map[string]struct{}{"helloworld.io/datadog": {}},
-				RCClient:       nil,
-				MaxInitRetries: 5,
-				InitRetryDelay: 1 * time.Second,
 				BucketID:       "2",
 				DigestCacheTTL: 1 * time.Hour,
 				Enabled:        true,
@@ -71,9 +65,6 @@ func TestNewConfig(t *testing.T) {
 			expectedState: Config{
 				Site:           "datad0g.com",
 				DDRegistries:   map[string]struct{}{"gcr.io/datadoghq": {}, "docker.io/datadog": {}, "public.ecr.aws/datadog": {}},
-				RCClient:       nil,
-				MaxInitRetries: 5,
-				InitRetryDelay: 1 * time.Second,
 				BucketID:       "2",
 				DigestCacheTTL: 1 * time.Hour,
 				Enabled:        true,
@@ -90,9 +81,6 @@ func TestNewConfig(t *testing.T) {
 			expectedState: Config{
 				Site:           "datadoghq.com",
 				DDRegistries:   map[string]struct{}{"gcr.io/datadoghq": {}, "docker.io/datadog": {}, "public.ecr.aws/datadog": {}},
-				RCClient:       nil,
-				MaxInitRetries: 5,
-				InitRetryDelay: 1 * time.Second,
 				BucketID:       "0",
 				DigestCacheTTL: 1 * time.Hour,
 				Enabled:        true,
@@ -110,9 +98,6 @@ func TestNewConfig(t *testing.T) {
 			expectedState: Config{
 				Site:           "datadoghq.com",
 				DDRegistries:   map[string]struct{}{"gcr.io/datadoghq": {}, "docker.io/datadog": {}, "public.ecr.aws/datadog": {}},
-				RCClient:       nil,
-				MaxInitRetries: 5,
-				InitRetryDelay: 1 * time.Second,
 				BucketID:       "0",
 				DigestCacheTTL: 1 * time.Hour,
 				Enabled:        false,
@@ -130,9 +115,6 @@ func TestNewConfig(t *testing.T) {
 			expectedState: Config{
 				Site:           "datadoghq.com",
 				DDRegistries:   map[string]struct{}{"gcr.io/datadoghq": {}, "docker.io/datadog": {}, "public.ecr.aws/datadog": {}},
-				RCClient:       nil,
-				MaxInitRetries: 5,
-				InitRetryDelay: 1 * time.Second,
 				BucketID:       "0",
 				DigestCacheTTL: 2 * time.Hour,
 				Enabled:        true,

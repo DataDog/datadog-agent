@@ -33,9 +33,6 @@ type RemoteConfigClient interface {
 type Config struct {
 	Site           string
 	DDRegistries   map[string]struct{}
-	RCClient       RemoteConfigClient
-	MaxInitRetries int
-	InitRetryDelay time.Duration
 	BucketID       string
 	DigestCacheTTL time.Duration
 	Enabled        bool
@@ -52,9 +49,6 @@ func NewConfig(cfg config.Component, rcClient RemoteConfigClient) Config {
 	return Config{
 		Site:           cfg.GetString("site"),
 		DDRegistries:   newDatadoghqRegistries(cfg.GetStringSlice("admission_controller.auto_instrumentation.default_dd_registries")),
-		RCClient:       rcClient,
-		MaxInitRetries: 5,
-		InitRetryDelay: 1 * time.Second,
 		BucketID:       calculateRolloutBucket(cfg.GetString("api_key")),
 		DigestCacheTTL: cfg.GetDuration("admission_controller.auto_instrumentation.gradual_rollout.cache_ttl_hours") * time.Hour,
 		Enabled:        cfg.GetBool("admission_controller.auto_instrumentation.gradual_rollout.enabled"),
