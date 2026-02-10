@@ -91,9 +91,9 @@ func NewPrivateActionRunner(
 	rcClient pkgrcclient.Client,
 	logger log.Component,
 ) (*PrivateActionRunner, error) {
-	persistedIdentity, err := enrollment.GetIdentityFromPreviousEnrollment(coreConfig)
+	persistedIdentity, err := enrollment.GetIdentityFromPreviousEnrollment(ctx, coreConfig)
 	if err != nil {
-		return nil, fmt.Errorf("self-enrollment failed: %w", err)
+		return nil, fmt.Errorf("failed to get identity: %w", err)
 	}
 	if persistedIdentity != nil {
 		coreConfig.Set(parPrivateKey, persistedIdentity.PrivateKey, model.SourceAgentRuntime)
@@ -178,7 +178,7 @@ func performSelfEnrollment(ctx context.Context, log log.Component, ddConfig conf
 	}
 	log.Info("Self-enrollment successful")
 
-	if err := enrollment.PersistIdentity(ddConfig, enrollmentResult); err != nil {
+	if err := enrollment.PersistIdentity(ctx, ddConfig, enrollmentResult); err != nil {
 		return nil, fmt.Errorf("failed to persist enrollment identity: %w", err)
 	}
 
