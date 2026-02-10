@@ -23,6 +23,8 @@ const (
 	InjectionModeInitContainer InjectionMode = "init_container"
 	// InjectionModeCSI uses the Datadog CSI driver to mount library files.
 	InjectionModeCSI InjectionMode = "csi"
+	// InjectionModeImageVolume uses image volumes to mount library files.
+	InjectionModeImageVolume InjectionMode = "image_volume"
 )
 
 // InjectionValidator validates injection-specific aspects of a pod.
