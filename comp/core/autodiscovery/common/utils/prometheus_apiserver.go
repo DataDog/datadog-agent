@@ -13,9 +13,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	discv1 "k8s.io/api/discovery/v1"
 
 	v1 "k8s.io/api/core/v1"
+	discv1 "k8s.io/api/discovery/v1"
 )
 
 // Kind and prefix in Kubernetes
