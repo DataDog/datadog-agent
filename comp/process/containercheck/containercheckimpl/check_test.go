@@ -113,6 +113,18 @@ func TestContainerCheckIsEnabled(t *testing.T) {
 			},
 			enabled: false,
 		},
+		{
+			name: "service discovery is disabled, container check is enabled",
+			configs: map[string]interface{}{
+				"process_config.process_collection.enabled":   false,
+				"process_config.container_collection.enabled": true,
+			},
+			sysProbeConfigs: map[string]interface{}{
+				"discovery.enabled": false,
+			},
+			containerizedEnv: true,
+			enabled:          true,
+		},
 	}
 
 	for _, tc := range tests {
