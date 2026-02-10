@@ -68,13 +68,13 @@ type streamHandler struct {
 }
 
 // workloadmetaEventFromSBOMEventSet converts the given SBOM message into a workloadmeta event
-func workloadmetaEventFromSBOMEventSet(event *sbompb.SBOMMessage) (workloadmeta.Event, error) {
+func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbompb.SBOMMessage) (workloadmeta.Event, error) {
 	if event == nil {
 		return workloadmeta.Event{}, nil
 	}
 
-	var bom cyclonedx_v1_4.Bom
-	err := proto.Unmarshal(event.Data, &bom)
+	var newBom cyclonedx_v1_4.Bom
+	err := proto.Unmarshal(event.Data, &newBom)
 	if err != nil {
 		return workloadmeta.Event{}, fmt.Errorf("failed to unmarshal SBOM: %w", err)
 	}
@@ -89,6 +89,19 @@ func workloadmetaEventFromSBOMEventSet(event *sbompb.SBOMMessage) (workloadmeta.
 
 	log.Debugf("Received forwarded SBOM for container %s", event.ID)
 
+	// Get existing container to merge SBOM data
+	var finalBom *cyclonedx_v1_4.Bom
+	existingContainer, err := store.GetContainer(event.ID)
+	if err == nil && existingContainer != nil && existingContainer.SBOM != nil && existingContainer.SBOM.CycloneDXBOM != nil {
+		// Merge LastAccess properties from new BOM into existing BOM
+		finalBom = mergeLastAccessProperties(existingContainer.SBOM.CycloneDXBOM, &newBom)
+		log.Debugf("Merged LastAccess properties for container %s SBOM", event.ID)
+	} else {
+		// No existing SBOM, use the new one directly
+		finalBom = &newBom
+		log.Debugf("Using new SBOM for container %s (no existing SBOM to merge)", event.ID)
+	}
+
 	return workloadmeta.Event{
 		Type: workloadmeta.EventTypeSet,
 		Entity: &workloadmeta.Container{
@@ -97,10 +110,139 @@ func workloadmetaEventFromSBOMEventSet(event *sbompb.SBOMMessage) (workloadmeta.
 				ID:   event.ID,
 			},
 			SBOM: &workloadmeta.SBOM{
-				CycloneDXBOM: &bom,
+				CycloneDXBOM: finalBom,
 			},
 		},
 	}, nil
+}
+
+// mergeLastAccessProperties merges LastAccess properties from newBom into existingBom
+// Returns a new BOM with components from existingBom updated with LastAccess from newBom
+func mergeLastAccessProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_v1_4.Bom {
+	if newBom == nil || len(newBom.Components) == 0 {
+		return existingBom
+	}
+
+	// Create a map of new components by name+version for quick lookup
+	newComponentsMap := make(map[string]*cyclonedx_v1_4.Component)
+	for _, comp := range newBom.Components {
+		if comp != nil {
+			key := comp.Name + "@" + comp.Version
+			newComponentsMap[key] = comp
+		}
+	}
+
+	// Create a copy of existing BOM to avoid modifying the original
+	// IMPORTANT: Copy ALL fields from existing BOM to preserve metadata, dependencies, etc.
+	mergedBom := &cyclonedx_v1_4.Bom{
+		SpecVersion:        existingBom.SpecVersion,
+		Version:            existingBom.Version,
+		SerialNumber:       existingBom.SerialNumber,
+		Metadata:           existingBom.Metadata,
+		Components:         make([]*cyclonedx_v1_4.Component, len(existingBom.Components)),
+		Services:           existingBom.Services,
+		ExternalReferences: existingBom.ExternalReferences,
+		Dependencies:       existingBom.Dependencies,
+		Compositions:       existingBom.Compositions,
+		Vulnerabilities:    existingBom.Vulnerabilities,
+	}
+
+	// Merge LastAccess properties into existing components
+	for i, existingComp := range existingBom.Components {
+		if existingComp == nil {
+			mergedBom.Components[i] = existingComp
+			continue
+		}
+
+		// Copy the existing component
+		// IMPORTANT: Copy ALL fields to preserve complete component metadata
+		mergedComp := &cyclonedx_v1_4.Component{
+			Type:               existingComp.Type,
+			MimeType:           existingComp.MimeType,
+			BomRef:             existingComp.BomRef,
+			Supplier:           existingComp.Supplier,
+			Author:             existingComp.Author,
+			Publisher:          existingComp.Publisher,
+			Group:              existingComp.Group,
+			Name:               existingComp.Name,
+			Version:            existingComp.Version,
+			Description:        existingComp.Description,
+			Scope:              existingComp.Scope,
+			Hashes:             existingComp.Hashes,
+			Licenses:           existingComp.Licenses,
+			Copyright:          existingComp.Copyright,
+			Cpe:                existingComp.Cpe,
+			Purl:               existingComp.Purl,
+			Swid:               existingComp.Swid,
+			Modified:           existingComp.Modified,
+			Pedigree:           existingComp.Pedigree,
+			ExternalReferences: existingComp.ExternalReferences,
+			Components:         existingComp.Components,
+			Properties:         existingComp.Properties,
+			Evidence:           existingComp.Evidence,
+			ReleaseNotes:       existingComp.ReleaseNotes,
+		}
+
+		// Check if new BOM has this component with LastAccess property
+		key := existingComp.Name + "@" + existingComp.Version
+		if newComp, exists := newComponentsMap[key]; exists && newComp.Properties != nil {
+			// Find LastAccess property in new component
+			var lastAccessProp *cyclonedx_v1_4.Property
+			for _, prop := range newComp.Properties {
+				if prop != nil && prop.Name == "LastAccess" {
+					lastAccessProp = prop
+					break
+				}
+			}
+
+			// If found, add or update LastAccess in merged component
+			if lastAccessProp != nil {
+				// Initialize properties if nil
+				if mergedComp.Properties == nil {
+					mergedComp.Properties = []*cyclonedx_v1_4.Property{}
+				}
+
+				// Check if LastAccess already exists and update it, or add new one
+				lastAccessExists := false
+				for j, prop := range mergedComp.Properties {
+					if prop != nil && prop.Name == "LastAccess" {
+						mergedComp.Properties[j] = lastAccessProp
+						lastAccessExists = true
+						break
+					}
+				}
+
+				if !lastAccessExists {
+					mergedComp.Properties = append(mergedComp.Properties, lastAccessProp)
+				}
+
+				log.Tracef("Updated LastAccess for component %s@%s", existingComp.Name, existingComp.Version)
+			}
+		}
+
+		mergedBom.Components[i] = mergedComp
+	}
+
+	// Add any components from new BOM that don't exist in existing BOM
+	for key, newComp := range newComponentsMap {
+		found := false
+		for _, existingComp := range existingBom.Components {
+			if existingComp != nil {
+				existingKey := existingComp.Name + "@" + existingComp.Version
+				if existingKey == key {
+					found = true
+					break
+				}
+			}
+		}
+
+		if !found {
+			mergedBom.Components = append(mergedBom.Components, newComp)
+			log.Tracef("Added new component %s from runtime-generated SBOM", key)
+		}
+	}
+
+	return mergedBom
 }
 
 // NewCollector returns a remote process collector for workloadmeta if any
@@ -155,7 +297,7 @@ func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.GrpcClient
 	return &client{cl: sbompb.NewSBOMCollectorClient(cc)}
 }
 
-func (s *streamHandler) HandleResponse(_ workloadmeta.Component, resp interface{}) ([]workloadmeta.CollectorEvent, error) {
+func (s *streamHandler) HandleResponse(store workloadmeta.Component, resp interface{}) ([]workloadmeta.CollectorEvent, error) {
 	log.Trace("handling response")
 	response, ok := resp.(*sbompb.SBOMMessage)
 	if !ok {
@@ -163,14 +305,14 @@ func (s *streamHandler) HandleResponse(_ workloadmeta.Component, resp interface{
 	}
 
 	var collectorEvents []workloadmeta.CollectorEvent
-	collectorEvents = handleEvents(collectorEvents, []*sbompb.SBOMMessage{response}, workloadmetaEventFromSBOMEventSet)
+	collectorEvents = handleEvents(store, collectorEvents, []*sbompb.SBOMMessage{response}, workloadmetaEventFromSBOMEventSet)
 	log.Tracef("collected [%d] events", len(collectorEvents))
 	return collectorEvents, nil
 }
 
-func handleEvents(collectorEvents []workloadmeta.CollectorEvent, sbomEvents []*sbompb.SBOMMessage, convertFunc func(*sbompb.SBOMMessage) (workloadmeta.Event, error)) []workloadmeta.CollectorEvent {
+func handleEvents(store workloadmeta.Component, collectorEvents []workloadmeta.CollectorEvent, sbomEvents []*sbompb.SBOMMessage, convertFunc func(workloadmeta.Component, *sbompb.SBOMMessage) (workloadmeta.Event, error)) []workloadmeta.CollectorEvent {
 	for _, protoEvent := range sbomEvents {
-		workloadmetaEvent, err := convertFunc(protoEvent)
+		workloadmetaEvent, err := convertFunc(store, protoEvent)
 		if err != nil {
 			log.Warnf("error converting workloadmeta event: %v", err)
 			continue
