@@ -260,43 +260,44 @@ func (m *ManagerV2) cleanupPendingProfiles() {
 	}
 
 	now := time.Now()
-	var selectorsToRemove []cgroupModel.WorkloadSelector
 
 	m.pendingProfileRemovalsLock.Lock()
+	defer m.pendingProfileRemovalsLock.Unlock()
+
+	m.profilesLock.Lock()
+	defer m.profilesLock.Unlock()
+
 	for selector, queuedAt := range m.pendingProfileRemovals {
-		if now.Sub(queuedAt) >= cleanupDelay {
-			selectorsToRemove = append(selectorsToRemove, selector)
+		if now.Sub(queuedAt) < cleanupDelay {
+			continue
+		}
+
+		prof := m.profiles[selector]
+		if prof == nil {
 			delete(m.pendingProfileRemovals, selector)
+			continue
+		}
+
+		if m.profileHasActiveInstances(prof) {
+			seclog.Debugf("profile [%s] has regained active instances, skipping removal", selector.String())
+			continue
+		}
+
+		seclog.Infof("removing profile [%s] after cleanup delay", selector.String())
+		delete(m.profiles, selector)
+		delete(m.pendingProfileRemovals, selector)
+
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2CleanupProfilesRemoved, 1, []string{}, 1.0); err != nil {
+			seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2CleanupProfilesRemoved, err)
 		}
 	}
-	m.pendingProfileRemovalsLock.Unlock()
+}
 
-	// Remove the profiles
-	if len(selectorsToRemove) > 0 {
-		m.profilesLock.Lock()
-		for _, selector := range selectorsToRemove {
-			if profile := m.profiles[selector]; profile != nil {
-				// Check if the profile has regained active instances since it was queued
-				profile.InstancesLock.Lock()
-				hasActiveInstances := len(profile.Instances) > 0
-				profile.InstancesLock.Unlock()
-
-				if hasActiveInstances {
-					seclog.Debugf("profile [%s] has regained active instances, cancelling removal", selector.String())
-					continue
-				}
-
-				seclog.Infof("removing profile [%s] after cleanup delay", selector.String())
-				delete(m.profiles, selector)
-
-				// Emit metric
-				if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2CleanupProfilesRemoved, 1, []string{}, 1.0); err != nil {
-					seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2CleanupProfilesRemoved, err)
-				}
-			}
-		}
-		m.profilesLock.Unlock()
-	}
+// profileHasActiveInstances checks if a profile has any active workload instances
+func (m *ManagerV2) profileHasActiveInstances(prof *profile.Profile) bool {
+	prof.InstancesLock.Lock()
+	defer prof.InstancesLock.Unlock()
+	return len(prof.Instances) > 0
 }
 
 // persistAllProfiles encodes and persists all profiles to configured storage backends
@@ -621,6 +622,7 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	m.linkWorkloadToProfile(secprof, workload)
 
 	// Check if profile has reached max size
+	// TODO: we should handle this in a better way
 	if secprof.ActivityTree.Stats.ApproximateSize() >= int64(m.config.RuntimeSecurity.ActivityDumpMaxDumpSize()) {
 		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
 		m.eventsDroppedMaxSize.Inc()
