@@ -627,19 +627,6 @@ workflow:
         - test/new-e2e/tests/agent-platform/package-signing/**/*
         - test/e2e-framework/**/*
 
-.on_windows_msi_tests:
-  - !reference [.except_mergequeue]
-  - <<: *if_disable_e2e_tests
-    when: never
-  - <<: *if_installer_tests
-  - <<: *on_build_changes
-  - changes:
-      paths:
-        - test/new-e2e/tests/windows/install-test/**/*
-        - test/e2e-framework/**/*
-
-
-
 .security_agent_change_paths: &security_agent_change_paths
   - pkg/ebpf/**/*
   - pkg/security/**/*
