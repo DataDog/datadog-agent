@@ -18,6 +18,7 @@ const (
 	staticConfigListenerName    = "static config"
 	dbmAuroraListenerName       = "database-monitoring-aurora"
 	dbmRdsListenerName          = "database-monitoring-rds"
+	crdListenerName             = "crd"
 )
 
 // RegisterListeners registers the available autodiscovery listerners.
@@ -34,4 +35,5 @@ func RegisterListeners(serviceListenerFactories map[string]ServiceListenerFactor
 	Register(staticConfigListenerName, NewStaticConfigListener, serviceListenerFactories)
 	Register(dbmAuroraListenerName, NewDBMAuroraListener, serviceListenerFactories)
 	Register(dbmRdsListenerName, NewDBMRdsListener, serviceListenerFactories)
+	Register(crdListenerName, NewCRDListerner, serviceListenerFactories)
 }
