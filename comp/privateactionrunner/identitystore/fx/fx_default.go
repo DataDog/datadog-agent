@@ -12,7 +12,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	identitystore "github.com/DataDog/datadog-agent/comp/privateactionrunner/identitystore/def"
-	filestoreimpl "github.com/DataDog/datadog-agent/comp/privateactionrunner/identitystore/impl-file"
+	fileimpl "github.com/DataDog/datadog-agent/comp/privateactionrunner/identitystore/impl-file"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -47,9 +47,9 @@ func newIdentityStore(reqs Requires) (Provides, error) {
 		reqs.Log.Info("Using file-based identity store for PAR")
 	}
 
-	fileReqs := filestoreimpl.Requires{
+	fileReqs := fileimpl.Requires{
 		Config: reqs.Config,
 		Log:    reqs.Log,
 	}
-	return Provides{Comp: filestoreimpl.NewComponent(fileReqs).Comp}, nil
+	return Provides{Comp: fileimpl.NewComponent(fileReqs).Comp}, nil
 }

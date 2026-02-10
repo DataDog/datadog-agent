@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-package k8sstoreimpl
+package k8simpl
 
 import (
 	"context"

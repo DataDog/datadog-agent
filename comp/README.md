@@ -807,6 +807,12 @@ Package notableevents provides a component that monitors notable system events a
 
 Package privateactionrunner provides a component that enables private actions executions
 
+### [comp/privateactionrunner/identitystore](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/privateactionrunner/identitystore)
+
+*Datadog Team*: action-platform
+
+Package identitystore provides an interface for storing and retrieving PAR identity
+
 ### [comp/publishermetadatacache](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/publishermetadatacache)
 
 *Datadog Team*: windows-products

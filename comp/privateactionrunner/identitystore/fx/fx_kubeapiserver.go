@@ -12,8 +12,8 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	identitystore "github.com/DataDog/datadog-agent/comp/privateactionrunner/identitystore/def"
-	filestoreimpl "github.com/DataDog/datadog-agent/comp/privateactionrunner/identitystore/impl-file"
-	k8sstoreimpl "github.com/DataDog/datadog-agent/comp/privateactionrunner/identitystore/impl-k8s"
+	fileimpl "github.com/DataDog/datadog-agent/comp/privateactionrunner/identitystore/impl-file"
+	k8simpl "github.com/DataDog/datadog-agent/comp/privateactionrunner/identitystore/impl-k8s"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -51,11 +51,11 @@ func newIdentityStore(reqs Requires) (Provides, error) {
 }
 
 func createKubeAPIServerStore(reqs Requires) (Provides, error) {
-	k8sReqs := k8sstoreimpl.Requires{
+	k8sReqs := k8simpl.Requires{
 		Config: reqs.Config,
 		Log:    reqs.Log,
 	}
-	k8sProvides, err := k8sstoreimpl.NewComponent(k8sReqs)
+	k8sProvides, err := k8simpl.NewComponent(k8sReqs)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -63,10 +63,10 @@ func createKubeAPIServerStore(reqs Requires) (Provides, error) {
 }
 
 func createFileStore(reqs Requires) (Provides, error) {
-	fileReqs := filestoreimpl.Requires{
+	fileReqs := fileimpl.Requires{
 		Config: reqs.Config,
 		Log:    reqs.Log,
 	}
-	fileProvides := filestoreimpl.NewComponent(fileReqs)
+	fileProvides := fileimpl.NewComponent(fileReqs)
 	return Provides{Comp: fileProvides.Comp}, nil
 }
