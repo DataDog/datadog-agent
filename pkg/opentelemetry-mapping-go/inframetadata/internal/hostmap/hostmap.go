@@ -338,7 +338,11 @@ func (m *HostMap) Update(host string, res pcommon.Resource) (changed bool, md pa
 	}
 
 	m.hosts[host] = md
-	md, err = md.Clone() // Clone to avoid accidentally mutating internal maps of returned value
+
+	var err2 error
+	md, err2 = md.Clone() // Clone to avoid accidentally mutating internal maps of previously returned values
+	err = errors.Join(err, err2)
+
 	changed = changed || !found
 	return
 }
