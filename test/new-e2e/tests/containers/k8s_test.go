@@ -487,9 +487,9 @@ func (suite *k8sSuite) testAgentCLI() {
 		suite.Require().NoError(err)
 
 		// Check for expected fields
-		entities, ok := result["entities"].(map[string]any)
-		suite.Require().True(ok, "expected 'entities' field in JSON output")
-		suite.NotEmpty(entities, "entities map should not be empty")
+		entities, ok := result["Entities"].(map[string]any)
+		suite.Require().True(ok, "expected 'Entities' field in JSON output")
+		suite.NotEmpty(entities, "Entities map should not be empty")
 
 		// Check for expected entity types
 		foundContainer := false
@@ -524,8 +524,8 @@ func (suite *k8sSuite) testAgentCLI() {
 		suite.Require().NoError(err)
 
 		// Check for expected fields
-		entities, ok := result["entities"].(map[string]any)
-		suite.Require().True(ok, "expected 'entities' field in JSON output")
+		entities, ok := result["Entities"].(map[string]any)
+		suite.Require().True(ok, "expected 'Entities' field in JSON output")
 
 		// Filter by "container_id" should match entities starting with "container_id://"
 		foundContainer := false
