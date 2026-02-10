@@ -124,7 +124,7 @@ func (r *rcResolver) Resolve(registry string, repository string, tag string) (*R
 	defer r.mu.RUnlock()
 
 	if len(r.imageMappings) == 0 {
-		log.Debugf("Cache empty, no resolution available")
+		// log.Debugf("Cache empty, no resolution available")
 		metrics.ImageResolutionAttempts.Inc(repository, tag, tag)
 		return nil, false
 	}
