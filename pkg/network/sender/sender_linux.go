@@ -11,8 +11,10 @@ package sender
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
 	"hash/fnv"
+	"io"
 	"iter"
 	"net/http"
 	"net/netip"
@@ -20,8 +22,10 @@ import (
 	"strconv"
 	"sync/atomic"
 	"time"
+	"unique"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/zstd"
 	"go4.org/intern"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -49,7 +53,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	ddmaps "github.com/DataDog/datadog-agent/pkg/util/maps"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	ddslices "github.com/DataDog/datadog-agent/pkg/util/slices"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -149,7 +152,7 @@ func New(
 		},
 		ctx:        ctx,
 		cancelFunc: cancel,
-		resolver:   newContainerResolver(deps.Wmeta, metrics.GetProvider(option.New(deps.Wmeta))),
+		resolver:   newContainerResolver(deps.Wmeta, metrics.GetProvider(option.New(deps.Wmeta)), syscfg.GetDuration("system_probe_config.expected_tags_duration")),
 
 		sysprobeconfig: syscfg,
 		tagger:         deps.Tagger,
@@ -172,6 +175,9 @@ func New(
 		resultsQueue:  api.NewWeightedQueue(queueSize, int64(queueBytes)),
 		checkInterval: checkInterval,
 	}
+	if err := ds.encodeHeader(); err != nil {
+		return nil, err
+	}
 
 	if autoStart {
 		ds.start()
@@ -184,6 +190,20 @@ func hostnameHash(hostName string, rootPID int) uint64 {
 	_, _ = hash.Write([]byte(hostName))
 	_, _ = hash.Write([]byte(strconv.Itoa(rootPID)))
 	return (uint64(hash.Sum32()) & hashMask) << chunkNumberOfBits
+}
+
+func (d *directSender) encodeHeader() error {
+	var buf bytes.Buffer
+	err := encodeHeaderV3(&buf, model.MessageHeader{
+		Version:  model.MessageV3,
+		Encoding: model.MessageEncodingZstd1xPB,
+		Type:     model.TypeCollectorConnections,
+	})
+	if err != nil {
+		return err
+	}
+	d.staticEncodedHeader = buf.Bytes()
+	return nil
 }
 
 type directSender struct {
@@ -212,12 +232,12 @@ type directSender struct {
 	ctx        context.Context
 	cancelFunc context.CancelFunc
 	resolver   *containerResolver
-	encodeBuf  bytes.Buffer
 
 	// Used to cache the hash result of the host name and the pid of the system-probe.
 	// Being used as part of getRequestID method.
 	requestIDCachedHash uint64
 	staticHeaders       http.Header
+	staticEncodedHeader []byte
 	resultsQueue        *api.WeightedQueue
 	checkInterval       time.Duration
 	runCount            uint64
@@ -360,35 +380,7 @@ func (d *directSender) collect() {
 
 	allBatches := result{payloads: make([]payload, 0, d.batchCount(conns))}
 	messageIndex := 0
-	for message := range d.batches(conns, groupID) {
-		if messageIndex == 0 {
-			// only add the telemetry to the first message to prevent double counting
-			message.ConnTelemetryMap = ddmaps.MapKeys(conns.ConnTelemetry, func(k network.ConnTelemetryType) string { return string(k) })
-			message.CompilationTelemetryByAsset = ddmaps.MapValues(conns.CompilationTelemetryByAsset, func(v network.RuntimeCompilationTelemetry) *model.RuntimeCompilationTelemetry {
-				return &model.RuntimeCompilationTelemetry{
-					RuntimeCompilationEnabled:  v.RuntimeCompilationEnabled,
-					RuntimeCompilationResult:   model.RuntimeCompilationResult(v.RuntimeCompilationResult),
-					RuntimeCompilationDuration: v.RuntimeCompilationDuration,
-				}
-			})
-			message.KernelHeaderFetchResult = model.KernelHeaderFetchResult(conns.KernelHeaderFetchResult)
-			message.CORETelemetryByAsset = ddmaps.MapValues(conns.CORETelemetryByAsset, func(v int32) model.COREResult { return model.COREResult(v) })
-			message.PrebuiltEBPFAssets = conns.PrebuiltAssets
-		}
-
-		body, err := model.EncodeMessage(model.Message{
-			Header: model.MessageHeader{
-				Version:  model.MessageV3,
-				Encoding: model.MessageEncodingZstd1xPB,
-				Type:     model.TypeCollectorConnections,
-			},
-			Body: message,
-		})
-		if err != nil {
-			d.log.Errorf("Unable to encode message: %s", err)
-			continue
-		}
-
+	for body := range d.batches(conns, groupID) {
 		extraHeaders := d.staticHeaders.Clone()
 		extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(start.Unix())))
 		requestID := d.getRequestID(start, messageIndex)
@@ -411,15 +403,14 @@ func (d *directSender) collect() {
 	senderTelemetry.queueBytes.Set(float64(d.resultsQueue.Weight()))
 }
 
-func (d *directSender) batches(conns *network.Connections, groupID int32) iter.Seq[*model.CollectorConnections] {
+func (d *directSender) batches(conns *network.Connections, groupID int32) iter.Seq[[]byte] {
+	messageIndex := 0
 	cxs := conns.Conns
 	numBatches := d.batchCount(conns)
 	dnsEncoder := model.NewV2DNSEncoder()
-	ipc := make(ipCache, len(conns.Conns)/2)
-	tagsSet := indexedset.New[string]()
+	tagsSet := indexedset.New[string](0)
 
 	usmEncoders := marshal.InitializeUSMEncoders(conns)
-	containersForTagging := d.getContainersForExplicitTagging(conns)
 	d.resolver.resolveDestinationContainerIDs(conns)
 
 	// Sort connections by remote IP/PID for more efficient resolution
@@ -430,24 +421,117 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 		return int(a.Pid) - int(b.Pid)
 	})
 
-	return func(yield func(*model.CollectorConnections) bool) {
+	builder := model.NewCollectorConnectionsBuilder(io.Discard)
+
+	return func(yield func([]byte) bool) {
+		defer func() {
+			for _, e := range usmEncoders {
+				e.Close()
+			}
+		}()
+		defer d.resolver.removeDeadTagContainers()
+
 		for connsChunk := range slices.Chunk(cxs, d.maxConnsPerMessage) {
-			batchConns := make([]*model.Connection, 0, len(connsChunk))
-			containerIDForPID := make(map[int32]string)
+			// TODO is there some larger lower bound on the size of a payload we can use here
+			// ex: (minConnSize * len(connsChunk)) + len(d.staticEncodedHeader)
+			dstBuf := bytes.NewBuffer(make([]byte, 0, len(d.staticEncodedHeader)))
+			_, err := dstBuf.Write(d.staticEncodedHeader)
+			if err != nil {
+				d.log.Errorf("Unable to encode message header: %s", err)
+				continue
+			}
+			zw := zstd.NewWriter(dstBuf)
+
+			builder.Reset(zw)
+			builder.SetAgentConfiguration(func(w *model.AgentConfigurationBuilder) {
+				w.SetCsmEnabled(d.agentCfg.CsmEnabled)
+				w.SetCcmEnabled(d.agentCfg.CcmEnabled)
+				w.SetDsmEnabled(d.agentCfg.DsmEnabled)
+				w.SetNpmEnabled(d.agentCfg.NpmEnabled)
+				w.SetUsmEnabled(d.agentCfg.UsmEnabled)
+			})
+			builder.SetContainerHostType(uint64(d.containerHostType))
+			builder.SetHostName(d.hostname)
+			builder.SetNetworkId(d.networkID)
+			kernelVersion, _ := kernel.Release()
+			builder.SetKernelVersion(kernelVersion)
+			architecture, _ := kernel.Machine()
+			builder.SetArchitecture(architecture)
+			// TODO do we want to try some auto-correction for incorrect platforms, like we do with BTF?
+			platform, _ := kernel.Platform()
+			builder.SetPlatform(platform)
+			platformVersion, _ := kernel.PlatformVersion()
+			builder.SetPlatformVersion(platformVersion)
+			builder.SetGroupId(groupID)
+			builder.SetGroupSize(numBatches)
+
+			if messageIndex == 0 {
+				// only add the telemetry to the first message to prevent double counting
+				for k, v := range conns.ConnTelemetry {
+					builder.AddConnTelemetryMap(func(w *model.CollectorConnections_ConnTelemetryMapEntryBuilder) {
+						w.SetKey(string(k))
+						w.SetValue(v)
+					})
+				}
+				for k, v := range conns.CompilationTelemetryByAsset {
+					builder.AddCompilationTelemetryByAsset(func(w *model.CollectorConnections_CompilationTelemetryByAssetEntryBuilder) {
+						w.SetKey(k)
+						w.SetValue(func(w *model.RuntimeCompilationTelemetryBuilder) {
+							w.SetRuntimeCompilationEnabled(v.RuntimeCompilationEnabled)
+							w.SetRuntimeCompilationResult(uint64(v.RuntimeCompilationResult))
+							w.SetRuntimeCompilationDuration(v.RuntimeCompilationDuration)
+						})
+					})
+				}
+				for k, v := range conns.CORETelemetryByAsset {
+					builder.AddCORETelemetryByAsset(func(w *model.CollectorConnections_CORETelemetryByAssetEntryBuilder) {
+						w.SetKey(k)
+						w.SetValue(uint64(v))
+					})
+				}
+				for _, asset := range conns.PrebuiltAssets {
+					builder.AddPrebuiltEBPFAssets(asset)
+				}
+				builder.SetKernelHeaderFetchResult(uint64(conns.KernelHeaderFetchResult))
+			}
+
+			cidCount := 0
+			for _, conn := range connsChunk {
+				if conn.ContainerID.Source != nil {
+					cidCount++
+				}
+			}
+			// cidCount will be an upper bound, only hit if:
+			// every connection with a ContainerID has a unique PID
+			writtenPids := make(map[uint32]struct{}, cidCount)
+			for _, conn := range connsChunk {
+				if conn.ContainerID.Source != nil {
+					if _, ok := writtenPids[conn.Pid]; !ok {
+						writtenPids[conn.Pid] = struct{}{}
+						builder.AddContainerForPid(func(w *model.CollectorConnections_ContainerForPidEntryBuilder) {
+							w.SetKey(int32(conn.Pid))
+							w.SetValue(getInternedString(conn.ContainerID.Source))
+						})
+					}
+				}
+			}
+
 			// DNS values for this batch only. Subset of conns.DNS
-			dnsForBatch := make(map[string]*model.DNSDatabaseEntry)
-			dnsSet := indexedset.New[dns.Hostname]()
-			routeSet := indexedset.New[network.Via]()
-
-			connectionsTagsEncoder := model.NewV3TagEncoder()
-			tagsEncoder := model.NewV3TagEncoder()
-			// Adding a dummy tag to ensure the indices we get are always >= 0.
-			_ = tagsEncoder.Encode([]string{"-"})
-
-			resolvConfSet := indexedset.New[string]()
-
+			// TODO more efficient to use *intern.Value for map key
+			// TODO more efficient to just use []int32 name offsets for value
+			dnsCount := 0
+			dnsHostnameCount := 0
 			for _, nc := range connsChunk {
-				destIP := ipc.get(nc.Dest.Addr)
+				if dnsHostnames, ok := conns.DNS[nc.Dest]; ok {
+					dnsCount++
+					dnsHostnameCount += len(dnsHostnames)
+				}
+			}
+			dnsForBatch := make(map[string]*model.DNSDatabaseEntry, dnsCount)
+			// completely populate dns set ahead of time
+			dnsSet := indexedset.New[dns.Hostname](dnsHostnameCount)
+			for _, nc := range connsChunk {
+				destIP := unique.Make(nc.Dest.Addr.String()).Value()
 				// create unique DNSDatabaseEntry values
 				if dnsHostnames, ok := conns.DNS[nc.Dest]; ok {
 					if _, present := dnsForBatch[destIP]; !present {
@@ -456,119 +540,175 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 						}
 					}
 				}
-
-				c := &model.Connection{
-					Pid: int32(nc.Pid),
-					Laddr: &model.Addr{
-						Ip:          ipc.get(nc.Source.Addr),
-						Port:        int32(nc.SPort),
-						ContainerId: getInternedString(nc.ContainerID.Source),
-					},
-					Raddr: &model.Addr{
-						Ip:          destIP,
-						Port:        int32(nc.DPort),
-						ContainerId: getInternedString(nc.ContainerID.Dest),
-					},
-					Family:               formatFamily(nc.Family),
-					Type:                 formatType(nc.Type),
-					IsLocalPortEphemeral: formatEphemeralType(nc.SPortIsEphemeral),
-					LastBytesSent:        nc.Last.SentBytes,
-					LastBytesReceived:    nc.Last.RecvBytes,
-					LastPacketsSent:      nc.Last.SentPackets,
-					LastRetransmits:      nc.Last.Retransmits,
-					LastPacketsReceived:  nc.Last.RecvPackets,
-					Direction:            formatDirection(nc.Direction),
-					NetNS:                nc.NetNS,
-					IpTranslation:        formatIPTranslation(nc.IPTranslation, ipc),
-					Rtt:                  nc.RTT,
-					RttVar:               nc.RTTVar,
-					IntraHost:            nc.IntraHost,
-					LastTcpEstablished:   uint32(nc.Last.TCPEstablished),
-					LastTcpClosed:        uint32(nc.Last.TCPClosed),
-					Protocol:             marshal.FormatProtocolStack(nc.ProtocolStack, nc.StaticTags),
-					RouteIdx:             formatRouteIndex(nc.Via, routeSet),
-					TcpFailuresByErrCode: ddmaps.CastIntegerKeys[uint16, uint32](nc.TCPFailures),
-					SystemProbeConn:      nc.Pid == d.sysProbePID,
-					ResolvConfIdx:        -1, // will be overwritten
+				for d := range nc.DNSStats {
+					dnsSet.Add(d)
 				}
-
-				d.addContainerTags(c, containerIDForPID, containersForTagging, tagsEncoder)
-				d.addTags(nc, c, tagsSet, usmEncoders, connectionsTagsEncoder)
-				d.addDNS(nc, c, dnsSet)
-				if resolvConf, ok := conns.ResolvConfs[nc.ContainerID.Source]; ok {
-					c.ResolvConfIdx = resolvConfSet.Add(resolvConf.Get())
-				}
-
-				batchConns = append(batchConns, c)
 			}
-
 			// convert collected DNS information for this batch to an optimized version for transmission
-			var mappedDNSLookups []byte
 			uniqDNSStringList := ddslices.Map(dnsSet.UniqueKeys(), func(h dns.Hostname) string { return dns.ToString(h) })
 			encodedNameDb, indexToOffset, err := dnsEncoder.EncodeDomainDatabase(uniqDNSStringList)
 			if err != nil {
 				// since we were unable to properly encode the indexToOffset map, the
 				// rest of the maps will now be unreadable by the back-end.  Just clear them
-				for _, c := range batchConns {
-					c.DnsStatsByDomain = nil
-					c.DnsStatsByDomainByQueryType = nil
-					c.DnsStatsByDomainOffsetByQueryType = nil
-				}
+				indexToOffset = nil
 			} else {
+				builder.SetEncodedDomainDatabase(func(b *bytes.Buffer) {
+					b.Write(encodedNameDb)
+				})
+
 				// Now we have all available information.  EncodeMapped with take the string indices
 				// that are used, and encode (using the indexToOffset array) the offset into the buffer
 				// this way individual strings can be directly accessed on decode.
-				mappedDNSLookups, err = dnsEncoder.EncodeMapped(dnsForBatch, indexToOffset)
-				if err != nil {
-					mappedDNSLookups = nil
+				mappedDNSLookups, err := dnsEncoder.EncodeMapped(dnsForBatch, indexToOffset)
+				if err == nil && mappedDNSLookups != nil {
+					builder.SetEncodedDnsLookups(func(b *bytes.Buffer) {
+						b.Write(mappedDNSLookups)
+					})
 				}
-				for _, c := range batchConns {
-					remapDNSStatsByOffset(c, indexToOffset)
-				}
+			}
+
+			resolvConfSet := indexedset.New[network.ResolvConf](0)
+			routeSet := indexedset.New[network.Via](0)
+			connectionsTagsEncoder := model.NewV3TagEncoder()
+			tagsEncoder := model.NewV3TagEncoder()
+			// Adding a dummy tag to ensure the indices we get are always >= 0.
+			_ = tagsEncoder.Encode([]string{"-"})
+
+			for _, nc := range connsChunk {
+				builder.AddConnections(func(builder *model.ConnectionBuilder) {
+					builder.SetPid(int32(nc.Pid))
+					builder.SetLaddr(func(w *model.AddrBuilder) {
+						w.SetIp(unique.Make(nc.Source.Addr.String()).Value())
+						w.SetPort(int32(nc.SPort))
+						w.SetContainerId(getInternedString(nc.ContainerID.Source))
+					})
+					builder.SetRaddr(func(w *model.AddrBuilder) {
+						w.SetIp(unique.Make(nc.Dest.Addr.String()).Value())
+						w.SetPort(int32(nc.DPort))
+						w.SetContainerId(getInternedString(nc.ContainerID.Dest))
+					})
+					builder.SetFamily(uint64(formatFamily(nc.Family)))
+					builder.SetType(uint64(formatType(nc.Type)))
+					builder.SetIsLocalPortEphemeral(uint64(formatEphemeralType(nc.SPortIsEphemeral)))
+					builder.SetLastBytesSent(nc.Last.SentBytes)
+					builder.SetLastBytesReceived(nc.Last.RecvBytes)
+					builder.SetLastPacketsSent(nc.Last.SentPackets)
+					builder.SetLastRetransmits(nc.Last.Retransmits)
+					builder.SetLastPacketsReceived(nc.Last.RecvPackets)
+					builder.SetDirection(uint64(formatDirection(nc.Direction)))
+					builder.SetNetNS(nc.NetNS)
+					if nc.IPTranslation != nil {
+						builder.SetIpTranslation(func(w *model.IPTranslationBuilder) {
+							w.SetReplSrcIP(unique.Make(nc.IPTranslation.ReplSrcIP.Addr.String()).Value())
+							w.SetReplDstIP(unique.Make(nc.IPTranslation.ReplDstIP.Addr.String()).Value())
+							w.SetReplSrcPort(int32(nc.IPTranslation.ReplSrcPort))
+							w.SetReplDstPort(int32(nc.IPTranslation.ReplDstPort))
+						})
+					}
+					builder.SetRtt(nc.RTT)
+					builder.SetRttVar(nc.RTTVar)
+					builder.SetIntraHost(nc.IntraHost)
+					builder.SetLastTcpEstablished(uint32(nc.Last.TCPEstablished))
+					builder.SetLastTcpClosed(uint32(nc.Last.TCPClosed))
+					builder.SetProtocol(func(w *model.ProtocolStackBuilder) {
+						for p := range marshal.FormatProtocolStack(nc.ProtocolStack, nc.StaticTags) {
+							w.AddStack(uint64(p))
+						}
+					})
+					builder.SetRouteIdx(formatRouteIndex(nc.Via, routeSet))
+					for k, v := range nc.TCPFailures {
+						builder.AddTcpFailuresByErrCode(func(w *model.Connection_TcpFailuresByErrCodeEntryBuilder) {
+							w.SetKey(uint32(k))
+							w.SetValue(v)
+						})
+					}
+					builder.SetSystemProbeConn(nc.Pid == d.sysProbePID)
+					if resolvConf, ok := conns.ResolvConfs[nc.ContainerID.Source]; ok {
+						builder.SetResolvConfIdx(resolvConfSet.Add(resolvConf))
+					} else {
+						builder.SetResolvConfIdx(-1)
+					}
+					d.addContainerTags(builder, nc.ContainerID.Source, tagsEncoder)
+					d.addTags(builder, nc, tagsSet, usmEncoders, connectionsTagsEncoder)
+					d.addDNS(builder, nc, dnsSet, indexToOffset)
+				})
 			}
 
 			// this must come before we access tagsEncoder.Buffer()
-			hostTagsIndex := int32(tagsEncoder.Encode(d.hostTagProvider.GetHostTags()))
-			cc := model.CollectorConnections{
-				AgentConfiguration: d.agentCfg,
-				ContainerHostType:  d.containerHostType,
-				HostName:           d.hostname,
-				NetworkId:          d.networkID,
-
-				GroupId:   groupID,
-				GroupSize: numBatches,
-
-				Connections:            batchConns,
-				ContainerForPid:        containerIDForPID,
-				EncodedConnectionsTags: connectionsTagsEncoder.Buffer(),
-				EncodedDnsLookups:      mappedDNSLookups,
-				EncodedDomainDatabase:  encodedNameDb,
-				EncodedTags:            tagsEncoder.Buffer(),
-				HostTagsIndex:          hostTagsIndex,
-				Routes:                 ddslices.Map(routeSet.UniqueKeys(), viaToRoute),
-				ResolvConfs:            resolvConfSet.UniqueKeys(),
+			builder.SetHostTagsIndex(int32(tagsEncoder.Encode(d.hostTagProvider.GetHostTags())))
+			builder.SetEncodedTags(func(b *bytes.Buffer) {
+				b.Write(tagsEncoder.Buffer())
+			})
+			builder.SetEncodedConnectionsTags(func(b *bytes.Buffer) {
+				b.Write(connectionsTagsEncoder.Buffer())
+			})
+			for _, v := range routeSet.UniqueKeys() {
+				builder.AddRoutes(func(w *model.RouteBuilder) {
+					if v.Subnet.Alias != "" {
+						w.SetSubnet(func(w *model.SubnetBuilder) {
+							w.SetAlias(v.Subnet.Alias)
+						})
+					}
+					if v.Interface.HardwareAddr != "" {
+						w.SetInterface(func(w *model.InterfaceBuilder) {
+							w.SetHardwareAddr(v.Interface.HardwareAddr)
+						})
+					}
+				})
+			}
+			for _, v := range resolvConfSet.UniqueKeys() {
+				builder.AddResolvConfs(v.Get())
 			}
 
-			// Add OS telemetry
-			cc.KernelVersion, _ = kernel.Release()
-			cc.Architecture, _ = kernel.Machine()
-			// TODO do we want to try some auto-correction for incorrect platforms, like we do with BTF?
-			cc.Platform, _ = kernel.Platform()
-			cc.PlatformVersion, _ = kernel.PlatformVersion()
+			if err := zw.Close(); err != nil {
+				d.log.Errorf("Unable to close compression writer: %s", err)
+				continue
+			}
 
-			if !yield(&cc) {
+			if !yield(dstBuf.Bytes()) {
 				return
 			}
+			messageIndex++
 		}
 	}
+}
+
+func encodeHeaderV3(b io.Writer, h model.MessageHeader) error {
+	err := binary.Write(b, binary.LittleEndian, uint8(h.Version))
+	if err != nil {
+		return err
+	}
+	err = binary.Write(b, binary.LittleEndian, uint8(h.Encoding))
+	if err != nil {
+		return err
+	}
+	err = binary.Write(b, binary.LittleEndian, uint8(h.Type))
+	if err != nil {
+		return err
+	}
+	err = binary.Write(b, binary.LittleEndian, h.SubscriptionID)
+	if err != nil {
+		return err
+	}
+	err = binary.Write(b, binary.LittleEndian, h.OrgID)
+	if err != nil {
+		return err
+	}
+	err = binary.Write(b, binary.LittleEndian, h.Timestamp)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func getInternedString(v *intern.Value) string {
 	if v == nil {
 		return ""
 	}
-	s, _ := v.Get().(string)
-	return s
+	if s, ok := v.Get().(string); ok {
+		return s
+	}
+	return ""
 }
 
 const (

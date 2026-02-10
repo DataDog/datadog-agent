@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"runtime"
+	"slices"
 	"sort"
 	"testing"
 
@@ -577,7 +578,7 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 				HttpAggregations: httpOutBlob,
 				RouteIdx:         -1,
 				ResolvConfIdx:    -1,
-				Protocol:         marshal.FormatProtocolStack(protocols.Stack{}, 0),
+				Protocol:         &model.ProtocolStack{Stack: slices.Collect(marshal.FormatProtocolStack(protocols.Stack{}, 0))},
 			},
 			{
 				Laddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
@@ -585,7 +586,7 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 				HttpAggregations: httpOutBlob,
 				RouteIdx:         -1,
 				ResolvConfIdx:    -1,
-				Protocol:         marshal.FormatProtocolStack(protocols.Stack{}, 0),
+				Protocol:         &model.ProtocolStack{Stack: slices.Collect(marshal.FormatProtocolStack(protocols.Stack{}, 0))},
 			},
 		},
 		AgentConfiguration: &model.AgentConfiguration{

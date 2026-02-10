@@ -98,8 +98,7 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 	builder.SetLastTcpEstablished(uint32(conn.Last.TCPEstablished))
 	builder.SetLastTcpClosed(uint32(conn.Last.TCPClosed))
 	builder.SetProtocol(func(w *model.ProtocolStackBuilder) {
-		ps := FormatProtocolStack(conn.ProtocolStack, conn.StaticTags)
-		for _, p := range ps.Stack {
+		for p := range FormatProtocolStack(conn.ProtocolStack, conn.StaticTags) {
 			w.AddStack(uint64(p))
 		}
 	})

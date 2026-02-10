@@ -7,16 +7,14 @@
 
 package sender
 
-import "net/netip"
-
-type ipCache map[netip.Addr]string
-
-func (ipc ipCache) get(addr netip.Addr) string {
-	if v, ok := ipc[addr]; ok {
-		return v
-	}
-
-	v := addr.String()
-	ipc[addr] = v
-	return v
-}
+//type ipCache map[netip.Addr]*intern.Value
+//
+//func (ipc ipCache) get(addr netip.Addr) string {
+//	if v, ok := ipc[addr]; ok {
+//		return getInternedString(v)
+//	}
+//
+//	v := addr.String()
+//	ipc[addr] = intern.GetByString(v)
+//	return v
+//}

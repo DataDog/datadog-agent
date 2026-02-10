@@ -10,7 +10,6 @@ package marshal
 import (
 	"bytes"
 	"io"
-	"slices"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
@@ -35,12 +34,6 @@ func newRedisEncoder(redisPayloads map[redis.Key]*redis.RequestStats) *redisEnco
 			return key.ConnectionKey
 		}),
 	}
-}
-
-func (e *redisEncoder) EncodeConnectionDirect(c network.ConnectionStats, conn *model.Connection, buf *bytes.Buffer) (staticTags uint64, dynamicTags map[string]struct{}) {
-	staticTags = e.encodeData(c, buf)
-	conn.DatabaseAggregations = slices.Clone(buf.Bytes())
-	return
 }
 
 func (e *redisEncoder) EncodeConnection(c network.ConnectionStats, builder *model.ConnectionBuilder) (staticTags uint64, dynamicTags map[string]struct{}) {

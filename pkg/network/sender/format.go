@@ -15,19 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 )
 
-func formatIPTranslation(ct *network.IPTranslation, ipc ipCache) *model.IPTranslation {
-	if ct == nil {
-		return nil
-	}
-
-	return &model.IPTranslation{
-		ReplSrcIP:   ipc.get(ct.ReplSrcIP.Addr),
-		ReplDstIP:   ipc.get(ct.ReplDstIP.Addr),
-		ReplSrcPort: int32(ct.ReplSrcPort),
-		ReplDstPort: int32(ct.ReplDstPort),
-	}
-}
-
 func formatFamily(f network.ConnectionFamily) model.ConnectionFamily {
 	switch f {
 	case network.AFINET:

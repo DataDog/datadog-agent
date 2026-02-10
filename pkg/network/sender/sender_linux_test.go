@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux
+//go:build linux && linux_bpf
 
 package sender
 
@@ -37,6 +37,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	evmodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -97,17 +99,17 @@ func mockDirectSender(t testing.TB) *directSender {
 }
 
 func mockLogDirectSender(t testing.TB, l log.Component) *directSender {
-	iface, err := pkglog.LoggerFromWriterWithMinLevelAndFullFormat(io.Discard, pkglog.TraceLvl)
+	iface, err := pkglog.LoggerFromWriterWithMinLevelAndFullFormat(io.Discard, pkglog.InfoLvl)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
 
 	t.Cleanup(func() {
 		// stop using the logger to avoid a race condition
-		pkglog.ChangeLogLevel(pkglog.Default(), pkglog.DebugLvl)
+		_ = pkglog.ChangeLogLevel(pkglog.Default(), pkglog.DebugLvl)
 		iface.Flush()
 	})
-	pkglog.ChangeLogLevel(iface, pkglog.DebugLvl)
+	_ = pkglog.ChangeLogLevel(iface, pkglog.DebugLvl)
 
 	hostnameComp, _ := hostname.NewMock("test")
 	wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
@@ -172,10 +174,15 @@ func TestNetworkConnectionBatching(t *testing.T) {
 		d.maxConnsPerMessage = tc.maxSize
 		d.networkID = "nid"
 		conns := &network.Connections{BufferedData: network.BufferedData{Conns: tc.cur}}
-		allBatches := slices.Collect(d.batches(conns, 1))
-		assert.Equal(t, tc.expectedChunks, len(allBatches), "len %d", i)
+		payloads := slices.Collect(d.batches(conns, 1))
+		assert.Equal(t, tc.expectedChunks, len(payloads), "len %d", i)
 		total := 0
-		for i, c := range allBatches {
+		for i, payload := range payloads {
+			m, err := model.DecodeMessage(payload)
+			require.NoError(t, err)
+			c, ok := m.Body.(*model.CollectorConnections)
+			require.True(t, ok)
+
 			total += len(c.Connections)
 			assert.Equal(t, int32(tc.expectedChunks), c.GroupSize, "group size test %d", i)
 
@@ -200,9 +207,14 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 			p[3].Dest: {dns.ToHostname("datacat.edu")},
 		},
 	}
-	chunks := slices.Collect(d.batches(conns, 1))
-	assert.Len(t, chunks, 4)
-	for i, c := range chunks {
+	payloads := slices.Collect(d.batches(conns, 1))
+	assert.Len(t, payloads, 4)
+	for i, payload := range payloads {
+		m, err := model.DecodeMessage(payload)
+		require.NoError(t, err)
+		c, ok := m.Body.(*model.CollectorConnections)
+		require.True(t, ok)
+
 		// Only the last chunk should have a DNS mapping
 		if i == 3 {
 			assert.NotEmpty(t, c.EncodedDnsLookups)
@@ -224,10 +236,15 @@ func TestBatchSimilarConnectionsTogether(t *testing.T) {
 	d := mockDirectSender(t)
 	d.maxConnsPerMessage = 2
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: p}}
-	chunks := slices.Collect(d.batches(conns, 1))
+	payloads := slices.Collect(d.batches(conns, 1))
 
-	assert.Len(t, chunks, 3)
-	for _, c := range chunks {
+	assert.Len(t, payloads, 3)
+	for _, payload := range payloads {
+		m, err := model.DecodeMessage(payload)
+		require.NoError(t, err)
+		c, ok := m.Body.(*model.CollectorConnections)
+		require.True(t, ok)
+
 		rAddr := c.Connections[0].Raddr.Ip
 		for _, cc := range c.Connections {
 			assert.Equal(t, rAddr, cc.Raddr.Ip)
@@ -259,10 +276,15 @@ func TestNetworkConnectionBatchingWithDomainsByQueryType(t *testing.T) {
 	d := mockDirectSender(t)
 	d.maxConnsPerMessage = 1
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: p}}
-	chunks := slices.Collect(d.batches(conns, 1))
+	payloads := slices.Collect(d.batches(conns, 1))
 
-	assert.Len(t, chunks, 4)
-	for i, c := range chunks {
+	assert.Len(t, payloads, 4)
+	for i, payload := range payloads {
+		m, err := model.DecodeMessage(payload)
+		require.NoError(t, err)
+		c, ok := m.Body.(*model.CollectorConnections)
+		require.True(t, ok)
+
 		domaindb, _ := c.GetDNSNames()
 
 		// verify nothing was put in the DnsStatsByDomain bucket by mistake
@@ -365,10 +387,15 @@ func TestNetworkConnectionBatchingWithRoutes(t *testing.T) {
 	d := mockDirectSender(t)
 	d.maxConnsPerMessage = 4
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: p}}
-	chunks := slices.Collect(d.batches(conns, 1))
+	payloads := slices.Collect(d.batches(conns, 1))
+	assert.Len(t, payloads, 2)
 
-	assert.Len(t, chunks, 2)
-	for i, c := range chunks {
+	for i, payload := range payloads {
+		m, err := model.DecodeMessage(payload)
+		require.NoError(t, err)
+		c, ok := m.Body.(*model.CollectorConnections)
+		require.True(t, ok)
+
 		switch i {
 		case 0:
 			require.Equal(t, int32(0), c.Connections[0].RouteIdx)
@@ -428,10 +455,15 @@ func TestNetworkConnectionTags(t *testing.T) {
 	d := mockDirectSender(t)
 	d.maxConnsPerMessage = 4
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: p}}
-	chunks := slices.Collect(d.batches(conns, 1))
+	payloads := slices.Collect(d.batches(conns, 1))
 
-	assert.Len(t, chunks, 2)
-	for _, c := range chunks {
+	assert.Len(t, payloads, 2)
+	for _, p := range payloads {
+		m, err := model.DecodeMessage(p)
+		require.NoError(t, err)
+		c, ok := m.Body.(*model.CollectorConnections)
+		require.True(t, ok)
+
 		for _, conn := range c.Connections {
 			// conn.Tags must be used between system-probe and the agent only
 			assert.Nil(t, conn.Tags)
@@ -473,10 +505,13 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 
 	d.maxConnsPerMessage = 1
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: p}}
-	chunks := slices.Collect(d.batches(conns, 1))
+	payloads := slices.Collect(d.batches(conns, 1))
 
-	assert.Len(t, chunks, 1)
-	connections := chunks[0]
+	assert.Len(t, payloads, 1)
+	m, err := model.DecodeMessage(payloads[0])
+	require.NoError(t, err)
+	connections, ok := m.Body.(*model.CollectorConnections)
+	require.True(t, ok)
 	assert.Len(t, connections.Connections, 1)
 	require.EqualValues(t, expectedTags, connections.GetConnectionsTags(connections.Connections[0].TagsIdx))
 }
@@ -498,12 +533,15 @@ func TestNetworkConnectionProcessTags(t *testing.T) {
 	d.maxConnsPerMessage = 2
 	d.tagger = fakeTagger
 	conns := &network.Connections{BufferedData: network.BufferedData{Conns: p}}
-	chunks := slices.Collect(d.batches(conns, 1))
-
-	assert.Len(t, chunks, 2)
+	payloads := slices.Collect(d.batches(conns, 1))
+	assert.Len(t, payloads, 2)
 
 	// Verify first chunk (connections 0 and 1)
-	connections0 := chunks[0]
+	m, err := model.DecodeMessage(payloads[0])
+	require.NoError(t, err)
+	connections0, ok := m.Body.(*model.CollectorConnections)
+	require.True(t, ok)
+
 	assert.Len(t, connections0.Connections, 2)
 
 	// Check tags for first connection (PID 1)
@@ -517,7 +555,10 @@ func TestNetworkConnectionProcessTags(t *testing.T) {
 	assert.ElementsMatch(t, expectedTags1, conn1Tags)
 
 	// Verify second chunk (connections 2 and 3)
-	connections1 := chunks[1]
+	m, err = model.DecodeMessage(payloads[1])
+	require.NoError(t, err)
+	connections1, ok := m.Body.(*model.CollectorConnections)
+	require.True(t, ok)
 	assert.Len(t, connections1.Connections, 2)
 
 	// Check tags for third connection (PID 3)
@@ -545,10 +586,14 @@ func TestNetworkConnectionBatchingWithResolvConf(t *testing.T) {
 			containerID: resolvConfData,
 		},
 	}
-	chunks := slices.Collect(d.batches(conns, 1))
+	payloads := slices.Collect(d.batches(conns, 1))
+	require.Len(t, payloads, 1)
 
-	require.Len(t, chunks, 1)
-	cc := chunks[0]
+	m, err := model.DecodeMessage(payloads[0])
+	require.NoError(t, err)
+	cc, ok := m.Body.(*model.CollectorConnections)
+	require.True(t, ok)
+
 	require.Len(t, cc.Connections, 2)
 
 	conn := cc.Connections[0]
@@ -591,6 +636,8 @@ func TestGetRequestID(t *testing.T) {
 func BenchmarkCollect(b *testing.B) {
 	autoStart = false
 	d := mockLogDirectSender(b, &noopLog{})
+	d.queryTypeEnabled = true
+
 	// consume everything in the queue
 	go func() {
 		for {
@@ -609,7 +656,32 @@ func BenchmarkCollect(b *testing.B) {
 
 	cs := d.tracer.(*fakeConnectionSource)
 	conns := makeConnections(2000)
-	cs.conns = &network.Connections{BufferedData: network.BufferedData{Conns: conns}}
+	cs.conns = &network.Connections{
+		BufferedData: network.BufferedData{Conns: conns},
+		DNS:          make(map[util.Address][]dns.Hostname),
+		USMData: network.USMProtocolsData{
+			HTTP: make(map[http.Key]*http.RequestStats),
+		},
+	}
+
+	for i := range conns {
+		c := &conns[i]
+		domain := dns.ToHostname(fmt.Sprintf("domain%d.com", i))
+		c.DNSStats = map[dns.Hostname]map[dns.QueryType]dns.Stats{
+			domain: {dns.TypeA: dns.Stats{Timeouts: 1}},
+		}
+		cs.conns.DNS[c.Dest] = append(cs.conns.DNS[c.Dest], domain)
+		k := http.NewKey(c.Source, c.Dest, c.SPort, c.DPort, []byte("/"), true, http.MethodGet)
+		httpStats := http.NewRequestStats()
+		httpStats.AddRequest(200, float64(i), tls.ConnTagGnuTLS, nil)
+		cs.conns.USMData.HTTP[k] = httpStats
+	}
+	b.Cleanup(func() {
+		for _, hs := range cs.conns.USMData.HTTP {
+			hs.Close()
+		}
+	})
+
 	for b.Loop() {
 		d.collect()
 	}
@@ -619,51 +691,51 @@ var _ log.Component = &noopLog{}
 
 type noopLog struct{}
 
-func (n noopLog) Trace(v ...interface{}) {
+func (n noopLog) Trace(_ ...interface{}) {
 
 }
 
-func (n noopLog) Tracef(format string, params ...interface{}) {
+func (n noopLog) Tracef(_ string, _ ...interface{}) {
 
 }
 
-func (n noopLog) Debug(v ...interface{}) {
+func (n noopLog) Debug(_ ...interface{}) {
 
 }
 
-func (n noopLog) Debugf(format string, params ...interface{}) {
+func (n noopLog) Debugf(_ string, _ ...interface{}) {
 
 }
 
-func (n noopLog) Info(v ...interface{}) {
+func (n noopLog) Info(_ ...interface{}) {
 
 }
 
-func (n noopLog) Infof(format string, params ...interface{}) {
+func (n noopLog) Infof(_ string, _ ...interface{}) {
 
 }
 
-func (n noopLog) Warn(v ...interface{}) error {
+func (n noopLog) Warn(_ ...interface{}) error {
 	return nil
 }
 
-func (n noopLog) Warnf(format string, params ...interface{}) error {
+func (n noopLog) Warnf(_ string, _ ...interface{}) error {
 	return nil
 }
 
-func (n noopLog) Error(v ...interface{}) error {
+func (n noopLog) Error(_ ...interface{}) error {
 	return nil
 }
 
-func (n noopLog) Errorf(format string, params ...interface{}) error {
+func (n noopLog) Errorf(_ string, _ ...interface{}) error {
 	return nil
 }
 
-func (n noopLog) Critical(v ...interface{}) error {
+func (n noopLog) Critical(_ ...interface{}) error {
 	return nil
 }
 
-func (n noopLog) Criticalf(format string, params ...interface{}) error {
+func (n noopLog) Criticalf(_ string, _ ...interface{}) error {
 	return nil
 }
 
