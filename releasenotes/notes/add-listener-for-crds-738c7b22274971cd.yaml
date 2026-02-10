@@ -1,0 +1,4 @@
+---
+features:
+  - |
+     Add a new listener based on all Custom Resource Definitions (CRDs) found on the cluster.

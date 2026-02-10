@@ -839,7 +839,7 @@ func newField(allFields map[string]*common.StructField, fieldName string, inputF
 		if field, ok := allFields[fieldPath]; ok {
 			if field.IsOrigTypePtr {
 				// process & exec context are set in the template
-				if !strings.HasPrefix(fieldName, "process.") && !strings.HasPrefix(fieldName, "exec.") && !strings.HasPrefix(fieldName, "exit.") {
+				if !strings.HasPrefix(fieldName, "process.") && !strings.HasPrefix(fieldName, "exec.") && !strings.HasPrefix(fieldName, "exit.") && !strings.HasPrefix(fieldName, "ptrace.") {
 					result += fmt.Sprintf("if ev.%s == nil { ev.%s = &%s{} }\n", field.Name, field.Name, field.OrigType)
 				}
 			} else if field.IsArray && fieldPath != inputField.Name {

@@ -258,3 +258,5 @@ func (pc *ProcessCacheEntry) Hash() eval.ScopeHashKey {
 func (pc *ProcessCacheEntry) ParentScope() (eval.VariableScope, bool) {
 	return pc.Ancestor, pc.Ancestor != nil
 }
+
+func (e *Event) initPlatformPointerFields() {}

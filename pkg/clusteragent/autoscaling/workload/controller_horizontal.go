@@ -9,7 +9,6 @@ package workload
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
 	"slices"
@@ -77,7 +76,7 @@ func (hr *horizontalController) sync(ctx context.Context, podAutoscaler *datadog
 	// Get the current scale of the target resource
 	scale, gr, err := hr.scaler.get(ctx, autoscalerInternal.Namespace(), autoscalerInternal.Spec().TargetRef.Name, gvk)
 	if err != nil {
-		err = fmt.Errorf("failed to get scale subresource for autoscaler %s, err: %w", autoscalerInternal.ID(), err)
+		err = autoscaling.NewConditionError(autoscaling.ConditionReasonTargetNotFound, fmt.Errorf("failed to get scale subresource for autoscaler %s, err: %w", autoscalerInternal.ID(), err))
 		autoscalerInternal.UpdateFromHorizontalAction(nil, err)
 		return autoscaling.Requeue, err
 	}
@@ -127,7 +126,7 @@ func (hr *horizontalController) performScaling(ctx context.Context, podAutoscale
 	scale.Spec.Replicas = horizontalAction.ToReplicas
 	_, err = hr.scaler.update(ctx, gr, scale)
 	if err != nil {
-		err = fmt.Errorf("failed to scale target: %s/%s to %d replicas, err: %w", scale.Namespace, scale.Name, horizontalAction.ToReplicas, err)
+		err = autoscaling.NewConditionError(autoscaling.ConditionReasonScaleFailed, fmt.Errorf("failed to scale target: %s/%s to %d replicas, err: %w", scale.Namespace, scale.Name, horizontalAction.ToReplicas, err))
 		hr.eventRecorder.Event(podAutoscaler, corev1.EventTypeWarning, model.FailedScaleEventReason, err.Error())
 		autoscalerInternal.UpdateFromHorizontalAction(nil, err)
 
@@ -161,7 +160,7 @@ func (hr *horizontalController) computeScaleAction(
 ) (*datadoghqcommon.DatadogPodAutoscalerHorizontalAction, time.Duration, error) {
 	// Check if we scaling has been disabled explicitly
 	if currentDesiredReplicas == 0 {
-		return nil, 0, errors.New("scaling disabled as current replicas is set to 0")
+		return nil, 0, autoscaling.NewConditionErrorf(autoscaling.ConditionReasonScalingDisabled, "scaling disabled as current replicas is set to 0")
 	}
 
 	// Saving original targetDesiredReplicas
@@ -233,7 +232,7 @@ func (hr *horizontalController) computeScaleAction(
 		if autoscalerInternal.Spec().Fallback != nil && !isFallbackScalingDirectionEnabled(autoscalerInternal.Spec().Fallback.Horizontal.Direction, scaleDirection) {
 			limitReason = fmt.Sprintf("scaling disabled as fallback in the scaling direction (%s) is disabled", scaleDirection)
 			log.Debugf("Scaling limited for autoscaler id: %s, scale direction: %s, limit reason: %s", autoscalerInternal.ID(), scaleDirection, limitReason)
-			return nil, 0, errors.New(limitReason)
+			return nil, 0, autoscaling.NewConditionErrorf(autoscaling.ConditionReasonFallbackRestricted, "%s", limitReason)
 		}
 	}
 
@@ -273,7 +272,7 @@ func (hr *horizontalController) computeScaleAction(
 	allowed, reason := isScalingAllowed(autoscalerSpec, source, scaleDirection)
 	if !allowed {
 		log.Debugf("Scaling not allowed for autoscaler id: %s, scale direction: %s, scale reason: %s (would have scaled to %d replicas)", autoscalerInternal.ID(), scaleDirection, reason, horizontalAction.ToReplicas)
-		return nil, 0, errors.New(reason)
+		return nil, 0, autoscaling.NewConditionErrorf(autoscaling.ConditionReasonPolicyRestricted, "%s", reason)
 	}
 
 	return horizontalAction, evalAfter, nil

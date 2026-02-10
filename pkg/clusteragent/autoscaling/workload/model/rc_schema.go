@@ -12,6 +12,8 @@ import (
 
 	datadoghqv1alpha1 "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 	datadoghqv1alpha2 "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 )
 
 // ReccomendationError is an error encountered while computing a recommendation on Datadog side
@@ -20,6 +22,11 @@ type ReccomendationError kubeAutoscaling.Error
 // Error returns the error message
 func (e *ReccomendationError) Error() string {
 	return e.Message
+}
+
+// Reason implements ConditionReason, providing a programmatic reason for conditions.
+func (e *ReccomendationError) Reason() autoscaling.ConditionReasonType {
+	return autoscaling.ConditionReasonRecommendationError
 }
 
 // AutoscalingSettingsList holds a list of AutoscalingSettings
