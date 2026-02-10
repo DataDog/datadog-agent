@@ -275,6 +275,9 @@ func newBucketTagResolver(cfg Config) *bucketTagResolver {
 // New creates the appropriate Resolver based on whether
 // a remote config client is available.
 func New(cfg Config) Resolver {
+	if !cfg.Enabled {
+		return NewNoOpResolver()
+	}
 	if cfg.RCClient == nil || reflect.ValueOf(cfg.RCClient).IsNil() {
 		log.Debugf("No remote config client available")
 		return NewNoOpResolver()
