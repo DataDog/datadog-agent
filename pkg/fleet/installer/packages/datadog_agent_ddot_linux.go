@@ -6,17 +6,13 @@
 package packages
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/packagemanager"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -29,8 +25,10 @@ var datadogAgentDDOTPackage = hooks{
 }
 
 const (
-	agentDDOTPackage = "datadog-agent-ddot"
-	datadogYamlPath  = "/etc/datadog-agent/datadog.yaml"
+	agentDDOTPackage      = "datadog-agent-ddot"
+	datadogYamlPath       = "/etc/datadog-agent/datadog.yaml"
+	otelConfigPath        = "/etc/datadog-agent/otel-config.yaml"
+	otelConfigExamplePath = "/etc/datadog-agent/otel-config.yaml.example"
 )
 
 var (
@@ -44,8 +42,8 @@ var (
 		{Path: "otel-config.yaml.example", Owner: "dd-agent", Group: "dd-agent", Mode: 0640},
 	}
 
-	// ddotConfigPermissionsOCI are the ownerships and modes that are enforced on the DDOT configuration files for OCI packages
-	ddotConfigPermissionsOCI = file.Permissions{
+	// ddotConfigPermissions are the ownerships and modes that are enforced on the DDOT configuration files for OCI packages
+	ddotConfigPermissions = file.Permissions{
 		{Path: "otel-config.yaml.example", Owner: "dd-agent", Group: "dd-agent", Mode: 0640},
 		{Path: "otel-config.yaml", Owner: "dd-agent", Group: "dd-agent", Mode: 0640},
 	}
@@ -104,7 +102,7 @@ func postInstallDatadogAgentDDOTOCI(ctx HookContext) (err error) {
 	}()
 
 	// Write otel-config.yaml with API key substitution
-	if err = writeOTelConfig(); err != nil {
+	if err = writeOTelConfig(ctx); err != nil {
 		return fmt.Errorf("could not write otel-config.yaml file: %s", err)
 	}
 
@@ -120,12 +118,12 @@ func postInstallDatadogAgentDDOTOCI(ctx HookContext) (err error) {
 	if err = ddotPackagePermissions.Ensure(ctx, ctx.PackagePath); err != nil {
 		return fmt.Errorf("failed to set DDOT package ownerships: %v", err)
 	}
-	if err = ddotConfigPermissionsOCI.Ensure(ctx, "/etc/datadog-agent"); err != nil {
+	if err = ddotConfigPermissions.Ensure(ctx, "/etc/datadog-agent"); err != nil {
 		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
 	}
 
 	// Enable otelcollector in datadog.yaml
-	if err = enableOtelCollectorConfig(ctx); err != nil {
+	if err = enableOTelCollectorConfigInDatadogYAML(ctx, datadogYamlPath); err != nil {
 		return fmt.Errorf("failed to enable otelcollector in datadog.yaml: %v", err)
 	}
 
@@ -136,6 +134,13 @@ func postInstallDatadogAgentDDOTOCI(ctx HookContext) (err error) {
 
 	if err := agentDDOTService.WriteStable(ctx); err != nil {
 		return fmt.Errorf("failed to write stable units: %s", err)
+	}
+	// For backwards compatibility, remove "/ext/ddot" from the unit path and replace "/opt/datadog-packages/datadog-agent" by "/opt/datadog-packages/datadog-agent-ddot"
+	if err := modifyDDOTUnitFileForBackwardsCompatibility(ctx, agentDDOTService.SystemdMainUnitStable, true); err != nil {
+		return fmt.Errorf("failed to modify unit file for backwards compatibility: %s", err)
+	}
+	if err := systemd.Reload(ctx); err != nil {
+		return fmt.Errorf("failed to reload systemd: %s", err)
 	}
 	if err := agentDDOTService.EnableStable(ctx); err != nil {
 		return fmt.Errorf("failed to install stable unit: %s", err)
@@ -173,6 +178,13 @@ func postInstallDatadogAgentDDOTDEBRPM(ctx HookContext) (err error) {
 	if err := agentDDOTService.WriteStable(ctx); err != nil {
 		return fmt.Errorf("failed to write stable units: %s", err)
 	}
+	// For backwards compatibility, remove "/ext/ddot" from the unit path
+	if err := modifyDDOTUnitFileForBackwardsCompatibility(ctx, agentDDOTService.SystemdMainUnitStable, false); err != nil {
+		return fmt.Errorf("failed to modify unit file for backwards compatibility: %s", err)
+	}
+	if err := systemd.Reload(ctx); err != nil {
+		return fmt.Errorf("failed to reload systemd: %s", err)
+	}
 	if err := agentDDOTService.EnableStable(ctx); err != nil {
 		return fmt.Errorf("failed to install stable unit: %s", err)
 	}
@@ -207,100 +219,72 @@ func preRemoveDatadogAgentDDOT(ctx HookContext) error {
 	return nil
 }
 
-// enableOtelCollectorConfig adds otelcollector.enabled: true to datadog.yaml
-func enableOtelCollectorConfig(ctx context.Context) error {
-	if err := enableOtelCollectorConfigCommon(datadogYamlPath); err != nil {
-		return err
-	}
-
-	datadogYamlPermissions := file.Permissions{
-		{Path: "datadog.yaml", Owner: "dd-agent", Group: "dd-agent", Mode: 0640},
-	}
-
-	if err := datadogYamlPermissions.Ensure(ctx, "/etc/datadog-agent"); err != nil {
-		return fmt.Errorf("failed to set ownership on datadog.yaml: %w", err)
-	}
-
-	return nil
-}
-
 // writeOTelConfig creates otel-config.yaml by substituting API key and site values from datadog.yaml
-func writeOTelConfig() error {
-	return writeOTelConfigCommon(datadogYamlPath, "/etc/datadog-agent/otel-config.yaml.example", "/etc/datadog-agent/otel-config.yaml", false, 0640)
+func writeOTelConfig(ctx HookContext) error {
+	return writeOTelConfigCommon(ctx, datadogYamlPath, otelConfigExamplePath, otelConfigPath, false, 0640)
 }
 
-// DDOT Extension methods
+//////////////////////////////
+/// DDOT EXTENSION METHODS ///
+//////////////////////////////
 
-// preInstallDDOTExtension stops the existing DDOT service before extension installation
+// preInstallDDOTExtension stops and removes the existing DDOT service and package before extension installation
 func preInstallDDOTExtension(ctx HookContext) error {
 	span, ctx := ctx.StartSpan("pre_install_extension_ddot")
 	defer span.Finish(nil)
 
-	// Best effort - ignore errors
-	// Clean up any existing DDOT service before installing
-	_ = agentDDOTService.StopStable(ctx)
-	_ = agentDDOTService.DisableStable(ctx)
-	_ = agentDDOTService.RemoveStable(ctx)
-
+	if err := packagemanager.RemovePackage(ctx, agentDDOTPackage); err != nil {
+		log.Warnf("failed to remove deb/rpm package: %s", err)
+	}
 	return nil
 }
 
-// postInstallDDOTExtension sets up the DDOT extension after files are extracted
+// postInstallDDOTExtension is the post-install hook for the DDOT extension
 func postInstallDDOTExtension(ctx HookContext) (err error) {
 	span, ctx := ctx.StartSpan("post_install_extension_ddot")
 	defer func() {
 		span.Finish(err)
 	}()
 
+	// extensionPath is the path to the DDOT extension. It is already scoped to stable / experiment per the Agent package.
 	extensionPath := filepath.Join(ctx.PackagePath, "ext", "ddot")
 
-	// Write otel-config.yaml - best effort, ignore errors
-	_ = writeDDOTExtensionOTelConfig(extensionPath)
-
-	// Ensure the dd-agent user and group exist
-	if err = user.EnsureAgentUserAndGroup(ctx, "/opt/datadog-agent"); err != nil {
-		return fmt.Errorf("failed to create dd-agent user and group: %v", err)
+	// Copy the example file to the configuration directory
+	// XXX: Maybe we should always embed the example file in the Agent package?
+	if err := copyFile(filepath.Join(extensionPath, otelConfigExamplePath), otelConfigExamplePath, 0640); err != nil {
+		return fmt.Errorf("failed to copy otel-config.yaml.example to /etc/datadog-agent: %v", err)
 	}
 
-	// Ensure directories and files exist and have correct permissions
-	if err = ddotDirectories.Ensure(ctx); err != nil {
-		return fmt.Errorf("failed to create DDOT directories: %v", err)
-	}
-	if err = ddotPackagePermissions.Ensure(ctx, extensionPath); err != nil {
-		return fmt.Errorf("failed to set DDOT extension ownerships: %v", err)
-	}
-	if err = ddotConfigPermissionsOCI.Ensure(ctx, "/etc/datadog-agent"); err != nil {
-		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
+	// Write otel-config.yaml. Doesn't update the file if it already exists.
+	if err := writeOTelConfigCommon(ctx, datadogYamlPath, otelConfigExamplePath, otelConfigPath, true, 0640); err != nil {
+		return fmt.Errorf("failed to write otel-config.yaml: %w", err)
 	}
 
-	if err := enableOtelCollectorConfig(ctx); err != nil {
+	// Enable the DDOT IPC server in datadog.yaml
+	if err := enableOTelCollectorConfigInDatadogYAML(ctx, datadogYamlPath); err != nil {
 		return fmt.Errorf("failed to enable otelcollector in datadog.yaml: %v", err)
 	}
 
-	if err := writeDDOTExtensionServiceUnits(ctx, extensionPath); err != nil {
-		return fmt.Errorf("failed to write DDOT service units: %w", err)
+	// Ensure the DDOT configuration files have the correct permissions
+	if err = ddotConfigPermissions.Ensure(ctx, "/etc/datadog-agent"); err != nil {
+		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
 	}
-
-	if err := agentDDOTService.EnableStable(ctx); err != nil {
-		return fmt.Errorf("failed to enable DDOT service: %s", err)
-	}
-
-	// Best effort service start - ignore errors
-	_ = agentDDOTService.RestartStable(ctx)
 
 	return nil
 }
 
 // preRemoveDDOTExtension stops and disables the DDOT service before extension removal
 func preRemoveDDOTExtension(ctx HookContext) error {
-	span, ctx := ctx.StartSpan("pre_remove_extension_ddot")
+	span, _ := ctx.StartSpan("pre_remove_extension_ddot")
 	defer span.Finish(nil)
 
-	// Best effort - ignore errors
-	_ = agentDDOTService.StopStable(ctx)
-	_ = agentDDOTService.DisableStable(ctx)
-	_ = agentDDOTService.RemoveStable(ctx)
-	_ = disableOtelCollectorConfigCommon(datadogYamlPath)
+	// Disable the DDOT IPC server in datadog.yaml.
+	// During an upgrade, this will be re-enabled by the post-install hook. This gives us flexibility to change the config during upgrade.
+	if err := disableOtelCollectorConfigCommon(datadogYamlPath); err != nil {
+		log.Warnf("failed to disable otelcollector config: %s", err)
+	}
+
+	// XXX: Maybe we should restart the Agent service here to pick up the new config? Probably during removal, not upgrade.
 
 	return nil
 }
@@ -314,62 +298,47 @@ func copyFile(src, dst string, perm os.FileMode) error {
 	return os.WriteFile(dst, data, perm)
 }
 
-// writeDDOTExtensionOTelConfig writes the DDOT otel-config.yaml with API key substitution
-func writeDDOTExtensionOTelConfig(extensionPath string) error {
-	templatePath := "/etc/datadog-agent/otel-config.yaml.example"
-
-	extensionTemplatePath := filepath.Join(extensionPath, "etc", "datadog-agent", "otel-config.yaml.example")
-	if _, err := os.Stat(extensionTemplatePath); err == nil {
-		templatePath = extensionTemplatePath
-
-		// Copy the .example file to /etc/datadog-agent/ for user reference
-		exampleDestPath := "/etc/datadog-agent/otel-config.yaml.example"
-		if err := copyFile(extensionTemplatePath, exampleDestPath, 0640); err != nil {
-			log.Warnf("failed to copy otel-config.yaml.example to /etc/datadog-agent: %v", err)
-		}
-	}
-
-	outPath := "/etc/datadog-agent/otel-config.yaml"
-	return writeOTelConfigCommon(datadogYamlPath, templatePath, outPath, false, 0640)
-}
-
-// writeDDOTExtensionServiceUnits writes DDOT service units for the appropriate service manager
-func writeDDOTExtensionServiceUnits(ctx HookContext, extensionPath string) error {
-	switch service.GetServiceManagerType() {
-	case service.SystemdType:
-		return writeDDOTExtensionSystemdService(ctx, extensionPath)
-	case service.UpstartType:
-		return nil
-	case service.SysvinitType:
-		return nil
+// modifyDDOTUnitFileForBackwardsCompatibility modifies the systemd unit file to remove "/ext/ddot" from paths
+// for backwards compatibility. For OCI packages, it also replaces "/opt/datadog-packages/datadog-agent" with
+// "/opt/datadog-packages/datadog-agent-ddot".
+// This is likely temporary, it'll be removed when we remove the standalone DDOT package.
+func modifyDDOTUnitFileForBackwardsCompatibility(ctx HookContext, unitName string, isOCI bool) error {
+	// Determine the unit file path based on package type
+	var unitPath string
+	switch ctx.PackageType {
+	case PackageTypeDEB:
+		unitPath = filepath.Join("/lib/systemd/system", unitName)
+	case PackageTypeRPM:
+		unitPath = filepath.Join("/usr/lib/systemd/system", unitName)
+	case PackageTypeOCI:
+		unitPath = filepath.Join("/etc/systemd/system", unitName)
 	default:
-		return errors.New("unsupported service manager")
+		return fmt.Errorf("unsupported package type: %s", ctx.PackageType)
 	}
-}
 
-// writeDDOTExtensionSystemdService writes the DDOT systemd unit with paths adjusted for the extension
-func writeDDOTExtensionSystemdService(ctx HookContext, extensionPath string) error {
-	ambiantCapabilitiesSupported, err := isAmbiantCapabilitiesSupported()
+	// Read the unit file
+	content, err := os.ReadFile(unitPath)
 	if err != nil {
-		log.Errorf("failed to check if ambiant capabilities are supported: %v", err)
-		ambiantCapabilitiesSupported = true
+		return fmt.Errorf("failed to read unit file %s: %w", unitPath, err)
 	}
 
-	unitName := agentDDOTService.SystemdMainUnitStable
-	content, err := embedded.GetSystemdUnit(unitName, embedded.SystemdUnitTypeOCI, ambiantCapabilitiesSupported)
-	if err != nil {
-		return fmt.Errorf("failed to get systemd unit %s: %w", unitName, err)
+	// Modify the content
+	modifiedContent := string(content)
+	// Remove "/ext/ddot" from all paths
+	modifiedContent = strings.ReplaceAll(modifiedContent, "/ext/ddot", "")
+
+	// For OCI packages, replace "/opt/datadog-packages/datadog-agent" with "/opt/datadog-packages/datadog-agent-ddot"
+	// Do specific replacements first to avoid double-replacement issues
+	if isOCI {
+		// Replace paths with /stable or /experiment suffix first
+		modifiedContent = strings.ReplaceAll(modifiedContent, "/opt/datadog-packages/datadog-agent/stable", "/opt/datadog-packages/datadog-agent-ddot/stable")
+		modifiedContent = strings.ReplaceAll(modifiedContent, "/opt/datadog-packages/datadog-agent/experiment", "/opt/datadog-packages/datadog-agent-ddot/experiment")
 	}
 
-	contentStr := strings.ReplaceAll(string(content), "/opt/datadog-packages/datadog-agent-ddot/stable", extensionPath)
-
-	unitPath := filepath.Join(ociUnitsPath, unitName)
-	if err := os.MkdirAll(ociUnitsPath, 0755); err != nil {
-		return fmt.Errorf("failed to create systemd directory: %v", err)
-	}
-	if err := os.WriteFile(unitPath, []byte(contentStr), 0644); err != nil {
-		return fmt.Errorf("failed to write systemd unit file: %v", err)
+	// Write the modified content back
+	if err := os.WriteFile(unitPath, []byte(modifiedContent), 0644); err != nil {
+		return fmt.Errorf("failed to write modified unit file %s: %w", unitPath, err)
 	}
 
-	return systemd.Reload(ctx)
+	return nil
 }

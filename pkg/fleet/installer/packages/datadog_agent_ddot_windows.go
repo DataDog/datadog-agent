@@ -51,11 +51,11 @@ func preInstallDatadogAgentDDOT(_ HookContext) error {
 // postInstallDatadogAgentDdot performs post-installation steps for the DDOT package on Windows
 func postInstallDatadogAgentDdot(ctx HookContext) (err error) {
 	// 1) Write otel-config.yaml with API key/site substitutions
-	if err = writeOTelConfigWindows(); err != nil {
+	if err = writeOTelConfigWindows(ctx); err != nil {
 		return fmt.Errorf("could not write otel-config.yaml: %w", err)
 	}
 	// 2) Enable otelcollector in datadog.yaml
-	if err = enableOtelCollectorConfigWindows(ctx.Context); err != nil {
+	if err = enableOtelCollectorConfigWindows(ctx); err != nil {
 		return fmt.Errorf("failed to enable otelcollector: %w", err)
 	}
 	// 3) Restart main Agent services to pick up config changes
@@ -146,7 +146,7 @@ func preRemoveDatadogAgentDdot(ctx HookContext) error {
 }
 
 // writeOTelConfigWindows creates otel-config.yaml by substituting API key and site values from datadog.yaml
-func writeOTelConfigWindows() error {
+func writeOTelConfigWindows(ctx HookContext) error {
 	ddYaml := filepath.Join(paths.DatadogDataDir, "datadog.yaml")
 	// Prefer packaged example/template from the installed package repository
 	cfgTemplate := filepath.Join(paths.PackagesPath, agentDDOTPackage, "stable", "etc", "datadog-agent", "otel-config.yaml.example")
@@ -158,13 +158,13 @@ func writeOTelConfigWindows() error {
 		}
 	}
 	out := filepath.Join(paths.DatadogDataDir, "otel-config.yaml")
-	return writeOTelConfigCommon(ddYaml, cfgTemplate, out, true, 0o600)
+	return writeOTelConfigCommon(ctx, ddYaml, cfgTemplate, out, true, 0o600)
 }
 
 // enableOtelCollectorConfigWindows adds otelcollector.enabled and agent_ipc defaults to datadog.yaml
-func enableOtelCollectorConfigWindows(_ context.Context) error {
+func enableOtelCollectorConfigWindows(ctx HookContext) error {
 	ddYaml := filepath.Join(paths.DatadogDataDir, "datadog.yaml")
-	return enableOtelCollectorConfigCommon(ddYaml)
+	return enableOTelCollectorConfigInDatadogYAML(ctx, ddYaml)
 }
 
 // disableOtelCollectorConfigWindows removes otelcollector and agent_ipc from datadog.yaml
@@ -386,7 +386,9 @@ func deleteServiceIfExists(name string) error {
 	return s.Delete()
 }
 
-// DDOT Extension methods for datadog-agent package
+//////////////////////////////
+/// DDOT EXTENSION METHODS ///
+//////////////////////////////
 
 // preInstallDDOTExtension stops the existing DDOT service before extension installation
 func preInstallDDOTExtension(_ HookContext) error {
@@ -397,16 +399,14 @@ func preInstallDDOTExtension(_ HookContext) error {
 }
 
 // postInstallDDOTExtension sets up the DDOT extension after files are extracted
-// IMPORTANT: This hook does NOT restart the main Agent services. The Agent must be
-// restarted externally (by setup scripts or experiment workers) for otelcollector config to take effect.
 func postInstallDDOTExtension(ctx HookContext) error {
 	extensionPath := filepath.Join(ctx.PackagePath, "ext", ctx.Extension)
 
-	if err := writeOTelConfigWindowsExtension(extensionPath); err != nil {
+	if err := writeOTelConfigWindowsExtension(ctx, extensionPath); err != nil {
 		return fmt.Errorf("failed to write otel-config.yaml: %w", err)
 	}
 
-	if err := enableOtelCollectorConfigWindows(ctx.Context); err != nil {
+	if err := enableOtelCollectorConfigWindows(ctx); err != nil {
 		return fmt.Errorf("failed to enable otelcollector: %w", err)
 	}
 
@@ -460,21 +460,26 @@ func postInstallDDOTExtension(ctx HookContext) error {
 }
 
 // preRemoveDDOTExtension stops and removes the DDOT service before extension removal
-func preRemoveDDOTExtension(_ HookContext) error {
+func preRemoveDDOTExtension(ctx HookContext) error {
 	// Best effort - ignore errors
 	_ = stopServiceIfExists(otelServiceName)
 	_ = deleteServiceIfExists(otelServiceName)
-	_ = disableOtelCollectorConfigWindows()
+	if !ctx.Upgrade {
+		// Preserve otel-config.yaml; only disable the feature in datadog.yaml
+		if err := disableOtelCollectorConfigWindows(); err != nil {
+			log.Warnf("failed to disable otelcollector in datadog.yaml: %s", err)
+		}
+	}
 
 	return nil
 }
 
 // writeOTelConfigWindowsExtension writes otel-config.yaml for extension
-func writeOTelConfigWindowsExtension(extensionPath string) error {
+func writeOTelConfigWindowsExtension(ctx HookContext, extensionPath string) error {
 	ddYaml := filepath.Join(paths.DatadogDataDir, "datadog.yaml")
 	templatePath := filepath.Join(extensionPath, "etc", "datadog-agent", "otel-config.yaml.example")
 	outPath := filepath.Join(paths.DatadogDataDir, "otel-config.yaml")
-	return writeOTelConfigCommon(ddYaml, templatePath, outPath, true, 0o640)
+	return writeOTelConfigCommon(ctx, ddYaml, templatePath, outPath, true, 0o640)
 }
 
 // ensureDDOTServiceForExtension ensures the DDOT service exists and is configured correctly for extension

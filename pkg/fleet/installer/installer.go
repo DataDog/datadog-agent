@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -816,7 +817,19 @@ func (i *installerImpl) InstallExtensions(ctx context.Context, url string, exten
 		return fmt.Errorf("package %s is installed at version %s, requested version is %s", pkg.Name, existingPkg.Version, pkg.Version)
 	}
 
-	return extensions.Install(ctx, i.downloader, url, extensionList, false, i.hooks)
+	err = extensions.Install(ctx, i.downloader, url, extensionList, false, i.hooks)
+	if err != nil {
+		return fmt.Errorf("could not install extensions: %w", err)
+	}
+
+	// Special case for Linux & datadog-agent: restart the Agent after installing Agent extensions.
+	if runtime.GOOS == "linux" && pkg.Name == packageDatadogAgent {
+		if ok, err := systemd.IsRunning(); err != nil || !ok {
+			return nil
+		}
+		return systemd.RestartUnit(ctx, "datadog-agent.service")
+	}
+	return nil
 }
 
 // RemoveExtensions removes multiple extensions.
@@ -835,7 +848,19 @@ func (i *installerImpl) RemoveExtensions(ctx context.Context, pkg string, extens
 		span.SetTag("extensions", strings.Join(extensionList, ","))
 	}
 
-	return extensions.Remove(ctx, pkg, extensionList, false, i.hooks)
+	err := extensions.Remove(ctx, pkg, extensionList, false, i.hooks)
+	if err != nil {
+		return fmt.Errorf("could not remove extensions: %w", err)
+	}
+
+	// Special case for Linux & datadog-agent: restart the Agent after removing Agent extensions.
+	if runtime.GOOS == "linux" && pkg == packageDatadogAgent {
+		if ok, err := systemd.IsRunning(); err != nil || !ok {
+			return nil
+		}
+		return systemd.RestartUnit(ctx, "datadog-agent.service")
+	}
+	return nil
 }
 
 // SaveExtensions saves the extensions to a specific location on disk.
@@ -856,7 +881,19 @@ func (i *installerImpl) RestoreExtensions(ctx context.Context, url string, path 
 			fmt.Errorf("could not download package: %w", err),
 		)
 	}
-	return extensions.Restore(ctx, i.downloader, pkg.Name, url, path, false, i.hooks)
+	err = extensions.Restore(ctx, i.downloader, pkg.Name, url, path, false, i.hooks)
+	if err != nil {
+		return fmt.Errorf("could not restore extensions: %w", err)
+	}
+
+	// Special case for Linux & datadog-agent: restart the Agent after restoring Agent extensions manually.
+	if runtime.GOOS == "linux" && pkg.Name == packageDatadogAgent {
+		if ok, err := systemd.IsRunning(); err != nil || !ok {
+			return nil
+		}
+		return systemd.RestartUnit(ctx, "datadog-agent.service")
+	}
+	return nil
 }
 
 // Close cleans up the Installer's dependencies, lock must be held by the caller
