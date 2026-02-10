@@ -38,6 +38,7 @@ func TestNewConfig(t *testing.T) {
 				MaxInitRetries: 5,
 				InitRetryDelay: 1 * time.Second,
 				BucketID:       "2",
+				DigestCacheTTL: 1 * time.Hour,
 			},
 		},
 		{
@@ -55,6 +56,7 @@ func TestNewConfig(t *testing.T) {
 				MaxInitRetries: 5,
 				InitRetryDelay: 1 * time.Second,
 				BucketID:       "2",
+				DigestCacheTTL: 1 * time.Hour,
 			},
 		},
 		{
@@ -71,6 +73,7 @@ func TestNewConfig(t *testing.T) {
 				MaxInitRetries: 5,
 				InitRetryDelay: 1 * time.Second,
 				BucketID:       "2",
+				DigestCacheTTL: 1 * time.Hour,
 			},
 		},
 		{
@@ -88,6 +91,7 @@ func TestNewConfig(t *testing.T) {
 				MaxInitRetries: 5,
 				InitRetryDelay: 1 * time.Second,
 				BucketID:       "0",
+				DigestCacheTTL: 1 * time.Hour,
 			},
 		},
 	}
