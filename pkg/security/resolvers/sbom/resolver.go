@@ -10,6 +10,7 @@ package sbom
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -28,7 +29,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/sbom"
+	sbompkg "github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
@@ -66,7 +67,8 @@ const (
 // Data use the keep the result of a scan of a same workload across multiple
 // container
 type Data struct {
-	files fileQuerier
+	files    fileQuerier
+	packages []sbomtypes.PackageWithInstalledFiles // Store original packages for forwarding
 }
 
 // SBOM defines an SBOM
@@ -83,6 +85,7 @@ type SBOM struct {
 	state  *atomic.Int64
 
 	refresher *debouncer.Debouncer
+	forwarder *debouncer.Debouncer // Debouncer for forwarding LastAccess updates
 }
 
 type workloadKey string
@@ -110,6 +113,11 @@ func (s *SBOM) stop() {
 		s.refresher = nil
 	}
 
+	if s.forwarder != nil {
+		s.forwarder.Stop()
+		s.forwarder = nil
+	}
+
 	// change the state so that already queued sbom won't be handled
 	s.state.Store(stoppedState)
 }
@@ -127,7 +135,7 @@ func NewSBOM(id containerutils.ContainerID, cgroup *cgroupModel.CacheEntry, work
 
 // Resolver is the Software Bill-Of-material resolver
 type Resolver struct {
-	*utils.Notifier[Event, *sbom.ScanResult]
+	*utils.Notifier[Event, *sbompkg.ScanResult]
 
 	cfg *config.RuntimeSecurityConfig
 
@@ -179,7 +187,7 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 	}
 
 	resolver := &Resolver{
-		Notifier:              utils.NewNotifier[Event, *sbom.ScanResult](),
+		Notifier:              utils.NewNotifier[Event, *sbompkg.ScanResult](),
 		cfg:                   c,
 		statsdClient:          statsdClient,
 		dataCache:             dataCache,
@@ -251,7 +259,8 @@ func (r *Resolver) Start(ctx context.Context) error {
 				}
 			case <-ticker.C:
 				seclog.Debugf("Enriching SBOM with runtime usage")
-				if err := r.enrichSBOMsWithUsage(); err != nil {
+				_, err := r.enrichSBOMsWithUsage()
+				if err != nil {
 					seclog.Errorf("Couldn't enrich SBOMs with usage: %v", err)
 				}
 			}
@@ -292,6 +301,41 @@ func (r *Resolver) RefreshSBOM(containerID containerutils.ContainerID) error {
 		return nil
 	}
 	return fmt.Errorf("container %s not found", containerID)
+}
+
+// triggerForwarding triggers the forwarding debouncer to send updated SBOM with LastAccess to remote collector
+// This function assumes sbom is already locked by the caller
+func (r *Resolver) triggerForwarding(sbom *SBOM) {
+	// Create forwarder debouncer on demand
+	if sbom.forwarder == nil {
+		sbom.forwarder = debouncer.New(
+			5*time.Second, func() {
+				// Forward current SBOM data with LastAccess to remote collector
+				sbom.Lock()
+				defer sbom.Unlock()
+
+				if sbom.data == nil || len(sbom.data.packages) == 0 {
+					return
+				}
+
+				seclog.Debugf("Forwarding SBOM with LastAccess for container %s (%d packages)", sbom.ContainerID, len(sbom.data.packages))
+
+				// Create SBOM report and notify listeners
+				packagesReport := NewPackagesReport(sbom.data.packages, sbom.ContainerID)
+				scanResult := &sbompkg.ScanResult{
+					Report:           packagesReport,
+					CreatedAt:        time.Now(),
+					GenerationMethod: "security-agent",
+					RequestID:        string(sbom.ContainerID),
+				}
+				r.Notifier.NotifyListeners(SBOMComputed, scanResult)
+			},
+		)
+		sbom.forwarder.Start()
+	}
+
+	// Trigger the debouncer (will execute after 5 seconds of inactivity)
+	sbom.forwarder.Call()
 }
 
 // generateSBOM calls the collector to generate the SBOM of a sbom
@@ -359,10 +403,17 @@ func (r *Resolver) generateSBOMPolicyDef(containerID containerutils.ContainerID,
 	seclog.Infof("Generated %d SBOM macros and %d rules for container %s (%d total files)",
 		len(sbomMacros), len(sbomRules), containerID, fileCount)
 
-	return &rules.PolicyDef{
+	policyDef := &rules.PolicyDef{
 		Macros: sbomMacros,
 		Rules:  sbomRules,
 	}
+
+	jsonBytes, err := json.Marshal(policyDef)
+	if err == nil {
+		os.WriteFile("/tmp/sbom-policy-def-"+string(containerID)+".json", jsonBytes, 0644)
+	}
+
+	return policyDef
 }
 
 func (r *Resolver) doScan(sbom *SBOM) ([]sbomtypes.PackageWithInstalledFiles, error) {
@@ -420,29 +471,31 @@ func (r *Resolver) removeSBOMData(key workloadKey) {
 	r.dataCacheLock.Unlock()
 }
 
-func (r *Resolver) enrichSBOMsWithUsage() error {
+func (r *Resolver) enrichSBOMsWithUsage() (bool, error) {
 	r.sbomsLock.RLock()
 	defer r.sbomsLock.RUnlock()
 
 	images := r.wmeta.ListImages()
+	enriched := false
 
 	for _, image := range images {
 		uncompressedSBOM, err := sbomutil.UncompressSBOM(image.SBOM)
 		if err != nil {
-			return err
+			return false, err
 		}
 
 		for _, sbom := range r.sboms.Values() {
 			if sbom.data != nil && sbom.workloadKey == workloadKey(image.Name) {
-				r.enrichSBOMWithUsage(uncompressedSBOM, sbom)
+				enriched = enriched || r.enrichSBOMWithUsage(uncompressedSBOM, sbom)
 			}
 		}
 	}
 
-	return nil
+	return enriched, nil
 }
 
-func (r *Resolver) enrichSBOMWithUsage(wsbom *workloadmeta.SBOM, sbom *SBOM) {
+func (r *Resolver) enrichSBOMWithUsage(wsbom *workloadmeta.SBOM, sbom *SBOM) bool {
+	enriched := false
 	componentMap := make(map[string]*cyclonedx_v1_4.Component)
 	for _, component := range wsbom.CycloneDXBOM.Components {
 		componentMap[component.Name+"/"+component.Version] = component
@@ -461,9 +514,12 @@ func (r *Resolver) enrichSBOMWithUsage(wsbom *workloadmeta.SBOM, sbom *SBOM) {
 					Name:  "LastAccess",
 					Value: &lastAccess,
 				})
+
+				enriched = true
 			}
 		}
 	}
+	return enriched
 }
 
 func (r *Resolver) addPendingScan(containerID containerutils.ContainerID) bool {
@@ -498,6 +554,8 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 
 	seclog.Infof("analyzing sbom '%s'", sb.ContainerID)
 
+	time.Sleep(5 * time.Second)
+
 	if currentState := sb.state.Load(); currentState != pendingState {
 		r.removePendingScan(sb.ContainerID)
 
@@ -526,7 +584,8 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 	}
 
 	data := &Data{
-		files: newFileQuerier(report),
+		files:    newFileQuerier(report),
+		packages: report, // Store original packages for forwarding with LastAccess
 	}
 	sb.data = data
 
@@ -542,15 +601,8 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 
 	seclog.Infof("new sbom generated for '%s': %d files added", sb.ContainerID, data.files.len())
 
-	// Notify listeners with enriched SBOM (includes LastAccess if available)
-	packagesReport := NewPackagesReport(report, sb.ContainerID)
-	scanResult := &sbom.ScanResult{
-		Report:           packagesReport,
-		CreatedAt:        time.Now(),
-		GenerationMethod: "security-agent",
-		RequestID:        string(sb.ContainerID),
-	}
-	r.NotifyListeners(SBOMComputed, scanResult)
+	// NOTE: Don't forward SBOM to remote collector immediately, since LastAccess is not yet populated.
+	// The SBOM will be forwarded later when packages are accessed at runtime (via the forwarder debouncer).
 
 	// Notify policy generator if callback is set
 	r.policyGenLock.RLock()
@@ -592,7 +644,15 @@ func (r *Resolver) ResolvePackage(containerID containerutils.ContainerID, file *
 
 	pkg := sbom.data.files.queryFile(file.PathnameStr)
 	if pkg != nil {
+		// Update LastAccess timestamp
+		oldLastAccess := pkg.LastAccess
+
 		pkg.LastAccess = time.Now()
+
+		// Trigger forwarding debouncer to send updated SBOM to remote collector
+		if pkg.LastAccess.Sub(oldLastAccess) > 1*time.Minute {
+			r.triggerForwarding(sbom)
+		}
 	}
 
 	return pkg

@@ -113,6 +113,8 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Compone
 
 	opts = append(opts, grpc.WithTransportCredentials(c.StreamHandler.Credentials()))
 
+	log.Infof("initializing remote collector with address: %s", address)
+
 	opts = append(opts, grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
 		if filepath.IsAbs(url) {
 			return net.Dial("unix", url)
