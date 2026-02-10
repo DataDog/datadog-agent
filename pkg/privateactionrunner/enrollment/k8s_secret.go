@@ -12,6 +12,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"time"
 
 	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -19,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -27,9 +29,11 @@ import (
 )
 
 const (
-	defaultSecretName = "private-action-runner-identity"
-	privateKeyField   = "private_key"
-	urnField          = "urn"
+	defaultSecretName      = "private-action-runner-identity"
+	privateKeyField        = "private_key"
+	urnField               = "urn"
+	secretWaitTimeout      = 5 * time.Minute
+	secretWaitPollInterval = 5 * time.Second
 )
 
 // getIdentityFromK8sSecret retrieves PAR identity from a Kubernetes secret
@@ -42,12 +46,28 @@ func getIdentityFromK8sSecret(ctx context.Context, cfg configModel.Reader) (*Per
 	ns := namespace.GetResourcesNamespace()
 	secretName := getSecretName(cfg)
 
+	// Check if we're a follower - if so, we may need to wait for leader to create the secret
+	le, err := leaderelection.GetLeaderEngine()
+	isFollower := err == nil && !le.IsLeader()
+
 	secret, err := client.CoreV1().Secrets(ns).Get(ctx, secretName, metav1.GetOptions{})
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
-			return nil, nil
+			// If we're a follower and secret doesn't exist, wait for leader to create it
+			if isFollower {
+				log.Info("Follower replica: waiting for leader to create PAR identity secret")
+				secret, err = waitForSecretCreation(ctx, client, ns, secretName)
+				if err != nil {
+					return nil, err
+				}
+				// Continue to parse the secret below
+			} else {
+				// Leader or no leader election - return nil to trigger self-enrollment
+				return nil, nil
+			}
+		} else {
+			return nil, fmt.Errorf("failed to get identity secret: %w", err)
 		}
-		return nil, fmt.Errorf("failed to get identity secret: %w", err)
 	}
 
 	privateKey, ok := secret.Data[privateKeyField]
@@ -70,6 +90,18 @@ func getIdentityFromK8sSecret(ctx context.Context, cfg configModel.Reader) (*Per
 
 // persistIdentityToK8sSecret saves the enrollment result to a Kubernetes secret
 func persistIdentityToK8sSecret(ctx context.Context, cfg configModel.Reader, result *Result) error {
+	// Check if this replica is the leader before creating the secret
+	le, err := leaderelection.GetLeaderEngine()
+	if err != nil {
+		log.Warnf("Failed to get leader engine, proceeding without leader check: %v", err)
+		// Fall through to create secret anyway if leader election is not available
+	} else if !le.IsLeader() {
+		log.Info("Not leader, skipping PAR identity secret creation (leader will handle it)")
+		return nil
+	}
+
+	log.Info("Leader replica: persisting PAR identity to K8s secret")
+
 	client, err := getKubeClient()
 	if err != nil {
 		return err
@@ -138,4 +170,33 @@ func getSecretName(cfg configModel.Reader) string {
 		return secretName
 	}
 	return defaultSecretName
+}
+
+// waitForSecretCreation waits for the leader to create the PAR identity secret
+func waitForSecretCreation(ctx context.Context, client kubernetes.Interface, ns, secretName string) (*corev1.Secret, error) {
+	deadline := time.Now().Add(secretWaitTimeout)
+	ticker := time.NewTicker(secretWaitPollInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("context cancelled while waiting for secret: %w", ctx.Err())
+		case <-ticker.C:
+			if time.Now().After(deadline) {
+				return nil, fmt.Errorf("timeout waiting for leader to create secret %s/%s after %v", ns, secretName, secretWaitTimeout)
+			}
+
+			secret, err := client.CoreV1().Secrets(ns).Get(ctx, secretName, metav1.GetOptions{})
+			if err == nil {
+				log.Infof("Follower replica: found PAR identity secret created by leader: %s/%s", ns, secretName)
+				return secret, nil
+			}
+
+			if !k8serrors.IsNotFound(err) {
+				return nil, fmt.Errorf("error checking for secret: %w", err)
+			}
+			// Secret still not found, continue waiting
+		}
+	}
 }
