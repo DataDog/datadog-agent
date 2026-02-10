@@ -41,6 +41,7 @@ var testInterfaces = []CiscoInterface{
 			IPAddress:       "10.1.1.5",
 			Ipv4SubnetMask:  "255.255.255.0",
 			IPV6Address:     "2001:0000:130F:0000:0000:09C0:876A:130B",
+			InterfaceType:   "iana-iftype-ethernet-csmacd",
 		},
 	},
 }
@@ -69,6 +70,8 @@ func TestProcessInterfacesMetadata(t *testing.T) {
 			MacAddress:  "00:01:02:03",
 			OperStatus:  devicemetadata.OperStatusUp,
 			AdminStatus: devicemetadata.AdminStatusDown,
+			Type:        6,
+			IsPhysical:  boolPtr(true),
 		},
 	}, interfaceMetadata)
 	require.Equal(t, map[string]CiscoInterface{
