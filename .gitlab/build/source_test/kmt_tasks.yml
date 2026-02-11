@@ -12,11 +12,8 @@
           - .gitlab/build/source_test/kmt_tasks.yml
         compare_to: $COMPARE_TO_BRANCH
   script:
-    - token="$(dda inv -- auth.gitlab --repo test-infra-definitions)"
-    - git config --global url."https://gitlab-ci-token:${token}@gitlab.ddbuild.io/DataDog/".insteadOf "git@github.com:"
     # Avoid rate limits when running kmt.init (pulumi queries the Github API to get the releases of plugins)
     - export GITHUB_TOKEN=$(dda inv github.get-token-from-app)
-    - export KMT_TEST_INFRA_DEFINITIONS_PATH="$(go env GOPATH)"/src/github.com/DataDog/datadog-agent/test/e2e-framework
     - dda inv -- kmt.init --remote-setup-only --skip-ssh-setup --exclude-requirements $KMT_EXCLUDE_REQUIREMENTS --images ""
     - export PATH=$PATH:$HOME/.pulumi/bin  # Simulate a shell restart, required for the check
     - dda inv -- kmt.selfcheck --remote-setup-only --exclude-requirements $KMT_EXCLUDE_REQUIREMENTS --show-flare-for-failures
@@ -46,7 +43,7 @@ test_kmt_local_setup_macos:
     - !reference [.install_python_dependencies]
     # See there is no virtualization, we need to clean the environment regularly
     - !reference [.macos_runner_maintenance]
-  tags: ["macos:sonoma-amd64", "specific:true"]
+  tags: ["macos:sonoma-arm64", "specific:true"]
   variables:
      # Some requirements cannot be tested in the CI yet:
     # - Docker,Compiler,UserInDockerGroup: no docker-in-docker support in these jobs yet
