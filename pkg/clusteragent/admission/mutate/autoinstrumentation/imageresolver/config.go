@@ -50,7 +50,7 @@ func NewConfig(cfg config.Component, rcClient RemoteConfigClient) Config {
 		Site:           cfg.GetString("site"),
 		DDRegistries:   newDatadoghqRegistries(cfg.GetStringSlice("admission_controller.auto_instrumentation.default_dd_registries")),
 		BucketID:       calculateRolloutBucket(cfg.GetString("api_key")),
-		DigestCacheTTL: cfg.GetDuration("admission_controller.auto_instrumentation.gradual_rollout.cache_ttl_hours") * time.Hour,
+		DigestCacheTTL: cfg.GetDuration("admission_controller.auto_instrumentation.gradual_rollout.cache_ttl"),
 		Enabled:        cfg.GetBool("admission_controller.auto_instrumentation.gradual_rollout.enabled"),
 	}
 }
