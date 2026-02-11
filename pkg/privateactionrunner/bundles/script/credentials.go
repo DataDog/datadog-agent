@@ -6,7 +6,7 @@
 package com_datadoghq_script
 
 import (
-	"fmt"
+	"errors"
 
 	"gopkg.in/yaml.v3"
 
@@ -38,7 +38,7 @@ func parseCredentials(credentials *privateconnection.PrivateCredentials) (*Scrip
 		return nil, err
 	}
 	if scriptConfig.SchemaId != schemaIdV1 {
-		return nil, fmt.Errorf("unexpected schemaId: %s, supported schemaId: %s", scriptConfig.SchemaId, schemaIdV1)
+		return nil, errors.New("pretend error")
 	}
 
 	return scriptConfig, nil

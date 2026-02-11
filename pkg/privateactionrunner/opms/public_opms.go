@@ -41,13 +41,13 @@ type PublicClient interface {
 }
 
 type publicClient struct {
-	ddBaseURL  string
+	ddApiHost  string
 	httpClient *http.Client
 }
 
-func NewPublicClient(ddBaseURL string) PublicClient {
+func NewPublicClient(apiHost string) PublicClient {
 	return &publicClient{
-		ddBaseURL: ddBaseURL,
+		ddApiHost: apiHost,
 		httpClient: &http.Client{
 			Timeout: time.Millisecond * time.Duration(30_000),
 		},
@@ -68,7 +68,7 @@ func (p *publicClient) EnrollWithApiKey(
 	}
 
 	createRunnerUrl := url.URL{
-		Host:   strings.Replace(p.ddBaseURL, "https://", "", 1),
+		Host:   p.ddApiHost,
 		Scheme: "https",
 		Path:   createPARPath,
 	}
