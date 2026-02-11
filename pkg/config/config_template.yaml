@@ -2547,7 +2547,7 @@
 
 {{ end -}}
 {{ if .Agent }}
-## @param metadata_providers - list of custom object - optional
+## @param metadata_providers - list of object - optional - default: []
 ## @env DD_METADATA_PROVIDERS - list of custom object - optional
 ## Metadata providers, add or remove from the list to enable or disable collection.
 ## Intervals are expressed in seconds. You can also set a provider's interval to 0
@@ -3509,6 +3509,7 @@
 #
 # ecs_deployment_mode: "auto"
 {{ end -}}
+
 {{ if .CoreAgent }}
 ##################################################
 ## CRI and Containerd integration Configuration ##
@@ -3771,7 +3772,7 @@
 #   - cluster.k8s.io/machine
 
 ## @param cluster_name - string - optional - default: ""
-## @env DD_CLUSTER_NAME - string - optional
+## @env DD_CLUSTER_NAME - string - optional - default: ""
 ## Set a custom kubernetes cluster identifier to avoid host alias collisions.
 ## The cluster name can be up to 40 characters with the following restrictions:
 ## * Lowercase letters, numbers, and hyphens only.
@@ -3829,6 +3830,7 @@
 #   # Version of the openmetrics check to be scheduled by the Prometheus auto-discovery
 #
 #   version: 1
+
 {{ end -}}
 {{ if .CloudFoundry }}
 #######################################################
@@ -3955,14 +3957,15 @@
 #   # Configuration for automatic SNMP device scanning.
 #   # When enabled, discovered SNMP devices are automatically scanned.
 #
-#   # default_scan:
-#
+#   default_scan:
+
 #     # @param enabled - boolean - optional - default: false
+#     # @env DD_NETWORK_DEVICES_DEFAULT_SCAN_ENABLED - boolean - optional - default: false
 #     # Enable automatic scanning of discovered SNMP devices.
 #     # When enabled, devices discovered via autodiscovery or configured
 #     # directly will be scanned to collect OID data.
 #
-#     # enabled: false
+#     enabled: false
 
 #   # @param autodiscovery - custom object - optional
 #   # Creates and schedules a listener to automatically discover your SNMP devices.
@@ -4092,23 +4095,27 @@
 #     use_deduplication: false
 
 #     # @param oid_batch_size - integer - optional - default: 5
+#     # @env DD_NETWORK_DEVICES_AUTODISCOVERY_OID_BATCH_SIZE - integer - optional - default: 5
 #     # The number of OIDs handled by each batch for all hosts in SNMP autodiscovery.
 #     # Applies to all configurations if not overridden.
 #     # By default, devices dynamically tune their batch size to optimize performance (agent version v7.73+).
 #
-#     # oid_batch_size: 5
+#     oid_batch_size: 5
 
 #     # @param timeout - integer - optional - default: 5
+#     # @env DD_NETWORK_DEVICES_AUTODISCOVERY_TIMEOUT - integer - optional - default: 5
 #     # The number of seconds before timing out. Applies to all configurations if not overridden.
 #
-#     # timeout: 5
+#     timeout: 5
 
 #     # @param retries - integer - optional - default: 3
+#     # @env DD_NETWORK_DEVICES_AUTODISCOVERY_RETRIES - integer - optional - default: 3
 #     # The number of retries before failure. Applies to all configurations if not overridden.
 #
-#     # retries: 3
+#     retries: 3
 
-#     # @param configs - list - optional
+#     # @param configs - list of object - optional - default: []
+#     # @env DD_NETWORK_DEVICES_AUTODISCOVERY_CONFIGS - JSON list of object - optional - default: []
 #     # The actual list of configurations used to discover SNMP devices in various subnets.
 #     # Example:
 #     # configs:
@@ -4272,7 +4279,7 @@
 #         # @param oid_batch_size - integer - optional - default: 5
 #         # The number of OIDs handled by each batch.
 #
-#         # oid_batch_size: 5
+#         oid_batch_size: 5
 #
 #         # @param interface_configs - map - optional
 #         # This option is used to override interface inbound/outbound speed, add interface tags, or disable monitoring for specific interfaces
@@ -4467,22 +4474,26 @@
 #
 #     enabled: true
 
-#     # @param entry_ttl - duration - optional - default: 24h
+#     # @param entry_ttl - duration - optional - default: "0s"
+#     # @env DD_REVERSE_DNS_ENRICHMENT_CACHE_ENTRY_TTL - duration - optional - default: "0s"
 #     # The amount of time that a cache entry remains valid before it is expired and removed from the cache.
 #
 #     entry_ttl: 24h
 
-#     # @param clean_interval - duration - optional - default: 2h
+#     # @param clean_interval - duration - optional - default: "0s"
+#     # @env DD_REVERSE_DNS_ENRICHMENT_CACHE_CLEAN_INTERVAL - duration - optional - default: "0s"
 #     # An interval that specifies how often expired entries are removed from the cache to free space.
 #
 #     clean_interval: 2h
 
-#     # @param persist_interval - duration - optional - default: 2h
+#     # @param persist_interval - duration - optional - default: "0s"
+#     # @env DD_REVERSE_DNS_ENRICHMENT_CACHE_PERSIST_INTERVAL - duration - optional - default: "0s"
 #     # An interval that specifies how often the cache is persisted to disk so the cache can be reloaded when the Agent is upgraded or restarted.
 #
 #     persist_interval: 2h
 
-#     # @param max_retries - integer - optional - default: 10
+#     # @param max_retries - integer - optional - default: -1
+#     # @env DD_REVERSE_DNS_ENRICHMENT_CACHE_MAX_RETRIES - integer - optional - default: -1
 #     # The maximum number of retries to perform when a DNS lookup operation fails, after which the hostname "" is returned and cached for the IP address.
 #
 #     max_retries: 10
@@ -4523,7 +4534,8 @@
 #
 #     recovery_intervals: 5
 
-#     # @param recovery_interval - duration - optional - default: 5s
+#     # @param recovery_interval - duration - optional - default: "0s"
+#     # @env DD_REVERSE_DNS_ENRICHMENT_RATE_LIMITER_RECOVERY_INTERVAL - duration - optional - default: "0s"
 #     # The interval between incrementally increasing the rate limit back to limit_per_sec when lookups are again successful after being throttled due to errors.
 #     # The rate limit will be increased by (limit_per_sec - limit_throttled_per_sec) / recovery_intervals every recovery_interval, until it reaches
 #     # limit_per_sec.  For example, with limit_per_sec=1000, limit_throttled_per_sec=1, recovery_intervals=5, recovery_interval=5s, the limit will
@@ -4795,8 +4807,10 @@
 #
 #       sampling_percentage: 100
 
-#     infra_attributes:
+#     # @param infra_attributes - custom object - optional
 #
+#     infra_attributes:
+
 #       # @param enabled - boolean - optional - default: true
 #       # @env DD_OTLP_CONFIG_TRACES_INFRA_ATTRIBUTES_ENABLED - boolean - optional - default: true
 #       # Set to false to disable Infra-Attribute-Processor for traces pipeline in the OTLP ingest endpoint.
@@ -4833,8 +4847,8 @@
 #
 #       max_size: 0
 
-#       # @param flush_timeout - duration - optional - default: 200ms
-#       # @env DD_OTLP_CONFIG_LOGS_BATCH_FLUSH_TIMEOUT - duration - optional - default: 200ms
+#       # @param flush_timeout - string - optional - default: "200ms"
+#       # @env DD_OTLP_CONFIG_LOGS_BATCH_FLUSH_TIMEOUT - string - optional - default: "200ms"
 #       # The timeout for flushing the batch.
 #
 #       flush_timeout: "200ms"
