@@ -29,11 +29,9 @@ import (
 )
 
 const (
-	defaultSecretName      = "private-action-runner-identity"
-	privateKeyField        = "private_key"
-	urnField               = "urn"
-	secretWaitTimeout      = 5 * time.Minute
-	secretWaitPollInterval = 5 * time.Second
+	defaultSecretName = "private-action-runner-identity"
+	privateKeyField   = "private_key"
+	urnField          = "urn"
 )
 
 // getIdentityFromK8sSecret retrieves PAR identity from a Kubernetes secret
@@ -56,18 +54,59 @@ func getIdentityFromK8sSecret(ctx context.Context, cfg configModel.Reader) (*Per
 		if !k8serrors.IsNotFound(err) {
 			return nil, fmt.Errorf("failed to get identity secret: %w", err)
 		}
-		if le.IsLeader() {
-			// Leader - return nil to trigger self-enrollment
-			return nil, nil
-		}
-		// Follower - since secret doesn't exist, wait for leader to create it
-		log.Info("Follower replica: waiting for leader to create PAR identity secret")
-		secret, err = waitForSecretCreation(ctx, client, ns, secretName)
+		log.Info("PAR identity secret does not exist, waiting for leader to create it...")
+		secret, err = waitForLeaderAndSecret(ctx, le, client, ns, secretName)
 		if err != nil {
 			return nil, err
 		}
 	}
+	if secret == nil {
+		return nil, nil
+	}
+	return parseSecretData(secret, ns, secretName)
+}
 
+// waitForLeaderAndSecret waits until either:
+// - We become leader (then returns nil to trigger enrollment)
+// - The secret appears (created by current or previous leader)
+func waitForLeaderAndSecret(ctx context.Context, le *leaderelection.LeaderEngine, client kubernetes.Interface, ns, secretName string) (*corev1.Secret, error) {
+	leadershipChange, isLeader := le.Subscribe()
+
+	if isLeader() {
+		log.Info("This replica is the leader, will create PAR identity secret")
+		return nil, nil
+	}
+
+	log.Info("This replica is a follower, waiting for leader to create PAR identity secret")
+
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+
+		case <-leadershipChange:
+			if isLeader() {
+				log.Info("Became leader, will create PAR identity secret")
+				return nil, nil
+			}
+		case <-ticker.C:
+			secret, err := client.CoreV1().Secrets(ns).Get(ctx, secretName, metav1.GetOptions{})
+			if err == nil {
+				log.Infof("Follower replica: found PAR identity secret created by leader: %s/%s", ns, secretName)
+				return secret, nil
+			}
+			if !k8serrors.IsNotFound(err) {
+				return nil, fmt.Errorf("error checking for secret: %w", err)
+			}
+		}
+	}
+}
+
+// parseSecretData extracts identity data from a Kubernetes secret
+func parseSecretData(secret *corev1.Secret, ns, secretName string) (*PersistedIdentity, error) {
 	privateKey, ok := secret.Data[privateKeyField]
 	if !ok || len(privateKey) == 0 {
 		return nil, errors.New("private_key field is missing or empty in secret")
@@ -93,7 +132,7 @@ func persistIdentityToK8sSecret(ctx context.Context, cfg configModel.Reader, res
 		return err
 	}
 	if !le.IsLeader() {
-		log.Info("Not leader, skipping PAR identity secret creation (leader will handle it)")
+		log.Info("Not leader, skipping PAR identity secret persistence")
 		return nil
 	}
 
@@ -167,33 +206,4 @@ func getSecretName(cfg configModel.Reader) string {
 		return secretName
 	}
 	return defaultSecretName
-}
-
-// waitForSecretCreation waits for the leader to create the PAR identity secret
-func waitForSecretCreation(ctx context.Context, client kubernetes.Interface, ns, secretName string) (*corev1.Secret, error) {
-	deadline := time.Now().Add(secretWaitTimeout)
-	ticker := time.NewTicker(secretWaitPollInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil, fmt.Errorf("context cancelled while waiting for secret: %w", ctx.Err())
-		case <-ticker.C:
-			if time.Now().After(deadline) {
-				return nil, fmt.Errorf("timeout waiting for leader to create secret %s/%s after %v", ns, secretName, secretWaitTimeout)
-			}
-
-			secret, err := client.CoreV1().Secrets(ns).Get(ctx, secretName, metav1.GetOptions{})
-			if err == nil {
-				log.Infof("Follower replica: found PAR identity secret created by leader: %s/%s", ns, secretName)
-				return secret, nil
-			}
-
-			if !k8serrors.IsNotFound(err) {
-				return nil, fmt.Errorf("error checking for secret: %w", err)
-			}
-			// Secret still not found, continue waiting
-		}
-	}
 }
