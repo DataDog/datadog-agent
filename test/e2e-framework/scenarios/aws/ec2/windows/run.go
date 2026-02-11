@@ -7,6 +7,7 @@ package windows
 
 import (
 	"fmt"
+	"hash/fnv"
 	"math/rand"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/activedirectory"
@@ -30,13 +31,15 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.Windows
 	// Set the environment for test code access
 	env.SetEnvironment(&awsEnv)
 
-	// Use InfraOSDescriptor when set (e.g. -c ddinfra:osDescriptor=...), otherwise randomly pick a Windows Server version (2016–2025) for e2e coverage
+	// Use InfraOSDescriptor when set (e.g. -c ddinfra:osDescriptor=...), otherwise pick a Windows Server version (2016–2025) for e2e coverage.
+	// When InfraWindowsVersionSeed is set (e.g. CI_PIPELINE_ID-CI_JOB_NAME), the same value yields the same version on retries.
 	var osDesc compos.Descriptor
 	if descStr := awsEnv.InfraOSDescriptor(); descStr != "" {
 		osDesc = compos.DescriptorFromString(descStr, compos.WindowsServerDefault)
 	} else {
 		versions := compos.WindowsServerVersionsForE2E
-		osDesc = versions[rand.Intn(len(versions))]
+		idx := pickVersionIndex(versions, awsEnv.InfraWindowsVersionSeed())
+		osDesc = versions[idx]
 	}
 	params.instanceOptions = append(params.instanceOptions, ec2.WithOS(osDesc))
 
@@ -134,6 +137,17 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.Windows
 	}
 
 	return nil
+}
+
+// pickVersionIndex returns an index in [0, len(versions)). If seed is set, hashes it for deterministic choice; otherwise uses rand.
+func pickVersionIndex(versions []compos.Descriptor, seed string) int {
+	n := len(versions)
+	if seed == "" {
+		return rand.Intn(n)
+	}
+	h := fnv.New64a()
+	h.Write([]byte(seed))
+	return int(h.Sum64() % uint64(n))
 }
 
 // Run is the entry point for the scenario when run via pulumi.
