@@ -136,9 +136,8 @@ type Component interface {
 	Dump(verbose bool) WorkloadDumpResponse
 
 	// DumpStructured lists the content of the store as structured entities.
-	// The verbose parameter is ignored; always returns only merged entities.
-	// Use Dump(verbose=true) for per-source details in text format.
-	DumpStructured(verbose bool) WorkloadDumpStructuredResponse
+	// Always returns only merged entities. Use Dump(verbose=true) for per-source details.
+	DumpStructured() WorkloadDumpStructuredResponse
 
 	// ResetProcesses resets the state of the store so that newProcesses are the
 	// only entites stored.

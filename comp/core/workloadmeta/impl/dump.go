@@ -88,10 +88,10 @@ func (w *workloadmeta) Dump(verbose bool) wmdef.WorkloadDumpResponse {
 }
 
 // DumpStructured implements Store#DumpStructured.
-// Note: The verbose parameter is ignored. DumpStructured always returns only merged
-// entities to avoid unlabeled duplicates in JSON output. The merged entity contains
-// all data from all sources. Use Dump(verbose=true) for per-source breakdowns in text format.
-func (w *workloadmeta) DumpStructured(verbose bool) wmdef.WorkloadDumpStructuredResponse {
+// Always returns only merged entities to avoid unlabeled duplicates in JSON output.
+// The merged entity contains all data from all sources.
+// Use Dump(verbose=true) for per-source breakdowns in text format.
+func (w *workloadmeta) DumpStructured() wmdef.WorkloadDumpStructuredResponse {
 	workloadList := wmdef.WorkloadDumpStructuredResponse{
 		Entities: make(map[string][]wmdef.Entity),
 	}
