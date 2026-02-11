@@ -22,86 +22,54 @@ import (
 
 // context contains the context used to render the config file template
 type context struct {
-	OS                    string
-	Common                bool
-	Agent                 bool
-	Python                bool // Sub-option of Agent
-	Metadata              bool
-	Dogstatsd             bool
-	LogsAgent             bool
-	JMX                   bool
-	Autoconfig            bool
-	Logging               bool
-	Autodiscovery         bool
-	DockerTagging         bool
-	Kubelet               bool
-	KubernetesTagging     bool
-	ECS                   bool
-	Containerd            bool
-	CRI                   bool
-	ProcessAgent          bool
-	SystemProbe           bool
-	KubeApiServer         bool
-	TraceAgent            bool
-	ClusterAgent          bool
-	ClusterChecks         bool
-	AdmissionController   bool
-	CloudFoundryBBS       bool
-	CloudFoundryCC        bool
-	Compliance            bool
-	SNMP                  bool
-	SecurityAgent         bool
-	SBOM                  bool // enables CSM Vulnerability Management
-	PrometheusScrape      bool
-	OTLP                  bool
-	APMInjection          bool
-	NetworkPath           bool
-	ApplicationMonitoring bool
-	Synthetics            bool
+	OS                  string
+	Common              bool
+	Agent               bool
+	CoreAgent           bool
+	Dogstatsd           bool
+	LogsAgent           bool
+	Logging             bool
+	DockerTagging       bool
+	Kubelet             bool
+	KubernetesTagging   bool
+	ECS                 bool
+	Containerd          bool
+	CRI                 bool
+	KubeApiServer       bool
+	TraceAgent          bool
+	ClusterAgent        bool
+	ClusterChecks       bool
+	AdmissionController bool
+	CloudFoundry        bool
 }
 
 func mkContext(buildType string, osName string) context {
 	buildType = strings.ToLower(buildType)
 
-	agentContext := context{
-		OS:                osName,
-		Common:            true,
-		Agent:             true,
-		Python:            true,
-		Metadata:          true,
-		Dogstatsd:         true,
-		LogsAgent:         true,
-		JMX:               true,
-		Autoconfig:        true,
-		Logging:           true,
-		Autodiscovery:     true,
-		DockerTagging:     true,
-		KubernetesTagging: true,
-		ECS:               true,
-		Containerd:        true,
-		CRI:               true,
-		ProcessAgent:      true,
-		TraceAgent:        true,
-		Kubelet:           true,
-		KubeApiServer:     true, // TODO: remove when phasing out from node-agent
-		Compliance:        true,
-		SBOM:              true,
-		SNMP:              true,
-		PrometheusScrape:  true,
-		OTLP:              true,
-		NetworkPath:       true,
-		Synthetics:        true,
-	}
-
 	switch buildType {
 	case "agent-py3":
-		return agentContext
+		return context{
+			OS:                osName,
+			Common:            true,
+			Agent:             true,
+			CoreAgent:         true,
+			Dogstatsd:         true,
+			LogsAgent:         true,
+			Logging:           true,
+			DockerTagging:     true,
+			KubernetesTagging: true,
+			ECS:               true,
+			Containerd:        true,
+			CRI:               true,
+			TraceAgent:        true,
+			Kubelet:           true,
+			KubeApiServer:     true, // TODO: remove when phasing out from node-agent
+		}
 	case "iot-agent":
 		return context{
 			OS:        osName,
 			Common:    true,
 			Agent:     true,
-			Metadata:  true,
 			Dogstatsd: true,
 			LogsAgent: true,
 			Logging:   true,
@@ -130,13 +98,12 @@ func mkContext(buildType string, osName string) context {
 		}
 	case "dcacf":
 		return context{
-			OS:              osName,
-			ClusterAgent:    true,
-			Common:          true,
-			Logging:         true,
-			ClusterChecks:   true,
-			CloudFoundryBBS: true,
-			CloudFoundryCC:  true,
+			OS:            osName,
+			ClusterAgent:  true,
+			Common:        true,
+			Logging:       true,
+			ClusterChecks: true,
+			CloudFoundry:  true,
 		}
 	// security-agent and system-probe use their own templating file, they only require OS
 	case "security-agent":
@@ -171,19 +138,19 @@ func render(destFile string, tplFile string, component string, osName string) {
 	}
 }
 
-func renderAll(destFolder string, tplFile string) {
-	for _, component := range []string{
-		"agent-py3",
-		"iot-agent",
-		"system-probe",
-		"dogstatsd",
-		"dca",
-		"dcacf",
-		"security-agent",
+func renderAll(destFolder string, tplFolder string) {
+	for component, templateName := range map[string]string{
+		"agent-py3":      "config_template.yaml",
+		"iot-agent":      "config_template.yaml",
+		"dogstatsd":      "config_template.yaml",
+		"dca":            "config_template.yaml",
+		"dcacf":          "config_template.yaml",
+		"system-probe":   "system-probe_template.yaml",
+		"security-agent": "security-agent_template.yaml",
 	} {
 		for _, osName := range []string{"windows", "darwin", "linux"} {
 			destFile := filepath.Join(destFolder, component+"_"+osName+".yaml")
-			render(destFile, tplFile, component, osName)
+			render(destFile, filepath.Join(tplFolder, templateName), component, osName)
 			fmt.Println("Successfully wrote", destFile)
 		}
 	}
