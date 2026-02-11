@@ -60,6 +60,8 @@ type LogsConfig struct {
 	IncludeMatches     StringSliceField `mapstructure:"include_matches" json:"include_matches" yaml:"include_matches"`          // Journald
 	ExcludeMatches     StringSliceField `mapstructure:"exclude_matches" json:"exclude_matches" yaml:"exclude_matches"`          // Journald
 	ContainerMode      bool             `mapstructure:"container_mode" json:"container_mode" yaml:"container_mode"`             // Journald
+	// Intentionally nillable string, as journald will decide on non-standard defaults if the field is not set.
+	DefaultApplicationName *string `mapstructure:"default_application_name" json:"default_application_name" yaml:"default_application_name"` // Journald
 
 	Image string // Docker
 	Label string // Docker

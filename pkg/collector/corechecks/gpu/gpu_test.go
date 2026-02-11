@@ -28,6 +28,7 @@ import (
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
@@ -662,6 +663,114 @@ func TestRunEmitsCorrectTags(t *testing.T) {
 	require.NoError(t, check.Run())
 
 	mockSender.AssertExpectations(t)
+}
+
+// TestMemoryLimitTagStabilityOnIdleSample reproduces a non-determinism bug:
+// when the GPU is idle (no running processes), the stateless collector downgrades
+// memory.limit to Low priority (because allWorkloadIDs is empty). The eBPF
+// collector also emits memory.limit at Low priority but may still carry cached
+// inactive PIDs as AssociatedWorkloads. Because RemoveDuplicateMetrics resolves
+// same-priority ties by map iteration order, the winner—and therefore the tag
+// set on gpu.memory.limit—flips between PID-scoped and device-wide tagging
+// across runs, creating unstable timeseries cardinality.
+func TestMemoryLimitTagStabilityOnIdleSample(t *testing.T) {
+	cachedPid := uint32(5678)
+	deviceUUID := testutil.GPUUUIDs[0]
+	var procInfo []nvml.ProcessInfo
+
+	// Mock NVML: single device, no running processes (idle GPU).
+	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+		testutil.WithMIGDisabled(),
+		testutil.WithDeviceCount(1),
+		testutil.WithMockAllFunctions(),
+		testutil.WithProcessInfoCallback(func(_ string) ([]nvml.ProcessInfo, nvml.Return) {
+			return procInfo, nvml.SUCCESS
+		}),
+	)
+	ddnvml.WithMockNVML(t, nvmlMock)
+	deviceCache := ddnvml.NewDeviceCache()
+	devices, err := deviceCache.AllPhysicalDevices()
+	require.NoError(t, err)
+
+	// SP cache: starts with one active PID so the eBPF collector seeds its
+	// internal activeMetrics map.
+	spCache := &nvidia.SystemProbeCache{}
+
+	deps := &nvidia.CollectorDependencies{
+		SystemProbeCache: spCache,
+		Workloadmeta:     testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
+	}
+
+	// Only keep stateless + ebpf; disable everything else.
+	disabled := []string{"sampling", "fields", "gpm", "device_events"}
+	collectors, err := nvidia.BuildCollectors(devices, deps, disabled)
+	require.NoError(t, err)
+
+	processData := [][]struct {
+		pid    uint32
+		memory uint64
+	}{
+		// Round 1: active process
+		{{
+			pid:    cachedPid,
+			memory: 1024,
+		}},
+		// Round 2: no active process
+		{},
+	}
+
+	for _, procData := range processData {
+		// Setup data sources for both collectors
+		var spStats model.GPUStats
+		for _, proc := range procData {
+			spStats.ProcessMetrics = append(spStats.ProcessMetrics, model.ProcessStatsTuple{
+				Key: model.ProcessStatsKey{PID: proc.pid, DeviceUUID: deviceUUID},
+				UtilizationMetrics: model.UtilizationMetrics{
+					Memory: model.MemoryMetrics{CurrentBytes: proc.memory},
+				},
+			})
+		}
+		spCache.SetStatsForTest(&spStats)
+
+		procInfo = make([]nvml.ProcessInfo, len(procData))
+		for i, proc := range procData {
+			procInfo[i] = nvml.ProcessInfo{Pid: proc.pid, UsedGpuMemory: proc.memory}
+		}
+
+		// Collect from the real collectors and group by collector name.
+		collectorMetrics := make(map[nvidia.CollectorName][]nvidia.Metric)
+		for _, c := range collectors {
+			m, _ := c.Collect() // errors expected from unsupported APIs, ignore
+			collectorMetrics[c.Name()] = m
+		}
+
+		// Part 1 (deterministic): the two collectors must NOT emit memory.limit
+		// at the same priority. Equal priorities let map-iteration order decide
+		// the dedup winner, which is non-deterministic.
+		memLimitMetrics := make(map[nvidia.CollectorName][]nvidia.Metric)
+		for name, metrics := range collectorMetrics {
+			for _, m := range metrics {
+				if m.Name == "memory.limit" {
+					memLimitMetrics[name] = append(memLimitMetrics[name], m)
+				}
+			}
+		}
+
+		// We expect memory.limit from at least two different collectors.
+		statelessCollector := nvidia.CollectorName("stateless")
+		ebpfCollector := nvidia.CollectorName("ebpf")
+
+		require.Len(t, memLimitMetrics, 2)
+		require.Contains(t, memLimitMetrics, statelessCollector)
+		require.Contains(t, memLimitMetrics, ebpfCollector)
+		require.Len(t, memLimitMetrics[statelessCollector], 2) // memory.limit comes from two APIs in stateless collector
+		require.Len(t, memLimitMetrics[ebpfCollector], 1)      // memory.limit comes from one API in ebpf collector
+		require.NotEmpty(t, memLimitMetrics[ebpfCollector][0].AssociatedWorkloads, "memory.limit must be emitted when deduplication happens")
+
+		for _, m := range memLimitMetrics[statelessCollector] {
+			require.Greater(t, m.Priority, memLimitMetrics[ebpfCollector][0].Priority, "memory.limit must always have higher priority in stateless collector than in ebpf collector")
+		}
+	}
 }
 
 func TestDisabledCollectorsConfiguration(t *testing.T) {

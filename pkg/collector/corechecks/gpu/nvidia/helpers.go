@@ -169,14 +169,17 @@ func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Componen
 // ]
 func RemoveDuplicateMetrics(allMetrics map[CollectorName][]Metric) []Metric {
 	// Map metric name -> collector ID -> []Metric (with that name)
-	nameToCollectorMetrics := make(map[string]map[CollectorName][]Metric)
+	nameToCollectorMetrics := make(map[string]map[CollectorName]map[MetricPriority][]Metric)
 
 	for collectorID, metrics := range allMetrics {
 		for _, m := range metrics {
 			if _, ok := nameToCollectorMetrics[m.Name]; !ok {
-				nameToCollectorMetrics[m.Name] = make(map[CollectorName][]Metric)
+				nameToCollectorMetrics[m.Name] = make(map[CollectorName]map[MetricPriority][]Metric)
 			}
-			nameToCollectorMetrics[m.Name][collectorID] = append(nameToCollectorMetrics[m.Name][collectorID], m)
+			if _, ok := nameToCollectorMetrics[m.Name][collectorID]; !ok {
+				nameToCollectorMetrics[m.Name][collectorID] = make(map[MetricPriority][]Metric)
+			}
+			nameToCollectorMetrics[m.Name][collectorID][m.Priority] = append(nameToCollectorMetrics[m.Name][collectorID][m.Priority], m)
 		}
 	}
 
@@ -185,17 +188,17 @@ func RemoveDuplicateMetrics(allMetrics map[CollectorName][]Metric) []Metric {
 	// For each metric name, pick all matching metrics from the collector with the highest-priority metric of that name
 	for _, collectorMetrics := range nameToCollectorMetrics {
 		maxPriority := Low
-		var winningCollectorID CollectorName
-		for collectorID, metrics := range collectorMetrics {
-			for _, m := range metrics {
-				if m.Priority >= maxPriority {
-					maxPriority = m.Priority
-					winningCollectorID = collectorID
+		var winningMetrics []Metric
+		for _, priorityMetrics := range collectorMetrics {
+			for priority, metrics := range priorityMetrics {
+				if priority >= maxPriority {
+					maxPriority = priority
+					winningMetrics = metrics
 				}
 			}
 		}
 		// Add all metrics for that name from the winning collector
-		result = append(result, collectorMetrics[winningCollectorID]...)
+		result = append(result, winningMetrics...)
 	}
 
 	return result

@@ -11,4 +11,3 @@ Write-Host "Restarting Datadog Agent..."
 Restart-Service -Name datadogagent -Force
 
 Write-Host "Done! Check agent status with: & 'C:\Program Files\Datadog\Datadog Agent\bin\agent.exe' status"
-

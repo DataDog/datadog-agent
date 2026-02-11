@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/core/configsync
 
-go 1.25.6
+go 1.25.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.76.0-devel

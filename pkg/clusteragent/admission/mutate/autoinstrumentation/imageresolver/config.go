@@ -38,6 +38,7 @@ type Config struct {
 	InitRetryDelay time.Duration
 	BucketID       string
 	DigestCacheTTL time.Duration
+	Enabled        bool
 }
 
 func calculateRolloutBucket(apiKey string) string {
@@ -55,6 +56,7 @@ func NewConfig(cfg config.Component, rcClient RemoteConfigClient) Config {
 		MaxInitRetries: 5,
 		InitRetryDelay: 1 * time.Second,
 		BucketID:       calculateRolloutBucket(cfg.GetString("api_key")),
-		DigestCacheTTL: 1 * time.Hour, // DEV: Make this configurable
+		DigestCacheTTL: cfg.GetDuration("admission_controller.auto_instrumentation.gradual_rollout.cache_ttl"),
+		Enabled:        cfg.GetBool("admission_controller.auto_instrumentation.gradual_rollout.enabled"),
 	}
 }
