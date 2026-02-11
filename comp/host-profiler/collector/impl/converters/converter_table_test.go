@@ -330,6 +330,11 @@ func TestConverterWithAgentErrors(t *testing.T) {
 			provided:      "agent/nonstr-proc-pipeline/in.yaml",
 			expectedError: "processor name must be a string",
 		},
+		{
+			name:          "reserved-processor-already-exists",
+			provided:      "agent/reserved-proc-exists/in.yaml",
+			expectedError: "reserved resource processor name",
+		},
 	}
 
 	mockCfg := newMockConfig()
@@ -480,6 +485,11 @@ func TestConverterWithoutAgentErrors(t *testing.T) {
 			name:          "converter-error-propagation-from-ensure",
 			provided:      "no_agent/conv-err-from-ensure/in.yaml",
 			expectedError: "path element \"pipelines\" is not a map",
+		},
+		{
+			name:          "reserved-processor-already-exists",
+			provided:      "no_agent/reserved-proc-exists/in.yaml",
+			expectedError: "reserved resource processor name",
 		},
 	}
 

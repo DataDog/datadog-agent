@@ -203,12 +203,12 @@ func addProfilerMetadataTags(conf confMap) error {
 		return err
 	}
 
+	if len(resourceProcessor) != 0 {
+		return fmt.Errorf("%s is a reserved resource processor name. Please change it in your configuration file", resourceProcessorName)
+	}
 	attributes, err := Ensure[[]any](resourceProcessor, "attributes")
 	if err != nil {
 		return err
-	}
-	if len(attributes) != 0 {
-		log.Warnf("%s already exists! appending profiler_name and profiler_version", resourceProcessorName)
 	}
 
 	profilerNameElement := confMap{
