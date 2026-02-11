@@ -201,6 +201,7 @@ rust_test(
         "MOCK_SYSTEM_PROBE": "$(rootpath :mock_system_probe)",
     },
     deps = [
+        "@sdagent_crates//:nix",
         "@sdagent_crates//:tempfile",
     ],
 )
