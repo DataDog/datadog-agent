@@ -1,0 +1,10 @@
+child_a1:
+  tags: ["arch:amd64", "specific:true"]
+  script:
+    - echo "Running in unit A"
+
+child_a2:
+  tags: ["arch:amd64", "specific:true"]
+  needs: [child_a1]
+  script:
+    - echo "Running in unit A"

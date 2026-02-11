@@ -1,39 +1,32 @@
-# Parent pipeline – test if child job can depend on parent job
-# See: child-pipeline.yml for the child pipeline
-
-stages:
-  - prepare
-  - trigger
-
-# Job in the PARENT pipeline
-parent_job:
-  stage: prepare
+# .gitlab-ci.yml
+parent_1:
   tags: ["arch:amd64", "specific:true"]
   script:
     - echo "Running in parent pipeline"
-    - echo "Parent job finished"
 
-# Runs in parallel with trigger_child (same stage). Child pipeline will try to need this job.
-# Produces a dummy artifact that the child job will try to download.
-parent_job_parallel:
-  stage: trigger
+parent_2:
   tags: ["arch:amd64", "specific:true"]
-  needs:
-    - parent_job
+  needs: [parent_1]
   script:
-    - echo "Parent job running in parallel with trigger_child"
-    - echo "artifact from parent_job_parallel" > artifact-from-parent.txt
+    - echo "Running in parent pipeline"
+
+parent_3:
+  tags: ["arch:amd64", "specific:true"]
+  needs: [parent_2]
+  script:
+    - echo "This is a test artifact!" >> artifact.txt
   artifacts:
     paths:
-      - artifact-from-parent.txt
-  resource_group: test-$CI_COMMIT_SHA
+      - artifact.txt
+  resource_group: unita-dep-$CI_PIPELINE_ID
 
-# Trigger the child pipeline only after parent_job succeeds
-trigger_child:
-  stage: trigger
-  needs:
-    - parent_job
+trigger_unit_a:
   trigger:
-    include: child-pipeline.yml
+    include: unita.yml
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
+
+trigger_unit_b:
+  needs: [parent_1]
+  trigger:
+    include: unit_b.yml

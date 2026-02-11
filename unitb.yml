@@ -1,0 +1,11 @@
+child_ab:
+  tags: ["arch:amd64", "specific:true"]
+  script:
+    - echo "Running in unit B"
+
+child_b2:
+  tags: ["arch:amd64", "specific:true"]
+  needs: [child_b1]
+  script:
+    - echo "Running in unit B"
+# unit_b.yml is similar
