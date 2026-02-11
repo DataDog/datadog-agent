@@ -522,6 +522,10 @@ var zeroProcessContext ProcessContext
 // ProcessCacheEntry this struct holds process context kept in the process tree
 type ProcessCacheEntry struct {
 	ProcessContext
+
+	// Snapshot data (only populated during initial snapshot, used for event replay)
+	SnapshottedBoundSockets []SnapshottedBoundSocket
+	SnapshottedMmapedFiles  []SnapshottedMmapedFile
 }
 
 // IsContainerRoot returns whether this is a top level process in the container ID
