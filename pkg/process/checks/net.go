@@ -458,11 +458,15 @@ func batchConnections(
 
 	dnsEncoder := model.NewV2DNSEncoder()
 
-	// Build port -> PID map from the connections for resolving destination service on same-host connections
-	portToPID := make(map[int32]int32)
-	for _, c := range cxs {
-		if c.Pid > 0 {
-			portToPID[c.Laddr.Port] = c.Pid
+	// Build listening port -> PID map from the OS for resolving destination service on same-host connections.
+	// Falls back to building from the connections list if OS-level API is unavailable.
+	portToPID := getListeningPortToPIDMap()
+	if portToPID == nil {
+		portToPID = make(map[int32]int32)
+		for _, c := range cxs {
+			if c.Pid > 0 {
+				portToPID[c.Laddr.Port] = c.Pid
+			}
 		}
 	}
 
@@ -520,11 +524,16 @@ func batchConnections(
 			serviceCtx := serviceExtractor.GetServiceContext(c.Pid)
 			tagsStr := convertAndEnrichWithServiceCtx(tags, c.Tags, serviceCtx...)
 
-			// Debug: log the destination service name for same-host connections
+			// For same-host connections, resolve and attach the remote service tags
+			c.RemoteServiceTagsIdx = -1
 			if c.IntraHost {
 				if destPID, ok := portToPID[c.Raddr.Port]; ok && destPID != c.Pid {
-					destServiceTags := serviceExtractor.GetServiceContext(destPID)
-					log.Debugf("same-host connection: src PID=%d -> dst PID=%d, dest service context: %v", c.Pid, destPID, destServiceTags)
+					destServiceCtx := serviceExtractor.GetServiceContext(destPID)
+					if len(destServiceCtx) > 0 {
+						c.RemoteServiceTagsIdx = int32(tagsEncoder.Encode(destServiceCtx))
+						log.Debugf("remote service tags: pid=%d -> raddr.port=%d destPID=%d remoteServiceTagsIdx=%d tags=%v",
+							c.Pid, c.Raddr.Port, destPID, c.RemoteServiceTagsIdx, destServiceCtx)
+					}
 				}
 			}
 

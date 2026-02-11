@@ -89,6 +89,7 @@ func (d *directSender) getContainersForExplicitTagging(currentConnections *netwo
 
 func (d *directSender) addContainerTags(c *model.Connection, containerIDForPID map[int32]string, containersForTagging map[string]types.EntityID, tagsEncoder model.TagEncoder) {
 	c.LocalContainerTagsIndex = -1
+	c.RemoteServiceTagsIdx = -1
 	if c.Laddr.ContainerId == "" {
 		return
 	}
