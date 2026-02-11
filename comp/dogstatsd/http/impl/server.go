@@ -71,7 +71,9 @@ func (s *server) start(ctx context.Context) error {
 	s.http = &http.Server{
 		Handler: h2c.NewHandler(mux, s.http2),
 	}
-	http2.ConfigureServer(s.http, s.http2)
+	if err := http2.ConfigureServer(s.http, s.http2); err != nil {
+		return fmt.Errorf("failed to configure http2 server: %w", err)
+	}
 
 	addr := s.config.GetString("dogstatsd_experimental_http.listen_address")
 	listener, err := net.Listen("tcp", addr)
