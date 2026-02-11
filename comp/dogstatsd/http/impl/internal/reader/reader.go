@@ -252,7 +252,9 @@ func (r *MetricDataReader) NextMetric() error {
 
 	if r.metricIdx >= 0 {
 		for r.HaveMorePoints() {
-			r.NextPoint()
+			if err := r.NextPoint(); err != nil {
+				return err
+			}
 		}
 	}
 
