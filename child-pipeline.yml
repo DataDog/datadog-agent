@@ -10,6 +10,7 @@ stages:
 # If the cross-pipeline need works, the artifact will be present; otherwise download fails or file is missing.
 child_job_depends_on_parent:
   stage: run
+  tags: ["arch:amd64", "specific:true"]
   needs:
     - job: parent_job_parallel
       artifacts: true
@@ -21,5 +22,6 @@ child_job_depends_on_parent:
 # Fallback job in child with no cross-pipeline need (for comparison)
 child_job_standalone:
   stage: run
+  tags: ["arch:amd64", "specific:true"]
   script:
     - echo "Child job with no parent need"

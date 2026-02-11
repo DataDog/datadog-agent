@@ -8,6 +8,7 @@ stages:
 # Job in the PARENT pipeline
 parent_job:
   stage: prepare
+  tags: ["arch:amd64", "specific:true"]
   script:
     - echo "Running in parent pipeline"
     - echo "Parent job finished"
@@ -16,6 +17,7 @@ parent_job:
 # Produces a dummy artifact that the child job will try to download.
 parent_job_parallel:
   stage: trigger
+  tags: ["arch:amd64", "specific:true"]
   needs:
     - parent_job
   script:
@@ -28,6 +30,7 @@ parent_job_parallel:
 # Trigger the child pipeline only after parent_job succeeds
 trigger_child:
   stage: trigger
+  tags: ["arch:amd64", "specific:true"]
   needs:
     - parent_job
   trigger:
