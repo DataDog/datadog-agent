@@ -18,6 +18,7 @@ rename to enhanced metrics collector? Or otherwise organize file structure?
 Check in Cloud Run Functions, Cloud Run Jobs, Azure Web Apps
 Refactor to move go routine to main.go?
 Remove/add debug logs as needed
+Check parameters names (cgs) and make consistent
 */
 
 package collector
@@ -192,27 +193,35 @@ func (c *Collector) computeContainerMetrics(inStats *ServerlessContainerStats) S
 
 func computeCPULimit(cgs *cgroups.CPUStats) *float64 {
 	// Limit is computed using min(CPUSet, CFS CPU Quota)
+	// Default to host CPU count if no other limit is available
 	var limit *float64
 
-	if cgs.CPUCount != nil && *cgs.CPUCount != uint64(systemutils.HostCPUCount()) {
+	hostCPUCount := systemutils.HostCPUCount()
+	log.Debugf("CPU limit from host: %d cores", hostCPUCount)
+
+	if cgs.CPUCount != nil {
+		log.Debugf("CPU limit from CPUSet: %d cores", *cgs.CPUCount)
+	} else {
+		log.Debugf("CPU limit from CPUSet: nil")
+	}
+
+	if cgs.CPUCount != nil && *cgs.CPUCount != uint64(hostCPUCount) {
 		limit = pointer.Ptr(float64(*cgs.CPUCount))
-		log.Debugf("CPU limit from CPUSet: %.0f cores", *limit)
 	}
 
 	if cgs.SchedulerQuota != nil && cgs.SchedulerPeriod != nil {
 		quotaLimit := (float64(*cgs.SchedulerQuota) / float64(*cgs.SchedulerPeriod))
-		log.Debugf("CPU limit from CFS quota: %.0f cores (quota=%d, period=%d)", quotaLimit, *cgs.SchedulerQuota, *cgs.SchedulerPeriod)
+		log.Debugf("CPU limit from CFS quota: %.3f cores (quota=%d, period=%d)", quotaLimit, *cgs.SchedulerQuota, *cgs.SchedulerPeriod)
 		if limit == nil || quotaLimit < *limit {
 			limit = &quotaLimit
 		}
 	}
 
 	if limit == nil {
-		limit = pointer.Ptr(float64(systemutils.HostCPUCount()))
-		log.Debugf("CPU limit from systemutils.HostCPUCount: %d cores", systemutils.HostCPUCount())
+		limit = pointer.Ptr(float64(hostCPUCount))
 	}
 
-	log.Debugf("CPU limit: %.0f cores", *limit)
+	log.Debugf("CPU limit: %.3f cores", *limit)
 
 	// Convert CPU limit from cores to nanocores
 	limitNanos := *limit * 1e9
