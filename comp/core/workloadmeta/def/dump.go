@@ -58,7 +58,7 @@ type WorkloadDumpStructuredResponse struct {
 // unmarshaling problem where clients can't reconstruct interface types from JSON.
 func BuildWorkloadResponse(wmeta Component, verbose bool, search string, jsonFormat bool) ([]byte, error) {
 	if jsonFormat {
-		structuredResp := wmeta.DumpStructured(verbose)
+		structuredResp := wmeta.DumpStructured()
 		if search != "" {
 			structuredResp = filterStructuredResponse(structuredResp, search)
 		}
