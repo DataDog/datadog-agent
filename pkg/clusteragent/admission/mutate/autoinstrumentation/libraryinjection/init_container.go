@@ -40,16 +40,10 @@ func (p *InitContainerProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConf
 	// First, validate that the pod has sufficient resources
 	result, err := ComputeInitContainerResourceRequirementsForInitContainer(pod, p.cfg.DefaultResourceRequirements, InjectorInitContainerName)
 	if err != nil {
-		return MutationResult{
-			Status: MutationStatusSkipped,
-			Err:    err,
-		}
+		return MutationResult{Status: MutationStatusSkipped, Err: err}
 	}
 	if result.ShouldSkip {
-		return MutationResult{
-			Status: MutationStatusSkipped,
-			Err:    errors.New(result.Message),
-		}
+		return MutationResult{Status: MutationStatusSkipped, Err: errors.New(result.Message)}
 	}
 	requirements := result.Requirements
 

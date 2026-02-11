@@ -37,16 +37,10 @@ func (p *ImageVolumeProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig
 	// Validate that the pod has sufficient resources for the micro init container.
 	result, err := ComputeInitContainerResourceRequirementsForInitContainer(pod, p.cfg.DefaultResourceRequirements, InjectLDPreloadInitContainerName)
 	if err != nil {
-		return MutationResult{
-			Status: MutationStatusSkipped,
-			Err:    err,
-		}
+		return MutationResult{Status: MutationStatusSkipped, Err: err}
 	}
 	if result.ShouldSkip {
-		return MutationResult{
-			Status: MutationStatusSkipped,
-			Err:    errors.New(result.Message),
-		}
+		return MutationResult{Status: MutationStatusSkipped, Err: errors.New(result.Message)}
 	}
 	requirements := result.Requirements
 	patcher := NewPodPatcher(pod, p.cfg.ContainerFilter)
