@@ -19,7 +19,7 @@ child_job_depends_on_parent:
     - echo "Child job running (after parent_job_parallel?)"
     - test -f artifact-from-parent.txt && cat artifact-from-parent.txt
     - echo "Artifact from parent was present – dependency and artifact download worked."
-  resource_group: test
+  resource_group: test-$PARENT_PIPELINE_ID
 
 # Fallback job in child with no cross-pipeline need (for comparison)
 child_job_standalone:
