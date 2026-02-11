@@ -400,10 +400,10 @@ func (suite *k8sSuite) testAgentCLI() {
 		suite.Require().NoError(err)
 
 		// Check for expected fields
-		entities, ok := result["entities"].(map[string]any)
-		suite.Require().True(ok, "expected 'entities' field in JSON output")
-		suite.NotEmpty(entities, "entities map should not be empty")
-		suite.Contains(entities, "container", "expected 'container' kind in entities")
+		entities, ok := result["Entities"].(map[string]any)
+		suite.Require().True(ok, "expected 'Entities' field in JSON output")
+		suite.NotEmpty(entities, "Entities map should not be empty")
+		suite.Contains(entities, "container", "expected 'container' kind in Entities")
 
 		if suite.T().Failed() {
 			suite.T().Log(stdout)
@@ -424,12 +424,12 @@ func (suite *k8sSuite) testAgentCLI() {
 		suite.Require().NoError(err)
 
 		// Check for expected fields
-		entities, ok := result["entities"].(map[string]any)
-		suite.Require().True(ok, "expected 'entities' field in JSON output")
+		entities, ok := result["Entities"].(map[string]any)
+		suite.Require().True(ok, "expected 'Entities' field in JSON output")
 
 		// Search term "container" uses substring matching on kind names
 		// Should match "container" and may also match "container_image_metadata" if present
-		suite.Contains(entities, "container", "expected 'container' kind in filtered entities")
+		suite.Contains(entities, "container", "expected 'container' kind in filtered Entities")
 
 		// Verify no unrelated kinds (like kubernetes_pod) are included
 		suite.NotContains(entities, "kubernetes_pod", "kubernetes_pod should not match 'container' filter")
@@ -453,9 +453,9 @@ func (suite *k8sSuite) testAgentCLI() {
 		suite.Require().NoError(err)
 
 		// Check for expected fields
-		entities, ok := result["entities"].(map[string]any)
-		suite.Require().True(ok, "expected 'entities' field in JSON output")
-		suite.Contains(entities, "kubernetes_pod", "expected 'kubernetes_pod' kind in filtered entities")
+		entities, ok := result["Entities"].(map[string]any)
+		suite.Require().True(ok, "expected 'Entities' field in JSON output")
+		suite.Contains(entities, "kubernetes_pod", "expected 'kubernetes_pod' kind in filtered Entities")
 
 		if suite.T().Failed() {
 			suite.T().Log(stdout)

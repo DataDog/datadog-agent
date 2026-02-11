@@ -42,7 +42,7 @@ func (wdr WorkloadDumpResponse) Write(writer io.Writer) {
 
 // WorkloadDumpStructuredResponse is used to dump the store content with structured data.
 type WorkloadDumpStructuredResponse struct {
-	Entities map[string][]Entity `json:"entities"`
+	Entities map[string][]Entity
 }
 
 // BuildWorkloadResponse builds a JSON response for workload-list with filtering.

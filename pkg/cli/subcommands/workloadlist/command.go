@@ -123,7 +123,7 @@ func workloadList(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) 
 		if searchTerm != "" {
 			var check map[string]any
 			if err := json.Unmarshal(r, &check); err == nil {
-				if entities, ok := check["entities"].(map[string]any); ok && len(entities) == 0 {
+				if entities, ok := check["Entities"].(map[string]any); ok && len(entities) == 0 {
 					return fmt.Errorf("no entities found matching %q", searchTerm)
 				}
 			}
