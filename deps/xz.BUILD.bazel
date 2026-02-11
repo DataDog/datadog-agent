@@ -7,11 +7,11 @@ load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
 package(
     default_package_metadata = [":license"],
-    default_visibility = ["@@//packages:__subpackages__"],
+    default_visibility = ["//packages:__subpackages__"],
 )
 
 alias(
@@ -51,7 +51,7 @@ _API_HEADERS = glob([
 cc_library(
     name = "xz_config",
     hdrs = [
-        "config.h",
+        "config.h"
     ],
 )
 
@@ -137,15 +137,6 @@ pkg_files(
     prefix = "include/lzma",
 )
 
-pkg_filegroup(
-    name = "all_files",
-    srcs = [
-        ":main_header",
-        ":api_headers",
-        ":lib_files",
-    ],
-)
-
 expand_template(
     name = "gen_pkgconfig",
     template = "@@//deps/xz:liblzma.pc.in",
@@ -165,7 +156,9 @@ pkg_files(
 pkg_install(
     name = "install",
     srcs = [
-        ":all_files",
+        ":main_header",
+        ":api_headers",
+        ":lib_files",
         ":pkgconfig",
     ],
 )

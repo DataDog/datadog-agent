@@ -14,72 +14,53 @@ load("//compliance:package_licenses.bzl", "package_licenses")
 
 package(default_visibility = ["//packages:__subpackages__"])
 
-# This is everything in the distro. All the things that were explicit
-# in datadog-agent-dependencies.rb should show up here.
-pkg_filegroup(
-    name = "agent_components",
+# This is a placeholder for an eventual group containg (the future) top level binaries
+# such as //cmd/agent:agent.  The individual items here will become dependencies of
+# those targets.
+filegroup(
+    name = "all_deps",
     srcs = [
-        "//deps/jmxfetch:all_files",
-        "//deps/snmp_traps:all_files",
-        # TODO: this bring in gstatus, which has a botched up license arrangement
-        # "//packages/install_dir:embedded",
-        "//packages/install_dir:etc",
-        "@libpcap//:all_files",
-    ],
-    prefix = "/opt/datadog-agent",
-)
-
-# This is the list of things we depend on transitively. It is temporary.
-# They are really deps of things that the agent binary or python3 depends
-# on. We should pick up the dependencies from the build graph.
-# https://datadoghq.atlassian.net/browse/ABLD-363 will resolve that.
-# This is good enough for today.
-pkg_filegroup(
-    name = "transitive_deps",
-    srcs = [
-        # TODO: gstatus has a botched up license arrangement
-        # "//deps/gstatus:bin_files",
-        # TODO(aiuto): license problems.
-        # "//deps/msodbcsql18:all_files",
-        "//deps/nfsiostat:all_files",
-        "//deps/openscap:all_files",
-        "@freetds//:all_files",
-        "@krb5//:all_files",
-        "@nghttp2//:all_files",
-        "@xz//:all_files",
-    ],
-    prefix = "/opt/datadog-agent",
-)
-
-pkg_filegroup(
-    name = "everything",
-    srcs = [
-        ":agent_components",
-        ":transitive_deps",
-    ],
-)
-
-package_licenses(
-    name = "license_files",
-    src = ":everything",
-)
-
-pkg_filegroup(
-    name = "whole_distro",
-    srcs = [
-        ":everything",
-        ":license_files",
+        "//deps:all_deps",
     ] + select({
-        "//:is_standard_install": [
-            ":datadog_agent_installer_symlinks",
+        "@platforms//os:linux": [
+            "//deps/nfsiostat:all_files",
+            "//deps/openscap:all_deps",
         ],
         "//conditions:default": [],
     }),
 )
 
+package_licenses(
+    name = "license_files",
+    src = ":all_deps",
+)
+
+# This is good enough for today. It will go away as part of
+# https://datadoghq.atlassian.net/browse/ABLD-363
+pkg_filegroup(
+    name = "whole_distro",
+    srcs = [
+        ":license_files",
+        "//deps/msodbcsql18:all_files",
+        "//deps/nfsiostat:all_files",
+        "//deps/openscap:all_files",
+        "//packages/install_dir:embedded",
+        "//packages/install_dir:etc",
+        "@freetds//:all_files",
+        "@krb5//:all_files",
+        "@nghttp2//:all_files",
+    ],
+    prefix = "/opt/datadog-agent",
+)
+
 pkg_tar(
     name = "whole_distro_tar",
-    srcs = [":whole_distro"],
+    srcs = [":whole_distro"] + select({
+        "//:is_standard_install": [
+            ":datadog_agent_installer_symlinks",
+        ],
+        "//conditions:default": [],
+    }),
     extension = "tar.xz",
     # TODO: account for pipeline injected compression level.
     # https://datadoghq.atlassian.net/browse/ABLD-364
@@ -171,7 +152,6 @@ pkg_filegroup(
     ],
 )
 
-# This target is only for the omnibus install
 pkg_install(
     name = "install",
     srcs = select({
