@@ -60,11 +60,6 @@ func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Com
 	return cmd
 }
 
-// isCmdPortNegative checks if cmd_port is negative (used to disable remote tagger)
-func isCmdPortNegative(cfg coreconfig.Component) bool {
-	return cfg.GetInt("cmd_port") <= 0
-}
-
 // orchestratorinterfaceimpl is a simple implementation of orchestratorinterface.Component
 type orchestratorinterfaceimpl struct {
 	f defaultforwarder.Forwarder
