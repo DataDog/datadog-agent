@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	schemaIdV1 = "script-credentials-v1"
+	schemaIdV1           = "script-credentials-v1"
+	schemaIdPowershellV1 = "powershell-script-credentials-v1"
 )
 
 type ScriptBundleConfig struct {
@@ -37,8 +38,13 @@ func parseCredentials(credentials *privateconnection.PrivateCredentials) (*Scrip
 	if err != nil {
 		return nil, err
 	}
-	if scriptConfig.SchemaId != schemaIdV1 {
-		return nil, fmt.Errorf("unexpected schemaId: %s, supported schemaId: %s", scriptConfig.SchemaId, schemaIdV1)
+	if scriptConfig.SchemaId != schemaIdV1 && scriptConfig.SchemaId != schemaIdPowershellV1 {
+		return nil, fmt.Errorf(
+			"unexpected schemaId: %s, supported schemaId: %s, %s",
+			scriptConfig.SchemaId,
+			schemaIdV1,
+			schemaIdPowershellV1,
+		)
 	}
 
 	return scriptConfig, nil
