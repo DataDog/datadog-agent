@@ -139,8 +139,6 @@ dd_agent_pkg_mklink(
     target = "/opt/datadog-packages/datadog-agent/stable",
 )
 
-# TODO: Figure out how to point to the build version
-# stable -> /opt/datadog-packages/run/datadog-agent/7.75.0-devel.git.510.0eb2d89.pipeline.87895082
 dd_agent_pkg_mklink(
     name = "stable_link",
     attributes = pkg_attributes(mode = "755"),
@@ -159,7 +157,9 @@ dd_agent_pkg_mklink(
 # note that this does not follow the naming pattern of "all_files".
 # Instead, I'm using the name of the omnibus script it will replace.
 # That provides a clearer meaning during the migration than the name
-# of the package (packages/agent/linux) alone.
+# of the package (packages/agent/linux) alone. The "all_files" in
+# //deps/... does not have the problem because the intent is obvious
+# from the path.
 pkg_filegroup(
     name = "datadog_agent_installer_symlinks",
     srcs = [
@@ -170,13 +170,22 @@ pkg_filegroup(
     ],
 )
 
-# This target is only for the omnibus install
-pkg_install(
-    name = "install",
-    srcs = select({
+# NOTE: These are files that get installed outside of {install_dir}. During the
+# migration we must account for them with extra_package_files in omnibus scripts
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        "//pkg/privateactionrunner/autoconnections/conf:all_files",
+    ] + select({
         "//:is_standard_install": [
             ":datadog_agent_installer_symlinks",
         ],
         "//conditions:default": [],
     }),
+)
+
+# This target is only for the omnibus install
+pkg_install(
+    name = "install",
+    srcs = [":all_files"],
 )

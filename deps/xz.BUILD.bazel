@@ -3,7 +3,6 @@
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
-load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
@@ -145,27 +144,11 @@ pkg_filegroup(
         ":lib_files",
     ],
 )
-
-expand_template(
-    name = "gen_pkgconfig",
-    template = "@@//deps/xz:liblzma.pc.in",
-    out = "liblzma.pc",
-    substitutions = {
-        "{{VERSION}}": VERSION,
-    },
-    visibility = ["//visibility:public"],
-)
-
-pkg_files(
-    name = "pkgconfig",
-    srcs = [":gen_pkgconfig"],
-    prefix = "lib/pkgconfig",
-)
-
 pkg_install(
     name = "install",
     srcs = [
-        ":all_files",
-        ":pkgconfig",
+        ":main_header",
+        ":api_headers",
+        ":lib_files",
     ],
 )
