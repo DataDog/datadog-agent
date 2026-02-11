@@ -40,18 +40,34 @@ type ResourceRequirementsResult struct {
 	Message      string
 }
 
-type computeResourceRequirementsOpts struct {
-	minCPU resource.Quantity
-	minMem resource.Quantity
-	mode   string
-	// If true and a resource quantity was set in config, skip injection when configured < minimum.
-	//
-	// Distinction:
-	// - init_container injection mode historically treats configured init_resources as an explicit override.
-	// - image_volume injection mode enforces minimums even for configured values because the
-	//   micro init container is a critical prerequisite (it must successfully populate /etc/ld.so.preload), and
-	//   under-provisioning can lead to confusing "injected but not instrumented" behavior.
-	enforceMinimumsOnConfigured bool
+// ComputeInitContainerResourceRequirementsForInitContainer computes init container resource requirements
+// for a specific init-container type, identified by its name.
+// Returns an error if initContainerName is unknown (programming error).
+func ComputeInitContainerResourceRequirementsForInitContainer(
+	pod *corev1.Pod,
+	defaultRequirements map[corev1.ResourceName]resource.Quantity,
+	initContainerName string,
+) (ResourceRequirementsResult, error) {
+	switch initContainerName {
+	case InjectorInitContainerName:
+		// NOTE: init_container injection mode historically treats configured init_resources as an explicit override,
+		// so we do not enforce minimums on configured values (for now).
+		return ComputeInitContainerResourceRequirements(pod, defaultRequirements, MinimumCPULimit, MinimumMemoryLimit, false), nil
+	case InjectLDPreloadInitContainerName:
+		// The image_volume micro init container is a critical prerequisite, so enforce minimums even when configured.
+		return ComputeInitContainerResourceRequirements(pod, defaultRequirements, MinimumMicroCPULimit, MinimumMicroMemoryLimit, true), nil
+	default:
+		if isLibraryInitContainerName(initContainerName) {
+			return ComputeInitContainerResourceRequirements(pod, defaultRequirements, MinimumCPULimit, MinimumMemoryLimit, false), nil
+		}
+		return ResourceRequirementsResult{}, fmt.Errorf("unknown init container name %q for resource requirement computation", initContainerName)
+	}
+}
+
+// isLibraryInitContainerName returns true if name matches the naming convention used for language library init containers
+// (LibraryInitContainerNameTemplate), e.g. "datadog-lib-java-init".
+func isLibraryInitContainerName(name string) bool {
+	return strings.HasPrefix(name, "datadog-lib-") && strings.HasSuffix(name, "-init")
 }
 
 // ComputeInitContainerResourceRequirements computes the resource requirements for init containers given minimum CPU and memory limits.

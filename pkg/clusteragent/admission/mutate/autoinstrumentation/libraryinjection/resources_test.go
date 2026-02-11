@@ -240,7 +240,8 @@ func TestComputeResourceRequirements_Skip(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := libraryinjection.ComputeInitContainerResourceRequirements(tt.pod, nil, libraryinjection.MinimumCPULimit, libraryinjection.MinimumMemoryLimit, false)
+			result, err := libraryinjection.ComputeInitContainerResourceRequirementsForInitContainer(tt.pod, nil, libraryinjection.InjectorInitContainerName)
+			assert.NoError(t, err)
 			assert.Equal(t, tt.shouldSkip, result.ShouldSkip)
 		})
 	}
@@ -269,7 +270,8 @@ func TestComputeResourceRequirements_UsesConfigDefaults(t *testing.T) {
 		corev1.ResourceMemory: resource.MustParse("128Mi"),
 	}
 
-	result := libraryinjection.ComputeInitContainerResourceRequirements(pod, defaults, libraryinjection.MinimumCPULimit, libraryinjection.MinimumMemoryLimit, false)
+	result, err := libraryinjection.ComputeInitContainerResourceRequirementsForInitContainer(pod, defaults, libraryinjection.InjectorInitContainerName)
+	assert.NoError(t, err)
 
 	assert.False(t, result.ShouldSkip)
 	assert.Equal(t, "100m", result.Requirements.Limits.Cpu().String())
@@ -354,7 +356,8 @@ func TestComputeMicroInitResourceRequirements_SkipOrNot(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := libraryinjection.ComputeInitContainerResourceRequirements(tt.pod, nil, libraryinjection.MinimumMicroCPULimit, libraryinjection.MinimumMicroMemoryLimit, true)
+			result, err := libraryinjection.ComputeInitContainerResourceRequirementsForInitContainer(tt.pod, nil, libraryinjection.InjectLDPreloadInitContainerName)
+			assert.NoError(t, err)
 			assert.Equal(t, tt.shouldSkip, result.ShouldSkip)
 		})
 	}
@@ -363,7 +366,8 @@ func TestComputeMicroInitResourceRequirements_SkipOrNot(t *testing.T) {
 func TestComputeInitContainerResourceRequirements_IrrelevantModeIsNoop(t *testing.T) {
 	pod := &corev1.Pod{Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "app"}}}}
 
-	result := libraryinjection.ComputeInitContainerResourceRequirements(pod, nil, libraryinjection.MinimumCPULimit, libraryinjection.MinimumMemoryLimit, false)
+	result, err := libraryinjection.ComputeInitContainerResourceRequirementsForInitContainer(pod, nil, libraryinjection.InjectorInitContainerName)
+	assert.NoError(t, err)
 
 	assert.False(t, result.ShouldSkip)
 	assert.Empty(t, result.Message)
@@ -394,7 +398,8 @@ func TestComputeMicroInitResourceRequirements_UsesConfigDefaults(t *testing.T) {
 		corev1.ResourceMemory: resource.MustParse("32Mi"),
 	}
 
-	result := libraryinjection.ComputeInitContainerResourceRequirements(pod, defaults, libraryinjection.MinimumMicroCPULimit, libraryinjection.MinimumMicroMemoryLimit, true)
+	result, err := libraryinjection.ComputeInitContainerResourceRequirementsForInitContainer(pod, defaults, libraryinjection.InjectLDPreloadInitContainerName)
+	assert.NoError(t, err)
 
 	assert.False(t, result.ShouldSkip)
 	assert.Equal(t, "20m", result.Requirements.Limits.Cpu().String())
@@ -424,7 +429,8 @@ func TestComputeMicroInitResourceRequirements_ConfigDefaultsBelowMinimumSkips(t 
 		corev1.ResourceMemory: resource.MustParse("8Mi"),
 	}
 
-	result := libraryinjection.ComputeInitContainerResourceRequirements(pod, defaults, libraryinjection.MinimumMicroCPULimit, libraryinjection.MinimumMicroMemoryLimit, true)
+	result, err := libraryinjection.ComputeInitContainerResourceRequirementsForInitContainer(pod, defaults, libraryinjection.InjectLDPreloadInitContainerName)
+	assert.NoError(t, err)
 
 	assert.True(t, result.ShouldSkip)
 	assert.Contains(t, result.Message, "configured=")

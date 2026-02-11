@@ -38,7 +38,13 @@ func NewInitContainerProvider(cfg LibraryInjectionConfig) *InitContainerProvider
 // InjectInjector mutates the pod to add the APM injector using init containers.
 func (p *InitContainerProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig) MutationResult {
 	// First, validate that the pod has sufficient resources
-	result := ComputeInitContainerResourceRequirements(pod, p.cfg.DefaultResourceRequirements, MinimumCPULimit, MinimumMemoryLimit, false)
+	result, err := ComputeInitContainerResourceRequirementsForInitContainer(pod, p.cfg.DefaultResourceRequirements, InjectorInitContainerName)
+	if err != nil {
+		return MutationResult{
+			Status: MutationStatusSkipped,
+			Err:    err,
+		}
+	}
 	if result.ShouldSkip {
 		return MutationResult{
 			Status: MutationStatusSkipped,

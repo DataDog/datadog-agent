@@ -32,7 +32,13 @@ func NewImageVolumeProvider(cfg LibraryInjectionConfig) *ImageVolumeProvider {
 
 func (p *ImageVolumeProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig) MutationResult {
 	// Validate that the pod has sufficient resources for the micro init container.
-	result := ComputeInitContainerResourceRequirements(pod, p.cfg.DefaultResourceRequirements, MinimumMicroCPULimit, MinimumMicroMemoryLimit, true)
+	result, err := ComputeInitContainerResourceRequirementsForInitContainer(pod, p.cfg.DefaultResourceRequirements, InjectLDPreloadInitContainerName)
+	if err != nil {
+		return MutationResult{
+			Status: MutationStatusSkipped,
+			Err:    err,
+		}
+	}
 	if result.ShouldSkip {
 		return MutationResult{
 			Status: MutationStatusSkipped,
