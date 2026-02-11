@@ -115,8 +115,16 @@ func TestMakeMetricAgentTags(t *testing.T) {
 		"gcrj.task_attempt":   "1",
 		"gcrj.task_count":     "10",
 	}
-	filteredTags := MakeMetricAgentTags(tags)
-	assert.Equal(t, map[string]string{"key1": "value1", "key2": "value2"}, filteredTags)
+	baseTags, highCardinalityTags := MakeMetricAgentTags(tags)
+	assert.Equal(t, map[string]string{"key1": "value1", "key2": "value2"}, baseTags)
+	assert.Equal(t, map[string]string{
+		"container_id":        "abc",
+		"replica_name":        "abc",
+		"gcrj.execution_name": "exec-123",
+		"gcrj.task_index":     "0",
+		"gcrj.task_attempt":   "1",
+		"gcrj.task_count":     "10",
+	}, highCardinalityTags)
 }
 
 func TestMakeTraceAgentTags(t *testing.T) {

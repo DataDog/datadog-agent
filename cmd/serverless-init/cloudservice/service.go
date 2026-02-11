@@ -6,13 +6,10 @@
 package cloudservice
 
 import (
-	"context"
-
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/collector"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // TraceAgent represents a trace agent that can process trace payloads, be flushed, and stopped.
@@ -56,7 +53,7 @@ type CloudService interface {
 	Init(ctx *TracingContext) error
 
 	// Shutdown cleans up the CloudService and allows emitting shutdown metrics
-	Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, runErr error)
+	Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, collector *collector.Collector, runErr error)
 
 	// GetStartMetricName returns the metric name for start events
 	GetStartMetricName() string
@@ -68,14 +65,10 @@ type CloudService interface {
 	// shutdown flow is more abrupt than other environments. We may want to
 	// unravel this thread in a cleaner way in the future.
 	ShouldForceFlushAllOnForceFlushToSerializer() bool
-
-	// StartEnhancedMetrics initializes and starts the enhanced metrics collector
-	StartEnhancedMetrics(metricAgent *serverlessMetrics.ServerlessMetricAgent)
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter
 type LocalService struct {
-	collector *collector.Collector
 }
 
 const defaultPrefix = "datadog.serverless_agent"
@@ -111,12 +104,12 @@ func (l *LocalService) Init(_ *TracingContext) error {
 }
 
 // Shutdown emits the shutdown metric for LocalService
-func (l *LocalService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, _ error) {
-	metricAgent.AddMetric(defaultPrefix+".enhanced.shutdown", 1.0, l.GetSource())
-}
+func (l *LocalService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, collector *collector.Collector, _ error) {
+	if collector != nil {
+		collector.Stop()
+	}
 
-func (c *LocalService) StartEnhancedMetrics(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
-	c.collector = startEnhancedMetrics(metricAgent, c.GetSource(), c.GetMetricPrefix())
+	metricAgent.AddMetric(defaultPrefix+".enhanced.shutdown", 1.0, l.GetSource())
 }
 
 // GetStartMetricName returns the metric name for container start (coldstart) events
@@ -154,18 +147,4 @@ func GetCloudServiceType() CloudService {
 	}
 
 	return &LocalService{}
-}
-
-// StartEnhancedMetrics initializes and starts the enhanced metrics collector
-func startEnhancedMetrics(metricAgent *serverlessMetrics.ServerlessMetricAgent, metricSource metrics.MetricSource, metricPrefix string) *collector.Collector {
-	col, err := collector.NewCollector(metricAgent, metricSource, metricPrefix)
-	if err != nil {
-		log.Warnf("Failed to initialize enhanced metrics collector: %v", err)
-		return nil
-	}
-
-	ctx, _ := context.WithCancel(context.Background())
-	col.Start(ctx)
-
-	return col
 }

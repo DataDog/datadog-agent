@@ -47,7 +47,6 @@ const (
 
 // CloudRunJobs has helper functions for getting Google Cloud Run data
 type CloudRunJobs struct {
-	collector  *collector.Collector
 	startTime  time.Time
 	jobSpan    *pb.Span
 	traceAgent TraceAgent
@@ -127,7 +126,11 @@ func (c *CloudRunJobs) Init(ctx *TracingContext) error {
 
 // Shutdown submits the task duration and shutdown metrics for CloudRunJobs,
 // and completes and submits the job span.
-func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, runErr error) {
+func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, collector *collector.Collector, runErr error) {
+	if collector != nil {
+		collector.Stop()
+	}
+
 	durationMetricName := cloudRunJobsPrefix + ".enhanced.task.duration"
 	duration := float64(time.Since(c.startTime).Milliseconds())
 	metricAgent.AddMetric(durationMetricName, duration, c.GetSource())
@@ -141,10 +144,6 @@ func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAg
 	metricAgent.AddMetric(shutdownMetricName, 1.0, c.GetSource(), succeededTag)
 
 	c.completeAndSubmitJobSpan(runErr)
-}
-
-func (c *CloudRunJobs) StartEnhancedMetrics(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
-	c.collector = startEnhancedMetrics(metricAgent, c.GetSource(), c.GetMetricPrefix())
 }
 
 // GetStartMetricName returns the metric name for container start events
