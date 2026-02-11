@@ -197,8 +197,7 @@ func enableEmrLogs(s *common.Setup) {
 	loadLogProcessingRules(s)
 	// Load the existing integration config and add logs section to it
 	sparkIntegration := s.Config.IntegrationConfigs["spark.d/conf.yaml"]
-	var emrLogs []config.IntegrationConfigLogs
-	emrLogs = []config.IntegrationConfigLogs{
+	emrLogs := []config.IntegrationConfigLogs{
 		{
 			Type:    "file",
 			Path:    hadoopDriverFolder + "*/stdout",
