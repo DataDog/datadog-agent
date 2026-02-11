@@ -26,6 +26,7 @@ parent_job_parallel:
   artifacts:
     paths:
       - artifact-from-parent.txt
+  resource_group: test
 
 # Trigger the child pipeline only after parent_job succeeds
 trigger_child:
