@@ -87,7 +87,10 @@ func (w *workloadmeta) Dump(verbose bool) wmdef.WorkloadDumpResponse {
 	return workloadList
 }
 
-// DumpStructured implements Store#DumpStructured
+// DumpStructured implements Store#DumpStructured.
+// Note: The verbose parameter is ignored. DumpStructured always returns only merged
+// entities to avoid unlabeled duplicates in JSON output. The merged entity contains
+// all data from all sources. Use Dump(verbose=true) for per-source breakdowns in text format.
 func (w *workloadmeta) DumpStructured(verbose bool) wmdef.WorkloadDumpStructuredResponse {
 	workloadList := wmdef.WorkloadDumpStructuredResponse{
 		Entities: make(map[string][]wmdef.Entity),
@@ -99,14 +102,7 @@ func (w *workloadmeta) DumpStructured(verbose bool) wmdef.WorkloadDumpStructured
 	for kind, store := range w.store {
 		entities := make([]wmdef.Entity, 0, len(store))
 		for _, cachedEntity := range store {
-			// For verbose mode, include all source entities
-			if verbose && len(cachedEntity.sources) > 1 {
-				for _, entity := range cachedEntity.sources {
-					entities = append(entities, entity)
-				}
-			}
-
-			// Always include the merged entity
+			// Always return only the merged entity
 			entities = append(entities, cachedEntity.cached)
 		}
 
