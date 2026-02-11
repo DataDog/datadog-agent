@@ -1432,3 +1432,5 @@ replace (
 	github.com/DataDog/datadog-agent/test/new-e2e => ./test/new-e2e
 	github.com/DataDog/datadog-agent/test/otel => ./test/otel
 )
+
+replace github.com/DataDog/agent-payload/v5 => C:/Users/bar.fins/Desktop/Projects/agent-payload
