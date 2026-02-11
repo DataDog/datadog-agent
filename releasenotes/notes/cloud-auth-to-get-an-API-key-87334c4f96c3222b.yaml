@@ -8,6 +8,6 @@
 ---
 enhancements:
   - |
-    Allows the agent to get an API key in exchange for an AWS cloud auth proof.
-    This allows for the customer to use their AWS credentials against Datadog and removes the
-    need for them to manage an API key
+    The Agent can now obtain an API key in exchange for an AWS cloud auth proof.
+    This enables the use of AWS credentials to authenticate with Datadog, and removes the
+    need to manage an API key.
