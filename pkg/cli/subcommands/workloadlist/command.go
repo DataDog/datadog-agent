@@ -100,8 +100,6 @@ func workloadList(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) 
 		searchTerm = cliParams.args[0]
 	}
 
-	// Build URL with format parameter for backend processing
-	// Backend will handle filtering and format conversion (text vs JSON)
 	isJSONFormat := cliParams.json || cliParams.prettyJSON
 	url, err := workloadURL(cliParams.verboseList, searchTerm, isJSONFormat)
 	if err != nil {
@@ -116,15 +114,10 @@ func workloadList(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) 
 		return fmt.Errorf("failed to query the agent (running?): %w", err)
 	}
 
-	// Backend did all processing (filtering, search, format conversion)
-	// Client just displays the result
 	if isJSONFormat {
-		// PrintJSON will unmarshal to check/clean, so do empty check there if needed
-		// For now, PrintJSON handles the display; empty check happens after user sees valid JSON
 		return jsonutil.PrintJSON(color.Output, json.RawMessage(r), cliParams.prettyJSON, true, searchTerm)
 	}
 
-	// Display as text (backend returned text format)
 	var workload workloadmeta.WorkloadDumpResponse
 	err = json.Unmarshal(r, &workload)
 	if err != nil {
