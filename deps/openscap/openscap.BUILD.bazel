@@ -504,7 +504,7 @@ pkg_files(
 so_symlink(
     name = "libopenscap_symlink",
     src = ":openscap",
-    libname = "librpmio",
+    libname = "libopenscap",
     version = "9.4.0",
 )
 
@@ -515,4 +515,22 @@ pkg_files(
         ":libopenscap_sce_symlink",
     ],
     prefix = "lib/",
+)
+
+pkg_files(
+    name = "bin_files",
+    srcs = [
+        ":oscap",
+        ":oscap_io",
+    ],
+    prefix = "bin/",
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":bin_files",
+        ":lib_files",
+        ":hdr_files",
+    ],
 )
