@@ -53,51 +53,36 @@ func isEmpty(v any) bool {
 	}
 }
 
-// PrintJSON writes JSON output to the provided writer, optionally pretty-printed
-// If searchTerm is non-empty and the unmarshaled data has empty "Entities", returns an error
+// PrintJSON writes JSON output to the provided writer, optionally pretty-printed.
+// If searchTerm is non-empty and the data has empty "Entities", returns an error.
 func PrintJSON(w io.Writer, rawJSON any, prettyPrintJSON bool, removeEmpty bool, searchTerm string) error {
 	var result []byte
 	var err error
 
-	// If we need to remove empty fields and input is raw bytes, unmarshal first
-	if removeEmpty {
-		// Check if input is json.RawMessage or []byte
-		var needsUnmarshal bool
-		var rawBytes []byte
-
-		switch v := rawJSON.(type) {
-		case json.RawMessage:
-			needsUnmarshal = true
-			rawBytes = []byte(v)
-		case []byte:
-			needsUnmarshal = true
-			rawBytes = v
+	// Unmarshal if input is json.RawMessage
+	if v, ok := rawJSON.(json.RawMessage); ok {
+		var unmarshaled any
+		if err := json.Unmarshal(v, &unmarshaled); err != nil {
+			return err
 		}
+		rawJSON = unmarshaled
+	}
 
-		if needsUnmarshal {
-			// Unmarshal to map[string]any so removeEmptyFields can process it
-			var unmarshaled any
-			if err := json.Unmarshal(rawBytes, &unmarshaled); err != nil {
-				return err
+	// Check for empty results if search term provided
+	if searchTerm != "" {
+		if m, ok := rawJSON.(map[string]any); ok {
+			if entities, ok := m["Entities"].(map[string]any); ok && len(entities) == 0 {
+				return fmt.Errorf("no entities found matching %q", searchTerm)
 			}
-
-			// Check for empty results if search term provided (single parse!)
-			if searchTerm != "" {
-				if m, ok := unmarshaled.(map[string]any); ok {
-					if entities, ok := m["Entities"].(map[string]any); ok && len(entities) == 0 {
-						return fmt.Errorf("no entities found matching %q", searchTerm)
-					}
-				}
-			}
-
-			rawJSON = removeEmptyFields(unmarshaled)
-		} else {
-			// Already unmarshaled data
-			rawJSON = removeEmptyFields(rawJSON)
 		}
 	}
 
-	// convert to bytes and indent
+	// Remove empty fields if requested
+	if removeEmpty {
+		rawJSON = removeEmptyFields(rawJSON)
+	}
+
+	// Marshal to bytes
 	if prettyPrintJSON {
 		result, err = json.MarshalIndent(rawJSON, "", "  ")
 	} else {

@@ -94,17 +94,4 @@ func TestPrintJSON(t *testing.T) {
 		assert.Contains(t, output, `"empty_array"`)
 		assert.Contains(t, output, `"empty_object"`)
 	})
-
-	t.Run("remove empty fields from []byte", func(t *testing.T) {
-		rawJSON := []byte(`{"name":"test","empty":"","null":null}`)
-
-		var buf bytes.Buffer
-		err := PrintJSON(&buf, rawJSON, false, true, "")
-		require.NoError(t, err)
-
-		output := buf.String()
-		assert.Contains(t, output, `"name":"test"`)
-		assert.NotContains(t, output, `"empty"`)
-		assert.NotContains(t, output, `"null"`)
-	})
 }
