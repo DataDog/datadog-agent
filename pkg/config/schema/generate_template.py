@@ -4,6 +4,32 @@ import re
 import textwrap
 
 
+# Available Variables
+#
+# Most of those can be change by customers and are resolved at runtime when the Agent start. The following are the most
+# likely values.
+#
+default_path = {
+    "windows": {
+        "${conf_path}": "c:\\programdata\\datadog",
+        "${install_path}": "c:\\program files\\datadog\\datadog agent",
+        "${run_path}": "c:\\programdata\\datadog\\run",
+        "${log_path}": "c:\\programdata\\datadog\\logs",
+        },
+    "linux": {
+        "${conf_path}": "/etc/datadog-agent/",
+        "${install_path}": "/opt/datadog-agent/",
+        "${run_path}": "/opt/datadog-agent/run",
+        "${log_path}": "/var/log/datadog",
+        },
+    "darwin": {
+        "${conf_path}": "/opt/datadog-agent/etc/",
+        "${install_path}": "/opt/datadog-agent",
+        "${run_path}": "/opt/datadog-agent/run",
+        "${log_path}": "/opt/datadog-agent/logs",
+        },
+}
+
 # Exception to the default schema. Thosee should be merged in the schema at some point
 
 # Those are all the settings with custom env parser in the Agent.
@@ -127,6 +153,86 @@ type_exception = {
         "otlp_config.debug.verbosity": ("string", "string", "normal"),
 }
 
+build_type_to_section = {
+    "agent-py3": [
+        "Common",
+        "Agent",
+        "Python",
+        "Metadata",
+        "Dogstatsd",
+        "LogsAgent",
+        "JMX",
+        "Autoconfig",
+        "Logging",
+        "Autodiscovery",
+        "DockerTagging",
+        "KubernetesTagging",
+        "ECS",
+        "Containerd",
+        "CRI",
+        "ProcessAgent",
+        "TraceAgent",
+        "Kubelet",
+        "KubeApiServer",
+        "Compliance",
+        "SBOM",
+        "SNMP",
+        "PrometheusScrape",
+        "OTLP",
+        "NetworkPath",
+        "Synthetics",
+        ],
+    "iot-agent": [
+        "Common",
+        "Agent",
+        "Metadata",
+        "Dogstatsd",
+        "LogsAgent",
+        "Logging",
+        ],
+    "system-probe": [
+        "SystemProbe",
+        "NetworkModule",
+        "UniversalServiceMonitoringModule",
+        ],
+    "dogstatsd": [
+        "Common",
+        "Dogstatsd",
+        "DockerTagging",
+        "Logging",
+        "KubernetesTagging",
+        "ECS",
+        "TraceAgent",
+        "Kubelet",
+        ],
+    "dca": [
+        "ClusterAgent",
+        "Common",
+        "Logging",
+        "KubeApiServer",
+        "ClusterChecks",
+        "AdmissionController",
+        ],
+    "dcacf": [
+        "ClusterAgent",
+        "Common",
+        "Logging",
+        "ClusterChecks",
+        "CloudFoundryBBS",
+        "CloudFoundryCC",
+        ],
+    "security-agent": [
+        "SecurityAgent",
+        ],
+}
+
+def should_render(build_type, node):
+    for t in node["tags"]:
+        if t.startswith("template_section:"):
+            section = t.split(":")[1]
+            return section in build_type_to_section[build_type]
+    return True
+
 def order_items(nodes):
     res = []
     for name, item in nodes.items():
@@ -145,9 +251,37 @@ def order_items(nodes):
 
     return [x[1] for x in sorted(res, key=lambda x: x[0])]
 
-def get_node_types_and_default(full_name, node):
+def get_platform_version(data, os_target):
+    if isinstance(data, str):
+        return data
+
+    if os_target in data:
+        return data[os_target]
+    elif os_target == "container" and "linux" in data:
+        return data["linux"]
+
+    return data["other"]
+
+def get_default_from_node(node, os_target):
+    if "default" in node:
+        default = node["default"]
+    elif "platform_default" in node:
+        default = get_platform_version(node["platform_default"], os_target)
+    else:
+        return None
+
+    if not isinstance(default, str):
+        return default
+
+    for var, repl in default_path[os_target].items():
+        default = default.replace(var, repl)
+    return default
+
+def get_node_types_and_default(full_name, node, os_target):
     if node.get("node_type") == "section":
         return "custom object", None, None
+
+    default = get_default_from_node(node, os_target)
 
     node_type = node.get("type")
     if node_type is None:
@@ -167,7 +301,7 @@ def get_node_types_and_default(full_name, node):
     elif node_type == "number":
         yaml_type, env_type = "integer", "integer"
     elif node_type == "float64":
-        return "float", "float", node["default"]
+        return "float", "float", default
     elif node_type == "object":
         if node.get("additionalProperties", {}).get("type") == "string":
             yaml_type, env_type = "object", "JSON object of string to string"
@@ -179,7 +313,7 @@ def get_node_types_and_default(full_name, node):
         yaml_type, env_type = node_type, node_type
 
     env_type = custom_env_parsers.get(full_name, env_type)
-    return yaml_type, env_type, node["default"]
+    return yaml_type, env_type, default
 
 def print_default(default, one_liner, env_var):
     if type(default) is str:
@@ -249,14 +383,14 @@ def render_block(doc, example, indent_level):
     block = textwrap.indent(block, "#", lambda line: True)
     return block
 
-def render_node(full_name, name, node, indent_level):
-    yaml_node_type, env_node_type, default = get_node_types_and_default(full_name, node)
+def render_node(full_name, name, node, indent_level, os_target):
+    yaml_node_type, env_node_type, default = get_node_types_and_default(full_name, node, os_target)
 
     param_line = get_param_line(name, yaml_node_type, default)
     env_lines = get_env_lines(node, full_name, env_node_type, default)
     example = get_example(node, indent_level, name, default)
 
-    doc = "\n".join([x for x in [param_line, env_lines, node["description"]] if x])
+    doc = "\n".join([x for x in [param_line, env_lines, get_platform_version(node["description"], os_target)] if x])
     return render_block(doc, example, indent_level)+"\n\n"
 
 def get_header(node):
@@ -266,28 +400,34 @@ def get_header(node):
     outline = "#"*(len(title)+6)
     return f"{outline}\n## {title} ##\n{outline}\n\n"
 
-def render(previous_path, name, node, indent_level):
+def render(build_type, os_target, previous_path, name, node, indent_level):
+    if not should_render(build_type, node):
+        return ""
+
     full_name = previous_path+"."+name if previous_path != "" else name
 
-    template = render_node(full_name, name, node, indent_level)
+    template = render_node(full_name, name, node, indent_level, os_target)
 
     for child_name, child in order_items(node.get("properties", {})):
-        template += render(full_name, child_name, child, indent_level+1)
+        template += render(build_type, os_target, full_name, child_name, child, indent_level+1)
 
     header = get_header(node)
     return header+template
 
+
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print(f"Usage: {sys.argv[0]} schema.yaml output_file.yaml")
+    if len(sys.argv) != 5:
+        print(f"Usage: {sys.argv[0]} schema.yaml output_file.yaml <build_type> <os_target>")
         sys.exit(1)
 
     with open(sys.argv[1], "r") as f:
         schema = yaml.safe_load(f)
 
+    build_type = sys.argv[3]
+    os_target = sys.argv[4]
     config_template =""
     for child_name, child in order_items(schema.get("properties", [])):
-        config_template += render("", child_name, child, 0)
+        config_template += render(build_type, os_target, "", child_name, child, 0)
 
     with open(sys.argv[2], "w") as f:
         for line in config_template.split("\n"):

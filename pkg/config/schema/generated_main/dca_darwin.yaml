@@ -1304,8 +1304,8 @@
 #   kubernetes.io/hostname: nodename
 #   beta.kubernetes.io/os: os
 
-## @param kubernetes_node_annotations_as_tags - map - optional
-## @env DD_KUBERNETES_NODE_ANNOTATIONS_AS_TAGS - json - optional
+## @param kubernetes_node_annotations_as_tags - object - optional - default: {'cluster.k8s.io/machine': 'kube_machine'}
+## @env DD_KUBERNETES_NODE_ANNOTATIONS_AS_TAGS - JSON object of string to string - optional - default: {'cluster.k8s.io/machine': 'kube_machine'}
 ## Configure node annotationss that should be collected and their name as host tags.
 ##
 ## Env var example: DD_KUBERNETES_NODE_ANNOTATIONS_AS_TAGS='{"NODE_ANNOTATION": "TAG_KEY"}'
@@ -1313,8 +1313,8 @@
 # kubernetes_node_annotations_as_tags:
 #   cluster.k8s.io/machine: machine
 
-## @param kubernetes_node_annotations_as_host_aliases - list - optional
-## @env DD_KUBERNETES_NODE_ANNOTATIONS_AS_HOST_ALIASES - list - optional
+## @param kubernetes_node_annotations_as_host_aliases - list of strings - optional - default: ["cluster.k8s.io/machine"]
+## @env DD_KUBERNETES_NODE_ANNOTATIONS_AS_HOST_ALIASES - space separated list of strings - optional - default: 'cluster.k8s.io/machine'
 ## Configure node annotations that should be collected and used as host aliases.
 ##
 ## Env var example: DD_KUBERNETES_NODE_ANNOTATIONS_AS_HOST_ALIASES='["cluster.k8s.io/machine"]'
@@ -1322,7 +1322,7 @@
 # kubernetes_node_annotations_as_host_aliases:
 #   - cluster.k8s.io/machine
 
-## @param cluster_name - string - optional
+## @param cluster_name - string - optional - default: ""
 ## @env DD_CLUSTER_NAME - string - optional
 ## Set a custom kubernetes cluster identifier to avoid host alias collisions.
 ## The cluster name can be up to 40 characters with the following restrictions:

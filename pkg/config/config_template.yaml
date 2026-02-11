@@ -764,11 +764,11 @@
 #
 # additional_checksd: <CHECKD_FOLDER_PATH>
 
-## @param expvar_port - string - optional - default: "5000"
-## @env DD_EXPVAR_PORT - string - optional - default: "5000"
+## @param expvar_port - integer - optional - default: 5000
+## @env DD_EXPVAR_PORT - integer - optional - default: 5000
 ## The port for the go_expvar server.
 #
-# expvar_port: "5000"
+# expvar_port: 5000
 
 ## @param cmd_port - integer - optional - default: 5001
 ## @env DD_CMD_PORT - integer - optional - default: 5001
@@ -896,7 +896,7 @@
 ## Disabled by default, so we only load Python libraries bundled with the Agent.
 #
 # windows_use_pythonpath: false
-{{ end -}}
+{{- end }}
 
 ## @param secret_backend_type - string - optional - default: ""
 ## @env DD_SECRET_BACKEND_TYPE - string - optional - default: ""
@@ -1818,7 +1818,6 @@
 
 #   # @param trace_buffer - integer - optional - default: 0
 #   # @env DD_APM_TRACE_BUFFER - integer - optional - default: 0
-#   #
 #   # WARNING: Do not use this config. It is here for debugging and
 #   # as a temporary fix in certain load scenarios. Setting this
 #   # results in a performance deterioration and an increase in memory
@@ -1875,8 +1874,8 @@
 #
 #   profiling_receiver_timeout: 5
 
-#   # @param additional_profile_tags - map of strings - optional
-#   # @env DD_APM_ADDITIONAL_PROFILE_TAGS - JSON string - optional
+#   # @param additional_profile_tags - object - optional - default: {}
+#   # @env DD_APM_ADDITIONAL_PROFILE_TAGS - JSON object of string to string - optional - default: {}
 #   # Additional tags to add to all profiles. These tags are added on the agent side
 #   # before forwarding profiles to Datadog. This is useful for environment-identifying
 #   # tags that should be applied to all profiles (e.g., origin).
@@ -1932,9 +1931,8 @@
 #
 #     enabled: true
 
-#   # @param enabled - string - optional - default: "false"
-#   # @env DD_PROCESS_CONFIG_ENABLED - string - optional - default: "false"
-#   #
+#   # @param enabled - boolean - optional - default: false
+#   # @env DD_PROCESS_CONFIG_ENABLED - boolean - optional - default: false
 #   # Deprecated - use `process_collection.enabled` and `container_collection.enabled` instead
 #   #
 #   #  A string indicating the enabled state of the Process Agent:
@@ -1942,7 +1940,7 @@
 #   #    * "true"     : The Agent collects containers and processes information.
 #   #    * "disabled" : The Agent process collection is disabled.
 #
-#   enabled: "true"
+#   enabled: false
 
 #   # @param expvar_port - integer - optional - default: 6062
 #   # @env DD_PROCESS_CONFIG_EXPVAR_PORT - integer - optional - default: 6062
@@ -2158,8 +2156,8 @@
 #
 #     pathtest_interval: "30m"
 
-#     # @param filters - list of custom objects - optional
-#     # @env DD_NETWORK_PATH_COLLECTOR_FILTERS - list of custom objects - optional
+#     # @param filters - list of object - optional - default: []
+#     # @env DD_NETWORK_PATH_COLLECTOR_FILTERS - JSON list of object - optional - default: []
 #     # Custom filters to include or exclude specific destinations from network path collection.
 #     # Filters support matching by domain (with wildcard or regex) and by IP address (single IP or CIDR notation).
 #     # Filters are applied sequentially, the last matching filter takes precedence.
@@ -2355,7 +2353,6 @@
 ## Set to "" to disable this feature.
 #
 # dogstatsd_socket: ""
-
 {{ else }}
 ## @param dogstatsd_socket - string - optional - default: "/var/run/datadog/dsd.socket"
 ## @env DD_DOGSTATSD_SOCKET - string - optional - default: "/var/run/datadog/dsd.socket"
@@ -2786,7 +2783,7 @@
 #
 # autoconf_config_files_poll_interval: 60
 
-## @param config_providers - list of custom object - optional
+## @param config_providers - list of object - optional - default: []
 ## @env DD_CONFIG_PROVIDERS - list of custom object - optional
 ## The providers the Agent should call to collect checks configurations. Available providers are:
 ##   * kubelet - The kubelet provider handles templates embedded in pod annotations.
@@ -2890,7 +2887,7 @@
 #
 # container_proc_root: /host/proc
 
-## @param listeners - list of key:value elements - optional
+## @param listeners - list of object - optional - default: []
 ## @env DD_LISTENERS - list of key:value elements - optional
 ## Choose "auto" if you want to let the Agent find any relevant listener on your host
 ## At the moment, the only auto listener supported is Docker
@@ -3457,8 +3454,8 @@
 #
 # ecs_agent_container_name: "ecs-agent"
 
-## @param ecs_agent_url - string - optional - default: http://localhost:51678
-## @env DD_ECS_AGENT_URL - string - optional - default: http://localhost:51678
+## @param ecs_agent_url - string - optional - default: ""
+## @env DD_ECS_AGENT_URL - string - optional - default: ""
 ## The ECS Agent container should be autodetected when running with the
 ## default (ecs-agent) name. If not, change the container name the
 ## Agent should look for with ecs_agent_container_name, or force a fixed url here:
@@ -3747,8 +3744,8 @@
 #   kubernetes.io/hostname: nodename
 #   beta.kubernetes.io/os: os
 
-## @param kubernetes_node_annotations_as_tags - map - optional
-## @env DD_KUBERNETES_NODE_ANNOTATIONS_AS_TAGS - json - optional
+## @param kubernetes_node_annotations_as_tags - object - optional - default: {'cluster.k8s.io/machine': 'kube_machine'}
+## @env DD_KUBERNETES_NODE_ANNOTATIONS_AS_TAGS - JSON object of string to string - optional - default: {'cluster.k8s.io/machine': 'kube_machine'}
 ## Configure node annotationss that should be collected and their name as host tags.
 ##
 ## Env var example: DD_KUBERNETES_NODE_ANNOTATIONS_AS_TAGS='{"NODE_ANNOTATION": "TAG_KEY"}'
@@ -3756,8 +3753,8 @@
 # kubernetes_node_annotations_as_tags:
 #   cluster.k8s.io/machine: machine
 
-## @param kubernetes_node_annotations_as_host_aliases - list - optional
-## @env DD_KUBERNETES_NODE_ANNOTATIONS_AS_HOST_ALIASES - list - optional
+## @param kubernetes_node_annotations_as_host_aliases - list of strings - optional - default: ["cluster.k8s.io/machine"]
+## @env DD_KUBERNETES_NODE_ANNOTATIONS_AS_HOST_ALIASES - space separated list of strings - optional - default: 'cluster.k8s.io/machine'
 ## Configure node annotations that should be collected and used as host aliases.
 ##
 ## Env var example: DD_KUBERNETES_NODE_ANNOTATIONS_AS_HOST_ALIASES='["cluster.k8s.io/machine"]'
@@ -3765,7 +3762,7 @@
 # kubernetes_node_annotations_as_host_aliases:
 #   - cluster.k8s.io/machine
 
-## @param cluster_name - string - optional
+## @param cluster_name - string - optional - default: ""
 ## @env DD_CLUSTER_NAME - string - optional
 ## Set a custom kubernetes cluster identifier to avoid host alias collisions.
 ## The cluster name can be up to 40 characters with the following restrictions:
@@ -3965,12 +3962,14 @@
 #   autodiscovery:
 
 #     # @param workers - integer - optional - default: 2
+#     # @env DD_NETWORK_DEVICES_AUTODISCOVERY_WORKERS - integer - optional - default: 2
 #     # The number of concurrent tasks used to discover SNMP devices. Increasing this value
 #     # discovers devices faster but at the cost of increased resource consumption.
 #
 #     workers: 2
 
 #     # @param discovery_interval - integer - optional - default: 3600
+#     # @env DD_NETWORK_DEVICES_AUTODISCOVERY_DISCOVERY_INTERVAL - integer - optional - default: 3600
 #     # How often to discover new SNMP devices, in seconds. Decreasing this value
 #     # discovers devices faster (within the limit of the time taken to scan subnets)
 #     # but at the cost of increased resource consumption.
@@ -3978,20 +3977,23 @@
 #     discovery_interval: 3600
 
 #     # @param discovery_allowed_failures - integer - optional - default: 3
+#     # @env DD_NETWORK_DEVICES_AUTODISCOVERY_DISCOVERY_ALLOWED_FAILURES - integer - optional - default: 3
 #     # The number of failed requests to a given SNMP device before removing it from the list of monitored
 #     # devices.
 #     # If a device shuts down, the Agent stops monitoring it after `discovery_interval * discovery_allowed_failures` seconds.
 #
 #     discovery_allowed_failures: 3
 
-#     # @param loader - string - optional - default: core
+#     # @param loader - string - optional - default: "core"
+#     # @env DD_NETWORK_DEVICES_AUTODISCOVERY_LOADER - string - optional - default: "core"
 #     # Check loader to use. Available loaders:
 #     # - core: (recommended) Uses new corecheck SNMP integration
 #     # - python: Uses legacy python SNMP integration
 #
-#     loader: core
+#     loader: "core"
 
 #     # @param min_collection_interval - integer - optional - default: 15
+#     # @env DD_NETWORK_DEVICES_AUTODISCOVERY_MIN_COLLECTION_INTERVAL - integer - optional - default: 15
 #     # This changes the collection interval for the check instances created
 #     # from discovered SNMP devices.
 #     # For more information, see:
@@ -4000,6 +4002,7 @@
 #     min_collection_interval: 15
 
 #     # @param use_device_id_as_hostname - boolean - optional - default: false
+#     # @env DD_NETWORK_DEVICES_AUTODISCOVERY_USE_DEVICE_ID_AS_HOSTNAME - boolean - optional - default: false
 #     # Use `device:<DEVICE_ID>` (device_id is composed of `<NAMESPACE>:<DEVICE_IP_ADDRESS>`) as `hostname`
 #     # for metrics and service checks (meaning that metrics and services checks will have
 #     # `host:device:<DEVICE_ID>` as tag).
@@ -4008,11 +4011,13 @@
 #     use_device_id_as_hostname: true
 
 #     # @param collect_topology - boolean - optional - default: true
+#     # @env DD_NETWORK_DEVICES_AUTODISCOVERY_COLLECT_TOPOLOGY - boolean - optional - default: true
 #     # Enable the collection of topology (LLDP/CDP) data
 #
 #     collect_topology: true
 
-#     # @param collect_vpn - boolean - optional
+#     # @param collect_vpn - boolean - optional - default: false
+#     # @env DD_NETWORK_DEVICES_AUTODISCOVERY_COLLECT_VPN - boolean - optional - default: false
 #     # Enable collection of VPN tunnels and route table data
 #
 #     collect_vpn: true
@@ -4031,21 +4036,25 @@
 #
 #     ping:
 
-#       # @param enabled - boolean - optional
+#       # @param enabled - boolean - optional - default: false
+#       # @env DD_NETWORK_DEVICES_AUTODISCOVERY_PING_ENABLED - boolean - optional - default: false
 #
 #       enabled: false
 
-#       # @param timeout - integer - optional
+#       # @param timeout - integer - optional - default: 5
+#       # @env DD_NETWORK_DEVICES_AUTODISCOVERY_PING_TIMEOUT - integer - optional - default: 5
 #       # Timeout in milliseconds
 #
 #       timeout: 3000
 
-#       # @param count - integer - optional
+#       # @param count - integer - optional - default: 2
+#       # @env DD_NETWORK_DEVICES_AUTODISCOVERY_PING_COUNT - integer - optional - default: 2
 #       # Number of ping packets to send per check run
 #
 #       count: 2
 
-#       # @param interval - integer - optional
+#       # @param interval - integer - optional - default: 10
+#       # @env DD_NETWORK_DEVICES_AUTODISCOVERY_PING_INTERVAL - integer - optional - default: 10
 #       # Time between sending pings (up to `count` packets) in milliseconds
 #
 #       interval: 10
@@ -4055,7 +4064,8 @@
 #
 #       linux:
 
-#         # @param use_raw_socket - boolean - optional
+#         # @param use_raw_socket - boolean - optional - default: false
+#         # @env DD_NETWORK_DEVICES_AUTODISCOVERY_PING_LINUX_USE_RAW_SOCKET - boolean - optional - default: false
 #         # Send pings in a privileged fashion using a raw socket.
 #         # This may be required if your system doesn't support  sending pings in an unprivileged fashion (using a UDP
 #         # socket).
@@ -4064,7 +4074,8 @@
 #
 #         use_raw_socket: true
 
-#     # @param use_deduplication - boolean - optional
+#     # @param use_deduplication - boolean - optional - default: false
+#     # @env DD_NETWORK_DEVICES_AUTODISCOVERY_USE_DEDUPLICATION - boolean - optional - default: false
 #     # Deduplicate IP addresses corresponding to the same device.
 #     # The deduplication logic is based on the sysName, sysDesc, sysObjectID and sysUptime
 #
@@ -4325,7 +4336,8 @@
 #       - '<COMMUNITY_1>'
 #       - '<COMMUNITY_2>'
 
-#     # @param users - list of custom objects - optional
+#     # @param users - list of object - optional - default: []
+#     # @env DD_NETWORK_DEVICES_SNMP_TRAPS_USERS - JSON list of object - optional - default: []
 #     # List of SNMPv3 users that can be used to listen for traps.
 #     # Each user can contain:
 #     #  * user         - string - The username used by devices when sending Traps to the Agent.

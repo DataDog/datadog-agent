@@ -2,16 +2,22 @@
 ## Runtime Security configuration ##
 ####################################
 
+## @param runtime_security_config - custom object - optional
+#
 # runtime_security_config:
+
 #   # @param enabled - boolean - optional - default: false
+#   # @env DD_RUNTIME_SECURITY_CONFIG_ENABLED - boolean - optional - default: false
 #   # Set to true to enable Cloud Workload Security (CWS).
 #
 #   enabled: false
+
 
 #   # @param socket - string - optional - default: /opt/datadog-agent/run/runtime-security.sock
 #   # The full path to the location of the unix socket where security runtime module is accessed.
 #
 #   socket: /opt/datadog-agent/run/runtime-security.sock
+
 
 ##########################################
 ## Compliance monitoring configuration  ##

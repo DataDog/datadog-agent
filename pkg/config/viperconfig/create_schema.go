@@ -92,6 +92,14 @@ func (c *safeConfig) addToSchema(name string, val interface{}, envVars []string,
 			if !noDefault {
 				node["default"] = v
 			}
+		case []int:
+			node = map[string]interface{}{
+				"type":  "array",
+				"items": map[string]string{"type": "number"},
+			}
+			if !noDefault {
+				node["default"] = v
+			}
 		case []interface{}:
 			node = map[string]interface{}{
 				"type": "array",
@@ -118,7 +126,7 @@ func (c *safeConfig) addToSchema(name string, val interface{}, envVars []string,
 		case map[string]float64:
 			node = map[string]interface{}{
 				"type":                 "object",
-				"additionalProperties": map[string]interface{}{"type": "array", "items": map[string]string{"type": "number"}},
+				"additionalProperties": map[string]string{"type": "number"},
 				"tags":                 []string{"golang_type:map[string]float64"},
 			}
 			if !noDefault {
@@ -137,6 +145,17 @@ func (c *safeConfig) addToSchema(name string, val interface{}, envVars []string,
 				"type": "array",
 				"items": map[string]interface{}{
 					"type": "object",
+				},
+			}
+			if !noDefault {
+				node["default"] = v
+			}
+		case []map[string]string:
+			node = map[string]interface{}{
+				"type": "array",
+				"items": map[string]interface{}{
+					"type":                 "object",
+					"additionalProperties": map[string]string{"type": "string"},
 				},
 			}
 			if !noDefault {

@@ -2,16 +2,22 @@
 ## Runtime Security configuration ##
 ####################################
 
+## @param runtime_security_config - custom object - optional
+#
 # runtime_security_config:
+
 #   # @param enabled - boolean - optional - default: false
+#   # @env DD_RUNTIME_SECURITY_CONFIG_ENABLED - boolean - optional - default: false
 #   # Set to true to enable Cloud Workload Security (CWS).
 #
 #   enabled: false
+
 
 #   # @param socket - string - optional - default: localhost:3334
 #   # The local address and port where the security runtime module is accessed
 #
 #   socket: localhost:3334
+
 
 ##########################################
 ## Compliance monitoring configuration  ##

@@ -8,11 +8,13 @@
 #
 # system_probe_config:
 
+
 #   # @param sysprobe_socket - string - optional - default: /opt/datadog-agent/run/sysprobe.sock
 #   # @env DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET - string - optional - default: /opt/datadog-agent/run/sysprobe.sock
 #   # The full path to the location of the unix socket where system probes are accessed.
 #
 #   sysprobe_socket: /opt/datadog-agent/run/sysprobe.sock
+
 
 #   # @param log_file - string - optional - default: /var/log/datadog/system-probe.log
 #   # @env DD_SYSTEM_PROBE_CONFIG_LOG_FILE - string - optional - default: /var/log/datadog/system-probe.log
@@ -40,13 +42,18 @@
 #
 #   health_port: 0
 
+
 ########################################
 ## System Probe Network Configuration ##
 ########################################
 
 # network_config:
+
 #   # @param enabled - boolean - optional - default: false
 #   # Set to true to enable the Network Module of the System Probe
+#   #
+#   # On windows, please note that enabling the Network Module of the System
+#   # Probe will result in a kernel driver being loaded.
 #
 #   enabled: false
 
@@ -62,8 +69,13 @@
 #############################################################
 
 # service_monitoring_config:
+
 #   # @param enabled - boolean - optional - default: false
 #   # Set to true to enable the Universal Service Monitoring Module of the System Probe
+#   #
+#   # On windows, please note that enabling the Universal Service Monitoring
+#   # Module of the System Probe will result in a kernel driver
+#   # being loaded.
 #
 #   enabled: false
 
@@ -106,21 +118,26 @@
 #
 #   fim_enabled: false
 
+
 #   # @param socket - string - optional - default: /opt/datadog-agent/run/runtime-security.sock
 #   # @env DD_RUNTIME_SECURITY_CONFIG_SOCKET - string - optional - default: /opt/datadog-agent/run/runtime-security.sock
 #   # The full path to the location of the unix socket where security runtime module is accessed.
 #
 #   socket: /opt/datadog-agent/run/runtime-security.sock
 
+
 #   # @param policies - custom object - optional
 #   # Policy files
+#
 #   policies:
+
 
 #     # @param dir - string - default: /etc/datadog-agent/runtime-security.d
 #     # @env DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR - string - default: /etc/datadog-agent/runtime-security.d
 #     # Path from where the policy files will be loaded
 #
 #     dir: /etc/datadog-agent/runtime-security.d
+
 
 #   # @param syscall_monitor - custom object - optional
 #   # Syscall monitoring
@@ -194,3 +211,4 @@
 #     # Set to true to activate the CWS network detections.
 #
 #     enabled: true
+
