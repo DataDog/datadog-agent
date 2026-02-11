@@ -8,9 +8,6 @@
 package jmxfetch
 
 import (
-	"net"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
