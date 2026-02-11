@@ -422,6 +422,7 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 	evm := &fakeEventMonitor{}
 	dsc, err := NewDirectSenderConsumer(evm, d.log, d.sysprobeconfig)
 	require.NoError(t, err)
+	t.Cleanup(func() { directSenderConsumerInstance.Store(nil) })
 	dsch = dsc.(eventmonitor.EventConsumerHandler)
 	e := evmodel.NewFakeEvent()
 	e.Type = uint32(evmodel.ExecEventType)

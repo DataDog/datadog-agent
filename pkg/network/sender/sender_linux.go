@@ -489,10 +489,8 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 				d.addContainerTags(c, containerIDForPID, containersForTagging, tagsEncoder)
 				d.addTags(nc, c, tagsSet, usmEncoders, connectionsTagsEncoder)
 				d.addDNS(nc, c, dnsSet)
-				if nc.ContainerID.Source != nil {
-					if resolvConf, ok := conns.ResolvConfs[nc.ContainerID.Source]; ok {
-						c.ResolvConfIdx = resolvConfSet.Add(resolvConf.Get())
-					}
+				if resolvConf, ok := conns.ResolvConfs[nc.ContainerID.Source]; ok {
+					c.ResolvConfIdx = resolvConfSet.Add(resolvConf.Get())
 				}
 
 				batchConns = append(batchConns, c)

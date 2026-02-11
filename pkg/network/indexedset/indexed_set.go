@@ -6,6 +6,10 @@
 // Package indexedset provides a generic set that assigns a stable index to each unique key.
 package indexedset
 
+import (
+	"slices"
+)
+
 // IndexedSet is a set that assigns a stable index to each unique key added to it.
 type IndexedSet[K comparable] struct {
 	keyMap   map[K]int32
@@ -47,7 +51,7 @@ func (s *IndexedSet[K]) AddSlice(ks []K) []int32 {
 
 // UniqueKeys returns all the unique keys in the set, in insertion order.
 func (s *IndexedSet[K]) UniqueKeys() []K {
-	return s.uniqList
+	return slices.Clone(s.uniqList)
 }
 
 // Subset returns all the keys corresponding to the provided indexes.
