@@ -85,6 +85,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	pkgconfig.SetEnvPrefix("DD")
 	pkgconfig.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	pkgconfig.BindEnvAndSetDefault("log_level", "info")
+	pkgconfig.BindEnvAndSetDefault("otel_standalone", false)
 
 	pkgconfigsetup.InitConfig(pkgconfig)
 	pkgconfig.BuildSchema()

@@ -24,6 +24,12 @@ exporters:
 processors:
   infraattributes:
     cardinality: 2
+extensions:
+  dogtel:
+    metadata_interval: 60
+    enable_tagger_server: true
+    tagger_server_addr: localhost
+    tagger_server_port: 5001
 connectors:
   datadog/connector:
     traces:
@@ -31,6 +37,7 @@ connectors:
       peer_tags_aggregation: true
       compute_stats_by_span_kind: true
 service:
+  extensions: [dogtel]
   pipelines:
     traces:
       receivers: [otlp]
