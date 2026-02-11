@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
+	"github.com/DataDog/datadog-agent/pkg/network/indexedset"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
@@ -409,7 +410,7 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 	numBatches := d.batchCount(conns)
 	dnsEncoder := model.NewV2DNSEncoder()
 	ipc := make(ipCache, len(conns.Conns)/2)
-	tagsSet := newIndexedSet[string]()
+	tagsSet := indexedset.New[string]()
 
 	usmEncoders := marshal.InitializeUSMEncoders(conns)
 	containersForTagging := d.getContainersForExplicitTagging(conns)
@@ -429,15 +430,15 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 			containerIDForPID := make(map[int32]string)
 			// DNS values for this batch only. Subset of conns.DNS
 			dnsForBatch := make(map[string]*model.DNSDatabaseEntry)
-			dnsSet := newIndexedSet[dns.Hostname]()
-			routeSet := newIndexedSet[network.Via]()
+			dnsSet := indexedset.New[dns.Hostname]()
+			routeSet := indexedset.New[network.Via]()
 
 			connectionsTagsEncoder := model.NewV3TagEncoder()
 			tagsEncoder := model.NewV3TagEncoder()
 			// Adding a dummy tag to ensure the indices we get are always >= 0.
 			_ = tagsEncoder.Encode([]string{"-"})
 
-			resolvConfSet := network.NewTagsSet()
+			resolvConfSet := indexedset.New[string]()
 			resolvConfSet.Add("") // reserve index 0 so real entries are 1-based
 
 			for _, nc := range connsChunk {
@@ -490,7 +491,7 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 				d.addDNS(nc, c, dnsSet)
 				if nc.ContainerID.Source != nil {
 					if resolvConf, ok := conns.ResolvConfs[nc.ContainerID.Source]; ok {
-						c.ResolvConfIdx = int32(resolvConfSet.Add(resolvConf.Get()))
+						c.ResolvConfIdx = resolvConfSet.Add(resolvConf.Get())
 					}
 				}
 
@@ -558,13 +559,13 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 	}
 }
 
-// resolvConfsOrNil returns the TagsSet strings if any real resolv.conf entries
+// resolvConfsOrNil returns the set's strings if any real resolv.conf entries
 // were added (beyond the placeholder at index 0), or nil otherwise.
-func resolvConfsOrNil(set *network.TagsSet) []string {
+func resolvConfsOrNil(set *indexedset.IndexedSet[string]) []string {
 	if set.Size() <= 1 {
 		return nil
 	}
-	return set.GetStrings()
+	return set.UniqueKeys()
 }
 
 func getInternedString(v *intern.Value) string {

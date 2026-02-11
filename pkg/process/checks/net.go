@@ -25,9 +25,9 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/hosttags"
-	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding/unmarshal"
+	"github.com/DataDog/datadog-agent/pkg/network/indexedset"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -551,11 +551,11 @@ func batchConnections(
 		}
 
 		// remap resolv.conf indices for this batch
-		resolvConfSet := network.NewTagsSet()
+		resolvConfSet := indexedset.New[string]()
 		resolvConfSet.Add("") // reserve index 0 so real entries are 1-based
 		for _, c := range batchConns {
 			if c.ResolvConfIdx > 0 && int(c.ResolvConfIdx) < len(resolvConfs) {
-				c.ResolvConfIdx = int32(resolvConfSet.Add(resolvConfs[c.ResolvConfIdx]))
+				c.ResolvConfIdx = resolvConfSet.Add(resolvConfs[c.ResolvConfIdx])
 			} else {
 				c.ResolvConfIdx = 0
 			}
@@ -636,13 +636,13 @@ func batchConnections(
 	return batches
 }
 
-// resolvConfsOrNil returns the TagsSet strings if any real resolv.conf entries
+// resolvConfsOrNil returns the set's strings if any real resolv.conf entries
 // were added (beyond the placeholder at index 0), or nil otherwise.
-func resolvConfsOrNil(set *network.TagsSet) []string {
+func resolvConfsOrNil(set *indexedset.IndexedSet[string]) []string {
 	if set.Size() <= 1 {
 		return nil
 	}
-	return set.GetStrings()
+	return set.UniqueKeys()
 }
 
 func groupSize(total, maxBatchSize int) int32 {
