@@ -1,4 +1,5 @@
 test_fuzz:
+  extends: .bazel:defs:cache:ephemeral
   rules:
     - !reference [.on_scheduled_main]
     - !reference [.manual]
