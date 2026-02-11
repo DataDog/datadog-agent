@@ -15,11 +15,6 @@ pkg_filegroup(
     srcs = [
         "etc_readme",
     ],
-    #"//conditions:default": [
-    #        "@zlib//:hdr_files",
-    #            "@zlib//:lib_files",
-    #        ],
-    #    }),
 )
 
 pkg_install(
