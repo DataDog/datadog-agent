@@ -166,13 +166,15 @@ configure_make(
     }),
     targets = ["depend", "", "install_sw", "install_ssldirs"],
     # Fix install names, as openssl's build system might not get them right
+    # Maybe for macos, @loader_path should be @rpath. That helped get curl_bin
+    # to link
     postfix_script = select({
         "@platforms//os:macos": """
             # Fix install names
             for lib in libcrypto.dylib libssl.dylib; do
                 install_name_tool -id @rpath/$$lib $$INSTALLDIR/lib/$$lib
                 for dep in $$(otool -L $$INSTALLDIR/lib/$$lib | grep 'sandbox.*execroot' | awk '{print $$1}'); do
-                    install_name_tool -change $$dep "@rpath/$$(basename $$dep)" $$INSTALLDIR/lib/$$lib
+                    install_name_tool -change $$dep "@loader_path/$$(basename $$dep)" $$INSTALLDIR/lib/$$lib
                 done
             done
             LIBS="$$INSTALLDIR/lib/libcrypto.dylib $$INSTALLDIR/lib/libssl.dylib"
