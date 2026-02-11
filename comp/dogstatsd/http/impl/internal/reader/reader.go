@@ -116,7 +116,7 @@ func (r *MetricDataReader) Initialize() error {
 }
 
 var (
-	errUnexpectedEof = errors.New("unexpected end of column")
+	errUnexpectedEOF = errors.New("unexpected end of column")
 	errOverflow      = errors.New("length field overflow")
 	errBadReference  = errors.New("invalid reference")
 )
@@ -127,7 +127,7 @@ func unpackStrDict(raw []byte) ([]string, error) {
 	for len(raw) > 0 {
 		length, n := binary.Uvarint(raw)
 		if n == 0 {
-			return nil, errUnexpectedEof
+			return nil, errUnexpectedEOF
 		}
 		if n < 0 {
 			return nil, errOverflow
@@ -137,7 +137,7 @@ func unpackStrDict(raw []byte) ([]string, error) {
 		}
 		end := n + int(length)
 		if end > len(raw) {
-			return nil, errUnexpectedEof
+			return nil, errUnexpectedEOF
 		}
 		str := string(raw[n:end])
 		dict = append(dict, str)
@@ -154,7 +154,7 @@ func (r *MetricDataReader) unpackTagsetsDict() ([][]string, error) {
 		size := packed[0]
 		packed = packed[1:]
 		if size < 0 || size > int64(len(packed)) {
-			return nil, errUnexpectedEof
+			return nil, errUnexpectedEOF
 		}
 		tags := make([]string, 0, size)
 
@@ -189,7 +189,7 @@ func (r *MetricDataReader) unpackResourcesDict() ([][]*resource, error) {
 	start := int64(0)
 	for _, size := range packedLen {
 		if size < 0 {
-			return nil, errUnexpectedEof
+			return nil, errUnexpectedEOF
 		}
 		end := start + size
 		if end > int64(len(packedType)) || end > int64(len(packedName)) {
@@ -223,7 +223,7 @@ func (r *MetricDataReader) unpackResourcesDict() ([][]*resource, error) {
 func unpackOriginInfoDict(raw []int32) ([]*originInfo, error) {
 	nelem := len(raw) / 3
 	if len(raw) != nelem*3 {
-		return nil, errUnexpectedEof
+		return nil, errUnexpectedEOF
 	}
 	dict := make([]*originInfo, 1, nelem+1)
 	for i := 0; i < len(raw); i += 3 {
@@ -247,7 +247,7 @@ func (r *MetricDataReader) HaveMoreMetrics() bool {
 // If this method returns an error the reader is in an invalid state and calling data access methods may panic.
 func (r *MetricDataReader) NextMetric() error {
 	if !r.HaveMoreMetrics() {
-		return errUnexpectedEof
+		return errUnexpectedEOF
 	}
 
 	if r.metricIdx >= 0 {
@@ -268,7 +268,7 @@ func (r *MetricDataReader) NextMetric() error {
 		r.metricIdx > len(r.data.OriginInfos) ||
 		r.metricIdx > len(r.data.Intervals) ||
 		r.metricIdx > len(r.data.NumPoints) {
-		return errUnexpectedEof
+		return errUnexpectedEOF
 	}
 
 	r.pointsRemaining = int(r.NumPoints())
@@ -359,14 +359,14 @@ func (r *MetricDataReader) HaveMorePoints() bool {
 // If this method returns an error the reader is in an invalid state and calling data access methods may panic.
 func (r *MetricDataReader) NextPoint() error {
 	if !r.HaveMorePoints() {
-		return errUnexpectedEof
+		return errUnexpectedEOF
 	}
 
 	r.pointIdx++
 	r.pointsRemaining--
 
 	if r.pointIdx > len(r.data.Timestamps) {
-		return errUnexpectedEof
+		return errUnexpectedEOF
 	}
 
 	switch r.Type() {
@@ -398,22 +398,22 @@ func (r *MetricDataReader) NextPoint() error {
 	}
 
 	if r.valsFloat64Idx > len(r.data.ValsFloat64) {
-		return errUnexpectedEof
+		return errUnexpectedEOF
 	}
 	if r.valsFloat32Idx > len(r.data.ValsFloat32) {
-		return errUnexpectedEof
+		return errUnexpectedEOF
 	}
 	if r.valsSint64Idx > len(r.data.ValsSint64) {
-		return errUnexpectedEof
+		return errUnexpectedEOF
 	}
 	if r.sketchNumBinsIdx > len(r.data.SketchNumBins) {
-		return errUnexpectedEof
+		return errUnexpectedEOF
 	}
 	if r.sketchBinsIdx > len(r.data.SketchBinKeys) {
-		return errUnexpectedEof
+		return errUnexpectedEOF
 	}
 	if r.sketchBinsIdx > len(r.data.SketchBinCnts) {
-		return errUnexpectedEof
+		return errUnexpectedEOF
 	}
 
 	r.timestamp += r.data.Timestamps[r.pointIdx-1]
