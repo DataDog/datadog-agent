@@ -1025,7 +1025,7 @@ new-e2e-package-signing-debian-a7-x86_64:
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7
-  rules: !reference [.on_default_new_e2e_tests]
+  rules: !reference [.on_package_signing_tests]
 
 new-e2e-package-signing-suse-a7-x86_64:
   extends:
@@ -1038,7 +1038,7 @@ new-e2e-package-signing-suse-a7-x86_64:
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_suse-x64-a7
-  rules: !reference [.on_default_new_e2e_tests]
+  rules: !reference [.on_package_signing_tests]
 
 new-e2e-cspm:
   extends: .new_e2e_template
