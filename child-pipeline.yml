@@ -12,7 +12,8 @@ child_job_depends_on_parent:
   stage: run
   tags: ["arch:amd64", "specific:true"]
   needs:
-    - job: parent_job_parallel
+    - pipeline: $PARENT_PIPELINE_ID
+      job: parent_job_parallel
       artifacts: true
   script:
     - echo "Child job running (after parent_job_parallel?)"

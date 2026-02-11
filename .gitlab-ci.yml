@@ -34,3 +34,5 @@ trigger_child:
     - parent_job
   trigger:
     include: child-pipeline.yml
+  variables:
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
