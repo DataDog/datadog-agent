@@ -106,11 +106,6 @@ func mkContext(buildType string, osName string) context {
 			LogsAgent: true,
 			Logging:   true,
 		}
-	case "system-probe":
-		return context{
-			OS:          osName,
-			SystemProbe: true,
-		}
 	case "dogstatsd":
 		return context{
 			OS:                osName,
@@ -143,7 +138,12 @@ func mkContext(buildType string, osName string) context {
 			CloudFoundryBBS: true,
 			CloudFoundryCC:  true,
 		}
+	// security-agent and system-probe use their own templating file, they only require OS
 	case "security-agent":
+		return context{
+			OS: osName,
+		}
+	case "system-probe":
 		return context{
 			OS: osName,
 		}
