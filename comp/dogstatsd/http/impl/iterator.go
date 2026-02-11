@@ -60,15 +60,25 @@ func (it *seriesIterator) MoveNext() bool {
 
 	b.Interval = int64(it.reader.Interval())
 	b.SourceTypeName = it.reader.SourceTypeName()
+
 	b.Host = it.hostname
+	seenHost := false
+	b.Device = ""
+	seenDevice := false
 
 	b.Resources = b.Resources[:0]
 	for _, res := range it.reader.Resources() {
 		switch res.Type {
 		case "host":
-			b.Host = res.Name
+			if !seenHost {
+				b.Host = res.Name
+				seenHost = true
+			}
 		case "device":
-			b.Device = res.Name
+			if !seenDevice {
+				b.Device = res.Name
+				seenDevice = true
+			}
 		default:
 			b.Resources = append(b.Resources, *res)
 		}
