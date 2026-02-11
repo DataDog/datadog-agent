@@ -100,7 +100,7 @@ func newBucketTagResolver(cfg Config) *bucketTagResolver {
 }
 
 // New creates the appropriate Resolver based on whether
-// a remote config client is available.
+// gradual rollout is enabled.
 func New(cfg Config) Resolver {
 	if !cfg.Enabled {
 		return NewNoOpResolver()
