@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
-	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
 )
 
 type windowsNetworkPathIntegrationTestSuite struct {
@@ -30,8 +30,8 @@ var networkPathIntegrationWindows []byte
 // TestNetworkPathIntegrationSuiteLinux runs the Network Path Integration e2e suite for linux
 func TestWindowsNetworkPathIntegrationSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &windowsNetworkPathIntegrationTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(
-		awshost.WithRunOptions(
+	e2e.Run(t, &windowsNetworkPathIntegrationTestSuite{}, e2e.WithProvisioner(winawshost.Provisioner(
+		winawshost.WithRunOptions(
 			ec2.WithAgentOptions(
 				agentparams.WithSystemProbeConfig(string(sysProbeConfig)),
 				agentparams.WithIntegration("network_path.d", string(networkPathIntegrationWindows)),
