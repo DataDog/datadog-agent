@@ -2959,6 +2959,11 @@ broken
 							Source:       PolicyProviderTypeRC,
 							InternalType: CustomPolicyType,
 						},
+						UsedBy: []PolicyInfo{{
+							Name:         "myLocal.policy",
+							Source:       PolicyProviderTypeRC,
+							InternalType: CustomPolicyType,
+						}},
 						Accepted: true,
 					},
 				},
@@ -2997,6 +3002,11 @@ broken
 							Source:       PolicyProviderTypeRC,
 							InternalType: CustomPolicyType,
 						},
+						UsedBy: []PolicyInfo{{
+							Name:         "myLocal.policy",
+							Source:       PolicyProviderTypeRC,
+							InternalType: CustomPolicyType,
+						}},
 						Accepted: true,
 					},
 				},

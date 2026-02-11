@@ -941,19 +941,20 @@ def check_otel_build(ctx):
 
 @task
 def check_otel_module_versions(ctx, fix=False):
-    # Get Go version from upstream (e.g., "1.24")
-    upstream_pattern = f"^go {PATTERN_MAJOR_MINOR}\r?$"
+    # Get Go version from upstream (e.g., "1.24" or "1.24.0")
+    upstream_pattern = r"^go (1(?:\.\d+){1,2})[\r]?$"
     r = requests.get(OTEL_UPSTREAM_GO_MOD_PATH)
     upstream_matches = re.findall(upstream_pattern, r.text, flags=re.MULTILINE)
     if len(upstream_matches) != 1:
         raise Exit(f"Error parsing upstream go.mod version: {OTEL_UPSTREAM_GO_MOD_PATH}")
-    upstream_major_minor = upstream_matches[0]
+    upstream_go_version = upstream_matches[0]
 
-    # Expected version for local modules is the upstream version with .0 patch (e.g., "1.24.0")
-    expected_local_version = f"{upstream_major_minor}.0"
+    expected_local_version = upstream_go_version
+    if expected_local_version.count('.') == 1:
+        expected_local_version += '.0'
 
     # Pattern to match major.minor.patch format in local modules
-    local_pattern = f"^go {PATTERN_MAJOR_MINOR}\\.\\d+\r?$"
+    local_pattern = f"^go ({PATTERN_MAJOR_MINOR}\\.\\d+)\r?$"
 
     # Collect all errors instead of failing at the first one
     format_errors = []
@@ -980,7 +981,7 @@ def check_otel_module_versions(ctx, fix=False):
                         )
                     else:
                         version_errors.append(
-                            f"{mod_file} version {actual_local_version} does not match expected version: {expected_local_version} (derived from upstream {upstream_major_minor})"
+                            f"{mod_file} version {actual_local_version} does not match expected version: {expected_local_version} (derived from upstream {upstream_go_version})"
                         )
 
     # Report all errors at once if any were found

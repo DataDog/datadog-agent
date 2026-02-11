@@ -42,7 +42,7 @@ require github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indir
 require (
 	cloud.google.com/go/auth v0.17.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
-	cloud.google.com/go/compute v1.49.1 // indirect
+	cloud.google.com/go/compute v1.54.0 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.72.0-rc.5 // indirect
@@ -106,7 +106,7 @@ require (
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.5 // indirect
 	github.com/prometheus/procfs v0.19.2 // indirect
-	github.com/shirou/gopsutil/v4 v4.25.12 // indirect
+	github.com/shirou/gopsutil/v4 v4.26.1 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect

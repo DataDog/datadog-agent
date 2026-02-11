@@ -19,7 +19,7 @@ require (
 	github.com/DataDog/datadog-api-client-go/v2 v2.54.0
 	github.com/aws/aws-sdk-go-v2 v1.41.1
 	github.com/aws/aws-sdk-go-v2/config v1.32.7
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.279.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.283.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/eks v1.74.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.67.7 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
@@ -71,7 +71,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.17 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.4 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.16 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.70.1
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.71.0
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.17 // indirect
@@ -327,7 +327,7 @@ require (
 	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.9.0 // indirect
-	github.com/shirou/gopsutil/v4 v4.25.12 // indirect
+	github.com/shirou/gopsutil/v4 v4.26.1 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/theckman/httpforwarded v0.4.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
@@ -341,10 +341,10 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	github.com/zorkian/go-datadog-api v2.30.0+incompatible // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/collector/component v1.50.0 // indirect
-	go.opentelemetry.io/collector/featuregate v1.50.0 // indirect
-	go.opentelemetry.io/collector/pdata v1.50.0 // indirect
-	go.opentelemetry.io/collector/pdata/pprofile v0.144.0 // indirect
+	go.opentelemetry.io/collector/component v1.51.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.51.0 // indirect
+	go.opentelemetry.io/collector/pdata v1.51.0 // indirect
+	go.opentelemetry.io/collector/pdata/pprofile v0.145.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.39.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.9.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
