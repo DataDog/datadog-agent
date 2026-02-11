@@ -395,7 +395,8 @@ unsafe fn free_dd_service(service: &dd_service) {
 unsafe fn free_dd_str(s: &dd_str) {
     if !s.data.is_null() {
         // SAFETY: Caller guarantees this came from `Box::into_raw(boxed_slice)`.
-        let boxed = unsafe { Box::from_raw(ptr::slice_from_raw_parts_mut(s.data as *mut u8, s.len)) };
+        let boxed =
+            unsafe { Box::from_raw(ptr::slice_from_raw_parts_mut(s.data as *mut u8, s.len)) };
         drop(boxed);
     }
 }
@@ -408,7 +409,8 @@ unsafe fn free_dd_str(s: &dd_str) {
 unsafe fn free_dd_strs(s: &dd_strs) {
     if !s.data.is_null() {
         // SAFETY: Caller guarantees this came from `Box::into_raw`.
-        let strs = unsafe { Box::from_raw(ptr::slice_from_raw_parts_mut(s.data as *mut dd_str, s.len)) };
+        let strs =
+            unsafe { Box::from_raw(ptr::slice_from_raw_parts_mut(s.data as *mut dd_str, s.len)) };
 
         for s in strs.iter() {
             // SAFETY: Each element was created via `dd_str::from` which uses `Box::into_raw`.
@@ -427,7 +429,8 @@ unsafe fn free_dd_strs(s: &dd_strs) {
 unsafe fn free_dd_u16_slice(s: &dd_u16_slice) {
     if !s.data.is_null() {
         // SAFETY: Caller guarantees this came from `Box::into_raw`.
-        let boxed = unsafe { Box::from_raw(ptr::slice_from_raw_parts_mut(s.data as *mut u16, s.len)) };
+        let boxed =
+            unsafe { Box::from_raw(ptr::slice_from_raw_parts_mut(s.data as *mut u16, s.len)) };
         drop(boxed);
     }
 }
@@ -563,14 +566,20 @@ mod tests {
         // SAFETY: We just created this with one service
         let service = unsafe { &*result.services };
         assert_eq!(service.pid, 1234);
-        assert_eq!(unsafe { dd_str_to_str(&service.generated_name) }, "test-service");
+        assert_eq!(
+            unsafe { dd_str_to_str(&service.generated_name) },
+            "test-service"
+        );
         assert_eq!(
             unsafe { dd_str_to_str(&service.generated_name_source) },
             "command-line"
         );
         assert_eq!(service.apm_instrumentation, true);
         assert_eq!(unsafe { dd_str_to_str(&service.language) }, "python");
-        assert_eq!(unsafe { dd_str_to_str(&service.service_type) }, "web_service");
+        assert_eq!(
+            unsafe { dd_str_to_str(&service.service_type) },
+            "web_service"
+        );
 
         // Verify additional_generated_names
         assert!(!service.additional_generated_names.data.is_null());
@@ -590,34 +599,44 @@ mod tests {
         let metadata = unsafe { &*service.tracer_metadata.data };
         assert_eq!(metadata.schema_version, 1);
         assert_eq!(unsafe { dd_str_to_str(&metadata.runtime_id) }, "runtime123");
-        assert_eq!(unsafe { dd_str_to_str(&metadata.tracer_language) }, "python");
+        assert_eq!(
+            unsafe { dd_str_to_str(&metadata.tracer_language) },
+            "python"
+        );
 
         // Verify UST
-        assert_eq!(unsafe { dd_str_to_str(&service.ust.service) }, "ust-service");
+        assert_eq!(
+            unsafe { dd_str_to_str(&service.ust.service) },
+            "ust-service"
+        );
         assert_eq!(unsafe { dd_str_to_str(&service.ust.env) }, "staging");
         assert_eq!(unsafe { dd_str_to_str(&service.ust.version) }, "3.0.0");
 
         // Verify ports
         assert!(!service.tcp_ports.data.is_null());
         assert_eq!(service.tcp_ports.len, 2);
-        let tcp = unsafe { std::slice::from_raw_parts(service.tcp_ports.data, service.tcp_ports.len) };
+        let tcp =
+            unsafe { std::slice::from_raw_parts(service.tcp_ports.data, service.tcp_ports.len) };
         assert_eq!(tcp, &[8080, 8443]);
 
         assert!(!service.udp_ports.data.is_null());
         assert_eq!(service.udp_ports.len, 1);
-        let udp = unsafe { std::slice::from_raw_parts(service.udp_ports.data, service.udp_ports.len) };
+        let udp =
+            unsafe { std::slice::from_raw_parts(service.udp_ports.data, service.udp_ports.len) };
         assert_eq!(udp, &[9000]);
 
         // Verify log_files
         assert!(!service.log_files.data.is_null());
         assert_eq!(service.log_files.len, 1);
-        let logs = unsafe { std::slice::from_raw_parts(service.log_files.data, service.log_files.len) };
+        let logs =
+            unsafe { std::slice::from_raw_parts(service.log_files.data, service.log_files.len) };
         assert_eq!(unsafe { dd_str_to_str(&logs[0]) }, "/var/log/app.log");
 
         // Verify injected_pids
         assert!(!result.injected_pids.is_null());
         assert_eq!(result.injected_pids_len, 2);
-        let pids = unsafe { std::slice::from_raw_parts(result.injected_pids, result.injected_pids_len) };
+        let pids =
+            unsafe { std::slice::from_raw_parts(result.injected_pids, result.injected_pids_len) };
         assert_eq!(pids, &[5678, 9012]);
 
         // Free and verify no crash
