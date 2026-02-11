@@ -10,7 +10,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
+	remotehostnamefx "github.com/DataDog/datadog-agent/comp/core/hostname/fx-remote"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -64,7 +64,7 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 			}
 		}),
 		settingsimpl.Module(),
-		remotehostnameimpl.Module(),
+		remotehostnamefx.Module(),
 		ipcfx.ModuleReadWrite(),
 		rcserviceimpl.Module(),
 		rcclientimpl.Module(),

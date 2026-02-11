@@ -12,7 +12,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	hostinfoComp "github.com/DataDog/datadog-agent/comp/process/hostinfo"
@@ -30,7 +30,7 @@ type dependencies struct {
 	fx.In
 
 	Config   config.Component
-	Hostname hostnameinterface.Component
+	Hostname hostname.Component
 	Logger   log.Component
 	IPC      ipc.Component
 }

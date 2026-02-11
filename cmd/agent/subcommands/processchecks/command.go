@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	processCommand "github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnamefx "github.com/DataDog/datadog-agent/comp/core/hostname/fx"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
@@ -45,7 +45,7 @@ func getCoreAgentFxOptions(cliParams *check.CliParams, bundleParams core.BundleP
 	return []fx.Option{
 		fx.Supply(cliParams, bundleParams),
 		core.Bundle(),
-		hostnameimpl.Module(),
+		hostnamefx.Module(),
 		secretsfx.Module(),
 
 		// Provide eventplatformimpl module

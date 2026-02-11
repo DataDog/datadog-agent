@@ -17,7 +17,7 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -69,7 +69,7 @@ type Requires struct {
 	// We need the authtoken to be created so we requires the comp. It will be used by configFetcher.
 	IPC            ipc.Component
 	SysProbeConfig option.Option[sysprobeconfig.Component]
-	Hostname       hostnameinterface.Component
+	Hostname       hostname.Component
 }
 
 // Provides defines the output of the systemprobe metadatacomponent

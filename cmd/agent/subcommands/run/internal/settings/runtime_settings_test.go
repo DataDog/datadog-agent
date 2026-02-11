@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -46,7 +46,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 
 	deps := fxutil.Test[testDeps](t, fx.Options(
 		core.MockBundle(),
-		hostnameimpl.MockModule(),
+		hostname.MockModule(),
 		fx.Supply(core.BundleParams{}),
 		demultiplexerimpl.MockModule(),
 		dogstatsd.Bundle(server.Params{Serverless: false}),

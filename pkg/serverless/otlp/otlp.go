@@ -15,7 +15,7 @@ import (
 
 	"go.opentelemetry.io/collector/otelcol"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/impl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	coreOtlp "github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"

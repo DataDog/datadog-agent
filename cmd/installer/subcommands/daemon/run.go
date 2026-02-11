@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnamefx "github.com/DataDog/datadog-agent/comp/core/hostname/fx"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
@@ -52,7 +52,7 @@ func getCommonFxOption(global *command.GlobalParams) fx.Option {
 			LogParams:            log.ForDaemon("INSTALLER", "installer.log_file", pkgconfigsetup.DefaultUpdaterLogFile),
 		}),
 		core.Bundle(),
-		hostnameimpl.Module(),
+		hostnamefx.Module(),
 		secretsfx.Module(),
 		fx.Supply(&rcservice.Params{
 			Options: []service.Option{

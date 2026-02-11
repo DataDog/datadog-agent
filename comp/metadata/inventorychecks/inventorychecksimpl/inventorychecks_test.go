@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -52,7 +52,7 @@ func getTestInventoryChecks(t *testing.T, coll option.Option[collector.Component
 			fx.Provide(func() option.Option[logagent.Component] {
 				return logAgent
 			}),
-			hostnameimpl.MockModule(),
+			hostname.MockModule(),
 		),
 	)
 	return p.Comp.(*inventorychecksImpl)
@@ -139,7 +139,7 @@ func TestGetPayload(t *testing.T) {
 			}),
 			collectorimpl.MockModule(),
 			core.MockBundle(),
-			hostnameimpl.MockModule(),
+			hostname.MockModule(),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		)
 
@@ -162,7 +162,7 @@ func TestGetPayload(t *testing.T) {
 			t,
 			logsBundle.MockBundle(),
 			core.MockBundle(),
-			hostnameimpl.MockModule(),
+			hostname.MockModule(),
 			inventoryagentimpl.MockModule(),
 			logscompression.MockModule(),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),

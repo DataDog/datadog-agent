@@ -17,7 +17,7 @@ import (
 	"go.uber.org/fx"
 
 	configComp "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
@@ -137,7 +137,7 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 				fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 				sysprobeconfigimpl.MockModule(),
 				Module(),
-				hostnameimpl.MockModule(),
+				hostname.MockModule(),
 				fx.Provide(func() configComp.Component {
 					return configComp.NewMockWithOverrides(t, map[string]interface{}{
 						"process_config.run_in_core_agent.enabled": tc.runInCoreAgentConfig,
@@ -210,7 +210,7 @@ func TestStatusProvider(t *testing.T) {
 					})
 				}),
 				sysprobeconfigimpl.MockModule(),
-				hostnameimpl.MockModule(),
+				hostname.MockModule(),
 				fx.Provide(func() func(c *checkMocks.Check) {
 					return func(c *checkMocks.Check) {
 						c.On("Init", mock.Anything, mock.Anything, mock.AnythingOfType("bool")).Return(nil).Maybe()
@@ -260,7 +260,7 @@ func TestTelemetryCoreAgent(t *testing.T) {
 			})
 		}),
 		sysprobeconfigimpl.MockModule(),
-		hostnameimpl.MockModule(),
+		hostname.MockModule(),
 		fx.Provide(func() func(c *checkMocks.Check) {
 			return func(c *checkMocks.Check) {
 				c.On("Init", mock.Anything, mock.Anything, mock.AnythingOfType("bool")).Return(nil).Maybe()

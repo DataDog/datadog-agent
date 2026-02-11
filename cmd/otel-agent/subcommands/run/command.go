@@ -23,8 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
+	remotehostnamefx "github.com/DataDog/datadog-agent/comp/core/hostname/fx-remote"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
@@ -135,11 +135,11 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 				return cp
 			}),
 			remoteTaggerFx.Module(tagger.OptionalRemoteParams{Disable: isCmdPortNegative}, tagger.NewRemoteParams()),
-			fx.Provide(func(h hostnameinterface.Component) (serializerexporter.SourceProviderFunc, error) {
+			fx.Provide(func(h hostname.Component) (serializerexporter.SourceProviderFunc, error) {
 				return h.Get, nil
 			}),
 			telemetryimpl.Module(),
-			remotehostnameimpl.Module(),
+			remotehostnamefx.Module(),
 			collectorcontribFx.Module(),
 			collectorfx.ModuleNoAgent(),
 			fx.Options(opts...),
@@ -175,10 +175,10 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			InitHelper: workloadmetainit.GetWorkloadmetaInit(),
 		}),
 		fx.Supply(uris),
-		fx.Provide(func(h hostnameinterface.Component) (serializerexporter.SourceProviderFunc, error) {
+		fx.Provide(func(h hostname.Component) (serializerexporter.SourceProviderFunc, error) {
 			return h.Get, nil
 		}),
-		remotehostnameimpl.Module(),
+		remotehostnamefx.Module(),
 
 		fx.Provide(func(_ coreconfig.Component) log.Params {
 			return log.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)

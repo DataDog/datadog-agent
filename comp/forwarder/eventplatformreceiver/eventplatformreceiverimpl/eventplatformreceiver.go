@@ -13,7 +13,7 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -38,7 +38,7 @@ func streamEventPlatform(eventPlatformReceiver eventplatformreceiver.Component) 
 }
 
 // NewReceiver returns a new event platform receiver.
-func NewReceiver(hostname hostnameinterface.Component) provides { // nolint:revive
+func NewReceiver(hostname hostname.Component) provides { // nolint:revive
 	epr := diagnostic.NewBufferedMessageReceiver(&epFormatter{}, hostname)
 	return provides{
 		Comp:     epr,

@@ -12,14 +12,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	"github.com/DataDog/datadog-agent/pkg/api/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Requires is a struct that contains the components required by the common endpoints
 type Requires struct {
-	Hostname hostnameinterface.Component
+	Hostname hostname.Component
 }
 
 // Provider provides the common Agent API endpoints
@@ -39,7 +39,7 @@ func CommonEndpointProvider(requires Requires) Provider {
 }
 
 // getHostname returns an http handler that writes the hostname as a JSON response.
-func getHostname(hostname hostnameinterface.Component) func(http.ResponseWriter, *http.Request) {
+func getHostname(hostname hostname.Component) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		hname, err := hostname.Get(r.Context())

@@ -15,7 +15,7 @@ use (
 	comp/core/configsync
 	comp/core/flare/builder
 	comp/core/flare/types
-	comp/core/hostname/hostnameinterface
+	comp/core/hostname/def
 	comp/core/ipc/def
 	comp/core/ipc/httphelpers
 	comp/core/ipc/impl

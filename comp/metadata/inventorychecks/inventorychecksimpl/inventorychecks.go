@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
@@ -94,7 +94,7 @@ type dependencies struct {
 	Serializer serializer.MetricSerializer
 	Coll       option.Option[collector.Component]
 	LogAgent   option.Option[logagent.Component]
-	Hostname   hostnameinterface.Component
+	Hostname   hostname.Component
 }
 
 type provides struct {

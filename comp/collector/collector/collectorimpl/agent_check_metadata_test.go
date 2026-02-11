@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
@@ -43,7 +43,7 @@ func TestExternalHostTags(t *testing.T) {
 		fx.Provide(func() config.Component {
 			return config.NewMockWithOverrides(t, map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond})
 		}),
-		hostnameimpl.MockModule(),
+		hostname.MockModule(),
 		demultiplexerimpl.MockModule(),
 		haagentmock.Module(),
 		fx.Provide(func() option.Option[agenttelemetry.Component] {

@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
@@ -31,7 +31,7 @@ func TestTagsSetup(t *testing.T) {
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	fakeCompression := compressionmock.NewMockCompressor()
-	fakeHostname, _ := hostnameinterface.NewMock(hostnameinterface.MockHostname(""))
+	fakeHostname, _ := hostname.NewMock(hostname.MockHostname(""))
 
 	configmock.New(t)
 

@@ -24,7 +24,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/common"
@@ -618,8 +618,8 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 
 type mockHostname struct{}
 
-func (m *mockHostname) GetWithProvider(_ context.Context) (hostnameinterface.Data, error) {
-	return hostnameinterface.Data{
+func (m *mockHostname) GetWithProvider(_ context.Context) (hostname.Data, error) {
+	return hostname.Data{
 		Hostname: "test-hostname",
 		Provider: "test-provider",
 	}, nil

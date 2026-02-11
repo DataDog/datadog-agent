@@ -11,7 +11,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	"github.com/DataDog/datadog-agent/pkg/inventory/software"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/stretchr/testify/mock"
@@ -59,7 +59,7 @@ func (m *mockSysProbeClient) GetCheck(module types.ModuleName) ([]software.Entry
 	return argValue.([]software.Entry), args.Error(1)
 }
 
-// mockHostname implements hostnameinterface.Component for testing.
+// mockHostname implements hostname.Component for testing.
 // This mock provides a consistent hostname for testing purposes,
 // ensuring that tests have predictable hostname values without
 // depending on the actual system hostname.
@@ -68,8 +68,8 @@ type mockHostname struct{}
 // GetWithProvider returns test hostname data with provider information.
 // This method provides a complete hostname data structure for testing,
 // including both the hostname string and the provider information.
-func (m *mockHostname) GetWithProvider(_ context.Context) (hostnameinterface.Data, error) {
-	return hostnameinterface.Data{
+func (m *mockHostname) GetWithProvider(_ context.Context) (hostname.Data, error) {
+	return hostname.Data{
 		Hostname: "test-hostname",
 		Provider: "test-provider",
 	}, nil

@@ -13,8 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
@@ -88,7 +87,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 func NewPrivateActionRunner(
 	ctx context.Context,
 	coreConfig model.ReaderWriter,
-	hostnameGetter hostnameinterface.Component,
+	hostnameGetter hostname.Component,
 	rcClient pkgrcclient.Client,
 	logger log.Component,
 ) (*PrivateActionRunner, error) {
@@ -160,7 +159,7 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 }
 
 // performSelfEnrollment handles the self-registration of a private action runner
-func performSelfEnrollment(ctx context.Context, log log.Component, ddConfig config.Component, hostnameComp hostnameinterface.Component, cfg *parconfig.Config) (*parconfig.Config, error) {
+func performSelfEnrollment(ctx context.Context, log log.Component, ddConfig config.Component, hostnameComp hostname.Component, cfg *parconfig.Config) (*parconfig.Config, error) {
 	ddSite := ddConfig.GetString("site")
 	apiKey := ddConfig.GetString("api_key")
 	appKey := ddConfig.GetString("app_key")

@@ -10,7 +10,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"

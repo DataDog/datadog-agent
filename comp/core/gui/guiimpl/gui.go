@@ -30,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	guicomp "github.com/DataDog/datadog-agent/comp/core/gui"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -81,7 +81,7 @@ type dependencies struct {
 	Flare    flare.Component
 	Status   status.Component
 	Lc       fx.Lifecycle
-	Hostname hostnameinterface.Component
+	Hostname hostname.Component
 }
 
 type provides struct {

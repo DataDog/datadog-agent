@@ -8,7 +8,7 @@ package haagentimpl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
@@ -19,7 +19,7 @@ import (
 type Requires struct {
 	Logger      log.Component
 	AgentConfig config.Component
-	Hostname    hostnameinterface.Component
+	Hostname    hostname.Component
 }
 
 // Provides defines the output of the haagent component

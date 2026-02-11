@@ -12,7 +12,7 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -46,7 +46,7 @@ type Processor struct {
 	done                      chan struct{}
 	diagnosticMessageReceiver diagnostic.MessageReceiver
 	mu                        sync.Mutex
-	hostname                  hostnameinterface.Component
+	hostname                  hostname.Component
 	config                    pkgconfigmodel.Reader
 	configChan                chan failoverConfig
 	failoverConfig            failoverConfig
@@ -59,7 +59,7 @@ type Processor struct {
 
 // New returns an initialized Processor with config support for failover notifications.
 func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
-	encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
+	encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostname.Component,
 	pipelineMonitor metrics.PipelineMonitor, instanceID string) *Processor {
 
 	p := &Processor{

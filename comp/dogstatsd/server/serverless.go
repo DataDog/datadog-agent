@@ -9,7 +9,7 @@ package server
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/impl"
 	logComponentImpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"

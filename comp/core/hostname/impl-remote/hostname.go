@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package remotehostnameimpl provides a function to get the hostname from core agent.
-package remotehostnameimpl
+// Package remoteimpl provides a function to get the hostname from core agent.
+package remoteimpl
 
 import (
 	"context"
@@ -12,18 +12,16 @@ import (
 
 	"github.com/avast/retry-go/v4"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	config "github.com/DataDog/datadog-agent/comp/core/config"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	pkghostname "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	cache "github.com/patrickmn/go-cache"
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 )
 
 const (
@@ -42,29 +40,37 @@ const (
 	maxAttempts = 6
 )
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newRemoteHostImpl))
+// Requires declares the input types to the remote hostname component constructor
+type Requires struct {
+	Lc     compdef.Lifecycle
+	IPC    ipc.Component
+	Config config.Component
+}
+
+// Provides declares the output types from the remote hostname component constructor
+type Provides struct {
+	compdef.Out
+
+	Comp hostname.Component
 }
 
 var cachKey = "hostname"
 
 type remotehostimpl struct {
-	cache *cache.Cache
-	ipc   ipc.Component
+	cache  *cache.Cache
+	ipc    ipc.Component
+	config config.Component
 }
 
-type dependencies struct {
-	fx.In
-	IPC ipc.Component
-}
-
-func newRemoteHostImpl(deps dependencies) hostnameinterface.Component {
-	return &remotehostimpl{
-		cache: cache.New(defaultExpire, defaultPurge),
-		ipc:   deps.IPC,
+// NewComponent creates a new remote hostname component following the standard component pattern.
+func NewComponent(reqs Requires) (Provides, error) {
+	svc := &remotehostimpl{
+		cache:  cache.New(defaultExpire, defaultPurge),
+		ipc:    reqs.IPC,
+		config: reqs.Config,
 	}
+
+	return Provides{Comp: svc}, nil
 }
 
 func (r *remotehostimpl) Get(ctx context.Context) (string, error) {
@@ -84,12 +90,12 @@ func (r *remotehostimpl) GetSafe(ctx context.Context) string {
 	return h
 }
 
-func (r *remotehostimpl) GetWithProvider(ctx context.Context) (hostnameinterface.Data, error) {
+func (r *remotehostimpl) GetWithProvider(ctx context.Context) (hostname.Data, error) {
 	h, err := r.Get(ctx)
 	if err != nil {
-		return hostnameinterface.Data{}, err
+		return hostname.Data{}, err
 	}
-	return hostnameinterface.Data{
+	return hostname.Data{
 		Hostname: h,
 		Provider: "remote",
 	}, nil
@@ -103,12 +109,7 @@ func (r *remotehostimpl) getHostnameWithContext(ctx context.Context) (string, er
 		ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 		defer cancel()
 
-		ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
-		if err != nil {
-			return err
-		}
-
-		client, err := grpc.GetDDAgentClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), r.ipc.GetTLSClientConfig())
+		client, err := grpc.GetDDAgentClient(ctx, r.config.GetString("cmd_host"), r.config.GetString("cmd_port"), r.ipc.GetTLSClientConfig())
 		if err != nil {
 			return err
 		}
@@ -132,7 +133,7 @@ func (r *remotehostimpl) getHostnameWithContextAndFallback(ctx context.Context) 
 	hostnameDetected, err := r.getHostnameWithContext(ctx)
 	if err != nil {
 		log.Warnf("Could not resolve hostname from core-agent: %v", err)
-		hostnameDetected, err = hostname.Get(ctx)
+		hostnameDetected, err = pkghostname.Get(ctx)
 		if err != nil {
 			return "", err
 		}

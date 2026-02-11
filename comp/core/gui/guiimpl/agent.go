@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -31,7 +31,7 @@ import (
 )
 
 // Adds the specific handlers for /agent/ endpoints
-func agentHandler(r *mux.Router, flare flare.Component, statusComponent status.Component, config config.Component, hostname hostnameinterface.Component, startTimestamp int64) {
+func agentHandler(r *mux.Router, flare flare.Component, statusComponent status.Component, config config.Component, hostname hostname.Component, startTimestamp int64) {
 	r.HandleFunc("/ping", func(w http.ResponseWriter, _ *http.Request) { ping(w, startTimestamp) }).Methods("POST")
 	r.HandleFunc("/status/{type}", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, statusComponent) }).Methods("POST")
 	r.HandleFunc("/version", http.HandlerFunc(getVersion)).Methods("POST")
@@ -91,7 +91,7 @@ func getVersion(w http.ResponseWriter, _ *http.Request) {
 }
 
 // Sends the agent's hostname
-func getHostname(hostname hostnameinterface.Component) func(http.ResponseWriter, *http.Request) {
+func getHostname(hostname hostname.Component) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		hname, e := hostname.Get(r.Context())
 		if e != nil {

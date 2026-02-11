@@ -16,7 +16,7 @@ import (
 	"io"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 )
@@ -24,14 +24,14 @@ import (
 // Provider provides the functionality to populate the status output
 type Provider struct {
 	config   config.Component
-	hostname hostnameinterface.Component
+	hostname hostname.Component
 }
 
 //go:embed status_templates
 var templatesFS embed.FS
 
 // NewProvider returns a Provider struct
-func NewProvider(conf config.Component, hostname hostnameinterface.Component) Provider {
+func NewProvider(conf config.Component, hostname hostname.Component) Provider {
 	return Provider{
 		config:   conf,
 		hostname: hostname,
@@ -73,7 +73,7 @@ func (p Provider) getStatusInfo() map[string]interface{} {
 	return stats
 }
 
-func populateStatus(stats map[string]interface{}, config config.Component, hostname hostnameinterface.Component) {
+func populateStatus(stats map[string]interface{}, config config.Component, hostname hostname.Component) {
 	hostnameStatsJSON := []byte(expvar.Get("hostname").String())
 	hostnameStats := make(map[string]interface{})
 	json.Unmarshal(hostnameStatsJSON, &hostnameStats) //nolint:errcheck

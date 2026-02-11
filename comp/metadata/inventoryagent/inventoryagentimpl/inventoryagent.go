@@ -24,7 +24,7 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -90,7 +90,7 @@ type inventoryagent struct {
 
 	log          log.Component
 	conf         config.Component
-	hostnameComp hostnameinterface.Component
+	hostnameComp hostname.Component
 	sysprobeConf option.Option[sysprobeconfig.Component]
 	m            sync.Mutex
 	data         agentMetadata
@@ -106,7 +106,7 @@ type dependencies struct {
 	SysProbeConfig option.Option[sysprobeconfig.Component]
 	Serializer     serializer.MetricSerializer
 	IPCClient      ipc.HTTPClient
-	Hostname       hostnameinterface.Component
+	Hostname       hostname.Component
 }
 
 type provides struct {

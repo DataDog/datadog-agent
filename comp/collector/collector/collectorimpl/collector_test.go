@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl/internal/middleware"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
@@ -104,7 +104,7 @@ func (suite *CollectorTestSuite) SetupTest() {
 		fx.Provide(func() config.Component {
 			return config.NewMockWithOverrides(suite.T(), map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond})
 		}),
-		hostnameimpl.MockModule(),
+		hostname.MockModule(),
 		demultiplexerimpl.MockModule(),
 		haagentmock.Module(),
 		fx.Provide(func() option.Option[serializer.MetricSerializer] {

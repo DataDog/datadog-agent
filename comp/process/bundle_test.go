@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -53,7 +53,7 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Supply(mockCoreBundleParams),
 		fx.Provide(func() types.CheckComponent { return nil }),
 		core.MockBundle(),
-		hostnameimpl.MockModule(),
+		hostname.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		coreStatusImpl.Module(),
@@ -122,7 +122,7 @@ func TestBundleOneShot(t *testing.T) {
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 		sysprobeconfigimpl.MockModule(),
 		telemetryimpl.MockModule(),
-		hostnameimpl.MockModule(),
+		hostname.MockModule(),
 		Bundle(),
 	)
 	require.NoError(t, err)

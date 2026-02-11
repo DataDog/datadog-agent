@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -22,7 +22,7 @@ type Formatter interface {
 
 // logFormatter is the default Formatter which supports transforming log pipeline messages into a more useful format.
 type logFormatter struct {
-	hostname hostnameinterface.Component
+	hostname hostname.Component
 }
 
 func (l *logFormatter) Format(m *message.Message, _ string, redactedMsg []byte) string {

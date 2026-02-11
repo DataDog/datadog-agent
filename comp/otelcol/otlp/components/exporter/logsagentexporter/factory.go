@@ -10,7 +10,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -52,7 +52,7 @@ type Config struct {
 // OrchestratorConfig contains configuration for sending orchestrator data to Datadog.
 type OrchestratorConfig struct {
 	Enabled  bool
-	Hostname hostnameinterface.Component
+	Hostname hostname.Component
 	Key      string
 	Site     string
 	Endpoint string

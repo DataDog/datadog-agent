@@ -22,8 +22,8 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	healthprobeDef "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobeFx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
+	hostnamefx "github.com/DataDog/datadog-agent/comp/core/hostname/fx"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
@@ -87,7 +87,7 @@ func main() {
 		fx.Supply(logdef.ForOneShot(modeConf.LoggerName, "error", true)),
 		logfx.Module(),
 		nooptelemetry.Module(),
-		hostnameimpl.Module(),
+		hostnamefx.Module(),
 	)
 
 	if err != nil {
@@ -100,7 +100,7 @@ func main() {
 }
 
 // removing these unused dependencies will cause silent crash due to fx framework
-func run(secretComp secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) error {
+func run(secretComp secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component, tagger tagger.Component, compression logscompression.Component, hostname hostname.Component) error {
 	cloudService, logConfig, tracingCtx, metricAgent, logsAgent := setup(secretComp, modeConf, tagger, compression, hostname)
 
 	err := modeConf.Runner(logConfig)
@@ -112,7 +112,7 @@ func run(secretComp secrets.Component, _ autodiscovery.Component, _ healthprobeD
 	return err
 }
 
-func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (cloudservice.CloudService, *serverlessInitLog.Config, *cloudservice.TracingContext, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
+func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostname.Component) (cloudservice.CloudService, *serverlessInitLog.Config, *cloudservice.TracingContext, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
 	tracelog.SetLogger(log.NewWrapper(3))
 
 	// load proxy settings

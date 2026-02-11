@@ -30,7 +30,7 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
@@ -53,7 +53,7 @@ func getComponents(
 	s serializer.MetricSerializer,
 	logsAgentChannel chan *message.Message,
 	tagger tagger.Component,
-	hostname hostnameinterface.Component,
+	hostname hostname.Component,
 	telemetry telemetry.Component,
 ) (
 	otelcol.Factories,
@@ -182,7 +182,7 @@ func NewPipeline(
 	s serializer.MetricSerializer,
 	logsAgentChannel chan *message.Message,
 	tagger tagger.Component,
-	hostname hostnameinterface.Component,
+	hostname hostname.Component,
 	telemetry telemetry.Component,
 ) (*Pipeline, error) {
 	buildInfo, err := getBuildInfo()
@@ -256,7 +256,7 @@ func NewPipelineFromAgentConfig(
 	s serializer.MetricSerializer,
 	logsAgentChannel chan *message.Message,
 	tagger tagger.Component,
-	hostname hostnameinterface.Component,
+	hostname hostname.Component,
 	telemetry telemetry.Component,
 ) (*Pipeline, error) {
 	pcfg, err := FromAgentConfig(cfg)

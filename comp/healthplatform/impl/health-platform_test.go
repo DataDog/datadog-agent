@@ -22,7 +22,7 @@ import (
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -75,7 +75,7 @@ func testRequires(t *testing.T, lifecycle *mockLifecycle) Requires {
 		lifecycle = newMockLifecycle()
 	}
 
-	hostnameMock, _ := hostnameinterface.NewMock("test-hostname")
+	hostnameMock, _ := hostname.NewMock("test-hostname")
 
 	return Requires{
 		Lifecycle: lifecycle,
@@ -396,7 +396,7 @@ func TestComponentDisabled(t *testing.T) {
 	cfg := config.NewMock(t)
 	cfg.SetWithoutSource("health_platform.enabled", false)
 
-	hostnameMock, _ := hostnameinterface.NewMock("test-hostname")
+	hostnameMock, _ := hostname.NewMock("test-hostname")
 
 	reqs := Requires{
 		Lifecycle: newMockLifecycle(),

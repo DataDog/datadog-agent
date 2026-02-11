@@ -13,7 +13,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -93,7 +93,7 @@ func newServerDeps(t testing.TB) ServerDeps {
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) config.Component { return config.NewMock(t) }),
 		telemetryimpl.MockModule(),
-		hostnameimpl.MockModule(),
+		hostname.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
 }

@@ -40,8 +40,8 @@ import (
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
+	hostnamefx "github.com/DataDog/datadog-agent/comp/core/hostname/fx"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -103,7 +103,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	pkghostname "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
@@ -157,7 +157,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:    log.ForDaemon(command.LoggerName, "log_file", defaultpaths.DCALogFile),
 				}),
 				core.Bundle(),
-				hostnameimpl.Module(),
+				hostnamefx.Module(),
 				secretsfx.Module(),
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithResolvers(), defaultforwarder.WithDisableAPIKeyChecking())),
 				filterlistfx.Module(),
@@ -185,7 +185,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					status.NewInformationProvider(pkgclusterchecks.Provider{}),
 					status.NewInformationProvider(orchestratorStatus.Provider{}),
 				),
-				fx.Provide(func(config config.Component, hostname hostnameinterface.Component) status.HeaderInformationProvider {
+				fx.Provide(func(config config.Component, hostname hostname.Component) status.HeaderInformationProvider {
 					return status.NewHeaderInformationProvider(hostnameStatus.NewProvider(config, hostname))
 				}),
 				fx.Provide(func() option.Option[integrations.Component] {
@@ -354,7 +354,7 @@ func start(log log.Component,
 	pkglog.Infof("Got APIClient connection")
 
 	// Get hostname as aggregator requires hostname
-	hname, err := hostname.Get(mainCtx)
+	hname, err := pkghostname.Get(mainCtx)
 	if err != nil {
 		return fmt.Errorf("Error while getting hostname, exiting: %v", err)
 	}

@@ -23,7 +23,7 @@ import (
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -138,7 +138,7 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 		fx.Provide(func() configComponent.Component {
 			return configComponent.NewMockWithOverrides(suite.T(), suite.configOverrides)
 		}),
-		hostnameimpl.MockModule(),
+		hostname.MockModule(),
 		inventoryagentimpl.MockModule(),
 		auditorfx.Module(),
 		fx.Provide(kubehealthmock.NewProvides),
@@ -504,7 +504,7 @@ func (suite *AgentTestSuite) createDeps() dependencies {
 		fx.Provide(func() configComponent.Component {
 			return configComponent.NewMockWithOverrides(suite.T(), suite.configOverrides)
 		}),
-		hostnameimpl.MockModule(),
+		hostname.MockModule(),
 		inventoryagentimpl.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		compressionfx.MockModule(),

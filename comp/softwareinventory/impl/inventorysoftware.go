@@ -26,7 +26,7 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 
@@ -110,7 +110,7 @@ type Requires struct {
 	// Serializer is used to serialize and send data to the backend
 	Serializer serializer.MetricSerializer
 	// Hostname provides the hostname of the current system
-	Hostname hostnameinterface.Component
+	Hostname hostname.Component
 	// EventPlatform provides access to the event platform forwarder
 	EventPlatform eventplatform.Component
 	// Provides lifecycle hooks for the component

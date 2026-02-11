@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
@@ -47,7 +47,7 @@ func (m *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func TestGetTraceroute(t *testing.T) {
-	hostnameComponent, _ := hostnameinterface.NewMock("test-agent-hostname")
+	hostnameComponent, _ := hostname.NewMock("test-agent-hostname")
 
 	expectedDest := payload.NetworkPathDestination{
 		Hostname: "example.com",
@@ -98,7 +98,7 @@ func TestGetTraceroute(t *testing.T) {
 }
 
 func TestGetTracerouteError(t *testing.T) {
-	hostnameComponent, _ := hostnameinterface.NewMock("test-agent-hostname")
+	hostnameComponent, _ := hostname.NewMock("test-agent-hostname")
 
 	client := &http.Client{
 		Transport: &mockTransport{
@@ -125,7 +125,7 @@ func TestGetTracerouteError(t *testing.T) {
 }
 
 func TestGetTracerouteInvalidJSON(t *testing.T) {
-	hostnameComponent, _ := hostnameinterface.NewMock("test-agent-hostname")
+	hostnameComponent, _ := hostname.NewMock("test-agent-hostname")
 
 	client := &http.Client{
 		Transport: &mockTransport{
@@ -208,7 +208,7 @@ func TestGetTracerouteURL(t *testing.T) {
 				Transport: mockTransport,
 			}
 
-			hostnameComponent, _ := hostnameinterface.NewMock("test-agent-hostname")
+			hostnameComponent, _ := hostname.NewMock("test-agent-hostname")
 			rt := &remoteTraceroute{sysprobeClient: mockClient, log: logmock.New(t), hostname: hostnameComponent}
 			_, err := rt.getTracerouteFromSysProbe(
 				context.TODO(),

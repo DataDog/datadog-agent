@@ -9,7 +9,7 @@ package pipeline
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -38,7 +38,7 @@ func NewPipeline(
 	senderImpl sender.PipelineComponent,
 	diagnosticMessageReceiver diagnostic.MessageReceiver,
 	serverlessMeta sender.ServerlessMeta,
-	hostname hostnameinterface.Component,
+	hostname hostname.Component,
 	cfg pkgconfigmodel.Reader,
 	compression logscompression.Component,
 	instanceID string,

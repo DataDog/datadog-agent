@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostnamecomp "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/go-viper/mapstructure/v2"
@@ -116,7 +116,7 @@ func buildTrapsConfig(t testing.TB, trapConfig *TrapsConfig, globalNamespace str
 
 func buildTrapsConfigWithHostname(t testing.TB, trapConfig *TrapsConfig, globalNamespace, hostname string) *TrapsConfig {
 	ddcfg := buildDDConfig(t, trapConfig, globalNamespace)
-	hnService, _ := hostnameinterface.NewMock(hostnameinterface.MockHostname(hostname))
+	hnService, _ := hostnamecomp.NewMock(hostnamecomp.MockHostname(hostname))
 	name, err := hnService.Get(context.Background())
 	if err != nil {
 		t.Fatalf("%s", err)

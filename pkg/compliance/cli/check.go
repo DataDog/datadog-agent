@@ -20,7 +20,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
@@ -55,7 +55,7 @@ func FillCheckFlags(flagSet *pflag.FlagSet, checkArgs *CheckParams) {
 }
 
 // RunCheck runs a check
-func RunCheck(log log.Component, config config.Component, _ secrets.Component, statsdComp statsd.Component, checkArgs *CheckParams, compression logscompression.Component, _ ipc.Component, hostname hostnameinterface.Component) error {
+func RunCheck(log log.Component, config config.Component, _ secrets.Component, statsdComp statsd.Component, checkArgs *CheckParams, compression logscompression.Component, _ ipc.Component, hostname hostname.Component) error {
 	hname, err := hostname.Get(context.Background())
 	if err != nil {
 		return err

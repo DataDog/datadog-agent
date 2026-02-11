@@ -5,7 +5,7 @@
 
 //go:build test
 
-package hostnameinterface
+package hostname
 
 // Mock implements mock-specific methods.
 type Mock interface {

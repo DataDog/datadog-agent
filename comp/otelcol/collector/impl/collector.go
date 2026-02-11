@@ -28,7 +28,7 @@ import (
 
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -81,7 +81,7 @@ type Requires struct {
 	SourceProvider      serializerexporter.SourceProviderFunc
 	Tagger              tagger.Component
 	StatsdClientWrapper *metricsclient.StatsdClientWrapper
-	Hostname            hostnameinterface.Component
+	Hostname            hostname.Component
 	Ipc                 ipc.Component
 	Telemetry           telemetry.Component
 	AgentTelemetry      agenttelemetry.Component
@@ -99,7 +99,7 @@ type RequiresNoAgent struct {
 	Config           config.Component
 	Converter        confmap.Converter
 	Tagger           tagger.Component
-	Hostname         hostnameinterface.Component
+	Hostname         hostname.Component
 }
 
 // Provides declares the output types from the constructor

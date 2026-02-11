@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -26,10 +26,10 @@ func TestStatsdDirect(t *testing.T) {
 	demuxDeps := createDemultiplexerAgentTestDeps(t)
 	demux := initAgentDemultiplexer(demuxDeps.Log, NewForwarderTest(demuxDeps.Log), demuxDeps.OrchestratorFwd, opts, demuxDeps.EventPlatform, demuxDeps.HaAgent, demuxDeps.Compressor, demuxDeps.Tagger, demuxDeps.FilterList, "")
 
-	hostnameComp := fxutil.Test[hostnameinterface.Mock](t,
+	hostnameComp := fxutil.Test[hostname.Mock](t,
 		fx.Options(
-			hostnameinterface.MockModule(),
-			fx.Replace(hostnameinterface.MockHostname("my-hostname")),
+			hostname.MockModule(),
+			fx.Replace(hostname.MockHostname("my-hostname")),
 		),
 	)
 

@@ -10,7 +10,7 @@ import (
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl"
@@ -30,7 +30,7 @@ const (
 func _(
 	_ datadogconfig.Config,
 	_ config.Component,
-	_ hostnameinterface.Component,
+	_ hostname.Component,
 	_ log.Component,
 	_ logsagentpipeline.Component,
 	_ logsagentpipelineimpl.Agent,

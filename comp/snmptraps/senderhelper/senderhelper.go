@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -29,7 +29,7 @@ import (
 var Opts = fx.Options(
 	defaultforwarder.MockModule(),
 	demultiplexerimpl.MockModule(),
-	hostnameimpl.MockModule(),
+	hostname.MockModule(),
 	fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 	fx.Provide(func() (*mocksender.MockSender, sender.Sender) {
 		mockSender := mocksender.NewMockSender("mock-sender")

@@ -9,14 +9,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
-func getNewHostname(name hostnameinterface.MockHostname) hostnameinterface.Mock {
-	_, mock := hostnameinterface.NewMock(name)
+func getNewHostname(name hostname.MockHostname) hostname.Mock {
+	_, mock := hostname.NewMock(name)
 	return mock
 }
 

@@ -18,7 +18,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"google.golang.org/grpc"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -42,7 +42,7 @@ type HostInfo struct {
 }
 
 // CollectHostInfo collects host information
-func CollectHostInfo(config pkgconfigmodel.Reader, hostnameComp hostnameinterface.Component, ipc ipc.Component) (*HostInfo, error) {
+func CollectHostInfo(config pkgconfigmodel.Reader, hostnameComp hostname.Component, ipc ipc.Component) (*HostInfo, error) {
 	sysInfo, err := CollectSystemInfo()
 	if err != nil {
 		return nil, err
@@ -60,7 +60,7 @@ func CollectHostInfo(config pkgconfigmodel.Reader, hostnameComp hostnameinterfac
 	}, nil
 }
 
-func resolveHostName(config pkgconfigmodel.Reader, hostnameComp hostnameinterface.Component, ipc ipc.Component) (string, error) {
+func resolveHostName(config pkgconfigmodel.Reader, hostnameComp hostname.Component, ipc ipc.Component) (string, error) {
 	// use the common agent hostname utility when not running in the process-agent or when running in sidecar
 	if flavor.GetFlavor() != flavor.ProcessAgent && !fargate.IsSidecar() {
 		hostName, err := hostnameComp.Get(context.TODO())

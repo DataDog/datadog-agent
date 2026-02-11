@@ -12,7 +12,7 @@ import (
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -20,14 +20,14 @@ import (
 
 type haAgentImpl struct {
 	log            log.Component
-	hostname       hostnameinterface.Component
+	hostname       hostname.Component
 	haAgentConfigs *haAgentConfigs
 	state          *atomic.String
 
 	logMissingConfigIDOnce sync.Once
 }
 
-func newHaAgentImpl(log log.Component, hostname hostnameinterface.Component, haAgentConfigs *haAgentConfigs) *haAgentImpl {
+func newHaAgentImpl(log log.Component, hostname hostname.Component, haAgentConfigs *haAgentConfigs) *haAgentImpl {
 	return &haAgentImpl{
 		log:            log,
 		hostname:       hostname,

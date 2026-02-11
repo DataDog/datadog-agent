@@ -4,6 +4,10 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package hostname provides utilities to detect the hostname of the host.
+//
+// NOTE: New code should prefer using the hostname component (comp/core/hostname/def)
+// instead. This package is kept for backward compatibility with code that cannot
+// use dependency injection.
 package hostname
 
 import (
@@ -13,7 +17,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
@@ -38,7 +42,7 @@ var (
 )
 
 // Data contains hostname and the hostname provider
-type Data = hostnameinterface.Data
+type Data = hostname.Data
 
 func fromConfig(ctx context.Context, _ string) (string, error) {
 	configName := pkgconfigsetup.Datadog().GetString("hostname")

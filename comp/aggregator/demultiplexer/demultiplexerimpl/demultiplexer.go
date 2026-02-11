@@ -13,7 +13,7 @@ import (
 
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -46,7 +46,7 @@ type dependencies struct {
 	HaAgent                haagent.Component
 	Compressor             compression.Component
 	Tagger                 tagger.Component
-	Hostname               hostnameinterface.Component
+	Hostname               hostname.Component
 	FilterList             filterlist.Component
 
 	Params Params

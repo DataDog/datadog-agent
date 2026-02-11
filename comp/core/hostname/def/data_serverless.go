@@ -5,14 +5,14 @@
 
 //go:build serverless
 
-package hostnameinterface
+package hostname
 
-// IsConfigurationProvider returns false for serverless
+// FromConfiguration returns false for serverless
 func (h Data) FromConfiguration() bool {
 	return false
 }
 
-// fromFargate returns true if the hostname was found through Fargate
+// FromFargate returns true if the hostname was found through Fargate
 func (h Data) FromFargate() bool {
 	return false
 }

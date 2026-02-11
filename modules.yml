@@ -27,7 +27,7 @@ modules:
     used_by_otel: true
   comp/core/flare/types:
     used_by_otel: true
-  comp/core/hostname/hostnameinterface:
+  comp/core/hostname/def:
     used_by_otel: true
   comp/core/ipc/def:
     used_by_otel: true

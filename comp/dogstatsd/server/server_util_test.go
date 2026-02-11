@@ -16,8 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -55,7 +54,7 @@ type depsWithoutServer struct {
 	Debug         serverdebug.Component
 	WMeta         option.Option[workloadmeta.Component]
 	Telemetry     telemetry.Component
-	Hostname      hostnameinterface.Component
+	Hostname      hostname.Component
 	FilterList    filterlist.Component
 }
 
@@ -83,7 +82,7 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() configComponent.Component { return configComponent.NewMockWithOverrides(t, overrides) }),
 		telemetryimpl.MockModule(),
-		hostnameimpl.MockModule(),
+		hostname.MockModule(),
 		serverdebugimpl.MockModule(),
 		replaymock.MockModule(),
 		pidmapimpl.Module(),
@@ -102,7 +101,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) configComponent.Component { return configComponent.NewMockFromYAML(t, yaml) }),
 		telemetryimpl.MockModule(),
-		hostnameimpl.MockModule(),
+		hostname.MockModule(),
 		serverdebugimpl.MockModule(),
 		replaymock.MockModule(),
 		metricscompression.MockModule(),
@@ -123,7 +122,7 @@ func fulfillDepsWithInactiveServer(t *testing.T, cfg map[string]interface{}) (de
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() configComponent.Component { return configComponent.NewMockWithOverrides(t, cfg) }),
 		telemetryimpl.MockModule(),
-		hostnameimpl.MockModule(),
+		hostname.MockModule(),
 		serverdebugimpl.MockModule(),
 		fx.Supply(Params{Serverless: false}),
 		replaymock.MockModule(),

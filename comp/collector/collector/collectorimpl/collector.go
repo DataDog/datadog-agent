@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl/internal/middleware"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
@@ -55,7 +55,7 @@ type dependencies struct {
 	Log            log.Component
 	HaAgent        haagent.Component
 	HealthPlatform option.Option[healthplatform.Component]
-	Hostname       hostnameinterface.Component
+	Hostname       hostname.Component
 
 	SenderManager    sender.SenderManager
 	MetricSerializer option.Option[serializer.MetricSerializer]
@@ -67,7 +67,7 @@ type collectorImpl struct {
 	config         config.Component
 	haAgent        haagent.Component
 	healthPlatform option.Option[healthplatform.Component]
-	hostname       hostnameinterface.Component
+	hostname       hostname.Component
 
 	senderManager    sender.SenderManager
 	metricSerializer option.Option[serializer.MetricSerializer]

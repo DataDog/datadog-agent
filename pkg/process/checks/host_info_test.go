@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	ipcclientmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -195,10 +195,10 @@ func TestResolveHostname(t *testing.T) {
 
 			env.SetFeatures(t, tc.features...)
 
-			hostnameComp := fxutil.Test[hostnameinterface.Mock](t,
+			hostnameComp := fxutil.Test[hostname.Mock](t,
 				fx.Options(
-					hostnameinterface.MockModule(),
-					fx.Replace(hostnameinterface.MockHostname(tc.mockHostname)),
+					hostname.MockModule(),
+					fx.Replace(hostname.MockHostname(tc.mockHostname)),
 				),
 			)
 

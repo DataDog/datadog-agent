@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -63,7 +63,7 @@ type Requires struct {
 	InventoryAgent inventoryagent.Component
 
 	Tagger    tagger.Component
-	Hostname  hostnameinterface.Component
+	Hostname  hostname.Component
 	Telemetry telemetry.Component
 }
 
@@ -87,7 +87,7 @@ type collectorImpl struct {
 	client         ipc.HTTPClient
 	clientTimeout  time.Duration
 	ctx            context.Context
-	hostname       hostnameinterface.Component
+	hostname       hostname.Component
 	telemetry      telemetry.Component
 }
 

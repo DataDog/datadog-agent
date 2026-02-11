@@ -14,7 +14,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -112,7 +112,7 @@ func OverrideTime(t time.Time) StatusOption {
 	}
 }
 
-func getCoreStatus(coreConfig pkgconfigmodel.Reader, hostname hostnameinterface.Component) (s CoreStatus) {
+func getCoreStatus(coreConfig pkgconfigmodel.Reader, hostname hostname.Component) (s CoreStatus) {
 	return CoreStatus{
 		AgentVersion: version.AgentVersion,
 		GoVersion:    runtime.Version(),
@@ -142,7 +142,7 @@ func getExpvars(expVarURL string) (s ProcessExpvars, err error) {
 }
 
 // GetStatus returns a Status object with runtime information about process-agent
-func GetStatus(coreConfig pkgconfigmodel.Reader, expVarURL string, hostname hostnameinterface.Component) (*Status, error) {
+func GetStatus(coreConfig pkgconfigmodel.Reader, expVarURL string, hostname hostname.Component) (*Status, error) {
 	coreStatus := getCoreStatus(coreConfig, hostname)
 	processExpVars, err := getExpvars(expVarURL)
 	if err != nil {

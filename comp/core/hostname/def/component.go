@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package hostnameinterface describes the interface for hostname methods
-package hostnameinterface
+// Package hostname describes the interface for hostname methods
+package hostname
 
 import (
 	"context"

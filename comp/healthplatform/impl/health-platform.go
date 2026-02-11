@@ -21,7 +21,7 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -36,7 +36,7 @@ type Requires struct {
 	Config    config.Component
 	Log       log.Component
 	Telemetry telemetry.Component
-	Hostname  hostnameinterface.Component
+	Hostname  hostname.Component
 }
 
 // Provides defines the output of the health-platform component
@@ -52,10 +52,10 @@ type Provides struct {
 // The component provides methods to report issues, retrieve them, and manage the health monitoring lifecycle.
 type healthPlatformImpl struct {
 	// Core dependencies
-	config           config.Component            // Config component for accessing configuration
-	log              log.Component               // Logger for health platform operations
-	telemetry        telemetry.Component         // Telemetry component for metrics collection
-	hostnameProvider hostnameinterface.Component // Hostname provider for runtime resolution
+	config           config.Component    // Config component for accessing configuration
+	log              log.Component       // Logger for health platform operations
+	telemetry        telemetry.Component // Telemetry component for metrics collection
+	hostnameProvider hostname.Component  // Hostname provider for runtime resolution
 
 	// Issue tracking
 	issues    map[string]*healthplatform.Issue // Issue detected by check ID (nil if no issue)

@@ -9,10 +9,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,7 +24,12 @@ func TestGet(t *testing.T) {
 		cfg.SetWithoutSource("hostname", "")
 	})
 	cfg.SetWithoutSource("hostname", "test-hostname")
-	s := fxutil.Test[hostname.Component](t, Module())
+
+	lc := compdef.NewTestLifecycle(t)
+	provides, err := NewComponent(Requires{Lc: lc})
+	require.NoError(t, err)
+
+	s := provides.Comp
 	name, err := s.Get(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, "test-hostname", name)
@@ -34,15 +38,41 @@ func TestGet(t *testing.T) {
 func TestGetWithProvider(t *testing.T) {
 	cfg := mock.New(t)
 	t.Cleanup(func() {
-		// erase cache)
+		// erase cache
 		cache.Cache.Delete(cache.BuildAgentKey("hostname"))
 		cfg.SetWithoutSource("hostname", "")
 	})
 	cfg.SetWithoutSource("hostname", "test-hostname2")
-	s := fxutil.Test[hostname.Component](t, Module())
+
+	lc := compdef.NewTestLifecycle(t)
+	provides, err := NewComponent(Requires{Lc: lc})
+	require.NoError(t, err)
+
+	s := provides.Comp
 	data, err := s.GetWithProvider(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, "test-hostname2", data.Hostname)
 	assert.Equal(t, "configuration", data.Provider)
 	assert.True(t, data.FromConfiguration())
+}
+
+func TestNewHostnameService(t *testing.T) {
+	cfg := mock.New(t)
+	t.Cleanup(func() {
+		cache.Cache.Delete(cache.BuildAgentKey("hostname"))
+		cfg.SetWithoutSource("hostname", "")
+	})
+	cfg.SetWithoutSource("hostname", "test-hostname")
+
+	s := NewHostnameService()
+	name, err := s.Get(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "test-hostname", name)
+}
+
+func TestLifecycleHook(t *testing.T) {
+	lc := compdef.NewTestLifecycle(t)
+	_, err := NewComponent(Requires{Lc: lc})
+	require.NoError(t, err)
+	lc.AssertHooksNumber(1)
 }

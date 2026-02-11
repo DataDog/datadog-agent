@@ -12,7 +12,7 @@ import (
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -22,7 +22,7 @@ import (
 )
 
 // NewStatsdDirect creates a direct interface to the dogstatsd demultiplexer, but exposing the statsd.ClientInterface
-func NewStatsdDirect(demux DemultiplexerWithAggregator, hostnameComp hostnameinterface.Component) (ddgostatsd.ClientInterface, error) {
+func NewStatsdDirect(demux DemultiplexerWithAggregator, hostnameComp hostname.Component) (ddgostatsd.ClientInterface, error) {
 	eventsChan, serviceCheckChan := demux.GetEventsAndServiceChecksChannels()
 	hostname, err := hostnameComp.Get(context.TODO())
 	if err != nil {

@@ -14,7 +14,7 @@ import (
 	"io"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	hostinfoutils "github.com/DataDog/datadog-agent/pkg/util/hostinfo"
@@ -26,7 +26,7 @@ var templatesFS embed.FS
 // StatusProvider implements the status provider interface
 type StatusProvider struct {
 	Config   config.Component
-	Hostname hostnameinterface.Component
+	Hostname hostname.Component
 }
 
 // Name returns the name
