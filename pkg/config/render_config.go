@@ -22,48 +22,42 @@ import (
 
 // context contains the context used to render the config file template
 type context struct {
-	OS                               string
-	Common                           bool
-	Agent                            bool
-	Python                           bool // Sub-option of Agent
-	Metadata                         bool
-	Dogstatsd                        bool
-	LogsAgent                        bool
-	JMX                              bool
-	Autoconfig                       bool
-	Logging                          bool
-	Autodiscovery                    bool
-	DockerTagging                    bool
-	Kubelet                          bool
-	KubernetesTagging                bool
-	ECS                              bool
-	Containerd                       bool
-	CRI                              bool
-	ProcessAgent                     bool
-	SystemProbe                      bool
-	KubeApiServer                    bool
-	TraceAgent                       bool
-	ClusterAgent                     bool
-	ClusterChecks                    bool
-	AdmissionController              bool
-	CloudFoundryBBS                  bool
-	CloudFoundryCC                   bool
-	Compliance                       bool
-	SNMP                             bool
-	SecurityModule                   bool
-	SecurityAgent                    bool
-	SBOM                             bool // enables CSM Vulnerability Management
-	NetworkModule                    bool // Sub-module of System Probe
-	UniversalServiceMonitoringModule bool // Sub-module of System Probe
-	DataStreamsModule                bool // Sub-module of System Probe
-	PingModule                       bool // Sub-module of System Probe
-	TracerouteModule                 bool // Sub-module of System Probe
-	PrometheusScrape                 bool
-	OTLP                             bool
-	APMInjection                     bool
-	NetworkPath                      bool
-	ApplicationMonitoring            bool
-	Synthetics                       bool
+	OS                    string
+	Common                bool
+	Agent                 bool
+	Python                bool // Sub-option of Agent
+	Metadata              bool
+	Dogstatsd             bool
+	LogsAgent             bool
+	JMX                   bool
+	Autoconfig            bool
+	Logging               bool
+	Autodiscovery         bool
+	DockerTagging         bool
+	Kubelet               bool
+	KubernetesTagging     bool
+	ECS                   bool
+	Containerd            bool
+	CRI                   bool
+	ProcessAgent          bool
+	SystemProbe           bool
+	KubeApiServer         bool
+	TraceAgent            bool
+	ClusterAgent          bool
+	ClusterChecks         bool
+	AdmissionController   bool
+	CloudFoundryBBS       bool
+	CloudFoundryCC        bool
+	Compliance            bool
+	SNMP                  bool
+	SecurityAgent         bool
+	SBOM                  bool // enables CSM Vulnerability Management
+	PrometheusScrape      bool
+	OTLP                  bool
+	APMInjection          bool
+	NetworkPath           bool
+	ApplicationMonitoring bool
+	Synthetics            bool
 }
 
 func mkContext(buildType string, osName string) context {
@@ -114,14 +108,8 @@ func mkContext(buildType string, osName string) context {
 		}
 	case "system-probe":
 		return context{
-			OS:                               osName,
-			SystemProbe:                      true,
-			NetworkModule:                    true,
-			UniversalServiceMonitoringModule: true,
-			DataStreamsModule:                true,
-			SecurityModule:                   true,
-			PingModule:                       true,
-			TracerouteModule:                 true,
+			OS:          osName,
+			SystemProbe: true,
 		}
 	case "dogstatsd":
 		return context{
