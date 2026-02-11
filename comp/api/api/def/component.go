@@ -41,52 +41,6 @@ type endpointProvider struct {
 	handler http.HandlerFunc
 }
 
-// AuthorizedSet is a type to store the authorized config options for the config API
-type AuthorizedSet map[string]struct{}
-
-// AuthorizedConfigPathsCore is the the set of authorized config keys authorized for the
-// config API.
-var AuthorizedConfigPathsCore = buildAuthorizedSet(
-	"api_key",
-	"app_key",
-	"site",
-	"dd_url",
-	"additional_endpoints",
-
-	"multi_region_failover.api_key",
-
-	"external_metrics_provider.api_key",
-	"external_metrics_provider.app_key",
-
-	"logs_config.additional_endpoints",
-	"apm_config.additional_endpoints",
-	"apm_config.profiling_additional_endpoints",
-	"database_monitoring.samples.additional_endpoints",
-	"database_monitoring.metrics.additional_endpoints",
-	"database_monitoring.activity.additional_endpoints",
-	"network_devices.metadata.additional_endpoints",
-	"network_devices.snmp_traps.forwarder.additional_endpoints",
-	"network_devices.netflow.forwarder.additional_endpoints",
-	"network_path.forwarder.additional_endpoints",
-	"container_lifecycle.additional_endpoints",
-	"container_image.additional_endpoints",
-	"sbom.additional_endpoints",
-	"service_discovery.forwarder.additional_endpoints",
-	"runtime_security_config.endpoints.additional_endpoints",
-	"runtime_security_config.activity_dump.remote_storage.endpoints",
-	"compliance_config.endpoints",
-	"process_config.process_dd_url",
-	"process_config.additional_endpoints",
-)
-
-func buildAuthorizedSet(paths ...string) AuthorizedSet {
-	authorizedPaths := make(AuthorizedSet, len(paths))
-	for _, path := range paths {
-		authorizedPaths[path] = struct{}{}
-	}
-	return authorizedPaths
-}
-
 // Methods returns the methods for the endpoint.
 // e.g.: "GET", "POST", "PUT".
 func (p endpointProvider) Methods() []string {
