@@ -83,7 +83,14 @@ func (s *server) start(ctx context.Context) error {
 
 	s.log.Debugf("starting dogstatsd http server on %q", addr)
 
-	go s.http.Serve(listener)
+	go func() {
+		err := s.http.Serve(listener)
+		if err == http.ErrServerClosed {
+			s.log.Debugf("dogstatsd http server stopped normally")
+		} else {
+			s.log.Errorf("dogstatsd http server stopped with error: %v", err)
+		}
+	}()
 
 	return nil
 }
