@@ -160,7 +160,7 @@ require (
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
-	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb // indirect
+	github.com/hectane/go-acl v0.0.0-20230225031251-cdfc9e3acf94 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.18.3 // indirect
@@ -246,15 +246,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl => ../../comp/core/agenttelemetry/impl
 	github.com/DataDog/datadog-agent/comp/core/config => ../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../comp/core/configsync
-	github.com/DataDog/datadog-agent/comp/core/delegatedauth/api => ../../comp/core/delegatedauth/api
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth => ../../comp/core/delegatedauth
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aws => ../../comp/core/delegatedauth/api/cloudauth/aws
-	github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config => ../../comp/core/delegatedauth/api/cloudauth/config
-	github.com/DataDog/datadog-agent/comp/core/delegatedauth/common => ../../comp/core/delegatedauth/common
-	github.com/DataDog/datadog-agent/comp/core/delegatedauth/def => ../../comp/core/delegatedauth/def
-	github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx => ../../comp/core/delegatedauth/fx
-	github.com/DataDog/datadog-agent/comp/core/delegatedauth/impl => ../../comp/core/delegatedauth/impl
-	github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock => ../../comp/core/delegatedauth/mock
-	github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl => ../../comp/core/delegatedauth/noop-impl
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../comp/core/hostname/hostnameinterface

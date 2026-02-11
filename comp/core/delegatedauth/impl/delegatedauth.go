@@ -151,8 +151,12 @@ func (d *delegatedAuthComponent) Initialize(params delegatedauth.InitParams) err
 		return nil
 	}
 
-	// No cloud provider detected
-	return errors.New("could not auto-detect cloud provider. Currently only 'aws' is supported")
+	// No supported cloud provider detected - delegated auth will be disabled
+	// This is not an error condition; the agent will use the traditional API key method
+	log.Debug("No supported cloud provider detected for delegated auth, feature will be disabled")
+	d.initialized = true
+	d.providerConfig = nil
+	return nil
 }
 
 // AddInstance configures delegated auth for a specific API key.
@@ -165,6 +169,13 @@ func (d *delegatedAuthComponent) AddInstance(params delegatedauth.InstanceParams
 
 	if !initialized {
 		return errors.New("delegated auth not initialized, call Initialize() first")
+	}
+
+	// If no provider is configured (unsupported cloud or not running in cloud),
+	// silently skip - the agent will use whatever API key is already configured
+	if providerConfig == nil {
+		log.Debugf("Delegated auth not available (no supported cloud provider), skipping configuration for '%s'", params.APIKeyConfigKey)
+		return nil
 	}
 
 	// Validate required parameters

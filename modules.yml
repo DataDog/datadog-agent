@@ -23,31 +23,10 @@ modules:
   comp/core/config:
     used_by_otel: true
   comp/core/configsync: default
-  comp/core/delegatedauth/api:
+  comp/core/delegatedauth:
     independent: false
     used_by_otel: true
   comp/core/delegatedauth/api/cloudauth/aws:
-    independent: false
-    used_by_otel: true
-  comp/core/delegatedauth/api/cloudauth/config:
-    independent: false
-    used_by_otel: true
-  comp/core/delegatedauth/common:
-    independent: false
-    used_by_otel: true
-  comp/core/delegatedauth/def:
-    independent: false
-    used_by_otel: true
-  comp/core/delegatedauth/fx:
-    independent: false
-    used_by_otel: true
-  comp/core/delegatedauth/impl:
-    independent: false
-    used_by_otel: true
-  comp/core/delegatedauth/mock:
-    independent: false
-    used_by_otel: true
-  comp/core/delegatedauth/noop-impl:
     independent: false
     used_by_otel: true
   comp/core/flare/builder:

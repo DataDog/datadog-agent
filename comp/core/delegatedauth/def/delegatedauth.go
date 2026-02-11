@@ -14,7 +14,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-// team: agent-shared-components
+// team: core-authn
 
 // InitParams holds parameters for one-time initialization.
 type InitParams struct {

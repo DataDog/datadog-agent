@@ -6,7 +6,6 @@ go 1.25.7
 godebug tlsmlkem=0
 
 use (
-
 	.
 	comp/api/api/def
 	comp/core/agenttelemetry/def
@@ -14,15 +13,8 @@ use (
 	comp/core/agenttelemetry/impl
 	comp/core/config
 	comp/core/configsync
-	comp/core/delegatedauth/api
+	comp/core/delegatedauth
 	comp/core/delegatedauth/api/cloudauth/aws
-	comp/core/delegatedauth/api/cloudauth/config
-	comp/core/delegatedauth/common
-	comp/core/delegatedauth/def
-	comp/core/delegatedauth/fx
-	comp/core/delegatedauth/impl
-	comp/core/delegatedauth/mock
-	comp/core/delegatedauth/noop-impl
 	comp/core/flare/builder
 	comp/core/flare/types
 	comp/core/hostname/hostnameinterface

@@ -3,11 +3,10 @@ module github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aw
 go 1.24.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/comp/core/delegatedauth/common v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/config/model v0.72.2
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/config/model v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/util/aws/creds v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/util/log v0.72.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/version v0.72.2
 	github.com/aws/aws-sdk-go-v2 v1.41.1
 	github.com/stretchr/testify v1.11.1
@@ -27,12 +26,12 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.72.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.0.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/template v0.64.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.65.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/http v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.72.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.61.0 // indirect
 	github.com/DataDog/viper v1.15.0 // indirect
@@ -79,14 +78,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl => ../../../../../../comp/core/agenttelemetry/impl
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../../../../comp/core/configsync
-	github.com/DataDog/datadog-agent/comp/core/delegatedauth/api => ../../../../../../comp/core/delegatedauth/api
-	github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config => ../../../../../../comp/core/delegatedauth/api/cloudauth/config
-	github.com/DataDog/datadog-agent/comp/core/delegatedauth/common => ../../../../../../comp/core/delegatedauth/common
-	github.com/DataDog/datadog-agent/comp/core/delegatedauth/def => ../../../../../../comp/core/delegatedauth/def
-	github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx => ../../../../../../comp/core/delegatedauth/fx
-	github.com/DataDog/datadog-agent/comp/core/delegatedauth/impl => ../../../../../../comp/core/delegatedauth/impl
-	github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock => ../../../../../../comp/core/delegatedauth/mock
-	github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl => ../../../../../../comp/core/delegatedauth/noop-impl
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth => ../../../../../../comp/core/delegatedauth
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../../../../comp/core/hostname/hostnameinterface
