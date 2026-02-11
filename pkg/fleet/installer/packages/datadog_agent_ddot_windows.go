@@ -129,14 +129,18 @@ func readAPIKeyFromDatadogYAML() (string, error) {
 // preRemoveDatadogAgentDdot performs pre-removal steps for the DDOT package on Windows
 // All the steps are allowed to fail
 func preRemoveDatadogAgentDdot(ctx HookContext) error {
-	if err := stopServiceIfExists(otelServiceName); err != nil {
-		log.Warnf("failed to stop DDOT service: %s", err)
-	}
-	if err := deleteServiceIfExists(otelServiceName); err != nil {
-		log.Warnf("failed to delete DDOT service: %s", err)
-	}
-	if err := disableOtelCollectorConfigWindows(); err != nil {
-		log.Warnf("failed to disable otelcollector in datadog.yaml: %s", err)
+	_ = stopServiceIfExists(otelServiceName)
+	_ = deleteServiceIfExists(otelServiceName)
+
+	if !ctx.Upgrade {
+		// Preserve otel-config.yaml; only disable the feature in datadog.yaml
+		if err := disableOtelCollectorConfigWindows(); err != nil {
+			log.Warnf("failed to disable otelcollector in datadog.yaml: %s", err)
+		}
+		// Restart core agent to pick up reverted config
+		if err := windowssvc.NewWinServiceManager().RestartAgentServices(ctx.Context); err != nil {
+			log.Warnf("failed to restart agent services: %s", err)
+		}
 	}
 	return nil
 }
@@ -418,17 +422,16 @@ func postInstallDDOTExtension(ctx HookContext) error {
 }
 
 // preRemoveDDOTExtension stops and removes the DDOT service before extension removal
-func preRemoveDDOTExtension(ctx HookContext) error {
-	// Best effort - ignore errors
-	_ = stopServiceIfExists(otelServiceName)
-	_ = deleteServiceIfExists(otelServiceName)
-	if !ctx.Upgrade {
-		// Preserve otel-config.yaml; only disable the feature in datadog.yaml
-		if err := disableOtelCollectorConfigWindows(); err != nil {
-			log.Warnf("failed to disable otelcollector in datadog.yaml: %s", err)
-		}
+func preRemoveDDOTExtension(_ HookContext) error {
+	if err := stopServiceIfExists(otelServiceName); err != nil {
+		log.Warnf("failed to stop DDOT service: %s", err)
 	}
-
+	if err := deleteServiceIfExists(otelServiceName); err != nil {
+		log.Warnf("failed to delete DDOT service: %s", err)
+	}
+	if err := disableOtelCollectorConfigWindows(); err != nil {
+		log.Warnf("failed to disable otelcollector in datadog.yaml: %s", err)
+	}
 	return nil
 }
 
