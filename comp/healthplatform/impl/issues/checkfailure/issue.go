@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package checkfailure provides remediation for check execution failures.
 package checkfailure
 
 import (
@@ -14,7 +13,6 @@ import (
 )
 
 const (
-	issueID    = "check-execution-failure"
 	issueName  = "check_execution_failure"
 	category   = "check-execution"
 	location   = "collector"
@@ -113,7 +111,7 @@ func (t *CheckFailureIssue) BuildIssue(context map[string]string) (*healthplatfo
 	}
 
 	return &healthplatform.Issue{
-		Id:          issueID,
+		Id:          IssueID,
 		IssueName:   issueName,
 		Title:       string(title),
 		Description: string(desc),

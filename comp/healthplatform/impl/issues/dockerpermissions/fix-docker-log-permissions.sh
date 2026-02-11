@@ -15,4 +15,3 @@ echo "Restarting Datadog Agent..."
 systemctl restart datadog-agent
 
 echo "Done! Check agent status with: datadog-agent status"
-
