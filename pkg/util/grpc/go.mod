@@ -3,8 +3,8 @@ module github.com/DataDog/datadog-agent/pkg/util/grpc
 go 1.24.0
 
 require (
-	cloud.google.com/go/compute v1.49.1
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.61.0
+	cloud.google.com/go/compute v1.54.0
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/proto v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.70.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.72.2
@@ -76,7 +76,7 @@ require (
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.5 // indirect
 	github.com/prometheus/procfs v0.19.2 // indirect
-	github.com/shirou/gopsutil/v4 v4.25.12 // indirect
+	github.com/shirou/gopsutil/v4 v4.26.1 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
