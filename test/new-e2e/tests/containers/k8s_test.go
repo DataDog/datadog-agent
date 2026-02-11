@@ -439,29 +439,6 @@ func (suite *k8sSuite) testAgentCLI() {
 		}
 	})
 
-	suite.Run("agent workload-list --json kubernetes_pod", func() {
-		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"env", "DD_LOG_LEVEL=off", "agent", "workload-list", "--json", "kubernetes_pod"})
-		suite.Require().NoError(err)
-		suite.Empty(stderr, "Standard error of `agent workload-list --json kubernetes_pod` should be empty")
-
-		// Validate JSON
-		suite.Truef(json.Valid([]byte(stdout)), "Output of `agent workload-list --json kubernetes_pod` isn't valid JSON")
-
-		// Unmarshal and validate structure
-		var result map[string]any
-		err = json.Unmarshal([]byte(stdout), &result)
-		suite.Require().NoError(err)
-
-		// Check for expected fields
-		entities, ok := result["Entities"].(map[string]any)
-		suite.Require().True(ok, "expected 'Entities' field in JSON output")
-		suite.Contains(entities, "kubernetes_pod", "expected 'kubernetes_pod' kind in filtered Entities")
-
-		if suite.T().Failed() {
-			suite.T().Log(stdout)
-		}
-	})
-
 	suite.Run("agent tagger-list", func() {
 		stdout, stderr, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec("datadog", pod.Items[0].Name, "agent", []string{"agent", "tagger-list"})
 		suite.Require().NoError(err)

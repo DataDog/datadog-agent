@@ -41,7 +41,6 @@ func removeEmptyFields(data any) any {
 }
 
 // PrintJSON writes JSON output to the provided writer, optionally pretty-printed.
-// If searchTerm is non-empty and the data has empty "Entities", returns an error.
 func PrintJSON(w io.Writer, rawJSON any, prettyPrintJSON bool, removeEmpty bool, searchTerm string) error {
 	var result []byte
 	var err error

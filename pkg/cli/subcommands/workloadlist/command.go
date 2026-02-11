@@ -85,8 +85,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	}
 
 	workloadListCommand.Flags().BoolVarP(&cliParams.verboseList, "verbose", "v", false, "print out a full dump of the workload store (ignored for JSON format)")
-	workloadListCommand.Flags().BoolVarP(&cliParams.json, "json", "j", false, "print out raw json (always verbose)")
-	workloadListCommand.Flags().BoolVarP(&cliParams.prettyJSON, "pretty-json", "p", false, "pretty print json (always verbose, takes priority over --json)")
+	workloadListCommand.Flags().BoolVarP(&cliParams.json, "json", "j", false, "print out raw json")
+	workloadListCommand.Flags().BoolVarP(&cliParams.prettyJSON, "pretty-json", "p", false, "pretty print json (takes priority over --json)")
 
 	return workloadListCommand
 }

@@ -158,7 +158,6 @@ func TestWorkloadDumpStructuredResponseJSONMarshaling(t *testing.T) {
 	err = json.Unmarshal(jsonBytes, &result)
 	require.NoError(t, err)
 
-	// Verify structure uses Go default capitalized field names (matches tagger-list)
 	entities, ok := result["Entities"].(map[string]interface{})
 	assert.True(t, ok)
 
