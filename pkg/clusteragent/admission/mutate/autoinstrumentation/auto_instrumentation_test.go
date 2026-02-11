@@ -2699,6 +2699,8 @@ func TestAutoinstrumentation(t *testing.T) {
 			mockConfig := common.FakeConfigWithValues(t, test.config)
 			mockMeta := common.FakeStoreWithDeployment(t, test.deployments)
 			mockDynamic := fake.NewSimpleDynamicClient(runtime.NewScheme())
+			// Disable gradual rollout for this test to use the NoOpResolver.
+			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
 
 			// Add the namespaces.
 			for _, ns := range test.namespaces {
