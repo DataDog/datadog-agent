@@ -124,7 +124,7 @@ func TestNewConfig(t *testing.T) {
 				mockConfig := config.NewMock(t)
 				mockConfig.SetWithoutSource("site", "datadoghq.com")
 				mockConfig.SetWithoutSource("api_key", "1234567890abcdef")
-				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.gradual_rollout.cache_ttl_hours", 2)
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.gradual_rollout.cache_ttl", "2h")
 				return mockConfig
 			},
 			expectedState: Config{
