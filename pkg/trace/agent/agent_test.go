@@ -2650,6 +2650,7 @@ func TestPartialSamplingFree(t *testing.T) {
 		RareSampler:       sampler.NewRareSampler(config.New()),
 		SamplerMetrics:    sampler.NewMetrics(statsd),
 		TraceWriter:       &mockTraceWriter{},
+		ObserverBuffer:    observerbuffer.NewNoop(),
 		conf:              cfg,
 		Timing:            &timing.NoopReporter{},
 	}
@@ -4229,6 +4230,7 @@ func TestAgentWriteTagsBufferedChunks(t *testing.T) {
 			agent := &Agent{
 				TraceWriter:         mockWriter,
 				ContainerTagsBuffer: mockBuffer,
+				ObserverBuffer:      observerbuffer.NewNoop(),
 			}
 
 			payload := &writer.SampledChunks{
@@ -4307,6 +4309,7 @@ func TestAgentWriteTagsBufferedChunksV1(t *testing.T) {
 			agent := &Agent{
 				TraceWriterV1:       mockWriter,
 				ContainerTagsBuffer: mockBuffer,
+				ObserverBuffer:      observerbuffer.NewNoop(),
 			}
 
 			payload := &writer.SampledChunksV1{

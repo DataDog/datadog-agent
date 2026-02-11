@@ -8,38 +8,21 @@
 package slog
 
 import (
-	"io"
-	"os"
+	"bytes"
+	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log/slog/formatters"
-	"github.com/DataDog/datadog-agent/pkg/util/log/slog/handlers"
 	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 )
 
-// defaultMsgFormat is the default message format for the logger.
-const defaultMsgFormat = "{{Ns}} [{{Level}}] {{.msg}}\n"
-
-// Default returns a default logger.
-func Default() types.LoggerInterface {
-	// the default seelog logger is an asynchronous loop logger, prints to stdout,
-	// with the default format
-	formatter := formatters.Template(defaultMsgFormat)
-	stdoutHandler := handlers.NewFormat(formatter, os.Stdout)
-	asyncHandler := handlers.NewAsync(stdoutHandler)
-	return NewWrapperWithCloseAndFlush(asyncHandler, asyncHandler.Flush, asyncHandler.Close)
-}
-
-// LoggerFromWriterWithMinLevelAndFormat creates a new logger from a writer, a minimum log level, and a template format.
-func LoggerFromWriterWithMinLevelAndFormat(output io.Writer, minLevel types.LogLevel, tmplFormat string) (types.LoggerInterface, error) {
-	formatter := formatters.Template(tmplFormat)
-	fmtHandler := handlers.NewFormat(formatter, output)
-	// tests often write to a buffer, which might not be thread-safe, so we wrap the writer in a locking handler
-	lockingHandler := handlers.NewLocking(fmtHandler)
-	handler := handlers.NewLevel(types.ToSlogLevel(minLevel), lockingHandler)
-	return NewWrapper(handler), nil
-}
-
-// LoggerFromWriterWithMinLevel creates a new logger from a writer and a minimum log level.
-func LoggerFromWriterWithMinLevel(output io.Writer, minLevel types.LogLevel) (types.LoggerInterface, error) {
-	return LoggerFromWriterWithMinLevelAndFormat(output, minLevel, defaultMsgFormat)
+func TestLoggerFromWriterWithMinLevel(t *testing.T) {
+	var buf bytes.Buffer
+	logger, err := LoggerFromWriterWithMinLevel(&buf, types.DebugLvl)
+	if err != nil {
+		t.Fatal(err)
+	}
+	logger.Debug("test message")
+	logger.Flush()
+	if buf.Len() == 0 {
+		t.Error("expected log output")
+	}
 }
