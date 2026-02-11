@@ -16,7 +16,10 @@ import (
 const (
 	// librarySubPath is the path where the library files are stored in the library image.
 	// See library Dockerfile: https://github.com/DataDog/libdatadog-build/blob/f2325768e60d6bb02e8467f5321b6f9fa10ff850/scripts/lib-injection/Dockerfile.
-	librarySubPath                   = "datadog-init/package"
+	librarySubPath = "datadog-init/package"
+
+	// InjectLDPreloadInitContainerName is the name of the "micro" init container used by image_volume injection
+	// to copy the ld.so.preload file into the pod's /etc.
 	InjectLDPreloadInitContainerName = "datadog-apm-inject-preload"
 )
 

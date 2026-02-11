@@ -16,21 +16,21 @@ import (
 )
 
 var (
-	// MinimumCPULimit is the minimum CPU limit required for init containers.
+	// minimumCPULimit is the minimum CPU limit required for init containers.
 	// Below this, copying + library initialization would take too long.
-	MinimumCPULimit = resource.MustParse("0.05") // 0.05 core
+	minimumCPULimit = resource.MustParse("0.05") // 0.05 core
 
-	// MinimumMemoryLimit is the minimum memory limit required for init containers.
+	// minimumMemoryLimit is the minimum memory limit required for init containers.
 	// This is the recommended minimum by Alpine.
-	MinimumMemoryLimit = resource.MustParse("100Mi") // 100 MB
+	minimumMemoryLimit = resource.MustParse("100Mi") // 100 MB
 
-	// MinimumMicroCPULimit is the minimum CPU limit required for the micro init container
+	// minimumMicroCPULimit is the minimum CPU limit required for the micro init container
 	// used by image_volume injection (e.g., a simple `cp`).
-	MinimumMicroCPULimit = resource.MustParse("5m")
+	minimumMicroCPULimit = resource.MustParse("5m")
 
-	// MinimumMicroMemoryLimit is the minimum memory limit required for the micro init container
+	// minimumMicroMemoryLimit is the minimum memory limit required for the micro init container
 	// used by image_volume injection (e.g., a simple `cp`).
-	MinimumMicroMemoryLimit = resource.MustParse("16Mi")
+	minimumMicroMemoryLimit = resource.MustParse("16Mi")
 )
 
 // ResourceRequirementsResult holds the result of computing resource requirements.
@@ -52,13 +52,13 @@ func ComputeInitContainerResourceRequirementsForInitContainer(
 	case InjectorInitContainerName:
 		// NOTE: init_container injection mode historically treats configured init_resources as an explicit override,
 		// so we do not enforce minimums on configured values (for now).
-		return ComputeInitContainerResourceRequirements(pod, defaultRequirements, MinimumCPULimit, MinimumMemoryLimit, false), nil
+		return computeInitContainerResourceRequirements(pod, defaultRequirements, minimumCPULimit, minimumMemoryLimit, false), nil
 	case InjectLDPreloadInitContainerName:
 		// The image_volume micro init container is a critical prerequisite, so enforce minimums even when configured.
-		return ComputeInitContainerResourceRequirements(pod, defaultRequirements, MinimumMicroCPULimit, MinimumMicroMemoryLimit, true), nil
+		return computeInitContainerResourceRequirements(pod, defaultRequirements, minimumMicroCPULimit, minimumMicroMemoryLimit, true), nil
 	default:
 		if isLibraryInitContainerName(initContainerName) {
-			return ComputeInitContainerResourceRequirements(pod, defaultRequirements, MinimumCPULimit, MinimumMemoryLimit, false), nil
+			return computeInitContainerResourceRequirements(pod, defaultRequirements, minimumCPULimit, minimumMemoryLimit, false), nil
 		}
 		return ResourceRequirementsResult{}, fmt.Errorf("unknown init container name %q for resource requirement computation", initContainerName)
 	}
@@ -70,11 +70,7 @@ func isLibraryInitContainerName(name string) bool {
 	return strings.HasPrefix(name, "datadog-lib-") && strings.HasSuffix(name, "-init")
 }
 
-// ComputeInitContainerResourceRequirements computes the resource requirements for init containers given minimum CPU and memory limits.
-//
-// If enforceMinimumsOnConfigured is true, then when a configured value for defaultRequirements is below the corresponding minimum,
-// injection should be skipped (ShouldSkip=true) and Message will describe the mismatch.
-func ComputeInitContainerResourceRequirements(pod *corev1.Pod, defaultRequirements map[corev1.ResourceName]resource.Quantity, minCPULimit resource.Quantity, minMemoryLimit resource.Quantity, enforceMinimumsOnConfigured bool) ResourceRequirementsResult {
+func computeInitContainerResourceRequirements(pod *corev1.Pod, defaultRequirements map[corev1.ResourceName]resource.Quantity, minCPULimit resource.Quantity, minMemoryLimit resource.Quantity, enforceMinimumsOnConfigured bool) ResourceRequirementsResult {
 	requirements := corev1.ResourceRequirements{
 		Limits:   corev1.ResourceList{},
 		Requests: corev1.ResourceList{},
