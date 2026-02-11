@@ -28,9 +28,10 @@ func GetTaggerList(c ipc.HTTPClient, w io.Writer, url string, jsonFlag bool, pre
 	r, err := c.Get(url, ipchttp.WithLeaveConnectionOpen)
 	if err != nil {
 		if r != nil && string(r) != "" {
-			return fmt.Errorf("the agent ran into an error while getting tags list: %s", string(r))
+			fmt.Fprintf(w, "The agent ran into an error while getting tags list: %s\n", string(r))
+		} else {
+			fmt.Fprintf(w, "Failed to query the agent (running?): %s\n", err)
 		}
-		return fmt.Errorf("failed to query the agent (running?): %w", err)
 	}
 
 	tr := types.TaggerListResponse{}
@@ -48,7 +49,7 @@ func GetTaggerList(c ipc.HTTPClient, w io.Writer, url string, jsonFlag bool, pre
 	}
 
 	if jsonFlag || prettyJSON {
-		return jsonutil.PrintJSON(w, &tr, prettyJSON, false)
+		return jsonutil.PrintJSON(w, &tr, prettyJSON, false, "")
 	}
 
 	printTaggerEntities(w, &tr)
