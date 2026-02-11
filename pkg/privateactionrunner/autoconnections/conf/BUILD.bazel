@@ -14,7 +14,10 @@ pkg_files(
         mode = "0644",
         owner = "root",
     ),
-    prefix = "etc/datadog-agent/private-action-runner",
+    prefix = select({
+        "@platforms//os:windows": "ProgramData/Datadog/private-action-runner",
+        "//conditions:default": "etc/datadog-agent/private-action-runner",
+    }),
 )
 
 pkg_install(
