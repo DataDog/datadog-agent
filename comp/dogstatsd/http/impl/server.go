@@ -38,14 +38,6 @@ type serializer interface {
 	SendSketch(metrics.SketchesSource) error
 }
 
-func newServer(config config.Component, log log.Component, out serializer) *server {
-	return &server{
-		config: config,
-		log:    log,
-		out:    out,
-	}
-}
-
 func (s *server) start(ctx context.Context) error {
 	if !s.config.GetBool("dogstatsd_experimental_http.enabled") {
 		s.log.Debug("dogstatsd http server disabled")
