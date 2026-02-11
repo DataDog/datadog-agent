@@ -35,6 +35,7 @@ func UseEndpointSlices() bool {
 	serverVersion, err := common.KubeServerVersion(apiserverClient.Cl.Discovery(), 10*time.Second)
 	if err != nil {
 		log.Warnf("Couldn't get apiserver version, cannot check if kubernetes version supports endpoint slices.")
+		// Fail open because the config was enabled, even though we can't check the version
 		return true
 	}
 
