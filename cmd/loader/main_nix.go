@@ -13,7 +13,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 
 	"golang.org/x/sys/unix"
@@ -26,6 +25,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/loader"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
@@ -55,10 +55,7 @@ func main() {
 	}
 
 	// comp/trace/config/config*.go
-	logFile := "/var/log/datadog/trace-agent.log"
-	if runtime.GOOS == "darwin" {
-		logFile = "/opt/datadog-agent/logs/trace-agent.log"
-	}
+	logFile := defaultpaths.GetDefaultTraceAgentLogFile()
 	// cmd/trace-agent/subcommands/run/command.go
 	logparams := logdef.ForDaemon("TRACE-LOADER", "apm_config.log_file", logFile)
 	err = pkglogsetup.SetupLogger(
@@ -294,10 +291,7 @@ func getListeners(cfg model.Reader) (tcpFD int, listeners map[string]uintptr, er
 		traceCfgReceiverPort = cfg.GetInt("apm_config.receiver_port")
 	}
 
-	traceCfgReceiverSocket := ""
-	if runtime.GOOS == "linux" {
-		traceCfgReceiverSocket = "/var/run/datadog/apm.socket"
-	}
+	traceCfgReceiverSocket := defaultpaths.GetDefaultReceiverSocket()
 	if cfg.IsSet("apm_config.receiver_socket") {
 		traceCfgReceiverSocket = cfg.GetString("apm_config.receiver_socket")
 	}

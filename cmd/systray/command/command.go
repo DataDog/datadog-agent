@@ -95,7 +95,7 @@ func MakeCommand() *cobra.Command {
 			return fxutil.Run(
 				// core
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewParams(defaultpaths.ConfPath),
+					ConfigParams: config.NewParams(defaultpaths.GetDefaultConfPath()),
 					LogParams:    logParams,
 				}),
 				core.Bundle(),
@@ -103,11 +103,11 @@ func MakeCommand() *cobra.Command {
 				// flare
 				flare.Module(flare.NewParams(
 					defaultpaths.GetDistPath(),
-					defaultpaths.PyChecksPath,
-					defaultpaths.LogFile,
-					defaultpaths.JmxLogFile,
-					defaultpaths.DogstatsDLogFile,
-					defaultpaths.StreamlogsLogFile,
+					defaultpaths.GetDefaultPyChecksPath(),
+					defaultpaths.GetDefaultLogFile(),
+					defaultpaths.GetDefaultJmxLogFile(),
+					defaultpaths.GetDefaultDogstatsDProtocolLogFile(),
+					defaultpaths.GetDefaultStreamlogsLogFile(),
 				)),
 				secretsnoopfx.Module(),
 				diagnosefx.Module(),

@@ -66,6 +66,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/template v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.71.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.71.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.76.0-devel // indirect
