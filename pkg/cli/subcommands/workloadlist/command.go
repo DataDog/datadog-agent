@@ -119,18 +119,9 @@ func workloadList(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) 
 	// Backend did all processing (filtering, search, format conversion)
 	// Client just displays the result
 	if isJSONFormat {
-		// Check if response is empty when search was provided
-		if searchTerm != "" {
-			var check map[string]any
-			if err := json.Unmarshal(r, &check); err == nil {
-				if entities, ok := check["Entities"].(map[string]any); ok && len(entities) == 0 {
-					return fmt.Errorf("no entities found matching %q", searchTerm)
-				}
-			}
-		}
-
-		// Display as JSON (raw bytes - backend returned structured format)
-		return jsonutil.PrintJSON(color.Output, json.RawMessage(r), cliParams.prettyJSON, true)
+		// PrintJSON will unmarshal to check/clean, so do empty check there if needed
+		// For now, PrintJSON handles the display; empty check happens after user sees valid JSON
+		return jsonutil.PrintJSON(color.Output, json.RawMessage(r), cliParams.prettyJSON, true, searchTerm)
 	}
 
 	// Display as text (backend returned text format)

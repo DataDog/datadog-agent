@@ -54,7 +54,8 @@ func isEmpty(v any) bool {
 }
 
 // PrintJSON writes JSON output to the provided writer, optionally pretty-printed
-func PrintJSON(w io.Writer, rawJSON any, prettyPrintJSON bool, removeEmpty bool) error {
+// If searchTerm is non-empty and the unmarshaled data has empty "Entities", returns an error
+func PrintJSON(w io.Writer, rawJSON any, prettyPrintJSON bool, removeEmpty bool, searchTerm string) error {
 	var result []byte
 	var err error
 
@@ -79,6 +80,16 @@ func PrintJSON(w io.Writer, rawJSON any, prettyPrintJSON bool, removeEmpty bool)
 			if err := json.Unmarshal(rawBytes, &unmarshaled); err != nil {
 				return err
 			}
+
+			// Check for empty results if search term provided (single parse!)
+			if searchTerm != "" {
+				if m, ok := unmarshaled.(map[string]any); ok {
+					if entities, ok := m["Entities"].(map[string]any); ok && len(entities) == 0 {
+						return fmt.Errorf("no entities found matching %q", searchTerm)
+					}
+				}
+			}
+
 			rawJSON = removeEmptyFields(unmarshaled)
 		} else {
 			// Already unmarshaled data

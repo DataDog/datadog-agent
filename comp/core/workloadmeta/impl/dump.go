@@ -19,35 +19,8 @@ func (w *workloadmeta) Dump(verbose bool) wmdef.WorkloadDumpResponse {
 	}
 
 	entityToString := func(entity wmdef.Entity) (string, error) {
-		var info string
-		switch e := entity.(type) {
-		case *wmdef.Container:
-			info = e.String(verbose)
-		case *wmdef.KubernetesPod:
-			info = e.String(verbose)
-		case *wmdef.ECSTask:
-			info = e.String(verbose)
-		case *wmdef.ContainerImageMetadata:
-			info = e.String(verbose)
-		case *wmdef.Process:
-			info = e.String(verbose)
-		case *wmdef.KubernetesDeployment:
-			info = e.String(verbose)
-		case *wmdef.KubernetesMetadata:
-			info = e.String(verbose)
-		case *wmdef.GPU:
-			info = e.String(verbose)
-		case *wmdef.Kubelet:
-			info = e.String(verbose)
-		case *wmdef.CRD:
-			info = e.String(verbose)
-		case *wmdef.KubeCapabilities:
-			info = e.String(verbose)
-		default:
-			return "", fmt.Errorf("unsupported type %T", e)
-		}
-
-		return info, nil
+		// All entity types implement String(verbose) method
+		return entity.String(verbose), nil
 	}
 
 	w.storeMut.RLock()

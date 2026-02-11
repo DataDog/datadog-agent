@@ -116,7 +116,7 @@ func run(cliParams *cliParams, _ log.Component, client ipc.HTTPClient) error {
 			checkJSONConfigs[i] = convertCheckConfigToJSON(&config.Config, config.InstanceIDs)
 		}
 
-		if err := jsonutil.PrintJSON(color.Output, checkJSONConfigs, cliParams.prettyJSON, false); err != nil {
+		if err := jsonutil.PrintJSON(color.Output, checkJSONConfigs, cliParams.prettyJSON, false, ""); err != nil {
 			return err
 		}
 	} else {

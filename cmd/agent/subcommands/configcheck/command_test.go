@@ -134,7 +134,7 @@ value: 456`,
 
 	var b bytes.Buffer
 
-	err := jsonutil.PrintJSON(&b, c, false, false)
+	err := jsonutil.PrintJSON(&b, c, false, false, "")
 	require.NoError(t, err)
 
 	require.True(t, isValidJSON(b.Bytes()))
@@ -185,7 +185,7 @@ value: 456`,
 
 	var b bytes.Buffer
 
-	err := jsonutil.PrintJSON(&b, c, true, false)
+	err := jsonutil.PrintJSON(&b, c, true, false, "")
 	require.NoError(t, err)
 
 	require.True(t, isValidJSON(b.Bytes()))
