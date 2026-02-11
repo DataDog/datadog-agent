@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -37,6 +38,22 @@ type baseAgentMSISuite struct {
 	beforeInstall      *windowsCommon.FileSystemSnapshot
 	beforeInstallPerms map[string]string // path -> SDDL
 	dumpFolder         string
+}
+
+// packageInstallOptions holds options for the installAgentPackage method
+type packageInstallOptions struct {
+	skipProcdump bool
+}
+
+// PackageInstallOption is a functional option for installAgentPackage
+type PackageInstallOption func(*packageInstallOptions)
+
+// WithSkipProcdump skips starting procdump during installation.
+// Use this for tests that need to delete agent files after installation.
+func WithSkipProcdump() PackageInstallOption {
+	return func(o *packageInstallOptions) {
+		o.skipProcdump = true
+	}
 }
 
 // NOTE: BeforeTest is not called before subtests
@@ -121,8 +138,18 @@ func (s *baseAgentMSISuite) newTester(vm *components.RemoteHost, options ...Test
 }
 
 func (s *baseAgentMSISuite) installAgentPackage(vm *components.RemoteHost, agentPackage *windowsAgent.Package, installOptions ...windowsAgent.InstallAgentOption) string {
+	return s.installAgentPackageWithOptions(vm, agentPackage, nil, installOptions...)
+}
+
+func (s *baseAgentMSISuite) installAgentPackageWithOptions(vm *components.RemoteHost, agentPackage *windowsAgent.Package, pkgOpts []PackageInstallOption, installOptions ...windowsAgent.InstallAgentOption) string {
 	remoteMSIPath := ""
 	var err error
+
+	// Apply package install options
+	opts := &packageInstallOptions{}
+	for _, opt := range pkgOpts {
+		opt(opts)
+	}
 
 	// install the agent
 	installOpts := []windowsAgent.InstallAgentOption{
@@ -137,8 +164,15 @@ func (s *baseAgentMSISuite) installAgentPackage(vm *components.RemoteHost, agent
 	// Check if DD_INSTALL_ONLY is set - if so, services won't start
 	skipServiceCheck := s.hasInstallOnlyOption(installOptions...)
 
+	// Start xperf tracing
 	s.startXperf(vm)
 	defer s.collectXperf(vm)
+
+	// Start procdump in background to capture crash dumps (only if service will start and not skipped)
+	if !skipServiceCheck && !opts.skipProcdump {
+		ps := s.startProcdump(vm)
+		defer s.collectProcdumps(ps, vm)
+	}
 
 	if !s.Run("install "+agentPackage.AgentVersion(), func() {
 		remoteMSIPath, err = s.InstallAgent(vm, installOpts...)
@@ -206,6 +240,58 @@ func (s *baseAgentMSISuite) collectXperf(vm *components.RemoteHost) {
 		outDir := s.SessionOutputDir()
 		err = vm.GetFile(outputPath, filepath.Join(outDir, "full_host_profiles.etl"))
 		s.Require().NoError(err)
+	}
+}
+
+// startProcdump sets up procdump and starts it in the background
+func (s *baseAgentMSISuite) startProcdump(vm *components.RemoteHost) *windowsCommon.ProcdumpSession {
+	// Setup procdump on remote host
+	s.T().Log("Setting up procdump on remote host")
+	err := windowsCommon.SetupProcdump(vm)
+	s.Require().NoError(err, "should setup procdump")
+
+	// Start procdump - use "agent.exe" as the process name for -w flag
+	ps, err := windowsCommon.StartProcdump(vm, "agent.exe")
+	s.Require().NoError(err, "should start procdump")
+
+	return ps
+}
+
+// collectProcdumps stops procdump and downloads any captured dumps if the test failed.
+func (s *baseAgentMSISuite) collectProcdumps(ps *windowsCommon.ProcdumpSession, vm *components.RemoteHost) {
+	// Only collect dumps if the test failed
+	if !s.T().Failed() {
+		ps.Close()
+		return
+	}
+
+	// Wait for procdump to finish writing dump files BEFORE closing the session.
+	// Procdump is configured to capture 5 dumps, so wait until all 5 are created.
+	expectedDumpCount := 5
+	s.T().Logf("Waiting for procdump to create %d dump files...", expectedDumpCount)
+	deadline := time.Now().Add(120 * time.Second)
+	for time.Now().Before(deadline) {
+		output, err := vm.Execute(fmt.Sprintf(`(Get-ChildItem -Path '%s' -Filter '*.dmp' -ErrorAction SilentlyContinue | Measure-Object).Count`, windowsCommon.ProcdumpsPath))
+		if err == nil {
+			countStr := strings.TrimSpace(output)
+			count, parseErr := strconv.Atoi(countStr)
+			if parseErr == nil && count >= expectedDumpCount {
+				s.T().Logf("All %d dump files ready", count)
+				break
+			}
+			s.T().Logf("Found %s dump files, waiting for %d...", countStr, expectedDumpCount)
+		}
+		time.Sleep(5 * time.Second)
+	}
+
+	ps.Close()
+
+	// Download all dump files
+	outDir := s.SessionOutputDir()
+	if err := vm.GetFolder(windowsCommon.ProcdumpsPath, outDir); err != nil {
+		s.T().Logf("Warning: failed to download procdumps %s: %v", windowsCommon.ProcdumpsPath, err)
+	} else {
+		s.T().Logf("Downloaded procdumps to: %s", outDir)
 	}
 }
 

@@ -20,7 +20,7 @@ cc_library(
 
 # What to install.
 pkg_files(
-    name = "all",
+    name = "all_files",
     srcs = [
         "datadog_agent_rtloader.h",
         "rtloader_types.h",

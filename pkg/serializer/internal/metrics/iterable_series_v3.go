@@ -124,7 +124,6 @@ type payloadsBuilderV3 struct {
 	deltaNameRef           deltaEncoder
 	deltaTagsRef           deltaEncoder
 	deltaResourcesRef      deltaEncoder
-	deltaInterval          deltaEncoder
 	deltaTimestamp         deltaEncoder
 	deltaSourceTypeNameRef deltaEncoder
 	deltaOriginRef         deltaEncoder
@@ -297,7 +296,6 @@ func (pb *payloadsBuilderV3) reset() {
 	pb.deltaNameRef.reset()
 	pb.deltaTagsRef.reset()
 	pb.deltaResourcesRef.reset()
-	pb.deltaInterval.reset()
 	pb.deltaTimestamp.reset()
 	pb.deltaSourceTypeNameRef.reset()
 	pb.deltaOriginRef.reset()
@@ -404,7 +402,7 @@ func (pb *payloadsBuilderV3) writeMetricCommon(
 ) {
 	pb.txn.Sint64(columnNameRef, pb.deltaNameRef.encode(pb.dict.internName(name)))
 	pb.txn.Sint64(columnTagsRef, pb.deltaTagsRef.encode(pb.dict.internTags(tags)))
-	pb.txn.Sint64(columnInterval, pb.deltaInterval.encode(interval))
+	pb.txn.Int64(columnInterval, interval)
 
 	pb.txn.Sint64(columnResourcesRef,
 		pb.deltaResourcesRef.encode(pb.dict.internResources(pb.resourcesBuf)))
@@ -440,13 +438,11 @@ func (pb *payloadsBuilderV3) writeSerieToTxn(serie *metrics.Serie) {
 		len(serie.Points),
 	)
 
-	valueType := valueZero
+	pointKind := pointKindZero
 	for _, pnt := range serie.Points {
-		pointType := pointValueType(pnt.Value)
-		if pointType > valueType {
-			valueType = pointType
-		}
+		pointKind = pointKind.unionOf(pnt.Value)
 	}
+	valueType := pointKind.toValueType()
 
 	typeValue := valueType | metricType(serie.MType)
 	if serie.NoIndex {
@@ -514,13 +510,13 @@ func (pb *payloadsBuilderV3) writeSketchToTxn(sketch *metrics.SketchSeries) {
 
 	// find a single smallest type that can fit all summary values
 	// without loss of precision
-	valueType := valueZero
+	pointKind := pointKindZero
 	for _, pnt := range sketch.Points {
-		valueType = max(valueType,
-			pointValueType(pnt.Sketch.Basic.Sum),
-			pointValueType(pnt.Sketch.Basic.Min),
-			pointValueType(pnt.Sketch.Basic.Max))
+		pointKind = pointKind.unionOf(pnt.Sketch.Basic.Sum)
+		pointKind = pointKind.unionOf(pnt.Sketch.Basic.Min)
+		pointKind = pointKind.unionOf(pnt.Sketch.Basic.Max)
 	}
+	valueType := pointKind.toValueType()
 
 	typeValue := valueType | metricSketch
 	if sketch.NoIndex {
@@ -803,25 +799,79 @@ func (db *dictionaryBuilder) internSourceTypeName(stn string) int64 {
 	return db.sourceTypeNameInterner.intern(istr(stn))
 }
 
-func pointValueType(v float64) int64 {
+// pointType represents the kind (integer or floating point, range) of a time series point value.
+// It is used to find best representation for one or more values in a time series.
+type pointKind int
+
+const (
+	pointKindZero    pointKind = iota // value is zero
+	pointKindInt24                    // integers that fit in float32, but may be shorter as varint
+	pointKindInt48                    // integers not in above, but varint representation is shorter than float64
+	pointKindFloat32                  // floating point values that fit in float32
+	pointKindFloat64                  // everything else
+)
+
+func pointKindOf(v float64) pointKind {
 	if v == 0 {
-		return valueZero
+		return pointKindZero
 	}
 
-	// Integers in this range encode to 7 byte varints or less
-	const maxInt = 1<<48 - 1
-	const minInt = -1 << 48
+	// Integers in this range can still fit into float32 column if needed.
+	const maxInt24 = 1 << 24
+	const minInt24 = -1 << 24
+	// Integers in this range encode to 7 byte varints or less.
+	const maxInt48 = 1<<48 - 1
+	const minInt48 = -1 << 48
 
 	i := int64(v)
-	if i >= minInt && i <= maxInt && float64(i) == v {
-		return valueSint64
+	if float64(i) == v {
+		if i >= minInt24 && i <= maxInt24 {
+			return pointKindInt24
+		}
+		if i >= minInt48 && i <= maxInt48 {
+			return pointKindInt48
+		}
 	}
 
 	if float64(float32(v)) == v {
-		return valueFloat32
+		return pointKindFloat32
 	}
 
-	return valueFloat64
+	return pointKindFloat64
+}
+
+func (p pointKind) union(o pointKind) pointKind {
+	// Matrix of smallest kind that can represent both p and o.
+	// This matrix is max(p, o), except for two cases marked with !:
+	// p\o |  zero  i24   i48   f32   f64
+	// ----+----------------------------
+	// zero | nil   i24   i48   f32   f64
+	// i24  | i24   i24   i48   f32   f64
+	// i48  | i48   i48   i48   f64!  f64
+	// f32  | f32   f32   f64!  f32   f64
+	// f64  | f64   f64   f64   f64   f64
+	// i48 doesn't fit in f32 (too long) and f32 doesn't fit in i48 (has a fraction). Next stop is f64.
+	if (p == pointKindInt48 && o == pointKindFloat32) || (p == pointKindFloat32 && o == pointKindInt48) {
+		return pointKindFloat64
+	}
+	return max(p, o)
+}
+
+func (p pointKind) unionOf(v float64) pointKind {
+	return p.union(pointKindOf(v))
+}
+
+func (p pointKind) toValueType() int64 {
+	switch p {
+	case pointKindZero:
+		return valueZero
+	case pointKindInt24, pointKindInt48:
+		return valueSint64
+	case pointKindFloat32:
+		return valueFloat32
+	default:
+		return valueFloat64
+	}
 }
 
 func metricType(ty metrics.APIMetricType) int64 {

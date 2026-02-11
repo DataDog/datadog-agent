@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -51,7 +52,7 @@ var newClock = clock.New
 var templatesFS embed.FS
 
 // this is overridden by tests when needed
-var checkRightsFunc = checkRights
+var checkRightsFunc = filesystem.CheckRights
 
 // Provides list the provided interfaces from the secrets Component
 type Provides struct {
@@ -407,7 +408,7 @@ func (r *secretResolver) SubscribeToChanges(cb secrets.SecretChangeCallback) {
 // We enforce 3 type of limitation (each giving different level of control to the user). These limitations
 // are active when using either:
 // `k8s_secret@namespace/secret-name/key`
-// `namespace/secret-name;key` (for datadog-secret-backend)
+// `namespace/secret-name;key` (for secret-generic-connector)
 //
 // The levels are:
 // - secret_scope_integration_to_their_k8s_namespace: containers can only access secret from their own namespace

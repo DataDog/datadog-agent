@@ -9,13 +9,51 @@ package converters
 
 import (
 	"context"
+	"flag"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
+	"gopkg.in/yaml.v3"
 )
+
+var updateGolden = flag.Bool("update", false, "update golden test files")
+
+// mockConfig is a minimal mock of config.Component for testing
+type mockConfig struct {
+	config.Component
+	values map[string]interface{}
+}
+
+func newMockConfig() *mockConfig {
+	return &mockConfig{
+		values: map[string]interface{}{
+			"site":    "datadoghq.com",
+			"api_key": "test_api_key_123",
+		},
+	}
+}
+
+func (m *mockConfig) GetString(key string) string {
+	if val, ok := m.values[key]; ok {
+		if s, ok := val.(string); ok {
+			return s
+		}
+	}
+	return ""
+}
+
+func (m *mockConfig) GetStringMapStringSlice(key string) map[string][]string {
+	if val, ok := m.values[key]; ok {
+		if m, ok := val.(map[string][]string); ok {
+			return m
+		}
+	}
+	return map[string][]string{}
+}
 
 // converter is an interface that both converterWithAgent and converterWithoutAgent implement
 type converter interface {
@@ -54,6 +92,17 @@ func runSuccessTests(t *testing.T, conv converter, tests []testCase) {
 			// Run converter
 			err = conv.Convert(context.Background(), conf)
 			require.NoError(t, err, "converter failed for: %s", tc.provided)
+
+			// Update golden files if -update flag is set
+			if *updateGolden {
+				expectedPath := filepath.Join("td", tc.expected)
+				actualYAML, err := yaml.Marshal(conf.ToStringMap())
+				require.NoError(t, err, "failed to marshal output to YAML: %s", tc.provided)
+				err = os.WriteFile(expectedPath, actualYAML, 0644)
+				require.NoError(t, err, "failed to write golden file: %s", expectedPath)
+				t.Logf("Updated golden file: %s", expectedPath)
+				return
+			}
 
 			// Load expected output
 			expectedPath := filepath.Join("td", tc.expected)
@@ -234,9 +283,31 @@ func TestConverterWithAgent(t *testing.T) {
 			provided: "agent/global-procs-notmap/in.yaml",
 			expected: "agent/global-procs-notmap/out.yaml",
 		},
+		{
+			name:     "infers-otlphttp-when-missing",
+			provided: "agent/error-no-otlp/in.yaml",
+			expected: "agent/error-no-otlp/out.yaml",
+		},
+		{
+			name:     "infers-otlphttp-in-empty-pipeline",
+			provided: "agent/empty-pipeline/in.yaml",
+			expected: "agent/empty-pipeline/out.yaml",
+		},
+		{
+			name:     "infers-symbol-endpoints-when-empty",
+			provided: "agent/symbol-up-empty-ep/in.yaml",
+			expected: "agent/symbol-up-empty-ep/out.yaml",
+		},
+		{
+			name:     "does-not-infer-when-endpoints-present",
+			provided: "agent/symbol-ep-no-inference/in.yaml",
+			expected: "agent/symbol-ep-no-inference/out.yaml",
+		},
 	}
 
-	runSuccessTests(t, &converterWithAgent{}, tests)
+	mockCfg := newMockConfig()
+	conv := newConverterWithAgent(confmap.ConverterSettings{}, mockCfg)
+	runSuccessTests(t, conv, tests)
 }
 
 func TestConverterWithAgentErrors(t *testing.T) {
@@ -247,33 +318,15 @@ func TestConverterWithAgentErrors(t *testing.T) {
 			expectedError: "receiver name must be a string",
 		},
 		{
-			name:          "symbol-endpoints-wrong-type",
-			provided:      "agent/symbol-ep-wrongtype/in.yaml",
-			expectedError: "symbol_endpoints must be a list",
-		},
-		{
-			name:          "errors-when-no-otlphttp",
-			provided:      "agent/error-no-otlp/in.yaml",
-			expectedError: "no otlphttp exporter configured",
-		},
-		{
-			name:          "symbol-uploader-empty-endpoints",
-			provided:      "agent/symbol-up-empty-ep/in.yaml",
-			expectedError: "symbol_endpoints cannot be empty",
-		},
-		{
-			name:          "empty-pipeline",
-			provided:      "agent/empty-pipeline/in.yaml",
-			expectedError: "no otlphttp exporter configured",
-		},
-		{
 			name:          "non-string-processor-name-in-pipeline",
 			provided:      "agent/nonstr-proc-pipeline/in.yaml",
 			expectedError: "processor name must be a string",
 		},
 	}
 
-	runErrorTests(t, &converterWithAgent{}, tests)
+	mockCfg := newMockConfig()
+	conv := newConverterWithAgent(confmap.ConverterSettings{}, mockCfg)
+	runErrorTests(t, conv, tests)
 }
 
 func TestConverterWithoutAgent(t *testing.T) {
