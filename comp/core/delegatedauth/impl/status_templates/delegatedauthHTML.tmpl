@@ -1,0 +1,28 @@
+<div class="stat">
+  <span class="stat_title">Delegated Authentication</span>
+  <span class="stat_data">
+    {{- if not .enabled }}
+    Not enabled
+    {{- else }}
+    <span class="stat_subtitle">Cloud Provider:</span> {{ .provider }}<br>
+    {{- if .awsRegion }}
+    <span class="stat_subtitle">AWS Region:</span> {{ .awsRegion }}<br>
+    {{- end }}
+    <span class="stat_subtitle">Delegated Auth Instances:</span><br>
+    {{- range $key, $info := .instances }}
+    <span class="stat_subsubtitle">{{ $key }}</span><br>
+    &nbsp;&nbsp;Status: {{ $info.Status }}<br>
+    &nbsp;&nbsp;Refresh Interval: {{ $info.RefreshInterval }}<br>
+    {{- if $info.LastRefresh }}
+    &nbsp;&nbsp;Last Refresh: {{ $info.LastRefresh }}<br>
+    {{- end }}
+    {{- if $info.NextRefresh }}
+    &nbsp;&nbsp;Next Refresh: {{ $info.NextRefresh }}<br>
+    {{- end }}
+    {{- if $info.Error }}
+    &nbsp;&nbsp;<span class="error">Error: {{ $info.Error }}</span><br>
+    {{- end }}
+    {{- end }}
+    {{- end }}
+  </span>
+</div>
