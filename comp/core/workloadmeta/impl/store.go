@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry"
@@ -623,26 +623,26 @@ func (w *workloadmeta) startCandidatesWithRetry(ctx context.Context) error {
 	expBackoff := backoff.NewExponentialBackOff()
 	expBackoff.InitialInterval = retryCollectorInitialInterval
 	expBackoff.MaxInterval = retryCollectorMaxInterval
-	expBackoff.MaxElapsedTime = 0 // Don't stop trying
 
 	if len(w.candidates) == 0 {
 		// TODO: this should actually probably just be an error?
 		return nil
 	}
 
-	return backoff.Retry(func() error {
+	_, err := backoff.Retry(ctx, func() (any, error) {
 		select {
 		case <-ctx.Done():
-			return &backoff.PermanentError{Err: fmt.Errorf("stopped before all collectors were able to start: %v", w.candidates)}
+			return nil, &backoff.PermanentError{Err: fmt.Errorf("stopped before all collectors were able to start: %v", w.candidates)}
 		default:
 		}
 
 		if w.startCandidates(ctx) {
-			return nil
+			return nil, nil
 		}
 
-		return errors.New("some collectors failed to start. Will retry")
-	}, expBackoff)
+		return nil, errors.New("some collectors failed to start. Will retry")
+	}, backoff.WithBackOff(expBackoff), backoff.WithMaxElapsedTime(0))
+	return err
 }
 
 func (w *workloadmeta) startCandidates(ctx context.Context) bool {
@@ -791,8 +791,25 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 				continue
 			}
 
-			// keep a copy of cachedEntity before removing sources,
-			// as we may need to merge it later
+			// Save a copy of the entity before removing the source. The
+			// original is used below to notify subscribers with the pre-delete
+			// merged state.
+			//
+			// This serves two purposes:
+			//
+			// 1. Subscribers that process deletes (like the container_lifecycle
+			// check) receive the full entity data (exit code, timestamps, etc.)
+			// instead of just an ID. This way collectors don't need to cache
+			// entity state before emitting an unset.
+			//
+			// 2. When one source is removed but others remain, subscribers get
+			// a Set event with all sources still present. This prevents tags
+			// from disappearing when one collector reports a delete before the
+			// others. For example, if containerd reports a container delete
+			// before kubelet, sending the post-delete state would remove the
+			// containerd tags from the tagger. Those tags would stay missing
+			// until kubelet reports the delete too, and then for 5 more minutes
+			// (the tagger's deletedTTL).
 			c := cachedEntity
 			cachedEntity = c.copy()
 

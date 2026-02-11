@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/zstd"
 	"github.com/spf13/afero"
 
-	"github.com/golang/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerproto "github.com/DataDog/datadog-agent/comp/core/tagger/proto"

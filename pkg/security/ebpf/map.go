@@ -166,6 +166,10 @@ var (
 	BufferSelectorApproverMonitorKey = Uint32MapItem(3)
 	// BufferSelectorDNSResponseFilteredMonitorKey is the key used to select the filtered DNS responses
 	BufferSelectorDNSResponseFilteredMonitorKey = Uint32MapItem(4)
+	// BoolFalseMapItem is the value used to set the map entry to false
+	BoolFalseMapItem = Uint8MapItem(0)
+	// BoolTrueMapItem is the value used to set the map entry to true
+	BoolTrueMapItem = Uint8MapItem(1)
 )
 
 // Map is the interface for all eBPF maps

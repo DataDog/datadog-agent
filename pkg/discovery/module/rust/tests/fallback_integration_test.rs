@@ -8,36 +8,38 @@
 
 use std::fs;
 use std::io::Write;
-use std::os::unix::fs::PermissionsExt;
+use std::path::PathBuf;
 use std::process::Command;
 use tempfile::{NamedTempFile, TempDir};
 
 const SD_AGENT_BIN: &str = env!("CARGO_BIN_EXE_sd-agent");
 
+fn mock_system_probe_path() -> PathBuf {
+    // Bazel test: use the path provided via environment variable
+    if let Ok(script_path) = std::env::var("MOCK_SYSTEM_PROBE") {
+        return PathBuf::from(script_path);
+    }
+
+    // Cargo test: use CARGO_MANIFEST_DIR
+    if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
+        return PathBuf::from(manifest_dir).join("testdata/fallback/mock-system-probe.sh");
+    }
+
+    panic!("Neither MOCK_SYSTEM_PROBE nor CARGO_MANIFEST_DIR is set");
+}
+
 #[test]
 fn test_fallback_on_npm_enabled() {
     let temp_dir = TempDir::new().unwrap();
-    let mock_sp = temp_dir.path().join("system-probe");
     let marker_file = temp_dir.path().join("sp-called");
 
-    // Create mock system-probe that creates a marker file
-    fs::write(
-        &mock_sp,
-        format!(
-            r#"#!/bin/bash
-echo "system-probe called with args: $@" > {}
-exit 0
-"#,
-            marker_file.display()
-        ),
-    )
-    .unwrap();
-    fs::set_permissions(&mock_sp, fs::Permissions::from_mode(0o755)).unwrap();
+    let mock_sp_source = mock_system_probe_path();
 
     // Run sd-agent with network tracer enabled using new -- syntax
     let _output = Command::new(SD_AGENT_BIN)
         .arg("--")
-        .arg(&mock_sp)
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
         .arg("run")
         .arg("--pid=/var/run/test.pid")
         .arg("--debug")
@@ -60,22 +62,9 @@ exit 0
 #[test]
 fn test_no_fallback_on_discovery_only() {
     let temp_dir = TempDir::new().unwrap();
-    let mock_sp = temp_dir.path().join("system-probe");
     let marker_file = temp_dir.path().join("sp-called");
 
-    // Create mock system-probe
-    fs::write(
-        &mock_sp,
-        format!(
-            r#"#!/bin/bash
-touch {}
-exit 0
-"#,
-            marker_file.display()
-        ),
-    )
-    .unwrap();
-    fs::set_permissions(&mock_sp, fs::Permissions::from_mode(0o755)).unwrap();
+    let mock_sp_source = mock_system_probe_path();
 
     // Create empty config file to avoid picking up system config at /etc/datadog-agent/system-probe.yaml
     let mut config_file = NamedTempFile::new().unwrap();
@@ -86,11 +75,13 @@ exit 0
     // Note: --config must be after -- to be parsed as system-probe arg
     let mut child = Command::new(SD_AGENT_BIN)
         .arg("--")
-        .arg(&mock_sp)
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
         .arg("run")
         .arg("--config")
         .arg(config_file.path())
         .env("DD_DISCOVERY_ENABLED", "true")
+        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
         .spawn()
         .expect("Failed to spawn sd-agent");
 
@@ -111,21 +102,9 @@ exit 0
 #[test]
 fn test_config_file_only() {
     let temp_dir = TempDir::new().unwrap();
-    let mock_sp = temp_dir.path().join("system-probe");
     let marker_file = temp_dir.path().join("sp-called");
 
-    fs::write(
-        &mock_sp,
-        format!(
-            r#"#!/bin/bash
-touch {}
-exit 0
-"#,
-            marker_file.display()
-        ),
-    )
-    .unwrap();
-    fs::set_permissions(&mock_sp, fs::Permissions::from_mode(0o755)).unwrap();
+    let mock_sp_source = mock_system_probe_path();
 
     // Create config file with network enabled
     let mut config_file = NamedTempFile::new().unwrap();
@@ -136,7 +115,8 @@ exit 0
 
     let _output = Command::new(SD_AGENT_BIN)
         .arg("--")
-        .arg(&mock_sp)
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
         .arg("run")
         .arg("--config")
         .arg(config_file.path())
@@ -167,21 +147,9 @@ fn test_missing_fallback_binary() {
 #[test]
 fn test_invalid_yaml_triggers_fallback() {
     let temp_dir = TempDir::new().unwrap();
-    let mock_sp = temp_dir.path().join("system-probe");
     let marker_file = temp_dir.path().join("sp-called");
 
-    fs::write(
-        &mock_sp,
-        format!(
-            r#"#!/bin/bash
-touch {}
-exit 0
-"#,
-            marker_file.display()
-        ),
-    )
-    .unwrap();
-    fs::set_permissions(&mock_sp, fs::Permissions::from_mode(0o755)).unwrap();
+    let mock_sp_source = mock_system_probe_path();
 
     // Create invalid YAML config
     let mut config_file = NamedTempFile::new().unwrap();
@@ -192,7 +160,8 @@ exit 0
 
     let _output = Command::new(SD_AGENT_BIN)
         .arg("--")
-        .arg(&mock_sp)
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
         .arg("run")
         .arg("--config")
         .arg(config_file.path())
@@ -205,21 +174,9 @@ exit 0
 #[test]
 fn test_unknown_yaml_key_triggers_fallback() {
     let temp_dir = TempDir::new().unwrap();
-    let mock_sp = temp_dir.path().join("system-probe");
     let marker_file = temp_dir.path().join("sp-called");
 
-    fs::write(
-        &mock_sp,
-        format!(
-            r#"#!/bin/bash
-touch {}
-exit 0
-"#,
-            marker_file.display()
-        ),
-    )
-    .unwrap();
-    fs::set_permissions(&mock_sp, fs::Permissions::from_mode(0o755)).unwrap();
+    let mock_sp_source = mock_system_probe_path();
 
     // Create config with unknown key
     let mut config_file = NamedTempFile::new().unwrap();
@@ -230,7 +187,8 @@ exit 0
 
     let _output = Command::new(SD_AGENT_BIN)
         .arg("--")
-        .arg(&mock_sp)
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
         .arg("run")
         .arg("--config")
         .arg(config_file.path())
@@ -246,21 +204,9 @@ exit 0
 #[test]
 fn test_discovery_disabled_exits_cleanly() {
     let temp_dir = TempDir::new().unwrap();
-    let mock_sp = temp_dir.path().join("system-probe");
     let marker_file = temp_dir.path().join("sp-called");
 
-    fs::write(
-        &mock_sp,
-        format!(
-            r#"#!/bin/bash
-touch {}
-exit 0
-"#,
-            marker_file.display()
-        ),
-    )
-    .unwrap();
-    fs::set_permissions(&mock_sp, fs::Permissions::from_mode(0o755)).unwrap();
+    let mock_sp_source = mock_system_probe_path();
 
     // Create empty config file to avoid picking up system config at /etc/datadog-agent/system-probe.yaml
     let mut config_file = NamedTempFile::new().unwrap();
@@ -271,11 +217,13 @@ exit 0
     // Note: --config must be after -- to be parsed as system-probe arg
     let output = Command::new(SD_AGENT_BIN)
         .arg("--")
-        .arg(&mock_sp)
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
         .arg("run")
         .arg("--config")
         .arg(config_file.path())
         .env("DD_DISCOVERY_ENABLED", "false")
+        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
         .output()
         .expect("Failed to execute sd-agent");
 
@@ -292,26 +240,15 @@ exit 0
 #[test]
 fn test_discovery_enabled_with_fallback() {
     let temp_dir = TempDir::new().unwrap();
-    let mock_sp = temp_dir.path().join("system-probe");
     let marker_file = temp_dir.path().join("sp-called");
 
-    fs::write(
-        &mock_sp,
-        format!(
-            r#"#!/bin/bash
-touch {}
-exit 0
-"#,
-            marker_file.display()
-        ),
-    )
-    .unwrap();
-    fs::set_permissions(&mock_sp, fs::Permissions::from_mode(0o755)).unwrap();
+    let mock_sp_source = mock_system_probe_path();
 
     // Both discovery and DD_SERVICE should trigger fallback
     let _output = Command::new(SD_AGENT_BIN)
         .arg("--")
-        .arg(&mock_sp)
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
         .arg("run")
         .env("DD_DISCOVERY_ENABLED", "true")
         .env("DD_RUNTIME_SECURITY_CONFIG_ENABLED", "true")
@@ -321,5 +258,167 @@ exit 0
     assert!(
         marker_file.exists(),
         "Discovery + Runtime Security Config Enabled should trigger fallback"
+    );
+}
+
+// Killswitch integration tests
+#[test]
+fn test_killswitch_disabled_fallback() {
+    let temp_dir = TempDir::new().unwrap();
+    let marker_file = temp_dir.path().join("sp-called");
+
+    let mock_sp_source = mock_system_probe_path();
+
+    // Killswitch disabled should trigger fallback even with discovery enabled
+    let _output = Command::new(SD_AGENT_BIN)
+        .arg("--")
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
+        .arg("run")
+        .env("DD_DISCOVERY_USE_SD_AGENT", "false")
+        .env("DD_DISCOVERY_ENABLED", "true")
+        .output()
+        .expect("Failed to execute sd-agent");
+
+    assert!(
+        marker_file.exists(),
+        "Killswitch disabled should trigger fallback to system-probe"
+    );
+}
+
+#[test]
+fn test_killswitch_not_set_defaults_to_fallback() {
+    let temp_dir = TempDir::new().unwrap();
+    let marker_file = temp_dir.path().join("sp-called");
+
+    let mock_sp_source = mock_system_probe_path();
+
+    // Killswitch not set should default to fallback (safe default)
+    let _output = Command::new(SD_AGENT_BIN)
+        .arg("--")
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
+        .arg("run")
+        .env("DD_DISCOVERY_ENABLED", "true")
+        .output()
+        .expect("Failed to execute sd-agent");
+
+    assert!(
+        marker_file.exists(),
+        "Killswitch not set should default to fallback (safe default)"
+    );
+}
+
+#[test]
+fn test_killswitch_enabled_runs_sd_agent() {
+    let temp_dir = TempDir::new().unwrap();
+    let marker_file = temp_dir.path().join("sp-called");
+
+    let mock_sp_source = mock_system_probe_path();
+
+    // Create empty config file to avoid picking up system config
+    let mut config_file = NamedTempFile::new().unwrap();
+    config_file.write_all(b"").unwrap();
+    config_file.flush().unwrap();
+
+    // Killswitch enabled should allow sd-agent to run
+    let mut child = Command::new(SD_AGENT_BIN)
+        .arg("--")
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
+        .arg("run")
+        .arg(format!("--config={}", config_file.path().display()))
+        .env("DD_DISCOVERY_USE_SD_AGENT", "true")
+        .env("DD_DISCOVERY_ENABLED", "true")
+        .spawn()
+        .expect("Failed to execute sd-agent");
+
+    // Give it time to start
+    std::thread::sleep(std::time::Duration::from_millis(500));
+
+    // Terminate the process
+    #[cfg(unix)]
+    {
+        use nix::sys::signal::{Signal, kill};
+        use nix::unistd::Pid;
+        kill(Pid::from_raw(child.id() as i32), Signal::SIGTERM).unwrap();
+    }
+
+    let _status = child.wait().expect("Failed to wait for child process");
+
+    assert!(
+        !marker_file.exists(),
+        "Killswitch enabled should NOT trigger fallback - sd-agent should run"
+    );
+}
+
+#[test]
+fn test_killswitch_yaml_config() {
+    let temp_dir = TempDir::new().unwrap();
+    let marker_file = temp_dir.path().join("sp-called");
+
+    let mock_sp_source = mock_system_probe_path();
+
+    // Create YAML config with killswitch disabled
+    let mut config_file = NamedTempFile::new().unwrap();
+    config_file
+        .write_all(
+            b"discovery:
+  use_sd_agent: false
+  enabled: true
+",
+        )
+        .unwrap();
+    config_file.flush().unwrap();
+
+    // YAML with killswitch disabled should trigger fallback
+    let _output = Command::new(SD_AGENT_BIN)
+        .arg("--")
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
+        .arg("run")
+        .arg(format!("--config={}", config_file.path().display()))
+        .output()
+        .expect("Failed to execute sd-agent");
+
+    assert!(
+        marker_file.exists(),
+        "YAML with killswitch disabled should trigger fallback"
+    );
+}
+
+#[test]
+fn test_killswitch_env_overrides_yaml_enabled() {
+    let temp_dir = TempDir::new().unwrap();
+    let marker_file = temp_dir.path().join("sp-called");
+
+    let mock_sp_source = mock_system_probe_path();
+
+    // Create YAML config with killswitch enabled
+    let mut config_file = NamedTempFile::new().unwrap();
+    config_file
+        .write_all(
+            b"discovery:
+  use_sd_agent: true
+  enabled: true
+",
+        )
+        .unwrap();
+    config_file.flush().unwrap();
+
+    // Env var (false) should override YAML (true)
+    let _output = Command::new(SD_AGENT_BIN)
+        .arg("--")
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
+        .arg("run")
+        .arg(format!("--config={}", config_file.path().display()))
+        .env("DD_DISCOVERY_USE_SD_AGENT", "false")
+        .output()
+        .expect("Failed to execute sd-agent");
+
+    assert!(
+        marker_file.exists(),
+        "Env var should override YAML - fallback should happen"
     );
 }

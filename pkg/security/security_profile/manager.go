@@ -25,7 +25,6 @@ import (
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -43,7 +42,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
@@ -154,7 +152,7 @@ type Manager struct {
 }
 
 // NewManager returns a new instance of the security profile manager
-func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, newEvent func() *model.Event, dumpHandler backend.ActivityDumpHandler, ipc ipc.Component) (*Manager, error) {
+func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, newEvent func() *model.Event, dumpHandler backend.ActivityDumpHandler, hostname string) (*Manager, error) {
 	tracedPIDs, err := managerhelper.Map(ebpf, "traced_pids")
 	if err != nil {
 		return nil, err
@@ -248,11 +246,6 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		"",
 	))
 
-	hostname, err := hostnameutils.GetHostname(ipc)
-	if err != nil || hostname == "" {
-		hostname = "unknown"
-	}
-
 	contextTags := []string{"host:" + hostname}
 	// merge tags from config
 	for _, tag := range configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), true) {
@@ -277,9 +270,6 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 	}
 
 	var secProfEventTypes []model.EventType
-	if cfg.RuntimeSecurity.SecurityProfileAutoSuppressionEnabled {
-		secProfEventTypes = append(secProfEventTypes, cfg.RuntimeSecurity.SecurityProfileAutoSuppressionEventTypes...)
-	}
 	if cfg.RuntimeSecurity.AnomalyDetectionEnabled {
 		secProfEventTypes = append(secProfEventTypes, cfg.RuntimeSecurity.AnomalyDetectionEventTypes...)
 	}
@@ -710,22 +700,19 @@ func (m *Manager) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]boo
 
 	result := make(map[activity_tree.ImageProcessKey]bool)
 
-	cgr.Iterate(func(cgce *cgroupModel.CacheEntry) bool {
-		cgce.Lock()
-		defer cgce.Unlock()
-
+	cgr.IterateCacheEntries(func(cgce *cgroupModel.CacheEntry) bool {
 		var cgceTags []string
 		var err error
 		var imageName, imageTag string
-		if cgce.ContainerContext.ContainerID != "" {
-			cgceTags, err = tagsResolver.ResolveWithErr(cgce.ContainerContext.ContainerID)
+		if id := cgce.GetContainerID(); id != "" {
+			cgceTags, err = tagsResolver.ResolveWithErr(id)
 			if err != nil {
 				return false
 			}
 			imageName = utils.GetTagValue("image_name", cgceTags)
 			imageTag = utils.GetTagValue("image_tag", cgceTags)
-		} else if cgce.CGroupContext.CGroupID != "" {
-			cgceTags, err = tagsResolver.ResolveWithErr(cgce.CGroupContext.CGroupID)
+		} else if cgce.IsCGroupContextResolved() {
+			cgceTags, err = tagsResolver.ResolveWithErr(cgce.GetCGroupID())
 			if err != nil {
 				return false
 			}
@@ -743,9 +730,7 @@ func (m *Manager) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]boo
 			imageName: imageName,
 			imageTag:  imageTag,
 		}
-		for pid := range cgce.PIDs {
-			pids[imageTagKey] = append(pids[imageTagKey], pid)
-		}
+		pids[imageTagKey] = append(pids[imageTagKey], cgce.GetPIDs()...)
 
 		return false
 	})

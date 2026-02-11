@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	filterlistfx "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
@@ -72,6 +73,7 @@ func TestStatusOutPut(t *testing.T) {
 		eventplatformimpl.MockModule(),
 		logscompression.MockModule(),
 		metricscompression.MockModule(),
+		filterlistfx.MockModule(),
 		fx.Provide(func() tagger.Component {
 			return mockTagger
 		}),

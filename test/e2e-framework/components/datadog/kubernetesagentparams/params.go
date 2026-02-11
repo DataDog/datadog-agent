@@ -77,6 +77,8 @@ type Params struct {
 	FIPS bool
 	// JMX is a flag to deploy the agent with JMX agent image.
 	JMX bool
+	// WindowsImage is a flag to use Windows-compatible image (multi-arch with Windows).
+	WindowsImage bool
 }
 
 type Option = func(*Params) error
@@ -86,6 +88,7 @@ func NewParams(env config.Env, options ...Option) (*Params, error) {
 		Namespace:     defaultAgentNamespace,
 		HelmRepoURL:   DatadogHelmRepo,
 		HelmChartPath: "datadog",
+		WindowsImage:  !env.AgentLinuxOnly(),
 	}
 
 	if env.AgentLocalChartPath() != "" {
@@ -98,8 +101,8 @@ func NewParams(env config.Env, options ...Option) (*Params, error) {
 
 // WithClusterName sets the name of the cluster. Should only be used if you know what you are doing. Must no be necessary in most cases.
 // Mainly used to set the clusterName when the agent is installed on Kind clusters. Because the agent is not able to detect the cluster name.
-// It takes a pulumi.StringOutput as input to be able to use the pulumi output of the cluster name.
-func WithClusterName(clusterName pulumi.StringOutput) func(*Params) error {
+// It takes a pulumi.StringInput as input to be able to use either a plain string (via pulumi.String()) or a pulumi output.
+func WithClusterName(clusterName pulumi.StringInput) func(*Params) error {
 	return func(p *Params) error {
 		values := pulumi.Sprintf(`
 datadog:
@@ -256,6 +259,13 @@ func WithFIPS() func(*Params) error {
 func WithJMX() func(*Params) error {
 	return func(p *Params) error {
 		p.JMX = true
+		return nil
+	}
+}
+
+func WithWindowsImage() func(*Params) error {
+	return func(p *Params) error {
+		p.WindowsImage = true
 		return nil
 	}
 }

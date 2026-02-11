@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
@@ -31,6 +32,7 @@ const (
 	defaultHealthCheckEndpoint   = "/healthz"
 	healthCheckInterval          = 30_000
 	defaultHTTPServerReadTimeout = 10_000
+	defaultHTTPTimeout           = 30 * time.Second
 	// defaultHTTPServerWriteTimeout defines how long a request is allowed to run for after the HTTP connection is established. If actions are timing out often, `httpServerWriteTimeout` can be adjusted in config.yaml to override this value. See the Golang docs under `WriteTimeout` for more information about how the server uses this value - https://pkg.go.dev/net/http#Server
 	defaultHTTPServerWriteTimeout = 60_000
 	runnerAccessTokenHeader       = "X-Datadog-Apps-On-Prem-Runner-Access-Token"
@@ -42,14 +44,14 @@ const (
 
 func FromDDConfig(config config.Component) (*Config, error) {
 	ddSite := config.GetString("site")
-	encodedPrivateKey := config.GetString("privateactionrunner.private_key")
-	urn := config.GetString("privateactionrunner.urn")
+	encodedPrivateKey := config.GetString(setup.PARPrivateKey)
+	urn := config.GetString(setup.PARUrn)
 
 	var privateKey *ecdsa.PrivateKey
 	if encodedPrivateKey != "" {
 		jwk, err := util.Base64ToJWK(encodedPrivateKey)
 		if err != nil {
-			return nil, fmt.Errorf("failed to decode privateactionrunner.private_key: %w", err)
+			return nil, fmt.Errorf("failed to decode %s: %w", setup.PARPrivateKey, err)
 		}
 		privateKey = jwk.Key.(*ecdsa.PrivateKey)
 	}
@@ -66,6 +68,16 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		runnerID = urnParts.RunnerID
 	}
 
+	var taskTimeoutSeconds *int32
+	if v := config.GetInt32(setup.PARTaskTimeoutSeconds); v != 0 {
+		taskTimeoutSeconds = &v
+	}
+
+	httpTimeout := defaultHTTPTimeout
+	if v := config.GetInt32(setup.PARHttpTimeoutSeconds); v != 0 {
+		httpTimeout = time.Duration(v) * time.Second
+	}
+
 	return &Config{
 		MaxBackoff:                maxBackoff,
 		MinBackoff:                minBackoff,
@@ -77,6 +89,8 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		HealthCheckInterval:       healthCheckInterval,
 		HttpServerReadTimeout:     defaultHTTPServerReadTimeout,
 		HttpServerWriteTimeout:    defaultHTTPServerWriteTimeout,
+		HTTPTimeout:               httpTimeout,
+		TaskTimeoutSeconds:        taskTimeoutSeconds,
 		RunnerAccessTokenHeader:   runnerAccessTokenHeader,
 		RunnerAccessTokenIdHeader: runnerAccessTokenIDHeader,
 		Port:                      defaultPort,
@@ -86,8 +100,8 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		Version:                   version.AgentVersion,
 		MetricsClient:             &statsd.NoOpClient{},
 		ActionsAllowlist:          makeActionsAllowlist(config),
-		Allowlist:                 strings.Split(config.GetString("privateactionrunner.allowlist"), ","),
-		AllowIMDSEndpoint:         config.GetBool("privateactionrunner.allow_imds_endpoint"),
+		Allowlist:                 config.GetStringSlice(setup.PARHttpAllowlist),
+		AllowIMDSEndpoint:         config.GetBool(setup.PARHttpAllowImdsEndpoint),
 		DDHost:                    strings.Join([]string{"api", ddSite}, "."),
 		Modes:                     []modes.Mode{modes.ModePull},
 		OrgId:                     orgID,
@@ -100,7 +114,7 @@ func FromDDConfig(config config.Component) (*Config, error) {
 
 func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 	allowlist := make(map[string]sets.Set[string])
-	actionFqns := config.GetStringSlice("privateactionrunner.actions_allowlist")
+	actionFqns := config.GetStringSlice(setup.PARActionsAllowlist)
 	for _, fqn := range actionFqns {
 		bundleName, actionName := actions.SplitFQN(fqn)
 		previous, ok := allowlist[bundleName]

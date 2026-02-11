@@ -835,37 +835,6 @@ func TestProcess(t *testing.T) {
 		assert.Len(t, payloads, 3)
 	})
 
-	t.Run("chunkingV1", func(t *testing.T) {
-		cfg := config.New()
-		cfg.Endpoints[0].APIKey = "test"
-		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
-		defer cancel()
-
-		strings := idx.NewStringTable() // strings shared across whole payload
-		chunk1 := testutil.TraceChunkV1WithSpanAndPriority(testutil.GetTestSpanV1(strings), 2)
-		chunk2 := testutil.TraceChunkV1WithSpanAndPriority(testutil.GetTestSpanV1(strings), 2)
-		chunk3 := testutil.TraceChunkV1WithSpanAndPriority(testutil.GetTestSpanV1(strings), 2)
-		// we are sending 3 traces
-		tp := testutil.TracerPayloadV1WithChunks([]*idx.InternalTraceChunk{
-			chunk1,
-			chunk2,
-			chunk3,
-		})
-		// setting writer.MaxPayloadSize to the size of 1 trace (+1 byte)
-		defer func(oldSize int) { writer.MaxPayloadSize = oldSize }(writer.MaxPayloadSize)
-		//minChunkSize := int(math.Min(math.Min(float64(tp.Chunks[0].Msgsize()), float64(tp.Chunks[1].Msgsize())), float64(tp.Chunks[2].Msgsize())))
-		writer.MaxPayloadSize = 1
-		agnt.ProcessV1(&api.PayloadV1{
-			TracerPayload: tp,
-			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
-		})
-
-		payloads := agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1
-		// and expecting it to result in 3 payloads
-		assert.Len(t, payloads, 3)
-	})
-
 	t.Run("someV1ChunksKept-NoRaceWritingAndStats", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
@@ -4340,7 +4309,6 @@ func TestAgentWriteTagsBufferedChunksV1(t *testing.T) {
 			}
 
 			payload := &writer.SampledChunksV1{
-				Size: 1024,
 				TracerPayload: &idx.InternalTracerPayload{
 					Strings:    idx.NewStringTable(),
 					Attributes: make(map[uint32]*idx.AnyValue),
@@ -4363,6 +4331,95 @@ func TestAgentWriteTagsBufferedChunksV1(t *testing.T) {
 				assert.Equal(t, tt.expectedContainerTags, containerTags)
 			}
 			assert.Equal(t, tt.expectAsyncCall, mockBuffer.pending)
+		})
+	}
+}
+
+func TestTraceChunkContainsProbabilitySamplingV1(t *testing.T) {
+	tests := map[string]struct {
+		chunk    *idx.InternalTraceChunk
+		expected bool
+	}{
+		"nil chunk": {
+			chunk:    nil,
+			expected: false,
+		},
+		"chunk with probability sampling mechanism": {
+			chunk: func() *idx.InternalTraceChunk {
+				strs := idx.NewStringTable()
+				span := idx.NewInternalSpan(strs, &idx.Span{
+					SpanID:      1,
+					ServiceRef:  strs.Add("test-service"),
+					NameRef:     strs.Add("test-name"),
+					ResourceRef: strs.Add("test-resource"),
+				})
+				chunk := idx.NewInternalTraceChunk(
+					strs,
+					int32(sampler.PriorityAutoDrop),
+					"",
+					nil,
+					[]*idx.InternalSpan{span},
+					false,
+					[]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+					0,
+				)
+				chunk.SetSamplingMechanism(probabilitySamplingV1)
+				return chunk
+			}(),
+			expected: true,
+		},
+		"chunk without probability sampling mechanism": {
+			chunk: func() *idx.InternalTraceChunk {
+				strs := idx.NewStringTable()
+				span := idx.NewInternalSpan(strs, &idx.Span{
+					SpanID:      1,
+					ServiceRef:  strs.Add("test-service"),
+					NameRef:     strs.Add("test-name"),
+					ResourceRef: strs.Add("test-resource"),
+				})
+				return idx.NewInternalTraceChunk(
+					strs,
+					int32(sampler.PriorityAutoDrop),
+					"",
+					nil,
+					[]*idx.InternalSpan{span},
+					false,
+					[]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+					0,
+				)
+			}(),
+			expected: false,
+		},
+		"chunk with different sampling mechanism": {
+			chunk: func() *idx.InternalTraceChunk {
+				strs := idx.NewStringTable()
+				span := idx.NewInternalSpan(strs, &idx.Span{
+					SpanID:      1,
+					ServiceRef:  strs.Add("test-service"),
+					NameRef:     strs.Add("test-name"),
+					ResourceRef: strs.Add("test-resource"),
+				})
+				chunk := idx.NewInternalTraceChunk(
+					strs,
+					int32(sampler.PriorityAutoDrop),
+					"",
+					nil,
+					[]*idx.InternalSpan{span},
+					false,
+					[]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+					0,
+				)
+				chunk.SetSamplingMechanism(8) // Different mechanism
+				return chunk
+			}(),
+			expected: false,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			result := traceChunkContainsProbabilitySamplingV1(tt.chunk)
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }

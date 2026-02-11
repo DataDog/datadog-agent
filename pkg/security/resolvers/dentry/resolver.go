@@ -174,8 +174,8 @@ func (dr *Resolver) sendERPCStats() error {
 	return dr.bufferSelector.Put(ebpf.BufferSelectorERPCMonitorKey, dr.activeERPCStatsBuffer)
 }
 
-// DelCacheEntries removes all the entries belonging to a mountID
-func (dr *Resolver) DelCacheEntries(mountID uint32) {
+// DelCacheEntriesForMountID removes all the entries belonging to a mountID
+func (dr *Resolver) DelCacheEntriesForMountID(mountID uint32) {
 	dr.cache.RemoveKey1(mountID)
 }
 
@@ -226,7 +226,7 @@ func newPathEntry(parent model.PathKey, name string) PathEntry {
 }
 
 // ResolveNameFromMap resolves the name of the provided inode
-func (dr *Resolver) ResolveNameFromMap(pathKey model.PathKey) (string, error) {
+func (dr *Resolver) ResolveNameFromMap(pathKey model.PathKey, cache bool) (string, error) {
 	entry := counterEntry{
 		resolutionType: metrics.KernelMapsTag,
 		resolution:     metrics.SegmentResolutionTag,
@@ -242,7 +242,7 @@ func (dr *Resolver) ResolveNameFromMap(pathKey model.PathKey) (string, error) {
 
 	name := pathLeaf.GetName()
 
-	if !model.IsFakeInode(pathKey.Inode) {
+	if !model.IsFakeInode(pathKey.Inode) && cache {
 		cacheEntry := newPathEntry(pathLeaf.Parent, name)
 		dr.cacheInode(pathKey, cacheEntry)
 	}
@@ -251,15 +251,18 @@ func (dr *Resolver) ResolveNameFromMap(pathKey model.PathKey) (string, error) {
 }
 
 // ResolveName resolves an inode/mount ID pair to a file basename
-func (dr *Resolver) ResolveName(pathKey model.PathKey) string {
-	name, err := dr.ResolveNameFromCache(pathKey)
+func (dr *Resolver) ResolveName(pathKey model.PathKey, cache bool) string {
+	var (
+		name string
+		err  error
+	)
+
+	name, err = dr.ResolveNameFromCache(pathKey)
+
 	if err != nil && dr.config.MapDentryResolutionEnabled {
-		name, err = dr.ResolveNameFromMap(pathKey)
+		name, _ = dr.ResolveNameFromMap(pathKey, cache)
 	}
 
-	if err != nil {
-		name = ""
-	}
 	return name
 }
 

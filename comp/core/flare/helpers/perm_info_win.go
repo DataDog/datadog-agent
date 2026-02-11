@@ -188,6 +188,7 @@ func (p permissionsInfos) addAgentExeFiles() {
 		p.add(path.Join(installDir, "bin", "Agent", "process-agent.exe"))
 		p.add(path.Join(installDir, "bin", "Agent", "system-probe.exe"))
 		p.add(path.Join(installDir, "bin", "Agent", "trace-agent.exe"))
+		p.add(path.Join(installDir, "bin", "Agent", "privateactionrunner.exe"))
 	}
 }
 

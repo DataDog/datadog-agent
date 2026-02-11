@@ -33,11 +33,9 @@ var (
 	// Tags: rule_id
 	MetricRateLimiterAllow = newRuntimeMetric(".rules.rate_limiter.allow")
 
-	// Rule Suppression metrics
-
-	// MetricRulesSuppressed is the name of the metric used to count the number of auto suppressed events
-	// Tags: rule_id
-	MetricRulesSuppressed = newRuntimeMetric(".rules.suppressed")
+	// MetricRulesNoMatch is the number of events that reached userspace but didn't match any rule
+	// Tags: event_type, category
+	MetricRulesNoMatch = newRuntimeMetric(".rules.no_match")
 
 	// Rule action metrics
 
@@ -207,6 +205,12 @@ var (
 	// MetricMountResolverMiss is the counter of unsuccessful mount resolution
 	// Tags: cache, procfs
 	MetricMountResolverMiss = newRuntimeMetric(".mount_resolver.miss")
+	// MetricMountResolverMiss is the counter of unsuccessful procfs mount resolution
+	// Tags: cache, procfs
+	MetricMountResolverProcfsMiss = newRuntimeMetric(".mount_resolver.procfs_miss")
+	// MetricMountResolverProcfsHits is the counter of successful procfs mount resolution
+	// Tags: cache, procfs
+	MetricMountResolverProcfsHits = newRuntimeMetric(".mount_resolver.procfs_hits")
 
 	// Activity dump metrics
 
@@ -232,9 +236,6 @@ var (
 	// MetricActivityDumpActiveDumps is the name of the metric used to report the number of active dumps
 	// Tags: -
 	MetricActivityDumpActiveDumps = newRuntimeMetric(".activity_dump.active_dumps")
-	// MetricActivityDumpLoadControllerTriggered is the name of the metric used to report that the ADM load controller reduced the config envelope
-	// Tags:reduction, event_type
-	MetricActivityDumpLoadControllerTriggered = newRuntimeMetric(".activity_dump.load_controller_triggered")
 	// MetricActivityDumpActiveDumpSizeInMemory is the size of an activity dump in memory
 	// Tags: dump_index
 	MetricActivityDumpActiveDumpSizeInMemory = newRuntimeMetric(".activity_dump.size_in_memory")
@@ -306,17 +307,11 @@ var (
 	// MetricCGroupResolverFallbackFailed is the name of the metric used to report the number of failed fallbacks
 	// Tags: -
 	MetricCGroupResolverFallbackFailed = newRuntimeMetric(".cgroup_resolver.fallback_failed")
-	// MetricCGroupResolverAddPIDCgroupPresent is the name of the metric used to report the number of calls of ADDPid() with an cgroup context
-	// Tags: -
-	MetricCGroupResolverAddPIDCgroupPresent = newRuntimeMetric(".cgroup_resolver.addpid_cgroup_present")
-	// MetricCGroupResolverAddPIDCgroupAbsent is the name of the metric used to report the number of calls of ADDPid() with no cgroup context
-	// Tags: -
-	MetricCGroupResolverAddPIDCgroupAbsent = newRuntimeMetric(".cgroup_resolver.addpid_cgroup_absent")
 
 	// Security Profile metrics
 
 	// MetricSecurityProfileProfiles is the name of the metric used to report the count of Security Profiles per category
-	// Tags: in_kernel (true or false), anomaly_detection (true or false), auto_suppression (true or false), workload_hardening (true or false)
+	// Tags: in_kernel (true or false), anomaly_detection (true or false), workload_hardening (true or false)
 	MetricSecurityProfileProfiles = newRuntimeMetric(".security_profile.profiles")
 	// MetricSecurityProfileCacheLen is the name of the metric used to report the size of the Security Profile cache
 	// Tags: -

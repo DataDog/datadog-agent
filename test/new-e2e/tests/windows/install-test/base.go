@@ -7,9 +7,12 @@
 package installtest
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -35,6 +38,22 @@ type baseAgentMSISuite struct {
 	beforeInstall      *windowsCommon.FileSystemSnapshot
 	beforeInstallPerms map[string]string // path -> SDDL
 	dumpFolder         string
+}
+
+// packageInstallOptions holds options for the installAgentPackage method
+type packageInstallOptions struct {
+	skipProcdump bool
+}
+
+// PackageInstallOption is a functional option for installAgentPackage
+type PackageInstallOption func(*packageInstallOptions)
+
+// WithSkipProcdump skips starting procdump during installation.
+// Use this for tests that need to delete agent files after installation.
+func WithSkipProcdump() PackageInstallOption {
+	return func(o *packageInstallOptions) {
+		o.skipProcdump = true
+	}
 }
 
 // NOTE: BeforeTest is not called before subtests
@@ -119,8 +138,18 @@ func (s *baseAgentMSISuite) newTester(vm *components.RemoteHost, options ...Test
 }
 
 func (s *baseAgentMSISuite) installAgentPackage(vm *components.RemoteHost, agentPackage *windowsAgent.Package, installOptions ...windowsAgent.InstallAgentOption) string {
+	return s.installAgentPackageWithOptions(vm, agentPackage, nil, installOptions...)
+}
+
+func (s *baseAgentMSISuite) installAgentPackageWithOptions(vm *components.RemoteHost, agentPackage *windowsAgent.Package, pkgOpts []PackageInstallOption, installOptions ...windowsAgent.InstallAgentOption) string {
 	remoteMSIPath := ""
 	var err error
+
+	// Apply package install options
+	opts := &packageInstallOptions{}
+	for _, opt := range pkgOpts {
+		opt(opts)
+	}
 
 	// install the agent
 	installOpts := []windowsAgent.InstallAgentOption{
@@ -131,14 +160,139 @@ func (s *baseAgentMSISuite) installAgentPackage(vm *components.RemoteHost, agent
 		windowsAgent.WithValidAPIKey(),
 	}
 	installOpts = append(installOpts, installOptions...)
+
+	// Check if DD_INSTALL_ONLY is set - if so, services won't start
+	skipServiceCheck := s.hasInstallOnlyOption(installOptions...)
+
+	// Start xperf tracing
+	s.startXperf(vm)
+	defer s.collectXperf(vm)
+
+	// Start procdump in background to capture crash dumps (only if service will start and not skipped)
+	if !skipServiceCheck && !opts.skipProcdump {
+		ps := s.startProcdump(vm)
+		defer s.collectProcdumps(ps, vm)
+	}
+
 	if !s.Run("install "+agentPackage.AgentVersion(), func() {
 		remoteMSIPath, err = s.InstallAgent(vm, installOpts...)
 		s.Require().NoError(err, "should install agent %s", agentPackage.AgentVersion())
+
+		// Wait for the service to start (up to 5 minutes), unless DD_INSTALL_ONLY is set
+		if !skipServiceCheck {
+			err = s.waitForServiceRunning(vm, "datadogagent", 300)
+			s.Require().NoError(err, "service should be running after install")
+		}
 	}) {
 		s.T().FailNow()
 	}
 
 	return remoteMSIPath
+}
+
+// hasInstallOnlyOption checks if DD_INSTALL_ONLY is set in the install options
+func (s *baseAgentMSISuite) hasInstallOnlyOption(installOptions ...windowsAgent.InstallAgentOption) bool {
+	params := &windowsAgent.InstallAgentParams{}
+	for _, opt := range installOptions {
+		_ = opt(params)
+	}
+	return params.InstallOnly == "true"
+}
+
+// waitForServiceRunning waits for a service to reach Running status
+func (s *baseAgentMSISuite) waitForServiceRunning(vm *components.RemoteHost, serviceName string, timeoutSeconds int) error {
+	deadline := time.Now().Add(time.Duration(timeoutSeconds) * time.Second)
+	for time.Now().Before(deadline) {
+		status, err := windowsCommon.GetServiceStatus(vm, serviceName)
+		if err == nil && strings.Contains(status, "Running") {
+			return nil
+		}
+		time.Sleep(5 * time.Second)
+	}
+	return fmt.Errorf("timeout waiting for service %s to reach Running state after %d seconds", serviceName, timeoutSeconds)
+}
+
+// startXperf starts xperf tracing on the remote host
+func (s *baseAgentMSISuite) startXperf(vm *components.RemoteHost) {
+	err := vm.HostArtifactClient.Get("windows-products/xperf-5.0.8169.zip", "C:/xperf.zip")
+	s.Require().NoError(err)
+
+	// extract if C:/xperf dir does not exist
+	_, err = vm.Execute("if (-Not (Test-Path -Path C:/xperf)) { Expand-Archive -Path C:/xperf.zip -DestinationPath C:/xperf }")
+	s.Require().NoError(err)
+
+	outputPath := "C:/kernel.etl"
+	xperfPath := "C:/xperf/xperf.exe"
+	_, err = vm.Execute(fmt.Sprintf(`& "%s" -On Base+Latency+CSwitch+PROC_THREAD+LOADER+Profile+DISPATCHER -stackWalk CSwitch+Profile+ReadyThread+ThreadCreate -f %s -MaxBuffers 1024 -BufferSize 1024 -MaxFile 1024 -FileMode Circular`, xperfPath, outputPath))
+	s.Require().NoError(err)
+}
+
+// collectXperf collects xperf tracing from the remote host
+func (s *baseAgentMSISuite) collectXperf(vm *components.RemoteHost) {
+	xperfPath := "C:/xperf/xperf.exe"
+	outputPath := "C:/full_host_profiles.etl"
+
+	_, err := vm.Execute(fmt.Sprintf(`& "%s" -stop -d %s`, xperfPath, outputPath))
+	s.Require().NoError(err)
+
+	// collect xperf if the test failed
+	if s.T().Failed() {
+		outDir := s.SessionOutputDir()
+		err = vm.GetFile(outputPath, filepath.Join(outDir, "full_host_profiles.etl"))
+		s.Require().NoError(err)
+	}
+}
+
+// startProcdump sets up procdump and starts it in the background
+func (s *baseAgentMSISuite) startProcdump(vm *components.RemoteHost) *windowsCommon.ProcdumpSession {
+	// Setup procdump on remote host
+	s.T().Log("Setting up procdump on remote host")
+	err := windowsCommon.SetupProcdump(vm)
+	s.Require().NoError(err, "should setup procdump")
+
+	// Start procdump - use "agent.exe" as the process name for -w flag
+	ps, err := windowsCommon.StartProcdump(vm, "agent.exe")
+	s.Require().NoError(err, "should start procdump")
+
+	return ps
+}
+
+// collectProcdumps stops procdump and downloads any captured dumps if the test failed.
+func (s *baseAgentMSISuite) collectProcdumps(ps *windowsCommon.ProcdumpSession, vm *components.RemoteHost) {
+	// Only collect dumps if the test failed
+	if !s.T().Failed() {
+		ps.Close()
+		return
+	}
+
+	// Wait for procdump to finish writing dump files BEFORE closing the session.
+	// Procdump is configured to capture 5 dumps, so wait until all 5 are created.
+	expectedDumpCount := 5
+	s.T().Logf("Waiting for procdump to create %d dump files...", expectedDumpCount)
+	deadline := time.Now().Add(120 * time.Second)
+	for time.Now().Before(deadline) {
+		output, err := vm.Execute(fmt.Sprintf(`(Get-ChildItem -Path '%s' -Filter '*.dmp' -ErrorAction SilentlyContinue | Measure-Object).Count`, windowsCommon.ProcdumpsPath))
+		if err == nil {
+			countStr := strings.TrimSpace(output)
+			count, parseErr := strconv.Atoi(countStr)
+			if parseErr == nil && count >= expectedDumpCount {
+				s.T().Logf("All %d dump files ready", count)
+				break
+			}
+			s.T().Logf("Found %s dump files, waiting for %d...", countStr, expectedDumpCount)
+		}
+		time.Sleep(5 * time.Second)
+	}
+
+	ps.Close()
+
+	// Download all dump files
+	outDir := s.SessionOutputDir()
+	if err := vm.GetFolder(windowsCommon.ProcdumpsPath, outDir); err != nil {
+		s.T().Logf("Warning: failed to download procdumps %s: %v", windowsCommon.ProcdumpsPath, err)
+	} else {
+		s.T().Logf("Downloaded procdumps to: %s", outDir)
+	}
 }
 
 func (s *baseAgentMSISuite) uninstallAgent() bool {

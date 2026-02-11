@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
-	"github.com/DataDog/datadog-agent/pkg/security/rules/autosuppression"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/filtermodel"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/monitor"
@@ -65,10 +64,13 @@ type RuleEngine struct {
 	statsdClient     statsd.ClientInterface
 	eventSender      events.EventSender
 	rulesetListeners []rules.RuleSetListener
-	AutoSuppression  autosuppression.AutoSuppression
 	pid              uint32
 	wg               sync.WaitGroup
 	ipc              ipc.Component
+	hostname         string
+
+	// userspace filtering metrics (avoid statsd calls in event hot path)
+	noMatchCounters []atomic.Uint64
 }
 
 // APIServer defines the API server
@@ -79,7 +81,7 @@ type APIServer interface {
 }
 
 // NewRuleEngine returns a new rule engine
-func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, probe *probe.Probe, rateLimiter *events.RateLimiter, apiServer APIServer, sender events.EventSender, statsdClient statsd.ClientInterface, ipc ipc.Component, rulesetListeners ...rules.RuleSetListener) (*RuleEngine, error) {
+func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, probe *probe.Probe, rateLimiter *events.RateLimiter, apiServer APIServer, sender events.EventSender, statsdClient statsd.ClientInterface, hostname string, ipc ipc.Component, rulesetListeners ...rules.RuleSetListener) (*RuleEngine, error) {
 	engine := &RuleEngine{
 		probe:            probe,
 		config:           config,
@@ -93,16 +95,11 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 		statsdClient:     statsdClient,
 		rulesetListeners: rulesetListeners,
 		pid:              utils.Getpid(),
+		hostname:         hostname,
 		ipc:              ipc,
 	}
 
-	engine.AutoSuppression.Init(autosuppression.Opts{
-		SecurityProfileEnabled:                config.SecurityProfileEnabled,
-		SecurityProfileAutoSuppressionEnabled: config.SecurityProfileAutoSuppressionEnabled,
-		ActivityDumpEnabled:                   config.ActivityDumpEnabled,
-		ActivityDumpAutoSuppressionEnabled:    config.ActivityDumpAutoSuppressionEnabled,
-		EventTypes:                            config.SecurityProfileAutoSuppressionEventTypes,
-	})
+	engine.noMatchCounters = make([]atomic.Uint64, model.MaxAllEventType)
 
 	// register as event handler
 	if err := probe.AddEventHandler(engine); err != nil {
@@ -112,6 +109,27 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 	engine.policyProviders = engine.gatherDefaultPolicyProviders()
 
 	return engine, nil
+}
+
+// SendStats flushes per-event counters as metrics
+func (e *RuleEngine) SendStats() {
+	if e.statsdClient == nil || len(e.noMatchCounters) == 0 {
+		return
+	}
+
+	for i := range e.noMatchCounters {
+		value := e.noMatchCounters[i].Swap(0)
+		if value == 0 {
+			continue
+		}
+
+		eventType := model.EventType(i).String()
+		tags := []string{
+			"event_type:" + eventType,
+			"category:" + model.GetEventTypeCategory(eventType).String(),
+		}
+		_ = e.statsdClient.Count(metrics.MetricRulesNoMatch, int64(value), tags, 1.0)
+	}
 }
 
 // Start the rule engine
@@ -142,7 +160,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}) erro
 		COREEnabled: e.probe.Config.Probe.EnableCORE,
 		Origin:      e.probe.Origin(),
 	}
-	ruleFilterModel, err := filtermodel.NewRuleFilterModel(rfmCfg, e.ipc)
+	ruleFilterModel, err := filtermodel.NewRuleFilterModel(rfmCfg, e.hostname)
 	if err != nil {
 		return fmt.Errorf("failed to create rule filter: %w", err)
 	}
@@ -371,10 +389,6 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 
 	e.currentRuleSet.Store(rs)
 
-	if replayEvents {
-		e.probe.ReplayEvents()
-	}
-
 	if err := e.probe.FlushDiscarders(); err != nil {
 		return fmt.Errorf("failed to flush discarders: %w", err)
 	}
@@ -385,8 +399,9 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	// set the rate limiters on sending events to the backend
 	e.rateLimiter.Apply(rs, events.AllCustomRuleIDs())
 
-	// update the stats of auto-suppression rules
-	e.AutoSuppression.Apply(rs)
+	if replayEvents {
+		e.probe.ReplayEvents()
+	}
 
 	e.notifyAPIServer(ruleIDs, policies)
 
@@ -516,13 +531,9 @@ func (e *RuleEngine) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, fi
 func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.Event) bool {
 	ev := event.(*model.Event)
 
-	// add matched rules before any auto suppression check to ensure that this information is available in activity dumps
+	// add matched rules to ensure that this information is available in activity dumps
 	if ev.ProcessContext.Process.ContainerContext.ContainerID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
 		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Def.ID, rule.Def.Version, rule.Def.Tags, rule.Policy.Name, rule.Policy.Version))
-	}
-
-	if e.AutoSuppression.Suppresses(rule, ev) {
-		return false
 	}
 
 	e.probe.HandleActions(rule, event)
@@ -532,9 +543,7 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 	}
 
 	// ensure that all the fields are resolved before sending
-	ev.FieldHandlers.ResolveContainerID(ev, &ev.ProcessContext.Process.ContainerContext)
 	ev.FieldHandlers.ResolveContainerTags(ev, &ev.ProcessContext.Process.ContainerContext)
-	ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.ProcessContext.Process.ContainerContext)
 
 	// do not send event if a anomaly detection event will be sent
 	if e.config.AnomalyDetectionSilentRuleEventsEnabled && ev.IsAnomalyDetectionEvent() {
@@ -660,6 +669,10 @@ func (e *RuleEngine) HandleEvent(event *model.Event) {
 
 	if ruleSet := e.GetRuleSet(); ruleSet != nil {
 		if !ruleSet.Evaluate(event) {
+			evtType := int(event.GetEventType())
+			if evtType >= 0 && evtType < len(e.noMatchCounters) {
+				e.noMatchCounters[evtType].Inc()
+			}
 			ruleSet.EvaluateDiscarders(event)
 		}
 	}

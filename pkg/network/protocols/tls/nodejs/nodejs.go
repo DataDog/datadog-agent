@@ -9,6 +9,7 @@
 package nodejs
 
 import (
+	"errors"
 	"io"
 	"os"
 	"path"
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
+	"github.com/shirou/gopsutil/v4/process"
 )
 
 func copyFile(src, dst string) error {
@@ -82,4 +84,77 @@ func RunServerNodeJS(t *testing.T, key, cert, serverPort string) error {
 // GetNodeJSDockerPID returns the PID of the nodejs docker container.
 func GetNodeJSDockerPID() (int64, error) {
 	return dockerutils.GetMainPID("node-node-1")
+}
+
+// RunServerNodeJSUbuntu launches an HTTPs server written in NodeJS using the Ubuntu-based image.
+// Ubuntu 22.04's nodejs package has SSL symbols bundled in libnode.so (not imported from libssl.so).
+func RunServerNodeJSUbuntu(t *testing.T, key, cert, serverPort string) error {
+	t.Helper()
+	dir, _ := testutil.CurDir()
+
+	// Create a temp directory for certs with proper ownership
+	tmpDir, err := os.MkdirTemp("", "nodejs-certs-*")
+	if err != nil {
+		return err
+	}
+	t.Cleanup(func() { os.RemoveAll(tmpDir) })
+	if err := os.Chown(tmpDir, 1000, 1000); err != nil {
+		return err
+	}
+
+	// Copy certs to temp dir and chown to 1000:1000
+	keyDst := path.Join(tmpDir, "srv.key")
+	certDst := path.Join(tmpDir, "srv.crt")
+	if err := copyFile(key, keyDst); err != nil {
+		return err
+	}
+	if err := os.Chown(keyDst, 1000, 1000); err != nil {
+		return err
+	}
+	if err := copyFile(cert, certDst); err != nil {
+		return err
+	}
+	if err := os.Chown(certDst, 1000, 1000); err != nil {
+		return err
+	}
+
+	env := []string{
+		"ADDR=0.0.0.0",
+		"PORT=" + serverPort,
+		"CERTS_DIR=/certs",
+		"TESTDIR=" + dir + "/testdata",
+		"CERTSDIR=" + tmpDir,
+	}
+
+	scanner, err := globalutils.NewScanner(regexp.MustCompile("Server running at https.*"), globalutils.NoPattern)
+	require.NoError(t, err, "failed to create pattern scanner")
+
+	dockerCfg := dockerutils.NewComposeConfig(
+		dockerutils.NewBaseConfig(
+			"nodejs-ubuntu-server",
+			scanner,
+			dockerutils.WithEnv(env),
+		),
+		path.Join(dir, "testdata", "docker-compose-ubuntu.yml"))
+	return dockerutils.Run(t, dockerCfg)
+}
+
+// GetNodeJSUbuntuDockerPID returns the PID of the nodejs Ubuntu docker container.
+func GetNodeJSUbuntuDockerPID() (int64, error) {
+	mainPID, err := dockerutils.GetMainPID("node-ubuntu-node-1")
+	if err != nil {
+		return 0, err
+	}
+	proc, err := process.NewProcess(int32(mainPID))
+	if err != nil {
+		return 0, err
+	}
+	children, err := proc.Children()
+	if err != nil {
+		return 0, err
+	}
+	if len(children) == 0 {
+		return 0, errors.New("no children found for tini process")
+	}
+	return int64(children[0].Pid), nil
 }

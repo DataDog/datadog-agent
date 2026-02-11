@@ -73,6 +73,21 @@ func TestCompareGetInt(t *testing.T) {
 	assert.Equal(t, 345, ntmConf.GetInt("port"))
 }
 
+func TestCompareGetTypesLikeDefault(t *testing.T) {
+	t.Setenv("DD_MY_FEATURE_ENABLED", "true")
+	t.Setenv("DD_PORT", "345")
+	viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		cfg.BindEnvAndSetDefault("my_feature.enabled", false)
+		cfg.BindEnvAndSetDefault("port", 0)
+	})
+
+	assert.Equal(t, true, viperConf.Get("my_feature.enabled"))
+	assert.Equal(t, 345, viperConf.Get("port"))
+
+	assert.Equal(t, true, ntmConf.Get("my_feature.enabled"))
+	assert.Equal(t, 345, ntmConf.Get("port"))
+}
+
 func TestCompareIsSet(t *testing.T) {
 	dataYaml := `port: 345`
 	viperConf, ntmConf := constructBothConfigs(dataYaml, true, nil)
@@ -140,6 +155,25 @@ func TestCompareAllSettingsWithoutDefault(t *testing.T) {
 	assert.NoError(t, err)
 	yamlText = string(yamlConf)
 	assert.Equal(t, expectedYaml, yamlText)
+}
+
+func TestCompareAllFlattenedSettingsWithSequenceID(t *testing.T) {
+	t.Setenv("DD_MY_FEATURE_ENABLED", "true")
+	t.Setenv("DD_PORT", "345")
+	viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		cfg.BindEnvAndSetDefault("my_feature.enabled", false)
+		cfg.BindEnvAndSetDefault("port", 0)
+	})
+
+	vipermap, _ := viperConf.AllFlattenedSettingsWithSequenceID()
+	ntmmap, _ := ntmConf.AllFlattenedSettingsWithSequenceID()
+
+	expectmap := map[string]interface{}{
+		"my_feature.enabled": true,
+		"port":               345,
+	}
+	assert.Equal(t, expectmap, vipermap)
+	assert.Equal(t, expectmap, ntmmap)
 }
 
 func TestCompareGetEnvVars(t *testing.T) {
@@ -225,6 +259,24 @@ func TestCompareGetEnvVars(t *testing.T) {
 		sort.Strings(ntmEnvVars)
 
 		expected := []string{"DD_LOG_LEVEL"}
+		assert.Equal(t, viperEnvVars, expected, "viper should return only known env vars")
+		assert.Equal(t, ntmEnvVars, expected, "ntm should return only known env vars")
+	})
+
+	t.Run("Duplicate env vars", func(t *testing.T) {
+		viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
+			cfg.BindEnv("test", "ABC")  //nolint:forbidigo // testing behavior
+			cfg.BindEnv("test2", "ABC") //nolint:forbidigo // testing behavior
+			cfg.BindEnv("test3")        //nolint:forbidigo // testing behavior
+		})
+
+		viperEnvVars := viperConf.GetEnvVars()
+		ntmEnvVars := ntmConf.GetEnvVars()
+
+		sort.Strings(viperEnvVars)
+		sort.Strings(ntmEnvVars)
+
+		expected := []string{"ABC", "DD_TEST3"}
 		assert.Equal(t, viperEnvVars, expected, "viper should return only known env vars")
 		assert.Equal(t, ntmEnvVars, expected, "ntm should return only known env vars")
 	})

@@ -154,7 +154,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
+	"github.com/cenkalti/backoff/v5"
 
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
@@ -241,12 +241,14 @@ func (bs *BaseSuite[Env]) EventuallyWithT(condition func(*assert.CollectT), time
 func (bs *BaseSuite[Env]) EventuallyWithExponentialBackoff(condition func() error, maxElapsedTime, maxInterval time.Duration, msgAndArgs ...interface{}) bool {
 	bs.Suite.T().Helper()
 
-	err := backoff.Retry(condition, backoff.NewExponentialBackOff(
-		backoff.WithInitialInterval(5*time.Second),
-		backoff.WithMultiplier(2),
-		backoff.WithMaxInterval(maxInterval),
-		backoff.WithMaxElapsedTime(maxElapsedTime),
-	))
+	ctx := context.Background()
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = 5 * time.Second
+	expBackoff.Multiplier = 2
+	expBackoff.MaxInterval = maxInterval
+	_, err := backoff.Retry(ctx, func() (any, error) {
+		return nil, condition()
+	}, backoff.WithBackOff(expBackoff), backoff.WithMaxElapsedTime(maxElapsedTime))
 	if err != nil {
 		return bs.Suite.Fail(fmt.Sprintf("Condition never satisfied: %v", err), msgAndArgs...)
 	}
@@ -444,6 +446,13 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.Provision
 		resources.Merge(provisionerResources)
 	}
 
+	// After provisioning, refresh field values from newEnv to capture any changes made by provisioners
+	// (e.g., setting fields to nil when certain components aren't deployed)
+	envValue := reflect.ValueOf(newEnv)
+	for idx, field := range newEnvFields {
+		newEnvValues[idx] = envValue.Elem().FieldByIndex(field.Index)
+	}
+
 	// When INIT_ONLY is set, we only partially provision the environment so we do not want initialize the environment
 	if bs.initOnly {
 		return nil
@@ -601,7 +610,11 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 	// Create the root output directory for the test suite session
 	sessionDirectory, err := runner.GetProfile().CreateOutputSubDir(bs.getSuiteSessionSubdirectory())
 	if err != nil {
-		utils.Errorf(bs.T(), "unable to create session output directory: %v", err)
+		if _, isNonFatalError := err.(runner.NonFatalError); isNonFatalError {
+			utils.Logf(bs.T(), "Non-fatal error encountered creating the session output directory: %v", err)
+		} else {
+			utils.Errorf(bs.T(), "unable to create session output directory: %v", err)
+		}
 	}
 	bs.outputDir = sessionDirectory
 	utils.Logf(bs.T(), "Suite session output directory: %s", bs.outputDir)

@@ -16,7 +16,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	metricapi "go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/embedded"
-	metric_noop "go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata/metricdatatest"
@@ -113,37 +112,6 @@ func TestGaugeDataRace(t *testing.T) {
 	}()
 
 	wg.Wait()
-}
-
-type mockMeter struct {
-	metric_noop.Meter
-	beenThere bool
-	client    *metricsClient
-	tester    *testing.T
-}
-
-func (meter *mockMeter) Float64ObservableGauge(string, ...metricapi.Float64ObservableGaugeOption) (metricapi.Float64ObservableGauge, error) {
-	isClientLockable := meter.client.mutex.TryLock()
-	if isClientLockable {
-		meter.client.mutex.Unlock()
-	}
-	assert.True(meter.tester, isClientLockable)
-	meter.beenThere = true
-	return nil, nil
-}
-
-func TestGaugeDeadlock(t *testing.T) {
-	_, metricClient, _ := setupMetricClient(t)
-	mock := mockMeter{
-		beenThere: false,
-		client:    metricClient.(*metricsClient),
-		tester:    t,
-	}
-	metricClient.(*metricsClient).meter = &mock
-
-	err := metricClient.Gauge("toto", 1, []string{"otlp:true"}, 1)
-	assert.NoError(t, err)
-	assert.True(t, mock.beenThere)
 }
 
 func TestCount(t *testing.T) {

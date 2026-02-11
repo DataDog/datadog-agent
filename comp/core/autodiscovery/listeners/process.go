@@ -29,14 +29,16 @@ import (
 // as services (i.e., processes with a non-nil Service property).
 type ProcessListener struct {
 	workloadmetaListener
-	tagger tagger.Component
+	tagger         tagger.Component
+	processFilters workloadfilter.FilterBundle
 }
 
 // NewProcessListener returns a new ProcessListener.
 func NewProcessListener(options ServiceListernerDeps) (ServiceListener, error) {
 	const name = "ad-processlistener"
 	l := &ProcessListener{
-		tagger: options.Tagger,
+		tagger:         options.Tagger,
+		processFilters: options.Filter.GetProcessFilters([][]workloadfilter.ProcessFilter{{workloadfilter.ProcessCELGlobal}}),
 	}
 	filter := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceAll).
@@ -72,10 +74,18 @@ func (l *ProcessListener) createProcessService(entity workloadmeta.Entity) {
 		return
 	}
 
+	if l.processFilters != nil {
+		filterableProcess := workloadmetafilter.CreateProcess(process)
+		if l.processFilters.IsExcluded(filterableProcess) {
+			log.Debugf("Process %d excluded from AD process listener by CEL filter", process.Pid)
+			return
+		}
+	}
+
 	// Build ports from Service.TCPPorts
-	ports := make([]ContainerPort, 0, len(process.Service.TCPPorts))
+	ports := make([]workloadmeta.ContainerPort, 0, len(process.Service.TCPPorts))
 	for _, port := range process.Service.TCPPorts {
-		ports = append(ports, ContainerPort{
+		ports = append(ports, workloadmeta.ContainerPort{
 			Port: int(port),
 		})
 	}
@@ -105,7 +115,7 @@ type ProcessService struct {
 	process  *workloadmeta.Process
 	tagsHash string
 	hosts    map[string]string
-	ports    []ContainerPort
+	ports    []workloadmeta.ContainerPort
 	pid      int
 	ready    bool
 	tagger   tagger.Component
@@ -145,7 +155,7 @@ func (s *ProcessService) GetHosts() (map[string]string, error) {
 }
 
 // GetPorts returns the ports exposed by the service.
-func (s *ProcessService) GetPorts() ([]ContainerPort, error) {
+func (s *ProcessService) GetPorts() ([]workloadmeta.ContainerPort, error) {
 	return s.ports, nil
 }
 

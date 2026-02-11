@@ -42,4 +42,7 @@ jobs:
         with:
           go-version-file: ${{ matrix.go-file }}
       - name: Test
+        # disable go.work to avoid overriding the go version at runtime
+        env:
+          GOWORK: off
         run: cd pkg/gohai && go test -tags=test ./...

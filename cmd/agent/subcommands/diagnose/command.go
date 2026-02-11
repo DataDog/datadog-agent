@@ -349,6 +349,38 @@ This command print the security-agent metadata payload. This payload is used by 
 		},
 	}
 
+	payloadHostSystemInfoCmd := &cobra.Command{
+		Use:   "host-system-info",
+		Short: "[internal] Print the host system info metadata payload.",
+		Long: `
+This command print the host system info metadata payload.`,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fxutil.OneShot(printPayload,
+				fx.Supply(payloadName("host-system-info")),
+				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				core.Bundle(),
+				secretnoopfx.Module(),
+				ipcfx.ModuleReadOnly(),
+			)
+		},
+	}
+
+	payloadHealthPlatformIssuesCmd := &cobra.Command{
+		Use:   "health-issues",
+		Short: "[internal] Print health issues detected by the agent.",
+		Long: `
+This command prints health issues detected by the agent.
+Health platform must be enabled for issues to be reported.`,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fxutil.OneShot(printHealthPlatformIssues,
+				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				core.Bundle(),
+				secretnoopfx.Module(),
+				ipcfx.ModuleReadOnly(),
+			)
+		},
+	}
+
 	showPayloadCommand.AddCommand(payloadV5Cmd)
 	showPayloadCommand.AddCommand(payloadGohaiCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesAgentCmd)
@@ -361,6 +393,8 @@ This command print the security-agent metadata payload. This payload is used by 
 	showPayloadCommand.AddCommand(payloadSecurityAgentCmd)
 	showPayloadCommand.AddCommand(agentTelemetryCmd)
 	showPayloadCommand.AddCommand(agentFullTelemetryCmd)
+	showPayloadCommand.AddCommand(payloadHostSystemInfoCmd)
+	showPayloadCommand.AddCommand(payloadHealthPlatformIssuesCmd)
 	diagnoseCommand.AddCommand(showPayloadCommand)
 
 	return []*cobra.Command{diagnoseCommand}
@@ -442,6 +476,23 @@ func printPayload(name payloadName, _ log.Component, config config.Component, cl
 	r, err := client.Get(apiConfigURL, ipchttp.WithCloseConnection)
 	if err != nil {
 		return fmt.Errorf("Could not fetch metadata payload: %s", err)
+	}
+
+	fmt.Println(string(r))
+	return nil
+}
+
+func printHealthPlatformIssues(_ log.Component, config config.Component, client ipc.HTTPClient) error {
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	if err != nil {
+		return err
+	}
+	apiConfigURL := fmt.Sprintf("https://%v:%d/health-platform/issues",
+		ipcAddress, config.GetInt("cmd_port"))
+
+	r, err := client.Get(apiConfigURL, ipchttp.WithCloseConnection)
+	if err != nil {
+		return fmt.Errorf("Could not fetch health platform issues: %s", err)
 	}
 
 	fmt.Println(string(r))

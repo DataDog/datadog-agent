@@ -7,9 +7,9 @@
 package core
 
 import (
-	_struct "github.com/golang/protobuf/ptypes/struct"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	structpb "google.golang.org/protobuf/types/known/structpb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -1163,7 +1163,7 @@ func (x *TaggerStateResponse) GetLoaded() bool {
 type ConfigStreamRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The name of the client subscribing to the config stream.
-	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"` // NOTE: session_id is passed via gRPC metadata (key: "session_id"), not in the message body.
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1209,7 +1209,7 @@ type ConfigSetting struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Source        string                 `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`
 	Key           string                 `protobuf:"bytes,2,opt,name=key,proto3" json:"key,omitempty"`
-	Value         *_struct.Value         `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
+	Value         *structpb.Value        `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1258,7 +1258,7 @@ func (x *ConfigSetting) GetKey() string {
 	return ""
 }
 
-func (x *ConfigSetting) GetValue() *_struct.Value {
+func (x *ConfigSetting) GetValue() *structpb.Value {
 	if x != nil {
 		return x.Value
 	}
@@ -1766,9 +1766,9 @@ var file_datadog_model_v1_model_proto_goTypes = []any{
 	(*ConfigEvent)(nil),                                        // 25: datadog.model.v1.ConfigEvent
 	(*GenerateContainerIDFromOriginInfoRequest_LocalData)(nil), // 26: datadog.model.v1.GenerateContainerIDFromOriginInfoRequest.LocalData
 	(*GenerateContainerIDFromOriginInfoRequest_ExternalData)(nil), // 27: datadog.model.v1.GenerateContainerIDFromOriginInfoRequest.ExternalData
-	nil,                   // 28: datadog.model.v1.TaggerState.StateEntry
-	nil,                   // 29: datadog.model.v1.TaggerState.PidMapEntry
-	(*_struct.Value)(nil), // 30: google.protobuf.Value
+	nil,                    // 28: datadog.model.v1.TaggerState.StateEntry
+	nil,                    // 29: datadog.model.v1.TaggerState.PidMapEntry
+	(*structpb.Value)(nil), // 30: google.protobuf.Value
 }
 var file_datadog_model_v1_model_proto_depIdxs = []int32{
 	1,  // 0: datadog.model.v1.StreamTagsRequest.cardinality:type_name -> datadog.model.v1.TagCardinality

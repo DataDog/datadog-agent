@@ -138,7 +138,11 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 								result := int({{$Return}})
 							{{end}}
 						{{else}}
+							{{- if ne $Field.ReturnType $Field.OrigType}}
+							result := {{$Field.ReturnType}}({{$Return}})
+							{{else}}
 							result := {{$Return}}
+							{{end}}
 						{{end}}
 
 						{{if not $Field.GetArrayPrefix}}
@@ -191,7 +195,11 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 								return int({{$Return}})
 							{{end}}
 						{{else}}
+							{{- if ne $Field.ReturnType $Field.OrigType}}
+							return {{$Field.ReturnType}}({{$Return}})
+							{{else}}
 							return {{$Return}}
+							{{end}}
 						{{end}}
 					})
 
@@ -255,7 +263,11 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 							{{end -}}
 						{{end -}}
 					{{- else}}
+						{{- if ne $ReturnType $Field.OrigType}}
+						return {{$ReturnType}}({{$Return}})
+						{{else}}
 						return {{$Return}}
+						{{end -}}
 					{{end -}}
 				},
 			{{end}}
@@ -332,8 +344,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		mappedField = newField
 	}
 
-	if strings.HasPrefix(mappedField, "process.") || strings.HasPrefix(mappedField, "exec.") || strings.HasPrefix(mappedField, "exit.") {
-		ev.initProcess()
+	if strings.HasPrefix(mappedField, "process.") || strings.HasPrefix(mappedField, "exec.") || strings.HasPrefix(mappedField, "exit.") || strings.HasPrefix(mappedField, "ptrace.") {
+		ev.initPointerFields()
 	}
 
 	switch mappedField {
