@@ -4,14 +4,15 @@ def _rewrite_rpath_impl(ctx):
     input = ctx.file.input
     if ctx.attr.os == "unsupported":
         return DefaultInfo(files = depset([input]))
-    rpath = ctx.attr.rpath
-    if not rpath:
-        rpath = "{}/embedded".format(ctx.attr._install_dir[BuildSettingInfo].value)
+    rpath = ctx.attr.rpath.format(install_dir=ctx.attr._install_dir[BuildSettingInfo].value)
     processed_file = ctx.actions.declare_file("patched/" + input.basename)
     if ctx.attr.os == "linux":
         toolchain = ctx.toolchains["@@//bazel/toolchains/patchelf:patchelf_toolchain_type"].patchelf
         args = ctx.actions.args()
-        args.add_all(["--set-rpath", rpath, "--force-rpath", input.path, "--output", processed_file.path])
+        args.add("--set-rpath", rpath)
+        args.add("--force-rpath")
+        args.add(input.path)
+        args.add("--output", processed_file.path)
         ctx.actions.run(
             inputs = [input],
             outputs = [processed_file],
@@ -21,7 +22,10 @@ def _rewrite_rpath_impl(ctx):
     else:
         toolchain = ctx.toolchains["@@//bazel/toolchains/otool:otool_toolchain_type"].otool
         args = ctx.actions.args()
-        args.add_all([toolchain.path, rpath, input.path, processed_file.path])
+        args.add(toolchain.path)
+        args.add(rpath)
+        args.add(input.path)
+        args.add(processed_file.path)
         ctx.actions.run(
             inputs = [input],
             outputs = [processed_file],
@@ -42,8 +46,12 @@ _rewrite_rpath = rule(
             mandatory = True,
             doc = "Private attribute to dispatch based on the target OS",
         ),
-        "rpath": attr.label(
-            doc = "The new rpath. Defaults to <@@//:install_dir>/embedded",
+        "rpath": attr.string(
+            doc = """
+            The new rpath. Defaults to <@@//:install_dir>/embedded/lib
+            This supports '{install_dir}' variable
+            """,
+            default = "{install_dir}/embedded/lib",
         ),
         "script": attr.label(
             doc = "A script that will wrap the native tool to update rpath",
