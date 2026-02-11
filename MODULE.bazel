@@ -44,6 +44,7 @@ bazel_dep(name = "bazel_skylib", version = "1.9.0")
 bazel_dep(name = "bazel_lib", version = "3.1.1")
 bazel_dep(name = "rules_go", version = "0.59.0")  # for https://github.com/bazel-contrib/rules_go/pull/4493
 bazel_dep(name = "rules_pkg", version = "1.2.0")
+bazel_dep(name = "rules_python", version = "1.8.3")
 bazel_dep(name = "rules_shell", version = "0.6.1")
 bazel_dep(name = "libarchive", version = "3.8.1")
 
@@ -52,8 +53,14 @@ bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
 # Temporary until rules_pkg > 1.2.0 is in BCR
 git_override(
     module_name = "rules_pkg",
-    commit = "a9358d57a797f793cedd460939188496c7d30bbf",  # main as of Feb 4, 2026
+    commit = "2bd928123ad46f5b96970f537af073e0acb5b654",  # main as of Feb 10, 2026
     remote = "https://github.com/bazelbuild/rules_pkg.git",
+)
+
+# Temporary until rules_python > 1.8.3
+single_version_override(
+    module_name = "rules_python",
+    patches = ["//bazel/patches:rules_python-issue-3579.patch"],
 )
 
 #########################
@@ -161,8 +168,6 @@ visual_studio(
 # Keep in sync with .python-version
 PYTHON_VERSION = "3.12"
 
-bazel_dep(name = "rules_python", version = "1.6.3")
-
 python = use_extension("@rules_python//python/extensions:python.bzl", "python")
 python.defaults(python_version = PYTHON_VERSION)
 python.toolchain(
@@ -200,11 +205,7 @@ use_repo(rust, "rust_toolchains")
 
 register_toolchains("@rust_toolchains//:all")
 
-crate = use_extension("@rules_rust//crate_universe:extension.bzl", "crate")
-
 include("//deps:crates.MODULE.bazel")
-
-use_repo(crate, "sdagent_crates")
 
 #########################
 ## Native dependencies ##
@@ -232,6 +233,9 @@ include("//deps/freetds:freetds.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/gstatus:gstatus.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps/jmxfetch:jmxfetch.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/nfsiostat:nfsiostat.MODULE.bazel")
