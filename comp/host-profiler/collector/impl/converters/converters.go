@@ -195,31 +195,29 @@ func ensureKeyStringValue(config confMap, key string) bool {
 
 // addProfilerMetadataTags always creates a dedicated resource/profiler-metadata processor
 // without searching for existing resource processors.
-func addProfilerMetadataTags(conf confMap) error {
+func addProfilerMetadataTags(conf confMap, profilesProcessors []any) ([]any, error) {
 	const resourceProcessorName = "resource/dd-profiler-internal-metadata"
 
 	// Check if the processor is already defined in root processors
 	globalProcessors, _ := Get[confMap](conf, "processors")
 	if _, exists := globalProcessors[resourceProcessorName]; exists {
-		return fmt.Errorf("%s is a reserved resource processor name. Please change it in your configuration file", resourceProcessorName)
+		return nil, fmt.Errorf("%s is a reserved resource processor name. Please change it in your configuration file", resourceProcessorName)
 	}
 
-	// Check if the processor is already in the profiles pipeline
-	profilesProcessors, _ := Get[[]any](conf, "service::pipelines::profiles::processors")
 	for _, proc := range profilesProcessors {
 		if procName := proc.(string); procName == resourceProcessorName {
-			return fmt.Errorf("%s is a reserved resource processor name. Please remove it from the profiles pipeline", resourceProcessorName)
+			return nil, fmt.Errorf("%s is a reserved resource processor name. Please remove it from the profiles pipeline", resourceProcessorName)
 		}
 	}
 
 	resourceProcessor, err := Ensure[confMap](conf, "processors::"+resourceProcessorName)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	attributes, err := Ensure[[]any](resourceProcessor, "attributes")
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	profilerNameElement := confMap{
@@ -236,14 +234,8 @@ func addProfilerMetadataTags(conf confMap) error {
 	attributes = append(attributes, profilerNameElement)
 	attributes = append(attributes, profilerVersionElement)
 	if err := Set(resourceProcessor, "attributes", attributes); err != nil {
-		return err
+		return nil, err
 	}
 
-
-	profilesProcessors = append(profilesProcessors, resourceProcessorName)
-	if err := Set(conf, "service::pipelines::profiles::processors", profilesProcessors); err != nil {
-		return err
-	}
-
-	return nil
+	return append(profilesProcessors, resourceProcessorName), nil
 }

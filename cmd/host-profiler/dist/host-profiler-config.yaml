@@ -30,8 +30,7 @@ processors:
           enabled: false
 
 exporters:
-  debug:
-    verbosity: detailed
+  debug: {}
   otlphttp/metrics:
     metrics_endpoint: https://otlp.datadoghq.com/v1/metrics
     headers:

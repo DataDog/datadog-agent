@@ -91,6 +91,10 @@ func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) e
 	if err != nil {
 		return err
 	}
+	newProcessorNames, err = addProfilerMetadataTags(confStringMap, newProcessorNames)
+	if err != nil {
+		return err
+	}
 	profilesPipeline["processors"] = newProcessorNames
 
 	// Ensures at least one hostprofiler is used & configured
@@ -114,10 +118,6 @@ func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) e
 
 	// infraattributes processor can also be used in metrics pipeline
 	if err := c.ensureMetricsPipeline(confStringMap); err != nil {
-		return err
-	}
-
-	if err := addProfilerMetadataTags(confStringMap); err != nil {
 		return err
 	}
 

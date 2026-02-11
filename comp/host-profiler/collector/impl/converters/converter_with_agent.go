@@ -146,6 +146,11 @@ func (c *converterWithAgent) Convert(_ context.Context, conf *confmap.Conf) erro
 	if err != nil {
 		return err
 	}
+	newProcessorNames, err = addProfilerMetadataTags(confStringMap, newProcessorNames)
+	if err != nil {
+		return err
+	}
+
 	profilesPipeline["processors"] = newProcessorNames
 
 	// Ensures at least one hostprofiler is used & configured
@@ -159,10 +164,6 @@ func (c *converterWithAgent) Convert(_ context.Context, conf *confmap.Conf) erro
 	// Go through every configured processors to make sure there are no resourcedetections declared that were not in the
 	// pipeline
 	if err := c.ensureGlobalProcessors(confStringMap); err != nil {
-		return err
-	}
-
-	if err := addProfilerMetadataTags(confStringMap); err != nil {
 		return err
 	}
 
