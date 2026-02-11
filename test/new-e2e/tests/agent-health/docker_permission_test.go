@@ -7,6 +7,8 @@
 package agenthealth
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,7 +22,7 @@ import (
 )
 
 const (
-	expectedIssueID = "docker-permission-issue"
+	expectedIssueID = "docker-file-tailing-disabled"
 )
 
 type dockerPermissionSuite struct {
@@ -61,7 +63,7 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssue() {
 		healthPayloads, err = fakeIntake.GetAgentHealth()
 		assert.NoError(t, err)
 		assert.NotEmpty(t, healthPayloads)
-	}, 3*time.Minute, 10*time.Second, "Health report not received in FakeIntake within timeout")
+	}, 2*time.Minute, 10*time.Second, "Health report not received in FakeIntake within timeout")
 
 	// Get the most recent health report
 	require.NotEmpty(suite.T(), healthPayloads, "No health payloads received")
@@ -77,9 +79,37 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssue() {
 		}
 	}
 
-	require.NotNil(suite.T(), dockerIssue, "Docker permission issue not found in health report")
+	// Build debug message with all found issues if expected one is missing
+	if dockerIssue == nil {
+		var debugMsg strings.Builder
+		debugMsg.WriteString(fmt.Sprintf("\nExpected issue not found. Found %d issues:", len(latestReport.Issues)))
+		count := 1
+		for _, issue := range latestReport.Issues {
+			debugMsg.WriteString(fmt.Sprintf("\n  #%d: ID='%s', Category='%s', Tags=%v", count, issue.Id, issue.Category, issue.Tags))
+			count++
+		}
+		require.Fail(suite.T(), fmt.Sprintf("Docker permission issue '%s' not found in health report%s", expectedIssueID, debugMsg.String()))
+		return
+	}
+
+	// Verify issue metadata
+	assert.Equal(suite.T(), "docker-file-tailing-disabled", dockerIssue.Id)
+	assert.Equal(suite.T(), "docker_file_tailing_disabled", dockerIssue.IssueName)
 	assert.Equal(suite.T(), "permissions", dockerIssue.Category)
-	assert.Contains(suite.T(), dockerIssue.Tags, "integration:docker")
+	assert.Equal(suite.T(), "medium", dockerIssue.Severity)
+	assert.Equal(suite.T(), "logs-agent", dockerIssue.Location)
+	assert.Equal(suite.T(), "logs", dockerIssue.Source)
+
+	// Verify issue tags
+	assert.Contains(suite.T(), dockerIssue.Tags, "docker")
+	assert.Contains(suite.T(), dockerIssue.Tags, "logs")
+	assert.Contains(suite.T(), dockerIssue.Tags, "permissions")
+	assert.Contains(suite.T(), dockerIssue.Tags, "file-tailing")
+
+	// Verify remediation is provided
+	assert.NotNil(suite.T(), dockerIssue.Remediation, "Remediation should be provided")
+	assert.NotEmpty(suite.T(), dockerIssue.Remediation.Summary, "Remediation summary should not be empty")
+	assert.NotEmpty(suite.T(), dockerIssue.Remediation.Steps, "Remediation steps should not be empty")
 
 	suite.T().Logf("✅ Test passed! Docker permission issue detected: %s", dockerIssue.Id)
 }
