@@ -339,7 +339,7 @@ fn test_killswitch_enabled_runs_sd_agent() {
     // Terminate the process
     #[cfg(unix)]
     {
-        use nix::sys::signal::{Signal, kill};
+        use nix::sys::signal::{kill, Signal};
         use nix::unistd::Pid;
         kill(Pid::from_raw(child.id() as i32), Signal::SIGTERM).unwrap();
     }
