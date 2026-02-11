@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2026-present Datadog, Inc.
 
 //go:build windows && npm
 
@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	tracetestutil "github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
@@ -23,8 +24,16 @@ type windowsMonitorAdapter struct {
 }
 
 // GetHTTPStats implements TestMonitor interface for Windows.
-func (a *windowsMonitorAdapter) GetHTTPStats() map[protocols.ProtocolType]interface{} {
-	return a.monitor.GetHTTPStats()
+func (a *windowsMonitorAdapter) GetHTTPStats() map[http.Key]*http.RequestStats {
+	allStats := a.monitor.GetHTTPStats()
+	if allStats == nil {
+		return nil
+	}
+	stats, ok := allStats[protocols.HTTP].(map[http.Key]*http.RequestStats)
+	if !ok {
+		return nil
+	}
+	return stats
 }
 
 // setupWindowsTestMonitor creates a Windows monitor wrapped as TestMonitor.
@@ -42,6 +51,7 @@ func newWindowsCommonTestParams(t *testing.T) commonTestParams {
 		setupMonitor: func(t *testing.T) TestMonitor {
 			return setupWindowsTestMonitor(t, getHTTPCfg())
 		},
+		allowExtraCounts: true, // Windows ETW may capture the same transaction from both connection endpoints
 	}
 }
 
@@ -60,6 +70,7 @@ func TestHTTPMonitorLoadWithIncompleteBuffersCommon(t *testing.T) {
 		setupMonitor: func(t *testing.T) TestMonitor {
 			return setupWindowsTestMonitor(t, getHTTPCfg())
 		},
+		allowExtraCounts: true, // Windows ETW may capture from both connection endpoints
 	})
 }
 

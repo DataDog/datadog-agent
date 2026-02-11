@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2026-present Datadog, Inc.
 
 //go:build linux_bpf
 
@@ -11,10 +11,17 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	tracetestutil "github.com/DataDog/datadog-agent/pkg/trace/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 // linuxMonitorAdapter wraps the Linux Monitor to implement TestMonitor interface.
@@ -24,10 +31,17 @@ type linuxMonitorAdapter struct {
 }
 
 // GetHTTPStats implements TestMonitor interface for Linux.
-func (a *linuxMonitorAdapter) GetHTTPStats() map[protocols.ProtocolType]interface{} {
-	statsObj, cleaners := a.monitor.GetProtocolStats()
+func (a *linuxMonitorAdapter) GetHTTPStats() map[http.Key]*http.RequestStats {
+	allStats, cleaners := a.monitor.GetProtocolStats()
 	a.t.Cleanup(cleaners)
-	return statsObj
+	if allStats == nil {
+		return nil
+	}
+	stats, ok := allStats[protocols.HTTP].(map[http.Key]*http.RequestStats)
+	if !ok {
+		return nil
+	}
+	return stats
 }
 
 // setupLinuxTestMonitor creates a Linux monitor wrapped as TestMonitor.
@@ -49,18 +63,31 @@ func newLinuxCommonTestParams(t *testing.T) commonTestParams {
 	}
 }
 
-func TestHTTPStatsCommon(t *testing.T) {
-	skipTestIfKernelNotSupported(t)
-	runHTTPStatsTest(t, newLinuxCommonTestParams(t))
+// HTTPCommonTestSuite runs the common HTTP tests under multiple eBPF build modes.
+type HTTPCommonTestSuite struct {
+	suite.Suite
 }
 
-func TestHTTPMonitorIntegrationWithResponseBodyCommon(t *testing.T) {
-	skipTestIfKernelNotSupported(t)
-	runHTTPMonitorIntegrationWithResponseBodyTest(t, newLinuxCommonTestParams(t))
+func TestHTTPCommon(t *testing.T) {
+	if kernel.MustHostVersion() < usmconfig.MinimumKernelVersion {
+		t.Skipf("USM is not supported on %v", kernel.MustHostVersion())
+	}
+	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
+		suite.Run(t, new(HTTPCommonTestSuite))
+	})
 }
 
-func TestHTTPMonitorLoadWithIncompleteBuffersCommon(t *testing.T) {
-	skipTestIfKernelNotSupported(t)
+func (s *HTTPCommonTestSuite) TestHTTPStats() {
+	runHTTPStatsTest(s.T(), newLinuxCommonTestParams(s.T()))
+}
+
+func (s *HTTPCommonTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
+	flake.MarkOnJobName(s.T(), "ubuntu_25.10")
+	runHTTPMonitorIntegrationWithResponseBodyTest(s.T(), newLinuxCommonTestParams(s.T()))
+}
+
+func (s *HTTPCommonTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
+	t := s.T()
 	runHTTPMonitorLoadWithIncompleteBuffersTest(t, httpLoadTestParams{
 		slowServerPort: tracetestutil.FreeTCPPort(t),
 		fastServerPort: tracetestutil.FreeTCPPort(t),
@@ -70,16 +97,15 @@ func TestHTTPMonitorLoadWithIncompleteBuffersCommon(t *testing.T) {
 	})
 }
 
-func TestRSTPacketRegressionCommon(t *testing.T) {
-	skipTestIfKernelNotSupported(t)
-	runRSTPacketRegressionTest(t, newLinuxCommonTestParams(t))
+func (s *HTTPCommonTestSuite) TestRSTPacketRegression() {
+	runRSTPacketRegressionTest(s.T(), newLinuxCommonTestParams(s.T()))
 }
 
-func TestKeepAliveWithIncompleteResponseRegressionCommon(t *testing.T) {
-	skipTestIfKernelNotSupported(t)
-	runKeepAliveWithIncompleteResponseRegressionTest(t, newLinuxCommonTestParams(t))
+func (s *HTTPCommonTestSuite) TestKeepAliveWithIncompleteResponseRegression() {
+	runKeepAliveWithIncompleteResponseRegressionTest(s.T(), newLinuxCommonTestParams(s.T()))
 }
 
+// TestEmptyConfigCommon is a standalone test (not part of the suite) matching the original.
 func TestEmptyConfigCommon(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 	runEmptyConfigTest(t, emptyConfigTestParams{

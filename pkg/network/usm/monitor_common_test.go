@@ -1,9 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2026-present Datadog, Inc.
 
-//go:build (linux_bpf || (windows && npm)) && test
+//go:build linux_bpf || (windows && npm)
 
 package usm
 
@@ -25,17 +25,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	tracetestutil "github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
 // TestMonitor is an interface for testing monitors across platforms.
 // Both Linux and Windows monitors implement this interface for unified testing.
 type TestMonitor interface {
 	// GetHTTPStats returns HTTP protocol statistics.
-	GetHTTPStats() map[protocols.ProtocolType]interface{}
+	GetHTTPStats() map[http.Key]*http.RequestStats
 }
 
 // statusCodeCount holds the expected status code and count for validation.
@@ -47,23 +45,7 @@ type statusCodeCount struct {
 // getHTTPStats extracts HTTP protocol stats from any monitor implementing TestMonitor.
 func getHTTPStats(t *testing.T, monitor TestMonitor) map[http.Key]*http.RequestStats {
 	t.Helper()
-
-	allStats := monitor.GetHTTPStats()
-	if allStats == nil {
-		return nil
-	}
-
-	statsObj, ok := allStats[protocols.HTTP]
-	if !ok {
-		return nil
-	}
-
-	stats, ok := statsObj.(map[http.Key]*http.RequestStats)
-	if !ok {
-		return nil
-	}
-
-	return stats
+	return monitor.GetHTTPStats()
 }
 
 // verifyHTTPStats validates that the expected HTTP endpoints are present in the stats.
@@ -71,7 +53,7 @@ func getHTTPStats(t *testing.T, monitor TestMonitor) map[http.Key]*http.RequestS
 // serverPort is used to filter stats to only those matching the server port.
 // additionalValidator is optional - if provided, performs custom validation on each RequestStat.
 // Returns true if all expected endpoints are found with matching status codes and counts.
-func verifyHTTPStats(t *testing.T, monitor TestMonitor, expectedEndpoints map[http.Key]statusCodeCount, serverPort int, additionalValidator func(*testing.T, *http.RequestStat) bool) bool {
+func verifyHTTPStats(t *testing.T, monitor TestMonitor, expectedEndpoints map[http.Key]statusCodeCount, serverPort int, allowExtraCounts bool, additionalValidator func(*testing.T, *http.RequestStat) bool) bool {
 	t.Helper()
 
 	stats := getHTTPStats(t, monitor)
@@ -129,8 +111,17 @@ func verifyHTTPStats(t *testing.T, monitor TestMonitor, expectedEndpoints map[ht
 		if !ok {
 			return false
 		}
-		if actual.statusCode != expected.statusCode || actual.count < expected.count {
+		if actual.statusCode != expected.statusCode {
 			return false
+		}
+		if allowExtraCounts {
+			if actual.count < expected.count {
+				return false
+			}
+		} else {
+			if actual.count != expected.count {
+				return false
+			}
 		}
 	}
 
@@ -151,6 +142,10 @@ type commonTestParams struct {
 	serverPort int
 	// setupMonitor is a platform-specific function to set up the monitor
 	setupMonitor func(t *testing.T) TestMonitor
+	// allowExtraCounts when true, accepts actual count >= expected count.
+	// This is needed on Windows where ETW may capture the same transaction from both connection endpoints.
+	// On Linux this should be false to catch bugs where duplicate stats are reported.
+	allowExtraCounts bool
 }
 
 // runHTTPStatsTest runs the common HTTP stats test logic.
@@ -195,7 +190,7 @@ func runHTTPStatsTest(t *testing.T, params commonTestParams) {
 
 	// Verify both endpoints were captured by the monitor
 	require.Eventuallyf(t, func() bool {
-		return verifyHTTPStats(t, monitor, expectedEndpoints, params.serverPort, nil)
+		return verifyHTTPStats(t, monitor, expectedEndpoints, params.serverPort, params.allowExtraCounts, nil)
 	}, 3*time.Second, 100*time.Millisecond, "HTTP connections not found for %s", serverAddr)
 }
 
@@ -306,15 +301,10 @@ func isRequestIncludedOnce(allStats map[http.Key]*http.RequestStats, req *nethtt
 	return false, fmt.Errorf("expected to find 1 occurrence of %v, but found %d instead", req, occurrences)
 }
 
-// httpBodySizeTestParams holds parameters for the HTTP body size test.
-type httpBodySizeTestParams = commonTestParams
-
 // runHTTPMonitorIntegrationWithResponseBodyTest runs the test for various HTTP body sizes.
-// It verifies that the monitor captures HTTP requests with different body sizes.
-func runHTTPMonitorIntegrationWithResponseBodyTest(t *testing.T, params httpBodySizeTestParams) {
-	// Setup monitor once for all subtests
-	monitor := params.setupMonitor(t)
-
+// It uses requestGenerator to create varied requests (random methods, status codes) and verifies
+// that the monitor captures all of them.
+func runHTTPMonitorIntegrationWithResponseBodyTest(t *testing.T, params commonTestParams) {
 	tests := []struct {
 		name            string
 		requestBodySize int
@@ -343,56 +333,65 @@ func runHTTPMonitorIntegrationWithResponseBodyTest(t *testing.T, params httpBody
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			serverPort := tracetestutil.FreeTCPPort(t)
-			serverAddr := fmt.Sprintf("127.0.0.1:%d", serverPort)
+			serverAddr := fmt.Sprintf("127.0.0.1:%d", params.serverPort)
 
+			monitor := params.setupMonitor(t)
 			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
 				EnableKeepAlive: true,
 			})
 			t.Cleanup(srvDoneFn)
 
-			// Make 100 requests with request body using fresh connections
-			const numRequests = 100
-			const testPath = "/200/test"
-			client := &nethttp.Client{
-				Transport: &nethttp.Transport{
-					ForceAttemptHTTP2:   false,
-					DisableKeepAlives:   true, // Use fresh connection for each request
-					MaxIdleConnsPerHost: -1,   // Disable connection pooling
-				},
+			requestFn := requestGenerator(t, serverAddr, bytes.Repeat([]byte("a"), tt.requestBodySize))
+			var requests []*nethttp.Request
+			for i := 0; i < 100; i++ {
+				requests = append(requests, requestFn())
 			}
-
-			for i := 0; i < numRequests; i++ {
-				var body io.Reader
-				if tt.requestBodySize > 0 {
-					body = strings.NewReader(strings.Repeat("a", tt.requestBodySize))
-				}
-
-				fullURL := "http://" + serverAddr + testPath
-
-				req, err := nethttp.NewRequest(nethttp.MethodPost, fullURL, body)
-				require.NoError(t, err)
-
-				resp, err := client.Do(req)
-				require.NoError(t, err)
-				_, _ = io.Copy(io.Discard, resp.Body)
-				resp.Body.Close()
-			}
-
 			srvDoneFn()
 
-			// Verify all 100 requests were captured
-			expectedEndpoints := map[http.Key]statusCodeCount{
-				makeExpectedEndpoint(http.MethodPost, testPath): {
-					statusCode: 200,
-					count:      numRequests,
-				},
-			}
-
-			require.Eventuallyf(t, func() bool {
-				return verifyHTTPStats(t, monitor, expectedEndpoints, serverPort, nil)
-			}, 5*time.Second, 100*time.Millisecond, "expected %d requests to %s but not all were captured", numRequests, testPath)
+			assertAllRequestsExist(t, monitor, requests, params.allowExtraCounts)
 		})
+	}
+}
+
+// assertAllRequestsExist verifies that all requests are found in the monitor stats.
+// When allowExtraCounts is false (Linux), each request must appear exactly once.
+// When allowExtraCounts is true (Windows), each request must appear at least once.
+func assertAllRequestsExist(t *testing.T, monitor TestMonitor, requests []*nethttp.Request, allowExtraCounts bool) {
+	t.Helper()
+	requestsExist := make([]bool, len(requests))
+
+	assert.Eventually(t, func() bool {
+		stats := getHTTPStats(t, monitor)
+		if len(stats) == 0 {
+			return false
+		}
+
+		for reqIndex, req := range requests {
+			if !requestsExist[reqIndex] {
+				if allowExtraCounts {
+					requestsExist[reqIndex] = countRequestOccurrences(stats, req) >= 1
+				} else {
+					exists, err := isRequestIncludedOnce(stats, req)
+					require.NoError(t, err)
+					requestsExist[reqIndex] = exists
+				}
+			}
+		}
+
+		for _, exists := range requestsExist {
+			if !exists {
+				return false
+			}
+		}
+		return true
+	}, 3*time.Second, 100*time.Millisecond, "not all requests were captured")
+
+	if t.Failed() {
+		for reqIndex, exists := range requestsExist {
+			if !exists {
+				t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
+			}
+		}
 	}
 }
 
@@ -427,13 +426,15 @@ type httpLoadTestParams struct {
 	fastServerPort int
 	// setupMonitor is a platform-specific function to set up the monitor
 	setupMonitor func(t *testing.T) TestMonitor
+	// allowExtraCounts when true, accepts count >= expected (Windows ETW may report duplicates).
+	allowExtraCounts bool
 }
 
 // runHTTPMonitorLoadWithIncompleteBuffersTest sends thousands of requests without getting responses for them,
 // in parallel we send another request. We expect to capture the other request but not the incomplete requests.
 func runHTTPMonitorLoadWithIncompleteBuffersTest(t *testing.T, params httpLoadTestParams) {
-	slowServerAddr := fmt.Sprintf("localhost:%d", params.slowServerPort)
-	fastServerAddr := fmt.Sprintf("localhost:%d", params.fastServerPort)
+	slowServerAddr := fmt.Sprintf("127.0.0.1:%d", params.slowServerPort)
+	fastServerAddr := fmt.Sprintf("127.0.0.1:%d", params.fastServerPort)
 
 	monitor := params.setupMonitor(t)
 	slowSrvDoneFn := testutil.HTTPServer(t, slowServerAddr, testutil.Options{
@@ -471,20 +472,19 @@ func runHTTPMonitorLoadWithIncompleteBuffersTest(t *testing.T, params httpLoadTe
 			checkRequestIncluded(t, stats, req, false)
 		}
 
-		// Use countRequestOccurrences instead of isRequestIncludedOnce because on Windows ETW
-		// the same request may be captured from both connection endpoints, resulting in count > 1
 		occurrences := countRequestOccurrences(stats, fastReq)
-		foundFastReq = foundFastReq || occurrences >= 1
+		if params.allowExtraCounts {
+			foundFastReq = foundFastReq || occurrences >= 1
+		} else {
+			foundFastReq = foundFastReq || occurrences == 1
+		}
 	}
 
 	require.True(t, foundFastReq)
 }
 
-// rstPacketTestParams holds parameters for the RST packet regression test.
-type rstPacketTestParams = commonTestParams
-
 // runRSTPacketRegressionTest checks that USM captures a request that was forcefully terminated by a RST packet.
-func runRSTPacketRegressionTest(t *testing.T, params rstPacketTestParams) {
+func runRSTPacketRegressionTest(t *testing.T, params commonTestParams) {
 	serverAddr := fmt.Sprintf("127.0.0.1:%d", params.serverPort)
 
 	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
@@ -502,7 +502,7 @@ func runRSTPacketRegressionTest(t *testing.T, params rstPacketTestParams) {
 
 	// Issue HTTP request
 	requestPath := "/200/foobar"
-	c.Write([]byte(fmt.Sprintf("GET %s HTTP/1.1\r\nHost: %s\r\n\r\n", requestPath, serverAddr)))
+	c.Write([]byte(fmt.Sprintf("GET %s HTTP/1.1\nHost: %s\n\n", requestPath, serverAddr)))
 	io.Copy(io.Discard, c)
 
 	// Configure SO_LINGER to 0 so that triggers an RST when the socket is terminated
@@ -515,23 +515,25 @@ func runRSTPacketRegressionTest(t *testing.T, params rstPacketTestParams) {
 	reqURL, err := url.Parse(fmt.Sprintf("http://%s%s", serverAddr, requestPath))
 	require.NoError(t, err)
 
+	expectedOccurrences := 1
 	require.Eventually(t, func() bool {
 		stats := getHTTPStats(t, monitor)
-		return countRequestOccurrences(stats, &nethttp.Request{URL: reqURL, Method: nethttp.MethodGet}) >= 1
+		occurrences := countRequestOccurrences(stats, &nethttp.Request{URL: reqURL, Method: nethttp.MethodGet})
+		if params.allowExtraCounts {
+			return occurrences >= expectedOccurrences
+		}
+		return occurrences == expectedOccurrences
 	}, 3*time.Second, 100*time.Millisecond, "HTTP request with RST termination not captured")
 }
-
-// keepAliveWithIncompleteResponseTestParams holds parameters for the keep-alive with incomplete response test.
-type keepAliveWithIncompleteResponseTestParams = commonTestParams
 
 // runKeepAliveWithIncompleteResponseRegressionTest checks that USM captures a request, although we initially saw a
 // response and then a request with its response. This emulates the case where the monitor started in the middle of
 // a request/response cycle.
-func runKeepAliveWithIncompleteResponseRegressionTest(t *testing.T, params keepAliveWithIncompleteResponseTestParams) {
+func runKeepAliveWithIncompleteResponseRegressionTest(t *testing.T, params commonTestParams) {
 	serverAddr := fmt.Sprintf("127.0.0.1:%d", params.serverPort)
 
-	const req = "GET /200/foobar HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n"
-	const rsp = "HTTP/1.1 200 OK\r\n\r\n"
+	const req = "GET /200/foobar HTTP/1.1\nHost: 127.0.0.1\n\n"
+	const rsp = "HTTP/1.1 200 OK\n"
 
 	srvFn := func(c net.Conn) {
 		// emulates a half-transaction (beginning with a response)
@@ -590,9 +592,14 @@ func runKeepAliveWithIncompleteResponseRegressionTest(t *testing.T, params keepA
 	reqURL, err := url.Parse(fmt.Sprintf("http://%s/200/foobar", serverAddr))
 	require.NoError(t, err)
 
+	expectedOccurrences := 1
 	require.Eventually(t, func() bool {
 		stats := getHTTPStats(t, monitor)
-		return countRequestOccurrences(stats, &nethttp.Request{URL: reqURL, Method: nethttp.MethodGet}) >= 1
+		occurrences := countRequestOccurrences(stats, &nethttp.Request{URL: reqURL, Method: nethttp.MethodGet})
+		if params.allowExtraCounts {
+			return occurrences >= expectedOccurrences
+		}
+		return occurrences == expectedOccurrences
 	}, 3*time.Second, 100*time.Millisecond, "HTTP request with incomplete response not captured")
 }
 
