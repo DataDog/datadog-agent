@@ -32,6 +32,7 @@
 '@datadog/container-experiences': '#container-experiences'
 '@datadog/container-integrations': '#container-integrations'
 '@datadog/container-platform': '#container-platform'
+'@datadog/core-authn': '#aaa-authn'
 '@datadog/data-jobs-monitoring': '#data-jobs-monitoring'
 '@datadog/data-streams-monitoring': '#data-streams-monitoring'
 '@datadog/database-monitoring': '#database-monitoring'

@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -118,6 +119,7 @@ func (s *service) Run(svcctx context.Context) error {
 		core.Bundle(),
 		remotehostnameimpl.Module(),
 		secretsfx.Module(),
+		delegatedauthfx.Module(),
 		statsd.Module(),
 
 		// workloadmeta setup

@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -32,7 +31,6 @@ func (m *mockLifecycle) Append(_ fx.Hook) {}
 func TestUpdaterWithoutRemoteConfig(t *testing.T) {
 	deps := fxutil.Test[testDependencies](t, fx.Options(
 		core.MockBundle(),
-		hostnameimpl.MockModule(),
 		fx.Supply(core.BundleParams{}),
 		fx.Supply(option.None[rcservice.Component]()),
 		Module(),
