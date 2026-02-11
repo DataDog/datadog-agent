@@ -130,7 +130,7 @@ func newTCPEndpoint(logsConfig *LogsConfigKeys, registerCallback bool) Endpoint 
 		configSettingPath:       configPath,
 		ProxyAddress:            logsConfig.socks5ProxyAddress(),
 		ConnectionResetInterval: logsConfig.connectionResetInterval(),
-		useSSL:                  logsConfig.logsNoSSL(),
+		useSSL:                  !logsConfig.logsNoSSL(),
 		isReliable:              true, // by default endpoints are reliable
 	}
 	if registerCallback {
@@ -158,7 +158,7 @@ func newHTTPEndpoint(logsConfig *LogsConfigKeys, registerCallback bool) Endpoint
 		BackoffFactor:           logsConfig.senderBackoffFactor(),
 		RecoveryInterval:        logsConfig.senderRecoveryInterval(),
 		RecoveryReset:           logsConfig.senderRecoveryReset(),
-		useSSL:                  logsConfig.logsNoSSL(),
+		useSSL:                  !logsConfig.logsNoSSL(),
 		isReliable:              true, // by default endpoints are reliable
 	}
 	if registerCallback {

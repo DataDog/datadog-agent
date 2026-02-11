@@ -34,6 +34,7 @@ def build(
     development=True,
     skip_assets=False,
     policies_version=None,
+    force_policies_clone=True,
 ):
     """
     Build Cluster Agent
@@ -64,8 +65,11 @@ def build(
 
     build_context = "Dockerfiles/cluster-agent"
     policies_path = f"{build_context}/security-agent-policies"
-    ctx.run(f"rm -rf {policies_path}")
-    ctx.run(f"git clone --branch={policies_version} --depth=1 {POLICIES_REPO} {policies_path}")
+    if force_policies_clone or not os.path.isdir(policies_path):
+        ctx.run(f"rm -rf {policies_path}")
+        ctx.run(f"git clone --branch={policies_version} --depth=1 {POLICIES_REPO} {policies_path}")
+    else:
+        print(f"Reusing existing security-agent-policies at {policies_path}")
 
 
 @task
@@ -154,7 +158,7 @@ def hacky_dev_image_build(
     arch=None,
 ):
     os.environ["DELVE"] = "1"
-    build(ctx, race=race)
+    build(ctx, race=race, force_policies_clone=False)
 
     if arch is None:
         arch = CONTAINER_PLATFORM_MAPPING.get(platform.machine().lower())

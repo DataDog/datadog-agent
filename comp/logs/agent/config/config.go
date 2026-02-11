@@ -278,7 +278,7 @@ func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigK
 
 		apiKeyConfigPath := "multi_region_failover.api_key"
 
-		e := NewEndpoint(coreConfig.GetString(apiKeyConfigPath), apiKeyConfigPath, mrfHost, mrfPort, "", logsConfig.logsNoSSL())
+		e := NewEndpoint(coreConfig.GetString(apiKeyConfigPath), apiKeyConfigPath, mrfHost, mrfPort, "", !logsConfig.logsNoSSL())
 		e.IsMRF = true
 		e.UseCompression = main.UseCompression
 		e.CompressionLevel = main.CompressionLevel

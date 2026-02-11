@@ -145,7 +145,7 @@ clusterAgent:
 		k8sAgentOptions := make([]kubernetesagentparams.Option, 0)
 		k8sAgentOptions = append(
 			k8sAgentOptions,
-			kubernetesagentparams.WithNamespace("datadog-openshift"),
+			kubernetesagentparams.WithNamespace("datadog"),
 			kubernetesagentparams.WithHelmValues(customValues),
 			kubernetesagentparams.WithClusterName(openshiftCluster.ClusterName),
 		)

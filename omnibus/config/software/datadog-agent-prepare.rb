@@ -17,16 +17,6 @@ build do
       dir_fullpath = File.expand_path(File.join(install_dir, dir))
       FileUtils.mkdir_p(dir_fullpath)
     end
-
-    # Add a README for the embedded environment's configuration folder
-    File.open(File.expand_path(File.join(install_dir, "/embedded/etc/README.md")), "w") do |f|
-      f.puts <<~EOF
-          # Embedded environment configuration folder
-
-          This folder contains configuration files for the Agent embedded environment.
-
-      EOF
-    end
   end
 end
 

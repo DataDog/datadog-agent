@@ -9,13 +9,14 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	oscomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
 func NewLocalOpenShiftCluster(env config.Env, name string, pullSecretPath string, opts ...pulumi.ResourceOption) (*Cluster, error) {
@@ -136,9 +137,61 @@ func NewOpenShiftCluster(env config.Env, vm *remote.Host, name string, pullSecre
 			return err
 		}
 
-		clusterComp.KubeConfig = pulumi.All(kubeConfig.StdoutOutput(), vm.Address).ApplyT(func(args []interface{}) string {
+		// Wait for the control plane to be fully ready before proceeding
+		waitControlPlane, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("wait-control-plane-ready"), &command.Args{
+			Create: pulumi.String(`
+# Wait for API server to be responsive
+for i in {1..30}; do
+  if curl -sk https://127.0.0.1:6443/healthz 2>/dev/null | grep -q ok; then
+    echo "API server responsive"
+    break
+  fi
+  echo "Waiting for API server (attempt $i/30)..."
+  sleep 10
+done
+
+export KUBECONFIG=~/.crc/machines/crc/kubeconfig
+
+# Wait for nodes to be ready
+echo "Waiting for nodes to be Ready..."
+for i in {1..60}; do
+  ready_nodes=$(kubectl get nodes --no-headers 2>/dev/null | grep -c ' Ready ')
+  if [ "$ready_nodes" -gt 0 ]; then
+    echo "Found $ready_nodes Ready nodes"
+    break
+  fi
+  echo "Waiting for nodes (attempt $i/60)..."
+  sleep 5
+done
+
+# Wait for some system pods to be running
+echo "Waiting for system pods to be running..."
+for namespace in openshift-kube-apiserver openshift-kube-controller-manager; do
+  for i in {1..60}; do
+    running_pods=$(kubectl get pods -n "$namespace" --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l)
+    if [ "$running_pods" -gt 0 ]; then
+      echo "Namespace $namespace has $running_pods running pod(s)"
+      break
+    fi
+    if [ $i -lt 60 ]; then
+      echo "Waiting for $namespace pods (attempt $i/60)..."
+      sleep 5
+    fi
+  done
+done
+
+echo "Control plane is ready"
+exit 0
+`),
+		}, utils.MergeOptions(opts, utils.PulumiDependsOn(kubeConfig))...)
+		if err != nil {
+			return err
+		}
+
+		clusterComp.KubeConfig = pulumi.All(kubeConfig.StdoutOutput(), vm.Address, waitControlPlane.StdoutOutput()).ApplyT(func(args []interface{}) string {
 			kubeconfigRaw := args[0].(string)
 			vmIP := args[1].(string)
+			// args[2] is the output from waitControlPlane, ensuring it completes first
 			allowInsecure := regexp.MustCompile("certificate-authority-data:.+").ReplaceAllString(kubeconfigRaw, "insecure-skip-tls-verify: true")
 			updated := strings.ReplaceAll(allowInsecure, "api.crc.testing:6443", vmIP+":8443")
 			return updated

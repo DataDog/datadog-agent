@@ -205,6 +205,8 @@ use_repo(rust, "rust_toolchains")
 
 register_toolchains("@rust_toolchains//:all")
 
+bazel_dep(name = "rules_rs", version = "0.0.27")
+
 include("//deps:crates.MODULE.bazel")
 
 #########################

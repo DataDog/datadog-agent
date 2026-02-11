@@ -191,7 +191,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env output
 		}
 
 		if params.deployArgoRollout {
-			if _, err := nginx.K8sRolloutAppDefinition(&awsEnv, cluster.KubeProvider, "workload-argo-rollout-nginx", dependsOnDDAgent, dependsOnArgoRollout); err != nil {
+			if _, err := nginx.K8sRolloutAppDefinition(&awsEnv, cluster.KubeProvider, "workload-argo-rollout-nginx", 80, dependsOnDDAgent, dependsOnArgoRollout); err != nil {
 				return err
 			}
 		}
