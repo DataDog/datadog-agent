@@ -13,11 +13,12 @@
 #include <stdint.h>
 
 /**
- * Length-delimited byte string. `data` is NOT NUL-terminated.
+ * Length-delimited byte string — avoids NUL-termination so the Go caller
+ * can use `C.GoStringN(data, len)` directly without `strlen`.
  * NULL `data` with `len == 0` represents an absent/empty value.
  */
 struct dd_str {
-  const uint8_t *data;
+  const char *data;
   size_t len;
 };
 

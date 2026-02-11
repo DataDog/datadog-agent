@@ -14,6 +14,7 @@
 
 #![allow(non_camel_case_types)] // C ABI types use C naming conventions
 
+use std::ffi::c_char;
 use std::ptr;
 
 use crate::params::Params;
@@ -25,11 +26,12 @@ use crate::ust::UST;
 // #[repr(C)] types
 // ---------------------------------------------------------------------------
 
-/// Length-delimited byte string. `data` is NOT NUL-terminated.
+/// Length-delimited byte string — avoids NUL-termination so the Go caller
+/// can use `C.GoStringN(data, len)` directly without `strlen`.
 /// NULL `data` with `len == 0` represents an absent/empty value.
 #[repr(C)]
 pub struct dd_str {
-    pub data: *const u8,
+    pub data: *const c_char,
     pub len: usize,
 }
 
@@ -116,7 +118,7 @@ impl dd_str {
         }
         let boxed = Box::<[u8]>::from(s.as_bytes());
         let len = boxed.len();
-        let data = Box::into_raw(boxed) as *const u8;
+        let data = Box::into_raw(boxed) as *const c_char;
         Self { data, len }
     }
 }
@@ -128,7 +130,7 @@ impl From<String> for dd_str {
         }
         let boxed = s.into_bytes().into_boxed_slice();
         let len = boxed.len();
-        let data = Box::into_raw(boxed) as *const u8;
+        let data = Box::into_raw(boxed) as *const c_char;
         Self { data, len }
     }
 }
@@ -502,7 +504,7 @@ mod tests {
         if s.data.is_null() {
             return "";
         }
-        let slice = unsafe { std::slice::from_raw_parts(s.data, s.len) };
+        let slice = unsafe { std::slice::from_raw_parts(s.data as *const u8, s.len) };
         std::str::from_utf8(slice).unwrap()
     }
 
