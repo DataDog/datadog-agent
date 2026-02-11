@@ -12,6 +12,11 @@ import (
 	"net/http"
 )
 
+// getListeningPortToPIDMap is not implemented on this platform; returns nil.
+func getListeningPortToPIDMap() map[int32]int32 {
+	return nil
+}
+
 // getNetworkID fetches network_id
 func getNetworkID(_ *http.Client) (string, error) {
 	return "", errors.New("unsupported on this platform")
