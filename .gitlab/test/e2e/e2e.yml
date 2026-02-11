@@ -1027,6 +1027,8 @@ new-e2e-ssi-kind-init:
 
 new-e2e-ssi-eks-init:
   extends: .new-e2e_ssi_init
+  rules:
+    - !reference [.on_main] # Run only on main branch
   variables:
     E2E_PROVISIONER: eks
     E2E_STACK_NAME_SUFFIX: eks
@@ -1065,12 +1067,21 @@ new-e2e-ssi-kind:
 
 new-e2e-ssi-eks:
   extends: .new-e2e_ssi
+  rules:
+    # On main: run automatically with pre-initialized stack
+    - if: $CI_COMMIT_BRANCH == "main"
+      variables:
+        E2E_PRE_INITIALIZED: "true"
+    # On PRs: run manually without pre-initialized stack (uses default E2E_PRE_INITIALIZED)
+    - !reference [.manual]
   needs:
     - !reference [.new-e2e_ssi, needs]
-    - new-e2e-ssi-eks-init
+    - job: new-e2e-ssi-eks-init
+      optional: true
   variables:
     E2E_STACK_NAME_SUFFIX: eks
     E2E_PROVISIONER: eks
+    E2E_PRE_INITIALIZED: "false" # Default for PRs, overridden by rule on main
 
 .new-e2e_package_signing:
   variables:
