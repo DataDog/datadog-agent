@@ -396,27 +396,21 @@ func (r *MetricDataReader) NextPoint() error {
 	}
 
 	if r.valsFloat64Idx > len(r.data.ValsFloat64) {
-		panic("valsd")
 		return errUnexpectedEof
 	}
 	if r.valsFloat32Idx > len(r.data.ValsFloat32) {
-		panic("valsf")
 		return errUnexpectedEof
 	}
 	if r.valsSint64Idx > len(r.data.ValsSint64) {
-		panic("valsi")
 		return errUnexpectedEof
 	}
 	if r.sketchNumBinsIdx > len(r.data.SketchNumBins) {
-		panic("bins")
 		return errUnexpectedEof
 	}
 	if r.sketchBinsIdx > len(r.data.SketchBinKeys) {
-		panic("keys")
 		return errUnexpectedEof
 	}
 	if r.sketchBinsIdx > len(r.data.SketchBinCnts) {
-		panic("cnts")
 		return errUnexpectedEof
 	}
 
