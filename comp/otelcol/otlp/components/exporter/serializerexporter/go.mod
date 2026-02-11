@@ -27,7 +27,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/quantile v0.76.0-rc.4
 	github.com/google/go-cmp v0.7.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.145.1-0.20260210100259-090c2f881d1f
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.144.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.145.0
 	github.com/stretchr/testify v1.11.1
 	github.com/tinylib/msgp v1.6.3
 	go.opentelemetry.io/collector/component v1.51.1-0.20260205185216-81bc641f26c0
