@@ -257,14 +257,13 @@ func (c *Collector) calculateCPUUsage(currentTotal float64, previousTotal float6
 
 func (c *Collector) sendMetrics(inStats *ServerlessContainerStats, enhancedMetrics ServerlessEnhancedMetrics) {
 	// CPU usage in nanocores
-	c.metricAgent.AddMetricWithTimestamp(c.metricPrefix+"cpu.usage", enhancedMetrics.CPUUsage, c.metricSource, metrics.DistributionType, enhancedMetrics.Timestamp)
+	c.metricAgent.AddHighCardinalityMetricWithTimestamp(c.metricPrefix+"cpu.usage", enhancedMetrics.CPUUsage, c.metricSource, metrics.DistributionType, enhancedMetrics.Timestamp)
 
 	// CPU usage in nanocores
-	c.metricAgent.AddMetricWithTimestamp(c.metricPrefix+"cpu.usage.rate", statValue(inStats.CPU.Total, -1), c.metricSource, metrics.RateType, enhancedMetrics.Timestamp)
+	c.metricAgent.AddHighCardinalityMetricWithTimestamp(c.metricPrefix+"cpu.usage.rate", statValue(inStats.CPU.Total, -1), c.metricSource, metrics.RateType, enhancedMetrics.Timestamp)
 
 	// CPU limit in nanocores
-	c.metricAgent.AddMetricWithTimestamp(c.metricPrefix+"cpu.limit", enhancedMetrics.CPULimit, c.metricSource, metrics.DistributionType, enhancedMetrics.Timestamp)
-
+	c.metricAgent.AddHighCardinalityMetricWithTimestamp(c.metricPrefix+"cpu.limit", enhancedMetrics.CPULimit, c.metricSource, metrics.DistributionType, enhancedMetrics.Timestamp)
 }
 
 func statValue(val *float64, def float64) float64 {
