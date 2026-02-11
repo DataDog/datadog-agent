@@ -16,18 +16,11 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
 const (
 	rolloutBucketCount = 10 // Max number of buckets for gradual rollout
 )
-
-// RemoteConfigClient defines the interface we need for remote config operations
-type RemoteConfigClient interface {
-	GetConfigs(product string) map[string]state.RawConfig
-	Subscribe(product string, callback func(map[string]state.RawConfig, func(string, state.ApplyStatus)))
-}
 
 // Config contains information needed to create a Resolver
 type Config struct {
