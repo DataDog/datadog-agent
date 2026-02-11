@@ -94,7 +94,9 @@ func filterStructuredResponse(response WorkloadDumpStructuredResponse, search st
 			}
 		}
 
-		filtered.Entities[kind] = matchingEntities
+		if len(matchingEntities) > 0 {
+			filtered.Entities[kind] = matchingEntities
+		}
 	}
 
 	return filtered
@@ -121,8 +123,9 @@ func filterTextResponse(response WorkloadDumpResponse, search string) WorkloadDu
 			}
 		}
 
-		filtered.Entities[kind] = WorkloadEntity{Infos: filteredInfos}
-
+		if len(filteredInfos) > 0 {
+			filtered.Entities[kind] = WorkloadEntity{Infos: filteredInfos}
+		}
 	}
 
 	return filtered

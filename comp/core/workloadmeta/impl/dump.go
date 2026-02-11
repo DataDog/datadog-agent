@@ -79,9 +79,7 @@ func (w *workloadmeta) Dump(verbose bool) wmdef.WorkloadDumpResponse {
 			entities.Infos[fmt.Sprintf("sources(merged):%v", cachedEntity.sortedSources)+" id: "+id] = info
 		}
 
-		if len(entities.Infos) > 0 {
-			workloadList.Entities[string(kind)] = entities
-		}
+		workloadList.Entities[string(kind)] = entities
 	}
 
 	return workloadList
@@ -106,9 +104,7 @@ func (w *workloadmeta) DumpStructured() wmdef.WorkloadDumpStructuredResponse {
 			entities = append(entities, cachedEntity.cached)
 		}
 
-		if len(entities) > 0 {
-			workloadList.Entities[string(kind)] = entities
-		}
+		workloadList.Entities[string(kind)] = entities
 	}
 
 	return workloadList
