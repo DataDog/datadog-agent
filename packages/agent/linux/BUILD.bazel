@@ -21,8 +21,7 @@ pkg_filegroup(
     srcs = [
         "//deps/jmxfetch:all_files",
         "//deps/snmp_traps:all_files",
-        # TODO: this bring in gstatus, which has a botched up license arrangement
-        # "//packages/install_dir:embedded",
+        "//packages/install_dir:embedded",
         "//packages/install_dir:etc",
         "@libpcap//:all_files",
     ],
@@ -37,9 +36,8 @@ pkg_filegroup(
 pkg_filegroup(
     name = "transitive_deps",
     srcs = [
-        # TODO(aiuto): blocked on https://github.com/DataDog/datadog-agent/pull/46230
-        # "//deps/gstatus:bin_files",
-        # "//deps/msodbcsql18:all_files",
+        "//deps/gstatus:bin_files",
+        "//deps/msodbcsql18:all_files",
         "//deps/nfsiostat:all_files",
         "//deps/openscap:all_files",
         "@freetds//:all_files",
@@ -50,6 +48,9 @@ pkg_filegroup(
     prefix = "/opt/datadog-agent",
 )
 
+# This is an intermediate node so that have a place to
+# collect all the deps so we can walk the aspect to gather
+# the OSS licenses.
 pkg_filegroup(
     name = "everything",
     srcs = [
@@ -144,7 +145,6 @@ dd_agent_pkg_mklink(
     attributes = pkg_attributes(mode = "755"),
     link_name = "/opt/datadog-packages/datadog-agent/stable",
     target = "/opt/datadog-packages/run/datadog-agent/{build_version}",
-    #link "/opt/datadog-agent", "/opt/datadog-packages/run/datadog-agent/{build_version}"
 )
 
 dd_agent_pkg_mklink(
