@@ -26,9 +26,9 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	go.opentelemetry.io/collector/component v1.51.0 // indirect
 	go.opentelemetry.io/collector/pdata v1.51.0 // indirect
-	go.opentelemetry.io/otel v1.39.1-0.20260115134311-f809f7d71e2d // indirect
-	go.opentelemetry.io/otel/metric v1.39.1-0.20260115134311-f809f7d71e2d // indirect
-	go.opentelemetry.io/otel/trace v1.39.1-0.20260115134311-f809f7d71e2d // indirect
+	go.opentelemetry.io/otel v1.40.0 // indirect
+	go.opentelemetry.io/otel/metric v1.40.0 // indirect
+	go.opentelemetry.io/otel/trace v1.40.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.1 // indirect

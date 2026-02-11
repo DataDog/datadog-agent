@@ -31,9 +31,9 @@ require (
 	go.opentelemetry.io/collector/processor/processorhelper/xprocessorhelper v0.145.0
 	go.opentelemetry.io/collector/processor/processortest v0.145.0
 	go.opentelemetry.io/collector/processor/xprocessor v0.145.0
-	go.opentelemetry.io/otel v1.39.1-0.20260115134311-f809f7d71e2d
-	go.opentelemetry.io/otel/metric v1.39.1-0.20260115134311-f809f7d71e2d
-	go.opentelemetry.io/otel/trace v1.39.1-0.20260115134311-f809f7d71e2d
+	go.opentelemetry.io/otel v1.40.0
+	go.opentelemetry.io/otel/metric v1.40.0
+	go.opentelemetry.io/otel/trace v1.40.0
 	go.uber.org/fx v1.24.0
 	go.uber.org/zap v1.27.1
 )
