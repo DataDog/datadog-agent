@@ -16,20 +16,18 @@ while [[ $retry_count -lt $max_retries ]]; do
         vault_name="kv/k8s/${POD_NAMESPACE}/datadog-agent"
         if [[ "$(uname -s)" == "Darwin" ]]; then
             vault_name="kv/aws/arn:aws:iam::486234852809:role/ci-datadog-agent"
-            result="$(ci-identities-gitlab-job-client secrets read ${parameter_name} ${parameter_field} 2> errorFile)"
+            # Try to use CI Identities first, fallback to default Vault path if it fails
+            result="$(ci-identities-gitlab-job-client secrets read ${parameter_name} ${parameter_field} || vault kv get -format="${format}" -field="${parameter_field}" "${vault_name}"/"${parameter_name}" 2> errorFile)"
         else
             result="$(vault kv get -format="${format}" -field="${parameter_field}" "${vault_name}"/"${parameter_name}" 2> errorFile)"
         fi
     else
         # Using SSM; the [<format>] parameter is ignored
-        if [[ "$(uname -s)" == "Darwin" ]]; then
-            if [ -z "$AWS_SHARED_CREDENTIALS_FILE" ]; then
-                echo "Error: AWS_SHARED_CREDENTIALS_FILE is not set when using CI Identities for AWS Credentials" >&2
-                exit 1
-            fi
-            ci-identities-gitlab-job-client assume-role
+        if [[ "$(uname -s)" == "Darwin" ]] && retry_count -eq 0; then
+            result="$(ci-identities-gitlab-job-client assume-role -- aws ssm get-parameter --region us-east-1 --name "$parameter_name" --with-decryption --query "Parameter.Value" --output text 2> errorFile)"
+        else
+            result="$(aws ssm get-parameter --region us-east-1 --name "$parameter_name" --with-decryption --query "Parameter.Value" --output text 2> errorFile)"
         fi
-        result="$(aws ssm get-parameter --region us-east-1 --name "$parameter_name" --with-decryption --query "Parameter.Value" --output text 2> errorFile)"
     fi
     error="$(<errorFile)"
     if [ -n "$result" ]; then
