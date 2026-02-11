@@ -1,4 +1,4 @@
-schemaId: powershell-script-credentials-v1
+schemaId: script-credentials-v1
 runPredefinedPowershellScript:
   helloWorld:
     command:
