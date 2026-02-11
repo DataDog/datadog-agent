@@ -33,7 +33,7 @@ import (
 	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	utilnet "github.com/DataDog/datadog-agent/pkg/util/net"
+	netutil "github.com/DataDog/datadog-agent/pkg/util/net"
 )
 
 const (
@@ -511,7 +511,7 @@ func (j *JMXFetch) getPreferredDSDEndpoint() string {
 	// Check UDS datagram first (preferred transport).
 	socketPath := cfg.GetString("dogstatsd_socket")
 	if dsdConfig.Enabled() && socketPath != "" {
-		if utilnet.IsUDSAvailable(socketPath) {
+		if netutil.IsUDSAvailable(socketPath) {
 			return "statsd:unix://" + socketPath
 		}
 		log.Warnf("DogStatsD configured to listen on UDS (%q) but not available, falling back to UDP.", socketPath)
