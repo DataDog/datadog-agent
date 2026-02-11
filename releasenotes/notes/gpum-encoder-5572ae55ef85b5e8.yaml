@@ -8,4 +8,4 @@
 ---
 deprecations:
   - |
-    "GPUm: renamed metrics gpu.process.{encoder,decoder}_utilization to gpu.process.{encoder,decoder}_active for consistency with the 'active' suffix in the rest of the GPUm metrics"
+    GPUm: renamed metrics gpu.process.{encoder,decoder}_utilization to gpu.process.{encoder,decoder}_active for consistency with the 'active' suffix in the rest of the GPUm metrics
