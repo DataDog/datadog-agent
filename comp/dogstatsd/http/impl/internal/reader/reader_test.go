@@ -105,7 +105,7 @@ func TestDictResources(t *testing.T) {
 }
 
 func FuzzReader(f *testing.F) {
-	f.Fuzz(func(t *testing.T, bytes []byte) {
+	f.Fuzz(func(_ *testing.T, bytes []byte) {
 		var p pb.Payload
 		if err := p.UnmarshalVT(bytes); err != nil {
 			return
