@@ -10,7 +10,6 @@ package workload
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -62,6 +61,12 @@ func newVerticalController(clock clock.Clock, eventRecorder record.EventRecorder
 }
 
 func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, autoscalerInternal *model.PodAutoscalerInternal, targetGVK schema.GroupVersionKind, target NamespacedPodOwner) (autoscaling.ProcessResult, error) {
+	// If vertical scaling is disabled, clear vertical state and exit.
+	if !autoscalerInternal.IsVerticalScalingEnabled() {
+		autoscalerInternal.ClearVerticalState()
+		return autoscaling.NoRequeue, nil
+	}
+
 	scalingValues := autoscalerInternal.ScalingValues()
 
 	// Check if the autoscaler has a vertical scaling recommendation
@@ -103,7 +108,7 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 	// Check if we're allowed to rollout, we don't care about the source in this case, so passing most favorable source: manual
 	updateStrategy, reason := getVerticalPatchingStrategy(autoscalerInternal)
 	if updateStrategy == datadoghqcommon.DatadogPodAutoscalerDisabledUpdateStrategy {
-		autoscalerInternal.UpdateFromVerticalAction(nil, errors.New(reason))
+		autoscalerInternal.UpdateFromVerticalAction(nil, autoscaling.NewConditionErrorf(autoscaling.ConditionReasonPolicyRestricted, "%s", reason))
 		return autoscaling.NoRequeue, nil
 	}
 
@@ -115,7 +120,7 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 	case k8sutil.StatefulSetKind:
 		return u.syncStatefulSetKind(ctx, podAutoscaler, autoscalerInternal, target, targetGVK, recommendationID, pods, podsPerRecommendationID)
 	default:
-		autoscalerInternal.UpdateFromVerticalAction(nil, fmt.Errorf("automatic rollout not available for target Kind: %s. Applying to existing PODs require manual trigger", targetGVK.Kind))
+		autoscalerInternal.UpdateFromVerticalAction(nil, autoscaling.NewConditionErrorf(autoscaling.ConditionReasonUnsupportedTargetKind, "automatic rollout not available for target Kind: %s. Applying to existing PODs require manual trigger", targetGVK.Kind))
 		return autoscaling.NoRequeue, nil
 	}
 }
@@ -146,14 +151,15 @@ func (u *verticalController) triggerRollout(
 		},
 	})
 	if err != nil {
-		autoscalerInternal.UpdateFromVerticalAction(nil, fmt.Errorf("Unable to produce JSONPatch : %v", err))
+		err = autoscaling.NewConditionError(autoscaling.ConditionReasonRolloutFailed, fmt.Errorf("Unable to produce JSONPatch : %v", err))
+		autoscalerInternal.UpdateFromVerticalAction(nil, err)
 		return autoscaling.Requeue, err
 	}
 
 	// Apply patch to trigger rollout
 	_, err = u.dynamicClient.Resource(gvr).Namespace(target.Namespace).Patch(ctx, target.Name, types.MergePatchType, patchData, metav1.PatchOptions{})
 	if err != nil {
-		err = fmt.Errorf("failed to trigger rollout for gvk: %s, name: %s, err: %v", targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name, err)
+		err = autoscaling.NewConditionError(autoscaling.ConditionReasonRolloutFailed, fmt.Errorf("failed to trigger rollout for gvk: %s, name: %s, err: %v", targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name, err))
 		telemetryVerticalRolloutTriggered.Inc(target.Namespace, target.Name, autoscalerInternal.Name(), "error", le.JoinLeaderValue)
 		autoscalerInternal.UpdateFromVerticalAction(nil, err)
 		u.eventRecorder.Event(podAutoscaler, corev1.EventTypeWarning, model.FailedTriggerRolloutEventReason, err.Error())

@@ -145,9 +145,9 @@ variables:
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
   CI_IMAGE_RPM_ARMHF: v91623141-e13c2467
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v91623141-e13c2467
+  CI_IMAGE_WIN_LTSC2022_X64: v94029061-83297652
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v91623141-e13c2467
+  CI_IMAGE_WIN_LTSC2025_X64: v94029061-83297652
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -214,7 +214,7 @@ variables:
   DDA_FEATURE_FLAGS_CI_VAULT_KEY: token
   DDA_FEATURE_FLAGS_CI_VAULT_PATH: k8s/gitlab-runner-datadog-agent/datadog-agent/$DDA_CLIENT_TOKEN
 
-  DD_PKG_VERSION: "0.6.0-beta.4"
+  DD_PKG_VERSION: "latest"
   DD_PKG_GITLAB_URL: "https://artifact-gateway.us1.ddbuild.io/internal/artifact-gateway/api/v4"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
 
@@ -375,6 +375,7 @@ workflow:
     - <<: *if_triggered_pipeline
     - <<: *if_main_branch
       variables:
+        BAZEL_CACHE_POLICY_SUFFIX: "-push"
         GO_TEST_SKIP_FLAKE: "false"
     - <<: *if_release_branch
     - <<: *if_deploy
@@ -510,6 +511,14 @@ workflow:
       <<: *artifacts_build_impacting_paths
       compare_to: $COMPARE_TO_BRANCH
 
+.on_dev_branches_with_artifact_changes_manual:
+  - !reference [.on_dev_branches]
+  - changes:
+      <<: *artifacts_build_impacting_paths
+      compare_to: $COMPARE_TO_BRANCH
+    when: manual
+    allow_failure: true
+
 .on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy
     when: always
@@ -547,9 +556,6 @@ workflow:
     when: never
   - <<: *if_installer_tests
   - <<: *on_build_changes
-  - <<: *if_auto_e2e_tests
-    variables:
-      E2E_DESCRIPTORS: $E2E_BRANCH_DESCRIPTORS
 
 .security_agent_change_paths: &security_agent_change_paths
   - pkg/ebpf/**/*
@@ -989,9 +995,9 @@ workflow:
         - pkg/clusteragent/admission/controllers/webhook/**/*
         - comp/core/workloadmeta/collectors/internal/kubeapiserver/**/*
         - comp/languagedetection/**/*
+        - pkg/ssi/**/*
         - test/new-e2e/tests/ssi/**/*
       compare_to: $COMPARE_TO_BRANCH
-    when: on_success
 
 .on_windows_service_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
