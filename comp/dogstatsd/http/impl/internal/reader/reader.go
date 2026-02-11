@@ -13,8 +13,8 @@ import (
 	"math"
 	"slices"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	agentpayload "github.com/DataDog/agent-payload/v5/gogen"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/dogstatsdhttp"
 )
 
@@ -77,7 +77,7 @@ type MetricDataReader struct {
 // NewMetricDataReader creates new reader from data.
 func NewMetricDataReader(data *pb.MetricData) *MetricDataReader {
 	return &MetricDataReader{
-		data:      data,
+		data: data,
 	}
 }
 
