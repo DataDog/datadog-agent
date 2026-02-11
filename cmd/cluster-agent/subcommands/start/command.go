@@ -557,8 +557,6 @@ func start(log log.Component,
 		} else {
 			defer drain()
 		}
-	} else {
-		log.Info("Private action runner is disabled")
 	}
 
 	if config.GetBool("admission_controller.enabled") {
