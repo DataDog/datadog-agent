@@ -601,8 +601,6 @@ var (
 	//   - "logs_config.additional_endpoints"
 	//   - "logs_config.additional_endpoints.url"
 	//   - ...
-	//
-	// NOTE: The config API no longer restricts which paths are readable (mTLS is enforced). This allowlist is only for secret refresh.
 	allowListPaths = []string{
 		"api_key",
 		"app_key",

@@ -94,8 +94,7 @@ func TestConfigEndpoint(t *testing.T) {
 	t.Run("not_marshallable", func(t *testing.T) {
 		configName := "my.config.value"
 		cfg, _, _ := getConfigServer(t)
-		cfg.SetWithoutSource(configName, "ok")
-		cfg.SetKnown(configName) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+		cfg.SetKnown(configName) //nolint:forbidigo // testing behavior
 		// calling SetWithoutSource with an invalid type of data will panic
 		assert.Panics(t, func() { cfg.SetWithoutSource(configName, make(chan int)) })
 	})
