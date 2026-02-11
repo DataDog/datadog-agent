@@ -1,3 +1,5 @@
+"""BUILD for openscap."""
+
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
@@ -5,17 +7,60 @@ load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 
-package(default_package_metadata = [":license"])
+package(
+    default_package_metadata = [":package_metadata"],
+    default_visibility = [
+        "@@//compliance:__subpackages__",
+        "@@//deps/openscap:__pkg__",
+        "@@//packages:__subpackages__",
+    ],
+)
+
+VERSION = "1.4.3"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        package = "openscap",
+        version = VERSION,
+        download_url = "https://github.com/OpenSCAP/openscap/releases/download/{version}/openscap-{version}.tar.gz",
+    ),
+)
 
 license(
     name = "license",
-    license_kinds = ["@rules_license//licenses/spdx:LGPL-2.1"],
+    license_kinds = ["@rules_license//licenses/spdx:LGPL-3.0-or-later"],
     license_text = "COPYING",
     visibility = ["//visibility:public"],
 )
 
-VERSION = "1.4.2"
+# This is temporary. Eventually there will be a cc_library for openscap.
+filegroup(
+    name = "all_deps",
+    srcs = [
+        "@libyaml",
+        "@lua//:liblua",
+        "@acl",
+        "@attr",
+        "@bzip2//:bz2",
+        "@gcrypt",
+        "@gpg-error",
+        "@libpcap//:pcap",
+        "@libsepol//:sepol",
+        "@libxml2",
+        "@libxslt",
+        "@nghttp2",
+        "@pcre2//:pcre2-8",
+        "@popt",
+        "@zstd",
+    ],
+)
 
 FAKE_PREFIX = "/opt/datadog-agent/embedded/"
 
