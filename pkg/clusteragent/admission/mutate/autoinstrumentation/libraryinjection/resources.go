@@ -54,14 +54,18 @@ type computeResourceRequirementsOpts struct {
 	enforceMinimumsOnConfigured bool
 }
 
-func computeResourceRequirements(pod *corev1.Pod, defaultRequirements map[corev1.ResourceName]resource.Quantity, opts computeResourceRequirementsOpts) ResourceRequirementsResult {
+// ComputeInitContainerResourceRequirements computes the resource requirements for init containers given minimum CPU and memory limits.
+//
+// If enforceMinimumsOnConfigured is true, then when a configured value for defaultRequirements is below the corresponding minimum,
+// injection should be skipped (ShouldSkip=true) and Message will describe the mismatch.
+func ComputeInitContainerResourceRequirements(pod *corev1.Pod, defaultRequirements map[corev1.ResourceName]resource.Quantity, minCPULimit resource.Quantity, minMemoryLimit resource.Quantity, enforceMinimumsOnConfigured bool) ResourceRequirementsResult {
 	requirements := corev1.ResourceRequirements{
 		Limits:   corev1.ResourceList{},
 		Requests: corev1.ResourceList{},
 	}
 
 	podRequirements := PodSumResourceRequirements(pod)
-	baseMessage := "The overall pod's containers limit is too low for " + opts.mode + " injection"
+	baseMessage := "The overall pod's containers limit is too low for injection"
 	var insufficientResourcesMessage strings.Builder
 	insufficientResourcesMessage.WriteString(baseMessage)
 	shouldSkip := false
@@ -70,16 +74,16 @@ func computeResourceRequirements(pod *corev1.Pod, defaultRequirements map[corev1
 		min := resource.Quantity{}
 		switch k {
 		case corev1.ResourceCPU:
-			min = opts.minCPU
+			min = minCPULimit
 		case corev1.ResourceMemory:
-			min = opts.minMem
+			min = minMemoryLimit
 		}
 
 		// If a resource quantity was set in config, use it.
 		if q, ok := defaultRequirements[k]; ok {
 			requirements.Limits[k] = q
 			requirements.Requests[k] = q
-			if opts.enforceMinimumsOnConfigured && min.Cmp(q) == 1 {
+			if enforceMinimumsOnConfigured && min.Cmp(q) == 1 {
 				shouldSkip = true
 				_, _ = fmt.Fprintf(&insufficientResourcesMessage, ", %v configured=%v needed=%v", k, q.String(), min.String())
 			}
@@ -110,43 +114,6 @@ func computeResourceRequirements(pod *corev1.Pod, defaultRequirements map[corev1
 		Requirements: requirements,
 		ShouldSkip:   false,
 		Message:      "",
-	}
-}
-
-// ComputeInitContainerResourceRequirements computes the resource requirements for init containers for a given
-// injection mode.
-//
-// init_container and image_volume are the only relevant modes.
-func ComputeInitContainerResourceRequirements(pod *corev1.Pod, defaultRequirements map[corev1.ResourceName]resource.Quantity, mode InjectionMode) ResourceRequirementsResult {
-	switch mode {
-	case InjectionModeInitContainer:
-		return computeResourceRequirements(pod, defaultRequirements, computeResourceRequirementsOpts{
-			minCPU: MinimumCPULimit,
-			minMem: MinimumMemoryLimit,
-			mode:   string(mode),
-			// TODO: Consider enforcing minimums even when init_resources are explicitly configured, for parity with
-			// image_volume injection. This would be a behavior change; we may want to gate it behind a config flag or
-			// introduce a deprecation period.
-			enforceMinimumsOnConfigured: false,
-		})
-	case InjectionModeImageVolume:
-		return computeResourceRequirements(pod, defaultRequirements, computeResourceRequirementsOpts{
-			minCPU:                      MinimumMicroCPULimit,
-			minMem:                      MinimumMicroMemoryLimit,
-			mode:                        string(mode),
-			enforceMinimumsOnConfigured: true,
-		})
-	default:
-		// For irrelevant modes, return "do not skip" with empty requirements.
-		// Callers should pass a concrete mode, but this makes the API safe-by-default.
-		return ResourceRequirementsResult{
-			Requirements: corev1.ResourceRequirements{
-				Limits:   corev1.ResourceList{},
-				Requests: corev1.ResourceList{},
-			},
-			ShouldSkip: false,
-			Message:    "",
-		}
 	}
 }
 

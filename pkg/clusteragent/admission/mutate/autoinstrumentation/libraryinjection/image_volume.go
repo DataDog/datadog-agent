@@ -16,7 +16,8 @@ import (
 const (
 	// librarySubPath is the path where the library files are stored in the library image.
 	// See library Dockerfile: https://github.com/DataDog/libdatadog-build/blob/f2325768e60d6bb02e8467f5321b6f9fa10ff850/scripts/lib-injection/Dockerfile.
-	librarySubPath = "datadog-init/package"
+	librarySubPath                   = "datadog-init/package"
+	InjectLDPreloadInitContainerName = "datadog-apm-inject-preload"
 )
 
 type ImageVolumeProvider struct {
@@ -31,7 +32,7 @@ func NewImageVolumeProvider(cfg LibraryInjectionConfig) *ImageVolumeProvider {
 
 func (p *ImageVolumeProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig) MutationResult {
 	// Validate that the pod has sufficient resources for the micro init container.
-	result := ComputeInitContainerResourceRequirements(pod, p.cfg.DefaultResourceRequirements, InjectionModeImageVolume)
+	result := ComputeInitContainerResourceRequirements(pod, p.cfg.DefaultResourceRequirements, MinimumMicroCPULimit, MinimumMicroMemoryLimit, true)
 	if result.ShouldSkip {
 		return MutationResult{
 			Status: MutationStatusSkipped,
@@ -68,7 +69,7 @@ func (p *ImageVolumeProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig
 
 	// Init container to copy the ld.so.preload file into /etc/ld.so.preload.
 	patcher.AddInitContainer(corev1.Container{
-		Name:  "copy-ld-so-preload",
+		Name:  InjectLDPreloadInitContainerName,
 		Image: cfg.Package.FullRef(),
 		VolumeMounts: []corev1.VolumeMount{
 			injectorMount,

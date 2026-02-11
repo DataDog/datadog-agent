@@ -62,7 +62,7 @@ func TestImageVolumeProvider_InjectInjector(t *testing.T) {
 
 	// Verify init container was added.
 	require.Len(t, pod.Spec.InitContainers, 1)
-	assert.Equal(t, "copy-ld-so-preload", pod.Spec.InitContainers[0].Name)
+	assert.Equal(t, libraryinjection.InjectLDPreloadInitContainerName, pod.Spec.InitContainers[0].Name)
 
 	// Verify volume mounts were added to the application container.
 	require.Len(t, pod.Spec.Containers, 1)
