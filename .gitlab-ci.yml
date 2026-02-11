@@ -438,6 +438,7 @@ workflow:
   - changes:
       paths:
         - .gitlab/deploy/internal_image_deploy/internal_image_deploy.yml
+        - Dockerfiles/**/*
       compare_to: $COMPARE_TO_BRANCH
     variables:
       RELEASE_PROD: "false"
