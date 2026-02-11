@@ -320,10 +320,9 @@ if windows_target?
     "#{install_dir}\\bin\\agent\\trace-agent.exe",
     "#{install_dir}\\bin\\agent\\process-agent.exe",
     "#{install_dir}\\bin\\agent\\system-probe.exe",
+    "#{install_dir}\\bin\\agent\\secret-generic-connector.exe",
     "#{install_dir}\\datadog-installer.exe"
   ]
-
-  GO_BINARIES << "#{install_dir}\\bin\\agent\\secret-generic-connector.exe"
 
   if not fips_mode?
     # TODO(ACTP-XXX): PAR is not enabled in Gov yet
