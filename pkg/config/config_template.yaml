@@ -827,7 +827,8 @@ api_key:
 ## integrations and affect their behavior if they rely on the psutil python package.
 #
 # procfs_path: <PROCFS_PATH>
-{{ if .Python }}
+
+{{ if .CoreAgent -}}
 ## @param disable_py3_validation - boolean - optional - default: false
 ## @env DD_DISABLE_PY3_VALIDATION - boolean - optional - default: false
 ## Disable Python3 validation of python checks.
@@ -1019,8 +1020,8 @@ api_key:
 #   <Kubernetes image name>:
 #     - "<full secret handle>"
 #     - ...
-
 {{ if (eq .OS "windows") }}
+
 #####################################################
 ## Datadog Agent Manager System Tray Configuration ##
 #####################################################
@@ -1036,7 +1037,8 @@ api_key:
 #   log_file: <TRAY_LOG_FILE_PATH>
 {{ end -}}
 {{ end -}}
-{{ if .LogsAgent }}
+
+{{- if .LogsAgent }}
 ##################################
 ## Log collection Configuration ##
 ##################################
@@ -1720,7 +1722,7 @@ api_key:
 #
 #   # additional_profile_tags: {}
 {{ end -}}
-{{ if .ProcessAgent }}
+{{ if .CoreAgent }}
 ######################################
 ## Process Collection Configuration ##
 ######################################
@@ -1866,9 +1868,7 @@ api_key:
 #   # Disable realtime process and container checks
 #
 #   disable_realtime_checks: false
-
-{{ if .NetworkPath -}}
-{{ if (ne .OS "darwin") -}}
+{{ if (ne .OS "darwin") }}
 
 #############################################
 ## Network Path Dynamic Test Configuration ##
@@ -1990,12 +1990,8 @@ api_key:
 #     # The maximum number of pathtest contexts that can be maintained.
 #
 #     pathtest_contexts_limit: 1000
+{{- end }}
 
-{{ end -}}
-{{ end -}}
-{{ end -}}
-
-{{ if .Synthetics -}}
 ########################################
 ## Synthetics Configuration           ##
 ########################################
@@ -2027,9 +2023,6 @@ api_key:
 #
 #     flush_interval: 10s
 
-{{ end -}}
-
-{{ if .Compliance -}}
 #############################################
 ## Security Agent Compliance Configuration ##
 #############################################
@@ -2059,9 +2052,7 @@ api_key:
 #   # @env DD_COMPLIANCE_CONFIG_CHECK_MAX_EVENTS_PER_RUN - integer - optional - default: 100
 #   #
 #   check_max_events_per_run: 100
-{{ end -}}
 
-{{ if .SBOM -}}
 ## @param sbom - custom object - optional
 ## Enter specific configuration for the Cloud Security Management Vulnerability Management feature
 # sbom:
@@ -2301,7 +2292,7 @@ api_key:
 #
 # statsd_metric_namespace: ""
 {{ end -}}
-{{ if .Metadata }}
+{{ if .Agent }}
 ## @param metadata_providers - list of custom object - optional
 ## @env DD_METADATA_PROVIDERS - list of custom object - optional
 ## Metadata providers, add or remove from the list to enable or disable collection.
@@ -2312,7 +2303,7 @@ api_key:
 #   - name: k8s
 #     interval: 60
 {{ end -}}
-{{ if .JMX }}
+{{ if .CoreAgent }}
 #######################
 ## JMX Configuration ##
 #######################
@@ -2516,7 +2507,7 @@ api_key:
 #
 # log_all_goroutines_when_unhealthy: false
 {{ end -}}
-{{ if .Autoconfig }}
+{{ if .CoreAgent }}
 ##############################
 ## Autoconfig Configuration ##
 ##############################
@@ -2628,8 +2619,7 @@ api_key:
 #   - kubernetes
 #   - orchestratorexplorer
 #   - podman
-{{ end -}}
-{{ if .Autodiscovery }}
+
 ###########################################
 ## Container Autodiscovery Configuration ##
 ###########################################
@@ -3548,7 +3538,7 @@ api_key:
 # kubernetes_ad_tags_disabled:
 #   - kube_service
 {{ end -}}
-{{ if .PrometheusScrape }}
+{{ if .CoreAgent }}
 ## @param prometheus_scrape - custom object - optional
 ## This section configures the Autodiscovery based on the Prometheus annotations
 #
@@ -3574,7 +3564,7 @@ api_key:
 #
 #   version: 1
 {{ end -}}
-{{ if .CloudFoundryBBS }}
+{{ if .CloudFoundry }}
 #######################################################
 ## Cloud Foundry BBS Configuration for Autodiscovery ##
 #######################################################
@@ -3626,8 +3616,7 @@ api_key:
 #   # List of regular expressions to forbid a set of environment variables to be included as container tags
 #
 #   env_exclude: []
-{{ end -}}
-{{ if .CloudFoundryCC }}
+
 ####################################################################
 ## Cloud Foundry Cloud Controller Configuration for Autodiscovery ##
 ####################################################################
@@ -3675,7 +3664,7 @@ api_key:
 #
 #   apps_batch_size: 5000
 {{ end -}}
-{{ if .SNMP }}
+{{ if .CoreAgent }}
 ###################################
 ## Network Devices Configuration ##
 ###################################
@@ -4251,8 +4240,7 @@ api_key:
 ## meaning that, one Agent within this group is designated as primary and others as standby.
 #
 # config_id:
-{{ end -}}
-{{ if .OTLP }}
+
 ###################################
 ## OpenTelemetry Configuration   ##
 ###################################
