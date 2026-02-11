@@ -78,7 +78,7 @@ func (s *server) start(ctx context.Context) error {
 	addr := s.config.GetString("dogstatsd_experimental_http.listen_address")
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
-		return fmt.Errorf("failed to create dogstatsd http server on %q: %w", err)
+		return fmt.Errorf("failed to create dogstatsd http server on %q: %w", addr, err)
 	}
 
 	s.log.Debugf("starting dogstatsd http server on %q", addr)
