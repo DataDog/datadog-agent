@@ -62,7 +62,10 @@ var controllerCatalog = map[controllerName]controllerFuncs{
 		registerEndpointsInformer,
 	},
 	endpointSlicesControllerName: {
-		func() bool { return pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") },
+		func() bool {
+			return pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") &&
+				pkgconfigsetup.Datadog().GetBool("kubernetes_use_endpoint_slices")
+		},
 		registerEndpointSlicesInformer,
 	},
 	crdControllerName: {
