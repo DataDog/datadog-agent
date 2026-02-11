@@ -604,8 +604,8 @@ so_symlink(
 
 so_symlink(
     name = "libopenscap_sce_symlink",
-    src = ":openscap",
-    libname = "libopenscap",
+    src = ":openscap_sce",
+    libname = "libopenscap_sce",
     version = "33.1.2",
 )
 
