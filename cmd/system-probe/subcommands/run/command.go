@@ -10,11 +10,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	_ "net/http/pprof" // activate pprof profiling
 	"os"
 	"os/signal"
 	"os/user"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -29,6 +31,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
+	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
+	configstreamconsumerimpl "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/impl"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
@@ -40,6 +45,7 @@ import (
 	systemprobeloggerfx "github.com/DataDog/datadog-agent/comp/core/log/fx-systemprobe"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
+	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
 	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-systemprobe"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
@@ -71,7 +77,6 @@ import (
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	systemprobeconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/coredump"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -83,7 +88,8 @@ import (
 // ErrNotEnabled represents the case in which system-probe is not enabled
 var ErrNotEnabled = errors.New("system-probe not enabled")
 
-const configPrefix = systemprobeconfig.Namespace + "."
+// configPrefix is the system-probe config namespace (avoids importing pkg/system-probe/config and its setup dependency cycle).
+const configPrefix = "system_probe_config."
 
 type cliParams struct {
 	*command.GlobalParams
@@ -171,6 +177,34 @@ func getSharedFxOption() fx.Option {
 		remotehostnameimpl.Module(),
 		configsyncimpl.Module(configsyncimpl.NewParams(configSyncTimeout, true, configSyncTimeout)),
 		remoteagentfx.Module(),
+		// SessionIDProvider from RAR: only system-probe's remote agent implements this.
+		fx.Provide(func(ra remoteagent.Component) configstreamconsumerimpl.SessionIDProvider {
+			if ra == nil {
+				return nil
+			}
+			if p, ok := ra.(configstreamconsumerimpl.SessionIDProvider); ok {
+				return p
+			}
+			return nil
+		}),
+		// Config stream consumer Params. When SessionIDProvider is nil (RAR disabled), consumer returns empty.
+		fx.Provide(func(c config.Component, deps struct {
+			fx.In
+			SessionProvider configstreamconsumerimpl.SessionIDProvider `optional:"true"`
+		}) configstreamconsumerimpl.Params {
+			host := c.GetString("cmd_host")
+			port := c.GetInt("cmd_port")
+			if port <= 0 {
+				port = 5001
+			}
+			return configstreamconsumerimpl.Params{
+				ClientName:        "system-probe",
+				CoreAgentAddress:  net.JoinHostPort(host, strconv.Itoa(port)),
+				SessionIDProvider: deps.SessionProvider,
+				ConfigWriter:      c,
+			}
+		}),
+		configstreamconsumerfx.Module(),
 		fxinstrumentation.Module(),
 		localtraceroute.Module(),
 		connectionsforwarderfx.Module(),
@@ -181,6 +215,13 @@ func getSharedFxOption() fx.Option {
 	)
 }
 
+// configStreamReadyTimeout is how long to wait for the initial config snapshot before failing startup.
+const configStreamReadyTimeout = 60 * time.Second
+
+// configStreamReadyTimeoutForTest overrides the timeout when set (e.g. by integration tests).
+// It is only set from test code to keep tests fast.
+var configStreamReadyTimeoutForTest time.Duration
+
 // run starts the main loop.
 func run(
 	_ config.Component,
@@ -190,9 +231,25 @@ func run(
 	_ autoexit.Component,
 	settings settings.Component,
 	_ ipc.Component,
+	cfgStream configstreamconsumer.Component,
 	deps module.FactoryDependencies,
 ) error {
 	defer stopSystemProbe()
+
+	// When config streaming is in use (RAR enabled), block until the initial snapshot is received.
+	if cfgStream != nil {
+		timeout := configStreamReadyTimeout
+		if configStreamReadyTimeoutForTest != 0 {
+			timeout = configStreamReadyTimeoutForTest
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		deps.Log.Info("Waiting for initial configuration from core agent...")
+		if err := cfgStream.WaitReady(ctx); err != nil {
+			return fmt.Errorf("waiting for initial config snapshot: %w", err)
+		}
+		deps.Log.Info("Initial configuration received, starting system-probe")
+	}
 
 	if deps.SysprobeConfig.GetBool("system_probe_config.disable_thp") {
 		if err := ddruntime.DisableTransparentHugePages(); err != nil {
