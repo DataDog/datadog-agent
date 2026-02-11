@@ -411,9 +411,8 @@ unsafe fn free_dd_service(service: &dd_service) {
 unsafe fn free_dd_str(s: &dd_str) {
     if !s.data.is_null() {
         // SAFETY: Caller guarantees this came from `Box::into_raw(boxed_slice)`.
-        let boxed =
+        let _boxed =
             unsafe { Box::from_raw(ptr::slice_from_raw_parts_mut(s.data as *mut u8, s.len)) };
-        drop(boxed);
     }
 }
 
@@ -434,7 +433,6 @@ unsafe fn free_dd_strs(s: &dd_strs) {
                 free_dd_str(s);
             }
         }
-        drop(strs);
     }
 }
 
@@ -445,9 +443,8 @@ unsafe fn free_dd_strs(s: &dd_strs) {
 unsafe fn free_dd_u16_slice(s: &dd_u16_slice) {
     if !s.data.is_null() {
         // SAFETY: Caller guarantees this came from `Box::into_raw`.
-        let boxed =
+        let _boxed =
             unsafe { Box::from_raw(ptr::slice_from_raw_parts_mut(s.data as *mut u16, s.len)) };
-        drop(boxed);
     }
 }
 
@@ -490,7 +487,6 @@ unsafe fn free_dd_tracer_metadata_slice(s: &dd_tracer_metadata_slice) {
                 free_dd_tracer_metadata(metadata);
             }
         }
-        drop(metadata_slice);
     }
 }
 
