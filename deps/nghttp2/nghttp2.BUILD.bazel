@@ -110,7 +110,7 @@ cc_library(
 
 cc_shared_library(
     name = "nghttp2_shared",
-    shared_lib_name = "nghttp2.so.%s" % SO_VERSION,
+    shared_lib_name = "libnghttp2.so.%s" % SO_VERSION,
     deps = ["nghttp2"],
     visibility = ["//visibility:public"],
 )
