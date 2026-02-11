@@ -67,11 +67,11 @@ type context struct {
 	Synthetics                       bool
 }
 
-func mkContext(buildType string) context {
+func mkContext(buildType string, osName string) context {
 	buildType = strings.ToLower(buildType)
 
 	agentContext := context{
-		OS:                runtime.GOOS,
+		OS:                osName,
 		Common:            true,
 		Agent:             true,
 		Python:            true,
@@ -106,7 +106,7 @@ func mkContext(buildType string) context {
 		return agentContext
 	case "iot-agent":
 		return context{
-			OS:        runtime.GOOS,
+			OS:        osName,
 			Common:    true,
 			Agent:     true,
 			Metadata:  true,
@@ -116,7 +116,7 @@ func mkContext(buildType string) context {
 		}
 	case "system-probe":
 		return context{
-			OS:                               runtime.GOOS,
+			OS:                               osName,
 			SystemProbe:                      true,
 			NetworkModule:                    true,
 			UniversalServiceMonitoringModule: true,
@@ -127,7 +127,7 @@ func mkContext(buildType string) context {
 		}
 	case "dogstatsd":
 		return context{
-			OS:                runtime.GOOS,
+			OS:                osName,
 			Common:            true,
 			Dogstatsd:         true,
 			DockerTagging:     true,
@@ -139,7 +139,7 @@ func mkContext(buildType string) context {
 		}
 	case "dca":
 		return context{
-			OS:                  runtime.GOOS,
+			OS:                  osName,
 			ClusterAgent:        true,
 			Common:              true,
 			Logging:             true,
@@ -149,7 +149,7 @@ func mkContext(buildType string) context {
 		}
 	case "dcacf":
 		return context{
-			OS:              runtime.GOOS,
+			OS:              osName,
 			ClusterAgent:    true,
 			Common:          true,
 			Logging:         true,
@@ -159,7 +159,7 @@ func mkContext(buildType string) context {
 		}
 	case "security-agent":
 		return context{
-			OS:            runtime.GOOS,
+			OS:            osName,
 			SecurityAgent: true,
 		}
 	}
@@ -167,23 +167,16 @@ func mkContext(buildType string) context {
 	return context{}
 }
 
-func main() {
-	if len(os.Args[1:]) != 3 {
-		panic("please use 'go run render_config.go <component_name> <template_file> <destination_file>'")
-	}
-
-	component := os.Args[1]
-	tplFile, _ := filepath.Abs(os.Args[2])
-	tplFilename := filepath.Base(tplFile)
-	destFile, _ := filepath.Abs(os.Args[3])
-
+func render(destFile string, tplFile string, component string, osName string) {
 	f, err := os.Create(destFile)
 	if err != nil {
 		panic(err)
 	}
 
+	tplFilename := filepath.Base(tplFile)
+
 	t := template.Must(template.New(tplFilename).ParseFiles(tplFile))
-	err = t.Execute(f, mkContext(component))
+	err = t.Execute(f, mkContext(component, osName))
 	if err != nil {
 		panic(err)
 	}
@@ -191,7 +184,40 @@ func main() {
 	if err := f.Close(); err != nil {
 		panic(err)
 	}
+}
 
+func renderAll(destFolder string, tplFile string) {
+	for _, component := range []string{
+		"agent-py3",
+		"iot-agent",
+		"system-probe",
+		"dogstatsd",
+		"dca",
+		"dcacf",
+		"security-agent",
+	} {
+		for _, osName := range []string{"windows", "darwin", "linux"} {
+			destFile := filepath.Join(destFolder, component+"_"+osName+".yaml")
+			render(destFile, tplFile, component, osName)
+			fmt.Println("Successfully wrote", destFile)
+		}
+	}
+}
+
+func main() {
+	if len(os.Args) == 3 {
+		renderAll(os.Args[1], os.Args[2])
+		return
+	}
+	if len(os.Args) != 4 {
+		panic("please use 'go run render_config.go <component_name> <template_file> <destination_file>'\nOr `go run render_config.go <dest_folder> <template_foler>` to generate all possible templates")
+	}
+
+	component := os.Args[1]
+	tplFile, _ := filepath.Abs(os.Args[2])
+	destFile, _ := filepath.Abs(os.Args[3])
+
+	render(destFile, tplFile, component, runtime.GOOS)
 	if err := lint(destFile); err != nil {
 		panic(err)
 	}
