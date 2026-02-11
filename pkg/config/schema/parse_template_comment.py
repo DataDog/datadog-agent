@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import sys
 import yaml
 from pprint import pprint
@@ -161,7 +163,7 @@ class Parser(object):
                 new_block = self.handle_template_section(line)
                 continue
 
-            if line != "" and not new_block:
+            if line != "":
                 block.append(line)
             else:
                 if len(block) == 0:

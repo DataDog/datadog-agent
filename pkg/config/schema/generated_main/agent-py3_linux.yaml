@@ -1854,8 +1854,6 @@
 #   # Example using environment variables:
 #   # DD_APM_ADDITIONAL_PROFILE_TAGS='{"_dd.origin":"appservice","secondtag":"custom"}'
 #
-#   ## DD_APM_ADDITIONAL_PROFILE_TAGS='{"_dd.origin":"appservice","secondtag":"custom"}'
-#
 #   # additional_profile_tags: {}
 
 ######################################

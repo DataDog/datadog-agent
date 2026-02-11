@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import yaml
 import sys
 import re
@@ -157,35 +159,22 @@ build_type_to_section = {
     "agent-py3": [
         "Common",
         "Agent",
-        "Python",
-        "Metadata",
+        "CoreAgent",
         "Dogstatsd",
         "LogsAgent",
-        "JMX",
-        "Autoconfig",
         "Logging",
-        "Autodiscovery",
         "DockerTagging",
         "KubernetesTagging",
         "ECS",
         "Containerd",
         "CRI",
-        "ProcessAgent",
         "TraceAgent",
         "Kubelet",
         "KubeApiServer",
-        "Compliance",
-        "SBOM",
-        "SNMP",
-        "PrometheusScrape",
-        "OTLP",
-        "NetworkPath",
-        "Synthetics",
         ],
     "iot-agent": [
         "Common",
         "Agent",
-        "Metadata",
         "Dogstatsd",
         "LogsAgent",
         "Logging",
@@ -218,11 +207,7 @@ build_type_to_section = {
         "Common",
         "Logging",
         "ClusterChecks",
-        "CloudFoundryBBS",
-        "CloudFoundryCC",
-        ],
-    "security-agent": [
-        "SecurityAgent",
+        "CloudFoundry",
         ],
 }
 
@@ -233,12 +218,25 @@ def should_render(build_type, node):
             return section in build_type_to_section[build_type]
     return True
 
+def filter_hidden_nodes(nodes, os_target):
+    to_delete = []
+    for name, node in nodes.items():
+        if node.get("visibility", "") != "public":
+            to_delete.append(name)
+
+        for tag in node.get("tags", []):
+            if tag.startswith("platform_only:") and tag != "platform_only:"+ os_target:
+                to_delete.append(name)
+
+    for name in to_delete:
+        del nodes[name]
+
+    return nodes
+
 def order_items(nodes):
     res = []
-    for name, item in nodes.items():
-        if item.get("visibility", "") != "public":
-            continue
-        tags = item.get("tags", [])
+    for name, node in nodes.items():
+        tags = node.get("tags", [])
         for tag in tags:
             if tag.startswith("template_section_order:"):
                 template_order = tag.split(":")[1]
@@ -247,7 +245,7 @@ def order_items(nodes):
             print(f"error: {name} is public but has no template order")
             continue
 
-        res.append((int(template_order), (name, item)))
+        res.append((int(template_order), (name, node)))
 
     return [x[1] for x in sorted(res, key=lambda x: x[0])]
 
@@ -408,7 +406,8 @@ def render(build_type, os_target, previous_path, name, node, indent_level):
 
     template = render_node(full_name, name, node, indent_level, os_target)
 
-    for child_name, child in order_items(node.get("properties", {})):
+    child_nodes = filter_hidden_nodes(node.get("properties", {}), os_target)
+    for child_name, child in order_items(child_nodes):
         template += render(build_type, os_target, full_name, child_name, child, indent_level+1)
 
     header = get_header(node)
@@ -426,7 +425,8 @@ if __name__ == "__main__":
     build_type = sys.argv[3]
     os_target = sys.argv[4]
     config_template =""
-    for child_name, child in order_items(schema.get("properties", [])):
+    child_nodes = filter_hidden_nodes(schema.get("properties", {}), os_target)
+    for child_name, child in order_items(child_nodes):
         config_template += render(build_type, os_target, "", child_name, child, 0)
 
     with open(sys.argv[2], "w") as f:

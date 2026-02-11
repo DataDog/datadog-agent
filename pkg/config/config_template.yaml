@@ -1891,10 +1891,9 @@
 #   # Example using environment variables:
 #   # DD_APM_ADDITIONAL_PROFILE_TAGS='{"_dd.origin":"appservice","secondtag":"custom"}'
 #
-#   ## DD_APM_ADDITIONAL_PROFILE_TAGS='{"_dd.origin":"appservice","secondtag":"custom"}'
-#
-#   # additional_profile_tags: {}
+#   additional_profile_tags: {}
 {{ end -}}
+
 {{ if .CoreAgent }}
 ######################################
 ## Process Collection Configuration ##
@@ -2311,9 +2310,15 @@
 #     enabled: false
 
 {{ if (eq .OS "linux") -}}
-
+#   # @param container_image - custom object - optional
+#
 #   container_image:
+
+#     # @param enabled - boolean - optional - default: false
+#     # @env DD_SBOM_CONTAINER_IMAGE_ENABLED - boolean - optional - default: false
+#
 #     enabled: false
+
 {{ end -}}
 {{ end -}}
 {{ if .Dogstatsd }}
@@ -2539,6 +2544,7 @@
 ## Each metric received is prefixed with the namespace before it's sent to Datadog.
 #
 # statsd_metric_namespace: ""
+
 {{ end -}}
 {{ if .Agent }}
 ## @param metadata_providers - list of custom object - optional
@@ -2550,6 +2556,7 @@
 # metadata_providers:
 #   - name: k8s
 #     interval: 60
+
 {{ end -}}
 {{ if .CoreAgent }}
 #######################
@@ -2757,6 +2764,7 @@
 #
 # log_all_goroutines_when_unhealthy: false
 {{ end -}}
+
 {{ if .CoreAgent }}
 ##############################
 ## Autoconfig Configuration ##
@@ -3790,7 +3798,8 @@
 #
 # kubernetes_ad_tags_disabled:
 #   - kube_service
-{{ end -}}
+{{- end }}
+
 {{ if .CoreAgent }}
 ## @param prometheus_scrape - custom object - optional
 ## This section configures the Autodiscovery based on the Prometheus annotations
@@ -3921,6 +3930,7 @@
 #
 #   apps_batch_size: 5000
 {{ end -}}
+
 {{ if .CoreAgent }}
 ###################################
 ## Network Devices Configuration ##
