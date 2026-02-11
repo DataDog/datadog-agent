@@ -27,7 +27,6 @@ type context struct {
 	Agent                            bool
 	Python                           bool // Sub-option of Agent
 	Metadata                         bool
-	InternalProfiling                bool
 	Dogstatsd                        bool
 	LogsAgent                        bool
 	JMX                              bool
@@ -76,7 +75,6 @@ func mkContext(buildType string, osName string) context {
 		Agent:             true,
 		Python:            true,
 		Metadata:          true,
-		InternalProfiling: false, // NOTE: hidden for now
 		Dogstatsd:         true,
 		LogsAgent:         true,
 		JMX:               true,

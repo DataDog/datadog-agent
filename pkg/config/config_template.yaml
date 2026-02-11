@@ -1019,30 +1019,7 @@ api_key:
 #   <Kubernetes image name>:
 #     - "<full secret handle>"
 #     - ...
-#
-{{ if .InternalProfiling -}}
-## @param profiling - custom object - optional
-## Enter specific configurations for internal profiling.
-##
-## Please note that:
-##   1. This does *not* enable profiling for user applications.
-##   2. This only enables internal profiling of the agent go runtime.
-##   3. To enable profiling for user apps please refer to
-##      https://docs.datadoghq.com/tracing/profiling/
-##   4. Enabling this feature will incur in billing charges and other
-##      unexpected side-effects (ie. agent profiles showing with your
-##      services).
-##
-## Uncomment this parameter and the one below to enable profiling.
-#
-# internal_profiling:
-#
-#   # @param enabled - boolean - optional - default: false
-#   # @env DD_INTERNAL_PROFILING_ENABLED - boolean - optional - default: false
-#   # Enable internal profiling for the Agent process.
-#
-#   enabled: false
-{{ end -}}
+
 {{ if (eq .OS "windows") }}
 #####################################################
 ## Datadog Agent Manager System Tray Configuration ##
@@ -1742,29 +1719,6 @@ api_key:
 #   ## DD_APM_ADDITIONAL_PROFILE_TAGS='{"_dd.origin":"appservice","secondtag":"custom"}'
 #
 #   # additional_profile_tags: {}
-{{ if .InternalProfiling }}
-#   # @param profiling - custom object - optional
-#   # Enter specific configurations for internal profiling.
-#   #
-#   # Please note that:
-#   #   1. This does *not* enable profiling for user applications.
-#   #   2. This only enables internal profiling of the agent go runtime.
-#   #   3. To enable profiling for user apps please refer to
-#   #      https://docs.datadoghq.com/tracing/profiling/
-#   #   4. Enabling this feature will incur in billing charges and other
-#   #      unexpected side-effects (ie. agent profiles showing with your
-#   #      services).
-#   #
-#   # Uncomment this parameter and the one below to enable profiling.
-#
-#   internal_profiling:
-#
-#     # @param enabled - boolean - optional - default: false
-#     # @env DD_INTERNAL_PROFILING_ENABLED - boolean - optional - default: false
-#     # Enable internal profiling for the trace-agent process.
-#
-#     enabled: false
-{{ end -}}
 {{ end -}}
 {{ if .ProcessAgent }}
 ######################################
@@ -1912,31 +1866,6 @@ api_key:
 #   # Disable realtime process and container checks
 #
 #   disable_realtime_checks: false
-
-{{ if .InternalProfiling -}}
-#   # @param profiling - custom object - optional
-#   # Enter specific configurations for internal profiling.
-#   #
-#   # Please note that:
-#   #   1. This does *not* enable profiling for user applications.
-#   #   2. This only enables internal profiling of the agent go runtime.
-#   #   3. To enable profiling for user apps please refer to
-#   #      https://docs.datadoghq.com/tracing/profiling/
-#   #   4. Enabling this feature will incur in billing charges and other
-#   #      unexpected side-effects (ie. agent profiles showing with your
-#   #      services).
-#   #
-#   # Uncomment this parameter and the one below to enable profiling.
-#
-#   internal_profiling:
-#
-#   # @param enabled - boolean - optional - default: false
-#   # @env DD_INTERNAL_PROFILING_ENABLED - boolean - optional - default: false
-#   # Enable internal profiling for the Process Agent process.
-#
-#   enabled: false
-
-{{ end -}}
 
 {{ if .NetworkPath -}}
 {{ if (ne .OS "darwin") -}}
@@ -2201,62 +2130,7 @@ api_key:
 #   # Default is 0 (disabled). Set a valid port number (example: 5558) to enable.
 #
 #   health_port: 0
-{{ if .InternalProfiling }}
-#   # @param profiling - custom object - optional
-#   # Enter specific configurations for internal profiling.
-#   #
-#   # Please note that:
-#   #   1. This does *not* enable profiling for user applications.
-#   #   2. This only enables internal profiling of the agent go runtime.
-#   #   3. To enable profiling for user apps please refer to
-#   #      https://docs.datadoghq.com/tracing/profiling/
-#   #   4. Enabling this feature will incur in billing charges and other
-#   #      unexpected side-effects (ie. agent profiles showing with your
-#   #      services).
-#   #
-#   # Uncomment this parameter and the one below to enable profiling.
-#
-#   internal_profiling:
-#
-#     # @param enabled - boolean - optional - default: false
-#     # @env DD_INTERNAL_PROFILING_ENABLED - boolean - optional - default: false
-#     # Enable internal profiling for the System Probe process.
-#
-#     enabled: false
 
-#   # @param memory_controller - custom object - optional
-#   # Cgroup memory controller for internal memory profiling.
-#   #
-#   memory_controller:
-#
-#     # @param enabled - boolean - optional - default: false
-#     # Enable cgroup memory controller.
-#
-#     enabled: false
-#
-#     # @param thresholds - map of strings - optional
-#     # Thresholds and the respective active actions to trigger when
-#     # memory usage is above the specified threshold.
-#     # Threshold can be either an absolute value - such as 500MB or 2GB -
-#     # or a percentage of the cgroup allocated memory such as 50%.
-#     # The action can be:
-#     # - gc: to trigger the Go garbage collector
-#     # - profile: to generate a system-probe memory profile in /tmp
-#     # - log: to simply log that the threshold was reached
-#
-#     thresholds:
-#       500MB: gc
-#       50%: profile
-
-#     # @param pressure_levels - map of strings - optional
-#     # Pressure levels and the respective active actions to trigger when
-#     # memory usage reaches the specified level.
-#     # The pressure level is 'low', 'medium' or 'critical'.
-#     # The actions are the same for thresholds (see above).
-#
-#     pressure_levels:
-#       medium: gc
-{{ end -}}
 {{ if .NetworkModule }}
 ########################################
 ## System Probe Network Configuration ##
