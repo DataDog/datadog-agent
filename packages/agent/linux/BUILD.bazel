@@ -37,9 +37,8 @@ pkg_filegroup(
 pkg_filegroup(
     name = "transitive_deps",
     srcs = [
-        # TODO: gstatus has a botched up license arrangement
+        # TODO(aiuto): blocked on https://github.com/DataDog/datadog-agent/pull/46230
         # "//deps/gstatus:bin_files",
-        # TODO(aiuto): license problems.
         # "//deps/msodbcsql18:all_files",
         "//deps/nfsiostat:all_files",
         "//deps/openscap:all_files",
