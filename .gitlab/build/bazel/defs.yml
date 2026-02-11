@@ -90,7 +90,6 @@
       $EncodedCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes("$FailFast`n$Utf8Script"))
     - >-
       .\tools\ci\docker-run-with-bazel-cache.ps1
-      --env=CI_IDENTITIES_GITLAB_ID_TOKEN
       --volume="${CI_PROJECT_DIR}:$CI_PROJECT_DIR"
       --workdir="$CI_PROJECT_DIR"
       "$WINBUILDIMAGE"
