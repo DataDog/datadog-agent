@@ -8,6 +8,6 @@
 ---
 enhancements:
   - |
-    Increases the reliability of namespaceLabelsAsTags and 
-    namespaceAnnotationsAsTags for new pods by caching the
+    Increases the reliability of `namespaceLabelsAsTags` and 
+    `namespaceAnnotationsAsTags` for new pods by caching the
     last seen namespace metadata.
