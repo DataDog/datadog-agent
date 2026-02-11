@@ -32,7 +32,12 @@ func NewDockerPermissionIssue() *DockerPermissionIssue {
 
 // BuildIssue creates a complete issue with metadata and OS-specific remediation
 func (t *DockerPermissionIssue) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
-	dockerDir := context["dockerDir"]
+	// Support both "dockerDirs" (comma-separated, from socket check) and
+	// "dockerDir" (single path, from file tailing permission check)
+	dockerDir := context["dockerDirs"]
+	if dockerDir == "" {
+		dockerDir = context["dockerDir"]
+	}
 	if dockerDir == "" {
 		dockerDir = "/var/lib/docker" // fallback
 	}
