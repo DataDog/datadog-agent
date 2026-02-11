@@ -159,8 +159,8 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 	// TODO check for errors and exit
 	_ = cloudService.Init(tracingCtx)
 
-	metricTags := serverlessInitTag.MakeMetricAgentTags(tags)
-	metricAgent := setupMetricAgent(metricTags, tagger, cloudService.ShouldForceFlushAllOnForceFlushToSerializer())
+	metricTags, highCardinalityTags := serverlessInitTag.MakeMetricAgentTags(tags)
+	metricAgent := setupMetricAgent(metricTags, highCardinalityTags, tagger, cloudService.ShouldForceFlushAllOnForceFlushToSerializer())
 
 	metricAgent.AddMetric(cloudService.GetStartMetricName(), 1.0, cloudService.GetSource())
 
@@ -223,7 +223,7 @@ func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tag
 	return traceAgent
 }
 
-func setupMetricAgent(tags map[string]string, tagger tagger.Component, shouldForceFlushAllOnForceFlushToSerializer bool) *serverlessMetrics.ServerlessMetricAgent {
+func setupMetricAgent(tags map[string]string, highCardinalityTags map[string]string, tagger tagger.Component, shouldForceFlushAllOnForceFlushToSerializer bool) *serverlessMetrics.ServerlessMetricAgent {
 	// Enable v2 API for series to support origin metadata (metric source attribution)
 	// v1 API (JSON) does not include origin/source information, but v2 API (protobuf) does
 	pkgconfigsetup.Datadog().Set("use_v2_api.series", true, model.SourceAgentRuntime)
@@ -234,7 +234,7 @@ func setupMetricAgent(tags map[string]string, tagger tagger.Component, shouldFor
 		Tagger:               tagger,
 	}
 	metricAgent.Start(5*time.Second, &serverlessMetrics.MetricConfig{}, &serverlessMetrics.MetricDogStatsD{}, shouldForceFlushAllOnForceFlushToSerializer)
-	metricAgent.SetExtraTags(serverlessTag.MapToArray(tags))
+	metricAgent.SetExtraTags(serverlessTag.MapToArray(tags), serverlessTag.MapToArray(highCardinalityTags))
 	return metricAgent
 }
 
