@@ -943,6 +943,11 @@ type SnapshottedBoundSocket struct {
 	Protocol uint16
 }
 
+// SnapshottedMmapedFile represents a snapshotted memory-mapped file
+type SnapshottedMmapedFile struct {
+	Path string
+}
+
 // RawPacketEvent represents a packet event
 type RawPacketEvent struct {
 	NetworkContext

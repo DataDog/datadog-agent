@@ -99,9 +99,8 @@ type EBPFResolver struct {
 	brokenLineage             *atomic.Int64
 	inodeErrStats             map[string]*atomic.Int64 // inode error stats by tag
 
-	entryCache              map[uint32]*model.ProcessCacheEntry
-	SnapshottedBoundSockets map[uint32][]model.SnapshottedBoundSocket
-	argsEnvsCache           *simplelru.LRU[uint64, *argsEnvsCacheEntry]
+	entryCache    map[uint32]*model.ProcessCacheEntry
+	argsEnvsCache *simplelru.LRU[uint64, *argsEnvsCacheEntry]
 
 	// limiters
 	procFallbackLimiter *utils.Limiter[uint32]
@@ -1304,11 +1303,6 @@ func (p *EBPFResolver) cacheFlush(ctx context.Context) {
 	}
 }
 
-// SyncBoundSockets sets the bound sockets discovered during the snapshot
-func (p *EBPFResolver) SyncBoundSockets(pid uint32, boundSockets []model.SnapshottedBoundSocket) {
-	p.SnapshottedBoundSockets[pid] = boundSockets
-}
-
 // SyncCache snapshots /proc for the provided pid.
 func (p *EBPFResolver) SyncCache(proc *process.Process) {
 	// Only a R lock is necessary to check if the entry exists, but if it exists, we'll update it, so a RW lock is
@@ -1582,14 +1576,13 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 	}
 
 	p := &EBPFResolver{
-		manager:                   manager,
-		config:                    config,
-		statsdClient:              statsdClient,
-		scrubber:                  scrubber,
-		entryCache:                make(map[uint32]*model.ProcessCacheEntry),
-		SnapshottedBoundSockets:   make(map[uint32][]model.SnapshottedBoundSocket),
-		opts:                      *opts,
-		argsEnvsCache:             argsEnvsCache,
+		manager:       manager,
+		config:        config,
+		statsdClient:  statsdClient,
+		scrubber:      scrubber,
+		entryCache:    make(map[uint32]*model.ProcessCacheEntry),
+		opts:          *opts,
+		argsEnvsCache: argsEnvsCache,
 		state:                     atomic.NewInt64(Snapshotting),
 		hitsStats:                 map[string]*atomic.Int64{},
 		missStats:                 atomic.NewInt64(0),

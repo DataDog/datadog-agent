@@ -258,6 +258,11 @@ func (r *EBPFResolvers) Snapshot() error {
 		return fmt.Errorf("unable to snapshot processes: %w", err)
 	}
 
+	// Snapshot memory-mapped files for event replay
+	if err := r.snapshotMmapedFiles(); err != nil {
+		seclog.Warnf("unable to snapshot mmaped files: %v", err)
+	}
+
 	r.ProcessResolver.SetState(process.Snapshotted)
 	r.NamespaceResolver.SetState(process.Snapshotted)
 
@@ -327,6 +332,29 @@ func (r *EBPFResolvers) snapshot() error {
 
 		// Sync the namespace cache
 		r.NamespaceResolver.SyncCache(pid)
+	}
+
+	return nil
+}
+
+// nolint: deadcode, unused
+func (r *EBPFResolvers) snapshotMmapedFiles() error {
+	processes, err := utils.GetProcesses()
+	if err != nil {
+		return err
+	}
+
+	for _, proc := range processes {
+		mmapedFiles, err := procfs.GetMmapedFiles(proc)
+		if err != nil {
+			log.Debugf("mmaped files snapshot failed for (pid: %v): %s", proc.Pid, err)
+			continue
+		}
+
+		// Store directly on the process entry
+		if entry := r.ProcessResolver.Get(uint32(proc.Pid)); entry != nil {
+			entry.SnapshottedMmapedFiles = mmapedFiles
+		}
 	}
 
 	return nil
