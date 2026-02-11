@@ -11,26 +11,26 @@ import (
 
 func TestBasic(t *testing.T) {
 	pb := &pb.MetricData{
-		DictNameStr: []byte("\x03foo\x03bar"),
-		DictTagsStr: []byte("\x03baz"),
-		DictTagsets: []int64{1, 1},
+		DictNameStr:      []byte("\x03foo\x03bar"),
+		DictTagsStr:      []byte("\x03baz"),
+		DictTagsets:      []int64{1, 1},
 		DictResourceStr:  []byte("\x01a\x01b\x01c\x01d\x01e"),
 		DictResourceLen:  []int64{1, 2, 2},
 		DictResourceType: []int64{1, 1, 2, 1, 2},
 		DictResourceName: []int64{2, 2, 2, 2, 3},
-		DictOriginInfo: []int32{10, 10, 0},
-		Types: []uint64{0x11, 0x21, 0x31},
-		Names: []int64{1, 0, 1},
-		Tags: []int64{1, -1, 1},
-		Resources: []int64{1, 1, 1},
-		Intervals: []uint64{10, 10, 10},
-		OriginInfos: []int64{1, 0, 0},
-		SourceTypeNames: []int64{0, 0, 0},
-		NumPoints: []uint64{1, 1, 1},
-		Timestamps: []int64{10000, 0, 0},
-		ValsSint64: []int64{42},
-		ValsFloat32: []float32{0.5},
-		ValsFloat64: []float64{3.14},
+		DictOriginInfo:   []int32{10, 10, 0},
+		Types:            []uint64{0x11, 0x21, 0x31},
+		Names:            []int64{1, 0, 1},
+		Tags:             []int64{1, -1, 1},
+		Resources:        []int64{1, 1, 1},
+		Intervals:        []uint64{10, 10, 10},
+		OriginInfos:      []int64{1, 0, 0},
+		SourceTypeNames:  []int64{0, 0, 0},
+		NumPoints:        []uint64{1, 1, 1},
+		Timestamps:       []int64{10000, 0, 0},
+		ValsSint64:       []int64{42},
+		ValsFloat32:      []float32{0.5},
+		ValsFloat64:      []float64{3.14},
 	}
 
 	r := NewMetricDataReader(pb)
@@ -43,9 +43,9 @@ func TestBasic(t *testing.T) {
 	require.Equal(t, uint64(10), r.Interval())
 	require.Equal(t, "", r.SourceTypeName())
 	require.Equal(t, &originInfo{
-		OriginProduct: 10,
+		OriginProduct:  10,
 		OriginCategory: 10,
-		OriginService: 0,
+		OriginService:  0,
 	}, r.Origin())
 	require.True(t, r.HaveMorePoints())
 	require.NoError(t, r.NextPoint())
@@ -59,9 +59,9 @@ func TestBasic(t *testing.T) {
 	require.Equal(t, uint64(10), r.Interval())
 	require.Equal(t, "", r.SourceTypeName())
 	require.Equal(t, &originInfo{
-		OriginProduct: 10,
+		OriginProduct:  10,
 		OriginCategory: 10,
-		OriginService: 0,
+		OriginService:  0,
 	}, r.Origin())
 	require.True(t, r.HaveMorePoints())
 	require.NoError(t, r.NextPoint())
@@ -75,9 +75,9 @@ func TestBasic(t *testing.T) {
 	require.Equal(t, uint64(10), r.Interval())
 	require.Equal(t, "", r.SourceTypeName())
 	require.Equal(t, &originInfo{
-		OriginProduct: 10,
+		OriginProduct:  10,
 		OriginCategory: 10,
-		OriginService: 0,
+		OriginService:  0,
 	}, r.Origin())
 	require.True(t, r.HaveMorePoints())
 	require.NoError(t, r.NextPoint())
@@ -139,7 +139,7 @@ func FuzzReader(f *testing.F) {
 				case pb.MetricType_Sketch:
 					_, _, _, _ = mr.SketchSummary()
 					_ = mr.SketchNumBins()
-					_ , _ = mr.SketchCols()
+					_, _ = mr.SketchCols()
 				default:
 					_ = mr.Value()
 				}

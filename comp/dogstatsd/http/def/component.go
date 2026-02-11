@@ -7,4 +7,4 @@
 package def
 
 // Component is the dogstatsd http server component. It does not have any methods.
-type Component interface {}
+type Component interface{}
