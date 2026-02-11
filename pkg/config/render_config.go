@@ -145,8 +145,7 @@ func mkContext(buildType string, osName string) context {
 		}
 	case "security-agent":
 		return context{
-			OS:            osName,
-			SecurityAgent: true,
+			OS: osName,
 		}
 	}
 
