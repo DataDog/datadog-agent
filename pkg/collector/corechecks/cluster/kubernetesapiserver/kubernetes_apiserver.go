@@ -294,6 +294,12 @@ func (k *KubeASCheck) Run() error {
 		}
 	}
 
+	clusterResources, err := apiserver.GetClusterResources()
+	if err != nil {
+		k.Warnf("Could not get cluster resources: %s", err.Error())
+	}
+	k.sendAPIResourceMetrics(sender, clusterResources)
+
 	return nil
 }
 
@@ -417,6 +423,18 @@ func (k *KubeASCheck) controlPlaneHealthCheck(ctx context.Context, sender sender
 	sender.ServiceCheck(KubeControlPaneCheck, status, "", nil, msg)
 
 	return nil
+}
+
+func (k *KubeASCheck) sendAPIResourceMetrics(sender sender.Sender, resources map[string]apiserver.ClusterResource) {
+	for name, resource := range resources {
+		tags := []string{
+			"name:" + name,
+			"kind:" + resource.Kind,
+			"group:" + resource.Group,
+			"version:" + resource.APIVersion,
+		}
+		sender.Gauge("kube_apiserver.api_resource", 1, "", tags)
+	}
 }
 
 func convertFilters(conf []string) string {
