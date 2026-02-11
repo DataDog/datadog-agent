@@ -9,8 +9,8 @@ http_archive(
     files = {
         "BUILD.bazel": "//deps:openscap/openscap.BUILD.bazel",
     },
-    patch_tool = "patch",
     patch_strip = 1,
+    patch_tool = "patch",
     patches = [
         "//deps:openscap/patches/fsdev-ignore-host.patch",
         "//deps:openscap/patches/systemd-dbus-address.patch",
