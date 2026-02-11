@@ -21,7 +21,7 @@ import (
 
 func TestNew(t *testing.T) {
 	t.Run("gradual_rollout_enabled", func(t *testing.T) {
-		mockConfig := NewConfig(config.NewMock(t), nil)
+		mockConfig := NewConfig(config.NewMock(t))
 		resolver := New(mockConfig)
 
 		_, ok := resolver.(*bucketTagResolver)

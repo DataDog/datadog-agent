@@ -45,7 +45,7 @@ func calculateRolloutBucket(apiKey string) string {
 	return strconv.Itoa(int(hashInt % rolloutBucketCount))
 }
 
-func NewConfig(cfg config.Component, rcClient RemoteConfigClient) Config {
+func NewConfig(cfg config.Component) Config {
 	return Config{
 		Site:           cfg.GetString("site"),
 		DDRegistries:   newDatadoghqRegistries(cfg.GetStringSlice("admission_controller.auto_instrumentation.default_dd_registries")),
