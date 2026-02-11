@@ -34,7 +34,6 @@ type context struct {
 	KubernetesTagging   bool
 	ECS                 bool
 	Containerd          bool
-	CRI                 bool
 	KubeApiServer       bool
 	TraceAgent          bool
 	ClusterAgent        bool
@@ -59,8 +58,6 @@ func mkContext(buildType string, osName string) context {
 			DockerTagging:     true,
 			KubernetesTagging: true,
 			ECS:               true,
-			Containerd:        true,
-			CRI:               true,
 			TraceAgent:        true,
 			Kubelet:           true,
 			KubeApiServer:     true, // TODO: remove when phasing out from node-agent

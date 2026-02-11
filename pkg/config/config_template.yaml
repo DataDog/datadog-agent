@@ -1020,7 +1020,7 @@ api_key:
 #   <Kubernetes image name>:
 #     - "<full secret handle>"
 #     - ...
-{{ if (eq .OS "windows") }}
+{{- if (eq .OS "windows") }}
 
 #####################################################
 ## Datadog Agent Manager System Tray Configuration ##
@@ -1868,7 +1868,7 @@ api_key:
 #   # Disable realtime process and container checks
 #
 #   disable_realtime_checks: false
-{{ if (ne .OS "darwin") }}
+{{- if (ne .OS "darwin") }}
 
 #############################################
 ## Network Path Dynamic Test Configuration ##
@@ -3237,17 +3237,22 @@ api_key:
 #
 # ecs_deployment_mode: auto
 {{ end -}}
-{{ if .CRI }}
-###################################
-## CRI integration Configuration ##
-###################################
+{{ if .CoreAgent }}
+##################################################
+## CRI and Containerd integration Configuration ##
+##################################################
 
 ## @param cri_socket_path - string - optional - default: ""
 ## @env DD_CRI_SOCKET_PATH - string - optional - default: ""
-## To activate the CRI check, indicate the path of the CRI socket you're using
+## This setting enabled both CRI and Containerd integration.
+##
+## To activate the CRI or Containerd check, indicate the path of the socket you're using
 ## and mount it in the container if needed.
-## If left empty, the CRI check is disabled.
-## see: https://docs.datadoghq.com/integrations/cri/
+##
+## For containerd see: https://docs.datadoghq.com/integrations/containerd/
+## For CRI see:: https://docs.datadoghq.com/integrations/cri/
+##
+## If left empty, the CRI and Containerd checks are disabled.
 #
 # cri_socket_path: ""
 
@@ -3259,26 +3264,7 @@ api_key:
 
 ## @param cri_query_timeout - integer - optional - default: 5
 ## @env DD_CRI_QUERY_TIMEOUT - integer - optional - default: 5
-## Configure the timeout in seconds for querying the CRI.
-#
-# cri_query_timeout: 5
-{{ end -}}
-{{ if .Containerd }}
-##########################################
-## Containerd integration Configuration ##
-##########################################
-
-## @param cri_socket_path - string - optional - default: /var/run/containerd/containerd.sock
-## @env DD_CRI_SOCKET_PATH - string - optional - default: /var/run/containerd/containerd.sock
-## To activate the Containerd check, indicate the path of the Containerd socket you're using
-## and mount it in the container if needed.
-## see: https://docs.datadoghq.com/integrations/containerd/
-#
-# cri_socket_path: /var/run/containerd/containerd.sock
-
-## @param cri_query_timeout - integer - optional - default: 5
-## @env DD_CRI_QUERY_TIMEOUT - integer - optional - default: 5
-## Configure the timeout in seconds for querying the Containerd API.
+## Configure the timeout in seconds for querying the CRI or Containerd API.
 #
 # cri_query_timeout: 5
 
