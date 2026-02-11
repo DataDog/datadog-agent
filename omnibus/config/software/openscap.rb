@@ -68,6 +68,29 @@ build do
     " #{install_dir}/embedded/lib/pkgconfig/blkid.pc" \
     " #{install_dir}/embedded/lib/libblkid.so"
 
+  command_on_repo_root "bazelisk run -- @gpg-error//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- @gcrypt//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/libgcrypt.pc" \
+    " #{install_dir}/embedded/lib/libgcrypt.so" \
+    " #{install_dir}/embedded/lib/libgpg-error.so" \
+
+  command_on_repo_root "bazelisk run -- @libxml2//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/libxml-2.0.pc" \
+    " #{install_dir}/embedded/lib/libxml2.so"
+
+  command_on_repo_root "bazelisk run -- @libxslt//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/libxslt.pc" \
+    " #{install_dir}/embedded/lib/pkgconfig/libexslt.pc" \
+    " #{install_dir}/embedded/lib/libxslt.so" \
+    " #{install_dir}/embedded/lib/libexslt.so"
+
+  command_on_repo_root "bazelisk run -- @xmlsec//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/libxmlsec1*.so" \
+    " #{install_dir}/embedded/lib/pkgconfig/xmlsec1*.pc"
 
   command_on_repo_root "bazelisk run -- @openscap//:install --destdir='#{install_dir}/embedded'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
