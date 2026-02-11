@@ -171,11 +171,11 @@ func defaultVMArgs(e aws.Environment, vmArgs *vmArgs) error {
 		}
 	}
 
-	if vmArgs.volumeThroughput == 0 && vmArgs.osInfo.Family() == os.WindowsFamily {
-		// Increase throughput for Windows instances to 400 MiB/s to reduce test flakiness
-		// May be able to lower this if we can disable some on-boot services in custom AMIs
-		vmArgs.volumeThroughput = 400
-	}
+	// if vmArgs.volumeThroughput == 0 && vmArgs.osInfo.Family() == os.WindowsFamily {
+	// 	// Increase throughput for Windows instances to 400 MiB/s to reduce test flakiness
+	// 	// May be able to lower this if we can disable some on-boot services in custom AMIs
+	// 	vmArgs.volumeThroughput = 400
+	// }
 
 	// macOS dedicated host defaults
 	if vmArgs.osInfo.Family() == os.MacOSFamily {
