@@ -56,15 +56,6 @@ func getGlobalPkgFilesCache() *pkgFilesCache {
 	return globalPkgFilesCache
 }
 
-// newPkgFilesCache creates a new cache for pkgutil --files results
-// Deprecated: Use getGlobalPkgFilesCache() for persistent caching
-func newPkgFilesCache() *pkgFilesCache {
-	return &pkgFilesCache{
-		cache: make(map[string]*pkgFilesCacheEntry),
-		ttl:   defaultPkgFilesCacheTTL,
-	}
-}
-
 // get retrieves cached file list for a package, or fetches it if not cached or expired
 func (c *pkgFilesCache) get(pkgID string) []string {
 	now := time.Now()
