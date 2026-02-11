@@ -71,6 +71,6 @@ build do
 
   command_on_repo_root "bazelisk run -- @openscap//:install --destdir='#{install_dir}/embedded'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-    " #{install_dir}/embedded/lib/openscap.so" \
-    " #{install_dir}/embedded/lib/openscap_sce.so"
+    " #{install_dir}/embedded/lib/libopenscap.so" \
+    " #{install_dir}/embedded/lib/libopenscap_sce.so"
 end
