@@ -390,6 +390,7 @@ Health platform must be enabled for issues to be reported.`,
 			return fxutil.OneShot(printHealthPlatformIssues,
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
+				delegatedauthnoopfx.Module(),
 				secretnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
