@@ -22,7 +22,6 @@ type ContainerApp struct {
 	SubscriptionId string
 	//nolint:revive // TODO(SERV) Fix revive linter
 	ResourceGroup string
-	collector     *collector.Collector
 }
 
 const (
@@ -168,17 +167,12 @@ func (c *ContainerApp) Init(_ *TracingContext) error {
 }
 
 // Shutdown emits the shutdown metric for ContainerApp
-func (c *ContainerApp) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, _ error) {
-	// Stop cgroup metrics collector if running
-	if c.collector != nil {
-		c.collector.Stop()
+func (c *ContainerApp) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, collector *collector.Collector, _ error) {
+	if collector != nil {
+		collector.Stop()
 	}
 
 	metricAgent.AddMetric(containerAppPrefix+".enhanced.shutdown", 1.0, c.GetSource())
-}
-
-func (c *ContainerApp) StartEnhancedMetrics(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
-	c.collector = startEnhancedMetrics(metricAgent, c.GetSource(), c.GetMetricPrefix())
 }
 
 // GetStartMetricName returns the metric name for container start (coldstart) events

@@ -18,7 +18,6 @@ import (
 
 // AppService has helper functions for getting specific Azure Container App data
 type AppService struct {
-	collector *collector.Collector
 }
 
 const (
@@ -80,12 +79,12 @@ func (a *AppService) Init(_ *TracingContext) error {
 }
 
 // Shutdown emits the shutdown metric for AppService
-func (a *AppService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, _ error) {
-	metricAgent.AddMetric(appServicePrefix+".enhanced.shutdown", 1.0, a.GetSource())
-}
+func (a *AppService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, collector *collector.Collector, _ error) {
+	if collector != nil {
+		collector.Stop()
+	}
 
-func (c *AppService) StartEnhancedMetrics(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
-	c.collector = startEnhancedMetrics(metricAgent, c.GetSource(), c.GetMetricPrefix())
+	metricAgent.AddMetric(appServicePrefix+".enhanced.shutdown", 1.0, a.GetSource())
 }
 
 // GetStartMetricName returns the metric name for container start (coldstart) events

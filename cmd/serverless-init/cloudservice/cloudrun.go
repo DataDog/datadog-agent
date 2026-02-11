@@ -70,7 +70,6 @@ type GCPConfig struct {
 // CloudRun has helper functions for getting Google Cloud Run data
 type CloudRun struct {
 	spanNamespace string
-	collector     *collector.Collector
 }
 
 // GetTags returns a map of gcp-related tags.
@@ -159,17 +158,12 @@ func (c *CloudRun) Init(_ *TracingContext) error {
 }
 
 // Shutdown emits the shutdown metric for CloudRun
-func (c *CloudRun) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, _ error) {
-	// Stop enhanced metrics collector if running
-	if c.collector != nil {
-		c.collector.Stop()
+func (c *CloudRun) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, collector *collector.Collector, _ error) {
+	if collector != nil {
+		collector.Stop()
 	}
 
 	metricAgent.AddMetric(cloudRunPrefix+".enhanced.shutdown", 1.0, c.GetSource())
-}
-
-func (c *CloudRun) StartEnhancedMetrics(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
-	c.collector = startEnhancedMetrics(metricAgent, c.GetSource(), c.GetMetricPrefix())
 }
 
 // GetStartMetricName returns the metric name for container start (coldstart) events

@@ -12,13 +12,13 @@ TODO:
 Add back containerapp tests
 add collector tests
 update serverlessMetricAgent import in main to have consistent naming
-review rate calculation (distribution vs. rate), 1 instance, multiple instances
 only start for in process, not sidecar OR collect for sidecar and tag appropriately. Some sort of container_type or sidecar tag?
 rename to enhanced metrics collector? Or otherwise organize file structure?
 Check in Cloud Run Functions, Cloud Run Jobs, Azure Web Apps
 Refactor to move go routine to main.go?
 Remove/add debug logs as needed
 Check parameters names (cgs) and make consistent
+add last flush logic for collector
 */
 
 package collector
