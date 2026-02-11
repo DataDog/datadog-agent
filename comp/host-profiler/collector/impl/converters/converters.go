@@ -198,14 +198,25 @@ func ensureKeyStringValue(config confMap, key string) bool {
 func addProfilerMetadataTags(conf confMap) error {
 	const resourceProcessorName = "resource/dd-profiler-internal-metadata"
 
+	// Check if the processor is already defined in root processors
+	globalProcessors, _ := Get[confMap](conf, "processors")
+	if _, exists := globalProcessors[resourceProcessorName]; exists {
+		return fmt.Errorf("%s is a reserved resource processor name. Please change it in your configuration file", resourceProcessorName)
+	}
+
+	// Check if the processor is already in the profiles pipeline
+	profilesProcessors, _ := Get[[]any](conf, "service::pipelines::profiles::processors")
+	for _, proc := range profilesProcessors {
+		if procName := proc.(string); procName == resourceProcessorName {
+			return fmt.Errorf("%s is a reserved resource processor name. Please remove it from the profiles pipeline", resourceProcessorName)
+		}
+	}
+
 	resourceProcessor, err := Ensure[confMap](conf, "processors::"+resourceProcessorName)
 	if err != nil {
 		return err
 	}
 
-	if len(resourceProcessor) != 0 {
-		return fmt.Errorf("%s is a reserved resource processor name. Please change it in your configuration file", resourceProcessorName)
-	}
 	attributes, err := Ensure[[]any](resourceProcessor, "attributes")
 	if err != nil {
 		return err
@@ -228,12 +239,9 @@ func addProfilerMetadataTags(conf confMap) error {
 		return err
 	}
 
-	processors, err := Ensure[[]any](conf, "service::pipelines::profiles::processors")
-	if err != nil {
-		return err
-	}
-	processors = append(processors, resourceProcessorName)
-	if err := Set(conf, "service::pipelines::profiles::processors", processors); err != nil {
+
+	profilesProcessors = append(profilesProcessors, resourceProcessorName)
+	if err := Set(conf, "service::pipelines::profiles::processors", profilesProcessors); err != nil {
 		return err
 	}
 

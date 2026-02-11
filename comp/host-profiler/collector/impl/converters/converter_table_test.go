@@ -335,6 +335,16 @@ func TestConverterWithAgentErrors(t *testing.T) {
 			provided:      "agent/reserved-proc-exists/in.yaml",
 			expectedError: "reserved resource processor name",
 		},
+		{
+			name:          "reserved-processor-in-pipeline-not-defined",
+			provided:      "agent/reserved-proc-in-pipeline/in.yaml",
+			expectedError: "reserved resource processor name",
+		},
+		{
+			name:          "reserved-processor-empty",
+			provided:      "agent/reserved-proc-empty/in.yaml",
+			expectedError: "reserved resource processor name",
+		},
 	}
 
 	mockCfg := newMockConfig()
@@ -489,6 +499,16 @@ func TestConverterWithoutAgentErrors(t *testing.T) {
 		{
 			name:          "reserved-processor-already-exists",
 			provided:      "no_agent/reserved-proc-exists/in.yaml",
+			expectedError: "reserved resource processor name",
+		},
+		{
+			name:          "reserved-processor-in-pipeline-not-defined",
+			provided:      "no_agent/reserved-proc-in-pipeline/in.yaml",
+			expectedError: "reserved resource processor name",
+		},
+		{
+			name:          "reserved-processor-empty",
+			provided:      "no_agent/reserved-proc-empty/in.yaml",
 			expectedError: "reserved resource processor name",
 		},
 	}
