@@ -221,8 +221,7 @@ fn tracer_metadata_vec(v: Vec<TracerMetadata>) -> dd_tracer_metadata_slice {
 impl From<Service> for dd_service {
     fn from(svc: Service) -> Self {
         Self {
-            #[allow(clippy::cast_possible_wrap)] // PID values fit in i32
-            pid: svc.pid as i32,
+            pid: svc.pid,
             generated_name: dd_str::from(svc.generated_name),
             generated_name_source: svc
                 .generated_name_source
@@ -241,13 +240,10 @@ impl From<Service> for dd_service {
 }
 
 fn services_response_to_result(resp: ServicesResponse) -> dd_discovery_result {
-    #[allow(clippy::cast_possible_wrap)] // PID values fit in i32
-    let injected: Vec<i32> = resp.injected_pids.iter().map(|&p| p as i32).collect();
-
-    let (injected_pids, injected_pids_len) = if injected.is_empty() {
+    let (injected_pids, injected_pids_len) = if resp.injected_pids.is_empty() {
         (ptr::null_mut(), 0)
     } else {
-        let boxed = injected.into_boxed_slice();
+        let boxed = resp.injected_pids.into_boxed_slice();
         let len = boxed.len();
         (Box::into_raw(boxed) as *mut i32, len)
     };
@@ -273,18 +269,17 @@ fn services_response_to_result(resp: ServicesResponse) -> dd_discovery_result {
 // Exported C ABI functions
 // ---------------------------------------------------------------------------
 
-/// Convert a C array of PIDs to `Option<Vec<u32>>`.
+/// Convert a C array of PIDs to `Option<Vec<i32>>`.
 ///
 /// # Safety
 /// If `ptr` is non-NULL, it must point to a valid array of `len` i32 values.
-unsafe fn pids_from_c(ptr: *const i32, len: usize) -> Option<Vec<u32>> {
+unsafe fn pids_from_c(ptr: *const i32, len: usize) -> Option<Vec<i32>> {
     if ptr.is_null() || len == 0 {
         return None;
     }
     // SAFETY: Caller guarantees ptr points to len valid i32 values.
     let slice = unsafe { std::slice::from_raw_parts(ptr, len) };
-    #[allow(clippy::cast_sign_loss)] // PIDs are non-negative
-    Some(slice.iter().map(|&p| p as u32).collect())
+    Some(slice.to_vec())
 }
 
 /// Run service discovery and return a heap-allocated result.
@@ -751,6 +746,6 @@ mod tests {
         // Test valid conversion
         let pids: [i32; 3] = [100, 200, 300];
         let result = unsafe { pids_from_c(pids.as_ptr(), pids.len()) };
-        assert_eq!(result, Some(vec![100u32, 200u32, 300u32]));
+        assert_eq!(result, Some(vec![100, 200, 300]));
     }
 }
