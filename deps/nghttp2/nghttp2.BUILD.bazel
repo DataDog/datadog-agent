@@ -1,6 +1,5 @@
 load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
-load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
@@ -132,20 +131,9 @@ pkg_files(
     prefix = "embedded/include/nghttp2",
 )
 
-# This is a hack to work around a bug in rules_pkg.
-copy_file(
-    name = "pull_fetch_ocsp_response",
-    src = "@@//third_party/nghttp2:fetch-ocsp-response",
-    out = "fetch-ocsp-response",
-)
-
 pkg_files(
     name = "fetch_ocsp_response",
-    # It would be nicer to use the target
-    # "@@//third_party/nghttp2:fetch-ocsp-response"
-    # here, but rules_pkg calculates the path as a relative ref to @nghttp2
-    # instead of the main project.
-    srcs = [":fetch-ocsp-response"],
+    srcs = ["@//third_party/nghttp2:fetch-ocsp-response"],
     attributes = pkg_attributes(mode = "0755"),
     prefix = "embedded/share/nghttp2",
 )
