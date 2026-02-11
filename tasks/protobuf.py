@@ -23,6 +23,7 @@ PROTO_PKGS = {
     'autodiscovery': False,
     'trace/idx': False,
     'workloadfilter': False,
+    'stateful': False,
 }
 
 CLI_EXTRAS = {
@@ -38,10 +39,12 @@ CLI_EXTRAS_GRPC = {
 # maybe put this in a separate function
 PKG_PLUGINS = {
     'trace': '--go-vtproto_out=',
+    'stateful': '--go-vtproto_out=',
 }
 
 PKG_CLI_EXTRAS = {
     'trace': '--go-vtproto_opt=features=marshal+unmarshal+size',
+    'stateful': '--go-vtproto_opt=features=marshal+unmarshal+size',
 }
 
 # protoc-go-inject-tag targets
