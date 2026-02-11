@@ -19,6 +19,8 @@ build do
   # 2.0 is the license version here, not the python version
   license "Python-2.0"
 
+  flavor_flag = fips_mode? ? "--//packages/agent:flavor=fips" : ""
+
   if !windows_target?
     env = with_standard_compiler_flags(with_embedded_path)
     command_on_repo_root "bazelisk run -- @cpython//:install --destdir='#{install_dir}/embedded'"
@@ -29,7 +31,7 @@ build do
       " #{install_dir}/embedded/lib/python3.13/lib-dynload/*.so" \
       " #{install_dir}/embedded/bin/python3*"
   else
-    command_on_repo_root "bazelisk run -- @cpython//:install --destdir=#{python_3_embedded}"
+    command_on_repo_root "bazelisk run #{flavor_flag} -- @cpython//:install --destdir=#{python_3_embedded}"
   end
 end
 
