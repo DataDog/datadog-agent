@@ -375,18 +375,32 @@ pub unsafe extern "C" fn dd_discovery_free(result: *mut dd_discovery_result) {
 /// # Safety
 /// All pointer fields must be either NULL or valid heap pointers from `Box::into_raw`.
 unsafe fn free_dd_service(service: &dd_service) {
+    let dd_service {
+        pid: _,
+        generated_name,
+        generated_name_source,
+        additional_generated_names,
+        tracer_metadata,
+        ust,
+        tcp_ports,
+        udp_ports,
+        log_files,
+        apm_instrumentation: _,
+        language,
+        service_type,
+    } = service;
     // SAFETY: Caller guarantees pointers are from `Box::into_raw` or NULL.
     unsafe {
-        free_dd_str(&service.generated_name);
-        free_dd_str(&service.generated_name_source);
-        free_dd_strs(&service.additional_generated_names);
-        free_dd_tracer_metadata_slice(&service.tracer_metadata);
-        free_dd_ust(&service.ust);
-        free_dd_u16_slice(&service.tcp_ports);
-        free_dd_u16_slice(&service.udp_ports);
-        free_dd_strs(&service.log_files);
-        free_dd_str(&service.language);
-        free_dd_str(&service.service_type);
+        free_dd_str(generated_name);
+        free_dd_str(generated_name_source);
+        free_dd_strs(additional_generated_names);
+        free_dd_tracer_metadata_slice(tracer_metadata);
+        free_dd_ust(ust);
+        free_dd_u16_slice(tcp_ports);
+        free_dd_u16_slice(udp_ports);
+        free_dd_strs(log_files);
+        free_dd_str(language);
+        free_dd_str(service_type);
     }
 }
 
@@ -442,11 +456,16 @@ unsafe fn free_dd_u16_slice(s: &dd_u16_slice) {
 /// # Safety
 /// All `dd_str` fields must be valid per `free_dd_str` requirements.
 unsafe fn free_dd_ust(ust: &dd_ust) {
+    let dd_ust {
+        service,
+        env,
+        version,
+    } = ust;
     // SAFETY: Caller guarantees valid heap pointers or NULL.
     unsafe {
-        free_dd_str(&ust.service);
-        free_dd_str(&ust.env);
-        free_dd_str(&ust.version);
+        free_dd_str(service);
+        free_dd_str(env);
+        free_dd_str(version);
     }
 }
 
@@ -480,15 +499,25 @@ unsafe fn free_dd_tracer_metadata_slice(s: &dd_tracer_metadata_slice) {
 /// # Safety
 /// All `dd_str` fields must be valid per `free_dd_str` requirements.
 unsafe fn free_dd_tracer_metadata(metadata: &dd_tracer_metadata) {
+    let dd_tracer_metadata {
+        schema_version: _,
+        runtime_id,
+        tracer_language,
+        tracer_version,
+        hostname,
+        service_name,
+        service_env,
+        service_version,
+    } = metadata;
     // SAFETY: Caller guarantees valid heap pointers or NULL.
     unsafe {
-        free_dd_str(&metadata.runtime_id);
-        free_dd_str(&metadata.tracer_language);
-        free_dd_str(&metadata.tracer_version);
-        free_dd_str(&metadata.hostname);
-        free_dd_str(&metadata.service_name);
-        free_dd_str(&metadata.service_env);
-        free_dd_str(&metadata.service_version);
+        free_dd_str(runtime_id);
+        free_dd_str(tracer_language);
+        free_dd_str(tracer_version);
+        free_dd_str(hostname);
+        free_dd_str(service_name);
+        free_dd_str(service_env);
+        free_dd_str(service_version);
     }
 }
 
