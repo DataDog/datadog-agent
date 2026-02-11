@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	scenwin "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -32,11 +33,11 @@ func TestWindowsNetworkPathIntegrationSuite(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &windowsNetworkPathIntegrationTestSuite{}, e2e.WithProvisioner(winawshost.Provisioner(
 		winawshost.WithRunOptions(
-			ec2.WithAgentOptions(
+			scenwin.WithAgentOptions(
 				agentparams.WithSystemProbeConfig(string(sysProbeConfig)),
 				agentparams.WithIntegration("network_path.d", string(networkPathIntegrationWindows)),
 			),
-			ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
+			scenwin.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
 		),
 	)))
 }
