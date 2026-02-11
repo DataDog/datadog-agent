@@ -36,7 +36,7 @@ import (
 const (
 	collectorID          = "kube_metadata"
 	componentName        = "workloadmeta-kube_metadata"
-	namespaceMetadataTTL = 25 * time.Hour
+	namespaceMetadataTTL = 1 * time.Hour
 )
 
 type collector struct {
@@ -163,7 +163,8 @@ func (c *collector) Pull(ctx context.Context) error {
 			continue
 		}
 
-		if c.shouldKeepNamespaceAlive(seenID) {
+		// If the entity is a namespace metadata entity and is within its TTL, skip creating an unset event.
+		if namespaceName, isNsEntity := c.getNamespaceName(seenID); isNsEntity && c.shouldKeepNamespaceAlive(namespaceName) {
 			continue
 		}
 
@@ -194,8 +195,10 @@ func (c *collector) createUnsetEvent(seenID workloadmeta.EntityID) workloadmeta.
 	switch seenID.Kind {
 	case workloadmeta.KindKubernetesMetadata:
 		entity = &workloadmeta.KubernetesMetadata{EntityID: seenID}
-	default:
+	case workloadmeta.KindKubernetesPod:
 		entity = &workloadmeta.KubernetesPod{EntityID: seenID}
+	default:
+		log.Errorf("Unknown entity kind: %s", seenID.Kind)
 	}
 
 	return workloadmeta.CollectorEvent{
@@ -205,19 +208,24 @@ func (c *collector) createUnsetEvent(seenID workloadmeta.EntityID) workloadmeta.
 	}
 }
 
-// shouldKeepNamespaceAlive checks if a namespace metadata entity is within its TTL.
-// Returns false for non-namespace entities or expired namespaces (also cleans up tracking).
-func (c *collector) shouldKeepNamespaceAlive(seenID workloadmeta.EntityID) bool {
+// getNamespaceName returns the namespace name if seenID is a namespace metadata entity
+func (c *collector) getNamespaceName(seenID workloadmeta.EntityID) (string, bool) {
 	if seenID.Kind != workloadmeta.KindKubernetesMetadata {
-		return false
+		return "", false
 	}
 
 	group, resource, _, name, err := util.ParseKubeMetadataEntityID(workloadmeta.KubeMetadataEntityID(seenID.ID))
 	if err != nil || group != "" || resource != "namespaces" {
-		return false
+		return "", false
 	}
 
-	lastSeen, ok := c.namespaceLastSeen[name]
+	return name, true
+}
+
+// shouldKeepNamespaceAlive checks if a namespace is within its TTL.
+// Returns false for unknown or expired namespaces (also cleans up tracking for expired ones).
+func (c *collector) shouldKeepNamespaceAlive(namespaceName string) bool {
+	lastSeen, ok := c.namespaceLastSeen[namespaceName]
 	if !ok {
 		return false
 	}
@@ -227,7 +235,7 @@ func (c *collector) shouldKeepNamespaceAlive(seenID workloadmeta.EntityID) bool 
 	}
 
 	// Expired, remove from tracking
-	delete(c.namespaceLastSeen, name)
+	delete(c.namespaceLastSeen, namespaceName)
 	return false
 }
 

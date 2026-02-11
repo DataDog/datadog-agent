@@ -108,7 +108,9 @@ func ParseKubeletPods(pods []*kubelet.Pod, collectEphemeralContainers bool, stor
 			startTime = &pod.Status.StartTime
 		}
 
-		// Lookup cached namespace metadata
+		// Lookup cached namespace entity from kubemetadata collector
+		// Namespace information is not available in the kubelet API, however,
+		// in the Agent namespace data is tightly coupled to the Pod entity and it's tags.
 		var namespaceLabels, namespaceAnnotations map[string]string
 		nsEntityID := GenerateKubeMetadataEntityID("", "namespaces", "", podMeta.Namespace)
 		nsEntity, err := store.GetKubernetesMetadata(nsEntityID)

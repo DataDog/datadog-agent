@@ -134,12 +134,13 @@ func (f *FakeDCAClient) SupportsNamespaceMetadataCollection() bool {
 	return f.LocalVersion.Major >= 7 && f.LocalVersion.Minor >= 55
 }
 
-func TestCollector_shouldKeepNamespaceAlive(t *testing.T) {
+func TestCollector_detectExpiredNamespace(t *testing.T) {
 	tests := []struct {
 		name              string
 		seenID            workloadmeta.EntityID
 		namespaceLastSeen map[string]time.Time
-		wantAlive         bool
+		isNsEntity        bool
+		keepAlive         bool
 		wantCleanup       bool // whether the namespace should be removed from tracking
 	}{
 		{
@@ -149,7 +150,8 @@ func TestCollector_shouldKeepNamespaceAlive(t *testing.T) {
 				ID:   "some-pod-id",
 			},
 			namespaceLastSeen: map[string]time.Time{},
-			wantAlive:         false,
+			isNsEntity:        false,
+			keepAlive:         false,
 			wantCleanup:       false,
 		},
 		{
@@ -159,7 +161,8 @@ func TestCollector_shouldKeepNamespaceAlive(t *testing.T) {
 				ID:   "/deployments/default/my-deployment",
 			},
 			namespaceLastSeen: map[string]time.Time{},
-			wantAlive:         false,
+			isNsEntity:        false,
+			keepAlive:         false,
 			wantCleanup:       false,
 		},
 		{
@@ -169,9 +172,10 @@ func TestCollector_shouldKeepNamespaceAlive(t *testing.T) {
 				ID:   "/namespaces//my-namespace",
 			},
 			namespaceLastSeen: map[string]time.Time{
-				"my-namespace": time.Now().Add(-1 * namespaceMetadataTTL / 100), // 0.01 TTLs ago
+				"my-namespace": time.Now().Add(-1 * namespaceMetadataTTL / 100), // 0.01 TTLs ago (unexpired)
 			},
-			wantAlive:   true,
+			isNsEntity:  true,
+			keepAlive:   true,
 			wantCleanup: false,
 		},
 		{
@@ -181,9 +185,10 @@ func TestCollector_shouldKeepNamespaceAlive(t *testing.T) {
 				ID:   "/namespaces//expired-namespace",
 			},
 			namespaceLastSeen: map[string]time.Time{
-				"expired-namespace": time.Now().Add(-2 * namespaceMetadataTTL), // 2 TTLs ago
+				"expired-namespace": time.Now().Add(-2 * namespaceMetadataTTL), // 2 TTLs ago (expired)
 			},
-			wantAlive:   false,
+			isNsEntity:  true,
+			keepAlive:   false,
 			wantCleanup: true,
 		},
 	}
@@ -194,8 +199,13 @@ func TestCollector_shouldKeepNamespaceAlive(t *testing.T) {
 				namespaceLastSeen: tt.namespaceLastSeen,
 			}
 
-			got := c.shouldKeepNamespaceAlive(tt.seenID)
-			assert.Equal(t, tt.wantAlive, got)
+			namespaceName, isNsEntity := c.getNamespaceName(tt.seenID)
+			assert.Equal(t, tt.isNsEntity, isNsEntity)
+
+			if tt.isNsEntity {
+				keepAlive := c.shouldKeepNamespaceAlive(namespaceName)
+				assert.Equal(t, tt.keepAlive, keepAlive)
+			}
 
 			if tt.wantCleanup {
 				assert.Empty(t, c.namespaceLastSeen, "expired namespace should be removed from tracking")
