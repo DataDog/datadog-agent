@@ -430,7 +430,7 @@ func start(log log.Component,
 			products = append(products, state.ProductGradualRollout)
 		}
 		// Add private action runner product if enabled
-		if config.GetBool("privateactionrunner.enabled") {
+		if config.GetBool("private_action_runner.enabled") {
 			products = append(products, state.ProductActionPlatformRunnerKeys)
 		}
 
@@ -550,7 +550,7 @@ func start(log log.Component,
 		appsec.Cleanup(mainCtx, log, config, le.Subscribe)
 	}
 
-	if config.GetBool("privateactionrunner.enabled") {
+	if config.GetBool("private_action_runner.enabled") {
 		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, log)
 		if err != nil {
 			log.Errorf("Cannot start private action runner: %v", err)
