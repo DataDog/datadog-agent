@@ -30,7 +30,6 @@ parent_job_parallel:
 # Trigger the child pipeline only after parent_job succeeds
 trigger_child:
   stage: trigger
-  tags: ["arch:amd64", "specific:true"]
   needs:
     - parent_job
   trigger:
