@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
+	observerbuffer "github.com/DataDog/datadog-agent/comp/trace/observerbuffer/def"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -58,7 +59,7 @@ func TestSpanModifierDetectsCloudService(t *testing.T) {
 	defer cancel()
 
 	testOriginTags := func(withModifier bool, expectedOrigin string) {
-		agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+		agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent(), observerbuffer.NewNoop())
 		if withModifier {
 			agnt.SpanModifier = &spanModifier{ddOrigin: getDDOrigin()}
 		}

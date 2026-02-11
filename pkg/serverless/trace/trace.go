@@ -21,6 +21,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
 	comptracecfg "github.com/DataDog/datadog-agent/comp/trace/config"
+	observerbuffer "github.com/DataDog/datadog-agent/comp/trace/observerbuffer/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -125,7 +126,7 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
 			tc.AdditionalProfileTags = args.AdditionalProfileTags
-			ta := agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, zstd.NewComponent())
+			ta := agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, zstd.NewComponent(), observerbuffer.NewNoop())
 
 			// Check if trace stats should be disabled for serverless
 			if disabled, _ := strconv.ParseBool(os.Getenv(disableTraceStatsEnvVar)); disabled {

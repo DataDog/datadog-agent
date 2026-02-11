@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
+	observerbuffer "github.com/DataDog/datadog-agent/comp/trace/observerbuffer/def"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -110,7 +111,7 @@ func testTraceExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 		tcfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	ctx := context.Background()
-	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
+	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent(), observerbuffer.NewNoop())
 
 	telemetryComp := fxutil.Test[coretelemetry.Mock](t, telemetryimpl.MockModule())
 	store := serializerexporter.TelemetryStore{
@@ -173,7 +174,7 @@ func testNewTracesExporter(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	if !enableReceiveResourceSpansV2 {
 		tcfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
-	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
+	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent(), observerbuffer.NewNoop())
 
 	// The client should have been created correctly
 	telemetryComp := fxutil.Test[coretelemetry.Mock](t, telemetryimpl.MockModule())
@@ -223,7 +224,7 @@ func TestNoPanicSendTraceAfterTraceAgentStop(t *testing.T) {
 	tcfg.TraceWriter.FlushPeriodSeconds = 0.1
 	tcfg.Endpoints[0].APIKey = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	ctx, cancel := context.WithCancel(context.Background())
-	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
+	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent(), observerbuffer.NewNoop())
 
 	store := serializerexporter.TelemetryStore{}
 	var wg sync.WaitGroup

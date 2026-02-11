@@ -19,6 +19,7 @@ import (
 	"go.uber.org/atomic"
 
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
+	observerbuffer "github.com/DataDog/datadog-agent/comp/trace/observerbuffer/def"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
@@ -704,7 +705,7 @@ func TestLexerNormalization(t *testing.T) {
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
 	cfg.SQLObfuscationMode = string(obfuscate.ObfuscateAndNormalize)
-	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent(), observerbuffer.NewNoop())
 	defer cancelFunc()
 	span := &pb.Span{
 		Resource: "SELECT * FROM [u].[users]",

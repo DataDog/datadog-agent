@@ -25,6 +25,7 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
+	observerbuffer "github.com/DataDog/datadog-agent/comp/trace/observerbuffer/def"
 	otlpattributes "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	otlpsource "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -104,7 +105,7 @@ func TestAgentExtension(t *testing.T) {
 	tcfg.DecoderTimeout = 10000
 	tcfg.ProfilingProxy = config.ProfilingProxyConfig{DDURL: server.URL}
 	ctx := context.Background()
-	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
+	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent(), observerbuffer.NewNoop())
 
 	// create extension
 	ext, err := NewExtension(&Config{

@@ -13,6 +13,7 @@ import (
 
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	zstd "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
+	observerbuffer "github.com/DataDog/datadog-agent/comp/trace/observerbuffer/def"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
@@ -52,6 +53,7 @@ func NewMock(deps dependencies, _ testing.TB) traceagent.Component {
 			telemetryCollector,
 			&statsd.NoOpClient{},
 			zstd.NewComponent(),
+			observerbuffer.NewNoop(),
 		),
 		cancel:             cancel,
 		config:             deps.Config,
