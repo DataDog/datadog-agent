@@ -437,6 +437,9 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 			// Adding a dummy tag to ensure the indices we get are always >= 0.
 			_ = tagsEncoder.Encode([]string{"-"})
 
+			resolvConfSet := network.NewTagsSet()
+			resolvConfSet.Add("") // reserve index 0 so real entries are 1-based
+
 			for _, nc := range connsChunk {
 				destIP := ipc.get(nc.Dest.Addr)
 				// create unique DNSDatabaseEntry values
@@ -485,6 +488,11 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 				d.addContainerTags(c, containerIDForPID, containersForTagging, tagsEncoder)
 				d.addTags(nc, c, tagsSet, usmEncoders, connectionsTagsEncoder)
 				d.addDNS(nc, c, dnsSet)
+				if nc.ContainerID.Source != nil {
+					if resolvConf, ok := conns.ResolvConfs[nc.ContainerID.Source]; ok {
+						c.ResolvConfIdx = int32(resolvConfSet.Add(resolvConf.Get()))
+					}
+				}
 
 				batchConns = append(batchConns, c)
 			}
@@ -533,6 +541,7 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 				EncodedTags:            tagsEncoder.Buffer(),
 				HostTagsIndex:          hostTagsIndex,
 				Routes:                 ddslices.Map(routeSet.UniqueKeys(), viaToRoute),
+				ResolvConfs:            resolvConfsOrNil(resolvConfSet),
 			}
 
 			// Add OS telemetry
@@ -547,6 +556,15 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 			}
 		}
 	}
+}
+
+// resolvConfsOrNil returns the TagsSet strings if any real resolv.conf entries
+// were added (beyond the placeholder at index 0), or nil otherwise.
+func resolvConfsOrNil(set *network.TagsSet) []string {
+	if set.Size() <= 1 {
+		return nil
+	}
+	return set.GetStrings()
 }
 
 func getInternedString(v *intern.Value) string {

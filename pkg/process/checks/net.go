@@ -25,6 +25,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/hosttags"
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding/unmarshal"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
@@ -188,7 +189,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	getContainersCB := c.getContainerTagsCallback(c.getContainersForExplicitTagging(conns.Conns))
 	getProcessTagsCB := c.getProcessTagsCallback()
 	groupID := nextGroupID()
-	messages := batchConnections(c.hostInfo, c.hostTagProvider, getContainersCB, getProcessTagsCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
+	messages := batchConnections(c.hostInfo, c.hostTagProvider, getContainersCB, getProcessTagsCB, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor, conns.ResolvConfs)
 	return StandardRunResult(messages), nil
 }
 
@@ -452,6 +453,7 @@ func batchConnections(
 	tags []string,
 	agentCfg *model.AgentConfiguration,
 	serviceExtractor *parser.ServiceExtractor,
+	resolvConfs []string,
 ) []model.MessageBody {
 	groupSize := groupSize(len(cxs), maxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)
@@ -548,6 +550,17 @@ func batchConnections(
 			c.RouteIdx = newIdx
 		}
 
+		// remap resolv.conf indices for this batch
+		resolvConfSet := network.NewTagsSet()
+		resolvConfSet.Add("") // reserve index 0 so real entries are 1-based
+		for _, c := range batchConns {
+			if c.ResolvConfIdx > 0 && int(c.ResolvConfIdx) < len(resolvConfs) {
+				c.ResolvConfIdx = int32(resolvConfSet.Add(resolvConfs[c.ResolvConfIdx]))
+			} else {
+				c.ResolvConfIdx = 0
+			}
+		}
+
 		// EncodeDomainDatabase will take the namedb (a simple slice of strings with each unique
 		// domain string) and convert it into a buffer of all of the strings.
 		// indexToOffset contains the map from the string index to where it occurs in the encodedNameDb
@@ -597,6 +610,7 @@ func batchConnections(
 			EncodedConnectionsTags: connectionsTagsEncoder.Buffer(),
 			EncodedTags:            tagsEncoder.Buffer(),
 			HostTagsIndex:          int32(hostTagsIndex),
+			ResolvConfs:            resolvConfsOrNil(resolvConfSet),
 		}
 
 		// Add OS telemetry
@@ -620,6 +634,15 @@ func batchConnections(
 		cxs = cxs[batchSize:]
 	}
 	return batches
+}
+
+// resolvConfsOrNil returns the TagsSet strings if any real resolv.conf entries
+// were added (beyond the placeholder at index 0), or nil otherwise.
+func resolvConfsOrNil(set *network.TagsSet) []string {
+	if set.Size() <= 1 {
+		return nil
+	}
+	return set.GetStrings()
 }
 
 func groupSize(total, maxBatchSize int) int32 {

@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	evmodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	utilintern "github.com/DataDog/datadog-agent/pkg/util/intern"
 )
 
 func makeConnection(pid int32) network.ConnectionStats {
@@ -486,4 +487,31 @@ func TestNetworkConnectionProcessTags(t *testing.T) {
 	// Check tags for fourth connection (PID 4, no tags configured)
 	conn3Tags := connections1.GetConnectionsTags(connections1.Connections[1].TagsIdx)
 	assert.Empty(t, conn3Tags, "Connection with no configured process tags should have no tags")
+}
+
+func TestNetworkConnectionBatchingWithResolvConf(t *testing.T) {
+	stringInterner := utilintern.NewStringInterner()
+	resolvConfData := stringInterner.GetString("nameserver 1.2.3.4")
+
+	p := makeConnections(1)
+	containerID := p[0].ContainerID.Source
+
+	d := mockDirectSender(t)
+	d.maxConnsPerMessage = 10
+	conns := &network.Connections{
+		BufferedData: network.BufferedData{Conns: p},
+		ResolvConfs: map[network.ContainerID]network.ResolvConf{
+			containerID: resolvConfData,
+		},
+	}
+	chunks := slices.Collect(d.batches(conns, 1))
+
+	require.Len(t, chunks, 1)
+	cc := chunks[0]
+	require.Len(t, cc.Connections, 1)
+
+	conn := cc.Connections[0]
+	require.Greater(t, conn.ResolvConfIdx, int32(0), "connection should have a non-zero resolv.conf index")
+	require.NotNil(t, cc.ResolvConfs, "batch should have resolv.conf list")
+	require.Equal(t, "nameserver 1.2.3.4", cc.ResolvConfs[conn.ResolvConfIdx])
 }
