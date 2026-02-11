@@ -2617,9 +2617,9 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
-          "name": "dns.question.name.tld",
-          "definition": "Top level domain of the corresponding element",
-          "property_doc_link": "dns-question-name-tld-doc"
+          "name": "dns.question.name.root_domain",
+          "definition": "Root domain of the corresponding element",
+          "property_doc_link": "dns-question-name-root_domain-doc"
         },
         {
           "name": "dns.question.type",
@@ -15469,10 +15469,10 @@
       "examples": []
     },
     {
-      "name": "dns.question.name.tld",
-      "link": "dns-question-name-tld-doc",
+      "name": "dns.question.name.root_domain",
+      "link": "dns-question-name-root_domain-doc",
       "type": "string",
-      "definition": "Top level domain of the corresponding element",
+      "definition": "Root domain of the corresponding element",
       "prefixes": [
         "dns.question.name"
       ],

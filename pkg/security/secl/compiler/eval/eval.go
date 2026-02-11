@@ -375,7 +375,7 @@ func evaluatorFromLengthHanlder(fieldname string, pos lexer.Position, state *Sta
 	}
 }
 
-func evaluatorFromTLDHandler(fieldname string, pos lexer.Position, state *State) (interface{}, lexer.Position, error) {
+func evaluatorFromRootDomainHandler(fieldname string, pos lexer.Position, state *State) (interface{}, lexer.Position, error) {
 	evaluator, err := state.model.GetEvaluator(fieldname, "", 0)
 	if err != nil {
 		return nil, pos, NewError(pos, "field '%s' doesn't exist", fieldname)
@@ -410,8 +410,8 @@ func evaluatorFromFieldReference(fieldname string, pos lexer.Position, state *St
 		return evaluatorFromLengthHanlder(before, pos, state)
 	}
 
-	if before, ok := strings.CutSuffix(fieldname, ".tld"); ok {
-		return evaluatorFromTLDHandler(before, pos, state)
+	if before, ok := strings.CutSuffix(fieldname, ".root_domain"); ok {
+		return evaluatorFromRootDomainHandler(before, pos, state)
 	}
 
 	// Only try to resolve as a field (no variable lookup)

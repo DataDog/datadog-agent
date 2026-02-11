@@ -54,13 +54,13 @@ func TestDNS(t *testing.T) {
 			Expression: fmt.Sprintf(`dns.question.type == A && dns.question.name.length > 60 && process.file.name == "%s" && process.netns == network.device.netns`, path.Base(executable)),
 		},
 		{
-			ID:         "test_rule_dns_tld",
-			Expression: fmt.Sprintf(`dns.question.type == A && dns.question.name.tld == "yahoo.com" && process.file.name == "%s" && process.netns == network.device.netns && dns.question.name.tld != ${tld}`, path.Base(executable)),
+			ID:         "test_rule_dns_root_domain",
+			Expression: fmt.Sprintf(`dns.question.type == A && dns.question.name.root_domain == "yahoo.com" && process.file.name == "%s" && process.netns == network.device.netns && dns.question.name.root_domain != ${root_domain}`, path.Base(executable)),
 			Actions: []*rules.ActionDefinition{
 				{
 					Set: &rules.SetDefinition{
-						Name:         "tld",
-						Expression:   `dns.question.name.tld`,
+						Name:         "root_domain",
+						Expression:   `dns.question.name.root_domain`,
 						DefaultValue: "",
 					},
 				},
@@ -102,7 +102,7 @@ func TestDNS(t *testing.T) {
 		}, "test_rule_dns_uppercase")
 	})
 
-	t.Run("dns-tld", func(t *testing.T) {
+	t.Run("dns-root-domain", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
 			_, err = net.LookupIP("www.yahoo.com")
 			if err != nil {
@@ -113,7 +113,7 @@ func TestDNS(t *testing.T) {
 			assert.Equal(t, "www.yahoo.com", event.DNS.Question.Name, "wrong domain name")
 
 			test.validateDNSSchema(t, event)
-		}, "test_rule_dns_tld")
+		}, "test_rule_dns_root_domain")
 
 		// shouldn't trigger anymore because of variable
 		err = test.GetEventSent(t, func() error {
@@ -124,7 +124,7 @@ func TestDNS(t *testing.T) {
 			return nil
 		}, func(_ *rules.Rule, _ *model.Event) bool {
 			return true
-		}, time.Second*3, "test_rule_dns_tld")
+		}, time.Second*3, "test_rule_dns_root_domain")
 		if err == nil {
 			t.Fatal("expected error")
 		}

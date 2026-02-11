@@ -763,7 +763,7 @@ A DNS request was sent
 | [`dns.question.length`](#dns-question-length-doc) | the total DNS request size in bytes |
 | [`dns.question.name`](#dns-question-name-doc) | the queried domain name |
 | [`dns.question.name.length`](#common-string-length-doc) | Length of the corresponding element |
-| [`dns.question.name.tld`](#dns-question-name-tld-doc) | Top level domain of the corresponding element |
+| [`dns.question.name.root_domain`](#dns-question-name-root_domain-doc) | Root domain of the corresponding element |
 | [`dns.question.type`](#dns-question-type-doc) | a two octet code which specifies the DNS question type |
 | [`dns.response.code`](#dns-response-code-doc) | Response code of the DNS response according to RFC 1035 |
 | [`network.destination.ip`](#common-ipportcontext-ip-doc) | IP address |
@@ -4027,10 +4027,10 @@ Definition: the queried domain name
 
 
 
-### `dns.question.name.tld` {#dns-question-name-tld-doc}
+### `dns.question.name.root_domain` {#dns-question-name-root_domain-doc}
 Type: string
 
-Definition: Top level domain of the corresponding element
+Definition: Root domain of the corresponding element
 
 
 
