@@ -392,7 +392,6 @@ cc_library(
         "HAVE_CONFIG_H",
         "_GNU_SOURCE",
     ],
-    # copts = ["-H"],
 )
 
 cc_library(
@@ -416,6 +415,7 @@ cc_library(
         "src",
     ],
     deps = [
+        ":compat",
         "@libxml2//:libxml2",
     ]
 )
@@ -447,6 +447,13 @@ cc_shared_library(
     ]
 )
 
+cc_shared_library(
+    name = "openscap_sce",
+    deps = [
+        ":libopenscap_sce",
+    ],
+)
+
 cc_binary(
     name = "oscap",
     srcs = glob([
@@ -457,8 +464,6 @@ cc_binary(
     deps = [
         ":config_h",
         ":compat_hdrs",
-        # ":compat",
-        # ":libopenscap",
     ],
     linkstatic = False,
     dynamic_deps = [
@@ -467,6 +472,50 @@ cc_binary(
         '@bzip2//:bz2',
         "@curl//:curl",
         # dbus is only needed by openscap and is linked statically
+        '@gcrypt//:gcrypt',
+        '@libselinux//:selinux',
+        '@libsepol//:sepol',
+        '@libxslt//:xslt',
+        '@libxslt//:exslt',
+        '@libyaml//:yaml',
+        '@pcre2//:pcre2-8',
+        '@popt//:popt',
+        '@rpm//:rpm',
+        '@rpm//:rpmio',
+        '@util-linux//:blkid',
+        "@libxml2//:xml2",
+        "@xmlsec//:xmlsec1",
+        "@xmlsec//:xmlsec1-openssl",
+        "@acl//:acl",
+        "@sqlite3//:sqlite3",
+        "@openssl//:openssl_shared",
+        "@xz//:lzma",
+        "@zlib//:z",
+        "@nghttp2//:nghttp2_shared",
+    ],
+    includes = COMMON_INCLUDE_DIRS + PUBLIC_HEADERS_DIRS,
+    local_defines = [
+        "HAVE_CONFIG_H",
+        "_GNU_SOURCE",
+    ],
+)
+
+cc_binary(
+    name = "oscap-io",
+    srcs = glob([
+        "utils/oscap-io/*.c",
+        "src/common/*.h",
+    ]) + PUBLIC_HEADERS,
+    deps = [
+        ":config_h",
+        ":compat_hdrs",
+    ],
+    linkstatic = False,
+    dynamic_deps = [
+        ":openscap",
+        '@attr//:attr',
+        '@bzip2//:bz2',
+        "@curl//:curl",
         '@gcrypt//:gcrypt',
         '@libselinux//:selinux',
         '@libsepol//:sepol',
@@ -505,7 +554,14 @@ so_symlink(
     name = "libopenscap_symlink",
     src = ":openscap",
     libname = "libopenscap",
-    version = "9.4.0",
+    version = "33.1.2",
+)
+
+so_symlink(
+    name = "libopenscap_sce_symlink",
+    src = ":openscap",
+    libname = "libopenscap",
+    version = "33.1.2",
 )
 
 pkg_files(
@@ -521,7 +577,7 @@ pkg_files(
     name = "bin_files",
     srcs = [
         ":oscap",
-        ":oscap_io",
+        ":oscap-io",
     ],
     prefix = "bin/",
 )
