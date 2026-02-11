@@ -6,9 +6,6 @@ VERSION = "1.4.3"
 
 http_archive(
     name = "openscap",
-    files = {
-        "BUILD.bazel": "//deps/openscap:overlay/overlay.BUILD.bazel",
-    },
     url = "https://github.com/OpenSCAP/openscap/releases/download/1.4.3/openscap-1.4.3.tar.gz",
     sha256 = "96ebe697aafc83eb297a8f29596d57319278112467c46e6aaf3649b311cf8fba",
     files = {
@@ -28,5 +25,5 @@ http_archive(
     ],
     patch_tool = "patch",
     patch_strip = 1,
-    strip_prefix = "openscap-1.4.2",
+    strip_prefix = "openscap-1.4.3",
 )
