@@ -9,4 +9,5 @@ test_fuzz:
   allow_failure: true
   script:
     - dda self dep sync -f legacy-tasks
+    - dda inv -- -e system-probe.object-files
     - dda inv -- build-and-upload-fuzz
