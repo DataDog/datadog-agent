@@ -337,7 +337,9 @@ func Diagnose() []diagnose.Diagnosis {
 			continue
 		}
 		configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, cfg)
-		endpoints, err := config.BuildHTTPEndpointsWithConfig(cfg, configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
+		// Use ForDiagnostic variant to avoid registering config update callbacks
+		// since these endpoints are transient and will be discarded after the diagnostic check
+		endpoints, err := config.BuildEndpointsForDiagnostic(cfg, configKeys, desc.hostnameEndpointPrefix, config.DiagnosticHTTP, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
 		if err != nil {
 			diagnoses = append(diagnoses, diagnose.Diagnosis{
 				Status:      diagnose.DiagnosisFail,

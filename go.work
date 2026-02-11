@@ -1,4 +1,4 @@
-go 1.25.6
+go 1.25.7
 
 // Disable new post-quantum key exchange mechanism X25519MLKEM768
 // See https://github.com/DataDog/datadog-agent/issues/34323 for historical context.
@@ -6,6 +6,7 @@ go 1.25.6
 godebug tlsmlkem=0
 
 use (
+
 	.
 	comp/api/api/def
 	comp/core/agenttelemetry/def
@@ -13,6 +14,15 @@ use (
 	comp/core/agenttelemetry/impl
 	comp/core/config
 	comp/core/configsync
+	comp/core/delegatedauth/api
+	comp/core/delegatedauth/api/cloudauth/aws
+	comp/core/delegatedauth/api/cloudauth/config
+	comp/core/delegatedauth/common
+	comp/core/delegatedauth/def
+	comp/core/delegatedauth/fx
+	comp/core/delegatedauth/impl
+	comp/core/delegatedauth/mock
+	comp/core/delegatedauth/noop-impl
 	comp/core/flare/builder
 	comp/core/flare/types
 	comp/core/hostname/hostnameinterface
@@ -145,6 +155,7 @@ use (
 	pkg/trace/otel
 	pkg/trace/stats
 	pkg/trace/traceutil
+	pkg/util/aws/creds
 	pkg/util/backoff
 	pkg/util/buf
 	pkg/util/cache
