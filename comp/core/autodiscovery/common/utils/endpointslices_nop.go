@@ -7,11 +7,8 @@
 
 package utils
 
-import pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-
-// UseEndpointSlices returns true if the Agent config has enabled endpoint slices.
-// A fallback mechanism isn't possible in this case because the kube api server isn't
-// available to this agent.
+// UseEndpointSlices returns false because the EndpointSlices API is not available
+// without access to the API server.
 func UseEndpointSlices() bool {
-	return pkgconfigsetup.Datadog().GetBool("kubernetes_use_endpoint_slices")
+	return false
 }

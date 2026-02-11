@@ -8,40 +8,12 @@
 package utils
 
 import (
-	"time"
-
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"golang.org/x/mod/semver"
 )
 
-// UseEndpointSlices returns true if the Agent config has enabled endpoint slices and the running
-// Kubernetes server version supports it. EndpointSlices became generally available starting from
-// Kubernetes version 1.21+. The Agent should fall back to the endpoints API if the config
-// is enabled but the server version does not support it.
+// UseEndpointSlices checks if the Agent should use the EndpointSlices API.
+// It checks that both the config enables EndpointSlices AND the Kubernetes cluster version
+// supports them (v1.21+), falling back to Endpoints if the cluster is too old.
 func UseEndpointSlices() bool {
-	if !pkgconfigsetup.Datadog().GetBool("kubernetes_use_endpoint_slices") {
-		log.Debug("kubernetes_use_endpoint_slices is disabled, using deprecated endpoints API.")
-		return false
-	}
-
-	apiserverClient, err := apiserver.GetAPIClient()
-	if err != nil {
-		log.Warnf("Couldn't get apiserver client, cannot check if kubernetes version supports endpoint slices.")
-		return true
-	}
-
-	serverVersion, err := common.KubeServerVersion(apiserverClient.Cl.Discovery(), 10*time.Second)
-	if err != nil {
-		log.Warnf("Couldn't get apiserver version, cannot check if kubernetes version supports endpoint slices.")
-		return true
-	}
-
-	if semver.IsValid(serverVersion.String()) && semver.Compare(serverVersion.String(), "v1.21.0") >= 0 {
-		return true
-	}
-	log.Debugf("Endpoint Slices not supported in Kubernetes version %s. Falling back to core/v1/Endpoints.", serverVersion.String())
-	return false
+	return apiserver.UseEndpointSlices()
 }

@@ -63,8 +63,7 @@ var controllerCatalog = map[controllerName]controllerFuncs{
 	},
 	endpointSlicesControllerName: {
 		func() bool {
-			return pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") &&
-				pkgconfigsetup.Datadog().GetBool("kubernetes_use_endpoint_slices")
+			return pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") && apiserver.UseEndpointSlices()
 		},
 		registerEndpointSlicesInformer,
 	},
@@ -147,7 +146,7 @@ func StartControllers(ctx *ControllerContext) k8serrors.Aggregate {
 // startMetadataController starts the informers needed for metadata collection.
 // The synchronization of the informers is handled by the controller.
 func startMetadataController(ctx *ControllerContext, _ chan error) {
-	useEndpointSlices := pkgconfigsetup.Datadog().GetBool("kubernetes_use_endpoint_slices")
+	useEndpointSlices := apiserver.UseEndpointSlices()
 	metaController := newMetadataController(
 		ctx.InformerFactory,
 		ctx.WorkloadMeta,
