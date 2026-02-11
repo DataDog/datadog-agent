@@ -586,18 +586,20 @@ func (e *SELinuxEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself, process_context_t kernel side
 func (p *PIDContext) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 32 {
+	if len(data) < 40 {
 		return 0, ErrNotEnoughData
 	}
 
 	p.Pid = binary.NativeEndian.Uint32(data[0:4])
 	p.Tid = binary.NativeEndian.Uint32(data[4:8])
 	p.NetNS = binary.NativeEndian.Uint32(data[8:12])
-	p.IsKworker = binary.NativeEndian.Uint32(data[12:16]) > 0
-	p.ExecInode = binary.NativeEndian.Uint64(data[16:24])
-	p.UserSessionID = binary.NativeEndian.Uint64(data[24:32])
+	p.MntNS = binary.NativeEndian.Uint32(data[12:16])
+	p.IsKworker = binary.NativeEndian.Uint32(data[16:20]) > 0
+	// padding
+	p.ExecInode = binary.NativeEndian.Uint64(data[24:32])
+	p.UserSessionID = binary.NativeEndian.Uint64(data[32:40])
 
-	return 32, nil
+	return 40, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -910,7 +912,7 @@ func (e *LoadModuleEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 
-	if len(data)-read < 188 {
+	if len(data)-read < 192 {
 		return 0, ErrNotEnoughData
 	}
 

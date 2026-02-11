@@ -88,16 +88,16 @@ func (h *TestConnectionHandler) validateScriptUser() (string, []string) {
 	var errors []string
 	var info strings.Builder
 
-	scriptUserInfo, err := user.Lookup("scriptuser")
+	scriptUserInfo, err := user.Lookup(ScriptUserName)
 	if err != nil {
-		errors = append(errors, fmt.Sprintf("Script user 'scriptuser' not found: %v", err))
+		errors = append(errors, fmt.Sprintf("Script user '%s' not found: %v", ScriptUserName, err))
 	} else {
 		info.WriteString(fmt.Sprintf("Script user '%s' found (UID: %s, GID: %s)\n",
 			scriptUserInfo.Username, scriptUserInfo.Uid, scriptUserInfo.Gid))
 	}
 
 	// Check if the current user can sudo to the script user
-	suCmd := exec.Command("sudo", "su", "-c", "id -u scriptuser")
+	suCmd := exec.Command("sudo", "su", "-c", "id -u %s"+ScriptUserName)
 	_, err = suCmd.CombinedOutput()
 	if err != nil {
 		errors = append(errors, fmt.Sprintf("Failed to check if the current user can sudo to the script user: %v", err))

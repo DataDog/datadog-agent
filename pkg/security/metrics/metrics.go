@@ -33,12 +33,6 @@ var (
 	// Tags: rule_id
 	MetricRateLimiterAllow = newRuntimeMetric(".rules.rate_limiter.allow")
 
-	// Rule Suppression metrics
-
-	// MetricRulesSuppressed is the name of the metric used to count the number of auto suppressed events
-	// Tags: rule_id
-	MetricRulesSuppressed = newRuntimeMetric(".rules.suppressed")
-
 	// MetricRulesNoMatch is the number of events that reached userspace but didn't match any rule
 	// Tags: event_type, category
 	MetricRulesNoMatch = newRuntimeMetric(".rules.no_match")
@@ -242,9 +236,6 @@ var (
 	// MetricActivityDumpActiveDumps is the name of the metric used to report the number of active dumps
 	// Tags: -
 	MetricActivityDumpActiveDumps = newRuntimeMetric(".activity_dump.active_dumps")
-	// MetricActivityDumpLoadControllerTriggered is the name of the metric used to report that the ADM load controller reduced the config envelope
-	// Tags:reduction, event_type
-	MetricActivityDumpLoadControllerTriggered = newRuntimeMetric(".activity_dump.load_controller_triggered")
 	// MetricActivityDumpActiveDumpSizeInMemory is the size of an activity dump in memory
 	// Tags: dump_index
 	MetricActivityDumpActiveDumpSizeInMemory = newRuntimeMetric(".activity_dump.size_in_memory")
@@ -320,7 +311,7 @@ var (
 	// Security Profile metrics
 
 	// MetricSecurityProfileProfiles is the name of the metric used to report the count of Security Profiles per category
-	// Tags: in_kernel (true or false), anomaly_detection (true or false), auto_suppression (true or false), workload_hardening (true or false)
+	// Tags: in_kernel (true or false), anomaly_detection (true or false), workload_hardening (true or false)
 	MetricSecurityProfileProfiles = newRuntimeMetric(".security_profile.profiles")
 	// MetricSecurityProfileCacheLen is the name of the metric used to report the size of the Security Profile cache
 	// Tags: -

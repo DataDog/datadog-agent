@@ -8,7 +8,7 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_fil
 
 package(
     default_applicable_licenses = [":license"],
-    default_visibility = ["//visibility:public"],
+    default_visibility = ["//visibility:private"],
 )
 
 license(
@@ -96,11 +96,12 @@ cc_library(
         "lib/includes",
     ],
     visibility = ["//visibility:public"],
-    # The library is pure C, no need for C++ linking
+    # Options gleaned from the generated Makefile
     copts = [
         "-O2",
         "-DHAVE_CONFIG_H",
         "-DBUILDING_NGHTTP2",
+        "-fvisibility=hidden",
     ],
     target_compatible_with = select({
         "@platforms//os:windows": ["@platforms//:incompatible"],
@@ -112,22 +113,17 @@ cc_shared_library(
     name = "nghttp2_shared",
     shared_lib_name = "nghttp2.so.%s" % SO_VERSION,
     deps = ["nghttp2"],
-    user_link_flags = select({
-        "@platforms//os:linux": [
-            "-Wl,--gc-sections",
-            "-Wl,--strip-all",
-        ],
-        "//conditions:default": [],
-    }),
+    visibility = ["//visibility:public"],
 )
 
 so_symlink(
     name = "lib_files",
     src = ":nghttp2_shared",
     libname = "libnghttp2",
-    # Lands in embedded/lib, but prefix should really override that.
+    # Lands in embedded/lib. so_symlink FR, prefix should be able to override the automatic 'lib/'.
     prefix = "embedded",
     version = SO_VERSION,
+    attributes = pkg_attributes(mode = "0755"),
 )
 
 pkg_files(
@@ -136,6 +132,7 @@ pkg_files(
     prefix = "embedded/include/nghttp2",
 )
 
+# Temporary: until we pick up all licenses via aspect on final package
 pkg_files(
     name = "license_file",
     srcs = ["COPYING"],
@@ -171,6 +168,7 @@ pkg_filegroup(
         ":lib_files",
         ":fetch_ocsp_response",
     ],
+    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
 #  This is generally installed with destdir={install_dir}
