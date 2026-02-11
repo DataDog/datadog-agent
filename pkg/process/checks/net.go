@@ -458,6 +458,14 @@ func batchConnections(
 
 	dnsEncoder := model.NewV2DNSEncoder()
 
+	// Build port -> PID map from the connections for resolving destination service on same-host connections
+	portToPID := make(map[int32]int32)
+	for _, c := range cxs {
+		if c.Pid > 0 {
+			portToPID[c.Laddr.Port] = c.Pid
+		}
+	}
+
 	if len(cxs) > maxConnsPerMessage {
 		// Sort connections by remote IP/PID for more efficient resolution
 		sort.Slice(cxs, func(i, j int) bool {
@@ -511,6 +519,14 @@ func batchConnections(
 			// tags remap
 			serviceCtx := serviceExtractor.GetServiceContext(c.Pid)
 			tagsStr := convertAndEnrichWithServiceCtx(tags, c.Tags, serviceCtx...)
+
+			// Debug: log the destination service name for same-host connections
+			if c.IntraHost {
+				if destPID, ok := portToPID[c.Raddr.Port]; ok && destPID != c.Pid {
+					destServiceTags := serviceExtractor.GetServiceContext(destPID)
+					log.Debugf("same-host connection: src PID=%d -> dst PID=%d, dest service context: %v", c.Pid, destPID, destServiceTags)
+				}
+			}
 
 			// Get process tags and add them to the connection tags
 			if processTagProvider != nil {
