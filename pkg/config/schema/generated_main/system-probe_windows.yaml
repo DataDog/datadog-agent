@@ -52,6 +52,13 @@
 #
 #   enabled: false
 
+#   # @param dns_monitoring_ports - list of integers - optional - default: [53]
+#   # @env DD_SYSTEM_PROBE_CONFIG_DNS_MONITORING_PORTS - space separated list of integers - optional - default: [53]
+#   # A list of ports that should be monitored for DNS traffic.
+#
+#   dns_monitoring_ports:
+#     - 53
+
 #############################################################
 ## System Probe Universal Service monitoring Configuration ##
 #############################################################
@@ -129,7 +136,7 @@
 #     # @env DD_RUNTIME_SECURITY_CONFIG_SYSCALL_MONITOR_ENABLED - boolean - optional - default: false
 #     # Set to true to enable the Syscall monitoring (recommended for troubleshooting only).
 #
-#      enabled: false
+#     enabled: false
 
 #   # @param custom_sensitive_words - list of strings - optional
 #   # @env DD_RUNTIME_SECURITY_CONFIG_CUSTOM_SENSITIVE_WORDS - space separated list of strings - optional
@@ -193,9 +200,9 @@
 #
 #     enabled: true
 
-#####################################################
-## Datadog Agent Windows Crash Detection module
-#####################################################
+##################################################
+## Datadog Agent Windows Crash Detection module ##
+##################################################
 
 # windows_crash_detection:
 #   # @param enabled - boolean - optional - default: false

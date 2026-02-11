@@ -7,17 +7,19 @@
 ## The Datadog API key used by your Agent to submit metrics and events to Datadog.
 ## Create a new API key here: https://app.datadoghq.com/organization-settings/api-keys .
 ## Read more about API keys here: https://docs.datadoghq.com/account_management/api-app-keys/#api-keys .
-api_key:
+#
+# api_key:
 
-## @param app_key - string - optional
+## @param app_key - string - optional - default: ""
+## @env DD_APP_KEY - string - optional - default: ""
 ## The application key used to access Datadog's programatic API.
 ## Create a new application key here: https://app.datadoghq.com/organization-settings/application-keys .
 ## Read more about application keys here: https://docs.datadoghq.com/account_management/api-app-keys/#application-keys .
 #
-# app_key:
+# app_key: ""
 
-## @param site - string - optional - default: datadoghq.com
-## @env DD_SITE - string - optional - default: datadoghq.com
+## @param site - string - optional - default: "datadoghq.com"
+## @env DD_SITE - string - optional - default: "datadoghq.com"
 ## The site of the Datadog intake to send Agent data to.
 ## The site parameter must be set to enable your agent with Remote Configuration.
 ## Set to 'datadoghq.eu' to send data to the EU site.
@@ -28,9 +30,9 @@ api_key:
 #
 # site: datadoghq.com
 
-## @param dd_url - string - optional - default: https://app.datadoghq.com
-## @env DD_DD_URL - string - optional - default: https://app.datadoghq.com
-## @env DD_URL - string - optional - default: https://app.datadoghq.com
+## @param dd_url - string - optional - default: "https://app.datadoghq.com"
+## @env DD_DD_URL - string - optional - default: "https://app.datadoghq.com"
+## @env DD_URL - string - optional - default: "https://app.datadoghq.com"
 ## The host of the Datadog intake server to send metrics to, only set this option
 ## if you need the Agent to send metrics to a custom URL, it overrides the site
 ## setting defined in "site". It does not affect APM, Logs, Remote Configuration, or Live Process intake which have their
@@ -40,16 +42,28 @@ api_key:
 # dd_url: https://app.datadoghq.com
 
 ## @param proxy - custom object - optional
-## @env DD_PROXY_HTTP - string - optional
-## @env DD_PROXY_HTTPS - string - optional
-## @env DD_PROXY_NO_PROXY - space separated list of strings - optional
 ## If you need a proxy to connect to the Internet, provide it here (default:
 ## disabled). Refer to https://docs.datadoghq.com/agent/proxy/ to understand how to use these settings.
 ## For Logs proxy information, refer to https://docs.datadoghq.com/agent/proxy/#proxy-for-logs
 #
 # proxy:
+
+#   # @param https - string - optional - default: ""
+#   # @env DD_PROXY_HTTPS - string - optional
+#   # The proxy to use for HTTPS requests
+#
 #   https: http://<USERNAME>:<PASSWORD>@<PROXY_SERVER_FOR_HTTPS>:<PORT>
+
+#   # @param http - string - optional - default: ""
+#   # @env DD_PROXY_HTTP - string - optional
+#   # The proxy to use for HTTP requests
+#
 #   http: http://<USERNAME>:<PASSWORD>@<PROXY_SERVER_FOR_HTTP>:<PORT>
+
+#   # @param no_proxy - list of strings - optional - default: []
+#   # @env DD_PROXY_NO_PROXY - space separated list of strings - optional
+#   # A list of hosts for which the proxy setting should not be used
+#
 #   no_proxy:
 #     - <HOSTNAME-1>
 #     - <HOSTNAME-2>
@@ -68,6 +82,7 @@ api_key:
 ## For more details, see https://developer.mozilla.org/en-US/docs/Mozilla/Projects/NSS/Key_Log_Format.
 ## Use of sslkeylogfile compromises security and should only be
 ## used for debugging.
+#
 # sslkeylogfile: ""
 
 ## @param min_tls_version - string - optional - default: "tlsv1.2"
@@ -80,14 +95,14 @@ api_key:
 #
 # min_tls_version: "tlsv1.2"
 
-## @param hostname - string - optional - default: auto-detected
-## @env DD_HOSTNAME - string - optional - default: auto-detected
-## Force the hostname name.
+## @param hostname - string - optional - default: ""
+## @env DD_HOSTNAME - string - optional - default: ""
+## Force the hostname name for the Agent. By default, the Agent will auto-detect its hostname.
 #
 # hostname: <HOSTNAME_NAME>
 
-## @param hostname_file - string - optional
-## @env DD_HOSTNAME_FILE - string - optional
+## @param hostname_file - string - optional - default: ""
+## @env DD_HOSTNAME_FILE - string - optional - default: ""
 ## In some environments, auto-detection of the hostname is not adequate and
 ## environment variables cannot be used to set the value. In such cases, the
 ## file on the host can also be used provide an appropriate value. If
@@ -113,8 +128,8 @@ api_key:
 #
 # hostname_trust_uts_namespace: false
 
-## @param host_aliases - list of strings - optional
-## @env DD_HOST_ALIASES - space separated list of strings - optional
+## @param host_aliases - list of strings - optional - default: []
+## @env DD_HOST_ALIASES - space separated list of strings - optional - default: []
 ## List of host aliases to report in addition to any aliases collected
 ## automatically from cloud providers.
 ## More information at
@@ -124,8 +139,8 @@ api_key:
 #   - <ALIAS-1>
 #   - <ALIAS-2>
 
-## @param tags  - list of key:value elements - optional
-## @env DD_TAGS - space separated list of strings - optional
+## @param tags - list of strings - optional - default: []
+## @env DD_TAGS - space separated list of strings - optional - default: []
 ## List of host tags. Attached in-app to every metric, event, log, trace, and service check emitted by this Agent.
 ##
 ## This configuration value merges with `DD_EXTRA_TAGS`, allowing some
@@ -138,8 +153,8 @@ api_key:
 #   - team:infra
 #   - <TAG_KEY>:<TAG_VALUE>
 
-## @param extra_tags  - list of key:value elements - optional
-## @env DD_EXTRA_TAGS - space separated list of strings - optional
+## @param extra_tags - list of strings - optional - default: []
+## @env DD_EXTRA_TAGS - space separated list of strings - optional - default: []
 ## List of host tags. Attached in-app to every metric, event, log, trace, and service check emitted by this Agent.
 ##
 ## This configuration value merges with `tags`, allowing some
@@ -152,21 +167,21 @@ api_key:
 #   - region:northerly
 #   - <TAG_KEY>:<TAG_VALUE>
 
-## @param env - string - optional
-## @env DD_ENV - string - optional
+## @param env - string - optional - default: ""
+## @env DD_ENV - string - optional - default: ""
 ## The environment name where the agent is running. Attached in-app to every
 ## metric, event, log, trace, and service check emitted by this Agent.
 #
 # env: <environment name>
 
-## @param remote_updates - boolean - optional - default: false
-## @env DD_REMOTE_UPDATES - boolean - optional - default: false
+## @param remote_updates - boolean - optional - default: true
+## @env DD_REMOTE_UPDATES - boolean - optional - default: true
 ## Enable remote upgrades and configuration changes for the Agent.
 #
-# remote_updates: false
+# remote_updates: true
 
-## @param tag_value_split_separator - map - optional
-## @env DD_TAG_VALUE_SPLIT_SEPARATOR - list of key:value strings - optional
+## @param tag_value_split_separator - object - optional - default: {}
+## @env DD_TAG_VALUE_SPLIT_SEPARATOR - JSON object of string to string - optional - default: {}
 ## Split tag values according to a given separator. Only applies to host tags,
 ## and tags coming from container integrations. It does not apply to tags on dogstatsd metrics,
 ## and tags collected by other integrations.
@@ -183,8 +198,8 @@ api_key:
 # tag_value_split_separator:
 #   <TAG_KEY>: <SEPARATOR>
 
-## @param checks_tag_cardinality - string - optional - default: low
-## @env DD_CHECKS_TAG_CARDINALITY - string - optional - default: low
+## @param checks_tag_cardinality - string - optional - default: "low"
+## @env DD_CHECKS_TAG_CARDINALITY - string - optional - default: "low"
 ## Configure the level of granularity of tags to send for checks metrics and events. Choices are:
 ##   * low: add tags about low-cardinality objects (clusters, hosts, deployments, container images, ...)
 ##   * orchestrator: add tags about pod, (in Kubernetes), or task (in ECS or Mesos) -level of cardinality
@@ -192,10 +207,10 @@ api_key:
 ## WARNING: sending container tags for checks metrics may create more metrics
 ## (one per container instead of one per host). This may impact your custom metrics billing.
 #
-# checks_tag_cardinality: low
+# checks_tag_cardinality: "low"
 
-## @param dogstatsd_tag_cardinality - string - optional - default: low
-## @env DD_DOGSTATSD_TAG_CARDINALITY - string - optional - default: low
+## @param dogstatsd_tag_cardinality - string - optional - default: "low"
+## @env DD_DOGSTATSD_TAG_CARDINALITY - string - optional - default: "low"
 ## Configure the level of granularity of tags to send for DogStatsD metrics and events. Choices are:
 ##   * low: add tags about low-cardinality objects (clusters, hosts, deployments, container images, ...)
 ##   * orchestrator: add tags about pod, (in Kubernetes), or task (in ECS or Mesos) -level of cardinality
@@ -204,10 +219,10 @@ api_key:
 ## WARNING: sending container tags for dogstatsd metrics may create more metrics
 ## (one per container instead of one per host). This may impact your custom metrics billing.
 #
-# dogstatsd_tag_cardinality: low
+# dogstatsd_tag_cardinality: "low"
 
 ## @param histogram_aggregates - list of strings - optional - default: ["max", "median", "avg", "count"]
-## @env DD_HISTOGRAM_AGGREGATES - space separated list of strings - optional - default: max median avg count
+## @env DD_HISTOGRAM_AGGREGATES - space separated list of strings - optional - default: 'max median avg count'
 ## Configure which aggregated value to compute.
 ## Possible values are: min, max, median, avg, sum and count.
 #
@@ -218,7 +233,7 @@ api_key:
 #   - count
 
 ## @param histogram_percentiles - list of strings - optional - default: ["0.95"]
-## @env DD_HISTOGRAM_PERCENTILES - space separated list of strings - optional - default: 0.95
+## @env DD_HISTOGRAM_PERCENTILES - space separated list of strings - optional - default: '0.95'
 ## Configure which percentiles are computed by the Agent. It must be a list of float between 0 and 1.
 ## Warning: percentiles must be specified as yaml strings
 #
@@ -232,8 +247,8 @@ api_key:
 #
 # histogram_copy_to_distribution: false
 
-## @param histogram_copy_to_distribution_prefix - string - optional
-## @env DD_HISTOGRAM_COPY_TO_DISTRIBUTION_PREFIX - string - optional
+## @param histogram_copy_to_distribution_prefix - string - optional - default: ""
+## @env DD_HISTOGRAM_COPY_TO_DISTRIBUTION_PREFIX - string - optional - default: ""
 ## A prefix to add to distribution metrics created when histogram_copy_to_distributions is true
 #
 # histogram_copy_to_distribution_prefix: "<PREFIX>"
@@ -265,11 +280,11 @@ api_key:
 #
 # forwarder_timeout: 20
 
-## @param forwarder_retry_queue_payloads_max_size - integer - optional - default: 15728640 (15MB)
-## @env DD_FORWARDER_RETRY_QUEUE_PAYLOADS_MAX_SIZE - integer - optional - default: 15728640 (15MB)
-## It defines the maximum size in bytes of all the payloads in the forwarder's retry queue.
+## @param forwarder_retry_queue_payloads_max_size - integer - optional - default: 15728640
+## @env DD_FORWARDER_RETRY_QUEUE_PAYLOADS_MAX_SIZE - integer - optional - default: 15728640
+## It defines the maximum size in bytes of all the payloads in the f-orwarder's retry queue.
 ## The actual memory used is greater than the payloads size as there are extra fields like HTTP headers,
-## but no more than 2.5 times the payload size.
+## but no more than 2.5 times the payload size. The default is 15MB.
 #
 # forwarder_retry_queue_payloads_max_size: 15728640
 
@@ -292,13 +307,14 @@ api_key:
 #
 # forwarder_stop_timeout: 2
 
-## @param http_protocol - string - optional - default: auto
-## @env DD_FORWARDER_HTTP_PROTOCOL - string - optional - default: auto
+## @param forwarder_http_protocol - string - optional - default: "auto"
+## @env DD_FORWARDER_HTTP_PROTOCOL - string - optional - default: "auto"
 ## The transport type to use for sending logs. Possible values are "auto" or "http1".
-# forwarder_http_protocol: auto
+#
+# forwarder_http_protocol: "auto"
 
 ## @param forwarder_max_concurrent_requests - integer - optional - default: 10
-## @ENV DD_FORWARDER_MAX_CONCURRENT_REQUESTS - integer - optional - default: 10
+## @env DD_FORWARDER_MAX_CONCURRENT_REQUESTS - integer - optional - default: 10
 ## The maximum number of concurrent requests that each worker can have queued up
 ## at any one time. If the connection is over HTTP/1 each request will be waiting
 ## for the previous request to complete before sending the next one. With HTTP/2
@@ -331,38 +347,43 @@ api_key:
 #
 # forwarder_outdated_file_in_days: 10
 
-## @param forwarder_high_prio_buffer_size - int - optional - default: 100
+## @param forwarder_high_prio_buffer_size - integer - optional - default: 100
+## @env DD_FORWARDER_HIGH_PRIO_BUFFER_SIZE - integer - optional - default: 100
 ## Defines the size of the high prio buffer.
 ## Increasing the buffer size can help if payload drops occur due to high prio buffer being full.
 #
 # forwarder_high_prio_buffer_size: 100
 
-## @param forwarder_low_prio_buffer_size - int - optional - default: 100
+## @param forwarder_low_prio_buffer_size - integer - optional - default: 100
+## @env DD_FORWARDER_LOW_PRIO_BUFFER_SIZE - integer - optional - default: 100
 ## Defines the size of the low prio buffer.
 #
 # forwarder_low_prio_buffer_size: 100
 
-## @param forwarder_requeue_buffer_size - int - optional - default: 100
+## @param forwarder_requeue_buffer_size - integer - optional - default: 100
+## @env DD_FORWARDER_REQUEUE_BUFFER_SIZE - integer - optional - default: 100
 ## Defines the size of the requeue prio buffer.
 #
 # forwarder_requeue_buffer_size: 100
 
-## @param forwarder_backoff_base - int - optional - default: 2
+## @param forwarder_backoff_base - integer - optional - default: 2
 ## @env DD_FORWARDER_BACKOFF_BASE - integer - optional - default: 2
 ## Defines the rate of exponential growth, and the first retry interval range.
 ## Do not set a lower value than the default. You may increase it if you use a proxy that benefits from a
 ## higher rate of exponential growth.
+#
 # forwarder_backoff_base: 2
 
-## @param forwarder_backoff_max - int - optional - default: 64
+## @param forwarder_backoff_max - integer - optional - default: 64
 ## @env DD_FORWARDER_BACKOFF_MAX - integer - optional - default: 64
 ## Defines the maximum number of seconds to wait for a retry.
 ## Do not set a lower value than the default. You may increase it if you use a proxy that benefits from a
 ## higher maximum backoff time.
+#
 # forwarder_backoff_max: 64
 
-## @param cloud_provider_metadata - list of strings -  optional - default: ["aws", "gcp", "azure", "alibaba", "oracle", "ibm"]
-## @env DD_CLOUD_PROVIDER_METADATA - space separated list of strings - optional - default: aws gcp azure alibaba oracle ibm
+## @param cloud_provider_metadata - list of strings - optional - default: ["aws", "gcp", "azure", "alibaba", "oracle", "ibm"]
+## @env DD_CLOUD_PROVIDER_METADATA - space separated list of strings - optional - default: 'aws gcp azure alibaba oracle ibm'
 ## This option restricts which cloud provider endpoint will be used by the
 ## agent to retrieve metadata. By default the agent will try # AWS, GCP, Azure
 ## and alibaba providers. Some cloud provider are not enabled by default to not
@@ -401,7 +422,6 @@ api_key:
 ## https://docs.datadoghq.com/integrations/faq/how-do-i-pull-my-ec2-tags-without-using-the-aws-integration/
 #
 # collect_ec2_tags: false
-#
 
 ## @param collect_ec2_instance_info - boolean - optional - default: false
 ## @env DD_COLLECT_EC2_INSTANCE_INFO - boolean - optional - default: false
@@ -467,8 +487,8 @@ api_key:
 #
 # collect_gce_tags: true
 
-## @param exclude_gce_tags - list of strings - optional - default: ["bosh_settings" ,"cli-cert" ,"common-psm1" ,"configure-sh" ,"containerd-configure-sh" ,"disable-address-manager" ,"disable-legacy-endpoints" ,"enable-oslogin" ,"gce-container-declaration" ,"google-container-manifest" ,"ipsec-cert" ,"k8s-node-setup-psm1" ,"kube-env" ,"kubeconfig" ,"kubelet-config" ,"serial-port-logging-enable" ,"shutdown-script" ,"ssh-keys" ,"sshKeys" ,"ssl-cert" ,"startup-script" ,"user-data" ,"windows-keys" ,"windows-startup-script-ps1"]
-## @env DD_EXCLUDE_GCE_TAGS - space separated list of strings - optional - default: bosh_settings cli-cert common-psm1 configure-sh containerd-configure-sh disable-address-manager disable-legacy-endpoints enable-oslogin gce-container-declaration google-container-manifest ipsec-cert k8s-node-setup-psm1 kube-env kubeconfig kubelet-config serial-port-logging-enable shutdown-script ssh-keys sshKeys ssl-cert startup-script user-data windows-keys windows-startup-script-ps1
+## @param exclude_gce_tags - list of strings - optional - default: ["kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script", "configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings", "windows-startup-script-ps1", "common-psm1", "k8s-node-setup-psm1", "serial-port-logging-enable", "enable-oslogin", "disable-address-manager", "disable-legacy-endpoints", "windows-keys", "kubeconfig", "gce-container-declaration"]
+## @env DD_EXCLUDE_GCE_TAGS - space separated list of strings - optional - default: 'kube-env kubelet-config containerd-configure-sh startup-script shutdown-script configure-sh sshKeys ssh-keys user-data cli-cert ipsec-cert ssl-cert google-container-manifest bosh_settings windows-startup-script-ps1 common-psm1 k8s-node-setup-psm1 serial-port-logging-enable enable-oslogin disable-address-manager disable-legacy-endpoints windows-keys kubeconfig gce-container-declaration'
 ## Google Cloud Engine metadata attribute to exclude from being converted into
 ## host tags -- only applicable when collect_gce_tags is true.
 #
@@ -498,8 +518,8 @@ api_key:
 #   - "windows-keys"
 #   - "windows-startup-script-ps1"
 
-## @param gce_send_project_id_tag - bool - optional - default: false
-## @env DD_GCE_SEND_PROJECT_ID_TAG - bool - optional - default: false
+## @param gce_send_project_id_tag - boolean - optional - default: false
+## @env DD_GCE_SEND_PROJECT_ID_TAG - boolean - optional - default: false
 ## Send the project ID host tag with the `project_id:` tag key in addition to
 ## the `project:` tag key.
 #
@@ -547,9 +567,9 @@ api_key:
 ## Configuration for scrubbing sensitive information from the Agent's logs, configuration and flares.
 #
 # scrubber:
-#
-#   # @param scrubber.additional_keys - list of strings - optional
-#   # @env DD_SCRUBBER_ADDITIONAL_KEYS - space-separated list of strings - optional
+
+#   # @param additional_keys - list of strings - optional - default: []
+#   # @env DD_SCRUBBER_ADDITIONAL_KEYS - space separated list of strings - optional - default: []
 #   # By default, the Agent removes known sensitive keys from Agent and integrations YAML configs before
 #   # including them in the flare.
 #   # Use this parameter to define additional sensitive keys that the Agent should scrub from
@@ -582,12 +602,13 @@ api_key:
 #
 # inventories_configuration_enabled: true
 
+## @param metadata_ip_resolution_from_hostname - boolean - optional - default: false
 ## @env DD_METADATA_IP_RESOLUTION_FROM_HOSTNAME - boolean - optional - default: false
 ## By default, the Agent uses the first interface in the list of network interfaces to determine the IP address of the host.
 ## If you set this option to true, the Agent tries to resolve the host name to determine the host's IP address.
 ## If this is unsuccessful, the Agent falls back to the default behavior.
 ## This option is useful when the first interface is not the one you want to use to determine the host's IP address, or when
-## you define the hostname in the /etc/hosts configuration file.
+## you define the hostname in the /etc/hosts configuration file.
 #
 # metadata_ip_resolution_from_hostname: false
 
@@ -602,14 +623,15 @@ api_key:
 #   # Feature is only supported on POSIX systems.
 #
 #   noprocess:
+
 #     # @param enabled - boolean - optional - default: false
 #     # @env DD_AUTO_EXIT_NOPROCESS_ENABLED - boolean - optional - default: false
 #     # Enable the `noprocess` method
 #
 #     enabled: false
 
-#     # @param excluded_processes - list of strings - optional
-#     # @env DD_AUTO_EXIT_NOPROCESS_EXCLUDED_PROCESSES - space separated list of strings - optional
+#     # @param excluded_processes - list of strings - optional - default: []
+#     # @env DD_AUTO_EXIT_NOPROCESS_EXCLUDED_PROCESSES - space separated list of strings - optional - default: []
 #     # List of regular expressions to exclude extra processes (on top of built-in list).
 #
 #     excluded_processes: []
@@ -651,17 +673,17 @@ api_key:
 #   # - compliance_config.endpoints.dd_url
 #   # - runtime_security_config.endpoints.dd_url
 #   # - network_devices.metadata.dd_url
-#
+#   #
 #   # The agent will also ignore 'proxy.*' settings and environment variables related to proxy (HTTP_PROXY, HTTPS_PROXY,
 #   # DD_PROXY_HTTP and DD_PROXY_HTTPS).
 #
 #   enabled: false
 
-#   # @param local_address - string - optional - default: localhost
-#   # @env DD_FIPS_LOCAL_ADDRESS - string - optional - default: localhost
+#   # @param local_address - string - optional - default: "localhost"
+#   # @env DD_FIPS_LOCAL_ADDRESS - string - optional - default: "localhost"
 #   # The local address that the FIPS proxy will bind ports on.
 #
-#   local_address: localhost
+#   local_address: "localhost"
 
 ## @param observability_pipelines_worker - custom object - optional
 ## Configuration for forwarding telemetry to an Observability Pipelines Worker instead of Datadog.
@@ -670,7 +692,7 @@ api_key:
 #
 # observability_pipelines_worker:
 
-#   # @param  metrics - custom object - optional
+#   # @param metrics - custom object - optional
 #   # Specific configurations for metrics
 #
 #   metrics:
@@ -687,7 +709,7 @@ api_key:
 #
 #     url: "http://127.0.0.1:8080"
 
-#   # @param  logs - custom object - optional
+#   # @param logs - custom object - optional
 #   # Specific configurations for logs
 #
 #   logs:
@@ -704,7 +726,7 @@ api_key:
 #
 #     url: "http://127.0.0.1:8080"
 
-#   # @param  traces - custom object - optional
+#   # @param traces - custom object - optional
 #   # Specific configurations for traces
 #
 #   traces:
@@ -738,8 +760,8 @@ api_key:
 #
 #   enabled: true
 
-#   # @param env - string - optional - default: none
-#   # @env DD_APM_ENV - string - optional - default: none
+#   # @param env - string - optional - default: "none"
+#   # @env DD_APM_ENV - string - optional - default: "none"
 #   # The environment tag that Traces should be tagged with.
 #   # If not set the value will be inherited, in order, from the top level
 #   # "env" config option if set and then from the 'env:' tag if present in the
@@ -749,19 +771,24 @@ api_key:
 
 #   # @param receiver_port - integer - optional - default: 8126
 #   # @env DD_APM_RECEIVER_PORT - integer - optional - default: 8126
+#   # @env DD_RECEIVER_PORT - integer - optional - default: 8126
 #   # The port that the trace receiver should listen on.
 #   # Set to 0 to disable the HTTP receiver.
 #
 #   receiver_port: 8126
 
-#   # Please note that UDS receiver is not available in Windows.
-#   # @ Enabling this setting may result in unexpected behavior.
+
 #   # @param receiver_socket - string - optional - default: ""
 #   # @env DD_APM_RECEIVER_SOCKET - string - optional - default: ""
+#   #
+#   # Please note that UDS receiver is not available in Windows.
+#   # @ Enabling this setting may result in unexpected behavior.
+#   #
 #   # Accept traces through Unix Domain Sockets.
 #   # Set to "" to disable the UDS receiver.
 #
 #   receiver_socket: ""
+
 
 #   # @param apm_non_local_traffic - boolean - optional - default: false
 #   # @env DD_APM_NON_LOCAL_TRAFFIC - boolean - optional - default: false
@@ -777,9 +804,11 @@ api_key:
 #
 #   apm_dd_url: <ENDPOINT>:<PORT>
 
-#   # DEPRECATED - please use `target_traces_per_second` instead.
 #   # @param max_traces_per_second - integer - optional - default: 10
 #   # @env DD_APM_MAX_TPS - integer - optional - default: 10
+#   # @env DD_MAX_TPS - integer - optional - default: 10
+#   # DEPRECATED - please use `target_traces_per_second` instead.
+#   #
 #   # The target traces per second to sample. Sampling rates to apply are adjusted given
 #   # the received traffic and communicated to tracers. This configures head base sampling.
 #   # As of 7.35.0 sampling cannot be disabled and setting 'max_traces_per_second' to 0 no longer
@@ -808,6 +837,7 @@ api_key:
 
 #   # @param max_events_per_second - integer - optional - default: 200
 #   # @env DD_APM_MAX_EPS - integer - optional - default: 200
+#   # @env DD_MAX_EPS - integer - optional - default: 200
 #   # Maximum number of APM events per second to sample.
 #
 #   max_events_per_second: 200
@@ -829,138 +859,247 @@ api_key:
 #
 #   max_cpu_percent: 50
 
-#   # @param obfuscation - object - optional
+#   # @param obfuscation - custom object - optional
 #   # Defines obfuscation rules for sensitive data.
 #   # See https://docs.datadoghq.com/tracing/setup_overview/configure_data_security/#agent-trace-obfuscation
 #
 #   obfuscation:
+
+#     # @param credit_cards - custom object - optional
+#
 #     credit_cards:
-#       # @param DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED - boolean - optional
+
+#       # @param enabled - boolean - optional - default: true
+#       # @env DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED - boolean - optional - default: true
 #       # Enables obfuscation rules for credit cards. Enabled by default.
+#
 #       enabled: true
-#       # @param DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN - boolean - optional
+
+#       # @param luhn - boolean - optional - default: false
+#       # @env DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN - boolean - optional - default: false
 #       # Enables a Luhn checksum check in order to eliminate false negatives. Disabled by default.
+#
 #       luhn: false
-#       # @param DD_APM_OBFUSCATION_CREDIT_CARDS_KEEP_VALUES - object - optional
+
+#       # @param keep_values - list of strings - optional - default: []
+#       # @env DD_APM_OBFUSCATION_CREDIT_CARDS_KEEP_VALUES - space separated list of strings or JSON array of strings - optional - default: []
 #       # List of keys that should not be obfuscated.
+#
 #       keep_values:
 #         - client_id
+
+#     # @param elasticsearch - custom object - optional
 #
 #     elasticsearch:
-#       # @param DD_APM_OBFUSCATION_ELASTICSEARCH_ENABLED - boolean - optional
+
+#       # @param enabled - boolean - optional - default: true
+#       # @env DD_APM_OBFUSCATION_ELASTICSEARCH_ENABLED - boolean - optional - default: true
 #       # Enables obfuscation rules for spans of type "elasticsearch". Enabled by default.
+#
 #       enabled: true
-#       # @param DD_APM_OBFUSCATION_ELASTICSEARCH_KEEP_VALUES - object - optional
+
+#       # @param keep_values - list of strings - optional - default: []
+#       # @env DD_APM_OBFUSCATION_ELASTICSEARCH_KEEP_VALUES - space separated list of strings - optional - default: []
 #       # List of keys that should not be obfuscated.
+#
 #       keep_values:
 #         - client_id
-#       # @param DD_APM_OBFUSCATION_ELASTICSEARCH_OBFUSCATE_SQL_VALUES - boolean - optional
+
+#       # @param obfuscate_sql_values - list of strings - optional - default: []
+#       # @env DD_APM_OBFUSCATION_ELASTICSEARCH_OBFUSCATE_SQL_VALUES - space separated list of strings - optional - default: []
 #       # The set of keys for which their values will be passed through SQL obfuscation
+#
 #       obfuscate_sql_values:
 #         - val1
+
+#     # @param opensearch - custom object - optional
 #
 #     opensearch:
-#       # @param DD_APM_OBFUSCATION_OPENSEARCH_ENABLED - boolean - optional
+
+#       # @param enabled - boolean - optional - default: true
+#       # @env DD_APM_OBFUSCATION_OPENSEARCH_ENABLED - boolean - optional - default: true
 #       # Enables obfuscation rules for spans of type "opensearch". Enabled by default.
+#
 #       enabled: true
-#       # @param DD_APM_OBFUSCATION_OPENSEARCH_KEEP_VALUES - object - optional
+
+#       # @param keep_values - list of strings - optional - default: []
+#       # @env DD_APM_OBFUSCATION_OPENSEARCH_KEEP_VALUES - space separated list of strings - optional - default: []
 #       # List of keys that should not be obfuscated.
+#
 #       keep_values:
 #         - client_id
-#       # @param DD_APM_OBFUSCATION_OPENSEARCH_OBFUSCATE_SQL_VALUES - boolean - optional
+
+#       # @param obfuscate_sql_values - list of strings - optional - default: []
+#       # @env DD_APM_OBFUSCATION_OPENSEARCH_OBFUSCATE_SQL_VALUES - space separated list of strings - optional - default: []
 #       # The set of keys for which their values will be passed through SQL obfuscation
+#
 #       obfuscate_sql_values:
 #         - val1
+
+#     # @param http - custom object - optional
 #
 #     http:
-#       # @param DD_APM_OBFUSCATION_HTTP_REMOVE_QUERY_STRING - boolean - optional
+
+#       # @param remove_query_string - boolean - optional - default: false
+#       # @env DD_APM_OBFUSCATION_HTTP_REMOVE_QUERY_STRING - boolean - optional - default: false
 #       # Enables obfuscation of query strings in URLs
+#
 #       remove_query_string: false
-#       # @param DD_APM_OBFUSCATION_HTTP_REMOVE_PATHS_WITH_DIGITS - boolean - optional
+
+#       # @param remove_paths_with_digits - boolean - optional - default: false
+#       # @env DD_APM_OBFUSCATION_HTTP_REMOVE_PATHS_WITH_DIGITS - boolean - optional - default: false
 #       # If enabled, path segments in URLs containing digits are replaced by "?"
+#
 #       remove_paths_with_digits: false
+
+#     # @param memcached - custom object - optional
 #
 #     memcached:
-#       # @param DD_APM_OBFUSCATION_MEMCACHED_ENABLED - boolean - optional
+
+#       # @param enabled - boolean - optional - default: true
+#       # @env DD_APM_OBFUSCATION_MEMCACHED_ENABLED - boolean - optional - default: true
 #       # Enables obfuscation rules for spans of type "memcached". Enabled by default.
+#
 #       enabled: true
-#       # @param DD_APM_OBFUSCATION_MEMCACHED_KEEP_COMMAND - boolean - optional
+
+#       # @param keep_command - boolean - optional - default: false
+#       # @env DD_APM_OBFUSCATION_MEMCACHED_KEEP_COMMAND - boolean - optional - default: false
 #       # If enabled, the full command for the query will be kept, including any lookup
 #       # keys that could be present. The value for storage commands will still be
 #       # redacted if Memcached obfuscation is enabled.
+#
 #       keep_command: false
+
+#     # @param mongodb - custom object - optional
 #
 #     mongodb:
-#       # @param DD_APM_OBFUSCATION_MONGODB_ENABLED - boolean - optional
+
+#       # @param enabled - boolean - optional - default: true
+#       # @env DD_APM_OBFUSCATION_MONGODB_ENABLED - boolean - optional - default: true
 #       # Enables obfuscation rules for spans of type "mongodb". Enabled by default.
+#
 #       enabled: true
-#       # @param DD_APM_OBFUSCATION_MONGODB_KEEP_VALUES - object - optional
+
+#       # @param keep_values - list of strings - optional - default: []
+#       # @env DD_APM_OBFUSCATION_MONGODB_KEEP_VALUES - space separated list of strings - optional - default: []
 #       # List of keys that should not be obfuscated.
+#
 #       keep_values:
 #         - document_id
-#       # @param DD_APM_OBFUSCATION_MONGODB_OBFUSCATE_SQL_VALUES - object - optional
+
+#       # @param obfuscate_sql_values - list of strings - optional - default: []
+#       # @env DD_APM_OBFUSCATION_MONGODB_OBFUSCATE_SQL_VALUES - space separated list of strings - optional - default: []
 #       # The set of keys for which their values will be passed through SQL obfuscation
+#
 #       obfuscate_sql_values:
 #         - val1
+
+#     # @param redis - custom object - optional
 #
 #     redis:
-#       # @param DD_APM_OBFUSCATION_REDIS_ENABLED - boolean - optional
+
+#       # @param enabled - boolean - optional - default: true
+#       # @env DD_APM_OBFUSCATION_REDIS_ENABLED - boolean - optional - default: true
 #       # Enables obfuscation rules for spans of type "redis". Enabled by default.
+#
 #       enabled: true
-#       # @param DD_APM_OBFUSCATION_REDIS_REMOVE_ALL_ARGS - boolean - optional
+
+#       # @param remove_all_args - boolean - optional - default: false
+#       # @env DD_APM_OBFUSCATION_REDIS_REMOVE_ALL_ARGS - boolean - optional - default: false
 #       # When true, replaces all arguments of a redis command with a single "?". Disabled by default.
+#
 #       remove_all_args: false
+
+#     # @param valkey - custom object - optional
 #
 #     valkey:
-#       # @param DD_APM_OBFUSCATION_VALKEY_ENABLED - boolean - optional
+
+#       # @param enabled - boolean - optional - default: true
+#       # @env DD_APM_OBFUSCATION_VALKEY_ENABLED - boolean - optional - default: true
 #       # Enables obfuscation rules for spans of type "valkey". Enabled by default.
+#
 #       enabled: true
-#
-#       # @param DD_APM_OBFUSCATION_VALKEY_REMOVE_ALL_ARGS - boolean - optional
+
+#       # @param remove_all_args - boolean - optional - default: false
+#       # @env DD_APM_OBFUSCATION_VALKEY_REMOVE_ALL_ARGS - boolean - optional - default: false
 #       # When true, replaces all arguments of a valkey command with a single "?". Disabled by default.
-#       remove_all_args: false
 #
-#     # @param DD_APM_OBFUSCATION_REMOVE_STACK_TRACES - boolean - optional
+#       remove_all_args: false
+
+#     # @param remove_stack_traces - boolean - optional - default: false
+#     # @env DD_APM_OBFUSCATION_REMOVE_STACK_TRACES - boolean - optional - default: false
 #     # Enables removing stack traces to replace them with "?". Disabled by default.
+#
 #     remove_stack_traces: false
+
+#     # @param sql_exec_plan - custom object - optional
 #
 #     sql_exec_plan:
-#       # @param DD_APM_OBFUSCATION_SQL_EXEC_PLAN_ENABLED - boolean - optional
+
+#       # @param enabled - boolean - optional - default: false
+#       # @env DD_APM_OBFUSCATION_SQL_EXEC_PLAN_ENABLED - boolean - optional - default: false
 #       # Enables obfuscation rules for JSON query execution plans. Disabled by default.
+#
 #       enabled: false
-#       # @param DD_APM_OBFUSCATION_SQL_EXEC_PLAN_KEEP_VALUES - object - optional
+
+#       # @param keep_values - list of strings - optional - default: []
+#       # @env DD_APM_OBFUSCATION_SQL_EXEC_PLAN_KEEP_VALUES - space separated list of strings - optional - default: []
 #       # List of keys that should not be obfuscated.
+#
 #       keep_values:
 #         - id1
-#       # @param DD_APM_OBFUSCATION_SQL_EXEC_PLAN_OBFUSCATE_SQL_VALUES - boolean - optional
+
+#       # @param obfuscate_sql_values - list of strings - optional - default: []
+#       # @env DD_APM_OBFUSCATION_SQL_EXEC_PLAN_OBFUSCATE_SQL_VALUES - space separated list of strings - optional - default: []
 #       # The set of keys for which their values will be passed through SQL obfuscation
+#
 #       obfuscate_sql_values:
 #         - val1
+
+#     # @param sql_exec_plan_normalize - custom object - optional
 #
 #     sql_exec_plan_normalize:
-#       # @param DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_ENABLED - boolean - optional
+
+#       # @param enabled - boolean - optional - default: false
+#       # @env DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_ENABLED - boolean - optional - default: false
 #       # Enables obfuscation rules for JSON query execution plans, including cost and row estimates.
 #       # Produces a normalized execution plan. Disabled by default.
+#
 #       enabled: false
-#       # @param DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_KEEP_VALUES - object - optional
+
+#       # @param keep_values - list of strings - optional - default: []
+#       # @env DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_KEEP_VALUES - space separated list of strings - optional - default: []
 #       # List of keys that should not be obfuscated.
+#
 #       keep_values:
 #         - id1
-#       # @param DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_OBFUSCATE_SQL_VALUES - boolean - optional
+
+#       # @param obfuscate_sql_values - list of strings - optional - default: []
+#       # @env DD_APM_OBFUSCATION_SQL_EXEC_PLAN_NORMALIZE_OBFUSCATE_SQL_VALUES - space separated list of strings - optional - default: []
 #       # The set of keys for which their values will be passed through SQL obfuscation
+#
 #       obfuscate_sql_values:
 #         - val1
+
+#     # @param cache - custom object - optional
+#
 #     cache:
-#       # @param DD_APM_OBFUSCATION_CACHE_ENABLED - boolean - optional
+
+#       # @param enabled - boolean - optional - default: true
+#       # @env DD_APM_OBFUSCATION_CACHE_ENABLED - boolean - optional - default: true
 #       # Enables caching obfuscated statements. Currently supported for SQL and MongoDB queries.
 #       # Enabled by default.
+#
 #       enabled: true
-#       # @param DD_APM_OBFUSCATION_CACHE_MAX_SIZE - integer - optional - default: 5000000
+
+#       # @param max_size - integer - optional - default: 5000000
+#       # @env DD_APM_OBFUSCATION_CACHE_MAX_SIZE - integer - optional - default: 5000000
 #       # The maximum size of the cache in bytes. The maximum allowed resource length is 5000.
 #       # Datadog stores a minimum of 1000 queries (5000000 / 5000) by default.
+#
 #       max_size: 5000000
 
-#   # @sql_obfuscation_mode - string - optional - default: ""
+#   # @param sql_obfuscation_mode - string - optional - default: ""
 #   # @env DD_APM_SQL_OBFUSCATION_MODE - string - optional - default: ""
 #   # Obfuscator mode for SQL queries.
 #   # Leave empty to use the default obfuscator.
@@ -970,7 +1109,7 @@ api_key:
 #
 #   sql_obfuscation_mode: ""
 
-#   # @param filter_tags - object - optional
+#   # @param filter_tags - custom object - optional
 #   # @env DD_APM_FILTER_TAGS_REQUIRE - object - optional
 #   # @env DD_APM_FILTER_TAGS_REJECT - object - optional
 #   # Defines rules by which to filter traces based on tags.
@@ -990,10 +1129,20 @@ api_key:
 #   #      With these rules, traces with a tag `foo:bar1` will be dropped, and those with a `foo:bar` tag will be kept
 #
 #   filter_tags:
+
+#     # @param require - list of strings - optional - default: []
+#     # @env DD_APM_FILTER_TAGS_REQUIRE - space separated list of strings or JSON array of strings - optional - default: []
+#     # A list of key or key/value strings - traces must have those tags in order to be sent to Datadog
+#
 #     require: [<LIST_OF_KEY_VALUE_TAGS>]
+
+#     # @param reject - list of strings - optional - default: []
+#     # @env DD_APM_FILTER_TAGS_REJECT - space separated list of strings or JSON array of strings - optional - default: []
+#     # A list of key or key/value strings - traces with these tags are dropped by the Agent
+#
 #     reject: [<LIST_OF_KEY_VALUE_TAGS>]
 
-#   # @param filter_tags_regex - object - optional
+#   # @param filter_tags_regex - custom object - optional
 #   # Defines rules by which to filter traces based on tags with regex pattern for tag values.
 #   #  * require - list of key or key/value regex pattern strings - traces must have those tags in order to be sent to Datadog
 #   #  * reject - list of key or key/value regex pattern strings - traces with these tags are dropped by the Agent
@@ -1004,11 +1153,21 @@ api_key:
 #   # More detailed information can be found in the description of the `filter_tags` parameter above
 #
 #   filter_tags_regex:
+
+#     # @param require - list of strings - optional - default: []
+#     # @env DD_APM_FILTER_TAGS_REGEX_REQUIRE - space separated list of strings or JSON array of strings - optional - default: []
+#     # A list of key or key/value regex pattern strings - traces must have those tags in order to be sent to Datadog
+#
 #     require: [<LIST_OF_KEY_VALUE_REGEX_TAGS>]    # e.g. ["<key>:<regex>"]
+
+#     # @param reject - list of strings - optional - default: []
+#     # @env DD_APM_FILTER_TAGS_REGEX_REJECT - space separated list of strings or JSON array of strings - optional - default: []
+#     # A list of key or key/value regex pattern strings - traces with these tags are dropped by the Agent
+#
 #     reject: [<LIST_OF_KEY_VALUE_REGEX_TAGS>]     # e.g. ["<key>:<regex>"]
 
 #   # @param replace_tags - list of objects - optional
-#   # @env DD_APM_REPLACE_TAGS  - list of objects - optional
+#   # @env DD_APM_REPLACE_TAGS - list of objects - optional
 #   # Defines a set of rules to replace or remove certain resources, tags containing
 #   # potentially sensitive information.
 #   # Each rules has to contain:
@@ -1017,15 +1176,15 @@ api_key:
 #   #  * repl - string - what to inline if the pattern is matched
 #   #
 #   # See https://docs.datadoghq.com/tracing/setup_overview/configure_data_security/#replace-rules-for-tag-filtering
-#   #
 #
 #   replace_tags:
 #     - name: "<TAG_NAME>"
 #       pattern: "<REGEX_PATTERN>"
 #       repl: "<PATTERN_TO_INLINE>"
 
-#   # @param ignore_resources - list of strings - optional
-#   # @env DD_APM_IGNORE_RESOURCES - comma separated list of strings - optional
+#   # @param ignore_resources - list of strings - optional - default: []
+#   # @env DD_APM_IGNORE_RESOURCES - coma separated list of strings - optional - default: []
+#   # @env DD_IGNORE_RESOURCE - coma separated list of strings - optional - default: []
 #   # An exclusion list of regular expressions can be provided to disable certain traces based on their resource name
 #   # all entries must be surrounded by double quotes and separated by commas.
 #
@@ -1037,29 +1196,32 @@ api_key:
 #
 #   log_file: <APM_LOG_FILE_PATH>
 
-#   # @param connection_limit - integer - default: 2000
-#   # @env DD_APM_CONNECTION_LIMIT - integer - default: 2000
+#   # @param connection_limit - integer - optional - default: 2000
+#   # @env DD_APM_CONNECTION_LIMIT - integer - optional - default: 2000
+#   # @env DD_CONNECTION_LIMIT - integer - optional - default: 2000
 #   # The APM connection limit for the Agent.
 #   # See https://docs.datadoghq.com/tracing/troubleshooting/agent_rate_limits/#max-connection-limit
 #
 #   connection_limit: 2000
 
-#   # @param compute_stats_by_span_kind - bool - default: true
-#   # @env DD_APM_COMPUTE_STATS_BY_SPAN_KIND - bool - default: true
+#   # @param compute_stats_by_span_kind - boolean - optional - default: true
+#   # @env DD_APM_COMPUTE_STATS_BY_SPAN_KIND - boolean - optional - default: true
 #   # Enables an additional stats computation check on spans to see they have an eligible `span.kind` (server, consumer, client, producer).
 #   # If enabled, a span with an eligible `span.kind` will have stats computed. If disabled, only top-level and measured spans will have stats computed.
 #   # NOTE: For stats computed from OTel traces, only top-level spans are considered when this option is off.
 #   # If you are sending OTel traces and want stats on non-top-level spans, this flag will need to be enabled.
 #   # If you are sending OTel traces and do not want stats computed by span kind, you need to disable this flag and remove the "enable_otlp_compute_top_level_by_span_kind" APM feature if present.
+#
 #   compute_stats_by_span_kind: true
 
-#   # @param peer_service_aggregation - bool - default: true
-#   # @env DD_APM_PEER_SERVICE_AGGREGATION - bool - default: true
+#   # @param peer_service_aggregation - boolean - optional - default: true
+#   # @env DD_APM_PEER_SERVICE_AGGREGATION - boolean - optional - default: true
 #   # DEPRECATED - please use `peer_tags_aggregation` instead.
+#
 #   peer_service_aggregation: true
 
-#   # @param peer_tags_aggregation - bool - default: true
-#   # @env DD_APM_PEER_TAGS_AGGREGATION - bool - default: true
+#   # @param peer_tags_aggregation - boolean - optional - default: true
+#   # @env DD_APM_PEER_TAGS_AGGREGATION - boolean - optional - default: true
 #   # Enables aggregation of peer related tags (e.g., `peer.service`, `db.instance`, etc.) in the Agent.
 #   # If disabled, aggregated trace stats will not include these tags as dimensions on trace metrics.
 #   # For the best experience with peer tags, Datadog also recommends enabling `compute_stats_by_span_kind`.
@@ -1069,24 +1231,26 @@ api_key:
 #   # A high cardinality of peer tags or APM resources can also contribute to higher CPU and memory consumption.
 #   # You can check for the cardinality of these fields by making trace search queries in the Datadog UI.
 #   # The default list of peer tags can be found in pkg/trace/stats/concentrator.go.
+#
 #   peer_tags_aggregation: true
 
-#   # @param peer_tags - list of strings - optional
-#   # @env DD_APM_PEER_TAGS - list of strings - optional
+#   # @param peer_tags - list of strings - optional - default: []
+#   # @env DD_APM_PEER_TAGS - list of strings - optional - default: []
 #   # Optional list of supplementary peer tags that go beyond the defaults. The Datadog backend validates all tags
 #   # and will drop ones that are unapproved.
+#
 #   peer_tags: []
 
-#   # @param features - list of strings - optional
-#   # @env DD_APM_FEATURES - comma separated list of strings - optional
+#   # @param features - list of strings - optional - default: []
+#   # @env DD_APM_FEATURES - coma or space separated list of strings - optional - default: []
 #   # Configure additional beta APM features.
 #   # The list of items available under apm_config.features is not guaranteed to persist across versions;
 #   # a feature may eventually be promoted to its own configuration option on the agent, or dropped entirely.
 #
 #   features: ["error_rare_sample_tracer_drop","table_names","component2name","sqllexer","enable_otlp_compute_top_level_by_span_kind","disable_receive_resource_spans_v2", "disable_operation_and_resource_name_logic_v2"]
 
-#   # @param additional_endpoints - object - optional
-#   # @env DD_APM_ADDITIONAL_ENDPOINTS - object - optional
+#   # @param additional_endpoints - object - optional - default: {}
+#   # @env DD_APM_ADDITIONAL_ENDPOINTS - object - optional - default: {}
 #   # Enables sending data to multiple endpoints and/or with multiple API keys via dual shipping.
 #   # See https://docs.datadoghq.com/agent/guide/dual-shipping
 #
@@ -1103,7 +1267,7 @@ api_key:
 #   debug:
 
 #     # @param port - integer - optional - default: 5012
-#     # @env DD_APM_DEBUG_PORT - string - optional - default: 5012
+#     # @env DD_APM_DEBUG_PORT - integer - optional - default: 5012
 #     # Port for the debug endpoints for the trace Agent. Set it to 0 to disable the server.
 #
 #     port: 5012
@@ -1113,14 +1277,14 @@ api_key:
 #
 #   instrumentation:
 
-#     # @param enabled - boolean - default: false
-#     # @env DD_APM_INSTRUMENTATION_ENABLED - boolean - default: false
+#     # @param enabled - boolean - optional - default: false
+#     # @env DD_APM_INSTRUMENTATION_ENABLED - boolean - optional - default: false
 #     # Enables Single Step Instrumentation in the cluster (in beta)
 #
 #     enabled: false
 
-#     # @param enabled_namespaces - list of strings - optional
-#     # @env DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES - space separated list of strings - optional
+#     # @param enabled_namespaces - list of strings - optional - default: []
+#     # @env DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES - JSON array of strings - optional - default: []
 #     # Enables Single Step Instrumentation in specific namespaces, while Single Step Instrumentation is off in the whole cluster (in beta)
 #     # Can only be set if DD_APM_INSTRUMENTATION_ENABLED is false. Cannot be set together with DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES.
 #
@@ -1128,8 +1292,8 @@ api_key:
 #       - ns1
 #       - apps
 
-#     # @param disabled_namespaces - list of strings - optional
-#     # @env DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES - space separated list of strings - optional
+#     # @param disabled_namespaces - list of strings - optional - default: []
+#     # @env DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES - JSON array of strings - optional - default: []
 #     # Disables Single Step Instrumentation in specific namespaces, while Single Step Instrumentation is enabled in the whole cluster (in beta)
 #     # Can only be set if DD_APM_INSTRUMENTATION_ENABLED is true. Cannot be set together with DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES.
 #
@@ -1149,37 +1313,43 @@ api_key:
 #   # Specifies the number of trace payloads to buffer after decoding.
 #   # Traces can be buffered when receiving traces faster than the
 #   # processor can process them.
-#   #
 #
 #   trace_buffer: 0
 
-#   # @param probabilistic_sampler - object - optional
+#   # @param probabilistic_sampler - custom object - optional
 #   # Enables and configures the Probabilistic Sampler, compatible with the
 #   # OTel Probabilistic Sampler Processor ( https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/probabilisticsamplerprocessor#probabilistic-sampling-processor )
-#   #
+#
 #   probabilistic_sampler:
 
+#     # @param enabled - boolean - optional - default: false
 #     # @env DD_APM_PROBABILISTIC_SAMPLER_ENABLED - boolean - optional - default: false
 #     # Enables or disables the probabilistic sampler
-#     enabled: false
 #
+#     enabled: false
+
+#     # @param sampling_percentage - float - optional - default: 0
 #     # @env DD_APM_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE - float - optional - default: 0
 #     # Samples this percentage (0-100) of traffic
-#     sampling_percentage: 0
 #
+#     sampling_percentage: 0
+
+#     # @param hash_seed - integer - optional - default: 0
 #     # @env DD_APM_PROBABILISTIC_SAMPLER_HASH_SEED - integer - optional - default: 0
 #     # hash_seed: A seed used for the hash algorithm. This must match other agents and OTel
 #     #            collectors using the probabilistic sampler to ensure consistent sampling.
+#
 #     hash_seed: 0
 
-#   # @param error_tracking_standalone - object - optional
+#   # @param error_tracking_standalone - custom object - optional
 #   # Enables Error Tracking Standalone
-#   #
+#
 #   error_tracking_standalone:
 
 #     # @param enabled - boolean - optional - default: false
 #     # @env DD_APM_ERROR_TRACKING_STANDALONE_ENABLED - boolean - optional - default: false
 #     # Enables or disables Error Tracking Standalone
+#
 #     enabled: false
 
 #   # @param profiling_receiver_timeout - integer - optional - default: 5
@@ -1189,6 +1359,27 @@ api_key:
 #   # Increase this value if you experience timeouts with large profile uploads.
 #
 #   profiling_receiver_timeout: 5
+
+#   # @param additional_profile_tags - map of strings - optional
+#   # @env DD_APM_ADDITIONAL_PROFILE_TAGS - JSON string - optional
+#   # Additional tags to add to all profiles. These tags are added on the agent side
+#   # before forwarding profiles to Datadog. This is useful for environment-identifying
+#   # tags that should be applied to all profiles (e.g., origin).
+#   #
+#   # Note: For Azure App Service in Windows, this configuration is set in the AAS Site Extension.
+#   # Overriding the default tags in AAS Windows should be done with reference to https://datadoghq.atlassian.net/wiki/spaces/SLS/pages/6007685143/Profiling.
+#   #
+#   # Example:
+#   # additional_profile_tags:
+#   #   _dd.origin: appservice
+#   #   <TAG_KEY>: <TAG_VALUE>
+#   #
+#   # Example using environment variables:
+#   # DD_APM_ADDITIONAL_PROFILE_TAGS='{"_dd.origin":"appservice","secondtag":"custom"}'
+#
+#   ## DD_APM_ADDITIONAL_PROFILE_TAGS='{"_dd.origin":"appservice","secondtag":"custom"}'
+#
+#   # additional_profile_tags: {}
 
 #############################
 ## DogStatsD Configuration ##
@@ -1207,8 +1398,8 @@ api_key:
 #
 # dogstatsd_port: 8125
 
-## @param bind_host - string - optional - default: localhost
-## @env DD_BIND_HOST - string - optional - default: localhost
+## @param bind_host - string - optional - default: "localhost"
+## @env DD_BIND_HOST - string - optional - default: "localhost"
 ## The host to listen on for Dogstatsd and traces. This is ignored by APM when
 ## `apm_config.apm_non_local_traffic` is enabled and ignored by DogStatsD when `dogstatsd_non_local_traffic`
 ## is enabled. The trace-agent uses this host to send metrics to.
@@ -1217,14 +1408,17 @@ api_key:
 #
 # bind_host: localhost
 
-## Please note that UDS receiver is not available in Windows.
-## @ Enabling this setting may result in unexpected behavior.
+
 ## @param dogstatsd_socket - string - optional - default: ""
 ## @env DD_DOGSTATSD_SOCKET - string - optional - default: ""
+## Please note that UDS receiver is not available in Windows.
+## @ Enabling this setting may result in unexpected behavior.
 ## Listen for Dogstatsd metrics on a Unix Socket (*nix only).
 ## Set to "" to disable this feature.
 #
 # dogstatsd_socket: ""
+
+
 
 ## @param dogstatsd_origin_detection - boolean - optional - default: false
 ## @env DD_DOGSTATSD_ORIGIN_DETECTION - boolean - optional - default: false
@@ -1259,12 +1453,14 @@ api_key:
 # dogstatsd_stats_enable: false
 
 ## @param dogstatsd_logging_enabled - boolean - optional - default: true
+## @env DD_DOGSTATSD_LOGGING_ENABLED - boolean - optional - default: true
 ## Set to true to write DogstatsD metrics received by the Agent to dogstats_stats log files.
 ## Requires `dogstatsd_stats_enable: true`.
 #
 # dogstatsd_logging_enabled: true
 
-## @param dogstatsd_log_file_max_size - custom - optional - default: 10MB
+## @param dogstatsd_log_file_max_size - string - optional - default: "10Mb"
+## @env DD_DOGSTATSD_LOG_FILE_MAX_SIZE - string - optional - default: "10Mb"
 ## Maximum size of dogstatsd log file. Use either a size (for example, 10MB) or
 ## provide value in bytes (for example, 10485760.)
 #
@@ -1307,14 +1503,14 @@ api_key:
 #
 # dogstatsd_metrics_stats_enable: false
 
-## @param dogstatsd_tags - list of key:value elements - optional
-## @env DD_DOGSTATSD_TAGS - list of key:value elements - optional
+## @param dogstatsd_tags - list of strings - optional - default: []
+## @env DD_DOGSTATSD_TAGS - space separated list of strings - optional - default: []
 ## Additional tags to append to all metrics, events and service checks received by
 ## this DogStatsD server.
 #
 # dogstatsd_tags:
 #   - <TAG_KEY>:<TAG_VALUE>
-#
+
 ## @param dogstatsd_mapper_profiles - list of custom object - optional
 ## @env DD_DOGSTATSD_MAPPER_PROFILES - list of custom object - optional
 ## The profiles will be used to convert parts of metrics names into tags.
@@ -1405,16 +1601,17 @@ api_key:
 ## Logging Configuration ##
 ###########################
 
-## @param log_level - string - optional - default: info
-## @env DD_LOG_LEVEL - string - optional - default: info
+## @param log_level - string - optional - default: "info"
+## @env DD_LOG_LEVEL - string - optional - default: "info"
+## @env LOG_LEVEL - string - optional - default: "info"
 ## Minimum log level of the Datadog Agent.
 ## Valid log levels are: trace, debug, info, warn, error, critical, and off.
 ## Note: When using the 'off' log level, quotes are mandatory.
 #
 # log_level: 'info'
 
-## @param log_file - string - optional
-## @env DD_LOG_FILE - string - optional
+## @param log_file - string - optional - default: ""
+## @env DD_LOG_FILE - string - optional - default: ""
 ## Path of the log file for the Datadog Agent.
 ## See https://docs.datadoghq.com/agent/guide/agent-log-files/
 #
@@ -1438,8 +1635,8 @@ api_key:
 #
 # disable_file_logging: false
 
-## @param log_file_max_size - custom - optional - default: 10MB
-## @env DD_LOG_FILE_MAX_SIZE - custom - optional - default: 10MB
+## @param log_file_max_size - string - optional - default: "10Mb"
+## @env DD_LOG_FILE_MAX_SIZE - string - optional - default: "10Mb"
 ## Maximum size of one log file. Use either a size (e.g. 10MB) or
 ## provide value in bytes: 10485760
 #
@@ -1461,8 +1658,8 @@ api_key:
 #
 # log_to_syslog: false
 
-## @param syslog_uri - string - optional
-## @env DD_SYSLOG_URI - string - optional
+## @param syslog_uri - string - optional - default: ""
+## @env DD_SYSLOG_URI - string - optional - default: ""
 ## Define a custom remote syslog uri if needed. If 'syslog_uri' is left undefined/empty,
 ## a local domain socket connection is attempted.
 #
@@ -1474,103 +1671,91 @@ api_key:
 #
 # syslog_rfc: false
 
-## @param log_format_rfc3339 - boolean - optional - default false
-## @env DD_LOG_FORMAT_RFC3339 - boolean - optional - default false
+## @param log_format_rfc3339 - boolean - optional - default: false
+## @env DD_LOG_FORMAT_RFC3339 - boolean - optional - default: false
 ## If enabled the Agent will log using the RFC3339 format for the log time.
 #
 # log_format_rfc3339: false
 
-## @param log_all_goroutines_when_unhealthy - boolean - optional - default false
-## @env DD_LOG_ALL_GOROUTINES_WHEN_UNHEALTHY - boolean - optional - default false
+## @param log_all_goroutines_when_unhealthy - boolean - optional - default: false
+## @env DD_LOG_ALL_GOROUTINES_WHEN_UNHEALTHY - boolean - optional - default: false
 ## If enabled, when the health probe of an internal component fails, the stack traces
 ## of all the goroutines are logged.
 #
 # log_all_goroutines_when_unhealthy: false
 
-#########################
-## Container detection ##
-#########################
-
-## @param container_cgroup_prefix - string - optional - default: /docker/
-## @env DD_CONTAINER_CGROUP_PREFIX - string - optional - default: /docker/
-## On hosts with mixed workloads, non-containernized processes can
-## mistakenly be detected as containerized. Use this parameter to
-## tune the detection logic to your system and avoid false-positives.
-#
-# container_cgroup_prefix: "/docker/"
-
 ###########################
 ## Docker tag extraction ##
 ###########################
 
-## @param docker_labels_as_tags - map - optional
-## @env DD_DOCKER_LABELS_AS_TAGS - json - optional
+## @param docker_labels_as_tags - object - optional - default: {}
+## @env DD_DOCKER_LABELS_AS_TAGS - JSON object of string to string - optional - default: {}
 ## The Agent can extract container label values and set them as metric tags values associated to a <TAG_KEY>.
 ## If you prefix your tag name with `+`, it will only be added to high cardinality metrics (Docker check).
+##
+## Env var exmaple: DD_DOCKER_LABELS_AS_TAGS='{"LABEL_NAME":"tag_key"}'
 #
 # docker_labels_as_tags:
 #   <LABEL_NAME>: <TAG_KEY>
 #   <HIGH_CARDINALITY_LABEL_NAME>: +<TAG_KEY>
-#
-## DD_DOCKER_LABELS_AS_TAGS='{"LABEL_NAME":"tag_key"}'
 
-## @param docker_env_as_tags - map - optional
-## @env DD_DOCKER_ENV_AS_TAGS - json - optional
+## @param docker_env_as_tags - object - optional - default: {}
+## @env DD_DOCKER_ENV_AS_TAGS - JSON object of string to string - optional - default: {}
 ## The Agent can extract environment variables values and set them as metric tags values associated to a <TAG_KEY>.
 ## If you prefix your tag name with `+`, it will only be added to high cardinality metrics (Docker check).
+##
+## Env var example: DD_DOCKER_ENV_AS_TAGS='{"ENVVAR_NAME": "tag_key"}'
 #
 # docker_env_as_tags:
 #   <ENVVAR_NAME>: <TAG_KEY>
-#
-## DD_DOCKER_ENV_AS_TAGS='{"ENVVAR_NAME": "tag_key"}'
 
 ###############################
 ## Kubernetes tag extraction ##
 ###############################
 
-## @param kubernetes_pod_labels_as_tags - map - optional
-## @env DD_KUBERNETES_POD_LABELS_AS_TAGS - json - optional
+## @param kubernetes_pod_labels_as_tags - object - optional - default: {}
+## @env DD_KUBERNETES_POD_LABELS_AS_TAGS - JSON object of string to string - optional - default: {}
 ## The Agent can extract pod labels values and set them as metric tags values associated to a <TAG_KEY>.
 ## If you prefix your tag name with +, it will only be added to high cardinality metrics.
+##
+## Env var example: DD_KUBERNETES_POD_LABELS_AS_TAGS='{"LABEL_NAME":"tag_key"}'
 #
 # kubernetes_pod_labels_as_tags:
 #   <POD_LABEL>: <TAG_KEY>
 #   <HIGH_CARDINALITY_LABEL_NAME>: +<TAG_KEY>
-#
-## DD_KUBERNETES_POD_LABELS_AS_TAGS='{"LABEL_NAME":"tag_key"}'
 
-## @param kubernetes_pod_annotations_as_tags - map - optional
-## @env DD_KUBERNETES_POD_ANNOTATIONS_AS_TAGS - json - optional
+## @param kubernetes_pod_annotations_as_tags - object - optional - default: {}
+## @env DD_KUBERNETES_POD_ANNOTATIONS_AS_TAGS - JSON object of string to string - optional - default: {}
 ## The Agent can extract annotations values and set them as metric tags values associated to a <TAG_KEY>.
 ## If you prefix your tag name with +, it will only be added to high cardinality metrics.
+##
+## Env var example: DD_KUBERNETES_POD_ANNOTATIONS_AS_TAGS='{"ANNOTATION_NAME":"tag_key"}'
 #
 # kubernetes_pod_annotations_as_tags:
 #   <ANNOTATION>: <TAG_KEY>
 #   <HIGH_CARDINALITY_ANNOTATION>: +<TAG_KEY>
-#
-## DD_KUBERNETES_POD_ANNOTATIONS_AS_TAGS='{"ANNOTATION_NAME":"tag_key"}'
 
-## @param kubernetes_namespace_labels_as_tags - map - optional
-## @env DD_KUBERNETES_NAMESPACE_LABELS_AS_TAGS - json - optional
+## @param kubernetes_namespace_labels_as_tags - object - optional - default: {}
+## @env DD_KUBERNETES_NAMESPACE_LABELS_AS_TAGS - JSON object of string to string - optional - default: {}
 ## The Agent can extract namespace label values and set them as metric tags values associated to a <TAG_KEY>.
 ## If you prefix your tag name with +, it will only be added to high cardinality metrics.
+##
+## Env var example: DD_KUBERNETES_NAMESPACE_LABELS_AS_TAGS='{"<NAMESPACE_LABEL>": "<TAG_KEY>"}'
 #
 # kubernetes_namespace_labels_as_tags:
 #   <NAMESPACE_LABEL>: <TAG_KEY>
 #   <HIGH_CARDINALITY_NAMESPACE_LABEL_NAME>: +<TAG_KEY>
-#
-## DD_KUBERNETES_NAMESPACE_LABELS_AS_TAGS='{"<NAMESPACE_LABEL>": "<TAG_KEY>"}'
 
-## @param container_env_as_tags - map - optional
-## @env DD_CONTAINER_ENV_AS_TAGS - map - optional
+## @param container_env_as_tags - object - optional - default: {}
+## @env DD_CONTAINER_ENV_AS_TAGS - JSON object of string to string - optional - default: {}
 ## The Agent can extract environment variable values and set them as metric tags values associated to a <TAG_KEY>.
 ## Requires the container runtime socket to be reachable. (Supported container runtimes: Containerd, Docker)
 #
 # container_env_as_tags:
 #   <ENV>: <TAG_KEY>
 
-## @param container_labels_as_tags - map - optional
-## @env DD_CONTAINER_LABELS_AS_TAGS - map - optional
+## @param container_labels_as_tags - object - optional - default: {}
+## @env DD_CONTAINER_LABELS_AS_TAGS - JSON object of string to string - optional - default: {}
 ## The Agent can extract container label values and set them as metric tags values associated to a <TAG_KEY>.
 ## If you prefix your tag name with `+`, it will only be added to high cardinality metrics. (Supported container
 ## runtimes: Containerd, Docker).
@@ -1583,12 +1768,12 @@ api_key:
 ## ECS integration Configuration ##
 ###################################
 
-## @param ecs_agent_container_name - string - optional - default: ecs-agent
-## @env DD_ECS_AGENT_CONTAINER_NAME - string - optional - default: ecs-agent
+## @param ecs_agent_container_name - string - optional - default: "ecs-agent"
+## @env DD_ECS_AGENT_CONTAINER_NAME - string - optional - default: "ecs-agent"
 ## The ECS Agent container should be autodetected when running with the
 ## default (ecs-agent) name. If not, change the container name here:
 #
-# ecs_agent_container_name: ecs-agent
+# ecs_agent_container_name: "ecs-agent"
 
 ## @param ecs_agent_url - string - optional - default: http://localhost:51678
 ## @env DD_ECS_AGENT_URL - string - optional - default: http://localhost:51678
@@ -1611,11 +1796,11 @@ api_key:
 #
 # ecs_resource_tags_replace_colon: false
 
-## @param ecs_metadata_timeout - integer - optional - default: 500
-## @env DD_ECS_METADATA_TIMEOUT - integer - optional - default: 500
+## @param ecs_metadata_timeout - integer - optional - default: 1000
+## @env DD_ECS_METADATA_TIMEOUT - integer - optional - default: 1000
 ## Timeout in milliseconds on calls to the AWS ECS metadata endpoints.
 #
-# ecs_metadata_timeout: 500
+# ecs_metadata_timeout: 1000
 
 ## @param ecs_task_collection_enabled - boolean - optional - default: true
 ## @env DD_ECS_TASK_COLLECTION_ENABLED - boolean - optional - default: true
@@ -1624,8 +1809,8 @@ api_key:
 #
 # ecs_task_collection_enabled: true
 
-## @param ecs_deployment_mode - string - optional - default: auto
-## @env DD_ECS_DEPLOYMENT_MODE - string - optional - default: auto
+## @param ecs_deployment_mode - string - optional - default: "auto"
+## @env DD_ECS_DEPLOYMENT_MODE - string - optional - default: "auto"
 ## Controls how the agent collects ECS task metadata:
 ## - auto: Use daemon mode on EC2, sidecar mode on Fargate (recommended)
 ## - daemon: Collect all tasks on the host (requires v1 metadata API access)
@@ -1635,14 +1820,14 @@ api_key:
 ## it only reports on its own task, while still correctly identifying the
 ## launch type as EC2.
 #
-# ecs_deployment_mode: auto
+# ecs_deployment_mode: "auto"
 
 ###################################################
 ## Kubernetes kubelet connectivity Configuration ##
 ###################################################
 
-## @param kubernetes_kubelet_host - string - optional
-## @env DD_KUBERNETES_KUBELET_HOST - string - optional
+## @param kubernetes_kubelet_host - string - optional - default: ""
+## @env DD_KUBERNETES_KUBELET_HOST - string - optional - default: ""
 ## The kubelet host should be autodetected when running inside a pod.
 ## If you run into connectivity issues, set the host here according to your cluster setup.
 #
@@ -1668,28 +1853,28 @@ api_key:
 #
 # kubelet_tls_verify: true
 
-## @param kubelet_client_ca - string - optional - default: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-## @env DD_KUBELET_CLIENT_CA - string - optional - default: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+## @param kubelet_client_ca - string - optional - default: ""
+## @env DD_KUBELET_CLIENT_CA - string - optional - default: ""
 ## Kublet client CA file path.
 #
 # kubelet_client_ca: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
 
-## @param kubelet_auth_token_path - string - optional
-## @env DD_KUBELET_AUTH_TOKEN_PATH - string - optional
+## @param kubelet_auth_token_path - string - optional - default: ""
+## @env DD_KUBELET_AUTH_TOKEN_PATH - string - optional - default: ""
 ## If authentication is needed, the Agent uses the pod's service account's
 ## credentials. If you want to use a different account, or are running the Agent
 ## on the host, set a custom token file path here.
 #
 # kubelet_auth_token_path: <TOKEN_FILE_PATH>
 
-## @param kubelet_client_crt - string - optional
-## @env DD_KUBELET_CLIENT_CRT - string - optional
+## @param kubelet_client_crt - string - optional - default: ""
+## @env DD_KUBELET_CLIENT_CRT - string - optional - default: ""
 ## Set a custom Client CRT file path.
 #
 # kubelet_client_crt: <CRT_FILE_PATH>
 
-## @param kubelet_client_key - string - optional
-## @env DD_KUBELET_CLIENT_KEY - string - optional
+## @param kubelet_client_key - string - optional - default: ""
+## @env DD_KUBELET_CLIENT_KEY - string - optional - default: ""
 ## Set a custom Client key file path.
 #
 # kubelet_client_key: <CLIENT_KEY_FILE_PATH>

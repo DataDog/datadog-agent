@@ -7,17 +7,19 @@
 ## The Datadog API key used by your Agent to submit metrics and events to Datadog.
 ## Create a new API key here: https://app.datadoghq.com/organization-settings/api-keys .
 ## Read more about API keys here: https://docs.datadoghq.com/account_management/api-app-keys/#api-keys .
-api_key:
+#
+# api_key:
 
-## @param app_key - string - optional
+## @param app_key - string - optional - default: ""
+## @env DD_APP_KEY - string - optional - default: ""
 ## The application key used to access Datadog's programatic API.
 ## Create a new application key here: https://app.datadoghq.com/organization-settings/application-keys .
 ## Read more about application keys here: https://docs.datadoghq.com/account_management/api-app-keys/#application-keys .
 #
-# app_key:
+# app_key: ""
 
-## @param site - string - optional - default: datadoghq.com
-## @env DD_SITE - string - optional - default: datadoghq.com
+## @param site - string - optional - default: "datadoghq.com"
+## @env DD_SITE - string - optional - default: "datadoghq.com"
 ## The site of the Datadog intake to send Agent data to.
 ## The site parameter must be set to enable your agent with Remote Configuration.
 ## Set to 'datadoghq.eu' to send data to the EU site.
@@ -28,9 +30,9 @@ api_key:
 #
 # site: datadoghq.com
 
-## @param dd_url - string - optional - default: https://app.datadoghq.com
-## @env DD_DD_URL - string - optional - default: https://app.datadoghq.com
-## @env DD_URL - string - optional - default: https://app.datadoghq.com
+## @param dd_url - string - optional - default: "https://app.datadoghq.com"
+## @env DD_DD_URL - string - optional - default: "https://app.datadoghq.com"
+## @env DD_URL - string - optional - default: "https://app.datadoghq.com"
 ## The host of the Datadog intake server to send metrics to, only set this option
 ## if you need the Agent to send metrics to a custom URL, it overrides the site
 ## setting defined in "site". It does not affect APM, Logs, Remote Configuration, or Live Process intake which have their
@@ -40,16 +42,28 @@ api_key:
 # dd_url: https://app.datadoghq.com
 
 ## @param proxy - custom object - optional
-## @env DD_PROXY_HTTP - string - optional
-## @env DD_PROXY_HTTPS - string - optional
-## @env DD_PROXY_NO_PROXY - space separated list of strings - optional
 ## If you need a proxy to connect to the Internet, provide it here (default:
 ## disabled). Refer to https://docs.datadoghq.com/agent/proxy/ to understand how to use these settings.
 ## For Logs proxy information, refer to https://docs.datadoghq.com/agent/proxy/#proxy-for-logs
 #
 # proxy:
+
+#   # @param https - string - optional - default: ""
+#   # @env DD_PROXY_HTTPS - string - optional
+#   # The proxy to use for HTTPS requests
+#
 #   https: http://<USERNAME>:<PASSWORD>@<PROXY_SERVER_FOR_HTTPS>:<PORT>
+
+#   # @param http - string - optional - default: ""
+#   # @env DD_PROXY_HTTP - string - optional
+#   # The proxy to use for HTTP requests
+#
 #   http: http://<USERNAME>:<PASSWORD>@<PROXY_SERVER_FOR_HTTP>:<PORT>
+
+#   # @param no_proxy - list of strings - optional - default: []
+#   # @env DD_PROXY_NO_PROXY - space separated list of strings - optional
+#   # A list of hosts for which the proxy setting should not be used
+#
 #   no_proxy:
 #     - <HOSTNAME-1>
 #     - <HOSTNAME-2>
@@ -68,6 +82,7 @@ api_key:
 ## For more details, see https://developer.mozilla.org/en-US/docs/Mozilla/Projects/NSS/Key_Log_Format.
 ## Use of sslkeylogfile compromises security and should only be
 ## used for debugging.
+#
 # sslkeylogfile: ""
 
 ## @param min_tls_version - string - optional - default: "tlsv1.2"
@@ -80,14 +95,14 @@ api_key:
 #
 # min_tls_version: "tlsv1.2"
 
-## @param hostname - string - optional - default: auto-detected
-## @env DD_HOSTNAME - string - optional - default: auto-detected
-## Force the hostname name.
+## @param hostname - string - optional - default: ""
+## @env DD_HOSTNAME - string - optional - default: ""
+## Force the hostname name for the Agent. By default, the Agent will auto-detect its hostname.
 #
 # hostname: <HOSTNAME_NAME>
 
-## @param hostname_file - string - optional
-## @env DD_HOSTNAME_FILE - string - optional
+## @param hostname_file - string - optional - default: ""
+## @env DD_HOSTNAME_FILE - string - optional - default: ""
 ## In some environments, auto-detection of the hostname is not adequate and
 ## environment variables cannot be used to set the value. In such cases, the
 ## file on the host can also be used provide an appropriate value. If
@@ -113,8 +128,8 @@ api_key:
 #
 # hostname_trust_uts_namespace: false
 
-## @param host_aliases - list of strings - optional
-## @env DD_HOST_ALIASES - space separated list of strings - optional
+## @param host_aliases - list of strings - optional - default: []
+## @env DD_HOST_ALIASES - space separated list of strings - optional - default: []
 ## List of host aliases to report in addition to any aliases collected
 ## automatically from cloud providers.
 ## More information at
@@ -124,8 +139,8 @@ api_key:
 #   - <ALIAS-1>
 #   - <ALIAS-2>
 
-## @param tags  - list of key:value elements - optional
-## @env DD_TAGS - space separated list of strings - optional
+## @param tags - list of strings - optional - default: []
+## @env DD_TAGS - space separated list of strings - optional - default: []
 ## List of host tags. Attached in-app to every metric, event, log, trace, and service check emitted by this Agent.
 ##
 ## This configuration value merges with `DD_EXTRA_TAGS`, allowing some
@@ -138,8 +153,8 @@ api_key:
 #   - team:infra
 #   - <TAG_KEY>:<TAG_VALUE>
 
-## @param extra_tags  - list of key:value elements - optional
-## @env DD_EXTRA_TAGS - space separated list of strings - optional
+## @param extra_tags - list of strings - optional - default: []
+## @env DD_EXTRA_TAGS - space separated list of strings - optional - default: []
 ## List of host tags. Attached in-app to every metric, event, log, trace, and service check emitted by this Agent.
 ##
 ## This configuration value merges with `tags`, allowing some
@@ -152,21 +167,21 @@ api_key:
 #   - region:northerly
 #   - <TAG_KEY>:<TAG_VALUE>
 
-## @param env - string - optional
-## @env DD_ENV - string - optional
+## @param env - string - optional - default: ""
+## @env DD_ENV - string - optional - default: ""
 ## The environment name where the agent is running. Attached in-app to every
 ## metric, event, log, trace, and service check emitted by this Agent.
 #
 # env: <environment name>
 
-## @param remote_updates - boolean - optional - default: false
-## @env DD_REMOTE_UPDATES - boolean - optional - default: false
+## @param remote_updates - boolean - optional - default: true
+## @env DD_REMOTE_UPDATES - boolean - optional - default: true
 ## Enable remote upgrades and configuration changes for the Agent.
 #
-# remote_updates: false
+# remote_updates: true
 
-## @param tag_value_split_separator - map - optional
-## @env DD_TAG_VALUE_SPLIT_SEPARATOR - list of key:value strings - optional
+## @param tag_value_split_separator - object - optional - default: {}
+## @env DD_TAG_VALUE_SPLIT_SEPARATOR - JSON object of string to string - optional - default: {}
 ## Split tag values according to a given separator. Only applies to host tags,
 ## and tags coming from container integrations. It does not apply to tags on dogstatsd metrics,
 ## and tags collected by other integrations.
@@ -183,8 +198,8 @@ api_key:
 # tag_value_split_separator:
 #   <TAG_KEY>: <SEPARATOR>
 
-## @param checks_tag_cardinality - string - optional - default: low
-## @env DD_CHECKS_TAG_CARDINALITY - string - optional - default: low
+## @param checks_tag_cardinality - string - optional - default: "low"
+## @env DD_CHECKS_TAG_CARDINALITY - string - optional - default: "low"
 ## Configure the level of granularity of tags to send for checks metrics and events. Choices are:
 ##   * low: add tags about low-cardinality objects (clusters, hosts, deployments, container images, ...)
 ##   * orchestrator: add tags about pod, (in Kubernetes), or task (in ECS or Mesos) -level of cardinality
@@ -192,10 +207,10 @@ api_key:
 ## WARNING: sending container tags for checks metrics may create more metrics
 ## (one per container instead of one per host). This may impact your custom metrics billing.
 #
-# checks_tag_cardinality: low
+# checks_tag_cardinality: "low"
 
-## @param dogstatsd_tag_cardinality - string - optional - default: low
-## @env DD_DOGSTATSD_TAG_CARDINALITY - string - optional - default: low
+## @param dogstatsd_tag_cardinality - string - optional - default: "low"
+## @env DD_DOGSTATSD_TAG_CARDINALITY - string - optional - default: "low"
 ## Configure the level of granularity of tags to send for DogStatsD metrics and events. Choices are:
 ##   * low: add tags about low-cardinality objects (clusters, hosts, deployments, container images, ...)
 ##   * orchestrator: add tags about pod, (in Kubernetes), or task (in ECS or Mesos) -level of cardinality
@@ -204,10 +219,10 @@ api_key:
 ## WARNING: sending container tags for dogstatsd metrics may create more metrics
 ## (one per container instead of one per host). This may impact your custom metrics billing.
 #
-# dogstatsd_tag_cardinality: low
+# dogstatsd_tag_cardinality: "low"
 
 ## @param histogram_aggregates - list of strings - optional - default: ["max", "median", "avg", "count"]
-## @env DD_HISTOGRAM_AGGREGATES - space separated list of strings - optional - default: max median avg count
+## @env DD_HISTOGRAM_AGGREGATES - space separated list of strings - optional - default: 'max median avg count'
 ## Configure which aggregated value to compute.
 ## Possible values are: min, max, median, avg, sum and count.
 #
@@ -218,7 +233,7 @@ api_key:
 #   - count
 
 ## @param histogram_percentiles - list of strings - optional - default: ["0.95"]
-## @env DD_HISTOGRAM_PERCENTILES - space separated list of strings - optional - default: 0.95
+## @env DD_HISTOGRAM_PERCENTILES - space separated list of strings - optional - default: '0.95'
 ## Configure which percentiles are computed by the Agent. It must be a list of float between 0 and 1.
 ## Warning: percentiles must be specified as yaml strings
 #
@@ -232,8 +247,8 @@ api_key:
 #
 # histogram_copy_to_distribution: false
 
-## @param histogram_copy_to_distribution_prefix - string - optional
-## @env DD_HISTOGRAM_COPY_TO_DISTRIBUTION_PREFIX - string - optional
+## @param histogram_copy_to_distribution_prefix - string - optional - default: ""
+## @env DD_HISTOGRAM_COPY_TO_DISTRIBUTION_PREFIX - string - optional - default: ""
 ## A prefix to add to distribution metrics created when histogram_copy_to_distributions is true
 #
 # histogram_copy_to_distribution_prefix: "<PREFIX>"
@@ -265,11 +280,11 @@ api_key:
 #
 # forwarder_timeout: 20
 
-## @param forwarder_retry_queue_payloads_max_size - integer - optional - default: 15728640 (15MB)
-## @env DD_FORWARDER_RETRY_QUEUE_PAYLOADS_MAX_SIZE - integer - optional - default: 15728640 (15MB)
-## It defines the maximum size in bytes of all the payloads in the forwarder's retry queue.
+## @param forwarder_retry_queue_payloads_max_size - integer - optional - default: 15728640
+## @env DD_FORWARDER_RETRY_QUEUE_PAYLOADS_MAX_SIZE - integer - optional - default: 15728640
+## It defines the maximum size in bytes of all the payloads in the f-orwarder's retry queue.
 ## The actual memory used is greater than the payloads size as there are extra fields like HTTP headers,
-## but no more than 2.5 times the payload size.
+## but no more than 2.5 times the payload size. The default is 15MB.
 #
 # forwarder_retry_queue_payloads_max_size: 15728640
 
@@ -292,13 +307,14 @@ api_key:
 #
 # forwarder_stop_timeout: 2
 
-## @param http_protocol - string - optional - default: auto
-## @env DD_FORWARDER_HTTP_PROTOCOL - string - optional - default: auto
+## @param forwarder_http_protocol - string - optional - default: "auto"
+## @env DD_FORWARDER_HTTP_PROTOCOL - string - optional - default: "auto"
 ## The transport type to use for sending logs. Possible values are "auto" or "http1".
-# forwarder_http_protocol: auto
+#
+# forwarder_http_protocol: "auto"
 
 ## @param forwarder_max_concurrent_requests - integer - optional - default: 10
-## @ENV DD_FORWARDER_MAX_CONCURRENT_REQUESTS - integer - optional - default: 10
+## @env DD_FORWARDER_MAX_CONCURRENT_REQUESTS - integer - optional - default: 10
 ## The maximum number of concurrent requests that each worker can have queued up
 ## at any one time. If the connection is over HTTP/1 each request will be waiting
 ## for the previous request to complete before sending the next one. With HTTP/2
@@ -331,38 +347,43 @@ api_key:
 #
 # forwarder_outdated_file_in_days: 10
 
-## @param forwarder_high_prio_buffer_size - int - optional - default: 100
+## @param forwarder_high_prio_buffer_size - integer - optional - default: 100
+## @env DD_FORWARDER_HIGH_PRIO_BUFFER_SIZE - integer - optional - default: 100
 ## Defines the size of the high prio buffer.
 ## Increasing the buffer size can help if payload drops occur due to high prio buffer being full.
 #
 # forwarder_high_prio_buffer_size: 100
 
-## @param forwarder_low_prio_buffer_size - int - optional - default: 100
+## @param forwarder_low_prio_buffer_size - integer - optional - default: 100
+## @env DD_FORWARDER_LOW_PRIO_BUFFER_SIZE - integer - optional - default: 100
 ## Defines the size of the low prio buffer.
 #
 # forwarder_low_prio_buffer_size: 100
 
-## @param forwarder_requeue_buffer_size - int - optional - default: 100
+## @param forwarder_requeue_buffer_size - integer - optional - default: 100
+## @env DD_FORWARDER_REQUEUE_BUFFER_SIZE - integer - optional - default: 100
 ## Defines the size of the requeue prio buffer.
 #
 # forwarder_requeue_buffer_size: 100
 
-## @param forwarder_backoff_base - int - optional - default: 2
+## @param forwarder_backoff_base - integer - optional - default: 2
 ## @env DD_FORWARDER_BACKOFF_BASE - integer - optional - default: 2
 ## Defines the rate of exponential growth, and the first retry interval range.
 ## Do not set a lower value than the default. You may increase it if you use a proxy that benefits from a
 ## higher rate of exponential growth.
+#
 # forwarder_backoff_base: 2
 
-## @param forwarder_backoff_max - int - optional - default: 64
+## @param forwarder_backoff_max - integer - optional - default: 64
 ## @env DD_FORWARDER_BACKOFF_MAX - integer - optional - default: 64
 ## Defines the maximum number of seconds to wait for a retry.
 ## Do not set a lower value than the default. You may increase it if you use a proxy that benefits from a
 ## higher maximum backoff time.
+#
 # forwarder_backoff_max: 64
 
-## @param cloud_provider_metadata - list of strings -  optional - default: ["aws", "gcp", "azure", "alibaba", "oracle", "ibm"]
-## @env DD_CLOUD_PROVIDER_METADATA - space separated list of strings - optional - default: aws gcp azure alibaba oracle ibm
+## @param cloud_provider_metadata - list of strings - optional - default: ["aws", "gcp", "azure", "alibaba", "oracle", "ibm"]
+## @env DD_CLOUD_PROVIDER_METADATA - space separated list of strings - optional - default: 'aws gcp azure alibaba oracle ibm'
 ## This option restricts which cloud provider endpoint will be used by the
 ## agent to retrieve metadata. By default the agent will try # AWS, GCP, Azure
 ## and alibaba providers. Some cloud provider are not enabled by default to not
@@ -401,7 +422,6 @@ api_key:
 ## https://docs.datadoghq.com/integrations/faq/how-do-i-pull-my-ec2-tags-without-using-the-aws-integration/
 #
 # collect_ec2_tags: false
-#
 
 ## @param collect_ec2_instance_info - boolean - optional - default: false
 ## @env DD_COLLECT_EC2_INSTANCE_INFO - boolean - optional - default: false
@@ -467,8 +487,8 @@ api_key:
 #
 # collect_gce_tags: true
 
-## @param exclude_gce_tags - list of strings - optional - default: ["bosh_settings" ,"cli-cert" ,"common-psm1" ,"configure-sh" ,"containerd-configure-sh" ,"disable-address-manager" ,"disable-legacy-endpoints" ,"enable-oslogin" ,"gce-container-declaration" ,"google-container-manifest" ,"ipsec-cert" ,"k8s-node-setup-psm1" ,"kube-env" ,"kubeconfig" ,"kubelet-config" ,"serial-port-logging-enable" ,"shutdown-script" ,"ssh-keys" ,"sshKeys" ,"ssl-cert" ,"startup-script" ,"user-data" ,"windows-keys" ,"windows-startup-script-ps1"]
-## @env DD_EXCLUDE_GCE_TAGS - space separated list of strings - optional - default: bosh_settings cli-cert common-psm1 configure-sh containerd-configure-sh disable-address-manager disable-legacy-endpoints enable-oslogin gce-container-declaration google-container-manifest ipsec-cert k8s-node-setup-psm1 kube-env kubeconfig kubelet-config serial-port-logging-enable shutdown-script ssh-keys sshKeys ssl-cert startup-script user-data windows-keys windows-startup-script-ps1
+## @param exclude_gce_tags - list of strings - optional - default: ["kube-env", "kubelet-config", "containerd-configure-sh", "startup-script", "shutdown-script", "configure-sh", "sshKeys", "ssh-keys", "user-data", "cli-cert", "ipsec-cert", "ssl-cert", "google-container-manifest", "bosh_settings", "windows-startup-script-ps1", "common-psm1", "k8s-node-setup-psm1", "serial-port-logging-enable", "enable-oslogin", "disable-address-manager", "disable-legacy-endpoints", "windows-keys", "kubeconfig", "gce-container-declaration"]
+## @env DD_EXCLUDE_GCE_TAGS - space separated list of strings - optional - default: 'kube-env kubelet-config containerd-configure-sh startup-script shutdown-script configure-sh sshKeys ssh-keys user-data cli-cert ipsec-cert ssl-cert google-container-manifest bosh_settings windows-startup-script-ps1 common-psm1 k8s-node-setup-psm1 serial-port-logging-enable enable-oslogin disable-address-manager disable-legacy-endpoints windows-keys kubeconfig gce-container-declaration'
 ## Google Cloud Engine metadata attribute to exclude from being converted into
 ## host tags -- only applicable when collect_gce_tags is true.
 #
@@ -498,8 +518,8 @@ api_key:
 #   - "windows-keys"
 #   - "windows-startup-script-ps1"
 
-## @param gce_send_project_id_tag - bool - optional - default: false
-## @env DD_GCE_SEND_PROJECT_ID_TAG - bool - optional - default: false
+## @param gce_send_project_id_tag - boolean - optional - default: false
+## @env DD_GCE_SEND_PROJECT_ID_TAG - boolean - optional - default: false
 ## Send the project ID host tag with the `project_id:` tag key in addition to
 ## the `project:` tag key.
 #
@@ -547,9 +567,9 @@ api_key:
 ## Configuration for scrubbing sensitive information from the Agent's logs, configuration and flares.
 #
 # scrubber:
-#
-#   # @param scrubber.additional_keys - list of strings - optional
-#   # @env DD_SCRUBBER_ADDITIONAL_KEYS - space-separated list of strings - optional
+
+#   # @param additional_keys - list of strings - optional - default: []
+#   # @env DD_SCRUBBER_ADDITIONAL_KEYS - space separated list of strings - optional - default: []
 #   # By default, the Agent removes known sensitive keys from Agent and integrations YAML configs before
 #   # including them in the flare.
 #   # Use this parameter to define additional sensitive keys that the Agent should scrub from
@@ -582,12 +602,13 @@ api_key:
 #
 # inventories_configuration_enabled: true
 
+## @param metadata_ip_resolution_from_hostname - boolean - optional - default: false
 ## @env DD_METADATA_IP_RESOLUTION_FROM_HOSTNAME - boolean - optional - default: false
 ## By default, the Agent uses the first interface in the list of network interfaces to determine the IP address of the host.
 ## If you set this option to true, the Agent tries to resolve the host name to determine the host's IP address.
 ## If this is unsuccessful, the Agent falls back to the default behavior.
 ## This option is useful when the first interface is not the one you want to use to determine the host's IP address, or when
-## you define the hostname in the /etc/hosts configuration file.
+## you define the hostname in the /etc/hosts configuration file.
 #
 # metadata_ip_resolution_from_hostname: false
 
@@ -602,14 +623,15 @@ api_key:
 #   # Feature is only supported on POSIX systems.
 #
 #   noprocess:
+
 #     # @param enabled - boolean - optional - default: false
 #     # @env DD_AUTO_EXIT_NOPROCESS_ENABLED - boolean - optional - default: false
 #     # Enable the `noprocess` method
 #
 #     enabled: false
 
-#     # @param excluded_processes - list of strings - optional
-#     # @env DD_AUTO_EXIT_NOPROCESS_EXCLUDED_PROCESSES - space separated list of strings - optional
+#     # @param excluded_processes - list of strings - optional - default: []
+#     # @env DD_AUTO_EXIT_NOPROCESS_EXCLUDED_PROCESSES - space separated list of strings - optional - default: []
 #     # List of regular expressions to exclude extra processes (on top of built-in list).
 #
 #     excluded_processes: []
@@ -651,17 +673,17 @@ api_key:
 #   # - compliance_config.endpoints.dd_url
 #   # - runtime_security_config.endpoints.dd_url
 #   # - network_devices.metadata.dd_url
-#
+#   #
 #   # The agent will also ignore 'proxy.*' settings and environment variables related to proxy (HTTP_PROXY, HTTPS_PROXY,
 #   # DD_PROXY_HTTP and DD_PROXY_HTTPS).
 #
 #   enabled: false
 
-#   # @param local_address - string - optional - default: localhost
-#   # @env DD_FIPS_LOCAL_ADDRESS - string - optional - default: localhost
+#   # @param local_address - string - optional - default: "localhost"
+#   # @env DD_FIPS_LOCAL_ADDRESS - string - optional - default: "localhost"
 #   # The local address that the FIPS proxy will bind ports on.
 #
-#   local_address: localhost
+#   local_address: "localhost"
 
 ## @param observability_pipelines_worker - custom object - optional
 ## Configuration for forwarding telemetry to an Observability Pipelines Worker instead of Datadog.
@@ -670,7 +692,7 @@ api_key:
 #
 # observability_pipelines_worker:
 
-#   # @param  metrics - custom object - optional
+#   # @param metrics - custom object - optional
 #   # Specific configurations for metrics
 #
 #   metrics:
@@ -687,7 +709,7 @@ api_key:
 #
 #     url: "http://127.0.0.1:8080"
 
-#   # @param  logs - custom object - optional
+#   # @param logs - custom object - optional
 #   # Specific configurations for logs
 #
 #   logs:
@@ -704,7 +726,7 @@ api_key:
 #
 #     url: "http://127.0.0.1:8080"
 
-#   # @param  traces - custom object - optional
+#   # @param traces - custom object - optional
 #   # Specific configurations for traces
 #
 #   traces:
@@ -725,16 +747,17 @@ api_key:
 ## Logging Configuration ##
 ###########################
 
-## @param log_level - string - optional - default: info
-## @env DD_LOG_LEVEL - string - optional - default: info
+## @param log_level - string - optional - default: "info"
+## @env DD_LOG_LEVEL - string - optional - default: "info"
+## @env LOG_LEVEL - string - optional - default: "info"
 ## Minimum log level of the Datadog Agent.
 ## Valid log levels are: trace, debug, info, warn, error, critical, and off.
 ## Note: When using the 'off' log level, quotes are mandatory.
 #
 # log_level: 'info'
 
-## @param log_file - string - optional
-## @env DD_LOG_FILE - string - optional
+## @param log_file - string - optional - default: ""
+## @env DD_LOG_FILE - string - optional - default: ""
 ## Path of the log file for the Datadog Agent.
 ## See https://docs.datadoghq.com/agent/guide/agent-log-files/
 #
@@ -758,8 +781,8 @@ api_key:
 #
 # disable_file_logging: false
 
-## @param log_file_max_size - custom - optional - default: 10MB
-## @env DD_LOG_FILE_MAX_SIZE - custom - optional - default: 10MB
+## @param log_file_max_size - string - optional - default: "10Mb"
+## @env DD_LOG_FILE_MAX_SIZE - string - optional - default: "10Mb"
 ## Maximum size of one log file. Use either a size (e.g. 10MB) or
 ## provide value in bytes: 10485760
 #
@@ -781,8 +804,8 @@ api_key:
 #
 # log_to_syslog: false
 
-## @param syslog_uri - string - optional
-## @env DD_SYSLOG_URI - string - optional
+## @param syslog_uri - string - optional - default: ""
+## @env DD_SYSLOG_URI - string - optional - default: ""
 ## Define a custom remote syslog uri if needed. If 'syslog_uri' is left undefined/empty,
 ## a local domain socket connection is attempted.
 #
@@ -794,14 +817,14 @@ api_key:
 #
 # syslog_rfc: false
 
-## @param log_format_rfc3339 - boolean - optional - default false
-## @env DD_LOG_FORMAT_RFC3339 - boolean - optional - default false
+## @param log_format_rfc3339 - boolean - optional - default: false
+## @env DD_LOG_FORMAT_RFC3339 - boolean - optional - default: false
 ## If enabled the Agent will log using the RFC3339 format for the log time.
 #
 # log_format_rfc3339: false
 
-## @param log_all_goroutines_when_unhealthy - boolean - optional - default false
-## @env DD_LOG_ALL_GOROUTINES_WHEN_UNHEALTHY - boolean - optional - default false
+## @param log_all_goroutines_when_unhealthy - boolean - optional - default: false
+## @env DD_LOG_ALL_GOROUTINES_WHEN_UNHEALTHY - boolean - optional - default: false
 ## If enabled, when the health probe of an internal component fails, the stack traces
 ## of all the goroutines are logged.
 #
@@ -818,37 +841,44 @@ api_key:
 # cluster_agent:
 
 #   # @param enabled - boolean - optional - default: false
+#   # @env DD_CLUSTER_AGENT_ENABLED - boolean - optional - default: false
 #   # Set to true to enable the Cluster Agent.
 #
 #   enabled: false
 
 #   # @param auth_token - string - optional - default: ""
+#   # @env DD_CLUSTER_AGENT_AUTH_TOKEN - string - optional - default: ""
 #   # Auth token used to make requests to the Kubernetes API server.
 #
 #   auth_token: ""
 
 #   # @param url - string - optional - default: ""
+#   # @env DD_CLUSTER_AGENT_URL - string - optional - default: ""
 #   # The Cluster Agent endpoint. There's no need to set it if "kubernetes_service_name" is set.
 #
 #   url: ""
 
 #   # @param kubernetes_service_name - string - optional - default: "datadog-cluster-agent"
+#   # @env DD_CLUSTER_AGENT_KUBERNETES_SERVICE_NAME - string - optional - default: "datadog-cluster-agent"
 #   # Name of the Kubernetes service for the Cluster Agent.
 #
 #   kubernetes_service_name: "datadog-cluster-agent"
 
 #   # @param max_leader_connections - integer - optional - default: 100
+#   # @env DD_CLUSTER_AGENT_MAX_LEADER_CONNECTIONS - integer - optional - default: 100
 #   # Maximum number of connections between a follower and a leader.
 #
 #   max_leader_connections: 100
 
 #   # @param client_reconnect_period_seconds - integer - optional - default: 1200
+#   # @env DD_CLUSTER_AGENT_CLIENT_RECONNECT_PERIOD_SECONDS - integer - optional - default: 1200
 #   # Set the refersh period for Agent to Cluster Agent connection (new connection is created, old connection is closed).
 #   # Set to 0 to disable periodic reconnection.
 #
 #   client_reconnect_period_seconds: 1200
 
 #   # @param tagging_fallback - boolean - optional - default: false
+#   # @env DD_CLUSTER_AGENT_TAGGING_FALLBACK - boolean - optional - default: false
 #   # Set to true to enabled fallback to local metamapper when the connection with the Cluster Agent fails.
 #
 #   tagging_fallback: false
@@ -859,16 +889,19 @@ api_key:
 #   server:
 
 #     # @param read_timeout_seconds - integer - optional - default: 2
+#     # @env DD_CLUSTER_AGENT_SERVER_READ_TIMEOUT_SECONDS - integer - optional - default: 2
 #     # Read timeout in seconds.
 #
 #     read_timeout_seconds: 2
 
 #     # @param write_timeout_seconds - integer - optional - default: 2
+#     # @env DD_CLUSTER_AGENT_SERVER_WRITE_TIMEOUT_SECONDS - integer - optional - default: 2
 #     # Write timeout in seconds.
 #
 #     write_timeout_seconds: 2
 
 #     # @param idle_timeout_seconds - integer - optional - default: 60
+#     # @env DD_CLUSTER_AGENT_SERVER_IDLE_TIMEOUT_SECONDS - integer - optional - default: 60
 #     # Idle timeout in seconds.
 #
 #     idle_timeout_seconds: 60
@@ -906,16 +939,16 @@ api_key:
 #
 #   warmup_duration: 30
 
-#   # @param cluster_tag_name - string - optional - default: cluster_name
-#   # @env DD_CLUSTER_CHECKS_CLUSTER_TAG_NAME - string - optional - default: cluster_name
+#   # @param cluster_tag_name - string - optional - default: "cluster_name"
+#   # @env DD_CLUSTER_CHECKS_CLUSTER_TAG_NAME - string - optional - default: "cluster_name"
 #   # If a cluster_name value is set or autodetected, a "<CLUSTER_NAME>" tag is added
 #   # to all cluster-check configurations sent to the node-agents.
 #   # Set a custom tag name here, or disable it by setting an empty name.
 #
-#   cluster_tag_name: cluster_name
+#   cluster_tag_name: "cluster_name"
 
-#   # @param extra_tags - list of key:value elements - optional
-#   # @env DD_CLUSTER_CHECKS_EXTRA_TAGS - list of key:value elements - optional
+#   # @param extra_tags - list of strings - optional - default: []
+#   # @env DD_CLUSTER_CHECKS_EXTRA_TAGS - space separated list of strings - optional - default: []
 #   # Set a list of additionnal tags can to be added to every cluster-check configuration.
 #
 #   extra_tags:
@@ -985,7 +1018,7 @@ api_key:
 #     enabled: true
 
 #   # @param mutate_unlabelled - boolean - optional - default: false
-#   # @env DD_ADMISSION_CONTROLLER_MUTATE_ENABLED - boolean - optional - default: false
+#   # @env DD_ADMISSION_CONTROLLER_MUTATE_UNLABELLED - boolean - optional - default: false
 #   # Enable injecting config without having the pod label admission.datadoghq.com/enabled="true".
 #
 #   mutate_unlabelled: false
@@ -1002,20 +1035,20 @@ api_key:
 #
 #   timeout_seconds: 10
 
-#   # @param service_name - string - optional - default: datadog-admission-controller
-#   # @env DD_ADMISSION_CONTROLLER_SERVICE_NAME - string - optional - default: datadog-admission-controller
+#   # @param service_name - string - optional - default: "datadog-admission-controller"
+#   # @env DD_ADMISSION_CONTROLLER_SERVICE_NAME - string - optional - default: "datadog-admission-controller"
 #   # The name of the Kubernetes service that exposes the admission controller.
 #
-#   service_name: datadog-admission-controller
+#   service_name: "datadog-admission-controller"
 
-#   # @param webhook_name - string - optional - default: datadog-webhook
-#   # @env DD_ADMISSION_CONTROLLER_WEBHOOK_NAME - string - optional - default: datadog-webhook
+#   # @param webhook_name - string - optional - default: "datadog-webhook"
+#   # @env DD_ADMISSION_CONTROLLER_WEBHOOK_NAME - string - optional - default: "datadog-webhook"
 #   # The name of the Kubernetes webhook object.
 #
-#   webhook_name: datadog-webhook
+#   webhook_name: "datadog-webhook"
 
 #   # @param pod_owners_cache_validity - integer - optional - default: 10
-#   # @env DD_ADMISSION_CONTROLLER_POD_OWNERS_CACHE_VALIDITY - integer - optional - default: pod_owners_cache_validity
+#   # @env DD_ADMISSION_CONTROLLER_POD_OWNERS_CACHE_VALIDITY - integer - optional - default: 10
 #   # The in-memory cache TTL for pod owners in minutes.
 #
 #   pod_owners_cache_validity: 10
@@ -1044,11 +1077,11 @@ api_key:
 #
 #     expiration_threshold: 720
 
-#     # @param secret_name - string - optional - default: webhook-certificate
-#     # @env DD_ADMISSION_CONTROLLER_CERTIFICATE_SECRET_NAME - string - optional - default: webhook-certificate
+#     # @param secret_name - string - optional - default: "webhook-certificate"
+#     # @env DD_ADMISSION_CONTROLLER_CERTIFICATE_SECRET_NAME - string - optional - default: "webhook-certificate"
 #     # Name of the Secret object containing the webhook certificate.
 #
-#     secret_name: webhook-certificate
+#     secret_name: "webhook-certificate"
 
 #   # @param inject_config - custom object - optional
 #   # Configuration injection parameters.
@@ -1061,36 +1094,29 @@ api_key:
 #
 #     enabled: true
 
-#     # @param endpoint - string - optional - default: /injectconfig
-#     # @env DD_ADMISSION_CONTROLLER_INJECT_CONFIG_ENDPOINT - string - optional - default: /injectconfig
+#     # @param endpoint - string - optional - default: "/injectconfig"
+#     # @env DD_ADMISSION_CONTROLLER_INJECT_CONFIG_ENDPOINT - string - optional - default: "/injectconfig"
 #     # Admission controller's endpoint responsible for handling configuration injection requests.
 #
-#     endpoint: /injectconfig
+#     endpoint: "/injectconfig"
 
-#     # @param mode - string - optional - default: hostip
-#     # @env DD_ADMISSION_CONTROLLER_INJECT_CONFIG_MODE - string - optional - default: hostip
+#     # @param mode - string - optional - default: "hostip"
+#     # @env DD_ADMISSION_CONTROLLER_INJECT_CONFIG_MODE - string - optional - default: "hostip"
 #     # The kind of configuration to be injected, it can be "hostip", "service", or "socket".
 #
-#     mode: hostip
+#     mode: "hostip"
 
-#     # @param local_service_name - string - optional - default: datadog
-#     # @env DD_ADMISSION_CONTROLLER_INJECT_CONFIG_LOCAL_SERVICE_NAME - string - optional - default: datadog
+#     # @param local_service_name - string - optional - default: "datadog"
+#     # @env DD_ADMISSION_CONTROLLER_INJECT_CONFIG_LOCAL_SERVICE_NAME - string - optional - default: "datadog"
 #     # Configure the local service name that exposes the Datadog Agent. Only applicable in "service" mode.
 #
-#     local_service_name: datadog
+#     local_service_name: "datadog"
 
-#     # @param socket_path - string - optional - default: /var/run/datadog
-#     # @env DD_ADMISSION_CONTROLLER_INJECT_CONFIG_SOCKET_PATH - string - optional - default: /var/run/datadog
+#     # @param socket_path - string - optional - default: "/var/run/datadog"
+#     # @env DD_ADMISSION_CONTROLLER_INJECT_CONFIG_SOCKET_PATH - string - optional - default: "/var/run/datadog"
 #     # Configure Datadog Agent's socket path. Only applicable in "socket" mode.
 #
-#     socket_path: /var/run/datadog
-
-#     # @param trace_agent_socket - string - optional - default: unix:///var/run/datadog/apm.socket
-#     # @env DD_ADMISSION_CONTROLLER_INJECT_CONFIG_TRACE_AGENT_SOCKET - string - optional - default: unix:///var/run/datadog/apm.socket
-#     # Configure Trace Agent's socket path in the app container (DD_TRACE_AGENT_URL).
-#     # Only applicable in "socket" mode.
-#
-#     trace_agent_socket: unix:///var/run/datadog/apm.socket
+#     socket_path: "/var/run/datadog"
 
 #     # @param type_socket_volumes - boolean - optional - default: false
 #     # @env DD_ADMISSION_CONTROLLER_INJECT_CONFIG_TYPE_SOCKET_VOLUMES - boolean - optional - default: false
@@ -1112,26 +1138,26 @@ api_key:
 #
 #     enabled: true
 
-#     # @param endpoint - string - optional - default: /injecttags
-#     # @env DD_ADMISSION_CONTROLLER_INJECT_TAGS_ENDPOINT - string - optional - default: /injecttags
+#     # @param endpoint - string - optional - default: "/injecttags"
+#     # @env DD_ADMISSION_CONTROLLER_INJECT_TAGS_ENDPOINT - string - optional - default: "/injecttags"
 #     # Admission controller's endpoint responsible for handling tags injection requests.
 #
-#     endpoint: /injecttags
+#     endpoint: "/injecttags"
 
-#   # @param failure_policy - string - optional - default: Ignore
-#   # @env DD_ADMISSION_CONTROLLER_FAILURE_POLICY - string - optional - default: Ignore
+#   # @param failure_policy - string - optional - default: "Ignore"
+#   # @env DD_ADMISSION_CONTROLLER_FAILURE_POLICY - string - optional - default: "Ignore"
 #   # Set the failure policy for dynamic admission control.
 #   # The default of Ignore means that pods will still be admitted even if the webhook is unavailable to inject them.
 #   # Setting to Fail will require the admission controller to be present and pods to be injected before they are allowed to run.
 #
-#   failure_policy: Ignore
+#   failure_policy: "Ignore"
 
-#   # @param reinvocation_policy - string - optional - default: IfNeeded
-#   # @env DD_ADMISSION_CONTROLLER_REINVOCATION_POLICY - string - optional - default: IfNeeded
+#   # @param reinvocation_policy - string - optional - default: "IfNeeded"
+#   # @env DD_ADMISSION_CONTROLLER_REINVOCATION_POLICY - string - optional - default: "IfNeeded"
 #   # Set the reinvocation policy for dynamic admission control.
 #   # See https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/#reinvocation-policy
 #
-#   reinvocation_policy: IfNeeded
+#   reinvocation_policy: "IfNeeded"
 
 #   # @param add_aks_selectors - boolean - optional - default: false
 #   # @env DD_ADMISSION_CONTROLLER_ADD_AKS_SELECTORS - boolean - optional - default: false
@@ -1154,23 +1180,23 @@ api_key:
 #       # @env DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_RESOURCES_CPU - string - optional
 #       # Configures the CPU request that will be applied for the init container's CPU request and limit.
 #
-#       cpu:
+#       cpu: ""
 
 #       # @param memory - string - optional
 #       # @env DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_RESOURCES_MEMORY - string - optional
 #       # Configures the memory request that will be applied for the init container's memory request and limit.
 #
-#       memory:
+#       memory: ""
 
 #     # @param init_security_context - json - optional
 #     # @env DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_SECURITY_CONTEXT - json - optional
 #     # Security context for the init containers in JSON format. Follows the Kubernetes security context spec,
 #     # https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#securitycontext-v1-core,
 #     # ignores unknown properties.
+#     #
+#     # Env var example: DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_SECURITY_CONTEXT='{"privileged": false}'
 #
 #     init_security_context: '{"privileged": false}'
-#
-#     DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_SECURITY_CONTEXT='{"privileged": false}'
 
 ####################################################
 ## Kubernetes apiserver integration Configuration ##
@@ -1217,6 +1243,15 @@ api_key:
 #
 # kubernetes_collect_metadata_tags: true
 
+## @param auto_team_tag_collection - boolean - optional - default: true
+## @env DD_AUTO_TEAM_TAG_COLLECTION - boolean - optional - default: true
+## When enabled, the orchestrator check automatically collects the 'team' tag from Kubernetes resources.
+## If a resource has a label or annotation with key 'team', and no 'team' tag has been explicitly configured
+## via kubernetes_resources_labels_as_tags or kubernetes_resources_annotations_as_tags, the agent will
+## automatically add a 'team' tag with the value from the label (preferred) or annotation.
+#
+# auto_team_tag_collection: true
+
 ## @param kubernetes_metadata_tag_update_freq - integer - optional - default: 60
 ## @env DD_KUBERNETES_METADATA_TAG_UPDATE_FREQ - integer - optional - default: 60
 ## Set how often in secons the Agent refreshes the internal mapping of services to ContainerIDs.
@@ -1252,40 +1287,40 @@ api_key:
 #
 # leader_election: false
 
-## @param leader_lease_duration - integer - optional - default: 60
-## @env DD_LEADER_LEASE_DURATION - integer - optional - default: 60
+## @param leader_lease_duration - string - optional - default: "60"
+## @env DD_LEADER_LEASE_DURATION - string - optional - default: "60"
 ## Set the leader election lease in seconds.
 #
-# leader_lease_duration: 60
+# leader_lease_duration: "60"
 
-## @param kubernetes_node_labels_as_tags - map - optional
-## @env DD_KUBERNETES_NODE_LABELS_AS_TAGS - json - optional
+## @param kubernetes_node_labels_as_tags - object - optional - default: {}
+## @env DD_KUBERNETES_NODE_LABELS_AS_TAGS - JSON object of string to string - optional - default: {}
 ## Configure node labels that should be collected and their name as host tags.
 ## Note: Some of these labels are redundant with metadata collected by cloud provider crawlers (AWS, GCE, Azure)
+##
+## Env var exmaple: DD_KUBERNETES_NODE_LABELS_AS_TAGS='{"NODE_LABEL": "TAG_KEY"}'
 #
 # kubernetes_node_labels_as_tags:
 #   kubernetes.io/hostname: nodename
 #   beta.kubernetes.io/os: os
-#
-## DD_KUBERNETES_NODE_LABELS_AS_TAGS='{"NODE_LABEL": "TAG_KEY"}'
 
 ## @param kubernetes_node_annotations_as_tags - map - optional
 ## @env DD_KUBERNETES_NODE_ANNOTATIONS_AS_TAGS - json - optional
 ## Configure node annotationss that should be collected and their name as host tags.
+##
+## Env var example: DD_KUBERNETES_NODE_ANNOTATIONS_AS_TAGS='{"NODE_ANNOTATION": "TAG_KEY"}'
 #
 # kubernetes_node_annotations_as_tags:
 #   cluster.k8s.io/machine: machine
-#
-## DD_KUBERNETES_NODE_ANNOTATIONS_AS_TAGS='{"NODE_ANNOTATION": "TAG_KEY"}'
 
 ## @param kubernetes_node_annotations_as_host_aliases - list - optional
 ## @env DD_KUBERNETES_NODE_ANNOTATIONS_AS_HOST_ALIASES - list - optional
 ## Configure node annotations that should be collected and used as host aliases.
+##
+## Env var example: DD_KUBERNETES_NODE_ANNOTATIONS_AS_HOST_ALIASES='["cluster.k8s.io/machine"]'
 #
 # kubernetes_node_annotations_as_host_aliases:
 #   - cluster.k8s.io/machine
-#
-## DD_KUBERNETES_NODE_ANNOTATIONS_AS_HOST_ALIASES='["cluster.k8s.io/machine"]'
 
 ## @param cluster_name - string - optional
 ## @env DD_CLUSTER_NAME - string - optional
@@ -1308,8 +1343,8 @@ api_key:
 #
 # disable_cluster_name_tag_key: false
 
-## @param kubernetes_ad_tags_disabled -- list of strings - optional
-## @env DD_KUBERNETES_AD_TAGS_DISABLED -- list of strings - optional
+## @param kubernetes_ad_tags_disabled - list of strings - optional - default: []
+## @env DD_KUBERNETES_AD_TAGS_DISABLED - space separated list of strings - optional - default: []
 ## Can only be set to a single valid value: [ "kube_service" ]
 ## in order to not attach the kube_service tag on ready pods
 #
