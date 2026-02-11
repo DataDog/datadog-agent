@@ -21,5 +21,6 @@ default_version "8.18.0"
 relative_path "curl-#{version}"
 
 build do
+  command_on_repo_root "bazelisk run -- @nghttp2//:install --destdir='#{install_dir}'"
   command_on_repo_root "bazelisk run -- @curl//:install --destdir='#{install_dir}'"
 end
