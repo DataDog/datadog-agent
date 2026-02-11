@@ -286,6 +286,36 @@ func TestProcessOTLPTraces(t *testing.T) {
 				false,
 			),
 		},
+		{
+			name:     "gRPC status code is included in trace metrics",
+			spanName: "grpc_span",
+			rattrs:   map[string]string{"service.name": "grpc-svc"},
+			sattrs:   map[string]any{"rpc.grpc.status_code": int64(2), "rpc.system": "grpc", "rpc.method": "GetUser", "rpc.service": "UserService"},
+			spanKind: ptrace.SpanKindServer,
+			libname:  "otelgrpc",
+			expected: &pb.StatsPayload{
+				AgentEnv:      agentEnv,
+				AgentHostname: agentHost,
+				Stats: []*pb.ClientStatsPayload{{
+					Hostname: agentHost,
+					Env:      agentEnv,
+					Stats: []*pb.ClientStatsBucket{{
+						Stats: []*pb.ClientGroupedStats{
+							{
+								Service:        "grpc-svc",
+								Name:           "otelgrpc.server",
+								Resource:       "GetUser UserService",
+								Type:           "web",
+								Hits:           1,
+								TopLevelHits:   1,
+								SpanKind:       "server",
+								IsTraceRoot:    pb.Trilean_TRUE,
+								GRPCStatusCode: "2",
+							},
+						},
+					}}}},
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			traces := ptrace.NewTraces()
