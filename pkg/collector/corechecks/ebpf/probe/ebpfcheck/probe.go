@@ -9,7 +9,6 @@
 package ebpfcheck
 
 import (
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -328,12 +327,13 @@ func (k *Probe) readSingleProgram(progid ebpf.ProgramID) (*model.EBPFProgramStat
 		return nil, fmt.Errorf("error getting program info prog_id=%d: %s", progid, err)
 	}
 
-	name := unix.ByteSliceToString(info.Name[:])
+	var name string
 	if pn, err := ddebpf.GetProgNameFromProgID(uint32(progid)); err == nil {
 		name = pn
-	}
-	// we require a name, so use program type for unnamed programs
-	if name == "" {
+	} else if info.Name[0] != 0 {
+		name = unix.ByteSliceToString(info.Name[:])
+	} else {
+		// we require a name, so use program type for unnamed programs
 		name = strings.ToLower(ebpf.ProgramType(info.Type).String())
 	}
 	module := "unknown"
@@ -341,12 +341,10 @@ func (k *Probe) readSingleProgram(progid ebpf.ProgramID) (*model.EBPFProgramStat
 		module = mod
 	}
 
-	tag := hex.EncodeToString(info.Tag[:])
 	ps := model.EBPFProgramStats{
 		ID:              uint32(progid),
 		Name:            name,
 		Module:          module,
-		Tag:             tag,
 		Type:            ebpf.ProgramType(info.Type).String(),
 		XlatedProgLen:   info.XlatedProgLen,
 		RSS:             uint64(roundUp(info.XlatedProgLen, uint32(pageSize))),
@@ -429,9 +427,9 @@ retry:
 	retryCnt++
 
 	for c := range cookies {
-		perfEventFD, err := ddebpf.GetPerfEventFDByProbeID(ebpf.ProgramID(c.Kprobe_id))
+		perfEventFD, ok := ddebpf.GetPerfEventFDByProbeID(ebpf.ProgramID(c.Kprobe_id))
 		// not all programs have associated perf events
-		if err != nil {
+		if !ok {
 			continue
 		}
 
