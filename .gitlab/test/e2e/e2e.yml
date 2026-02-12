@@ -298,7 +298,6 @@ new-e2e-containers-eks-init:
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
-
 new-e2e-containers-eks:
   extends: .new_e2e_template_needs_container_deploy
   rules:
@@ -314,6 +313,25 @@ new-e2e-containers-eks:
     EXTRA_PARAMS: --run TestEKSSuite
     E2E_PRE_INITIALIZED: "true"
     ON_NIGHTLY_FIPS: "true"
+  retry: !reference [.retry_only_infra_failure, retry]
+
+new-e2e-containers-openshift:
+  extends: .new_e2e_template_needs_container_deploy_linux
+  rules:
+    - !reference [.on_container_or_e2e_changes]
+    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
+    - !reference [.manual]
+  before_script:
+    # We need to also fetch the OpenShift CRC pull secret and write it to a temp file, so we reference the new_e2e_template before_script first
+    - !reference [.new_e2e_template, before_script]
+    - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh ci.datadog-agent.crc-pull-secret > /tmp/crc-pull-secret.json || exit $?
+  variables:
+    TARGETS: ./tests/containers
+    TEAM: container-integrations
+    EXTRA_PARAMS: --run TestOpenShiftVMSuite -c ddinfra:gcp/openshift/pullSecretPath=/tmp/crc-pull-secret.json
+    E2E_PRE_INITIALIZED: "true"
+    ON_NIGHTLY_FIPS: "true"
+  allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
 new-e2e-remote-config:
@@ -509,7 +527,6 @@ new-e2e-npm-eks-init:
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
-
 new-e2e-npm-eks:
   extends: .new_e2e_template
   rules:
@@ -527,7 +544,6 @@ new-e2e-npm-eks:
     E2E_PRE_INITIALIZED: "true"
     ON_NIGHTLY_FIPS: "true"
   retry: !reference [.retry_only_infra_failure, retry]
-
 
 new-e2e-npm:
   extends: .new_e2e_template
@@ -612,7 +628,6 @@ new-e2e-cws:
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
-
 new-e2e-sbom:
   extends: .new_e2e_template_needs_container_deploy_linux
   rules:
@@ -625,7 +640,6 @@ new-e2e-sbom:
   parallel:
     matrix:
       - EXTRA_PARAMS: --run "TestSBOMKindSuite"
-
 
 new-e2e-discovery:
   extends: .new_e2e_template
@@ -948,7 +962,6 @@ new-e2e-otel-eks-init:
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
-
 new-e2e-otel-eks:
   extends: .new_e2e_template
   rules:
@@ -966,7 +979,6 @@ new-e2e-otel-eks:
     TEAM: otel
     E2E_PRE_INITIALIZED: "true"
   retry: !reference [.retry_only_infra_failure, retry]
-
 
 new-e2e-otel:
   extends: .new_e2e_template
