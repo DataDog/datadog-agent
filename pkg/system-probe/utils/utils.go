@@ -48,6 +48,7 @@ func GetPrettyPrintFromQueryParams(req *http.Request) FormatOptions {
 // WriteAsJSON marshals the give data argument into JSON and writes it to the `http.ResponseWriter`
 func WriteAsJSON(w http.ResponseWriter, data interface{}, outputOptions FormatOptions) {
 	encoder := json.NewEncoder(w)
+	//nolint:staticcheck // S1002: explicit comparison preferred for readability
 	if outputOptions == PrettyPrint {
 		encoder.SetIndent("", "  ")
 	}
