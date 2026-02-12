@@ -16,12 +16,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	model "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 type testCase struct {
 	name           string
+	authorized     bool
 	existing       bool
 	expectedStatus int
 }
@@ -33,8 +35,9 @@ type prefixTestCase struct {
 }
 
 type expvals struct {
-	Success map[string]int `json:"success"`
-	Errors  map[string]int `json:"errors"`
+	Success      map[string]int `json:"success"`
+	Errors       map[string]int `json:"errors"`
+	Unauthorized map[string]int `json:"unauthorized"`
 }
 
 func testConfigValue(t *testing.T, configEndpoint *configEndpoint, server *httptest.Server, configName string, expectedStatus int) {
@@ -76,13 +79,26 @@ func testConfigValue(t *testing.T, configEndpoint *configEndpoint, server *httpt
 }
 
 func TestConfigEndpoint(t *testing.T) {
+	t.Run("core_config", func(t *testing.T) {
+		_, server, configEndpoint := getConfigServer(t, api.AuthorizedConfigPathsCore)
+		for configName := range api.AuthorizedConfigPathsCore {
+			testConfigValue(t, configEndpoint, server, configName, http.StatusOK)
+		}
+	})
+
 	for _, testCase := range []testCase{
-		{"existing_config", true, http.StatusOK},
-		{"missing_config", false, http.StatusNotFound},
+		{"authorized_existing_config", true, true, http.StatusOK},
+		{"authorized_missing_config", true, false, http.StatusNotFound},
+		{"unauthorized_existing_config", false, true, http.StatusForbidden},
+		{"unauthorized_missing_config", false, false, http.StatusForbidden},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			configName := "my.config.value"
-			cfg, server, configEndpoint := getConfigServer(t)
+			authorizedConfigPaths := api.AuthorizedSet{}
+			if testCase.authorized {
+				authorizedConfigPaths[configName] = struct{}{}
+			}
+			cfg, server, configEndpoint := getConfigServer(t, authorizedConfigPaths)
 			if testCase.existing {
 				cfg.SetWithoutSource(configName, "some_value")
 				cfg.SetKnown(configName) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
@@ -91,10 +107,9 @@ func TestConfigEndpoint(t *testing.T) {
 		})
 	}
 
-	t.Run("not_marshallable", func(t *testing.T) {
+	t.Run("authorized_not_marshallable", func(t *testing.T) {
 		configName := "my.config.value"
-		cfg, _, _ := getConfigServer(t)
-		cfg.SetKnown(configName) //nolint:forbidigo // testing behavior
+		cfg, _, _ := getConfigServer(t, api.AuthorizedSet{configName: {}})
 		// calling SetWithoutSource with an invalid type of data will panic
 		assert.Panics(t, func() { cfg.SetWithoutSource(configName, make(chan int)) })
 	})
@@ -103,12 +118,13 @@ func TestConfigEndpoint(t *testing.T) {
 	childConfigNameOne := parentConfigName + ".child1"
 	childConfigNameTwo := parentConfigName + ".child2"
 	for _, testCase := range []prefixTestCase{
-		{"nested_root", parentConfigName, http.StatusOK},
-		{"nested_child_one", childConfigNameOne, http.StatusOK},
-		{"nested_child_two", childConfigNameTwo, http.StatusOK},
+		{"authorized_nested_prefix_rule_root", parentConfigName, http.StatusOK},
+		{"authorized_nested_prefix_rule_child_one", childConfigNameOne, http.StatusOK},
+		{"authorized_nested_prefix_rule_child_two", childConfigNameTwo, http.StatusOK},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			cfg, server, configEndpoint := getConfigServer(t)
+			cfg, server, configEndpoint := getConfigServer(t, api.AuthorizedSet{parentConfigName: struct{}{}})
+
 			cfg.SetWithoutSource(childConfigNameOne, "child1_value")
 			cfg.SetKnown(childConfigNameOne) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 			cfg.SetWithoutSource(childConfigNameTwo, "child2_value")
@@ -118,28 +134,56 @@ func TestConfigEndpoint(t *testing.T) {
 		})
 	}
 
-	t.Run("unknown_path_returns_404", func(t *testing.T) {
-		cfg, server, configEndpoint := getConfigServer(t)
-		cfg.SetWithoutSource("known.key", "value")
-		cfg.SetKnown("known.key") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	t.Run("unauthorized_nested_prefix_rule", func(t *testing.T) {
+		parentConfigName := "root.parent"
+		childConfigName := parentConfigName + ".child"
 
-		testConfigValue(t, configEndpoint, server, "known.key", http.StatusOK)
-		testConfigValue(t, configEndpoint, server, "unknown.path", http.StatusNotFound)
+		cfg, server, configEndpoint := getConfigServer(t, api.AuthorizedSet{childConfigName: struct{}{}})
+
+		cfg.SetWithoutSource(childConfigName, "child_value")
+		cfg.SetKnown(childConfigName) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+
+		testConfigValue(t, configEndpoint, server, childConfigName, http.StatusOK)
+		testConfigValue(t, configEndpoint, server, parentConfigName, http.StatusForbidden)
 	})
 }
 
 func TestConfigListEndpoint(t *testing.T) {
 	testCases := []struct {
-		name         string
-		configValues map[string]interface{}
+		name              string
+		configValues      map[string]interface{}
+		authorizedConfigs api.AuthorizedSet
 	}{
-		{"single_config", map[string]interface{}{"my.config.value": "some_value"}},
-		{"multiple_configs", map[string]interface{}{"my.config.value": "some_value", "my.other.config.value": 12.5}},
+		{
+			"empty_config",
+			map[string]interface{}{"some.config": "some_value"},
+			api.AuthorizedSet{},
+		},
+		{
+			"single_config",
+			map[string]interface{}{"some.config": "some_value", "my.config.value": "some_value"},
+			api.AuthorizedSet{"my.config.value": {}},
+		},
+		{
+			"multiple_configs",
+			map[string]interface{}{"my.config.value": "some_value", "my.other.config.value": 12.5},
+			api.AuthorizedSet{"my.config.value": {}, "my.other.config.value": {}},
+		},
+		{
+			"missing_config",
+			map[string]interface{}{"my.config.value": "some_value"},
+			api.AuthorizedSet{"my.config.value": {}, "my.other.config.value": {}},
+		},
+		{
+			"prefix_rule",
+			map[string]interface{}{"my.config.value": "some_value"},
+			api.AuthorizedSet{"my.config": {}},
+		},
 	}
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			cfg, server, _ := getConfigServer(t)
+			cfg, server, _ := getConfigServer(t, test.authorizedConfigs)
 			for key, value := range test.configValues {
 				cfg.SetWithoutSource(key, value)
 				cfg.SetKnown(key) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
@@ -159,15 +203,12 @@ func TestConfigListEndpoint(t *testing.T) {
 				err = json.Unmarshal(data, &configValues)
 				require.NoError(t, err)
 
-				// Response includes all config keys; verify our test keys are present with correct values
-				for key, expectedVal := range test.configValues {
-					require.Contains(t, configValues, key, "response should contain key %q", key)
-					// Roundtrip expected through JSON to match response types (e.g. int -> float64)
-					expectedBody, _ := json.Marshal(expectedVal)
-					var expectedRoundtrip interface{}
-					_ = json.Unmarshal(expectedBody, &expectedRoundtrip)
-					assert.EqualValues(t, expectedRoundtrip, configValues[key], "key %q", key)
+				expectedValues := make(map[string]interface{})
+				for key := range test.authorizedConfigs {
+					expectedValues[key] = cfg.Get(key)
 				}
+
+				assert.Equal(t, expectedValues, configValues)
 			}
 		})
 	}
@@ -175,9 +216,9 @@ func TestConfigListEndpoint(t *testing.T) {
 
 func TestConfigEndpointJSONError(t *testing.T) {
 	// This test validate that the API can serialized map[interface{}]interface{} to JSON (ie: validate that we're
-	// using github.com/json-iterator/go rather than encoding/json)
+	// using github.com/json-iterator/go rather than encoding/json
 
-	cfg, server, _ := getConfigServer(t)
+	cfg, server, _ := getConfigServer(t, api.AuthorizedSet{"my.config": {}})
 	cfg.SetWithoutSource("my.config.value", []interface{}{
 		map[interface{}]interface{}{"a": "b", "c": "d"},
 	})
@@ -205,6 +246,8 @@ func checkExpvars(t *testing.T, beforeVars, afterVars expvals, configName string
 	switch expectedStatus {
 	case http.StatusOK:
 		beforeVars.Success[configName]++
+	case http.StatusForbidden:
+		beforeVars.Unauthorized[configName]++
 	case http.StatusNotFound, http.StatusInternalServerError:
 		beforeVars.Errors[configName]++
 	default:
@@ -214,11 +257,11 @@ func checkExpvars(t *testing.T, beforeVars, afterVars expvals, configName string
 	require.EqualValues(t, beforeVars, afterVars)
 }
 
-func getConfigServer(t *testing.T) (model.Config, *httptest.Server, *configEndpoint) {
+func getConfigServer(t *testing.T, authorizedConfigPaths map[string]struct{}) (model.Config, *httptest.Server, *configEndpoint) {
 	t.Helper()
 
 	cfg := configmock.New(t)
-	configEndpointMux, configEndpoint := getConfigEndpoint(cfg, t.Name())
+	configEndpointMux, configEndpoint := getConfigEndpoint(cfg, authorizedConfigPaths, t.Name())
 	server := httptest.NewServer(configEndpointMux)
 	t.Cleanup(server.Close)
 
