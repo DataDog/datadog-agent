@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"regexp"
 	"slices"
 	"strings"
 	"text/template"
@@ -312,7 +313,16 @@ func getFieldName(expr ast.Expr) string {
 	case *ast.MapType:
 		return getFieldName(expr.Value)
 	case *ast.SelectorExpr:
-		return getFieldName(expr.X) + "." + getFieldName(expr.Sel)
+		// Get the full qualified name
+		fullName := getFieldName(expr.X) + "." + getFieldName(expr.Sel)
+		// Strip package prefix if it's a built-in type (e.g., "net.byte" -> "byte")
+		if dotIdx := strings.LastIndex(fullName, "."); dotIdx >= 0 {
+			baseName := fullName[dotIdx+1:]
+			if isBuiltinType(baseName) {
+				return baseName
+			}
+		}
+		return fullName
 	default:
 		return ""
 	}
@@ -401,10 +411,23 @@ func analyzeMapField(mapType *ast.MapType, pkgPrefix string) *StructField {
 		return nil // Map value is an interface
 	}
 
+	typeName := getFieldName(mapType.Value)
+	// Don't add package prefix to built-in types
+	// Also strip any package prefix that's already in the type name for built-in types
+	if strings.Contains(typeName, ".") {
+		baseName := typeName[strings.LastIndex(typeName, ".")+1:]
+		if isBuiltinType(baseName) {
+			typeName = baseName
+		}
+	}
+	if isBuiltinType(typeName) {
+		pkgPrefix = ""
+	}
+
 	return &StructField{
 		IsMap:    true,
 		MapValue: descriptor,
-		OrigType: pkgPrefix + getFieldName(mapType.Value),
+		OrigType: pkgPrefix + typeName,
 	}
 }
 
@@ -415,19 +438,45 @@ func analyzeArrayField(arrayType *ast.ArrayType, pkgPrefix string) *StructField 
 		return nil // Array element is an interface
 	}
 
+	typeName := getFieldName(arrayType.Elt)
+	// Don't add package prefix to built-in types
+	// Also strip any package prefix that's already in the type name for built-in types
+	if strings.Contains(typeName, ".") {
+		baseName := typeName[strings.LastIndex(typeName, ".")+1:]
+		if isBuiltinType(baseName) {
+			typeName = baseName
+		}
+	}
+	if isBuiltinType(typeName) {
+		pkgPrefix = ""
+	}
+
 	return &StructField{
 		IsArray:      true,
 		IsFixedArray: arrayType.Len != nil,
 		ArrayElement: descriptor,
-		OrigType:     pkgPrefix + getFieldName(arrayType.Elt),
+		OrigType:     pkgPrefix + typeName,
 	}
 }
 
 // analyzePointerField analyzes a pointer type and returns its StructField
 func analyzePointerField(starExpr *ast.StarExpr, pkgPrefix string) *StructField {
+	typeName := getFieldName(starExpr.X)
+	// Don't add package prefix to built-in types
+	// Also strip any package prefix that's already in the type name for built-in types
+	if strings.Contains(typeName, ".") {
+		baseName := typeName[strings.LastIndex(typeName, ".")+1:]
+		if isBuiltinType(baseName) {
+			typeName = baseName
+		}
+	}
+	if isBuiltinType(typeName) {
+		pkgPrefix = ""
+	}
+
 	return &StructField{
 		IsOrigTypePtr: true,
-		OrigType:      pkgPrefix + getFieldName(starExpr.X),
+		OrigType:      pkgPrefix + typeName,
 	}
 }
 
@@ -458,6 +507,13 @@ func analyzeTypeDescriptor(expr ast.Expr) *TypeDescriptor {
 
 	// Simple type
 	desc.TypeName = getFieldName(expr)
+	// Strip package prefix from built-in types in TypeName
+	if strings.Contains(desc.TypeName, ".") {
+		baseName := desc.TypeName[strings.LastIndex(desc.TypeName, ".")+1:]
+		if isBuiltinType(baseName) {
+			desc.TypeName = baseName
+		}
+	}
 	return desc
 }
 
@@ -499,12 +555,22 @@ func analyzeMapDescriptor(mapType *ast.MapType, desc *TypeDescriptor) *TypeDescr
 // qualifiedType adds package qualification to a type name if needed.
 // Primitive types remain unqualified.
 func qualifiedType(module *common.Module, kind string) string {
-	switch kind {
-	case "int", "string", "bool":
+	// Built-in types should never be package-qualified
+	if isBuiltinType(kind) {
 		return kind
-	default:
-		return module.SourcePkgPrefix + kind
 	}
+
+	// Check if this is a qualified built-in type (e.g., "net.byte") and strip the package
+	if strings.Contains(kind, ".") {
+		baseName := kind[strings.LastIndex(kind, ".")+1:]
+		if isBuiltinType(baseName) {
+			return baseName
+		}
+		// Already qualified non-built-in types (e.g., "net.IPNet", "time.Duration") - return as-is
+		return kind
+	}
+
+	return module.SourcePkgPrefix + kind
 }
 
 // isBasicType checks if a type string represents a basic type or commonly used stdlib alias.
@@ -517,6 +583,17 @@ func isBasicType(kind string) bool {
 	case "time.Duration", "time.Time":
 		return true
 	case "containerutils.CGroupID", "containerutils.ContainerID":
+		return true
+	}
+	return false
+}
+
+// isBuiltinType checks if a type name is a Go built-in type that should never be package-qualified
+func isBuiltinType(typeName string) bool {
+	switch typeName {
+	case "string", "bool", "int", "int8", "int16", "int32", "int64",
+		"uint", "uint8", "uint16", "uint32", "uint64", "uintptr",
+		"byte", "rune", "float32", "float64", "complex64", "complex128":
 		return true
 	}
 	return false
@@ -704,6 +781,15 @@ func qualifyFieldType(fieldInfo *StructField, unqualifiedType string, module *co
 	} else {
 		fieldInfo.OrigType = qualifiedType(module, fieldInfo.OrigType)
 	}
+
+	// Final cleanup: strip package prefix from built-in types that may have been incorrectly qualified
+	// This handles cases like "net.byte" -> "byte"
+	if strings.Contains(fieldInfo.OrigType, ".") {
+		baseName := fieldInfo.OrigType[strings.LastIndex(fieldInfo.OrigType, ".")+1:]
+		if isBuiltinType(baseName) {
+			fieldInfo.OrigType = baseName
+		}
+	}
 }
 
 // recurseIntoType recursively processes a field's type if it's a struct
@@ -778,12 +864,21 @@ func attachArrayElementNode(parent *FieldNode, field *StructField, currentPath s
 		return
 	}
 
+	elementOrigType := field.OrigType
+	// Strip package prefix from built-in types in element OrigType
+	if strings.Contains(elementOrigType, ".") {
+		baseName := elementOrigType[strings.LastIndex(elementOrigType, ".")+1:]
+		if isBuiltinType(baseName) {
+			elementOrigType = baseName
+		}
+	}
+
 	parent.ElementOfArrayField = &FieldNode{
-		Name:     field.OrigType,
+		Name:     elementOrigType,
 		FullPath: currentPath + "[]",
 		Field: &StructField{
-			Name:          field.OrigType,
-			OrigType:      field.OrigType,
+			Name:          elementOrigType,
+			OrigType:      elementOrigType,
 			IsArray:       field.ArrayElement.IsArray,
 			IsFixedArray:  field.ArrayElement.IsFixedArray,
 			IsMap:         field.ArrayElement.IsMap,
@@ -1097,7 +1192,21 @@ func executeTemplate(tmpl *template.Template, data TemplateData) string {
 	if err := tmpl.Execute(&buffer, data); err != nil {
 		panic(err)
 	}
-	return removeEmptyLines(&buffer)
+	output := removeEmptyLines(&buffer)
+
+	// Final cleanup: fix any package-qualified built-in types that slipped through
+	// This handles patterns like "[]net.byte" -> "[]byte", "*pkg.int" -> "*int", etc.
+	for _, builtinType := range []string{"byte", "rune", "int", "int8", "int16", "int32", "int64",
+		"uint", "uint8", "uint16", "uint32", "uint64", "uintptr", "float32", "float64",
+		"complex64", "complex128", "bool", "string"} {
+		// Replace patterns like "net.byte" with just "byte"
+		// Match package.builtin where package is one or more word characters
+		pattern := `(\w+)\.` + builtinType + `\b`
+		re := regexp.MustCompile(pattern)
+		output = re.ReplaceAllString(output, builtinType)
+	}
+
+	return output
 }
 
 // writeFormattedOutput writes the generated code to a temp file, formats it, and renames it
