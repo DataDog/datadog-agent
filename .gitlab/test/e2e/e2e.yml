@@ -261,7 +261,7 @@ new-e2e-containers:
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:22-04"
       - EXTRA_PARAMS: --run TestDockerSuite
       - EXTRA_PARAMS: --run "TestK8S(CEL|Legacy)FilteringSuite"
-      - EXTRA_PARAMS: --skip "Test(Kind|EKS|ECS|Docker|K8SCELFiltering|K8SLegacyFiltering)Suite"
+      - EXTRA_PARAMS: --skip "Test(Kind|EKS|OpenShiftVM|ECS|Docker|K8SCELFiltering|K8SLegacyFiltering)Suite"
 
 new-e2e-containers-k8s-latest:
   extends:
@@ -320,7 +320,6 @@ new-e2e-remote-config:
   extends: .new_e2e_template_needs_deb_x64
   rules:
     - !reference [.on_rc_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   variables:
     TARGETS: ./tests/remote-config
@@ -452,7 +451,6 @@ new-e2e-language-detection:
   extends: .new_e2e_template_needs_deb_x64
   rules:
     - !reference [.on_language-detection_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   variables:
     TARGETS: ./tests/language-detection
@@ -637,7 +635,6 @@ new-e2e-discovery:
     - qa_agent_linux
   rules:
     - !reference [.on_discovery_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   variables:
     TARGETS: ./tests/discovery
@@ -670,7 +667,6 @@ new-e2e-process:
     - qa_dca
   rules:
     - !reference [.on_process_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   variables:
     EXTRA_PARAMS: --skip TestECSFargateCoreAgentTestSuite|TestECSFargateTestSuite|TestECSEC2CoreAgentSuite|TestECSEC2TestSuite
@@ -694,7 +690,6 @@ new-e2e-orchestrator:
   extends: .new_e2e_template_needs_container_deploy_linux
   rules:
     - !reference [.on_orchestrator_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   variables:
     EXTRA_PARAMS: --skip TestECSSuite
@@ -856,7 +851,6 @@ new-e2e-ndm-snmp:
   extends: .new_e2e_template
   rules:
     - !reference [.on_ndm_snmp_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
@@ -871,7 +865,6 @@ new-e2e-ha-agent:
   extends: .new_e2e_template_needs_deb_x64
   rules:
     - !reference [.on_ha_agent_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   variables:
     TARGETS: ./tests/ha-agent
@@ -897,7 +890,6 @@ new-e2e-netpath:
   extends: .new_e2e_template_needs_deb_windows_x64
   rules:
     - !reference [.on_netpath_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   variables:
     TARGETS: ./tests/netpath
@@ -996,7 +988,6 @@ new-e2e-ssi:
   extends: .new_e2e_template
   rules:
     - !reference [.on_ssi_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
@@ -1025,7 +1016,7 @@ new-e2e-package-signing-debian-a7-x86_64:
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7
-  rules: !reference [.on_default_new_e2e_tests]
+  rules: !reference [.on_package_signing_tests]
 
 new-e2e-package-signing-suse-a7-x86_64:
   extends:
@@ -1038,13 +1029,12 @@ new-e2e-package-signing-suse-a7-x86_64:
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_suse-x64-a7
-  rules: !reference [.on_default_new_e2e_tests]
+  rules: !reference [.on_package_signing_tests]
 
 new-e2e-cspm:
   extends: .new_e2e_template
   rules:
     - !reference [.on_cspm_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
@@ -1060,7 +1050,6 @@ new-e2e-gpu:
   extends: .new_e2e_template_needs_container_deploy_linux
   rules:
     - !reference [.on_gpu_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   variables:
     TARGETS: ./tests/gpu # the target path where tests are
