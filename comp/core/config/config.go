@@ -12,7 +12,7 @@ import (
 	"go.uber.org/fx"
 
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
-	delegatedauthnoop "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl"
+	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
@@ -61,7 +61,7 @@ func NewServerlessConfig(path string) (Component, error) {
 	d := dependencies{
 		Params:        NewParams(path, options...),
 		Secret:        &secretnooptypes.SecretNoop{},
-		DelegatedAuth: delegatedauthnoop.NewComponent().Comp,
+		DelegatedAuth: &delegatedauthnooptypes.DelegatedAuthNoop{},
 	}
 	return newConfig(d)
 }

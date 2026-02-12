@@ -10,6 +10,7 @@ import (
 	"io"
 
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
+	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 )
 
@@ -21,26 +22,14 @@ type Provides struct {
 
 type delegatedAuthNoop struct{}
 
-var _ delegatedauth.Component = (*delegatedAuthNoop)(nil)
-
 // NewComponent returns a no-op implementation for the delegated auth component
 func NewComponent() Provides {
 	noop := &delegatedAuthNoop{}
 	// Note: importing log package would require adding it as a dependency, so skipping debug here
 	return Provides{
-		Comp:           noop,
+		Comp:           &delegatedauthnooptypes.DelegatedAuthNoop{},
 		StatusProvider: status.NewInformationProvider(noop),
 	}
-}
-
-// Initialize does nothing in the noop implementation
-func (d *delegatedAuthNoop) Initialize(_ delegatedauth.InitParams) error {
-	return nil
-}
-
-// AddInstance does nothing in the noop implementation
-func (d *delegatedAuthNoop) AddInstance(_ delegatedauth.InstanceParams) error {
-	return nil
 }
 
 // Status Provider implementation for noop
