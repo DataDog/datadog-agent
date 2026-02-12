@@ -37,7 +37,7 @@ that all `rust` components are still working.
 
 ## Crate Management
 
-External crates are managed via [rules_rs](https://github.com/aspect-build/rules_rs), which generates Bazel targets from `Cargo.toml` and `Cargo.lock` files.
+External crates are managed via [rules_rs](https://github.com/dzbarsky/rules_rs), which generates Bazel targets from `Cargo.toml` and `Cargo.lock` files.
 
 ### Central Crate Registry
 
