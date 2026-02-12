@@ -43,7 +43,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.76.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/basic v0.77.0-devel.0.20260211235139-a5361978c2b6 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-20260211235139-a5361978c2b6 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.76.0-rc.4 // indirect
