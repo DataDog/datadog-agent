@@ -128,7 +128,7 @@ func NewClient(cfg *config.Config) Client {
 func (c *client) DequeueTask(ctx context.Context) (*types.Task, error) {
 	u := &url.URL{
 		Scheme: "https",
-		Host:   c.config.DDHost,
+		Host:   c.config.DDApiHost,
 		Path:   dequeuePath,
 	}
 
@@ -172,7 +172,7 @@ func (c *client) PublishSuccess(
 
 	u := &url.URL{
 		Scheme: "https",
-		Host:   c.config.DDHost,
+		Host:   c.config.DDApiHost,
 		Path:   taskUpdatePath,
 	}
 
@@ -214,7 +214,7 @@ func (c *client) PublishFailure(
 ) error {
 	u := &url.URL{
 		Scheme: "https",
-		Host:   c.config.DDHost,
+		Host:   c.config.DDApiHost,
 		Path:   taskUpdatePath,
 	}
 
@@ -282,7 +282,7 @@ func createHealthCheckData(headers http.Header) *HealthCheckData {
 func (c *client) HealthCheck(ctx context.Context) (*HealthCheckData, error) {
 	u := &url.URL{
 		Scheme: "https",
-		Host:   c.config.DDHost,
+		Host:   c.config.DDApiHost,
 		Path:   healthCheckPath,
 	}
 
@@ -305,7 +305,7 @@ func (c *client) HealthCheck(ctx context.Context) (*HealthCheckData, error) {
 func (c *client) Heartbeat(ctx context.Context, client actionsclientpb.Client, taskID, actionFQN, jobID string) error {
 	u := &url.URL{
 		Scheme: "https",
-		Host:   c.config.DDHost,
+		Host:   c.config.DDApiHost,
 		Path:   heartbeat,
 	}
 
