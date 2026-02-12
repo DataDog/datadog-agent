@@ -13,9 +13,19 @@ package globalparams
 // A pointer to this type is passed to SubcommandFactory's, but its contents
 // are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
-	// ConfFilePath holds the path to the host profiler configuration file.
-	ConfFilePath string
+	// StandaloneConfigPath holds the path to the standalone host profiler configuration file.
+	StandaloneConfigPath string
 
-	// CoreConfPath holds the path to the Datadog Agent config file.
-	CoreConfPath string
+	// BundledConfigPath holds the path to the Datadog Agent config file for bundled mode.
+	BundledConfigPath string
+}
+
+// ConfigURI returns the appropriate configuration URI based on the mode.
+// In bundled mode (BundledConfigPath set), it returns "dd:" to use the agentprovider.
+// In standalone mode (StandaloneConfigPath set), it returns the file path.
+func (g *GlobalParams) ConfigURI() string {
+	if g.BundledConfigPath != "" {
+		return "dd:"
+	}
+	return g.StandaloneConfigPath
 }

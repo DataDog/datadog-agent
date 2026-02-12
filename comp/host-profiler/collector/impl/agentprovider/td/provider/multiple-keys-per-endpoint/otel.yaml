@@ -1,0 +1,52 @@
+exporters:
+    otlphttp/datadoghq.com_0:
+        headers:
+            dd-api-key: main_key
+        metrics_endpoint: https://otlp.datadoghq.com/v1/metrics
+        profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles
+    otlphttp/datadoghq.eu_0:
+        headers:
+            dd-api-key: eu_key_1
+        metrics_endpoint: https://otlp.datadoghq.eu/v1/metrics
+        profiles_endpoint: https://intake.profile.datadoghq.eu/v1development/profiles
+    otlphttp/datadoghq.eu_1:
+        headers:
+            dd-api-key: eu_key_2
+        metrics_endpoint: https://otlp.datadoghq.eu/v1/metrics
+        profiles_endpoint: https://intake.profile.datadoghq.eu/v1development/profiles
+    otlphttp/datadoghq.eu_2:
+        headers:
+            dd-api-key: eu_key_3
+        metrics_endpoint: https://otlp.datadoghq.eu/v1/metrics
+        profiles_endpoint: https://intake.profile.datadoghq.eu/v1development/profiles
+extensions:
+    ddprofiling/default: {}
+    hpflare/default: {}
+processors:
+    infraattributes/default:
+        allow_hostname_override: true
+receivers:
+    hostprofiler:
+        symbol_uploader:
+            enabled: true
+            symbol_endpoints:
+                - api_key: eu_key_1
+                  site: datadoghq.eu
+                - api_key: eu_key_2
+                  site: datadoghq.eu
+                - api_key: eu_key_3
+                  site: datadoghq.eu
+                - api_key: main_key
+                  site: datadoghq.com
+service:
+    pipelines:
+        profiles:
+            exporters:
+                - otlphttp/datadoghq.eu_0
+                - otlphttp/datadoghq.eu_1
+                - otlphttp/datadoghq.eu_2
+                - otlphttp/datadoghq.com_0
+            processors:
+                - infraattributes/default
+            receivers:
+                - hostprofiler

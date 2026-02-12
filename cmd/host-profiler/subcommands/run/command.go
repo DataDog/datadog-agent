@@ -10,6 +10,7 @@ package run
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -65,18 +66,37 @@ func MakeCommand(globalConfGetter func() *globalparams.GlobalParams) []*cobra.Co
 	return []*cobra.Command{cmd}
 }
 
+func validateFlags(params *globalparams.GlobalParams) error {
+	// Error if both --standalone and --bundled are set
+	if params.StandaloneConfigPath != "" && params.BundledConfigPath != "" {
+		return fmt.Errorf("cannot use both --standalone and --bundled flags together")
+	}
+
+	// Require at least one configuration source
+	if params.StandaloneConfigPath == "" && params.BundledConfigPath == "" {
+		return fmt.Errorf("must provide either --standalone or --bundled configuration")
+	}
+
+	return nil
+}
+
 func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
+	// Validate flag usage
+	if err := validateFlags(cliParams.GlobalParams); err != nil {
+		return err
+	}
+
 	var opts = []fx.Option{
-		hostprofiler.Bundle(collectorimpl.NewParams(cliParams.GlobalParams.ConfFilePath, cliParams.GoRuntimeMetrics)),
+		hostprofiler.Bundle(collectorimpl.NewParams(cliParams.GlobalParams.ConfigURI(), cliParams.GoRuntimeMetrics)),
 		logging.DefaultFxLoggingOption(),
 	}
 
-	if cliParams.GlobalParams.CoreConfPath != "" {
+	if cliParams.GlobalParams.BundledConfigPath != "" {
 		opts = append(opts,
 			core.Bundle(),
 			remotehostnameimpl.Module(),
 			fx.Supply(core.BundleParams{
-				ConfigParams: config.NewAgentParams(cliParams.GlobalParams.CoreConfPath),
+				ConfigParams: config.NewAgentParams(cliParams.GlobalParams.BundledConfigPath),
 				LogParams:    log.ForDaemon(command.LoggerName, "log_file", setup.DefaultHostProfilerLogFile),
 			}),
 			fx.Provide(collectorimpl.NewExtraFactoriesWithAgentCore),

@@ -1,0 +1,20 @@
+exporters: {}
+extensions:
+    ddprofiling/default: {}
+    hpflare/default: {}
+processors:
+    infraattributes/default:
+        allow_hostname_override: true
+receivers:
+    hostprofiler:
+        symbol_uploader:
+            enabled: true
+            symbol_endpoints: []
+service:
+    pipelines:
+        profiles:
+            exporters: []
+            processors:
+                - infraattributes/default
+            receivers:
+                - hostprofiler
