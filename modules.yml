@@ -288,8 +288,6 @@ modules:
     used_by_otel: true
   pkg/trace/otel:
     used_by_otel: true
-  pkg/trace/semantics:
-    used_by_otel: true
   pkg/trace/stats:
     used_by_otel: true
   pkg/trace/traceutil:
