@@ -11,9 +11,8 @@ package sbomcollector
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"go.uber.org/fx"
@@ -28,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup" //nolint:depguard
 	sbompb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -84,17 +83,12 @@ func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbom
 		return workloadmeta.Event{}, fmt.Errorf("failed to unmarshal SBOM: %w", err)
 	}
 
-	jsonBytes, err := json.Marshal(newBom)
-	if err == nil {
-		os.WriteFile("/tmp/sbom-"+event.ID+".json", jsonBytes, 0644)
-	}
-
 	if event.Kind != string(workloadmeta.KindContainer) {
 		return workloadmeta.Event{}, fmt.Errorf("expected KindContainer, got %s", event.Kind)
 	}
 
 	if event.ID == "" {
-		return workloadmeta.Event{}, fmt.Errorf("expected container ID, got empty")
+		return workloadmeta.Event{}, errors.New("expected container ID, got empty")
 	}
 
 	log.Debugf("Received forwarded SBOM for container %s", event.ID)
@@ -376,7 +370,7 @@ func (s *streamHandler) HandleResponse(store workloadmeta.Component, resp interf
 	log.Trace("handling response")
 	response, ok := resp.(*sbompb.SBOMMessage)
 	if !ok {
-		return nil, fmt.Errorf("incorrect response type")
+		return nil, errors.New("incorrect response type")
 	}
 
 	var collectorEvents []workloadmeta.CollectorEvent

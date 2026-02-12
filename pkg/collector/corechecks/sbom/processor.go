@@ -38,7 +38,6 @@ import (
 
 	gopsutil "github.com/shirou/gopsutil/v4/host"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -170,85 +169,6 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 					p.triggerProcfsScan(container)
 				}
 			}
-
-			/*
-				if container.SBOM != nil {
-					log.Debugf("Received SBOM for running container %s with image %s (%s)", container.ID, container.Image.Name, container.Image.ID)
-
-					if container.SBOM.CycloneDXBOM == nil {
-						log.Debugf("Received empty SBOM for container %s", container.ID)
-						continue
-					}
-
-					containerImage, err := p.workloadmetaStore.GetImage(container.Image.ID)
-					if err != nil {
-						for _, image := range p.workloadmetaStore.ListImages() {
-							if image.Name == container.Image.ID || slices.Contains(image.RepoDigests, container.Image.ID) {
-								containerImage = image
-								break
-							}
-						}
-
-						if containerImage == nil {
-							log.Debugf("Failed to find image %s for container %s", container.Image.ID, container.ID)
-							continue
-						}
-					}
-
-					if containerImage.SBOM == nil {
-						log.Debugf("Failed to find SBOM for image %s, container %s", container.Image.ID, container.ID)
-						continue
-					}
-
-					imageSBOM, err := sbomutil.UncompressSBOM(containerImage.SBOM)
-					if err != nil {
-						log.Debugf("Failed to uncompress SBOM for image %s, container %s: %v", container.Image.ID, container.ID, err)
-						continue
-					}
-
-					if imageSBOM.CycloneDXBOM.Components != nil && container.SBOM.CycloneDXBOM.Components != nil {
-						imageRefs := make(map[string]bool)
-						for _, component := range imageSBOM.CycloneDXBOM.Components {
-							if component.Purl == nil {
-								continue
-							}
-
-							imageRefs[*component.Purl] = true
-						}
-
-						i := 0
-						componentCount := len(container.SBOM.CycloneDXBOM.Components)
-						for _, component := range container.SBOM.CycloneDXBOM.Components {
-							if component.Purl == nil {
-								continue
-							}
-
-							if imageRefs[*component.Purl] {
-								container.SBOM.CycloneDXBOM.Components = append((container.SBOM.CycloneDXBOM.Components)[:i], (container.SBOM.CycloneDXBOM.Components)[i+1:]...)
-								continue
-							}
-							i++
-						}
-
-						log.Infof("Stripped %d from %d components from SBOM for container %s that were parts of the %d components of the base image %s", componentCount-len(container.SBOM.CycloneDXBOM.Components), componentCount, container.ID, len(imageSBOM.CycloneDXBOM.Components), container.Image.ID)
-					}
-
-					status := model.SBOMStatus_value[string(container.SBOM.Status)]
-					sbomEntity := &model.SBOMEntity{
-						Type:               model.SBOMSourceType_CONTAINER_FILE_SYSTEM,
-						Id:                 container.ID,
-						GeneratedAt:        timestamppb.New(container.SBOM.GenerationTime),
-						GenerationDuration: convertDuration(container.SBOM.GenerationDuration),
-						InUse:              true,
-						Sbom: &model.SBOMEntity_Cyclonedx{
-							Cyclonedx: container.SBOM.CycloneDXBOM,
-						},
-						Status: model.SBOMStatus(status),
-					}
-
-					p.queue <- sbomEntity
-				}
-			*/
 		case workloadmeta.EventTypeUnset:
 			p.unregisterContainer(event.Entity.(*workloadmeta.Container))
 		}
@@ -351,10 +271,6 @@ func (p *processor) processHostScanResult(result sbom.ScanResult) {
 	}
 
 	p.queue <- sbom
-}
-
-func convertDuration(in time.Duration) *durationpb.Duration {
-	return durationpb.New(in)
 }
 
 func (p *processor) triggerHostScan() {

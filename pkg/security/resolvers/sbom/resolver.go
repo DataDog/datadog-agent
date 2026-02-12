@@ -10,7 +10,6 @@ package sbom
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -374,7 +373,7 @@ func (r *Resolver) generateSBOMPolicyDef(containerID containerutils.ContainerID,
 		macroName := "sbom_pkg_files_" + strings.ToLower(pkgName)
 
 		// Build the macro expression with the list of files
-		macroExpression := "[ " + strings.Join(lo.Map(pkg.InstalledFiles, func(file string, i int) string {
+		macroExpression := "[ " + strings.Join(lo.Map(pkg.InstalledFiles, func(file string, _ int) string {
 			return `"` + file + `"`
 		}), ", ") + " ]"
 
@@ -409,11 +408,6 @@ func (r *Resolver) generateSBOMPolicyDef(containerID containerutils.ContainerID,
 	policyDef := &rules.PolicyDef{
 		Macros: sbomMacros,
 		Rules:  sbomRules,
-	}
-
-	jsonBytes, err := json.Marshal(policyDef)
-	if err == nil {
-		os.WriteFile("/tmp/sbom-policy-def-"+string(containerID)+".json", jsonBytes, 0644)
 	}
 
 	return policyDef
