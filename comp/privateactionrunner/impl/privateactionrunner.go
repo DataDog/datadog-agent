@@ -23,6 +23,7 @@ import (
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/parversion"
 	pkgrcclient "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/autoconnections"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
@@ -69,7 +70,7 @@ type PrivateActionRunner struct {
 func NewComponent(reqs Requires) (Provides, error) {
 	ctx := context.Background()
 	if !isEnabled(reqs.Config) {
-		reqs.Log.Info("private-action-runner is not enabled. Set privateactionrunner.enabled: true in your datadog.yaml file or set the environment variable DD_PRIVATEACTIONRUNNER_ENABLED=true.")
+		reqs.Log.Info("private-action-runner is not enabled. Set private_action_runner.enabled: true in your datadog.yaml file or set the environment variable DD_PRIVATE_ACTION_RUNNER_ENABLED=true.")
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
 
@@ -91,9 +92,9 @@ func NewPrivateActionRunner(
 	rcClient pkgrcclient.Client,
 	logger log.Component,
 ) (*PrivateActionRunner, error) {
-	persistedIdentity, err := enrollment.GetIdentityFromPreviousEnrollment(coreConfig)
+	persistedIdentity, err := enrollment.GetIdentityFromPreviousEnrollment(ctx, coreConfig)
 	if err != nil {
-		return nil, fmt.Errorf("self-enrollment failed: %w", err)
+		return nil, fmt.Errorf("failed to get identity: %w", err)
 	}
 	if persistedIdentity != nil {
 		coreConfig.Set(parPrivateKey, persistedIdentity.PrivateKey, model.SourceAgentRuntime)
@@ -178,7 +179,7 @@ func performSelfEnrollment(ctx context.Context, log log.Component, ddConfig conf
 	}
 	log.Info("Self-enrollment successful")
 
-	if err := enrollment.PersistIdentity(ddConfig, enrollmentResult); err != nil {
+	if err := enrollment.PersistIdentity(ctx, ddConfig, enrollmentResult); err != nil {
 		return nil, fmt.Errorf("failed to persist enrollment identity: %w", err)
 	}
 
@@ -191,6 +192,25 @@ func performSelfEnrollment(ctx context.Context, log log.Component, ddConfig conf
 	}
 	cfg.OrgId = urnParts.OrgID
 	cfg.RunnerId = urnParts.RunnerID
+
+	// Auto-create connections for enrolled runner
+	var actionsAllowlist = make([]string, 0, len(cfg.ActionsAllowlist))
+	for fqnPrefix := range cfg.ActionsAllowlist {
+		actionsAllowlist = append(actionsAllowlist, fqnPrefix)
+	}
+
+	if len(actionsAllowlist) > 0 {
+		client, err := autoconnections.NewConnectionsAPIClient(ddConfig, ddSite, apiKey, appKey)
+		if err != nil {
+			log.Warnf("Failed to create connections API client: %v", err)
+		} else {
+			creator := autoconnections.NewConnectionsCreator(*client)
+
+			if err := creator.AutoCreateConnections(context.Background(), urnParts.RunnerID, runnerName, actionsAllowlist); err != nil {
+				log.Warnf("Failed to auto-create connections: %v", err)
+			}
+		}
+	}
 
 	return cfg, nil
 }
