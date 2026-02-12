@@ -601,8 +601,6 @@ var (
 	//   - "logs_config.additional_endpoints"
 	//   - "logs_config.additional_endpoints.url"
 	//   - ...
-	//
-	// NOTE: Related feature to `AuthorizedConfigPathsCore` in `comp/api/api/def/component.go`
 	allowListPaths = []string{
 		"api_key",
 		"app_key",
