@@ -375,33 +375,6 @@ func evaluatorFromLengthHanlder(fieldname string, pos lexer.Position, state *Sta
 	}
 }
 
-func evaluatorFromRootDomainHandler(fieldname string, pos lexer.Position, state *State) (interface{}, lexer.Position, error) {
-	evaluator, err := state.model.GetEvaluator(fieldname, "", 0)
-	if err != nil {
-		return nil, pos, NewError(pos, "field '%s' doesn't exist", fieldname)
-	}
-
-	// Return length evaluator based on field type
-	switch fieldEval := evaluator.(type) {
-	case *StringArrayEvaluator:
-		return &StringArrayEvaluator{
-			EvalFnc: func(ctx *Context) []string {
-				v := fieldEval.Eval(ctx)
-				return GetPublicTLDs(v.([]string))
-			},
-		}, pos, nil
-	case *StringEvaluator:
-		return &StringEvaluator{
-			EvalFnc: func(ctx *Context) string {
-				v := fieldEval.Eval(ctx)
-				return GetPublicTLD(v.(string))
-			},
-		}, pos, nil
-	default:
-		return nil, pos, NewError(pos, "'length' cannot be used on field '%s'", fieldname)
-	}
-}
-
 // evaluatorFromFieldReference resolves a field reference (%{field})
 // This ONLY checks fields, never variables - providing explicit field access syntax
 func evaluatorFromFieldReference(fieldname string, pos lexer.Position, state *State) (interface{}, lexer.Position, error) {

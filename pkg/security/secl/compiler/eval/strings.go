@@ -12,8 +12,6 @@ import (
 	"regexp"
 	"slices"
 	"strings"
-
-	"golang.org/x/net/publicsuffix"
 )
 
 // StringCmpOpts defines options to apply during string comparison
@@ -295,27 +293,4 @@ func NewStringMatcher(kind FieldValueType, pattern string, opts StringCmpOpts) (
 	}
 
 	return nil, errors.New("unknown type")
-}
-
-// GetPublicTLD returns the public top-level domain (eTLD+1) from an FQDN.
-// For example: "www.google.com" returns "google.com", "www.abc.co.uk" returns "abc.co.uk".
-// If the input is invalid or cannot be parsed, it returns the input unchanged.
-func GetPublicTLD(fqdn string) string {
-	etldPlusOne, err := publicsuffix.EffectiveTLDPlusOne(fqdn)
-	if err != nil {
-		return fqdn
-	}
-	return etldPlusOne
-}
-
-// GetPublicTLDs returns the public top-level domains (eTLD+1) from a slice of FQDNs.
-func GetPublicTLDs(fqdns []string) []string {
-	var etldPlusOnes []string
-	for _, fqdn := range fqdns {
-		etldPlusOne, err := publicsuffix.EffectiveTLDPlusOne(fqdn)
-		if err == nil && !slices.Contains(etldPlusOnes, etldPlusOne) {
-			etldPlusOnes = append(etldPlusOnes, etldPlusOne)
-		}
-	}
-	return etldPlusOnes
 }
