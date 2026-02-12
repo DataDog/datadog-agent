@@ -102,12 +102,10 @@ func TestGetAWSRegionFromEnvironment(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if tc.awsRegion != "" {
-				t.Setenv("AWS_REGION", tc.awsRegion)
-			}
-			if tc.awsDefaultReg != "" {
-				t.Setenv("AWS_DEFAULT_REGION", tc.awsDefaultReg)
-			}
+			// Explicitly set both env vars to ensure isolation from any pre-existing values
+			// t.Setenv will restore the original value (or unset) after the test
+			t.Setenv("AWS_REGION", tc.awsRegion)
+			t.Setenv("AWS_DEFAULT_REGION", tc.awsDefaultReg)
 
 			region, err := GetAWSRegion(context.Background())
 
@@ -175,6 +173,10 @@ func TestIsRunningOnAWSWithIMDS(t *testing.T) {
 }
 
 func TestGetAWSRegionFromIMDS(t *testing.T) {
+	// Clear environment variables to ensure IMDS is used
+	t.Setenv("AWS_REGION", "")
+	t.Setenv("AWS_DEFAULT_REGION", "")
+
 	// Create a mock IMDS server
 	identityDoc := ec2internal.EC2Identity{
 		Region:     "ap-northeast-1",
