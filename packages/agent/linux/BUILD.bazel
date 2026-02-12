@@ -152,12 +152,21 @@ pkg_filegroup(
     ],
 )
 
-pkg_install(
-    name = "install",
-    srcs = select({
+# NOTE: These are files that get installed outside of install_dir. During the
+# migration we must account for them with extra_package_files in omnibus scripts
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        "//pkg/privateactionrunner/autoconnections/conf:all_files",
+    ] + select({
         "//:is_standard_install": [
             ":datadog_agent_installer_symlinks",
         ],
         "//conditions:default": [],
     }),
+)
+
+pkg_install(
+    name = "install",
+    srcs = [":all_files"],
 )

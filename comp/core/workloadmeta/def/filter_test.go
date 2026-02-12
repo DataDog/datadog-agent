@@ -357,9 +357,9 @@ func TestFilter_MatchEntity(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
 			if test.expectMatch {
-				assert.True(tt, test.filter.MatchEntity(&test.entity))
+				assert.True(tt, test.filter.MatchEntity(test.entity))
 			} else {
-				assert.False(tt, test.filter.MatchEntity(&test.entity))
+				assert.False(tt, test.filter.MatchEntity(test.entity))
 			}
 		})
 	}
