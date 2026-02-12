@@ -20,7 +20,7 @@ type IndexedSet[K comparable] struct {
 func New[K comparable]() *IndexedSet[K] {
 	return &IndexedSet[K]{
 		keyMap:   make(map[K]int32),
-		uniqList: make([]K, 0),
+		uniqList: nil,
 	}
 }
 

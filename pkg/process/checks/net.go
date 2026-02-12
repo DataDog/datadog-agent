@@ -552,12 +552,11 @@ func batchConnections(
 
 		// remap resolv.conf indices for this batch
 		resolvConfSet := indexedset.New[string]()
-		resolvConfSet.Add("") // reserve index 0 so real entries are 1-based
 		for _, c := range batchConns {
-			if c.ResolvConfIdx > 0 && int(c.ResolvConfIdx) < len(resolvConfs) {
+			if c.ResolvConfIdx >= 0 && int(c.ResolvConfIdx) < len(resolvConfs) {
 				c.ResolvConfIdx = resolvConfSet.Add(resolvConfs[c.ResolvConfIdx])
 			} else {
-				c.ResolvConfIdx = 0
+				c.ResolvConfIdx = -1
 			}
 		}
 
@@ -610,7 +609,7 @@ func batchConnections(
 			EncodedConnectionsTags: connectionsTagsEncoder.Buffer(),
 			EncodedTags:            tagsEncoder.Buffer(),
 			HostTagsIndex:          int32(hostTagsIndex),
-			ResolvConfs:            resolvConfsOrNil(resolvConfSet),
+			ResolvConfs:            resolvConfSet.UniqueKeys(),
 		}
 
 		// Add OS telemetry
@@ -634,15 +633,6 @@ func batchConnections(
 		cxs = cxs[batchSize:]
 	}
 	return batches
-}
-
-// resolvConfsOrNil returns the set's strings if any real resolv.conf entries
-// were added (beyond the placeholder at index 0), or nil otherwise.
-func resolvConfsOrNil(set *indexedset.IndexedSet[string]) []string {
-	if set.Size() <= 1 {
-		return nil
-	}
-	return set.UniqueKeys()
 }
 
 func groupSize(total, maxBatchSize int) int32 {

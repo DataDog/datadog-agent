@@ -439,7 +439,6 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 			_ = tagsEncoder.Encode([]string{"-"})
 
 			resolvConfSet := indexedset.New[string]()
-			resolvConfSet.Add("") // reserve index 0 so real entries are 1-based
 
 			for _, nc := range connsChunk {
 				destIP := ipc.get(nc.Dest.Addr)
@@ -484,6 +483,7 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 					RouteIdx:             formatRouteIndex(nc.Via, routeSet),
 					TcpFailuresByErrCode: ddmaps.CastIntegerKeys[uint16, uint32](nc.TCPFailures),
 					SystemProbeConn:      nc.Pid == d.sysProbePID,
+					ResolvConfIdx:        -1, // will be overwritten
 				}
 
 				d.addContainerTags(c, containerIDForPID, containersForTagging, tagsEncoder)
@@ -540,7 +540,7 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 				EncodedTags:            tagsEncoder.Buffer(),
 				HostTagsIndex:          hostTagsIndex,
 				Routes:                 ddslices.Map(routeSet.UniqueKeys(), viaToRoute),
-				ResolvConfs:            resolvConfsOrNil(resolvConfSet),
+				ResolvConfs:            resolvConfSet.UniqueKeys(),
 			}
 
 			// Add OS telemetry
@@ -555,15 +555,6 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 			}
 		}
 	}
-}
-
-// resolvConfsOrNil returns the set's strings if any real resolv.conf entries
-// were added (beyond the placeholder at index 0), or nil otherwise.
-func resolvConfsOrNil(set *indexedset.IndexedSet[string]) []string {
-	if set.Size() <= 1 {
-		return nil
-	}
-	return set.UniqueKeys()
 }
 
 func getInternedString(v *intern.Value) string {

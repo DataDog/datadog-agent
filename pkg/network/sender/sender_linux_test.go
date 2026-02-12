@@ -494,7 +494,7 @@ func TestNetworkConnectionBatchingWithResolvConf(t *testing.T) {
 	stringInterner := utilintern.NewStringInterner()
 	resolvConfData := stringInterner.GetString("nameserver 1.2.3.4")
 
-	p := makeConnections(1)
+	p := makeConnections(2)
 	containerID := p[0].ContainerID.Source
 
 	d := mockDirectSender(t)
@@ -509,10 +509,13 @@ func TestNetworkConnectionBatchingWithResolvConf(t *testing.T) {
 
 	require.Len(t, chunks, 1)
 	cc := chunks[0]
-	require.Len(t, cc.Connections, 1)
+	require.Len(t, cc.Connections, 2)
 
 	conn := cc.Connections[0]
-	require.Greater(t, conn.ResolvConfIdx, int32(0), "connection should have a non-zero resolv.conf index")
+	require.GreaterOrEqual(t, conn.ResolvConfIdx, int32(0), "connection should have a non-negative resolv.conf index")
 	require.NotNil(t, cc.ResolvConfs, "batch should have resolv.conf list")
 	require.Equal(t, "nameserver 1.2.3.4", cc.ResolvConfs[conn.ResolvConfIdx])
+
+	connMissing := cc.Connections[1]
+	require.Equal(t, int32(-1), connMissing.ResolvConfIdx, "connection without resolv.conf should have idx=-1")
 }

@@ -877,9 +877,10 @@ func Test_getDNSNameForIP(t *testing.T) {
 }
 
 func TestNetworkConnectionBatchingWithResolvConf(t *testing.T) {
-	conns := makeConnections(1)
-	resolvConfs := []string{"", "nameserver 1.2.3.4"}
-	conns[0].ResolvConfIdx = 1
+	conns := makeConnections(2)
+	resolvConfs := []string{"nameserver 1.2.3.4"}
+	conns[0].ResolvConfIdx = 0
+	conns[1].ResolvConfIdx = -1
 
 	maxConnsPerMessage := 10
 	ex := parser.NewServiceExtractor(false, false, false)
@@ -888,10 +889,13 @@ func TestNetworkConnectionBatchingWithResolvConf(t *testing.T) {
 
 	require.Len(t, chunks, 1)
 	cc := chunks[0].(*model.CollectorConnections)
-	require.Len(t, cc.Connections, 1)
+	require.Len(t, cc.Connections, 2)
 
 	conn := cc.Connections[0]
-	require.Greater(t, conn.ResolvConfIdx, int32(0), "connection should have a non-zero resolv.conf index")
+	require.GreaterOrEqual(t, conn.ResolvConfIdx, int32(0), "connection should have a non-negative resolv.conf index")
 	require.NotNil(t, cc.ResolvConfs, "batch should have resolv.conf list")
 	require.Equal(t, "nameserver 1.2.3.4", cc.ResolvConfs[conn.ResolvConfIdx])
+
+	connMissing := cc.Connections[1]
+	require.Equal(t, int32(-1), connMissing.ResolvConfIdx, "connection without resolv.conf should have idx=-1")
 }

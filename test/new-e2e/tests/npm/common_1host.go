@@ -177,7 +177,7 @@ func test1HostFakeIntakeNPMResolvConf[Env any](v *e2e.BaseSuite[Env], FakeIntake
 
 		resolvConfsFound := 0
 		cnx.ForeachConnection(func(conn *agentmodel.Connection, cc *agentmodel.CollectorConnections, hostname string) {
-			if conn.ResolvConfIdx <= 0 {
+			if conn.ResolvConfIdx < 0 {
 				return
 			}
 			// fail the whole test if out of bounds
