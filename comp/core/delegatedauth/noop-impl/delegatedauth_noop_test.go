@@ -13,16 +13,17 @@ import (
 	"github.com/stretchr/testify/require"
 
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
+	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
 )
 
 func TestNoopInitialize(t *testing.T) {
-	noop := &delegatedAuthNoop{}
+	noop := &delegatedauthnooptypes.DelegatedAuthNoop{}
 	err := noop.Initialize(delegatedauth.InitParams{})
 	assert.NoError(t, err)
 }
 
 func TestNoopAddInstance(t *testing.T) {
-	noop := &delegatedAuthNoop{}
+	noop := &delegatedauthnooptypes.DelegatedAuthNoop{}
 	err := noop.AddInstance(delegatedauth.InstanceParams{
 		OrgUUID:         "test-org-uuid",
 		RefreshInterval: 60,
@@ -80,9 +81,7 @@ func TestNewComponent(t *testing.T) {
 	// Verify component implements the interface
 	var _ delegatedauth.Component = provides.Comp
 
-	// Verify status provider works
-	stats := make(map[string]interface{})
-	err := provides.Comp.(*delegatedAuthNoop).JSON(false, stats)
-	require.NoError(t, err)
-	assert.Equal(t, false, stats["enabled"])
+	// Verify the component is the correct type
+	_, ok := provides.Comp.(*delegatedauthnooptypes.DelegatedAuthNoop)
+	assert.True(t, ok, "Comp should be *DelegatedAuthNoop")
 }
