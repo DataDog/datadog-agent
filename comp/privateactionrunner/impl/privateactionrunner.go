@@ -89,7 +89,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 func NewPrivateActionRunner(
 	ctx context.Context,
-	coreConfig config.Component,
+	coreConfig model.ReaderWriter,
 	hostnameGetter hostnameinterface.Component,
 	rcClient pkgrcclient.Client,
 	logger log.Component,
