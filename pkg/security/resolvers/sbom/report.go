@@ -8,6 +8,7 @@ package sbom
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"strconv"
 	"time"
 
 	cyclonedx_v1_4 "github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
@@ -17,7 +18,9 @@ import (
 )
 
 const (
-	LastAccessProperty = "LastSeenRunning"
+	LastAccessProperty    = "LastSeenRunning"
+	HasSetSuidBitProperty = "HasSetSuidBit"
+	RunningAsRootProperty = "RunningAsRoot"
 )
 
 // PackagesReport wraps package data and implements the sbom.Report interface
@@ -60,6 +63,22 @@ func (r *PackagesReport) ToCycloneDX() *cyclonedx_v1_4.Bom {
 					Value: pointer.Ptr(lastAccess),
 				},
 			}
+		}
+
+		suidBit := strconv.FormatBool(pkg.SuidBit)
+		component.Properties = []*cyclonedx_v1_4.Property{
+			{
+				Name:  HasSetSuidBitProperty,
+				Value: pointer.Ptr(suidBit),
+			},
+		}
+
+		runningAsRoot := strconv.FormatBool(pkg.AccessedByRoot)
+		component.Properties = []*cyclonedx_v1_4.Property{
+			{
+				Name:  RunningAsRootProperty,
+				Value: pointer.Ptr(runningAsRoot),
+			},
 		}
 
 		components = append(components, component)
