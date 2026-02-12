@@ -129,7 +129,7 @@ func DownloadFile(host *components.RemoteHost, url string, destination string) e
 	// Note: Avoid using Invoke-WebRequest to download files non-interactively,
 	// its progress bar behavior significantly increases download time.
 	// https://github.com/PowerShell/PowerShell/issues/2138
-	_, err := host.Execute(fmt.Sprintf("(New-Object Net.WebClient).DownloadFile('%s','%s')", url, destination))
+	_, err := host.Execute(fmt.Sprintf("[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; (New-Object Net.WebClient).DownloadFile('%s','%s')", url, destination))
 	if err != nil {
 		return err
 	}
