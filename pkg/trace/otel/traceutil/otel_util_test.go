@@ -212,6 +212,12 @@ func TestGetOTelSpanType(t *testing.T) {
 			expected: attributes.SpanTypeCassandra,
 		},
 		{
+			name:     "mongodb db client span",
+			spanKind: ptrace.SpanKindClient,
+			rattrs:   map[string]string{string(semconv.DBSystemKey): "mongodb"},
+			expected: attributes.SpanTypeMongoDB,
+		},
+		{
 			name:     "other db client span",
 			spanKind: ptrace.SpanKindClient,
 			rattrs:   map[string]string{string(semconv.DBSystemKey): semconv.DBSystemCouchDB.Value.AsString()},
@@ -636,8 +642,9 @@ func TestGetOTelContainerTags(t *testing.T) {
 	assert.Contains(t, GetOTelContainerTags(res.Attributes(), []string{"az"}), "az:my-az")
 }
 
-// TestGetOTelOperationNameV2_HTTPSemconv123Plus tests operation name derivation with HTTP semconv 1.23+ attributes.
-func TestGetOTelOperationNameV2_HTTPSemconv123Plus(t *testing.T) {
+// TestGetOTelOperationNameV2_HTTPRequestMethodFallback tests operation name derivation with
+// http.request.method (semconv 1.23+) and http.method (semconv 1.6.1) attributes.
+func TestGetOTelOperationNameV2_HTTPRequestMethodFallback(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
 		rattrs   map[string]string
@@ -711,8 +718,8 @@ func TestGetOTelOperationNameV2_HTTPSemconv123Plus(t *testing.T) {
 	}
 }
 
-// TestGetOTelOperationNameV2_DBSemconv126Plus tests operation name derivation with database semconv 1.26+ attributes.
-func TestGetOTelOperationNameV2_DBSemconv126Plus(t *testing.T) {
+// TestGetOTelOperationNameV2_DBSystemOperationName tests operation name derivation from db.system attribute.
+func TestGetOTelOperationNameV2_DBSystemOperationName(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
 		rattrs   map[string]string
@@ -785,8 +792,9 @@ func TestGetOTelOperationNameV2_DBSemconv126Plus(t *testing.T) {
 	}
 }
 
-// TestGetOTelResourceV2_HTTPSemconv123Plus tests resource name derivation with HTTP semconv 1.23+ attributes.
-func TestGetOTelResourceV2_HTTPSemconv123Plus(t *testing.T) {
+// TestGetOTelResourceV2_HTTPRequestMethodResource tests resource name derivation with
+// http.request.method (semconv 1.23+) and http.method (semconv 1.6.1) attributes.
+func TestGetOTelResourceV2_HTTPRequestMethodResource(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
 		rattrs   map[string]string
@@ -857,8 +865,9 @@ func TestGetOTelResourceV2_HTTPSemconv123Plus(t *testing.T) {
 	}
 }
 
-// TestGetOTelResourceV2_DBSemconv126Plus tests resource name derivation with database semconv 1.26+ attributes.
-func TestGetOTelResourceV2_DBSemconv126Plus(t *testing.T) {
+// TestGetOTelResourceV2_DBQueryTextFallback tests resource name derivation with
+// db.statement (semconv 1.6.1) and db.query.text (semconv 1.26+) attributes.
+func TestGetOTelResourceV2_DBQueryTextFallback(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
 		rattrs   map[string]string
@@ -918,94 +927,6 @@ func TestGetOTelResourceV2_DBSemconv126Plus(t *testing.T) {
 				res.Attributes().PutStr(k, v)
 			}
 			actual := GetOTelResourceV2(span, res)
-			assert.Equal(t, tt.expected, actual)
-		})
-	}
-}
-
-// TestGetOTelSpanType_Semconv117Plus tests span type derivation with semconv 1.17+ attributes.
-func TestGetOTelSpanType_Semconv117Plus(t *testing.T) {
-	for _, tt := range []struct {
-		name     string
-		spanKind ptrace.SpanKind
-		rattrs   map[string]string
-		sattrs   map[string]string
-		expected string
-	}{
-		{
-			name:     "db.system redis client - returns redis type",
-			spanKind: ptrace.SpanKindClient,
-			sattrs:   map[string]string{string(semconv.DBSystemKey): "redis"},
-			expected: attributes.SpanTypeRedis,
-		},
-		{
-			name:     "db.system memcached client - returns memcached type",
-			spanKind: ptrace.SpanKindClient,
-			sattrs:   map[string]string{string(semconv.DBSystemKey): "memcached"},
-			expected: attributes.SpanTypeMemcached,
-		},
-		{
-			name:     "db.system postgresql client - returns sql type",
-			spanKind: ptrace.SpanKindClient,
-			sattrs:   map[string]string{string(semconv.DBSystemKey): "postgresql"},
-			expected: attributes.SpanTypeSQL,
-		},
-		{
-			name:     "db.system elasticsearch client - returns elasticsearch type",
-			spanKind: ptrace.SpanKindClient,
-			sattrs:   map[string]string{string(semconv.DBSystemKey): "elasticsearch"},
-			expected: attributes.SpanTypeElasticsearch,
-		},
-		{
-			name:     "db.system opensearch client (semconv 1.17+) - returns opensearch type",
-			spanKind: ptrace.SpanKindClient,
-			sattrs:   map[string]string{string(semconv.DBSystemKey): string(semconv117.DBSystemOpensearch.Value.AsString())},
-			expected: attributes.SpanTypeOpenSearch,
-		},
-		{
-			name:     "db.system cassandra client - returns cassandra type",
-			spanKind: ptrace.SpanKindClient,
-			sattrs:   map[string]string{string(semconv.DBSystemKey): "cassandra"},
-			expected: attributes.SpanTypeCassandra,
-		},
-		{
-			name:     "db.system mongodb client - returns mongodb type",
-			spanKind: ptrace.SpanKindClient,
-			sattrs:   map[string]string{string(semconv.DBSystemKey): "mongodb"},
-			expected: attributes.SpanTypeMongoDB,
-		},
-		{
-			name:     "span.type attribute takes precedence",
-			spanKind: ptrace.SpanKindClient,
-			sattrs:   map[string]string{"span.type": "custom-type", string(semconv.DBSystemKey): "redis"},
-			expected: "custom-type",
-		},
-		{
-			name:     "span.type in resource takes precedence",
-			spanKind: ptrace.SpanKindClient,
-			rattrs:   map[string]string{"span.type": "resource-type"},
-			sattrs:   map[string]string{string(semconv.DBSystemKey): "redis"},
-			expected: "resource-type",
-		},
-		{
-			name:     "span.type in span takes precedence over resource",
-			spanKind: ptrace.SpanKindClient,
-			rattrs:   map[string]string{"span.type": "resource-type"},
-			sattrs:   map[string]string{"span.type": "span-type", string(semconv.DBSystemKey): "redis"},
-			expected: "span-type",
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			span := ptrace.NewSpan()
-			span.SetKind(tt.spanKind)
-			for k, v := range tt.sattrs {
-				span.Attributes().PutStr(k, v)
-			}
-			res := pcommon.NewResource()
-			for k, v := range tt.rattrs {
-				res.Attributes().PutStr(k, v)
-			}
-			actual := GetOTelSpanType(span, res)
 			assert.Equal(t, tt.expected, actual)
 		})
 	}

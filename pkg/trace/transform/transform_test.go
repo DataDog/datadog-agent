@@ -233,15 +233,55 @@ func TestGetOTelStatusCode(t *testing.T) {
 			name:     "neither set",
 			expected: 0,
 		},
+		// http.status_code (semconv 1.6.1 - 1.17) tests
 		{
-			name: "only in span, only semconv117.HTTPStatusCodeKey",
+			name: "http.status_code only in span",
 			sattrs: map[string]uint32{
 				string(semconv117.HTTPStatusCodeKey): 200,
 			},
 			expected: 200,
 		},
 		{
-			name: "only in span, both semconv117.HTTPStatusCodeKey and http.response.status_code, semconv117.HTTPStatusCodeKey wins",
+			name: "http.status_code only in resource",
+			rattrs: map[string]uint32{
+				string(semconv117.HTTPStatusCodeKey): 201,
+			},
+			expected: 201,
+		},
+		{
+			name:     "http.status_code in both span and resource (span wins)",
+			sattrs:   map[string]uint32{string(semconv117.HTTPStatusCodeKey): 203},
+			rattrs:   map[string]uint32{string(semconv117.HTTPStatusCodeKey): 204},
+			expected: 203,
+		},
+		// http.response.status_code (semconv 1.23+) tests
+		{
+			name: "http.response.status_code only in span",
+			sattrs: map[string]uint32{
+				"http.response.status_code": 200,
+			},
+			expected: 200,
+		},
+		{
+			name: "http.response.status_code only in resource",
+			rattrs: map[string]uint32{
+				"http.response.status_code": 404,
+			},
+			expected: 404,
+		},
+		{
+			name: "http.response.status_code in both span and resource (span wins)",
+			sattrs: map[string]uint32{
+				"http.response.status_code": 201,
+			},
+			rattrs: map[string]uint32{
+				"http.response.status_code": 500,
+			},
+			expected: 201,
+		},
+		// Precedence between old and new attributes
+		{
+			name: "http.status_code takes precedence over http.response.status_code in span",
 			sattrs: map[string]uint32{
 				string(semconv117.HTTPStatusCodeKey): 200,
 				"http.response.status_code":          201,
@@ -249,14 +289,7 @@ func TestGetOTelStatusCode(t *testing.T) {
 			expected: 200,
 		},
 		{
-			name: "only in resource, only semconv117.HTTPStatusCodeKey",
-			rattrs: map[string]uint32{
-				string(semconv117.HTTPStatusCodeKey): 201,
-			},
-			expected: 201,
-		},
-		{
-			name: "only in resource, both semconv117.HTTPStatusCodeKey and http.response.status_code, semconv117.HTTPStatusCodeKey wins",
+			name: "http.status_code takes precedence over http.response.status_code in resource",
 			rattrs: map[string]uint32{
 				string(semconv117.HTTPStatusCodeKey): 201,
 				"http.response.status_code":          202,
@@ -264,10 +297,24 @@ func TestGetOTelStatusCode(t *testing.T) {
 			expected: 201,
 		},
 		{
-			name:     "both set (span wins)",
-			sattrs:   map[string]uint32{string(semconv117.HTTPStatusCodeKey): 203},
-			rattrs:   map[string]uint32{string(semconv117.HTTPStatusCodeKey): 204},
-			expected: 203,
+			name: "http.status_code in span beats http.response.status_code in resource",
+			sattrs: map[string]uint32{
+				string(semconv117.HTTPStatusCodeKey): 200,
+			},
+			rattrs: map[string]uint32{
+				"http.response.status_code": 500,
+			},
+			expected: 200,
+		},
+		{
+			name: "http.response.status_code in span beats http.status_code in resource",
+			sattrs: map[string]uint32{
+				"http.response.status_code": 201,
+			},
+			rattrs: map[string]uint32{
+				string(semconv117.HTTPStatusCodeKey): 500,
+			},
+			expected: 201,
 		},
 	}
 	for _, tt := range tests {
@@ -360,83 +407,6 @@ func TestOtelSpanToDDSpanDBNameMapping(t *testing.T) {
 	}
 }
 
-// TestGetOTelStatusCode_Semconv123Plus tests HTTP status code extraction with semconv 1.23+ conventions.
-// In semconv 1.23+, http.status_code was replaced with http.response.status_code.
-func TestGetOTelStatusCode_Semconv123Plus(t *testing.T) {
-	tests := []struct {
-		name     string
-		sattrs   map[string]uint32
-		rattrs   map[string]uint32
-		expected uint32
-	}{
-		{
-			name: "http.response.status_code only (semconv 1.23+)",
-			sattrs: map[string]uint32{
-				"http.response.status_code": 200,
-			},
-			expected: 200,
-		},
-		{
-			name: "http.response.status_code in resource only",
-			rattrs: map[string]uint32{
-				"http.response.status_code": 404,
-			},
-			expected: 404,
-		},
-		{
-			name: "http.response.status_code in span takes precedence over resource",
-			sattrs: map[string]uint32{
-				"http.response.status_code": 201,
-			},
-			rattrs: map[string]uint32{
-				"http.response.status_code": 500,
-			},
-			expected: 201,
-		},
-		{
-			name: "http.status_code (old) takes precedence over http.response.status_code (new)",
-			sattrs: map[string]uint32{
-				string(semconv117.HTTPStatusCodeKey): 200,
-				"http.response.status_code":          201,
-			},
-			expected: 200,
-		},
-		{
-			name: "http.status_code in span, http.response.status_code in resource",
-			sattrs: map[string]uint32{
-				string(semconv117.HTTPStatusCodeKey): 200,
-			},
-			rattrs: map[string]uint32{
-				"http.response.status_code": 500,
-			},
-			expected: 200,
-		},
-		{
-			name: "http.response.status_code in span, http.status_code in resource - span wins",
-			sattrs: map[string]uint32{
-				"http.response.status_code": 201,
-			},
-			rattrs: map[string]uint32{
-				string(semconv117.HTTPStatusCodeKey): 500,
-			},
-			expected: 201,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			span := ptrace.NewSpan()
-			for k, v := range tt.sattrs {
-				span.Attributes().PutInt(k, int64(v))
-			}
-			res := pcommon.NewResource()
-			for k, v := range tt.rattrs {
-				res.Attributes().PutInt(k, int64(v))
-			}
-			assert.Equal(t, tt.expected, GetOTelStatusCode(span, res))
-		})
-	}
-}
-
 // TestGetOTelEnv_SemconvVersionPrecedence tests environment extraction with multiple semconv versions.
 // Semconv 1.27+ uses deployment.environment.name, 1.17+ uses deployment.environment.
 func TestGetOTelEnv_SemconvVersionPrecedence(t *testing.T) {
@@ -511,8 +481,9 @@ func TestGetOTelEnv_SemconvVersionPrecedence(t *testing.T) {
 	}
 }
 
-// TestOtelSpanToDDSpan_HTTPSemconv123Plus tests full span conversion with HTTP semconv 1.23+ attributes.
-func TestOtelSpanToDDSpan_HTTPSemconv123Plus(t *testing.T) {
+// TestOtelSpanToDDSpan_HTTPAttributeMappings tests full span conversion with HTTP attribute mappings
+// (http.request.method → http.method, http.response.status_code → http.status_code, server.address → http.server_name).
+func TestOtelSpanToDDSpan_HTTPAttributeMappings(t *testing.T) {
 	cfg := &config.AgentConfig{}
 	cfg.OTLPReceiver = &config.OTLP{}
 	cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
@@ -639,8 +610,9 @@ func TestOtelSpanToDDSpan_HTTPSemconv123Plus(t *testing.T) {
 	}
 }
 
-// TestOtelSpanToDDSpan_DBSemconv126Plus tests full span conversion with database semconv 1.26+ attributes.
-func TestOtelSpanToDDSpan_DBSemconv126Plus(t *testing.T) {
+// TestOtelSpanToDDSpan_DBAttributeMappings tests full span conversion with database attribute mappings
+// (db.query.text, db.statement preservation, db.namespace → db.name).
+func TestOtelSpanToDDSpan_DBAttributeMappings(t *testing.T) {
 	cfg := &config.AgentConfig{}
 	cfg.OTLPReceiver = &config.OTLP{}
 	cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
@@ -768,8 +740,9 @@ func TestOtelSpanToDDSpan_DBSemconv126Plus(t *testing.T) {
 	}
 }
 
-// TestOtelSpanToDDSpan_MessagingSemconv117Plus tests messaging attribute preservation across semconv versions.
-func TestOtelSpanToDDSpan_MessagingSemconv117Plus(t *testing.T) {
+// TestOtelSpanToDDSpan_MessagingAttributePreservation tests messaging attribute preservation
+// (messaging.destination, messaging.destination.name, messaging.operation).
+func TestOtelSpanToDDSpan_MessagingAttributePreservation(t *testing.T) {
 	cfg := &config.AgentConfig{}
 	cfg.OTLPReceiver = &config.OTLP{}
 	cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
@@ -864,8 +837,9 @@ func TestOtelSpanToDDSpan_MessagingSemconv117Plus(t *testing.T) {
 	}
 }
 
-// TestOtelSpanToDDSpan_NetworkSemconv117Plus tests network/server attribute mappings.
-func TestOtelSpanToDDSpan_NetworkSemconv117Plus(t *testing.T) {
+// TestOtelSpanToDDSpan_NetworkAttributeMappings tests network/server attribute mappings
+// (net.peer.name, server.address → http.server_name, server.port).
+func TestOtelSpanToDDSpan_NetworkAttributeMappings(t *testing.T) {
 	cfg := &config.AgentConfig{}
 	cfg.OTLPReceiver = &config.OTLP{}
 	cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
