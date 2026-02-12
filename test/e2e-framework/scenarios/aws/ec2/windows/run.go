@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"math/rand"
+	"os"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/activedirectory"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
@@ -32,13 +33,14 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.Windows
 	env.SetEnvironment(&awsEnv)
 
 	// Use InfraOSDescriptor when set (e.g. -c ddinfra:osDescriptor=...), otherwise pick a Windows Server version (2016–2025) for e2e coverage.
-	// When InfraWindowsVersionSeed is set (e.g. CI_PIPELINE_ID-CI_JOB_NAME), the same value yields the same version on retries.
+	// In CI, CI_PIPELINE_ID + CI_JOB_NAME are used as seed so retries get the same version.
 	var osDesc compos.Descriptor
 	if descStr := awsEnv.InfraOSDescriptor(); descStr != "" {
 		osDesc = compos.DescriptorFromString(descStr, compos.WindowsServerDefault)
 	} else {
 		versions := compos.WindowsServerVersionsForE2E
-		idx := pickVersionIndex(versions, awsEnv.InfraWindowsVersionSeed())
+		seed := os.Getenv("CI_PIPELINE_ID") + os.Getenv("CI_JOB_NAME")
+		idx := pickVersionIndex(versions, seed)
 		osDesc = versions[idx]
 	}
 	params.instanceOptions = append(params.instanceOptions, ec2.WithOS(osDesc))

@@ -35,7 +35,6 @@ const (
 	DDInfraKindVersion                      = "kindVersion"
 	DDInfraKubeNodeURL                      = "kubeNodeUrl"
 	DDInfraOSDescriptor                     = "osDescriptor" // osDescriptor is expected in the format: <osFamily>:<osVersion>:<osArch>, see components/os/descriptor.go
-	DDInfraWindowsVersionSeed               = "windowsVersionSeed"
 	DDInfraOSImageID                        = "osImageID"
 	DDInfraOSImageIDUseLatest               = "osImageIDUseLatest"
 	DDInfraDeployFakeintakeWithLoadBalancer = "deployFakeintakeWithLoadBalancer"
@@ -116,7 +115,6 @@ type Env interface {
 	InfraShouldDeployFakeintakeWithLB() bool
 	InfraEnvironmentNames() []string
 	InfraOSDescriptor() string
-	InfraWindowsVersionSeed() string
 	InfraOSImageID() string
 	KubernetesVersion() string
 	KubeNodeURL() string
@@ -224,10 +222,6 @@ func (e *CommonEnvironment) InfraEnvironmentNames() []string {
 
 func (e *CommonEnvironment) InfraOSDescriptor() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraOSDescriptor, "")
-}
-
-func (e *CommonEnvironment) InfraWindowsVersionSeed() string {
-	return e.GetStringWithDefault(e.InfraConfig, DDInfraWindowsVersionSeed, "")
 }
 
 func (e *CommonEnvironment) InfraOSImageID() string {

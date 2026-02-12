@@ -10,8 +10,6 @@
     # WINDOWS_AGENT_VERSION is used to verify the installed agent version
     # Must run before new_e2e_template changes the aws profile
     - WINDOWS_AGENT_VERSION=$(dda inv agent.version) || exit $?; export WINDOWS_AGENT_VERSION
-    # Same Windows Server version on retry: seed with pipeline + job name (stable across retries; CI_JOB_ID changes on retry)
-    - export EXTRA_PARAMS="${EXTRA_PARAMS} -c ddinfra:windowsVersionSeed=${CI_PIPELINE_ID}-${CI_JOB_NAME}"
     - !reference [.new_e2e_template, before_script]
   script:
     # LAST_STABLE_VERSION is used for upgrade test
