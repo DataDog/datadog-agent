@@ -145,6 +145,8 @@ func (i *Mutator) MutatePod(pod *corev1.Pod, _ string, _ dynamic.Interface) (boo
 		//
 		// If the user requests socket volumes, we will not have a conflict because each file is mounted separately on a different mount point.
 		// In this case, we have no need for the subdirectories.
+		//
+		// See Issue #45952: https://github.com/DataDog/datadog-agent/issues/45952
 		if !isSocketVol && (useCSI || i.config.dogStatsDAgentHostSocket != i.config.traceAgentHostSocket) {
 			apmMountBase = apmMountBase + "/" + apmSubdir
 			dsdMountBase = dsdMountBase + "/" + dsdSubdir
