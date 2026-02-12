@@ -284,8 +284,6 @@ func preRemoveDDOTExtension(ctx HookContext) error {
 		log.Warnf("failed to disable otelcollector config: %s", err)
 	}
 
-	// XXX: Maybe we should restart the Agent service here to pick up the new config? Probably during removal, not upgrade.
-
 	return nil
 }
 
