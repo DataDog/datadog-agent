@@ -10,7 +10,7 @@ package run
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -69,12 +69,12 @@ func MakeCommand(globalConfGetter func() *globalparams.GlobalParams) []*cobra.Co
 func validateFlags(params *globalparams.GlobalParams) error {
 	// Error if both --standalone and --bundled are set
 	if params.StandaloneConfigPath != "" && params.BundledConfigPath != "" {
-		return fmt.Errorf("cannot use both --standalone and --bundled flags together")
+		return errors.New("cannot use both --standalone and --bundled flags together")
 	}
 
 	// Require at least one configuration source
 	if params.StandaloneConfigPath == "" && params.BundledConfigPath == "" {
-		return fmt.Errorf("must provide either --standalone or --bundled configuration")
+		return errors.New("must provide either --standalone or --bundled configuration")
 	}
 
 	return nil
