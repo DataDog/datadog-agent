@@ -972,9 +972,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/process/util/api v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/serializer v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/ssi/testutils v0.77.0-devel.0.20260211235139-a5361978c2b6
-	github.com/DataDog/datadog-agent/pkg/trace/log v0.76.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/trace/stats v0.76.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.76.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.77.0-devel.0.20260211235139-a5361978c2b6
+	github.com/DataDog/datadog-agent/pkg/trace/stats v0.77.0-devel.0.20260211235139-a5361978c2b6
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/ddtrivy v0.0.0-20260115083325-07614fb0b8d5
 	github.com/Masterminds/squirrel v1.5.4

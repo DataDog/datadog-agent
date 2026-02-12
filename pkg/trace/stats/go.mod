@@ -6,9 +6,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.71.0
 	github.com/DataDog/datadog-agent/pkg/proto v0.74.1
 	github.com/DataDog/datadog-agent/pkg/trace v0.71.0
-	github.com/DataDog/datadog-agent/pkg/trace/log v0.76.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/trace/otel v0.77.0-devel.0.20260211235139-a5361978c2b6
-	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.71.0
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-go/v5 v5.8.3
 	github.com/DataDog/sketches-go v1.4.7
 	github.com/google/gofuzz v1.2.0
