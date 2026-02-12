@@ -171,7 +171,7 @@ func setup(secretComp secrets.Component, delegatedAuthComp delegatedauth.Compone
 	metricTags, highCardinalityTags := serverlessInitTag.MakeMetricAgentTags(tags)
 	metricAgent := setupMetricAgent(metricTags, highCardinalityTags, tagger, cloudService.ShouldForceFlushAllOnForceFlushToSerializer())
 
-	metricAgent.AddMetric(cloudService.GetStartMetricName(), 1.0, cloudService.GetSource())
+	cloudService.AddStartMetric(metricAgent)
 
 	setupOtlpAgent(metricAgent, tagger)
 

@@ -55,8 +55,8 @@ type CloudService interface {
 	// Shutdown cleans up the CloudService and allows emitting shutdown metrics
 	Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, collector *collector.Collector, runErr error)
 
-	// GetStartMetricName returns the metric name for start events
-	GetStartMetricName() string
+	// AddStartMetric adds the start (and legacy start, if any) metric to the metric agent
+	AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent)
 
 	// ShouldForceFlushAllOnForceFlushToSerializer is used for the
 	// forceFlushAll parameter on the call to forceFlushToSerializer in the
@@ -111,9 +111,9 @@ func (l *LocalService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAg
 	metricAgent.AddMetric(defaultPrefix+".enhanced.shutdown", 1.0, l.GetSource())
 }
 
-// GetStartMetricName returns the metric name for container start (coldstart) events
-func (l *LocalService) GetStartMetricName() string {
-	return defaultPrefix + ".enhanced.cold_start"
+// AddStartMetric adds the start metric for LocalService
+func (l *LocalService) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
+	metricAgent.AddMetric(defaultPrefix+".enhanced.cold_start", 1.0, l.GetSource())
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is false usually.

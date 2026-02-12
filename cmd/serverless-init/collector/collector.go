@@ -83,7 +83,7 @@ func NewCollector(metricAgent *serverlessMetrics.ServerlessMetricAgent, metricSo
 		metricAgent:       metricAgent,
 		metricSource:      metricSource,
 		cgroupReader:      cgroupReader,
-		metricPrefix:      metricPrefix + ".enhanced.test.dh.",
+		metricPrefix:      metricPrefix + ".enhanced.",
 		previousRateStats: NullServerlessRateStats,
 	}, nil
 }
@@ -142,7 +142,7 @@ func (c *Collector) collect() {
 
 	containerStats := c.convertToServerlessContainerStats(stats)
 	enhancedMetrics := c.computeContainerMetrics(containerStats)
-	c.sendMetrics(containerStats, enhancedMetrics)
+	c.sendMetrics(enhancedMetrics)
 }
 
 func (c *Collector) convertToServerlessContainerStats(stats *cgroups.Stats) *ServerlessContainerStats {
@@ -249,7 +249,7 @@ func (c *Collector) calculateCPUUsage(currentTotal float64, previousTotal float6
 	return valueDiff / timeDiff
 }
 
-func (c *Collector) sendMetrics(inStats *ServerlessContainerStats, enhancedMetrics ServerlessEnhancedMetrics) {
+func (c *Collector) sendMetrics(enhancedMetrics ServerlessEnhancedMetrics) {
 	// CPU usage in nanocores
 	c.metricAgent.AddHighCardinalityMetricWithTimestamp(c.metricPrefix+"cpu.usage", enhancedMetrics.CPUUsage, c.metricSource, metrics.DistributionType, enhancedMetrics.Timestamp)
 

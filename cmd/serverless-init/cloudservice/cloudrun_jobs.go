@@ -146,9 +146,8 @@ func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAg
 	c.completeAndSubmitJobSpan(runErr)
 }
 
-// GetStartMetricName returns the metric name for container start events
-func (c *CloudRunJobs) GetStartMetricName() string {
-	return cloudRunJobsPrefix + ".enhanced.task.started"
+func (c *CloudRunJobs) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
+	metricAgent.AddMetric(cloudRunJobsPrefix+".enhanced.task.started", 1.0, c.GetSource())
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is true for cloud run jobs.
