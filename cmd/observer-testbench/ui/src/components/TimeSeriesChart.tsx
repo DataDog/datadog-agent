@@ -226,11 +226,19 @@ export function TimeSeriesChart({
         : allVariantPoints.length > 0
           ? allVariantPoints
           : pointsToRender;
-      xExtent = d3.extent(scalePoints, (d) => d.timestamp * 1000) as [number, number];
       yExtent = d3.extent(scalePoints, (d) => d.value) as [number, number];
+      if (timeRange) {
+        xExtent = [timeRange.start * 1000, timeRange.end * 1000];
+      } else {
+        xExtent = d3.extent(scalePoints, (d) => d.timestamp * 1000) as [number, number];
+      }
     } else {
-      xExtent = d3.extent(pointsToRender, (d) => d.timestamp * 1000) as [number, number];
       yExtent = d3.extent(pointsToRender, (d) => d.value) as [number, number];
+      if (timeRange) {
+        xExtent = [timeRange.start * 1000, timeRange.end * 1000];
+      } else {
+        xExtent = d3.extent(pointsToRender, (d) => d.timestamp * 1000) as [number, number];
+      }
     }
 
     if (xExtent?.[0] === undefined || xExtent?.[1] === undefined || yExtent?.[0] === undefined || yExtent?.[1] === undefined) {

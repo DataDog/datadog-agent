@@ -89,6 +89,8 @@ type StatusResponse struct {
 	AnomalyCount          int          `json:"anomalyCount"`
 	ComponentCount        int          `json:"componentCount"`
 	CorrelatorsProcessing bool         `json:"correlatorsProcessing"`
+	ScenarioStart         *int64       `json:"scenarioStart,omitempty"`
+	ScenarioEnd           *int64       `json:"scenarioEnd,omitempty"`
 	ServerConfig          ServerConfig `json:"serverConfig"`
 }
 
@@ -430,6 +432,14 @@ func (tb *TestBench) GetStatus() StatusResponse {
 		compMap[name] = comp.Enabled
 	}
 
+	scenarioStart, scenarioEnd, hasBounds := tb.storage.TimeBounds()
+	var scenarioStartPtr *int64
+	var scenarioEndPtr *int64
+	if hasBounds {
+		scenarioStartPtr = &scenarioStart
+		scenarioEndPtr = &scenarioEnd
+	}
+
 	return StatusResponse{
 		Ready:                 tb.ready,
 		Scenario:              tb.loadedScenario,
@@ -437,6 +447,8 @@ func (tb *TestBench) GetStatus() StatusResponse {
 		AnomalyCount:          len(tb.anomalies),
 		ComponentCount:        len(tb.logProcessors) + len(tb.components),
 		CorrelatorsProcessing: tb.correlatorsProcessing,
+		ScenarioStart:         scenarioStartPtr,
+		ScenarioEnd:           scenarioEndPtr,
 		ServerConfig: ServerConfig{
 			Components:     compMap,
 			CUSUMSkipCount: !tb.config.CUSUMIncludeCount,

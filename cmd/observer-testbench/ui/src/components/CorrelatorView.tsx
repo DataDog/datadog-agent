@@ -4,14 +4,16 @@ import { AnomalySwimlane } from './AnomalySwimlane';
 import { CompressedGroupCard } from './CompressedGroupCard';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
 import type { ScenarioInfo, Correlation } from '../api/client';
+import type { TimeRange } from './ChartWithAnomalyDetails';
 
 interface CorrelatorViewProps {
   state: ObserverState;
   actions: ObserverActions;
   sidebarWidth: number;
+  timeRange: TimeRange | null;
 }
 
-export function CorrelatorView({ state, actions, sidebarWidth }: CorrelatorViewProps) {
+export function CorrelatorView({ state, actions, sidebarWidth, timeRange }: CorrelatorViewProps) {
   const scenarios = state.scenarios ?? [];
   const components = state.components ?? [];
   const correlations = state.correlations ?? [];
@@ -101,6 +103,8 @@ export function CorrelatorView({ state, actions, sidebarWidth }: CorrelatorViewP
             <AnomalySwimlane
               anomalies={anomalies}
               compressedGroups={compressedGroups}
+              correlations={correlations}
+              timeRange={timeRange}
             />
 
             {/* 2. Compressed Groups */}

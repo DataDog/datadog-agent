@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useObserver } from './hooks/useObserver';
 import { TSAnalysisView } from './components/TSAnalysisView';
 import { CorrelatorView } from './components/CorrelatorView';
@@ -48,6 +48,13 @@ function App() {
 
   const series = state.series ?? [];
   const anomalies = state.anomalies ?? [];
+  const scenarioTimeRange = useMemo<TimeRange | null>(() => {
+    const start = state.status?.scenarioStart;
+    const end = state.status?.scenarioEnd;
+    if (start == null || end == null || end <= start) return null;
+    return { start, end };
+  }, [state.status?.scenarioStart, state.status?.scenarioEnd]);
+  const activeTimeRange = timeRange ?? scenarioTimeRange;
 
   // Sidebar resize handlers
   const handleResizeStart = (e: React.MouseEvent) => {
@@ -113,50 +120,50 @@ function App() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            {/* Time Series tab controls */}
-            {activeTab === 'timeseries' && (
-              <>
-                {/* Time Range Zoom Control */}
+            {/* Global time span control (available in both tabs) */}
+            {activeTimeRange && (
+              <div className="flex items-center gap-2 bg-slate-700/50 rounded px-3 py-1.5">
+                <span className="text-xs text-slate-400">Time Span:</span>
+                <span className="text-sm text-slate-200 font-mono">
+                  {formatTimeRange(activeTimeRange)}
+                </span>
+                <span className="text-xs text-slate-500 ml-1">
+                  (middle-drag or cmd+drag to pan)
+                </span>
                 {timeRange && (
-                  <div className="flex items-center gap-2 bg-slate-700/50 rounded px-3 py-1.5">
-                    <span className="text-xs text-slate-400">Zoom:</span>
-                    <span className="text-sm text-slate-200 font-mono">
-                      {formatTimeRange(timeRange)}
-                    </span>
-                    <span className="text-xs text-slate-500 ml-1">
-                      (middle-drag or cmd+drag to pan)
-                    </span>
-                    <button
-                      onClick={() => setTimeRange(null)}
-                      className="ml-2 text-xs px-2 py-0.5 bg-slate-600 hover:bg-slate-500 rounded text-slate-300"
-                      title="Reset zoom"
-                    >
-                      Reset
-                    </button>
-                  </div>
-                )}
-                {!timeRange && state.connectionState === 'ready' && (
-                  <span className="text-xs text-slate-500">
-                    Drag to zoom, middle-drag or cmd+drag to pan
-                  </span>
-                )}
-                {/* Smooth Lines Toggle */}
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <span className="text-xs text-slate-400">Smooth</span>
                   <button
-                    onClick={() => setSmoothLines(!smoothLines)}
-                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                      smoothLines ? 'bg-purple-600' : 'bg-slate-600'
-                    }`}
+                    onClick={() => setTimeRange(null)}
+                    className="ml-2 text-xs px-2 py-0.5 bg-slate-600 hover:bg-slate-500 rounded text-slate-300"
+                    title="Reset time span"
                   >
-                    <span
-                      className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                        smoothLines ? 'translate-x-5' : 'translate-x-1'
-                      }`}
-                    />
+                    Reset
                   </button>
-                </label>
-              </>
+                )}
+              </div>
+            )}
+            {!activeTimeRange && state.connectionState === 'ready' && (
+              <span className="text-xs text-slate-500">
+                Drag a time-series chart to set time span, middle-drag or cmd+drag to pan
+              </span>
+            )}
+
+            {/* Time Series-only chart rendering control */}
+            {activeTab === 'timeseries' && (
+              <label className="flex items-center gap-2 cursor-pointer">
+                <span className="text-xs text-slate-400">Smooth</span>
+                <button
+                  onClick={() => setSmoothLines(!smoothLines)}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                    smoothLines ? 'bg-purple-600' : 'bg-slate-600'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                      smoothLines ? 'translate-x-5' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </label>
             )}
             <ConnectionStatus state={state.connectionState} />
             {state.status && (
@@ -182,7 +189,7 @@ function App() {
             state={state}
             actions={actions}
             sidebarWidth={sidebarWidth}
-            timeRange={timeRange}
+            timeRange={activeTimeRange}
             onTimeRangeChange={setTimeRange}
             smoothLines={smoothLines}
           />
@@ -192,6 +199,7 @@ function App() {
             state={state}
             actions={actions}
             sidebarWidth={sidebarWidth}
+            timeRange={activeTimeRange}
           />
         </div>
       </div>

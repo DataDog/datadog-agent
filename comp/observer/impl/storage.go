@@ -276,6 +276,32 @@ func (s *timeSeriesStorage) AllSeries(namespace string, agg Aggregate) []observe
 	return result
 }
 
+// TimeBounds returns the minimum and maximum timestamps across all stored points.
+func (s *timeSeriesStorage) TimeBounds() (minTs int64, maxTs int64, ok bool) {
+	var min int64
+	var max int64
+	found := false
+
+	for _, stats := range s.series {
+		for _, p := range stats.Points {
+			if !found {
+				min = p.Timestamp
+				max = p.Timestamp
+				found = true
+				continue
+			}
+			if p.Timestamp < min {
+				min = p.Timestamp
+			}
+			if p.Timestamp > max {
+				max = p.Timestamp
+			}
+		}
+	}
+
+	return min, max, found
+}
+
 // seriesKey creates a unique key for a series.
 func seriesKey(namespace, name string, tags []string) string {
 	sortedTags := copyTags(tags)

@@ -1,6 +1,7 @@
 import { useRef, useEffect, useMemo, useState } from 'react';
 import * as d3 from 'd3';
-import type { Anomaly, CompressedGroup, SeriesID } from '../api/client';
+import type { Anomaly, CompressedGroup, Correlation, SeriesID } from '../api/client';
+import type { TimeRange } from './ChartWithAnomalyDetails';
 
 // Reuse the analyzer palette from TimeSeriesChart
 const ANALYZER_PALETTE = [
@@ -41,6 +42,8 @@ const ANNOTATION_SECTION_GAP = 8;
 interface AnomalySwimlaneProps {
   anomalies: Anomaly[];
   compressedGroups: CompressedGroup[];
+  correlations?: Correlation[];
+  timeRange?: TimeRange | null;
 }
 
 // Assign groups to stacked lanes so overlapping time ranges don't collide.
@@ -66,6 +69,8 @@ function assignLanes(groups: CompressedGroup[]): { group: CompressedGroup; lane:
 export function AnomalySwimlane({
   anomalies,
   compressedGroups,
+  correlations = [],
+  timeRange = null,
 }: AnomalySwimlaneProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -92,7 +97,8 @@ export function AnomalySwimlane({
   const totalInnerHeight = denseHeight
     + (annotationHeight > 0 ? ANNOTATION_SECTION_GAP + annotationHeight : 0);
 
-  const margin = { top: 10, right: 20, bottom: 30, left: 12 };
+  // Match TimeSeriesChart horizontal plot margins so x-axis widths align across tabs.
+  const margin = { top: 10, right: 20, bottom: 30, left: 50 };
 
   useEffect(() => {
     if (!svgRef.current || !containerRef.current || anomalies.length === 0 || containerWidth === 0) return;
@@ -116,8 +122,21 @@ export function AnomalySwimlane({
       rowY.set(source, i * DENSE_ROW_HEIGHT);
     });
 
-    // Time scale
-    const [tMin, tMax] = d3.extent(anomalies, (a) => a.timestamp) as [number, number];
+    // Time scale: prefer explicit zoom range when set; otherwise use the broadest known scenario span.
+    const candidateTimes = anomalies.map((a) => a.timestamp);
+    compressedGroups.forEach((group) => {
+      if (group.firstSeen != null && group.firstSeen > 0) candidateTimes.push(group.firstSeen);
+      if (group.lastUpdated != null && group.lastUpdated > 0) candidateTimes.push(group.lastUpdated);
+    });
+    correlations.forEach((corr) => {
+      if (corr.firstSeen > 0) candidateTimes.push(corr.firstSeen);
+      if (corr.lastUpdated > 0) candidateTimes.push(corr.lastUpdated);
+    });
+    const [autoMin, autoMax] = d3.extent(candidateTimes) as [number | undefined, number | undefined];
+    const tMin = timeRange?.start ?? autoMin;
+    const tMax = timeRange?.end ?? autoMax;
+    if (tMin == null || tMax == null) return;
+
     const xScale = d3.scaleTime()
       .domain([tMin * 1000, tMax * 1000])
       .range([0, innerWidth]);
@@ -300,7 +319,7 @@ export function AnomalySwimlane({
       .attr('fill', '#94a3b8')
       .attr('font-size', '9px');
 
-  }, [anomalies, sources, denseHeight, laneAssignments, laneCount, totalInnerHeight, containerWidth, margin.left, margin.right, margin.top, margin.bottom]);
+  }, [anomalies, compressedGroups, correlations, sources, denseHeight, laneAssignments, laneCount, totalInnerHeight, containerWidth, margin.left, margin.right, margin.top, margin.bottom, timeRange]);
 
   // Track container width so the drawing effect re-runs on resize/tab switch
   useEffect(() => {
@@ -326,8 +345,8 @@ export function AnomalySwimlane({
   const analyzerNames = Array.from(new Set(anomalies.map((a) => a.analyzerName)));
 
   return (
-    <div className="bg-slate-800 rounded-lg p-4">
-      <div className="flex items-center justify-between mb-2">
+    <div className="bg-slate-800 rounded-lg overflow-hidden">
+      <div className="flex items-center justify-between px-4 pt-4 mb-2">
         <h2 className="text-sm font-semibold text-slate-300">
           Anomaly Swimlane ({anomalies.length} anomalies across {sources.length} sources)
         </h2>
@@ -346,7 +365,7 @@ export function AnomalySwimlane({
       </div>
       <div
         ref={containerRef}
-        className="w-full relative"
+        className="w-full relative pb-4"
       >
         <svg ref={svgRef} />
         {tooltip && (

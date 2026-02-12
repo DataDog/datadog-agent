@@ -17,6 +17,8 @@ export interface StatusResponse {
   anomalyCount: number;
   componentCount: number;
   correlatorsProcessing: boolean;
+  scenarioStart?: number;
+  scenarioEnd?: number;
   serverConfig: ServerConfig;
 }
 
