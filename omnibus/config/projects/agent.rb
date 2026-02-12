@@ -326,6 +326,9 @@ if windows_target?
   if not fips_mode?
     # TODO(AGENTCFG-XXX): SGC is not supported in FIPS mode
     GO_BINARIES << "#{install_dir}\\bin\\agent\\secret-generic-connector.exe"
+
+    # TODO(ACTP-XXX): PAR is not enabled in Gov yet
+    GO_BINARIES << "#{install_dir}\\bin\\agent\\privateactionrunner.exe"
   end
 
   if not windows_arch_i386? and ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
