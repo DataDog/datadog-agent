@@ -465,8 +465,11 @@ cc_library(
         ".",
         "src",
     ],
-    deps = [
+    implementation_deps = [
         ":compat",
+        ":config_h",
+    ],
+    deps = [
         "@libxml2//:libxml2",
     ],
     local_defines = COMMON_DEFINES,
