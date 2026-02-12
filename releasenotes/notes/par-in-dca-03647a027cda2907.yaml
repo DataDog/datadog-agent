@@ -9,3 +9,5 @@
 features:
   - |
     Integrate the Private Action Runner into the Datadog Cluster Agent.
+    The Cluster Agent binary size has been reduced by excluding database and temporal bundles
+    from the Private Action Runner registry.
