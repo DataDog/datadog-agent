@@ -23,6 +23,7 @@ const (
 	KubeEndpoints           = "kubernetes-endpoints"
 	KubeEndpointSlices      = "kubernetes-endpointslices"
 	KubeEndpointsFile       = "kubernetes-endpoints-file"
+	KubeEndpointSlicesFile  = "kubernetes-endpointslices-file"
 	ProcessLog              = "process_log"
 	PrometheusPods          = "prometheus-pods"
 	PrometheusServices      = "prometheus-services"
