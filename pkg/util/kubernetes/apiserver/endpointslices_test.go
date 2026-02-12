@@ -8,10 +8,11 @@
 package apiserver
 
 import (
-	"strconv"
 	"testing"
 	"time"
 
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/stretchr/testify/assert"
@@ -54,6 +55,12 @@ func TestUseEndpointSlices(t *testing.T) {
 			expectedResult: false,
 		},
 		{
+			name:           "config disabled with version 1.21+ returns false",
+			configEnabled:  false,
+			version:        &version.Info{Major: "1", Minor: "30", GitVersion: "v1.30.0"},
+			expectedResult: false,
+		},
+		{
 			name:           "version exactly 1.21.0 should return true",
 			configEnabled:  true,
 			version:        &version.Info{Major: "1", Minor: "21", GitVersion: "v1.21.0"},
@@ -65,17 +72,11 @@ func TestUseEndpointSlices(t *testing.T) {
 			version:        &version.Info{Major: "1", Minor: "30", GitVersion: "v1.30.0"},
 			expectedResult: true,
 		},
-		{
-			name:           "config disabled with version 1.21+ returns false",
-			configEnabled:  false,
-			version:        &version.Info{Major: "1", Minor: "30", GitVersion: "v1.30.0"},
-			expectedResult: false,
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("DD_KUBERNETES_USE_ENDPOINT_SLICES", strconv.FormatBool(tt.configEnabled))
+			pkgconfigsetup.Datadog().Set("kubernetes_use_endpoint_slices", tt.configEnabled, pkgconfigmodel.SourceFile)
 
 			cache.Cache.Set(serverVersionCacheKey, tt.version, time.Hour)
 
