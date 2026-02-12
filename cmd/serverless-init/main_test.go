@@ -44,7 +44,7 @@ func TestTagsSetup(t *testing.T) {
 
 	allTags := append(ddTags, ddExtraTags...)
 
-	_, _, tracingCtx, metricAgent, _, _ := setup(secretsmock.New(t), mode.Conf{}, fakeTagger, fakeCompression, fakeHostname)
+	_, _, tracingCtx, metricAgent, _, _, _ := setup(secretsmock.New(t), mode.Conf{}, fakeTagger, fakeCompression, fakeHostname)
 	defer tracingCtx.TraceAgent.Stop()
 	defer metricAgent.Stop()
 	assert.Subset(t, metricAgent.GetExtraTags(), allTags)

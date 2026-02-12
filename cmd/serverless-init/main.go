@@ -101,18 +101,23 @@ func main() {
 
 // removing these unused dependencies will cause silent crash due to fx framework
 func run(secretComp secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) error {
-	cloudService, logConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector := setup(secretComp, modeConf, tagger, compression, hostname)
+	cloudService, logConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, collectorCancel := setup(secretComp, modeConf, tagger, compression, hostname)
 
 	err := modeConf.Runner(logConfig)
 
 	// Defers are LIFO. We want to run the cloud service shutdown logic before last flush.
 	defer lastFlush(logConfig.FlushTimeout, metricAgent, tracingCtx.TraceAgent, logsAgent)
-	defer cloudService.Shutdown(*metricAgent, enhancedMetricsCollector, err)
+	defer func() {
+		if collectorCancel != nil {
+			collectorCancel()
+		}
+		cloudService.Shutdown(*metricAgent, enhancedMetricsCollector, err)
+	}()
 
 	return err
 }
 
-func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (cloudservice.CloudService, *serverlessInitLog.Config, *cloudservice.TracingContext, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent, *collector.Collector) {
+func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (cloudservice.CloudService, *serverlessInitLog.Config, *cloudservice.TracingContext, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent, *collector.Collector, context.CancelFunc) {
 	tracelog.SetLogger(log.NewWrapper(3))
 
 	// load proxy settings
@@ -168,19 +173,21 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 	setupOtlpAgent(metricAgent, tagger)
 
 	var enhancedMetricsCollector *collector.Collector
+	var collectorCancel context.CancelFunc
 	if modeConf.Mode == mode.ModeInit {
 		var err error
 		enhancedMetricsCollector, err = collector.NewCollector(metricAgent, cloudService.GetSource(), cloudService.GetMetricPrefix())
 		if err != nil {
 			log.Warnf("Failed to initialize enhanced metrics collector: %v", err)
 		} else {
-			ctx, _ := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(context.Background())
+			collectorCancel = cancel
 			go enhancedMetricsCollector.Start(ctx)
 		}
 	}
 
 	go flushMetricsAgent(metricAgent)
-	return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector
+	return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, collectorCancel
 }
 
 var serverlessProfileTags = []string{
