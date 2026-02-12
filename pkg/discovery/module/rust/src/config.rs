@@ -1158,7 +1158,10 @@ system_probe_config:
 "#;
             let config_file = create_test_config(yaml);
             let config = load_config(Some(config_file.path().to_path_buf()));
-            assert_eq!(determine_action(&config), FallbackDecision::FallbackToSystemProbe);
+            assert_eq!(
+                determine_action(&config),
+                FallbackDecision::FallbackToSystemProbe
+            );
         });
     }
 
@@ -1173,7 +1176,10 @@ system_probe_config:
 "#;
             let config_file = create_test_config(yaml);
             let config = load_config(Some(config_file.path().to_path_buf()));
-            assert_eq!(determine_action(&config), FallbackDecision::FallbackToSystemProbe);
+            assert_eq!(
+                determine_action(&config),
+                FallbackDecision::FallbackToSystemProbe
+            );
         });
     }
 
@@ -1242,7 +1248,10 @@ system_probe_config:
 "#;
             let config_file = create_test_config(yaml);
             let config = load_config(Some(config_file.path().to_path_buf()));
-            assert_eq!(determine_action(&config), FallbackDecision::FallbackToSystemProbe);
+            assert_eq!(
+                determine_action(&config),
+                FallbackDecision::FallbackToSystemProbe
+            );
         });
     }
 
@@ -1276,7 +1285,10 @@ event_monitoring_config:
 "#;
             let config_file = create_test_config(yaml);
             let config = load_config(Some(config_file.path().to_path_buf()));
-            assert_eq!(determine_action(&config), FallbackDecision::FallbackToSystemProbe);
+            assert_eq!(
+                determine_action(&config),
+                FallbackDecision::FallbackToSystemProbe
+            );
         });
     }
 
@@ -1292,7 +1304,10 @@ event_monitoring_config:
 "#;
             let config_file = create_test_config(yaml);
             let config = load_config(Some(config_file.path().to_path_buf()));
-            assert_eq!(determine_action(&config), FallbackDecision::FallbackToSystemProbe);
+            assert_eq!(
+                determine_action(&config),
+                FallbackDecision::FallbackToSystemProbe
+            );
         });
     }
 
