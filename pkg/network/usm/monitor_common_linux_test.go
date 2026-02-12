@@ -8,6 +8,7 @@
 package usm
 
 import (
+	nethttp "net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -22,6 +23,12 @@ import (
 	tracetestutil "github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
+)
+
+// Linux eBPF supports all standard HTTP methods.
+var (
+	httpMethods         = []string{nethttp.MethodGet, nethttp.MethodHead, nethttp.MethodPost, nethttp.MethodPut, nethttp.MethodPatch, nethttp.MethodDelete, nethttp.MethodOptions, nethttp.MethodTrace}
+	httpMethodsWithBody = []string{nethttp.MethodPost, nethttp.MethodPut, nethttp.MethodPatch, nethttp.MethodDelete}
 )
 
 // linuxMonitorAdapter wraps the Linux Monitor to implement TestMonitor interface.

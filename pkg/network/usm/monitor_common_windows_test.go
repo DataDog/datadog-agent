@@ -8,6 +8,7 @@
 package usm
 
 import (
+	nethttp "net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -16,6 +17,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	tracetestutil "github.com/DataDog/datadog-agent/pkg/trace/testutil"
+)
+
+// Windows ETW maps TRACE, CONNECT, PATCH and several other methods to MethodUnknown,
+// which causes them to be silently dropped by the statkeeper (see etw_http_service_defs.go).
+// Only include methods that ETW actually supports.
+var (
+	httpMethods         = []string{nethttp.MethodGet, nethttp.MethodHead, nethttp.MethodPost, nethttp.MethodPut, nethttp.MethodDelete, nethttp.MethodOptions}
+	httpMethodsWithBody = []string{nethttp.MethodPost, nethttp.MethodPut, nethttp.MethodDelete}
 )
 
 // windowsMonitorAdapter wraps the Windows Monitor to implement TestMonitor interface.
