@@ -133,7 +133,7 @@ func (m *mockLogsStream) setSendError(err error) {
 }
 
 // Helper to send an ack to the client
-func (m *mockLogsStream) sendAck(batchID int32) {
+func (m *mockLogsStream) sendAck(batchID uint32) {
 	m.recvCh <- &statefulpb.BatchStatus{
 		BatchId: batchID,
 	}

@@ -208,7 +208,7 @@ func (s *Sender) createConnection() error {
 	opts = append(opts, grpc.WithKeepaliveParams(keepaliveParams))
 
 	// Add user agent
-	userAgent := fmt.Sprintf("datadog-agent/%s", version.AgentVersion)
+	userAgent := "datadog-agent/" + version.AgentVersion
 	opts = append(opts, grpc.WithUserAgent(userAgent))
 
 	// Add headers via per-RPC credentials
