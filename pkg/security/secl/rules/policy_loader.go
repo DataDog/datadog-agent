@@ -44,10 +44,10 @@ type PolicyLoader struct {
 
 	Providers []PolicyProvider
 
-	listeners      []chan PolicyReloadNotification
-	debouncer      *debouncer.Debouncer
-	pendingSilent  bool
-	silentLock     sync.Mutex
+	listeners     []chan PolicyReloadNotification
+	debouncer     *debouncer.Debouncer
+	pendingSilent bool
+	silentLock    sync.Mutex
 }
 
 // LoadPolicies gathers the policies in the correct precedence order and ensuring there's only 1 default policy.

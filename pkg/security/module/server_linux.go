@@ -9,7 +9,6 @@ package module
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -341,10 +340,6 @@ func (a *APIServer) GetSBOMStream(_ *sbompb.SBOMStreamParams, stream sbompb.SBOM
 			seclog.Debugf("received SBOM for %s, forwarding to core agent", sbom.RequestID)
 
 			bom := sbom.Report.ToCycloneDX()
-
-			if jsonBytes, err := json.MarshalIndent(bom, "", "  "); err == nil {
-				os.WriteFile("/tmp/sbom-forward-"+sbom.RequestID+".json", jsonBytes, 0666)
-			}
 
 			data, err := proto.Marshal(bom)
 			if err != nil {
