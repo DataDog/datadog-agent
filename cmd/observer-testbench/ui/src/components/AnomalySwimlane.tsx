@@ -122,24 +122,43 @@ export function AnomalySwimlane({
       .domain([tMin * 1000, tMax * 1000])
       .range([0, innerWidth]);
 
+    // Precompute group coverage: for each group, store members set + time range
+    const groupCoverage = compressedGroups
+      .filter((g) => g.firstSeen != null && g.lastUpdated != null && g.firstSeen > 0)
+      .map((g) => ({
+        members: new Set(g.memberSources),
+        t0: g.firstSeen!,
+        t1: g.lastUpdated!,
+      }));
+
+    const isCovered = (sid: string | undefined, ts: number): boolean => {
+      if (!sid) return false;
+      for (const g of groupCoverage) {
+        if (ts >= g.t0 && ts <= g.t1 && g.members.has(sid)) return true;
+      }
+      return false;
+    };
+
     // Draw anomaly marks (always dense), tagged for hover highlighting
     for (const anomaly of anomalies) {
       const y = rowY.get(anomaly.source);
       if (y == null) continue;
       const x = xScale(anomaly.timestamp * 1000);
       const color = getAnalyzerColor(anomaly.analyzerName);
+      const covered = isCovered(anomaly.sourceSeriesId, anomaly.timestamp);
 
+      const baseOpacity = covered ? 0.3 : 0.9;
       g.append('rect')
         .attr('class', 'anomaly-dot')
         .attr('data-sid', anomaly.sourceSeriesId ?? '')
         .attr('data-ts', anomaly.timestamp)
-        .attr('data-color', color)
+        .attr('data-base-opacity', baseOpacity)
         .attr('x', x - 1.5)
         .attr('y', y)
         .attr('width', 3)
         .attr('height', DENSE_ROW_HEIGHT)
         .attr('fill', color)
-        .attr('opacity', 0.85)
+        .attr('opacity', baseOpacity)
         .attr('rx', 0.5);
     }
 
@@ -191,7 +210,10 @@ export function AnomalySwimlane({
       });
     };
     const resetHighlight = () => {
-      g.selectAll('.anomaly-dot').attr('opacity', 0.85);
+      g.selectAll('.anomaly-dot').each(function () {
+        const el = d3.select(this);
+        el.attr('opacity', el.attr('data-base-opacity'));
+      });
     };
 
     // Draw annotation lane bars

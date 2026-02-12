@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
@@ -147,7 +148,7 @@ func (c *SurpriseCorrelator) Process(anomaly observer.AnomalyOutput) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	source := anomaly.Source
+	source := anomaly.SourceSeriesID
 	ts := anomaly.Timestamp
 
 	// Update current data time
@@ -196,7 +197,7 @@ func (c *SurpriseCorrelator) finalizeWindow() {
 	if len(c.pairCounts) < c.config.MaxPairsTracked {
 		for i := 0; i < len(sources); i++ {
 			for j := i + 1; j < len(sources); j++ {
-				pairKey := sources[i] + "|" + sources[j]
+				pairKey := sources[i] + "<>" + sources[j]
 				c.pairCounts[pairKey]++
 			}
 		}
@@ -255,13 +256,9 @@ func (c *SurpriseCorrelator) GetEdges() []SurpriseEdge {
 		}
 
 		// Parse pair key
-		var source1, source2 string
-		for i, ch := range pairKey {
-			if ch == '|' {
-				source1 = pairKey[:i]
-				source2 = pairKey[i+1:]
-				break
-			}
+		source1, source2, ok := strings.Cut(pairKey, "<>")
+		if !ok {
+			continue
 		}
 
 		count1, ok1 := c.sourceCounts[source1]
@@ -332,7 +329,7 @@ func (c *SurpriseCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
 	// Group anomalies by source for quick lookup
 	anomaliesBySource := make(map[string][]observer.AnomalyOutput)
 	for _, a := range c.recentAnomalies {
-		anomaliesBySource[a.Source] = append(anomaliesBySource[a.Source], a)
+		anomaliesBySource[a.SourceSeriesID] = append(anomaliesBySource[a.SourceSeriesID], a)
 	}
 
 	// Create a correlation for each significant surprise pattern

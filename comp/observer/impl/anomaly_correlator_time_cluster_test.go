@@ -22,21 +22,23 @@ func TestTimeClusterCorrelator_BasicClustering(t *testing.T) {
 
 	// Two anomalies with nearby timestamps should cluster together
 	c.Process(observer.AnomalyOutput{
-		Source:    "metric.a",
-		Title:     "Anomaly A",
-		Timestamp: 100,
+		Source:         "metric.a",
+		SourceSeriesID: "ns|metric.a|",
+		Title:          "Anomaly A",
+		Timestamp:      100,
 	})
 	c.Process(observer.AnomalyOutput{
-		Source:    "metric.b",
-		Title:     "Anomaly B",
-		Timestamp: 105, // 5 seconds later, within 10s proximity
+		Source:         "metric.b",
+		SourceSeriesID: "ns|metric.b|",
+		Title:          "Anomaly B",
+		Timestamp:      105, // 5 seconds later, within 10s proximity
 	})
 
 	correlations := c.ActiveCorrelations()
 	require.Len(t, correlations, 1)
 	assert.Len(t, correlations[0].Anomalies, 2)
-	assert.Contains(t, correlations[0].SourceNames, "metric.a")
-	assert.Contains(t, correlations[0].SourceNames, "metric.b")
+	assert.Contains(t, correlations[0].SourceNames, "ns|metric.a|")
+	assert.Contains(t, correlations[0].SourceNames, "ns|metric.b|")
 }
 
 func TestTimeClusterCorrelator_ProximityWindow(t *testing.T) {
@@ -48,14 +50,16 @@ func TestTimeClusterCorrelator_ProximityWindow(t *testing.T) {
 
 	// Anomalies within proximity window should cluster
 	c.Process(observer.AnomalyOutput{
-		Source:    "metric.a",
-		Title:     "Anomaly A",
-		Timestamp: 100,
+		Source:         "metric.a",
+		SourceSeriesID: "ns|metric.a|",
+		Title:          "Anomaly A",
+		Timestamp:      100,
 	})
 	c.Process(observer.AnomalyOutput{
-		Source:    "metric.b",
-		Title:     "Anomaly B",
-		Timestamp: 108, // 8 seconds later, within 10s proximity
+		Source:         "metric.b",
+		SourceSeriesID: "ns|metric.b|",
+		Title:          "Anomaly B",
+		Timestamp:      108, // 8 seconds later, within 10s proximity
 	})
 
 	correlations := c.ActiveCorrelations()
@@ -72,14 +76,16 @@ func TestTimeClusterCorrelator_NotNearby(t *testing.T) {
 
 	// Anomalies outside proximity window should NOT cluster
 	c.Process(observer.AnomalyOutput{
-		Source:    "metric.a",
-		Title:     "Anomaly A",
-		Timestamp: 100,
+		Source:         "metric.a",
+		SourceSeriesID: "ns|metric.a|",
+		Title:          "Anomaly A",
+		Timestamp:      100,
 	})
 	c.Process(observer.AnomalyOutput{
-		Source:    "metric.b",
-		Title:     "Anomaly B",
-		Timestamp: 150, // 50 seconds later, outside 10s proximity
+		Source:         "metric.b",
+		SourceSeriesID: "ns|metric.b|",
+		Title:          "Anomaly B",
+		Timestamp:      150, // 50 seconds later, outside 10s proximity
 	})
 
 	correlations := c.ActiveCorrelations()
@@ -96,28 +102,27 @@ func TestTimeClusterCorrelator_MergeClusters(t *testing.T) {
 
 	// Create two separate clusters
 	c.Process(observer.AnomalyOutput{
-		Source:    "metric.a",
-		Title:     "Anomaly A",
-		Timestamp: 100,
+		Source:         "metric.a",
+		SourceSeriesID: "ns|metric.a|",
+		Title:          "Anomaly A",
+		Timestamp:      100,
 	})
 	c.Process(observer.AnomalyOutput{
-		Source:    "metric.b",
-		Title:     "Anomaly B",
-		Timestamp: 120, // Far enough to be separate (20s apart)
+		Source:         "metric.b",
+		SourceSeriesID: "ns|metric.b|",
+		Title:          "Anomaly B",
+		Timestamp:      120, // Far enough to be separate (20s apart)
 	})
 
 	// Verify two separate clusters
 	assert.Len(t, c.clusters, 2)
 
 	// Add anomaly that bridges both clusters
-	// Cluster A is at [100,100], cluster B is at [120,120]
-	// An anomaly at 110 is:
-	//   - Within 10s of cluster A: 110 >= 100-10=90 AND 110 <= 100+10=110 ✓
-	//   - Within 10s of cluster B: 110 >= 120-10=110 AND 110 <= 120+10=130 ✓
 	c.Process(observer.AnomalyOutput{
-		Source:    "metric.c",
-		Title:     "Anomaly C",
-		Timestamp: 110, // Near both clusters
+		Source:         "metric.c",
+		SourceSeriesID: "ns|metric.c|",
+		Title:          "Anomaly C",
+		Timestamp:      110, // Near both clusters
 	})
 
 	// Should now be merged into one cluster
@@ -127,31 +132,62 @@ func TestTimeClusterCorrelator_MergeClusters(t *testing.T) {
 	assert.Len(t, correlations[0].Anomalies, 3)
 }
 
-func TestTimeClusterCorrelator_DedupBySource(t *testing.T) {
+func TestTimeClusterCorrelator_DedupBySeriesID(t *testing.T) {
 	c := NewTimeClusterCorrelator(TimeClusterConfig{
 		ProximitySeconds: 10,
 		MinClusterSize:   1, // Lower threshold to see single-anomaly clusters
 		WindowSeconds:    60,
 	})
 
-	// Same source, later anomaly should replace earlier
+	// Same SourceSeriesID, later anomaly should replace earlier
 	c.Process(observer.AnomalyOutput{
-		Source:      "metric.a",
-		Title:       "Anomaly A v1",
-		Description: "first",
-		Timestamp:   100,
+		Source:         "metric.a",
+		SourceSeriesID: "ns|metric.a|",
+		Title:          "Anomaly A v1",
+		Description:    "first",
+		Timestamp:      100,
 	})
 	c.Process(observer.AnomalyOutput{
-		Source:      "metric.a",
-		Title:       "Anomaly A v2",
-		Description: "second",
-		Timestamp:   105, // Later timestamp, should replace
+		Source:         "metric.a",
+		SourceSeriesID: "ns|metric.a|",
+		Title:          "Anomaly A v2",
+		Description:    "second",
+		Timestamp:      105, // Later timestamp, should replace
 	})
 
 	correlations := c.ActiveCorrelations()
 	require.Len(t, correlations, 1)
 	assert.Len(t, correlations[0].Anomalies, 1)
 	assert.Equal(t, "second", correlations[0].Anomalies[0].Description)
+}
+
+func TestTimeClusterCorrelator_TaggedVariants(t *testing.T) {
+	c := NewTimeClusterCorrelator(TimeClusterConfig{
+		ProximitySeconds: 10,
+		MinClusterSize:   2,
+		WindowSeconds:    60,
+	})
+
+	// Same metric name, different tags = different SourceSeriesIDs
+	// Both should be separate members in the cluster
+	c.Process(observer.AnomalyOutput{
+		Source:         "metric.a",
+		SourceSeriesID: "ns|metric.a|host:A",
+		Title:          "Anomaly from host A",
+		Timestamp:      100,
+	})
+	c.Process(observer.AnomalyOutput{
+		Source:         "metric.a",
+		SourceSeriesID: "ns|metric.a|host:B",
+		Title:          "Anomaly from host B",
+		Timestamp:      102,
+	})
+
+	correlations := c.ActiveCorrelations()
+	require.Len(t, correlations, 1)
+	assert.Len(t, correlations[0].Anomalies, 2)
+	assert.Contains(t, correlations[0].SourceNames, "ns|metric.a|host:A")
+	assert.Contains(t, correlations[0].SourceNames, "ns|metric.a|host:B")
 }
 
 func TestTimeClusterCorrelator_Eviction(t *testing.T) {
@@ -163,16 +199,18 @@ func TestTimeClusterCorrelator_Eviction(t *testing.T) {
 
 	// Add old anomaly
 	c.Process(observer.AnomalyOutput{
-		Source:    "metric.old",
-		Title:     "Old Anomaly",
-		Timestamp: 100,
+		Source:         "metric.old",
+		SourceSeriesID: "ns|metric.old|",
+		Title:          "Old Anomaly",
+		Timestamp:      100,
 	})
 
 	// Add recent anomaly (advances currentDataTime)
 	c.Process(observer.AnomalyOutput{
-		Source:    "metric.new",
-		Title:     "New Anomaly",
-		Timestamp: 200, // 100 seconds later, old one should be evicted
+		Source:         "metric.new",
+		SourceSeriesID: "ns|metric.new|",
+		Title:          "New Anomaly",
+		Timestamp:      200, // 100 seconds later, old one should be evicted
 	})
 
 	// Flush should evict the old cluster
@@ -180,7 +218,7 @@ func TestTimeClusterCorrelator_Eviction(t *testing.T) {
 
 	correlations := c.ActiveCorrelations()
 	require.Len(t, correlations, 1)
-	assert.Equal(t, "metric.new", correlations[0].SourceNames[0])
+	assert.Equal(t, "ns|metric.new|", correlations[0].SourceNames[0])
 }
 
 func TestTimeClusterCorrelator_MinClusterSize(t *testing.T) {
@@ -192,12 +230,14 @@ func TestTimeClusterCorrelator_MinClusterSize(t *testing.T) {
 
 	// Add 2 nearby anomalies
 	c.Process(observer.AnomalyOutput{
-		Source:    "metric.a",
-		Timestamp: 100,
+		Source:         "metric.a",
+		SourceSeriesID: "ns|metric.a|",
+		Timestamp:      100,
 	})
 	c.Process(observer.AnomalyOutput{
-		Source:    "metric.b",
-		Timestamp: 105,
+		Source:         "metric.b",
+		SourceSeriesID: "ns|metric.b|",
+		Timestamp:      105,
 	})
 
 	// Should not report - only 2 anomalies, need 3
@@ -206,8 +246,9 @@ func TestTimeClusterCorrelator_MinClusterSize(t *testing.T) {
 
 	// Add third
 	c.Process(observer.AnomalyOutput{
-		Source:    "metric.c",
-		Timestamp: 108,
+		Source:         "metric.c",
+		SourceSeriesID: "ns|metric.c|",
+		Timestamp:      108,
 	})
 
 	// Now should report

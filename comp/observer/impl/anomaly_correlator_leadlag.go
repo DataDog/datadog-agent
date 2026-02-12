@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 	"sync"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
@@ -255,7 +256,7 @@ func (c *LeadLagCorrelator) Process(anomaly observer.AnomalyOutput) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	source := anomaly.Source
+	source := anomaly.SourceSeriesID
 	ts := anomaly.Timestamp
 
 	// Update current data time
@@ -311,11 +312,12 @@ func (c *LeadLagCorrelator) Process(anomaly observer.AnomalyOutput) {
 }
 
 // pairKey returns a consistent key for a source pair (alphabetically ordered).
+// Uses "<>" as the separator to avoid ambiguity with "|" inside SourceSeriesIDs.
 func (c *LeadLagCorrelator) pairKey(a, b string) string {
 	if a < b {
-		return a + "|" + b
+		return a + "<>" + b
 	}
-	return b + "|" + a
+	return b + "<>" + a
 }
 
 // Flush evicts old data and returns empty (reporters pull state via ActiveCorrelations).
@@ -360,13 +362,9 @@ func (c *LeadLagCorrelator) GetEdges() []LeadLagEdge {
 		}
 
 		// Parse pair key
-		var sourceA, sourceB string
-		for i, ch := range pairKey {
-			if ch == '|' {
-				sourceA = pairKey[:i]
-				sourceB = pairKey[i+1:]
-				break
-			}
+		sourceA, sourceB, ok := strings.Cut(pairKey, "<>")
+		if !ok {
+			continue
 		}
 
 		leader, typicalLag, confidence := histogram.Analyze()
@@ -418,7 +416,7 @@ func (c *LeadLagCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
 	// Group anomalies by source for quick lookup
 	anomaliesBySource := make(map[string][]observer.AnomalyOutput)
 	for _, a := range c.recentAnomalies {
-		anomaliesBySource[a.Source] = append(anomaliesBySource[a.Source], a)
+		anomaliesBySource[a.SourceSeriesID] = append(anomaliesBySource[a.SourceSeriesID], a)
 	}
 
 	// Create a correlation for each significant lead-lag chain

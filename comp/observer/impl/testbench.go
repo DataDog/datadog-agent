@@ -538,7 +538,7 @@ func (tb *TestBench) rerunAnalysesLocked() {
 
 						// Apply deduplication if enabled
 						if dedup != nil {
-							if !dedup.ShouldProcess(anomaly.Source, anomaly.Timestamp) {
+							if !dedup.ShouldProcess(anomaly.SourceSeriesID, anomaly.Timestamp) {
 								continue
 							}
 						}

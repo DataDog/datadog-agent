@@ -41,7 +41,7 @@ func DefaultTimeClusterConfig() TimeClusterConfig {
 // timeCluster represents a group of temporally-related anomalies.
 type timeCluster struct {
 	id           int
-	anomalies    map[string]observer.AnomalyOutput // keyed by Source for dedup
+	anomalies    map[string]observer.AnomalyOutput // keyed by SourceSeriesID for dedup
 	minTimestamp int64                             // earliest anomaly timestamp
 	maxTimestamp int64                             // latest anomaly timestamp
 }
@@ -101,7 +101,7 @@ func (c *TimeClusterCorrelator) Process(anomaly observer.AnomalyOutput) {
 		c.nextClusterID++
 		newCluster := &timeCluster{
 			id:           c.nextClusterID,
-			anomalies:    map[string]observer.AnomalyOutput{anomaly.Source: anomaly},
+			anomalies:    map[string]observer.AnomalyOutput{anomaly.SourceSeriesID: anomaly},
 			minTimestamp: anomaly.Timestamp,
 			maxTimestamp: anomaly.Timestamp,
 		}
@@ -124,15 +124,15 @@ func (c *TimeClusterCorrelator) isNearCluster(ts int64, cluster *timeCluster) bo
 	return ts >= cluster.minTimestamp-proximity && ts <= cluster.maxTimestamp+proximity
 }
 
-// addToCluster adds an anomaly to a cluster, updating timestamps and deduping by source.
+// addToCluster adds an anomaly to a cluster, updating timestamps and deduping by series ID.
 func (c *TimeClusterCorrelator) addToCluster(cluster *timeCluster, anomaly observer.AnomalyOutput) {
-	// Dedup by source - keep the one with later timestamp (more recent)
-	if existing, ok := cluster.anomalies[anomaly.Source]; ok {
+	// Dedup by SourceSeriesID - keep the one with later timestamp (more recent)
+	if existing, ok := cluster.anomalies[anomaly.SourceSeriesID]; ok {
 		if anomaly.Timestamp > existing.Timestamp {
-			cluster.anomalies[anomaly.Source] = anomaly
+			cluster.anomalies[anomaly.SourceSeriesID] = anomaly
 		}
 	} else {
-		cluster.anomalies[anomaly.Source] = anomaly
+		cluster.anomalies[anomaly.SourceSeriesID] = anomaly
 	}
 
 	// Expand cluster timestamp range
@@ -155,13 +155,13 @@ func (c *TimeClusterCorrelator) mergeClusters(clusters []*timeCluster) *timeClus
 
 	// Merge others into it
 	for _, other := range clusters[1:] {
-		for source, anomaly := range other.anomalies {
-			if existing, ok := merged.anomalies[source]; ok {
+		for sid, anomaly := range other.anomalies {
+			if existing, ok := merged.anomalies[sid]; ok {
 				if anomaly.Timestamp > existing.Timestamp {
-					merged.anomalies[source] = anomaly
+					merged.anomalies[sid] = anomaly
 				}
 			} else {
-				merged.anomalies[source] = anomaly
+				merged.anomalies[sid] = anomaly
 			}
 		}
 		// Expand timestamp range

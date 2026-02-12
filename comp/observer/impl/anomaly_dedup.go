@@ -170,9 +170,9 @@ func NewAnomalyDeduplicator(config AnomalyDedupConfig) *AnomalyDeduplicator {
 
 // ShouldProcess returns true if this anomaly should be processed (not a duplicate).
 // It also adds the anomaly to the filter, so subsequent calls with the same
-// source+time bucket will return false.
-func (d *AnomalyDeduplicator) ShouldProcess(source string, timestamp int64) bool {
-	key := fmt.Sprintf("%s|%d", source, timestamp/d.bucketSizeSeconds)
+// seriesID+time bucket will return false.
+func (d *AnomalyDeduplicator) ShouldProcess(seriesID string, timestamp int64) bool {
+	key := fmt.Sprintf("%s|%d", seriesID, timestamp/d.bucketSizeSeconds)
 
 	d.mu.Lock()
 	d.totalSeen++

@@ -79,7 +79,7 @@ var defaultRegistry = []ComponentRegistration{
 		Name:           "lead_lag",
 		DisplayName:    "Lead-Lag",
 		Category:       "correlator",
-		DefaultEnabled: true,
+		DefaultEnabled: false,
 		Factory: func(_ *TestBench) interface{} {
 			return NewLeadLagCorrelator(LeadLagConfig{
 				MaxLagSeconds:       30,
@@ -93,7 +93,7 @@ var defaultRegistry = []ComponentRegistration{
 		Name:           "surprise",
 		DisplayName:    "Surprise",
 		Category:       "correlator",
-		DefaultEnabled: true,
+		DefaultEnabled: false,
 		Factory: func(_ *TestBench) interface{} {
 			return NewSurpriseCorrelator(SurpriseConfig{
 				WindowSizeSeconds: 10,

@@ -389,6 +389,8 @@ func (o *observerImpl) runTSAnalyses(series observerdef.Series, agg Aggregate) {
 		for _, anomaly := range result.Anomalies {
 			// Set the analyzer name so we can identify who produced this anomaly
 			anomaly.AnalyzerName = tsAnalysis.Name()
+			anomaly.Source = seriesWithAgg.Name
+			anomaly.SourceSeriesID = seriesKey(series.Namespace, seriesWithAgg.Name, series.Tags)
 			// Capture raw anomaly before passing to processors
 			o.captureRawAnomaly(anomaly)
 			o.processAnomaly(anomaly)
@@ -409,6 +411,7 @@ func (o *observerImpl) runSignalEmitters(series observerdef.Series, agg Aggregat
 		for _, signal := range signals {
 			// Convert signal to anomaly and send to correlators
 			anomaly := o.signalToAnomaly(signal, emitter.Name())
+			anomaly.SourceSeriesID = seriesKey(series.Namespace, seriesWithAgg.Name, series.Tags)
 			o.captureRawAnomaly(anomaly) // For UI display
 			o.processAnomaly(anomaly)    // Send to correlators (GraphSketchCorrelator, etc.)
 
@@ -473,7 +476,7 @@ func (o *observerImpl) processAnomaly(anomaly observerdef.AnomalyOutput) {
 		if ts == 0 {
 			ts = anomaly.TimeRange.End
 		}
-		if !o.deduplicator.ShouldProcess(anomaly.Source, ts) {
+		if !o.deduplicator.ShouldProcess(anomaly.SourceSeriesID, ts) {
 			o.dedupSkipped++
 			return // Duplicate, skip
 		}
@@ -504,11 +507,11 @@ func (o *observerImpl) captureRawAnomaly(anomaly observerdef.AnomalyOutput) {
 		o.currentDataTime = anomaly.Timestamp
 	}
 
-	// Deduplicate by Source+AnalyzerName+Timestamp (keep all unique anomalies)
-	key := fmt.Sprintf("%s|%s|%d", anomaly.Source, anomaly.AnalyzerName, anomaly.TimeRange.End)
+	// Deduplicate by SourceSeriesID+AnalyzerName+Timestamp (keep all unique anomalies)
+	key := fmt.Sprintf("%s|%s|%d", anomaly.SourceSeriesID, anomaly.AnalyzerName, anomaly.TimeRange.End)
 	found := false
 	for i, existing := range o.rawAnomalies {
-		existingKey := fmt.Sprintf("%s|%s|%d", existing.Source, existing.AnalyzerName, existing.TimeRange.End)
+		existingKey := fmt.Sprintf("%s|%s|%d", existing.SourceSeriesID, existing.AnalyzerName, existing.TimeRange.End)
 		if existingKey == key {
 			if anomaly.Timestamp > existing.Timestamp {
 				o.rawAnomalies[i] = anomaly

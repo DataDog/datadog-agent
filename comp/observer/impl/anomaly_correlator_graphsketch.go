@@ -10,6 +10,7 @@ import (
 	"hash/fnv"
 	"math"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -108,7 +109,7 @@ type EdgeInfo struct {
 // graphCluster represents a group of anomalies with strong co-occurrence.
 type graphCluster struct {
 	id        int
-	anomalies map[string]observer.AnomalyOutput // keyed by Source for dedup
+	anomalies map[string]observer.AnomalyOutput // keyed by SourceSeriesID for dedup
 	timeRange observer.TimeRange
 	strength  float64 // Average edge strength within cluster
 }
@@ -222,7 +223,7 @@ func (g *GraphSketchCorrelator) Process(anomaly observer.AnomalyOutput) {
 	g.anomalyBuffer = append(g.anomalyBuffer, anomaly)
 
 	// Track unique sources
-	g.uniqueSources[anomaly.Source] = true
+	g.uniqueSources[anomaly.SourceSeriesID] = true
 
 	// Find co-occurring anomalies
 	coOccurring := g.findCoOccurring(anomaly)
@@ -232,10 +233,10 @@ func (g *GraphSketchCorrelator) Process(anomaly observer.AnomalyOutput) {
 	g.advanceTimeBin(timeBin)
 
 	for _, other := range coOccurring {
-		if anomaly.Source == other.Source {
+		if anomaly.SourceSeriesID == other.SourceSeriesID {
 			continue
 		}
-		edgeKey := g.canonicalEdge(anomaly.Source, other.Source)
+		edgeKey := g.canonicalEdge(anomaly.SourceSeriesID, other.SourceSeriesID)
 		g.updateTensorSketch(edgeKey, timeBin)
 
 		// Track first seen - this is a NEW edge
@@ -288,12 +289,13 @@ func (g *GraphSketchCorrelator) pruneBufferLocked() {
 	g.anomalyBuffer = newBuffer
 }
 
-// canonicalEdge returns a canonical key for an edge (source1|source2)
+// canonicalEdge returns a canonical key for an edge (source1<>source2).
+// Uses "<>" as the separator to avoid ambiguity with "|" inside SourceSeriesIDs.
 func (g *GraphSketchCorrelator) canonicalEdge(s1, s2 string) string {
 	if s1 < s2 {
-		return s1 + "|" + s2
+		return s1 + "<>" + s2
 	}
-	return s2 + "|" + s1
+	return s2 + "<>" + s1
 }
 
 // advanceTimeBin advances to a new time bin, managing the ring buffer.
@@ -392,7 +394,7 @@ func (g *GraphSketchCorrelator) clusterAnomaly(anomaly observer.AnomalyOutput) {
 	var candidateClusters []*graphCluster
 	for _, cluster := range g.clusters {
 		for sourceInCluster := range cluster.anomalies {
-			edgeKey := g.canonicalEdge(anomaly.Source, sourceInCluster)
+			edgeKey := g.canonicalEdge(anomaly.SourceSeriesID, sourceInCluster)
 			if g.queryEdgeFrequency(edgeKey) >= g.config.MinCorrelationStrength {
 				candidateClusters = append(candidateClusters, cluster)
 				break
@@ -421,13 +423,13 @@ func (g *GraphSketchCorrelator) clusterAnomaly(anomaly observer.AnomalyOutput) {
 // Deduplicates by source, keeping the most recent anomaly.
 func (g *GraphSketchCorrelator) addToCluster(cluster *graphCluster, anomaly observer.AnomalyOutput) {
 	anomalyTime := getAnomalyTime(anomaly)
-	if existing, exists := cluster.anomalies[anomaly.Source]; exists {
-		// Keep the more recent anomaly from the same source
+	if existing, exists := cluster.anomalies[anomaly.SourceSeriesID]; exists {
+		// Keep the more recent anomaly from the same series
 		if anomalyTime <= getAnomalyTime(existing) {
 			return
 		}
 	}
-	cluster.anomalies[anomaly.Source] = anomaly
+	cluster.anomalies[anomaly.SourceSeriesID] = anomaly
 	if anomalyTime < cluster.timeRange.Start || cluster.timeRange.Start == 0 {
 		cluster.timeRange.Start = anomalyTime
 	}
@@ -548,9 +550,9 @@ func (g *GraphSketchCorrelator) ActiveCorrelations() []observer.ActiveCorrelatio
 		// Collect anomalies and sources
 		anomalies := make([]observer.AnomalyOutput, 0, len(cluster.anomalies))
 		sources := make([]string, 0, len(cluster.anomalies))
-		for source, anomaly := range cluster.anomalies {
+		for seriesID, anomaly := range cluster.anomalies {
 			anomalies = append(anomalies, anomaly)
-			sources = append(sources, source)
+			sources = append(sources, seriesID)
 		}
 		sort.Strings(sources)
 
@@ -611,10 +613,8 @@ func (g *GraphSketchCorrelator) buildClusterTitle(cluster *graphCluster, sources
 
 // splitEdge splits an edge key back into its component sources.
 func (g *GraphSketchCorrelator) splitEdge(edgeKey string) []string {
-	for i := 0; i < len(edgeKey); i++ {
-		if edgeKey[i] == '|' {
-			return []string{edgeKey[:i], edgeKey[i+1:]}
-		}
+	if a, b, ok := strings.Cut(edgeKey, "<>"); ok {
+		return []string{a, b}
 	}
 	return nil
 }
