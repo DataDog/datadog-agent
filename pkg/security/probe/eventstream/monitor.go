@@ -612,8 +612,8 @@ func (pbm *Monitor) collectAndSendKernelStats(client statsd.ClientInterface) err
 
 			// retrieve event type from key
 			evtType := model.EventType(id % uint32(model.MaxKernelEventType))
-			tags[2] = fmt.Sprintf("event_type:%s", evtType)
-			tags[3] = fmt.Sprintf("category:%s", model.GetEventTypeCategory(evtType.String()))
+			tags[2] = "event_type:" + evtType.String()
+			tags[3] = "category:" + model.GetEventTypeCategory(evtType.String()).String()
 
 			// loop over each cpu entry
 			for cpu, stats := range perCPUMapStats {
