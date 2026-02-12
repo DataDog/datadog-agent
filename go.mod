@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.25.5
+go 1.25.6
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -54,7 +54,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/comp/core/secrets/fx v0.70.0-rc.6
 	github.com/DataDog/datadog-agent/comp/core/secrets/mock v0.72.0-rc.1
-	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.76.0-rc.4
+	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/comp/core/status v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl v0.69.4
 	github.com/DataDog/datadog-agent/comp/core/tagger/def v0.76.0-rc.4
@@ -73,7 +73,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.64.0
+	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/impl v0.58.0
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def v0.59.0-rc.6
@@ -91,15 +91,15 @@ require (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/api v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.76.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/config/basic v0.76.0-devel // indirect
+	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-20260211235139-a5361978c2b6 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.76.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/config/env v0.76.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/config/env v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/config/model v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/config/remote v0.59.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.76.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/config/structure v0.76.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.77.0-devel.0.20260211235139-a5361978c2b6
+	github.com/DataDog/datadog-agent/pkg/config/structure v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/errors v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/fips v0.76.0-rc.4
@@ -121,12 +121,12 @@ require (
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.76.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.76.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/proto v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.56.0
 	github.com/DataDog/datadog-agent/pkg/security/seclwin v0.56.0
-	github.com/DataDog/datadog-agent/pkg/status/health v0.76.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/status/health v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/tagset v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.76.0-rc.4
@@ -142,7 +142,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.71.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.76.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/util/grpc v0.60.0
 	github.com/DataDog/datadog-agent/pkg/util/hostinfo v0.0.0-20251027120702-0e91eee9852f
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.76.0-rc.4
@@ -386,16 +386,16 @@ require (
 	go4.org/intern v0.0.0-20230525184215-6c62f75575cb
 	go4.org/mem v0.0.0-20220726221520-4f986261bf13
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
-	golang.org/x/arch v0.23.0
-	golang.org/x/crypto v0.47.0
-	golang.org/x/exp v0.0.0-20251209150349-8475f28825e9
-	golang.org/x/mod v0.31.0
-	golang.org/x/net v0.49.0
+	golang.org/x/arch v0.24.0
+	golang.org/x/crypto v0.48.0
+	golang.org/x/exp v0.0.0-20260209203927-2842357ff358
+	golang.org/x/mod v0.33.0
+	golang.org/x/net v0.50.0
 	golang.org/x/sync v0.19.0
-	golang.org/x/sys v0.40.0
-	golang.org/x/text v0.33.0
+	golang.org/x/sys v0.41.0
+	golang.org/x/text v0.34.0
 	golang.org/x/time v0.14.0
-	golang.org/x/tools v0.40.0
+	golang.org/x/tools v0.42.0
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
 	google.golang.org/grpc v1.78.0
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
@@ -747,7 +747,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor v0.145.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.145.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor v0.145.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor v0.145.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor v0.145.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor v0.145.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.145.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver v0.145.0 // indirect
@@ -921,9 +921,9 @@ require (
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20231121144256-b99613f794b6 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20250620022241-b7579e27df2b // indirect
 	golang.org/x/lint v0.0.0-20241112194109-818c5a804067 // indirect
-	golang.org/x/oauth2 v0.34.0
-	golang.org/x/telemetry v0.0.0-20251203150158-8fff8a5912fc // indirect
-	golang.org/x/term v0.39.0 // indirect
+	golang.org/x/oauth2 v0.35.0
+	golang.org/x/telemetry v0.0.0-20260209163413-e7419c687ee4 // indirect
+	golang.org/x/term v0.40.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.5.0 // indirect
 	gonum.org/v1/gonum v0.17.0 // indirect
 	google.golang.org/api v0.258.0 // indirect
@@ -956,12 +956,12 @@ require (
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.4.0
-	github.com/DataDog/datadog-agent/comp/logs-library v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/logs-library v0.77.0-devel.0.20260211235139-a5361978c2b6
+	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl v0.77.0-devel.0.20260211235139-a5361978c2b6
+	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl v0.77.0-devel.0.20260211235139-a5361978c2b6
+	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.64.0-rc.12
-	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter v0.59.0
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter v0.64.0-devel.0.20250218192636-64fdfe7ec366
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.65.0-devel.0.20250304124125-23a109221842
@@ -971,11 +971,11 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/processor v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/process/util/api v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/serializer v0.76.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/ssi/testutils v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/trace/log v0.76.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/trace/stats v0.76.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.76.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/ssi/testutils v0.77.0-devel.0.20260211235139-a5361978c2b6
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.77.0-devel.0.20260211235139-a5361978c2b6
+	github.com/DataDog/datadog-agent/pkg/trace/stats v0.77.0-devel.0.20260211235139-a5361978c2b6
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.77.0-devel.0.20260211235139-a5361978c2b6
+	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/ddtrivy v0.0.0-20260115083325-07614fb0b8d5
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.0
@@ -1035,7 +1035,7 @@ require (
 	github.com/Azure/go-autorest/autorest/validation v0.3.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs v0.74.0-devel.0.20251125141836-2ae7a968751c // indirect
-	github.com/DataDog/datadog-agent/pkg/trace/otel v0.77.0-devel // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/otel v0.77.0-devel.0.20260211235139-a5361978c2b6 // indirect
 	github.com/DataDog/datadog-go v3.2.0+incompatible // indirect
 	github.com/Jeffail/gabs/v2 v2.1.0 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect

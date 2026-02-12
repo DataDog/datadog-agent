@@ -943,17 +943,19 @@ func handleHeartbeatCheck(sm *state, effects effectHandler) {
 				prog.state = programStateDraining
 				proc.state = processStateFailed
 				err := fmt.Errorf(
-					"probe exceeded CPU limit of %fcpus/s using %fcpus = %fcpus (exec) + %fcpus (%d interrupts) over %fs on core %d",
+					"probe exceeded CPU limit of %fcpus/s using %fcpus/s = %fcpus/s (exec) + %fcpus/s (%d interrupts) over %fs on core %d",
 					sm.breakerCfg.PerProbeCPULimit,
-					(execCost + interruptCost).Seconds(),
-					execCost.Seconds(),
-					interruptCost.Seconds(),
+					costSPS,
+					execCost.Seconds()/interval.Seconds(),
+					interruptCost.Seconds()/interval.Seconds(),
 					hits,
 					interval.Seconds(),
 					core,
 				)
 				effects.detachFromProcess(proc.attachedProgram, err)
+				proc.attachedProgram = nil
 				detachedAny = true
+				break
 			}
 		}
 	}
