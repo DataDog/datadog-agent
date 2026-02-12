@@ -33,13 +33,15 @@ func (p *EBPFProbe) HandleSSHUserSessionFromEvent(event *model.Event) {
 type SSHUserSessionPatcher struct {
 	userSessionCtx *serializers.SSHSessionContextSerializer
 	resolver       *usersessions.Resolver
+	SshdPid        uint32
 }
 
 // NewSSHUserSessionPatcher creates a new SSH user session patcher
-func NewSSHUserSessionPatcher(userSessionCtx *serializers.SSHSessionContextSerializer, resolver *usersessions.Resolver) *SSHUserSessionPatcher {
+func NewSSHUserSessionPatcher(userSessionCtx *serializers.SSHSessionContextSerializer, resolver *usersessions.Resolver, SshdPid uint32) *SSHUserSessionPatcher {
 	return &SSHUserSessionPatcher{
 		userSessionCtx: userSessionCtx,
 		resolver:       resolver,
+		SshdPid:        SshdPid,
 	}
 }
 
@@ -54,8 +56,9 @@ func (p *SSHUserSessionPatcher) IsResolved() error {
 
 	// Check in LRU
 	key := usersessions.SSHSessionKey{
-		IP:   p.userSessionCtx.SSHClientIP,
-		Port: strconv.Itoa(p.userSessionCtx.SSHClientPort),
+		SshdPid: string(p.SshdPid),
+		IP:      p.userSessionCtx.SSHClientIP,
+		Port:    strconv.Itoa(p.userSessionCtx.SSHClientPort),
 	}
 
 	_, ok := p.resolver.GetSSHSession(key)
@@ -84,8 +87,9 @@ func (p *SSHUserSessionPatcher) PatchEvent(ev *serializers.EventSerializer) {
 	}
 
 	key := usersessions.SSHSessionKey{
-		IP:   p.userSessionCtx.SSHClientIP,
-		Port: strconv.Itoa(p.userSessionCtx.SSHClientPort),
+		SshdPid: string(p.SshdPid),
+		IP:      p.userSessionCtx.SSHClientIP,
+		Port:    strconv.Itoa(p.userSessionCtx.SSHClientPort),
 	}
 	value, ok := p.resolver.GetSSHSession(key)
 
