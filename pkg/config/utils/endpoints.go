@@ -197,7 +197,14 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error
 	return eds, nil
 }
 
-var wellKnownSitesRe = regexp.MustCompile(`(?:datadoghq|datad0g)\.(?:com|eu)$|ddog-gov\.com$`)
+// WellKnownSitesRe matches known Datadog site domains.
+// This regex matches hostnames ending with: datadoghq.com, datadoghq.eu, datad0g.com, datad0g.eu, or ddog-gov.com
+var WellKnownSitesRe = regexp.MustCompile(`(?:datadoghq|datad0g)\.(?:com|eu)$|ddog-gov\.com$`)
+
+// IsWellKnownSite returns true if the given host matches a known Datadog site domain
+func IsWellKnownSite(host string) bool {
+	return WellKnownSitesRe.MatchString(host)
+}
 
 // BuildURLWithPrefix will return an HTTP(s) URL for a site given a certain prefix.
 // If the site is a datadog well-known one, it is suffixed with a dot to make it a FQDN.
@@ -208,7 +215,7 @@ func BuildURLWithPrefix(prefix, site string) string {
 	if normalized, err := idna.Lookup.ToASCII(site); err == nil {
 		site = normalized
 	}
-	if pkgconfigsetup.Datadog().GetBool("convert_dd_site_fqdn.enabled") && wellKnownSitesRe.MatchString(site) && !strings.HasSuffix(site, ".") {
+	if pkgconfigsetup.Datadog().GetBool("convert_dd_site_fqdn.enabled") && WellKnownSitesRe.MatchString(site) && !strings.HasSuffix(site, ".") {
 		site += "."
 	}
 	return prefix + site

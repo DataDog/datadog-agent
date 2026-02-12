@@ -12,10 +12,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
-	"math/rand"
 	"sync"
 	"time"
+
+	"github.com/cenkalti/backoff/v5"
 
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/api"
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aws"
@@ -35,14 +35,9 @@ var templatesFS embed.FS
 const (
 	// maxBackoffInterval is the maximum time to wait between retries (1 hour)
 	maxBackoffInterval = time.Hour
-	// maxConsecutiveFailures is the maximum number of failures we'll track to prevent overflow
-	// Once we hit maxBackoffInterval, there's no point incrementing further
-	// With a minimum reasonable refresh_interval of 1 minute: 1 * 2^(10-1) = 512 minutes > 60 minutes
-	// So capping at 10 gives us plenty of headroom for any configuration
-	maxConsecutiveFailures = 10
-	// jitterPercent is the percentage of jitter to add to refresh intervals (10%)
+	// backoffRandomizationFactor is the percentage of jitter to add to refresh intervals
 	// This prevents all agents from hitting the intake-key API at the same time
-	jitterPercent = 0.10
+	backoffRandomizationFactor = 0.10
 )
 
 // authInstance holds the state for a single delegated auth configuration (one API key target).
@@ -53,9 +48,11 @@ type authInstance struct {
 	refreshInterval time.Duration
 	apiKeyConfigKey string // Configuration key where the API key should be written
 
-	// Exponential backoff tracking
+	// Exponential backoff for retry intervals
+	backoff *backoff.ExponentialBackOff
+
+	// consecutiveFailures tracks failures for status reporting
 	consecutiveFailures int
-	nextRetryInterval   time.Duration
 
 	// Context and cancellation for background refresh goroutine
 	refreshCtx    context.Context
@@ -94,16 +91,16 @@ func NewComponent() Provides {
 	}
 }
 
-// addJitter adds random jitter to a duration to prevent thundering herd
-// Returns a duration in the range [duration * (1 - jitterPercent), duration * (1 + jitterPercent)]
-// For example, with jitterPercent=0.10 and duration=60m, returns a value between 54m and 66m
-func addJitter(duration time.Duration) time.Duration {
-	// Calculate the jitter range
-	jitterRange := float64(duration) * jitterPercent
-	// Generate a random value between -jitterRange and +jitterRange
-	jitter := (rand.Float64()*2 - 1) * jitterRange
-	// Add the jitter to the base duration
-	return duration + time.Duration(jitter)
+// newBackoff creates an ExponentialBackOff configured for delegated auth refresh.
+// It uses the refresh interval as the initial interval and caps at maxBackoffInterval.
+func newBackoff(refreshInterval time.Duration) *backoff.ExponentialBackOff {
+	b := backoff.NewExponentialBackOff()
+	b.InitialInterval = refreshInterval
+	b.MaxInterval = maxBackoffInterval
+	b.Multiplier = 2.0
+	b.RandomizationFactor = backoffRandomizationFactor
+	b.Reset()
+	return b
 }
 
 // Initialize resolves the cloud provider and prepares the component for use.
@@ -182,12 +179,11 @@ func (d *delegatedAuthComponent) AddInstance(params delegatedauth.InstanceParams
 	if params.OrgUUID == "" {
 		return errors.New("org_uuid is required")
 	}
-
-	// Determine the API key config key, defaulting to "api_key"
-	apiKeyConfigKey := params.APIKeyConfigKey
-	if apiKeyConfigKey == "" {
-		apiKeyConfigKey = "api_key"
+	if params.APIKeyConfigKey == "" {
+		return errors.New("api_key_config_key is required")
 	}
+
+	apiKeyConfigKey := params.APIKeyConfigKey
 
 	refreshInterval := time.Duration(params.RefreshInterval) * time.Minute
 	if refreshInterval == 0 {
@@ -212,17 +208,20 @@ func (d *delegatedAuthComponent) AddInstance(params delegatedauth.InstanceParams
 	// Create a context for the background refresh goroutine
 	refreshCtx, refreshCancel := context.WithCancel(context.Background())
 
-	// Create new auth instance
+	// Create new auth instance with backoff configured
 	instance := &authInstance{
 		provider:        tokenProvider,
 		authConfig:      authConfig,
 		refreshInterval: refreshInterval,
 		apiKeyConfigKey: apiKeyConfigKey,
+		backoff:         newBackoff(refreshInterval),
 		refreshCtx:      refreshCtx,
 		refreshCancel:   refreshCancel,
 	}
 
-	// Check if we're replacing an existing instance
+	// Check if we're replacing an existing instance.
+	// This is expected behavior - callers may reconfigure delegated auth (e.g., with different org UUID
+	// or refresh interval). When this happens, we cancel the old refresh goroutine and start a new one.
 	d.mu.Lock()
 	if existingInstance, exists := d.instances[apiKeyConfigKey]; exists {
 		log.Infof("Replacing existing delegated auth configuration for '%s'", apiKeyConfigKey)
@@ -240,10 +239,7 @@ func (d *delegatedAuthComponent) AddInstance(params delegatedauth.InstanceParams
 	apiKey, _, err := d.refreshAndGetAPIKey(context.Background(), instance, false)
 	if err != nil {
 		log.Errorf("Failed to get initial delegated API key for '%s': %v", apiKeyConfigKey, err)
-		// Track the initial failure for exponential backoff
-		d.mu.Lock()
-		instance.consecutiveFailures = 1
-		d.mu.Unlock()
+		// Backoff will be used for retry interval in startBackgroundRefresh
 	} else {
 		// Update the config with the initial API key
 		d.updateConfigWithAPIKey(instance, *apiKey)
@@ -293,53 +289,24 @@ func (d *delegatedAuthComponent) refreshAndGetAPIKey(_ context.Context, instance
 	return apiKey, true, nil
 }
 
-// calculateNextRetryInterval calculates the next retry interval using exponential backoff
-// First retry after failure is at the base interval, then doubles on each subsequent failure, capped at 1 hour
-func (d *delegatedAuthComponent) calculateNextRetryInterval(instance *authInstance) time.Duration {
-	// Base interval is the configured refresh interval
-	baseInterval := instance.refreshInterval
-
-	// Calculate exponential backoff: baseInterval * 2^max(0, consecutiveFailures-1)
-	// This ensures the first retry is at the base interval, not doubled
-	// Using math.Pow for clarity, though bit shifting could also be used
-	exponent := float64(instance.consecutiveFailures - 1)
-	if exponent < 0 {
-		exponent = 0
-	}
-	backoffMultiplier := math.Pow(2, exponent)
-	backoffInterval := time.Duration(float64(baseInterval) * backoffMultiplier)
-
-	// Cap at maximum backoff interval (1 hour)
-	if backoffInterval > maxBackoffInterval {
-		backoffInterval = maxBackoffInterval
-	}
-
-	return backoffInterval
-}
-
 // startBackgroundRefresh starts the background goroutine that periodically refreshes the API key
 // with exponential backoff on failures
 func (d *delegatedAuthComponent) startBackgroundRefresh(instance *authInstance) {
-	// Start background refresh
 	go func() {
-		// Initialize with the configured refresh interval plus jitter
+		// Get initial interval with jitter from backoff
 		d.mu.Lock()
-		instance.nextRetryInterval = instance.refreshInterval
+		nextInterval := instance.backoff.NextBackOff()
 		d.mu.Unlock()
 
-		// Add jitter to prevent all agents from hitting the API at the same time
-		jitteredInterval := addJitter(instance.nextRetryInterval)
-		ticker := time.NewTicker(jitteredInterval)
+		ticker := time.NewTicker(nextInterval)
 		defer ticker.Stop()
 
 		for {
 			select {
 			case <-instance.refreshCtx.Done():
-				// Context was canceled, exit the goroutine
 				log.Debugf("Background refresh goroutine for '%s' exiting due to context cancellation", instance.apiKeyConfigKey)
 				return
 			case <-ticker.C:
-				// Time to refresh
 				lCreds, updated, lErr := d.refreshAndGetAPIKey(instance.refreshCtx, instance, true)
 
 				d.mu.Lock()
@@ -351,32 +318,30 @@ func (d *delegatedAuthComponent) startBackgroundRefresh(instance *authInstance) 
 						return
 					}
 
-					// Increment consecutive failures (capped to prevent overflow)
-					if instance.consecutiveFailures < maxConsecutiveFailures {
-						instance.consecutiveFailures++
-					}
-					instance.nextRetryInterval = d.calculateNextRetryInterval(instance)
-					// Add jitter and log the actual retry time
-					jitteredInterval := addJitter(instance.nextRetryInterval)
-					log.Errorf("Failed to refresh delegated API key for '%s' (attempt %d): %v. Next retry in %v (base: %v)",
-						instance.apiKeyConfigKey, instance.consecutiveFailures, lErr, jitteredInterval, instance.nextRetryInterval)
-					ticker.Reset(jitteredInterval)
+					// Track failures for status reporting
+					instance.consecutiveFailures++
+
+					// Get next backoff interval (exponentially increasing with jitter)
+					nextInterval := instance.backoff.NextBackOff()
+					log.Errorf("Failed to refresh delegated API key for '%s' (attempt %d): %v. Next retry in %v",
+						instance.apiKeyConfigKey, instance.consecutiveFailures, lErr, nextInterval)
+					ticker.Reset(nextInterval)
 				} else {
-					// Success - reset backoff
+					// Success - reset backoff and failure counter
 					if instance.consecutiveFailures > 0 {
-						log.Infof("Successfully refreshed delegated API key for '%s' after %d failed attempts", instance.apiKeyConfigKey, instance.consecutiveFailures)
+						log.Infof("Successfully refreshed delegated API key for '%s' after %d failed attempts",
+							instance.apiKeyConfigKey, instance.consecutiveFailures)
 					}
 					instance.consecutiveFailures = 0
-					instance.nextRetryInterval = instance.refreshInterval
+					instance.backoff.Reset()
+					nextInterval := instance.backoff.NextBackOff()
 
 					// Update the config with the new API key
 					if updated {
 						d.updateConfigWithAPIKey(instance, *lCreds)
 					}
 
-					// Reset the ticker with the new interval plus jitter
-					jitteredInterval := addJitter(instance.nextRetryInterval)
-					ticker.Reset(jitteredInterval)
+					ticker.Reset(nextInterval)
 				}
 				d.mu.Unlock()
 			}
