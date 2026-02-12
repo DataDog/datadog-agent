@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -25,6 +26,10 @@ type Requires struct {
 	// AgentInternalLogTap provides optional overrides for capturing agent-internal logs.
 	// When fields are nil, values are read from configuration defaults.
 	AgentInternalLogTap AgentInternalLogTapConfig
+	// Recorder is an optional component for transparent metric recording.
+	// If provided, all handles will be wrapped to record metrics to parquet files.
+	// If nil, handles operate without recording.
+	Recorder recorderdef.Component
 }
 
 type AgentInternalLogTapConfig struct {
@@ -102,6 +107,16 @@ func NewComponent(deps Requires) Provides {
 		obsCh:     make(chan observation, 1000),
 		maxEvents: 1000, // Keep last 1000 events for debugging
 	}
+
+	// Set up handle function with optional recorder wrapping.
+	// If recorder is provided, wrap handles to enable transparent metric recording.
+	// Otherwise, use inner handle directly (no recording).
+	if deps.Recorder != nil {
+		obs.handleFunc = deps.Recorder.GetHandle(obs.innerHandle)
+	} else {
+		obs.handleFunc = obs.innerHandle
+	}
+
 	go obs.run()
 
 	cfg := pkgconfigsetup.Datadog()
@@ -231,6 +246,7 @@ type observerImpl struct {
 	reporters         []observerdef.Reporter
 	storage           *timeSeriesStorage
 	obsCh             chan observation
+	handleFunc        observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
 
 	// NEW path: Signal-based processing (V2 architecture)
 	signalEmitters   []observerdef.SignalEmitter   // Layer 1: Point-based anomaly detection
@@ -572,7 +588,13 @@ func (o *observerImpl) flushAndReport() {
 }
 
 // GetHandle returns a lightweight handle for a named source.
+// If a recorder is configured, the handle will be wrapped to record metrics.
 func (o *observerImpl) GetHandle(name string) observerdef.Handle {
+	return o.handleFunc(name)
+}
+
+// innerHandle creates the base handle without any middleware wrapping.
+func (o *observerImpl) innerHandle(name string) observerdef.Handle {
 	return &handle{ch: o.obsCh, source: name}
 }
 
