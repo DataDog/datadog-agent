@@ -17,8 +17,7 @@ processors:
 receivers:
     hostprofiler:
         symbol_uploader:
-            enabled: true
-            symbol_endpoints: []
+            enabled: false
 service:
     pipelines:
         profiles:

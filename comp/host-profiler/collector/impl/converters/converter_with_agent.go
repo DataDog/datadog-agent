@@ -265,6 +265,16 @@ func (c *converterWithAgent) inferHostProfilerEndpointConfig(hostProfiler confMa
 		}
 	}
 
+	if len(symbolEndpoints) == 0 {
+		// No Datadog endpoints available for symbol upload (all proxy/FIPS).
+		// Disable the symbol uploader to avoid failing receiver validation
+		// which requires non-empty symbol_endpoints when enabled.
+		if err := Set(hostProfiler, pathSymbolUploaderEnabled, false); err != nil {
+			return err
+		}
+		return nil
+	}
+
 	if err := Set(hostProfiler, "symbol_uploader::symbol_endpoints", symbolEndpoints); err != nil {
 		return err
 	}
