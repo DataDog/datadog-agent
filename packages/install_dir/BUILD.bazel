@@ -10,12 +10,14 @@ pkg_filegroup(
         "//deps/gstatus:bin_files",
         # have to include this explicitly because it is not hooked up with package_metadata
         "//deps/gstatus:license_file",
+        "//packages/install_dir/embedded:all_files",
     ] + select({
-        "@platforms//os:linux": [
+        "//packages/agent:linux_default": [
             "//deps/compile_policy:bin_files",
             # have to include this explicitly because it is not hooked up with package_metadata
             "//deps/compile_policy:license_file",
         ],
+        "//packages/agent:linux_heroku": [],
         "//conditions:default": [],
     }),
 )
