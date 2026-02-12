@@ -17,7 +17,7 @@ import (
 
 type Collector struct{}
 
-func NewCollector(metricAgent *serverlessMetrics.ServerlessMetricAgent, metricSource metrics.MetricSource) (*CPUCollector, error) {
+func NewCollector(metricAgent *serverlessMetrics.ServerlessMetricAgent, metricSource metrics.MetricSource, metricPrefix string) (*Collector, error) {
 	return nil, fmt.Errorf("CPU collector is only supported on Linux")
 }
 

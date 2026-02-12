@@ -126,7 +126,7 @@ func TestCloudRunJobsShutdownAddsExitCodeTag(t *testing.T) {
 	cmd := exec.Command("bash", "-c", "exit 1")
 	err := cmd.Run()
 	require.Error(t, err)
-	jobs.Shutdown(agent, err)
+	jobs.Shutdown(agent, nil, err)
 
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Empty(t, timedMetrics)
@@ -150,7 +150,7 @@ func TestCloudRunJobsShutdownExitCodeZeroOnSuccess(t *testing.T) {
 	jobs := &CloudRunJobs{startTime: time.Now().Add(-time.Second)}
 	shutdownMetricName := cloudRunJobsPrefix + ".enhanced.task.ended"
 
-	jobs.Shutdown(agent, nil)
+	jobs.Shutdown(agent, nil, nil)
 
 	generatedMetrics, _ := demux.WaitForSamples(100 * time.Millisecond)
 
@@ -273,7 +273,7 @@ func TestCloudRunJobsCompleteAndSubmitJobSpanWithError(t *testing.T) {
 
 	// Simulate an error
 	testErr := errors.New("task failed")
-	jobs.Shutdown(serverlessMetrics.ServerlessMetricAgent{}, testErr)
+	jobs.Shutdown(serverlessMetrics.ServerlessMetricAgent{}, nil, testErr)
 
 	// Verify the span was submitted
 	assert.True(t, mockAgent.processCalled)
@@ -303,7 +303,7 @@ func TestCloudRunJobsCompleteAndSubmitJobSpanSuccess(t *testing.T) {
 	jobs.Init(&TracingContext{TraceAgent: mockAgent, SpanTags: spanTags})
 
 	// Simulate success (no error)
-	jobs.Shutdown(serverlessMetrics.ServerlessMetricAgent{}, nil)
+	jobs.Shutdown(serverlessMetrics.ServerlessMetricAgent{}, nil, nil)
 
 	// Verify the span was submitted
 	assert.True(t, mockAgent.processCalled)
@@ -323,7 +323,7 @@ func TestCloudRunJobsCompleteAndSubmitJobSpanWithNilSpan(t *testing.T) {
 	// Don't call Init, so jobSpan remains nil
 
 	// Should not panic
-	jobs.Shutdown(serverlessMetrics.ServerlessMetricAgent{}, nil)
+	jobs.Shutdown(serverlessMetrics.ServerlessMetricAgent{}, nil, nil)
 
 	// Should not submit anything
 	assert.False(t, mockAgent.processCalled)
