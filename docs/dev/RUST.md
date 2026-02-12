@@ -356,6 +356,7 @@ add `import %workspace%/bazel/configs/my_component.bazelrc` to [.bazelrc](../../
 `Project configs` section.
 
 ## CI Integration
+> **TODO:** Describe how to add rust build to CI.
 
 In CI (with `--config=ci`), Rust builds automatically run:
 
