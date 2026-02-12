@@ -527,7 +527,7 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 		// Only restore active issues (not resolved ones)
 		if persisted.State != IssueStateResolved && persisted.IssueID != "" {
 			// Rebuild issue from registry using the issue ID
-			issue, err := h.remediationRegistry.BuildIssue(persisted.IssueID, nil)
+			issue, err := h.issueRegistry.BuildIssue(persisted.IssueID, nil)
 			if err != nil {
 				h.log.Warn(fmt.Sprintf("Failed to rebuild issue %s for check %s: %v", persisted.IssueID, checkID, err))
 				continue
