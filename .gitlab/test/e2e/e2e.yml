@@ -328,7 +328,7 @@ new-e2e-containers-openshift:
   variables:
     TARGETS: ./tests/containers
     TEAM: container-integrations
-    EXTRA_PARAMS: --run TestOpenShiftVMSuite -c ddinfra:gcp/openshift/pullSecretPath=/tmp/crc-pull-secret.json
+    EXTRA_PARAMS: "--run TestOpenShiftVMSuite -c ddinfra:gcp/openshift/pullSecretPath=/tmp/crc-pull-secret.json"
     E2E_PRE_INITIALIZED: "true"
     ON_NIGHTLY_FIPS: "true"
   allow_failure: true
