@@ -993,7 +993,6 @@ new-e2e-otel:
     TEAM: otel
     ON_NIGHTLY_FIPS: "true"
 
-# SSI init jobs - provision environment early
 .new-e2e_ssi_init:
   stage: e2e_init
   extends: .new_e2e_template
@@ -1068,35 +1067,28 @@ new-e2e-ssi-kind:
     E2E_PROVISIONER: kind
     E2E_STACK_NAME_SUFFIX: kind
 
-# EKS job for main branch - uses pre-initialized stack
+# Run only on main branch (with pre-initialized stack), manual on PRs (without pre-initialized stack)
 new-e2e-ssi-eks:
   extends: .new-e2e_ssi
   rules:
     - !reference [.except_mergequeue]
     - !reference [.except_disable_e2e_tests]
     - !reference [.on_main]
-  needs:
-    - !reference [.new-e2e_ssi, needs]
-    - new-e2e-ssi-eks-init
-  variables:
-    E2E_STACK_NAME_SUFFIX: eks
-    E2E_PROVISIONER: eks
-    E2E_PRE_INITIALIZED: "true"
-
-# EKS job for PRs - creates its own stack (manual trigger)
-new-e2e-ssi-eks-manual:
-  extends: .new-e2e_ssi
-  rules:
-    - !reference [.except_mergequeue]
-    - !reference [.except_disable_e2e_tests]
-    - !reference [.except_main]
     - when: manual
       allow_failure: true
   needs:
     - !reference [.new-e2e_ssi, needs]
+    - job: new-e2e-ssi-eks-init
+      optional: true
   variables:
     E2E_STACK_NAME_SUFFIX: eks
     E2E_PROVISIONER: eks
+  before_script:
+    - !reference [.new_e2e_template, before_script]
+    - |
+      if [ "$CI_COMMIT_BRANCH" == "main" ]; then
+        export E2E_PRE_INITIALIZED="true"
+      fi
 
 .new-e2e_package_signing:
   variables:

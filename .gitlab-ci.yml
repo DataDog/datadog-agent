@@ -411,10 +411,6 @@ workflow:
   - <<: *if_main_branch
     when: always
 
-.except_main:
-  - <<: *if_main_branch
-    when: never
-
 .on_deploy:
   - <<: *if_deploy
 
