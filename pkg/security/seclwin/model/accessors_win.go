@@ -589,6 +589,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "exec.container.is_sandbox":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Exec.Process.ContainerContext.IsSandbox
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "exec.container.tags":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -788,6 +799,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return string(ev.Exit.Process.ContainerContext.ContainerID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exit.container.is_sandbox":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Exit.Process.ContainerContext.IsSandbox
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1109,6 +1131,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return string(current.ProcessContext.Process.ContainerContext.ContainerID)
 				})
 				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.container.is_sandbox":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := element.ProcessContext.Process.ContainerContext.IsSandbox
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) bool {
+					return current.ProcessContext.Process.ContainerContext.IsSandbox
+				})
+				ctx.BoolCache[field] = results
 				return results
 			},
 			Field:  field,
@@ -1516,6 +1565,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "process.container.is_sandbox":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.BaseEvent.ProcessContext.Process.ContainerContext.IsSandbox
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "process.container.tags":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -1658,6 +1718,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return string(ev.BaseEvent.ProcessContext.Parent.ContainerContext.ContainerID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.container.is_sandbox":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return false
+				}
+				return ev.BaseEvent.ProcessContext.Parent.ContainerContext.IsSandbox
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -2349,6 +2423,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.cmdline",
 		"exec.container.created_at",
 		"exec.container.id",
+		"exec.container.is_sandbox",
 		"exec.container.tags",
 		"exec.created_at",
 		"exec.envp",
@@ -2367,6 +2442,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.code",
 		"exit.container.created_at",
 		"exit.container.id",
+		"exit.container.is_sandbox",
 		"exit.container.tags",
 		"exit.created_at",
 		"exit.envp",
@@ -2391,6 +2467,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.cmdline",
 		"process.ancestors.container.created_at",
 		"process.ancestors.container.id",
+		"process.ancestors.container.is_sandbox",
 		"process.ancestors.container.tags",
 		"process.ancestors.created_at",
 		"process.ancestors.envp",
@@ -2408,6 +2485,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.cmdline",
 		"process.container.created_at",
 		"process.container.id",
+		"process.container.is_sandbox",
 		"process.container.tags",
 		"process.created_at",
 		"process.envp",
@@ -2420,6 +2498,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.cmdline",
 		"process.parent.container.created_at",
 		"process.parent.container.id",
+		"process.parent.container.is_sandbox",
 		"process.parent.container.tags",
 		"process.parent.created_at",
 		"process.parent.envp",
@@ -2581,6 +2660,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exec", reflect.Int, "int", false, nil
 	case "exec.container.id":
 		return "exec", reflect.String, "string", false, nil
+	case "exec.container.is_sandbox":
+		return "exec", reflect.Bool, "bool", false, nil
 	case "exec.container.tags":
 		return "exec", reflect.String, "string", true, nil
 	case "exec.created_at":
@@ -2617,6 +2698,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exit", reflect.Int, "int", false, nil
 	case "exit.container.id":
 		return "exit", reflect.String, "string", false, nil
+	case "exit.container.is_sandbox":
+		return "exit", reflect.Bool, "bool", false, nil
 	case "exit.container.tags":
 		return "exit", reflect.String, "string", true, nil
 	case "exit.created_at":
@@ -2665,6 +2748,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.container.id":
 		return "", reflect.String, "string", false, nil
+	case "process.ancestors.container.is_sandbox":
+		return "", reflect.Bool, "bool", false, nil
 	case "process.ancestors.container.tags":
 		return "", reflect.String, "string", true, nil
 	case "process.ancestors.created_at":
@@ -2699,6 +2784,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Int, "int", false, nil
 	case "process.container.id":
 		return "", reflect.String, "string", false, nil
+	case "process.container.is_sandbox":
+		return "", reflect.Bool, "bool", false, nil
 	case "process.container.tags":
 		return "", reflect.String, "string", true, nil
 	case "process.created_at":
@@ -2723,6 +2810,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Int, "int", false, nil
 	case "process.parent.container.id":
 		return "", reflect.String, "string", false, nil
+	case "process.parent.container.is_sandbox":
+		return "", reflect.Bool, "bool", false, nil
 	case "process.parent.container.tags":
 		return "", reflect.String, "string", true, nil
 	case "process.parent.created_at":
@@ -2937,6 +3026,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Exec.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "exec.container.is_sandbox":
+		return ev.setBoolFieldValue("exec.container.is_sandbox", &ev.Exec.Process.ContainerContext.IsSandbox, value)
 	case "exec.container.tags":
 		return ev.setStringArrayFieldValue("exec.container.tags", &ev.Exec.Process.ContainerContext.Tags, value)
 	case "exec.created_at":
@@ -2978,6 +3069,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Exit.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "exit.container.is_sandbox":
+		return ev.setBoolFieldValue("exit.container.is_sandbox", &ev.Exit.Process.ContainerContext.IsSandbox, value)
 	case "exit.container.tags":
 		return ev.setStringArrayFieldValue("exit.container.tags", &ev.Exit.Process.ContainerContext.Tags, value)
 	case "exit.created_at":
@@ -3031,6 +3124,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "process.ancestors.container.is_sandbox":
+		return ev.setBoolFieldValue("process.ancestors.container.is_sandbox", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerContext.IsSandbox, value)
 	case "process.ancestors.container.tags":
 		return ev.setStringArrayFieldValue("process.ancestors.container.tags", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerContext.Tags, value)
 	case "process.ancestors.created_at":
@@ -3070,6 +3165,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.BaseEvent.ProcessContext.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "process.container.is_sandbox":
+		return ev.setBoolFieldValue("process.container.is_sandbox", &ev.BaseEvent.ProcessContext.Process.ContainerContext.IsSandbox, value)
 	case "process.container.tags":
 		return ev.setStringArrayFieldValue("process.container.tags", &ev.BaseEvent.ProcessContext.Process.ContainerContext.Tags, value)
 	case "process.created_at":
@@ -3099,6 +3196,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.BaseEvent.ProcessContext.Parent.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "process.parent.container.is_sandbox":
+		return ev.setBoolFieldValue("process.parent.container.is_sandbox", &ev.BaseEvent.ProcessContext.Parent.ContainerContext.IsSandbox, value)
 	case "process.parent.container.tags":
 		return ev.setStringArrayFieldValue("process.parent.container.tags", &ev.BaseEvent.ProcessContext.Parent.ContainerContext.Tags, value)
 	case "process.parent.created_at":

@@ -292,6 +292,9 @@ var (
 	// MetricCGroupResolverActiveContainerWorkloads is the name of the metric used to report the count of active cgroups corresponding to a container kept in memory
 	// Tags: -
 	MetricCGroupResolverActiveContainerWorkloads = newRuntimeMetric(".cgroup_resolver.active_containers")
+	// MetricCGroupResolverSandboxContainers is the name of the metric used to report the count of sandbox/pause containers
+	// Tags: -
+	MetricCGroupResolverSandboxContainers = newRuntimeMetric(".cgroup_resolver.sandbox_containers")
 	// MetricCGroupResolverActiveHostWorkloads is the name of the metric used to report the count of active cgroups not corresponding to a container kept in memory
 	// Tags: -
 	MetricCGroupResolverActiveHostWorkloads = newRuntimeMetric(".cgroup_resolver.active_non_containers")

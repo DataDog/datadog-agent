@@ -270,11 +270,27 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 		tagList.AddLow(tags.MemoryRestartPolicy, container.ResizePolicy.MemoryRestartPolicy)
 	}
 
+	// Sandbox/pause containers use a separate entity type (KubernetesPodSandbox)
+	var entityID types.EntityID
+	if container.IsSandbox {
+		entityID = types.NewEntityID(types.KubernetesPodSandbox, container.ID)
+		// Extract labels from standard Kubernetes
+		if podName, ok := container.Labels["io.kubernetes.pod.name"]; ok {
+			tagList.AddOrchestrator(tags.KubePod, podName)
+		}
+		if podNamespace, ok := container.Labels["io.kubernetes.pod.namespace"]; ok {
+			tagList.AddLow(tags.KubeNamespace, podNamespace)
+		}
+	} else {
+		entityID = common.BuildTaggerEntityID(container.EntityID)
+	}
+
 	low, orch, high, standard := tagList.Compute()
+
 	return []*types.TagInfo{
 		{
 			Source:               containerSource,
-			EntityID:             common.BuildTaggerEntityID(container.EntityID),
+			EntityID:             entityID,
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,

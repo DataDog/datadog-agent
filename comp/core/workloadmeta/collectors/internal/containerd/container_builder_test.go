@@ -242,6 +242,9 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 		MockTaskPids: func(string, containerd.Container) ([]containerd.ProcessInfo, error) {
 			return nil, nil
 		},
+		MockIsSandbox: func(string, containerd.Container) (bool, error) {
+			return false, nil
+		},
 	}
 
 	// Create a workload meta global store containing image metadata

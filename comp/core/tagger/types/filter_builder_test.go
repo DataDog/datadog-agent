@@ -57,6 +57,7 @@ func TestFilterBuilderOps(t *testing.T) {
 					ECSTask:                {},
 					KubernetesMetadata:     {},
 					KubernetesPodUID:       {},
+					KubernetesPodSandbox:   {},
 					Process:                {},
 					InternalID:             {},
 					GPU:                    {},

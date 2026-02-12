@@ -34,6 +34,8 @@ type ContainerContextSerializer struct {
 	CreatedAt *utils.EasyjsonTime `json:"created_at,omitempty"`
 	// Variables values
 	Variables Variables `json:"variables,omitempty"`
+	// Indicates if the container is a sandbox/pause container
+	IsSandbox bool `json:"is_sandbox,omitempty"`
 }
 
 // CGroupContextSerializer serializes a cgroup context to JSON

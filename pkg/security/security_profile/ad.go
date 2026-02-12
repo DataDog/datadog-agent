@@ -228,7 +228,7 @@ func (m *Manager) resolveTags(ad *dump.ActivityDump) error {
 	}
 
 	if workloadID != nil {
-		tags, err := m.resolvers.TagsResolver.ResolveWithErr(workloadID)
+		_, tags, err := m.resolvers.TagsResolver.ResolveWithErr(workloadID)
 		if err != nil {
 			return fmt.Errorf("failed to resolve %v: %w", workloadID, err)
 		}

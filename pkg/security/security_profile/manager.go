@@ -705,14 +705,14 @@ func (m *Manager) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]boo
 		var err error
 		var imageName, imageTag string
 		if id := cgce.GetContainerID(); id != "" {
-			cgceTags, err = tagsResolver.ResolveWithErr(id)
+			_, cgceTags, err = tagsResolver.ResolveWithErr(id)
 			if err != nil {
 				return false
 			}
 			imageName = utils.GetTagValue("image_name", cgceTags)
 			imageTag = utils.GetTagValue("image_tag", cgceTags)
 		} else if cgce.IsCGroupContextResolved() {
-			cgceTags, err = tagsResolver.ResolveWithErr(cgce.GetCGroupID())
+			_, cgceTags, err = tagsResolver.ResolveWithErr(cgce.GetCGroupID())
 			if err != nil {
 				return false
 			}

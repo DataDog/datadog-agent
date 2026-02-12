@@ -657,6 +657,8 @@ type Container struct {
 	// Linux only.
 	CgroupPath   string
 	RestartCount int
+	// IsSandbox indicates if this container is a sandbox/pause container (Kubernetes pod infrastructure container)
+	IsSandbox bool
 }
 
 // GetID implements Entity#GetID.

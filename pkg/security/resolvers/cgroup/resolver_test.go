@@ -329,3 +329,89 @@ func TestResolveForceFallbackIfCGroupIsNull(t *testing.T) {
 
 	mockFS.AssertExpectations(t)
 }
+
+func TestSetSandbox_IncrementsCounter(t *testing.T) {
+	resolver, _ := createTestResolver(t)
+
+	// Create a non-sandbox cache entry
+	cacheEntry := cgroupModel.NewCacheEntry(model.ContainerContext{
+		ContainerID: "container-123",
+	}, model.CGroupContext{
+		CGroupID: "cgroup-id",
+	}, 1234)
+
+	// Initially, sandbox counter should be 0
+	assert.Equal(t, int64(0), resolver.sandboxContainers.Load())
+
+	// Mark as sandbox
+	resolver.SetSandbox(cacheEntry)
+
+	// Counter should be incremented
+	assert.Equal(t, int64(1), resolver.sandboxContainers.Load())
+	assert.True(t, cacheEntry.Sandbox())
+}
+
+func TestSetSandbox_DoesNotDoubleIncrement(t *testing.T) {
+	resolver, _ := createTestResolver(t)
+
+	cacheEntry := cgroupModel.NewCacheEntry(model.ContainerContext{
+		ContainerID: "container-123",
+	}, model.CGroupContext{
+		CGroupID: "cgroup-id",
+	}, 1234)
+
+	assert.Equal(t, int64(0), resolver.sandboxContainers.Load())
+
+	// Mark as sandbox twice
+	resolver.SetSandbox(cacheEntry)
+	resolver.SetSandbox(cacheEntry)
+
+	// Counter should only be incremented once
+	assert.Equal(t, int64(1), resolver.sandboxContainers.Load())
+}
+
+func TestSandboxContainerCreation_IncrementsCounter(t *testing.T) {
+	resolver, _ := createTestResolver(t)
+
+	// Create a sandbox container context
+	containerContext := model.ContainerContext{
+		ContainerID: "sandbox-container-456",
+		IsSandbox:   true,
+	}
+	cgroupContext := model.CGroupContext{
+		CGroupID:      "sandbox-cgroup-id",
+		CGroupPathKey: model.PathKey{Inode: 12345},
+	}
+
+	assert.Equal(t, int64(0), resolver.sandboxContainers.Load())
+
+	// Push a new sandbox cache entry
+	cacheEntry := resolver.pushNewCacheEntry(1234, containerContext, cgroupContext)
+
+	assert.NotNil(t, cacheEntry)
+	assert.Equal(t, int64(1), resolver.sandboxContainers.Load())
+	assert.True(t, cacheEntry.Sandbox())
+}
+
+func TestNonSandboxContainerCreation_DoesNotIncrementCounter(t *testing.T) {
+	resolver, _ := createTestResolver(t)
+
+	// Create a regular container context (not a sandbox)
+	containerContext := model.ContainerContext{
+		ContainerID: "regular-container-789",
+		IsSandbox:   false,
+	}
+	cgroupContext := model.CGroupContext{
+		CGroupID:      "regular-cgroup-id",
+		CGroupPathKey: model.PathKey{Inode: 54321},
+	}
+
+	assert.Equal(t, int64(0), resolver.sandboxContainers.Load())
+
+	// Push a new regular cache entry
+	cacheEntry := resolver.pushNewCacheEntry(1234, containerContext, cgroupContext)
+
+	assert.NotNil(t, cacheEntry)
+	assert.Equal(t, int64(0), resolver.sandboxContainers.Load())
+	assert.False(t, cacheEntry.Sandbox())
+}
