@@ -259,7 +259,6 @@ func (r *EBPFResolvers) Snapshot() error {
 	}
 
 	r.ProcessResolver.SetState(process.Snapshotted)
-	r.NamespaceResolver.SetState(process.Snapshotted)
 
 	selinuxStatusMap, err := managerhelper.Map(r.manager, "selinux_enforce_status")
 	if err != nil {
@@ -310,6 +309,9 @@ func (r *EBPFResolvers) snapshot() error {
 		r.SnapshotUsingListmount = false
 	}
 
+	// Sync the namespace cache
+	r.NamespaceResolver.SyncCache()
+
 	for _, proc := range processes {
 		ppid, err := proc.Ppid()
 		if err != nil {
@@ -324,9 +326,6 @@ func (r *EBPFResolvers) snapshot() error {
 
 		// Sync the process cache
 		r.ProcessResolver.SyncCache(proc)
-
-		// Sync the namespace cache
-		r.NamespaceResolver.SyncCache(pid)
 	}
 
 	return nil
