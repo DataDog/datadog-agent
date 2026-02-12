@@ -12,25 +12,25 @@ static_quality_gate_agent_msi:
   max_on_wire_size: 143.3 MiB
 static_quality_gate_agent_rpm_amd64:
   max_on_disk_size: 749.84 MiB
-  max_on_wire_size: 187.25 MiB
+  max_on_wire_size: 187.24 MiB
 static_quality_gate_agent_rpm_amd64_fips:
   max_on_disk_size: 709.96 MiB
-  max_on_wire_size: 178.14 MiB
+  max_on_wire_size: 178.13 MiB
 static_quality_gate_agent_rpm_arm64:
   max_on_disk_size: 728.93 MiB
-  max_on_wire_size: 169.05 MiB
+  max_on_wire_size: 169.04 MiB
 static_quality_gate_agent_rpm_arm64_fips:
   max_on_disk_size: 691.49 MiB
   max_on_wire_size: 161.98 MiB
 static_quality_gate_agent_suse_amd64:
   max_on_disk_size: 749.84 MiB
-  max_on_wire_size: 187.25 MiB
+  max_on_wire_size: 187.24 MiB
 static_quality_gate_agent_suse_amd64_fips:
   max_on_disk_size: 709.96 MiB
-  max_on_wire_size: 178.14 MiB
+  max_on_wire_size: 178.13 MiB
 static_quality_gate_agent_suse_arm64:
   max_on_disk_size: 728.93 MiB
-  max_on_wire_size: 169.05 MiB
+  max_on_wire_size: 169.04 MiB
 static_quality_gate_agent_suse_arm64_fips:
   max_on_disk_size: 691.49 MiB
   max_on_wire_size: 161.98 MiB
