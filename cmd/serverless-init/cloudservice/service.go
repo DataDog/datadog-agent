@@ -68,8 +68,7 @@ type CloudService interface {
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter
-type LocalService struct {
-}
+type LocalService struct{}
 
 const defaultPrefix = "datadog.serverless_agent"
 

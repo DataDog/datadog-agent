@@ -167,12 +167,16 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 
 	setupOtlpAgent(metricAgent, tagger)
 
-	enhancedMetricsCollector, err := collector.NewCollector(metricAgent, cloudService.GetSource(), cloudService.GetMetricPrefix())
-	if err != nil {
-		log.Warnf("Failed to initialize enhanced metrics collector: %v", err)
-	} else {
-		ctx, _ := context.WithCancel(context.Background())
-		go enhancedMetricsCollector.Start(ctx)
+	var enhancedMetricsCollector *collector.Collector
+	if modeConf.Mode == mode.ModeInit {
+		var err error
+		enhancedMetricsCollector, err = collector.NewCollector(metricAgent, cloudService.GetSource(), cloudService.GetMetricPrefix())
+		if err != nil {
+			log.Warnf("Failed to initialize enhanced metrics collector: %v", err)
+		} else {
+			ctx, _ := context.WithCancel(context.Background())
+			go enhancedMetricsCollector.Start(ctx)
+		}
 	}
 
 	go flushMetricsAgent(metricAgent)
@@ -231,9 +235,7 @@ func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tag
 }
 
 func setupMetricAgent(tags map[string]string, highCardinalityTags map[string]string, tagger tagger.Component, shouldForceFlushAllOnForceFlushToSerializer bool) *metrics.ServerlessMetricAgent {
-	// Enable v2 API for series to support origin metadata (metric source attribution)
-	// v1 API (JSON) does not include origin/source information, but v2 API (protobuf) does
-	pkgconfigsetup.Datadog().Set("use_v2_api.series", true, model.SourceAgentRuntime)
+	pkgconfigsetup.Datadog().Set("use_v2_api.series", false, model.SourceAgentRuntime)
 	pkgconfigsetup.Datadog().Set("dogstatsd_socket", "", model.SourceAgentRuntime)
 
 	metricAgent := &metrics.ServerlessMetricAgent{

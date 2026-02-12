@@ -17,8 +17,7 @@ import (
 )
 
 // AppService has helper functions for getting specific Azure Container App data
-type AppService struct {
-}
+type AppService struct{}
 
 const (
 	//nolint:revive // TODO(SERV) Fix revive linter
