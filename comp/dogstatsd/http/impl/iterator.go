@@ -26,6 +26,16 @@ type seriesIterator struct {
 	err    error
 }
 
+func newSeriesIterator(payload *pb.Payload, origin origin, hostname string) (*seriesIterator, error) {
+	it := &seriesIterator{
+		reader:   reader.NewMetricDataReader(payload.MetricData),
+		origin:   origin,
+		hostname: hostname,
+	}
+
+	return it, it.reader.Initialize()
+}
+
 // MoveNext reads one entire metric record from the dogstatsd payload into the internal buffer.
 func (it *seriesIterator) MoveNext() bool {
 	if it.err != nil {

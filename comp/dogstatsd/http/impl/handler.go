@@ -12,7 +12,6 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/http/impl/internal/reader"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/dogstatsdhttp"
 )
 
@@ -58,7 +57,7 @@ func (h *seriesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writer: w,
 	}
 
-	origin, err := originFromRequest(r, h.tagger)
+	origin, err := originFromHeader(r.Header, h.tagger)
 	if err != nil {
 		ctx.respond(http.StatusBadRequest, "origin detection error: %v", err)
 		return
@@ -78,13 +77,7 @@ func (h *seriesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	it := &seriesIterator{
-		reader:   reader.NewMetricDataReader(payload.MetricData),
-		origin:   origin,
-		hostname: h.hostname,
-	}
-
-	err = it.reader.Initialize()
+	it, err := newSeriesIterator(&payload, origin, h.hostname)
 	if err != nil {
 		ctx.respond(http.StatusBadRequest, "error decoding payload dictionaries: %v", err)
 		return

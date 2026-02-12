@@ -24,13 +24,13 @@ type origin struct {
 	tagger tagger.Component
 }
 
-func originFromRequest(r *http.Request, tagger tagger.Component) (origin, error) {
-	localData, err := origindetection.ParseLocalData(r.Header.Get("x-dsd-ld"))
+func originFromHeader(header http.Header, tagger tagger.Component) (origin, error) {
+	localData, err := origindetection.ParseLocalData(header.Get("x-dsd-ld"))
 	if err != nil {
 		return origin{}, fmt.Errorf("failed to parse x-dsd-ld header: %w", err)
 	}
 
-	externalData, err := origindetection.ParseExternalData(r.Header.Get("x-dsd-ed"))
+	externalData, err := origindetection.ParseExternalData(header.Get("x-dsd-ed"))
 	if err != nil {
 		return origin{}, fmt.Errorf("failed to parse x-dsd-ed header: %w", err)
 	}
