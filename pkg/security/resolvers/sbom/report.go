@@ -16,6 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
+const (
+	LastAccessProperty = "LastSeenRunning"
+)
+
 // PackagesReport wraps package data and implements the sbom.Report interface
 type PackagesReport struct {
 	packages    []sbomtypes.PackageWithInstalledFiles
@@ -52,7 +56,7 @@ func (r *PackagesReport) ToCycloneDX() *cyclonedx_v1_4.Bom {
 			lastAccess := pkg.LastAccess.Format(time.RFC3339)
 			component.Properties = []*cyclonedx_v1_4.Property{
 				{
-					Name:  "LastAccess",
+					Name:  LastAccessProperty,
 					Value: pointer.Ptr(lastAccess),
 				},
 			}
