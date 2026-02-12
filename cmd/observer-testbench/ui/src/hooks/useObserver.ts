@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../api/client';
 import type {
   StatusResponse, ScenarioInfo, ComponentInfo, SeriesInfo, Anomaly, Correlation,
-  CorrelatorDataResponse, CorrelatorStats
+  CompressedGroup, CorrelatorDataResponse, CorrelatorStats
 } from '../api/client';
 
 export type ConnectionState = 'disconnected' | 'connected' | 'loading' | 'ready';
@@ -17,6 +17,7 @@ export interface ObserverState {
   correlations: Correlation[];
   // Generic correlator data keyed by correlator name
   correlatorData: Map<string, CorrelatorDataResponse>;
+  compressedGroups: CompressedGroup[];
   correlatorStats: CorrelatorStats | null;
   activeScenario: string | null;
   error: string | null;
@@ -39,6 +40,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
   const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
   const [correlations, setCorrelations] = useState<Correlation[]>([]);
   const [correlatorData, setCorrelatorData] = useState<Map<string, CorrelatorDataResponse>>(new Map());
+  const [compressedGroups, setCompressedGroups] = useState<CompressedGroup[]>([]);
   const [correlatorStats, setCorrelatorStats] = useState<CorrelatorStats | null>(null);
   const [activeScenario, setActiveScenario] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +62,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
       // First fetch components and basic data
       const [
         statusData, scenariosData, componentsData, seriesData,
-        anomaliesData, correlationsData, statsData
+        anomaliesData, correlationsData, compressedGroupsData, statsData
       ] = await Promise.all([
           api.getStatus(),
           api.getScenarios(),
@@ -68,6 +70,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
           api.getSeries(),
           api.getAnomalies(),
           api.getCorrelations(),
+          api.getCompressedCorrelations(),
           api.getStats(),
         ]);
 
@@ -93,6 +96,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
       setSeries(seriesData);
       setAnomalies(anomaliesData);
       setCorrelations(correlationsData);
+      setCompressedGroups(compressedGroupsData);
       setCorrelatorData(new Map(correlatorResults));
       setCorrelatorStats(statsData);
       setError(null);
@@ -202,6 +206,7 @@ export function useObserver(): [ObserverState, ObserverActions] {
       anomalies,
       correlations,
       correlatorData,
+      compressedGroups,
       correlatorStats,
       activeScenario,
       error,

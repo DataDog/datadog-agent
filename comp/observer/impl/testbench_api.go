@@ -12,6 +12,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -50,6 +51,7 @@ func (api *TestBenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/config", api.cors(api.handleConfigUpdate))
 	mux.HandleFunc("/api/components/", api.cors(api.handleComponentAction))
 	mux.HandleFunc("/api/correlators/", api.cors(api.handleCorrelatorData))
+	mux.HandleFunc("/api/correlations/compressed", api.cors(api.handleCompressedCorrelations))
 
 	api.server = &http.Server{
 		Addr:    addr,
@@ -535,6 +537,18 @@ func (api *TestBenchAPI) handleCorrelatorData(w http.ResponseWriter, r *http.Req
 		"enabled": enabled,
 		"data":    data,
 	})
+}
+
+// handleCompressedCorrelations returns compressed group descriptions.
+func (api *TestBenchAPI) handleCompressedCorrelations(w http.ResponseWriter, r *http.Request) {
+	threshold := 0.75
+	if t := r.URL.Query().Get("threshold"); t != "" {
+		if parsed, err := strconv.ParseFloat(t, 64); err == nil && parsed > 0 && parsed <= 1 {
+			threshold = parsed
+		}
+	}
+	groups := api.tb.GetCompressedCorrelations(threshold)
+	api.writeJSON(w, groups)
 }
 
 // handleConfigUpdate handles POST /api/config to update server configuration.

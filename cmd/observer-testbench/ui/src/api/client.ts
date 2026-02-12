@@ -132,6 +132,27 @@ export interface GraphSketchEdge {
   FirstSeenUnix: number;
 }
 
+// Compressed group description from trie-based metric compression
+export interface MetricPattern {
+  pattern: string;
+  matched: number;
+  universe: number;
+  precision: number;
+}
+
+export interface CompressedGroup {
+  correlator: string;
+  groupId: string;
+  title: string;
+  commonTags: Record<string, string>;
+  patterns: MetricPattern[];
+  memberSources: string[];
+  seriesCount: number;
+  precision: number;
+  firstSeen?: number;
+  lastUpdated?: number;
+}
+
 // Generic correlator data response
 export interface CorrelatorDataResponse {
   enabled: boolean;
@@ -213,6 +234,11 @@ class ApiClient {
 
   async getGraphSketch(): Promise<{ enabled: boolean; edges: GraphSketchEdge[] }> {
     return this.fetch('/graphsketch');
+  }
+
+  async getCompressedCorrelations(threshold?: number): Promise<CompressedGroup[]> {
+    const params = threshold !== undefined ? `?threshold=${threshold}` : '';
+    return this.fetch(`/correlations/compressed${params}`);
   }
 
   async getStats(): Promise<CorrelatorStats> {

@@ -308,6 +308,19 @@ func copyTags(tags []string) []string {
 	return result
 }
 
+// ListAllSeriesCompact returns lightweight metadata for every stored series.
+func (s *timeSeriesStorage) ListAllSeriesCompact() []seriesCompact {
+	result := make([]seriesCompact, 0, len(s.series))
+	for _, st := range s.series {
+		result = append(result, seriesCompact{
+			Namespace: st.Namespace,
+			Name:      st.Name,
+			Tags:      st.Tags,
+		})
+	}
+	return result
+}
+
 // DumpToFile writes all series to a JSON file for debugging.
 func (s *timeSeriesStorage) DumpToFile(path string) error {
 	type dumpPoint struct {

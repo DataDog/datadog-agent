@@ -1,5 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { CorrelatorSection } from './CorrelatorSection';
+import { AnomalySwimlane } from './AnomalySwimlane';
+import { CompressedGroupCard } from './CompressedGroupCard';
 import type { ObserverState, ObserverActions } from '../hooks/useObserver';
 import type { ScenarioInfo, Correlation } from '../api/client';
 
@@ -13,7 +15,11 @@ export function CorrelatorView({ state, actions, sidebarWidth }: CorrelatorViewP
   const scenarios = state.scenarios ?? [];
   const components = state.components ?? [];
   const correlations = state.correlations ?? [];
+  const compressedGroups = state.compressedGroups ?? [];
+  const anomalies = state.anomalies ?? [];
   const correlatorStats = state.correlatorStats;
+
+  const [showRawData, setShowRawData] = useState(false);
 
   const correlatorComponents = useMemo(
     () => components.filter((c) => c.category === 'correlator'),
@@ -91,25 +97,63 @@ export function CorrelatorView({ state, actions, sidebarWidth }: CorrelatorViewP
 
         {state.connectionState === 'ready' && (
           <div className="space-y-4">
-            {/* Time Cluster Correlations */}
-            {correlations.length > 0 && (
-              <TimeClusterSection correlations={correlations} />
+            {/* 1. Anomaly Swimlane - always visible */}
+            <AnomalySwimlane
+              anomalies={anomalies}
+              compressedGroups={compressedGroups}
+            />
+
+            {/* 2. Compressed Groups */}
+            {compressedGroups.length > 0 && (
+              <div>
+                <h2 className="text-sm font-semibold text-slate-300 mb-3">
+                  Compressed Groups ({compressedGroups.length})
+                </h2>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  {compressedGroups.map((group) => (
+                    <CompressedGroupCard
+                      key={group.groupId}
+                      group={group}
+                    />
+                  ))}
+                </div>
+              </div>
             )}
 
-            {/* Dynamic correlator sections */}
-            {correlatorComponents.map((comp) => {
-              const corrData = state.correlatorData.get(comp.name);
-              return (
-                <CorrelatorSection
-                  key={comp.name}
-                  name={comp.name}
-                  displayName={comp.displayName}
-                  enabled={comp.enabled}
-                  data={corrData?.data ?? null}
-                  onToggle={() => actions.toggleComponent(comp.name)}
-                />
-              );
-            })}
+            {/* 3. Raw Correlator Data - collapsed by default */}
+            <div>
+              <button
+                onClick={() => setShowRawData(!showRawData)}
+                className="flex items-center gap-2 text-xs text-slate-500 hover:text-slate-400 mb-2"
+              >
+                <span>{showRawData ? '▼' : '▶'}</span>
+                <span>Raw Correlator Data</span>
+              </button>
+
+              {showRawData && (
+                <div className="space-y-4">
+                  {/* Time Cluster Correlations */}
+                  {correlations.length > 0 && (
+                    <TimeClusterSection correlations={correlations} />
+                  )}
+
+                  {/* Dynamic correlator sections */}
+                  {correlatorComponents.map((comp) => {
+                    const corrData = state.correlatorData.get(comp.name);
+                    return (
+                      <CorrelatorSection
+                        key={comp.name}
+                        name={comp.name}
+                        displayName={comp.displayName}
+                        enabled={comp.enabled}
+                        data={corrData?.data ?? null}
+                        onToggle={() => actions.toggleComponent(comp.name)}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </main>

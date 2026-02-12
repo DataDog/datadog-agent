@@ -557,9 +557,15 @@ func (tb *TestBench) rerunAnalysesLocked() {
 	// Mark scenario ready now that analyzers are done — anomalies are available
 	tb.ready = true
 
-	// Snapshot anomalies and enabled correlators for the background goroutine
+	// Snapshot anomalies sorted by time for the background goroutine.
+	// Anomalies are collected per-series, not in time order. Sorting ensures
+	// correlators see events chronologically, matching the live observer's
+	// behavior and preventing premature eviction of early clusters.
 	anomalySnapshot := make([]observerdef.AnomalyOutput, len(tb.anomalies))
 	copy(anomalySnapshot, tb.anomalies)
+	sort.Slice(anomalySnapshot, func(i, j int) bool {
+		return anomalySnapshot[i].Timestamp < anomalySnapshot[j].Timestamp
+	})
 	correlators := tb.enabledCorrelators()
 
 	// Phase 2 (async): Run correlators in a background goroutine
@@ -568,36 +574,63 @@ func (tb *TestBench) rerunAnalysesLocked() {
 	tb.correlatorsProcessing = true
 
 	go func() {
-		// Process all anomalies through each correlator.
-		// Each correlator has its own internal mutex, so this is thread-safe.
+		// Simulate the live observer's periodic flush+snapshot pattern.
+		// We process anomalies in time order, periodically flushing and
+		// capturing ActiveCorrelations so we see clusters that would have
+		// been observed before eviction — not just those alive at the end.
+		allCorrelations := make(map[string]observerdef.ActiveCorrelation) // keyed by Pattern
+
+		snapshotCorrelations := func() {
+			for _, proc := range correlators {
+				proc.Flush()
+			}
+			for _, proc := range correlators {
+				cs, ok := proc.(interface {
+					ActiveCorrelations() []observerdef.ActiveCorrelation
+				})
+				if !ok {
+					continue
+				}
+				for _, corr := range cs.ActiveCorrelations() {
+					// Keep the latest version of each correlation (most anomalies)
+					if existing, ok := allCorrelations[corr.Pattern]; ok {
+						if len(corr.Anomalies) >= len(existing.Anomalies) {
+							allCorrelations[corr.Pattern] = corr
+						}
+					} else {
+						allCorrelations[corr.Pattern] = corr
+					}
+				}
+			}
+		}
+
+		var lastFlushTime int64
+		const flushInterval int64 = 10 // seconds — matches live observer's ~per-observation cadence
+
 		for _, anomaly := range anomalySnapshot {
 			for _, proc := range correlators {
 				proc.Process(anomaly)
 			}
+			// Periodically flush and snapshot, simulating the live observer
+			if anomaly.Timestamp-lastFlushTime >= flushInterval {
+				snapshotCorrelations()
+				lastFlushTime = anomaly.Timestamp
+			}
 		}
+		// Final flush to capture anything remaining
+		snapshotCorrelations()
 
-		// Flush processors
-		for _, proc := range correlators {
-			proc.Flush()
-		}
-
-		// Collect correlations under lock
+		// Collect results under lock
 		tb.mu.Lock()
 		defer tb.mu.Unlock()
 
-		// Check if a newer rerun has superseded us
 		if tb.correlatorGen != gen {
 			return // Stale — a newer rerun is in progress or completed
 		}
 
-		// Update correlations from processors
 		tb.correlations = tb.correlations[:0]
-		for _, proc := range correlators {
-			if cs, ok := proc.(interface {
-				ActiveCorrelations() []observerdef.ActiveCorrelation
-			}); ok {
-				tb.correlations = append(tb.correlations, cs.ActiveCorrelations()...)
-			}
+		for _, corr := range allCorrelations {
+			tb.correlations = append(tb.correlations, corr)
 		}
 
 		tb.correlatorsProcessing = false
@@ -698,6 +731,65 @@ func (tb *TestBench) GetCorrelations() []observerdef.ActiveCorrelation {
 	result := make([]observerdef.ActiveCorrelation, len(tb.correlations))
 	copy(result, tb.correlations)
 	return result
+}
+
+// GetCompressedCorrelations returns compressed group descriptions for all active correlations.
+func (tb *TestBench) GetCompressedCorrelations(threshold float64) []CompressedGroup {
+	tb.mu.RLock()
+	defer tb.mu.RUnlock()
+
+	if tb.storage == nil || len(tb.correlations) == 0 {
+		return []CompressedGroup{}
+	}
+
+	// Build universe from storage
+	universe := tb.storage.ListAllSeriesCompact()
+
+	// Expand the universe to include aggregated variants (since anomalies use "name:agg" keys)
+	var expandedUniverse []seriesCompact
+	for _, u := range universe {
+		for _, agg := range []string{"avg", "count"} {
+			expandedUniverse = append(expandedUniverse, seriesCompact{
+				Namespace: u.Namespace,
+				Name:      u.Name + ":" + agg,
+				Tags:      u.Tags,
+			})
+		}
+	}
+
+	var groups []CompressedGroup
+	for i, corr := range tb.correlations {
+		// Resolve member series from anomaly SourceSeriesIDs
+		memberSet := make(map[string]struct{})
+		var members []seriesCompact
+		for _, a := range corr.Anomalies {
+			if a.SourceSeriesID == "" {
+				continue
+			}
+			if _, seen := memberSet[a.SourceSeriesID]; seen {
+				continue
+			}
+			memberSet[a.SourceSeriesID] = struct{}{}
+
+			ns, name, tags, ok := parseSeriesKey(a.SourceSeriesID)
+			if !ok {
+				continue
+			}
+			members = append(members, seriesCompact{
+				Namespace: ns,
+				Name:      name,
+				Tags:      tags,
+			})
+		}
+
+		groupID := fmt.Sprintf("corr-%d", i)
+		cg := CompressGroup(corr.Pattern, groupID, corr.Title, members, expandedUniverse, threshold)
+		cg.FirstSeen = corr.FirstSeen
+		cg.LastUpdated = corr.LastUpdated
+		groups = append(groups, cg)
+	}
+
+	return groups
 }
 
 // seriesCount returns the number of unique series (must be called with lock held).
