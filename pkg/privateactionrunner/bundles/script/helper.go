@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	ScriptUserName = "scriptuser"
+	ScriptUserName = "dd-scriptuser"
 )
 
 func NewShellScriptCommand(ctx context.Context, scriptFile string, args []string) *exec.Cmd {
