@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// This file provides the bundle registry used inside the DD cluster agent.
 package privatebundles
 
 import (
