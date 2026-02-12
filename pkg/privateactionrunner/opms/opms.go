@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"runtime"
 	"slices"
 	"strings"
 	"time"
@@ -25,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	actionsclientpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient"
 	aperrorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 const (
@@ -35,6 +37,20 @@ const (
 
 	serverTimeHeader = "X-Server-Time"
 )
+
+// getDeploymentType determines how the PAR is deployed based on the agent flavor.
+func getDeploymentType() string {
+	switch flavor.GetFlavor() {
+	case flavor.PrivateActionRunner:
+		return "standalone"
+	case flavor.ClusterAgent:
+		return "cluster_agent"
+	case flavor.DefaultAgent:
+		return "node_agent"
+	default:
+		return "unknown"
+	}
+}
 
 type PublishTaskUpdateJSONRequestPayload struct {
 	Branch       string                            `json:"branch,omitempty"`
@@ -290,6 +306,9 @@ func (c *client) HealthCheck(ctx context.Context) (*HealthCheckData, error) {
 	query.Add("runnerVersion", c.config.Version)
 	modesStr := modes.ToStrings(c.config.Modes)
 	query.Add("modes", strings.Join(modesStr, ","))
+	query.Add("platform", runtime.GOOS)
+	query.Add("architecture", runtime.GOARCH)
+	query.Add("deployment", getDeploymentType())
 	u.RawQuery = query.Encode()
 
 	_, resHeaders, err := c.makeRequest(ctx, http.MethodGet, u.String(), nil, nil, http.StatusOK)
@@ -376,6 +395,9 @@ func (c *client) makeRequest(
 	req.Header.Set(app.VersionHeaderName, c.config.Version)
 	modesStr := modes.ToStrings(c.config.Modes)
 	req.Header.Set(app.ModeHeaderName, strings.Join(modesStr, ","))
+	req.Header.Set(app.PlatformHeaderName, runtime.GOOS)
+	req.Header.Set(app.ArchitectureHeaderName, runtime.GOARCH)
+	req.Header.Set(app.DeploymentHeaderName, getDeploymentType())
 	res, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error making HTTP request: %w", err)

@@ -8,6 +8,9 @@ package constants
 const JwtHeaderName = "X-Datadog-OnPrem-JWT"
 const ModeHeaderName = "X-Datadog-OnPrem-Modes"
 const VersionHeaderName = "X-Datadog-OnPrem-Version"
+const PlatformHeaderName = "X-Datadog-OnPrem-Platform"
+const ArchitectureHeaderName = "X-Datadog-OnPrem-Architecture"
+const DeploymentHeaderName = "X-Datadog-OnPrem-Deployment"
 
 // HTTP Connection Constants
 var (
