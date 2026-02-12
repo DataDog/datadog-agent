@@ -84,11 +84,11 @@ fn is_yaml_bool_true(section: &Yaml, key: &str) -> bool {
 /// chart generates a system-probe.yaml with all feature sections present, even
 /// disabled ones (e.g. `network_config: { enabled: false }`).
 ///
-/// The logic is as follow:
-/// - Always allowed: discovery's own config (`discovery`)
-/// - System-probe `log_level`: we use it for sd-agent's log level.
-/// - Other features have `enabled` keys that we check.
-/// - Unknown keys: always trigger fallback as a safety net
+/// The logic is as follows:
+/// - Always allowed: `discovery`, `log_level`.
+/// - `system_probe_config` and `event_monitoring_config`: checked for specific
+///   sub-feature toggles (they don't have a top-level `enabled`).
+/// - Any other section: fallback unless it has `enabled: false`.
 fn has_non_discovery_yaml_keys(yaml_doc: &Option<Yaml>) -> bool {
     match yaml_doc {
         None => false,
@@ -98,7 +98,14 @@ fn has_non_discovery_yaml_keys(yaml_doc: &Option<Yaml>) -> bool {
                     return true;
                 };
                 match s.as_str() {
-                    "discovery" | "log_level" | "event_monitoring_config" => continue,
+                    "discovery" | "log_level" => continue,
+                    "event_monitoring_config" => {
+                        if is_yaml_bool_true(&value["process"], "enabled")
+                            || is_yaml_bool_true(&value["network_process"], "enabled")
+                        {
+                            return true;
+                        }
+                    }
                     "system_probe_config" => {
                         if is_yaml_bool_true(value, "enable_tcp_queue_length")
                             || is_yaml_bool_true(value, "enable_oom_kill")
@@ -107,23 +114,17 @@ fn has_non_discovery_yaml_keys(yaml_doc: &Option<Yaml>) -> bool {
                             return true;
                         }
                     }
-                    "dynamic_instrumentation"
-                    | "gpu_monitoring"
-                    | "network_config"
-                    | "runtime_security_config"
-                    | "service_monitoring_config"
-                    | "traceroute" => {
-                        if is_yaml_bool_true(value, "enabled") {
+                    _ => {
+                        if !matches!(value["enabled"], Yaml::Boolean(false)) {
                             return true;
                         }
                     }
-                    _ => return true,
                 }
             }
             false
         }
-        Some(Yaml::BadValue) => false,
-        _ => true,
+        Some(Yaml::BadValue) => false, // Empty or null document
+        _ => true, // Any non-hash YAML (array, string, etc.) counts as "other config"
     }
 }
 
@@ -1148,129 +1149,168 @@ log_level: info
 
     #[test]
     fn test_system_probe_config_tcp_queue_length_enabled() {
-        let yaml = r#"
+        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
+            let yaml = r#"
+discovery:
+  enabled: true
 system_probe_config:
   enable_tcp_queue_length: true
 "#;
-        let config_file = create_test_config(yaml);
-        let yaml_doc = load_config(Some(config_file.path().to_path_buf())).unwrap();
-        assert!(
-            has_non_discovery_yaml_keys(&yaml_doc),
-            "Should fallback when enable_tcp_queue_length is true"
-        );
+            let config_file = create_test_config(yaml);
+            let config = load_config(Some(config_file.path().to_path_buf()));
+            assert_eq!(determine_action(&config), FallbackDecision::FallbackToSystemProbe);
+        });
     }
 
     #[test]
     fn test_system_probe_config_oom_kill_enabled() {
-        let yaml = r#"
+        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
+            let yaml = r#"
+discovery:
+  enabled: true
 system_probe_config:
   enable_oom_kill: true
 "#;
-        let config_file = create_test_config(yaml);
-        let yaml_doc = load_config(Some(config_file.path().to_path_buf())).unwrap();
-        assert!(
-            has_non_discovery_yaml_keys(&yaml_doc),
-            "Should fallback when enable_oom_kill is true"
-        );
+            let config_file = create_test_config(yaml);
+            let config = load_config(Some(config_file.path().to_path_buf()));
+            assert_eq!(determine_action(&config), FallbackDecision::FallbackToSystemProbe);
+        });
     }
 
     #[test]
     fn test_system_probe_config_probes_disabled() {
-        let yaml = r#"
+        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
+            let yaml = r#"
+discovery:
+  enabled: true
 system_probe_config:
   enable_tcp_queue_length: false
   enable_oom_kill: false
 "#;
-        let config_file = create_test_config(yaml);
-        let yaml_doc = load_config(Some(config_file.path().to_path_buf())).unwrap();
-        assert!(
-            !has_non_discovery_yaml_keys(&yaml_doc),
-            "Should not fallback when probes are explicitly disabled"
-        );
+            let config_file = create_test_config(yaml);
+            let config = load_config(Some(config_file.path().to_path_buf()));
+            assert_eq!(determine_action(&config), FallbackDecision::RunSdAgent);
+        });
     }
 
     #[test]
     fn test_system_probe_config_general_settings_only() {
-        let yaml = r#"
+        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
+            let yaml = r#"
+discovery:
+  enabled: true
 system_probe_config:
   enabled: true
   sysprobe_socket: /custom/path.sock
   conntrack:
     enabled: true
 "#;
-        let config_file = create_test_config(yaml);
-        let yaml_doc = load_config(Some(config_file.path().to_path_buf())).unwrap();
-        assert!(
-            !has_non_discovery_yaml_keys(&yaml_doc),
-            "Should allow general system_probe_config settings"
-        );
+            let config_file = create_test_config(yaml);
+            let config = load_config(Some(config_file.path().to_path_buf()));
+            assert_eq!(determine_action(&config), FallbackDecision::RunSdAgent);
+        });
     }
 
-    // Feature section with no enabled key
-
-    // The Helm chart always includes `enabled` explicitly. A section present
-    // without an `enabled` key is treated as disabled; the env var check still
-    // provides a safety net for explicit opt-ins.
     #[test]
     fn test_feature_section_without_enabled_key() {
-        let yaml = r#"
+        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
+            let yaml = r#"
+discovery:
+  enabled: true
 network_config:
   some_other_setting: true
 "#;
-        let config_file = create_test_config(yaml);
-        let yaml_doc = load_config(Some(config_file.path().to_path_buf())).unwrap();
-        assert!(
-            !has_non_discovery_yaml_keys(&yaml_doc),
-            "Feature section without enabled key should not trigger fallback"
-        );
+            let config_file = create_test_config(yaml);
+            let config = load_config(Some(config_file.path().to_path_buf()));
+            assert_eq!(
+                determine_action(&config),
+                FallbackDecision::FallbackToSystemProbe,
+                "Feature section without explicit enabled: false should trigger fallback"
+            );
+        });
+    }
+
+    #[test]
+    fn test_system_probe_config_process_config_enabled() {
+        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
+            let yaml = r#"
+discovery:
+  enabled: true
+system_probe_config:
+  process_config:
+    enabled: true
+"#;
+            let config_file = create_test_config(yaml);
+            let config = load_config(Some(config_file.path().to_path_buf()));
+            assert_eq!(determine_action(&config), FallbackDecision::FallbackToSystemProbe);
+        });
+    }
+
+    #[test]
+    fn test_system_probe_config_process_config_disabled() {
+        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
+            let yaml = r#"
+discovery:
+  enabled: true
+system_probe_config:
+  process_config:
+    enabled: false
+"#;
+            let config_file = create_test_config(yaml);
+            let config = load_config(Some(config_file.path().to_path_buf()));
+            assert_eq!(determine_action(&config), FallbackDecision::RunSdAgent);
+        });
     }
 
     // event_monitoring_config tests
 
     #[test]
-    fn test_system_probe_config_process_config_enabled() {
-        let yaml = r#"
-system_probe_config:
-  process_config:
-    enabled: true
-"#;
-        let config_file = create_test_config(yaml);
-        let yaml_doc = load_config(Some(config_file.path().to_path_buf())).unwrap();
-        assert!(
-            has_non_discovery_yaml_keys(&yaml_doc),
-            "system_probe_config with process_config.enabled: true should trigger fallback"
-        );
-    }
-
-    #[test]
-    fn test_system_probe_config_process_config_disabled() {
-        let yaml = r#"
-system_probe_config:
-  process_config:
-    enabled: false
-"#;
-        let config_file = create_test_config(yaml);
-        let yaml_doc = load_config(Some(config_file.path().to_path_buf())).unwrap();
-        assert!(
-            !has_non_discovery_yaml_keys(&yaml_doc),
-            "system_probe_config with process_config.enabled: false should be allowed"
-        );
-    }
-
-    #[test]
-    fn test_event_monitoring_config_always_allowed() {
-        let yaml = r#"
+    fn test_event_monitoring_config_process_enabled() {
+        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
+            let yaml = r#"
+discovery:
+  enabled: true
 event_monitoring_config:
-  network_process:
-    enabled: true
   process:
     enabled: true
 "#;
-        let config_file = create_test_config(yaml);
-        let yaml_doc = load_config(Some(config_file.path().to_path_buf())).unwrap();
-        assert!(
-            !has_non_discovery_yaml_keys(&yaml_doc),
-            "event_monitoring_config should always be allowed"
-        );
+            let config_file = create_test_config(yaml);
+            let config = load_config(Some(config_file.path().to_path_buf()));
+            assert_eq!(determine_action(&config), FallbackDecision::FallbackToSystemProbe);
+        });
+    }
+
+    #[test]
+    fn test_event_monitoring_config_network_process_enabled() {
+        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
+            let yaml = r#"
+discovery:
+  enabled: true
+event_monitoring_config:
+  network_process:
+    enabled: true
+"#;
+            let config_file = create_test_config(yaml);
+            let config = load_config(Some(config_file.path().to_path_buf()));
+            assert_eq!(determine_action(&config), FallbackDecision::FallbackToSystemProbe);
+        });
+    }
+
+    #[test]
+    fn test_event_monitoring_config_both_disabled() {
+        temp_env::with_vars([("DD_DISCOVERY_USE_SD_AGENT", Some("true"))], || {
+            let yaml = r#"
+discovery:
+  enabled: true
+event_monitoring_config:
+  process:
+    enabled: false
+  network_process:
+    enabled: false
+"#;
+            let config_file = create_test_config(yaml);
+            let config = load_config(Some(config_file.path().to_path_buf()));
+            assert_eq!(determine_action(&config), FallbackDecision::RunSdAgent);
+        });
     }
 }
