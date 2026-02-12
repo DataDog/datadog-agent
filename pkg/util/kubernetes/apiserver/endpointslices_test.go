@@ -72,6 +72,18 @@ func TestUseEndpointSlices(t *testing.T) {
 			version:        &version.Info{Major: "1", Minor: "30", GitVersion: "v1.30.0"},
 			expectedResult: true,
 		},
+		{
+			name:           "pre-release version 1.21 returns false",
+			configEnabled:  true,
+			version:        &version.Info{Major: "1", Minor: "21", GitVersion: "v1.21.0-beta"},
+			expectedResult: false,
+		},
+		{
+			name:           "pre-release version 1.23 returns true",
+			configEnabled:  true,
+			version:        &version.Info{Major: "1", Minor: "23", GitVersion: "v1.23.0-beta"},
+			expectedResult: true,
+		},
 	}
 
 	for _, tt := range tests {
