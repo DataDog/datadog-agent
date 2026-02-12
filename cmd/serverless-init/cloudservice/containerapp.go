@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/collector"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ContainerApp has helper functions for getting specific Azure Container App data
