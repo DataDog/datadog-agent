@@ -52,16 +52,9 @@ so_symlink(
     version = VERSION,
 )
 
-pkg_files(
-    name = "hdr_files",
-    srcs = _SQLITE3_PUBLIC_HEADERS,
-    prefix = "include",
-)
-
 pkg_filegroup(
     name = "all_files",
     srcs = [
-        ":hdr_files",
         ":lib_files",
     ],
 )
