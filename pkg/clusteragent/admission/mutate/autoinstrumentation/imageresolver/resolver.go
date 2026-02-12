@@ -124,7 +124,6 @@ func (r *rcResolver) Resolve(registry string, repository string, tag string) (*R
 	defer r.mu.RUnlock()
 
 	if len(r.imageMappings) == 0 {
-		log.Debugf("Cache empty, no resolution available")
 		metrics.ImageResolutionAttempts.Inc(repository, tag, tag)
 		return nil, false
 	}
@@ -275,6 +274,9 @@ func newBucketTagResolver(cfg Config) *bucketTagResolver {
 // New creates the appropriate Resolver based on whether
 // a remote config client is available.
 func New(cfg Config) Resolver {
+	if !cfg.Enabled {
+		return NewNoOpResolver()
+	}
 	if cfg.RCClient == nil || reflect.ValueOf(cfg.RCClient).IsNil() {
 		log.Debugf("No remote config client available")
 		return NewNoOpResolver()
