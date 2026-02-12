@@ -197,11 +197,9 @@ func performSelfEnrollment(ctx context.Context, log log.Component, ddConfig conf
 	cfg.RunnerId = urnParts.RunnerID
 
 	// Auto-create connections for enrolled runner
-	var actionsAllowlist = make([]string, 0)
-	for _, set := range cfg.ActionsAllowlist {
-		for action := range set {
-			actionsAllowlist = append(actionsAllowlist, action)
-		}
+	var actionsAllowlist = make([]string, 0, len(cfg.ActionsAllowlist))
+	for fqnPrefix := range cfg.ActionsAllowlist {
+		actionsAllowlist = append(actionsAllowlist, fqnPrefix)
 	}
 
 	if len(actionsAllowlist) > 0 {
