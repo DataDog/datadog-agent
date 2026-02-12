@@ -519,13 +519,26 @@ func (ha HashAlgorithm) String() string {
 
 var zeroProcessContext ProcessContext
 
+// SnapshottedBoundSocket represents a snapshotted bound socket
+type SnapshottedBoundSocket struct {
+	IP       net.IP
+	Port     uint16
+	Family   uint16
+	Protocol uint16
+}
+
+// SnapshottedMmapedFile represents a snapshotted memory-mapped file
+type SnapshottedMmapedFile struct {
+	Path string
+}
+
 // ProcessCacheEntry this struct holds process context kept in the process tree
 type ProcessCacheEntry struct {
 	ProcessContext
 
 	// Snapshot data (only populated during initial snapshot, used for event replay)
-	SnapshottedBoundSockets []SnapshottedBoundSocket
-	SnapshottedMmapedFiles  []SnapshottedMmapedFile
+	SnapshottedBoundSockets []SnapshottedBoundSocket `field:"-"`
+	SnapshottedMmapedFiles  []SnapshottedMmapedFile  `field:"-"`
 }
 
 // IsContainerRoot returns whether this is a top level process in the container ID
