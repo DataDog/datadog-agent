@@ -9,4 +9,4 @@
 enhancements:
   - |
     Added a private action runner bundle that exposes the Network Path
-    traceroute functionality through the ``get_network_path`` action.
+    traceroute functionality through the ``getNetworkPath`` action.
