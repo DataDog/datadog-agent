@@ -44,10 +44,7 @@
           {{- if $meta.ProductCode }}<li><strong>Product code:</strong> {{ $meta.ProductCode }}</li>{{- end }}
           {{- if $meta.Source }}<li><strong>Source:</strong> {{ $meta.Source }}</li>{{- end }}
           {{- if $meta.Status }}<li><strong>Status:</strong> {{ $meta.Status }}</li>{{- end }}
-          {{- if $meta.BrokenReason }}<li><strong>Broken Reason:</strong> <span style="color: #d00;">{{ $meta.BrokenReason }}</span></li>{{- end }}
           {{- if $meta.UserSID }}<li><strong>User SID:</strong> {{ $meta.UserSID }}</li>{{- end }}
-          {{- if $meta.InstallPath }}<li><strong>Install Path:</strong> {{ $meta.InstallPath }}</li>{{- end }}
-          {{- if $meta.InstallPaths }}<li><strong>Install Paths:</strong><ul style="margin: 0.25em 0; padding-left: 1.5em;">{{- range $meta.InstallPaths }}<li>{{ . }}</li>{{- end }}</ul></li>{{- end }}
           <li><strong>64-bit:</strong> {{ $meta.Is64Bit }}</li>
         </ul>
       </details>
