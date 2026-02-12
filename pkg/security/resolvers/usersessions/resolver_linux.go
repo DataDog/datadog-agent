@@ -75,8 +75,9 @@ type incrementalFileReader struct {
 
 // SSHSessionKey describes the key to a ssh session in the LRU
 type SSHSessionKey struct {
-	IP   string // net.IP.String()
-	Port string
+	SshdPid string
+	IP      string // net.IP.String()
+	Port    string
 }
 
 // SSHSessionValue describes the value to a ssh session in the LRU
@@ -248,6 +249,7 @@ func parseSSHLogLine(line string, sshSessionParsed *lru.Cache[SSHSessionKey, SSH
 		Date      string
 		Hostname  string
 		Service   string
+		SshdPid   string
 		Remaining string
 	}
 	type SSHParsedLine struct {
@@ -273,6 +275,7 @@ func parseSSHLogLine(line string, sshSessionParsed *lru.Cache[SSHSessionKey, SSH
 			Hostname:  words[1],
 			Service:   words[2],
 			Remaining: strings.Join(words[3:], " "),
+			SshdPid:   words[2][strings.Index(words[2], "[")+1 : strings.Index(words[2], "]")],
 		}
 	case strings.HasPrefix(words[4], "sshd"):
 		sshLogLine = SSHLogLine{
@@ -280,6 +283,7 @@ func parseSSHLogLine(line string, sshSessionParsed *lru.Cache[SSHSessionKey, SSH
 			Hostname:  words[3],
 			Service:   words[4],
 			Remaining: strings.Join(words[5:], " "),
+			SshdPid:   words[4][strings.Index(words[4], "[")+1 : strings.Index(words[4], "]")],
 		}
 	default:
 		return
@@ -324,8 +328,9 @@ func parseSSHLogLine(line string, sshSessionParsed *lru.Cache[SSHSessionKey, SSH
 			authType = usersession.SSHAuthMethodUnknown
 		}
 		key := SSHSessionKey{
-			IP:   parsedIP.String(),
-			Port: sshParsedLine.Port,
+			SshdPid: sshLogLine.SshdPid,
+			IP:      parsedIP.String(),
+			Port:    sshParsedLine.Port,
 		}
 		value := SSHSessionValue{
 			AuthenticationMethod: int(authType),
@@ -556,6 +561,9 @@ func HandleSSHUserSession(pc *model.ProcessContext, envp []string) {
 				seclog.Warnf("failed to parse SSH_CLIENT port from %q: %v", sshClientVar, err)
 			} else {
 				pc.UserSession.SSHClientPort = port
+				if pc.Ancestor.Ancestor.Comm == "sshd" {
+					pc.UserSession.SshdPid = pc.Ancestor.Ancestor.Pid
+				}
 			}
 		} else {
 			seclog.Tracef("SSH_CLIENT is not in the expected format: %q", sshClientVar)
