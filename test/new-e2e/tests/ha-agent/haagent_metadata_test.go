@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
@@ -50,7 +49,6 @@ log_level: debug
 }
 
 func (s *haAgentMetadataTestSuite) TestHaAgentMetadata() {
-	flake.Mark(s.T())
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		s.T().Log("try assert ha_agent metadata")
 		output := s.Env().Agent.Client.Diagnose(agentclient.WithArgs([]string{"show-metadata", "ha-agent"}))
