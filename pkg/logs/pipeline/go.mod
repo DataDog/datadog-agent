@@ -7,7 +7,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.61.0
 	github.com/DataDog/datadog-agent/comp/observer v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.64.0-devel
-	github.com/DataDog/datadog-agent/pkg/config/mock v0.61.0
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/model v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.61.0
@@ -25,13 +25,13 @@ require (
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.179 // indirect
-	github.com/DataDog/datadog-agent/comp/api/api/def v0.72.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel // indirect
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.72.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-devel // indirect
+	github.com/DataDog/datadog-agent/comp/core/config v0.76.0-devel // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.76.0-devel // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.76.0-devel // indirect
-	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.0.0-20251003153905-4e3e64f07b69 // indirect
-	github.com/DataDog/datadog-agent/comp/core/status v0.72.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.76.0-devel // indirect
+	github.com/DataDog/datadog-agent/comp/core/status v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.76.0-devel // indirect

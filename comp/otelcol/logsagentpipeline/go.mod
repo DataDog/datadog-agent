@@ -6,7 +6,6 @@ require github.com/DataDog/datadog-agent/pkg/logs/pipeline v0.64.0-rc.3
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.179 // indirect
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.76.0-devel // indirect
