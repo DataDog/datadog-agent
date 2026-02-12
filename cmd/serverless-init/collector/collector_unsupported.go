@@ -15,12 +15,12 @@ import (
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 )
 
-type CPUCollector struct{}
+type Collector struct{}
 
-func NewCPUCollector(metricAgent *serverlessMetrics.ServerlessMetricAgent, metricSource metrics.MetricSource) (*CPUCollector, error) {
+func NewCollector(metricAgent *serverlessMetrics.ServerlessMetricAgent, metricSource metrics.MetricSource) (*CPUCollector, error) {
 	return nil, fmt.Errorf("CPU collector is only supported on Linux")
 }
 
-func (c *CPUCollector) Start(ctx context.Context) {}
+func (c *Collector) Start(ctx context.Context) {}
 
-func (c *CPUCollector) Stop() {}
+func (c *Collector) Stop() {}

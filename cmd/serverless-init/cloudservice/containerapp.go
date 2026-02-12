@@ -7,6 +7,7 @@ package cloudservice
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strings"
 
@@ -152,15 +153,13 @@ func (c *ContainerApp) Init(_ *TracingContext) error {
 	if subscriptionId, exists := os.LookupEnv(AzureSubscriptionIdEnvVar); exists {
 		c.SubscriptionId = subscriptionId
 	} else {
-		log.Errorf("Must set Subscription ID as an environment variable. Please set the %v value to your Subscription ID your App Container is in.", AzureSubscriptionIdEnvVar)
-		os.Exit(1)
+		log.Fatalf("Must set Subscription ID as an environment variable. Please set the %v value to your Subscription ID your App Container is in.", AzureSubscriptionIdEnvVar)
 	}
 
 	if resourceGroup, exists := os.LookupEnv(AzureResourceGroupEnvVar); exists {
 		c.ResourceGroup = resourceGroup
 	} else {
-		log.Errorf("Must set Resource Group as an environment variable. Please set the %v value to your Resource Group your App Container is in.", AzureResourceGroupEnvVar)
-		os.Exit(1)
+		log.Fatalf("Must set Resource Group as an environment variable. Please set the %v value to your Resource Group your App Container is in.", AzureResourceGroupEnvVar)
 	}
 
 	return nil

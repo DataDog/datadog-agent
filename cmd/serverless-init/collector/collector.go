@@ -8,17 +8,9 @@
 /*
 TODO:
 
-2/9
-Add back containerapp tests
 add collector tests
-update serverlessMetricAgent import in main to have consistent naming
-only start for in process, not sidecar OR collect for sidecar and tag appropriately. Some sort of container_type or sidecar tag?
-rename to enhanced metrics collector? Or otherwise organize file structure?
 Check in Cloud Run Functions, Cloud Run Jobs, Azure Web Apps
-Refactor to move go routine to main.go?
 Remove/add debug logs as needed
-Check parameters names (cgs) and make consistent
-add last flush logic for collector
 */
 
 package collector
@@ -91,7 +83,7 @@ func NewCollector(metricAgent *serverlessMetrics.ServerlessMetricAgent, metricSo
 		metricAgent:       metricAgent,
 		metricSource:      metricSource,
 		cgroupReader:      cgroupReader,
-		metricPrefix:      metricPrefix + ".enhanced.test.",
+		metricPrefix:      metricPrefix + ".enhanced.test.dh.",
 		previousRateStats: NullServerlessRateStats,
 	}, nil
 }
@@ -106,6 +98,8 @@ func (c *Collector) Start(ctx context.Context) {
 
 func (c *Collector) Stop() {
 	if c.cancelFunc != nil {
+		// One final collect before shutdown to collect a partial interval of enhanced metrics
+		c.collect()
 		c.cancelFunc()
 		log.Info("Enhanced metrics collector stopped")
 	}
@@ -259,11 +253,11 @@ func (c *Collector) sendMetrics(inStats *ServerlessContainerStats, enhancedMetri
 	// CPU usage in nanocores
 	c.metricAgent.AddHighCardinalityMetricWithTimestamp(c.metricPrefix+"cpu.usage", enhancedMetrics.CPUUsage, c.metricSource, metrics.DistributionType, enhancedMetrics.Timestamp)
 
-	// CPU usage in nanocores
-	c.metricAgent.AddHighCardinalityMetricWithTimestamp(c.metricPrefix+"cpu.usage.rate", statValue(inStats.CPU.Total, -1), c.metricSource, metrics.RateType, enhancedMetrics.Timestamp)
-
 	// CPU limit in nanocores
 	c.metricAgent.AddHighCardinalityMetricWithTimestamp(c.metricPrefix+"cpu.limit", enhancedMetrics.CPULimit, c.metricSource, metrics.DistributionType, enhancedMetrics.Timestamp)
+
+	// CPU percentage
+	c.metricAgent.AddHighCardinalityMetricWithTimestamp(c.metricPrefix+"cpu.percentage", enhancedMetrics.CPUUsage/enhancedMetrics.CPULimit, c.metricSource, metrics.DistributionType, enhancedMetrics.Timestamp)
 }
 
 func statValue(val *float64, def float64) float64 {
