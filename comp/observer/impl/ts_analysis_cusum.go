@@ -165,7 +165,7 @@ func runCUSUM(series observer.Series, baselineMean, baselineStddev, k, h float64
 			}
 			return &observer.AnomalyOutput{
 				Source: series.Name,
-				Title:  fmt.Sprintf("CUSUM shift detected: %s", series.Name),
+				Title:  "CUSUM shift detected: " + series.Name,
 				Description: fmt.Sprintf("%s shifted to %.2f (%.1fσ above baseline of %.2f)",
 					series.Name, p.Value, deviation, baselineMean),
 				Tags:      series.Tags,
@@ -186,7 +186,7 @@ func runCUSUM(series observer.Series, baselineMean, baselineStddev, k, h float64
 			}
 			return &observer.AnomalyOutput{
 				Source: series.Name,
-				Title:  fmt.Sprintf("CUSUM shift detected: %s", series.Name),
+				Title:  "CUSUM shift detected: " + series.Name,
 				Description: fmt.Sprintf("%s shifted to %.2f (%.1fσ below baseline of %.2f)",
 					series.Name, p.Value, deviation, baselineMean),
 				Tags:      series.Tags,

@@ -7,7 +7,6 @@ package observerimpl
 
 import (
 	"sort"
-	"strings"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
@@ -279,27 +278,8 @@ func (c *CrossSignalCorrelator) collectMatchingAnomalies(pattern correlationPatt
 	return result
 }
 
-// buildReport creates a ReportOutput for a matched pattern.
-func (c *CrossSignalCorrelator) buildReport(pattern correlationPattern, sources map[string]struct{}) observer.ReportOutput {
-	// Get sorted list of sources for consistent output
-	sourceList := make([]string, 0, len(sources))
-	for source := range sources {
-		sourceList = append(sourceList, source)
-	}
-	sort.Strings(sourceList)
-
-	return observer.ReportOutput{
-		Title: pattern.reportTitle,
-		Body:  "Correlated signals: " + strings.Join(sourceList, ", "),
-		Metadata: map[string]string{
-			"pattern":      pattern.name,
-			"signal_count": "3",
-		},
-	}
-}
-
 // GetBuffer returns the current buffer (for testing).
-func (c *CrossSignalCorrelator) GetBuffer() []timestampedAnomaly {
+func (c *CrossSignalCorrelator) GetBuffer() []timestampedAnomaly { //nolint:revive // unexported return is acceptable for testing
 	return c.buffer
 }
 
@@ -342,6 +322,6 @@ func (c *CrossSignalCorrelator) ActiveCorrelations() []observer.ActiveCorrelatio
 }
 
 // GetEventSignals returns the current event signals buffer (for testing).
-func (c *CrossSignalCorrelator) GetEventSignals() []timestampedEventSignal {
+func (c *CrossSignalCorrelator) GetEventSignals() []timestampedEventSignal { //nolint:revive // unexported return is acceptable for testing
 	return c.eventSignals
 }

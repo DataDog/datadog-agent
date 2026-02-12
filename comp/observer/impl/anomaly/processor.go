@@ -7,6 +7,7 @@ package anomaly
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -239,18 +240,18 @@ func extractBoundary(rawData []byte) (string, error) {
 	// Multipart data starts with: --boundary
 	lines := bytes.Split(rawData, []byte("\n"))
 	if len(lines) == 0 {
-		return "", fmt.Errorf("empty data")
+		return "", errors.New("empty data")
 	}
 
 	firstLine := string(bytes.TrimSpace(lines[0]))
 	if !strings.HasPrefix(firstLine, "--") {
-		return "", fmt.Errorf("data doesn't start with boundary")
+		return "", errors.New("data doesn't start with boundary")
 	}
 
 	// Extract boundary (remove the leading --)
 	boundary := strings.TrimPrefix(firstLine, "--")
 	if boundary == "" {
-		return "", fmt.Errorf("empty boundary")
+		return "", errors.New("empty boundary")
 	}
 
 	return boundary, nil

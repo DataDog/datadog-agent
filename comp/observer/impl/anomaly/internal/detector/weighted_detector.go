@@ -2,6 +2,8 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
+// Package detector provides anomaly detection algorithms and scoring mechanisms.
 package detector
 
 // WeightedDetector computes a weighted average score from telemetry results

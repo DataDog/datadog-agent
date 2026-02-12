@@ -2,9 +2,14 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
+// Package collector provides telemetry data collection and aggregation.
 package collector
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type TelemetrySignal struct {
 	Type   string
@@ -28,11 +33,11 @@ func NewTelemetrySignal[T any](typeName string, values []T, getKey func(T) strin
 }
 
 func (t TelemetrySignal) String() string {
-	str := ""
+	var sb strings.Builder
 	for k, v := range t.Values {
-		str += fmt.Sprintf("%v:%v\n", k, v)
+		fmt.Fprintf(&sb, "%v:%v\n", k, v)
 	}
-	return fmt.Sprintf("%v: %v\n", t.Type, str)
+	return fmt.Sprintf("%v: %v\n", t.Type, sb.String())
 }
 
 func (t TelemetrySignal) IsSimilarTo(t2 TelemetrySignal) float64 {

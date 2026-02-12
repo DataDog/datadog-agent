@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -257,7 +258,7 @@ func (tb *TestBench) LoadScenario(name string) error {
 // Uses batch loading for efficiency - reads all metrics at once instead of streaming.
 func (tb *TestBench) loadParquetDir(dir string) error {
 	if tb.config.Recorder == nil {
-		return fmt.Errorf("recorder component not configured - cannot load parquet files")
+		return errors.New("recorder component not configured - cannot load parquet files")
 	}
 
 	// Use batch loading - get all metrics at once
@@ -369,13 +370,6 @@ func (tb *TestBench) loadEventsDir(dir string) error {
 
 // runAnalyses runs all time series analyses on all stored series.
 func (tb *TestBench) runAnalyses() {
-	// Get all unique series keys
-	type seriesKey struct {
-		namespace string
-		name      string
-		tags      []string
-	}
-
 	// Collect all series
 	var allSeries []observerdef.Series
 	for _, agg := range []Aggregate{AggregateAverage, AggregateCount} {
@@ -473,7 +467,7 @@ func (tb *TestBench) GetComponents() []ComponentInfo {
 }
 
 // GetStorage returns the storage (for API handlers).
-func (tb *TestBench) GetStorage() *timeSeriesStorage {
+func (tb *TestBench) GetStorage() *timeSeriesStorage { //nolint:revive // unexported return is acceptable for internal API
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 	return tb.storage

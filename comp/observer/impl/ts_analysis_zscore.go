@@ -128,7 +128,7 @@ func (r *RobustZScoreDetector) Analyze(series observer.Series) observer.TimeSeri
 
 			anomaly := observer.AnomalyOutput{
 				Source: series.Name,
-				Title:  fmt.Sprintf("Robust Z-Score anomaly: %s", series.Name),
+				Title:  "Robust Z-Score anomaly: " + series.Name,
 				Description: fmt.Sprintf("%s value %.2f is %.1fσ %s median baseline of %.2f",
 					series.Name, p.Value, math.Abs(modifiedZScore), direction, baselineMedian),
 				Tags:      series.Tags,

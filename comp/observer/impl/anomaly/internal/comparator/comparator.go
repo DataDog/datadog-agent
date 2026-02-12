@@ -2,11 +2,11 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
+// Package comparator provides telemetry comparison and anomaly detection logic.
 package comparator
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/comp/observer/impl/anomaly/internal/collector"
 	"github.com/DataDog/datadog-agent/comp/observer/impl/anomaly/internal/detector"
 )
@@ -86,7 +86,7 @@ func (tc *TelemetryComparator) compareCPUMem(current collector.TelemetrySignal, 
 		} else if current.Type == "mem" {
 			detector = tc.memoryDetector
 		} else {
-			panic(fmt.Sprintf("Unknown signal type for V2 comparison: %s", current.Type))
+			panic("Unknown signal type for V2 comparison: " + current.Type)
 		}
 
 		// Compute anomaly score
@@ -302,7 +302,7 @@ func (tc *TelemetryComparator) compareMetrics(current []collector.MetricTimeseri
 			score := 1.0 / ratio
 			totalScore += score
 		} else {
-			totalScore += 1
+			totalScore++
 		}
 		// If ratio <= 1, skip this metric (don't count it)
 	}

@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -277,5 +278,5 @@ func LoadEventFile(path string) ([]observerdef.EventSignal, error) {
 		return result, nil
 	}
 
-	return nil, fmt.Errorf("could not parse event file")
+	return nil, errors.New("could not parse event file")
 }

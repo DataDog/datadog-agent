@@ -34,6 +34,9 @@ func NewTelemetryHistory(debug bool, logger *log.Logger, mode collector.Comparis
 func (h *TelemetryHistory) Add(t collector.Telemetry) (detector.TelemetryResult, error) {
 	highestResult, err := h.computeScore(t)
 	h.telemetries = append(h.telemetries, t)
+	if len(h.telemetries) > 10000 {
+		h.telemetries = h.telemetries[1:]
+	}
 
 	return highestResult, err
 }

@@ -256,13 +256,7 @@ func (s *timeSeriesStorage) DumpToFile(path string) error {
 			Tags:      st.Tags,
 		}
 		for _, p := range st.Points {
-			ds.Points = append(ds.Points, dumpPoint{
-				Timestamp: p.Timestamp,
-				Sum:       p.Sum,
-				Count:     p.Count,
-				Min:       p.Min,
-				Max:       p.Max,
-			})
+			ds.Points = append(ds.Points, dumpPoint(p))
 		}
 		out = append(out, ds)
 	}

@@ -114,7 +114,7 @@ func TestAnomalyDetector_Reset(t *testing.T) {
 
 func TestAnomalyDetector_ServerError(t *testing.T) {
 	// Create a server that always returns errors
-	errorServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	errorServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(ErrorResponse{Error: "server error"})
 	}))

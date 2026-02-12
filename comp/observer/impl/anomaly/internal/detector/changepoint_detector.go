@@ -2,10 +2,11 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
+// Package detector provides anomaly detection algorithms and scoring mechanisms.
 package detector
 
 import (
-	"fmt"
 	"math"
 	"time"
 )
@@ -76,7 +77,7 @@ func NewChangePointDetectorWithParams(method string, baselineWindowSize, recentW
 
 // Name returns the detector name
 func (d *ChangePointDetector) Name() string {
-	return fmt.Sprintf("ChangePoint-%s", d.method)
+	return "ChangePoint-" + d.method
 }
 
 // HigherIsAnomalous returns true since higher scores indicate anomalies

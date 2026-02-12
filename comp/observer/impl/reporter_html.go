@@ -123,8 +123,8 @@ func (r *HTMLReporter) Start(addr string) error {
 	}
 
 	go func() {
-		if err := r.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			// Log error but don't crash - server might be stopped intentionally
+		if err := r.server.ListenAndServe(); err != nil && err != http.ErrServerClosed { //nolint:revive // empty block is intentional - log error only
+			log.Printf("[HTMLReporter] ListenAndServe error: %v", err)
 		}
 	}()
 
@@ -782,7 +782,7 @@ func (r *HTMLReporter) handleDashboard(w http.ResponseWriter, req *http.Request)
 }
 
 // handleAPIReports returns JSON array of recent reports.
-func (r *HTMLReporter) handleAPIReports(w http.ResponseWriter, req *http.Request) {
+func (r *HTMLReporter) handleAPIReports(w http.ResponseWriter, _ *http.Request) {
 	r.mu.RLock()
 	reports := make([]timestampedReport, len(r.reports))
 	copy(reports, r.reports)
@@ -1091,7 +1091,7 @@ type rawAnomalyOutput struct {
 }
 
 // handleAPICorrelations returns currently active correlations.
-func (r *HTMLReporter) handleAPICorrelations(w http.ResponseWriter, req *http.Request) {
+func (r *HTMLReporter) handleAPICorrelations(w http.ResponseWriter, _ *http.Request) {
 	r.mu.RLock()
 	correlationState := r.correlationState
 	r.mu.RUnlock()
@@ -1132,7 +1132,7 @@ func (r *HTMLReporter) handleAPICorrelations(w http.ResponseWriter, req *http.Re
 }
 
 // handleAPIRawAnomalies returns all raw anomalies from TimeSeriesAnalysis implementations.
-func (r *HTMLReporter) handleAPIRawAnomalies(w http.ResponseWriter, req *http.Request) {
+func (r *HTMLReporter) handleAPIRawAnomalies(w http.ResponseWriter, _ *http.Request) {
 	r.mu.RLock()
 	rawState := r.rawAnomalyState
 	r.mu.RUnlock()

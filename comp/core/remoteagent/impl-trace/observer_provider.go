@@ -14,7 +14,7 @@ import (
 
 // GetTraces implements the ObserverProvider gRPC service.
 // It drains buffered traces from the observer buffer and returns them to the core-agent.
-func (r *remoteagentImpl) GetTraces(ctx context.Context, req *pbcore.GetTracesRequest) (*pbcore.GetTracesResponse, error) {
+func (r *remoteagentImpl) GetTraces(_ context.Context, req *pbcore.GetTracesRequest) (*pbcore.GetTracesResponse, error) {
 	traces, droppedCount, hasMore := r.observerBuffer.DrainTraces(req.GetMaxItems())
 
 	response := &pbcore.GetTracesResponse{
@@ -41,7 +41,7 @@ func (r *remoteagentImpl) GetTraces(ctx context.Context, req *pbcore.GetTracesRe
 
 // GetProfiles implements the ObserverProvider gRPC service.
 // It drains buffered profiles from the observer buffer and returns them to the core-agent.
-func (r *remoteagentImpl) GetProfiles(ctx context.Context, req *pbcore.GetProfilesRequest) (*pbcore.GetProfilesResponse, error) {
+func (r *remoteagentImpl) GetProfiles(_ context.Context, req *pbcore.GetProfilesRequest) (*pbcore.GetProfilesResponse, error) {
 	profiles, droppedCount, hasMore := r.observerBuffer.DrainProfiles(req.GetMaxItems())
 
 	response := &pbcore.GetProfilesResponse{

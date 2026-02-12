@@ -83,13 +83,13 @@ func (api *TestBenchAPI) cors(handler http.HandlerFunc) http.HandlerFunc {
 }
 
 // handleStatus returns the current status.
-func (api *TestBenchAPI) handleStatus(w http.ResponseWriter, r *http.Request) {
+func (api *TestBenchAPI) handleStatus(w http.ResponseWriter, _ *http.Request) {
 	status := api.tb.GetStatus()
 	api.writeJSON(w, status)
 }
 
 // handleScenarios lists available scenarios.
-func (api *TestBenchAPI) handleScenarios(w http.ResponseWriter, r *http.Request) {
+func (api *TestBenchAPI) handleScenarios(w http.ResponseWriter, _ *http.Request) {
 	scenarios, err := api.tb.ListScenarios()
 	if err != nil {
 		api.writeError(w, http.StatusInternalServerError, err.Error())
@@ -129,13 +129,13 @@ func (api *TestBenchAPI) handleScenarioAction(w http.ResponseWriter, r *http.Req
 }
 
 // handleComponents returns registered components.
-func (api *TestBenchAPI) handleComponents(w http.ResponseWriter, r *http.Request) {
+func (api *TestBenchAPI) handleComponents(w http.ResponseWriter, _ *http.Request) {
 	components := api.tb.GetComponents()
 	api.writeJSON(w, components)
 }
 
 // handleSeriesList returns all available series.
-func (api *TestBenchAPI) handleSeriesList(w http.ResponseWriter, r *http.Request) {
+func (api *TestBenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request) {
 	storage := api.tb.GetStorage()
 	if storage == nil {
 		api.writeJSON(w, []interface{}{})
@@ -349,7 +349,7 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 }
 
 // handleCorrelations returns detected correlations.
-func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, r *http.Request) {
+func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Request) {
 	correlations := api.tb.GetCorrelations()
 
 	type anomalyOutput struct {
@@ -404,5 +404,5 @@ func (api *TestBenchAPI) writeJSON(w http.ResponseWriter, data interface{}) {
 func (api *TestBenchAPI) writeError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(map[string]string{"error": message})
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
 }

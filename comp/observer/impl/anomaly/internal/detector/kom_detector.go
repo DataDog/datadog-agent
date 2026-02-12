@@ -2,6 +2,8 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
+// Package detector provides anomaly detection algorithms and scoring mechanisms.
 package detector
 
 import (
@@ -135,7 +137,6 @@ func (d *KofMDetector) ComputeScore(result TelemetryResult) (float64, error) {
 
 	// Count signals that are persistently extreme
 	persistentExtreme := 0
-	extremeSignals := make([]int, 0, d.numSignals)
 
 	for s := 0; s < d.numSignals; s++ {
 		if len(d.zHistory[s]) < 1 {
@@ -166,7 +167,6 @@ func (d *KofMDetector) ComputeScore(result TelemetryResult) (float64, error) {
 
 		if extremeCount >= d.persistence || (pointsToCheck == 1 && extremeCount >= 1) {
 			persistentExtreme++
-			extremeSignals = append(extremeSignals, s)
 		}
 	}
 

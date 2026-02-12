@@ -83,7 +83,7 @@ func (r *StdoutReporter) SetRawAnomalyState(state observer.RawAnomalyState) {
 // Report checks correlation state and prints changes.
 // It prints "[observer] NEW: {title}" when a correlation first appears
 // and "[observer] CLEARED: {title}" when a correlation disappears.
-func (r *StdoutReporter) Report(report observer.ReportOutput) {
+func (r *StdoutReporter) Report(_ observer.ReportOutput) {
 	// Report raw anomalies first (with analyzer identification)
 	if r.rawAnomalyState != nil {
 		r.reportRawAnomalyChanges()

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package main is the entry point for the go-traced-app demo application.
 package main
 
 import (
@@ -74,7 +75,7 @@ func main() {
 	// Initialize DogStatsD client
 	client, err := ddgostatsd.New(*statsdAddr,
 		ddgostatsd.WithNamespace("app."),
-		ddgostatsd.WithTags([]string{fmt.Sprintf("service:%s", *serviceName), fmt.Sprintf("env:%s", *env)}),
+		ddgostatsd.WithTags([]string{"service:" + *serviceName, "env:" + *env}),
 	)
 	if err != nil {
 		log.Printf("Warning: Failed to create DogStatsD client: %v", err)
@@ -207,22 +208,22 @@ func sendDogStatsDMetrics() {
 		return
 	}
 
-	tags := []string{fmt.Sprintf("service:%s", *serviceName), fmt.Sprintf("env:%s", *env)}
+	tags := []string{"service:" + *serviceName, "env:" + *env}
 
 	// Send a counter metric
-	statsdClient.Count("request.count", 1, tags, 1)
+	_ = statsdClient.Count("request.count", 1, tags, 1)
 
 	// Send a gauge metric with random value
 	gaugeValue := float64(50 + rand.Intn(50))
-	statsdClient.Gauge("request.duration", gaugeValue, tags, 1)
+	_ = statsdClient.Gauge("request.duration", gaugeValue, tags, 1)
 
 	// Send a histogram metric
 	histogramValue := float64(10 + rand.Intn(100))
-	statsdClient.Histogram("request.latency", histogramValue, tags, 1)
+	_ = statsdClient.Histogram("request.latency", histogramValue, tags, 1)
 
 	// Send a set metric
 	setValue := fmt.Sprintf("user-%d", rand.Intn(1000))
-	statsdClient.Set("unique_users", setValue, tags, 1)
+	_ = statsdClient.Set("unique_users", setValue, tags, 1)
 }
 
 func init() {

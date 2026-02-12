@@ -398,22 +398,3 @@ func (b *bufferImpl) Stats() observerbuffer.BufferStats {
 		ProfilesDropped: b.profilesDropped.Load(),
 	}
 }
-
-// noopBuffer is a no-op implementation when buffering is disabled.
-type noopBuffer struct{}
-
-func (n *noopBuffer) AddTrace(_ *pb.TracerPayload)                  {}
-func (n *noopBuffer) AddProfile(_ observerbuffer.ProfileData)       {}
-func (n *noopBuffer) AddRawProfile(_ []byte, _ map[string][]string) {}
-
-func (n *noopBuffer) DrainTraces(_ uint32) ([]observerbuffer.BufferedTrace, uint64, bool) {
-	return nil, 0, false
-}
-
-func (n *noopBuffer) DrainProfiles(_ uint32) ([]observerbuffer.ProfileData, uint64, bool) {
-	return nil, 0, false
-}
-
-func (n *noopBuffer) Stats() observerbuffer.BufferStats {
-	return observerbuffer.BufferStats{}
-}

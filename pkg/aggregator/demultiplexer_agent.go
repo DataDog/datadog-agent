@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"time"
 
@@ -263,16 +264,18 @@ func (v *eventLogView) GetTimestamp() int64 { return v.ts }
 // Examples: "Agent Startup" -> "agent_startup", "Container OOM" -> "container_oom"
 func standardizeEventType(name string) string {
 	// Convert to lowercase
-	result := ""
+	var sb strings.Builder
+	sb.Grow(len(name))
 	for _, ch := range name {
 		if ch >= 'A' && ch <= 'Z' {
-			result += string(ch + 32) // to lowercase
+			sb.WriteRune(ch + 32) // to lowercase
 		} else if ch == ' ' || ch == '.' || ch == '-' {
-			result += "_"
+			sb.WriteByte('_')
 		} else {
-			result += string(ch)
+			sb.WriteRune(ch)
 		}
 	}
+	result := sb.String()
 	// Collapse multiple underscores
 	for len(result) > 0 && result[0] == '_' {
 		result = result[1:]
@@ -358,7 +361,7 @@ func (d *AgentDemultiplexer) SetObserver(obs observer.Component) {
 		tags = append(tags,
 			"observer_signal:event",
 			fmt.Sprintf("observer_ts:%d", e.Ts),
-			fmt.Sprintf("event_type:%s", standardizeEventType(e.EventType)))
+			"event_type:"+standardizeEventType(e.EventType))
 
 		eventsHandle.ObserveLog(&eventLogView{
 			content:  []byte(e.String()),
