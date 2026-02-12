@@ -55,6 +55,7 @@ crate.from_cargo(
         "aarch64-unknown-linux-gnu",
         "x86_64-unknown-linux-gnu",
     ],
+    validate_lockfile = True,
 )
 use_repo(crate, "sdagent_crates")
 
@@ -67,6 +68,7 @@ use_repo(crate, "sdagent_crates")
 #         "aarch64-unknown-linux-gnu",
 #         "x86_64-unknown-linux-gnu",
 #     ],
+#     validate_lockfile = True,
 # )
 # use_repo(crate, "my_component_crates")
 ```
@@ -83,8 +85,6 @@ Crates are then referenced in BUILD files using the component's crate repository
    [dependencies]
    serde = { version = "1.0", features = ["derive"] }
    ```
-    `Cargo.toml` and `Cargo.lock` files will be synchronized automatically
-    upon next `bazel build` invocation.
 
 2. **Add the dependency to your `BUILD.bazel`:**
    ```starlark
@@ -96,20 +96,16 @@ Crates are then referenced in BUILD files using the component's crate repository
        ],
    )
    ```
-3. **Invoke bazel build command for your target to trigger cargo synchronization:**
+3. **Invoke cargo build command to trigger cargo synchronization:**
     ```bash
         # This will trigger the build of your component
-        bazel build <your_component_target>
+        cd <path_to_your_component> && cargo build
         # Additionally, you can only trigger a sync
         # if you don't want to build yet.
-        bazel build @sdagent_crates//:all
+        bazel build //<your_component_target>
     ```
 
 3. **Don't forget to commit updated `Cargo.toml` and `Cargo.lock`**
-
-> **Note:** we will need a mechanism to check that `Cargo.toml` and `Cargo.lock` are in sync. 
-Most probably, in a form of a linting job in CI. As for now, please, do not forget to commit the lock
-file.
 
 ## Adding a New Rust Component
 
@@ -196,7 +192,10 @@ use_repo(crate, "my_component_crates")
 ```
 
 This generates `Cargo.lock`.
->**Note:** you will have to run `cargo build` each time you change `Cargo.toml`. Bazel is capable of using `Cargo.toml` and `Cargo.lock` files to synchronize the dependencies, but it doesn't track changes in those.
+>**Note:** you will have to run `cargo build` each time you change `Cargo.toml`. If you bump a version in `Cargo.toml` without re-running `cargo` you will see an error that files are out of sync:
+```
+ERROR: Cargo.lock out of sync: sd-agent requires clap ^4.5.58 but Cargo.lock has 4.5.51.
+```
 
 ### Step 5: Create BUILD.bazel
 
@@ -406,9 +405,14 @@ bazel query "@my_component_crates//..."
 After modifying `Cargo.toml`, regenerate the lock file:
 
 ```bash
-bazel build @my_component_crates//:all
+cd <path_to_you_component> && cargo build
 ```
 
+bazel will fail if you forget to sync `Cargo.toml` and `Cargo.lock` with
+an error pointing to a mismatch:
+```
+ERROR: Cargo.lock out of sync: sd-agent requires clap ^4.5.58 but Cargo.lock has 4.5.51.
+```
 
 ## Existing Rust Components
 
@@ -419,5 +423,4 @@ bazel build @my_component_crates//:all
 ## Further Reading
 
 - [rules_rust documentation](https://bazelbuild.github.io/rules_rust/) - Rust toolchain and build rules
-- [rules_rs documentation](https://github.com/aspect-build/rules_rs) - Crate management
-- [Bazel Rust examples](https://github.com/aspect-build/bazel-examples/tree/main/rust)
+- [rules_rs documentation](https://github.com/dzbarsky/rules_rs) - Crate management
