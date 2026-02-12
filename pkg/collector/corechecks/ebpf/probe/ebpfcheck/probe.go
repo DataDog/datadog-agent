@@ -426,9 +426,9 @@ retry:
 	retryCnt++
 
 	for c := range cookies {
-		perfEventFD, err := ddebpf.GetPerfEventFDByProbeID(ebpf.ProgramID(c.Kprobe_id))
+		perfEventFD, ok := ddebpf.GetPerfEventFDByProbeID(ebpf.ProgramID(c.Kprobe_id))
 		// not all programs have associated perf events
-		if err != nil {
+		if !ok {
 			continue
 		}
 
