@@ -11,8 +11,13 @@ import (
 	"go.uber.org/fx"
 
 	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 )
 
 func getTaggerModule() fx.Option {
-	return taggerfx.Module()
+	return fx.Options(
+		workloadmetafx.Module(workloadmeta.NewParams()),
+		taggerfx.Module(),
+	)
 }
