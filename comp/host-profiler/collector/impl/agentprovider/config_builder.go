@@ -1,3 +1,11 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+//go:build linux
+
+// Package agentprovider provides an OTEL config provider that generates configuration from Datadog agent config
 package agentprovider
 
 import (
@@ -13,7 +21,7 @@ func buildReceivers(conf confMap, agent configManager) []any {
 	receivers := make(confMap)
 
 	hostProfiler := make(confMap)
-	converters.Set(hostProfiler, "symbol_uploader::enabled", true)
+	_ = converters.Set(hostProfiler, "symbol_uploader::enabled", true)
 
 	symbolEndpoints := make([]any, 0, agent.endpointsTotalLength)
 	for _, endpoint := range agent.endpoints {
@@ -67,7 +75,7 @@ func buildExporters(conf confMap, agent configManager) []any {
 func buildProcessors(conf confMap) []any {
 	processors := make(confMap)
 
-	converters.Set(processors, "infraattributes/default::allow_hostname_override", true)
+	_ = converters.Set(processors, "infraattributes/default::allow_hostname_override", true)
 	conf["processors"] = processors
 	return []any{"infraattributes/default"}
 }

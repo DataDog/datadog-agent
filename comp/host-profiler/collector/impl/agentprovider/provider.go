@@ -1,7 +1,15 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+//go:build linux
+
 package agentprovider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -31,11 +39,11 @@ func (ap *agentProvider) Retrieve(_ context.Context, uri string, _ confmap.Watch
 		return nil, fmt.Errorf("%q uri is not supported by %q provider", uri, schemeName)
 	}
 	if ap.config.config == nil {
-		return nil, fmt.Errorf("agent config is not available")
+		return nil, errors.New("agent config is not available")
 	}
 
 	if len(ap.config.endpoints) == 0 {
-		return nil, fmt.Errorf("no valid endpoints configured: ensure Datadog agent configuration has 'api_key' and either 'apm_config.profiling_dd_url' or 'site' set")
+		return nil, errors.New("no valid endpoints configured: ensure Datadog agent configuration has 'api_key' and either 'apm_config.profiling_dd_url' or 'site' set")
 	}
 
 	stringMap := buildConfig(ap.config)

@@ -68,9 +68,9 @@ func TestProvider(t *testing.T) {
 			expectedOTel: "provider/profiling-dd-url/otel.yaml",
 		},
 		{
-			name:         "multiple-keys-per-endpoint",
-			agentConfig:  "provider/multiple-keys-per-endpoint/agent.yaml",
-			expectedOTel: "provider/multiple-keys-per-endpoint/otel.yaml",
+			name:         "multi-keys-per-endpoint",
+			agentConfig:  "provider/multi-keys-per-endpoint/agent.yaml",
+			expectedOTel: "provider/multi-keys-per-endpoint/otel.yaml",
 		},
 		{
 			name:        "no-site",
@@ -88,14 +88,14 @@ func TestProvider(t *testing.T) {
 			expectedOTel: "provider/additional-endpoints-only/otel.yaml",
 		},
 		{
-			name:         "profiling-dd-url-precedence",
-			agentConfig:  "provider/profiling-dd-url-precedence/agent.yaml",
-			expectedOTel: "provider/profiling-dd-url-precedence/otel.yaml",
+			name:         "profiling-url-precedence",
+			agentConfig:  "provider/profiling-url-precedence/agent.yaml",
+			expectedOTel: "provider/profiling-url-precedence/otel.yaml",
 		},
 		{
-			name:         "invalid-additional-endpoint",
-			agentConfig:  "provider/invalid-additional-endpoint/agent.yaml",
-			expectedOTel: "provider/invalid-additional-endpoint/otel.yaml",
+			name:         "invalid-addl-endpoint",
+			agentConfig:  "provider/invalid-addl-endpoint/agent.yaml",
+			expectedOTel: "provider/invalid-addl-endpoint/otel.yaml",
 		},
 		{
 			name:        "invalid-profiling-dd-url",

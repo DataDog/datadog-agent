@@ -14,46 +14,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
 	"gopkg.in/yaml.v3"
 )
 
 var updateGolden = flag.Bool("update", false, "update golden test files")
-
-// mockConfig is a minimal mock of config.Component for testing
-type mockConfig struct {
-	config.Component
-	values map[string]interface{}
-}
-
-func newMockConfig() *mockConfig {
-	return &mockConfig{
-		values: map[string]interface{}{
-			"site":    "datadoghq.com",
-			"api_key": "test_api_key_123",
-		},
-	}
-}
-
-func (m *mockConfig) GetString(key string) string {
-	if val, ok := m.values[key]; ok {
-		if s, ok := val.(string); ok {
-			return s
-		}
-	}
-	return ""
-}
-
-func (m *mockConfig) GetStringMapStringSlice(key string) map[string][]string {
-	if val, ok := m.values[key]; ok {
-		if m, ok := val.(map[string][]string); ok {
-			return m
-		}
-	}
-	return map[string][]string{}
-}
 
 // converter is an interface that both converterWithAgent and converterWithoutAgent implement
 type converter interface {
