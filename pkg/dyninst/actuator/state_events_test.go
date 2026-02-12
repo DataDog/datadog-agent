@@ -75,6 +75,12 @@ func TestEventStringer(t *testing.T) {
 			ev:      eventShutdown{},
 			wantStr: "eventShutdown{}",
 		},
+		{
+			ev: eventRuntimeStatsUpdated{
+				programID: 1,
+			},
+			wantStr: "eventRuntimeStatsUpdated{programID: 1}",
+		},
 	}
 
 	for _, tc := range testCases {

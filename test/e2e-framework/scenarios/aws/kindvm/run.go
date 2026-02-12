@@ -34,33 +34,32 @@ import (
 	resAws "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 )
 
 //go:embed agent_helm_values.yaml
 var agentHelmValues string
 
+// Run is the entry point for the scenario when run via pulumi.
+// It uses outputs.Kubernetes which is lightweight and doesn't pull in test dependencies.
 func Run(ctx *pulumi.Context) error {
 	awsEnv, err := resAws.NewEnvironment(ctx)
 	if err != nil {
 		return err
 	}
 
-	env, _, _, err := environments.CreateEnv[environments.Kubernetes]()
-	if err != nil {
-		return err
-	}
+	env := outputs.NewKubernetes()
 
 	params := ParamsFromEnvironment(awsEnv)
 	return RunWithEnv(ctx, awsEnv, env, params)
 }
 
-// RunWithEnv deploys a KIND-on-EC2 environment using a provided env and params
-func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env *environments.Kubernetes, params *RunParams) error {
+// RunWithEnv deploys a KIND-on-EC2 environment using a provided env and params.
+// It accepts KubernetesOutputs interface, enabling reuse between provisioners and direct Pulumi runs.
+func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.KubernetesOutputs, params *RunParams) error {
 
 	var err error
 	var fakeIntake *fakeintakeComp.Fakeintake
@@ -71,12 +70,12 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env *environment
 		if err != nil {
 			return err
 		}
-		err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
+		err = fakeIntake.Export(ctx, env.FakeIntakeOutput())
 		if err != nil {
 			return err
 		}
 
-		if params.agentOptions != nil {
+		if len(params.agentOptions) > 0 {
 			newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithFakeintake(fakeIntake)}
 			params.agentOptions = append(newOpts, params.agentOptions...)
 		}
@@ -86,7 +85,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env *environment
 		}
 		params.vmOptions = append(params.vmOptions, ec2.WithPulumiResourceOptions(utils.PulumiDependsOn(fakeIntake)))
 	} else {
-		env.FakeIntake = nil
+		env.DisableFakeIntake()
 	}
 
 	host, err := ec2.NewVM(awsEnv, params.Name, params.vmOptions...)
@@ -110,7 +109,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env *environment
 		return err
 	}
 
-	err = kindCluster.Export(ctx, &env.KubernetesCluster.ClusterOutput)
+	err = kindCluster.Export(ctx, env.KubernetesClusterOutput())
 	if err != nil {
 		return err
 	}
@@ -156,14 +155,14 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env *environment
 	}
 
 	var dependsOnDDAgent pulumi.ResourceOption
-	if params.agentOptions != nil && !params.deployOperator {
+	if len(params.agentOptions) > 0 && !params.deployOperator {
 		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(agentHelmValues), kubernetesagentparams.WithClusterName(kindCluster.ClusterName), kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()})}
 		params.agentOptions = append(newOpts, params.agentOptions...)
 		agent, err := helm.NewKubernetesAgent(&awsEnv, "kind", kubeProvider, params.agentOptions...)
 		if err != nil {
 			return err
 		}
-		err = agent.Export(ctx, &env.Agent.KubernetesAgentOutput)
+		err = agent.Export(ctx, env.KubernetesAgentOutput())
 		if err != nil {
 			return err
 		}
@@ -225,7 +224,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env *environment
 		}
 
 		// These workloads can be deployed only if the agent is installed, they rely on CRDs installed by Agent helm chart
-		if params.agentOptions != nil {
+		if len(params.agentOptions) > 0 {
 			if _, err := nginx.K8sAppDefinition(&awsEnv, kubeProvider, "workload-nginx", 80, "", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
 				return err
 			}
@@ -240,7 +239,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env *environment
 		}
 
 		if params.deployArgoRollout {
-			if _, err := nginx.K8sRolloutAppDefinition(&awsEnv, kubeProvider, "workload-argo-rollout-nginx", dependsOnDDAgent, dependsOnArgoRollout); err != nil {
+			if _, err := nginx.K8sRolloutAppDefinition(&awsEnv, kubeProvider, "workload-argo-rollout-nginx", 80, dependsOnDDAgent, dependsOnArgoRollout); err != nil {
 				return err
 			}
 		}
@@ -262,7 +261,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env *environment
 		}
 	}
 
-	if params.deployOperator && params.operatorDDAOptions != nil {
+	if params.deployOperator && len(params.operatorDDAOptions) > 0 {
 		// Deploy the datadog CSI driver
 		if err := csidriver.NewDatadogCSIDriver(&awsEnv, kubeProvider, csiDriverCommitSHA); err != nil {
 			return err
@@ -272,14 +271,14 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env *environment
 			return err
 		}
 
-		if err := ddaWithOperatorComp.Export(ctx, &env.Agent.KubernetesAgentOutput); err != nil {
+		if err := ddaWithOperatorComp.Export(ctx, env.KubernetesAgentOutput()); err != nil {
 			return err
 		}
 
 	}
 
-	if params.agentOptions == nil || (params.operatorDDAOptions == nil) {
-		env.Agent = nil
+	if len(params.agentOptions) == 0 && len(params.operatorDDAOptions) == 0 {
+		env.DisableAgent()
 	}
 
 	return nil

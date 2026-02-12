@@ -370,16 +370,16 @@ type Status struct {
 			} `json:"AnalyzedRateByServiceLegacy"`
 			AnalyzedSpansByService struct {
 			} `json:"AnalyzedSpansByService"`
-			AzureServerlessTags      string `json:"AzureServerlessTags"`
-			BucketInterval           int64  `json:"BucketInterval"`
-			ClientStatsFlushInterval int    `json:"ClientStatsFlushInterval"`
-			ComputeStatsBySpanKind   bool   `json:"ComputeStatsBySpanKind"`
-			ConfigPath               string `json:"ConfigPath"`
-			ConnectionLimit          int    `json:"ConnectionLimit"`
-			ConnectionResetInterval  int    `json:"ConnectionResetInterval"`
-			ContainerProcRoot        string `json:"ContainerProcRoot"`
-			DDAgentBin               string `json:"DDAgentBin"`
-			DebugServerPort          int    `json:"DebugServerPort"`
+			AdditionalProfileTags    map[string]string `json:"AdditionalProfileTags"`
+			BucketInterval           int64             `json:"BucketInterval"`
+			ClientStatsFlushInterval int               `json:"ClientStatsFlushInterval"`
+			ComputeStatsBySpanKind   bool              `json:"ComputeStatsBySpanKind"`
+			ConfigPath               string            `json:"ConfigPath"`
+			ConnectionLimit          int               `json:"ConnectionLimit"`
+			ConnectionResetInterval  int               `json:"ConnectionResetInterval"`
+			ContainerProcRoot        string            `json:"ContainerProcRoot"`
+			DDAgentBin               string            `json:"DDAgentBin"`
+			DebugServerPort          int               `json:"DebugServerPort"`
 			DebuggerIntakeProxy      struct {
 				DDURL string `json:"DDURL"`
 			} `json:"DebuggerIntakeProxy"`
@@ -436,14 +436,13 @@ type Status struct {
 			OTLPReceiver          struct {
 				AttributesTranslator struct {
 				} `json:"AttributesTranslator"`
-				BindHost                   string `json:"BindHost"`
-				GRPCPort                   int    `json:"GRPCPort"`
-				GrpcMaxRecvMsgSizeMib      int    `json:"GrpcMaxRecvMsgSizeMib"`
-				IgnoreMissingDatadogFields bool   `json:"IgnoreMissingDatadogFields"`
-				MaxRequestBytes            int    `json:"MaxRequestBytes"`
-				ProbabilisticSampling      int    `json:"ProbabilisticSampling"`
-				SpanNameAsResourceName     bool   `json:"SpanNameAsResourceName"`
-				SpanNameRemappings         struct {
+				BindHost               string `json:"BindHost"`
+				GRPCPort               int    `json:"GRPCPort"`
+				GrpcMaxRecvMsgSizeMib  int    `json:"GrpcMaxRecvMsgSizeMib"`
+				MaxRequestBytes        int    `json:"MaxRequestBytes"`
+				ProbabilisticSampling  int    `json:"ProbabilisticSampling"`
+				SpanNameAsResourceName bool   `json:"SpanNameAsResourceName"`
+				SpanNameRemappings     struct {
 				} `json:"SpanNameRemappings"`
 			} `json:"OTLPReceiver"`
 			Obfuscation struct {

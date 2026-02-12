@@ -347,7 +347,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsEnvVar() {
 	}
 
 	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint}, true, false)
-	endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config))
+	endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config), true)
 
 	suite.Nil(err)
 	suite.compareEndpoints(expectedEndpoints, endpoints)
@@ -570,7 +570,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {
 	}
 
 	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint}, true, false)
-	endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config))
+	endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config), true)
 
 	suite.Nil(err)
 	suite.compareEndpoints(expectedEndpoints, endpoints)
@@ -1248,4 +1248,71 @@ func (suite *ConfigTestSuite) TestBatchWaitSubsecondValues() {
 
 	suite.Nil(err)
 	suite.Equal(pkgconfigsetup.DefaultBatchWait*time.Second, endpoints.BatchWait, "BatchWait should fallback to default for too-large values")
+}
+
+func (suite *ConfigTestSuite) TestTCPEndpointsPortLookup() {
+	// This test verifies that TCP endpoints are constructed with the correct ports
+	// when the logsEndpoints map is looked up with hostnames that have trailing dots (FQDNs).
+	// The trailing dots are added by GetMainEndpoint when convert_dd_site_fqdn.enabled is true.
+
+	tests := []struct {
+		name         string
+		site         string
+		expectedHost string
+		expectedPort int
+	}{
+		{
+			name:         "datadoghq.com site",
+			site:         "datadoghq.com",
+			expectedHost: "agent-intake.logs.datadoghq.com.",
+			expectedPort: 10516,
+		},
+		{
+			name:         "datadoghq.eu site",
+			site:         "datadoghq.eu",
+			expectedHost: "agent-intake.logs.datadoghq.eu.",
+			expectedPort: 443,
+		},
+		{
+			name:         "datadoghq.eu with-a-dot site",
+			site:         "datadoghq.eu.",
+			expectedHost: "agent-intake.logs.datadoghq.eu.",
+			expectedPort: 443,
+		},
+		{
+			name:         "datad0g.com site",
+			site:         "datad0g.com",
+			expectedHost: "agent-intake.logs.datad0g.com.",
+			expectedPort: 10516,
+		},
+		{
+			name:         "datad0g.eu site",
+			site:         "datad0g.eu",
+			expectedHost: "agent-intake.logs.datad0g.eu.",
+			expectedPort: 443,
+		},
+	}
+
+	for _, tt := range tests {
+		suite.Run(tt.name, func() {
+			suite.config.SetWithoutSource("api_key", "test-key")
+			suite.config.SetWithoutSource("site", tt.site)
+			suite.config.SetWithoutSource("convert_dd_site_fqdn.enabled", true) // FQDN is enabled by default
+
+			endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config), true)
+
+			suite.Nil(err)
+			suite.Equal(tt.expectedHost, endpoints.Main.Host, "Host should match expected FQDN with trailing dot")
+			suite.Equal(tt.expectedPort, endpoints.Main.Port, "Port should match the value from logsEndpoints map")
+
+			suite.config.SetWithoutSource("api_key", "test-key")
+			suite.config.SetWithoutSource("site", tt.site)
+			suite.config.SetWithoutSource("convert_dd_site_fqdn.enabled", false)
+
+			endpoints, err = buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config), true)
+
+			suite.Nil(err)
+			suite.Equal(tt.expectedPort, endpoints.Main.Port, "Port should match the value from logsEndpoints map")
+		})
+	}
 }

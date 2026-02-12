@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/httpclient"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -25,9 +26,9 @@ func (h *DeleteJobHandler) WithHttpClientProvider(httpClientProvider httpclient.
 	return h
 }
 
-func NewDeleteJobHandler() *DeleteJobHandler {
+func NewDeleteJobHandler(runnerConfig *config.Config) *DeleteJobHandler {
 	return &DeleteJobHandler{
-		httpClientProvider: httpclient.NewDefaultProvider(),
+		httpClientProvider: httpclient.NewDefaultProvider(runnerConfig),
 	}
 }
 

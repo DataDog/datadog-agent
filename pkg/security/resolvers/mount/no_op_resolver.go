@@ -39,7 +39,7 @@ func (mr *NoOpResolver) SyncCacheFromListMount() error {
 }
 
 // Delete a mount from the cache
-func (mr *NoOpResolver) Delete(_ uint32) error {
+func (mr *NoOpResolver) Delete(_ uint32, _ uint64) error {
 	return nil
 }
 
@@ -81,4 +81,8 @@ func (mr *NoOpResolver) ToJSON() ([]byte, error) {
 // InsertMoved inserts a mount from move_mount
 func (mr *NoOpResolver) InsertMoved(_ model.Mount) error {
 	return nil
+}
+
+// Iterate iterates over all the mounts in the cache and calls the callback function for each mount
+func (mr *NoOpResolver) Iterate(_ func(*model.Mount)) {
 }

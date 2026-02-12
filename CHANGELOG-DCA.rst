@@ -2,6 +2,96 @@
 Release Notes
 =============
 
+.. _Release Notes_7.75.3:
+
+7.75.3
+======
+
+.. _Release Notes_7.75.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-02-11
+Pinned to datadog-agent v7.75.3: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7753>`_.
+
+
+.. _Release Notes_7.75.2:
+
+7.75.2
+======
+
+.. _Release Notes_7.75.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-02-04
+Pinned to datadog-agent v7.75.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7752>`_.
+
+
+.. _Release Notes_7.75.1:
+
+7.75.1
+======
+
+.. _Release Notes_7.75.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-01-28
+Pinned to datadog-agent v7.75.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7751>`_.
+
+.. _Release Notes_7.75.0:
+
+7.75.0
+======
+
+.. _Release Notes_7.75.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-01-21
+Pinned to datadog-agent v7.75.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7750>`_.
+
+.. _Release Notes_7.75.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- The Datadog Cluster Agent's mutating webhooks (part of the `Admission Controller <https://docs.datadoghq.com/containers/cluster_agent/admission_controller/?tab=datadogoperator>`_) previously included Single Step Instrumentation (SSI) settings in their default webhook label selectors. These SSI-specific settings, ``apm_config.instrumentation.enabled`` and ``apm_config.instrumentation.enabled_namespaces``, have been removed.
+
+  For those using Single Step Instrumentation, no action is required and no behavior changes. For those using the ``config`` or ``tagsfromlabels`` webhooks for manually instrumented applications, behavior remains consistent with the `documented configuration <https://docs.datadoghq.com/containers/cluster_agent/admission_controller/?tab=datadogoperator#apm-and-dogstatsd>`_. Users that were unintentionally relying on the SSI settings without using SSI should add the appropriate pod label or enable ``mutate_unlabelled`` to preserve the previous behavior.
+
+
+.. _Release Notes_7.75.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Single Step Instrumentation now uses the Python tracer major version 4 by default. Customers instrumenting Python
+  applications through SSI should review the `4.0.0 <https://github.com/DataDog/dd-trace-py/releases/tag/v4.0.0>`_
+  release notes and the [compatibility guide](https://docs.datadoghq.com/tracing/trace_collection/compatibility/python/)
+  to ensure their Python applications are compatible.
+
+
+.. _Release Notes_7.75.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- We collect namespaces in Kubernetes for Single Step Instrumentation. We need this information to utilize namespace
+  labels for workload selection. However, we also use this information to generate pod security polices for restricted
+  namespaces. This change fixes an issue where we would only collect namespace information when target based workload
+  selection was utilized instead of collecting namespaces for all Single Step Instrumentation configurations.
+
+- For Single Step Instrumentation, pods that include a label disabling instrumentation no longer receive mutations from the instrumentation webhook, even if they are in an enabled namespace.
+
+- When using Single Step Instrumentation with configuration-based targeting (enabled namespaces or targets) together with Local Lib Injection, the webhook no longer mutates pods in namespaces where instrumentation is disabled.
+
+
 .. _Release Notes_7.74.1:
 
 7.74.1
@@ -120,7 +210,7 @@ Upgrade Notes
   implementation, which has been the default since Agent v7.57.0, is a drop-in replacement. This setting was never exposed
   in Helm or the Datadog Operator. If you previously set the DD_APM_INSTRUMENTATION_VERSION environment variable on
   the Cluster Agent, it is now ignored.
-  
+
   If you use a private registry, add the ``apm-inject`` container to your registry before upgrading. No action is
   required for other users. For details on using private registries, see [Use a private container registry](https://docs.datadoghq.com/tracing/trace_collection/automatic_instrumentation/single-step-apm/kubernetes/?tab=agentv764recommended#use-a-private-container-registry).
 
@@ -132,7 +222,7 @@ New Features
 
 - Customers using Single Step Instrumentation with target-based workload selection can now use language detection.
   Language detection greatly reduces startup time when all default libraries are configured for a target.
-  
+
   A target is eligible for language detection if a target has no defined ``ddTraceVersions`` or if ``ddTraceVersions``
   matches the default set of SDKs. Once a language has been determined for a deployment, subsequent deploys
   only use the SDKs necessary for the detected language.

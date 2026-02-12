@@ -81,16 +81,14 @@ type OTLP struct {
 	// AttributesTranslator specifies an OTLP to Datadog attributes translator.
 	AttributesTranslator *ddattributes.Translator `mapstructure:"-"`
 
-	// IgnoreMissingDatadogFields specifies whether we should recompute DD span fields if the corresponding "datadog."
-	// namespaced span attributes are missing. If it is false (default), we will use the incoming "datadog." namespaced
-	// OTLP span attributes to construct the DD span, and if they are missing, we will recompute them from the other
-	// OTLP semantic convention attributes. If it is true, we will only populate a field if its associated "datadog."
-	// OTLP span attribute exists, otherwise we will leave it empty.
-	IgnoreMissingDatadogFields bool `mapstructure:"ignore_missing_datadog_fields"`
-
 	// GrpcMaxRecvMsgSizeMib specifies the max receive message size (in Mib) in OTLP receiver gRPC server in the trace agent binary.
 	// This config only applies to Agent OTLP ingestion. It does not apply to OSS Datadog exporter/connector or DDOT.
 	GrpcMaxRecvMsgSizeMib int `mapstructure:"-"`
+
+	// IgnoreMissingDatadogFields is deprecated and no longer used.
+	// It is kept for backwards compatibility with external packages.
+	// Deprecated: This field is ignored - the Agent now always uses standard OTel semantic conventions.
+	IgnoreMissingDatadogFields bool `mapstructure:"-"`
 }
 
 // ObfuscationConfig holds the configuration for obfuscating sensitive data
@@ -533,9 +531,8 @@ type AgentConfig struct {
 	// Install Signature
 	InstallSignature InstallSignatureConfig
 
-	// Azure serverless apps tags, in the form of a comma-separated list of
-	// key-value pairs, starting with a comma
-	AzureServerlessTags string
+	// Additional profile tags are statically defined tags to attach to proxied profiles, this is primarily used by serverless
+	AdditionalProfileTags map[string]string
 
 	// AuthToken is the auth token for the agent
 	AuthToken string `json:"-"`

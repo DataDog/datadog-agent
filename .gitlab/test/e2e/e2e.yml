@@ -11,7 +11,6 @@
     - !reference [.retrieve_linux_go_e2e_deps]
     - !reference [.retrieve_linux_pulumi_plugins]
     - !reference [.retrieve_linux_go_tools_deps]
-    - dda inv -- -e install-tools
     # Setup AWS Credentials
     - mkdir -p ~/.aws
     - |
@@ -53,7 +52,7 @@
     # Generate external links to CI VISIBILITY, used by artifacts:reports:annotations
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - export DD_ENV=nativetest # TODO: Remove after testing native instrumentation
-    # - export DD_CIVISIBILITY_ENABLED=true
+    - export DD_CIVISIBILITY_ENABLED=true
     - export DD_CIVISIBILITY_AGENTLESS_ENABLED=true
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     # set the environment variables for the windows test signing
@@ -102,7 +101,6 @@
     - |
       if [ -d "$E2E_COVERAGE_OUT_DIR" ]; then
         dda inv -- -e coverage.process-e2e-coverage-folders $E2E_COVERAGE_OUT_DIR
-        pip install boto3==1.38.8 # TODO: Remove this before merging, after dda is bumped in test-infra-definitions
         dda inv -- -e dyntest.compute-and-upload-job-index --bucket-uri $S3_PERMANENT_ARTIFACTS_URI --coverage-folder $E2E_COVERAGE_OUT_DIR --commit-sha $CI_COMMIT_SHA --job-id $CI_JOB_ID
       fi
   artifacts:
@@ -208,6 +206,15 @@ go_e2e_test_binaries:
     - agent_deb-x64-a7
     - windows_msi_and_bosh_zip_x64-a7
 
+.new_e2e_template_needs_container_deploy_linux:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_agent_linux
+    - qa_agent_linux_jmx
+    - qa_dca
+    - qa_dogstatsd
+
 .new_e2e_template_needs_container_deploy:
   extends: .new_e2e_template
   needs:
@@ -230,7 +237,7 @@ new-e2e-containers-ecs:
 
 new-e2e-containers:
   extends:
-    - .new_e2e_template_needs_container_deploy
+    - .new_e2e_template_needs_container_deploy_linux
   # TODO once images are deployed to ECR for dev branches, update
   #.on_main_or_rc_and_no_skip_e2e adding on_dev_branch_manual rules
   # and move rules to template
@@ -254,11 +261,11 @@ new-e2e-containers:
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:22-04"
       - EXTRA_PARAMS: --run TestDockerSuite
       - EXTRA_PARAMS: --run "TestK8S(CEL|Legacy)FilteringSuite"
-      - EXTRA_PARAMS: --skip "Test(Kind|EKS|ECS|Docker|K8SCELFiltering|K8SLegacyFiltering)Suite"
+      - EXTRA_PARAMS: --skip "Test(Kind|EKS|OpenShiftVM|ECS|Docker|K8SCELFiltering|K8SLegacyFiltering)Suite"
 
 new-e2e-containers-k8s-latest:
   extends:
-    - .new_e2e_template_needs_container_deploy
+    - .new_e2e_template_needs_container_deploy_linux
   rules:
     - !reference [.on_container_or_e2e_changes]
     - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
@@ -313,7 +320,6 @@ new-e2e-remote-config:
   extends: .new_e2e_template_needs_deb_x64
   rules:
     - !reference [.on_rc_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   variables:
     TARGETS: ./tests/remote-config
@@ -369,7 +375,7 @@ new-e2e-fips-compliance-test:
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7-fips
-    - qa_agent_fips
+    - qa_agent_fips_linux
   rules:
     - !reference [.on_arun_or_e2e_changes]
     - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
@@ -445,7 +451,6 @@ new-e2e-language-detection:
   extends: .new_e2e_template_needs_deb_x64
   rules:
     - !reference [.on_language-detection_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   variables:
     TARGETS: ./tests/language-detection
@@ -465,7 +470,7 @@ new-e2e-npm-packages:
   variables:
     TARGETS: ./tests/npm
     TEAM: cloud-network-monitoring
-    EXTRA_PARAMS: --run "TestEC2(VM|VMSELinux|VMWKit)Suite"
+    EXTRA_PARAMS: --run "TestEC2(VM|VMSELinux|VMWKit|VMDirect)Suite"
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-npm-docker:
@@ -476,7 +481,7 @@ new-e2e-npm-docker:
   needs:
     - !reference [.needs_new_e2e_template]
     - qa_dca
-    - qa_agent
+    - qa_agent_linux
   variables:
     TARGETS: ./tests/npm
     TEAM: cloud-network-monitoring
@@ -513,7 +518,7 @@ new-e2e-npm-eks:
   needs:
     - !reference [.needs_new_e2e_template]
     - new-e2e-npm-eks-init
-    - qa_agent
+    - qa_agent_linux
     - qa_dca
   variables:
     TARGETS: ./tests/npm
@@ -531,7 +536,7 @@ new-e2e-npm:
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
-    - qa_agent
+    - qa_agent_linux
     - qa_dca
   variables:
     TARGETS: ./tests/npm
@@ -544,9 +549,9 @@ new-e2e-amp:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7
     - windows_msi_and_bosh_zip_x64-a7
-    - qa_agent
-    - qa_agent_jmx
-    - qa_agent_fips_jmx
+    - qa_agent_linux
+    - qa_agent_linux_jmx
+    - qa_agent_fips_linux_jmx
     - qa_dca
   rules:
     - !reference [.on_amp_or_e2e_changes]
@@ -563,9 +568,9 @@ new-e2e-alp:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7
     - windows_msi_and_bosh_zip_x64-a7
-    - qa_agent
-    - qa_agent_jmx
-    - qa_agent_fips_jmx
+    - qa_agent_linux
+    - qa_agent_linux_jmx
+    - qa_agent_fips_linux_jmx
     - qa_dca
   rules:
     - !reference [.on_alp_or_e2e_changes]
@@ -578,7 +583,6 @@ new-e2e-alp:
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
-
 new-e2e-cws:
   extends: .new_e2e_template
   rules:
@@ -589,7 +593,7 @@ new-e2e-cws:
     - agent_deb-x64-a7
     - windows_msi_and_bosh_zip_x64-a7
     - qa_cws_instrumentation
-    - qa_agent
+    - qa_agent_linux
     - qa_dca
   variables:
     TARGETS: ./tests/cws
@@ -610,7 +614,7 @@ new-e2e-cws:
 
 
 new-e2e-sbom:
-  extends: .new_e2e_template_needs_container_deploy
+  extends: .new_e2e_template_needs_container_deploy_linux
   rules:
     - !reference [.on_sbom_or_e2e_changes]
     - !reference [.manual]
@@ -628,10 +632,9 @@ new-e2e-discovery:
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7
-    - qa_agent
+    - qa_agent_linux
   rules:
     - !reference [.on_discovery_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   variables:
     TARGETS: ./tests/discovery
@@ -643,7 +646,7 @@ new-e2e-process-ecs:
   needs:
     - !reference [.needs_new_e2e_template]
     - windows_msi_and_bosh_zip_x64-a7
-    - qa_agent
+    - qa_agent_linux
     - qa_dca
   rules:
     - !reference [.on_process_or_e2e_changes]
@@ -660,11 +663,10 @@ new-e2e-process:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7
     - windows_msi_and_bosh_zip_x64-a7
-    - qa_agent
+    - qa_agent_linux
     - qa_dca
   rules:
     - !reference [.on_process_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   variables:
     EXTRA_PARAMS: --skip TestECSFargateCoreAgentTestSuite|TestECSFargateTestSuite|TestECSEC2CoreAgentSuite|TestECSEC2TestSuite
@@ -673,7 +675,7 @@ new-e2e-process:
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-orchestrator-ecs:
-  extends: .new_e2e_template_needs_container_deploy
+  extends: .new_e2e_template_needs_container_deploy_linux
   rules:
     - !reference [.on_orchestrator_or_e2e_changes]
     - !reference [.manual]
@@ -685,10 +687,9 @@ new-e2e-orchestrator-ecs:
   timeout: 55m
 
 new-e2e-orchestrator:
-  extends: .new_e2e_template_needs_container_deploy
+  extends: .new_e2e_template_needs_container_deploy_linux
   rules:
     - !reference [.on_orchestrator_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   variables:
     EXTRA_PARAMS: --skip TestECSSuite
@@ -704,7 +705,7 @@ new-e2e-apm:
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
-    - qa_agent
+    - qa_agent_linux
     - agent_deb-x64-a7
   variables:
     TARGETS: ./tests/apm
@@ -752,6 +753,11 @@ new-e2e-fleet-upgrade:
   extends: .new_e2e_fleet_template
   variables:
     EXTRA_PARAMS: --run TestFleetUpgrade
+
+new-e2e-fleet-extensions:
+  extends: .new_e2e_fleet_template
+  variables:
+    EXTRA_PARAMS: --run TestFleetExtensions
 
 new-e2e-installer-script:
   extends: .new_e2e_template
@@ -835,7 +841,7 @@ new-e2e-ndm-netflow:
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
-    - qa_agent
+    - qa_agent_linux
   variables:
     TARGETS: ./tests/ndm/netflow
     TEAM: ndm-integrations
@@ -845,12 +851,11 @@ new-e2e-ndm-snmp:
   extends: .new_e2e_template
   rules:
     - !reference [.on_ndm_snmp_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7
-    - qa_agent
+    - qa_agent_linux
   variables:
     TARGETS: ./tests/ndm/snmp
     TEAM: ndm-core
@@ -860,7 +865,6 @@ new-e2e-ha-agent:
   extends: .new_e2e_template_needs_deb_x64
   rules:
     - !reference [.on_ha_agent_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   variables:
     TARGETS: ./tests/ha-agent
@@ -886,7 +890,6 @@ new-e2e-netpath:
   extends: .new_e2e_template_needs_deb_windows_x64
   rules:
     - !reference [.on_netpath_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   variables:
     TARGETS: ./tests/netpath
@@ -954,7 +957,6 @@ new-e2e-otel-eks:
   needs:
     - !reference [.needs_new_e2e_template]
     - qa_dca
-    - qa_agent
     - qa_agent_full
     - qa_ot_agent_standalone
     - new-e2e-otel-eks-init
@@ -974,7 +976,6 @@ new-e2e-otel:
   needs:
     - !reference [.needs_new_e2e_template]
     - qa_dca
-    - qa_agent
     - qa_agent_full
     - qa_ot_agent_standalone
   variables:
@@ -991,7 +992,7 @@ new-e2e-ssi:
   needs:
     - !reference [.needs_new_e2e_template]
     - qa_dca
-    - qa_agent
+    - qa_agent_linux
     - qa_agent_full
   variables:
     TARGETS: ./tests/ssi
@@ -1015,7 +1016,7 @@ new-e2e-package-signing-debian-a7-x86_64:
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7
-  rules: !reference [.on_default_new_e2e_tests]
+  rules: !reference [.on_package_signing_tests]
 
 new-e2e-package-signing-suse-a7-x86_64:
   extends:
@@ -1028,17 +1029,16 @@ new-e2e-package-signing-suse-a7-x86_64:
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_suse-x64-a7
-  rules: !reference [.on_default_new_e2e_tests]
+  rules: !reference [.on_package_signing_tests]
 
 new-e2e-cspm:
   extends: .new_e2e_template
   rules:
     - !reference [.on_cspm_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   needs:
     - !reference [.needs_new_e2e_template]
-    - qa_agent
+    - qa_agent_linux
     - qa_dca
   variables:
     TARGETS: ./tests/cspm
@@ -1047,10 +1047,9 @@ new-e2e-cspm:
   timeout: 35m
 
 new-e2e-gpu:
-  extends: .new_e2e_template_needs_container_deploy
+  extends: .new_e2e_template_needs_container_deploy_linux
   rules:
     - !reference [.on_gpu_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   variables:
     TARGETS: ./tests/gpu # the target path where tests are
@@ -1058,7 +1057,7 @@ new-e2e-gpu:
     E2E_PULUMI_LOG_LEVEL: 10 # incident-33572
     ON_NIGHTLY_FIPS: "true"
   needs: # list of required jobs. By default gitlab waits for any previous jobs.
-    - !reference [.new_e2e_template_needs_container_deploy, needs]
+    - !reference [.new_e2e_template_needs_container_deploy_linux, needs]
     - agent_deb-x64-a7 # agent 7 debian package
   parallel:
     matrix:
@@ -1117,6 +1116,8 @@ generate-flakes-finder-pipeline:
     - qa_agent
     - qa_agent_fips
     - qa_agent_fips_jmx
+    - qa_agent_fips_linux
+    - qa_agent_fips_linux_jmx
     - qa_agent_full
     - tests_windows_sysprobe_x64
   tags: ["arch:amd64", "specific:true"]
@@ -1176,6 +1177,8 @@ generate-fips-e2e-pipeline:
     - qa_agent_full
     - qa_agent_fips
     - qa_agent_fips_jmx
+    - qa_agent_fips_linux
+    - qa_agent_fips_linux_jmx
     - tests_windows_sysprobe_x64
   tags: ["arch:amd64", "specific:true"]
   script:

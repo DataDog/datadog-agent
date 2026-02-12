@@ -555,7 +555,6 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.EqualValues(t, 123.4, cfg.MaxMemory)
 	assert.Equal(t, "0.0.0.0", cfg.ReceiverHost)
 	assert.True(t, cfg.OTLPReceiver.SpanNameAsResourceName)
-	assert.False(t, cfg.OTLPReceiver.IgnoreMissingDatadogFields)
 	assert.Equal(t, map[string]string{"a": "b", "and:colons": "in:values", "c": "d", "with.dots": "in.side"}, cfg.OTLPReceiver.SpanNameRemappings)
 
 	assert.ElementsMatch(t, []*traceconfig.Endpoint{
@@ -627,6 +626,11 @@ func TestFullYamlConfig(t *testing.T) {
 	}, cfg.InstallSignature)
 
 	assert.Equal(t, "edge", cfg.APMMode)
+
+	assert.Equal(t, map[string]string{
+		"_dd.origin": "appservice",
+		"env":        "staging",
+	}, cfg.AdditionalProfileTags)
 }
 
 func TestFileLoggingDisabled(t *testing.T) {

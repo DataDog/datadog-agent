@@ -9,12 +9,17 @@ package healthplatformimpl
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
@@ -110,8 +115,8 @@ func TestReportIssue(t *testing.T) {
 	err = comp.ReportIssue(
 		"logs-docker-file-permissions",
 		"Docker File Tailing Permissions",
-		&healthplatform.IssueReport{
-			IssueID: "docker-file-tailing-disabled",
+		&healthplatformpayload.IssueReport{
+			IssueId: "docker-file-tailing-disabled",
 			Context: map[string]string{
 				"dockerDir": "/var/lib/docker",
 				"os":        "linux",
@@ -129,7 +134,7 @@ func TestReportIssue(t *testing.T) {
 	// Test GetIssueForCheck
 	issueForCheck := comp.GetIssueForCheck("logs-docker-file-permissions")
 	assert.NotNil(t, issueForCheck)
-	assert.Equal(t, "docker-file-tailing-disabled", issueForCheck.ID)
+	assert.Equal(t, "docker-file-tailing-disabled", issueForCheck.Id)
 
 	// Test GetIssueForCheck with non-existent check
 	nonExistentIssue := comp.GetIssueForCheck("non-existent")
@@ -157,8 +162,8 @@ func TestIssueResolution(t *testing.T) {
 	err = comp.ReportIssue(
 		"test-check-1",
 		"Test Check",
-		&healthplatform.IssueReport{
-			IssueID: "docker-file-tailing-disabled",
+		&healthplatformpayload.IssueReport{
+			IssueId: "docker-file-tailing-disabled",
 			Context: map[string]string{
 				"dockerDir": "/var/lib/docker",
 				"os":        "linux",
@@ -200,8 +205,8 @@ func TestClearMethods(t *testing.T) {
 	err = comp.ReportIssue(
 		"check-1",
 		"Check 1",
-		&healthplatform.IssueReport{
-			IssueID: "docker-file-tailing-disabled",
+		&healthplatformpayload.IssueReport{
+			IssueId: "docker-file-tailing-disabled",
 			Context: map[string]string{
 				"dockerDir": "/var/lib/docker",
 				"os":        "linux",
@@ -213,8 +218,8 @@ func TestClearMethods(t *testing.T) {
 	err = comp.ReportIssue(
 		"check-2",
 		"Check 2",
-		&healthplatform.IssueReport{
-			IssueID: "docker-file-tailing-disabled",
+		&healthplatformpayload.IssueReport{
+			IssueId: "docker-file-tailing-disabled",
 			Context: map[string]string{
 				"dockerDir": "/var/lib/docker",
 				"os":        "linux",
@@ -248,22 +253,22 @@ func TestReportIssueErrors(t *testing.T) {
 	comp := provides.Comp
 
 	// Test empty check ID
-	err = comp.ReportIssue("", "Test", &healthplatform.IssueReport{
-		IssueID: "docker-file-tailing-disabled",
+	err = comp.ReportIssue("", "Test", &healthplatformpayload.IssueReport{
+		IssueId: "docker-file-tailing-disabled",
 	})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "check ID cannot be empty")
 
 	// Test empty issue ID
-	err = comp.ReportIssue("check-1", "Test", &healthplatform.IssueReport{
-		IssueID: "",
+	err = comp.ReportIssue("check-1", "Test", &healthplatformpayload.IssueReport{
+		IssueId: "",
 	})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "issue ID cannot be empty")
 
 	// Test unknown issue ID
-	err = comp.ReportIssue("check-1", "Test", &healthplatform.IssueReport{
-		IssueID: "unknown-issue",
+	err = comp.ReportIssue("check-1", "Test", &healthplatformpayload.IssueReport{
+		IssueId: "unknown-issue",
 	})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to build issue")
@@ -289,8 +294,8 @@ func TestConcurrentReporting(t *testing.T) {
 			_ = comp.ReportIssue(
 				checkID,
 				"Concurrent Check",
-				&healthplatform.IssueReport{
-					IssueID: "docker-file-tailing-disabled",
+				&healthplatformpayload.IssueReport{
+					IssueId: "docker-file-tailing-disabled",
 					Context: map[string]string{
 						"dockerDir": "/var/lib/docker",
 						"os":        "linux",
@@ -330,8 +335,8 @@ func TestLifecycle(t *testing.T) {
 	err = comp.ReportIssue(
 		"lifecycle-check-1",
 		"Lifecycle Check",
-		&healthplatform.IssueReport{
-			IssueID: "docker-file-tailing-disabled",
+		&healthplatformpayload.IssueReport{
+			IssueId: "docker-file-tailing-disabled",
 			Context: map[string]string{
 				"dockerDir": "/var/lib/docker",
 				"os":        "linux",
@@ -362,8 +367,8 @@ func TestIssueTimestamp(t *testing.T) {
 	err = comp.ReportIssue(
 		"timestamp-check-1",
 		"Timestamp Check",
-		&healthplatform.IssueReport{
-			IssueID: "docker-file-tailing-disabled",
+		&healthplatformpayload.IssueReport{
+			IssueId: "docker-file-tailing-disabled",
 			Context: map[string]string{
 				"dockerDir": "/var/lib/docker",
 				"os":        "linux",
@@ -410,8 +415,8 @@ func TestComponentDisabled(t *testing.T) {
 	assert.True(t, ok, "Expected noopHealthPlatform when disabled")
 
 	// Verify all methods work but do nothing
-	err = provides.Comp.ReportIssue("test-check", "Test Check", &healthplatform.IssueReport{
-		IssueID: "docker-file-tailing-disabled",
+	err = provides.Comp.ReportIssue("test-check", "Test Check", &healthplatformpayload.IssueReport{
+		IssueId: "docker-file-tailing-disabled",
 		Context: map[string]string{"dockerDir": "/var/lib/docker"},
 	})
 	assert.NoError(t, err)
@@ -428,4 +433,123 @@ func TestComponentDisabled(t *testing.T) {
 	// Verify clear methods work without error
 	provides.Comp.ClearIssuesForCheck("test-check")
 	provides.Comp.ClearAllIssues()
+}
+
+// TestGetIssuesHandlerEmpty tests the HTTP handler returns empty list when no issues
+func TestGetIssuesHandlerEmpty(t *testing.T) {
+	lifecycle := newMockLifecycle()
+	reqs := testRequires(t, lifecycle)
+
+	provides, err := NewComponent(reqs)
+	require.NoError(t, err)
+
+	// Get the implementation to access the handler
+	impl, ok := provides.Comp.(*healthPlatformImpl)
+	require.True(t, ok, "Expected healthPlatformImpl")
+
+	// Create a test request
+	req := httptest.NewRequest(http.MethodGet, "/health-platform/issues", nil)
+	w := httptest.NewRecorder()
+
+	// Call the handler
+	impl.getIssuesHandler(w, req)
+
+	// Check the response
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
+
+	// Parse the response
+	var response struct {
+		Count  int                                     `json:"count"`
+		Issues map[string]*healthplatformpayload.Issue `json:"issues"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	require.NoError(t, err)
+
+	assert.Equal(t, 0, response.Count)
+	assert.Empty(t, response.Issues)
+}
+
+// TestGetIssuesHandlerWithIssues tests the HTTP handler returns issues correctly
+func TestGetIssuesHandlerWithIssues(t *testing.T) {
+	lifecycle := newMockLifecycle()
+	reqs := testRequires(t, lifecycle)
+
+	provides, err := NewComponent(reqs)
+	require.NoError(t, err)
+
+	// Start the component
+	err = lifecycle.Start(context.Background())
+	require.NoError(t, err)
+
+	// Get the implementation to access the handler
+	impl, ok := provides.Comp.(*healthPlatformImpl)
+	require.True(t, ok, "Expected healthPlatformImpl")
+
+	// Report some issues
+	err = provides.Comp.ReportIssue(
+		"check-1",
+		"Check 1",
+		&healthplatformpayload.IssueReport{
+			IssueId: "docker-file-tailing-disabled",
+			Context: map[string]string{
+				"dockerDir": "/var/lib/docker",
+				"os":        "linux",
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	err = provides.Comp.ReportIssue(
+		"check-2",
+		"Check 2",
+		&healthplatformpayload.IssueReport{
+			IssueId: "docker-file-tailing-disabled",
+			Context: map[string]string{
+				"dockerDir": "/var/lib/docker",
+				"os":        "windows",
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	// Create a test request
+	req := httptest.NewRequest(http.MethodGet, "/health-platform/issues", nil)
+	w := httptest.NewRecorder()
+
+	// Call the handler
+	impl.getIssuesHandler(w, req)
+
+	// Check the response
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
+
+	// Parse the response
+	var response struct {
+		Count  int                                     `json:"count"`
+		Issues map[string]*healthplatformpayload.Issue `json:"issues"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	require.NoError(t, err)
+
+	assert.Equal(t, 2, response.Count)
+	assert.Len(t, response.Issues, 2)
+	assert.Contains(t, response.Issues, "check-1")
+	assert.Contains(t, response.Issues, "check-2")
+
+	// Verify issue details
+	issue1 := response.Issues["check-1"]
+	assert.Equal(t, "docker-file-tailing-disabled", issue1.Id)
+	assert.NotEmpty(t, issue1.Title)
+	assert.NotEmpty(t, issue1.DetectedAt)
+
+	// Stop the component
+	err = lifecycle.Stop(context.Background())
+	require.NoError(t, err)
 }

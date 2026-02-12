@@ -183,6 +183,7 @@ func deepCopyPIDContext(fieldToCopy PIDContext) PIDContext {
 	copied := PIDContext{}
 	copied.ExecInode = fieldToCopy.ExecInode
 	copied.IsKworker = fieldToCopy.IsKworker
+	copied.MntNS = fieldToCopy.MntNS
 	copied.NSID = fieldToCopy.NSID
 	copied.NetNS = fieldToCopy.NetNS
 	copied.Pid = fieldToCopy.Pid
@@ -852,6 +853,7 @@ func deepCopyMount(fieldToCopy Mount) Mount {
 func deepCopyMountReleasedEvent(fieldToCopy MountReleasedEvent) MountReleasedEvent {
 	copied := MountReleasedEvent{}
 	copied.MountID = fieldToCopy.MountID
+	copied.MountIDUnique = fieldToCopy.MountIDUnique
 	return copied
 }
 func deepCopyNetDeviceEvent(fieldToCopy NetDeviceEvent) NetDeviceEvent {

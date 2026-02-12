@@ -1,0 +1,62 @@
+From 84454594d1cdc67ab2a9780ea2d5aa904efdcdf4 Mon Sep 17 00:00:00 2001
+From: Borja Lorente <blorente.me@gmail.com>
+Date: Mon, 29 Sep 2025 17:08:07 +0100
+Subject: [PATCH] fix: Stop using is_bzlmod_enabled as it invalidates the
+ repository rule
+
+Rebased to apply after removal of extra_fflags.
+---
+ toolchain/defs.bzl              | 8 ++++++--
+ toolchain/module_extensions.bzl | 1 +
+ 2 files changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/toolchain/defs.bzl b/toolchain/defs.bzl
+index 0e55fd7..ecc680e 100644
+--- a/toolchain/defs.bzl
++++ b/toolchain/defs.bzl
+@@ -18,12 +18,12 @@
+ """This module provides the definitions for registering a GCC toolchain for C and C++.
+ """
+ 
+-load("@aspect_bazel_lib//lib:utils.bzl", "is_bzlmod_enabled")
+ load("@bazel_skylib//lib:dicts.bzl", "dicts")
+ load("@bazel_skylib//lib:paths.bzl", "paths")
+ 
+ def _gcc_toolchain_impl(rctx):
+     versions = json.decode(rctx.attr.gcc_versions)
++    is_bzlmod_module = rctx.attr.private_is_bzlmod_module
+     rctx.download_and_extract(
+         url = versions[rctx.attr.gcc_version][rctx.attr.target_arch]["url"],
+         sha256 = versions[rctx.attr.gcc_version][rctx.attr.target_arch]["sha256"],
+@@ -42,7 +42,7 @@ def _gcc_toolchain_impl(rctx):
+     def _format_builtins(builtins):
+         # In bzlmod, external dependencies have their own canonical subdirectories, so we can't rely on %workspace%.
+         # Instead, we want to resolve paths relative to the root of the module where the toolchain is installed.
+-        if is_bzlmod_enabled():
++        if is_bzlmod_module:
+             return [d.replace("%workspace%", toolchain_root) for d in builtins]
+         return builtins
+ 
+@@ -369,6 +369,10 @@ _PRIVATE_ATTRS = {
+     "_wrapper_sh_template": attr.label(
+         default = Label("//toolchain:wrapper.sh.tpl"),
+     ),
++    "private_is_bzlmod_module": attr.bool(
++        default = False,
++        doc = "Whether this repository rule is instantiate in a Bzlmod module. This is a workaround for https://github.com/bazel-contrib/bazel-lib/issues/1183, please don't use it directly.",
++    ),
+ }
+ 
+ gcc_toolchain = repository_rule(
+diff --git a/toolchain/module_extensions.bzl b/toolchain/module_extensions.bzl
+index 1eb37ab..883a33b 100644
+--- a/toolchain/module_extensions.bzl
++++ b/toolchain/module_extensions.bzl
+@@ -19,6 +19,7 @@ def _gcc_register_toolchain_module_extension(mctx):
+                 extra_cflags = declare.extra_cflags,
+                 extra_cxxflags = declare.extra_cxxflags,
+                 extra_ldflags = declare.extra_ldflags,
++                private_is_bzlmod_module = True,
+             )
+ 
+     # Since we know that for each gcc toolchain repository we'll generate the same files, we mark the rule as reproducible.
