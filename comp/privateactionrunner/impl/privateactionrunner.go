@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
@@ -53,6 +54,7 @@ type Requires struct {
 	Lifecycle compdef.Lifecycle
 	RcClient  rcclient.Component
 	Hostname  hostname.Component
+	Tagger    tagger.Component
 }
 
 // Provides defines the output of the privateactionrunner component
@@ -74,7 +76,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
 
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -87,10 +89,11 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 func NewPrivateActionRunner(
 	ctx context.Context,
-	coreConfig model.ReaderWriter,
+	coreConfig config.Component,
 	hostnameGetter hostnameinterface.Component,
 	rcClient pkgrcclient.Client,
 	logger log.Component,
+	taggerComp tagger.Component,
 ) (*PrivateActionRunner, error) {
 	persistedIdentity, err := enrollment.GetIdentityFromPreviousEnrollment(ctx, coreConfig)
 	if err != nil {
@@ -109,7 +112,7 @@ func NewPrivateActionRunner(
 	canSelfEnroll := coreConfig.GetBool(parSelfEnroll)
 	if cfg.IdentityIsIncomplete() && canSelfEnroll {
 		logger.Info("Identity not found and self-enrollment enabled. Self-enrolling private action runner")
-		updatedCfg, err := performSelfEnrollment(ctx, logger, coreConfig, hostnameGetter, cfg)
+		updatedCfg, err := performSelfEnrollment(ctx, logger, coreConfig, hostnameGetter, taggerComp, cfg)
 		if err != nil {
 			return nil, fmt.Errorf("self-enrollment failed: %w", err)
 		}
@@ -160,7 +163,7 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 }
 
 // performSelfEnrollment handles the self-registration of a private action runner
-func performSelfEnrollment(ctx context.Context, log log.Component, ddConfig config.Component, hostnameComp hostnameinterface.Component, cfg *parconfig.Config) (*parconfig.Config, error) {
+func performSelfEnrollment(ctx context.Context, log log.Component, ddConfig config.Component, hostnameComp hostnameinterface.Component, taggerComp tagger.Component, cfg *parconfig.Config) (*parconfig.Config, error) {
 	ddSite := ddConfig.GetString("site")
 	apiKey := ddConfig.GetString("api_key")
 	appKey := ddConfig.GetString("app_key")
@@ -206,7 +209,7 @@ func performSelfEnrollment(ctx context.Context, log log.Component, ddConfig conf
 		if err != nil {
 			log.Warnf("Failed to create connections API client: %v", err)
 		} else {
-			tagsProvider := autoconnections.NewTagsProvider(ddConfig)
+			tagsProvider := autoconnections.NewTagsProvider(taggerComp)
 			creator := autoconnections.NewConnectionsCreator(*client, tagsProvider)
 
 			if err := creator.AutoCreateConnections(context.Background(), urnParts.RunnerID, runnerHostname, runnerName, actionsAllowlist); err != nil {

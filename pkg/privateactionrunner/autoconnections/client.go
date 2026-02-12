@@ -19,11 +19,6 @@ import (
 	"github.com/DataDog/jsonapi"
 )
 
-// TagsProvider builds connection tags
-type TagsProvider interface {
-	GetTags(ctx context.Context, runnerID, hostname string) []string
-}
-
 // ConnectionsClient is an HTTP client for creating connections via the Datadog API.
 type ConnectionsClient struct {
 	httpClient *http.Client
