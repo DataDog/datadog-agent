@@ -5,11 +5,13 @@
 
 //go:build !linux
 
+// Package collector provides the enhanced CPU metrics collector for serverless init (Linux only).
+// This file provides a stub implementation for non-Linux platforms.
 package collector
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -17,10 +19,10 @@ import (
 
 type Collector struct{}
 
-func NewCollector(metricAgent *serverlessMetrics.ServerlessMetricAgent, metricSource metrics.MetricSource, metricPrefix string) (*Collector, error) {
-	return nil, fmt.Errorf("CPU collector is only supported on Linux")
+func NewCollector(_ *serverlessMetrics.ServerlessMetricAgent, _ metrics.MetricSource, _ string) (*Collector, error) {
+	return nil, errors.New("CPU collector is only supported on Linux")
 }
 
-func (c *Collector) Start(ctx context.Context) {}
+func (c *Collector) Start(_ context.Context) {}
 
 func (c *Collector) Stop() {}
