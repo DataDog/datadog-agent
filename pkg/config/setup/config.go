@@ -2603,12 +2603,12 @@ func configureDelegatedAuth(config pkgconfigmodel.Config, delegatedAuthComp dele
 			switch provider {
 			case "aws":
 				initParams.ProviderConfig = &cloudauthconfig.AWSProviderConfig{
-					Region: config.GetString(configPrefix + ".aws.aws_region"),
+					Region: config.GetString(configPrefix + ".aws.region"),
 				}
 			case "":
 				// Empty provider means auto-detect; ProviderConfig stays nil
 				// But if aws config is present, we can still use it when auto-detect picks AWS
-				if awsRegion := config.GetString(configPrefix + ".aws.aws_region"); awsRegion != "" {
+				if awsRegion := config.GetString(configPrefix + ".aws.region"); awsRegion != "" {
 					initParams.ProviderConfig = &cloudauthconfig.AWSProviderConfig{
 						Region: awsRegion,
 					}
@@ -2688,7 +2688,7 @@ func bindDelegatedAuthConfig(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnvAndSetDefault(configPrefix+".provider", "")
 
 	// Provider-specific configuration (nested under provider name)
-	config.BindEnvAndSetDefault(configPrefix+".aws.aws_region", "")
+	config.BindEnvAndSetDefault(configPrefix+".aws.region", "")
 
 	// Register this prefix for use in configureDelegatedAuth
 	// Build the API key config key
