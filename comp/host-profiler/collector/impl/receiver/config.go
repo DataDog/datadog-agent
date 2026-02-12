@@ -23,9 +23,9 @@ import (
 
 // Config is the configuration for the profiles receiver.
 type Config struct {
-	EbpfCollectorConfig  *ebpfconfig.Config                  `mapstructure:",squash"`
-	SymbolUploader       symboluploader.SymbolUploaderConfig `mapstructure:"symbol_uploader"`
-	CollectContext       bool                                `mapstructure:"collect_context"`
+	EbpfCollectorConfig *ebpfconfig.Config                  `mapstructure:",squash"`
+	SymbolUploader      symboluploader.SymbolUploaderConfig `mapstructure:"symbol_uploader"`
+	CollectContext      bool                                `mapstructure:"collect_context"`
 }
 
 // ServiceNameEnvVars is the list of environment variables used to determine the service name.
@@ -93,9 +93,9 @@ func defaultConfig() component.Config {
 
 	symbolUploaderConfig := symboluploader.DefaultSymbolUploaderConfig()
 	return Config{
-		EbpfCollectorConfig:  cfg,
-		SymbolUploader:       symbolUploaderConfig,
-		CollectContext:       false,
+		EbpfCollectorConfig: cfg,
+		SymbolUploader:      symbolUploaderConfig,
+		CollectContext:      false,
 	}
 }
 
