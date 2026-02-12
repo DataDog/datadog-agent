@@ -2372,6 +2372,201 @@ func TestActionSetVariableValidation(t *testing.T) {
 		}
 	})
 
+	t.Run("incompatible-default-value-and-expression-types", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `exec.file.path == "/usr/bin/date"`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:         "date_executed",
+							DefaultValue: 99,               // int
+							Expression:   "exec.file.name", // string
+							Scope:        "cgroup",
+						},
+					},
+				},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+			t.Error("expected policy to fail to load")
+		} else {
+			assert.ErrorContains(t, err, "expression 'exec.file.name' for variable 'date_executed': incompatible types: expression returns string but default_value is int")
+		}
+	})
+
+	t.Run("compatible-default-value-and-expression-types", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `exec.file.path == "/usr/bin/date"`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:         "date_executed",
+							DefaultValue: "",               // string
+							Expression:   "exec.file.name", // string
+							Scope:        "cgroup",
+						},
+					},
+				},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Errorf("failed to load policy: %s", err)
+		}
+	})
+
+	t.Run("compatible-default-value-and-expression-types-concat", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `exec.file.path == "/usr/bin/date"`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:         "exec_info",
+							DefaultValue: "",                     // string
+							Expression:   `"cmd_${process.pid}"`, // string concatenation
+							Scope:        "process",
+						},
+					},
+				},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Errorf("failed to load policy: %s", err)
+		}
+	})
+
+	t.Run("incompatible-default-value-and-expression-types-concat", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `exec.file.path == "/usr/bin/date"`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:         "exec_info",
+							DefaultValue: 0,                      // int
+							Expression:   `"cmd_${process.pid}"`, // string concatenation (incompatible)
+							Scope:        "process",
+						},
+					},
+				},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+			t.Error("expected policy to fail to load")
+		} else {
+			assert.ErrorContains(t, err, `incompatible types: expression returns string but default_value is int`)
+		}
+	})
+
+	t.Run("compatible-default-value-and-expression-types-concat-append", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `exec.file.path == "/usr/bin/date"`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:         "exec_history",
+							DefaultValue: []string{""},           // []string
+							Expression:   `"cmd_${process.pid}"`, // string concatenation (appending to slice)
+							Scope:        "process",
+							Append:       true,
+						},
+					},
+				},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Errorf("failed to load policy: %s", err)
+		}
+	})
+
+	t.Run("compatible-default-value-and-expression-types-append", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `exec.file.path == "/usr/bin/date"`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:         "executed_files",
+							DefaultValue: []string{""},     // []string
+							Expression:   "exec.file.name", // string (scalar to append)
+							Scope:        "cgroup",
+							Append:       true,
+						},
+					},
+				},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Errorf("failed to load policy: %s", err)
+		}
+	})
+
+	t.Run("incompatible-default-value-and-expression-types-append", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `exec.file.path == "/usr/bin/date"`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:         "executed_files",
+							DefaultValue: []int{0},         // []int (slice of int) - needs element for YAML type inference
+							Expression:   "exec.file.name", // string (incompatible element type)
+							Scope:        "cgroup",
+							Append:       true,
+						},
+					},
+				},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+			t.Error("expected policy to fail to load")
+		} else {
+			assert.ErrorContains(t, err, "expression 'exec.file.name' for variable 'executed_files': incompatible types: expression returns string but default_value element type is int")
+		}
+	})
+
+	t.Run("incompatible-default-value-and-expression-slice-element-types", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:         "file_hashes",
+							DefaultValue: []int{0},           // []int - needs element for YAML type inference
+							Expression:   "open.file.hashes", // []string (incompatible slice element type)
+							Scope:        "process",
+						},
+					},
+				},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+			t.Error("expected policy to fail to load")
+		} else {
+			assert.ErrorContains(t, err, "expression 'open.file.hashes' for variable 'file_hashes': incompatible slice element types: expression returns string but default_value element type is int")
+		}
+	})
+
 	t.Run("compatible-default-value-and-field-types", func(t *testing.T) {
 		testPolicy := &PolicyDef{
 			Rules: []*RuleDefinition{
