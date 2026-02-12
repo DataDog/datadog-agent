@@ -1,5 +1,5 @@
 features:
   - |
     On Windows, stop the private action runner service during MSI upgrades and
-    fleet-driven stop-all operations so it is shut down alongside the agent.
+    fleet-driven stop-all operations so it is shut down alongside the Agent.
 
