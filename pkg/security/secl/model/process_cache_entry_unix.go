@@ -20,7 +20,6 @@ func (pc *ProcessCacheEntry) setAncestor(parent *ProcessCacheEntry) {
 		return
 	}
 
-	pc.validLineageResult = nil
 	pc.Ancestor = parent
 	pc.Parent = &parent.Process
 
@@ -28,18 +27,14 @@ func (pc *ProcessCacheEntry) setAncestor(parent *ProcessCacheEntry) {
 	pc.copyProcessContextFrom(parent)
 }
 
-func hasValidLineage(pc *ProcessCacheEntry, result *validLineageResult) (bool, error) {
+// HasValidLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1 or if a node has a missing parent
+func (pc *ProcessCacheEntry) HasValidLineage() (bool, error) {
 	var (
 		pid, ppid uint32
 		ctrID     containerutils.ContainerID
 	)
 
 	for pc != nil {
-		if pc.validLineageResult != nil {
-			return pc.validLineageResult.valid, pc.validLineageResult.err
-		}
-		pc.validLineageResult = result
-
 		pid, ppid, ctrID = pc.Pid, pc.PPid, pc.ContainerContext.ContainerID
 
 		if pc.IsParentMissing {
@@ -56,23 +51,6 @@ func hasValidLineage(pc *ProcessCacheEntry, result *validLineageResult) (bool, e
 	}
 
 	return false, &ErrProcessIncompleteLineage{PID: pid, PPID: ppid, ContainerID: string(ctrID)}
-}
-
-// HasValidLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1 or if a new is having a missing parent
-func (pc *ProcessCacheEntry) HasValidLineage() (bool, error) {
-	vlres := &validLineageResult{
-		valid: false,
-		// if this error is returned, it means that we saw this cache entry in
-		// an ancestor of the current pce, hence a cycle
-		err: ErrCycleInProcessLineage,
-	}
-
-	res, err := hasValidLineage(pc, vlres)
-
-	vlres.valid = res
-	vlres.err = err
-
-	return res, err
 }
 
 // Exit a process
@@ -202,6 +180,14 @@ func (pc *ProcessCacheEntry) Fork(child *ProcessCacheEntry) {
 	child.TracerTags = pc.TracerTags
 
 	child.SetForkParent(pc)
+}
+
+// Reparent updates the parent of the process cache entry to reflect reparenting by the kernel.
+// This handles the subreaper mechanism where children are reparented when their parent exits.
+func (pc *ProcessCacheEntry) Reparent(newParent *ProcessCacheEntry) {
+	pc.PPid = newParent.Pid
+	pc.IsParentMissing = false
+	pc.setAncestor(newParent)
 }
 
 // Equals returns whether process cache entries share the same values for file and args/envs
