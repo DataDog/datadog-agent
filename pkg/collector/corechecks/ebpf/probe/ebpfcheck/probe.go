@@ -9,7 +9,6 @@
 package ebpfcheck
 
 import (
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -341,12 +340,10 @@ func (k *Probe) readSingleProgram(progid ebpf.ProgramID) (*model.EBPFProgramStat
 		module = mod
 	}
 
-	tag := hex.EncodeToString(info.Tag[:])
 	ps := model.EBPFProgramStats{
 		ID:              uint32(progid),
 		Name:            name,
 		Module:          module,
-		Tag:             tag,
 		Type:            ebpf.ProgramType(info.Type).String(),
 		XlatedProgLen:   info.XlatedProgLen,
 		RSS:             uint64(roundUp(info.XlatedProgLen, uint32(pageSize))),
