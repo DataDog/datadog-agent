@@ -37,8 +37,10 @@ import (
 )
 
 const (
-	collectorID        = "sbom-collector"
-	LastAccessProperty = "LastSeenRunning"
+	collectorID           = "sbom-collector"
+	LastAccessProperty    = "LastSeenRunning"
+	HasSetSuidBitProperty = "HasSetSuidBit"
+	RunningAsRootProperty = "RunningAsRoot"
 )
 
 type client struct {
@@ -232,39 +234,46 @@ func mergeLastAccessProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclone
 
 		// Check if new BOM has this component with LastAccess property
 		key := existingComp.Name + "@" + existingComp.Version
-		if newComp, exists := newComponentsMap[key]; exists && newComp.Properties != nil {
-			// Find LastAccess property in new component
-			var lastAccessProp *cyclonedx_v1_4.Property
+
+		updateProperty := func(newComp *cyclonedx_v1_4.Component, propertyName string) {
+			// Find property in new component
+			var lastProp *cyclonedx_v1_4.Property
 			for _, prop := range newComp.Properties {
-				if prop != nil && prop.Name == LastAccessProperty {
-					lastAccessProp = prop
+				if prop != nil && prop.Name == propertyName {
+					lastProp = prop
 					break
 				}
 			}
 
 			// If found, add or update LastAccess in merged component
-			if lastAccessProp != nil {
+			if lastProp != nil {
 				// Initialize properties if nil
 				if mergedComp.Properties == nil {
 					mergedComp.Properties = []*cyclonedx_v1_4.Property{}
 				}
 
 				// Check if LastAccess already exists and update it, or add new one
-				lastAccessExists := false
+				propExists := false
 				for j, prop := range mergedComp.Properties {
-					if prop != nil && prop.Name == LastAccessProperty {
-						mergedComp.Properties[j] = lastAccessProp
-						lastAccessExists = true
+					if prop != nil && prop.Name == propertyName {
+						mergedComp.Properties[j] = lastProp
+						propExists = true
 						break
 					}
 				}
 
-				if !lastAccessExists {
-					mergedComp.Properties = append(mergedComp.Properties, lastAccessProp)
+				if !propExists {
+					mergedComp.Properties = append(mergedComp.Properties, lastProp)
 				}
 
-				log.Tracef("Updated %s for component %s@%s", LastAccessProperty, existingComp.Name, existingComp.Version)
+				log.Tracef("Updated %s for component %s@%s", propertyName, existingComp.Name, existingComp.Version)
 			}
+		}
+
+		if newComp, exists := newComponentsMap[key]; exists && newComp.Properties != nil {
+			updateProperty(newComp, LastAccessProperty)
+			updateProperty(newComp, HasSetSuidBitProperty)
+			updateProperty(newComp, RunningAsRootProperty)
 		}
 
 		mergedBom.Components[i] = mergedComp
