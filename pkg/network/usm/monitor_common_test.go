@@ -201,9 +201,11 @@ const (
 )
 
 var (
-	httpMethods         = []string{nethttp.MethodGet, nethttp.MethodHead, nethttp.MethodPost, nethttp.MethodPut, nethttp.MethodPatch, nethttp.MethodDelete, nethttp.MethodOptions, nethttp.MethodTrace}
-	httpMethodsWithBody = []string{nethttp.MethodPost, nethttp.MethodPut, nethttp.MethodPatch, nethttp.MethodDelete}
-	statusCodes         = []int{nethttp.StatusOK, nethttp.StatusMultipleChoices, nethttp.StatusBadRequest, nethttp.StatusInternalServerError}
+	// httpMethods and httpMethodsWithBody are defined in platform-specific files
+	// (monitor_common_linux_test.go and monitor_common_windows_test.go) because
+	// Windows ETW maps some HTTP methods (TRACE, PATCH, CONNECT) to MethodUnknown,
+	// which causes them to be silently dropped by the statkeeper.
+	statusCodes = []int{nethttp.StatusOK, nethttp.StatusMultipleChoices, nethttp.StatusBadRequest, nethttp.StatusInternalServerError}
 )
 
 // requestGenerator creates a function that generates HTTP requests with random methods and status codes.
