@@ -26,7 +26,7 @@
 /.adms/                                 @DataDog/agent-build
 /.bazel*                                @DataDog/agent-build
 /bazel/                                 @DataDog/agent-build
-/bazel/configs/sdagent_rc               @DataDog/agent-discovery
+/bazel/configs/sdagent.bazelrc               @DataDog/agent-discovery
 /MODULE.bazel*                          @DataDog/agent-build
 # Temporary during Bazel migration
 /**/BUILD.bazel                         @DataDog/agent-build
@@ -221,7 +221,7 @@
 /cmd/agent/dist/conf.d/container_image.d/      @DataDog/container-integrations
 /cmd/agent/dist/conf.d/container_lifecycle.d/  @DataDog/container-integrations
 /cmd/agent/dist/conf.d/discovery.d/          @DataDog/agent-discovery
-/cmd/agent/dist/conf.d/jetson.d/        @DataDog/agent-devx
+/cmd/agent/dist/conf.d/jetson.d/        @DataDog/agent-runtimes
 /cmd/agent/dist/conf.d/oracle.d/    @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/oracle-dbm.d/    @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/network_path.d/ @DataDog/cloud-network-monitoring @DataDog/network-path
@@ -509,6 +509,7 @@
 /pkg/config/                            @DataDog/agent-configuration
 /pkg/config/config_template.yaml        @DataDog/agent-configuration @DataDog/documentation
 /pkg/config/setup/apm.go                @DataDog/agent-apm @DataDog/agent-configuration
+/pkg/config/example/application_monitoring.yaml.example @DataDog/agent-apm
 /pkg/config/autodiscovery/              @DataDog/container-integrations @DataDog/container-platform @DataDog/agent-configuration
 /pkg/config/env                         @DataDog/container-integrations @DataDog/container-platform @DataDog/agent-configuration
 /pkg/config/setup                            @DataDog/agent-configuration
@@ -572,6 +573,7 @@
 /pkg/util/docker/                       @DataDog/container-integrations
 /pkg/util/ecs/                          @DataDog/ecs-experiences
 /pkg/util/fargate/                      @DataDog/ecs-experiences
+/pkg/util/filesystem/                   @DataDog/agent-runtimes @DataDog/agent-configuration
 /pkg/util/funcs/                        @DataDog/ebpf-platform
 /pkg/util/gpu/                          @DataDog/container-platform
 /pkg/util/installinfo/                  @DataDog/agent-configuration
@@ -722,6 +724,7 @@
 /tasks/quality_gates.py                 @DataDog/agent-build
 /tasks/static_quality_gates/            @DataDog/agent-build
 /tasks/rtloader.py                      @DataDog/agent-runtimes
+/tasks/secret_generic_connector.py      @DataDog/agent-configuration
 /tasks/security_agent.py                @DataDog/agent-security
 /tasks/sbomgen.py                       @DataDog/agent-security
 /tasks/libs/cws/                        @DataDog/agent-security

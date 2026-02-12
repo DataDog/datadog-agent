@@ -54,7 +54,10 @@ var (
 	}
 )
 
-type store = autoscaling.Store[model.PodAutoscalerInternal]
+type (
+	store     = autoscaling.Store[model.PodAutoscalerInternal]
+	limitHeap = autoscaling.HashHeap[model.PodAutoscalerInternal]
+)
 
 // Controller for DatadogPodAutoscaler objects
 type Controller struct {
@@ -66,7 +69,7 @@ type Controller struct {
 	eventRecorder record.EventRecorder
 	store         *store
 
-	limitHeap *autoscaling.HashHeap
+	limitHeap *limitHeap
 
 	podWatcher           PodWatcher
 	horizontalController *horizontalController
@@ -90,7 +93,7 @@ func NewController(
 	store *store,
 	podWatcher PodWatcher,
 	localSender sender.Sender,
-	limitHeap *autoscaling.HashHeap,
+	limitHeap *limitHeap,
 ) (*Controller, error) {
 	c := &Controller{
 		clusterID:         clusterID,
@@ -461,7 +464,7 @@ func (c *Controller) validateAutoscaler(podAutoscalerInternal model.PodAutoscale
 	// Check that we are within the limit of 100 DatadogPodAutoscalers
 	key := podAutoscalerInternal.ID()
 	if !c.limitHeap.Exists(key) {
-		return fmt.Errorf("Autoscaler disabled as maximum number per cluster reached (%d)", c.limitHeap.MaxSize())
+		return autoscaling.NewConditionErrorf(autoscaling.ConditionReasonClusterAutoscalerLimitReached, "Autoscaler disabled as maximum number per cluster reached (%d)", c.limitHeap.MaxSize())
 	}
 
 	// Check that targetRef is not set to the cluster agent
@@ -485,7 +488,7 @@ func (c *Controller) validateAutoscaler(podAutoscalerInternal model.PodAutoscale
 	clusterAgentNs := namespace.GetMyNamespace()
 
 	if podAutoscalerInternal.Namespace() == clusterAgentNs && podAutoscalerInternal.Spec().TargetRef.Name == resourceName {
-		return errors.New("Autoscaling target cannot be set to the cluster agent")
+		return autoscaling.NewConditionErrorf(autoscaling.ConditionReasonInvalidTarget, "Autoscaling target cannot be set to the cluster agent")
 	}
 	if err := validateAutoscalerObjectives(podAutoscalerInternal.Spec()); err != nil {
 		return err
@@ -497,7 +500,7 @@ func validateAutoscalerObjectives(spec *datadoghq.DatadogPodAutoscalerSpec) erro
 	if spec.Fallback != nil && len(spec.Fallback.Horizontal.Objectives) > 0 {
 		for _, objective := range spec.Fallback.Horizontal.Objectives {
 			if objective.Type == datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType {
-				return errors.New("Autoscaler fallback cannot be based on custom query objective")
+				return autoscaling.NewConditionErrorf(autoscaling.ConditionReasonInvalidSpec, "Autoscaler fallback cannot be based on custom query objective")
 			}
 		}
 	}
@@ -506,15 +509,15 @@ func validateAutoscalerObjectives(spec *datadoghq.DatadogPodAutoscalerSpec) erro
 		switch objective.Type {
 		case datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType:
 			if objective.CustomQuery == nil {
-				return errors.New("Autoscaler objective type is custom query but customQueryObjective is nil")
+				return autoscaling.NewConditionErrorf(autoscaling.ConditionReasonInvalidSpec, "Autoscaler objective type is custom query but customQueryObjective is nil")
 			}
 		case datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType:
 			if objective.PodResource == nil {
-				return fmt.Errorf("autoscaler objective type is %s but podResource is nil", objective.Type)
+				return autoscaling.NewConditionErrorf(autoscaling.ConditionReasonInvalidSpec, "autoscaler objective type is %s but podResource is nil", objective.Type)
 			}
 		case datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType:
 			if objective.ContainerResource == nil {
-				return fmt.Errorf("autoscaler objective type is %s but containerResource is nil", objective.Type)
+				return autoscaling.NewConditionErrorf(autoscaling.ConditionReasonInvalidSpec, "autoscaler objective type is %s but containerResource is nil", objective.Type)
 			}
 		}
 	}
