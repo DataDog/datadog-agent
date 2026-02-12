@@ -22,6 +22,8 @@ import (
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	privateactionrunnerfx "github.com/DataDog/datadog-agent/comp/privateactionrunner/fx"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
@@ -69,6 +71,7 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 		rcserviceimpl.Module(),
 		rcclientimpl.Module(),
 		fx.Supply(rcclient.Params{AgentName: "private-action-runner", AgentVersion: version.AgentVersion}),
+		workloadmetafx.Module(workloadmeta.NewParams()),
 		getTaggerModule(),
 		privateactionrunnerfx.Module(),
 	}
