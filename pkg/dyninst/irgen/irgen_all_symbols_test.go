@@ -114,6 +114,7 @@ func testAllProbes(t *testing.T, binPath string) {
 		// These automatically generated symbols cause problems.
 		if s.Name == "runtime.text" ||
 			s.Name == "runtime.etext" ||
+			s.Name == "" ||
 			strings.HasPrefix(s.Name, "go:") ||
 			strings.HasPrefix(s.Name, "type:.") ||
 			strings.HasPrefix(s.Name, "runtime.vdso") ||
@@ -121,7 +122,8 @@ func testAllProbes(t *testing.T, binPath string) {
 			strings.Contains(s.Name, "..typeAssert") ||
 			strings.Contains(s.Name, "..dict") ||
 			strings.Contains(s.Name, "..gobytes") ||
-			strings.Contains(s.Name, "..interfaceSwitch") {
+			strings.Contains(s.Name, "..interfaceSwitch") ||
+			strings.Contains(s.Name, "go.shape") {
 			continue
 		}
 
@@ -162,7 +164,16 @@ func verifyIR(t *testing.T, p *ir.Program) {
 		}
 	}()
 	for _, issue := range p.Issues {
-		loc := issue.ProbeDefinition.GetWhere().(ir.FunctionWhere).Location()
+		var loc string
+		switch where := issue.ProbeDefinition.GetWhere().(type) {
+		case ir.FunctionWhere:
+			loc = where.Location()
+		case ir.LineWhere:
+			fn, file, line := where.Line()
+			loc = fmt.Sprintf("%s:%s:%s", fn, file, line)
+		default:
+			t.Fatalf("unexpected Where type: %T", issue.ProbeDefinition.GetWhere())
+		}
 		kindCounts[issue.Kind]++
 		switch issue.Kind {
 		case ir.IssueKindInvalidDWARF:
