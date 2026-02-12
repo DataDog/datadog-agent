@@ -23,7 +23,7 @@ type PolicyProvider struct {
 	cfg                  *config.RuntimeSecurityConfig
 	onNewPoliciesReadyCb func(silent bool)
 	// Map of SBOM PolicyDefs per workload key (image:tag)
-	sbomPolicyDefs       map[string]*rules.PolicyDef
+	sbomPolicyDefs map[string]*rules.PolicyDef
 }
 
 // NewPolicyProvider returns a new bundled policy provider
