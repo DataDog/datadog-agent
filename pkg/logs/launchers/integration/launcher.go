@@ -213,6 +213,11 @@ func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 			return
 		}
 
+		// Update size tracking immediately after successful removal
+		// This ensures correct accounting even if file creation fails below
+		s.combinedUsageSize -= fileToUpdate.size
+		fileToUpdate.size = 0
+
 		// Create new empty file with same path
 		file, err := s.fs.OpenFile(fileToUpdate.fileWithPath, os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
@@ -227,9 +232,6 @@ func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 
 		ddLog.Infof("Rotated integration log file: %s (size: %d bytes)",
 			fileToUpdate.fileWithPath, oldSize)
-
-		s.combinedUsageSize -= fileToUpdate.size
-		fileToUpdate.size = 0
 
 		// No cleanup goroutine needed - OS automatically frees old file data
 		// when tailer closes its file handle
