@@ -260,7 +260,14 @@ func (d *DatadogInstallExe) Run(opts ...Option) (string, error) {
 	} else {
 		cmd = fmt.Sprintf(`[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072;
 			$tempFile = [System.IO.Path]::GetTempFileName() + ".exe";
-			(New-Object System.Net.WebClient).DownloadFile("%s", $tempFile);
+			for ($i=0; $i -lt 3; $i++) {
+				try {
+					(New-Object System.Net.WebClient).DownloadFile("%s", $tempFile);
+					break
+				} catch {
+					if ($i -eq 2) { throw }
+				}
+			}
 			& $tempFile`, installerPath)
 	}
 
