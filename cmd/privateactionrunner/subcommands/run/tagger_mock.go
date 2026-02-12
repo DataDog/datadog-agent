@@ -10,11 +10,9 @@ package run
 import (
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	taggerimpl "github.com/DataDog/datadog-agent/comp/core/tagger/impl"
-	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 )
@@ -22,14 +20,9 @@ import (
 func getTaggerModule() fx.Option {
 	return fx.Options(
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-		fx.Provide(func(config config.Component, log log.Component, wmeta workloadmeta.Component, telemetry telemetry.Component) tagger.Component {
-			provides := taggerimpl.NewMock(taggerimpl.MockRequires{
-				Config:       config,
-				WorkloadMeta: wmeta,
-				Log:          log,
-				Telemetry:    telemetry,
-			})
-			return provides.Comp
+		taggerfxmock.MockModule(),
+		fx.Provide(func(mock taggermock.Mock) tagger.Component {
+			return mock
 		}),
 	)
 }
