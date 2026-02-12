@@ -17,7 +17,7 @@ type NetworkPathBundle struct {
 func NewNetworkPath(traceroute traceroute.Component) types.Bundle {
 	return &NetworkPathBundle{
 		actions: map[string]types.Action{
-			"get_network_path": NewGetNetworkPathHandler(traceroute),
+			"getNetworkPath": NewGetNetworkPathHandler(traceroute),
 		},
 	}
 }
