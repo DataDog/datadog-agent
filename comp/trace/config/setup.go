@@ -578,9 +578,13 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		}
 	}
 
-	// undocumented
+	// only override when a non-empty path is configured so that
+	// default or empty values (e.g. from config API "all config" response) do
+	// not overwrite the platform default and break validation.
 	if core.IsConfigured("apm_config.dd_agent_bin") {
-		c.DDAgentBin = core.GetString("apm_config.dd_agent_bin")
+		if v := core.GetString("apm_config.dd_agent_bin"); v != "" {
+			c.DDAgentBin = v
+		}
 	}
 
 	if err := loadDeprecatedValues(c); err != nil {
