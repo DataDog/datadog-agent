@@ -30,7 +30,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.Windows
 	env.SetEnvironment(&awsEnv)
 
 	// Force Windows OS
-	params.instanceOptions = append(params.instanceOptions, ec2.WithOS(compos.WindowsServerDefault))
+	params.instanceOptions = append(params.instanceOptions, ec2.WithOS(compos.WindowsServer2016))
 
 	host, err := ec2.NewVM(awsEnv, params.Name, params.instanceOptions...)
 	if err != nil {
