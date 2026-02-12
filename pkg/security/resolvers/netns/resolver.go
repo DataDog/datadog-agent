@@ -11,206 +11,58 @@ package netns
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/hashicorp/golang-lru/v2/simplelru"
-	"github.com/vishvananda/netlink"
-	"go.uber.org/atomic"
-	"golang.org/x/sys/unix"
-
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
-	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tc"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-go/v5/statsd"
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
+	"github.com/vishvananda/netlink"
 )
 
 var (
-	// ErrNoNetworkNamespaceHandle is used to indicate that we haven't resolved a handle for the requested network
-	// namespace yet.
-	ErrNoNetworkNamespaceHandle = errors.New("no network namespace handle")
-
 	// lonelyNamespaceTimeout is the timeout past which a lonely network namespace is expired
 	lonelyNamespaceTimeout = 30 * time.Second
 	// flushNamespacesPeriod is the period at which the resolver checks if a namespace should be flushed
 	flushNamespacesPeriod = 30 * time.Second
 )
 
-// NetworkNamespace is used to hold a handle to a network namespace
-type NetworkNamespace struct {
-	sync.RWMutex
-
-	// nsID is the network namespace ID of the current network namespace.
-	nsID uint32
-
-	// handle is the network namespace handle that points to the current network namespace. This handle is used by the
-	// manager to create a netlink socket inside the network namespace in which lives the network interfaces we want to
-	// monitor.
-	handle *os.File
-
-	// networkDevicesQueue is the list of devices that we have detected at runtime, but to which we haven't been able
-	// to attach a probe yet. These devices will be dequeued once we capture a network namespace handle, or when the
-	// current network namespace expires (see the timeout below).
-	networkDevicesQueue []model.NetDevice
-
-	// lonelyTimeout indicates that we have been able to capture a handle for this namespace, but we are yet to see an
-	// interface in this namespace. The handle of this namespace will be released if we don't see an interface by the
-	// time this timeout expires.
-	lonelyTimeout time.Time
-}
-
-// ID returns the network namespace ID
-func (nn *NetworkNamespace) ID() uint32 {
-	return nn.nsID
-}
-
-// NewNetworkNamespace returns a new NetworkNamespace instance
-func NewNetworkNamespace(nsID uint32) *NetworkNamespace {
-	return &NetworkNamespace{
-		nsID: nsID,
-	}
-}
-
-// NewNetworkNamespaceWithPath returns a new NetworkNamespace instance from a path.
-func NewNetworkNamespaceWithPath(nsID uint32, nsPath *utils.NSPath) (*NetworkNamespace, error) {
-	netns := NewNetworkNamespace(nsID)
-	if err := netns.openHandle(nsPath); err != nil {
-		return nil, err
-	}
-	return netns, nil
-}
-
-// openHandle tries to create a network namespace handle with the provided thread ID
-func (nn *NetworkNamespace) openHandle(nsPath *utils.NSPath) error {
-	nn.Lock()
-	defer nn.Unlock()
-
-	// check that the handle matches the expected netns ID
-	threadNetnsID, err := nsPath.GetNSID()
-	if err != nil {
-		return err
-	}
-	if threadNetnsID != nn.nsID {
-		// The reason why this can happen is that a process can hold a socket in a different network namespace. This is
-		// the case for the Docker Embedded DNS server: a socket is created in the container namespace, but the thead
-		// holding the socket jumps back to the host network namespace. Unfortunately this code is racy: ideally we'd
-		// like to lock the network namespace of the thread in place until we fetch both the netns ID and the handle,
-		// but afaik that's not possible (without freezing the process or its cgroup ...).
-		return fmt.Errorf("the provided doesn't match the expected netns ID: got %d, expected %d", threadNetnsID, nn.nsID)
-	}
-
-	handle, err := os.Open(nsPath.GetPath())
-	if err != nil {
-		return err
-	}
-	nn.handle = handle
-	return nil
-}
-
-// GetNamespaceHandleDup duplicates the network namespace handle and returns it. WARNING: it is up to the caller of this
-// function to close the duplicated network namespace handle. Failing to close a network namespace handle may lead to
-// leaking the network namespace.
-func (nn *NetworkNamespace) GetNamespaceHandleDup() (*os.File, error) {
-	nn.Lock()
-	defer nn.Unlock()
-
-	return nn.getNamespaceHandleDup()
-}
-
-// getNamespaceHandleDup is an internal function (see GetNamespaceHandleDup)
-func (nn *NetworkNamespace) getNamespaceHandleDup() (*os.File, error) {
-	if nn.handle == nil {
-		return nil, ErrNoNetworkNamespaceHandle
-	}
-
-	// duplicate the file descriptor to avoid race conditions with the resync
-	dup, err := unix.FcntlInt(uintptr(nn.handle.Fd()), unix.F_DUPFD_CLOEXEC, 0)
-	if err != nil {
-		return nil, err
-	}
-	return os.NewFile(uintptr(dup), nn.handle.Name()), nil
-}
-
-// dequeueNetworkDevices dequeues the devices in the current network devices queue.
-func (nn *NetworkNamespace) dequeueNetworkDevices(tcResolver *tc.Resolver, manager *manager.Manager) {
-	nn.Lock()
-	defer nn.Unlock()
-
-	if len(nn.networkDevicesQueue) == 0 {
-		return
-	}
-
-	// make a copy of the network namespace handle to make sure we don't poison our internal cache if the eBPF library
-	// modifies the handle.
-	handle, err := nn.getNamespaceHandleDup()
-	if err != nil {
-		return
-	}
-
-	defer func() {
-		if cerr := handle.Close(); cerr != nil {
-			seclog.Warnf("could not close file [%s]: %s", handle.Name(), cerr)
-		}
-	}()
-
-	for _, queuedDevice := range nn.networkDevicesQueue {
-		if err = tcResolver.SetupNewTCClassifierWithNetNSHandle(queuedDevice, handle, manager); err != nil {
-			seclog.Errorf("error setting up new tc classifier on queued device: %v", err)
-		}
-	}
-	nn.flushNetworkDevicesQueue()
-}
-
-func (nn *NetworkNamespace) queueNetworkDevice(device model.NetDevice) {
-	nn.Lock()
-	defer nn.Unlock()
-
-	nn.networkDevicesQueue = append(nn.networkDevicesQueue, device)
-}
-
-func (nn *NetworkNamespace) flushNetworkDevicesQueue() {
-	// flush the network devices queue
-	nn.networkDevicesQueue = nil
-}
-
-func (nn *NetworkNamespace) close() error {
-	return nn.handle.Close()
-}
-
-func (nn *NetworkNamespace) hasValidHandle() bool {
-	return nn.handle != nil
-}
-
 // Resolver is used to store namespace handles
 type Resolver struct {
-	sync.Mutex
-	state      *atomic.Int64
+	sync.RWMutex
 	tcResolver *tc.Resolver
 	client     statsd.ClientInterface
 	config     *config.Config
 	manager    *manager.Manager
 
 	networkNamespaces *simplelru.LRU[uint32, *NetworkNamespace]
+	tcRequests        chan TcClassifierRequest
+	tcRequestsMu      sync.Mutex
+	tcRequestsActive  map[tcDeviceKey]bool
+	ctx               context.Context
+	wg                sync.WaitGroup
 }
 
 // NewResolver returns a new instance of Resolver
 func NewResolver(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, tcResolver *tc.Resolver) (*Resolver, error) {
 	nr := &Resolver{
-		state:      atomic.NewInt64(0),
-		client:     statsdClient,
-		config:     config,
-		manager:    manager,
-		tcResolver: tcResolver,
+		client:           statsdClient,
+		config:           config,
+		manager:          manager,
+		tcResolver:       tcResolver,
+		tcRequests:       make(chan TcClassifierRequest, 16),
+		tcRequestsActive: make(map[tcDeviceKey]bool),
+		ctx:              context.Background(),
 	}
 
 	lru, err := simplelru.NewLRU(1024, func(_ uint32, value *NetworkNamespace) {
@@ -225,22 +77,25 @@ func NewResolver(config *config.Config, manager *manager.Manager, statsdClient s
 	return nr, nil
 }
 
-// SetState sets state of the namespace resolver
-func (nr *Resolver) SetState(state int64) {
-	nr.state.Store(state)
-}
-
-// GetState returns the state of the namespace resolver
-func (nr *Resolver) GetState() int64 {
-	return nr.state.Load()
-}
-
 // SaveNetworkNamespaceHandle inserts the provided process network namespace in the list of tracked network. Returns
 // true if a new entry was added.
 func (nr *Resolver) SaveNetworkNamespaceHandle(nsID uint32, nsPath *utils.NSPath) (*NetworkNamespace, bool) {
-	return nr.SaveNetworkNamespaceHandleLazy(nsID, func() *utils.NSPath {
+	if !nr.config.NetworkEnabled || nsID == 0 || nsPath == nil {
+		return nil, false
+	}
+
+	nr.Lock()
+	netns, isNew := nr.insertNetworkNamespaceHandleLazy(nsID, func() *utils.NSPath {
 		return nsPath
 	})
+	nr.Unlock()
+
+	if isNew && netns != nil {
+		netns.dequeueNetworkDevices(nr.tcResolver, nr.manager)
+		nr.snapshotNetworkDevices(netns)
+	}
+
+	return netns, isNew
 }
 
 // SaveNetworkNamespaceHandleLazy inserts the provided process network namespace in the list of tracked network. Returns
@@ -251,7 +106,22 @@ func (nr *Resolver) SaveNetworkNamespaceHandleLazy(nsID uint32, nsPathFunc func(
 	}
 
 	nr.Lock()
-	defer nr.Unlock()
+	netns, isNew := nr.insertNetworkNamespaceHandleLazy(nsID, nsPathFunc)
+	nr.Unlock()
+
+	if isNew && netns != nil {
+		netns.dequeueNetworkDevices(nr.tcResolver, nr.manager)
+		nr.snapshotNetworkDevices(netns)
+	}
+
+	return netns, isNew
+}
+
+// insertNetworkNamespaceHandleLazy inserts/updates the namespace in the LRU cache.
+func (nr *Resolver) insertNetworkNamespaceHandleLazy(nsID uint32, nsPathFunc func() *utils.NSPath) (*NetworkNamespace, bool) {
+	if !nr.config.NetworkEnabled || nsID == 0 || nsPathFunc == nil {
+		return nil, false
+	}
 
 	netns, found := nr.networkNamespaces.Get(nsID)
 	if !found {
@@ -284,13 +154,6 @@ func (nr *Resolver) SaveNetworkNamespaceHandleLazy(nsID uint32, nsPathFunc func(
 		}
 	}
 
-	// dequeue devices
-	netns.dequeueNetworkDevices(nr.tcResolver, nr.manager)
-
-	// if the snapshot process is still going on, we need to snapshot the namespace now, otherwise we'll miss it
-	if nr.GetState() == sprocess.Snapshotting {
-		_ = nr.snapshotNetworkDevices(netns)
-	}
 	return netns, true
 }
 
@@ -302,20 +165,20 @@ func (nr *Resolver) ResolveNetworkNamespace(nsID uint32) *NetworkNamespace {
 		return nil
 	}
 
-	nr.Lock()
-	defer nr.Unlock()
+	nr.RLock()
+	defer nr.RUnlock()
 
-	if ns, found := nr.networkNamespaces.Get(nsID); found {
+	if ns, found := nr.networkNamespaces.Peek(nsID); found {
 		return ns
 	}
 
 	return nil
 }
 
-// snapshotNetworkDevicesWithHandle snapshots the network devices of the provided network namespace. This function returns the
+// snapshotNetworkDevices snapshots the network devices of the provided network namespace. This function returns the
 // number of non-loopback network devices to which egress and ingress TC classifiers were successfully attached.
 func (nr *Resolver) snapshotNetworkDevices(netns *NetworkNamespace) int {
-	handle, err := netns.getNamespaceHandleDup()
+	handle, err := netns.GetNamespaceHandleDup()
 	if err != nil {
 		return 0
 	}
@@ -374,31 +237,72 @@ func (nr *Resolver) IsLazyDeletionInterface(name string) bool {
 	return false
 }
 
-// SyncCache snapshots /proc for the provided pid. This method returns true if it updated the namespace cache.
-func (nr *Resolver) SyncCache(pid uint32) bool {
+// SyncCache snapshots /proc to populate the namespace cache. This method returns true if it updated the namespace cache.
+func (nr *Resolver) SyncCache() bool {
 	if !nr.config.NetworkEnabled {
 		return false
 	}
 
-	nsPath := utils.NewNSPathFromPid(pid, utils.NetNsType)
-	nsID, err := nsPath.GetNSID()
+	processes, err := utils.GetProcesses()
 	if err != nil {
 		return false
 	}
 
-	_, isNewEntry := nr.SaveNetworkNamespaceHandle(nsID, nsPath)
-	return isNewEntry
+	type nsEntry struct {
+		netns *NetworkNamespace
+		isNew bool
+	}
+
+	// Phase 1: collect (nsID, nsPath) pairs outside the lock to avoid holding
+	// the write lock during per-process stat syscalls on /proc/<pid>/ns/net.
+	type nsPair struct {
+		nsID   uint32
+		nsPath *utils.NSPath
+	}
+	nsSet := map[uint32]bool{}
+	var nsPairs []nsPair
+	for _, p := range processes {
+		nsPath := utils.NewNSPathFromPid(uint32(p.Pid), utils.NetNsType)
+		nsID, err := nsPath.GetNSID()
+		if err != nil {
+			continue
+		}
+
+		if nsSet[nsID] {
+			continue
+		}
+
+		nsSet[nsID] = true
+		nsPairs = append(nsPairs, nsPair{nsID: nsID, nsPath: nsPath})
+	}
+
+	// Phase 2: insert into LRU under the write lock
+	var newEntries []nsEntry
+	nr.Lock()
+	for _, pair := range nsPairs {
+		nsPath := pair.nsPath
+		netns, isNew := nr.insertNetworkNamespaceHandleLazy(pair.nsID, func() *utils.NSPath {
+			return nsPath
+		})
+		if isNew && netns != nil {
+			newEntries = append(newEntries, nsEntry{netns: netns, isNew: isNew})
+		}
+	}
+	nr.Unlock()
+
+	for _, entry := range newEntries {
+		entry.netns.dequeueNetworkDevices(nr.tcResolver, nr.manager)
+		nr.snapshotNetworkDevices(entry.netns)
+	}
+
+	return len(newEntries) > 0
 }
 
 // QueueNetworkDevice adds the input device to the map of queued network devices. Once a handle for the network namespace
 // of the device is resolved, a new TC classifier will automatically be added to the device. The queue is cleaned up
-// periodically if a namespace do not own any process.
+// periodically if a namespace does not own any process.
 func (nr *Resolver) QueueNetworkDevice(device model.NetDevice) {
-	if !nr.config.NetworkEnabled {
-		return
-	}
-
-	if device.NetNS == 0 {
+	if !nr.config.NetworkEnabled || device.NetNS == 0 {
 		return
 	}
 
@@ -420,7 +324,14 @@ func (nr *Resolver) Start(ctx context.Context) error {
 		return nil
 	}
 
-	go nr.flushNamespaces(ctx)
+	nr.ctx = ctx
+	nr.startTcClassifierLoopGoroutine()
+
+	nr.wg.Add(1)
+	go func() {
+		defer nr.wg.Done()
+		nr.flushNamespaces(ctx)
+	}()
 	return nil
 }
 
@@ -504,18 +415,13 @@ func (nr *Resolver) preventNetworkNamespaceDrift(probesCount map[uint32]int) {
 		netns.Lock()
 		netnsCount := probesCount[netns.nsID]
 
+		shouldSnapshot := false
 		// is this network namespace lonely ?
 		if !netns.lonelyTimeout.IsZero() && netnsCount == 0 {
 			// snapshot lonely namespace and delete it if it is all alone on earth
 			if now.After(netns.lonelyTimeout) {
 				netns.lonelyTimeout = time.Time{}
-				deviceCountNoLoopbackNoDummy := nr.snapshotNetworkDevices(netns)
-				if deviceCountNoLoopbackNoDummy == 0 {
-					nr.flushNetworkNamespace(netns)
-					nr.tcResolver.FlushNetworkNamespaceID(netns.nsID, nr.manager)
-					netns.Unlock()
-					continue
-				}
+				shouldSnapshot = true
 			}
 		} else {
 			if netnsCount == 0 {
@@ -524,20 +430,23 @@ func (nr *Resolver) preventNetworkNamespaceDrift(probesCount map[uint32]int) {
 				netns.lonelyTimeout = time.Time{}
 			}
 		}
-
 		netns.Unlock()
+
+		if shouldSnapshot {
+			deviceCountNoLoopbackNoDummy := nr.snapshotNetworkDevices(netns)
+			if deviceCountNoLoopbackNoDummy == 0 {
+				nr.flushNetworkNamespace(netns)
+				nr.tcResolver.FlushNetworkNamespaceID(netns.nsID, nr.manager)
+			}
+		}
 	}
 }
 
 // SendStats sends metrics about the current state of the namespace resolver
 func (nr *Resolver) SendStats() error {
-	nr.Lock()
-	defer nr.Unlock()
+	nr.RLock()
 
 	networkNamespacesCount := float64(nr.networkNamespaces.Len())
-	if networkNamespacesCount > 0 {
-		_ = nr.client.Gauge(metrics.MetricNamespaceResolverNetNSHandle, networkNamespacesCount, []string{}, 1.0)
-	}
 
 	var queuedNetworkDevicesCount float64
 	var lonelyNetworkNamespacesCount float64
@@ -545,14 +454,21 @@ func (nr *Resolver) SendStats() error {
 	for _, nsID := range nr.networkNamespaces.Keys() {
 		netns, _ := nr.networkNamespaces.Peek(nsID)
 
+		netns.RLock()
 		if count := len(netns.networkDevicesQueue); count > 0 {
 			queuedNetworkDevicesCount += float64(count)
 		}
 		if !netns.lonelyTimeout.IsZero() {
 			lonelyNetworkNamespacesCount++
 		}
+		netns.RUnlock()
 	}
 
+	nr.RUnlock()
+
+	if networkNamespacesCount > 0 {
+		_ = nr.client.Gauge(metrics.MetricNamespaceResolverNetNSHandle, networkNamespacesCount, []string{}, 1.0)
+	}
 	if queuedNetworkDevicesCount > 0 {
 		_ = nr.client.Gauge(metrics.MetricNamespaceResolverQueuedNetworkDevice, queuedNetworkDevicesCount, []string{}, 1.0)
 	}
@@ -564,6 +480,10 @@ func (nr *Resolver) SendStats() error {
 
 // Close closes this resolver and frees all the resources
 func (nr *Resolver) Close() {
+	close(nr.tcRequests)
+
+	nr.wg.Wait()
+
 	if nr.networkNamespaces != nil {
 		nr.Lock()
 		nr.networkNamespaces.Purge()
@@ -579,6 +499,8 @@ func newTmpFile(prefix string) (*os.File, error) {
 	}
 
 	if err = os.Chmod(f.Name(), 0400); err != nil {
+		f.Close()
+		os.Remove(f.Name())
 		return nil, err
 	}
 	return f, err
@@ -601,8 +523,8 @@ type NetworkNamespaceDump struct {
 }
 
 func (nr *Resolver) dump(params *api.DumpNetworkNamespaceParams) []NetworkNamespaceDump {
-	nr.Lock()
-	defer nr.Unlock()
+	nr.RLock()
+	defer nr.RUnlock()
 
 	var handle *os.File
 	var ntl *manager.NetlinkSocket
@@ -613,7 +535,7 @@ func (nr *Resolver) dump(params *api.DumpNetworkNamespaceParams) []NetworkNamesp
 	// iterate over the list of network namespaces
 	for _, nsID := range nr.networkNamespaces.Keys() {
 		netns, _ := nr.networkNamespaces.Peek(nsID)
-		netns.Lock()
+		netns.RLock()
 
 		netnsDump := NetworkNamespaceDump{
 			NsID:          netns.nsID,
@@ -632,7 +554,7 @@ func (nr *Resolver) dump(params *api.DumpNetworkNamespaceParams) []NetworkNamesp
 		if params.GetSnapshotInterfaces() {
 			handle, err = netns.getNamespaceHandleDup()
 			if err != nil {
-				netns.Unlock()
+				netns.RUnlock()
 				continue
 			}
 
@@ -652,7 +574,7 @@ func (nr *Resolver) dump(params *api.DumpNetworkNamespaceParams) []NetworkNamesp
 			handle.Close()
 		}
 
-		netns.Unlock()
+		netns.RUnlock()
 		dump = append(dump, netnsDump)
 	}
 
