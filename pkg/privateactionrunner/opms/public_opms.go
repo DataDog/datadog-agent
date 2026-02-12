@@ -45,7 +45,8 @@ type publicClient struct {
 	httpClient *http.Client
 }
 
-func NewPublicClient(apiHost string) PublicClient {
+func NewPublicClient(ddBaseURL string) PublicClient {
+	apiHost := strings.Replace(ddBaseURL, "https://", "", 1)
 	return &publicClient{
 		ddApiHost: apiHost,
 		httpClient: &http.Client{
