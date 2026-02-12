@@ -209,6 +209,12 @@ func (h *Host) WaitForUnitExited(t *testing.T, exitCode int, units ...string) {
 	}
 }
 
+// UnitJournalLogs returns the output of journalctl -xeu for the given systemd unit.
+// Use this to diagnose why a unit is not running (e.g. when AssertUnitsRunning fails).
+func (h *Host) UnitJournalLogs(unit string) string {
+	return h.remote.MustExecute("sudo journalctl -xeu " + unit)
+}
+
 // WaitForFileExists waits for a file to exist on the host
 func (h *Host) WaitForFileExists(useSudo bool, filePaths ...string) {
 	sudo := ""

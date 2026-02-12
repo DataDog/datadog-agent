@@ -115,6 +115,10 @@ func (s *packageDDOTSuite) TestInstallDDOTInstaller() {
 	s.host.WaitForUnitActive(s.T(), ddotUnit)
 
 	state := s.host.State()
+	// Log ddot unit journal if not running so failure output shows the cause (e.g. "agent binary path not set")
+	if u, ok := state.Units[ddotUnit]; ok && u.SubState != host.Running {
+		s.T().Logf("datadog-agent-ddot.service not running (SubState=%s). journalctl -xeu datadog-agent-ddot.service:\n%s", u.SubState, s.host.UnitJournalLogs(ddotUnit))
+	}
 	// Verify running
 	s.assertCoreUnits(state, true)
 	s.assertDDOTUnits(state, false)
