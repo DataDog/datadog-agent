@@ -27,6 +27,22 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// mock sampler
+type MockSampler struct {
+	TargetTPS float64
+	Enabled   bool
+}
+
+func (s MockSampler) IsEnabled() bool {
+	return s.Enabled
+}
+
+func (s MockSampler) GetTargetTPS() float64 {
+	return s.TargetTPS
+}
+
+var mockSampler = MockSampler{TargetTPS: 5, Enabled: true}
+
 func TestTraceWriterV1(t *testing.T) {
 	testCases := []struct {
 		compressor compression.Component
@@ -62,6 +78,14 @@ func TestTraceWriterV1(t *testing.T) {
 			payloadsContainV1(t, srv.Payloads(), testSpans, tc.compressor)
 		})
 	}
+}
+
+// useFlushThreshold sets n as the number of bytes to be used as the flush threshold
+// and returns a function to restore it.
+func useFlushThreshold(n int) func() {
+	old := MaxPayloadSize
+	MaxPayloadSize = n
+	return func() { MaxPayloadSize = old }
 }
 
 func TestTraceWriterV1PayloadSplitting(t *testing.T) {
@@ -487,6 +511,26 @@ func TestTraceWriterV1AgentPayload(t *testing.T) {
 	})
 }
 
+// deserializePayload decompresses a payload and deserializes it into a pb.AgentPayload.
+func deserializePayload(p payload, compressor compression.Component) (*pb.AgentPayload, error) {
+	reader, err := compressor.NewReader(p.body)
+	if err != nil {
+		return nil, err
+	}
+
+	defer reader.Close()
+	uncompressedBytes, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, err
+	}
+	var agentPayload pb.AgentPayload
+	err = proto.Unmarshal(uncompressedBytes, &agentPayload)
+	if err != nil {
+		return nil, err
+	}
+	return &agentPayload, nil
+}
+
 func TestTraceWriterV1UpdateAPIKey(t *testing.T) {
 	assert := assert.New(t)
 	srv := newTestServer()
@@ -518,4 +562,63 @@ func TestTraceWriterV1UpdateAPIKey(t *testing.T) {
 	tw.UpdateAPIKey("123", "foo")
 	assert.Equal("foo", tw.senders[0].cfg.apiKey)
 	assert.Equal(url, tw.senders[0].cfg.url)
+}
+
+func TestTraceWriterAPMMode(t *testing.T) {
+	testCases := []struct {
+		name        string
+		configValue string
+		expected    string
+	}{
+		{
+			name:        "default-empty",
+			configValue: "",
+			expected:    "",
+		},
+		{
+			name:        "edge",
+			configValue: "edge",
+			expected:    "edge",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := newTestServer()
+			defer srv.Close()
+			cfg := &config.AgentConfig{
+				Hostname:   testHostname,
+				DefaultEnv: testEnv,
+				Endpoints: []*config.Endpoint{{
+					APIKey: "123",
+					Host:   srv.URL,
+				}},
+				TraceWriter:         &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
+				SynchronousFlushing: true,
+				APMMode:             tc.configValue,
+			}
+			tw := NewTraceWriterV1(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+			defer tw.Stop()
+
+			// Send a span and force flush
+			tw.WriteChunksV1(randomSampledSpansV1(20, 8))
+			err := tw.FlushSync()
+			assert.Nil(t, err)
+
+			// Verify the AgentPayload has the correct APMMode
+			require.Len(t, srv.payloads, 1)
+			ap, err := deserializePayload(*srv.payloads[0], tw.compressor)
+			assert.Nil(t, err)
+			v, ok := ap.Tags[tagAPMMode]
+			// If APMMode is not set, the tag should not be present
+			if tc.expected == "" {
+				assert.False(t, ok)
+				assert.Empty(t, v)
+			} else {
+				// If APMMode is set, the tag should be present and equal to the expected value
+				assert.True(t, ok)
+				assert.Equal(t, tc.expected, v)
+			}
+		})
+	}
 }

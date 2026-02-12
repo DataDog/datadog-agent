@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
@@ -48,12 +49,15 @@ func TestSpanSampling(t *testing.T) {
 			t.Fatal(err)
 		}
 		waitForTrace(t, &r, func(v *pb.AgentPayload) {
-			require.Len(t, v.TracerPayloads, 1)
-			require.Len(t, v.TracerPayloads[0].Chunks, 1)
-			assert.False(t, v.TracerPayloads[0].Chunks[0].DroppedTrace)
-			assert.Equal(t, int32(2), v.TracerPayloads[0].Chunks[0].Priority)
-			require.Len(t, v.TracerPayloads[0].Chunks[0].Spans, 1)
-			assert.Equal(t, 8.0, v.TracerPayloads[0].Chunks[0].Spans[0].Metrics["_dd.span_sampling.mechanism"])
+			require.Len(t, v.IdxTracerPayloads, 1)
+			internalPayload := idx.FromProto(v.IdxTracerPayloads[0])
+			require.Len(t, internalPayload.Chunks, 1)
+			assert.False(t, internalPayload.Chunks[0].DroppedTrace)
+			assert.Equal(t, int32(2), internalPayload.Chunks[0].Priority)
+			require.Len(t, internalPayload.Chunks[0].Spans, 1)
+			mechanism, ok := internalPayload.Chunks[0].Spans[0].GetAttributeAsFloat64("_dd.span_sampling.mechanism")
+			assert.True(t, ok)
+			assert.Equal(t, 8.0, mechanism)
 		})
 	})
 }

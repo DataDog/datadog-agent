@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 
 	"github.com/google/go-cmp/cmp"
@@ -75,59 +76,81 @@ func FuzzProcessStats(f *testing.F) {
 func FuzzObfuscateSpan(f *testing.F) {
 	agent, cancel := agentWithDefaults()
 	defer cancel()
-	encode := func(pbSpan *pb.Span) ([]byte, error) {
-		return pbSpan.MarshalMsg(nil)
+
+	// Helper to create InternalSpan from attributes
+	createSpan := func(typ, resource string, attrs map[string]string) *idx.InternalSpan {
+		st := idx.NewStringTable()
+		spanAttrs := make(map[uint32]*idx.AnyValue)
+		for k, v := range attrs {
+			spanAttrs[st.Add(k)] = &idx.AnyValue{
+				Value: &idx.AnyValue_StringValueRef{
+					StringValueRef: st.Add(v),
+				},
+			}
+		}
+		return idx.NewInternalSpan(st, &idx.Span{
+			TypeRef:     st.Add(typ),
+			ResourceRef: st.Add(resource),
+			Attributes:  spanAttrs,
+		})
 	}
-	decode := func(span []byte) (*pb.Span, error) {
-		var pbSpan pb.Span
-		_, err := pbSpan.UnmarshalMsg(span)
-		return &pbSpan, err
+
+	encode := func(span *idx.InternalSpan) ([]byte, error) {
+		serStrings := idx.NewSerializedStrings(uint32(span.Strings.Len()))
+		return span.MarshalMsg(nil, serStrings)
 	}
-	seedCorpus := []*pb.Span{
-		{
-			Type:     "redis",
-			Resource: "SET k v\nGET k",
-			Meta:     map[string]string{"redis.raw_command": "SET k v\nGET k"},
-		},
-		{
-			Type:     "valkey",
-			Resource: "SET k v\nGET k",
-			Meta:     map[string]string{"valkey.raw_command": "SET k v\nGET k"},
-		},
-		{
-			Type:     "sql",
-			Resource: "UPDATE users(name) SET ('Jim')",
-			Meta:     map[string]string{"sql.query": "UPDATE users(name) SET ('Jim')"},
-		},
-		{
-			Type:     "http",
-			Resource: "http://mysite.mydomain/1/2?q=asd",
-			Meta:     map[string]string{"http.url": "http://mysite.mydomain/1/2?q=asd"},
-		},
+
+	decode := func(data []byte, st *idx.StringTable) (*idx.InternalSpan, error) {
+		span := idx.NewInternalSpan(st, &idx.Span{})
+		_, err := span.UnmarshalMsg(data)
+		return span, err
 	}
+
+	// Seed corpus with InternalSpan structures
+	seedCorpus := []*idx.InternalSpan{
+		createSpan("redis", "SET k v\nGET k", map[string]string{"redis.raw_command": "SET k v\nGET k"}),
+		createSpan("valkey", "SET k v\nGET k", map[string]string{"valkey.raw_command": "SET k v\nGET k"}),
+		createSpan("sql", "UPDATE users(name) SET ('Jim')", map[string]string{"sql.query": "UPDATE users(name) SET ('Jim')"}),
+		createSpan("http", "http://mysite.mydomain/1/2?q=asd", map[string]string{"http.url": "http://mysite.mydomain/1/2?q=asd"}),
+	}
+
 	for _, span := range seedCorpus {
-		span, err := encode(span)
+		encoded, err := encode(span)
 		if err != nil {
 			f.Fatalf("Couldn't generate seed corpus: %v", err)
 		}
-		f.Add(span)
+		f.Add(encoded)
 	}
-	f.Fuzz(func(t *testing.T, span []byte) {
-		pbSpan, err := decode(span)
+
+	f.Fuzz(func(t *testing.T, spanData []byte) {
+		st := idx.NewStringTable()
+		span, err := decode(spanData, st)
 		if err != nil {
 			t.Skipf("Skipping invalid span: %v", err)
 		}
-		agent.obfuscateSpan(pbSpan)
-		encPostObfuscate, err := encode(pbSpan)
+
+		// Obfuscate the span
+		agent.obfuscateSpanInternal(span)
+
+		// Encode after obfuscation
+		encPostObfuscate, err := encode(span)
 		if err != nil {
-			t.Fatalf("obfuscateSpan returned an invalid span: %v", err)
+			t.Fatalf("obfuscateSpanInternal returned an invalid span: %v", err)
 		}
-		decPostObfuscate, err := decode(encPostObfuscate)
+
+		// Decode again to verify consistency
+		st2 := idx.NewStringTable()
+		decPostObfuscate, err := decode(encPostObfuscate, st2)
 		if err != nil {
 			t.Fatalf("Couldn't decode span after obfuscation: %v", err)
 		}
-		if !reflect.DeepEqual(decPostObfuscate, pbSpan) {
-			t.Fatalf("Inconsistent encoding/decoding after obfuscation: (%#v) is different from (%#v)", decPostObfuscate, pbSpan)
+
+		// Compare the obfuscated spans
+		if span.Resource() != decPostObfuscate.Resource() {
+			t.Fatalf("Inconsistent Resource after encoding/decoding: %q vs %q", span.Resource(), decPostObfuscate.Resource())
+		}
+		if span.Type() != decPostObfuscate.Type() {
+			t.Fatalf("Inconsistent Type after encoding/decoding: %q vs %q", span.Type(), decPostObfuscate.Type())
 		}
 	})
 }

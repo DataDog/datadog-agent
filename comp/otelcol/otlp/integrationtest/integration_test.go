@@ -81,6 +81,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
@@ -208,7 +209,7 @@ func TestIntegration(t *testing.T) {
 	sendTraces(t)
 
 	// 4. Validate traces and APM stats from the mock server
-	var spans []*pb.Span
+	var spans []*idx.Span
 	var stats []*pb.ClientGroupedStats
 
 	// 5 sampled spans + APM stats on 10 spans are sent to datadog exporter
@@ -220,7 +221,7 @@ func TestIntegration(t *testing.T) {
 			require.NoError(t, err)
 			var traces pb.AgentPayload
 			require.NoError(t, proto.Unmarshal(slurp, &traces))
-			for _, tps := range traces.TracerPayloads {
+			for _, tps := range traces.IdxTracerPayloads {
 				for _, chunks := range tps.Chunks {
 					spans = append(spans, chunks.Spans...)
 				}

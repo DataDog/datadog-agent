@@ -12,6 +12,7 @@ import (
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 
@@ -59,44 +60,71 @@ func TestObfuscateStatsGroup(t *testing.T) {
 func TestObfuscateDefaults(t *testing.T) {
 	t.Run("redis", func(t *testing.T) {
 		cmd := "SET k v\nGET k"
-		span := &pb.Span{
-			Type:     "redis",
-			Resource: cmd,
-			Meta:     map[string]string{"redis.raw_command": cmd},
-		}
+		st := idx.NewStringTable()
+		span := idx.NewInternalSpan(st, &idx.Span{
+			TypeRef:     st.Add("redis"),
+			ResourceRef: st.Add(cmd),
+			Attributes: map[uint32]*idx.AnyValue{
+				st.Add("redis.raw_command"): {
+					Value: &idx.AnyValue_StringValueRef{
+						StringValueRef: st.Add(cmd),
+					},
+				},
+			},
+		})
 		agnt, stop := agentWithDefaults()
 		defer stop()
-		agnt.obfuscateSpan(span)
-		assert.Equal(t, cmd, span.Meta["redis.raw_command"])
-		assert.Equal(t, "SET GET", span.Resource)
+		agnt.obfuscateSpanInternal(span)
+		rawCmd, ok := span.GetAttributeAsString("redis.raw_command")
+		assert.True(t, ok)
+		assert.Equal(t, cmd, rawCmd)
+		assert.Equal(t, "SET GET", span.Resource())
 	})
 
 	t.Run("valkey", func(t *testing.T) {
 		cmd := "SET k v\nGET k"
-		span := &pb.Span{
-			Type:     "valkey",
-			Resource: cmd,
-			Meta:     map[string]string{"valkey.raw_command": cmd},
-		}
+		st := idx.NewStringTable()
+		span := idx.NewInternalSpan(st, &idx.Span{
+			TypeRef:     st.Add("valkey"),
+			ResourceRef: st.Add(cmd),
+			Attributes: map[uint32]*idx.AnyValue{
+				st.Add("valkey.raw_command"): {
+					Value: &idx.AnyValue_StringValueRef{
+						StringValueRef: st.Add(cmd),
+					},
+				},
+			},
+		})
 		agnt, stop := agentWithDefaults()
 		defer stop()
-		agnt.obfuscateSpan(span)
-		assert.Equal(t, cmd, span.Meta["valkey.raw_command"])
-		assert.Equal(t, "SET GET", span.Resource)
+		agnt.obfuscateSpanInternal(span)
+		rawCmd, ok := span.GetAttributeAsString("valkey.raw_command")
+		assert.True(t, ok)
+		assert.Equal(t, cmd, rawCmd)
+		assert.Equal(t, "SET GET", span.Resource())
 	})
 
 	t.Run("sql", func(t *testing.T) {
 		query := "UPDATE users(name) SET ('Jim')"
-		span := &pb.Span{
-			Type:     "sql",
-			Resource: query,
-			Meta:     map[string]string{"sql.query": query},
-		}
+		st := idx.NewStringTable()
+		span := idx.NewInternalSpan(st, &idx.Span{
+			TypeRef:     st.Add("sql"),
+			ResourceRef: st.Add(query),
+			Attributes: map[uint32]*idx.AnyValue{
+				st.Add("sql.query"): {
+					Value: &idx.AnyValue_StringValueRef{
+						StringValueRef: st.Add(query),
+					},
+				},
+			},
+		})
 		agnt, stop := agentWithDefaults()
 		defer stop()
-		agnt.obfuscateSpan(span)
-		assert.Equal(t, "UPDATE users ( name ) SET ( ? )", span.Meta["sql.query"])
-		assert.Equal(t, "UPDATE users ( name ) SET ( ? )", span.Resource)
+		agnt.obfuscateSpanInternal(span)
+		sqlQuery, ok := span.GetAttributeAsString("sql.query")
+		assert.True(t, ok)
+		assert.Equal(t, "UPDATE users ( name ) SET ( ? )", sqlQuery)
+		assert.Equal(t, "UPDATE users ( name ) SET ( ? )", span.Resource())
 	})
 }
 
@@ -125,9 +153,17 @@ func TestObfuscateConfig(t *testing.T) {
 			cfg.Obfuscation = ocfg
 			agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 			defer cancelFunc()
-			span := &pb.Span{Type: typ, Meta: map[string]string{key: val}}
-			agnt.obfuscateSpan(span)
-			assert.Equal(t, exp, span.Meta[key])
+			st := idx.NewStringTable()
+			span := idx.NewInternalSpan(st, &idx.Span{
+				TypeRef:    st.Add(typ),
+				Attributes: make(map[uint32]*idx.AnyValue),
+			})
+			// Use SetAttributeFromString to properly handle special fields like env, version, component
+			span.SetAttributeFromString(key, val)
+			agnt.obfuscateSpanInternal(span)
+			result, ok := span.GetAttributeAsString(key)
+			assert.True(t, ok)
+			assert.Equal(t, exp, result)
 		}
 	}
 
@@ -322,119 +358,129 @@ func TestObfuscateConfig(t *testing.T) {
 	})
 }
 
-func SQLSpan(query string) *pb.Span {
-	return &pb.Span{
-		Resource: query,
-		Type:     "sql",
-		Meta: map[string]string{
-			"sql.query": query,
-		},
-	}
-}
-
 func TestSQLResourceQuery(t *testing.T) {
 	assert := assert.New(t)
-	testCases := []*struct {
-		span *pb.Span
-	}{
-		{
-			&pb.Span{
-				Resource: "SELECT * FROM users WHERE id = 42",
-				Type:     "sql",
-			},
-		},
-		{
-			&pb.Span{
-				Resource: "SELECT * FROM users WHERE id = 42",
-				Type:     "sql",
-				Meta: map[string]string{ // ensure that any existing sql.query tag gets overwritten with obfuscated value
-					"sql.query": "SELECT * FROM users WHERE id = 42",
+	agnt, stop := agentWithDefaults()
+	defer stop()
+
+	// Test case 1: span with only resource
+	st1 := idx.NewStringTable()
+	span1 := idx.NewInternalSpan(st1, &idx.Span{
+		ResourceRef: st1.Add("SELECT * FROM users WHERE id = 42"),
+		TypeRef:     st1.Add("sql"),
+		Attributes:  make(map[uint32]*idx.AnyValue),
+	})
+	agnt.obfuscateSpanInternal(span1)
+	assert.Equal("SELECT * FROM users WHERE id = ?", span1.Resource())
+	sqlQuery1, ok1 := span1.GetAttributeAsString("sql.query")
+	assert.True(ok1)
+	assert.Equal("SELECT * FROM users WHERE id = ?", sqlQuery1)
+
+	// Test case 2: span with resource and existing sql.query tag (ensure it gets overwritten with obfuscated value)
+	st2 := idx.NewStringTable()
+	span2 := idx.NewInternalSpan(st2, &idx.Span{
+		ResourceRef: st2.Add("SELECT * FROM users WHERE id = 42"),
+		TypeRef:     st2.Add("sql"),
+		Attributes: map[uint32]*idx.AnyValue{
+			st2.Add("sql.query"): {
+				Value: &idx.AnyValue_StringValueRef{
+					StringValueRef: st2.Add("SELECT * FROM users WHERE id = 42"),
 				},
 			},
 		},
-	}
-
-	agnt, stop := agentWithDefaults()
-	defer stop()
-	for _, tc := range testCases {
-		agnt.obfuscateSpan(tc.span)
-		assert.Equal("SELECT * FROM users WHERE id = ?", tc.span.Resource)
-		assert.Equal("SELECT * FROM users WHERE id = ?", tc.span.Meta["sql.query"])
-	}
+	})
+	agnt.obfuscateSpanInternal(span2)
+	assert.Equal("SELECT * FROM users WHERE id = ?", span2.Resource())
+	sqlQuery2, ok2 := span2.GetAttributeAsString("sql.query")
+	assert.True(ok2)
+	assert.Equal("SELECT * FROM users WHERE id = ?", sqlQuery2)
 }
 
 func TestSQLResourceWithError(t *testing.T) {
 	assert := assert.New(t)
-	testCases := []*struct {
-		span *pb.Span
+	testCases := []struct {
+		resource  string
+		hasMeta   bool
+		queryMeta string
 	}{
 		{
-			&pb.Span{
-				Resource: "SELECT * FROM users WHERE id = '' AND '",
-				Type:     "sql",
-				Meta: map[string]string{ // ensure that any existing sql.query tag gets overwritten with obfuscated value
-					"sql.query": "SELECT * FROM users WHERE id = '' AND '",
-				},
-			},
+			resource:  "SELECT * FROM users WHERE id = '' AND '",
+			hasMeta:   true,
+			queryMeta: "SELECT * FROM users WHERE id = '' AND '",
 		},
 		{
-			&pb.Span{
-				Resource: "SELECT * FROM users WHERE id = '' AND '",
-				Type:     "sql",
-			},
+			resource: "SELECT * FROM users WHERE id = '' AND '",
+			hasMeta:  false,
 		},
 		{
-			&pb.Span{
-				Resource: "INSERT INTO pages (id, name) VALUES (%(id0)s, %(name0)s), (%(id1)s, %(name1",
-				Type:     "sql",
-			},
+			resource: "INSERT INTO pages (id, name) VALUES (%(id0)s, %(name0)s), (%(id1)s, %(name1",
+			hasMeta:  false,
 		},
 		{
-			&pb.Span{
-				Resource: "INSERT INTO pages (id, name) VALUES (%(id0)s, %(name0)s), (%(id1)s, %(name1)",
-				Type:     "sql",
-			},
+			resource: "INSERT INTO pages (id, name) VALUES (%(id0)s, %(name0)s), (%(id1)s, %(name1)",
+			hasMeta:  false,
 		},
 		{
-			&pb.Span{
-				Resource: `SELECT [b].[BlogId], [b].[Name]
+			resource: `SELECT [b].[BlogId], [b].[Name]
 FROM [Blogs] AS [b
 ORDER BY [b].[Name]`,
-				Type: "sql",
-			},
+			hasMeta: false,
 		},
 	}
 
 	agnt, stop := agentWithDefaults()
 	defer stop()
 	for _, tc := range testCases {
-		agnt.obfuscateSpan(tc.span)
-		assert.Equal("Non-parsable SQL query", tc.span.Resource)
-		assert.Equal("Non-parsable SQL query", tc.span.Meta["sql.query"])
+		st := idx.NewStringTable()
+		attrs := make(map[uint32]*idx.AnyValue)
+		if tc.hasMeta {
+			attrs[st.Add("sql.query")] = &idx.AnyValue{
+				Value: &idx.AnyValue_StringValueRef{
+					StringValueRef: st.Add(tc.queryMeta),
+				},
+			}
+		}
+		span := idx.NewInternalSpan(st, &idx.Span{
+			ResourceRef: st.Add(tc.resource),
+			TypeRef:     st.Add("sql"),
+			Attributes:  attrs,
+		})
+		agnt.obfuscateSpanInternal(span)
+		assert.Equal("Non-parsable SQL query", span.Resource())
+		sqlQuery, ok := span.GetAttributeAsString("sql.query")
+		assert.True(ok)
+		assert.Equal("Non-parsable SQL query", sqlQuery)
 	}
 }
 
 func TestSQLTableNames(t *testing.T) {
 	t.Run("on", func(t *testing.T) {
-		span := &pb.Span{
-			Resource: "SELECT * FROM users WHERE id = 42",
-			Type:     "sql",
-		}
+		st := idx.NewStringTable()
+		span := idx.NewInternalSpan(st, &idx.Span{
+			ResourceRef: st.Add("SELECT * FROM users WHERE id = 42"),
+			TypeRef:     st.Add("sql"),
+			Attributes:  make(map[uint32]*idx.AnyValue),
+		})
 		agnt, stop := agentWithDefaults("table_names")
 		defer stop()
-		agnt.obfuscateSpan(span)
-		assert.Equal(t, "users", span.Meta["sql.tables"])
+		agnt.obfuscateSpanInternal(span)
+		tables, ok := span.GetAttributeAsString("sql.tables")
+		assert.True(t, ok)
+		assert.Equal(t, "users", tables)
 	})
 
 	t.Run("off", func(t *testing.T) {
-		span := &pb.Span{
-			Resource: "SELECT * FROM users WHERE id = 42",
-			Type:     "sql",
-		}
+		st := idx.NewStringTable()
+		span := idx.NewInternalSpan(st, &idx.Span{
+			ResourceRef: st.Add("SELECT * FROM users WHERE id = 42"),
+			TypeRef:     st.Add("sql"),
+			Attributes:  make(map[uint32]*idx.AnyValue),
+		})
 		agnt, stop := agentWithDefaults()
 		defer stop()
-		agnt.obfuscateSpan(span)
-		assert.Empty(t, span.Meta["sql.tables"])
+		agnt.obfuscateSpanInternal(span)
+		_, ok := span.GetAttributeAsString("sql.tables")
+		assert.False(t, ok)
 	})
 }
 
@@ -450,14 +496,38 @@ func BenchmarkCCObfuscation(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		span := &pb.Span{Type: "typ", Meta: map[string]string{
-			"akey":         "somestring",
-			"bkey":         "somestring",
-			"card.number":  "5105-1051-0510-5100",
-			"_sample_rate": "1",
-			"sql.query":    "SELECT * FROM users WHERE id = 42",
-		}}
-		agnt.obfuscateSpan(span)
+		st := idx.NewStringTable()
+		span := idx.NewInternalSpan(st, &idx.Span{
+			TypeRef: st.Add("typ"),
+			Attributes: map[uint32]*idx.AnyValue{
+				st.Add("akey"): {
+					Value: &idx.AnyValue_StringValueRef{
+						StringValueRef: st.Add("somestring"),
+					},
+				},
+				st.Add("bkey"): {
+					Value: &idx.AnyValue_StringValueRef{
+						StringValueRef: st.Add("somestring"),
+					},
+				},
+				st.Add("card.number"): {
+					Value: &idx.AnyValue_StringValueRef{
+						StringValueRef: st.Add("5105-1051-0510-5100"),
+					},
+				},
+				st.Add("_sample_rate"): {
+					Value: &idx.AnyValue_StringValueRef{
+						StringValueRef: st.Add("1"),
+					},
+				},
+				st.Add("sql.query"): {
+					Value: &idx.AnyValue_StringValueRef{
+						StringValueRef: st.Add("SELECT * FROM users WHERE id = 42"),
+					},
+				},
+			},
+		})
+		agnt.obfuscateSpanInternal(span)
 	}
 }
 
@@ -471,65 +541,63 @@ func TestObfuscateSpanEvent(t *testing.T) {
 	}
 	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	defer cancelFunc()
-	testCases := []*struct {
-		span *pb.Span
-	}{
-		{
-			&pb.Span{
-				Resource: "rrr",
-				Type:     "aaa",
-				Meta:     map[string]string{},
-				SpanEvents: []*pb.SpanEvent{
-					{
-						Name: "evt",
-						Attributes: map[string]*pb.AttributeAnyValue{
-							"str": {
-								Type:        pb.AttributeAnyValue_STRING_VALUE,
-								StringValue: "5105-1051-0510-5100",
-							},
-							"int": {
-								Type:     pb.AttributeAnyValue_INT_VALUE,
-								IntValue: 5105105105105100,
-							},
-							"dbl": {
-								Type:        pb.AttributeAnyValue_DOUBLE_VALUE,
-								DoubleValue: 5105105105105100,
-							},
-							"arr": {
-								Type: pb.AttributeAnyValue_ARRAY_VALUE,
-								ArrayValue: &pb.AttributeArray{
-									Values: []*pb.AttributeArrayValue{
-										{
-											Type:        pb.AttributeArrayValue_STRING_VALUE,
-											StringValue: "5105-1051-0510-5100",
-										},
-										{
-											Type:     pb.AttributeArrayValue_INT_VALUE,
-											IntValue: 5105105105105100,
-										},
-										{
-											Type:        pb.AttributeArrayValue_DOUBLE_VALUE,
-											DoubleValue: 5105105105105100,
-										},
-									},
-								},
-							},
+
+	spanEvent := &pb.SpanEvent{
+		Name: "evt",
+		Attributes: map[string]*pb.AttributeAnyValue{
+			"str": {
+				Type:        pb.AttributeAnyValue_STRING_VALUE,
+				StringValue: "5105-1051-0510-5100",
+			},
+			"int": {
+				Type:     pb.AttributeAnyValue_INT_VALUE,
+				IntValue: 5105105105105100,
+			},
+			"dbl": {
+				Type:        pb.AttributeAnyValue_DOUBLE_VALUE,
+				DoubleValue: 5105105105105100,
+			},
+			"arr": {
+				Type: pb.AttributeAnyValue_ARRAY_VALUE,
+				ArrayValue: &pb.AttributeArray{
+					Values: []*pb.AttributeArrayValue{
+						{
+							Type:        pb.AttributeArrayValue_STRING_VALUE,
+							StringValue: "5105-1051-0510-5100",
+						},
+						{
+							Type:     pb.AttributeArrayValue_INT_VALUE,
+							IntValue: 5105105105105100,
+						},
+						{
+							Type:        pb.AttributeArrayValue_DOUBLE_VALUE,
+							DoubleValue: 5105105105105100,
 						},
 					},
 				},
 			},
 		},
 	}
-	for _, tc := range testCases {
-		agnt.obfuscateSpan(tc.span)
-		for _, v := range tc.span.SpanEvents[0].Attributes {
-			if v.Type == pb.AttributeAnyValue_ARRAY_VALUE {
-				for _, arrayValue := range v.ArrayValue.Values {
-					assert.Equal("?", arrayValue.StringValue)
-				}
-			} else {
-				assert.Equal("?", v.StringValue)
+
+	// Initialize the obfuscator (it's lazily initialized, so we need to trigger it first)
+	// We can do this by creating a dummy span and calling obfuscateSpanInternal
+	st := idx.NewStringTable()
+	dummySpan := idx.NewInternalSpan(st, &idx.Span{
+		TypeRef:    st.Add("dummy"),
+		Attributes: make(map[uint32]*idx.AnyValue),
+	})
+	agnt.obfuscateSpanInternal(dummySpan)
+
+	// Now test obfuscateSpanEvent
+	agnt.obfuscateSpanEvent(spanEvent)
+
+	for _, v := range spanEvent.Attributes {
+		if v.Type == pb.AttributeAnyValue_ARRAY_VALUE {
+			for _, arrayValue := range v.ArrayValue.Values {
+				assert.Equal("?", arrayValue.StringValue)
 			}
+		} else {
+			assert.Equal("?", v.StringValue)
 		}
 	}
 }
@@ -541,11 +609,18 @@ func TestLexerObfuscation(t *testing.T) {
 	cfg.Features["sqllexer"] = struct{}{}
 	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	defer cancelFunc()
-	span := &pb.Span{
-		Resource: "SELECT * FROM [u].[users]",
-		Type:     "sql",
-		Meta:     map[string]string{"db.type": "sqlserver"},
-	}
-	agnt.obfuscateSpan(span)
-	assert.Equal(t, "SELECT * FROM [u].[users]", span.Resource)
+	st := idx.NewStringTable()
+	span := idx.NewInternalSpan(st, &idx.Span{
+		ResourceRef: st.Add("SELECT * FROM [u].[users]"),
+		TypeRef:     st.Add("sql"),
+		Attributes: map[uint32]*idx.AnyValue{
+			st.Add("db.type"): {
+				Value: &idx.AnyValue_StringValueRef{
+					StringValueRef: st.Add("sqlserver"),
+				},
+			},
+		},
+	})
+	agnt.obfuscateSpanInternal(span)
+	assert.Equal(t, "SELECT * FROM [u].[users]", span.Resource())
 }

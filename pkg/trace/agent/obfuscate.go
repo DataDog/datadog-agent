@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 )
@@ -31,65 +32,7 @@ const (
 	textNonParsable = transform.TextNonParsable
 )
 
-// obfuscateSpan is an interface that exposes all the methods needed to obfuscate a span.
-type obfuscateSpan interface {
-	GetAttributeAsString(key string) (string, bool)
-	SetStringAttribute(key string, value string)
-	Type() string
-	Resource() string
-	SetResource(resource string)
-	Service() string
-	// MapAttributesAsStrings applies a function to all string attributes of the span, if the function returns a non-empty string, the attribute is set to the new value
-	MapAttributesAsStrings(func(k, v string) string)
-}
-
-type obfuscateSpanV0 struct {
-	span *pb.Span
-}
-
-func (o *obfuscateSpanV0) GetAttributeAsString(key string) (string, bool) {
-	v, ok := o.span.Meta[key]
-	return v, ok
-}
-
-func (o *obfuscateSpanV0) SetStringAttribute(key string, value string) {
-	if o.span.Meta == nil {
-		o.span.Meta = make(map[string]string)
-	}
-	o.span.Meta[key] = value
-}
-
-func (o *obfuscateSpanV0) Type() string {
-	return o.span.Type
-}
-
-func (o *obfuscateSpanV0) Resource() string {
-	return o.span.Resource
-}
-
-func (o *obfuscateSpanV0) SetResource(resource string) {
-	o.span.Resource = resource
-}
-
-func (o *obfuscateSpanV0) Service() string {
-	return o.span.Service
-}
-
-func (o *obfuscateSpanV0) MapAttributesAsStrings(f func(k, v string) string) {
-	for k, v := range o.span.Meta {
-		newV := f(k, v)
-		if newV != "" && newV != v {
-			o.span.Meta[k] = newV
-		}
-	}
-}
-
-// ObfuscateSQLSpan obfuscates a SQL span
-func ObfuscateSQLSpan(o *obfuscate.Obfuscator, span *pb.Span) (*obfuscate.ObfuscatedQuery, error) {
-	return obfuscateSQLSpan(o, &obfuscateSpanV0{span: span})
-}
-
-func obfuscateSQLSpan(o *obfuscate.Obfuscator, span obfuscateSpan) (*obfuscate.ObfuscatedQuery, error) {
+func obfuscateSQLSpan(o *obfuscate.Obfuscator, span *idx.InternalSpan) (*obfuscate.ObfuscatedQuery, error) {
 	if span.Resource() == "" {
 		return nil, nil
 	}
@@ -109,12 +52,7 @@ func obfuscateSQLSpan(o *obfuscate.Obfuscator, span obfuscateSpan) (*obfuscate.O
 	return oq, nil
 }
 
-// ObfuscateRedisSpan obfuscates a Redis span
-func ObfuscateRedisSpan(o *obfuscate.Obfuscator, span *pb.Span, removeAllArgs bool) {
-	obfuscateRedisSpan(o, &obfuscateSpanV0{span: span}, removeAllArgs)
-}
-
-func obfuscateRedisSpan(o *obfuscate.Obfuscator, span obfuscateSpan, removeAllArgs bool) {
+func obfuscateRedisSpan(o *obfuscate.Obfuscator, span *idx.InternalSpan, removeAllArgs bool) {
 	v, ok := span.GetAttributeAsString(tagRedisRawCommand)
 	if !ok || v == "" {
 		return
@@ -126,12 +64,7 @@ func obfuscateRedisSpan(o *obfuscate.Obfuscator, span obfuscateSpan, removeAllAr
 	span.SetStringAttribute(tagRedisRawCommand, o.ObfuscateRedisString(v))
 }
 
-// ObfuscateValkeySpan obfuscates a Valkey span
-func ObfuscateValkeySpan(o *obfuscate.Obfuscator, span *pb.Span, removeAllArgs bool) {
-	obfuscateValkeySpan(o, &obfuscateSpanV0{span: span}, removeAllArgs)
-}
-
-func obfuscateValkeySpan(o *obfuscate.Obfuscator, span obfuscateSpan, removeAllArgs bool) {
+func obfuscateValkeySpan(o *obfuscate.Obfuscator, span *idx.InternalSpan, removeAllArgs bool) {
 	v, ok := span.GetAttributeAsString(tagValkeyRawCommand)
 	if !ok || v == "" {
 		return
@@ -143,11 +76,11 @@ func obfuscateValkeySpan(o *obfuscate.Obfuscator, span obfuscateSpan, removeAllA
 	span.SetStringAttribute(tagValkeyRawCommand, o.ObfuscateRedisString(v))
 }
 
-func (a *Agent) obfuscateSpanInternal(span obfuscateSpan) {
+func (a *Agent) obfuscateSpanInternal(span *idx.InternalSpan) {
 	o := a.lazyInitObfuscator()
 	if a.conf.Obfuscation != nil && a.conf.Obfuscation.CreditCards.Enabled {
-		span.MapAttributesAsStrings(func(k, v string) string {
-			newV := o.ObfuscateCreditCardNumber(k, v)
+		span.MapFilteredAttributes(o.ShouldObfuscateCCKey, func(k, v string) string {
+			newV := o.ObfuscateCreditCardNumber(v)
 			if newV != v {
 				log.Debugf("obfuscating possible credit card under key %s from service %s", k, span.Service())
 				return newV
@@ -223,19 +156,14 @@ func (a *Agent) obfuscateSpanInternal(span obfuscateSpan) {
 	}
 }
 
-func (a *Agent) obfuscateSpan(span *pb.Span) {
-	a.lazyInitObfuscator()
-	for _, spanEvent := range span.SpanEvents {
-		a.obfuscateSpanEvent(spanEvent)
-	}
-	a.obfuscateSpanInternal(&obfuscateSpanV0{span: span})
-}
-
 // obfuscateSpanEvent uses the pre-configured agent obfuscator to do limited obfuscation of span events
 // For now, we only obfuscate any credit-card like when enabled.
 func (a *Agent) obfuscateSpanEvent(spanEvent *pb.SpanEvent) {
 	if a.conf.Obfuscation != nil && a.conf.Obfuscation.CreditCards.Enabled && spanEvent != nil {
 		for k, v := range spanEvent.Attributes {
+			if !a.obfuscator.ShouldObfuscateCCKey(k) {
+				continue
+			}
 			var strValue string
 			switch v.Type {
 			case pb.AttributeAnyValue_STRING_VALUE:
@@ -247,9 +175,9 @@ func (a *Agent) obfuscateSpanEvent(spanEvent *pb.SpanEvent) {
 			case pb.AttributeAnyValue_BOOL_VALUE:
 				continue // Booleans can't be credit cards
 			case pb.AttributeAnyValue_ARRAY_VALUE:
-				a.ccObfuscateAttributeArray(v, k, strValue)
+				a.ccObfuscateAttributeArray(v, strValue)
 			}
-			newVal := a.obfuscator.ObfuscateCreditCardNumber(k, strValue)
+			newVal := a.obfuscator.ObfuscateCreditCardNumber(strValue)
 			if newVal != strValue {
 				*v = pb.AttributeAnyValue{Type: pb.AttributeAnyValue_STRING_VALUE, StringValue: newVal}
 			}
@@ -257,7 +185,7 @@ func (a *Agent) obfuscateSpanEvent(spanEvent *pb.SpanEvent) {
 	}
 }
 
-func (a *Agent) ccObfuscateAttributeArray(v *pb.AttributeAnyValue, k string, strValue string) {
+func (a *Agent) ccObfuscateAttributeArray(v *pb.AttributeAnyValue, strValue string) {
 	var arrStrValue string
 	for _, vElement := range v.ArrayValue.Values {
 		switch vElement.Type {
@@ -270,7 +198,7 @@ func (a *Agent) ccObfuscateAttributeArray(v *pb.AttributeAnyValue, k string, str
 		case pb.AttributeArrayValue_BOOL_VALUE:
 			continue // Booleans can't be credit cards
 		}
-		newVal := a.obfuscator.ObfuscateCreditCardNumber(k, arrStrValue)
+		newVal := a.obfuscator.ObfuscateCreditCardNumber(arrStrValue)
 		if newVal != strValue {
 			*vElement = pb.AttributeArrayValue{Type: pb.AttributeArrayValue_STRING_VALUE, StringValue: newVal}
 		}

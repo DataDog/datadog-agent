@@ -23,6 +23,26 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
+// pathTraces is the target host API path for delivering traces.
+const pathTraces = "/api/v0.2/traces"
+
+// tagAPMMode specifies whether running APM in "edge" mode (may support other modes in the future)
+const tagAPMMode = "_dd.apm_mode"
+
+const defaultConnectionLimit = 5
+
+// MaxPayloadSize specifies the maximum accumulated payload size that is allowed before
+// a flush is triggered; replaced in tests.
+var MaxPayloadSize = 3_200_000 // 3.2MB is the maximum allowed by the Datadog API
+
+type samplerTPSReader interface {
+	GetTargetTPS() float64
+}
+
+type samplerEnabledReader interface {
+	IsEnabled() bool
+}
+
 // SampledChunksV1 is a wrapper around an InternalTracerPayload that contains the size of the payload, the number of spans, and the number of events
 type SampledChunksV1 struct {
 	TracerPayload *idx.InternalTracerPayload
@@ -357,7 +377,7 @@ func (w *TraceWriterV1) recordEvent(t eventType, data *eventData) {
 		w.stats.Retries.Inc()
 
 	case eventTypeSent:
-		log.Debugf("Flushed traces to the API; time: %s, bytes: %d", data.duration, data.bytes)
+		log.Debugf("Flushed traces to the API; time: %s, bytes: %d", data.duration, data.bytes) // TODO: Undo when done
 		w.timing.Since("datadog.trace_agent.trace_writer.flush_duration", time.Now().Add(-data.duration))
 		w.stats.Bytes.Add(int64(data.bytes))
 		w.stats.Payloads.Inc()
