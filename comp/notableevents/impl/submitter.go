@@ -86,10 +86,9 @@ func (s *submitter) submitEvent(payload eventPayload) error {
 				"title":          payload.Title,
 				"category":       "alert",
 				"integration_id": "system-notable-events",
-				// TODO(WINA-1969): add integration_id schema fields
-				// "notable_events": map[string]interface{}{
-				// 	"event_type": payload.EventType,
-				// },
+				"system-notable-events": map[string]interface{}{
+					"event_type": payload.EventType,
+				},
 				"attributes": map[string]interface{}{
 					"status":   "error",
 					"priority": "5",
