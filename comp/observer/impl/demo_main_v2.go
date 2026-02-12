@@ -538,7 +538,7 @@ func exportResults(config DemoV2Config, obs *observerImpl, correlationState obse
 			ts = a.TimeRange.End
 		}
 		results.SampleAnomalies = append(results.SampleAnomalies, AnomalySample{
-			Source:      a.Source,
+			Source:      string(a.Source),
 			Analyzer:    a.AnalyzerName,
 			Description: a.Description,
 			Timestamp:   ts,
@@ -553,8 +553,8 @@ func exportResults(config DemoV2Config, obs *observerImpl, correlationState obse
 			results.Correlations = append(results.Correlations, CorrelationResult{
 				Pattern:     c.Pattern,
 				Title:       c.Title,
-				SourceCount: len(c.SourceNames),
-				Sources:     c.SourceNames, // All sources, not truncated
+				SourceCount: len(c.MemberSeriesIDs),
+				Sources:     seriesIDsToStringsForResults(c.MemberSeriesIDs), // All sources, not truncated
 				FirstSeen:   c.FirstSeen,
 				LastUpdated: c.LastUpdated,
 			})
@@ -599,4 +599,12 @@ func exportResults(config DemoV2Config, obs *observerImpl, correlationState obse
 	if results.TotalEdges > 0 {
 		fmt.Printf("  - %d edges\n", results.TotalEdges)
 	}
+}
+
+func seriesIDsToStringsForResults(ids []observerdef.SeriesID) []string {
+	out := make([]string, len(ids))
+	for i, id := range ids {
+		out[i] = string(id)
+	}
+	return out
 }

@@ -183,7 +183,7 @@ func (g *GraphSketchEmitter) Emit(series observer.Series) []observer.Signal {
 			// Use Z_t (EWMA) as the anomaly score for reporting
 			ewmaScore := g.ewmaZ
 			signals = append(signals, observer.Signal{
-				Source:    series.Name,
+				Source:    observer.SignalSource(series.Name),
 				Timestamp: edge.timestamp,
 				Tags:      series.Tags,
 				Value:     edge.value,

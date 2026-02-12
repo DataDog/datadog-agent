@@ -200,7 +200,7 @@ func (api *TestBenchAPI) handleSeriesDataByID(w http.ResponseWriter, r *http.Req
 		api.writeError(w, http.StatusBadRequest, "invalid series id")
 		return
 	}
-	api.handleSeriesDataForSeries(w, namespace, nameWithAgg, tags, seriesID)
+	api.handleSeriesDataForSeries(w, namespace, nameWithAgg, tags, observerdef.SeriesID(seriesID))
 }
 
 // handleSeriesData returns data for a specific series.
@@ -219,7 +219,7 @@ func (api *TestBenchAPI) handleSeriesData(w http.ResponseWriter, r *http.Request
 	api.handleSeriesDataForSeries(w, namespace, nameWithAgg, nil, "")
 }
 
-func (api *TestBenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace, nameWithAgg string, tags []string, requestedID string) {
+func (api *TestBenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace, nameWithAgg string, tags []string, requestedID observerdef.SeriesID) {
 	seriesID := requestedID
 
 	// Parse aggregation suffix (e.g., "metric:avg" or "metric:count")
@@ -254,7 +254,7 @@ func (api *TestBenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namesp
 		return
 	}
 	if seriesID == "" {
-		seriesID = seriesKey(series.Namespace, nameWithAgg, series.Tags)
+		seriesID = observerdef.SeriesID(seriesKey(series.Namespace, nameWithAgg, series.Tags))
 	}
 
 	// Get anomalies for this series to include in response
@@ -273,14 +273,14 @@ func (api *TestBenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namesp
 	for _, a := range anomalies {
 		if a.AnalyzerName == "" || a.Timestamp == 0 {
 			log.Printf("skipping malformed anomaly marker for series %q: analyzer=%q ts=%d",
-				seriesID, a.AnalyzerName, a.Timestamp)
+				string(seriesID), a.AnalyzerName, a.Timestamp)
 			continue
 		}
 		markers = append(markers, anomalyMarker{
 			Timestamp:         a.Timestamp,
 			AnalyzerName:      a.AnalyzerName,
 			AnalyzerComponent: analyzerComponentMap[a.AnalyzerName],
-			SourceSeriesID:    seriesID,
+			SourceSeriesID:    string(seriesID),
 			Title:             a.Title,
 		})
 	}
@@ -300,7 +300,7 @@ func (api *TestBenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namesp
 	}
 
 	resp := seriesResponse{
-		ID:        seriesID,
+		ID:        string(seriesID),
 		Namespace: series.Namespace,
 		Name:      nameWithAgg,
 		Tags:      series.Tags,
@@ -357,8 +357,8 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 
 	toResponse := func(a observerdef.AnomalyOutput) anomalyResponse {
 		resp := anomalyResponse{
-			Source:            a.Source,
-			SourceSeriesID:    a.SourceSeriesID,
+			Source:            string(a.Source),
+			SourceSeriesID:    string(a.SourceSeriesID),
 			AnalyzerName:      a.AnalyzerName,
 			AnalyzerComponent: analyzerComponentMap[a.AnalyzerName],
 			Title:             a.Title,
@@ -427,12 +427,13 @@ func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, r *http.Reque
 	}
 
 	type correlationResponse struct {
-		Pattern     string          `json:"pattern"`
-		Title       string          `json:"title"`
-		Signals     []string        `json:"signals"`
-		Anomalies   []anomalyOutput `json:"anomalies"`
-		FirstSeen   int64           `json:"firstSeen"`
-		LastUpdated int64           `json:"lastUpdated"`
+		Pattern         string          `json:"pattern"`
+		Title           string          `json:"title"`
+		MemberSeriesIDs []string        `json:"memberSeriesIds"`
+		MetricNames     []string        `json:"metricNames"`
+		Anomalies       []anomalyOutput `json:"anomalies"`
+		FirstSeen       int64           `json:"firstSeen"`
+		LastUpdated     int64           `json:"lastUpdated"`
 	}
 
 	response := make([]correlationResponse, len(correlations))
@@ -440,23 +441,40 @@ func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, r *http.Reque
 		anomalies := make([]anomalyOutput, len(c.Anomalies))
 		for j, a := range c.Anomalies {
 			anomalies[j] = anomalyOutput{
-				Source:      a.Source,
+				Source:      string(a.Source),
 				Title:       a.Title,
 				Description: a.Description,
 				Timestamp:   a.Timestamp,
 			}
 		}
 		response[i] = correlationResponse{
-			Pattern:     c.Pattern,
-			Title:       c.Title,
-			Signals:     c.SourceNames,
-			Anomalies:   anomalies,
-			FirstSeen:   c.FirstSeen,
-			LastUpdated: c.LastUpdated,
+			Pattern:         c.Pattern,
+			Title:           c.Title,
+			MemberSeriesIDs: seriesIDsToStrings(c.MemberSeriesIDs),
+			MetricNames:     metricNamesToStrings(c.MetricNames),
+			Anomalies:       anomalies,
+			FirstSeen:       c.FirstSeen,
+			LastUpdated:     c.LastUpdated,
 		}
 	}
 
 	api.writeJSON(w, response)
+}
+
+func metricNamesToStrings(names []observerdef.MetricName) []string {
+	out := make([]string, len(names))
+	for i, n := range names {
+		out[i] = string(n)
+	}
+	return out
+}
+
+func seriesIDsToStrings(ids []observerdef.SeriesID) []string {
+	out := make([]string, len(ids))
+	for i, id := range ids {
+		out[i] = string(id)
+	}
+	return out
 }
 
 // handleLeadLag returns lead-lag edges.

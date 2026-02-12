@@ -8,7 +8,6 @@ package observerimpl
 import (
 	"fmt"
 	"sort"
-	"strings"
 	"sync"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
@@ -86,17 +85,17 @@ type SurpriseCorrelator struct {
 	config SurpriseConfig
 
 	// Marginal counts per source (how often each source has anomalies)
-	sourceCounts map[string]int
+	sourceCounts map[observer.SeriesID]int
 
 	// Joint counts for pairs (how often A and B co-occur in the same window)
-	pairCounts map[string]int // "A|B" -> count
+	pairCounts map[seriesPairKey]int
 
 	// Total time windows observed
 	totalWindows int
 
 	// Current window tracking
 	currentWindowStart   int64
-	currentWindowSources map[string]bool
+	currentWindowSources map[observer.SeriesID]bool
 
 	// Recent anomalies for reporting
 	recentAnomalies []observer.AnomalyOutput
@@ -132,9 +131,9 @@ func NewSurpriseCorrelator(config SurpriseConfig) *SurpriseCorrelator {
 	}
 	return &SurpriseCorrelator{
 		config:               config,
-		sourceCounts:         make(map[string]int),
-		pairCounts:           make(map[string]int),
-		currentWindowSources: make(map[string]bool),
+		sourceCounts:         make(map[observer.SeriesID]int),
+		pairCounts:           make(map[seriesPairKey]int),
+		currentWindowSources: make(map[observer.SeriesID]bool),
 	}
 }
 
@@ -166,7 +165,7 @@ func (c *SurpriseCorrelator) Process(anomaly observer.AnomalyOutput) {
 	if windowStart > c.currentWindowStart {
 		c.finalizeWindow()
 		c.currentWindowStart = windowStart
-		c.currentWindowSources = make(map[string]bool)
+		c.currentWindowSources = make(map[observer.SeriesID]bool)
 	}
 
 	// Add this source to the current window
@@ -187,17 +186,17 @@ func (c *SurpriseCorrelator) finalizeWindow() {
 	}
 
 	// Update pair counts for all co-occurring sources
-	sources := make([]string, 0, len(c.currentWindowSources))
+	sources := make([]observer.SeriesID, 0, len(c.currentWindowSources))
 	for source := range c.currentWindowSources {
 		sources = append(sources, source)
 	}
-	sort.Strings(sources) // Ensure consistent ordering
+	sort.Slice(sources, func(i, j int) bool { return sources[i] < sources[j] }) // Ensure consistent ordering
 
 	// Track all pairs (limit to avoid memory explosion)
 	if len(c.pairCounts) < c.config.MaxPairsTracked {
 		for i := 0; i < len(sources); i++ {
 			for j := i + 1; j < len(sources); j++ {
-				pairKey := sources[i] + "<>" + sources[j]
+				pairKey := newSeriesPairKey(sources[i], sources[j])
 				c.pairCounts[pairKey]++
 			}
 		}
@@ -230,11 +229,11 @@ func (c *SurpriseCorrelator) Reset() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.sourceCounts = make(map[string]int)
-	c.pairCounts = make(map[string]int)
+	c.sourceCounts = make(map[observer.SeriesID]int)
+	c.pairCounts = make(map[seriesPairKey]int)
 	c.totalWindows = 0
 	c.currentWindowStart = 0
-	c.currentWindowSources = make(map[string]bool)
+	c.currentWindowSources = make(map[observer.SeriesID]bool)
 	c.recentAnomalies = c.recentAnomalies[:0]
 	c.currentDataTime = 0
 }
@@ -250,16 +249,12 @@ func (c *SurpriseCorrelator) GetEdges() []SurpriseEdge {
 
 	var edges []SurpriseEdge
 
-	for pairKey, pairCount := range c.pairCounts {
+	for pair, pairCount := range c.pairCounts {
 		if pairCount < c.config.MinSupport {
 			continue
 		}
-
-		// Parse pair key
-		source1, source2, ok := strings.Cut(pairKey, "<>")
-		if !ok {
-			continue
-		}
+		source1 := pair.A
+		source2 := pair.B
 
 		count1, ok1 := c.sourceCounts[source1]
 		count2, ok2 := c.sourceCounts[source2]
@@ -287,8 +282,8 @@ func (c *SurpriseCorrelator) GetEdges() []SurpriseEdge {
 		}
 
 		edges = append(edges, SurpriseEdge{
-			Source1:      source1,
-			Source2:      source2,
+			Source1:      string(source1),
+			Source2:      string(source2),
 			Lift:         lift,
 			Support:      pairCount,
 			Source1Count: count1,
@@ -327,19 +322,19 @@ func (c *SurpriseCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
 	var result []observer.ActiveCorrelation
 
 	// Group anomalies by source for quick lookup
-	anomaliesBySource := make(map[string][]observer.AnomalyOutput)
+	anomaliesBySource := make(map[observer.SeriesID][]observer.AnomalyOutput)
 	for _, a := range c.recentAnomalies {
 		anomaliesBySource[a.SourceSeriesID] = append(anomaliesBySource[a.SourceSeriesID], a)
 	}
 
 	// Create a correlation for each significant surprise pattern
 	for _, edge := range edges {
-		sources := []string{edge.Source1, edge.Source2}
+		memberSeriesIDs := []observer.SeriesID{observer.SeriesID(edge.Source1), observer.SeriesID(edge.Source2)}
 
 		// Collect anomalies from both sources
 		var anomalies []observer.AnomalyOutput
-		anomalies = append(anomalies, anomaliesBySource[edge.Source1]...)
-		anomalies = append(anomalies, anomaliesBySource[edge.Source2]...)
+		anomalies = append(anomalies, anomaliesBySource[observer.SeriesID(edge.Source1)]...)
+		anomalies = append(anomalies, anomaliesBySource[observer.SeriesID(edge.Source2)]...)
 
 		// Find time range
 		var firstSeen, lastUpdated int64
@@ -351,6 +346,7 @@ func (c *SurpriseCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
 				lastUpdated = a.Timestamp
 			}
 		}
+		metricNames := sortedUniqueMetricNames(anomalies)
 
 		var title string
 		var pattern string
@@ -365,12 +361,13 @@ func (c *SurpriseCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
 		}
 
 		result = append(result, observer.ActiveCorrelation{
-			Pattern:     pattern,
-			Title:       title,
-			SourceNames: sources,
-			Anomalies:   anomalies,
-			FirstSeen:   firstSeen,
-			LastUpdated: lastUpdated,
+			Pattern:         pattern,
+			Title:           title,
+			MemberSeriesIDs: memberSeriesIDs,
+			MetricNames:     metricNames,
+			Anomalies:       anomalies,
+			FirstSeen:       firstSeen,
+			LastUpdated:     lastUpdated,
 		})
 	}
 

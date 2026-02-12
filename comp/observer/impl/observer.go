@@ -263,12 +263,12 @@ type observerImpl struct {
 	// Raw anomaly tracking for test bench display
 	rawAnomalies         []observerdef.AnomalyOutput
 	rawAnomalyMu         sync.RWMutex
-	rawAnomalyWindow     int64           // seconds to keep raw anomalies (0 = unlimited)
-	maxRawAnomalies      int             // max number of raw anomalies to keep (0 = unlimited)
-	currentDataTime      int64           // latest data timestamp seen
-	totalAnomalyCount    int             // total count of all anomalies ever detected (no cap)
-	uniqueAnomalySources map[string]bool // unique sources that had anomalies
-	dedupSkipped         int             // count of anomalies skipped by dedup
+	rawAnomalyWindow     int64                           // seconds to keep raw anomalies (0 = unlimited)
+	maxRawAnomalies      int                             // max number of raw anomalies to keep (0 = unlimited)
+	currentDataTime      int64                           // latest data timestamp seen
+	totalAnomalyCount    int                             // total count of all anomalies ever detected (no cap)
+	uniqueAnomalySources map[observerdef.MetricName]bool // unique sources that had anomalies
+	dedupSkipped         int                             // count of anomalies skipped by dedup
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
@@ -352,7 +352,7 @@ func (o *observerImpl) routeEventSignal(l *logObs) {
 
 	// Create unified Signal with "event:" prefix to distinguish from metric anomalies
 	signal := observerdef.Signal{
-		Source:    "event:" + eventSource,
+		Source:    observerdef.SignalSource("event:" + eventSource),
 		Timestamp: l.timestamp,
 		Tags:      l.tags,
 		Value:     0,   // Events don't have numeric values
@@ -389,8 +389,8 @@ func (o *observerImpl) runTSAnalyses(series observerdef.Series, agg Aggregate) {
 		for _, anomaly := range result.Anomalies {
 			// Set the analyzer name so we can identify who produced this anomaly
 			anomaly.AnalyzerName = tsAnalysis.Name()
-			anomaly.Source = seriesWithAgg.Name
-			anomaly.SourceSeriesID = seriesKey(series.Namespace, seriesWithAgg.Name, series.Tags)
+			anomaly.Source = observerdef.MetricName(seriesWithAgg.Name)
+			anomaly.SourceSeriesID = observerdef.SeriesID(seriesKey(series.Namespace, seriesWithAgg.Name, series.Tags))
 			// Capture raw anomaly before passing to processors
 			o.captureRawAnomaly(anomaly)
 			o.processAnomaly(anomaly)
@@ -411,7 +411,7 @@ func (o *observerImpl) runSignalEmitters(series observerdef.Series, agg Aggregat
 		for _, signal := range signals {
 			// Convert signal to anomaly and send to correlators
 			anomaly := o.signalToAnomaly(signal, emitter.Name())
-			anomaly.SourceSeriesID = seriesKey(series.Namespace, seriesWithAgg.Name, series.Tags)
+			anomaly.SourceSeriesID = observerdef.SeriesID(seriesKey(series.Namespace, seriesWithAgg.Name, series.Tags))
 			o.captureRawAnomaly(anomaly) // For UI display
 			o.processAnomaly(anomaly)    // Send to correlators (GraphSketchCorrelator, etc.)
 
@@ -430,7 +430,7 @@ func (o *observerImpl) signalToAnomaly(signal observerdef.Signal, emitterName st
 	}
 
 	return observerdef.AnomalyOutput{
-		Source:       signal.Source,
+		Source:       observerdef.MetricName(signal.Source),
 		Title:        fmt.Sprintf("Signal: %s", signal.Source),
 		Description:  desc,
 		Tags:         signal.Tags,
@@ -476,7 +476,7 @@ func (o *observerImpl) processAnomaly(anomaly observerdef.AnomalyOutput) {
 		if ts == 0 {
 			ts = anomaly.TimeRange.End
 		}
-		if !o.deduplicator.ShouldProcess(anomaly.SourceSeriesID, ts) {
+		if !o.deduplicator.ShouldProcess(string(anomaly.SourceSeriesID), ts) {
 			o.dedupSkipped++
 			return // Duplicate, skip
 		}
@@ -498,7 +498,7 @@ func (o *observerImpl) captureRawAnomaly(anomaly observerdef.AnomalyOutput) {
 
 	// Track unique sources
 	if o.uniqueAnomalySources == nil {
-		o.uniqueAnomalySources = make(map[string]bool)
+		o.uniqueAnomalySources = make(map[observerdef.MetricName]bool)
 	}
 	o.uniqueAnomalySources[anomaly.Source] = true
 
@@ -626,7 +626,7 @@ func (o *observerImpl) DumpEvents(path string) error {
 	events := make([]dumpEvent, len(o.eventBuffer))
 	for i, signal := range o.eventBuffer {
 		events[i] = dumpEvent{
-			Source:    signal.Source,
+			Source:    string(signal.Source),
 			Timestamp: signal.Timestamp,
 			Tags:      signal.Tags,
 			Value:     signal.Value,

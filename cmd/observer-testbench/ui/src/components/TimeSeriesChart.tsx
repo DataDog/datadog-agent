@@ -1,6 +1,6 @@
 import { useRef, useEffect, useMemo, useState } from 'react';
 import * as d3 from 'd3';
-import type { Point, AnomalyMarker } from '../api/client';
+import type { Point, AnomalyMarker, SeriesID } from '../api/client';
 import type { CorrelationRange, TimeRange } from './ChartWithAnomalyDetails';
 
 // Analyzer color palette - colors are assigned by stable index
@@ -69,7 +69,7 @@ function getAnomalyMarkerId(anomaly: AnomalyMarker): string {
 export interface SeriesVariant {
   label: string;  // The tag value (e.g., "host:web1")
   points: Point[];
-  seriesId?: string;
+  seriesId?: SeriesID;
 }
 
 interface TimeSeriesChartProps {
@@ -83,9 +83,9 @@ interface TimeSeriesChartProps {
   height?: number;
   smoothLines?: boolean;
   seriesVariants?: SeriesVariant[];  // When provided, renders multiple lines instead of single points array
-  visibleSeriesIds?: Set<string>;
-  onToggleSeriesVisibility?: (seriesId: string) => void;
-  highlightedSeriesId?: string | null;
+  visibleSeriesIds?: Set<SeriesID>;
+  onToggleSeriesVisibility?: (seriesId: SeriesID) => void;
+  highlightedSeriesId?: SeriesID | null;
   highlightedMarkerId?: string | null;
   onMarkerHover?: (markerId: string | null) => void;
   onMarkerClick?: (markerId: string) => void;
@@ -111,7 +111,7 @@ export function TimeSeriesChart({
 }: TimeSeriesChartProps) {
   const [showCorrelationLegend, setShowCorrelationLegend] = useState(false);
   const [showSeriesLegend, setShowSeriesLegend] = useState(false);
-  const [hoveredLegendSeriesId, setHoveredLegendSeriesId] = useState<string | null>(null);
+  const [hoveredLegendSeriesId, setHoveredLegendSeriesId] = useState<SeriesID | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isBrushingRef = useRef(false);
@@ -123,7 +123,7 @@ export function TimeSeriesChart({
   const panTriggerRef = useRef<'middle' | 'meta-left' | null>(null);
   const xScaleRef = useRef<d3.ScaleTime<number, number> | null>(null);
 
-  const isSeriesVisible = (seriesId?: string): boolean => {
+  const isSeriesVisible = (seriesId?: SeriesID): boolean => {
     if (!seriesId || !visibleSeriesIds) return true;
     return visibleSeriesIds.has(seriesId);
   };
@@ -281,7 +281,7 @@ export function TimeSeriesChart({
       y: number;
       color: { fill: string; stroke: string };
       selected: boolean;
-      sourceSeriesId?: string;
+      sourceSeriesId?: SeriesID;
     };
 
     const markerData: MarkerRenderDatum[] = [];

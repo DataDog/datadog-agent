@@ -103,7 +103,7 @@ func (r *StdoutReporter) reportRawAnomalyChanges() {
 	rawAnomalies := r.rawAnomalyState.RawAnomalies()
 
 	for _, anomaly := range rawAnomalies {
-		key := anomaly.Source + "|" + anomaly.AnalyzerName
+		key := string(anomaly.Source) + "|" + anomaly.AnalyzerName
 		if !r.seenRawAnomalies[key] {
 			fmt.Printf("[observer] [%s] ANOMALY: %s\n", anomaly.AnalyzerName, anomaly.Source)
 			fmt.Printf("           %s\n", anomaly.Description)
@@ -161,7 +161,7 @@ func (r *StdoutReporter) PrintFinalState() {
 
 			fmt.Println("[observer] Raw Anomaly Summary:")
 			for analyzer, anomalies := range byAnalyzer {
-				sources := make(map[string]bool)
+				sources := make(map[observer.MetricName]bool)
 				for _, a := range anomalies {
 					sources[a.Source] = true
 				}

@@ -10,7 +10,6 @@ import (
 	"hash/fnv"
 	"math"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -78,8 +77,8 @@ type GraphSketchCorrelator struct {
 	currentDataTime int64
 
 	// Edge frequency tracking (for quick lookups and reporting)
-	knownEdges    map[string]int   // edge -> observation count
-	edgeFirstSeen map[string]int64 // edge -> unix timestamp when first seen
+	knownEdges    map[seriesPairKey]int   // edge -> observation count
+	edgeFirstSeen map[seriesPairKey]int64 // edge -> unix timestamp when first seen
 
 	// Stability tracking
 	lastNewEdgeTime   int64 // timestamp when last NEW edge was discovered
@@ -88,7 +87,7 @@ type GraphSketchCorrelator struct {
 	frozen            bool  // true = no more data expected, stop updating
 
 	// Progress tracking for correlation algorithm
-	uniqueSources map[string]bool // unique anomaly sources seen
+	uniqueSources map[observer.SeriesID]bool // unique anomaly sources seen
 
 	// Caching for expensive edge ranking (fixes backpressure)
 	cachedTopEdges      []EdgeInfo
@@ -109,7 +108,7 @@ type EdgeInfo struct {
 // graphCluster represents a group of anomalies with strong co-occurrence.
 type graphCluster struct {
 	id        int
-	anomalies map[string]observer.AnomalyOutput // keyed by SourceSeriesID for dedup
+	anomalies map[observer.SeriesID]observer.AnomalyOutput // keyed by SourceSeriesID for dedup
 	timeRange observer.TimeRange
 	strength  float64 // Average edge strength within cluster
 }
@@ -159,9 +158,9 @@ func NewGraphSketchCorrelator(config GraphSketchCorrelatorConfig) *GraphSketchCo
 		layerToBinMap:       make(map[int]int64),
 		anomalyBuffer:       make([]observer.AnomalyOutput, 0, 100),
 		clusters:            nil,
-		edgeFirstSeen:       make(map[string]int64),
-		knownEdges:          make(map[string]int),
-		uniqueSources:       make(map[string]bool),
+		edgeFirstSeen:       make(map[seriesPairKey]int64),
+		knownEdges:          make(map[seriesPairKey]int),
+		uniqueSources:       make(map[observer.SeriesID]bool),
 		cacheTTLDataSeconds: 5, // Cache edge rankings for 5 data-time seconds to reduce backpressure
 	}
 }
@@ -236,17 +235,17 @@ func (g *GraphSketchCorrelator) Process(anomaly observer.AnomalyOutput) {
 		if anomaly.SourceSeriesID == other.SourceSeriesID {
 			continue
 		}
-		edgeKey := g.canonicalEdge(anomaly.SourceSeriesID, other.SourceSeriesID)
-		g.updateTensorSketch(edgeKey, timeBin)
+		edge := g.canonicalEdge(anomaly.SourceSeriesID, other.SourceSeriesID)
+		g.updateTensorSketch(edge, timeBin)
 
 		// Track first seen - this is a NEW edge
-		if _, exists := g.edgeFirstSeen[edgeKey]; !exists {
-			g.edgeFirstSeen[edgeKey] = anomalyTime
+		if _, exists := g.edgeFirstSeen[edge]; !exists {
+			g.edgeFirstSeen[edge] = anomalyTime
 			g.lastNewEdgeTime = anomalyTime // Record when we last discovered something new
 		}
 
 		// Track edge observations for observability
-		g.knownEdges[edgeKey]++
+		g.knownEdges[edge]++
 		g.totalObservations++
 	}
 
@@ -289,13 +288,9 @@ func (g *GraphSketchCorrelator) pruneBufferLocked() {
 	g.anomalyBuffer = newBuffer
 }
 
-// canonicalEdge returns a canonical key for an edge (source1<>source2).
-// Uses "<>" as the separator to avoid ambiguity with "|" inside SourceSeriesIDs.
-func (g *GraphSketchCorrelator) canonicalEdge(s1, s2 string) string {
-	if s1 < s2 {
-		return s1 + "<>" + s2
-	}
-	return s2 + "<>" + s1
+// canonicalEdge returns a canonical key for an edge.
+func (g *GraphSketchCorrelator) canonicalEdge(s1, s2 observer.SeriesID) seriesPairKey {
+	return newSeriesPairKey(s1, s2)
 }
 
 // advanceTimeBin advances to a new time bin, managing the ring buffer.
@@ -329,20 +324,21 @@ func (g *GraphSketchCorrelator) clearLayer(layer int) {
 }
 
 // updateTensorSketch updates the tensor with an edge observation.
-func (g *GraphSketchCorrelator) updateTensorSketch(edgeKey string, timeBin int64) {
+func (g *GraphSketchCorrelator) updateTensorSketch(edge seriesPairKey, timeBin int64) {
 	layer := int(timeBin % int64(g.config.NumTimeBins))
+	hashKey := edge.hashKey()
 
 	// Conservative update: increment only buckets at minimum
 	minCount := math.MaxFloat64
 	for d := 0; d < g.config.Depth; d++ {
-		idx := g.hash(edgeKey, d)
+		idx := g.hash(hashKey, d)
 		if g.tensorSketch[layer][d][idx] < minCount {
 			minCount = g.tensorSketch[layer][d][idx]
 		}
 	}
 
 	for d := 0; d < g.config.Depth; d++ {
-		idx := g.hash(edgeKey, d)
+		idx := g.hash(hashKey, d)
 		if g.tensorSketch[layer][d][idx] == minCount {
 			g.tensorSketch[layer][d][idx]++
 		}
@@ -350,16 +346,17 @@ func (g *GraphSketchCorrelator) updateTensorSketch(edgeKey string, timeBin int64
 }
 
 // queryEdgeFrequency queries the cumulative frequency for an edge.
-func (g *GraphSketchCorrelator) queryEdgeFrequency(edgeKey string) float64 {
+func (g *GraphSketchCorrelator) queryEdgeFrequency(edge seriesPairKey) float64 {
 	var cumulativeFreq float64
 	gamma := g.config.DecayFactor
+	hashKey := edge.hashKey()
 
 	for layer := 0; layer < g.config.NumTimeBins; layer++ {
 		if absoluteBin, exists := g.layerToBinMap[layer]; exists {
 			if absoluteBin <= g.currentTimeBin {
 				estimates := make([]float64, g.config.Depth)
 				for d := 0; d < g.config.Depth; d++ {
-					idx := g.hash(edgeKey, d)
+					idx := g.hash(hashKey, d)
 					estimates[d] = g.tensorSketch[layer][d][idx]
 				}
 
@@ -394,8 +391,8 @@ func (g *GraphSketchCorrelator) clusterAnomaly(anomaly observer.AnomalyOutput) {
 	var candidateClusters []*graphCluster
 	for _, cluster := range g.clusters {
 		for sourceInCluster := range cluster.anomalies {
-			edgeKey := g.canonicalEdge(anomaly.SourceSeriesID, sourceInCluster)
-			if g.queryEdgeFrequency(edgeKey) >= g.config.MinCorrelationStrength {
+			edge := g.canonicalEdge(anomaly.SourceSeriesID, sourceInCluster)
+			if g.queryEdgeFrequency(edge) >= g.config.MinCorrelationStrength {
 				candidateClusters = append(candidateClusters, cluster)
 				break
 			}
@@ -410,7 +407,7 @@ func (g *GraphSketchCorrelator) clusterAnomaly(anomaly observer.AnomalyOutput) {
 		anomalyTime := getAnomalyTime(anomaly)
 		newCluster := &graphCluster{
 			id:        g.nextClusterID,
-			anomalies: make(map[string]observer.AnomalyOutput),
+			anomalies: make(map[observer.SeriesID]observer.AnomalyOutput),
 			timeRange: observer.TimeRange{Start: anomalyTime, End: anomalyTime},
 		}
 		g.nextClusterID++
@@ -448,15 +445,15 @@ func (g *GraphSketchCorrelator) updateClusterStrength(cluster *graphCluster) {
 
 	var totalStrength float64
 	var edgeCount int
-	sources := make([]string, 0, len(cluster.anomalies))
+	sources := make([]observer.SeriesID, 0, len(cluster.anomalies))
 	for s := range cluster.anomalies {
 		sources = append(sources, s)
 	}
 
 	for i := 0; i < len(sources); i++ {
 		for j := i + 1; j < len(sources); j++ {
-			edgeKey := g.canonicalEdge(sources[i], sources[j])
-			totalStrength += g.queryEdgeFrequency(edgeKey)
+			edge := g.canonicalEdge(sources[i], sources[j])
+			totalStrength += g.queryEdgeFrequency(edge)
 			edgeCount++
 		}
 	}
@@ -505,9 +502,9 @@ func (g *GraphSketchCorrelator) Reset() {
 	g.clusters = nil
 	g.nextClusterID = 0
 	g.currentDataTime = 0
-	g.knownEdges = make(map[string]int)
-	g.edgeFirstSeen = make(map[string]int64)
-	g.uniqueSources = make(map[string]bool)
+	g.knownEdges = make(map[seriesPairKey]int)
+	g.edgeFirstSeen = make(map[seriesPairKey]int64)
+	g.uniqueSources = make(map[observer.SeriesID]bool)
 	g.totalObservations = 0
 	g.lastNewEdgeTime = 0
 	g.cachedTopEdges = nil
@@ -549,22 +546,24 @@ func (g *GraphSketchCorrelator) ActiveCorrelations() []observer.ActiveCorrelatio
 
 		// Collect anomalies and sources
 		anomalies := make([]observer.AnomalyOutput, 0, len(cluster.anomalies))
-		sources := make([]string, 0, len(cluster.anomalies))
+		sources := make([]observer.SeriesID, 0, len(cluster.anomalies))
 		for seriesID, anomaly := range cluster.anomalies {
 			anomalies = append(anomalies, anomaly)
 			sources = append(sources, seriesID)
 		}
-		sort.Strings(sources)
+		sort.Slice(sources, func(i, j int) bool { return sources[i] < sources[j] })
+		metricNames := sortedUniqueMetricNames(anomalies)
 
 		title := g.buildClusterTitle(cluster, sources)
 
 		result = append(result, observer.ActiveCorrelation{
-			Pattern:     fmt.Sprintf("graphsketch_cluster_%d", cluster.id),
-			Title:       title,
-			SourceNames: sources,
-			Anomalies:   anomalies,
-			FirstSeen:   cluster.timeRange.Start,
-			LastUpdated: cluster.timeRange.End,
+			Pattern:         fmt.Sprintf("graphsketch_cluster_%d", cluster.id),
+			Title:           title,
+			MemberSeriesIDs: sources,
+			MetricNames:     metricNames,
+			Anomalies:       anomalies,
+			FirstSeen:       cluster.timeRange.Start,
+			LastUpdated:     cluster.timeRange.End,
 		})
 	}
 
@@ -579,44 +578,35 @@ func (g *GraphSketchCorrelator) ActiveCorrelations() []observer.ActiveCorrelatio
 	return result
 }
 
-func (g *GraphSketchCorrelator) buildClusterTitle(cluster *graphCluster, sources []string) string {
+func (g *GraphSketchCorrelator) buildClusterTitle(cluster *graphCluster, sources []observer.SeriesID) string {
 	if len(sources) == 0 {
 		return fmt.Sprintf("GraphSketch Cluster %d (empty)", cluster.id)
 	}
 	if len(sources) == 1 {
-		return fmt.Sprintf("GraphSketch Cluster %d: %s", cluster.id, sources[0])
+		return fmt.Sprintf("GraphSketch Cluster %d: %s", cluster.id, string(sources[0]))
 	}
 
 	// Find the strongest edge within the cluster for the title
-	var strongestEdgeKey string
+	var strongestEdge seriesPairKey
+	var foundStrongest bool
 	var maxFreq float64
 	for i := 0; i < len(sources); i++ {
 		for j := i + 1; j < len(sources); j++ {
-			edgeKey := g.canonicalEdge(sources[i], sources[j])
-			freq := g.queryEdgeFrequency(edgeKey)
+			edge := g.canonicalEdge(sources[i], sources[j])
+			freq := g.queryEdgeFrequency(edge)
 			if freq > maxFreq {
 				maxFreq = freq
-				strongestEdgeKey = edgeKey
+				strongestEdge = edge
+				foundStrongest = true
 			}
 		}
 	}
 
-	if strongestEdgeKey != "" {
-		parts := g.splitEdge(strongestEdgeKey)
-		if len(parts) == 2 {
-			return fmt.Sprintf("GraphSketch: %s ↔ %s (%d sources)", parts[0], parts[1], len(sources))
-		}
+	if foundStrongest {
+		return fmt.Sprintf("GraphSketch: %s ↔ %s (%d sources)", string(strongestEdge.A), string(strongestEdge.B), len(sources))
 	}
 
 	return fmt.Sprintf("GraphSketch Cluster %d (%d sources)", cluster.id, len(sources))
-}
-
-// splitEdge splits an edge key back into its component sources.
-func (g *GraphSketchCorrelator) splitEdge(edgeKey string) []string {
-	if a, b, ok := strings.Cut(edgeKey, "<>"); ok {
-		return []string{a, b}
-	}
-	return nil
 }
 
 // GetLearnedEdges returns all currently learned edges with their frequencies.
@@ -654,12 +644,12 @@ func (g *GraphSketchCorrelator) GetLearnedEdges() []EdgeInfo {
 func (g *GraphSketchCorrelator) getLearnedEdgesLocked() []EdgeInfo {
 	// First pass: collect edges with observation counts only (fast)
 	type edgeCandidate struct {
-		key   string
+		key   seriesPairKey
 		count int
 	}
 	candidates := make([]edgeCandidate, 0, len(g.knownEdges))
-	for edgeKey, count := range g.knownEdges {
-		candidates = append(candidates, edgeCandidate{key: edgeKey, count: count})
+	for edge, count := range g.knownEdges {
+		candidates = append(candidates, edgeCandidate{key: edge, count: count})
 	}
 
 	// Sort by observation count to get top candidates
@@ -676,16 +666,10 @@ func (g *GraphSketchCorrelator) getLearnedEdgesLocked() []EdgeInfo {
 	// Second pass: calculate decay-weighted frequency for top candidates
 	edges := make([]EdgeInfo, 0, len(candidates))
 	for _, cand := range candidates {
-		// Parse edge key to get sources
-		parts := g.splitEdge(cand.key)
-		if len(parts) != 2 {
-			continue
-		}
-
 		edges = append(edges, EdgeInfo{
-			Source1:       parts[0],
-			Source2:       parts[1],
-			EdgeKey:       cand.key,
+			Source1:       string(cand.key.A),
+			Source2:       string(cand.key.B),
+			EdgeKey:       cand.key.displayKey(),
 			Observations:  cand.count,
 			Frequency:     g.queryEdgeFrequency(cand.key),
 			FirstSeenUnix: g.edgeFirstSeen[cand.key],
@@ -785,13 +769,10 @@ func (g *GraphSketchCorrelator) GetStats() map[string]interface{} {
 	}
 
 	// Calculate edge coverage (how many unique sources are part of at least one edge)
-	var coveredSources = make(map[string]bool)
-	for edgeKey := range g.knownEdges {
-		parts := g.splitEdge(edgeKey)
-		if len(parts) == 2 {
-			coveredSources[parts[0]] = true
-			coveredSources[parts[1]] = true
-		}
+	var coveredSources = make(map[observer.SeriesID]bool)
+	for edge := range g.knownEdges {
+		coveredSources[edge.A] = true
+		coveredSources[edge.B] = true
 	}
 	edgeCoverage := 0.0
 	if len(g.uniqueSources) > 0 {

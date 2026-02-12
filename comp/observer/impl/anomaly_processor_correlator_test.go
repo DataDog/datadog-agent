@@ -143,11 +143,11 @@ func TestCorrelator_ActiveCorrelationListsAllSignals(t *testing.T) {
 	require.NotNil(t, found)
 
 	// Sources should contain all three sources (sorted alphabetically)
-	sources := found.SourceNames
+	sources := found.MetricNames
 	require.Len(t, sources, 3)
-	assert.Contains(t, sources, "network.retransmits:avg")
-	assert.Contains(t, sources, "ebpf.lock_contention_ns:avg")
-	assert.Contains(t, sources, "connection.errors:count")
+	assert.Contains(t, sources, observer.MetricName("network.retransmits:avg"))
+	assert.Contains(t, sources, observer.MetricName("ebpf.lock_contention_ns:avg"))
+	assert.Contains(t, sources, observer.MetricName("connection.errors:count"))
 }
 
 func TestCorrelator_ActiveCorrelationContainsPatternName(t *testing.T) {
@@ -452,7 +452,7 @@ func TestCorrelator_DedupesBySourceKeepingMostRecent(t *testing.T) {
 
 	// Find the network.retransmits anomaly and verify it's the newest one
 	for _, a := range anomalies {
-		if a.Source == "network.retransmits:avg" {
+		if string(a.Source) == "network.retransmits:avg" {
 			assert.Equal(t, "newest retransmits", a.Description, "should keep anomaly with latest timestamp")
 			assert.Equal(t, int64(1025), a.Timestamp, "should have latest timestamp")
 		}
@@ -494,6 +494,6 @@ func TestCorrelator_AnomaliesOnlyIncludesMatchingSignals(t *testing.T) {
 
 	// Verify extra signal is not included
 	for _, a := range anomalies {
-		assert.NotEqual(t, "extra.signal:avg", a.Source, "extra signal should not be in anomalies")
+		assert.NotEqual(t, "extra.signal:avg", string(a.Source), "extra signal should not be in anomalies")
 	}
 }

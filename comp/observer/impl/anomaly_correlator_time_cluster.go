@@ -41,9 +41,9 @@ func DefaultTimeClusterConfig() TimeClusterConfig {
 // timeCluster represents a group of temporally-related anomalies.
 type timeCluster struct {
 	id           int
-	anomalies    map[string]observer.AnomalyOutput // keyed by SourceSeriesID for dedup
-	minTimestamp int64                             // earliest anomaly timestamp
-	maxTimestamp int64                             // latest anomaly timestamp
+	anomalies    map[observer.SeriesID]observer.AnomalyOutput // keyed by SourceSeriesID for dedup
+	minTimestamp int64                                        // earliest anomaly timestamp
+	maxTimestamp int64                                        // latest anomaly timestamp
 }
 
 // TimeClusterCorrelator clusters anomalies based on timestamp proximity.
@@ -101,7 +101,7 @@ func (c *TimeClusterCorrelator) Process(anomaly observer.AnomalyOutput) {
 		c.nextClusterID++
 		newCluster := &timeCluster{
 			id:           c.nextClusterID,
-			anomalies:    map[string]observer.AnomalyOutput{anomaly.SourceSeriesID: anomaly},
+			anomalies:    map[observer.SeriesID]observer.AnomalyOutput{anomaly.SourceSeriesID: anomaly},
 			minTimestamp: anomaly.Timestamp,
 			maxTimestamp: anomaly.Timestamp,
 		}
@@ -242,7 +242,7 @@ func (c *TimeClusterCorrelator) GetClusters() []TimeClusterInfo {
 
 		sources := make([]string, 0, len(cluster.anomalies))
 		for source := range cluster.anomalies {
-			sources = append(sources, source)
+			sources = append(sources, string(source))
 		}
 		sort.Strings(sources)
 		result = append(result, TimeClusterInfo{
@@ -307,20 +307,22 @@ func (c *TimeClusterCorrelator) ActiveCorrelations() []observer.ActiveCorrelatio
 
 		// Collect anomalies and sources
 		anomalies := make([]observer.AnomalyOutput, 0, len(cluster.anomalies))
-		sources := make([]string, 0, len(cluster.anomalies))
+		memberSeriesIDs := make([]observer.SeriesID, 0, len(cluster.anomalies))
 		for source, anomaly := range cluster.anomalies {
 			anomalies = append(anomalies, anomaly)
-			sources = append(sources, source)
+			memberSeriesIDs = append(memberSeriesIDs, source)
 		}
-		sort.Strings(sources)
+		sort.Slice(memberSeriesIDs, func(i, j int) bool { return memberSeriesIDs[i] < memberSeriesIDs[j] })
+		metricNames := sortedUniqueMetricNames(anomalies)
 
 		result = append(result, observer.ActiveCorrelation{
-			Pattern:     fmt.Sprintf("time_cluster_%d", cluster.id),
-			Title:       fmt.Sprintf("TimeCluster: %d anomalies", len(cluster.anomalies)),
-			SourceNames: sources,
-			Anomalies:   anomalies,
-			FirstSeen:   cluster.minTimestamp,
-			LastUpdated: cluster.maxTimestamp,
+			Pattern:         fmt.Sprintf("time_cluster_%d", cluster.id),
+			Title:           fmt.Sprintf("TimeCluster: %d anomalies", len(cluster.anomalies)),
+			MemberSeriesIDs: memberSeriesIDs,
+			MetricNames:     metricNames,
+			Anomalies:       anomalies,
+			FirstSeen:       cluster.minTimestamp,
+			LastUpdated:     cluster.maxTimestamp,
 		})
 	}
 

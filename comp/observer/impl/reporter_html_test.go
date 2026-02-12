@@ -404,9 +404,12 @@ func TestHTMLReporter_APICorrelations_ReturnsJSON(t *testing.T) {
 	r.SetCorrelationState(&mockCorrelationState{
 		correlations: []observer.ActiveCorrelation{
 			{
-				Pattern:     "test_pattern",
-				Title:       "Test Correlation",
-				SourceNames: []string{"signal1", "signal2"},
+				Pattern: "test_pattern",
+				Title:   "Test Correlation",
+				MemberSeriesIDs: []observer.SeriesID{
+					observer.SeriesID("series|signal1|"),
+					observer.SeriesID("series|signal2|"),
+				},
 				Anomalies: []observer.AnomalyOutput{
 					{Source: "signal1", Title: "Anomaly 1", Description: "Description 1"},
 				},
@@ -430,7 +433,7 @@ func TestHTMLReporter_APICorrelations_ReturnsJSON(t *testing.T) {
 	assert.Equal(t, "test_pattern", correlations[0].Pattern)
 	assert.Equal(t, "Test Correlation", correlations[0].Title)
 	require.Len(t, correlations[0].Anomalies, 1)
-	assert.Equal(t, "signal1", correlations[0].Anomalies[0].Source)
+	assert.Equal(t, "signal1", string(correlations[0].Anomalies[0].Source))
 }
 
 func TestHTMLReporter_APICorrelations_NoState(t *testing.T) {

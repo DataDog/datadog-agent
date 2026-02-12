@@ -51,10 +51,10 @@ type TestBench struct {
 	components map[string]*registeredComponent
 
 	// Results (computed eagerly on scenario load)
-	anomalies    []observerdef.AnomalyOutput            // all anomalies from TS analyses
-	correlations []observerdef.ActiveCorrelation        // from anomaly processors
-	byAnalyzer   map[string][]observerdef.AnomalyOutput // anomalies grouped by analyzer
-	bySeriesID   map[string][]observerdef.AnomalyOutput // anomalies grouped by source series id
+	anomalies    []observerdef.AnomalyOutput                          // all anomalies from TS analyses
+	correlations []observerdef.ActiveCorrelation                      // from anomaly processors
+	byAnalyzer   map[string][]observerdef.AnomalyOutput               // anomalies grouped by analyzer
+	bySeriesID   map[observerdef.SeriesID][]observerdef.AnomalyOutput // anomalies grouped by source series id
 
 	// Async correlator processing
 	correlatorsProcessing bool  // true while background correlator goroutine is running
@@ -131,7 +131,7 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 		components: make(map[string]*registeredComponent),
 		anomalies:  []observerdef.AnomalyOutput{},
 		byAnalyzer: make(map[string][]observerdef.AnomalyOutput),
-		bySeriesID: make(map[string][]observerdef.AnomalyOutput),
+		bySeriesID: make(map[observerdef.SeriesID][]observerdef.AnomalyOutput),
 	}
 
 	// Instantiate all registry components
@@ -232,7 +232,7 @@ func (tb *TestBench) LoadScenario(name string) error {
 	tb.anomalies = []observerdef.AnomalyOutput{}
 	tb.correlations = []observerdef.ActiveCorrelation{}
 	tb.byAnalyzer = make(map[string][]observerdef.AnomalyOutput)
-	tb.bySeriesID = make(map[string][]observerdef.AnomalyOutput)
+	tb.bySeriesID = make(map[observerdef.SeriesID][]observerdef.AnomalyOutput)
 	tb.ready = false
 	tb.loadedScenario = name
 
@@ -528,8 +528,8 @@ func (tb *TestBench) rerunAnalysesLocked() {
 					result := analyzer.Analyze(seriesCopy)
 					for _, anomaly := range result.Anomalies {
 						anomaly.AnalyzerName = analyzer.Name()
-						anomaly.Source = seriesCopy.Name
-						anomaly.SourceSeriesID = seriesKey(seriesCopy.Namespace, seriesCopy.Name, seriesCopy.Tags)
+						anomaly.Source = observerdef.MetricName(seriesCopy.Name)
+						anomaly.SourceSeriesID = observerdef.SeriesID(seriesKey(seriesCopy.Namespace, seriesCopy.Name, seriesCopy.Tags))
 						if anomaly.AnalyzerName == "" || anomaly.Source == "" || anomaly.Timestamp == 0 {
 							fmt.Printf("  Warning: dropping invalid anomaly (analyzer=%q source=%q ts=%d)\n",
 								anomaly.AnalyzerName, anomaly.Source, anomaly.Timestamp)
@@ -538,7 +538,7 @@ func (tb *TestBench) rerunAnalysesLocked() {
 
 						// Apply deduplication if enabled
 						if dedup != nil {
-							if !dedup.ShouldProcess(anomaly.SourceSeriesID, anomaly.Timestamp) {
+							if !dedup.ShouldProcess(string(anomaly.SourceSeriesID), anomaly.Timestamp) {
 								continue
 							}
 						}
@@ -693,7 +693,7 @@ func (tb *TestBench) GetAnomaliesByAnalyzer() map[string][]observerdef.AnomalyOu
 }
 
 // GetAnomaliesForSeries returns anomalies associated with a specific series id.
-func (tb *TestBench) GetAnomaliesForSeries(seriesID string) []observerdef.AnomalyOutput {
+func (tb *TestBench) GetAnomaliesForSeries(seriesID observerdef.SeriesID) []observerdef.AnomalyOutput {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
@@ -766,12 +766,13 @@ func (tb *TestBench) GetCompressedCorrelations(threshold float64) []CompressedGr
 			if a.SourceSeriesID == "" {
 				continue
 			}
-			if _, seen := memberSet[a.SourceSeriesID]; seen {
+			sid := string(a.SourceSeriesID)
+			if _, seen := memberSet[sid]; seen {
 				continue
 			}
-			memberSet[a.SourceSeriesID] = struct{}{}
+			memberSet[sid] = struct{}{}
 
-			ns, name, tags, ok := parseSeriesKey(a.SourceSeriesID)
+			ns, name, tags, ok := parseSeriesKey(sid)
 			if !ok {
 				continue
 			}
@@ -882,6 +883,7 @@ func (tb *TestBench) loadDemoScenario() error {
 	tb.anomalies = []observerdef.AnomalyOutput{}
 	tb.correlations = []observerdef.ActiveCorrelation{}
 	tb.byAnalyzer = make(map[string][]observerdef.AnomalyOutput)
+	tb.bySeriesID = make(map[observerdef.SeriesID][]observerdef.AnomalyOutput)
 	tb.ready = false
 	tb.loadedScenario = "demo"
 

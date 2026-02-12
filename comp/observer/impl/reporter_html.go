@@ -1135,7 +1135,7 @@ func (r *HTMLReporter) handleAPICorrelations(w http.ResponseWriter, req *http.Re
 			anomalies := make([]anomalyOutput, len(ac.Anomalies))
 			for j, a := range ac.Anomalies {
 				anomalies[j] = anomalyOutput{
-					Source:      a.Source,
+					Source:      string(a.Source),
 					Title:       a.Title,
 					Description: a.Description,
 					Tags:        a.Tags,
@@ -1145,7 +1145,7 @@ func (r *HTMLReporter) handleAPICorrelations(w http.ResponseWriter, req *http.Re
 			correlations[i] = correlationOutput{
 				Pattern:     ac.Pattern,
 				Title:       ac.Title,
-				Sources:     ac.SourceNames,
+				Sources:     seriesIDsToStringSlice(ac.MemberSeriesIDs),
 				Anomalies:   anomalies,
 				FirstSeen:   ac.FirstSeen,
 				LastUpdated: ac.LastUpdated,
@@ -1162,6 +1162,14 @@ func (r *HTMLReporter) handleAPICorrelations(w http.ResponseWriter, req *http.Re
 	}
 }
 
+func seriesIDsToStringSlice(ids []observer.SeriesID) []string {
+	out := make([]string, len(ids))
+	for i, id := range ids {
+		out[i] = string(id)
+	}
+	return out
+}
+
 // handleAPIRawAnomalies returns all raw anomalies from TimeSeriesAnalysis implementations.
 func (r *HTMLReporter) handleAPIRawAnomalies(w http.ResponseWriter, req *http.Request) {
 	r.mu.RLock()
@@ -1174,7 +1182,7 @@ func (r *HTMLReporter) handleAPIRawAnomalies(w http.ResponseWriter, req *http.Re
 		anomalies = make([]rawAnomalyOutput, len(raw))
 		for i, a := range raw {
 			anomalies[i] = rawAnomalyOutput{
-				Source:       a.Source,
+				Source:       string(a.Source),
 				AnalyzerName: a.AnalyzerName,
 				Title:        a.Title,
 				Description:  a.Description,

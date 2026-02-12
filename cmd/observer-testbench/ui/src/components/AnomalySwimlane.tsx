@@ -1,6 +1,6 @@
 import { useRef, useEffect, useMemo, useState } from 'react';
 import * as d3 from 'd3';
-import type { Anomaly, CompressedGroup } from '../api/client';
+import type { Anomaly, CompressedGroup, SeriesID } from '../api/client';
 
 // Reuse the analyzer palette from TimeSeriesChart
 const ANALYZER_PALETTE = [
@@ -134,7 +134,7 @@ export function AnomalySwimlane({
     const isCovered = (sid: string | undefined, ts: number): boolean => {
       if (!sid) return false;
       for (const g of groupCoverage) {
-        if (ts >= g.t0 && ts <= g.t1 && g.members.has(sid)) return true;
+        if (ts >= g.t0 && ts <= g.t1 && g.members.has(sid as SeriesID)) return true;
       }
       return false;
     };
@@ -205,7 +205,7 @@ export function AnomalySwimlane({
         const el = d3.select(this);
         const sid = el.attr('data-sid');
         const ts = Number(el.attr('data-ts'));
-        const hit = members.has(sid) && ts >= t0 && ts <= t1;
+        const hit = members.has(sid as SeriesID) && ts >= t0 && ts <= t1;
         el.attr('opacity', hit ? 1 : 0.1);
       });
     };

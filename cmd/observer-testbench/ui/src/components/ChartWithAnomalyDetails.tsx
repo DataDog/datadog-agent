@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { TimeSeriesChart, getSeriesVariantColor } from './TimeSeriesChart';
 import type { SeriesVariant } from './TimeSeriesChart';
-import type { Point, AnomalyMarker, Anomaly } from '../api/client';
+import type { Point, AnomalyMarker, Anomaly, SeriesID } from '../api/client';
 
 export interface CorrelationRange {
   id: number;
@@ -28,8 +28,8 @@ interface ChartWithAnomalyDetailsProps {
   seriesVariants?: SeriesVariant[];
 }
 
-function buildSeriesIDSet(seriesVariants?: SeriesVariant[]): Set<string> {
-  const set = new Set<string>();
+function buildSeriesIDSet(seriesVariants?: SeriesVariant[]): Set<SeriesID> {
+  const set = new Set<SeriesID>();
   (seriesVariants ?? []).forEach((s) => {
     if (s.seriesId) set.add(s.seriesId);
   });
@@ -61,7 +61,7 @@ function buildSeriesVariantColorMap(seriesVariants?: SeriesVariant[]): Map<strin
 function getAnomalyId(anomaly: {
   analyzerName: string;
   analyzerComponent?: string;
-  sourceSeriesId?: string;
+  sourceSeriesId?: SeriesID;
   timestamp: number;
   title: string;
 }): string {
@@ -83,7 +83,7 @@ export function ChartWithAnomalyDetails({
 }: ChartWithAnomalyDetailsProps) {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [hoveredAnomalyId, setHoveredAnomalyId] = useState<string | null>(null);
-  const [visibleSeriesIds, setVisibleSeriesIds] = useState<Set<string>>(() => buildSeriesIDSet(seriesVariants));
+  const [visibleSeriesIds, setVisibleSeriesIds] = useState<Set<SeriesID>>(() => buildSeriesIDSet(seriesVariants));
   const anomalyRowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const seriesVariantsSig = useMemo(() => seriesIDSignature(seriesVariants), [seriesVariants]);
   const seriesVariantColorByID = useMemo(() => buildSeriesVariantColorMap(seriesVariants), [seriesVariants]);
@@ -136,7 +136,7 @@ export function ChartWithAnomalyDetails({
     [filteredAnomalies]
   );
   const anomalySeriesIDByAnomalyID = useMemo(() => {
-    const map = new Map<string, string | undefined>();
+    const map = new Map<string, SeriesID | undefined>();
     filteredAnomalies.forEach((a) => {
       map.set(getAnomalyId(a), a.sourceSeriesId);
     });
@@ -156,7 +156,7 @@ export function ChartWithAnomalyDetails({
     }
   }, [expandedIndex, filteredAnomalies.length]);
 
-  const handleToggleSeriesVisibility = (seriesId: string) => {
+  const handleToggleSeriesVisibility = (seriesId: SeriesID) => {
     setVisibleSeriesIds((prev) => {
       const next = new Set(prev);
       if (next.has(seriesId)) {

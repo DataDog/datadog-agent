@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"math"
 	"sort"
-	"strings"
 	"sync"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
@@ -208,10 +207,10 @@ type LeadLagCorrelator struct {
 	config LeadLagConfig
 
 	// Recent anomaly timestamps per source
-	sourceTimestamps map[string]*RingBuffer
+	sourceTimestamps map[observer.SeriesID]*RingBuffer
 
-	// Lag histograms for source pairs: "A|B" -> histogram of (B_time - A_time)
-	lagHistograms map[string]*LagHistogram
+	// Lag histograms for series pairs: pair -> histogram of (B_time - A_time)
+	lagHistograms map[seriesPairKey]*LagHistogram
 
 	// Recent anomalies for reporting
 	recentAnomalies []observer.AnomalyOutput
@@ -241,8 +240,8 @@ func NewLeadLagCorrelator(config LeadLagConfig) *LeadLagCorrelator {
 	}
 	return &LeadLagCorrelator{
 		config:           config,
-		sourceTimestamps: make(map[string]*RingBuffer),
-		lagHistograms:    make(map[string]*LagHistogram),
+		sourceTimestamps: make(map[observer.SeriesID]*RingBuffer),
+		lagHistograms:    make(map[seriesPairKey]*LagHistogram),
 	}
 }
 
@@ -292,32 +291,23 @@ func (c *LeadLagCorrelator) Process(anomaly observer.AnomalyOutput) {
 
 		// Update histogram for pair (source, otherSource)
 		// Positive lag means: otherSource happened first, then source happened
-		pairKey := c.pairKey(otherSource, source) // consistent ordering
+		pairKey := newSeriesPairKey(otherSource, source)
 		if _, ok := c.lagHistograms[pairKey]; !ok {
 			c.lagHistograms[pairKey] = NewLagHistogram(c.config.MaxLagSeconds)
 		}
 
 		// Determine which direction to record
 		if otherSource < source {
-			// pairKey is "otherSource|source", lag is (source_time - otherSource_time)
+			// pairKey is (otherSource, source), lag is (source_time - otherSource_time)
 			c.lagHistograms[pairKey].Add(lag)
 		} else {
-			// pairKey is "source|otherSource", lag should be (otherSource_time - source_time)
+			// pairKey is (source, otherSource), lag should be (otherSource_time - source_time)
 			c.lagHistograms[pairKey].Add(-lag)
 		}
 	}
 
 	// Add timestamp for this source
 	c.sourceTimestamps[source].Add(ts)
-}
-
-// pairKey returns a consistent key for a source pair (alphabetically ordered).
-// Uses "<>" as the separator to avoid ambiguity with "|" inside SourceSeriesIDs.
-func (c *LeadLagCorrelator) pairKey(a, b string) string {
-	if a < b {
-		return a + "<>" + b
-	}
-	return b + "<>" + a
 }
 
 // Flush evicts old data and returns empty (reporters pull state via ActiveCorrelations).
@@ -343,8 +333,8 @@ func (c *LeadLagCorrelator) Reset() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.sourceTimestamps = make(map[string]*RingBuffer)
-	c.lagHistograms = make(map[string]*LagHistogram)
+	c.sourceTimestamps = make(map[observer.SeriesID]*RingBuffer)
+	c.lagHistograms = make(map[seriesPairKey]*LagHistogram)
 	c.recentAnomalies = c.recentAnomalies[:0]
 	c.currentDataTime = 0
 }
@@ -356,23 +346,19 @@ func (c *LeadLagCorrelator) GetEdges() []LeadLagEdge {
 
 	var edges []LeadLagEdge
 
-	for pairKey, histogram := range c.lagHistograms {
+	for pair, histogram := range c.lagHistograms {
 		if histogram.totalObservations < c.config.MinObservations {
 			continue
 		}
-
-		// Parse pair key
-		sourceA, sourceB, ok := strings.Cut(pairKey, "<>")
-		if !ok {
-			continue
-		}
+		sourceA := pair.A
+		sourceB := pair.B
 
 		leader, typicalLag, confidence := histogram.Analyze()
 		if confidence < c.config.ConfidenceThreshold {
 			continue
 		}
 
-		var leaderSource, followerSource string
+		var leaderSource, followerSource observer.SeriesID
 		if leader == "A" {
 			leaderSource = sourceA
 			followerSource = sourceB
@@ -384,8 +370,8 @@ func (c *LeadLagCorrelator) GetEdges() []LeadLagEdge {
 		}
 
 		edges = append(edges, LeadLagEdge{
-			Leader:       leaderSource,
-			Follower:     followerSource,
+			Leader:       string(leaderSource),
+			Follower:     string(followerSource),
 			TypicalLag:   int64(math.Abs(float64(typicalLag))),
 			Confidence:   confidence,
 			Observations: histogram.totalObservations,
@@ -414,19 +400,19 @@ func (c *LeadLagCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
 	var result []observer.ActiveCorrelation
 
 	// Group anomalies by source for quick lookup
-	anomaliesBySource := make(map[string][]observer.AnomalyOutput)
+	anomaliesBySource := make(map[observer.SeriesID][]observer.AnomalyOutput)
 	for _, a := range c.recentAnomalies {
 		anomaliesBySource[a.SourceSeriesID] = append(anomaliesBySource[a.SourceSeriesID], a)
 	}
 
 	// Create a correlation for each significant lead-lag chain
 	for _, edge := range edges {
-		sources := []string{edge.Leader, edge.Follower}
+		memberSeriesIDs := []observer.SeriesID{observer.SeriesID(edge.Leader), observer.SeriesID(edge.Follower)}
 
 		// Collect anomalies from both sources
 		var anomalies []observer.AnomalyOutput
-		anomalies = append(anomalies, anomaliesBySource[edge.Leader]...)
-		anomalies = append(anomalies, anomaliesBySource[edge.Follower]...)
+		anomalies = append(anomalies, anomaliesBySource[observer.SeriesID(edge.Leader)]...)
+		anomalies = append(anomalies, anomaliesBySource[observer.SeriesID(edge.Follower)]...)
 
 		// Find time range
 		var firstSeen, lastUpdated int64
@@ -438,15 +424,17 @@ func (c *LeadLagCorrelator) ActiveCorrelations() []observer.ActiveCorrelation {
 				lastUpdated = a.Timestamp
 			}
 		}
+		metricNames := sortedUniqueMetricNames(anomalies)
 
 		result = append(result, observer.ActiveCorrelation{
 			Pattern: fmt.Sprintf("lead_lag_%s_to_%s", edge.Leader, edge.Follower),
 			Title: fmt.Sprintf("LeadLag: %s → %s (+%ds)",
 				edge.Leader, edge.Follower, edge.TypicalLag),
-			SourceNames: sources,
-			Anomalies:   anomalies,
-			FirstSeen:   firstSeen,
-			LastUpdated: lastUpdated,
+			MemberSeriesIDs: memberSeriesIDs,
+			MetricNames:     metricNames,
+			Anomalies:       anomalies,
+			FirstSeen:       firstSeen,
+			LastUpdated:     lastUpdated,
 		})
 	}
 

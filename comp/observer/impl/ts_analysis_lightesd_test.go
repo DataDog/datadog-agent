@@ -88,7 +88,7 @@ func TestLightESD_DetectsSingleOutlier(t *testing.T) {
 	for _, sig := range signals {
 		if sig.Timestamp == 1025 && sig.Value == 200.0 {
 			found = true
-			assert.Equal(t, "test.metric", sig.Source)
+			assert.Equal(t, "test.metric", string(sig.Source))
 			assert.Equal(t, []string{"env:test"}, sig.Tags)
 			assert.NotNil(t, sig.Score)
 		}

@@ -176,7 +176,7 @@ func (b *BOCPDDetector) Analyze(series observer.Series) observer.TimeSeriesAnaly
 				triggerThreshold = threshold
 			}
 			anomaly := observer.AnomalyOutput{
-				Source: series.Name,
+				Source: observer.MetricName(series.Name),
 				Title:  fmt.Sprintf("BOCPD changepoint detected: %s", series.Name),
 				Description: fmt.Sprintf("%s %s %.2f exceeded threshold %.2f (cp=%.2f, short-run<=%d mass=%.2f)",
 					series.Name, triggerType, triggerValue, triggerThreshold, cpProb, shortRunLength, shortRunMass),

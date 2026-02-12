@@ -130,7 +130,7 @@ func (l *LightESDEmitter) Emit(series observer.Series) []observer.Signal {
 		score := math.Abs(residual[idx]-median) / (mad*1.4826 + 1e-10) // MAD to stddev conversion
 
 		signals = append(signals, observer.Signal{
-			Source:    series.Name,
+			Source:    observer.SignalSource(series.Name),
 			Timestamp: series.Points[idx].Timestamp,
 			Tags:      series.Tags,
 			Value:     series.Points[idx].Value,

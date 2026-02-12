@@ -83,6 +83,19 @@ type MetricOutput struct {
 	Tags  []string
 }
 
+// MetricName is a human-readable metric identifier (e.g., "cpu.user:avg").
+// Multiple series can share a MetricName if they differ by tags.
+type MetricName string
+
+// SeriesID uniquely identifies a time series (namespace + name + tags).
+type SeriesID string
+
+// SignalSource identifies a signal stream source (metric or event-style source name).
+type SignalSource string
+
+// EventSource identifies a discrete event source.
+type EventSource string
+
 // TimeRange represents a time period covered by an analysis.
 type TimeRange struct {
 	Start int64 // earliest timestamp in analyzed data (unix seconds)
@@ -93,9 +106,9 @@ type TimeRange struct {
 // Anomalies represent a point in time where something anomalous was detected.
 type AnomalyOutput struct {
 	// Source identifies which metric/signal the anomaly is about (e.g., "network.retransmits").
-	Source string
+	Source MetricName
 	// SourceSeriesID uniquely identifies the source series (namespace + name + tags).
-	SourceSeriesID string
+	SourceSeriesID SeriesID
 	// AnalyzerName identifies which TimeSeriesAnalysis or LogProcessor produced this anomaly.
 	AnalyzerName string
 	Title        string
@@ -210,7 +223,7 @@ type EventSignalReceiver interface {
 // Unlike anomalies (which are detected from time series analysis), event signals are
 // explicit events such as container OOMs, restarts, or lifecycle transitions.
 type EventSignal struct {
-	Source    string   // event source, e.g., "container_oom", "container_restart", "agent_startup"
+	Source    EventSource
 	Timestamp int64    // when the event occurred (unix seconds)
 	Tags      []string // event tags for filtering/grouping
 	Message   string   // optional human-readable description
@@ -233,9 +246,12 @@ type CorrelationState interface {
 
 // ActiveCorrelation represents a detected correlation pattern.
 type ActiveCorrelation struct {
-	Pattern      string          // pattern name, e.g. "kernel_bottleneck"
-	Title        string          // display title, e.g. "Correlated: Kernel network bottleneck"
-	SourceNames  []string        // names of sources that contributed to this correlation
+	Pattern string // pattern name, e.g. "kernel_bottleneck"
+	Title   string // display title, e.g. "Correlated: Kernel network bottleneck"
+	// MemberSeriesIDs are the concrete series identities participating in this correlation.
+	MemberSeriesIDs []SeriesID
+	// MetricNames are display-oriented metric names participating in this correlation.
+	MetricNames  []MetricName
 	Anomalies    []AnomalyOutput // the actual anomalies that triggered this correlation
 	EventSignals []EventSignal   // discrete events (EventSignal-based, for processors using AddEventSignal)
 	FirstSeen    int64           // when pattern first matched (unix seconds, from data)
@@ -252,7 +268,7 @@ type ClusterState interface {
 // SignalRegion represents a time region with grouped point signals.
 // Created by TimeClusterer from point signals that occur close together in time.
 type SignalRegion struct {
-	Source    string    // signal source
+	Source    SignalSource
 	TimeRange TimeRange // start and end of the region
 	Signals   []Signal  // contributing point signals
 }
@@ -260,7 +276,7 @@ type SignalRegion struct {
 // Signal represents a point-in-time observation of interest.
 // Signals unify metric anomalies and discrete events into a common type.
 type Signal struct {
-	Source    string   // identifies what produced this, e.g., "metric:cpu.usage:avg", "event:oom_killed"
+	Source    SignalSource
 	Timestamp int64    // unix timestamp (seconds)
 	Tags      []string // metadata tags
 	Message   string   // optional human-readable description (for events)

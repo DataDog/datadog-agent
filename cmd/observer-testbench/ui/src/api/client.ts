@@ -2,6 +2,9 @@
 
 const API_BASE = '/api';
 
+export type SeriesID = string & { readonly __seriesIdBrand: unique symbol };
+export type MetricName = string & { readonly __metricNameBrand: unique symbol };
+
 export interface ServerConfig {
   components: Record<string, boolean>;
   cusumSkipCount: boolean;  // true = filtering out :count metrics
@@ -33,7 +36,7 @@ export interface ComponentInfo {
 }
 
 export interface SeriesInfo {
-  id: string;
+  id: SeriesID;
   namespace: string;
   name: string;
   tags: string[];
@@ -49,12 +52,12 @@ export interface AnomalyMarker {
   timestamp: number;
   analyzerName: string;
   analyzerComponent?: string;
-  sourceSeriesId?: string;
+  sourceSeriesId?: SeriesID;
   title: string;
 }
 
 export interface SeriesData {
-  id: string;
+  id: SeriesID;
   namespace: string;
   name: string;
   tags: string[];
@@ -77,8 +80,8 @@ export interface AnomalyDebugInfo {
 }
 
 export interface Anomaly {
-  source: string;
-  sourceSeriesId?: string;
+  source: MetricName;
+  sourceSeriesId?: SeriesID;
   analyzerName: string;
   analyzerComponent?: string;
   title: string;
@@ -91,9 +94,10 @@ export interface Anomaly {
 export interface Correlation {
   pattern: string;
   title: string;
-  signals: string[];
+  memberSeriesIds: SeriesID[];
+  metricNames: MetricName[];
   anomalies: {
-    source: string;
+    source: MetricName;
     title: string;
     description: string;
     timestamp: number;
@@ -104,8 +108,8 @@ export interface Correlation {
 
 // Lead-Lag edge represents temporal causality between sources
 export interface LeadLagEdge {
-  leader: string;
-  follower: string;
+  leader: SeriesID;
+  follower: SeriesID;
   typical_lag: number;  // Seconds
   confidence: number;   // 0-1
   observations: number;
@@ -113,8 +117,8 @@ export interface LeadLagEdge {
 
 // Surprise edge represents unexpected co-occurrence (high lift)
 export interface SurpriseEdge {
-  source1: string;
-  source2: string;
+  source1: SeriesID;
+  source2: SeriesID;
   lift: number;
   support: number;         // Number of co-occurrences
   source1_count: number;   // Total anomalies from source1
@@ -124,8 +128,8 @@ export interface SurpriseEdge {
 
 // GraphSketch edge represents learned co-occurrence patterns
 export interface GraphSketchEdge {
-  Source1: string;
-  Source2: string;
+  Source1: SeriesID;
+  Source2: SeriesID;
   EdgeKey: string;
   Observations: number;    // Raw count
   Frequency: number;       // Decay-weighted frequency
@@ -146,7 +150,7 @@ export interface CompressedGroup {
   title: string;
   commonTags: Record<string, string>;
   patterns: MetricPattern[];
-  memberSources: string[];
+  memberSources: SeriesID[];
   seriesCount: number;
   precision: number;
   firstSeen?: number;

@@ -37,8 +37,8 @@ func TestTimeClusterCorrelator_BasicClustering(t *testing.T) {
 	correlations := c.ActiveCorrelations()
 	require.Len(t, correlations, 1)
 	assert.Len(t, correlations[0].Anomalies, 2)
-	assert.Contains(t, correlations[0].SourceNames, "ns|metric.a|")
-	assert.Contains(t, correlations[0].SourceNames, "ns|metric.b|")
+	assert.Contains(t, correlations[0].MemberSeriesIDs, observer.SeriesID("ns|metric.a|"))
+	assert.Contains(t, correlations[0].MemberSeriesIDs, observer.SeriesID("ns|metric.b|"))
 }
 
 func TestTimeClusterCorrelator_ProximityWindow(t *testing.T) {
@@ -186,8 +186,8 @@ func TestTimeClusterCorrelator_TaggedVariants(t *testing.T) {
 	correlations := c.ActiveCorrelations()
 	require.Len(t, correlations, 1)
 	assert.Len(t, correlations[0].Anomalies, 2)
-	assert.Contains(t, correlations[0].SourceNames, "ns|metric.a|host:A")
-	assert.Contains(t, correlations[0].SourceNames, "ns|metric.a|host:B")
+	assert.Contains(t, correlations[0].MemberSeriesIDs, observer.SeriesID("ns|metric.a|host:A"))
+	assert.Contains(t, correlations[0].MemberSeriesIDs, observer.SeriesID("ns|metric.a|host:B"))
 }
 
 func TestTimeClusterCorrelator_Eviction(t *testing.T) {
@@ -218,7 +218,7 @@ func TestTimeClusterCorrelator_Eviction(t *testing.T) {
 
 	correlations := c.ActiveCorrelations()
 	require.Len(t, correlations, 1)
-	assert.Equal(t, "ns|metric.new|", correlations[0].SourceNames[0])
+	assert.Equal(t, observer.SeriesID("ns|metric.new|"), correlations[0].MemberSeriesIDs[0])
 }
 
 func TestTimeClusterCorrelator_MinClusterSize(t *testing.T) {

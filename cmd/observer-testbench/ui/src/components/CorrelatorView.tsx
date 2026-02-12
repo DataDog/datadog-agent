@@ -276,19 +276,19 @@ function TimeClusterSection({ correlations }: { correlations: Correlation[] }) {
             <div className="flex items-center justify-between">
               <div className="font-medium text-purple-400 text-sm">{c.title}</div>
               <span className="text-xs text-slate-500">
-                {c.signals.length} signals
+                {c.memberSeriesIds.length} series
               </span>
             </div>
             <div className="text-sm text-slate-400 mt-1">
               Pattern: {c.pattern}
             </div>
             <div className="flex flex-wrap gap-1 mt-2">
-              {c.signals.map((signal, j) => (
+              {c.metricNames.map((metricName, j) => (
                 <span
                   key={j}
                   className="text-xs px-2 py-0.5 bg-slate-600/50 rounded text-slate-300"
                 >
-                  {signal}
+                  {metricName}
                 </span>
               ))}
             </div>

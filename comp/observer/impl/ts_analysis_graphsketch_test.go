@@ -109,7 +109,7 @@ func TestGraphSketch_DetectsSuddenSpike(t *testing.T) {
 	// (May not detect all, as CMS learns adaptively)
 	if len(signals) > 0 {
 		for _, sig := range signals {
-			assert.Equal(t, "test.metric", sig.Source)
+			assert.Equal(t, "test.metric", string(sig.Source))
 			assert.Contains(t, sig.Tags, "env:test")
 			assert.NotNil(t, sig.Score)
 			assert.Greater(t, *sig.Score, 0.0)
@@ -536,7 +536,7 @@ func TestGraphSketch_IntegrationWorkflow(t *testing.T) {
 		// Last round should potentially detect anomalies
 		if round == 2 && len(signals) > 0 {
 			for _, sig := range signals {
-				assert.Equal(t, "test.metric", sig.Source)
+				assert.Equal(t, "test.metric", string(sig.Source))
 				assert.NotNil(t, sig.Score)
 			}
 		}
