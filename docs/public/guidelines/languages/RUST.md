@@ -12,7 +12,7 @@ The Datadog Agent uses [rules_rust](https://github.com/bazelbuild/rules_rust) fo
 
 ### Bazel Module Configuration
 
-The Rust toolchain is configured in [MODULE.bazel](../../MODULE.bazel):
+The Rust toolchain is configured in [MODULE.bazel](../../../../MODULE.bazel):
 
 ```starlark
 bazel_dep(name = "rules_rust", version = "0.68.1")
@@ -32,7 +32,7 @@ This configuration:
 - Pins to **Rust 1.92.0** for reproducible builds
 - Registers toolchains for all supported platforms
 
-> **Important:** This is a global toolchain configuration that is used across the entire codebase of `datadog-agent`. The configuration in [MODULE.bazel](../../MODULE.bazel) **should not be changed** without proper testing to ensure
+> **Important:** This is a global toolchain configuration that is used across the entire codebase of `datadog-agent`. The configuration in [MODULE.bazel](../../../../MODULE.bazel) **should not be changed** without proper testing to ensure
 that all `rust` components are still working.
 
 ## Crate Management
@@ -41,7 +41,7 @@ External crates are managed via [rules_rs](https://github.com/dzbarsky/rules_rs)
 
 ### Central Crate Registry
 
-All Rust component crates are registered in [deps/crates.MODULE.bazel](../../deps/crates.MODULE.bazel). Each component should have its own `crate.from_cargo` entry:
+All Rust component crates are registered in [deps/crates.MODULE.bazel](../../../../deps/crates.MODULE.bazel). Each component should have its own `crate.from_cargo` entry:
 
 ```starlark
 crate = use_extension("@rules_rs//rs:extensions.bzl", "crate")
@@ -159,7 +159,7 @@ tempfile = "3.0"
 
 ### Step 3: Register Your Crates in the Module Configuration
 
-Edit [deps/crates.MODULE.bazel](../../deps/crates.MODULE.bazel) to add a new `crate.from_cargo` entry for your component:
+Edit [deps/crates.MODULE.bazel](../../../../deps/crates.MODULE.bazel) to add a new `crate.from_cargo` entry for your component:
 
 ```starlark
 crate = use_extension("@rules_rs//rs:extensions.bzl", "crate")
@@ -192,10 +192,11 @@ use_repo(crate, "my_component_crates")
 ### Step 4: Generate the Lock File
 
 ```bash
-    bazel build @my_components_crates//:all
+    cd <path_to_component> && cargo build
 ```
 
 This generates `Cargo.lock`.
+>**Note:** you will have to run `cargo build` each time you change `Cargo.toml`. Bazel is capable of using `Cargo.toml` and `Cargo.lock` files to synchronize the dependencies, but it doesn't track changes in those.
 
 ### Step 5: Create BUILD.bazel
 
@@ -351,8 +352,8 @@ For custom release profiles, add to `bazel/configs/` and import in `.bazelrc`.
 >**Note:** right now we only have a release configuration that is sd-agent specific.
 However, if we identify that future components want to utilize the same configuration
 it can be promoted to the global `datadog-agent-release` configuration. For now, please,
-introduce your own `my_component.bazelrc` in [bazel/configs/](../../bazel/configs/) and
-add `import %workspace%/bazel/configs/my_component.bazelrc` to [.bazelrc](../../.bazelrc) under
+introduce your own `my_component.bazelrc` in [bazel/configs/](../../../../bazel/configs/) and
+add `import %workspace%/bazel/configs/my_component.bazelrc` to [.bazelrc](../../../../.bazelrc) under
 `Project configs` section.
 
 ## CI Integration
