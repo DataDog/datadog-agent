@@ -419,7 +419,7 @@ type HookPointArg struct {
 // PolicyDef represents a policy file definition
 type PolicyDef struct {
 	Version string `yaml:"version,omitempty" json:"version"`
-	// Type is the type of content served by the policy (e.g. "policy" for a default policy, "detection_pack" or empty for others)
+	// Type is the type of content served by the policy (e.g. "policy" for a default policy, "content_pack" or empty for others)
 	Type            string             `yaml:"type,omitempty" json:"type,omitempty"`
 	ReplacePolicyID string             `yaml:"replace_policy_id,omitempty" json:"replace_policy_id,omitempty"`
 	Macros          []*MacroDefinition `yaml:"macros,omitempty" json:"macros,omitempty"`
