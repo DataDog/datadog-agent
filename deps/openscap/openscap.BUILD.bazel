@@ -166,6 +166,11 @@ COMMON_INCLUDE_DIRS = [
     "src/common",
 ]
 
+COMMON_DEFINES = [
+    "HAVE_CONFIG_H",
+    "_GNU_SOURCE",
+]
+
 cc_library(
     name = "config_h",
     hdrs = [
@@ -431,10 +436,7 @@ cc_library(
         "src/XCCDF",
         "src/XCCDF_POLICY",
     ],
-    local_defines = [
-        "HAVE_CONFIG_H",
-        "_GNU_SOURCE",
-    ],
+    local_defines = COMMON_DEFINES,
 )
 
 cc_library(
@@ -460,7 +462,8 @@ cc_library(
     deps = [
         ":compat",
         "@libxml2//:libxml2",
-    ]
+    ],
+    local_defines = COMMON_DEFINES,
 )
 
 cc_shared_library(
@@ -537,10 +540,7 @@ cc_binary(
         "@nghttp2//:nghttp2_shared",
     ],
     includes = COMMON_INCLUDE_DIRS + PUBLIC_HEADERS_DIRS,
-    local_defines = [
-        "HAVE_CONFIG_H",
-        "_GNU_SOURCE",
-    ],
+    local_defines = COMMON_DEFINES,
 )
 
 cc_binary(
@@ -581,10 +581,7 @@ cc_binary(
         "@nghttp2//:nghttp2_shared",
     ],
     includes = COMMON_INCLUDE_DIRS + PUBLIC_HEADERS_DIRS,
-    local_defines = [
-        "HAVE_CONFIG_H",
-        "_GNU_SOURCE",
-    ],
+    local_defines = COMMON_DEFINES,
 )
 
 pkg_files(
