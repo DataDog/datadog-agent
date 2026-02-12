@@ -19,3 +19,14 @@ type GlobalParams struct {
 	// CoreConfPath holds the path to the Datadog Agent config file.
 	CoreConfPath string
 }
+
+// ConfigURI returns the appropriate configuration URI based on the operational mode.
+// In bundled mode (CoreConfPath set), it returns "dd:" to use the agentprovider,
+// which generates OTEL config from the Agent configuration.
+// In standalone mode (ConfFilePath set), it returns the file path to the OTEL config.
+func (g *GlobalParams) ConfigURI() string {
+	if g.CoreConfPath != "" {
+		return "dd:"
+	}
+	return g.ConfFilePath
+}
