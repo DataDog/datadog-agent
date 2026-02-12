@@ -10,7 +10,6 @@
 package collector
 
 import (
-	"context"
 	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -23,6 +22,6 @@ func NewCollector(_ *serverlessMetrics.ServerlessMetricAgent, _ metrics.MetricSo
 	return nil, errors.New("CPU collector is only supported on Linux")
 }
 
-func (c *Collector) Start(_ context.Context) {}
+func (c *Collector) Start() {}
 
 func (c *Collector) Stop() {}

@@ -88,12 +88,12 @@ func NewCollector(metricAgent *serverlessMetrics.ServerlessMetricAgent, metricSo
 	}, nil
 }
 
-func (c *Collector) Start(ctx context.Context) {
-	collectorCtx, cancel := context.WithCancel(ctx)
+func (c *Collector) Start() {
+	ctx, cancel := context.WithCancel(context.Background())
 	c.cancelFunc = cancel
 
-	go c.collectLoop(collectorCtx)
 	log.Info("Enhanced metrics collector started")
+	c.collectLoop(ctx)
 }
 
 func (c *Collector) Stop() {
