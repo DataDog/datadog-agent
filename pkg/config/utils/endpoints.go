@@ -197,8 +197,6 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error
 	return eds, nil
 }
 
-// wellKnownSitesRe matches known Datadog site domains.
-// This regex matches hostnames ending with: datadoghq.com, datadoghq.eu, datad0g.com, datad0g.eu, or ddog-gov.com
 var wellKnownSitesRe = regexp.MustCompile(`(?:datadoghq|datad0g)\.(?:com|eu)$|ddog-gov\.com$`)
 
 // BuildURLWithPrefix will return an HTTP(s) URL for a site given a certain prefix.
