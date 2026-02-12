@@ -229,7 +229,7 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 		var ansiblePrefix string
 		for i := 0; i < 3; i++ {
 			ansiblePrefix = s.installAnsible(s.os)
-			if _, err := s.Env().RemoteHost.Execute(ansiblePrefix + "ansible-galaxy collection install -vvv datadog.dd:6.4.0"); err == nil {
+			if _, err := s.Env().RemoteHost.Execute(ansiblePrefix + "ansible-galaxy collection install -vvv datadog.dd:==6.4.0"); err == nil {
 				break
 			}
 			if i == 2 {
