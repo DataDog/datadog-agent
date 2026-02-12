@@ -9,6 +9,7 @@ package providers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -92,7 +93,7 @@ func NewKubeEndpointSlicesFileConfigProvider(_ *pkgconfigsetup.ConfigurationProv
 
 	epSliceInformer := ac.InformerFactory.Discovery().V1().EndpointSlices()
 	if epSliceInformer == nil {
-		return nil, fmt.Errorf("cannot get endpointslice informer: %s", err)
+		return nil, errors.New("cannot get endpointslice informer")
 	}
 
 	if _, err := epSliceInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
