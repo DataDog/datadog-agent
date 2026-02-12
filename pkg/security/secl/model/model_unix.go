@@ -16,6 +16,7 @@ import (
 	"net/netip"
 	"runtime"
 	"time"
+	"unsafe"
 
 	"github.com/google/gopacket"
 
@@ -438,8 +439,7 @@ func SetAncestorFields(pce *ProcessCacheEntry, subField string, _ interface{}) (
 // Hash returns a unique key for the entity
 func (pc *ProcessCacheEntry) Hash() eval.ScopeHashKey {
 	return eval.ScopeHashKey{
-		Integer: pc.Pid,
-		String:  pc.Comm,
+		Uintptr: uintptr(unsafe.Pointer(pc)),
 	}
 }
 

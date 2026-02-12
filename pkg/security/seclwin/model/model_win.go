@@ -12,6 +12,7 @@ package model
 import (
 	"runtime"
 	"time"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
@@ -250,7 +251,7 @@ func SetAncestorFields(_ *ProcessCacheEntry, _ string, _ interface{}) (bool, err
 // Hash returns a unique key for the entity
 func (pc *ProcessCacheEntry) Hash() eval.ScopeHashKey {
 	return eval.ScopeHashKey{
-		Integer: pc.Pid,
+		Uintptr: uintptr(unsafe.Pointer(pc)),
 	}
 }
 
