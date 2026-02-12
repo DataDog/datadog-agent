@@ -1,7 +1,6 @@
 """BUILD for openscap."""
 
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
-load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
@@ -9,6 +8,7 @@ load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 
 package(
     default_package_metadata = [":package_metadata"],
@@ -61,8 +61,6 @@ filegroup(
         "@zstd",
     ],
 )
-
-FAKE_PREFIX = "/opt/datadog-agent/embedded/"
 
 ENABLED_FEATURES = [
     "GCRYPT_FOUND",
@@ -135,7 +133,7 @@ ENABLED_FEATURES = [
     "OPENSCAP_PROBE_UNIX_XINETD",
 ]
 
-expand_template(
+dd_agent_expand_template(
     name = "gen_config_h",
     template = "config.h.in",
     out = "config.h",
@@ -150,9 +148,9 @@ expand_template(
         "#cmakedefine PREFERRED_PYTHON_PATH \"@PREFERRED_PYTHON_PATH@\"": "/* #undef PREFERRED_PYTHON_PATH */",
         "#cmakedefine PYTHON2_PATH \"@PYTHON2_PATH@\"": "/* #undef PYTHON2_PATH */",
         "#cmakedefine PYTHON3_PATH \"@PYTHON3_PATH@\"": "/* #undef PYTHON3_PATH */",
-        "@OSCAP_DEFAULT_SCHEMA_PATH@": "{}/share/openscap/schemas".format(FAKE_PREFIX),
-        "@OSCAP_DEFAULT_XSLT_PATH@": "{}/share/openscap/xsl".format(FAKE_PREFIX),
-        "@OSCAP_DEFAULT_CPE_PATH@": "{}/share/openscap/cpe".format(FAKE_PREFIX),
+        "@OSCAP_DEFAULT_SCHEMA_PATH@": "{install_dir}/embedded/share/openscap/schemas",
+        "@OSCAP_DEFAULT_XSLT_PATH@": "{install_dir}/embedded/share/openscap/xsl",
+        "@OSCAP_DEFAULT_CPE_PATH@": "{install_dir}/embedded/share/openscap/cpe",
         "@OSCAP_TEMP_DIR@": "/tmp",
     }
     | { "#cmakedefine {}".format(key): "#define {} 1".format(key) for key in ENABLED_FEATURES }
