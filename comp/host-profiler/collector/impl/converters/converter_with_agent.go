@@ -251,7 +251,7 @@ func (c *converterWithAgent) ensureOtlpHTTPExporterConfig(conf confMap, exporter
 }
 
 func (c *converterWithAgent) inferHostProfilerEndpointConfig(hostProfiler confMap) error {
-	var symbolEndpoints []any
+	symbolEndpoints := make([]any, 0)
 	for _, endpoint := range c.configManager.endpoints {
 		if endpoint.site == "" {
 			log.Warnf("Endpoint %s is not a recognized Datadog domain; skipping symbol endpoint inference. Configure symbol_endpoints explicitly if needed.", endpoint.url)

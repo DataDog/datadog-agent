@@ -358,6 +358,65 @@ func TestConverterWithAgentDCSite(t *testing.T) {
 	})
 }
 
+func TestConverterWithAgentProxyURL(t *testing.T) {
+	t.Run("proxy_profiling_dd_url", func(t *testing.T) {
+		tests := []testCase{
+			{
+				name:     "proxy-url-preserves-endpoint",
+				provided: "agent/proxy-url/in.yaml",
+				expected: "agent/proxy-url/out.yaml",
+			},
+		}
+		mockCfg := &mockConfig{
+			values: map[string]interface{}{
+				"apm_config.profiling_dd_url": "https://myproxy.internal:8443/intake",
+				"api_key":                     "test_api_key_123",
+			},
+		}
+		conv := newConverterWithAgent(confmap.ConverterSettings{}, mockCfg)
+		runSuccessTests(t, conv, tests)
+	})
+
+	t.Run("fips_localhost_url", func(t *testing.T) {
+		tests := []testCase{
+			{
+				name:     "fips-localhost-preserves-endpoint",
+				provided: "agent/fips-localhost/in.yaml",
+				expected: "agent/fips-localhost/out.yaml",
+			},
+		}
+		mockCfg := &mockConfig{
+			values: map[string]interface{}{
+				"apm_config.profiling_dd_url": "http://localhost:9806/api/v2/profile",
+				"api_key":                     "test_api_key_123",
+			},
+		}
+		conv := newConverterWithAgent(confmap.ConverterSettings{}, mockCfg)
+		runSuccessTests(t, conv, tests)
+	})
+
+	t.Run("proxy_additional_endpoint", func(t *testing.T) {
+		tests := []testCase{
+			{
+				name:     "proxy-additional-endpoint-preserved",
+				provided: "agent/proxy-additional-ep/in.yaml",
+				expected: "agent/proxy-additional-ep/out.yaml",
+			},
+		}
+		mockCfg := &mockConfig{
+			values: map[string]interface{}{
+				"site":    "datadoghq.com",
+				"api_key": "test_api_key_123",
+				"apm_config.profiling_additional_endpoints": map[string][]string{
+					"https://myproxy.internal:8443/intake": {"proxy_api_key"},
+				},
+			},
+		}
+		conv := newConverterWithAgent(confmap.ConverterSettings{}, mockCfg)
+		runSuccessTests(t, conv, tests)
+	})
+}
+
 func TestConverterWithAgentErrors(t *testing.T) {
 	tests := []errorTestCase{
 		{
