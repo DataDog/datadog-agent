@@ -55,7 +55,7 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 
 	var containerID string
 	if conn.ContainerID.Source != nil {
-		containerID = conn.ContainerID.Source.Get().(string)
+		containerID, _ = conn.ContainerID.Source.Get().(string)
 	}
 	builder.SetLaddr(func(w *model.AddrBuilder) {
 		w.SetIp(ipc.Get(conn.Source))
@@ -65,7 +65,7 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 
 	containerID = ""
 	if conn.ContainerID.Dest != nil {
-		containerID = conn.ContainerID.Dest.Get().(string)
+		containerID, _ = conn.ContainerID.Dest.Get().(string)
 	}
 	builder.SetRaddr(func(w *model.AddrBuilder) {
 		w.SetIp(ipc.Get(conn.Dest))
@@ -292,7 +292,13 @@ func formatTags(c network.ConnectionStats, tagsSet *network.TagsSet, connDynamic
 
 	// other tags, e.g., from process env vars like DD_ENV, etc.
 	for _, tag := range c.Tags {
-		t := tag.Get().(string)
+		if tag == nil {
+			continue
+		}
+		t, ok := tag.Get().(string)
+		if !ok {
+			continue
+		}
 		checksum ^= murmur3.StringSum32(t)
 		tagsIdx = append(tagsIdx, tagsSet.Add(t))
 	}

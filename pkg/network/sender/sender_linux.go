@@ -307,7 +307,7 @@ func (d *directSender) networkPathConnections(conns *network.Connections) iter.S
 
 			srcContainerID := ""
 			if conn.ContainerID.Source != nil {
-				srcContainerID = conn.ContainerID.Source.Get().(string)
+				srcContainerID, _ = conn.ContainerID.Source.Get().(string)
 			}
 
 			npc := npmodel.NetworkPathConnection{
@@ -553,7 +553,8 @@ func getInternedString(v *intern.Value) string {
 	if v == nil {
 		return ""
 	}
-	return v.Get().(string)
+	s, _ := v.Get().(string)
+	return s
 }
 
 const (
