@@ -593,12 +593,6 @@ cc_binary(
     local_defines = COMMON_DEFINES,
 )
 
-pkg_files(
-    name = "hdr_files",
-    srcs = PUBLIC_HEADERS,
-    prefix = "include/openscap",
-)
-
 so_symlink(
     name = "libopenscap_symlink",
     src = ":openscap",
@@ -651,7 +645,6 @@ pkg_install(
     srcs = [
         ":bin_files",
         ":lib_files",
-        ":hdr_files",
         ":xccdf-resources",
         ":cpe_files",
     ],
