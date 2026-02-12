@@ -127,7 +127,7 @@ func TestHTTPStatsWithIIS(t *testing.T) {
 	})
 
 	// Setup monitor
-	monitor := setupWindowsMonitor(t, getHTTPCfg())
+	monitor := setupWindowsTestMonitor(t, getHTTPCfg())
 
 	// Make HTTP GET request to IIS
 	t.Logf("Making HTTP GET request to: %s%s", serverAddr, testPath)
@@ -154,6 +154,6 @@ func TestHTTPStatsWithIIS(t *testing.T) {
 
 	// Verify the monitor captured the HTTP traffic with IIS tags
 	require.Eventuallyf(t, func() bool {
-		return verifyHTTPStats(t, monitor, expectedEndpoints, serverPort, makeIISTagValidator(expectedTags))
+		return verifyHTTPStats(t, monitor, expectedEndpoints, serverPort, false, makeIISTagValidator(expectedTags))
 	}, 5*time.Second, 100*time.Millisecond, "HTTP connection to IIS not found for %s", serverAddr)
 }
