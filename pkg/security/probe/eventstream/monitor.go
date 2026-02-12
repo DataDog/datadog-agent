@@ -489,7 +489,7 @@ func (pbm *Monitor) sendEventsAndBytesReadStats(client statsd.ClientInterface) e
 		for cpu := range pbm.eventStats[m] {
 			for eventType := range pbm.eventStats[m][cpu] {
 				evtType := model.EventType(eventType)
-				tags[2], tags[3] = fmt.Sprintf("event_type:%s", evtType), ""
+				tags[2], tags[3] = "event_type:"+evtType.String(), ""
 
 				count, bytes, adSaved, sortingError := pbm.getAndResetEventStats(evtType, m, cpu)
 
