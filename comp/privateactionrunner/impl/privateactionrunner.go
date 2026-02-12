@@ -206,9 +206,10 @@ func performSelfEnrollment(ctx context.Context, log log.Component, ddConfig conf
 		if err != nil {
 			log.Warnf("Failed to create connections API client: %v", err)
 		} else {
-			creator := autoconnections.NewConnectionsCreator(*client)
+			tagsProvider := autoconnections.NewTagsProvider(ddConfig)
+			creator := autoconnections.NewConnectionsCreator(*client, tagsProvider)
 
-			if err := creator.AutoCreateConnections(context.Background(), urnParts.RunnerID, runnerName, actionsAllowlist); err != nil {
+			if err := creator.AutoCreateConnections(context.Background(), urnParts.RunnerID, runnerHostname, runnerName, actionsAllowlist); err != nil {
 				log.Warnf("Failed to auto-create connections: %v", err)
 			}
 		}
