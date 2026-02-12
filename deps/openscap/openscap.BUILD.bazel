@@ -6,7 +6,7 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 
@@ -625,6 +625,21 @@ pkg_files(
         ":oscap-io",
     ],
     prefix = "bin/",
+    attributes = pkg_attributes("0755"),
+)
+
+pkg_files(
+    name = "xccdf-resources",
+    srcs = glob(["xsl/*.xsl", "xsl/*.xml"]),
+    prefix = "share/openscap/xsl",
+    attributes = pkg_attributes("0644"),
+)
+
+pkg_files(
+    name = "cpe_files",
+    srcs = glob(["cpe/*.xml"]),
+    prefix = "share/openscap/cpe",
+    attributes = pkg_attributes("0644"),
 )
 
 pkg_install(
@@ -633,5 +648,7 @@ pkg_install(
         ":bin_files",
         ":lib_files",
         ":hdr_files",
+        ":xccdf-resources",
+        ":cpe_files",
     ],
 )
