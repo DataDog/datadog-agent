@@ -32,7 +32,8 @@ const (
 	// AppServiceOrigin origin tag value
 	AppServiceOrigin = "appservice"
 
-	appServicePrefix = "azure.appservice"
+	appServicePrefix       = "azure.app_services"
+	appServicePrefixLegacy = "azure.appservice"
 )
 
 // GetTags returns a map of Azure-related tags
@@ -84,11 +85,12 @@ func (a *AppService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgen
 	}
 
 	metricAgent.AddMetric(appServicePrefix+".enhanced.shutdown", 1.0, a.GetSource())
+	metricAgent.AddMetric(appServicePrefixLegacy+".enhanced.shutdown", 1.0, a.GetSource())
 }
 
-// GetStartMetricName returns the metric name for container start (coldstart) events
-func (a *AppService) GetStartMetricName() string {
-	return appServicePrefix + ".enhanced.cold_start"
+func (a *AppService) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
+	metricAgent.AddMetric(appServicePrefix+".enhanced.cold_start", 1.0, a.GetSource())
+	metricAgent.AddMetric(appServicePrefixLegacy+".enhanced.cold_start", 1.0, a.GetSource())
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is false usually.

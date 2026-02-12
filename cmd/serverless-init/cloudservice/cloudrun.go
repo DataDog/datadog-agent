@@ -43,18 +43,19 @@ const (
 
 const (
 	// Span Tag with namespace specific for cloud run (gcr) and cloud run function (gcrfx)
-	cloudRunService   = "gcr."
-	cloudRunFunction  = "gcrfx."
-	revisionName      = "revision_name"
-	serviceName       = "service_name"
-	configName        = "configuration_name"
-	containerID       = "container_id"
-	location          = "location"
-	projectID         = "project_id"
-	resourceName      = "resource_name"
-	functionTarget    = "build_function_target"
-	functionSignature = "function_signature_type"
-	cloudRunPrefix    = "gcp.run"
+	cloudRunService      = "gcr."
+	cloudRunFunction     = "gcrfx."
+	revisionName         = "revision_name"
+	serviceName          = "service_name"
+	configName           = "configuration_name"
+	containerID          = "container_id"
+	location             = "location"
+	projectID            = "project_id"
+	resourceName         = "resource_name"
+	functionTarget       = "build_function_target"
+	functionSignature    = "function_signature_type"
+	cloudRunPrefix       = "gcp.run.container"
+	cloudRunPrefixLegacy = "gcp.run"
 )
 
 var metadataHelperFunc = GetMetaData
@@ -164,11 +165,12 @@ func (c *CloudRun) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent,
 	}
 
 	metricAgent.AddMetric(cloudRunPrefix+".enhanced.shutdown", 1.0, c.GetSource())
+	metricAgent.AddMetric(cloudRunPrefixLegacy+".enhanced.shutdown", 1.0, c.GetSource())
 }
 
-// GetStartMetricName returns the metric name for container start (coldstart) events
-func (c *CloudRun) GetStartMetricName() string {
-	return cloudRunPrefix + ".enhanced.cold_start"
+func (c *CloudRun) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
+	metricAgent.AddMetric(cloudRunPrefix+".enhanced.cold_start", 1.0, c.GetSource())
+	metricAgent.AddMetric(cloudRunPrefixLegacy+".enhanced.cold_start", 1.0, c.GetSource())
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is false usually.
