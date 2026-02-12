@@ -6,7 +6,7 @@ This document describes how Rust components are built and integrated in the Data
 
 The Datadog Agent uses [rules_rust](https://github.com/bazelbuild/rules_rust) for building Rust code with Bazel and [rules_rs](https://github.com/dzbarsky/rules_rs) to manage Cargo crates. This enables seamless integration with the existing Go and Python codebase, consistent toolchain management, and reproducible builds across the repository.
 
-> **Important:** We strongly encourage using Bazel directly for all Rust operations (building, testing, dependency management) rather than Cargo. While Cargo may work for some local development tasks, Bazel is the source of truth for builds and ensures consistency with CI. All instructions in this document use Bazel commands.
+> **Important:** We strongly encourage using Bazel directly for all Rust operations (building, testing, except Cargo.toml management) rather than Cargo. While Cargo may work for some local development tasks, Bazel is the source of truth for builds and ensures consistency with CI. All instructions in this document use Bazel commands.
 
 ## Toolchain Configuration
 
