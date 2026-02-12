@@ -212,7 +212,7 @@ func (c *applicationsCollector) Collect() ([]*Entry, []*Warning, error) {
 			// Check if this is an Apple system app (from /System/Applications)
 			if strings.HasPrefix(appPath, "/System/Applications/") {
 				source = softwareTypeSystemApp
-				installSource = installSourceManual // System apps are pre-installed
+				installSource = "" // System apps are pre-installed, no install source
 			} else {
 				// Check if this is a Mac App Store app by looking for _MASReceipt folder
 				// MAS apps store their receipt inside the bundle, not in /var/db/receipts
