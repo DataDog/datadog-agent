@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"go.uber.org/fx"
 	"google.golang.org/grpc"
@@ -38,8 +37,8 @@ import (
 )
 
 const (
-	collectorID       = "sbom-collector"
-	cacheValidityNoRT = 2 * time.Second
+	collectorID        = "sbom-collector"
+	LastAccessProperty = "LastSeenRunning"
 )
 
 type client struct {
@@ -237,7 +236,7 @@ func mergeLastAccessProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclone
 			// Find LastAccess property in new component
 			var lastAccessProp *cyclonedx_v1_4.Property
 			for _, prop := range newComp.Properties {
-				if prop != nil && prop.Name == "LastAccess" {
+				if prop != nil && prop.Name == LastAccessProperty {
 					lastAccessProp = prop
 					break
 				}
@@ -253,7 +252,7 @@ func mergeLastAccessProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclone
 				// Check if LastAccess already exists and update it, or add new one
 				lastAccessExists := false
 				for j, prop := range mergedComp.Properties {
-					if prop != nil && prop.Name == "LastAccess" {
+					if prop != nil && prop.Name == LastAccessProperty {
 						mergedComp.Properties[j] = lastAccessProp
 						lastAccessExists = true
 						break
@@ -264,7 +263,7 @@ func mergeLastAccessProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclone
 					mergedComp.Properties = append(mergedComp.Properties, lastAccessProp)
 				}
 
-				log.Tracef("Updated LastAccess for component %s@%s", existingComp.Name, existingComp.Version)
+				log.Tracef("Updated %s for component %s@%s", LastAccessProperty, existingComp.Name, existingComp.Version)
 			}
 		}
 
