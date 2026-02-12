@@ -203,8 +203,8 @@ func (ifr *incrementalFileReader) Init(f *os.File) error {
 		seclog.Warnf("Fail to stat log file: %v", err)
 		return err
 	}
-
-	ifr.offset = st.Size()
+	// Start from the beginning
+	ifr.offset = 0
 
 	ifr.f = f
 	ifr.ino = inodeOf(st)
