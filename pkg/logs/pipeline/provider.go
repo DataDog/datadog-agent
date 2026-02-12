@@ -7,7 +7,6 @@ package pipeline
 
 import (
 	"context"
-	"hash/fnv"
 	"strconv"
 	"sync"
 
@@ -71,9 +70,10 @@ type provider struct {
 	cfg         pkgconfigmodel.Reader
 	compression logscompression.Component
 
-	failoverEnabled     bool
-	sharedRouterChannel chan *message.Message
-	forwarderWaitGroup  sync.WaitGroup
+	failoverEnabled    bool
+	routerChannels     []chan *message.Message
+	currentRouterIndex *atomic.Uint32
+	forwarderWaitGroup sync.WaitGroup
 }
 
 // NewProvider returns a new Provider
@@ -231,14 +231,15 @@ func newProvider(
 		cfg:                       cfg,
 		compression:               compression,
 
-		failoverEnabled: cfg.GetBool("logs_config.pipeline_failover.enabled"),
+		failoverEnabled:    cfg.GetBool("logs_config.pipeline_failover.enabled"),
+		currentRouterIndex: atomic.NewUint32(0),
 	}
 }
 
 // Start initializes the pipelines and starts the sender.
-// If failover is enabled (logs_config.pipeline_failover.enabled), it also creates
-// a shared router channel and starts a forwarder goroutine that routes messages
-// to pipelines with automatic failover when pipelines are blocked.
+// If failover is enabled, creates N router channels (one per pipeline) and starts
+// N forwarder goroutines. Each forwarder reads from its own router channel and
+// routes messages to pipelines with automatic failover when the primary is blocked.
 func (p *provider) Start() {
 	p.sender.Start()
 
@@ -259,21 +260,24 @@ func (p *provider) Start() {
 	}
 
 	if p.failoverEnabled {
-		channelSize := p.cfg.GetInt("logs_config.message_channel_size")
-		p.sharedRouterChannel = make(chan *message.Message, channelSize)
-		p.forwarderWaitGroup.Add(1)
-		go p.forwardWithFailover()
+		p.routerChannels = make([]chan *message.Message, p.numberOfPipelines)
+		for i := 0; i < p.numberOfPipelines; i++ {
+			p.routerChannels[i] = make(chan *message.Message, 5)
+			p.forwarderWaitGroup.Add(1)
+			go p.forwardWithFailover(i)
+		}
+
 	}
 }
 
 // Stop stops all pipelines in parallel. This call blocks until all pipelines are stopped.
-// If failover is enabled, it first closes the shared router channel and waits for the
-// forwarder goroutine to finish processing any remaining messages before stopping pipelines.
+// If failover is enabled, closes all router channels and waits for forwarder goroutines
+// to finish draining before stopping pipelines.
 func (p *provider) Stop() {
 	stopper := startstop.NewParallelStopper()
 
-	if p.sharedRouterChannel != nil {
-		close(p.sharedRouterChannel)
+	for _, ch := range p.routerChannels {
+		close(ch)
 	}
 	p.forwarderWaitGroup.Wait()
 
@@ -285,13 +289,13 @@ func (p *provider) Stop() {
 	stopper.Stop()
 	p.sender.Stop()
 	p.pipelines = p.pipelines[:0]
+	p.routerChannels = nil
 }
 
 // NextPipelineChan returns a channel for sending log messages to the pipeline.
-// If failover is enabled, returns the shared router channel. All tailers share this
-// channel, and messages are routed to pipelines based on origin hash for consistent
-// primary pipeline affinity. If a pipeline is blocked, messages failover to other pipelines.
-// If failover is disabled, returns a direct pipeline InputChan using round-robin selection.
+// If failover is enabled, returns a router channel selected by round-robin.
+// Each router has its own forwarder goroutine with failover capability.
+// If failover is disabled, returns a direct pipeline InputChan (legacy behavior).
 func (p *provider) NextPipelineChan() chan *message.Message {
 	pipelinesLen := len(p.pipelines)
 	if pipelinesLen == 0 {
@@ -305,18 +309,19 @@ func (p *provider) NextPipelineChan() chan *message.Message {
 		return nextPipeline.InputChan
 	}
 
-	return p.sharedRouterChannel
+	index := p.currentRouterIndex.Inc() % uint32(len(p.routerChannels))
+	return p.routerChannels[index]
 }
 
 func (p *provider) GetOutputChan() chan *message.Message {
 	return nil
 }
 
-// NextPipelineChanWithMonitor returns a channel for sending log messages along with a capacity monitor.
-// Used by file tailers which track capacity metrics.
-// If failover is enabled, returns the shared router channel with a nil monitor. Ingress tracking
+// NextPipelineChanWithMonitor returns a channel for sending log messages along with
+// a capacity monitor. Used by file tailers which track capacity metrics.
+// If failover is enabled, returns a router channel with a nil monitor. Ingress tracking
 // is handled by the forwarder goroutine on the actual destination pipeline.
-// If failover is disabled, returns a direct pipeline InputChan with its associated capacity monitor.
+// If failover is disabled, returns a direct pipeline InputChan with its monitor.
 func (p *provider) NextPipelineChanWithMonitor() (chan *message.Message, *metrics.CapacityMonitor) {
 	pipelinesLen := len(p.pipelines)
 	if pipelinesLen == 0 {
@@ -330,21 +335,19 @@ func (p *provider) NextPipelineChanWithMonitor() (chan *message.Message, *metric
 		return nextPipeline.InputChan, nextPipeline.pipelineMonitor.GetCapacityMonitor(metrics.ProcessorTlmName, strconv.Itoa(int(index)))
 	}
 
-	return p.sharedRouterChannel, nil
+	index := p.currentRouterIndex.Inc() % uint32(len(p.routerChannels))
+	return p.routerChannels[index], nil
 }
 
-// forwardWithFailover reads messages from the shared router channel and routes them to pipelines.
-// Each message's primary pipeline is determined by hashing its origin identifier, ensuring
-// messages from the same source consistently go to the same pipeline (preserving order).
-// If the primary pipeline is blocked (non-blocking send fails), it tries other pipelines.
-// If all pipelines are blocked, it applies backpressure by blocking on the primary pipeline.
-func (p *provider) forwardWithFailover() {
+// forwardWithFailover reads messages from routerChannels[routerIndex] and routes
+// them to pipelines. Tries pipeline[routerIndex] first (primary), then iterates
+// through other pipelines via non-blocking sends. If all pipelines are blocked,
+// applies backpressure by blocking on the primary pipeline.
+func (p *provider) forwardWithFailover(routerIndex int) {
 	defer p.forwarderWaitGroup.Done()
 
-	for msg := range p.sharedRouterChannel {
-		// Hash origin to get consistent primary pipeline
-		primaryPipelineIndex := p.hashOriginToPipeline(msg.Origin)
-
+	primaryPipelineIndex := uint32(routerIndex)
+	for msg := range p.routerChannels[routerIndex] {
 		if !p.trySendToPipeline(msg, primaryPipelineIndex) {
 			// All pipelines blocked, apply backpressure via blocking
 			// and AddIngress on the primary pipeline
@@ -352,42 +355,6 @@ func (p *provider) forwardWithFailover() {
 			monitor := p.pipelines[primaryPipelineIndex].pipelineMonitor.GetCapacityMonitor(metrics.ProcessorTlmName, strconv.Itoa(int(primaryPipelineIndex)))
 			monitor.AddIngress(msg)
 		}
-	}
-}
-
-// hashOriginToPipeline returns a consistent pipeline index for a given message origin.
-// Uses FNV-1a hash of the most stable available identifier to ensure messages from the same source
-// always route to the same primary pipeline. Falls back to round-robin if origin is nil.
-func (p *provider) hashOriginToPipeline(origin *message.Origin) uint32 {
-	pipelinesLen := uint32(len(p.pipelines))
-
-	// Find the first stable identifier
-	hashKey := p.getStableHashKey(origin)
-	if hashKey == "" {
-		return p.currentPipelineIndex.Inc() % pipelinesLen
-	}
-
-	pipelineHash := fnv.New32a()
-	pipelineHash.Write([]byte(hashKey))
-	return pipelineHash.Sum32() % uint32(len(p.pipelines))
-}
-
-// getStableHashKey returns the most stable identifier for an origin,
-// Returns empty string if no stable identifier is available
-func (p *provider) getStableHashKey(origin *message.Origin) string {
-	if origin == nil {
-		return ""
-	}
-
-	switch {
-	case origin.Identifier != "":
-		return origin.Identifier
-	case origin.FilePath != "":
-		return origin.FilePath
-	case origin.LogSource != nil && origin.LogSource.Name != "":
-		return origin.LogSource.Name
-	default:
-		return ""
 	}
 }
 

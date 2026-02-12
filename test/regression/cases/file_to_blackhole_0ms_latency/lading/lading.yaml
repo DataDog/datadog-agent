@@ -6,7 +6,7 @@ generator:
         load_profile:
           linear:
             initial_bytes_per_second: 100 KiB
-            rate: 600 KiB
+            rate: 400 KiB
         concurrent_logs: 1
         maximum_bytes_per_log: 500 MiB
         total_rotations: 5

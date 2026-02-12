@@ -3,6 +3,7 @@ features:
   - |
     Logs pipeline failover: Added automatic failover capability to prevent log loss when compression blocks pipelines.
     When a pipeline becomes blocked during compression, log messages are automatically routed to healthy pipelines.
-    Messages from the same source are consistently routed to the same primary pipeline via origin hashing.
+    N router channels (one per pipeline) distribute tailers via round-robin, each with its own forwarder goroutine
+    that handles failover independently across all pipelines.
     Enable with ``logs_config.pipeline_failover.enabled: true`` (default: false).
     When all pipelines are blocked, backpressure is applied to prevent data loss.

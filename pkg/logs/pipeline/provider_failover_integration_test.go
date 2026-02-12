@@ -76,7 +76,7 @@ func createIntegrationTestMessage(content string, identifier string) *message.Me
 }
 
 // TestConcurrentHighThroughput verifies that many concurrent tailers can send
-// messages through the shared router channel without data loss or deadlocks.
+// messages through router channels without data loss or deadlocks.
 func (suite *ProviderFailoverIntegrationSuite) TestConcurrentHighThroughput() {
 	numTailers := 10
 	messagesPerTailer := 100
