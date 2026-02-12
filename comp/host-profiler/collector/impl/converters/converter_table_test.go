@@ -318,6 +318,46 @@ func TestConverterWithAgent(t *testing.T) {
 	runSuccessTests(t, conv, tests)
 }
 
+func TestConverterWithAgentDCSite(t *testing.T) {
+	tests := []testCase{
+		{
+			name:     "infers-dc-site-from-profiling-url",
+			provided: "agent/infer-dc-from-url/in.yaml",
+			expected: "agent/infer-dc-from-url/out.yaml",
+		},
+		{
+			name:     "infers-dc-site-from-additional-endpoints",
+			provided: "agent/infer-dc-from-additional-ep/in.yaml",
+			expected: "agent/infer-dc-from-additional-ep/out.yaml",
+		},
+	}
+
+	t.Run("profiling_dd_url", func(t *testing.T) {
+		mockCfg := &mockConfig{
+			values: map[string]interface{}{
+				"apm_config.profiling_dd_url": "https://intake.profile.us3.datadoghq.com/v1/input",
+				"api_key":                     "test_api_key_123",
+			},
+		}
+		conv := newConverterWithAgent(confmap.ConverterSettings{}, mockCfg)
+		runSuccessTests(t, conv, tests[:1])
+	})
+
+	t.Run("additional_endpoints", func(t *testing.T) {
+		mockCfg := &mockConfig{
+			values: map[string]interface{}{
+				"site":    "datadoghq.com",
+				"api_key": "test_api_key_123",
+				"apm_config.profiling_additional_endpoints": map[string][]string{
+					"https://intake.profile.us3.datadoghq.com/v1/input": {"us3_api_key"},
+				},
+			},
+		}
+		conv := newConverterWithAgent(confmap.ConverterSettings{}, mockCfg)
+		runSuccessTests(t, conv, tests[1:])
+	})
+}
+
 func TestConverterWithAgentErrors(t *testing.T) {
 	tests := []errorTestCase{
 		{
