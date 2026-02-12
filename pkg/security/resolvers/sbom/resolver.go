@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"slices"
 	"strings"
@@ -633,8 +634,8 @@ func (r *Resolver) getSBOM(containerID containerutils.ContainerID) *SBOM {
 
 // ResolvePackage returns the Package that owns the provided file. Make sure the internal fields of "file" are properly
 // resolved.
-func (r *Resolver) ResolvePackage(containerID containerutils.ContainerID, file *model.FileEvent) *sbomtypes.Package {
-	sbom := r.getSBOM(containerID)
+func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEvent) *sbomtypes.Package {
+	sbom := r.getSBOM(pc.ContainerContext.ContainerID)
 	if sbom == nil {
 		return nil
 	}
@@ -644,13 +645,18 @@ func (r *Resolver) ResolvePackage(containerID containerutils.ContainerID, file *
 
 	pkg := sbom.data.files.queryFile(file.PathnameStr)
 	if pkg != nil {
-		// Update LastAccess timestamp
 		oldLastAccess := pkg.LastAccess
+		oldSuidBit := pkg.SuidBit
+		oldAccessedByRoot := pkg.AccessedByRoot
 
+		// Update LastAccess timestamp, SuidBit and AccessedByRoot fields
 		pkg.LastAccess = time.Now()
+		pkg.SuidBit = fs.FileMode(file.Mode)&fs.ModeSetuid != 0
+		pkg.AccessedByRoot = pkg.AccessedByRoot || pc.UID == 0
 
 		// Trigger forwarding debouncer to send updated SBOM to remote collector
-		if pkg.LastAccess.Sub(oldLastAccess) > 1*time.Minute {
+		if pkg.LastAccess.Sub(oldLastAccess) > 1*time.Minute ||
+			pkg.SuidBit != oldSuidBit || pkg.AccessedByRoot != oldAccessedByRoot {
 			r.triggerForwarding(sbom)
 		}
 	}

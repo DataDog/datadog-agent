@@ -427,7 +427,7 @@ func (fh *EBPFFieldHandlers) resolveSBOMFields(ev *model.Event, f *model.FileEve
 		return
 	}
 
-	if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessContext.ContainerContext.ContainerID, f); pkg != nil {
+	if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessContext, f); pkg != nil {
 		f.PkgName = pkg.Name
 		f.PkgVersion = pkg.Version
 		f.PkgEpoch = pkg.Epoch
