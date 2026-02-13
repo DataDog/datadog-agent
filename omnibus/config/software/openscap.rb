@@ -65,7 +65,6 @@ build do
 
   command_on_repo_root "bazelisk run -- @libxml2//:install --destdir='#{install_dir}/embedded'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-    " #{install_dir}/embedded/lib/pkgconfig/libxml-2.0.pc" \
     " #{install_dir}/embedded/lib/libxml2.so"
 
   command_on_repo_root "bazelisk run -- @libxslt//:install --destdir='#{install_dir}/embedded'"
