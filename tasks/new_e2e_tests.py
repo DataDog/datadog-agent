@@ -311,7 +311,7 @@ def run(
 
     env_vars = {}
     # Disable SSI gradual rollout in tests by default to avoid flaky tests
-    env_vars["DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_ENABLED"] = "false"
+    env_vars["DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_GRADUAL_ROLLOUT_ENABLED"] = "false"
     if profile:
         env_vars["E2E_PROFILE"] = profile
 
