@@ -63,10 +63,9 @@ MACOS_LIBCRYPTO = "libcrypto.dylib"
 FIX_OPENSSL_PATHS = """
     # Fix OpenSSL hardcoded paths in binaries
     TARGET="##########################################################################################PLACEHOLDERDIRECTORY##########################################################################################"
+    SANDBOX="$$BUILD_TMPDIR/$$INSTALL_PREFIX"
 
-    # === OPENSSLDIR paths (no extra slash between BUILD_TMPDIR and INSTALL_PREFIX) ===
-    SANDBOX="$$BUILD_TMPDIR$$INSTALL_PREFIX"
-
+    # === OPENSSLDIR paths ===
     # OPENSSLDIR display string: /ssl"
     OLD_PATH="$${SANDBOX}/ssl\\"" NEW_PATH="$${TARGET}/ssl\\"" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
 
@@ -82,9 +81,7 @@ FIX_OPENSSL_PATHS = """
     # SSL cert.pem: /ssl/cert.pem
     OLD_PATH="$${SANDBOX}/ssl/cert.pem" NEW_PATH="$${TARGET}/ssl/cert.pem" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
 
-    # === ENGINESDIR and MODULESDIR paths (extra slash between BUILD_TMPDIR and INSTALL_PREFIX) ===
-    SANDBOX="$$BUILD_TMPDIR/$$INSTALL_PREFIX"
-
+    # === ENGINESDIR and MODULESDIR paths ===
     # ENGINESDIR display string: /lib/engines-3"
     OLD_PATH="$${SANDBOX}/lib/engines-3\\"" NEW_PATH="$${TARGET}/lib/engines-3\\"" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
 
@@ -138,11 +135,6 @@ configure_make(
             "--openssldir='C:/Program Files/Datadog/Datadog Agent/embedded3/ssl'",
         ],
         "//conditions:default": [],
-    }),
-    # We should set this to make placeholder placement easier and more predictable.
-    install_prefix = select({
-        "@platforms//os:windows": "",
-        "//conditions:default": "/opt/datadog-agent/embedded",
     }),
     env = select({
         "@platforms//os:macos": {
