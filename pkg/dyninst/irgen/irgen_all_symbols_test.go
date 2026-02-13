@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -36,10 +37,23 @@ func TestIRGenAllProbes(t *testing.T) {
 	}
 	programs := testprogs.MustGetPrograms(t)
 	cfgs := testprogs.MustGetCommonConfigs(t)
-	var objcopy string
-	{
-		if objcopyPath, err := exec.LookPath("objcopy"); err == nil {
-			objcopy = objcopyPath
+
+	// Find objcopy for each architecture.
+	// Native arch uses plain 'objcopy', cross-arch needs arch-specific toolchain.
+	crossObjcopyNames := map[string]string{
+		"amd64": "x86_64-linux-gnu-objcopy",
+		"arm64": "aarch64-linux-gnu-objcopy",
+	}
+	objcopyByArch := make(map[string]string)
+	for _, arch := range []string{"amd64", "arm64"} {
+		var name string
+		if arch == runtime.GOARCH {
+			name = "objcopy"
+		} else {
+			name = crossObjcopyNames[arch]
+		}
+		if path, err := exec.LookPath(name); err == nil {
+			objcopyByArch[arch] = path
 		}
 	}
 
@@ -61,11 +75,15 @@ func TestIRGenAllProbes(t *testing.T) {
 						return // already uses loclists
 					}
 					t.Run("bogus loclist", func(t *testing.T) {
+						objcopy, ok := objcopyByArch[cfg.GOARCH]
+						if !ok {
+							t.Skipf("no objcopy available for %s", cfg.GOARCH)
+						}
 						tempDir, cleanup := dyninsttest.PrepTmpDir(t, "irgen_all_symbols_test")
 						defer cleanup()
 						modified, err := addLoclistSection(bin, objcopy, tempDir)
 						if err != nil {
-							t.Skipf("failed to objcopy a loclist section for %s: %v", cfg.String(), err)
+							t.Errorf("failed to objcopy a loclist section for %s: %v", cfg.String(), err)
 						}
 						testAllProbes(t, modified)
 					})
