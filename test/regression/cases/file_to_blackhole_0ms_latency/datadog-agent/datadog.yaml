@@ -13,8 +13,6 @@ logs_config:
   file_scan_period: 1
   logs_no_ssl: true
   force_use_http: true
-  pipeline_failover:
-    enabled: true
 
 process_config.process_dd_url: http://localhost:9093
 
