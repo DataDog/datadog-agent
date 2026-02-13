@@ -282,8 +282,10 @@ func (f *factory) createLogsExporter(
 	cfg.LogWarnings(set.Logger)
 
 	var logch chan *message.Message
-	if provider := f.logsAgent.GetPipelineProvider(); provider != nil {
-		logch = provider.NextPipelineChan()
+	if f.logsAgent != nil {
+		if provider := f.logsAgent.GetPipelineProvider(); provider != nil {
+			logch = provider.NextPipelineChan()
+		}
 	}
 
 	if _, err := f.Reporter(set, cfg.HostMetadata.ReporterPeriod, cfg.HostMetadata.Enabled); err != nil {

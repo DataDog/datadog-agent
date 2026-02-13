@@ -162,7 +162,9 @@ func (e *Exporter) consumeRegularLogs(ctx context.Context, ld plog.Logs) (err er
 			message.Hostname = *ddLog.Hostname
 		}
 
-		e.logsAgentChannel <- message
+		if e.logsAgentChannel != nil {
+			e.logsAgentChannel <- message
+		}
 	}
 
 	if e.coatGwUsageMetric != nil {
