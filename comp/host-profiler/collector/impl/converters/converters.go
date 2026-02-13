@@ -6,10 +6,26 @@
 //go:build linux
 
 // Package converters implements the converters for the host profiler collector.
+//
+// # Configuration Converter Behavior
+//
+// Converters normalize user-provided OTEL collector configs for the host profiler.
+// They follow the "explicit config wins" principle:
+//
+//   - User-set leaf configs are never overwritten. If a user explicitly sets a value,
+//     even if incompatible with what Datadog needs, the converter preserves it.
+//   - Missing configs are added. If a required leaf config is not defined, the converter
+//     adds it along with all required parent keys using sensible defaults.
+//   - Incompatible values generate warnings. If a user-set value conflicts with
+//     Datadog requirements (e.g. host.arch disabled), a warning is logged but the
+//     user's value is preserved.
+//   - External settings error out. Configs that require external information (API keys,
+//     endpoints) that cannot be inferred will cause an error in standalone mode.
 package converters
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -137,11 +153,10 @@ func Ensure[T any](c confMap, path string) (T, error) {
 	return zero, nil
 }
 
-// Set sets a value of type T in the confMap at the given path.
-// Path segments are separated by "::".
-// Creates intermediate maps as needed.
+// ensurePath walks the confMap along the given "::" separated path, creating intermediate maps as needed.
+// Returns the final map and the target key name.
 // Returns an error if an intermediate path element exists but is not a map.
-func Set[T any](c confMap, path string, value T) error {
+func ensurePath(c confMap, path string) (confMap, string, error) {
 	currentMap := c
 	pathSlice := strings.Split(path, "::")
 
@@ -155,10 +170,23 @@ func Set[T any](c confMap, path string, value T) error {
 
 		childMap, isMap := childConfMap.(map[string]any)
 		if !isMap {
-			return fmt.Errorf("path element %q is not a map", key)
+			return nil, "", fmt.Errorf("path element %q is not a map", key)
 		}
 
 		currentMap = childMap
+	}
+
+	return currentMap, target, nil
+}
+
+// Set sets a value of type T in the confMap at the given path.
+// Path segments are separated by "::".
+// Creates intermediate maps as needed.
+// Returns an error if an intermediate path element exists but is not a map.
+func Set[T any](c confMap, path string, value T) error {
+	currentMap, target, err := ensurePath(c, path)
+	if err != nil {
+		return err
 	}
 
 	if existingValue, exists := currentMap[target]; exists {
@@ -166,6 +194,25 @@ func Set[T any](c confMap, path string, value T) error {
 	}
 	currentMap[target] = value
 	return nil
+}
+
+// SetIfAbsent sets a value only if the key does not already exist at the given path.
+// If the key already exists, the existing value is preserved and the function returns false.
+// Path segments are separated by "::".
+// Creates intermediate maps as needed.
+// Returns true if the value was set, false if a value already existed (preserved).
+// Returns an error if an intermediate path element exists but is not a map.
+func SetIfAbsent[T any](c confMap, path string, value T) (bool, error) {
+	currentMap, target, err := ensurePath(c, path)
+	if err != nil {
+		return false, err
+	}
+
+	if existingValue, exists := currentMap[target]; exists && !reflect.DeepEqual(existingValue, value) {
+		return false, nil
+	}
+	currentMap[target] = value
+	return true, nil
 }
 
 // ensureKeyStringValue checks if a key exists in the config and converts it to a string if needed.

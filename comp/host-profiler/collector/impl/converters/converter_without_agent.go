@@ -238,16 +238,18 @@ func (c *converterWithoutAgent) ensureResourceDetectionConfig(resourceDetection 
 	}
 
 	// Always ensure host.arch is enabled
-	if err := Set(resourceDetection, "system::resource_attributes::host.arch::enabled", true); err != nil {
+	if set, err := SetIfAbsent(resourceDetection, "system::resource_attributes::host.arch::enabled", true); err != nil {
 		return err
+	} else if !set {
+		standaloneLogger.Warn("host.arch is required but is disabled by user configuration; preserving user value")
 	}
 
 	// Only set these defaults if we added the system detector
 	if !hasSystemDetector {
-		if err := Set(resourceDetection, "system::resource_attributes::host.name::enabled", false); err != nil {
+		if _, err := SetIfAbsent(resourceDetection, "system::resource_attributes::host.name::enabled", false); err != nil {
 			return err
 		}
-		if err := Set(resourceDetection, "system::resource_attributes::os.type::enabled", false); err != nil {
+		if _, err := SetIfAbsent(resourceDetection, "system::resource_attributes::os.type::enabled", false); err != nil {
 			return err
 		}
 	}
