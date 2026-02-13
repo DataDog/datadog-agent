@@ -7,7 +7,7 @@ package remoteflags
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -529,7 +529,7 @@ func TestOnChange_FailedPropagation(t *testing.T) {
 	onChange := func(_ FlagValue) error {
 		onChangeCalled = true
 		// Simulate failed propagation
-		return fmt.Errorf("simulated apply failure")
+		return errors.New("simulated apply failure")
 	}
 
 	onNoConfig := func() {}

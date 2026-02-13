@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+// Package remoteflags provides the Remote Flags component for dynamic feature flag management.
 package remoteflags
 
 import (

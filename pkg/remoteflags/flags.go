@@ -10,6 +10,7 @@ package remoteflags
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -182,7 +183,7 @@ func (c *Client) Stop() {
 // compile-time enforcement that all required functions are implemented.
 func (c *Client) SubscribeWithHandler(handler FlagHandler) error {
 	if handler == nil {
-		return fmt.Errorf("handler cannot be nil")
+		return errors.New("handler cannot be nil")
 	}
 	return c.Subscribe(
 		handler.FlagName(),
@@ -218,19 +219,19 @@ func (c *Client) SubscribeWithHandler(handler FlagHandler) error {
 // Returns an error if the subscription parameters are invalid.
 func (c *Client) Subscribe(flag FlagName, onChange FlagChangeCallback, onNoConfig FlagNoConfigCallback, safeRecover FlagSafeRecoverCallback, isHealthy FlagIsHealthyCallback) error {
 	if flag == "" {
-		return fmt.Errorf("flag name cannot be empty")
+		return errors.New("flag name cannot be empty")
 	}
 	if onChange == nil {
-		return fmt.Errorf("onChange callback cannot be nil")
+		return errors.New("onChange callback cannot be nil")
 	}
 	if onNoConfig == nil {
-		return fmt.Errorf("onNoConfig callback cannot be nil")
+		return errors.New("onNoConfig callback cannot be nil")
 	}
 	if safeRecover == nil {
-		return fmt.Errorf("safeRecover callback cannot be nil - you must provide error handling")
+		return errors.New("safeRecover callback cannot be nil - you must provide error handling")
 	}
 	if isHealthy == nil {
-		return fmt.Errorf("isHealthy callback cannot be nil - you must provide health checking")
+		return errors.New("isHealthy callback cannot be nil - you must provide health checking")
 	}
 
 	c.mu.Lock()
