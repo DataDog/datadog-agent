@@ -86,7 +86,7 @@ func (stats *Stats) SendStats(client statsd.ClientInterface, treeType string) er
 	treeTypeTag := "tree_type:" + treeType
 
 	for evtType, count := range stats.counts {
-		evtTypeTag := fmt.Sprintf("event_type:%s", evtType)
+		evtTypeTag := "event_type:" + evtType.String()
 
 		tags := []string{evtTypeTag, treeTypeTag}
 		if value := count.processedCount.Swap(0); value > 0 {
@@ -105,7 +105,7 @@ func (stats *Stats) SendStats(client statsd.ClientInterface, treeType string) er
 		}
 
 		for reason, count := range count.droppedCount {
-			tags := []string{evtTypeTag, fmt.Sprintf("reason:%s", reason), treeTypeTag}
+			tags := []string{evtTypeTag, "reason:" + reason.String(), treeTypeTag}
 			if value := count.Swap(0); value > 0 {
 				if err := client.Count(metrics.MetricActivityDumpEventDropped, int64(value), tags, 1.0); err != nil {
 					return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpEventDropped, err)
