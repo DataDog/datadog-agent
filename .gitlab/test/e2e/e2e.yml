@@ -376,6 +376,7 @@ new-e2e-agent-health:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7
   rules:
+    - !reference [.on_healthplatform_or_e2e_changes]
     - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-health
