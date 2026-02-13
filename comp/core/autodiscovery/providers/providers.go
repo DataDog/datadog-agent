@@ -54,7 +54,6 @@ func RegisterProviders(providerCatalog map[string]types.ConfigProviderFactory, u
 	RegisterProviderWithComponents(names.KubeContainer, NewContainerConfigProvider, providerCatalog)
 	RegisterProvider(names.EndpointsChecksRegisterName, NewEndpointsChecksConfigProvider, providerCatalog)
 	RegisterProvider(names.EtcdRegisterName, NewEtcdConfigProvider, providerCatalog)
-	RegisterProvider(names.KubeEndpointsFileRegisterName, NewKubeEndpointsFileConfigProvider, providerCatalog)
 	RegisterProvider(names.KubeServicesFileRegisterName, NewKubeServiceFileConfigProvider, providerCatalog)
 	RegisterProvider(names.KubeServicesRegisterName, NewKubeServiceConfigProvider, providerCatalog)
 	RegisterProviderWithComponents(names.PrometheusPodsRegisterName, NewPrometheusPodsConfigProvider, providerCatalog)
@@ -62,9 +61,12 @@ func RegisterProviders(providerCatalog map[string]types.ConfigProviderFactory, u
 	RegisterProvider(names.ZookeeperRegisterName, NewZookeeperConfigProvider, providerCatalog)
 	RegisterProviderWithComponents(names.ProcessLog, NewProcessLogConfigProvider, providerCatalog)
 
+	endpointsFileProvider := NewKubeEndpointsFileConfigProvider
 	endpointsProvider := NewKubeEndpointsConfigProvider
 	if useEndpointSlicesProvider {
+		endpointsFileProvider = NewKubeEndpointSlicesFileConfigProvider
 		endpointsProvider = NewKubeEndpointSlicesConfigProvider
 	}
+	RegisterProvider(names.KubeEndpointsFileRegisterName, endpointsFileProvider, providerCatalog)
 	RegisterProvider(names.KubeEndpointsRegisterName, endpointsProvider, providerCatalog)
 }
