@@ -8,7 +8,6 @@ package pass
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
