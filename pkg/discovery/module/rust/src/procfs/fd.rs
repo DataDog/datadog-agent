@@ -194,6 +194,7 @@ fn is_language_memfd(link: &Path) -> bool {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     mod is_logfile {
         use std::path::Path;
@@ -537,7 +538,7 @@ mod tests {
                 .open(&valid_log)
                 .expect("Failed to reopen valid log");
 
-            let pid = std::process::id() as i32;
+            let pid = std::process::id().try_into().unwrap();
 
             let open_files_info = get_open_files_info(pid).expect("Failed to collect open files");
 

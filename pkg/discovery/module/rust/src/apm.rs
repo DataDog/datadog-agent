@@ -142,7 +142,11 @@ fn detect_dotnet_from_reader<R: std::io::BufRead>(reader: R) -> bool {
 }
 
 #[cfg(test)]
-#[allow(clippy::expect_used, clippy::undocumented_unsafe_blocks)]
+#[allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::undocumented_unsafe_blocks
+)]
 mod tests {
     use crate::cmdline;
 
@@ -329,7 +333,7 @@ mod tests {
 
         use memmap2::Mmap;
 
-        let current_pid = std::process::id() as i32;
+        let current_pid = std::process::id().try_into().unwrap();
         let cmdline = cmdline![];
         let envs = HashMap::new();
 
@@ -365,7 +369,7 @@ mod tests {
 
         use memmap2::Mmap;
 
-        let current_pid = std::process::id() as i32;
+        let current_pid = std::process::id().try_into().unwrap();
         let cmdline = cmdline![];
         let envs = HashMap::new(); // No env vars set
 
