@@ -32,7 +32,6 @@ build do
 
   command_on_repo_root "bazelisk run -- @libsepol//:install --destdir='#{install_dir}/embedded'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-    " #{install_dir}/embedded/lib/pkgconfig/libsepol.pc" \
     " #{install_dir}/embedded/lib/libsepol.so"
 
   command_on_repo_root "bazelisk run -- @libyaml//:install --destdir='#{install_dir}/embedded'"
