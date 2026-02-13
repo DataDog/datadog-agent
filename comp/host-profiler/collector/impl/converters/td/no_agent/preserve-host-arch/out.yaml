@@ -1,0 +1,27 @@
+exporters:
+    otlphttp:
+        headers:
+            dd-api-key: test-key
+processors:
+    resourcedetection:
+        detectors:
+            - system
+        system:
+            resource_attributes:
+                host.arch:
+                    enabled: false
+receivers:
+    hostprofiler:
+        symbol_uploader:
+            enabled: false
+service:
+    pipelines:
+        metrics:
+            processors: []
+        profiles:
+            exporters:
+                - otlphttp
+            processors:
+                - resourcedetection
+            receivers:
+                - hostprofiler
