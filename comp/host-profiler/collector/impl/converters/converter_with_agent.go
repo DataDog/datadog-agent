@@ -285,9 +285,11 @@ func (c *converterWithAgent) inferOtlpHTTPConfig(conf confMap) error {
 
 	const profilesExportersPath = "service::pipelines::profiles::exporters"
 	profilesExporters, _ := Get[[]any](conf, profilesExportersPath)
+	siteCounter := make(map[string]int)
 	for _, endpoint := range c.configManager.endpoints {
-		for i, key := range endpoint.apiKeys {
-			exporterName := fmt.Sprintf(otlpHTTPNameFormat, endpoint.site, i)
+		for _, key := range endpoint.apiKeys {
+			exporterName := fmt.Sprintf(otlpHTTPNameFormat, endpoint.site, siteCounter[endpoint.site])
+			siteCounter[endpoint.site]++
 			if err := Set(conf, pathPrefixExporters+exporterName, createOtlpHTTPFromEndpoint(endpoint.site, key)); err != nil {
 				return err
 			}

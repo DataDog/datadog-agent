@@ -343,6 +343,26 @@ func TestConverterWithAgentDCSite(t *testing.T) {
 		runSuccessTests(t, conv, tests[:1])
 	})
 
+	t.Run("duplicate_site_exporters", func(t *testing.T) {
+		mockCfg := &mockConfig{
+			values: map[string]interface{}{
+				"site":    "datadoghq.com",
+				"api_key": "main_api_key",
+				"apm_config.profiling_additional_endpoints": map[string][]string{
+					"https://intake.profile.datadoghq.com/v1/input": {"additional_api_key"},
+				},
+			},
+		}
+		conv := newConverterWithAgent(confmap.ConverterSettings{}, mockCfg)
+		runSuccessTests(t, conv, []testCase{
+			{
+				name:     "unique-exporter-names-for-same-site",
+				provided: "agent/duplicate-site-exporters/in.yaml",
+				expected: "agent/duplicate-site-exporters/out.yaml",
+			},
+		})
+	})
+
 	t.Run("additional_endpoints", func(t *testing.T) {
 		mockCfg := &mockConfig{
 			values: map[string]interface{}{
