@@ -11,6 +11,7 @@ package converters
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"slices"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -48,8 +49,7 @@ func newConfigManager(config config.Component) configManager {
 	for endpointURL, keys := range profilingAdditionalEndpoints {
 		site := configutils.ExtractSiteFromURL(endpointURL)
 		if site == "" {
-			log.Warnf("Could not extract site from URL %s, skipping endpoint", endpointURL)
-			continue
+			log.Infof("Additional endpoint URL %s is not a recognized Datadog domain; treating as proxy endpoint", endpointURL)
 		}
 		endpoints = append(endpoints, endpoint{
 			site:    site,
@@ -57,12 +57,16 @@ func newConfigManager(config config.Component) configManager {
 			apiKeys: keys,
 		})
 	}
-	log.Infof("Main site inferred from core configuration is %s", usedSite)
 
-	// Add main endpoint if we have a valid site
-	if usedSite == "" {
+	// Add main endpoint if we have a valid site or URL
+	if usedSite == "" && usedURL == "" {
 		log.Warn("Could not determine site from core configuration, no default endpoint will be configured")
 	} else {
+		if usedSite == "" {
+			log.Infof("Main endpoint URL %s is not a recognized Datadog domain; treating as proxy endpoint", usedURL)
+		} else {
+			log.Infof("Main site inferred from core configuration is %s", usedSite)
+		}
 		endpoints = append(endpoints, endpoint{site: usedSite, url: usedURL, apiKeys: []string{apiKey}})
 	}
 
@@ -247,8 +251,12 @@ func (c *converterWithAgent) ensureOtlpHTTPExporterConfig(conf confMap, exporter
 }
 
 func (c *converterWithAgent) inferHostProfilerEndpointConfig(hostProfiler confMap) error {
-	var symbolEndpoints []any
+	symbolEndpoints := make([]any, 0)
 	for _, endpoint := range c.configManager.endpoints {
+		if endpoint.site == "" {
+			log.Warnf("Endpoint %s is not a recognized Datadog domain; skipping symbol endpoint inference. Configure symbol_endpoints explicitly if needed.", endpoint.url)
+			continue
+		}
 		for _, key := range endpoint.apiKeys {
 			symbolEndpoints = append(symbolEndpoints, confMap{
 				"site":      endpoint.site,
@@ -257,10 +265,34 @@ func (c *converterWithAgent) inferHostProfilerEndpointConfig(hostProfiler confMa
 		}
 	}
 
+	if len(symbolEndpoints) == 0 {
+		// No Datadog endpoints available for symbol upload (all proxy/FIPS).
+		// Disable the symbol uploader to avoid failing receiver validation
+		// which requires non-empty symbol_endpoints when enabled.
+		if err := Set(hostProfiler, pathSymbolUploaderEnabled, false); err != nil {
+			return err
+		}
+		return nil
+	}
+
 	if err := Set(hostProfiler, "symbol_uploader::symbol_endpoints", symbolEndpoints); err != nil {
 		return err
 	}
 	return nil
+}
+
+// extractBaseURL parses a URL and returns scheme://host (including port if present),
+// stripping any path. Returns the original URL on parse error.
+func extractBaseURL(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+	u.Path = ""
+	u.RawPath = ""
+	u.RawQuery = ""
+	u.Fragment = ""
+	return u.String()
 }
 
 func (c *converterWithAgent) inferOtlpHTTPConfig(conf confMap) error {
@@ -282,10 +314,29 @@ func (c *converterWithAgent) inferOtlpHTTPConfig(conf confMap) error {
 
 	const profilesExportersPath = "service::pipelines::profiles::exporters"
 	profilesExporters, _ := Get[[]any](conf, profilesExportersPath)
+	var proxyIdx int
 	for _, endpoint := range c.configManager.endpoints {
 		for i, key := range endpoint.apiKeys {
-			exporterName := fmt.Sprintf(otlpHTTPNameFormat, endpoint.site, i)
-			if err := Set(conf, pathPrefixExporters+exporterName, createOtlpHTTPFromEndpoint(endpoint.site, key)); err != nil {
+			var exporterName string
+			var exporterConf confMap
+
+			if endpoint.site != "" {
+				// Standard Datadog URL: reconstruct from site
+				exporterName = fmt.Sprintf(otlpHTTPNameFormat, endpoint.site, i)
+				exporterConf = createOtlpHTTPFromEndpoint(endpoint.site, key)
+			} else {
+				// Proxy/FIPS URL: parse base URL (scheme://host:port) and append OTLP profiles path
+				exporterName = fmt.Sprintf("otlphttp/proxy_%d", proxyIdx)
+				proxyIdx++
+				baseURL := extractBaseURL(endpoint.url)
+				exporterConf = confMap{
+					"profiles_endpoint": baseURL + "/v1development/profiles",
+					"headers":           confMap{fieldDDAPIKey: key},
+				}
+				log.Warnf("Endpoint %s is not a recognized Datadog domain; only profiles intake is configured. Metrics endpoint requires explicit otlphttp exporter configuration.", endpoint.url)
+			}
+
+			if err := Set(conf, pathPrefixExporters+exporterName, exporterConf); err != nil {
 				return err
 			}
 			profilesExporters = append(profilesExporters, exporterName)
