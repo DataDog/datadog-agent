@@ -42,7 +42,6 @@ build do
   command_on_repo_root "bazelisk run -- @pcre2//:install --destdir=#{install_dir}/embedded"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix " \
     "--prefix #{install_dir}/embedded " \
-    "#{install_dir}/embedded/lib/pkgconfig/libpcre2*.pc " \
     "#{install_dir}/embedded/lib/libpcre2*.so"
 
   command_on_repo_root "bazelisk run -- @popt//:install --destdir='#{install_dir}/embedded'"
