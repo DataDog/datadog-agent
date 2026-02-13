@@ -41,6 +41,8 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 	apiregistrationclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1"
 
+	httptrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/net/http"
+
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -250,6 +252,10 @@ func GetClientConfig(timeout time.Duration, qps float32, burst int) (*rest.Confi
 	clientConfig.Burst = burst
 	clientConfig.Wrap(func(rt http.RoundTripper) http.RoundTripper {
 		return NewCustomRoundTripper(rt, timeout)
+	})
+	// Wrap with APM tracing for automatic instrumentation of Kubernetes API calls
+	clientConfig.Wrap(func(rt http.RoundTripper) http.RoundTripper {
+		return httptrace.WrapRoundTripper(rt)
 	})
 
 	return clientConfig, nil

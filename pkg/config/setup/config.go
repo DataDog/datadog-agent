@@ -652,6 +652,12 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.labels", map[string]string{})
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.annotations", map[string]string{})
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.processor.service.name", "")
+
+	// APM Instrumentation for the cluster agent itself
+	config.BindEnvAndSetDefault("cluster_agent.apm_instrumentation_enabled", false)
+	config.BindEnvAndSetDefault("cluster_agent.apm_instrumentation_env", "")
+	config.BindEnvAndSetDefault("cluster_agent.apm_instrumentation_dd_url", "")
+	config.BindEnvAndSetDefault("cluster_agent.apm_instrumentation_sample_rate", 1.0)
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.processor.service.namespace", "")
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.istio.namespace", "istio-system")
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.mode", "sidecar")

@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
@@ -91,6 +93,9 @@ func NewHandler(ac pluggableAutoConfig, tagger tagger.Component) (*Handler, erro
 // Run is the main goroutine for the handler. It has to
 // be called in a goroutine with a cancellable context.
 func (h *Handler) Run(ctx context.Context) {
+	span := tracer.StartSpan("cluster_checks.handler.run")
+	defer span.Finish()
+
 	h.m.Lock()
 	if h.leaderStatusCallback != nil {
 		go h.leaderWatch(ctx)
@@ -213,8 +218,12 @@ func (h *Handler) leaderWatch(ctx context.Context) {
 // the leader IP accordlingly. In case of leadership statuschange,
 // a state type is sent on leadershipChan.
 func (h *Handler) updateLeaderIP() error {
+	span := tracer.StartSpan("cluster_checks.leader_election.update_ip")
+	defer span.Finish()
+
 	newIP, err := h.leaderStatusCallback()
 	if err != nil {
+		span.SetTag("error", true)
 		return err
 	}
 

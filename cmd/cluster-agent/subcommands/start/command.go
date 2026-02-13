@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -138,6 +139,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
@@ -295,6 +298,45 @@ func start(log log.Component,
 
 	// Setup Internal Profiling
 	common.SetupInternalProfiling(settings, config, "")
+
+	// Setup APM Tracing for Cluster Agent
+	pkglog.Debugf("Checking APM instrumentation config: enabled=%v", config.GetBool("cluster_agent.apm_instrumentation_enabled"))
+	if config.GetBool("cluster_agent.apm_instrumentation_enabled") {
+		env := config.GetString("cluster_agent.apm_instrumentation_env")
+		sampleRate := config.GetFloat64("cluster_agent.apm_instrumentation_sample_rate")
+		agentURL := config.GetString("cluster_agent.apm_instrumentation_dd_url")
+
+		pkglog.Infof("Starting APM tracer: service=datadog-cluster-agent, env=%s, version=%s, sample_rate=%f, agent_url=%s",
+			env, version.AgentVersion, sampleRate, agentURL)
+
+		tracerOptions := []tracer.StartOption{
+			tracer.WithService("datadog-cluster-agent"),
+			tracer.WithEnv(env),
+			tracer.WithServiceVersion(version.AgentVersion),
+		}
+
+		// Configure agent address if specified
+		if config.IsSet("cluster_agent.apm_instrumentation_dd_url") {
+			// WithAgentAddr expects host:port, not a full URL - strip the scheme
+			agentAddr := strings.TrimPrefix(agentURL, "http://")
+			agentAddr = strings.TrimPrefix(agentAddr, "https://")
+			tracerOptions = append(tracerOptions, tracer.WithAgentAddr(agentAddr))
+			pkglog.Infof("APM tracer will send to: %s", agentURL)
+		} else {
+			pkglog.Info("APM tracer will use default agent discovery (localhost:8126 or DD_AGENT_HOST:DD_TRACE_AGENT_PORT)")
+		}
+
+		// Configure sampling rate
+		if config.IsSet("cluster_agent.apm_instrumentation_sample_rate") {
+			tracerOptions = append(tracerOptions, tracer.WithSampler(tracer.NewRateSampler(sampleRate)))
+		}
+
+		tracer.Start(tracerOptions...)
+		defer tracer.Stop()
+		pkglog.Info("APM tracer started successfully")
+	} else {
+		pkglog.Info("APM instrumentation is disabled (cluster_agent.apm_instrumentation_enabled=false)")
+	}
 
 	if !config.IsSet("api_key") {
 		return errors.New("no API key configured, exiting")

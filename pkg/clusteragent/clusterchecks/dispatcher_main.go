@@ -13,6 +13,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
@@ -60,7 +62,9 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 	// Attach the cluster agent's global tags to all dispatched checks
 	// as defined in the tagger's workloadmeta collector
 	var err error
+	span := tracer.StartSpan("cluster_checks.workloadmeta.global_tags")
 	d.extraTags, err = tagger.GlobalTags(types.LowCardinality)
+	span.Finish(tracer.WithError(err))
 	if err != nil {
 		log.Warnf("Cannot get global tags from the tagger: %v", err)
 	} else {
@@ -146,6 +150,10 @@ func (d *dispatcher) Stop() {
 
 // Schedule implements the scheduler.Scheduler interface
 func (d *dispatcher) Schedule(configs []integration.Config) {
+	span := tracer.StartSpan("cluster_checks.dispatcher.schedule")
+	span.SetTag("config_count", len(configs))
+	defer span.Finish()
+
 	for _, c := range configs {
 		if _, found := d.excludedChecks[c.Name]; found {
 			log.Infof("Excluding check due to config: %s", c.Name)
