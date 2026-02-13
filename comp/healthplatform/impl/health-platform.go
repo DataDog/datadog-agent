@@ -108,7 +108,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	// Create unified issue registry and register all self-registered modules
 	issueRegistry := issuesmod.NewRegistry()
-	for _, module := range issuesmod.GetAllModules() {
+	for _, module := range issuesmod.GetAllModules(reqs.Config) {
 		issueRegistry.RegisterModule(module)
 	}
 
