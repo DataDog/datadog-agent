@@ -260,9 +260,10 @@ func (p *provider) Start() {
 	}
 
 	if p.failoverEnabled {
+		routerChannelSize := p.cfg.GetInt("logs_config.pipeline_failover.router_channel_size")
 		p.routerChannels = make([]chan *message.Message, p.numberOfPipelines)
 		for i := 0; i < p.numberOfPipelines; i++ {
-			p.routerChannels[i] = make(chan *message.Message, 5)
+			p.routerChannels[i] = make(chan *message.Message, routerChannelSize)
 			p.forwarderWaitGroup.Add(1)
 			go p.forwardWithFailover(i)
 		}

@@ -2108,6 +2108,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// Pipeline failover configuration
 	config.BindEnvAndSetDefault("logs_config.pipeline_failover.enabled", false)
+	config.BindEnvAndSetDefault("logs_config.pipeline_failover.router_channel_size", 5)
 }
 
 // vector integration
