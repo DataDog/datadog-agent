@@ -197,7 +197,7 @@ COPY --from=extract /output/ /
 RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agent \
   && addgroup --system secret-manager \
   && usermod -a -G secret-manager dd-agent \
-  && adduser --system --no-create-home --disabled-password dd-scriptuser \
+  && adduser --system --no-create-home --disabled-password --shell /bin/sh dd-scriptuser \
   && sed -i '/@include common-auth/i auth sufficient pam_succeed_if.so user = dd-scriptuser ruser = dd-agent' /etc/pam.d/su \
   && rm /var/run && mkdir -p /var/run/s6 && mkdir -p /var/run/datadog && mkdir -p /opt/datadog-agent/run \
   && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run \
