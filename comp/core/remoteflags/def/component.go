@@ -7,14 +7,13 @@
 package remoteflags
 
 import (
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/pkg/remoteflags"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"go.uber.org/fx"
 )
 
-// team: agent-metrics-pipeline
+// team: agent-metric-pipelines
 
 // Component is the Remote Flags component interface.
 type Component interface {
