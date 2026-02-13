@@ -28,3 +28,8 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 
 	return seclVariables
 }
+
+// ConnectSBOMResolver connects the SBOM resolver to the bundled policy provider
+// so that SBOM-generated policies are automatically loaded when SBOMs are computed
+func (e *RuleEngine) ConnectSBOMResolver() {
+}

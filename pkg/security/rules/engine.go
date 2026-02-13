@@ -33,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/rules/filtermodel"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/monitor"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -278,32 +277,6 @@ func (e *RuleEngine) startSendHeartbeatEvents(ctx context.Context) {
 			}
 		}
 	}()
-}
-
-// ConnectSBOMResolver connects the SBOM resolver to the bundled policy provider
-// so that SBOM-generated policies are automatically loaded when SBOMs are computed
-func (e *RuleEngine) ConnectSBOMResolver() {
-	if e.bundledProvider == nil {
-		return
-	}
-
-	// Get the eBPF probe to access resolvers
-	ebpfProbe, ok := e.probe.PlatformProbe.(*probe.EBPFProbe)
-	if !ok || ebpfProbe.Resolvers == nil || ebpfProbe.Resolvers.SBOMResolver == nil {
-		return
-	}
-
-	ebpfProbe.Resolvers.SBOMResolver.SetPolicyGeneratorCallback(func(workloadKey string, containerID containerutils.ContainerID, policyDef *rules.PolicyDef) {
-		// Set the SBOM-generated policy definition on the bundled provider
-		// This will trigger a silent reload (no heartbeat event)
-		if policyDef != nil {
-			seclog.Infof("Setting SBOM-generated policy for workload %s (container %s) with %d macros and %d rules",
-				workloadKey, containerID, len(policyDef.Macros), len(policyDef.Rules))
-			e.bundledProvider.SetSBOMPolicyDef(workloadKey, policyDef)
-		}
-	})
-
-	seclog.Infof("SBOM resolver connected to bundled policy provider")
 }
 
 // StartRunningMetrics starts sending the running metrics
