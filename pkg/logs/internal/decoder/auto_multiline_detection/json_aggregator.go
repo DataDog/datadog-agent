@@ -89,6 +89,9 @@ func (r *JSONAggregator) Process(msg *message.Message) []*message.Message {
 		msg.SetContent(r.outBuf.Bytes())
 		msg.RawDataLen = r.currentSize
 		r.currentSize = 0
+		// Clear tokens since content has been modified - they'll be re-tokenized by the Tokenizer heuristic if needed
+		msg.ParsingExtra.Tokens = nil
+		msg.ParsingExtra.TokenIndices = nil
 
 		return []*message.Message{msg}
 	case Invalid:

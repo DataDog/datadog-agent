@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 type mockHeuristic struct {
@@ -37,7 +39,8 @@ func TestLabelerProceedNextHeuristic(t *testing.T) {
 		},
 	}, []Heuristic{})
 
-	assert.Equal(t, noAggregate, labeler.Label([]byte("test 123")))
+	msg := message.NewMessage([]byte("test 123"), nil, message.StatusInfo, 0)
+	assert.Equal(t, noAggregate, labeler.Label(msg))
 }
 
 func TestLabelerProceedFirstHeuristicWins(t *testing.T) {
@@ -57,7 +60,8 @@ func TestLabelerProceedFirstHeuristicWins(t *testing.T) {
 		},
 	}, []Heuristic{})
 
-	assert.Equal(t, startGroup, labeler.Label([]byte("test 123")))
+	msg := message.NewMessage([]byte("test 123"), nil, message.StatusInfo, 0)
+	assert.Equal(t, startGroup, labeler.Label(msg))
 }
 
 func TestLabelerDefaultLabel(t *testing.T) {
@@ -70,7 +74,8 @@ func TestLabelerDefaultLabel(t *testing.T) {
 		},
 	}, []Heuristic{})
 
-	assert.Equal(t, aggregate, labeler.Label([]byte("test 123")))
+	msg := message.NewMessage([]byte("test 123"), nil, message.StatusInfo, 0)
+	assert.Equal(t, aggregate, labeler.Label(msg))
 }
 
 func TestLabelerPassesAlongMessageContext(t *testing.T) {
@@ -84,5 +89,6 @@ func TestLabelerPassesAlongMessageContext(t *testing.T) {
 		},
 	}, []Heuristic{})
 
-	labeler.Label([]byte("test 123"))
+	msg := message.NewMessage([]byte("test 123"), nil, message.StatusInfo, 0)
+	labeler.Label(msg)
 }

@@ -94,11 +94,11 @@ func (a *AutoMultilineHandler) process(msg *message.Message) {
 	if a.enableJSONAggregation {
 		msgs := a.jsonAggregator.Process(msg)
 		for _, m := range msgs {
-			label := a.labeler.Label(m.GetContent())
+			label := a.labeler.Label(m)
 			a.aggregator.Process(m, label)
 		}
 	} else {
-		label := a.labeler.Label(msg.GetContent())
+		label := a.labeler.Label(msg)
 		a.aggregator.Process(msg, label)
 	}
 }
@@ -118,7 +118,7 @@ func (a *AutoMultilineHandler) flush() {
 	if a.enableJSONAggregation {
 		msgs := a.jsonAggregator.Flush()
 		for _, m := range msgs {
-			label := a.labeler.Label(m.GetContent())
+			label := a.labeler.Label(m)
 			a.aggregator.Process(m, label)
 		}
 	}
