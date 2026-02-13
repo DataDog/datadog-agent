@@ -12,22 +12,28 @@ import (
 )
 
 type ConnectionsCreator struct {
-	client ConnectionsClient
+	client   ConnectionsClient
+	provider TagsProvider
 }
 
-func NewConnectionsCreator(client ConnectionsClient) ConnectionsCreator {
-	return ConnectionsCreator{client}
+func NewConnectionsCreator(client ConnectionsClient, provider TagsProvider) ConnectionsCreator {
+	return ConnectionsCreator{
+		client:   client,
+		provider: provider,
+	}
 }
 
-func (c ConnectionsCreator) AutoCreateConnections(ctx context.Context, runnerID, runnerName string, allowlist []string) error {
-	definitions := DetermineConnectionsToCreate(allowlist)
+func (c ConnectionsCreator) AutoCreateConnections(ctx context.Context, runnerID, hostname, runnerName string, actionsAllowlist []string) error {
+	definitions := DetermineConnectionsToCreate(actionsAllowlist)
 	if len(definitions) == 0 {
-		log.Info("No bundles in allowlist for auto-connection creation")
+		log.Info("No actions in actions_allowlist for auto-connection creation")
 		return nil
 	}
 
+	tags := c.provider.GetTags(ctx, runnerID, hostname)
+
 	for _, definition := range definitions {
-		err := c.client.CreateConnection(ctx, definition, runnerID, runnerName)
+		err := c.client.CreateConnection(ctx, definition, runnerID, runnerName, tags)
 		if err != nil {
 			log.Warnf("Failed to create %s connection: %v", definition.IntegrationType, err)
 		} else {
