@@ -35,7 +35,25 @@ func (suite *DockerSuite) SetupSuite() {
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
 }
 
-func (suite *DockerSuite) TestDockerMetrics() {
+func (suite *DockerSuite) Test01Parallel() {
+	t := suite.T()
+	for _, tt := range []struct {
+		name string
+		fn   func(t *testing.T)
+	}{
+		{"DockerMetrics", suite.testDockerMetrics},
+		{"DockerEvents", suite.testDockerEvents},
+		{"DSDWithUDS", suite.testDSDWithUDS},
+		{"DSDWithUDP", suite.testDSDWithUDP},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			tt.fn(t)
+		})
+	}
+}
+
+func (suite *DockerSuite) testDockerMetrics(t *testing.T) {
 	for metric, extraTags := range map[string][]string{
 		"docker.container.open_fds": {},
 		"docker.cpu.limit":          {},
@@ -74,7 +92,7 @@ func (suite *DockerSuite) TestDockerMetrics() {
 			`^short_image:redis$`,
 		}, extraTags...)
 
-		suite.testMetric(&testMetricArgs{
+		suite.testMetric(t, &testMetricArgs{
 			Filter: testMetricFilterArgs{
 				Name: metric,
 				Tags: []string{
@@ -87,7 +105,7 @@ func (suite *DockerSuite) TestDockerMetrics() {
 		})
 	}
 
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "docker.images.available",
 		},
@@ -100,7 +118,7 @@ func (suite *DockerSuite) TestDockerMetrics() {
 		},
 	})
 
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "docker.images.intermediate",
 		},
@@ -113,7 +131,7 @@ func (suite *DockerSuite) TestDockerMetrics() {
 		},
 	})
 
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "docker.containers.running",
 			Tags: []string{`^short_image:redis$`},
@@ -135,7 +153,7 @@ func (suite *DockerSuite) TestDockerMetrics() {
 		},
 	})
 
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "docker.containers.running.total",
 		},
@@ -159,7 +177,7 @@ func (suite *DockerSuite) TestDockerMetrics() {
 
 	suite.Env().RemoteHost.MustExecute(fmt.Sprintf("docker run -d --name \"%s\" public.ecr.aws/docker/library/busybox sh -c \"exit 42\"", ctrName))
 
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "docker.containers.stopped",
 			Tags: []string{`^short_image:busybox$`},
@@ -178,7 +196,7 @@ func (suite *DockerSuite) TestDockerMetrics() {
 		},
 	})
 
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "docker.containers.stopped.total",
 		},
@@ -192,7 +210,7 @@ func (suite *DockerSuite) TestDockerMetrics() {
 	})
 }
 
-func (suite *DockerSuite) TestDockerEvents() {
+func (suite *DockerSuite) testDockerEvents(t *testing.T) {
 	const ctrNameSize = 12
 	const ctrNameCharset = "abcdefghijklmnopqrstuvwxyz0123456789"
 
@@ -204,7 +222,7 @@ func (suite *DockerSuite) TestDockerEvents() {
 
 	suite.Env().RemoteHost.MustExecute(fmt.Sprintf("docker run -d --name \"%s\" public.ecr.aws/docker/library/busybox sh -c \"exit 42\"", ctrName))
 
-	suite.testEvent(&testEventArgs{
+	suite.testEvent(t, &testEventArgs{
 		Filter: testEventFilterArgs{
 			Source: "docker",
 			Tags: []string{
@@ -228,8 +246,8 @@ func (suite *DockerSuite) TestDockerEvents() {
 	})
 }
 
-func (suite *DockerSuite) TestDSDWithUDS() {
-	suite.testMetric(&testMetricArgs{
+func (suite *DockerSuite) testDSDWithUDS(t *testing.T) {
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
 			Tags: []string{
@@ -253,8 +271,8 @@ func (suite *DockerSuite) TestDSDWithUDS() {
 	})
 }
 
-func (suite *DockerSuite) TestDSDWithUDP() {
-	suite.testMetric(&testMetricArgs{
+func (suite *DockerSuite) testDSDWithUDP(t *testing.T) {
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
 			Tags: []string{

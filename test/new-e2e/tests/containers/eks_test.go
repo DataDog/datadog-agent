@@ -51,8 +51,26 @@ func (suite *eksSuite) SetupSuite() {
 	suite.envSpecificClusterTags = []string{"^kube_distribution:eks$"}
 }
 
-func (suite *eksSuite) TestEKSFargate() {
-	suite.testMetric(&testMetricArgs{
+func (suite *eksSuite) Test02EKSParallel() {
+	t := suite.T()
+	for _, tt := range []struct {
+		name string
+		fn   func(t *testing.T)
+	}{
+		{"EKSFargate", suite.testEKSFargate},
+		{"DogstatsdFargate", suite.testDogstatsdFargate},
+		{"NginxFargate", suite.testNginxFargate},
+		{"HostTags", suite.testHostTags},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			tt.fn(t)
+		})
+	}
+}
+
+func (suite *eksSuite) testEKSFargate(t *testing.T) {
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "eks.fargate.cpu.capacity",
 			Tags: []string{
@@ -84,7 +102,7 @@ func (suite *eksSuite) TestEKSFargate() {
 		},
 	})
 
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "eks.fargate.memory.capacity",
 			Tags: []string{
@@ -116,7 +134,7 @@ func (suite *eksSuite) TestEKSFargate() {
 		},
 	})
 
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "eks.fargate.pods.running",
 			Tags: []string{
@@ -149,8 +167,8 @@ func (suite *eksSuite) TestEKSFargate() {
 	})
 }
 
-func (suite *eksSuite) TestDogstatsdFargate() {
-	suite.testMetric(&testMetricArgs{
+func (suite *eksSuite) testDogstatsdFargate(t *testing.T) {
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
 			Tags: []string{
@@ -177,10 +195,10 @@ func (suite *eksSuite) TestDogstatsdFargate() {
 	})
 }
 
-func (suite *eksSuite) TestNginxFargate() {
+func (suite *eksSuite) testNginxFargate(t *testing.T) {
 	// `nginx` check is configured via AD annotation on pods
 	// Test it is properly scheduled
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "nginx.net.request_per_s",
 			Tags: []string{
@@ -220,7 +238,7 @@ func (suite *eksSuite) TestNginxFargate() {
 
 	// `http_check` is configured via AD annotation on service
 	// Test it is properly scheduled
-	suite.testMetric(&testMetricArgs{
+	suite.testMetric(t, &testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "network.http.response_time",
 			Tags: []string{
@@ -242,7 +260,7 @@ func (suite *eksSuite) TestNginxFargate() {
 	})
 
 	// Test Nginx logs
-	suite.testLog(&testLogArgs{
+	suite.testLog(t, &testLogArgs{
 		Filter: testLogFilterArgs{
 			Service: "nginx-fargate",
 			Tags: []string{
@@ -279,7 +297,7 @@ func (suite *eksSuite) TestNginxFargate() {
 	})
 }
 
-func (suite *eksSuite) TestHostTags() {
+func (suite *eksSuite) testHostTags(t *testing.T) {
 	// tag keys that are expected to be found on any k8s env
 	args := &testHostTags{
 		// EKS suite run multiple hosts, with various OS, various CPU architecture
@@ -303,5 +321,5 @@ func (suite *eksSuite) TestHostTags() {
 		},
 	}
 
-	suite.testHostTags(args)
+	suite.baseSuite.testHostTags(t, args)
 }
