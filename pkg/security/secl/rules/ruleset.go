@@ -791,6 +791,11 @@ func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, 
 					return model.UnknownCategory, fmt.Errorf("expression '%s' with event type `%s` is not compatible with '%s' rules", expression, exprEventType, ruleEventType)
 				}
 
+				// validate that the expression type matches the default_value type
+				if err := checkTypeCompatibility(action.Def.Set.DefaultValue, evaluator, action.Def.Set.Append); err != nil {
+					return model.UnknownCategory, fmt.Errorf("expression '%s' for variable '%s': %w", expression, action.Def.Set.Name, err)
+				}
+
 				rs.fieldEvaluators[expression] = evaluator.(eval.Evaluator)
 			}
 
@@ -815,6 +820,58 @@ func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, 
 	rs.AddFields(rule.GetEvaluator().GetFields())
 
 	return model.GetEventTypeCategory(eventType), nil
+}
+
+// checkTypeCompatibility validates that the evaluator's return type is compatible with the default value type.
+func checkTypeCompatibility(defaultValue interface{}, evaluator interface{}, isAppend bool) error {
+	if defaultValue == nil {
+		return nil
+	}
+
+	// Get the evaluator's output type from its Value/Values field
+	t := reflect.TypeOf(evaluator).Elem()
+	var exprType reflect.Type
+	if field, ok := t.FieldByName("Value"); ok {
+		exprType = field.Type
+	} else if field, ok := t.FieldByName("Values"); ok {
+		exprType = field.Type
+	} else {
+		return fmt.Errorf("unable to determine type for evaluator %s", t.Name())
+	}
+
+	defaultType := reflect.TypeOf(defaultValue)
+	exprKind, defaultKind := exprType.Kind(), defaultType.Kind()
+
+	// Helper to get the actual element kind from a slice, inferring from values if element type is interface{}
+	getSliceElemKind := func(defaultVal interface{}, defaultTyp reflect.Type) reflect.Kind {
+		elemKind := defaultTyp.Elem().Kind()
+		if elemKind == reflect.Interface {
+			// Infer from actual values in the slice
+			v := reflect.ValueOf(defaultVal)
+			if v.Len() > 0 {
+				elemKind = reflect.TypeOf(v.Index(0).Interface()).Kind()
+			}
+		}
+		return elemKind
+	}
+
+	// When append is true and default_value is a slice, compare against the element type
+	if isAppend && defaultKind == reflect.Slice && exprKind != reflect.Slice {
+		elemKind := getSliceElemKind(defaultValue, defaultType)
+		if elemKind != exprKind {
+			return fmt.Errorf("incompatible types: expression returns %s but default_value element type is %s", exprKind, elemKind)
+		}
+	} else if defaultKind != exprKind {
+		return fmt.Errorf("incompatible types: expression returns %s but default_value is %s", exprKind, defaultKind)
+	} else if exprKind == reflect.Slice {
+		defaultElemKind := getSliceElemKind(defaultValue, defaultType)
+		exprElemKind := exprType.Elem().Kind()
+		if defaultElemKind != exprElemKind {
+			return fmt.Errorf("incompatible slice element types: expression returns %s but default_value element type is %s", exprElemKind, defaultElemKind)
+		}
+	}
+
+	return nil
 }
 
 // NotifyRuleMatch notifies all the ruleset listeners that an event matched a rule
