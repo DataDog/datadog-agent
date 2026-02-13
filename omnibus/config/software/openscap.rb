@@ -55,7 +55,6 @@ build do
 
   command_on_repo_root "bazelisk run -- @util-linux//:blkid_install --destdir='#{install_dir}/embedded'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-    " #{install_dir}/embedded/lib/pkgconfig/blkid.pc" \
     " #{install_dir}/embedded/lib/libblkid.so"
 
   command_on_repo_root "bazelisk run -- @gpg-error//:install --destdir='#{install_dir}/embedded'"
