@@ -550,10 +550,15 @@ func (c *ntmConfig) buildEnvVars() {
 
 func (c *ntmConfig) insertNodeFromString(curr *nodeImpl, key string, envval string) error {
 	var actualValue interface{} = envval
-	// TODO: When nodetreemodel has a schema with type information, we should
-	// use this type to convert the value, instead of requiring a transformer
 	if transformer, found := c.envTransform[key]; found {
 		actualValue = transformer(envval)
+	}
+
+	defaultNode := c.leafAtPathFromNode(key, c.defaults)
+	if defaultNode != missingLeaf {
+		if converted, err := convertToDefaultType(actualValue, defaultNode.Get()); err == nil {
+			actualValue = converted
+		}
 	}
 	parts := splitKeyFunc(key)
 	return curr.setAt(parts, actualValue, model.SourceEnvVar)
@@ -941,11 +946,7 @@ func (c *ntmConfig) AllFlattenedSettingsWithSequenceID() (map[string]interface{}
 	keys := c.collectFlattenedKeys()
 	settings := make(map[string]interface{}, len(keys))
 	for _, key := range keys {
-		v, err := c.inferTypeFromDefault(key, c.getNodeValue(key))
-		if err != nil {
-			log.Warnf("failed to get configuration value for key %q: %s", key, err)
-		}
-		settings[key] = v
+		settings[key] = c.getNodeValue(key)
 	}
 	return settings, c.sequenceID
 }
