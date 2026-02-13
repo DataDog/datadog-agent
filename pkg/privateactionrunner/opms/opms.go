@@ -296,7 +296,8 @@ func (c *client) HealthCheck(ctx context.Context) (*HealthCheckData, error) {
 	query.Add(app.ModesQueryParam, strings.Join(modesStr, ","))
 	query.Add(app.PlatformQueryParam, runtime.GOOS)
 	query.Add(app.ArchitectureQueryParam, runtime.GOARCH)
-	query.Add(app.DeploymentQueryParam, getDeploymentType())
+	query.Add(app.FlavorQueryParam, flavor.GetFlavor())
+	query.Add(app.ContainerizedQueryParam, fmt.Sprintf("%t", env.IsContainerized()))
 	u.RawQuery = query.Encode()
 
 	_, resHeaders, err := c.makeRequest(ctx, http.MethodGet, u.String(), nil, nil, http.StatusOK)
@@ -385,7 +386,8 @@ func (c *client) makeRequest(
 	req.Header.Set(app.ModeHeaderName, strings.Join(modesStr, ","))
 	req.Header.Set(app.PlatformHeaderName, runtime.GOOS)
 	req.Header.Set(app.ArchitectureHeaderName, runtime.GOARCH)
-	req.Header.Set(app.DeploymentHeaderName, getDeploymentType())
+	req.Header.Set(app.FlavorHeaderName, flavor.GetFlavor())
+	req.Header.Set(app.ContainerizedHeaderName, fmt.Sprintf("%t", env.IsContainerized()))
 	res, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error making HTTP request: %w", err)
@@ -407,23 +409,4 @@ func (c *client) makeRequest(
 	}
 
 	return resBody, res.Header, nil
-}
-
-// getDeploymentType determines how the PAR is deployed based on the agent flavor.
-func getDeploymentType() string {
-	switch flavor.GetFlavor() {
-	case flavor.PrivateActionRunner:
-		// Since the PAR is a separate binary in the node agent,
-		// this helps distinguish between standalone installation and containerized installation
-		if env.IsContainerized() {
-			return "node_agent"
-		}
-		return "standalone"
-	case flavor.ClusterAgent:
-		return "cluster_agent"
-	case flavor.DefaultAgent:
-		return "node_agent"
-	default:
-		return "unknown"
-	}
 }
