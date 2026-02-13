@@ -12,6 +12,7 @@ package processcollector
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"time"
 
