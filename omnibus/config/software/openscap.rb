@@ -59,7 +59,6 @@ build do
 
   command_on_repo_root "bazelisk run -- @rpm//:install --destdir='#{install_dir}/embedded'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-    " #{install_dir}/embedded/lib/pkgconfig/rpm.pc" \
     " #{install_dir}/embedded/lib/librpm.so" \
     " #{install_dir}/embedded/lib/librpmio.so"
 
