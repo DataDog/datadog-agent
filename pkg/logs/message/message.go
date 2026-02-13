@@ -207,6 +207,7 @@ type ParsingExtra struct {
 	IsMultiLine bool
 	IsMRFAllow  bool
 	Tags        []string
+	Tokens      []byte // Tokenized representation of log content for pattern detection
 }
 
 // ServerlessExtra ships extra information from logs processing in serverless envs.

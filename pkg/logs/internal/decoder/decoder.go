@@ -52,14 +52,45 @@ type Decoder interface {
 	OutputChan() chan *message.Message
 }
 
+// TokenizingLineHandler wraps a LineHandler and tokenizes messages before passing them through.
+// This ensures messages have tokens populated in ParsingExtra before reaching handlers like AutoMultilineHandler.
+type TokenizingLineHandler struct {
+	tokenizer   *automultilinedetection.Tokenizer
+	lineHandler LineHandler
+}
+
+// NewTokenizingLineHandler creates a wrapper that tokenizes messages before passing to the underlying handler.
+func NewTokenizingLineHandler(tok *automultilinedetection.Tokenizer, lineHandler LineHandler) *TokenizingLineHandler {
+	return &TokenizingLineHandler{
+		tokenizer:   tok,
+		lineHandler: lineHandler,
+	}
+}
+
+func (t *TokenizingLineHandler) process(msg *message.Message) {
+	// Tokenize first - populates msg.ParsingExtra.Tokens
+	t.tokenizer.TokenizeMessage(msg)
+	// Then pass to actual line handler
+	t.lineHandler.process(msg)
+}
+
+func (t *TokenizingLineHandler) flushChan() <-chan time.Time {
+	return t.lineHandler.flushChan()
+}
+
+func (t *TokenizingLineHandler) flush() {
+	t.lineHandler.flush()
+}
+
 // decoderImpl is the default implementation of the Decoder interface
 type decoderImpl struct {
 	inputChan  chan *message.Message
 	outputChan chan *message.Message
 
-	framer      *framer.Framer
-	lineParser  LineParser
-	lineHandler LineHandler
+	framer          *framer.Framer
+	lineParser      LineParser
+	lineHandler     LineHandler
+	adaptiveSampler AdaptiveSampler
 
 	// The decoder holds on to an instace of DetectedPattern which is a thread safe container used to
 	// pass a multiline pattern up from the line handler in order to surface it to the tailer.
@@ -105,11 +136,14 @@ func NewNoopDecoder() Decoder {
 	detectedPattern := &DetectedPattern{}
 	maxMessageSize := config.MaxMessageSizeBytes(pkgconfigsetup.Datadog())
 
+	// Create adaptive sampler (noop for now) - outputs to final outputChan
+	adaptiveSampler := NewNoopSampler(outputChan)
+
 	lineHandler := NewNoopLineHandler(outputChan)
 	lineParser := NewSingleLineParser(lineHandler, noop.New())
 	framer := framer.NewFramer(lineParser.process, framer.NoFraming, maxMessageSize)
 
-	return New(inputChan, outputChan, framer, lineParser, lineHandler, detectedPattern)
+	return New(inputChan, outputChan, framer, lineParser, lineHandler, adaptiveSampler, detectedPattern)
 }
 
 // NewDecoderWithFraming initialize a decoder with given endline strategy.
@@ -119,7 +153,23 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 	outputChan := make(chan *message.Message)
 	detectedPattern := &DetectedPattern{}
 
-	lineHandler := buildLineHandler(source, multiLinePattern, tailerInfo, outputChan, detectedPattern)
+	// Create adaptive sampler (noop for now) - outputs to final outputChan
+	adaptiveSampler := NewNoopSampler(outputChan)
+
+	// Create output function that goes through the adaptive sampler
+	outputFn := func(msg *message.Message) {
+		adaptiveSampler.process(msg)
+	}
+
+	// Build the base line handler (e.g., AutoMultilineHandler, SingleLineHandler)
+	baseLineHandler := buildLineHandler(source, multiLinePattern, tailerInfo, outputFn, detectedPattern)
+
+	// Create tokenizer and wrap the line handler
+	// TODO: Respect source-specific tokenizer settings (source.Config().AutoMultiLineOptions.TokenizerMaxInputBytes)
+	//       to avoid breaking change for sources with custom tokenizer config
+	tokenizerMaxInputBytes := pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")
+	tok := automultilinedetection.NewTokenizer(tokenizerMaxInputBytes)
+	lineHandler := NewTokenizingLineHandler(tok, baseLineHandler)
 
 	var lineParser LineParser
 	if parser.SupportsPartialLine() {
@@ -130,13 +180,10 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 
 	framer := framer.NewFramer(lineParser.process, framing, maxMessageSize)
 
-	return New(inputChan, outputChan, framer, lineParser, lineHandler, detectedPattern)
+	return New(inputChan, outputChan, framer, lineParser, lineHandler, adaptiveSampler, detectedPattern)
 }
 
-func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry, outputChan chan *message.Message, detectedPattern *DetectedPattern) LineHandler {
-	outputFn := func(msg *message.Message) {
-		outputChan <- msg
-	}
+func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry, outputFn func(*message.Message), detectedPattern *DetectedPattern) LineHandler {
 	maxContentSize := config.MaxMessageSizeBytes(pkgconfigsetup.Datadog())
 
 	// construct the lineHandler
@@ -242,13 +289,14 @@ func buildLegacyAutoMultilineHandlerFromConfig(outputFn func(*message.Message), 
 }
 
 // New returns an initialized Decoder
-func New(InputChan chan *message.Message, OutputChan chan *message.Message, framer *framer.Framer, lineParser LineParser, lineHandler LineHandler, detectedPattern *DetectedPattern) Decoder {
+func New(InputChan chan *message.Message, OutputChan chan *message.Message, framer *framer.Framer, lineParser LineParser, lineHandler LineHandler, adaptiveSampler AdaptiveSampler, detectedPattern *DetectedPattern) Decoder {
 	return &decoderImpl{
 		inputChan:       InputChan,
 		outputChan:      OutputChan,
 		framer:          framer,
 		lineParser:      lineParser,
 		lineHandler:     lineHandler,
+		adaptiveSampler: adaptiveSampler,
 		detectedPattern: detectedPattern,
 	}
 }
@@ -271,6 +319,7 @@ func (d *decoderImpl) run() {
 		// output channel
 		d.lineParser.flush()
 		d.lineHandler.flush()
+		d.adaptiveSampler.flush()
 		close(d.outputChan)
 	}()
 	for {
@@ -290,6 +339,10 @@ func (d *decoderImpl) run() {
 		case <-d.lineHandler.flushChan():
 			log.Debug("Flushing line handler because the flush timeout has been reached.")
 			d.lineHandler.flush()
+
+		case <-d.adaptiveSampler.flushChan():
+			log.Debug("Flushing adaptive sampler because the flush timeout has been reached.")
+			d.adaptiveSampler.flush()
 		}
 	}
 }

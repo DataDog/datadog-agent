@@ -12,6 +12,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection/tokens"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 // maxRun is the maximum run of a char or digit before it is capped.
@@ -123,6 +124,23 @@ func (t *Tokenizer) ProcessAndContinue(context *messageContext) bool {
 	context.tokens = tokens
 	context.tokenIndicies = indicies
 	return true
+}
+
+// TokenizeMessage tokenizes a message's content and stores the tokens in ParsingExtra.
+// This is used by the decoder to pre-tokenize messages before they reach line handlers.
+func (t *Tokenizer) TokenizeMessage(msg *message.Message) {
+	maxBytes := len(msg.GetContent())
+	if t.maxEvalBytes > 0 && t.maxEvalBytes < maxBytes {
+		maxBytes = t.maxEvalBytes
+	}
+	tokens, _ := t.tokenize(msg.GetContent()[:maxBytes])
+
+	// Convert tokens to bytes for storage in ParsingExtra
+	tokenBytes := make([]byte, len(tokens))
+	for i, tok := range tokens {
+		tokenBytes[i] = byte(tok)
+	}
+	msg.ParsingExtra.Tokens = tokenBytes
 }
 
 // emitToken appends a token to the output slices, checking for special tokens first.
