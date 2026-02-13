@@ -291,12 +291,12 @@ func (c *client) HealthCheck(ctx context.Context) (*HealthCheckData, error) {
 	}
 
 	query := u.Query()
-	query.Add("runnerVersion", c.config.Version)
+	query.Add(app.RunnerVersionQueryParam, c.config.Version)
 	modesStr := modes.ToStrings(c.config.Modes)
-	query.Add("modes", strings.Join(modesStr, ","))
-	query.Add("platform", runtime.GOOS)
-	query.Add("architecture", runtime.GOARCH)
-	query.Add("deployment", getDeploymentType())
+	query.Add(app.ModesQueryParam, strings.Join(modesStr, ","))
+	query.Add(app.PlatformQueryParam, runtime.GOOS)
+	query.Add(app.ArchitectureQueryParam, runtime.GOARCH)
+	query.Add(app.DeploymentQueryParam, getDeploymentType())
 	u.RawQuery = query.Encode()
 
 	_, resHeaders, err := c.makeRequest(ctx, http.MethodGet, u.String(), nil, nil, http.StatusOK)
