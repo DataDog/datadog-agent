@@ -117,7 +117,7 @@ def generate_create_command(provider_cls: type[BaseProvider]) -> DynamicCommand:
         opt(create_cmd)
 
     # Wrap with dynamic_command
-    create_cmd = dynamic_command(short_help=f"Create a {provider_cls.description}")(create_cmd)
+    create_cmd = dynamic_command(short_help=f"Create a {provider_cls.description}", dependencies=["pyyaml"])(create_cmd)
     create_cmd.__doc__ = f"Create a {provider_cls.description}."
     create_cmd.name = provider_cls.name
 
