@@ -2699,6 +2699,8 @@ func TestAutoinstrumentation(t *testing.T) {
 			mockConfig := common.FakeConfigWithValues(t, test.config)
 			mockMeta := common.FakeStoreWithDeployment(t, test.deployments)
 			mockDynamic := fake.NewSimpleDynamicClient(runtime.NewScheme())
+			// Disable gradual rollout for this test to use the NoOpResolver.
+			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
 
 			// Add the namespaces.
 			for _, ns := range test.namespaces {
@@ -2706,7 +2708,7 @@ func TestAutoinstrumentation(t *testing.T) {
 			}
 
 			// Setup webhook.
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta)
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -2729,7 +2731,7 @@ func TestAutoinstrumentation(t *testing.T) {
 			require.True(t, mutated, "the pod was mutated but the webhook returned false")
 
 			// Require injection to have occurred.
-			validator := testutils.NewPodValidator(in)
+			validator := testutils.NewPodValidator(in, testutils.InjectionModeAuto)
 			validator.RequireInjection(t, test.expected.containerNames)
 
 			// Require the libraries and versions to match.
@@ -2851,6 +2853,7 @@ func TestEnvVarsAlreadySet(t *testing.T) {
 			mockConfig := common.FakeConfigWithValues(t, test.config)
 			mockMeta := common.FakeStoreWithDeployment(t, test.deployments)
 			mockDynamic := fake.NewSimpleDynamicClient(runtime.NewScheme())
+			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
 
 			// Add the namespaces.
 			for _, ns := range test.namespaces {
@@ -2858,7 +2861,7 @@ func TestEnvVarsAlreadySet(t *testing.T) {
 			}
 
 			// Setup webhook.
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta)
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -2868,7 +2871,7 @@ func TestEnvVarsAlreadySet(t *testing.T) {
 			require.True(t, mutated, "the pod was mutated but the webhook returned false")
 
 			// Setup validator.
-			validator := testutils.NewPodValidator(in)
+			validator := testutils.NewPodValidator(in, testutils.InjectionModeAuto)
 
 			// Require environment to match.
 			validator.RequireEnvs(t, test.expected, test.expectedContainers)
@@ -3043,6 +3046,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			mockConfig := common.FakeConfigWithValues(t, test.config)
 			mockMeta := common.FakeStoreWithDeployment(t, test.deployments)
 			mockDynamic := fake.NewSimpleDynamicClient(runtime.NewScheme())
+			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
 
 			// Add the namespaces.
 			for _, ns := range test.namespaces {
@@ -3050,7 +3054,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			}
 
 			// Setup webhook.
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta)
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -3060,7 +3064,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			require.True(t, mutated, "the pod was mutated but the webhook returned false")
 
 			// Setup validator.
-			validator := testutils.NewPodValidator(in)
+			validator := testutils.NewPodValidator(in, testutils.InjectionModeAuto)
 
 			// Ensure the pod was properly skipped due to resources.
 			if test.skipped {

@@ -536,6 +536,7 @@ func start(log log.Component,
 	}
 
 	if config.GetBool("appsec.proxy.enabled") && config.GetBool("cluster_agent.appsec.injector.enabled") {
+		// Should be run before admissionpkg.StartControllers
 		if err := appsec.Start(mainCtx, log, config, le.Subscribe); err != nil {
 			log.Errorf("Cannot start appsec injector: %v", err)
 		}
@@ -569,7 +570,6 @@ func start(log log.Component,
 			StopCh:                       stopCh,
 			ValidatingStopCh:             validatingStopCh,
 			Demultiplexer:                demultiplexer,
-			RcClient:                     rcClient,
 		}
 
 		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta, pa, datadogConfig)

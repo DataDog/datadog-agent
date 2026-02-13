@@ -10,8 +10,23 @@ package config
 import (
 	"context"
 
+	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	v1 "k8s.io/api/admissionregistration/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
+)
+
+// InjectionMode represents the deployment mode for the AppSec processor
+type InjectionMode string
+
+const (
+	// InjectionModeExternal configures proxies to call an external processor service
+	InjectionModeExternal InjectionMode = "external"
+
+	// InjectionModeSidecar injects the processor as a sidecar in proxy pods
+	InjectionModeSidecar InjectionMode = "sidecar"
 )
 
 // InjectionPattern is the main interface to implement to support a new proxy type
@@ -26,6 +41,8 @@ import (
 // The methods should return an error if something goes wrong, in which case the
 // object will be re-queued with a backoff.
 type InjectionPattern interface {
+	// Mode returns the injection mode (EXTERNAL or SIDECAR)
+	Mode() InjectionMode
 	// IsInjectionPossible returns true if the pattern can be used in the current cluster.
 	IsInjectionPossible(ctx context.Context) error
 	// Resource returns the GroupVersionResource to watch.
@@ -36,4 +53,18 @@ type InjectionPattern interface {
 	Added(ctx context.Context, obj *unstructured.Unstructured) error
 	// Deleted is called when an object is deleted. It should be idempotent.
 	Deleted(ctx context.Context, obj *unstructured.Unstructured) error
+}
+
+// SidecarInjectionPattern extends InjectionPattern for SIDECAR mode
+// Implementations provide both proxy configuration AND sidecar injection logic
+type SidecarInjectionPattern interface {
+	InjectionPattern
+	mutatecommon.MutatorWithFilter
+
+	// PodDeleted is called when a pod that has gotten through all the conditions is getting deleted
+	PodDeleted(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error)
+
+	// MatchCondition is used to filter early in the apiserver if the pod should be sent to the webhook.
+	// This expression will be OR-ed with all other patterns
+	MatchCondition() v1.MatchCondition
 }

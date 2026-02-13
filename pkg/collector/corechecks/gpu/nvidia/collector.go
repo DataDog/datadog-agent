@@ -33,6 +33,8 @@ type MetricPriority int
 const (
 	// Low priority is the default priority level (0)
 	Low MetricPriority = 0
+	// MediumLow priority level (5)
+	MediumLow MetricPriority = 5
 	// Medium priority level (10)
 	Medium MetricPriority = 10
 	// High priority level (20)

@@ -54,7 +54,7 @@ func TestPodValidator(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			v := testutils.NewPodValidator(test.in)
+			v := testutils.NewPodValidator(test.in, testutils.InjectionModeAuto)
 			test.require(t, v)
 		})
 	}
