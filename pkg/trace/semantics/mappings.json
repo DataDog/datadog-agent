@@ -103,22 +103,19 @@
     "peer.aws.sqs.queue": {
       "canonical": "peer.aws.sqs.queue",
       "fallbacks": [
-        {"name": "queuename", "provider": "datadog", "type": "string"},
-        {"name": "aws.sqs.queue", "provider": "otel", "type": "string"}
+        {"name": "queuename", "provider": "datadog", "type": "string"}
       ]
     },
     "peer.aws.dynamodb.table": {
       "canonical": "peer.aws.dynamodb.table",
       "fallbacks": [
-        {"name": "tablename", "provider": "datadog", "type": "string"},
-        {"name": "aws.dynamodb.table", "provider": "otel", "type": "string"}
+        {"name": "tablename", "provider": "datadog", "type": "string"}
       ]
     },
     "peer.aws.kinesis.stream": {
       "canonical": "peer.aws.kinesis.stream",
       "fallbacks": [
-        {"name": "streamname", "provider": "datadog", "type": "string"},
-        {"name": "aws.kinesis.stream", "provider": "otel", "type": "string"}
+        {"name": "streamname", "provider": "datadog", "type": "string"}
       ]
     },
     "http.status_code": {
