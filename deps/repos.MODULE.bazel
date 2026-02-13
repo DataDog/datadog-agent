@@ -6,16 +6,15 @@ http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_
 
 sqlite_ver = ("3", "50", "04")
 
-# TODO(agent-build): switch to "bare" `sqlite-amalgamation` when we drop the need for .pc files
-sqlite_amalgamation = "sqlite-autoconf-{}00".format("".join(sqlite_ver))
+sqlite_amalgamation = "sqlite-amalgamation-{}00".format("".join(sqlite_ver))
 
 http_archive(
     name = "sqlite3",
     build_file = "//deps:sqlite3.BUILD.bazel",
     files = {"LICENSE.md": "@sqlite3_license//file:LICENSE.md"},
-    sha256 = "a3db587a1b92ee5ddac2f66b3edb41b26f9c867275782d46c3a088977d6a5b18",
+    sha256 = "1d3049dd0f830a025a53105fc79fd2ab9431aea99e137809d064d8ee8356b032",
     strip_prefix = sqlite_amalgamation,
-    url = "https://www.sqlite.org/2025/{}.tar.gz".format(sqlite_amalgamation),
+    url = "https://www.sqlite.org/2025/{}.zip".format(sqlite_amalgamation),
 )
 
 http_file(
