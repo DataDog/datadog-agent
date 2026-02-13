@@ -69,4 +69,3 @@ func NewOTelSpanAccessor(spanAttrs, resAttrs pcommon.Map) *CombinedAccessor {
 		NewPDataMapAccessor(resAttrs),
 	)
 }
-

@@ -246,4 +246,3 @@ func BenchmarkOTelSpanAccessorWithRegistry(b *testing.B) {
 		}
 	})
 }
-

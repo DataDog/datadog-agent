@@ -27,7 +27,7 @@ const (
 	ValueTypeString  ValueType = "string"
 	ValueTypeFloat64 ValueType = "float64"
 	ValueTypeInt64   ValueType = "int64"
-	// Could add more later: bool, int64, bytes...
+	// Could add more later: bool, bytes...
 )
 
 // Concept represents a semantic concept identifier (e.g., "db.query", "http.status_code").

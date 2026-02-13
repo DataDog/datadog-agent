@@ -374,7 +374,7 @@ func TestOTelMapAccessor(t *testing.T) {
 	t.Run("GetStringAttribute", func(t *testing.T) {
 		accessor := &OTelMapAccessor{
 			Attributes: map[string]interface{}{
-				"http.method":     "GET",
+				"http.method":      "GET",
 				"http.status_code": 200, // int, not string
 			},
 		}
@@ -461,7 +461,7 @@ func TestCombinedAccessor(t *testing.T) {
 		}
 		resAccessor := &DDSpanAccessor{
 			Meta: map[string]string{
-				"http.method": "GET",
+				"http.method":  "GET",
 				"service.name": "my-service",
 			},
 		}
@@ -853,4 +853,3 @@ func BenchmarkLookupWithFallback(b *testing.B) {
 		_ = LookupWithFallback(r, ConceptDBQuery, spanAccessor, resAccessor)
 	}
 }
-

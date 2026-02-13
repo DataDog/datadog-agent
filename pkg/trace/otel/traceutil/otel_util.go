@@ -204,7 +204,7 @@ func SpanKind2Type(span ptrace.Span, res pcommon.Resource) string {
 		typ = "web"
 	case ptrace.SpanKindClient:
 		typ = "http"
-		// Use semantic lookup for db.system
+		// Use semantic lookup for db.system (resource attrs take precedence in V1 logic)
 		db := LookupSemanticStringFromDualMaps(res.Attributes(), span.Attributes(), semantics.ConceptDBSystem, true)
 		if db == "" {
 			break

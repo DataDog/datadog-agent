@@ -147,4 +147,3 @@ func LookupInt64WithFallback(r Registry, concept Concept, accessors ...SpanAcces
 	combined := NewCombinedAccessor(accessors...)
 	return LookupInt64(r, combined, concept)
 }
-
