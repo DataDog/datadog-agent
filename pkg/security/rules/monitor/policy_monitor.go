@@ -113,7 +113,7 @@ func (pm *PolicyMonitor) Start(ctx context.Context) {
 					for id, status := range pm.rules {
 						tags := []string{
 							"rule_id:" + id,
-							fmt.Sprintf("status:%v", status),
+							"status:" + status,
 							constants.CardinalityTagPrefix + types.LowCardinalityString,
 						}
 
