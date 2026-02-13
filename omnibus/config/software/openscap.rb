@@ -25,8 +25,6 @@ build do
     " #{install_dir}/embedded/lib/libattr.so"
 
   command_on_repo_root "bazelisk run -- @dbus//:install --destdir='#{install_dir}/embedded'"
-  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-    " #{install_dir}/embedded/lib/pkgconfig/dbus-1.pc"
 
   command_on_repo_root "bazelisk run -- @libselinux//:install --destdir='#{install_dir}/embedded'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
