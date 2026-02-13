@@ -428,10 +428,10 @@ func (k *KubeASCheck) controlPlaneHealthCheck(ctx context.Context, sender sender
 func (k *KubeASCheck) sendAPIResourceMetrics(sender sender.Sender, resources map[string]apiserver.ClusterResource) {
 	for name, resource := range resources {
 		tags := []string{
-			"name:" + name,
-			"kind:" + resource.Kind,
-			"group:" + resource.Group,
-			"version:" + resource.APIVersion,
+			"api_resource_name:" + name,
+			"api_resource_kind:" + resource.Kind,
+			"api_resource_group:" + resource.Group,
+			"api_resource_version:" + resource.APIVersion,
 		}
 		sender.Gauge("kube_apiserver.api_resource", 1, "", tags)
 	}

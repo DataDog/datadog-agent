@@ -201,13 +201,10 @@ func (r *ResourceTypeCache) getResourceKind(resource, apiGroup string) (string, 
 }
 
 func (r *ResourceTypeCache) getClusterResources() map[string]ClusterResource {
-	var resources map[string]ClusterResource
-
 	r.lock.RLock()
-	resources = maps.Clone(r.clusterResources)
-	r.lock.RUnlock()
+	defer r.lock.RUnlock()
 
-	return resources
+	return maps.Clone(r.clusterResources)
 }
 
 func (r *ResourceTypeCache) refreshCache(ctx context.Context) error {
