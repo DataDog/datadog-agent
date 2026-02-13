@@ -110,6 +110,38 @@ func TestRedisObfuscator(t *testing.T) {
 			"AUTH",
 		},
 		{
+			"MIGRATE host port key destination-db timeout",
+			"MIGRATE ?",
+		},
+		{
+			"MIGRATE host port key destination-db timeout COPY REPLACE",
+			"MIGRATE ?",
+		},
+		{
+			"MIGRATE host port \"\" destination-db timeout KEYS key1 key2 key3",
+			"MIGRATE ?",
+		},
+		{
+			"MIGRATE",
+			"MIGRATE",
+		},
+		{
+			"HELLO 3",
+			"HELLO ?",
+		},
+		{
+			"HELLO 3 AUTH username password",
+			"HELLO ?",
+		},
+		{
+			"HELLO 3 AUTH username password SETNAME clientname",
+			"HELLO ?",
+		},
+		{
+			"HELLO",
+			"HELLO",
+		},
+		{
 			"APPEND key value",
 			"APPEND key ?",
 		},
