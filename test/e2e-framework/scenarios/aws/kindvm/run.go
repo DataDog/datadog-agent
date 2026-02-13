@@ -114,6 +114,11 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 		return err
 	}
 
+	// If InitOnly is set, return after creating the cluster without deploying the agent
+	if awsEnv.InitOnly() {
+		return nil
+	}
+
 	kubeProvider, err := kubernetes.NewProvider(ctx, awsEnv.Namer.ResourceName("k8s-provider"), &kubernetes.ProviderArgs{
 		EnableServerSideApply: pulumi.Bool(true),
 		Kubeconfig:            kindCluster.KubeConfig,
