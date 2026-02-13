@@ -18,6 +18,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
@@ -37,20 +39,6 @@ const (
 
 	serverTimeHeader = "X-Server-Time"
 )
-
-// getDeploymentType determines how the PAR is deployed based on the agent flavor.
-func getDeploymentType() string {
-	switch flavor.GetFlavor() {
-	case flavor.PrivateActionRunner:
-		return "standalone"
-	case flavor.ClusterAgent:
-		return "cluster_agent"
-	case flavor.DefaultAgent:
-		return "node_agent"
-	default:
-		return "unknown"
-	}
-}
 
 type PublishTaskUpdateJSONRequestPayload struct {
 	Branch       string                            `json:"branch,omitempty"`
@@ -419,4 +407,23 @@ func (c *client) makeRequest(
 	}
 
 	return resBody, res.Header, nil
+}
+
+// getDeploymentType determines how the PAR is deployed based on the agent flavor.
+func getDeploymentType() string {
+	switch flavor.GetFlavor() {
+	case flavor.PrivateActionRunner:
+		// Since the PAR is a separate binary in the node agent,
+		// this helps distinguish between standalone installation and containerized installation
+		if env.IsContainerized() {
+			return "node_agent"
+		}
+		return "standalone"
+	case flavor.ClusterAgent:
+		return "cluster_agent"
+	case flavor.DefaultAgent:
+		return "node_agent"
+	default:
+		return "unknown"
+	}
 }
