@@ -250,7 +250,7 @@ func BuildURLWithPrefix(prefix, site string) string {
 	if normalized, err := idna.Lookup.ToASCII(site); err == nil {
 		site = normalized
 	}
-	if pkgconfigsetup.Datadog().GetBool("convert_dd_site_fqdn.enabled") && WellKnownSitesRe.MatchString(site) && !strings.HasSuffix(site, ".") {
+	if pkgconfigsetup.Datadog().GetBool("convert_dd_site_fqdn.enabled") && wellKnownSitesRe.MatchString(site) && !strings.HasSuffix(site, ".") {
 		site += "."
 	}
 	return prefix + site
