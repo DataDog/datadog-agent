@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -297,7 +298,7 @@ func (c *client) HealthCheck(ctx context.Context) (*HealthCheckData, error) {
 	query.Add(app.PlatformQueryParam, runtime.GOOS)
 	query.Add(app.ArchitectureQueryParam, runtime.GOARCH)
 	query.Add(app.FlavorQueryParam, flavor.GetFlavor())
-	query.Add(app.ContainerizedQueryParam, fmt.Sprintf("%t", env.IsContainerized()))
+	query.Add(app.ContainerizedQueryParam, strconv.FormatBool(env.IsContainerized()))
 	u.RawQuery = query.Encode()
 
 	_, resHeaders, err := c.makeRequest(ctx, http.MethodGet, u.String(), nil, nil, http.StatusOK)
@@ -387,7 +388,7 @@ func (c *client) makeRequest(
 	req.Header.Set(app.PlatformHeaderName, runtime.GOOS)
 	req.Header.Set(app.ArchitectureHeaderName, runtime.GOARCH)
 	req.Header.Set(app.FlavorHeaderName, flavor.GetFlavor())
-	req.Header.Set(app.ContainerizedHeaderName, fmt.Sprintf("%t", env.IsContainerized()))
+	req.Header.Set(app.ContainerizedHeaderName, strconv.FormatBool(env.IsContainerized()))
 	res, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error making HTTP request: %w", err)
