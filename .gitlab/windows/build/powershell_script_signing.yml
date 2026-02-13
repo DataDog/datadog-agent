@@ -1,0 +1,21 @@
+---
+#
+# Windows install script
+#
+powershell_script_signing:
+  extends: .windows_docker_default
+  stage: package_build
+  needs: []
+  variables:
+    ARCH: "x64"
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $WINDOWS_POWERSHELL_DIR
+  script:
+    - mkdir $WINDOWS_POWERSHELL_DIR
+    - docker run --rm -v "$(Get-Location):c:\mnt" -e AWS_NETWORKING=true -e CI -e IS_AWS_CONTAINER=true ${WINBUILDIMAGE} powershell -C "dd-wcs sign \mnt\tools\windows\DatadogAgentInstallScript\Install-Datadog.ps1"
+    - copy .\tools\windows\DatadogAgentInstallScript\Install-Datadog.ps1 $WINDOWS_POWERSHELL_DIR\Install-Datadog.ps1

@@ -6,6 +6,12 @@ include:
   - local: .gitlab/deploy/**.yml
   - local: .gitlab/test/**.yml
   - local: .gitlab/.post/**.yml
+  # Windows jobs - set SKIP_WINDOWS=true to exclude all Windows-related jobs
+  - local: .gitlab/windows/**.yml
+    rules:
+      - if: $SKIP_WINDOWS == "true"
+        when: never
+      - when: always
 
 default:
   retry:
@@ -665,7 +671,7 @@ workflow:
   changes:
     paths:
       - tools/windows/DatadogAgentInstaller/**/*
-      - .gitlab/test/e2e_install_packages/windows.yml
+      - .gitlab/windows/test/e2e_install_packages.yml
       - test/new-e2e/tests/windows/install-test/**/*
       - test/new-e2e/tests/windows/domain-test/**/*
       - tasks/msi.py
