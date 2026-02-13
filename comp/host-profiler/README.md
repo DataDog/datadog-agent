@@ -85,7 +85,7 @@ Configuration converters normalize user-provided OTEL collector configs for the 
 
 Files:
 
-- **[`converters.go`](collector/impl/converters/converters.go)** - Shared helpers (`Get`, `Set`, `SetIfAbsent`, `Ensure`) for path-based config manipulation, and configuration converter factories.
+- **[`converters.go`](collector/impl/converters/converters.go)** - Shared helpers (`Get`, `Set`, `EnsureDefault`, `Ensure`) for path-based config manipulation, and configuration converter factories.
 - **[`converter_with_agent.go`](collector/impl/converters/converter_with_agent.go)** - Converter applied when running alongside the Datadog Agent. Can infer missing config (exporters, endpoints) from the Agent's own configuration.
 - **[`converter_without_agent.go`](collector/impl/converters/converter_without_agent.go)** - Converter applied when running standalone (without the Agent). Cannot infer external settings, so it errors out if required config (API keys, exporters) is missing.
 

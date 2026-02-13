@@ -196,13 +196,13 @@ func Set[T any](c confMap, path string, value T) error {
 	return nil
 }
 
-// SetIfAbsent sets a value only if the key does not already exist at the given path.
-// If the key already exists, the existing value is preserved and the function returns false.
+// EnsureDefault sets a default value if the key does not exist or already holds the same value.
+// If the key exists with a different value, the existing value is preserved (user override wins).
 // Path segments are separated by "::".
 // Creates intermediate maps as needed.
-// Returns true if the value was set, false if a value already existed (preserved).
-// Returns an error if an intermediate path element exists but is not a map.
-func SetIfAbsent[T any](c confMap, path string, value T) (bool, error) {
+// Returns true if the default is active (set or already matching), false if a user override was preserved.
+// Returns an error only if path traversal fails (intermediate element is not a map).
+func EnsureDefault[T any](c confMap, path string, value T) (bool, error) {
 	currentMap, target, err := ensurePath(c, path)
 	if err != nil {
 		return false, err
