@@ -19,12 +19,13 @@ import (
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 )
 
 // ModuleFactory is a function that creates a new Module instance
-type ModuleFactory func() Module
+type ModuleFactory func(config config.Component) Module
 
 var (
 	moduleFactories   []ModuleFactory
@@ -41,13 +42,13 @@ func RegisterModuleFactory(factory ModuleFactory) {
 
 // GetAllModules creates and returns all registered modules.
 // Each call creates new module instances.
-func GetAllModules() []Module {
+func GetAllModules(config config.Component) []Module {
 	moduleFactoriesMu.Lock()
 	defer moduleFactoriesMu.Unlock()
 
 	modules := make([]Module, 0, len(moduleFactories))
 	for _, factory := range moduleFactories {
-		modules = append(modules, factory())
+		modules = append(modules, factory(config))
 	}
 	return modules
 }

@@ -3,11 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package run
+//go:build linux
+
+package rofspermissions
 
 import (
 	"fmt"
-	"runtime"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
@@ -15,12 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func checkROFSPermissions(cfg config.Component, hp healthplatform.Component) {
-	// Only check on Linux/Unix for now, as ROFS is primarily a container concept
-	if runtime.GOOS != "linux" {
-		return
-	}
-
+// Only check on Linux/Unix for now, as ROFS is primarily a container concept
+func Check(cfg config.Component) (*healthplatform.IssueReport, error) {
 	writeDirs := []string{
 		cfg.GetString("conf_path"),
 		cfg.GetString("run_path"),

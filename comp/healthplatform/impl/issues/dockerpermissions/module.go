@@ -8,6 +8,7 @@
 package dockerpermissions
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues"
 )
 
@@ -32,7 +33,7 @@ type dockerPermissionsModule struct {
 }
 
 // NewModule creates a new Docker permissions issue module
-func NewModule() issues.Module {
+func NewModule(config.Component) issues.Module {
 	return &dockerPermissionsModule{
 		template: NewDockerPermissionIssue(),
 	}
