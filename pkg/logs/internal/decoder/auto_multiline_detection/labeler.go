@@ -6,7 +6,10 @@
 // Package automultilinedetection contains auto multiline detection and aggregation logic.
 package automultilinedetection
 
-import "github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection/tokens"
+import (
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection/tokens"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+)
 
 // Label is a label for a log message.
 type Label uint32
@@ -55,14 +58,30 @@ func NewLabeler(lablerHeuristics []Heuristic, analyticsHeuristics []Heuristic) *
 	}
 }
 
-// Label labels a log message.
-func (l *Labeler) Label(rawMessage []byte) Label {
+// Label labels a log message, reusing tokens from ParsingExtra if available.
+// This avoids re-tokenizing messages that have already been tokenized by the decoder.
+func (l *Labeler) Label(msg *message.Message) Label {
 	context := &messageContext{
-		rawMessage:      rawMessage,
+		rawMessage:      msg.GetContent(),
 		tokens:          nil,
+		tokenIndicies:   nil,
 		label:           aggregate,
 		labelAssignedBy: defaultLabelSource,
 	}
+
+	// Reuse tokens from ParsingExtra if they exist (populated by TokenizingLineHandler)
+	if len(msg.ParsingExtra.Tokens) > 0 {
+		// TODO: Move tokens package out of auto_multiline_detection to a shared location
+		// (e.g., pkg/logs/internal/tokens) so both message.ParsingExtra and labeler can
+		// use []tokens.Token directly, eliminating this conversion.
+		// Convert []byte back to []tokens.Token
+		context.tokens = make([]tokens.Token, len(msg.ParsingExtra.Tokens))
+		for i, b := range msg.ParsingExtra.Tokens {
+			context.tokens[i] = tokens.Token(b)
+		}
+		context.tokenIndicies = msg.ParsingExtra.TokenIndices
+	}
+
 	for _, h := range l.lablerHeuristics {
 		if !h.ProcessAndContinue(context) {
 			break

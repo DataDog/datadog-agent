@@ -118,7 +118,13 @@ func NewTokenizer(maxEvalBytes int) *Tokenizer {
 
 // ProcessAndContinue enriches the message context with tokens.
 // This implements the Heuristic interface - this heuristic does not stop processing.
+// If tokens are already populated (e.g., from TokenizingLineHandler), they are reused.
 func (t *Tokenizer) ProcessAndContinue(context *messageContext) bool {
+	// Skip tokenization if tokens already exist (reused from ParsingExtra)
+	if len(context.tokens) > 0 {
+		return true
+	}
+
 	maxBytes := min(len(context.rawMessage), t.maxEvalBytes)
 	tokens, indicies := t.tokenize(context.rawMessage[:maxBytes])
 	context.tokens = tokens
@@ -133,14 +139,15 @@ func (t *Tokenizer) TokenizeMessage(msg *message.Message) {
 	if t.maxEvalBytes > 0 && t.maxEvalBytes < maxBytes {
 		maxBytes = t.maxEvalBytes
 	}
-	tokens, _ := t.tokenize(msg.GetContent()[:maxBytes])
+	tokens, indices := t.tokenize(msg.GetContent()[:maxBytes])
 
-	// Convert tokens to bytes for storage in ParsingExtra
+	// Convert tokens to bytes for storage
 	tokenBytes := make([]byte, len(tokens))
 	for i, tok := range tokens {
 		tokenBytes[i] = byte(tok)
 	}
 	msg.ParsingExtra.Tokens = tokenBytes
+	msg.ParsingExtra.TokenIndices = indices
 }
 
 // emitToken appends a token to the output slices, checking for special tokens first.
