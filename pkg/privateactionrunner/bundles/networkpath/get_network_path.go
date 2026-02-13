@@ -57,18 +57,43 @@ func (h *GetNetworkPathHandler) Run(
 		return nil, err
 	}
 
+	protocol := inputs.Protocol
+	if protocol == "" {
+		protocol = payload.ProtocolUDP
+	}
+
+	maxTTL := inputs.MaxTTL
+	if maxTTL == 0 {
+		maxTTL = pkgconfigsetup.DefaultNetworkPathMaxTTL
+	}
+
+	timeout := time.Duration(inputs.TimeoutMs) * time.Millisecond
+	if timeout == 0 {
+		timeout = pkgconfigsetup.DefaultNetworkPathTimeout * time.Millisecond
+	}
+
+	tracerouteQueries := inputs.TracerouteQueries
+	if tracerouteQueries == 0 {
+		tracerouteQueries = pkgconfigsetup.DefaultNetworkPathStaticPathTracerouteQueries
+	}
+
+	e2eQueries := inputs.E2eQueries
+	if e2eQueries == 0 {
+		e2eQueries = pkgconfigsetup.DefaultNetworkPathStaticPathE2eQueries
+	}
+
 	cfg := tracerouteconfig.Config{
 		DestHostname:       inputs.Hostname,
 		DestPort:           inputs.Port,
 		DestinationService: inputs.DestinationService,
 		SourceService:      inputs.SourceService,
-		MaxTTL:             inputs.MaxTTL,
-		Timeout:            time.Duration(inputs.TimeoutMs) * time.Millisecond,
-		Protocol:           inputs.Protocol,
+		MaxTTL:             maxTTL,
+		Timeout:            timeout,
+		Protocol:           protocol,
 		TCPMethod:          inputs.TCPMethod,
 		ReverseDNS:         true,
-		TracerouteQueries:  inputs.TracerouteQueries,
-		E2eQueries:         inputs.E2eQueries,
+		TracerouteQueries:  tracerouteQueries,
+		E2eQueries:         e2eQueries,
 	}
 
 	path, err := h.traceroute.Run(ctx, cfg)

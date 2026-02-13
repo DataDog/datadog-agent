@@ -99,6 +99,53 @@ func TestGetNetworkPathHandlerRun(t *testing.T) {
 	require.Equal(t, expectedCfg, tracerouteStub.cfg)
 }
 
+func TestGetNetworkPathHandlerRunDefaults(t *testing.T) {
+	tracerouteStub := &mockTraceroute{
+		path: payload.NetworkPath{
+			Source: payload.NetworkPathSource{Service: "old-source"},
+			Destination: payload.NetworkPathDestination{
+				Hostname: "example.com",
+				Port:     443,
+				Service:  "old-dest",
+			},
+			Traceroute: payload.Traceroute{
+				Runs: []payload.TracerouteRun{
+					{
+						RunID: "run-1",
+						Destination: payload.TracerouteDestination{
+							IPAddress: net.ParseIP("1.2.3.4"),
+						},
+					},
+				},
+			},
+		},
+	}
+	handler := NewGetNetworkPathHandler(tracerouteStub)
+
+	task := &types.Task{}
+	task.Data.Attributes = &types.Attributes{
+		Inputs: map[string]interface{}{
+			"hostname": "example.com",
+			"port":     uint16(443),
+		},
+	}
+
+	_, err := handler.Run(context.Background(), task, nil)
+	require.NoError(t, err)
+
+	expectedCfg := tracerouteconfig.Config{
+		DestHostname:      "example.com",
+		DestPort:          443,
+		MaxTTL:            pkgconfigsetup.DefaultNetworkPathMaxTTL,
+		Timeout:           pkgconfigsetup.DefaultNetworkPathTimeout * time.Millisecond,
+		Protocol:          payload.ProtocolUDP,
+		ReverseDNS:        true,
+		TracerouteQueries: pkgconfigsetup.DefaultNetworkPathStaticPathTracerouteQueries,
+		E2eQueries:        pkgconfigsetup.DefaultNetworkPathStaticPathE2eQueries,
+	}
+	require.Equal(t, expectedCfg, tracerouteStub.cfg)
+}
+
 func TestGetNetworkPathHandlerRunInvalidPath(t *testing.T) {
 	tracerouteStub := &mockTraceroute{
 		path: payload.NetworkPath{
