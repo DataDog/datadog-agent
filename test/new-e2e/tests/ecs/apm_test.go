@@ -82,11 +82,12 @@ func (suite *ecsAPMSuite) getCommonECSTagPatterns(clusterName, taskName, appName
 		// Note the ':' separator, not '=' (that's how Go concatenates map entries)
 		// We validate that this bundled tag contains the required ECS metadata
 		// Patterns match: key:value (followed by comma or end of string)
+		// Use non-greedy .*? to avoid matching cluster name in service_arn first
 		return []string{
-			`^_dd\.tags\.container:.*cluster_name:` + regexp.QuoteMeta(clusterName) + `(,|$)`,
-			`^_dd\.tags\.container:.*ecs_cluster_name:` + regexp.QuoteMeta(clusterName) + `(,|$)`,
-			`^_dd\.tags\.container:.*container_name:[^,]+(,|$)`,
-			`^_dd\.tags\.container:.*task_arn:[^,]+(,|$)`,
+			`^_dd\.tags\.container:.*?cluster_name:` + regexp.QuoteMeta(clusterName) + `(,|$)`,
+			`^_dd\.tags\.container:.*?ecs_cluster_name:` + regexp.QuoteMeta(clusterName) + `(,|$)`,
+			`^_dd\.tags\.container:.*?container_name:[^,]+(,|$)`,
+			`^_dd\.tags\.container:.*?task_arn:[^,]+(,|$)`,
 		}
 	}
 
@@ -647,18 +648,12 @@ func (suite *ecsAPMSuite) testTrace(taskName string) {
 				tags := lo.MapToSlice(tracerPayload.Tags, func(k string, v string) string {
 					return k + ":" + v
 				})
-				// Debug: log tags to understand pattern matching failure
-				if len(tags) > 0 {
-					suite.T().Logf("testTrace(%s): checking tags: %v", taskName, tags)
-				}
 				// Assert bundled tag contains required ECS metadata
 				// Set acceptUnexpectedTags=true since there may be other tags besides _dd.tags.container
 				err = assertTags(tags, compiledPatterns, []*regexp.Regexp{}, true)
 				if err == nil {
 					suite.T().Logf("Found trace with proper bundled tags for task %s", taskName)
 					break
-				} else {
-					suite.T().Logf("testTrace(%s): assertTags failed: %v", taskName, err)
 				}
 			}
 			if err == nil {

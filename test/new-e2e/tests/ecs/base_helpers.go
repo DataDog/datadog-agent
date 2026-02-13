@@ -715,10 +715,6 @@ func (suite *BaseSuite[Env]) AssertAPMTrace(args *TestAPMTraceArgs) {
 						traceTags = append(traceTags, k+":"+v)
 					}
 				}
-				// Debug: log actual tags to understand what we're matching against
-				if len(traceTags) > 0 {
-					suite.T().Logf("Actual trace tags for matching: %v", traceTags)
-				}
 				// Set acceptUnexpectedTags=true for bundled tag format (DD_APM_ENABLE_CONTAINER_TAGS_BUFFER=true)
 				// The bundled _dd.tags.container tag contains many comma-separated key:value pairs
 				err := assertTags(traceTags, expectedTags, []*regexp.Regexp{}, true)
