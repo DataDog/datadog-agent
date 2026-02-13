@@ -2699,8 +2699,6 @@ func TestAutoinstrumentation(t *testing.T) {
 			mockConfig := common.FakeConfigWithValues(t, test.config)
 			mockMeta := common.FakeStoreWithDeployment(t, test.deployments)
 			mockDynamic := fake.NewSimpleDynamicClient(runtime.NewScheme())
-			// Disable gradual rollout for this test to use the NoOpResolver.
-			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
 
 			// Add the namespaces.
 			for _, ns := range test.namespaces {
@@ -2708,7 +2706,7 @@ func TestAutoinstrumentation(t *testing.T) {
 			}
 
 			// Setup webhook.
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -2853,7 +2851,6 @@ func TestEnvVarsAlreadySet(t *testing.T) {
 			mockConfig := common.FakeConfigWithValues(t, test.config)
 			mockMeta := common.FakeStoreWithDeployment(t, test.deployments)
 			mockDynamic := fake.NewSimpleDynamicClient(runtime.NewScheme())
-			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
 
 			// Add the namespaces.
 			for _, ns := range test.namespaces {
@@ -2861,7 +2858,7 @@ func TestEnvVarsAlreadySet(t *testing.T) {
 			}
 
 			// Setup webhook.
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -3046,7 +3043,6 @@ func TestSkippedDueToResources(t *testing.T) {
 			mockConfig := common.FakeConfigWithValues(t, test.config)
 			mockMeta := common.FakeStoreWithDeployment(t, test.deployments)
 			mockDynamic := fake.NewSimpleDynamicClient(runtime.NewScheme())
-			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
 
 			// Add the namespaces.
 			for _, ns := range test.namespaces {
@@ -3054,7 +3050,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			}
 
 			// Setup webhook.
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.
