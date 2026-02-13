@@ -122,8 +122,8 @@ func TestDNS(t *testing.T) {
 				return err
 			}
 			return nil
-		}, func(_ *rules.Rule, _ *model.Event) bool {
-			return true
+		}, func(_ *rules.Rule, ev *model.Event) bool {
+			return ev.DNS.Question.Name == "news.yahoo.com"
 		}, time.Second*3, "test_rule_dns_root_domain")
 		if err == nil {
 			t.Fatal("expected error")
