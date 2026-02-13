@@ -37,7 +37,6 @@ build do
   command_on_repo_root "bazelisk run -- @libyaml//:install --destdir='#{install_dir}/embedded'"
   sh_lib = if linux_target? then "libyaml.so" else "libyaml.dylib" end
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded' " \
-    "#{install_dir}/embedded/lib/pkgconfig/yaml-0.1.pc " \
     "#{install_dir}/embedded/lib/#{sh_lib}"
 
   command_on_repo_root "bazelisk run -- @pcre2//:install --destdir=#{install_dir}/embedded"
