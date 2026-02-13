@@ -241,7 +241,7 @@ func (c *converterWithoutAgent) ensureResourceDetectionConfig(resourceDetection 
 	if ddDefaultValue, err := SetDefault(resourceDetection, "system::resource_attributes::host.arch::enabled", true); err != nil {
 		return err
 	} else if !ddDefaultValue {
-		standaloneLogger.Warn("host.arch is required but is disabled by user configuration and will break symbol uploading; preserving user value")
+		standaloneLogger.Warn("host.arch is required but is disabled by user configuration and will break symbolication; preserving user value")
 	}
 
 	// Only set these defaults if we added the system detector
