@@ -41,8 +41,10 @@ func (suite *DockerSuite) Test01Parallel() {
 		name string
 		fn   func(t *testing.T)
 	}{
-		{"DockerMetrics", suite.testDockerMetrics},
-		{"DockerEvents", suite.testDockerEvents},
+		// DockerMetrics and DockerEvents are NOT included here because they
+		// both create busybox containers whose Docker events get aggregated
+		// by the agent (e.g. "2 die" instead of "1 die"). They must run
+		// sequentially in Test02DockerContainerEvents below.
 		{"DSDWithUDS", suite.testDSDWithUDS},
 		{"DSDWithUDP", suite.testDSDWithUDP},
 	} {
@@ -51,6 +53,20 @@ func (suite *DockerSuite) Test01Parallel() {
 			tt.fn(t)
 		})
 	}
+}
+
+// Test02DockerContainerEvents runs testDockerMetrics and testDockerEvents
+// sequentially. Both tests create short-lived busybox containers and the
+// Docker agent aggregates their events by image name. Running them in
+// parallel causes "2 die" instead of "1 die" in event titles.
+func (suite *DockerSuite) Test02DockerContainerEvents() {
+	t := suite.T()
+	t.Run("DockerMetrics", func(t *testing.T) {
+		suite.testDockerMetrics(t)
+	})
+	t.Run("DockerEvents", func(t *testing.T) {
+		suite.testDockerEvents(t)
+	})
 }
 
 func (suite *DockerSuite) testDockerMetrics(t *testing.T) {
