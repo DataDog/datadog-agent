@@ -147,7 +147,8 @@ func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAg
 }
 
 func (c *CloudRunJobs) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
-	metricAgent.AddMetric(cloudRunJobsPrefix+".enhanced.task.started", 1.0, c.GetSource())
+	// Use cloud run prefix for metrics common to cloud run and cloud run jobs
+	metricAgent.AddMetric(cloudRunPrefix+".enhanced.task.started", 1.0, c.GetSource())
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is true for cloud run jobs.
