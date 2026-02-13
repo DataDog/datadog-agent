@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/secret-generic-connector/backend/gcp"
 	"github.com/DataDog/datadog-agent/cmd/secret-generic-connector/backend/hashicorp"
 	"github.com/DataDog/datadog-agent/cmd/secret-generic-connector/backend/kubernetes"
+	"github.com/DataDog/datadog-agent/cmd/secret-generic-connector/backend/pass"
 	"github.com/DataDog/datadog-agent/cmd/secret-generic-connector/secret"
 )
 
@@ -57,6 +58,8 @@ func Get(backendType string, backendConfig map[string]interface{}) Backend {
 		backend, err = akeyless.NewAkeylessBackend(backendConfig)
 	case "docker.secrets":
 		backend, err = docker.NewDockerSecretsBackend(backendConfig)
+	case "pass":
+		backend, err = pass.NewBackend(backendConfig)
 	default:
 		err = fmt.Errorf("unsupported backend type: %s", backendType)
 	}
