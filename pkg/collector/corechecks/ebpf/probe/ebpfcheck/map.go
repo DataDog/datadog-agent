@@ -26,20 +26,20 @@ type TypeID uint32
 type MapInfo struct {
 	_                     structs.HostLayout
 	Type                  uint32
-	Id                    ebpf.MapID
+	ID                    ebpf.MapID
 	KeySize               uint32
 	ValueSize             uint32
 	MaxEntries            uint32
 	MapFlags              uint32
 	Name                  ObjName
 	Ifindex               uint32
-	BtfVmlinuxValueTypeId TypeID
+	BtfVmlinuxValueTypeID TypeID
 	NetnsDev              uint64
 	NetnsIno              uint64
-	BtfId                 uint32
-	BtfKeyTypeId          TypeID
-	BtfValueTypeId        TypeID
-	BtfVmlinuxId          uint32
+	BtfID                 uint32
+	BtfKeyTypeID          TypeID
+	BtfValueTypeID        TypeID
+	BtfVmlinuxID          uint32
 	MapExtra              uint64
 }
 
