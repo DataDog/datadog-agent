@@ -143,11 +143,10 @@ func Example_basicUsage() {
 				fmt.Println("New algorithm enabled")
 				// Apply the change and return error if it fails
 				return enableNewAlgorithm()
-			} else {
-				fmt.Println("New algorithm disabled")
-				// Apply the change and return error if it fails
-				return disableNewAlgorithm()
 			}
+			fmt.Println("New algorithm disabled")
+			// Apply the change and return error if it fails
+			return disableNewAlgorithm()
 		},
 		// onNoConfig: Called when flag is not present in config
 		func() {
@@ -361,9 +360,9 @@ func Example_errorHandlingStrategies() {
 }
 
 // Dummy functions for examples
-func applyExperimentalFeature(enabled bool) error    { return nil }
-func disableExperimentalFeature()                    {}
-func applyProductionOptimization(enabled bool) error { return nil }
-func ensureStableProductionState()                   {}
-func applyEnhancedLogging(enabled bool) error        { return nil }
-func disableEnhancedLogging()                        {}
+func applyExperimentalFeature(_ bool) error    { return nil }
+func disableExperimentalFeature()               {}
+func applyProductionOptimization(_ bool) error  { return nil }
+func ensureStableProductionState()              {}
+func applyEnhancedLogging(_ bool) error         { return nil }
+func disableEnhancedLogging()                   {}
