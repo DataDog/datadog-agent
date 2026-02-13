@@ -107,8 +107,8 @@ func (h *GetNetworkPathHandler) Run(
 
 	path.Namespace = inputs.Namespace
 	path.Origin = payload.PathOriginNetworkPathIntegration
-	path.TestRunType = payload.TestRunTypeScheduled
-	path.SourceProduct = payload.GetSourceProduct(pkgconfigsetup.Datadog().GetString("infrastructure_mode"))
+	path.TestRunType = payload.TestRunTypeOnDemand
+	path.SourceProduct = payload.SourceProductNetworkPath
 	path.CollectorType = payload.CollectorTypeAgent
 	path.Source.Service = inputs.SourceService
 	path.Destination.Service = inputs.DestinationService
