@@ -7,34 +7,23 @@
 package remoteflagsimpl
 
 import (
-	comp "github.com/DataDog/datadog-agent/comp/core/remoteflags"
+	comp "github.com/DataDog/datadog-agent/comp/core/remoteflags/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteflags"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"go.uber.org/fx"
 )
 
-// Module defines the fx options for the Remote Flags component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newRemoteFlags))
-}
-
-type dependencies struct {
-	fx.In
-
+// Requires defines the dependencies for the Remote Flags component.
+type Requires struct {
 	// Subscribers is the list of components that subscribe to remote flags.
 	// They are automatically collected via fx groups.
 	Subscribers []remoteflags.RemoteFlagSubscriber `group:"remoteFlagSubscriber"`
 }
 
-type provides struct {
-	fx.Out
-
-	Comp       option.Option[comp.Component]
+// Provides defines the output of the Remote Flags component.
+type Provides struct {
+	Comp       comp.Component
 	RCListener types.ListenerProvider
 }
 
@@ -42,7 +31,8 @@ type remoteFlagsComponent struct {
 	client *remoteflags.Client
 }
 
-func newRemoteFlags(deps dependencies) provides {
+// NewComponent creates a new Remote Flags component.
+func NewComponent(deps Requires) Provides {
 	client := remoteflags.NewClient()
 	component := &remoteFlagsComponent{
 		client: client,
@@ -67,8 +57,8 @@ func newRemoteFlags(deps dependencies) provides {
 		data.ProductAgentFlags: client.OnUpdate,
 	}
 
-	return provides{
-		Comp:       option.New[comp.Component](component),
+	return Provides{
+		Comp:       component,
 		RCListener: rcListener,
 	}
 }
