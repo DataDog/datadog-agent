@@ -239,6 +239,7 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 
 	modCfg.SymDBUploadEnabled = true
 	modCfg.LogUploaderURL = ts.backendServer.URL + "/logs"
+	modCfg.SnapshotsUploaderURL = ts.backendServer.URL + "/snapshots"
 	modCfg.DiagsUploaderURL = ts.backendServer.URL + "/diags"
 	modCfg.SymDBUploaderURL = ts.symdbURL
 
@@ -760,7 +761,15 @@ func waitForLogMessages(
 				expectedLogs,
 			)
 		case <-checkTicker.C:
+			// Put both logs and snapshots together; this test does not care
+			// about differentiating them.
 			payloads := backend.getLogPayloads()
+			for _, p := range payloads {
+				var logs []json.RawMessage
+				require.NoError(t, json.Unmarshal(p, &logs))
+				processedLogs = append(processedLogs, logs...)
+			}
+			payloads = backend.getSnapshotPayloads()
 			for _, p := range payloads {
 				var logs []json.RawMessage
 				require.NoError(t, json.Unmarshal(p, &logs))
@@ -835,9 +844,10 @@ func saveExpectations(t *testing.T, content []byte, expectationsPath string) {
 }
 
 type mockBackend struct {
-	mu            sync.Mutex
-	logPayloads   [][]byte
-	diagPayloadCh chan []byte
+	mu               sync.Mutex
+	logPayloads      [][]byte
+	snapshotPayloads [][]byte
+	diagPayloadCh    chan []byte
 }
 
 func (m *mockBackend) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -850,6 +860,15 @@ func (m *mockBackend) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		m.mu.Lock()
 		m.logPayloads = append(m.logPayloads, body)
+		m.mu.Unlock()
+	case "/snapshots":
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "failed to read body", http.StatusBadRequest)
+			return
+		}
+		m.mu.Lock()
+		m.snapshotPayloads = append(m.snapshotPayloads, body)
 		m.mu.Unlock()
 	case "/diags":
 		err := r.ParseMultipartForm(10 << 20) // 10 MiB
@@ -881,6 +900,14 @@ func (m *mockBackend) getLogPayloads() [][]byte {
 	defer m.mu.Unlock()
 	ret := m.logPayloads
 	m.logPayloads = nil
+	return ret
+}
+
+func (m *mockBackend) getSnapshotPayloads() [][]byte {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	ret := m.snapshotPayloads
+	m.snapshotPayloads = nil
 	return ret
 }
 

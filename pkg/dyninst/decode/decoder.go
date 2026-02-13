@@ -218,7 +218,6 @@ func (d *Decoder) resetForNextMessage() {
 // Event wraps the output Event from the BPF program. It also adds fields
 // that are not present in the BPF program.
 type Event struct {
-	Probe       *ir.Probe
 	EntryOrLine output.Event
 	Return      output.Event
 	ServiceName string
@@ -289,6 +288,11 @@ func (s *message) init(
 	}
 	probeEvent := decoder.probeEvents[decoder.entryOrLine.rootType.ID]
 	probe := probeEvent.probe
+
+	if probe.GetKind() == ir.ProbeKindSnapshot {
+		s.Debugger.Type = payloadTypeSnapshot
+	}
+
 	header, err := event.EntryOrLine.Header()
 	if err != nil {
 		return probe, fmt.Errorf("error getting header %w", err)

@@ -8,7 +8,6 @@
 package module
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"slices"
@@ -191,7 +190,14 @@ func (s *sink) HandleEvent(msg dispatcher.Message) error {
 		return nil
 	}
 	s.runtime.setProbeMaybeEmitting(s.programID, probe)
-	s.logUploader.Enqueue(json.RawMessage(decodedBytes))
+	switch probe.GetKind() {
+	case ir.ProbeKindLog:
+		s.logUploader.EnqueueLog(decodedBytes)
+	case ir.ProbeKindSnapshot:
+		s.logUploader.EnqueueSnapshot(decodedBytes)
+	default:
+		return fmt.Errorf("unexpected probe kind: %d", probe.GetKind())
+	}
 	return nil
 }
 
