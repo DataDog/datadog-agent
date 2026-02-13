@@ -18,7 +18,8 @@ import (
 )
 
 func TestIsUDSAvailable_NonExistentPath(t *testing.T) {
-	assert.False(t, IsUDSAvailable("/tmp/does-not-exist-dsd-test.sock"))
+	path := filepath.Join(t.TempDir(), "socket-we-wont-ever-create")
+	assert.False(t, IsUDSAvailable(path))
 }
 
 func TestIsUDSAvailable_RegularFile(t *testing.T) {
