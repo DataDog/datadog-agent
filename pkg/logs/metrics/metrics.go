@@ -127,17 +127,17 @@ var (
 
 	// TlmHTTPConnectivityCheck tracks HTTP connectivity check results
 	// Tags: status (success/failure)
-	TlmHTTPConnectivityCheck = telemetry.NewCounter("logs_agent", "http_connectivity_check",
+	TlmHTTPConnectivityCheck = telemetry.NewCounter("logs", "http_connectivity_check",
 		[]string{"status"}, "Count of HTTP connectivity checks with status")
 
 	// TlmHTTPConnectivityRetryAttempt tracks HTTP connectivity retry attempts
 	// Tags: status (success/failure)
-	TlmHTTPConnectivityRetryAttempt = telemetry.NewCounter("logs_agent", "http_connectivity_retry_attempt",
+	TlmHTTPConnectivityRetryAttempt = telemetry.NewCounter("logs", "http_connectivity_retry_attempt",
 		[]string{"status"}, "Count of HTTP connectivity retry attempts with success/failure status")
 
 	// TlmRestartAttempt tracks logs agent restart attempts
 	// Tags: status (success/failure/timeout), transport (tcp/http)
-	TlmRestartAttempt = telemetry.NewCounter("logs_agent", "restart_attempt",
+	TlmRestartAttempt = telemetry.NewCounter("logs", "restart_attempt",
 		[]string{"status", "transport"}, "Count of logs agent restart attempts with status and target transport")
 )
 

@@ -145,9 +145,9 @@ func TestHttpDigestCache_Get_Success(t *testing.T) {
 			tt.setupCache(cc)
 			tt.setupMock(transport)
 
-			resolved, ok := cc.get("test-registry", tt.repository, tt.tag)
+			resolved, err := cc.get("test-registry", tt.repository, tt.tag)
 
-			require.True(t, ok, "Expected successful get")
+			require.NoError(t, err, "Expected successful get")
 			require.NotNil(t, resolved, "Expected non-nil resolved image")
 			require.Equal(t, tt.expectedDigest, resolved)
 			require.Equal(t, tt.expectedCallCount, transport.CallCount())
@@ -157,9 +157,9 @@ func TestHttpDigestCache_Get_Success(t *testing.T) {
 
 func TestHttpDigestCache_Get_Failure(t *testing.T) {
 	cc, transport := mockHTTPDigestCache(1 * time.Minute)
-	resolved, ok := cc.get("test-registry", "dd-lib-python-init", "v1")
+	resolved, err := cc.get("test-registry", "dd-lib-python-init", "v1")
 
-	require.False(t, ok, "Expected failed get")
+	require.Error(t, err, "Expected failed get")
 	require.Empty(t, resolved, "Expected empty digest")
 	require.Equal(t, 1, transport.CallCount())
 }
@@ -169,11 +169,11 @@ func TestHttpDigestCache_Get_MultipleRepositories(t *testing.T) {
 	transport.addImage("registry1", "dd-lib-python-init", "v1", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 	transport.addImage("registry2", "dd-lib-java-init", "v2", "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
 
-	resolved1, ok1 := cc.get("registry1", "dd-lib-python-init", "v1")
-	resolved2, ok2 := cc.get("registry2", "dd-lib-java-init", "v2")
+	resolved1, err1 := cc.get("registry1", "dd-lib-python-init", "v1")
+	resolved2, err2 := cc.get("registry2", "dd-lib-java-init", "v2")
 
-	require.True(t, ok1, "Should fetch python lib")
-	require.True(t, ok2, "Should fetch java lib")
+	require.NoError(t, err1, "Should fetch python lib")
+	require.NoError(t, err2, "Should fetch java lib")
 	require.Equal(t, "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", resolved1)
 	require.Equal(t, "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", resolved2)
 	require.Equal(t, 2, transport.CallCount(), "Should have fetched digest twice")
@@ -185,13 +185,13 @@ func TestHttpDigestCache_Get_SameRepoMultipleTags(t *testing.T) {
 	transport.addImage("registry", "dd-lib-python-init", "v2", "sha256:2222222222222222222222222222222222222222222222222222222222222222")
 	transport.addImage("registry", "dd-lib-python-init", "latest", "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
 
-	resolved1, ok1 := cc.get("registry", "dd-lib-python-init", "v1")
-	resolved2, ok2 := cc.get("registry", "dd-lib-python-init", "v2")
-	resolved3, ok3 := cc.get("registry", "dd-lib-python-init", "latest")
+	resolved1, err1 := cc.get("registry", "dd-lib-python-init", "v1")
+	resolved2, err2 := cc.get("registry", "dd-lib-python-init", "v2")
+	resolved3, err3 := cc.get("registry", "dd-lib-python-init", "latest")
 
-	require.True(t, ok1)
-	require.True(t, ok2)
-	require.True(t, ok3)
+	require.NoError(t, err1)
+	require.NoError(t, err2)
+	require.NoError(t, err3)
 	require.Equal(t, "sha256:1111111111111111111111111111111111111111111111111111111111111111", resolved1)
 	require.Equal(t, "sha256:2222222222222222222222222222222222222222222222222222222222222222", resolved2)
 	require.Equal(t, "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", resolved3)
@@ -202,8 +202,8 @@ func TestHttpDigestCache_Get_ConcurrentCacheHit(t *testing.T) {
 	cc, transport := mockHTTPDigestCache(5 * time.Minute)
 	transport.addImage("registry", "repo", "v1", "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890")
 
-	resolved, ok := cc.get("registry", "repo", "v1")
-	require.True(t, ok)
+	resolved, err := cc.get("registry", "repo", "v1")
+	require.NoError(t, err)
 	require.NotNil(t, resolved)
 	require.Equal(t, 1, transport.CallCount(), "Should have made exactly one fetch to warm cache")
 
@@ -213,8 +213,8 @@ func TestHttpDigestCache_Get_ConcurrentCacheHit(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			resolved, ok := cc.get("registry", "repo", "v1")
-			require.True(t, ok)
+			resolved, err := cc.get("registry", "repo", "v1")
+			require.NoError(t, err)
 			require.NotNil(t, resolved)
 			require.Equal(t, "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890", resolved)
 		}()
