@@ -33,6 +33,7 @@ type stateUpdate struct {
 	QueuedPrograms   string            `yaml:"queued_programs,omitempty"`
 	Processes        map[any]string    `yaml:"processes,omitempty"`
 	Programs         map[int]string    `yaml:"programs,omitempty"`
+	DiscoveredTypes  map[string]string `yaml:"discovered_types,omitempty"`
 	Stats            map[string]string `yaml:"stats,omitempty"`
 }
 
@@ -96,7 +97,7 @@ func runSnapshotTest(t *testing.T, file string, rewrite bool) {
 	}()
 
 	// Process each event
-	s := newState(CircuitBreakerConfig{})
+	s := newState(Config{})
 	effects := effectRecorder{}
 	for i, ev := range events {
 
@@ -362,6 +363,27 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 			}
 		}
 
+	}
+	{
+		allServices := make(map[string]bool)
+		for svc := range before.discoveredTypes {
+			allServices[svc] = true
+		}
+		for svc := range after.discoveredTypes {
+			allServices[svc] = true
+		}
+		for svc := range allServices {
+			beforeTypes := fmt.Sprintf("%v", before.discoveredTypes[svc])
+			afterTypes := fmt.Sprintf("%v", after.discoveredTypes[svc])
+			if beforeTypes != afterTypes {
+				if update.DiscoveredTypes == nil {
+					update.DiscoveredTypes = make(map[string]string)
+				}
+				update.DiscoveredTypes[svc] = fmt.Sprintf(
+					"%v -> %v", beforeTypes, afterTypes,
+				)
+			}
+		}
 	}
 	{
 		before, after := before.Metrics().AsStats(), after.Metrics().AsStats()

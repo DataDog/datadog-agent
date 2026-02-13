@@ -19,6 +19,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Config configures the actuator.
+type Config struct {
+	// CircuitBreakerConfig configures the circuit breaker for enforcing probe
+	// CPU limits.
+	CircuitBreakerConfig CircuitBreakerConfig
+	// RecompilationDisabled disables recompilation of programs when new types
+	// are discovered. This is generally useful for testing.
+	RecompilationDisabled bool
+}
+
 // CircuitBreakerConfig configures the circuit breaker for enforcing probe CPU limits.
 type CircuitBreakerConfig struct {
 	// Interval is the interval at which probe CPU usage is checked.
@@ -69,7 +79,7 @@ func (a *Actuator) Stats() map[string]any {
 }
 
 // NewActuator creates a new Actuator instance.
-func NewActuator(breakerCfg CircuitBreakerConfig) *Actuator {
+func NewActuator(cfg Config) *Actuator {
 	shuttingDownCh := make(chan struct{})
 	eventCh := make(chan event)
 	a := &Actuator{
@@ -79,12 +89,12 @@ func NewActuator(breakerCfg CircuitBreakerConfig) *Actuator {
 	a.wg.Add(1)
 	go func() {
 		defer a.wg.Done()
-		a.runEventProcessor(breakerCfg, eventCh, shuttingDownCh)
+		a.runEventProcessor(cfg, eventCh, shuttingDownCh)
 	}()
 	a.wg.Add(1)
 	go func() {
 		defer a.wg.Done()
-		a.heartbeatLoop(breakerCfg.Interval)
+		a.heartbeatLoop(cfg.CircuitBreakerConfig.Interval)
 	}()
 	return a
 }
@@ -92,6 +102,27 @@ func NewActuator(breakerCfg CircuitBreakerConfig) *Actuator {
 // SetRuntime initializes the actuator with a runtime and makes it ready to use.
 func (a *Actuator) SetRuntime(runtime Runtime) {
 	a.runtime.Store(&runtime)
+}
+
+// ReportMissingTypes reports type names that were encountered at runtime in
+// interface values but were not present in the IR program's type registry.
+// The actuator accumulates these per service and triggers recompilation when
+// new types are discovered and the loading pipeline is idle.
+func (a *Actuator) ReportMissingTypes(processID ProcessID, typeNames []string) {
+	if len(typeNames) == 0 {
+		return
+	}
+	select {
+	case <-a.shuttingDown:
+	default:
+		select {
+		case <-a.shuttingDown:
+		case a.events <- eventMissingTypesReported{
+			processID: processID,
+			typeNames: typeNames,
+		}:
+		}
+	}
 }
 
 // HandleUpdate processes an update to process instrumentation configuration.
@@ -118,11 +149,11 @@ func (a *Actuator) HandleUpdate(update ProcessesUpdate) {
 // runEventProcessor runs in a separate goroutine and processes events sequentially
 // to maintain state machine consistency. Only this goroutine accesses state.
 func (a *Actuator) runEventProcessor(
-	breakerCfg CircuitBreakerConfig,
+	cfg Config,
 	eventCh <-chan event,
 	shuttingDownCh chan<- struct{},
 ) {
-	state := newState(breakerCfg)
+	state := newState(cfg)
 	for !state.isShutdown() {
 		event := <-eventCh
 		if _, isShutdown := event.(eventShutdown); isShutdown {
@@ -176,6 +207,7 @@ func (a *effects) loadProgram(
 	executable Executable,
 	processID ProcessID,
 	probes []ir.ProbeDefinition,
+	opts LoadOptions,
 ) {
 	a.wg.Add(1)
 	go func() {
@@ -189,7 +221,7 @@ func (a *effects) loadProgram(
 		}
 		runtime := *runtimePtr
 		loaded, err := runtime.Load(
-			programID, executable, processID, probes,
+			programID, executable, processID, probes, opts,
 		)
 		if err != nil {
 			log.Infof(

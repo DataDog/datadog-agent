@@ -84,6 +84,34 @@ func validateState(s *state, reportError func(error)) {
 		}
 	}
 
+	// Verify processesByService index integrity.
+	// Every PID in processesByService[svc] must exist in s.processes with matching service.
+	for svc, pids := range s.processesByService {
+		for pid := range pids {
+			proc, exists := s.processes[pid]
+			if !exists {
+				report("processesByService[%q] contains non-existent process %v", svc, pid)
+			} else if proc.service != svc {
+				report(
+					"processesByService[%q] contains process %v with service %q",
+					svc, pid, proc.service,
+				)
+			}
+		}
+	}
+	// Every process with a non-empty service must appear in processesByService.
+	for pid, proc := range s.processes {
+		if proc.service == "" {
+			continue
+		}
+		pids, exists := s.processesByService[proc.service]
+		if !exists {
+			report("process %v with service %q not in processesByService", pid, proc.service)
+		} else if _, ok := pids[pid]; !ok {
+			report("process %v not in processesByService[%q]", pid, proc.service)
+		}
+	}
+
 	// Verify process-program relationships are bidirectional.
 	for procID, proc := range s.processes {
 		if proc.currentProgram != 0 {
@@ -257,5 +285,18 @@ func validateProgram(
 
 	default:
 		report("program %v has unknown state %v", progID, prog.state)
+	}
+
+	// needsRecompilation should only be set for Loading or Loaded programs.
+	if prog.needsRecompilation {
+		switch prog.state {
+		case programStateLoading, programStateLoaded:
+			// Valid.
+		default:
+			report(
+				"program %v has needsRecompilation=true in state %v",
+				progID, prog.state,
+			)
+		}
 	}
 }

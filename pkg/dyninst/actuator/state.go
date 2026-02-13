@@ -48,8 +48,9 @@ import (
 type state struct {
 	programIDAlloc ir.ProgramID
 
-	processes map[ProcessID]*process
-	programs  map[ir.ProgramID]*program
+	processes          map[ProcessID]*process
+	processesByService map[string]map[ProcessID]struct{}
+	programs           map[ir.ProgramID]*program
 
 	queuedLoading    queue[*program, ir.ProgramID]
 	currentlyLoading *program
@@ -60,13 +61,20 @@ type state struct {
 	breakerCfg    CircuitBreakerConfig
 	lastHeartbeat time.Time
 
+	// discoveredTypes tracks type names discovered at runtime via interface
+	// decoding, keyed by service name. Each value is a sorted, deduplicated
+	// slice of type names.
+	discoveredTypes       map[string][]string
+	recompilationDisabled bool
+
 	counters struct {
-		loaded       uint64
-		loadFailed   uint64
-		attached     uint64
-		attachFailed uint64
-		detached     uint64
-		unloaded     uint64
+		loaded                      uint64
+		loadFailed                  uint64
+		attached                    uint64
+		attachFailed                uint64
+		detached                    uint64
+		unloaded                    uint64
+		typeRecompilationsTriggered uint64
 	}
 }
 
@@ -100,12 +108,13 @@ func (s *state) Metrics() Metrics {
 	}
 
 	return Metrics{
-		Loaded:       s.counters.loaded,
-		LoadFailed:   s.counters.loadFailed,
-		Attached:     s.counters.attached,
-		AttachFailed: s.counters.attachFailed,
-		Detached:     s.counters.detached,
-		Unloaded:     s.counters.unloaded,
+		Loaded:                      s.counters.loaded,
+		LoadFailed:                  s.counters.loadFailed,
+		Attached:                    s.counters.attached,
+		AttachFailed:                s.counters.attachFailed,
+		Detached:                    s.counters.detached,
+		Unloaded:                    s.counters.unloaded,
+		TypeRecompilationsTriggered: s.counters.typeRecompilationsTriggered,
 
 		NumWaitingForProgram: uint64(numWaiting),
 		NumAttached:          numAttached,
@@ -138,6 +147,9 @@ type Metrics struct {
 	Detached uint64
 	// Unloaded is the total number of programs that have been unloaded.
 	Unloaded uint64
+	// TypeRecompilationsTriggered is the total number of times a program was
+	// recompiled due to missing type information discovered at runtime.
+	TypeRecompilationsTriggered uint64
 
 	// Gauges
 
@@ -162,12 +174,13 @@ type Metrics struct {
 // AsStats converts the Metrics to a map[string]any for use by the system-probe.
 func (m Metrics) AsStats() map[string]any {
 	return map[string]any{
-		"loaded":       m.Loaded,
-		"loadFailed":   m.LoadFailed,
-		"attached":     m.Attached,
-		"attachFailed": m.AttachFailed,
-		"detached":     m.Detached,
-		"unloaded":     m.Unloaded,
+		"loaded":                      m.Loaded,
+		"loadFailed":                  m.LoadFailed,
+		"attached":                    m.Attached,
+		"attachFailed":                m.AttachFailed,
+		"detached":                    m.Detached,
+		"unloaded":                    m.Unloaded,
+		"typeRecompilationsTriggered": m.TypeRecompilationsTriggered,
 
 		"numWaitingForProgram": m.NumWaitingForProgram,
 		"numAttached":          m.NumAttached,
@@ -194,16 +207,19 @@ func (s *state) nextProgramID() ir.ProgramID {
 	return s.programIDAlloc
 }
 
-func newState(breakerCfg CircuitBreakerConfig) *state {
+func newState(cfg Config) *state {
 	return &state{
-		programIDAlloc: 0,
-		processes:      make(map[ProcessID]*process),
-		programs:       make(map[ir.ProgramID]*program),
+		programIDAlloc:     0,
+		processes:          make(map[ProcessID]*process),
+		processesByService: make(map[string]map[ProcessID]struct{}),
+		programs:           make(map[ir.ProgramID]*program),
 		queuedLoading: makeQueue(func(p *program) ir.ProgramID {
 			return p.id
 		}),
-		breakerCfg:    breakerCfg,
-		lastHeartbeat: time.Now(),
+		breakerCfg:            cfg.CircuitBreakerConfig,
+		recompilationDisabled: cfg.RecompilationDisabled,
+		lastHeartbeat:         time.Now(),
+		discoveredTypes:       make(map[string][]string),
 	}
 }
 
@@ -224,6 +240,11 @@ type program struct {
 	// Note: in the future when we have multiple processes per program, this
 	// will be a set of process IDs.
 	processID ProcessID
+
+	// needsRecompilation is set when new types have been discovered for the
+	// service since this program was compiled. When the pipeline is idle,
+	// maybeTriggerTypeRecompilation will clear the program and re-enqueue it.
+	needsRecompilation bool
 }
 
 type process struct {
@@ -232,6 +253,7 @@ type process struct {
 	state processState
 
 	executable Executable
+	service    string
 	probes     map[probeKey]ir.ProbeDefinition
 
 	// The currently installed program, if there is one. Will be 0 if the
@@ -242,6 +264,38 @@ type process struct {
 	// same ID as the currentProgram. Will be nil if there is no program
 	// attached.
 	attachedProgram *attachedProgram
+}
+
+func (s *state) addProcessToServiceIndex(proc *process) {
+	if proc.service == "" {
+		return
+	}
+	pids, ok := s.processesByService[proc.service]
+	if !ok {
+		pids = make(map[ProcessID]struct{})
+		s.processesByService[proc.service] = pids
+	}
+	pids[proc.processID] = struct{}{}
+}
+
+func (s *state) removeProcessFromServiceIndex(proc *process) {
+	if proc.service == "" {
+		return
+	}
+	pids := s.processesByService[proc.service]
+	delete(pids, proc.processID)
+	if len(pids) == 0 {
+		delete(s.processesByService, proc.service)
+	}
+}
+
+func (s *state) deleteProcess(pid ProcessID) {
+	proc, ok := s.processes[pid]
+	if !ok {
+		return
+	}
+	s.removeProcessFromServiceIndex(proc)
+	delete(s.processes, pid)
 }
 
 type probeKey struct {
@@ -262,7 +316,7 @@ func (pk probeKey) cmp(other probeKey) int {
 type effectHandler interface {
 
 	// Load eBPF program into kernel.
-	loadProgram(ir.ProgramID, Executable, ProcessID, []ir.ProbeDefinition)
+	loadProgram(ir.ProgramID, Executable, ProcessID, []ir.ProbeDefinition, LoadOptions)
 
 	// Attach program to process via uprobes.
 	attachToProcess(*loadedProgram, Executable, ProcessID) // -> ProgramAttached/Failed
@@ -303,6 +357,9 @@ func handleEvent(
 		sm.counters.loaded++
 		err = handleProgramLoaded(sm, effects, ev)
 
+	case eventMissingTypesReported:
+		err = handleMissingTypesReported(sm, effects, ev)
+
 	case eventProgramLoadingFailed:
 		sm.counters.loadFailed++
 		err = handleProgramLoadingFailure(sm, ev.programID)
@@ -334,6 +391,9 @@ func handleEvent(
 	}
 	if err := maybeDequeueProgram(sm, effects); err != nil {
 		return fmt.Errorf("failed to dequeue program: %w", err)
+	}
+	if err := maybeTriggerTypeRecompilation(sm, effects); err != nil {
+		return fmt.Errorf("failed to trigger type recompilation: %w", err)
 	}
 	return nil
 }
@@ -390,9 +450,11 @@ func handleProcessesUpdated(
 			p = &process{
 				processID:  pid,
 				executable: pu.Executable,
+				service:    pu.Info.Service,
 				probes:     make(map[probeKey]ir.ProbeDefinition),
 			}
 			sm.processes[pid] = p
+			sm.addProcessToServiceIndex(p)
 		}
 		if !anythingChanged(p, pu.Probes) {
 			return nil
@@ -419,10 +481,10 @@ func handleProcessesUpdated(
 					// When it is, we'll then go and enqueue a new program.
 					p.state = processStateWaitingForProgram
 				} else {
-					delete(sm.processes, p.processID)
+					sm.deleteProcess(p.processID)
 				}
 			case processStateInvalid:
-				delete(sm.processes, p.processID)
+				sm.deleteProcess(p.processID)
 			case processStateWaitingForProgram:
 				// We're waiting for an aborted loading to finish.
 			case processStateAttached:
@@ -482,7 +544,7 @@ func enqueueProgramForProcess(sm *state, p *process) error {
 	// If the process has no probes, we don't need to enqueue a program --
 	// we're done with the process.
 	if len(p.probes) == 0 {
-		delete(sm.processes, p.processID)
+		sm.deleteProcess(p.processID)
 		return nil
 	}
 	probes := make([]ir.ProbeDefinition, 0, len(p.probes))
@@ -531,6 +593,8 @@ func clearProcessProgram(
 			progID, proc.processID,
 		)
 	}
+
+	prog.needsRecompilation = false
 
 	switch prog.state {
 	case programStateQueued:
@@ -591,6 +655,112 @@ func clearProcessProgram(
 	}
 }
 
+// mergeIntoSorted merges src into dst, maintaining a sorted, deduplicated slice.
+func mergeIntoSorted(dst, src []string) (_ []string, changed bool) {
+	var i int
+	for _, name := range src {
+		j, found := slices.BinarySearch(dst[i:], name)
+		if found {
+			continue
+		}
+		i += j
+		dst = slices.Insert(dst, i, name)
+		changed = true
+	}
+	return dst, changed
+}
+
+func handleMissingTypesReported(
+	sm *state, _ effectHandler, ev eventMissingTypesReported,
+) error {
+	if sm.shuttingDown {
+		return nil
+	}
+	proc, ok := sm.processes[ev.processID]
+	if !ok {
+		// Process may have been removed since the event was emitted.
+		return nil
+	}
+	service := proc.service
+	if service == "" {
+		return nil
+	}
+
+	// Merge reported type names into the per-service discovered set,
+	// maintaining a sorted, deduplicated slice.
+	types, changed := mergeIntoSorted(sm.discoveredTypes[service], ev.typeNames)
+	if !changed {
+		return nil
+	}
+	sm.discoveredTypes[service] = types
+
+	// Mark all programs for processes of this service that need
+	// recompilation. Only Loading and Loaded programs are marked: Queued
+	// programs will pick up the latest types at dequeue time, and programs
+	// in teardown states (Draining/Unloading/LoadingAborted) are already
+	// being replaced.
+	for pid := range sm.processesByService[service] {
+		p := sm.processes[pid]
+		if p.currentProgram == 0 {
+			continue
+		}
+		prog, ok := sm.programs[p.currentProgram]
+		if !ok {
+			continue
+		}
+		switch prog.state {
+		case programStateLoading, programStateLoaded:
+			prog.needsRecompilation = true
+		}
+	}
+
+	// Actual recompilation is triggered by maybeTriggerTypeRecompilation,
+	// which runs after every event and acts when the pipeline is idle.
+	return nil
+}
+
+// maybeTriggerTypeRecompilation finds a program flagged with
+// needsRecompilation and clears it to trigger re-enqueue. This handles both
+// the case where missing types were reported while the pipeline was busy and
+// the per-service fan-out where multiple programs need recompilation.
+//
+// Only one recompilation is triggered per call to avoid cascading effects.
+func maybeTriggerTypeRecompilation(sm *state, effects effectHandler) error {
+	if sm.shuttingDown || sm.recompilationDisabled {
+		return nil
+	}
+	// Only act when the pipeline is completely idle.
+	if sm.currentlyLoading != nil || sm.queuedLoading.len() > 0 {
+		return nil
+	}
+
+	// Find the flagged program with the minimum ID for determinism.
+	var minProg *program
+	for _, prog := range sm.programs {
+		if !prog.needsRecompilation {
+			continue
+		}
+		if minProg == nil || prog.id < minProg.id {
+			minProg = prog
+		}
+	}
+	if minProg == nil {
+		return nil
+	}
+
+	proc, ok := sm.processes[minProg.processID]
+	if !ok {
+		return fmt.Errorf("process %v not found for program %v", minProg.processID, minProg.id)
+	}
+	if err := clearProcessProgram(sm, effects, proc); err != nil {
+		return fmt.Errorf("failed to clear process program for type recompilation: %w", err)
+	}
+	sm.counters.typeRecompilationsTriggered++
+	// Only trigger one recompilation per call; the next event cycle
+	// will pick up additional ones if needed.
+	return nil
+}
+
 func handleProgramLoadingFailure(
 	sm *state, progID ir.ProgramID,
 ) error {
@@ -612,7 +782,7 @@ func handleProgramLoadingFailure(
 	case processStateWaitingForProgram:
 		// The process was already removed.
 		if len(proc.probes) == 0 {
-			delete(sm.processes, proc.processID)
+			sm.deleteProcess(proc.processID)
 		} else {
 			proc.state = processStateFailed
 			proc.currentProgram = 0
@@ -688,6 +858,7 @@ func handleProgramAttachingFailed(
 
 	// Unload the program.
 	prog.state = programStateUnloading
+	prog.needsRecompilation = false
 	effects.unloadProgram(prog.loaded)
 
 	switch proc.state {
@@ -807,7 +978,7 @@ func handleProgramUnloaded(sm *state, ev eventProgramUnloaded) error {
 	case processStateWaitingForProgram,
 		processStateDetaching:
 		if len(proc.probes) == 0 {
-			delete(sm.processes, proc.processID)
+			sm.deleteProcess(proc.processID)
 		} else {
 			proc.currentProgram = 0
 			if err := enqueueProgramForProcess(sm, proc); err != nil {
@@ -836,7 +1007,16 @@ func maybeDequeueProgram(sm *state, effects effectHandler) error {
 		return fmt.Errorf("program %v in invalid state: %v", p.id, p.state)
 	}
 	p.state = programStateLoading
-	effects.loadProgram(p.id, p.executable, p.processID, p.config)
+	p.needsRecompilation = false // defensive: should not be set for Queued programs
+	// Look up discovered types for the process's service at dequeue time,
+	// so we always use the latest set.
+	var additionalTypes []string
+	if proc, ok := sm.processes[p.processID]; ok && proc.service != "" {
+		additionalTypes = slices.Clone(sm.discoveredTypes[proc.service])
+	}
+	effects.loadProgram(p.id, p.executable, p.processID, p.config, LoadOptions{
+		AdditionalTypes: additionalTypes,
+	})
 	return nil
 }
 
@@ -866,11 +1046,12 @@ func handleShutdown(sm *state, effects effectHandler) error {
 		case processStateAttaching:
 			prog := sm.programs[proc.currentProgram]
 			prog.state = programStateDraining
+			prog.needsRecompilation = false
 			proc.state = processStateDetaching
 		case processStateFailed:
 			// Otherwise we're still waiting for the program to be unloaded.
 			if proc.currentProgram == 0 {
-				delete(sm.processes, proc.processID)
+				sm.deleteProcess(proc.processID)
 			} else {
 				proc.state = processStateDetaching
 			}
@@ -880,6 +1061,7 @@ func handleShutdown(sm *state, effects effectHandler) error {
 	// 2. Abort currently loading program, if any.
 	if sm.currentlyLoading != nil {
 		sm.currentlyLoading.state = programStateLoadingAborted
+		sm.currentlyLoading.needsRecompilation = false
 	}
 
 	// 3. Clear the loading queue.
@@ -889,7 +1071,7 @@ func handleShutdown(sm *state, effects effectHandler) error {
 		if !ok {
 			return fmt.Errorf("process %v not found in processes", prog.processID)
 		}
-		delete(sm.processes, proc.processID)
+		sm.deleteProcess(proc.processID)
 		delete(sm.programs, prog.id)
 	}
 	return nil
@@ -941,6 +1123,7 @@ func handleHeartbeatCheck(sm *state, effects effectHandler) {
 			if costSPS > sm.breakerCfg.PerProbeCPULimit && proc.state == processStateAttached {
 				// Circuit breaker triggered for this probe, detach it.
 				prog.state = programStateDraining
+				prog.needsRecompilation = false
 				proc.state = processStateFailed
 				err := fmt.Errorf(
 					"probe exceeded CPU limit of %fcpus/s using %fcpus/s = %fcpus/s (exec) + %fcpus/s (%d interrupts) over %fs on core %d",
@@ -975,6 +1158,7 @@ func handleHeartbeatCheck(sm *state, effects effectHandler) {
 		prog := maxProg[maxCore]
 		proc := sm.processes[prog.processID]
 		prog.state = programStateDraining
+		prog.needsRecompilation = false
 		proc.state = processStateFailed
 		err := fmt.Errorf(
 			"probes exceeded total CPU limit of %fcpus/s using %fcpus/s on core %d; detaching most expensive probe, that used %fcpus/s (mean over %fs)",

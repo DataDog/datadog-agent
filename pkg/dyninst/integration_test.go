@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module"
@@ -575,9 +576,9 @@ type outputSavingIRGenerator struct {
 
 // GenerateIR implements module.IRGenerator.
 func (o *outputSavingIRGenerator) GenerateIR(
-	programID ir.ProgramID, binaryPath string, probes []ir.ProbeDefinition,
+	programID ir.ProgramID, binaryPath string, probes []ir.ProbeDefinition, options ...irgen.Option,
 ) (*ir.Program, error) {
-	ir, err := o.irGenerator.GenerateIR(programID, binaryPath, probes)
+	ir, err := o.irGenerator.GenerateIR(programID, binaryPath, probes, options...)
 	if err != nil {
 		return nil, err
 	}

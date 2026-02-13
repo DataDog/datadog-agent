@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module/tombstone"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
@@ -48,14 +49,15 @@ type Config struct {
 	// DiskCacheConfig is the configuration for the disk cache for debug info.
 	DiskCacheConfig object.DiskCacheConfig
 
-	// CircuitBreakerConfig is the configuration for the circuit breaker enforcing probe cpu-limits.
-	CircuitBreakerConfig actuator.CircuitBreakerConfig
+	// ActuatorConfig is the configuration for the actuator.
+	ActuatorConfig actuator.Config
 
 	TestingKnobs struct {
 		LoaderOptions             []loader.Option
 		IRGeneratorOverride       func(IRGenerator) IRGenerator
 		ProcessSubscriberOverride func(ProcessSubscriber) ProcessSubscriber
 		TombstoneSleepKnobs       tombstone.WaitTestingKnobs
+		LogsUploaderOptions       []uploader.Option
 	}
 }
 
@@ -77,7 +79,9 @@ func NewConfig(_ *sysconfigtypes.Config) (*Config, error) {
 		ProbeTombstoneFilePath: "/tmp/datadog-agent/system-probe/dynamic-instrumentation/debugger-probes-tombstone.json",
 		DiskCacheEnabled:       cacheEnabled,
 		DiskCacheConfig:        cacheConfig,
-		CircuitBreakerConfig:   getCircuitBreakerConfig(),
+		ActuatorConfig: actuator.Config{
+			CircuitBreakerConfig: getCircuitBreakerConfig(),
+		},
 	}
 	return c, nil
 }

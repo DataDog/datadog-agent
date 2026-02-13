@@ -69,6 +69,7 @@ func (ye yamlEvent) MarshalYAML() (rv any, err error) {
 				PID int `yaml:"pid"`
 			} `yaml:"process_id"`
 			Executable Executable       `yaml:"executable"`
+			Service    string           `yaml:"service,omitempty"`
 			Probes     []map[string]any `yaml:"probes"`
 		}
 
@@ -97,6 +98,7 @@ func (ye yamlEvent) MarshalYAML() (rv any, err error) {
 					PID int `yaml:"pid"`
 				}{PID: int(proc.ProcessID.PID)},
 				Executable: proc.Executable,
+				Service:    proc.Info.Service,
 				Probes:     probes,
 			})
 		}
@@ -150,6 +152,12 @@ func (ye yamlEvent) MarshalYAML() (rv any, err error) {
 			"runtime_stats": runtimeStatsToYAML(ev.runtimeStats),
 		})
 
+	case eventMissingTypesReported:
+		return encodeNodeTag("!missing-types-reported", map[string]any{
+			"process_id": int(ev.processID.PID),
+			"type_names": ev.typeNames,
+		})
+
 	case eventShutdown:
 		return encodeNodeTag("!shutdown", map[string]any{})
 
@@ -182,7 +190,8 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 					} `yaml:"file_cookie"`
 				} `yaml:"key"`
 			} `yaml:"executable"`
-			Probes []map[string]any `yaml:"probes"`
+			Service string           `yaml:"service,omitempty"`
+			Probes  []map[string]any `yaml:"probes"`
 		}
 
 		var eventData struct {
@@ -212,6 +221,7 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 			updated = append(updated, ProcessUpdate{
 				Info: procinfo.Info{
 					ProcessID: ProcessID{PID: int32(proc.ProcessID.PID)},
+					Service:   proc.Service,
 					Executable: Executable{
 						Path: proc.Executable.Path,
 						Key: procinfo.FileKey{
@@ -345,6 +355,19 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 			runtimeStats: runtimeStatsFromYAML(
 				eventData.RuntimeStats,
 			),
+		}
+
+	case "missing-types-reported":
+		var eventData struct {
+			ProcessID int      `yaml:"process_id"`
+			TypeNames []string `yaml:"type_names"`
+		}
+		if err := node.Decode(&eventData); err != nil {
+			return fmt.Errorf("failed to decode missing-types-reported event: %w", err)
+		}
+		ye.event = eventMissingTypesReported{
+			processID: ProcessID{PID: int32(eventData.ProcessID)},
+			typeNames: eventData.TypeNames,
 		}
 
 	case "shutdown":
