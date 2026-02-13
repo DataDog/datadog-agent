@@ -238,9 +238,9 @@ func (c *converterWithoutAgent) ensureResourceDetectionConfig(resourceDetection 
 	}
 
 	// Always ensure host.arch is enabled
-	if isDefaultValue, err := EnsureDefault(resourceDetection, "system::resource_attributes::host.arch::enabled", true); err != nil {
+	if ddDefaultValue, err := EnsureDefault(resourceDetection, "system::resource_attributes::host.arch::enabled", true); err != nil {
 		return err
-	} else if !isDefaultValue {
+	} else if !ddDefaultValue {
 		standaloneLogger.Warn("host.arch is required but is disabled by user configuration; preserving user value")
 	}
 
