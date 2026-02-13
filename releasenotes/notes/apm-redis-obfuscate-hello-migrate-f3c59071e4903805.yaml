@@ -8,6 +8,6 @@
 ---
 security:
   - |
-    APM: On span tags, add obfuscation on `HELLO` and `MIGRATE` redis commands.
-    Similar to AUTH, all arguments passed to these commands will be obfuscated
-    and replaced with `?`.
+    APM: On span tags, add obfuscation on ``HELLO`` and ``MIGRATE`` redis commands.
+    Similar to ``AUTH``, all arguments passed to these commands will be obfuscated
+    and replaced with ``?``.
