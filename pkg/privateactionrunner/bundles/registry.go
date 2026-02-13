@@ -8,8 +8,10 @@
 package privatebundles
 
 import (
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	com_datadoghq_ddagent "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/ddagent"
+	com_datadoghq_ddagent_status "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/ddagentstatus"
 	com_datadoghq_gitlab_branches "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/branches"
 	com_datadoghq_gitlab_commits "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/commits"
 	com_datadoghq_gitlab_customattributes "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/customattributes"
@@ -48,10 +50,11 @@ type Registry struct {
 	Bundles map[string]types.Bundle
 }
 
-func NewRegistry(configuration *config.Config) *Registry {
+func NewRegistry(configuration *config.Config, ipcClient ipc.HTTPClient) *Registry {
 	return &Registry{
 		Bundles: map[string]types.Bundle{
 			"com.datadoghq.ddagent":                    com_datadoghq_ddagent.NewAgentActions(),
+			"com.datadoghq.ddagent.status":             com_datadoghq_ddagent_status.NewAgentStatus(ipcClient),
 			"com.datadoghq.gitlab.branches":            com_datadoghq_gitlab_branches.NewGitlabBranches(),
 			"com.datadoghq.gitlab.commits":             com_datadoghq_gitlab_commits.NewGitlabCommits(),
 			"com.datadoghq.gitlab.customattributes":    com_datadoghq_gitlab_customattributes.NewGitlabCustomAttributes(),

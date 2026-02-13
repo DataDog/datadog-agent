@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -55,6 +56,7 @@ type Requires struct {
 	RcClient  rcclient.Component
 	Hostname  hostname.Component
 	Tagger    tagger.Component
+	IPC       ipc.Component
 }
 
 // Provides defines the output of the privateactionrunner component
@@ -76,7 +78,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
 
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger)
+	ipcClient := reqs.IPC.GetClient()
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, ipcClient)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -94,6 +97,7 @@ func NewPrivateActionRunner(
 	rcClient pkgrcclient.Client,
 	logger log.Component,
 	taggerComp tagger.Component,
+	ipcClient ipc.HTTPClient,
 ) (*PrivateActionRunner, error) {
 	persistedIdentity, err := enrollment.GetIdentityFromPreviousEnrollment(ctx, coreConfig)
 	if err != nil {
@@ -131,7 +135,7 @@ func NewPrivateActionRunner(
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(cfg)
 
-	r, err := runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient)
+	r, err := runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, ipcClient)
 	if err != nil {
 		return nil, err
 	}
