@@ -64,7 +64,7 @@ func NewInstance(e resourceslocal.Environment, args VMArgs, opts ...pulumi.Resou
 	buildPodman, err := runner.Command("podman-build"+args.Name, &command.LocalArgs{
 		Args: command.Args{
 			Environment: pulumi.StringMap{"DOCKER_HOST_SSH_PUBLIC_KEY": pulumi.String(string(publicKey))},
-			Create:      pulumi.Sprintf("%s build --format=docker --build-arg DOCKER_HOST_SSH_PUBLIC_KEY=\"$DOCKER_HOST_SSH_PUBLIC_KEY\" -t %s .", podmanCommand, args.Name),
+			Create:      pulumi.Sprintf("%s build --format=docker --build-arg DOCKER_HOST_SSH_PUBLIC_KEY=\"$DOCKER_HOST_SSH_PUBLIC_KEY\" --build-arg BASE_IMAGE_REGISTRY=669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/ -t %s .", podmanCommand, args.Name),
 			Delete:      pulumi.Sprintf("%s rmi %s", podmanCommand, args.Name),
 			Triggers:    pulumi.Array{},
 		},

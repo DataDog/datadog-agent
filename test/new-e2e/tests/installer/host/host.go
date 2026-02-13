@@ -514,7 +514,7 @@ func (h *Host) SetUmask(mask string) (oldmask string) {
 func (h *Host) SetupProxy() {
 	// Install Docker & the Squid Proxy
 	h.InstallDocker()
-	h.remote.MustExecute("sudo docker run -d --name squid-proxy -v /opt/fixtures/squid.conf:/etc/squid/squid.conf -p 3128:3128 public.ecr.aws/ubuntu/squid:4.10-20.04_beta")
+	h.remote.MustExecute("sudo docker run -d --name squid-proxy -v /opt/fixtures/squid.conf:/etc/squid/squid.conf -p 3128:3128 669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/ubuntu/squid:4.10-20.04_beta")
 
 	squidIP := strings.TrimSpace(h.remote.MustExecute("sudo docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' squid-proxy"))
 
