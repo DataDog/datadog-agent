@@ -60,7 +60,6 @@ build do
   command_on_repo_root "bazelisk run -- @gpg-error//:install --destdir='#{install_dir}/embedded'"
   command_on_repo_root "bazelisk run -- @gcrypt//:install --destdir='#{install_dir}/embedded'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-    " #{install_dir}/embedded/lib/pkgconfig/libgcrypt.pc" \
     " #{install_dir}/embedded/lib/libgcrypt.so" \
     " #{install_dir}/embedded/lib/libgpg-error.so" \
 
