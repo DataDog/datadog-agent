@@ -73,7 +73,7 @@ func (h *Host) CallExamplePythonApp(traceID string) {
 // StartExamplePythonAppInDocker starts the example Python app in Docker
 func (h *Host) StartExamplePythonAppInDocker() {
 	h.WaitForTraceAgentSocketReady()
-	h.remote.MustExecute(`sudo docker run --name python-app -d -p 8081:8080 -v /opt/fixtures/http_server.py:/usr/src/app/http_server.py public.ecr.aws/docker/library/python:3.8-slim python /usr/src/app/http_server.py`)
+	h.remote.MustExecute(`sudo docker run --name python-app -d -p 8081:8080 -v /opt/fixtures/http_server.py:/usr/src/app/http_server.py 669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/library/python:3.8-slim python /usr/src/app/http_server.py`)
 }
 
 // StopExamplePythonAppInDocker stops the example Python app in Docker
