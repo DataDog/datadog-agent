@@ -69,8 +69,6 @@ build do
 
   command_on_repo_root "bazelisk run -- @libxslt//:install --destdir='#{install_dir}/embedded'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-    " #{install_dir}/embedded/lib/pkgconfig/libxslt.pc" \
-    " #{install_dir}/embedded/lib/pkgconfig/libexslt.pc" \
     " #{install_dir}/embedded/lib/libxslt.so" \
     " #{install_dir}/embedded/lib/libexslt.so"
 
