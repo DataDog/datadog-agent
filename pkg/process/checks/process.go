@@ -671,10 +671,10 @@ func formatCPU(statsNow, statsBefore *procutil.Stats, syst2, syst1 cpu.TimesStat
 type skipReason int
 
 const (
-	notSkipped        skipReason = iota
-	skipDisallowListed           // Process matched a disallow list pattern
-	skipShortLived               // Process was not seen in the previous collection cycle
-	skipZombie                   // Process is a zombie and zombie filtering is enabled
+	notSkipped         skipReason = iota
+	skipDisallowListed            // Process matched a disallow list pattern
+	skipShortLived                // Process was not seen in the previous collection cycle
+	skipZombie                    // Process is a zombie and zombie filtering is enabled
 )
 
 // skipProcess will skip a given process if it's disallow-listed, hasn't existed
