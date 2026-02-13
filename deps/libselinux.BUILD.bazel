@@ -1,5 +1,4 @@
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
-load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
@@ -80,20 +79,6 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
-expand_template(
-    name = "libselinux_pc",
-    out = "libselinux.pc",
-    substitutions = {
-        # Prepare the .pc file for our own substitution later
-        "@prefix@": "##PREFIX##",
-        # and make other values depend on the prefix declared in the .pc file
-        "@libdir@": "${prefix}/lib",
-        "@includedir@": "${prefix}/include",
-        "@VERSION@": "3.5",
-    },
-    template = ":src/libselinux.pc.in",
-)
-
 pkg_files(
     name = "lib_files",
     srcs = [":selinux"],
@@ -104,12 +89,6 @@ pkg_files(
     name = "hdr_files",
     srcs = glob(["include/selinux/*.h"]),
     prefix = "include/selinux",
-)
-
-pkg_files(
-    name = "pc_file",
-    srcs = [":libselinux_pc"],
-    prefix = "lib/pkgconfig",
 )
 
 pkg_filegroup(
@@ -125,6 +104,5 @@ pkg_install(
     name = "install",
     srcs = [
         ":all_files",
-        ":pc_file",
     ],
 )
