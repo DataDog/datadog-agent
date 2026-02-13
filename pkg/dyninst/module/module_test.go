@@ -624,7 +624,7 @@ func TestNoSuccessfulProbes(t *testing.T) {
 		Interval:          1 * time.Second,
 		PerProbeCPULimit:  0.1,
 		AllProbesCPULimit: 0.5,
-		InterruptOverhead: 5 * time.Microsecond,
+		InterruptOverhead: 2 * time.Microsecond,
 	})
 	t.Cleanup(func() { require.NoError(t, a.Shutdown()) })
 	deps := fakeDeps.toDeps()

@@ -508,8 +508,9 @@ func newTestConcentratorWithCfg(now time.Time, cfg *config.AgentConfig) *coresta
 	return corestats.NewConcentrator(cfg, noopStatsWriter{}, now, &statsd.NoOpClient{})
 }
 
-// TestProcessOTLPTraces_Semconv123Plus tests stats processing with HTTP semconv 1.23+ attributes.
-func TestProcessOTLPTraces_Semconv123Plus(t *testing.T) {
+// TestProcessOTLPTraces_HTTPRequestMethodAndEnvName tests stats processing with
+// http.request.method (semconv 1.23+) and deployment.environment.name (semconv 1.27+) attributes.
+func TestProcessOTLPTraces_HTTPRequestMethodAndEnvName(t *testing.T) {
 	start := time.Now().Add(-1 * time.Second)
 	end := time.Now()
 	set := componenttest.NewNopTelemetrySettings()

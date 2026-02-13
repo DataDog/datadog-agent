@@ -201,7 +201,7 @@ func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command
 
 	downloadPolicyCmd.Flags().BoolVar(&downloadPolicyArgs.check, "check", false, "Check policies after downloading")
 	downloadPolicyCmd.Flags().StringVar(&downloadPolicyArgs.outputPath, "output-path", "", "Output path for downloaded policies")
-	downloadPolicyCmd.Flags().StringVar(&downloadPolicyArgs.source, "source", "all", `Specify wether should download the custom, default or all policies. allowed: "all", "default", "custom"`)
+	downloadPolicyCmd.Flags().StringVar(&downloadPolicyArgs.source, "source", "all", `Specify whether should download the custom, default or all policies. allowed: "all", "default", "custom"`)
 
 	return []*cobra.Command{downloadPolicyCmd}
 }
@@ -353,7 +353,7 @@ func dumpNetworkNamespace(_ log.Component, _ config.Component, _ secrets.Compone
 func checkPolicies(_ log.Component, _ config.Component, args *checkPoliciesCliParams) error {
 	if args.evaluateAllPolicySources {
 		if args.windowsModel {
-			return errors.New("unable to evaluator loaded policies using the windows model")
+			return errors.New("unable to evaluate loaded policies using the windows model")
 		}
 
 		client, err := secagent.NewRuntimeSecurityCmdClient()

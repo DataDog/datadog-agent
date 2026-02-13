@@ -274,28 +274,27 @@ func (s *store) insertEp(ep *v1.Endpoints) bool {
 	defer s.Unlock()
 
 	// Configuration defined using Advanced AD identifiers (exact namespace/name match)
-	epConfig, found := s.epConfigs[epID(ep.Namespace, ep.Name)]
-	if found {
+	epConfig, adFound := s.epConfigs[epID(ep.Namespace, ep.Name)]
+	if adFound {
 		if epConfig.eps == nil {
 			epConfig.eps = make(map[*v1.Endpoints]struct{})
 		}
 		epConfig.eps[ep] = struct{}{}
 		epConfig.shouldCollect = true
-		return true
 	}
 
 	// Endpoint matches any CEL template (CEL Selector based match)
-	if s.matchesAnyCELTemplate(ep) {
+	celFound := s.matchesAnyCELTemplate(ep)
+	if celFound {
 		celEpConfig := s.epConfigs[celEndpointID]
 		if celEpConfig.eps == nil {
 			celEpConfig.eps = make(map[*v1.Endpoints]struct{})
 		}
 		celEpConfig.eps[ep] = struct{}{}
 		celEpConfig.shouldCollect = true
-		return true
 	}
 
-	return false
+	return adFound || celFound
 }
 
 // deleteEp handles endpoint objects deletion.

@@ -756,6 +756,8 @@ class GateMetricHandler:
         Args:
             ancestor: The ancestor commit SHA to compare against
         """
+        import time
+
         from tasks.libs.common.datadog_api import query_gate_metrics_for_commit
 
         if not ancestor:
@@ -764,6 +766,17 @@ class GateMetricHandler:
 
         # Query Datadog once for all gates
         ancestor_metrics = query_gate_metrics_for_commit(ancestor)
+
+        # Retry once after delay if no metrics found (race condition with ancestor job)
+        if not ancestor_metrics:
+            print(
+                color_message(
+                    "[INFO] No ancestor metrics found, waiting 3 minutes for metrics to be available...",
+                    "blue",
+                )
+            )
+            time.sleep(180)  # 3 minutes
+            ancestor_metrics = query_gate_metrics_for_commit(ancestor)
 
         datadog_gates_found = 0
         for gate in self.metrics:

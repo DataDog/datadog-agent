@@ -1,5 +1,11 @@
 # openscap
 
+load(
+    "@rules_pkg//pkg:mappings.bzl",
+    "pkg_filegroup",
+)
+
+# Things we depend on. This is used to gather liceneses
 alias(
     name = "all_deps",
     actual = "@openscap//:all_deps",
@@ -10,4 +16,46 @@ alias(
         "//compliance:__pkg__",
         "//packages:__subpackages__",
     ],
+)
+
+# Files to install in the distro. This is distinct from all_deps.
+# In the future, we should merge the two by being able to designate
+# that individual build targets, like a .so file, should be packaged
+# for distribution IFF the top level binary actually depends on them.
+# That needs design w.r.t. stripping debug symbols and rpath fixes.
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":all_embedded",
+        "@acl//:all_files",
+        "@attr//:all_files",
+        "@bzip2//:all_files",
+    ],
+    # Do not pick up with ... expansion.
+    tags = ["manual"],
+    visibility = ["//packages:__subpackages__"],
+)
+
+# TODO: Fix all of these packages so that embedded is part of the prefix they
+# know about. Right now, we rely on the pkg_install dest_dir to put it into
+# embedded.
+pkg_filegroup(
+    name = "all_embedded",
+    srcs = [
+        "@dbus//:all_files",
+        "@gcrypt//:all_files",
+        "@libselinux//:all_files",
+        "@libsepol//:all_files",
+        "@libxslt//:all_files",
+        "@libyaml//:all_files",
+        "@pcre2//:all_files",
+        "@popt//:all_files",
+        "@rpm//:all_files",
+        "@util-linux//:all_files",
+        "@xmlsec//:all_files",
+    ],
+    prefix = "embedded",
+    # Do not pick up with ... expansion.
+    tags = ["manual"],
+    visibility = ["//packages:__subpackages__"],
 )

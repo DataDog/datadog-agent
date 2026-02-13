@@ -7,7 +7,6 @@ package workloadmetaimpl
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"sync"
 	"time"
@@ -118,20 +117,19 @@ func NewWorkloadMeta(deps Dependencies) Provider {
 }
 
 func (w *workloadmeta) writeResponse(writer http.ResponseWriter, r *http.Request) {
-	verbose := false
 	params := r.URL.Query()
-	if v, ok := params["verbose"]; ok {
-		if len(v) >= 1 && v[0] == "true" {
-			verbose = true
-		}
-	}
 
-	response := w.Dump(verbose)
-	jsonDump, err := json.Marshal(response)
+	jsonDump, err := wmdef.BuildWorkloadResponse(
+		w,
+		params.Get("verbose") == "true",
+		params.Get("search"),
+		params.Get("format") == "json",
+	)
 	if err != nil {
-		httputils.SetJSONError(writer, w.log.Errorf("Unable to marshal workload list response: %v", err), 500)
+		httputils.SetJSONError(writer, w.log.Errorf("Unable to build workload list response: %v", err), 500)
 		return
 	}
 
+	writer.Header().Set("Content-Type", "application/json")
 	writer.Write(jsonDump)
 }

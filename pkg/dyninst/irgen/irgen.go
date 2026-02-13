@@ -436,6 +436,9 @@ type analyzedExpression struct {
 	// For template segments, the segment reference and index.
 	segment    *ir.JSONSegment
 	segmentIdx int // -1 if not a segment
+
+	// For capture expressions, the user-specified name.
+	captureExprName string
 }
 
 // analyzedProbe holds all analyzed expressions for a single probe.
@@ -487,12 +490,14 @@ func analyzeAllProbes(
 
 	for _, probe := range probes {
 		budget := budgets[probe.Subprogram.ID]
-		isSnapshot := probe.GetKind() == ir.ProbeKindSnapshot
+		kind := probe.GetKind()
+		isSnapshot := kind == ir.ProbeKindSnapshot
+		isCaptureExpression := kind == ir.ProbeKindCaptureExpression
 
 		ap := analyzedProbe{
 			probe:      probe,
 			budget:     budget,
-			isSnapshot: isSnapshot,
+			isSnapshot: isSnapshot || isCaptureExpression,
 		}
 
 		// Build variable lookup for this probe's subprogram.
@@ -582,7 +587,9 @@ func analyzeAllProbes(
 			}
 
 			// For snapshot probes, add variable itself as an expression.
-			if isSnapshot {
+			// Capture expression probes only capture explicitly listed
+			// expressions (handled below), not all variables.
+			if isSnapshot && !isCaptureExpression {
 				ap.expressions = append(ap.expressions, analyzedExpression{
 					expr:         &exprlang.RefExpr{Ref: v.Name},
 					dsl:          v.Name,
@@ -619,12 +626,55 @@ func analyzeAllProbes(
 					segment:      seg.segment,
 					segmentIdx:   seg.index,
 				})
-				// Log probe: add root variable type to exploration roots.
-				if !isSnapshot {
+				// Log/capture-expression probe: add root variable type to exploration roots.
+				// For snapshot probes, the variable was already added above.
+				if !isSnapshot || isCaptureExpression {
 					addRoot(v.Type.GetID(), budget)
 				}
 			}
 			delete(segmentRefs, v.Name)
+		}
+
+		// Process capture expressions.
+		for _, ce := range probe.ProbeDefinition.GetCaptureExpressions() {
+			parsedExpr, err := exprlang.Parse(ce.GetJSON())
+			if err != nil {
+				continue
+			}
+			rootVarName, ok := extractRootVariableName(parsedExpr)
+			if !ok {
+				continue
+			}
+			rootVar := varByName[rootVarName]
+			if rootVar == nil {
+				continue
+			}
+			var evKind ir.EventKind
+			switch {
+			case haveEntry && rootVar.Role == ir.VariableRoleParameter:
+				evKind = ir.EventKindEntry
+			case haveReturn && rootVar.Role == ir.VariableRoleReturn:
+				evKind = ir.EventKindReturn
+			case haveReturn && rootVar.Role == ir.VariableRoleLocal:
+				evKind = ir.EventKindReturn
+			case len(probe.Events) == 1 && probe.Events[0].Kind == ir.EventKindLine:
+				if !variableIsAvailable(probe.Events[0].InjectionPoints, rootVar) {
+					continue
+				}
+				evKind = ir.EventKindLine
+			default:
+				continue
+			}
+			ap.expressions = append(ap.expressions, analyzedExpression{
+				expr:            parsedExpr,
+				dsl:             ce.GetDSL(),
+				rootVariable:    rootVar,
+				eventKind:       evKind,
+				exprKind:        ir.RootExpressionKindCaptureExpression,
+				segmentIdx:      -1,
+				captureExprName: ce.GetName(),
+			})
+			addRoot(rootVar.Type.GetID(), budget)
 		}
 
 		// Mark unmatched segments as invalid.
@@ -708,12 +758,21 @@ func newTemplate(td ir.TemplateDefinition) *ir.Template {
 
 // computeDepthBudgets returns the maximum reference depth per subprogram ID
 // across all probes configured for that subprogram.
+//
+// TODO: Taking the max of all per-expression capture configs as the probe-level
+// limit is a short-term solution. This should be updated with logic to set the
+// depth per expression underneath eBPF.
 func computeDepthBudgets(pending []*pendingSubprogram) map[ir.SubprogramID]uint32 {
 	budgets := make(map[ir.SubprogramID]uint32, len(pending))
 	for _, p := range pending {
 		var maxDepth uint32
 		for _, cfg := range p.probesCfgs {
 			maxDepth = max(maxDepth, cfg.GetCaptureConfig().GetMaxReferenceDepth())
+			for _, ce := range cfg.GetCaptureExpressions() {
+				if ceCfg := ce.GetCaptureConfig(); ceCfg != nil {
+					maxDepth = max(maxDepth, ceCfg.GetMaxReferenceDepth())
+				}
+			}
 		}
 		budgets[p.id] = maxDepth
 	}
@@ -3364,8 +3423,12 @@ func populateEventExpressions(
 			seg.EventExpressionIndex = len(expressions)
 		}
 
+		name := expr.dsl
+		if expr.captureExprName != "" {
+			name = expr.captureExprName
+		}
 		expressions = append(expressions, &ir.RootExpression{
-			Name:       expr.dsl,
+			Name:       name,
 			Offset:     uint32(0),
 			Kind:       expr.exprKind,
 			Expression: resolvedExpr,
@@ -4148,7 +4211,7 @@ func makeInterests(cfg []ir.ProbeDefinition) (interests, []ir.ProbeIssue) {
 	var issues []ir.ProbeIssue
 	for _, probe := range cfg {
 		switch probe.GetKind() {
-		case ir.ProbeKindSnapshot:
+		case ir.ProbeKindSnapshot, ir.ProbeKindCaptureExpression:
 		case ir.ProbeKindLog:
 		default:
 			issues = append(issues, ir.ProbeIssue{

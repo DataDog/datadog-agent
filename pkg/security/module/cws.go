@@ -389,16 +389,6 @@ func (c *CWSConsumer) sendStats() {
 	}
 
 	c.ruleEngine.SendStats()
-
-	for statsTags, counter := range c.ruleEngine.AutoSuppression.GetStats() {
-		if counter > 0 {
-			tags := []string{
-				"rule_id:" + statsTags.RuleID,
-				"suppression_type:" + statsTags.SuppressionType,
-			}
-			_ = c.statsdClient.Count(metrics.MetricRulesSuppressed, counter, tags, 1.0)
-		}
-	}
 }
 
 func (c *CWSConsumer) statsSender() {

@@ -86,6 +86,24 @@ type Profile struct {
 	// Instances is the list of workload instances to witch the profile should apply
 	InstancesLock sync.Mutex
 	Instances     []*tags.Workload
+
+	// V2
+	// First has been sent
+	hasAlreadyBeenSent bool
+}
+
+// HasAlreadyBeenSent returns true if the profile has already been sent
+func (p *Profile) HasAlreadyBeenSent() bool {
+	p.Lock()
+	defer p.Unlock()
+	return p.hasAlreadyBeenSent
+}
+
+// SetHasAlreadyBeenSent sets the hasAlreadyBeenSent flag to true
+func (p *Profile) SetHasAlreadyBeenSent() {
+	p.Lock()
+	defer p.Unlock()
+	p.hasAlreadyBeenSent = true
 }
 
 // Opts defines the options to create a new profile
@@ -466,7 +484,7 @@ func (p *Profile) getGlobalState() model.EventFilteringProfileState {
 	return globalState // AutoLearning or StableEventType
 }
 
-// GetVersionContext returns the context of the givent version if any
+// GetVersionContext returns the context of the given version if any
 func (p *Profile) GetVersionContext(imageTag string) (*VersionContext, bool) {
 	p.Lock()
 	defer p.Unlock()
@@ -684,7 +702,7 @@ func (p *Profile) getTimeOrderedVersionContexts() []*VersionContext {
 	return orderedVersions
 }
 
-// GetVersionContextIndex returns the context of the givent version if any
+// GetVersionContextIndex returns the context of the given version if any
 func (p *Profile) GetVersionContextIndex(index int) *VersionContext {
 	p.Lock()
 	orderedVersions := p.getTimeOrderedVersionContexts()

@@ -58,6 +58,7 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 			HTTPTokensRequired: vmArgs.httpTokensRequired,
 			Tenancy:            vmArgs.tenancy,
 			HostID:             pulumi.String(vmArgs.hostID),
+			VolumeThroughput:   vmArgs.volumeThroughput,
 		}
 
 		if vmArgs.osInfo.Family() == os.MacOSFamily && vmArgs.hostID == "" {
@@ -165,6 +166,15 @@ func defaultVMArgs(e aws.Environment, vmArgs *vmArgs) error {
 		if vmArgs.osInfo.Architecture == os.ARM64Arch {
 			vmArgs.instanceType = e.DefaultARMInstanceType()
 		}
+		if vmArgs.osInfo.Family() == os.WindowsFamily {
+			vmArgs.instanceType = e.DefaultWindowsInstanceType()
+		}
+	}
+
+	if vmArgs.volumeThroughput == 0 && vmArgs.osInfo.Family() == os.WindowsFamily {
+		// Increase throughput for Windows instances to 400 MiB/s to reduce test flakiness
+		// May be able to lower this if we can disable some on-boot services in custom AMIs
+		vmArgs.volumeThroughput = 400
 	}
 
 	// macOS dedicated host defaults

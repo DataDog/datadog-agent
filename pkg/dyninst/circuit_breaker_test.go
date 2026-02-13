@@ -58,7 +58,7 @@ func testCircuitBreaker(
 		Interval:          10 * time.Millisecond,
 		PerProbeCPULimit:  0.1,
 		AllProbesCPULimit: 0.5,
-		InterruptOverhead: 5 * time.Microsecond,
+		InterruptOverhead: 2 * time.Microsecond,
 	}
 	cfg.ProbeTombstoneFilePath = filepath.Join(tempDir, "tombstone.json")
 	var sendUpdate fakeProcessSubscriber

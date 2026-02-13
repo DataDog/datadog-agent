@@ -42,3 +42,25 @@ bazel:run-buildifier-test:
       if [ $CI_JOB_STATUS = failed ]; then
         echo >&2 "💡 bazel run //bazel/buildifier"
       fi
+
+bazel:run-gazelle:
+  extends: .bazel:runner:linux-amd64
+  stage: lint
+  script:
+    - bazel run //:gazelle -- -mode=diff -strict
+  after_script:
+    - |-
+      if [ $CI_JOB_STATUS = failed ]; then
+        echo >&2 "💡 bazel run //:gazelle"
+      fi
+
+bazel:run-go-mod-tidy:
+  extends: .bazel:runner:linux-amd64
+  stage: lint
+  script:
+    - bazel run //:go mod tidy -- -diff
+  after_script:
+    - |-
+      if [ $CI_JOB_STATUS = failed ]; then
+        echo >&2 "💡 bazel run //:go mod tidy"
+      fi

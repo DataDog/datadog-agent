@@ -9,7 +9,6 @@
 package ebpfcheck
 
 import (
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -328,12 +327,13 @@ func (k *Probe) readSingleProgram(progid ebpf.ProgramID) (*model.EBPFProgramStat
 		return nil, fmt.Errorf("error getting program info prog_id=%d: %s", progid, err)
 	}
 
-	name := unix.ByteSliceToString(info.Name[:])
+	var name string
 	if pn, err := ddebpf.GetProgNameFromProgID(uint32(progid)); err == nil {
 		name = pn
-	}
-	// we require a name, so use program type for unnamed programs
-	if name == "" {
+	} else if info.Name[0] != 0 {
+		name = unix.ByteSliceToString(info.Name[:])
+	} else {
+		// we require a name, so use program type for unnamed programs
 		name = strings.ToLower(ebpf.ProgramType(info.Type).String())
 	}
 	module := "unknown"
@@ -341,12 +341,10 @@ func (k *Probe) readSingleProgram(progid ebpf.ProgramID) (*model.EBPFProgramStat
 		module = mod
 	}
 
-	tag := hex.EncodeToString(info.Tag[:])
 	ps := model.EBPFProgramStats{
 		ID:              uint32(progid),
 		Name:            name,
 		Module:          module,
-		Tag:             tag,
 		Type:            ebpf.ProgramType(info.Type).String(),
 		XlatedProgLen:   info.XlatedProgLen,
 		RSS:             uint64(roundUp(info.XlatedProgLen, uint32(pageSize))),
@@ -429,9 +427,9 @@ retry:
 	retryCnt++
 
 	for c := range cookies {
-		perfEventFD, err := ddebpf.GetPerfEventFDByProbeID(ebpf.ProgramID(c.Kprobe_id))
+		perfEventFD, ok := ddebpf.GetPerfEventFDByProbeID(ebpf.ProgramID(c.Kprobe_id))
 		// not all programs have associated perf events
-		if err != nil {
+		if !ok {
 			continue
 		}
 
@@ -643,10 +641,12 @@ func (k *Probe) getMapStats(stats *model.EBPFStats) error {
 		stats.Maps = append(stats.Maps, *baseMapStats)
 	}
 
-	log.Tracef("found %d maps", len(stats.Maps))
 	deduplicateMapNames(stats)
-	for _, mp := range stats.Maps {
-		log.Tracef("name=%s map_id=%d max=%d rss=%d type=%s", mp.Name, mp.ID, mp.MaxSize, mp.RSS, mp.Type)
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef("found %d maps", len(stats.Maps))
+		for _, mp := range stats.Maps {
+			log.Tracef("name=%s map_id=%d max=%d rss=%d type=%s", mp.Name, mp.ID, mp.MaxSize, mp.RSS, mp.Type)
+		}
 	}
 	// Allow the maps to be garbage collected
 	k.mapBuffers.resetBuffers()
@@ -778,12 +778,16 @@ func perfBufferMemoryUsage(mapStats *model.EBPFMapStats, info *ebpf.MapInfo, k *
 			}
 			return fmt.Errorf("error reading perf buffer fd map %s, mapid=%d cpu=%d: %s", info.Name, mapid, i, err)
 		}
-		log.Tracef("map_id=%d cpu=%d len=%d addr=%x", mapid, i, region.Len, region.Addr)
+		if log.ShouldLog(log.TraceLvl) {
+			log.Tracef("map_id=%d cpu=%d len=%d addr=%x", mapid, i, region.Len, region.Addr)
+		}
 		mapStats.MaxSize += region.Len
 		numCPUs++
 	}
 
-	log.Tracef("map_id=%d num_cpus=%d", mapid, numCPUs)
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef("map_id=%d num_cpus=%d", mapid, numCPUs)
+	}
 	mapStats.RSS = mapStats.MaxSize
 	mapStats.NumCPUs = numCPUs
 	return nil
@@ -813,7 +817,9 @@ func ringBufferMemoryUsage(mapStats *model.EBPFMapStats, info *ebpf.MapInfo, k *
 	if err := k.ringBufferMap.Lookup(unsafe.Pointer(&mapid), unsafe.Pointer(&ringInfo)); err != nil {
 		return fmt.Errorf("error reading ring buffer map %s, mapid=%d: %s", info.Name, mapid, err)
 	}
-	log.Tracef("map_id=%d data_len=%d data_addr=%x cons_len=%d cons_addr=%x", mapid, ringInfo.Data.Len, ringInfo.Data.Addr, ringInfo.Consumer.Len, ringInfo.Consumer.Addr)
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef("map_id=%d data_len=%d data_addr=%x cons_len=%d cons_addr=%x", mapid, ringInfo.Data.Len, ringInfo.Data.Addr, ringInfo.Consumer.Len, ringInfo.Consumer.Addr)
+	}
 	mapStats.MaxSize += ringInfo.Consumer.Len + ringInfo.Data.Len
 	mapStats.RSS = mapStats.MaxSize
 	return nil

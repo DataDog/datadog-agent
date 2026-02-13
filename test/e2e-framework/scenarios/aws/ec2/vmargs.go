@@ -25,6 +25,7 @@ import (
 //   - [WithName]
 //   - [WithHostID]
 //   - [WithTenancy]
+//   - [WithVolumeThroughput]
 //   - [WithPulumiResourceOptions]
 //
 // [Functional options pattern]: https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
@@ -40,6 +41,7 @@ type vmArgs struct {
 	hostID          string
 
 	httpTokensRequired    bool
+	volumeThroughput      int // GP3 volume throughput in MiB/s (125-1000, default 125)
 	pulumiResourceOptions []pulumi.ResourceOption
 }
 
@@ -132,6 +134,16 @@ func WithTenancy(tenancy string) VMOption {
 func WithPulumiResourceOptions(options ...pulumi.ResourceOption) VMOption {
 	return func(p *vmArgs) error {
 		p.pulumiResourceOptions = options
+		return nil
+	}
+}
+
+// WithVolumeThroughput sets the throughput for the root GP3 volume in MiB/s.
+// Valid range: 125-1000. Default is 125 MiB/s if not specified.
+// This option only applies to GP3 volumes.
+func WithVolumeThroughput(throughput int) VMOption {
+	return func(p *vmArgs) error {
+		p.volumeThroughput = throughput
 		return nil
 	}
 }

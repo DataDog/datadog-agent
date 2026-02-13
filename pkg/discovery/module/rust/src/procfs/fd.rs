@@ -35,7 +35,7 @@ struct FdInfo {
     flags: u32,
 }
 
-pub fn get_open_files_info(pid: u32) -> Result<OpenFilesInfo, std::io::Error> {
+pub fn get_open_files_info(pid: i32) -> Result<OpenFilesInfo, std::io::Error> {
     let fd_path = root_path().join(pid.to_string()).join("fd");
     let mut result = OpenFilesInfo {
         sockets: Vec::new(),
@@ -71,7 +71,7 @@ pub fn get_open_files_info(pid: u32) -> Result<OpenFilesInfo, std::io::Error> {
     Ok(result)
 }
 
-pub fn get_log_files(pid: u32, candidates: &[FdPath]) -> Vec<String> {
+pub fn get_log_files(pid: i32, candidates: &[FdPath]) -> Vec<String> {
     use std::collections::HashSet;
 
     let mut seen = HashSet::new();
@@ -131,7 +131,7 @@ fn parse_fdinfo(content: &str) -> Option<FdInfo> {
     None
 }
 
-fn read_fdinfo(pid: u32, fd_num: &str) -> Option<FdInfo> {
+fn read_fdinfo(pid: i32, fd_num: &str) -> Option<FdInfo> {
     let fdinfo_path = root_path()
         .join(pid.to_string())
         .join("fdinfo")
@@ -537,7 +537,7 @@ mod tests {
                 .open(&valid_log)
                 .expect("Failed to reopen valid log");
 
-            let pid = std::process::id();
+            let pid = std::process::id() as i32;
 
             let open_files_info = get_open_files_info(pid).expect("Failed to collect open files");
 

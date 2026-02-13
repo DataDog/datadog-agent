@@ -1,8 +1,32 @@
 # Global build settings
 
 load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+load("@gazelle//:def.bzl", "gazelle")
 
 package(default_visibility = ["//visibility:public"])
+
+# TODO(agent-build): gradually remove below `gazelle:exclude` directives
+# gazelle:exclude cmd
+# gazelle:exclude comp
+# gazelle:exclude internal/remote-agent
+# gazelle:exclude internal/third_party
+# gazelle:exclude internal/tools/gotest-custom
+# gazelle:exclude internal/tools/independent-lint
+# gazelle:exclude internal/tools/modformatter
+# gazelle:exclude internal/tools/worksynchronizer
+# gazelle:exclude pkg
+# gazelle:exclude rtloader/test
+# gazelle:exclude tasks
+# gazelle:exclude test
+# gazelle:exclude tools
+# gazelle:prefix github.com/DataDog/datadog-agent
+gazelle(name = "gazelle")
+
+# bazel run //:go -- ...
+alias(
+    name = "go",
+    actual = "@rules_go//go",
+)
 
 filegroup(
     name = "python_version",

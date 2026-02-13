@@ -83,6 +83,7 @@ type Decoder struct {
 	entryOrLine captureEvent
 	_return     captureEvent
 	line        lineCaptureData
+	messageData messageData
 }
 
 // ReportStackPCs reports the program counters of the stack trace for a
@@ -210,6 +211,7 @@ func (d *Decoder) resetForNextMessage() {
 	d.entryOrLine.clear()
 	d.line.clear()
 	d._return.clear()
+	d.messageData = messageData{}
 	d.message = message{}
 }
 
@@ -229,7 +231,7 @@ type message struct {
 	Debugger  debuggerData     `json:"debugger"`
 	Timestamp int              `json:"timestamp"`
 	Duration  uint64           `json:"duration,omitzero"`
-	Message   messageData      `json:"message,omitempty"`
+	Message   *messageData     `json:"message,omitempty"`
 }
 
 // populateStackPCsIfMissing populates the decoder's stackPCs map with stack PCs
@@ -371,7 +373,7 @@ func (s *message) init(
 		)
 	}
 
-	if probe.GetKind() == ir.ProbeKindSnapshot {
+	if probe.GetKind() == ir.ProbeKindSnapshot || probe.GetKind() == ir.ProbeKindCaptureExpression {
 		stackHeader := header
 		if returnHeader != nil {
 			stackHeader = returnHeader
@@ -433,11 +435,12 @@ func (s *message) init(
 	s.Debugger.Snapshot.Probe.ID = probe.GetID()
 
 	if probe.Template != nil {
-		s.Message = messageData{
+		decoder.messageData = messageData{
 			entryOrLine: &decoder.entryOrLine,
 			_return:     &decoder._return,
 			template:    probe.Template,
 		}
+		s.Message = &decoder.messageData
 		if s.Duration != 0 {
 			s.Message.duration = &s.Duration
 		} else if durationMissingReason != nil {

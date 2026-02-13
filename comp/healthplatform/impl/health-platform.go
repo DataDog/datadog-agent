@@ -26,8 +26,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
-	"github.com/DataDog/datadog-agent/comp/healthplatform/impl/remediations"
+	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
+	// Import issue modules to trigger their init() registration
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/checkfailure"
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/dockerpermissions"
 )
 
 // Requires defines the dependencies for the health-platform component
@@ -61,8 +65,8 @@ type healthPlatformImpl struct {
 	issues    map[string]*healthplatform.Issue // Issue detected by check ID (nil if no issue)
 	issuesMux sync.RWMutex                     // Mutex for thread-safe access to issues
 
-	// Remediation management
-	remediationRegistry *remediations.Registry // Registry of remediation templates
+	// Issue module registry (combines checks + remediations)
+	issueRegistry *issuesmod.Registry
 
 	// Forwarder for sending reports to Datadog intake
 	forwarder *forwarder
@@ -102,6 +106,12 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	reqs.Log.Info("Creating health platform component")
 
+	// Create unified issue registry and register all self-registered modules
+	issueRegistry := issuesmod.NewRegistry()
+	for _, module := range issuesmod.GetAllModules() {
+		issueRegistry.RegisterModule(module)
+	}
+
 	// Initialize the health platform implementation
 	comp := &healthPlatformImpl{
 		// Core dependencies
@@ -110,16 +120,23 @@ func NewComponent(reqs Requires) (Provides, error) {
 		telemetry:        reqs.Telemetry,
 		hostnameProvider: reqs.Hostname,
 
-		// Remediation management
-		remediationRegistry: remediations.NewRegistry(), // Initialize remediation registry with built-in templates
+		// Issue module registry
+		issueRegistry: issueRegistry,
 
 		// Issue tracking
-		issues:    make(map[string]*healthplatform.Issue), // Initialize issues map
-		issuesMux: sync.RWMutex{},                         // Initialize issues mutex
+		issues:    make(map[string]*healthplatform.Issue),
+		issuesMux: sync.RWMutex{},
 	}
 
 	// Initialize check runner (must be after comp is created as it needs the reporter interface)
 	comp.checkRunner = newCheckRunner(reqs.Log, comp)
+
+	// Register built-in health checks from issue modules
+	for _, check := range issueRegistry.GetBuiltInChecks() {
+		if err := comp.RegisterCheck(check.ID, check.Name, check.CheckFn, check.Interval); err != nil {
+			reqs.Log.Warn("Failed to register health check " + check.ID + ": " + err.Error())
+		}
+	}
 
 	if err := comp.initForwarder(reqs); err != nil {
 		reqs.Log.Warn("Health platform forwarder not initialized: " + err.Error())
@@ -217,7 +234,7 @@ func (h *healthPlatformImpl) ReportIssue(checkID string, checkName string, repor
 		}
 
 		// Build complete issue from the registry using the issue ID and context
-		issue, err := h.remediationRegistry.BuildIssue(report.IssueId, report.Context)
+		issue, err := h.issueRegistry.BuildIssue(report.IssueId, report.Context)
 		if err != nil {
 			return fmt.Errorf("failed to build issue %s: %w", report.IssueId, err)
 		}

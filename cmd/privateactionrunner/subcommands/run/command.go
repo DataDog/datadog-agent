@@ -52,7 +52,7 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 		}),
 		fx.Supply(core.BundleParams{
 			ConfigParams: config.NewAgentParams(confPath, config.WithExtraConfFiles(extraConfFiles)),
-			LogParams:    log.ForDaemon(command.LoggerName, "privateactionrunner.log_file", pkgconfigsetup.DefaultPrivateActionRunnerLogFile)}),
+			LogParams:    log.ForDaemon(command.LoggerName, pkgconfigsetup.PARLogFile, pkgconfigsetup.DefaultPrivateActionRunnerLogFile)}),
 		core.Bundle(),
 		secretsnoopfx.Module(),
 		fx.Provide(func(c config.Component) settings.Params {
@@ -69,6 +69,7 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 		rcserviceimpl.Module(),
 		rcclientimpl.Module(),
 		fx.Supply(rcclient.Params{AgentName: "private-action-runner", AgentVersion: version.AgentVersion}),
+		getTaggerModule(),
 		privateactionrunnerfx.Module(),
 	}
 

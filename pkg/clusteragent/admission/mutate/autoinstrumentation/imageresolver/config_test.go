@@ -38,6 +38,8 @@ func TestNewConfig(t *testing.T) {
 				MaxInitRetries: 5,
 				InitRetryDelay: 1 * time.Second,
 				BucketID:       "2",
+				DigestCacheTTL: 1 * time.Hour,
+				Enabled:        true,
 			},
 		},
 		{
@@ -55,6 +57,8 @@ func TestNewConfig(t *testing.T) {
 				MaxInitRetries: 5,
 				InitRetryDelay: 1 * time.Second,
 				BucketID:       "2",
+				DigestCacheTTL: 1 * time.Hour,
+				Enabled:        true,
 			},
 		},
 		{
@@ -71,6 +75,8 @@ func TestNewConfig(t *testing.T) {
 				MaxInitRetries: 5,
 				InitRetryDelay: 1 * time.Second,
 				BucketID:       "2",
+				DigestCacheTTL: 1 * time.Hour,
+				Enabled:        true,
 			},
 		},
 		{
@@ -88,6 +94,48 @@ func TestNewConfig(t *testing.T) {
 				MaxInitRetries: 5,
 				InitRetryDelay: 1 * time.Second,
 				BucketID:       "0",
+				DigestCacheTTL: 1 * time.Hour,
+				Enabled:        true,
+			},
+		},
+		{
+			name: "gradual_rollout_disabled",
+			configFactory: func(t *testing.T) config.Component {
+				mockConfig := config.NewMock(t)
+				mockConfig.SetWithoutSource("site", "datadoghq.com")
+				mockConfig.SetWithoutSource("api_key", "1234567890abcdef")
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
+				return mockConfig
+			},
+			expectedState: Config{
+				Site:           "datadoghq.com",
+				DDRegistries:   map[string]struct{}{"gcr.io/datadoghq": {}, "docker.io/datadog": {}, "public.ecr.aws/datadog": {}},
+				RCClient:       nil,
+				MaxInitRetries: 5,
+				InitRetryDelay: 1 * time.Second,
+				BucketID:       "0",
+				DigestCacheTTL: 1 * time.Hour,
+				Enabled:        false,
+			},
+		},
+		{
+			name: "gradual_rollout_cache_ttl_hours_configured",
+			configFactory: func(t *testing.T) config.Component {
+				mockConfig := config.NewMock(t)
+				mockConfig.SetWithoutSource("site", "datadoghq.com")
+				mockConfig.SetWithoutSource("api_key", "1234567890abcdef")
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.gradual_rollout.cache_ttl", "2h")
+				return mockConfig
+			},
+			expectedState: Config{
+				Site:           "datadoghq.com",
+				DDRegistries:   map[string]struct{}{"gcr.io/datadoghq": {}, "docker.io/datadog": {}, "public.ecr.aws/datadog": {}},
+				RCClient:       nil,
+				MaxInitRetries: 5,
+				InitRetryDelay: 1 * time.Second,
+				BucketID:       "0",
+				DigestCacheTTL: 2 * time.Hour,
+				Enabled:        true,
 			},
 		},
 	}
