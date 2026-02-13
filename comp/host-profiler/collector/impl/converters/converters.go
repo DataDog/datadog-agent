@@ -5,22 +5,10 @@
 
 //go:build linux
 
-// Package converters implements the converters for the host profiler collector.
+// Package converters implements OTEL collector configuration converters for the host profiler.
 //
-// # Configuration Converter Behavior
-//
-// Converters normalize user-provided OTEL collector configs for the host profiler.
-// They follow the "explicit config wins" principle:
-//
-//   - User-set leaf configs are never overwritten. If a user explicitly sets a value,
-//     even if incompatible with what Datadog needs, the converter preserves it.
-//   - Missing configs are added. If a required leaf config is not defined, the converter
-//     adds it along with all required parent keys using sensible defaults.
-//   - Incompatible values generate warnings. If a user-set value conflicts with
-//     Datadog requirements (e.g. host.arch disabled), a warning is logged but the
-//     user's value is preserved.
-//   - External settings error out. Configs that require external information (API keys,
-//     endpoints) that cannot be inferred will cause an error in standalone mode.
+// Converters normalize user-provided OTEL collector configs by adding required Datadog-specific
+// components while preserving explicit user configuration values wherever possible.
 package converters
 
 import (
@@ -196,13 +184,13 @@ func Set[T any](c confMap, path string, value T) error {
 	return nil
 }
 
-// EnsureDefault sets a default value if the key does not exist or already holds the same value.
+// SetDefault sets a default value if the key does not exist or already holds the same value.
 // If the key exists with a different value, the existing value is preserved (user override wins).
 // Path segments are separated by "::".
 // Creates intermediate maps as needed.
 // Returns true if the default is active (set or already matching), false if a user override was preserved.
 // Returns an error only if path traversal fails (intermediate element is not a map).
-func EnsureDefault[T any](c confMap, path string, value T) (bool, error) {
+func SetDefault[T any](c confMap, path string, value T) (bool, error) {
 	currentMap, target, err := ensurePath(c, path)
 	if err != nil {
 		return false, err
