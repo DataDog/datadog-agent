@@ -751,27 +751,32 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     ctx.run(f"git fetch origin {base_branch.removeprefix('origin/')}", hide=True)
     ancestor = get_common_ancestor(ctx, "HEAD", base_branch)
     current_commit = get_commit_sha(ctx)
+    # Detect if we're on main branch (ancestor == current commit means merge-base is HEAD itself)
+    # This is used to determine if bypass tolerance should apply (only for PRs, not main)
+    is_on_main_branch = ancestor == current_commit
     # When on main/release branch, get_common_ancestor returns HEAD itself since merge-base of HEAD and origin/<branch>
     # is the current commit. In this case, use the parent commit as the ancestor instead.
-    if ancestor == current_commit:
+    if is_on_main_branch:
         ancestor = get_commit_sha(ctx, commit="HEAD~1")
         print(color_message(f"On main branch, using parent commit {ancestor} as ancestor", "cyan"))
     metric_handler.generate_relative_size(ancestor=ancestor)
 
     # Post-process gate failures: mark as non-blocking if delta <= 0
-    # This means the size issue existed before this PR and wasn't introduced by current changes
-    for gate_state in gate_states:
-        if gate_state["state"] is False and gate_state.get("blocking", True):
-            # Only StaticQualityGateFailed errors are eligible for bypass (not StackTrace errors)
-            if gate_state["error_type"] == "StaticQualityGateFailed":
-                if should_bypass_failure(gate_state["name"], metric_handler):
-                    gate_state["blocking"] = False
-                    print(
-                        color_message(
-                            f"Gate {gate_state['name']} failure is non-blocking (size unchanged from ancestor)",
-                            "orange",
+    # This tolerance only applies to PRs - on main branch, failures should always block unconditionally
+    # This means on PRs, the size issue existed before this PR and wasn't introduced by current changes
+    if not is_on_main_branch:
+        for gate_state in gate_states:
+            if gate_state["state"] is False and gate_state.get("blocking", True):
+                # Only StaticQualityGateFailed errors are eligible for bypass (not StackTrace errors)
+                if gate_state["error_type"] == "StaticQualityGateFailed":
+                    if should_bypass_failure(gate_state["name"], metric_handler):
+                        gate_state["blocking"] = False
+                        print(
+                            color_message(
+                                f"Gate {gate_state['name']} failure is non-blocking (size unchanged from ancestor)",
+                                "orange",
+                            )
                         )
-                    )
 
     # Reporting part
     # Send metrics to Datadog (now includes delta metrics)

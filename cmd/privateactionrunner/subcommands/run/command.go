@@ -71,6 +71,7 @@ func runPrivateActionRunner(ctx context.Context, confPath string, extraConfFiles
 		rcserviceimpl.Module(),
 		rcclientimpl.Module(),
 		fx.Supply(rcclient.Params{AgentName: "private-action-runner", AgentVersion: version.AgentVersion}),
+		getTaggerModule(),
 		privateactionrunnerfx.Module(),
 	}
 
