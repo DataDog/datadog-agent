@@ -23,8 +23,7 @@
     # Omnibus uses a slightly different path than the actual install
     # TODO: This overwrites an extra agent.exe, we should also remove it from the zip
     - mv "Datadog Agent\bin\agent\agent.exe" "Datadog Agent\bin\agent.exe" -Force
-    # TODO(AGENTCFG-XXX): SGC is not supported in FIPS mode
-    - if (Test-Path "Datadog Agent\bin\agent\secret-generic-connector.exe") { mv "Datadog Agent\bin\agent\secret-generic-connector.exe" "Datadog Agent\bin\secret-generic-connector.exe" -Force }
+    - mv "Datadog Agent\bin\agent\secret-generic-connector.exe" "Datadog Agent\bin\secret-generic-connector.exe" -Force
     - popd
 
     - get-childitem ${BUILD_CONTEXT}

@@ -278,7 +278,12 @@ func RunAgent(log log.Component, config config.Component, secrets secrets.Compon
 	complianceRunInSystemProbe := config.GetBool("compliance_config.run_in_system_probe")
 	securityAgentShouldRunCompliance := complianceEnabled && !complianceRunInSystemProbe
 
-	if !securityAgentShouldRunCompliance && !config.GetBool("runtime_security_config.enabled") {
+	// Check if security-agent should run CWS (runtime security)
+	cwsEnabled := config.GetBool("runtime_security_config.enabled")
+	cwsDirectSendFromSystemProbe := config.GetBool("runtime_security_config.direct_send_from_system_probe")
+	securityAgentShouldRunCWS := cwsEnabled && !cwsDirectSendFromSystemProbe
+
+	if !securityAgentShouldRunCompliance && !securityAgentShouldRunCWS {
 		log.Infof("All security-agent components are deactivated, exiting")
 
 		// A sleep is necessary so that sysV doesn't think the agent has failed
@@ -325,7 +330,7 @@ func RunAgent(log log.Component, config config.Component, secrets secrets.Compon
 	}
 
 	if err := setupInternalProfiling(config); err != nil {
-		return log.Errorf("Error while setuping internal profiling, exiting: %v", err)
+		return log.Errorf("Error while setting up internal profiling, exiting: %v", err)
 	}
 
 	log.Infof("Datadog Security Agent is now running.")

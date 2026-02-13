@@ -10,7 +10,6 @@ import (
 	"context"
 	json "encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"runtime"
 	"slices"
@@ -568,7 +567,7 @@ func (a *APIServer) expireDump(dump *api.ActivityDumpStreamMessage) {
 
 	selectorStr := "<unknown>"
 	if sel := dump.GetSelector(); sel != nil {
-		selectorStr = fmt.Sprintf("%s:%s", sel.GetName(), sel.GetTag())
+		selectorStr = sel.GetName() + ":" + sel.GetTag()
 	}
 	seclog.Tracef("the activity dump server channel is full, a dump of [%s] was dropped\n", selectorStr)
 }
@@ -713,47 +712,6 @@ func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.S
 	}
 	apiStatus.PoliciesStatus = a.policiesStatus
 
-	seclVariables := a.GetSECLVariables()
-
-	var globals []*api.SECLVariableState
-	for _, global := range seclVariables {
-		if !strings.Contains(global.Name, ".") {
-			globals = append(globals, global)
-		}
-	}
-	apiStatus.GlobalVariables = globals
-
-	scopedVariables := make(map[string]map[string][]*api.SECLVariableState)
-	for _, scoped := range seclVariables {
-		split := strings.SplitN(scoped.Name, ".", 3)
-		if len(split) < 3 {
-			continue
-		}
-		scope, name, key := split[0], split[1], split[2]
-		if scope != "" {
-			if _, found := scopedVariables[scope]; !found {
-				scopedVariables[scope] = make(map[string][]*api.SECLVariableState)
-			}
-
-			scopedVariables[scope][key] = append(scopedVariables[scope][key], &api.SECLVariableState{
-				Name:  name,
-				Value: scoped.Value,
-			})
-		}
-	}
-	apiStatus.ScopedVariables = make(map[string]*api.ScopedVariableStore)
-	for scope, vars := range scopedVariables {
-		store := &api.ScopedVariableStore{
-			KeyValues: make(map[string]*api.SECLVariableStateList),
-		}
-		for key, values := range vars {
-			store.KeyValues[key] = &api.SECLVariableStateList{
-				Variables: values,
-			}
-		}
-		apiStatus.ScopedVariables[scope] = store
-	}
-
 	if err := a.fillStatusPlatform(&apiStatus); err != nil {
 		return nil, err
 	}
@@ -787,7 +745,7 @@ func getEnvAsTags(cfg *config.RuntimeSecurityConfig) []string {
 	for _, env := range cfg.EnvAsTags {
 		value := os.Getenv(env)
 		if value != "" {
-			tags = append(tags, fmt.Sprintf("%s:%s", env, value))
+			tags = append(tags, env+":"+value)
 		}
 	}
 	return tags

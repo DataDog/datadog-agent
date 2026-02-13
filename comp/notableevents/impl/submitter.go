@@ -77,30 +77,24 @@ func (s *submitter) submitEvent(payload eventPayload) error {
 	hostnameValue := s.hostname.GetSafe(context.TODO())
 	timestamp := payload.Timestamp.In(time.UTC).Format("2006-01-02T15:04:05.000000Z")
 
-	tags := []string{
-		"source:notable_events",
-	}
-
 	// Create Event Management v2 API payload
 	eventData := map[string]interface{}{
 		"data": map[string]interface{}{
 			"type": "event",
 			"attributes": map[string]interface{}{
-				"host":     hostnameValue,
-				"title":    payload.Title,
-				"category": "alert",
-				// TODO(WINA-1969): add integration_id and schema fields
-				// "integration_id": "",
-				// "notable_events": map[string]interface{}{
-				// 	"event_type": payload.EventType,
-				// },
+				"host":           hostnameValue,
+				"title":          payload.Title,
+				"category":       "alert",
+				"integration_id": "system-notable-events",
+				"system-notable-events": map[string]interface{}{
+					"event_type": payload.EventType,
+				},
 				"attributes": map[string]interface{}{
 					"status":   "error",
 					"priority": "5",
 					"custom":   payload.Custom,
 				},
 				"message":   payload.Message,
-				"tags":      tags,
 				"timestamp": timestamp,
 			},
 		},

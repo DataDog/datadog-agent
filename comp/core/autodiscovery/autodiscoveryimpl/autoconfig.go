@@ -349,8 +349,9 @@ func (ac *AutoConfig) fillFlare(fb flaretypes.FlareBuilder) error {
 
 // start will listen to the service channels before anything is sent to them
 func (ac *AutoConfig) start() {
-	listeners.RegisterListeners(ac.serviceListenerFactories)
-	providers.RegisterProviders(ac.providerCatalog)
+	useEndpointSlices := pkgconfigsetup.Datadog().GetBool("kubernetes_use_endpoint_slices")
+	listeners.RegisterListeners(ac.serviceListenerFactories, useEndpointSlices)
+	providers.RegisterProviders(ac.providerCatalog, useEndpointSlices)
 	setupAcErrors()
 	// Start the service listener
 	go ac.serviceListening()
@@ -633,7 +634,7 @@ func (ac *AutoConfig) getActiveServices() []integration.ServiceResponse {
 		containerPorts, err := svc.GetPorts()
 		ports := make([]string, 0)
 		if err == nil {
-			ports = slices.Map(containerPorts, func(port listeners.ContainerPort) string {
+			ports = slices.Map(containerPorts, func(port workloadmeta.ContainerPort) string {
 				return strconv.Itoa(port.Port)
 			})
 		}

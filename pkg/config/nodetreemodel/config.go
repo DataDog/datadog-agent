@@ -21,8 +21,8 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/config/basic"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -257,7 +257,7 @@ func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source mo
 // SetWithoutSource assigns the value to the given key using source Unknown, may only be called from tests
 func (c *ntmConfig) SetWithoutSource(key string, value interface{}) {
 	c.assertIsTest("SetWithoutSource")
-	if !viperconfig.ValidateBasicTypes(value) {
+	if !basic.ValidateBasicTypes(value) {
 		panic(fmt.Errorf("SetWithoutSource can only be called with basic types (int, string, slice, map, etc), got %v", value))
 	}
 	c.Set(key, value, model.SourceUnknown)
@@ -941,7 +941,11 @@ func (c *ntmConfig) AllFlattenedSettingsWithSequenceID() (map[string]interface{}
 	keys := c.collectFlattenedKeys()
 	settings := make(map[string]interface{}, len(keys))
 	for _, key := range keys {
-		settings[key] = c.getNodeValue(key)
+		v, err := c.inferTypeFromDefault(key, c.getNodeValue(key))
+		if err != nil {
+			log.Warnf("failed to get configuration value for key %q: %s", key, err)
+		}
+		settings[key] = v
 	}
 	return settings, c.sequenceID
 }

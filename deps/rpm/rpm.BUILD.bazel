@@ -5,7 +5,7 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(default_package_metadata = [":license"])
 
@@ -106,9 +106,7 @@ cc_library(
     ],
     deps = [
         ":misc",
-        "@openssl//:crypto",
-        "@openssl//:ssl",
-        "@openssl//:imported_ssl_headers",
+        "@openssl",
         "@zstd//:libzstd",
         "@popt//:libpopt",
         "@lua//:liblua",
@@ -131,8 +129,7 @@ cc_shared_library(
         "@zlib//:z",
         "@xz//:lzma",
         "@bzip2//:bz2",
-        "@openssl//:crypto_shared",
-        "@openssl//:ssl_shared",
+        "@openssl//:openssl_shared",
     ],
     user_link_flags = select({
         "@platforms//os:linux": [
@@ -342,13 +339,21 @@ pkg_files(
     prefix = "lib/rpm",
 )
 
-pkg_install(
-    name = "install",
+pkg_filegroup(
+    name = "all_files",
     srcs = [
         ":hdr_files",
         ":librpmio_files",
         ":librpm_files",
-        ":pc_file",
         ":misc_files",
+    ],
+    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":pc_file",
+        ":all_files",
     ],
 )

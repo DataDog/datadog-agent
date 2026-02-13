@@ -10,7 +10,7 @@ use super::root_path;
 
 const MAPS_READ_LIMIT: u64 = 4 * 1024 * 1024 * 1024; // 4GiB
 
-pub fn get_reader_for_pid(pid: u32) -> Result<BufReader<Take<File>>, std::io::Error> {
+pub fn get_reader_for_pid(pid: i32) -> Result<BufReader<Take<File>>, std::io::Error> {
     let maps_path = root_path().join(pid.to_string()).join("maps");
     let file = File::open(maps_path)?;
     Ok(BufReader::new(file.take(MAPS_READ_LIMIT)))

@@ -14,6 +14,7 @@ import (
 	"os"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -270,9 +271,6 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 	}
 
 	var secProfEventTypes []model.EventType
-	if cfg.RuntimeSecurity.SecurityProfileAutoSuppressionEnabled {
-		secProfEventTypes = append(secProfEventTypes, cfg.RuntimeSecurity.SecurityProfileAutoSuppressionEventTypes...)
-	}
 	if cfg.RuntimeSecurity.AnomalyDetectionEnabled {
 		secProfEventTypes = append(secProfEventTypes, cfg.RuntimeSecurity.AnomalyDetectionEventTypes...)
 	}
@@ -513,7 +511,7 @@ func (m *Manager) SendStats() error {
 		}
 
 		t := []string{
-			fmt.Sprintf("in_kernel:%v", profilesLoadedInKernel),
+			"in_kernel:" + strconv.FormatInt(int64(profilesLoadedInKernel), 10),
 		}
 		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileProfiles, float64(len(m.profiles)), t, 1.0); err != nil {
 			return fmt.Errorf("couldn't send MetricSecurityProfileProfiles: %w", err)
@@ -538,7 +536,7 @@ func (m *Manager) SendStats() error {
 		}
 
 		for entry, count := range m.eventFiltering {
-			t := []string{fmt.Sprintf("event_type:%s", entry.eventType), entry.state.ToTag(), entry.result.toTag()}
+			t := []string{"event_type:" + entry.eventType.String(), entry.state.ToTag(), entry.result.toTag()}
 			if value := count.Swap(0); value > 0 {
 				if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFiltering, int64(value), t, 1.0); err != nil {
 					return fmt.Errorf("couldn't send MetricSecurityProfileEventFiltering metric: %w", err)
@@ -628,7 +626,11 @@ func (m *Manager) persist(p *profile.Profile, formatsRequests map[config.Storage
 			if err := storage.Persist(request, p, data); err != nil {
 				seclog.Errorf("couldn't persist [%s] to %s storage: %v", p.GetSelectorStr(), request.Type, err)
 			} else {
-				tags := []string{"format:" + request.Format.String(), "storage_type:" + request.Type.String(), fmt.Sprintf("compression:%v", request.Compression)}
+				tags := []string{
+					"format:" + request.Format.String(),
+					"storage_type:" + request.Type.String(),
+					"compression:" + strconv.FormatBool(request.Compression),
+				}
 				if err := m.statsdClient.Count(metrics.MetricActivityDumpSizeInBytes, int64(data.Len()), tags, 1.0); err != nil {
 					seclog.Warnf("couldn't send %s metric: %v", metrics.MetricActivityDumpSizeInBytes, err)
 				}

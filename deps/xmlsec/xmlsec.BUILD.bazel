@@ -5,7 +5,7 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(default_package_metadata = [":license"])
 
@@ -142,9 +142,7 @@ cc_library(
     deps = [
         "@libxslt//:libxslt",
         "@libxml2//:libxml2",
-        "@openssl//:crypto",
-        "@openssl//:ssl",
-        "@openssl//:imported_ssl_headers",
+        "@openssl",
         ":libxmlsec1",
     ],
     defines = [
@@ -174,8 +172,7 @@ cc_shared_library(
     dynamic_deps = [
         "@libxslt//:xslt",
         "@libxml2//:xml2",
-        "@openssl//:crypto_shared",
-        "@openssl//:ssl_shared",
+        "@openssl//:openssl_shared",
         ":xmlsec1",
     ],
     user_link_flags = select({
@@ -240,13 +237,21 @@ pkg_files(
     prefix = "lib/pkgconfig",
 )
 
-pkg_install(
-    name = "install",
+pkg_filegroup(
+    name = "all_files",
     srcs = [
         ":headers_files",
         ":openssl_headers_files",
         ":libxmlsec_files",
         ":libxmlsec_openssl_files",
+    ],
+    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
         ":pc_files",
     ],
 )

@@ -28,7 +28,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
-	corev1 "k8s.io/api/core/v1"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 )
@@ -77,7 +77,7 @@ func (suite *k8sSuite) TearDownSuite() {
 // is run first.
 func (suite *k8sSuite) Test00UpAndRunning() {
 	timeout := 10 * time.Minute
-	// Windows FIPS images are bigger and take longer to pull and start
+	// FIPS images are bigger and take longer to pull and start
 	if suite.Env().Agent.FIPSEnabled {
 		timeout = 20 * time.Minute
 	}
@@ -108,27 +108,19 @@ func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 					fields.OneTermNotEqualSelector("eks.amazonaws.com/compute-type", "fargate"),
 				).String(),
 			})
-			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to list Linux nodes") {
-				return
-			}
+			require.NoErrorf(c, err, "Failed to list Linux nodes")
 
 			linuxPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
 			})
-			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-			if !assert.NoErrorf(c, err, "Failed to list Linux datadog agent pods") {
-				return
-			}
+			require.NoErrorf(c, err, "Failed to list Linux datadog agent pods")
 
 			assert.Len(c, linuxPods.Items, len(linuxNodes.Items))
 
-			for _, podList := range []*corev1.PodList{linuxPods} {
-				for _, pod := range podList.Items {
-					for _, containerStatus := range append(pod.Status.InitContainerStatuses, pod.Status.ContainerStatuses...) {
-						assert.Truef(c, containerStatus.Ready, "Container %s of pod %s isn’t ready", containerStatus.Name, pod.Name)
-						assert.Zerof(c, containerStatus.RestartCount, "Container %s of pod %s has restarted", containerStatus.Name, pod.Name)
-					}
+			for _, pod := range linuxPods.Items {
+				for _, containerStatus := range append(pod.Status.InitContainerStatuses, pod.Status.ContainerStatuses...) {
+					assert.Truef(c, containerStatus.Ready, "Container %s of pod %s isn't ready", containerStatus.Name, pod.Name)
+					assert.Zerof(c, containerStatus.RestartCount, "Container %s of pod %s has restarted", containerStatus.Name, pod.Name)
 				}
 			}
 		}, waitFor, 10*time.Second, "Not all agents eventually became ready in time.")
@@ -265,6 +257,9 @@ func (suite *k8sSuite) TestSBOM() {
 
 					provisioner := suite.newProvisioner(helmValues)
 					suite.UpdateEnv(provisioner)
+
+					// Wait for agent pods to restart and stabilize before checking SBOMs
+					suite.testUpAndRunning(1 * time.Minute)
 				}
 
 				suite.EventuallyWithTf(func(collect *assert.CollectT) {
@@ -284,19 +279,13 @@ func (suite *k8sSuite) TestSBOM() {
 					}()
 
 					sbomIDs, err := suite.Fakeintake.GetSBOMIDs()
-					// Can be replaced by require.NoErrorf(…) once https://github.com/testify/pull/1481 is merged
-					if !assert.NoErrorf(c, err, "Failed to query fake intake") {
-						return
-					}
+					require.NoErrorf(c, err, "Failed to query fake intake")
 
 					sbomIDs = lo.Filter(sbomIDs, func(id string, _ int) bool {
 						return strings.HasPrefix(id, appImage)
 					})
 
-					// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-					if !assert.NotEmptyf(c, sbomIDs, fmt.Sprintf("No SBOM for %s yet", appImage)) {
-						return
-					}
+					require.NotEmptyf(c, sbomIDs, "No SBOM for %s yet", appImage)
 
 					images := lo.FlatMap(sbomIDs, func(id string, _ int) []*aggregator.SBOMPayload {
 						images, err := suite.Fakeintake.FilterSBOMs(id)
@@ -304,19 +293,13 @@ func (suite *k8sSuite) TestSBOM() {
 						return images
 					})
 
-					// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-					if !assert.NotEmptyf(c, images, "No SBOM payload yet") {
-						return
-					}
+					require.NotEmptyf(c, images, "No SBOM payload yet")
 
 					images = lo.Filter(images, func(image *aggregator.SBOMPayload, _ int) bool {
 						return image.Status == sbom.SBOMStatus_SUCCESS
 					})
 
-					// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-					if !assert.NotEmptyf(c, images, "No successful SBOM yet") {
-						return
-					}
+					require.NotEmptyf(c, images, "No successful SBOM yet")
 
 					images = lo.Filter(images, func(image *aggregator.SBOMPayload, _ int) bool {
 						cyclonedx := image.GetCyclonedx()
@@ -325,10 +308,7 @@ func (suite *k8sSuite) TestSBOM() {
 							cyclonedx.Metadata.Component != nil
 					})
 
-					// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-					if !assert.NotEmptyf(c, images, "No SBOM with complete CycloneDX") {
-						return
-					}
+					require.NotEmptyf(c, images, "No SBOM with complete CycloneDX")
 
 					for _, image := range images {
 						cyclonedx := image.GetCyclonedx()
