@@ -1077,7 +1077,6 @@ new-e2e-ssi:
     - !reference [.needs_new_e2e_template]
     - qa_dca
     - qa_agent_linux
-    - qa_agent_full
   variables:
     TARGETS: ./tests/ssi
     TEAM: injection-platform
