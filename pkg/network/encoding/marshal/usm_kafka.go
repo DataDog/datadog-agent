@@ -12,6 +12,7 @@ import (
 	"io"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/sketches-go/ddsketch"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
@@ -20,6 +21,7 @@ import (
 
 type kafkaEncoder struct {
 	kafkaAggregationsBuilder *model.DataStreamsAggregationsBuilder
+	sketchBuilder            *ddsketch.DDSketchCollectionBuilder
 	byConnection             *USMConnectionIndex[kafka.Key, *kafka.RequestStats]
 }
 
@@ -30,6 +32,7 @@ func newKafkaEncoder(kafkaPayloads map[kafka.Key]*kafka.RequestStats) *kafkaEnco
 
 	return &kafkaEncoder{
 		kafkaAggregationsBuilder: model.NewDataStreamsAggregationsBuilder(nil),
+		sketchBuilder:            ddsketch.NewDDSketchCollectionBuilder(nil),
 		byConnection: GroupByConnection("kafka", kafkaPayloads, func(key kafka.Key) types.ConnectionKey {
 			return key.ConnectionKey
 		}),
@@ -75,7 +78,8 @@ func (e *kafkaEncoder) encodeData(c network.ConnectionStats, w io.Writer) uint64
 						kafkaStatsBuilder.SetCount(uint32(requestStat.Count))
 						if latencies := requestStat.Latencies; latencies != nil {
 							kafkaStatsBuilder.SetLatencies(func(b *bytes.Buffer) {
-								latencies.EncodeProto(b)
+								e.sketchBuilder.Reset(b)
+								e.sketchBuilder.AddSketch(latencies)
 							})
 						} else {
 							kafkaStatsBuilder.SetFirstLatencySample(requestStat.FirstLatencySample)
