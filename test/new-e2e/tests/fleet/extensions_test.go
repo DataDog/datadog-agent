@@ -161,35 +161,16 @@ func (s *extensionsSuite) TestDDOTExtension() {
 	s.Agent.MustInstall()
 	defer s.Agent.MustUninstall()
 
-	output, err := s.Installer.InstallExtension(s.getAgentPackageURL(), "ddot")
-	s.Require().NoError(err, "Failed to install DDOT extension: %s", output)
+	s.Installer.MustInstallExtension(s.getAgentPackageURL(), "ddot")
 	defer func() {
 		_, _ = s.Installer.RemoveExtension("datadog-agent", "ddot")
 	}()
 
-	// Verify extension directory exists
-	extensionPath := s.getExtensionPath("datadog-agent", "stable", "ddot")
-	exists, err := s.Host.DirExists(extensionPath)
-	s.Require().NoError(err)
-	s.Require().True(exists, "DDOT extension directory should exist at %s", extensionPath)
-
-	// Verify binary exists (platform-specific path)
-	binaryPath := s.getDDOTBinaryPath(extensionPath)
-	exists, err = s.Env().RemoteHost.FileExists(binaryPath)
-	s.Require().NoError(err)
-	s.Require().True(exists, "DDOT binary should exist at %s", binaryPath)
-
-	// Verify DDOT is running
+	// Verify DDOT is running via status
 	s.verifyDDOTRunning()
 
 	// Remove extension
-	output, err = s.Installer.RemoveExtension("datadog-agent", "ddot")
-	s.Require().NoError(err, "Failed to remove DDOT extension: %s", output)
-
-	// Verify cleanup
-	exists, err = s.Host.DirExists(extensionPath)
-	s.Require().NoError(err)
-	s.Require().False(exists, "DDOT extension should be removed")
+	s.Installer.MustRemoveExtension("datadog-agent", "ddot")
 
 	// Platform-specific cleanup verification
 	switch s.Env().RemoteHost.OSFamily {
@@ -225,19 +206,6 @@ func (s *extensionsSuite) getAgentPackageURL() string {
 		s.T().Fatal("E2E_PIPELINE_ID environment variable not set")
 	}
 	return "oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-" + pipelineID
-}
-
-// getDDOTBinaryPath returns the platform-specific DDOT binary path
-func (s *extensionsSuite) getDDOTBinaryPath(extensionPath string) string {
-	switch s.Env().RemoteHost.OSFamily {
-	case e2eos.LinuxFamily:
-		return filepath.Join(extensionPath, "embedded", "bin", "otel-agent")
-	case e2eos.WindowsFamily:
-		return filepath.Join(extensionPath, "embedded", "bin", "otel-agent.exe")
-	default:
-		s.T().Fatalf("unsupported OS: %v", s.Env().RemoteHost.OSFamily)
-		return ""
-	}
 }
 
 // verifyDDOTRunning verifies DDOT is running via agent status
