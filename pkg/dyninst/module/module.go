@@ -209,10 +209,7 @@ func makeRealDependencies(
 		return ret, fmt.Errorf("error parsing log uploader URL: %w", err)
 	}
 	ret.logUploader = uploader.NewLogsUploaderFactory(
-		append(
-			config.TestingKnobs.LogsUploaderOptions,
-			uploader.WithURL(logUploaderURL),
-		)...,
+		uploader.WithURL(logUploaderURL),
 	)
 
 	diagsUploaderURL, err := url.Parse(config.DiagsUploaderURL)

@@ -78,21 +78,6 @@ func TestMissingTypeRecompilation(t *testing.T) {
 			MaxBackoffTime: time.Millisecond.Seconds(),
 		},
 	}
-	// This is a hack to ensure that we get at least one message out of the
-	// uploader. Without this, the probe will be removed while we still have
-	// buffered messages in the uploader and they end up getting dropped because
-	// we don't flush on close.
-	//
-	// TODO: Removal of a probe should flush both the eBPF buffer and the
-	// uploader buffer. This was deemed not generally worth it because a process
-	// has to be alive for a bit just for RC subscriptions to be set up, and if
-	// we've removed the probe, then it's probably mostly due to process removal
-	// or shutdown. However, with the addition of this missing-type based
-	// recompilation, we need to revisit this logic, it'll mean we don't
-	// generally ever emit the logs for probes that had missing types.
-	moduleCfg.TestingKnobs.LogsUploaderOptions = []uploader.Option{
-		uploader.WithMaxBatchItems(1),
-	}
 
 	var sendUpdate fakeProcessSubscriber
 	moduleCfg.TestingKnobs.ProcessSubscriberOverride = func(
