@@ -376,8 +376,8 @@ func preStopExperimentDatadogAgent(ctx HookContext) error {
 	if err := agentService.StopExperiment(ctx); err != nil {
 		return fmt.Errorf("failed to stop experiment unit: %s", err)
 	}
-	if err := removeAgentExtensions(ctx, true); err != nil {
-		return fmt.Errorf("failed to remove agent extensions: %s", err)
+	if err := extensionsPkg.DeletePackage(ctx, agentPackage, true); err != nil {
+		return fmt.Errorf("failed to delete agent extensions: %s", err)
 	}
 	if err := agentService.RemoveExperiment(ctx); err != nil {
 		return fmt.Errorf("failed to remove experiment unit: %s", err)
