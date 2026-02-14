@@ -328,7 +328,7 @@ require (
 	github.com/tinylib/msgp v1.6.3
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/twmb/franz-go v1.20.6
-	github.com/twmb/franz-go/pkg/kadm v1.17.1
+	github.com/twmb/franz-go/pkg/kadm v1.17.2
 	github.com/twmb/franz-go/pkg/kmsg v1.12.0
 	github.com/twmb/murmur3 v1.1.8
 	github.com/uptrace/bun v1.2.16
