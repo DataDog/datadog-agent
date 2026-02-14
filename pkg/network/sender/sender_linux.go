@@ -382,8 +382,9 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 		defer d.resolver.removeDeadTagContainers()
 
 		for connsChunk := range slices.Chunk(conns.Conns, d.maxConnsPerMessage) {
-			// TODO is there some larger lower bound on the size of a payload we can use here
+			// TODO is there some way to get a larger lower bound on the size of a payload
 			// ex: (minConnSize * len(connsChunk)) + len(d.staticEncodedHeader)
+			// compression makes this calculation difficult
 			dstBuf := bytes.NewBuffer(make([]byte, 0, len(d.staticEncodedHeader)))
 			_, err := dstBuf.Write(d.staticEncodedHeader)
 			if err != nil {
