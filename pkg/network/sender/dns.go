@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/indexedset"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 func formatDNSStatsByDomainByQueryType(builder *model.ConnectionBuilder, stats map[dns.Hostname]map[dns.QueryType]dns.Stats, dnsSet *indexedset.IndexedSet[dns.Hostname], indexToOffset []int32) {
@@ -124,4 +125,14 @@ func (d *directSender) addDNS(builder *model.ConnectionBuilder, nc network.Conne
 	} else {
 		formatDNSStatsByDomain(builder, nc.DNSStats, dnsSet, indexToOffset)
 	}
+}
+
+func getDNSNameForIP(conns *network.Connections, ip util.Address) string {
+	if dnsEntry := conns.DNS[ip]; len(dnsEntry) > 0 {
+		// We are only using the first entry for now, but in the future, if we find a good solution,
+		// we might want to report the other DNS names too if necessary.
+		// (need more investigation on how to best achieve that).
+		return dnsEntry[0].Get()
+	}
+	return ""
 }
