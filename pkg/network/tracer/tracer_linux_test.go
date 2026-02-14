@@ -1973,11 +1973,17 @@ func (s *TracerSuite) TestShortWrite() {
 	toSend := sndBufSize / 2
 	for i := 0; i < 100; i++ {
 		written, err = unix.Write(sk, genPayload(toSend))
+		if errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EWOULDBLOCK) {
+			// Short write, send buffer is completely full
+			done = true
+			break
+		}
 		require.NoError(t, err)
 		require.Greater(t, written, 0)
 		sent += uint64(written)
 		t.Logf("sent: %v", sent)
 		if written < toSend {
+			// Short write, partial write
 			done = true
 			break
 		}
