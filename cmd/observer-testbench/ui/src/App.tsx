@@ -34,7 +34,13 @@ interface TimeRange {
 }
 
 function formatTimeRange(range: TimeRange): string {
-  const formatTime = (ts: number) => new Date(ts * 1000).toLocaleTimeString();
+  const formatTime = (ts: number) =>
+    new Date(ts * 1000).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    });
   return `${formatTime(range.start)} - ${formatTime(range.end)}`;
 }
 
