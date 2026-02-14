@@ -22,6 +22,7 @@ from invoke.tasks import task
 
 from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
 from tasks.flavor import AgentFlavor
+from tasks.libs.build.bazel import bazel
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.ciproviders.gitlab_api import ReferenceTag
 from tasks.libs.common.color import color_message
@@ -713,7 +714,7 @@ def build_libpcap(ctx, env: dict, arch: Arch | None = None):
             ctx.run(f"echo 'libpcap version {version} already exists at {target_file}'")
             return
 
-    ctx.run(f"bazelisk run -- @libpcap//:install --destdir='{embedded_path}'")
+    bazel("run", "--", "@libpcap//:install", f"--destdir={embedded_path}")
     ctx.run(f"strip -g {target_file}")
     return
 
@@ -1624,21 +1625,23 @@ def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None
     if is_windows or is_macos:
         return
 
+    # Specifying --platforms for the host architecture is redundant as Bazel defaults to @platforms//host which
+    # auto-detects the local machine's OS and CPU (see https://bazel.build/extending/platforms)
     platform_map = {
         "x86_64": "//bazel/platforms:linux_x86_64",
         "arm64": "//bazel/platforms:linux_arm64",
     }
 
-    platform_flag = ""
+    cmd = ["run"]
     if arch.kmt_arch in platform_map:
-        platform_flag = f"--platforms={platform_map[arch.kmt_arch]}"
+        cmd.append(f"--platforms={platform_map[arch.kmt_arch]}")
 
     for source_path in RUST_BINARIES:
         if packages and not any(source_path.startswith(package) for package in packages):
             continue
 
         install_dest = output_dir / source_path if output_dir else Path(source_path)
-        ctx.run(f"bazelisk run {platform_flag} -- @//{source_path}:install --destdir={install_dest}")
+        bazel(cmd + ["--", f"//{source_path}:install", f"--destdir={install_dest}"])
 
 
 def build_cws_object_files(
