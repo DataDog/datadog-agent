@@ -656,6 +656,7 @@ func clearProcessProgram(
 }
 
 // mergeIntoSorted merges src into dst, maintaining a sorted, deduplicated slice.
+// src must be sorted; duplicates in src are tolerated.
 func mergeIntoSorted(dst, src []string) (_ []string, changed bool) {
 	var i int
 	for _, name := range src {
@@ -688,6 +689,7 @@ func handleMissingTypesReported(
 
 	// Merge reported type names into the per-service discovered set,
 	// maintaining a sorted, deduplicated slice.
+	slices.Sort(ev.typeNames)
 	types, changed := mergeIntoSorted(sm.discoveredTypes[service], ev.typeNames)
 	if !changed {
 		return nil
