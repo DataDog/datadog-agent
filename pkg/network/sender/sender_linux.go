@@ -413,7 +413,7 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 
 			for _, nc := range connsChunk {
 				builder.AddConnections(func(builder *model.ConnectionBuilder) {
-					d.encodeConnection(builder, nc, routeSet, conns, resolvConfSet)
+					d.encodeConnection(builder, nc, conns, routeSet, resolvConfSet)
 					d.addContainerTags(builder, nc.ContainerID.Source, tagsEncoder)
 					d.addTags(builder, nc, tagsSet, usmEncoders, connectionsTagsEncoder)
 					d.addDNS(builder, nc, dnsSet, indexToOffset)

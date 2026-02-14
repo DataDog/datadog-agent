@@ -21,7 +21,13 @@ import (
 	ddslices "github.com/DataDog/datadog-agent/pkg/util/slices"
 )
 
-func (d *directSender) encodeConnection(builder *model.ConnectionBuilder, nc network.ConnectionStats, routeSet *indexedset.IndexedSet[network.Via], conns *network.Connections, resolvConfSet *indexedset.IndexedSet[network.ResolvConf]) {
+func (d *directSender) encodeConnection(
+	builder *model.ConnectionBuilder,
+	nc network.ConnectionStats,
+	conns *network.Connections,
+	routeSet *indexedset.IndexedSet[network.Via],
+	resolvConfSet *indexedset.IndexedSet[network.ResolvConf],
+) {
 	builder.SetPid(int32(nc.Pid))
 	builder.SetLaddr(func(w *model.AddrBuilder) {
 		w.SetIp(unique.Make(nc.Source.Addr.String()).Value())
