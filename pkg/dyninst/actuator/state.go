@@ -67,6 +67,14 @@ type state struct {
 	discoveredTypes       map[string][]string
 	recompilationDisabled bool
 
+	// discoveredTypesLimit caps the total number of discovered type names
+	// tracked across all services. When exceeded, entries for services with
+	// no live processes are evicted.
+	discoveredTypesLimit int
+	// totalDiscoveredTypes is the running total of type names across all
+	// entries in discoveredTypes.
+	totalDiscoveredTypes int
+
 	counters struct {
 		loaded                      uint64
 		loadFailed                  uint64
@@ -220,6 +228,7 @@ func newState(cfg Config) *state {
 		recompilationDisabled: cfg.RecompilationDisabled,
 		lastHeartbeat:         time.Now(),
 		discoveredTypes:       make(map[string][]string),
+		discoveredTypesLimit:  cfg.DiscoveredTypesLimit,
 	}
 }
 
@@ -296,6 +305,22 @@ func (s *state) deleteProcess(pid ProcessID) {
 	}
 	s.removeProcessFromServiceIndex(proc)
 	delete(s.processes, pid)
+	s.evictOrphanedDiscoveredTypes()
+}
+
+// evictOrphanedDiscoveredTypes removes discovered type entries for services
+// that no longer have any live processes, when the total number of
+// discovered types exceeds the configured limit.
+func (s *state) evictOrphanedDiscoveredTypes() {
+	if s.totalDiscoveredTypes <= s.discoveredTypesLimit {
+		return
+	}
+	for service, types := range s.discoveredTypes {
+		if _, hasProcesses := s.processesByService[service]; !hasProcesses {
+			s.totalDiscoveredTypes -= len(types)
+			delete(s.discoveredTypes, service)
+		}
+	}
 }
 
 type probeKey struct {
@@ -690,11 +715,14 @@ func handleMissingTypesReported(
 	// Merge reported type names into the per-service discovered set,
 	// maintaining a sorted, deduplicated slice.
 	slices.Sort(ev.typeNames)
-	types, changed := mergeIntoSorted(sm.discoveredTypes[service], ev.typeNames)
+	before := sm.discoveredTypes[service]
+	after, changed := mergeIntoSorted(before, ev.typeNames)
 	if !changed {
 		return nil
 	}
-	sm.discoveredTypes[service] = types
+	sm.discoveredTypes[service] = after
+	sm.totalDiscoveredTypes += len(after) - len(before)
+	sm.evictOrphanedDiscoveredTypes()
 
 	// Mark all programs for processes of this service that need
 	// recompilation. Only Loading and Loaded programs are marked: Queued

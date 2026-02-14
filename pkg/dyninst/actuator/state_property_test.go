@@ -94,7 +94,9 @@ func runStateMachinePropertyTest(t *testing.T, seed int64) []byte {
 	rng := rand.New(rand.NewSource(seed))
 
 	pts := &propertyTestState{
-		sm:               newState(Config{}),
+		sm: newState(Config{
+			DiscoveredTypesLimit: 10,
+		}),
 		processIDCounter: 1000,
 		rng:              rng,
 	}

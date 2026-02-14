@@ -19,11 +19,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// DefaultDiscoveredTypesLimit is the default value for the discovered types
+// limit.
+const defaultDiscoveredTypesLimit = 512
+
 // Config configures the actuator.
 type Config struct {
 	// CircuitBreakerConfig configures the circuit breaker for enforcing probe
 	// CPU limits.
 	CircuitBreakerConfig CircuitBreakerConfig
+	// DiscoveredTypesLimit is the maximum number of discovered type names
+	// tracked across all services before orphaned entries are evicted. If
+	// zero, the default value is used. If negative, all discovered types are
+	// evicted when the processes for that service are removed.
+	DiscoveredTypesLimit int
 	// RecompilationDisabled disables recompilation of programs when new types
 	// are discovered. This is generally useful for testing.
 	RecompilationDisabled bool
@@ -80,6 +89,9 @@ func (a *Actuator) Stats() map[string]any {
 
 // NewActuator creates a new Actuator instance.
 func NewActuator(cfg Config) *Actuator {
+	if cfg.DiscoveredTypesLimit == 0 {
+		cfg.DiscoveredTypesLimit = defaultDiscoveredTypesLimit
+	}
 	shuttingDownCh := make(chan struct{})
 	eventCh := make(chan event)
 	a := &Actuator{

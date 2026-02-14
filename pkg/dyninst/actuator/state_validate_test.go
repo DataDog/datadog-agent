@@ -118,12 +118,35 @@ func validateState(s *state, reportError func(error)) {
 	}
 
 	// Verify discoveredTypes values are sorted and deduplicated.
-	for svc, types := range s.discoveredTypes {
-		if !slices.IsSorted(types) {
-			report("discoveredTypes[%q] is not sorted: %v", svc, types)
+	{
+		computedTotal := 0
+		for svc, types := range s.discoveredTypes {
+			if !slices.IsSorted(types) {
+				report("discoveredTypes[%q] is not sorted: %v", svc, types)
+			}
+			if len(slices.Compact(slices.Clone(types))) != len(types) {
+				report("discoveredTypes[%q] has duplicates: %v", svc, types)
+			}
+			computedTotal += len(types)
 		}
-		if len(slices.Compact(slices.Clone(types))) != len(types) {
-			report("discoveredTypes[%q] has duplicates: %v", svc, types)
+		if computedTotal != s.totalDiscoveredTypes {
+			report(
+				"totalDiscoveredTypes counter %d does not match computed total %d",
+				s.totalDiscoveredTypes, computedTotal,
+			)
+		}
+	}
+
+	// Verify that when the limit is exceeded, all discoveredTypes entries
+	// belong to services with live processes.
+	if s.totalDiscoveredTypes > s.discoveredTypesLimit {
+		for svc := range s.discoveredTypes {
+			if _, hasProcesses := s.processesByService[svc]; !hasProcesses {
+				report(
+					"discoveredTypes[%q] exists with no live processes while over limit (%d > %d)",
+					svc, s.totalDiscoveredTypes, s.discoveredTypesLimit,
+				)
+			}
 		}
 	}
 

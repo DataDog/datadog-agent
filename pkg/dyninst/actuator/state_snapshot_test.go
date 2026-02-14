@@ -96,8 +96,19 @@ func runSnapshotTest(t *testing.T, file string, rewrite bool) {
 		}
 	}()
 
+	// Check if the first event is a config event; if so, extract settings
+	// and remove it from the events list.
+	discoveredTypesLimit := defaultDiscoveredTypesLimit
+	if len(events) > 0 {
+		if cfg, ok := events[0].event.(eventConfig); ok {
+			discoveredTypesLimit = cfg.discoveredTypesLimit
+			events = events[1:]
+			eventNodes = eventNodes[1:]
+		}
+	}
+
 	// Process each event
-	s := newState(Config{})
+	s := newState(Config{DiscoveredTypesLimit: discoveredTypesLimit})
 	effects := effectRecorder{}
 	for i, ev := range events {
 

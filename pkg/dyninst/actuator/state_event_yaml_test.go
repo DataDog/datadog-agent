@@ -22,6 +22,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 )
 
+// eventConfig is a pseudo-event used in snapshot tests to configure state
+// machine parameters (e.g. discoveredTypesLimit) before processing real events.
+type eventConfig struct {
+	baseEvent
+	discoveredTypesLimit int
+}
+
+func (e eventConfig) String() string {
+	return fmt.Sprintf("eventConfig{discoveredTypesLimit: %d}", e.discoveredTypesLimit)
+}
+
 // yamlEvent represents an event that can be marshaled to and unmarshaled from
 // YAML.
 type yamlEvent struct {
@@ -160,6 +171,11 @@ func (ye yamlEvent) MarshalYAML() (rv any, err error) {
 
 	case eventShutdown:
 		return encodeNodeTag("!shutdown", map[string]any{})
+
+	case eventConfig:
+		return encodeNodeTag("!config", map[string]any{
+			"discovered_types_limit": ev.discoveredTypesLimit,
+		})
 
 	default:
 		return nil, fmt.Errorf("unknown event type: %T", ev)
@@ -372,6 +388,17 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 
 	case "shutdown":
 		ye.event = eventShutdown{}
+
+	case "config":
+		var eventData struct {
+			DiscoveredTypesLimit int `yaml:"discovered_types_limit"`
+		}
+		if err := node.Decode(&eventData); err != nil {
+			return fmt.Errorf("failed to decode config event: %w", err)
+		}
+		ye.event = eventConfig{
+			discoveredTypesLimit: eventData.DiscoveredTypesLimit,
+		}
 
 	default:
 		return fmt.Errorf("unknown event type: %s", eventType)

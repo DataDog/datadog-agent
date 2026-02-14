@@ -28,7 +28,7 @@ func deepCopyState(original *state) *state {
 	}
 
 	// Create new state with basic fields copied.
-	copied := newState(Config{})
+	copied := newState(Config{DiscoveredTypesLimit: original.discoveredTypesLimit})
 
 	copied.counters = original.counters
 	copied.programIDAlloc = original.programIDAlloc
@@ -53,6 +53,8 @@ func deepCopyState(original *state) *state {
 	for prog := range original.queuedLoading.items() {
 		copied.queuedLoading.pushBack(copied.programs[prog.id])
 	}
+
+	copied.totalDiscoveredTypes = original.totalDiscoveredTypes
 
 	// Deep copy discoveredTypes map.
 	for svc, types := range original.discoveredTypes {
