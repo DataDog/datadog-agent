@@ -64,8 +64,16 @@ type state struct {
 	// discoveredTypes tracks type names discovered at runtime via interface
 	// decoding, keyed by service name. Each value is a sorted, deduplicated
 	// slice of type names.
-	discoveredTypes       map[string][]string
-	recompilationDisabled bool
+	discoveredTypes map[string][]string
+
+	// recompilationRateLimit is the rate limit in recompilations/second.
+	// Negative disables recompilation entirely. Zero disables rate limiting.
+	recompilationRateLimit float64
+	// recompilationRateBurst is the max burst (token cap).
+	recompilationRateBurst int
+	// recompilationAllowance is the current token count. Replenished by
+	// the heartbeat, consumed by recompilations.
+	recompilationAllowance float64
 
 	// discoveredTypesLimit caps the total number of discovered type names
 	// tracked across all services. When exceeded, entries for services with
@@ -224,11 +232,13 @@ func newState(cfg Config) *state {
 		queuedLoading: makeQueue(func(p *program) ir.ProgramID {
 			return p.id
 		}),
-		breakerCfg:            cfg.CircuitBreakerConfig,
-		recompilationDisabled: cfg.RecompilationDisabled,
-		lastHeartbeat:         time.Now(),
-		discoveredTypes:       make(map[string][]string),
-		discoveredTypesLimit:  cfg.DiscoveredTypesLimit,
+		breakerCfg:             cfg.CircuitBreakerConfig,
+		lastHeartbeat:          time.Now(),
+		discoveredTypes:        make(map[string][]string),
+		discoveredTypesLimit:   cfg.DiscoveredTypesLimit,
+		recompilationRateLimit: cfg.RecompilationRateLimit,
+		recompilationRateBurst: cfg.RecompilationRateBurst,
+		recompilationAllowance: float64(cfg.RecompilationRateBurst),
 	}
 }
 
@@ -756,11 +766,16 @@ func handleMissingTypesReported(
 //
 // Only one recompilation is triggered per call to avoid cascading effects.
 func maybeTriggerTypeRecompilation(sm *state, effects effectHandler) error {
-	if sm.shuttingDown || sm.recompilationDisabled {
+	// Negative rate limit disables recompilation entirely.
+	if sm.shuttingDown || sm.recompilationRateLimit < 0 {
 		return nil
 	}
 	// Only act when the pipeline is completely idle.
 	if sm.currentlyLoading != nil || sm.queuedLoading.len() > 0 {
+		return nil
+	}
+	// Rate-limit recompilations.
+	if sm.recompilationRateLimit > 0 && sm.recompilationAllowance < 1.0 {
 		return nil
 	}
 
@@ -786,6 +801,9 @@ func maybeTriggerTypeRecompilation(sm *state, effects effectHandler) error {
 		return fmt.Errorf("failed to clear process program for type recompilation: %w", err)
 	}
 	sm.counters.typeRecompilationsTriggered++
+	if sm.recompilationRateLimit > 0 {
+		sm.recompilationAllowance--
+	}
 	// Only trigger one recompilation per call; the next event cycle
 	// will pick up additional ones if needed.
 	return nil
@@ -1112,6 +1130,11 @@ func handleHeartbeatCheck(sm *state, effects effectHandler) {
 	interval := now.Sub(sm.lastHeartbeat)
 	sm.lastHeartbeat = now
 
+	checkCosts(sm, interval, effects)
+	replenishRecompilationAllowance(sm, interval)
+}
+
+func checkCosts(sm *state, interval time.Duration, effects effectHandler) {
 	// Validate budget on every core independently.
 	var totalCostSPS []float64
 	var maxCostSPS []float64
@@ -1178,26 +1201,38 @@ func handleHeartbeatCheck(sm *state, effects effectHandler) {
 	if len(totalCostSPS) == 0 {
 		return
 	}
-	maxCore := 0
-	for core, cost := range totalCostSPS {
-		if cost > totalCostSPS[maxCore] {
-			maxCore = core
+	{
+		maxCore := 0
+		for core, cost := range totalCostSPS {
+			if cost > totalCostSPS[maxCore] {
+				maxCore = core
+			}
+		}
+		if !detachedAny && maxProg[maxCore] != nil && totalCostSPS[maxCore] > sm.breakerCfg.AllProbesCPULimit {
+			prog := maxProg[maxCore]
+			proc := sm.processes[prog.processID]
+			prog.state = programStateDraining
+			prog.needsRecompilation = false
+			proc.state = processStateFailed
+			err := fmt.Errorf(
+				"probes exceeded total CPU limit of %fcpus/s using %fcpus/s on core %d; detaching most expensive probe, that used %fcpus/s (mean over %fs)",
+				sm.breakerCfg.AllProbesCPULimit,
+				totalCostSPS[maxCore],
+				maxCore,
+				maxCostSPS[maxCore],
+				interval.Seconds(),
+			)
+			effects.detachFromProcess(proc.attachedProgram, err)
 		}
 	}
-	if !detachedAny && maxProg[maxCore] != nil && totalCostSPS[maxCore] > sm.breakerCfg.AllProbesCPULimit {
-		prog := maxProg[maxCore]
-		proc := sm.processes[prog.processID]
-		prog.state = programStateDraining
-		prog.needsRecompilation = false
-		proc.state = processStateFailed
-		err := fmt.Errorf(
-			"probes exceeded total CPU limit of %fcpus/s using %fcpus/s on core %d; detaching most expensive probe, that used %fcpus/s (mean over %fs)",
-			sm.breakerCfg.AllProbesCPULimit,
-			totalCostSPS[maxCore],
-			maxCore,
-			maxCostSPS[maxCore],
-			interval.Seconds(),
+}
+
+func replenishRecompilationAllowance(sm *state, interval time.Duration) {
+	if sm.recompilationRateLimit > 0 {
+		increase := interval.Seconds() * sm.recompilationRateLimit
+		sm.recompilationAllowance = min(
+			sm.recompilationAllowance+increase,
+			float64(sm.recompilationRateBurst),
 		)
-		effects.detachFromProcess(proc.attachedProgram, err)
 	}
 }

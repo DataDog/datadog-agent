@@ -23,6 +23,14 @@ import (
 // limit.
 const defaultDiscoveredTypesLimit = 512
 
+// DefaultRecompilationRateLimit is the default rate limit for type
+// recompilations, in recompilations per second.
+const defaultRecompilationRateLimit = 1.0 / 60.0 // 1 per minute
+
+// DefaultRecompilationRateBurst is the default maximum burst of type
+// recompilations allowed.
+const defaultRecompilationRateBurst = 5
+
 // Config configures the actuator.
 type Config struct {
 	// CircuitBreakerConfig configures the circuit breaker for enforcing probe
@@ -33,9 +41,13 @@ type Config struct {
 	// zero, the default value is used. If negative, all discovered types are
 	// evicted when the processes for that service are removed.
 	DiscoveredTypesLimit int
-	// RecompilationDisabled disables recompilation of programs when new types
-	// are discovered. This is generally useful for testing.
-	RecompilationDisabled bool
+	// RecompilationRateLimit is the rate limit for type recompilations in
+	// recompilations per second. Negative disables recompilation entirely.
+	// Zero means "use default".
+	RecompilationRateLimit float64
+	// RecompilationRateBurst is the maximum burst of recompilations allowed.
+	// Zero means "use default".
+	RecompilationRateBurst int
 }
 
 // CircuitBreakerConfig configures the circuit breaker for enforcing probe CPU limits.
@@ -91,6 +103,12 @@ func (a *Actuator) Stats() map[string]any {
 func NewActuator(cfg Config) *Actuator {
 	if cfg.DiscoveredTypesLimit == 0 {
 		cfg.DiscoveredTypesLimit = defaultDiscoveredTypesLimit
+	}
+	if cfg.RecompilationRateLimit == 0 {
+		cfg.RecompilationRateLimit = defaultRecompilationRateLimit
+	}
+	if cfg.RecompilationRateBurst == 0 {
+		cfg.RecompilationRateBurst = defaultRecompilationRateBurst
 	}
 	shuttingDownCh := make(chan struct{})
 	eventCh := make(chan event)

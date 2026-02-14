@@ -151,6 +151,7 @@ func testDyninst(
 			MaxBackoffTime: time.Millisecond.Seconds(),
 		},
 	}
+	cfg.ActuatorConfig.RecompilationRateLimit = -1 // disable recompilation
 	m, err := module.NewModule(cfg, nil)
 	require.NoError(t, err)
 	t.Cleanup(m.Close)

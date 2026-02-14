@@ -55,6 +55,9 @@ func deepCopyState(original *state) *state {
 	}
 
 	copied.totalDiscoveredTypes = original.totalDiscoveredTypes
+	copied.recompilationRateLimit = original.recompilationRateLimit
+	copied.recompilationRateBurst = original.recompilationRateBurst
+	copied.recompilationAllowance = original.recompilationAllowance
 
 	// Deep copy discoveredTypes map.
 	for svc, types := range original.discoveredTypes {

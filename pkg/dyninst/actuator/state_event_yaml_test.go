@@ -26,11 +26,14 @@ import (
 // machine parameters (e.g. discoveredTypesLimit) before processing real events.
 type eventConfig struct {
 	baseEvent
-	discoveredTypesLimit int
+	discoveredTypesLimit   int
+	recompilationRateLimit float64
+	recompilationRateBurst int
 }
 
 func (e eventConfig) String() string {
-	return fmt.Sprintf("eventConfig{discoveredTypesLimit: %d}", e.discoveredTypesLimit)
+	return fmt.Sprintf("eventConfig{discoveredTypesLimit: %d, recompilationRateLimit: %g, recompilationRateBurst: %d}",
+		e.discoveredTypesLimit, e.recompilationRateLimit, e.recompilationRateBurst)
 }
 
 // yamlEvent represents an event that can be marshaled to and unmarshaled from
@@ -173,9 +176,16 @@ func (ye yamlEvent) MarshalYAML() (rv any, err error) {
 		return encodeNodeTag("!shutdown", map[string]any{})
 
 	case eventConfig:
-		return encodeNodeTag("!config", map[string]any{
+		data := map[string]any{
 			"discovered_types_limit": ev.discoveredTypesLimit,
-		})
+		}
+		if ev.recompilationRateLimit != 0 {
+			data["recompilation_rate_limit"] = ev.recompilationRateLimit
+		}
+		if ev.recompilationRateBurst != 0 {
+			data["recompilation_rate_burst"] = ev.recompilationRateBurst
+		}
+		return encodeNodeTag("!config", data)
 
 	default:
 		return nil, fmt.Errorf("unknown event type: %T", ev)
@@ -391,13 +401,17 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 
 	case "config":
 		var eventData struct {
-			DiscoveredTypesLimit int `yaml:"discovered_types_limit"`
+			DiscoveredTypesLimit   int     `yaml:"discovered_types_limit"`
+			RecompilationRateLimit float64 `yaml:"recompilation_rate_limit"`
+			RecompilationRateBurst int     `yaml:"recompilation_rate_burst"`
 		}
 		if err := node.Decode(&eventData); err != nil {
 			return fmt.Errorf("failed to decode config event: %w", err)
 		}
 		ye.event = eventConfig{
-			discoveredTypesLimit: eventData.DiscoveredTypesLimit,
+			discoveredTypesLimit:   eventData.DiscoveredTypesLimit,
+			recompilationRateLimit: eventData.RecompilationRateLimit,
+			recompilationRateBurst: eventData.RecompilationRateBurst,
 		}
 
 	default:

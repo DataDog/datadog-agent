@@ -67,8 +67,13 @@ func TestMissingTypeRecompilation(t *testing.T) {
 	testServer := newFakeAgent(t)
 	t.Cleanup(testServer.s.Close)
 
+	// Technically in the worst case we could detach the program on each
+	// missing type and there are up to this many.
+	const maxRecompilations = 6
+
 	moduleCfg, err := module.NewConfig(nil)
 	require.NoError(t, err)
+	moduleCfg.ActuatorConfig.RecompilationRateBurst = maxRecompilations
 	moduleCfg.DiskCacheConfig.DirPath = filepath.Join(tempDir, "disk-cache")
 	moduleCfg.LogUploaderURL = testServer.getLogsURL()
 	moduleCfg.DiagsUploaderURL = testServer.getDiagsURL()
@@ -192,9 +197,8 @@ func TestMissingTypeRecompilation(t *testing.T) {
 	// The first run should have missing types. The actuator records them as
 	// discoveredTypes for the service, so subsequent runs compile with those
 	// types included. We expect convergence within a small number of runs.
-	const maxRuns = 5
 	var firstRunLogs []receivedLog
-	for i := 1; i <= maxRuns; i++ {
+	for i := 1; i <= maxRecompilations; i++ {
 		runName := fmt.Sprintf("run%d", i)
 		logs := runProcess(runName)
 		require.NotEmpty(t, logs, "[%s] expected at least one event", runName)
@@ -228,5 +232,5 @@ func TestMissingTypeRecompilation(t *testing.T) {
 			return
 		}
 	}
-	t.Fatalf("still had missing types after %d runs", maxRuns)
+	t.Fatalf("still had missing types after %d runs", maxRecompilations)
 }
