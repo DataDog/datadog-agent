@@ -163,7 +163,7 @@ func (dr *Resolver) sendERPCStats() error {
 	}
 	for r, count := range counters {
 		if count > 0 {
-			_ = dr.statsdClient.Count(metrics.MetricDentryERPC, count, []string{fmt.Sprintf("ret:%s", r)}, 1.0)
+			_ = dr.statsdClient.Count(metrics.MetricDentryERPC, count, []string{"ret:" + r.String()}, 1.0)
 		}
 	}
 	for _, r := range allERPCRet() {

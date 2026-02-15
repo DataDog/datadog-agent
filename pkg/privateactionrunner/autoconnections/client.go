@@ -48,6 +48,7 @@ type ConnectionRequest struct {
 	ID          string            `jsonapi:"primary,action_connection"`
 	Name        string            `jsonapi:"attribute" json:"name" validate:"required"`
 	RunnerID    string            `jsonapi:"attribute" json:"runner_id" validate:"required"`
+	Tags        []string          `jsonapi:"attribute" json:"tags"`
 	Integration IntegrationConfig `jsonapi:"attribute" json:"integration" validate:"required"`
 }
 
@@ -56,7 +57,7 @@ type IntegrationConfig struct {
 	Credentials map[string]interface{} `json:"credentials" validate:"required"`
 }
 
-func buildConnectionRequest(definition ConnectionDefinition, runnerID, runnerName string) ConnectionRequest {
+func buildConnectionRequest(definition ConnectionDefinition, runnerID, runnerName string, tags []string) ConnectionRequest {
 	connectionName := GenerateConnectionName(definition, runnerName)
 
 	credentials := map[string]interface{}{
@@ -70,6 +71,7 @@ func buildConnectionRequest(definition ConnectionDefinition, runnerID, runnerNam
 	return ConnectionRequest{
 		Name:     connectionName,
 		RunnerID: runnerID,
+		Tags:     tags,
 		Integration: IntegrationConfig{
 			Type:        definition.IntegrationType,
 			Credentials: credentials,
@@ -77,8 +79,8 @@ func buildConnectionRequest(definition ConnectionDefinition, runnerID, runnerNam
 	}
 }
 
-func (c *ConnectionsClient) CreateConnection(ctx context.Context, definition ConnectionDefinition, runnerID, runnerName string) error {
-	reqBody := buildConnectionRequest(definition, runnerID, runnerName)
+func (c *ConnectionsClient) CreateConnection(ctx context.Context, definition ConnectionDefinition, runnerID, runnerName string, tags []string) error {
+	reqBody := buildConnectionRequest(definition, runnerID, runnerName, tags)
 
 	body, err := jsonapi.Marshal(reqBody, jsonapi.MarshalClientMode())
 	if err != nil {
