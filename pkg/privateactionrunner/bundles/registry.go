@@ -8,6 +8,7 @@
 package privatebundles
 
 import (
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	com_datadoghq_ddagent "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/ddagent"
@@ -50,7 +51,7 @@ type Registry struct {
 	Bundles map[string]types.Bundle
 }
 
-func NewRegistry(configuration *config.Config, traceroute traceroute.Component) *Registry {
+func NewRegistry(configuration *config.Config, traceroute traceroute.Component, epComponent eventplatform.Component) *Registry {
 	return &Registry{
 		Bundles: map[string]types.Bundle{
 			"com.datadoghq.ddagent":                    com_datadoghq_ddagent.NewAgentActions(),
@@ -82,7 +83,7 @@ func NewRegistry(configuration *config.Config, traceroute traceroute.Component) 
 			"com.datadoghq.kubernetes.core":            com_datadoghq_kubernetes_core.NewKubernetesCore(),
 			"com.datadoghq.kubernetes.customresources": com_datadoghq_kubernetes_customresources.NewKubernetesCustomResources(),
 			"com.datadoghq.mongodb":                    com_datadoghq_mongodb.NewMongoDB(),
-			"com.datadoghq.ddagent.networkpath":        com_datadoghq_ddagent_networkpath.NewNetworkPath(traceroute),
+			"com.datadoghq.ddagent.networkpath":        com_datadoghq_ddagent_networkpath.NewNetworkPath(traceroute, epComponent),
 			"com.datadoghq.postgresql":                 com_datadoghq_postgresql.NewPostgreSQL(),
 			"com.datadoghq.script":                     com_datadoghq_script.NewScript(),
 			"com.datadoghq.temporal":                   com_datadoghq_temporal.NewTemporal(),

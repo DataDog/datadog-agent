@@ -7,13 +7,16 @@ package com_datadoghq_ddagent_networkpath
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/stretchr/testify/require"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	tracerouteconfig "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -28,6 +31,39 @@ type mockTraceroute struct {
 func (m *mockTraceroute) Run(_ context.Context, cfg tracerouteconfig.Config) (payload.NetworkPath, error) {
 	m.cfg = cfg
 	return m.path, m.err
+}
+
+type mockEventPlatformForwarder struct {
+	payload   []byte
+	eventType string
+	err       error
+	calls     int
+}
+
+func (m *mockEventPlatformForwarder) SendEventPlatformEvent(_ *message.Message, _ string) error {
+	return nil
+}
+
+func (m *mockEventPlatformForwarder) SendEventPlatformEventBlocking(msg *message.Message, eventType string) error {
+	m.calls++
+	m.payload = append([]byte(nil), msg.GetContent()...)
+	m.eventType = eventType
+	return m.err
+}
+
+func (m *mockEventPlatformForwarder) Purge() map[string][]*message.Message {
+	return nil
+}
+
+type mockEventPlatformComponent struct {
+	forwarder eventplatform.Forwarder
+}
+
+func (m *mockEventPlatformComponent) Get() (eventplatform.Forwarder, bool) {
+	if m.forwarder == nil {
+		return nil, false
+	}
+	return m.forwarder, true
 }
 
 func TestGetNetworkPathHandlerRun(t *testing.T) {
@@ -51,7 +87,7 @@ func TestGetNetworkPathHandlerRun(t *testing.T) {
 			},
 		},
 	}
-	handler := NewGetNetworkPathHandler(tracerouteStub)
+	handler := NewGetNetworkPathHandler(tracerouteStub, nil)
 
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{
@@ -120,7 +156,7 @@ func TestGetNetworkPathHandlerRunDefaults(t *testing.T) {
 			},
 		},
 	}
-	handler := NewGetNetworkPathHandler(tracerouteStub)
+	handler := NewGetNetworkPathHandler(tracerouteStub, nil)
 
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{
@@ -162,7 +198,7 @@ func TestGetNetworkPathHandlerRunInvalidPath(t *testing.T) {
 			},
 		},
 	}
-	handler := NewGetNetworkPathHandler(tracerouteStub)
+	handler := NewGetNetworkPathHandler(tracerouteStub, nil)
 
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{
@@ -174,4 +210,86 @@ func TestGetNetworkPathHandlerRunInvalidPath(t *testing.T) {
 
 	_, err := handler.Run(context.Background(), task, nil)
 	require.ErrorContains(t, err, "invalid destination IP address")
+}
+
+func TestGetNetworkPathHandlerRunSendToBackend(t *testing.T) {
+	tracerouteStub := &mockTraceroute{
+		path: payload.NetworkPath{
+			Destination: payload.NetworkPathDestination{
+				Hostname: "example.com",
+				Port:     443,
+			},
+			Traceroute: payload.Traceroute{
+				Runs: []payload.TracerouteRun{
+					{
+						RunID: "run-1",
+						Destination: payload.TracerouteDestination{
+							IPAddress: net.ParseIP("1.2.3.4"),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	forwarder := &mockEventPlatformForwarder{}
+	handler := NewGetNetworkPathHandler(tracerouteStub, &mockEventPlatformComponent{forwarder: forwarder})
+
+	task := &types.Task{}
+	task.Data.Attributes = &types.Attributes{
+		Inputs: map[string]interface{}{
+			"hostname":      "example.com",
+			"port":          uint16(443),
+			"sendToBackend": true,
+		},
+	}
+
+	output, err := handler.Run(context.Background(), task, nil)
+	require.NoError(t, err)
+
+	result, ok := output.(*payload.NetworkPath)
+	require.True(t, ok)
+	require.Equal(t, 1, forwarder.calls)
+	require.Equal(t, eventplatform.EventTypeNetworkPath, forwarder.eventType)
+
+	var sentPath payload.NetworkPath
+	err = json.Unmarshal(forwarder.payload, &sentPath)
+	require.NoError(t, err)
+	require.Equal(t, *result, sentPath)
+}
+
+func TestGetNetworkPathHandlerRunSendToBackendForwarderUnavailable(t *testing.T) {
+	tracerouteStub := &mockTraceroute{
+		path: payload.NetworkPath{
+			Destination: payload.NetworkPathDestination{
+				Hostname: "example.com",
+				Port:     443,
+			},
+			Traceroute: payload.Traceroute{
+				Runs: []payload.TracerouteRun{
+					{
+						RunID: "run-1",
+						Destination: payload.TracerouteDestination{
+							IPAddress: net.ParseIP("1.2.3.4"),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	handler := NewGetNetworkPathHandler(tracerouteStub, nil)
+
+	task := &types.Task{}
+	task.Data.Attributes = &types.Attributes{
+		Inputs: map[string]interface{}{
+			"hostname":      "example.com",
+			"port":          uint16(443),
+			"sendToBackend": true,
+		},
+	}
+
+	_, err := handler.Run(context.Background(), task, nil)
+	require.ErrorContains(t, err, "failed to send network path metadata")
+	require.ErrorContains(t, err, "event platform forwarder is not available")
 }

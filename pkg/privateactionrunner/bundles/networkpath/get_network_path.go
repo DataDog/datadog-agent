@@ -7,12 +7,15 @@ package com_datadoghq_ddagent_networkpath
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	tracerouteconfig "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
@@ -20,12 +23,19 @@ import (
 )
 
 type GetNetworkPathHandler struct {
-	traceroute traceroute.Component
+	traceroute  traceroute.Component
+	epForwarder eventplatform.Forwarder
 }
 
-func NewGetNetworkPathHandler(traceroute traceroute.Component) *GetNetworkPathHandler {
+func NewGetNetworkPathHandler(traceroute traceroute.Component, epComponent eventplatform.Component) *GetNetworkPathHandler {
+	var epForwarder eventplatform.Forwarder
+	if epComponent != nil {
+		epForwarder, _ = epComponent.Get()
+	}
+
 	return &GetNetworkPathHandler{
-		traceroute: traceroute,
+		traceroute:  traceroute,
+		epForwarder: epForwarder,
 	}
 }
 
@@ -41,6 +51,8 @@ type GetNetworkPathInputs struct {
 	TracerouteQueries  int               `json:"tracerouteQueries,omitempty"`
 	E2eQueries         int               `json:"e2eQueries,omitempty"`
 	Namespace          string            `json:"namespace,omitempty"`
+	// Sent traceroute data to network path backend.
+	SendToBackend bool `json:"sendToBackend,omitempty"`
 }
 
 func (h *GetNetworkPathHandler) Run(
@@ -113,5 +125,30 @@ func (h *GetNetworkPathHandler) Run(
 	path.Source.Service = inputs.SourceService
 	path.Destination.Service = inputs.DestinationService
 
+	if inputs.SendToBackend {
+		if err := h.SendNetPathMDToEP(path); err != nil {
+			return nil, fmt.Errorf("failed to send network path metadata: %w", err)
+		}
+	}
+
 	return &path, nil
+}
+
+// SendNetPathMDToEP sends a traced network path to Event Platform
+func (h *GetNetworkPathHandler) SendNetPathMDToEP(path payload.NetworkPath) error {
+	if h.epForwarder == nil {
+		return errors.New("event platform forwarder is not available")
+	}
+
+	payloadBytes, err := json.Marshal(path)
+	if err != nil {
+		return fmt.Errorf("error marshalling device metadata: %w", err)
+	}
+
+	msg := message.NewMessage(payloadBytes, nil, "", 0)
+	if err := h.epForwarder.SendEventPlatformEventBlocking(msg, eventplatform.EventTypeNetworkPath); err != nil {
+		return fmt.Errorf("error sending metadata to event platform intake: %w", err)
+	}
+
+	return nil
 }
