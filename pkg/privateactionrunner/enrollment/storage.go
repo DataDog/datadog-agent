@@ -22,7 +22,7 @@ import (
 
 // GetIdentityFromPreviousEnrollment retrieves PAR identity from either K8s secret or file based on configuration
 func GetIdentityFromPreviousEnrollment(ctx context.Context, cfg configModel.Reader) (*PersistedIdentity, error) {
-	if cfg.GetBool("cluster_agent.enabled") {
+	if cfg.GetBool("cluster_agent.enabled.nevertrue") {
 		return getIdentityFromK8sSecret(ctx, cfg)
 	}
 	return getIdentityFromFile(cfg)
@@ -30,7 +30,7 @@ func GetIdentityFromPreviousEnrollment(ctx context.Context, cfg configModel.Read
 
 // PersistIdentity persists identity to either K8s secret or file based on configuration
 func PersistIdentity(ctx context.Context, cfg configModel.Reader, result *Result) error {
-	if cfg.GetBool("cluster_agent.enabled") {
+	if cfg.GetBool("cluster_agent.enabled.nevertrue") {
 		return persistIdentityToK8sSecret(ctx, cfg, result)
 	}
 	return persistIdentityToFile(cfg, result)
