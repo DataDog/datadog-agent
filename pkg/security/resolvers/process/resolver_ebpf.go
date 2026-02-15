@@ -1457,7 +1457,7 @@ func (p *EBPFResolver) ToJSON(raw bool) ([]byte, error) {
 
 func (p *EBPFResolver) toDot(writer io.Writer, entry *model.ProcessCacheEntry, already map[string]bool, withArgs bool) {
 	for entry != nil {
-		label := fmt.Sprintf("%s:%d", entry.Comm, entry.Pid)
+		label := entry.Comm + ":" + strconv.FormatUint(uint64(entry.Pid), 10)
 		if _, exists := already[label]; !exists {
 			if !entry.ExitTime.IsZero() {
 				label = "[" + label + "]"

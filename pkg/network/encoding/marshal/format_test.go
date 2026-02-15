@@ -14,6 +14,7 @@ import (
 	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/indexedset"
 )
 
 func TestFormatRouteIdx(t *testing.T) {
@@ -102,7 +103,7 @@ func BenchmarkConnectionReset(b *testing.B) {
 }
 
 func BenchmarkFormatTags(b *testing.B) {
-	tagSet := network.NewTagsSet()
+	tagSet := indexedset.New[string]()
 	var c network.ConnectionStats
 	c.Tags = []*intern.Value{
 		intern.GetByString("env:env"),
