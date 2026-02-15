@@ -560,18 +560,18 @@ func (k *Probe) readSingleMap(mapid ebpf.MapID) (*model.EBPFMapStats, error) {
 	}
 	defer func() { _ = mp.Close() }()
 
-	// TODO this call was already done by cilium/ebpf internally
-	// we could maybe avoid the duplicate call by doing the id->fd->info chain ourselves
-	info, err := mp.Info()
-	if err != nil {
+	var info MapInfo
+	if err := MapObjInfo(uint32(mp.FD()), &info); err != nil {
 		return nil, fmt.Errorf("error getting map info map_id=%d: %s", mapid, err)
 	}
-	name := info.Name
+
+	var name string
 	if mn, err := ddebpf.GetMapNameFromMapID(uint32(mapid)); err == nil {
 		name = mn
-	}
-	if name == "" {
-		name = info.Type.String()
+	} else if info.Name[0] != 0 {
+		name = unix.ByteSliceToString(info.Name[:])
+	} else {
+		name = mp.Type().String()
 	}
 	module := "unknown"
 	if mod, err := ddebpf.GetModuleFromMapID(uint32(mapid)); err == nil {
@@ -582,33 +582,33 @@ func (k *Probe) readSingleMap(mapid ebpf.MapID) (*model.EBPFMapStats, error) {
 		ID:         uint32(mapid),
 		Name:       name,
 		Module:     module,
-		Type:       info.Type.String(),
-		MaxEntries: info.MaxEntries,
+		Type:       mp.Type().String(),
+		MaxEntries: mp.MaxEntries(),
 		Entries:    -1, // Indicates no entries were calculated
 	}
 
-	switch info.Type {
+	switch mp.Type() {
 	case ebpf.PerfEventArray:
-		err := perfBufferMemoryUsage(&baseMapStats, info, k)
+		err := perfBufferMemoryUsage(&baseMapStats, mapid, mp, k)
 		if err != nil {
 			return nil, err
 		}
 	case ebpf.RingBuf:
-		err := ringBufferMemoryUsage(&baseMapStats, info, k)
+		err := ringBufferMemoryUsage(&baseMapStats, mapid, mp, k)
 		if err != nil {
 			return nil, err
 		}
 	case ebpf.Hash, ebpf.LRUHash, ebpf.PerCPUHash, ebpf.LRUCPUHash, ebpf.HashOfMaps:
-		baseMapStats.MaxSize, baseMapStats.RSS = hashMapMemoryUsage(info, uint64(k.nrcpus))
+		baseMapStats.MaxSize, baseMapStats.RSS = hashMapMemoryUsage(mp, uint64(k.nrcpus))
 		if module != "unknown" {
 			// hashMapNumberOfEntries might allocate memory, so we only do it if we have a module name, as
 			// unknown modules get discarded anyway (only RSS is used for total counts)
 			baseMapStats.Entries = hashMapNumberOfEntries(mp, mapid, k.mphCache, &k.mapBuffers, k.entryCountMaxRestarts)
 		}
 	case ebpf.Array, ebpf.PerCPUArray, ebpf.ProgramArray, ebpf.CGroupArray, ebpf.ArrayOfMaps:
-		baseMapStats.MaxSize, baseMapStats.RSS = arrayMemoryUsage(info, uint64(k.nrcpus))
+		baseMapStats.MaxSize, baseMapStats.RSS = arrayMemoryUsage(mp, uint64(k.nrcpus))
 	case ebpf.LPMTrie:
-		baseMapStats.MaxSize, baseMapStats.RSS = trieMemoryUsage(info, uint64(k.nrcpus))
+		baseMapStats.MaxSize, baseMapStats.RSS = trieMemoryUsage(mp, uint64(k.nrcpus))
 	// TODO other map types
 	//case ebpf.Stack:
 	//case ebpf.ReusePortSockArray:
@@ -619,7 +619,7 @@ func (k *Probe) readSingleMap(mapid ebpf.MapID) (*model.EBPFMapStats, error) {
 	//case ebpf.CGroupStorage:
 	//case ebpf.TaskStorage, ebpf.SkStorage, ebpf.InodeStorage:
 	default:
-		return nil, fmt.Errorf("unsupported map %s(%d) type %s", name, mapid, info.Type.String())
+		return nil, fmt.Errorf("unsupported map %s(%d) type %s", name, mapid, mp.Type())
 	}
 	return &baseMapStats, nil
 }
@@ -641,10 +641,12 @@ func (k *Probe) getMapStats(stats *model.EBPFStats) error {
 		stats.Maps = append(stats.Maps, *baseMapStats)
 	}
 
-	log.Tracef("found %d maps", len(stats.Maps))
 	deduplicateMapNames(stats)
-	for _, mp := range stats.Maps {
-		log.Tracef("name=%s map_id=%d max=%d rss=%d type=%s", mp.Name, mp.ID, mp.MaxSize, mp.RSS, mp.Type)
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef("found %d maps", len(stats.Maps))
+		for _, mp := range stats.Maps {
+			log.Tracef("name=%s map_id=%d max=%d rss=%d type=%s", mp.Name, mp.ID, mp.MaxSize, mp.RSS, mp.Type)
+		}
 	}
 	// Allow the maps to be garbage collected
 	k.mapBuffers.resetBuffers()
@@ -657,10 +659,10 @@ func (k *Probe) getMapStats(stats *model.EBPFStats) error {
 
 const sizeofBpfArray = 320 // struct bpf_array
 
-func arrayMemoryUsage(info *ebpf.MapInfo, nrCPUS uint64) (max uint64, rss uint64) {
-	perCPU := isPerCPU(info.Type)
-	numEntries := uint64(info.MaxEntries)
-	elemSize := uint64(roundUpPow2(info.ValueSize, 8))
+func arrayMemoryUsage(mp *ebpf.Map, nrCPUS uint64) (max uint64, rss uint64) {
+	perCPU := isPerCPU(mp.Type())
+	numEntries := uint64(mp.MaxEntries())
+	elemSize := uint64(roundUpPow2(mp.ValueSize(), 8))
 
 	usage := uint64(sizeofBpfArray)
 
@@ -668,7 +670,7 @@ func arrayMemoryUsage(info *ebpf.MapInfo, nrCPUS uint64) (max uint64, rss uint64
 		usage += numEntries * sizeOfPointer
 		usage += numEntries * elemSize * nrCPUS
 	} else {
-		if info.Flags&unix.BPF_F_MMAPABLE > 0 {
+		if mp.Flags()&unix.BPF_F_MMAPABLE > 0 {
 			usage = pageAlign(usage)
 			usage += pageAlign(numEntries * elemSize)
 		} else {
@@ -702,21 +704,21 @@ func isLRU(typ ebpf.MapType) bool {
 	return false
 }
 
-func hashMapMemoryUsage(info *ebpf.MapInfo, nrCPUS uint64) (max uint64, rss uint64) {
-	valueSize := uint64(roundUpPow2(info.ValueSize, 8))
-	keySize := uint64(roundUpPow2(info.KeySize, 8))
-	perCPU := isPerCPU(info.Type)
-	lru := isLRU(info.Type)
-	prealloc := (info.Flags & unix.BPF_F_NO_PREALLOC) == 0
+func hashMapMemoryUsage(mp *ebpf.Map, nrCPUS uint64) (max uint64, rss uint64) {
+	valueSize := uint64(roundUpPow2(mp.ValueSize(), 8))
+	keySize := uint64(roundUpPow2(mp.KeySize(), 8))
+	perCPU := isPerCPU(mp.Type())
+	lru := isLRU(mp.Type())
+	prealloc := (mp.Flags() & unix.BPF_F_NO_PREALLOC) == 0
 	hasExtraElems := !perCPU && !lru
 
-	nBuckets := uint64(roundUpNearestPow2(info.MaxEntries))
+	nBuckets := uint64(roundUpNearestPow2(mp.MaxEntries()))
 	usage := sizeofHtab
 	usage += sizeOfBucket * nBuckets
 	// could we get the size of the locks more directly with BTF?
 	usage += sizeOfInt * nrCPUS * hashtabMapLockCount
 
-	numEntries := uint64(info.MaxEntries)
+	numEntries := uint64(mp.MaxEntries())
 	if hasExtraElems {
 		numEntries += nrCPUS
 	}
@@ -737,8 +739,10 @@ func hashMapMemoryUsage(info *ebpf.MapInfo, nrCPUS uint64) (max uint64, rss uint
 
 	// for non-preallocated maps, try reading RSS from fdinfo when precise counting is supported (kernel 6.4+)
 	if !prealloc {
-		if memlock, ok := info.Memlock(); ok && preciseMapMemUsageSupported() {
-			return usage, memlock
+		if preciseMapMemUsageSupported() {
+			if memlock, err := mapMemlock(uint32(mp.FD())); err == nil {
+				return usage, memlock
+			}
 		}
 		return usage, 0
 	}
@@ -750,18 +754,17 @@ func hashMapMemoryUsage(info *ebpf.MapInfo, nrCPUS uint64) (max uint64, rss uint
 const sizeofLPMTrieNode = 40          // struct lpm_trie_node
 const offsetOfDataInBPFLPMTrieKey = 4 // offsetof(struct bpf_lpm_trie_key, data)
 
-func trieMemoryUsage(info *ebpf.MapInfo, _ uint64) (max uint64, rss uint64) {
-	dataSize := uint64(info.KeySize) - offsetOfDataInBPFLPMTrieKey
-	elemSize := sizeofLPMTrieNode + dataSize + uint64(info.ValueSize)
-	size := elemSize * uint64(info.MaxEntries)
+func trieMemoryUsage(mp *ebpf.Map, _ uint64) (max uint64, rss uint64) {
+	dataSize := uint64(mp.KeySize()) - offsetOfDataInBPFLPMTrieKey
+	elemSize := sizeofLPMTrieNode + dataSize + uint64(mp.ValueSize())
+	size := elemSize * uint64(mp.MaxEntries())
 	// accurate RSS would require knowing the number of entries in the trie
 	return size, size
 }
 
-func perfBufferMemoryUsage(mapStats *model.EBPFMapStats, info *ebpf.MapInfo, k *Probe) error {
-	mapStats.MaxSize, mapStats.RSS = arrayMemoryUsage(info, uint64(k.nrcpus))
+func perfBufferMemoryUsage(mapStats *model.EBPFMapStats, mapid ebpf.MapID, mp *ebpf.Map, k *Probe) error {
+	mapStats.MaxSize, mapStats.RSS = arrayMemoryUsage(mp, uint64(k.nrcpus))
 
-	mapid, _ := info.ID()
 	key := perfBufferKey{Id: uint32(mapid)}
 	var region mmapRegion
 	numCPUs := uint32(0)
@@ -774,14 +777,18 @@ func perfBufferMemoryUsage(mapStats *model.EBPFMapStats, info *ebpf.MapInfo, k *
 				// assume errors here are offline CPUs and keep trucking
 				continue
 			}
-			return fmt.Errorf("error reading perf buffer fd map %s, mapid=%d cpu=%d: %s", info.Name, mapid, i, err)
+			return fmt.Errorf("error reading perf buffer fd map %s, mapid=%d cpu=%d: %s", mp.String(), mapid, i, err)
 		}
-		log.Tracef("map_id=%d cpu=%d len=%d addr=%x", mapid, i, region.Len, region.Addr)
+		if log.ShouldLog(log.TraceLvl) {
+			log.Tracef("map_id=%d cpu=%d len=%d addr=%x", mapid, i, region.Len, region.Addr)
+		}
 		mapStats.MaxSize += region.Len
 		numCPUs++
 	}
 
-	log.Tracef("map_id=%d num_cpus=%d", mapid, numCPUs)
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef("map_id=%d num_cpus=%d", mapid, numCPUs)
+	}
 	mapStats.RSS = mapStats.MaxSize
 	mapStats.NumCPUs = numCPUs
 	return nil
@@ -798,20 +805,21 @@ var (
 	ringbufPgOff = offsetConsumerInRingbuf >> pageShift
 )
 
-func ringBufferMemoryUsage(mapStats *model.EBPFMapStats, info *ebpf.MapInfo, k *Probe) error {
+func ringBufferMemoryUsage(mapStats *model.EBPFMapStats, mapid ebpf.MapID, mp *ebpf.Map, k *Probe) error {
 	mapStats.MaxSize = uint64(sizeofBpfRingBuf)
-	numEntries := uint64(info.MaxEntries)
+	numEntries := uint64(mp.MaxEntries())
 	numMetaPages := ringbufPgOff + ringbufPosPages
 	numDataPages := numEntries >> pageShift
 	mapStats.MaxSize += (uint64(numMetaPages) + 2*numDataPages) * sizeofPageStruct
 	mapStats.RSS = mapStats.MaxSize
 
-	mapid, _ := info.ID()
 	var ringInfo ringMmap
 	if err := k.ringBufferMap.Lookup(unsafe.Pointer(&mapid), unsafe.Pointer(&ringInfo)); err != nil {
-		return fmt.Errorf("error reading ring buffer map %s, mapid=%d: %s", info.Name, mapid, err)
+		return fmt.Errorf("error reading ring buffer map %s, mapid=%d: %s", mp.String(), mapid, err)
 	}
-	log.Tracef("map_id=%d data_len=%d data_addr=%x cons_len=%d cons_addr=%x", mapid, ringInfo.Data.Len, ringInfo.Data.Addr, ringInfo.Consumer.Len, ringInfo.Consumer.Addr)
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef("map_id=%d data_len=%d data_addr=%x cons_len=%d cons_addr=%x", mapid, ringInfo.Data.Len, ringInfo.Data.Addr, ringInfo.Consumer.Len, ringInfo.Consumer.Addr)
+	}
 	mapStats.MaxSize += ringInfo.Consumer.Len + ringInfo.Data.Len
 	mapStats.RSS = mapStats.MaxSize
 	return nil
@@ -987,7 +995,7 @@ func hashMapNumberOfEntriesWithBatch(mp *ebpf.Map, buffers *entryCountBuffers, m
 	// are of the same size as the key and value size of the map. I haven't found a
 	// way to do this with arbitrary key sizes only known at runtime (i.e., I can't do
 	// a type [][mp.KeySize()]byte), and instead of defining one type per possible key size,
-	// I just replicated the system call here. It requires redinifing the struct used in cilium to
+	// I just replicated the system call here. It requires redefining the struct used in cilium to
 	// pass arguments, but it's not a big amount of code.
 	const BpfMapLookupBatchCommandCode = uint32(24)
 	type MapLookupBatchAttr struct {

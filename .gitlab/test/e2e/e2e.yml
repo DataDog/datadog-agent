@@ -355,7 +355,7 @@ new-e2e-agent-runtimes:
 new-e2e-agent-runtimes-windows:
   extends: .new_e2e_template_needs_windows_x64
   rules:
-    - !reference [.on_arun_or_e2e_changes]
+    - !reference [.on_e2e_main_release_or_rc]
     - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-runtimes
@@ -378,8 +378,7 @@ new-e2e-agent-subcommands:
 new-e2e-agent-subcommands-windows:
   extends: .new_e2e_template_needs_windows_x64
   rules:
-    - !reference [.on_subcommands_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
+    - !reference [.on_e2e_main_release_or_rc]
     - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-subcommands
@@ -1077,7 +1076,6 @@ new-e2e-ssi:
     - !reference [.needs_new_e2e_template]
     - qa_dca
     - qa_agent_linux
-    - qa_agent_full
   variables:
     TARGETS: ./tests/ssi
     TEAM: injection-platform

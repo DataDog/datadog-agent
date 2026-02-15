@@ -48,8 +48,8 @@ type Config struct {
 	// DiskCacheConfig is the configuration for the disk cache for debug info.
 	DiskCacheConfig object.DiskCacheConfig
 
-	// CircuitBreakerConfig is the configuration for the circuit breaker enforcing probe cpu-limits.
-	CircuitBreakerConfig actuator.CircuitBreakerConfig
+	// ActuatorConfig is the configuration for the actuator.
+	ActuatorConfig actuator.Config
 
 	TestingKnobs struct {
 		LoaderOptions             []loader.Option
@@ -77,7 +77,9 @@ func NewConfig(_ *sysconfigtypes.Config) (*Config, error) {
 		ProbeTombstoneFilePath: "/tmp/datadog-agent/system-probe/dynamic-instrumentation/debugger-probes-tombstone.json",
 		DiskCacheEnabled:       cacheEnabled,
 		DiskCacheConfig:        cacheConfig,
-		CircuitBreakerConfig:   getCircuitBreakerConfig(),
+		ActuatorConfig: actuator.Config{
+			CircuitBreakerConfig: getCircuitBreakerConfig(),
+		},
 	}
 	return c, nil
 }
