@@ -7,25 +7,31 @@ package com_datadoghq_ddagent_networkpath
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	tracerouteconfig "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type GetNetworkPathHandler struct {
-	traceroute traceroute.Component
+	traceroute  traceroute.Component
+	epForwarder eventplatform.Component
 }
 
-func NewGetNetworkPathHandler(traceroute traceroute.Component) *GetNetworkPathHandler {
+func NewGetNetworkPathHandler(traceroute traceroute.Component, epForwarder eventplatform.Component) *GetNetworkPathHandler {
 	return &GetNetworkPathHandler{
-		traceroute: traceroute,
+		traceroute:  traceroute,
+		epForwarder: epForwarder,
 	}
 }
 
@@ -114,5 +120,27 @@ func (h *GetNetworkPathHandler) Run(
 	path.Source.Service = inputs.SourceService
 	path.Destination.Service = inputs.DestinationService
 
+	if inputs.SendToBackend {
+		if err := h.sendToEventPlatform(path); err != nil {
+			return nil, fmt.Errorf("failed to send network path to event platform: %w", err)
+		}
+	}
+
 	return &path, nil
+}
+
+func (h *GetNetworkPathHandler) sendToEventPlatform(path payload.NetworkPath) error {
+	forwarder, found := h.epForwarder.Get()
+	if !found {
+		return errors.New("event platform forwarder is not available")
+	}
+
+	payloadBytes, err := json.Marshal(path)
+	if err != nil {
+		return fmt.Errorf("error marshalling network path payload: %w", err)
+	}
+	log.Debugf("network path event platform payload: %s", string(payloadBytes))
+
+	m := message.NewMessage(payloadBytes, nil, "", 0)
+	return forwarder.SendEventPlatformEvent(m, eventplatform.EventTypeNetworkPath)
 }

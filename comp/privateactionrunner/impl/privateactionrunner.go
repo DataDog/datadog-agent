@@ -18,6 +18,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
@@ -50,13 +51,14 @@ func isEnabled(cfg config.Component) bool {
 
 // Requires defines the dependencies for the privateactionrunner component
 type Requires struct {
-	Config     config.Component
-	Log        log.Component
-	Lifecycle  compdef.Lifecycle
-	RcClient   rcclient.Component
-	Hostname   hostname.Component
-	Tagger     tagger.Component
-	Traceroute traceroute.Component
+	Config      config.Component
+	Log         log.Component
+	Lifecycle   compdef.Lifecycle
+	RcClient    rcclient.Component
+	Hostname    hostname.Component
+	Tagger      tagger.Component
+	Traceroute  traceroute.Component
+	EPForwarder eventplatform.Component
 }
 
 // Provides defines the output of the privateactionrunner component
@@ -78,7 +80,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
 
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EPForwarder)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -97,6 +99,7 @@ func NewPrivateActionRunner(
 	logger log.Component,
 	taggerComp tagger.Component,
 	tracerouteComp traceroute.Component,
+	epForwarder eventplatform.Component,
 ) (*PrivateActionRunner, error) {
 	persistedIdentity, err := enrollment.GetIdentityFromPreviousEnrollment(ctx, coreConfig)
 	if err != nil {
@@ -134,7 +137,7 @@ func NewPrivateActionRunner(
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(cfg)
 
-	r, err := runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, tracerouteComp)
+	r, err := runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, tracerouteComp, epForwarder)
 	if err != nil {
 		return nil, err
 	}

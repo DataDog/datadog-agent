@@ -13,7 +13,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	tracerouteconfig "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -30,28 +32,66 @@ func (m *mockTraceroute) Run(_ context.Context, cfg tracerouteconfig.Config) (pa
 	return m.path, m.err
 }
 
-func TestGetNetworkPathHandlerRun(t *testing.T) {
-	tracerouteStub := &mockTraceroute{
-		path: payload.NetworkPath{
-			Source: payload.NetworkPathSource{Service: "old-source"},
-			Destination: payload.NetworkPathDestination{
-				Hostname: "example.com",
-				Port:     443,
-				Service:  "old-dest",
-			},
-			Traceroute: payload.Traceroute{
-				Runs: []payload.TracerouteRun{
-					{
-						RunID: "run-1",
-						Destination: payload.TracerouteDestination{
-							IPAddress: net.ParseIP("1.2.3.4"),
-						},
+type mockEPForwarderComponent struct {
+	forwarder eventplatform.Forwarder
+	found     bool
+}
+
+func (m *mockEPForwarderComponent) Get() (eventplatform.Forwarder, bool) {
+	return m.forwarder, m.found
+}
+
+type mockForwarder struct {
+	events    []mockEvent
+	sendError error
+}
+
+type mockEvent struct {
+	payload   []byte
+	eventType string
+}
+
+func (m *mockForwarder) SendEventPlatformEvent(e *message.Message, eventType string) error {
+	if m.sendError != nil {
+		return m.sendError
+	}
+	m.events = append(m.events, mockEvent{payload: e.GetContent(), eventType: eventType})
+	return nil
+}
+
+func (m *mockForwarder) SendEventPlatformEventBlocking(e *message.Message, eventType string) error {
+	return m.SendEventPlatformEvent(e, eventType)
+}
+
+func (m *mockForwarder) Purge() map[string][]*message.Message {
+	return nil
+}
+
+func newValidPath() payload.NetworkPath {
+	return payload.NetworkPath{
+		Source: payload.NetworkPathSource{Service: "old-source"},
+		Destination: payload.NetworkPathDestination{
+			Hostname: "example.com",
+			Port:     443,
+			Service:  "old-dest",
+		},
+		Traceroute: payload.Traceroute{
+			Runs: []payload.TracerouteRun{
+				{
+					RunID: "run-1",
+					Destination: payload.TracerouteDestination{
+						IPAddress: net.ParseIP("1.2.3.4"),
 					},
 				},
 			},
 		},
 	}
-	handler := NewGetNetworkPathHandler(tracerouteStub)
+}
+
+func TestGetNetworkPathHandlerRun(t *testing.T) {
+	tracerouteStub := &mockTraceroute{path: newValidPath()}
+	epForwarder := &mockEPForwarderComponent{}
+	handler := NewGetNetworkPathHandler(tracerouteStub, epForwarder)
 
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{
@@ -67,7 +107,6 @@ func TestGetNetworkPathHandlerRun(t *testing.T) {
 			"tracerouteQueries":  3,
 			"e2eQueries":         10,
 			"namespace":          "default",
-			"sendToBackend":      true,
 		},
 	}
 
@@ -101,27 +140,9 @@ func TestGetNetworkPathHandlerRun(t *testing.T) {
 }
 
 func TestGetNetworkPathHandlerRunDefaults(t *testing.T) {
-	tracerouteStub := &mockTraceroute{
-		path: payload.NetworkPath{
-			Source: payload.NetworkPathSource{Service: "old-source"},
-			Destination: payload.NetworkPathDestination{
-				Hostname: "example.com",
-				Port:     443,
-				Service:  "old-dest",
-			},
-			Traceroute: payload.Traceroute{
-				Runs: []payload.TracerouteRun{
-					{
-						RunID: "run-1",
-						Destination: payload.TracerouteDestination{
-							IPAddress: net.ParseIP("1.2.3.4"),
-						},
-					},
-				},
-			},
-		},
-	}
-	handler := NewGetNetworkPathHandler(tracerouteStub)
+	tracerouteStub := &mockTraceroute{path: newValidPath()}
+	epForwarder := &mockEPForwarderComponent{}
+	handler := NewGetNetworkPathHandler(tracerouteStub, epForwarder)
 
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{
@@ -163,7 +184,8 @@ func TestGetNetworkPathHandlerRunInvalidPath(t *testing.T) {
 			},
 		},
 	}
-	handler := NewGetNetworkPathHandler(tracerouteStub)
+	epForwarder := &mockEPForwarderComponent{}
+	handler := NewGetNetworkPathHandler(tracerouteStub, epForwarder)
 
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{
@@ -175,4 +197,46 @@ func TestGetNetworkPathHandlerRunInvalidPath(t *testing.T) {
 
 	_, err := handler.Run(context.Background(), task, nil)
 	require.ErrorContains(t, err, "invalid destination IP address")
+}
+
+func TestGetNetworkPathHandlerRunSendToBackend(t *testing.T) {
+	tracerouteStub := &mockTraceroute{path: newValidPath()}
+	fwd := &mockForwarder{}
+	epForwarder := &mockEPForwarderComponent{forwarder: fwd, found: true}
+	handler := NewGetNetworkPathHandler(tracerouteStub, epForwarder)
+
+	task := &types.Task{}
+	task.Data.Attributes = &types.Attributes{
+		Inputs: map[string]interface{}{
+			"hostname":      "example.com",
+			"port":          uint16(443),
+			"sendToBackend": true,
+		},
+	}
+
+	output, err := handler.Run(context.Background(), task, nil)
+	require.NoError(t, err)
+	require.NotNil(t, output)
+
+	require.Len(t, fwd.events, 1)
+	require.Equal(t, eventplatform.EventTypeNetworkPath, fwd.events[0].eventType)
+	require.NotEmpty(t, fwd.events[0].payload)
+}
+
+func TestGetNetworkPathHandlerRunSendToBackendForwarderNotAvailable(t *testing.T) {
+	tracerouteStub := &mockTraceroute{path: newValidPath()}
+	epForwarder := &mockEPForwarderComponent{found: false}
+	handler := NewGetNetworkPathHandler(tracerouteStub, epForwarder)
+
+	task := &types.Task{}
+	task.Data.Attributes = &types.Attributes{
+		Inputs: map[string]interface{}{
+			"hostname":      "example.com",
+			"port":          uint16(443),
+			"sendToBackend": true,
+		},
+	}
+
+	_, err := handler.Run(context.Background(), task, nil)
+	require.ErrorContains(t, err, "event platform forwarder is not available")
 }
