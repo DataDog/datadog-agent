@@ -103,6 +103,7 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		Allowlist:                 config.GetStringSlice(setup.PARHttpAllowlist),
 		AllowIMDSEndpoint:         config.GetBool(setup.PARHttpAllowImdsEndpoint),
 		DDHost:                    strings.Join([]string{"api", ddSite}, "."),
+		DDApiHost:                 strings.Join([]string{"api", ddSite}, "."),
 		Modes:                     []modes.Mode{modes.ModePull},
 		OrgId:                     orgID,
 		PrivateKey:                privateKey,

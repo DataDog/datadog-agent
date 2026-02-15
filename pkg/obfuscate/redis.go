@@ -123,9 +123,11 @@ func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
 	out.WriteByte(' ')
 
 	switch strings.ToUpper(cmd) {
-	case "AUTH":
+	case "AUTH", "MIGRATE", "HELLO":
 		// Obfuscate everything after command
 		// • AUTH password
+		// • MIGRATE host port key|"" destination-db timeout [COPY] [REPLACE] [AUTH password] [AUTH2 username password] [KEYS key [key ...]]
+		// • HELLO [protover [AUTH username password] [SETNAME clientname]]
 		if len(args) > 0 {
 			args[0] = "?"
 			args = args[:1]

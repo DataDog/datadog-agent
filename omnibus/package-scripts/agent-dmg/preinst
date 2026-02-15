@@ -11,15 +11,92 @@ LOG_DIR=/opt/datadog-agent/logs
 SYSTEM_LOG_DIR=/var/log/datadog
 SYSTEM_LOG_BASE_DIR=/var/log
 
-mkdir -p $LOG_DIR
-chmod 750 $LOG_DIR # AGENTRUN-609: Set stricter permissions to the log directory
-
 CONF_DIR="$INSTALL_DIR/etc"
 APP_DIR="/Applications/Datadog Agent.app"
+
+# Create log directory for logging (safe, idempotent operation)
+mkdir -p $LOG_DIR
+chmod 750 $LOG_DIR # AGENTRUN-609: Set stricter permissions to the log directory
 
 LOG_FILE="$LOG_DIR/preinstall.log"
 exec > $LOG_FILE 2>&1
 
+# Determine current user if he is using the Graphical installer
+# shellcheck disable=SC2009
+INSTALL_USER=$(ps aux | grep "CoreServices/Installer" | grep -v grep | awk '{print $1;}')
+
+# Otherwise, we hope he is using the install script and try to use this user
+# If it fails, no choice but to use root :'(
+if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
+    INSTALL_USER=$(cat /tmp/datadog-install-user || echo 'root')
+fi
+echo "INSTALL_USER: $INSTALL_USER"
+
+# Function to show error based on installation method
+show_installation_error() {
+    local message="$1"
+
+    # Always log to preinstall.log
+    echo "ERROR: $message"
+
+    # Check if this is a GUI installation (CoreServices/Installer running)
+    if pgrep -f "CoreServices/Installer" > /dev/null 2>&1; then
+        # GUI installation - show dialog box
+        # Run as INSTALL_USER to display in their session
+        sudo -u "$INSTALL_USER" osascript -e "display dialog \"$message\" buttons {\"OK\"} default button \"OK\" with title \"Datadog Agent Installation Error\" with icon stop" 2>/dev/null || true
+    else
+        # Command-line installation - print to stderr for console visibility
+        echo "$message" >&2
+    fi
+}
+
+# ============================================================================
+# Check for conflicts FIRST - before ANY file system modifications
+# This prevents partial installations that can't be rolled back
+# ============================================================================
+
+# For per-user installations (no marker file), check if system-wide exists
+if [ ! -f "/tmp/install-ddagent/system-wide" ]; then
+  # This is a per-user installation attempt
+  if [ -f "/Library/LaunchDaemons/com.datadoghq.agent.plist" ]; then
+      show_installation_error "System-wide agent installation detected at:
+    /Library/LaunchDaemons/com.datadoghq.agent.plist
+
+Cannot proceed with per-user installation.
+
+To proceed, remove the system-wide components:
+    sudo launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
+    sudo rm -f /Library/LaunchDaemons/com.datadoghq.agent.plist
+    sudo rm -f /Library/LaunchAgents/com.datadoghq.gui.plist
+
+Then rerun this installation."
+      exit 1
+  fi
+
+  # Also check for orphaned system-wide GUI plist
+  if [ -f "/Library/LaunchAgents/com.datadoghq.gui.plist" ]; then
+      show_installation_error "System-wide GUI installation detected at:
+    /Library/LaunchAgents/com.datadoghq.gui.plist
+
+This may be from a partial or incomplete system-wide installation.
+Cannot proceed with per-user installation.
+
+To proceed, remove the system-wide components:
+    sudo launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
+    sudo rm -f /Library/LaunchDaemons/com.datadoghq.agent.plist
+    sudo rm -f /Library/LaunchAgents/com.datadoghq.gui.plist
+
+Then rerun this installation."
+      exit 1
+  fi
+fi
+
+# ============================================================================
+# Validation passed - safe to proceed with installation
+# Now we can safely modify file system (log migration, etc.)
+# ============================================================================
+
+# Log folder migration (safe to do after conflict check)
 if [ -d $SYSTEM_LOG_DIR ]; then
     # Old log folder exists
     echo "Old log folder exists."
@@ -51,17 +128,6 @@ else
     ln -s $LOG_DIR $SYSTEM_LOG_DIR
 fi
 echo "Log folder migration has completed."
-
-# Determine current user if he is using the Graphical installer
-# shellcheck disable=SC2009
-INSTALL_USER=$(ps aux | grep "CoreServices/Installer" | grep -v grep | awk '{print $1;}')
-
-# Otherwise, we hope he is using the install script and try to use this user
-# If it fails, no choice but to use root :'(
-if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
-    INSTALL_USER=$(cat /tmp/datadog-install-user || echo 'root')
-fi
-echo "INSTALL_USER: $INSTALL_USER"
 
 USER_HOME=$(sudo -Hu "$INSTALL_USER" sh -c 'echo $HOME')
 

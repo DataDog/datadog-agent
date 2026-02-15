@@ -34,6 +34,18 @@ type ProbeDefinition interface {
 	GetThrottleConfig() ThrottleConfig
 	// GetTemplate returns the template of the probe.
 	GetTemplate() TemplateDefinition
+	// GetCaptureExpressions returns the capture expressions of the probe, or
+	// nil if the probe does not have capture expressions.
+	GetCaptureExpressions() []CaptureExpressionDefinition
+}
+
+// CaptureExpressionDefinition defines a single capture expression on a probe.
+type CaptureExpressionDefinition interface {
+	GetName() string
+	GetDSL() string
+	GetJSON() json.RawMessage
+	// GetCaptureConfig returns per-expression capture limits, or nil for probe defaults.
+	GetCaptureConfig() CaptureConfig
 }
 
 // CompareProbeIDs compares two probe definitions by their ID and version.

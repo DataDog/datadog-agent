@@ -8,6 +8,8 @@
 package actuator
 
 import (
+	"maps"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -26,7 +28,7 @@ func deepCopyState(original *state) *state {
 	}
 
 	// Create new state with basic fields copied.
-	copied := newState(CircuitBreakerConfig{})
+	copied := newState(Config{DiscoveredTypesLimit: original.discoveredTypesLimit})
 
 	copied.counters = original.counters
 	copied.programIDAlloc = original.programIDAlloc
@@ -52,6 +54,21 @@ func deepCopyState(original *state) *state {
 		copied.queuedLoading.pushBack(copied.programs[prog.id])
 	}
 
+	copied.totalDiscoveredTypes = original.totalDiscoveredTypes
+	copied.recompilationRateLimit = original.recompilationRateLimit
+	copied.recompilationRateBurst = original.recompilationRateBurst
+	copied.recompilationAllowance = original.recompilationAllowance
+
+	// Deep copy discoveredTypes map.
+	for svc, types := range original.discoveredTypes {
+		copied.discoveredTypes[svc] = slices.Clone(types)
+	}
+
+	// Deep copy processesByService map.
+	for svc, pids := range original.processesByService {
+		copied.processesByService[svc] = maps.Clone(pids)
+	}
+
 	return copied
 }
 
@@ -66,11 +83,12 @@ func deepCopyProgram(original *program) *program {
 	copy(copiedConfig, original.config)
 
 	copied := &program{
-		state:      original.state,
-		id:         original.id,
-		config:     copiedConfig,
-		executable: original.executable,
-		processID:  original.processID,
+		state:              original.state,
+		id:                 original.id,
+		config:             copiedConfig,
+		executable:         original.executable,
+		processID:          original.processID,
+		needsRecompilation: original.needsRecompilation,
 	}
 	if len(original.lastRuntimeStats) > 0 {
 		copied.lastRuntimeStats = append(
@@ -106,6 +124,7 @@ func deepCopyProcess(original *process) *process {
 		state:           original.state,
 		processID:       original.processID,
 		executable:      original.executable,
+		service:         original.service,
 		probes:          copiedProbes,
 		currentProgram:  original.currentProgram,
 		attachedProgram: original.attachedProgram,
@@ -116,7 +135,7 @@ func deepCopyProcess(original *process) *process {
 
 // TestDeepCopyState verifies that deepCopyState works correctly.
 func TestDeepCopyState(t *testing.T) {
-	s := newState(CircuitBreakerConfig{})
+	s := newState(Config{})
 	processID := ProcessID{PID: 123}
 	executable := Executable{Path: "/test/path"}
 	probe := &rcjson.SnapshotProbe{

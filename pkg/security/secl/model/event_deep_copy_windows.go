@@ -30,6 +30,9 @@ func (e *Event) DeepCopy() *Event {
 	copied.RenameFile = deepCopyRenameFileEvent(e.RenameFile)
 	copied.SetRegistryKeyValue = deepCopySetRegistryKeyValueEvent(e.SetRegistryKeyValue)
 	copied.WriteFile = deepCopyWriteFileEvent(e.WriteFile)
+	// FieldHandlers is an interface that must be copied by reference (not deep copied)
+	// It provides access to shared resolvers needed for field resolution
+	copied.FieldHandlers = e.FieldHandlers
 	return copied
 }
 func deepCopyBaseEvent(fieldToCopy BaseEvent) BaseEvent {

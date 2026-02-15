@@ -100,7 +100,7 @@ func (fb *FilterBuilder) SetEventType(eventType EventType) *FilterBuilder {
 
 // MatchEntity returns true if the filter matches the passed entity.
 // If the filter is nil, or has no kinds, it always matches.
-func (f *Filter) MatchEntity(entity *Entity) bool {
+func (f *Filter) MatchEntity(entity Entity) bool {
 	if len(f.Kinds()) == 0 {
 		return true
 	}
@@ -109,11 +109,11 @@ func (f *Filter) MatchEntity(entity *Entity) bool {
 		return false
 	}
 
-	entityKind := (*entity).GetID().Kind
+	entityKind := entity.GetID().Kind
 
 	if entityFilterFunc, found := f.kinds[entityKind]; found {
 		// A nil filter should match
-		return entityFilterFunc == nil || entityFilterFunc(*entity)
+		return entityFilterFunc == nil || entityFilterFunc(entity)
 	}
 
 	return false

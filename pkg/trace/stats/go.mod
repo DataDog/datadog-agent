@@ -6,9 +6,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.71.0
 	github.com/DataDog/datadog-agent/pkg/proto v0.74.1
 	github.com/DataDog/datadog-agent/pkg/trace v0.71.0
-	github.com/DataDog/datadog-agent/pkg/trace/log v0.71.0
-	github.com/DataDog/datadog-agent/pkg/trace/otel v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.71.0
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.77.0-devel.0.20260211235139-a5361978c2b6
+	github.com/DataDog/datadog-agent/pkg/trace/otel v0.77.0-devel.0.20260211235139-a5361978c2b6
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-go/v5 v5.8.3
 	github.com/DataDog/sketches-go v1.4.7
 	github.com/google/gofuzz v1.2.0
@@ -59,7 +59,7 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.1 // indirect
-	golang.org/x/sys v0.40.0 // indirect
+	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

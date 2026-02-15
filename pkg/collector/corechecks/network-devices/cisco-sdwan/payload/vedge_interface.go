@@ -72,6 +72,7 @@ func (itf *VEdgeInterface) Metadata(namespace string) (devicemetadata.InterfaceM
 		MacAddress:  itf.Hwaddr,
 		OperStatus:  convertOperStatus(vEdgeOperStatusMap, itf.IfOperStatus),
 		AdminStatus: convertAdminStatus(vEdgeAdminStatusMap, itf.IfAdminStatus),
+		IsPhysical:  isPhysicalVEdgeInterface(itf),
 	}, nil
 }
 
@@ -119,4 +120,15 @@ func parseVEdgeIP(ip string) (string, int32, error) {
 
 func isEmptyVEdgeIP(ip string) bool {
 	return ip == "" || ip == "-"
+}
+
+func isPhysicalVEdgeInterface(itf *VEdgeInterface) *bool {
+	isPhysical := false
+	if itf.PortType == "loopback" {
+		return &isPhysical
+	}
+
+	// null encap type means it's a physical interface
+	isPhysical = itf.EncapType == "null"
+	return &isPhysical
 }

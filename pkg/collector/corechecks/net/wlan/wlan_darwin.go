@@ -230,6 +230,13 @@ func validateSocketOwnership(socketPath string) error {
 
 	// Verify ownership matches expected user
 	if actualUID != expectedUID {
+		// Special handling for root-owned sockets (likely from installation issue)
+		if actualUID == "0" {
+			return fmt.Errorf("socket owner mismatch: expected UID %s, got UID 0 (root). "+
+				"This may indicate a security issue or installation problem. "+
+				"Socket preserved for investigation. "+
+				"To fix: sudo rm %s (after investigation)", expectedUID, socketPath)
+		}
 		return fmt.Errorf("socket owner mismatch: expected UID %s, got UID %s (potential hijacking attempt)", expectedUID, actualUID)
 	}
 

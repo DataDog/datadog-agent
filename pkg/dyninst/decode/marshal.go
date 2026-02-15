@@ -396,6 +396,7 @@ func (ce *captureEvent) MarshalJSONTo(enc *jsontext.Encoder) error {
 	}{
 		{kind: ir.RootExpressionKindArgument, token: jsontext.String("arguments")},
 		{kind: ir.RootExpressionKindLocal, token: jsontext.String("locals")},
+		{kind: ir.RootExpressionKindCaptureExpression, token: jsontext.String("captureExpressions")},
 	} {
 		// We iterate over the 'Expressions' of the EventRoot which contains
 		// metadata and raw bytes of the parameters of this function.

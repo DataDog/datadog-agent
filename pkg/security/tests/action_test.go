@@ -614,7 +614,7 @@ func TestActionHash(t *testing.T) {
 		},
 		{
 			ID:         "hash_action_exec",
-			Expression: `exec.file.path == "{{.Root}}/test-hash-action-exec_touch"`,
+			Expression: `exec.file.path == "{{.Root}}/test-hash-action-exec_tester"`,
 			Actions: []*rules.ActionDefinition{
 				{
 					Hash: &rules.HashDefinition{},
@@ -634,23 +634,20 @@ func TestActionHash(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// it's important that this ends with `touch` because for example ubuntu 25.10
-	// uses the suffix to know which "function/utility" is running
-	// https://github.com/uutils/coreutils/blob/909da503713f39f8e36b1ff077841c9cc13d920b/src/bin/coreutils.rs#L60
-	testExecutable, _, err := test.Path("test-hash-action-exec_touch")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err = copyFile(which(t, "touch"), testExecutable, 0755); err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(testExecutable)
-
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	testExecutable, _, err := test.Path("test-hash-action-exec_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = copyFile(syscallTester, testExecutable, 0755); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testExecutable)
 
 	done := make(chan bool, 10)
 
@@ -750,10 +747,9 @@ func TestActionHash(t *testing.T) {
 	})
 
 	t.Run("exec", func(t *testing.T) {
-		flake.MarkOnJobName(t, "ubuntu_25.10")
 		test.msgSender.flush()
 		test.WaitSignalFromRule(t, func() error {
-			cmd := exec.Command(testExecutable, "/tmp/aaa")
+			cmd := exec.Command(testExecutable, "sleep", "1")
 			out, err := cmd.CombinedOutput()
 			if err != nil {
 				t.Logf("output: %s", string(out))

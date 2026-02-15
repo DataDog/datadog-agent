@@ -20,11 +20,12 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
+	"github.com/DataDog/datadog-agent/pkg/network/indexedset"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func formatTags(c network.ConnectionStats, tagsSet *indexedSet[string], connDynamicTags map[string]struct{}) ([]int32, uint32) {
+func formatTags(c network.ConnectionStats, tagsSet *indexedset.IndexedSet[string], connDynamicTags map[string]struct{}) ([]int32, uint32) {
 	var checksum uint32
 
 	staticTags := tls.GetStaticTags(c.StaticTags)
@@ -103,7 +104,7 @@ func (d *directSender) addContainerTags(c *model.Connection, containerIDForPID m
 	}
 }
 
-func (d *directSender) addTags(nc network.ConnectionStats, c *model.Connection, tagsSet *indexedSet[string], usmEncoders []marshal.USMEncoder, connectionsTagsEncoder model.TagEncoder) {
+func (d *directSender) addTags(nc network.ConnectionStats, c *model.Connection, tagsSet *indexedset.IndexedSet[string], usmEncoders []marshal.USMEncoder, connectionsTagsEncoder model.TagEncoder) {
 	var staticTags uint64
 	dynamicTags := nc.TLSTags.GetDynamicTags()
 	for _, encoder := range usmEncoders {

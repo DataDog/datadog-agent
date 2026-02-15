@@ -105,6 +105,7 @@ func newUnstartedModule(deps dependencies, tombstoneFilePath string) *Module {
 	runtime := &runtimeImpl{
 		store:                    store,
 		diagnostics:              diagnostics,
+		actuator:                 deps.Actuator,
 		decoderFactory:           deps.DecoderFactory,
 		irGenerator:              deps.IRGenerator,
 		programCompiler:          deps.ProgramCompiler,
@@ -207,7 +208,9 @@ func makeRealDependencies(
 	if err != nil {
 		return ret, fmt.Errorf("error parsing log uploader URL: %w", err)
 	}
-	ret.logUploader = uploader.NewLogsUploaderFactory(uploader.WithURL(logUploaderURL))
+	ret.logUploader = uploader.NewLogsUploaderFactory(
+		uploader.WithURL(logUploaderURL),
+	)
 
 	diagsUploaderURL, err := url.Parse(config.DiagsUploaderURL)
 	if err != nil {
@@ -223,7 +226,7 @@ func makeRealDependencies(
 			return ret, fmt.Errorf("error parsing SymDB uploader URL: %w", err)
 		}
 	}
-	ret.actuator = actuator.NewActuator(config.CircuitBreakerConfig)
+	ret.actuator = actuator.NewActuator(config.ActuatorConfig)
 
 	var loaderOpts []loader.Option
 	if config.TestingKnobs.LoaderOptions != nil {

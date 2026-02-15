@@ -136,7 +136,7 @@ func (w *workloadmeta) Subscribe(name string, priority wmdef.SubscriberPriority,
 
 			for _, cachedEntity := range entitiesOfKind {
 				entity := cachedEntity.get(sub.filter.Source())
-				if entity != nil && sub.filter.MatchEntity(&entity) {
+				if entity != nil && sub.filter.MatchEntity(entity) {
 					events = append(events, wmdef.Event{
 						Type:   wmdef.EventTypeSet,
 						Entity: entity,
@@ -851,7 +851,7 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 			}
 
 			entity := cachedEntity.get(filter.Source())
-			if !filter.MatchEntity(&entity) {
+			if !filter.MatchEntity(entity) {
 				continue
 			}
 

@@ -9,8 +9,8 @@ package module
 import (
 	"context"
 	"errors"
-	"fmt"
 	"runtime"
+	"strconv"
 	"sync"
 	"time"
 
@@ -310,8 +310,8 @@ func (c *CWSConsumer) reportSelfTest(success []eval.RuleID, fails []eval.RuleID)
 
 	// send metric with number of success and fails
 	tags := []string{
-		fmt.Sprintf("success:%d", len(success)),
-		fmt.Sprintf("fails:%d", len(fails)),
+		"success:" + strconv.Itoa(len(success)),
+		"fails:" + strconv.Itoa(len(fails)),
 		"os:" + runtime.GOOS,
 		"arch:" + utils.RuntimeArch(),
 		"origin:" + c.probe.Origin(),

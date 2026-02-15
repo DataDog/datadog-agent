@@ -6,7 +6,9 @@
 // Package model holds model related files
 package model
 
-import "unicode"
+import (
+	"unicode"
+)
 
 var (
 	alphaNumericRange = []*unicode.RangeTable{unicode.L, unicode.Digit}

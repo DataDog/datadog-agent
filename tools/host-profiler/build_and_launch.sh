@@ -8,7 +8,8 @@ if [ "${DO_NOT_START_PROFILER}" = "1" ]; then
 else
     # Build full-host-profiler
     mkdir -p bin/full-host-profiler
-    go build -o bin/full-host-profiler/full-host-profiler ./cmd/host-profiler
+    go build -ldflags="-X github.com/DataDog/datadog-agent/pkg/version.AgentVersion=docker-dev" \
+      -o bin/full-host-profiler/full-host-profiler ./cmd/host-profiler
 
     # Launch the profiler
     exec ./tools/host-profiler/launch.sh

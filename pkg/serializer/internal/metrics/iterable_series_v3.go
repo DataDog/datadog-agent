@@ -29,6 +29,10 @@ var (
 		[]string{"column", "compressed"},
 		"Number of bytes occupied by each column",
 	)
+	tlmValuesCount = telemetry.NewCounter("serializer", "v3_values_count",
+		[]string{"type"},
+		"Number of values encoded using a specific encoding type",
+	)
 	tlmSplitReason = telemetry.NewCounter("serializer", "v3_payload_split_reason",
 		[]string{"reason"},
 		"Why payload was split",
@@ -141,9 +145,11 @@ type payloadsBuilderV3 struct {
 
 	scratchBuf []byte
 
-	stats struct {
-		valuesZero, valuesSint64, valuesFloat32, valuesFloat64 uint64
-	}
+	stats v3stats
+}
+
+type v3stats struct {
+	valuesZero, valuesSint64, valuesFloat32, valuesFloat64 uint64
 }
 
 func newPayloadsBuilderV3WithConfig(
@@ -275,6 +281,7 @@ func (pb *payloadsBuilderV3) finishPayload() error {
 		pb.pipelineContext.addPayload(transaction.NewBytesPayload(payload, pb.pointsThisPayload))
 	}
 
+	pb.updateValuesStats()
 	pb.reset()
 
 	return nil
@@ -300,6 +307,7 @@ func (pb *payloadsBuilderV3) reset() {
 	pb.deltaSourceTypeNameRef.reset()
 	pb.deltaOriginRef.reset()
 	pb.compressor.Reset()
+	pb.stats = v3stats{}
 }
 
 func (pb *payloadsBuilderV3) renderResources(serie *metrics.Serie) {
@@ -530,22 +538,27 @@ func (pb *payloadsBuilderV3) writeSketchToTxn(sketch *metrics.SketchSeries) {
 
 		switch valueType {
 		case valueZero:
+			pb.stats.valuesZero += 3
 		case valueSint64:
 			pb.txn.Sint64(columnValueSint64, int64(pnt.Sketch.Basic.Sum))
 			pb.txn.Sint64(columnValueSint64, int64(pnt.Sketch.Basic.Min))
 			pb.txn.Sint64(columnValueSint64, int64(pnt.Sketch.Basic.Max))
+			pb.stats.valuesSint64 += 3
 		case valueFloat32:
 			pb.txn.Float32(columnValueFloat32, float32(pnt.Sketch.Basic.Sum))
 			pb.txn.Float32(columnValueFloat32, float32(pnt.Sketch.Basic.Min))
 			pb.txn.Float32(columnValueFloat32, float32(pnt.Sketch.Basic.Max))
+			pb.stats.valuesFloat32 += 3
 		case valueFloat64:
 			pb.txn.Float64(columnValueFloat64, pnt.Sketch.Basic.Sum)
 			pb.txn.Float64(columnValueFloat64, pnt.Sketch.Basic.Min)
 			pb.txn.Float64(columnValueFloat64, pnt.Sketch.Basic.Max)
+			pb.stats.valuesFloat64 += 3
 		}
 
 		// can share column with sum, min max, if so, cnt must be last.
 		pb.txn.Sint64(columnValueSint64, pnt.Sketch.Basic.Cnt)
+		pb.stats.valuesSint64++
 
 		k, n := pnt.Sketch.Cols()
 		deltaEncode(k)
@@ -555,6 +568,13 @@ func (pb *payloadsBuilderV3) writeSketchToTxn(sketch *metrics.SketchSeries) {
 		}
 		pb.txn.Uint64(columnSketchNumBins, uint64(len(k)))
 	}
+}
+
+func (pb *payloadsBuilderV3) updateValuesStats() {
+	tlmValuesCount.Add(float64(pb.stats.valuesZero), "zero")
+	tlmValuesCount.Add(float64(pb.stats.valuesSint64), "sint64")
+	tlmValuesCount.Add(float64(pb.stats.valuesFloat32), "float32")
+	tlmValuesCount.Add(float64(pb.stats.valuesFloat64), "float64")
 }
 
 type deltaEncoder struct {

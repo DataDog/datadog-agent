@@ -258,7 +258,8 @@ def main():
     if options.licenses_dir:
         for origin, data in attrs.licenses.items():
             canonical_package = origin_to_module(origin)
-            print(f"{origin} => {canonical_package}")
+            if _DEBUG > 2:
+                print(f"{origin} => {canonical_package}")
             # This good enough for today. The DD policy is that all licenses have SPDX
             # identifiers, so the repo name is always constant.
             license_type = data[0].replace("@rules_license+//licenses/spdx:", "")

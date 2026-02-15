@@ -111,5 +111,5 @@ func (h *RunShellScriptHandler) Run(
 }
 
 func sanitizeErrorMessage(scriptFile, errMsg string) string {
-	return strings.ReplaceAll(errMsg, fmt.Sprintf("%s: ", scriptFile), "")
+	return strings.ReplaceAll(errMsg, scriptFile+": ", "")
 }

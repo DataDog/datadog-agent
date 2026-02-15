@@ -23,10 +23,9 @@ import (
 
 // Config is the configuration for the profiles receiver.
 type Config struct {
-	EbpfCollectorConfig  *ebpfconfig.Config                  `mapstructure:"ebpf_collector"`
-	SymbolUploader       symboluploader.SymbolUploaderConfig `mapstructure:"symbol_uploader"`
-	CollectContext       bool                                `mapstructure:"collect_context"`
-	EnableSplitByService bool                                `mapstructure:"enable_split_by_service"`
+	EbpfCollectorConfig *ebpfconfig.Config                  `mapstructure:",squash"`
+	SymbolUploader      symboluploader.SymbolUploaderConfig `mapstructure:"symbol_uploader"`
+	CollectContext      bool                                `mapstructure:"collect_context"`
 }
 
 // ServiceNameEnvVars is the list of environment variables used to determine the service name.
@@ -59,13 +58,12 @@ func (c *Config) Validate() error {
 		includeTracers.Enable(types.Labels)
 		c.EbpfCollectorConfig.Tracers = includeTracers.String()
 	}
-	if c.EnableSplitByService {
-		includeEnvVars := append([]string{}, serviceNameEnvVars...)
-		if c.EbpfCollectorConfig.IncludeEnvVars != "" {
-			includeEnvVars = append(includeEnvVars, c.EbpfCollectorConfig.IncludeEnvVars)
-		}
-		c.EbpfCollectorConfig.IncludeEnvVars = strings.Join(includeEnvVars, ",")
+
+	includeEnvVars := append([]string{}, serviceNameEnvVars...)
+	if c.EbpfCollectorConfig.IncludeEnvVars != "" {
+		includeEnvVars = append(includeEnvVars, c.EbpfCollectorConfig.IncludeEnvVars)
 	}
+	c.EbpfCollectorConfig.IncludeEnvVars = strings.Join(includeEnvVars, ",")
 
 	if c.SymbolUploader.Enabled {
 		if len(c.SymbolUploader.SymbolEndpoints) == 0 {
@@ -95,10 +93,9 @@ func defaultConfig() component.Config {
 
 	symbolUploaderConfig := symboluploader.DefaultSymbolUploaderConfig()
 	return Config{
-		EbpfCollectorConfig:  cfg,
-		SymbolUploader:       symbolUploaderConfig,
-		EnableSplitByService: true,
-		CollectContext:       false,
+		EbpfCollectorConfig: cfg,
+		SymbolUploader:      symbolUploaderConfig,
+		CollectContext:      false,
 	}
 }
 

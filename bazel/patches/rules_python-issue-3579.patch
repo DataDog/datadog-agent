@@ -1,7 +1,0 @@
---- python/runfiles/runfiles.py
-+++ python/runfiles/runfiles.py
-@@ -395,3 +395,3 @@ class Runfiles:
-             if (
--                sys.version_info.minor <= 10
-+                (sys.version_info.minor <= 10 or sys.platform == "win32")
-                 and sys.path[0] != self._python_runfiles_root

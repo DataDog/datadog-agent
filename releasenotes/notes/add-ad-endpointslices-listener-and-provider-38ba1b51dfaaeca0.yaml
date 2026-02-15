@@ -1,0 +1,5 @@
+enhancements:
+  - |
+    As of Kubernetes version 1.33, the ``Endpoint`` API object has been deprecated in favor of ``EndpointSlice``.
+    Autodiscovery now supports the use of an ``EndpointSlice`` listener and provider to collect endpoint checks.
+    To enable this feature, set ``kubernetes_use_endpoint_slices`` to true in your Datadog Agent configuration.

@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.opentelemetry.io/collector/confmap"
 )
@@ -190,4 +191,51 @@ func ensureKeyStringValue(config confMap, key string) bool {
 		log.Warnf("API key %s has unexpected type %T, cannot convert", key, val)
 		return false
 	}
+}
+
+// addProfilerMetadataTags always creates a dedicated resource/profiler-metadata processor
+// without searching for existing resource processors.
+func addProfilerMetadataTags(conf confMap, profilesProcessors []any) ([]any, error) {
+	const resourceProcessorName = "resource/dd-profiler-internal-metadata"
+
+	// Check if the processor is already defined in root processors
+	globalProcessors, _ := Get[confMap](conf, "processors")
+	if _, exists := globalProcessors[resourceProcessorName]; exists {
+		return nil, fmt.Errorf("%s is a reserved resource processor name. Please change it in your configuration file", resourceProcessorName)
+	}
+
+	for _, proc := range profilesProcessors {
+		if procName := proc.(string); procName == resourceProcessorName {
+			return nil, fmt.Errorf("%s is a reserved resource processor name. Please remove it from the profiles pipeline", resourceProcessorName)
+		}
+	}
+
+	resourceProcessor, err := Ensure[confMap](conf, "processors::"+resourceProcessorName)
+	if err != nil {
+		return nil, err
+	}
+
+	attributes, err := Ensure[[]any](resourceProcessor, "attributes")
+	if err != nil {
+		return nil, err
+	}
+
+	profilerNameElement := confMap{
+		"key":    "profiler_name",
+		"value":  version.ProfilerName,
+		"action": "upsert",
+	}
+	profilerVersionElement := confMap{
+		"key":    "profiler_version",
+		"value":  version.ProfilerVersion,
+		"action": "upsert",
+	}
+
+	attributes = append(attributes, profilerNameElement)
+	attributes = append(attributes, profilerVersionElement)
+	if err := Set(resourceProcessor, "attributes", attributes); err != nil {
+		return nil, err
+	}
+
+	return append(profilesProcessors, resourceProcessorName), nil
 }

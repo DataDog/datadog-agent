@@ -1,0 +1,19 @@
+# DO NOT EDIT
+
+# Base configuration for Rust builds to use internal Datadog registry
+.rust_internal_registry:
+  before_script:
+    # Configure Cargo to use internal Datadog registry for Rust crates
+    - mkdir -p .cargo
+    - |
+      cat > .cargo/config.toml << 'EOF'
+      [registries]
+      datadog = { index = "sparse+https://depot-read-api-rust.us1.ddbuild.io/datadog/rust/" }
+
+      [registry]
+      default = "datadog"
+
+      [source]
+      [source.crates-io]
+      replace-with = "datadog"
+      EOF

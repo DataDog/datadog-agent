@@ -1,0 +1,75 @@
+# Tests that a negative rate limit disables recompilation entirely.
+# Missing types are recorded but no recompilation is triggered.
+- !config {recompilation_rate_limit: -1}
+- !processes-updated
+  updated:
+    - process_id: {pid: 1001}
+      executable: {path: /usr/bin/test}
+      service: my-service
+      probes:
+        - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
+- !loaded {program_id: 1}
+- !attached {program_id: 1, process_id: 1001}
+# Report missing types -> no recompilation (disabled)
+- !missing-types-reported {process_id: 1001, type_names: [MyStruct, OtherType]}
+---
+event: !processes-updated
+  updated:
+    - process_id: {pid: 1001}
+      executable: {path: /usr/bin/test}
+      service: my-service
+      probes:
+        - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
+effects:
+  - !spawn-bpf-loading {executable: /usr/bin/test@0.0m0.0, probes: [probe1], process_id: 1001, program_id: 1}
+state:
+  currently_loading: <nil> -> 1
+  queued_programs: '[]'
+  processes:
+    1001: <nil> -> WaitingForProgram (prog 1)
+  programs:
+    1: <nil> -> Loading (proc 1001)
+  stats:
+    numProcesses: 0 -> 1
+    numPrograms: 0 -> 1
+    numWaitingForProgram: 0 -> 1
+---
+event: !loaded {program_id: 1}
+effects:
+  - !attach-to-process {executable: /usr/bin/test@0.0m0.0, process_id: 1001, program_id: 1}
+state:
+  currently_loading: 1 -> <nil>
+  queued_programs: '[]'
+  processes:
+    1001: WaitingForProgram (prog 1) -> Attaching (prog 1)
+  programs:
+    1: Loading (proc 1001) -> Loaded (proc 1001)
+  stats:
+    loaded: 0 -> 1
+    numAttaching: 0 -> 1
+    numWaitingForProgram: 1 -> 0
+---
+event: !attached {program_id: 1, process_id: 1001}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attaching (prog 1) -> Attached (prog 1)
+  programs:
+    1: Loaded (proc 1001)
+  stats:
+    attached: 0 -> 1
+    numAttached: 0 -> 1
+    numAttaching: 1 -> 0
+---
+event: !missing-types-reported {process_id: 1001, type_names: [MyStruct, OtherType]}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attached (prog 1)
+  programs:
+    1: Loaded (proc 1001)
+  discovered_types:
+    my-service: '[] -> [MyStruct OtherType]'
+---

@@ -9,7 +9,6 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"errors"
-	"runtime"
 	"strconv"
 	"strings"
 
@@ -64,14 +63,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 
 	bindVectorOptions(config, Traces)
 
-	if runtime.GOARCH == "386" && runtime.GOOS == "windows" {
-		// on Windows-32 bit, the trace agent isn't installed.  Set the default to disabled
-		// so that there aren't messages in the log about failing to start.
-		config.BindEnvAndSetDefault("apm_config.enabled", false, "DD_APM_ENABLED")
-	} else {
-		config.BindEnvAndSetDefault("apm_config.enabled", true, "DD_APM_ENABLED")
-	}
-
+	config.BindEnvAndSetDefault("apm_config.enabled", true, "DD_APM_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.receiver_enabled", true, "DD_APM_RECEIVER_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.receiver_port", 8126, "DD_APM_RECEIVER_PORT", "DD_RECEIVER_PORT")
 	config.BindEnvAndSetDefault("apm_config.windows_pipe_buffer_size", 1_000_000, "DD_APM_WINDOWS_PIPE_BUFFER_SIZE")                          //nolint:errcheck

@@ -64,7 +64,7 @@ func taggerList(deps dependencies) error {
 		return err
 	}
 
-	return api.GetTaggerList(deps.Client, color.Output, taggerURL)
+	return api.GetTaggerList(deps.Client, color.Output, taggerURL, false, false, "")
 }
 
 func getTaggerURL() (string, error) {

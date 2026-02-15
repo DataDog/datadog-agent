@@ -241,6 +241,85 @@ var testCases = []testCase{
 		},
 	},
 	{
+		name: "capture expression probe",
+		input: `{
+				"id": "capture-expr-1",
+				"type": "LOG_PROBE",
+				"version": 1,
+				"where": {
+					"methodName": "MyMethod"
+				},
+				"captureSnapshot": false,
+				"captureExpressions": [
+					{
+						"name": "x_val",
+						"expr": {"dsl": "x", "json": {"ref": "x"}}
+					},
+					{
+						"name": "y_val",
+						"expr": {"dsl": "y", "json": {"ref": "y"}},
+						"capture": {"maxReferenceDepth": 2}
+					}
+				]
+			}`,
+		want: &CaptureExpressionProbe{
+			LogProbeCommon: LogProbeCommon{
+				ProbeCommon: ProbeCommon{
+					ID:      "capture-expr-1",
+					Version: 1,
+					Type:    TypeLogProbe.String(),
+					Where: &Where{
+						MethodName: "MyMethod",
+					},
+				},
+			},
+			RawCaptureExpressions: []*CaptureExpressionEntry{
+				{
+					Name: "x_val",
+					Expr: CaptureExprJSON{
+						DSL:  "x",
+						JSON: json.RawMessage(`{"ref": "x"}`),
+					},
+				},
+				{
+					Name: "y_val",
+					Expr: CaptureExprJSON{
+						DSL:  "y",
+						JSON: json.RawMessage(`{"ref": "y"}`),
+					},
+					Capture: &Capture{MaxReferenceDepth: intPtr(2)},
+				},
+			},
+		},
+	},
+	{
+		name: "capture expression probe without expressions",
+		input: `{
+				"id": "capture-expr-2",
+				"type": "LOG_PROBE",
+				"version": 1,
+				"where": {
+					"methodName": "MyMethod"
+				},
+				"captureSnapshot": false,
+				"captureExpressions": []
+			}`,
+		want: &CaptureExpressionProbe{
+			LogProbeCommon: LogProbeCommon{
+				ProbeCommon: ProbeCommon{
+					ID:      "capture-expr-2",
+					Version: 1,
+					Type:    TypeLogProbe.String(),
+					Where: &Where{
+						MethodName: "MyMethod",
+					},
+				},
+			},
+			RawCaptureExpressions: []*CaptureExpressionEntry{},
+		},
+		validationErr: `captureExpressions must be non-empty`,
+	},
+	{
 		name:         "invalid json",
 		input:        `{invalid json}`,
 		unmarshalErr: `failed to parse json: .*`,

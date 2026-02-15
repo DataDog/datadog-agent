@@ -37,6 +37,14 @@ var cEdgeAdminStatusMap = map[string]devicemetadata.IfAdminStatus{
 	"if-state-test":    devicemetadata.AdminStatusTesting,
 }
 
+// https://github.com/YangModels/yang/blob/9442dda17a9a5f1f0db548512446e3d9ca37a955/vendor/cisco/xe/17131/Cisco-IOS-XE-interfaces-oper.yang#L339
+var cEdgeInterfaceTypeMap = map[string]int32{
+	"iana-iftype-other":           1,
+	"iana-iftype-ethernet-csmacd": 6,
+	"iana-iftype-sw-loopback":     24,
+	"iana-iftype-tunnel":          131,
+}
+
 // CEdgeInterface is an implementation of CiscoInterface for cEdge devices
 type CEdgeInterface struct {
 	client.CEdgeInterfaceState
@@ -92,6 +100,8 @@ func (itf *CEdgeInterface) Metadata(namespace string) (devicemetadata.InterfaceM
 		MacAddress:  itf.Hwaddr,
 		OperStatus:  convertOperStatus(cEdgeOperStatusMap, itf.IfOperStatus),
 		AdminStatus: convertAdminStatus(cEdgeAdminStatusMap, itf.IfAdminStatus),
+		Type:        convertInterfaceType(itf.InterfaceType),
+		IsPhysical:  isPhysicalCEdgeInterface(itf.InterfaceType),
 	}, nil
 }
 
@@ -165,4 +175,13 @@ func parseMask(mask string) (int32, error) {
 	parsedMask := net.IPMask(ipMask.To4())
 	prefixLen, _ := parsedMask.Size()
 	return int32(prefixLen), nil
+}
+
+func convertInterfaceType(ifType string) int32 {
+	return cEdgeInterfaceTypeMap[ifType]
+}
+
+func isPhysicalCEdgeInterface(ifType string) *bool {
+	isPhysical := ifType == "iana-iftype-ethernet-csmacd"
+	return &isPhysical
 }

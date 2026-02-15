@@ -466,6 +466,76 @@ var (
 	// MetricNameTruncated is the name of the metric used to report truncated name used in prctl
 	// Tags: -
 	MetricNameTruncated = newRuntimeMetric(".prctl.name_truncated")
+
+	// Security Profile V2 metrics
+
+	// Event Processing metrics
+
+	// MetricSecurityProfileV2EventsReceived is the name of the metric used to report events received by ProcessEvent (after filters)
+	// Tags: source (runtime or replay)
+	MetricSecurityProfileV2EventsReceived = newRuntimeMetric(".security_profile_v2.events.received")
+
+	// MetricSecurityProfileV2EventsImmediate is the name of the metric used to report events processed immediately (tags already resolved)
+	// Tags: source (runtime or replay)
+	MetricSecurityProfileV2EventsImmediate = newRuntimeMetric(".security_profile_v2.events.immediate")
+
+	// Tag Resolution metrics
+
+	// MetricSecurityProfileV2TagResolutionEventsQueued is the name of the metric used to report the total events queued waiting for tag resolution
+	// Tags: -
+	MetricSecurityProfileV2TagResolutionEventsQueued = newRuntimeMetric(".security_profile_v2.tag_resolution.events_queued")
+
+	// MetricSecurityProfileV2TagResolutionCgroupsPending is the name of the metric used to report the number of cgroups waiting for tag resolution
+	// Tags: -
+	MetricSecurityProfileV2TagResolutionCgroupsPending = newRuntimeMetric(".security_profile_v2.tag_resolution.cgroups_pending")
+
+	// MetricSecurityProfileV2TagResolutionCgroupsResolved is the name of the metric used to report current cgroups with resolved tags (actively profiled)
+	// Tags: - (Gauge)
+	MetricSecurityProfileV2TagResolutionCgroupsResolved = newRuntimeMetric(".security_profile_v2.tag_resolution.cgroups_resolved")
+
+	// MetricSecurityProfileV2TagResolutionEventsDropped is the name of the metric used to report events dropped due to 10s stale timeout
+	// Tags: source (runtime or replay)
+	MetricSecurityProfileV2TagResolutionEventsDropped = newRuntimeMetric(".security_profile_v2.tag_resolution.events_dropped")
+
+	// MetricSecurityProfileV2TagResolutionCgroupsExpired is the name of the metric used to report cgroups cleaned up after 60s without ever resolving tags
+	// Tags: -
+	MetricSecurityProfileV2TagResolutionCgroupsExpired = newRuntimeMetric(".security_profile_v2.tag_resolution.cgroups_expired")
+
+	// MetricSecurityProfileV2TagResolutionLatency is the name of the metric used to report the time between first event and successful tag resolution
+	// Tags: -
+	MetricSecurityProfileV2TagResolutionLatency = newRuntimeMetric(".security_profile_v2.tag_resolution.latency")
+
+	// Event Processing metrics
+
+	// MetricSecurityProfileV2EventsDroppedMaxSize is the name of the metric used to report events dropped because profile reached max size
+	// Tags: -
+	MetricSecurityProfileV2EventsDroppedMaxSize = newRuntimeMetric(".security_profile_v2.events.dropped_max_size")
+
+	// Persistence metrics
+
+	// MetricSecurityProfileV2SizeInBytes is the name of the metric used to report the size of generated security profiles in bytes
+	// Tags: format, storage_type, compression
+	MetricSecurityProfileV2SizeInBytes = newRuntimeMetric(".security_profile_v2.size_in_bytes")
+
+	// MetricSecurityProfileV2PersistedProfiles is the name of the metric used to report the number of profiles that were persisted
+	// Tags: format, storage_type, compression
+	MetricSecurityProfileV2PersistedProfiles = newRuntimeMetric(".security_profile_v2.persisted_profiles")
+
+	// Eviction metrics
+
+	// MetricSecurityProfileV2EvictionRuns is the name of the metric used to report the number of eviction cycles run
+	// Tags: -
+	MetricSecurityProfileV2EvictionRuns = newRuntimeMetric(".security_profile_v2.eviction.runs")
+
+	// MetricSecurityProfileV2EvictionNodesEvictedPerProfile is the name of the metric used to report nodes evicted from a specific profile
+	// Tags: -
+	MetricSecurityProfileV2EvictionNodesEvictedPerProfile = newRuntimeMetric(".security_profile_v2.eviction.nodes_evicted_per_profile")
+
+	// Profile cleanup metrics
+
+	// MetricSecurityProfileV2CleanupProfilesRemoved is the name of the metric used to report profiles removed after cleanup delay
+	// Tags: -
+	MetricSecurityProfileV2CleanupProfilesRemoved = newRuntimeMetric(".security_profile_v2.cleanup.profiles_removed")
 )
 
 var (

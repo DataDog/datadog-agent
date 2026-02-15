@@ -9,6 +9,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -45,22 +46,25 @@ type multiVMEnv struct {
 func multiVMEnvProvisioner() provisioners.PulumiEnvRunFunc[multiVMEnv] {
 	return func(ctx *pulumi.Context, env *multiVMEnv) error {
 
+		// Generate a random config_id (0-9) to avoid conflicts when tests run in parallel
+		randomConfigID := fmt.Sprintf("ci-e2e-ha-failover-%d", rand.Intn(10))
+
 		// language=yaml
-		agentConfig1 := `
+		agentConfig1 := fmt.Sprintf(`
 hostname: test-e2e-agent1
 ha_agent:
     enabled: true
-config_id: ci-e2e-ha-failover
+config_id: %s
 log_level: debug
-`
+`, randomConfigID)
 
-		agentConfig2 := `
+		agentConfig2 := fmt.Sprintf(`
 hostname: test-e2e-agent2
 ha_agent:
     enabled: true
-config_id: ci-e2e-ha-failover
+config_id: %s
 log_level: debug
-`
+`, randomConfigID)
 
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
