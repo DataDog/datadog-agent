@@ -67,6 +67,7 @@ func TestGetNetworkPathHandlerRun(t *testing.T) {
 			"tracerouteQueries":  3,
 			"e2eQueries":         10,
 			"namespace":          "default",
+			"sendToBackend":      true,
 		},
 	}
 

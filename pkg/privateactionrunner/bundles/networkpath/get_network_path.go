@@ -41,6 +41,7 @@ type GetNetworkPathInputs struct {
 	TracerouteQueries  int               `json:"tracerouteQueries,omitempty"`
 	E2eQueries         int               `json:"e2eQueries,omitempty"`
 	Namespace          string            `json:"namespace,omitempty"`
+	SendToBackend      bool              `json:"sendToBackend,omitempty"`
 }
 
 func (h *GetNetworkPathHandler) Run(
