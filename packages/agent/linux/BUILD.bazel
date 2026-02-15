@@ -48,9 +48,11 @@ pkg_filegroup(
     prefix = "/opt/datadog-agent",
 )
 
-# This is an intermediate node so that have a place to
-# collect all the deps so we can walk the aspect to gather
-# the OSS licenses.
+# This is an intermediate node so that have a place to collect all
+# the dependencies so we can walk the aspect to gather the OSS
+# licenses.  This is close to "everything except for licenses"
+# Do not include things that vary per build, like symlinks using
+# the pipeline name.
 pkg_filegroup(
     name = "everything",
     srcs = [
@@ -59,11 +61,14 @@ pkg_filegroup(
     ],
 )
 
+# Gather licenses for all the pieces of the distribuion
 package_licenses(
     name = "license_files",
     src = ":everything",
 )
 
+# Blend the dependencies, the license files and things that vary
+# a build time into the distribution.
 pkg_filegroup(
     name = "whole_distro",
     srcs = [
