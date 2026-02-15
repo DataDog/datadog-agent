@@ -2342,3 +2342,95 @@ probes:
     segments:
       - str: "testWhollyInlinedSubroutine"
     captureSnapshot: true
+  # Capture expression probes
+  - id: testCaptureExprSimple
+    type: LOG_PROBE
+    where:
+      methodName: main.testCombinedString
+    captureSnapshot: false
+    captureExpressions:
+      - name: "x_val"
+        expr:
+          dsl: "x"
+          json:
+            ref: "x"
+      - name: "w_val"
+        expr:
+          dsl: "w"
+          json:
+            ref: "w"
+  - id: testCaptureExprGetmember
+    type: LOG_PROBE
+    tags:
+      - "version_diff:go1.26rc1"
+    where:
+      methodName: main.testStruct
+    captureSnapshot: false
+    captureExpressions:
+      - name: "x.aString"
+        expr:
+          dsl: "x.aString"
+          json:
+            getmember:
+              - ref: "x"
+              - "aString"
+  - id: testCaptureExprWithTemplate
+    type: LOG_PROBE
+    where:
+      methodName: main.testCombinedString
+    template: "x={x}"
+    segments:
+      - str: "x="
+      - json:
+          ref: "x"
+        dsl: "x"
+    captureSnapshot: false
+    captureExpressions:
+      - name: "x_val"
+        expr:
+          dsl: "x"
+          json:
+            ref: "x"
+      - name: "w_val"
+        expr:
+          dsl: "w"
+          json:
+            ref: "w"
+  - id: testCaptureExprLine
+    type: LOG_PROBE
+    where:
+      methodName: main.testInlinedPrint
+      sourceFile: inlined.go
+      lines:
+        - "14"
+    captureSnapshot: false
+    captureExpressions:
+      - name: "x_val"
+        expr:
+          dsl: "x"
+          json:
+            ref: "x"
+    sampling:
+      snapshotsPerSecond: 100
+  - id: testCaptureExprLineWithTemplate
+    type: LOG_PROBE
+    where:
+      methodName: main.testInlinedPrint
+      sourceFile: inlined.go
+      lines:
+        - "14"
+    template: "x={x}"
+    segments:
+      - str: "x="
+      - json:
+          ref: "x"
+        dsl: "x"
+    captureSnapshot: false
+    captureExpressions:
+      - name: "x_val"
+        expr:
+          dsl: "x"
+          json:
+            ref: "x"
+    sampling:
+      snapshotsPerSecond: 100
