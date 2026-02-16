@@ -10,6 +10,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
@@ -77,7 +79,9 @@ type PrivateActionRunner struct {
 	workflowRunner *runners.WorkflowRunner
 	commonRunner   *runners.CommonRunner
 
-	drain func()
+	startOnce sync.Once
+	startDone chan struct{}
+	drain     func()
 }
 
 // NewComponent creates a new privateactionrunner component
@@ -117,6 +121,8 @@ func NewPrivateActionRunner(
 		tagger:         taggerComp,
 		traceroute:     tracerouteComp,
 		eventPlatform:  eventPlatform,
+		startDone:      make(chan struct{}),
+		drain:          func() {},
 	}, nil
 }
 
@@ -152,6 +158,24 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 }
 
 func (p *PrivateActionRunner) Start(ctx context.Context) error {
+	var err error
+	p.startOnce.Do(func() {
+		defer close(p.startDone)
+		err = p.start(ctx)
+	})
+	return err
+}
+
+func (p *PrivateActionRunner) StartAsync(ctx context.Context) <-chan error {
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- p.Start(ctx)
+		close(errChan)
+	}()
+	return errChan
+}
+
+func (p *PrivateActionRunner) start(ctx context.Context) error {
 	cfg, err := p.getRunnerConfig(ctx)
 	if err != nil {
 		return err
@@ -181,6 +205,9 @@ func (p *PrivateActionRunner) Start(ctx context.Context) error {
 }
 
 func (p *PrivateActionRunner) Stop(ctx context.Context) error {
+	// Wait for startup to complete before stopping
+	<-p.startDone
+
 	if p.workflowRunner != nil {
 		err := p.workflowRunner.Stop(ctx)
 		if err != nil {

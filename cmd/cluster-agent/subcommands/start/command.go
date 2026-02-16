@@ -719,10 +719,15 @@ func startPrivateActionRunner(
 	if err != nil {
 		return nil, err
 	}
-	err = app.Start(ctx)
-	if err != nil {
-		return nil, err
-	}
+	// Start the private action runner asynchronously
+	errChan := app.StartAsync(ctx)
+
+	go func() {
+		// We could ignore this error but it's better to log it for debugging purposes
+		if err := <-errChan; err != nil {
+			log.Errorf("Failed to start private action runner: %v", err)
+		}
+	}()
 	return func() {
 		if err := app.Stop(context.Background()); err != nil {
 			log.Errorf("Error stopping private action runner: %v", err)
