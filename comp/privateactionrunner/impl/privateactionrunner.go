@@ -182,13 +182,17 @@ func (p *PrivateActionRunner) Start(ctx context.Context) error {
 }
 
 func (p *PrivateActionRunner) Stop(ctx context.Context) error {
-	err := p.workflowRunner.Stop(ctx)
-	if err != nil {
-		return err
+	if p.workflowRunner != nil {
+		err := p.workflowRunner.Stop(ctx)
+		if err != nil {
+			return err
+		}
 	}
-	err = p.commonRunner.Stop(ctx)
-	if err != nil {
-		return err
+	if p.commonRunner != nil {
+		err := p.commonRunner.Stop(ctx)
+		if err != nil {
+			return err
+		}
 	}
 	p.drain()
 	return nil
