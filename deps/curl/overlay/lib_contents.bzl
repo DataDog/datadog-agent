@@ -248,16 +248,16 @@ HDRS = [
 ]
 
 # Header files from generated tree (darwin_arm64)
-HDRS_DARWIN_ARM64 = [
+HDRS_DARWIN = [
     "darwin_arm64/lib/curl_config.h",
 ]
 
 # Header files from generated tree (linux_arm64)
-HDRS_LINUX_ARM64 = [
+HDRS_LINUX = [
     "linux_arm64/lib/curl_config.h",
 ]
 
-LIB_CURLTOOL_SRCS_DARWIN_ARM64 = [
+LIB_CURLTOOL_SRCS_DARWIN = [
     "lib/curlx/base64.c",
     "lib/curlx/dynbuf.c",
     "lib/curlx/multibyte.c",
@@ -315,7 +315,7 @@ LIB_CURLTOOL_SRCS_DARWIN_ARM64 = [
     "src/var.c",
 ]
 
-LIB_CURLTOOL_SRCS_LINUX_ARM64 = [
+LIB_CURLTOOL_SRCS_LINUX = [
     "lib/curlx/base64.c",
     "lib/curlx/dynbuf.c",
     "lib/curlx/multibyte.c",
@@ -373,7 +373,7 @@ LIB_CURLTOOL_SRCS_LINUX_ARM64 = [
     "src/var.c",
 ]
 
-LIB_CURLU_SRCS_DARWIN_ARM64 = [
+LIB_CURLU_SRCS_DARWIN = [
     "lib/altsvc.c",
     "lib/amigaos.c",
     "lib/asyn-ares.c",
@@ -554,7 +554,7 @@ LIB_CURLU_SRCS_DARWIN_ARM64 = [
     "lib/ws.c",
 ]
 
-LIB_CURLU_SRCS_LINUX_ARM64 = [
+LIB_CURLU_SRCS_LINUX = [
     "lib/altsvc.c",
     "lib/amigaos.c",
     "lib/asyn-ares.c",
@@ -699,7 +699,7 @@ LIB_CURLU_SRCS_LINUX_ARM64 = [
     "lib/ws.c",
 ]
 
-LIB_CURL_SRCS_LINUX_ARM64 = [
+LIB_CURL_SRCS_LINUX = [
     "lib/vauth/cleartext.c",
     "lib/vauth/cram.c",
     "lib/vauth/digest_sspi.c",
