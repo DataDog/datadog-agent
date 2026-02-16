@@ -3,7 +3,7 @@
 #include <string.h>
 
 #ifdef _WIN32
-#    include <Windows.h>
+#    include <windows.h>
 #    include <stdio.h>
 #else
 #    include <dlfcn.h>
@@ -58,7 +58,7 @@ void *open_lib(const char *lib_path, char **lib_error) {
     // This is great for running multiple instances in parallel but the global state of the shared library
     // remains the same for all the instances.
     lib_handle = dlopen(lib_path, RTLD_NOW | RTLD_LOCAL);
-    
+
     // catch library opening error
     dlsym_error = dlerror();
 
@@ -72,10 +72,10 @@ void *open_lib(const char *lib_path, char **lib_error) {
 void *get_symbol(void *lib_handle, const char *symbol_name, char **lib_error) {
     void *symbol;
     char *dlsym_error = NULL;
-    
+
     // get symbol pointer
     symbol = dlsym(lib_handle, symbol_name);
-    
+
     // catch symbol errors and close the library if there are any
     dlsym_error = dlerror();
     if (dlsym_error) {

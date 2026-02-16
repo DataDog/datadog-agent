@@ -148,6 +148,7 @@ func (w *WinServiceManager) StopAllAgentServices(ctx context.Context) (err error
 		"datadog-process-agent",
 		"datadog-security-agent",
 		"datadog-system-probe",
+		"datadog-private-action-runner",
 		"Datadog Installer",
 		"datadogagent",
 	}

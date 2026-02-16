@@ -81,8 +81,10 @@ func (h *RunShellScriptHandler) Run(
 		return nil, fmt.Errorf("failed to set script file permissions: %w", err)
 	}
 
-	cmd := NewShellScriptCommand(ctx, scriptFile.Name(), inputs.Args)
-
+	cmd, err := NewShellScriptCommand(ctx, scriptFile.Name(), inputs.Args)
+	if err != nil {
+		return nil, fmt.Errorf("invalid command arguments: %w", err)
+	}
 	var stdoutBuffer bytes.Buffer
 	cmd.Stdout = &stdoutBuffer
 	var stderrBuffer bytes.Buffer

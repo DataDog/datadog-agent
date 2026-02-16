@@ -1150,6 +1150,15 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
+.on_healthplatform_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - comp/healthplatform/**/*
+        - test/new-e2e/tests/agent-health/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
 .on_scheduled_main:
   - <<: *if_scheduled_main
     when: always

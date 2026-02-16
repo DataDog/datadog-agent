@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"path"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -325,6 +326,8 @@ type ProcessSerializer struct {
 	Syscalls *SyscallsEventSerializer `json:"syscalls,omitempty"`
 	// List of AWS Security Credentials that the process had access to
 	AWSSecurityCredentials []*AWSSecurityCredentialsSerializer `json:"aws_security_credentials,omitempty"`
+	// Tags from an APM tracer instrumentation
+	Tracer map[string]string `json:"tracer,omitempty"`
 }
 
 // FileEventSerializer serializes a file event to JSON
@@ -990,6 +993,17 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			for _, creds := range awsSecurityCredentials {
 				psSerializer.AWSSecurityCredentials = append(psSerializer.AWSSecurityCredentials, newAWSSecurityCredentialsSerializer(&creds))
 			}
+		}
+
+		if len(ps.TracerTags) > 0 {
+			tracerTags := make(map[string]string, len(ps.TracerTags))
+			for _, tag := range ps.TracerTags {
+				key, value, found := strings.Cut(tag, ":")
+				if found {
+					tracerTags[key] = value
+				}
+			}
+			psSerializer.Tracer = tracerTags
 		}
 
 		if len(ps.ContainerContext.ContainerID) != 0 {

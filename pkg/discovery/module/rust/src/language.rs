@@ -553,7 +553,7 @@ mod tests {
 
         use memmap2::Mmap;
 
-        let current_pid = std::process::id() as i32;
+        let current_pid = std::process::id().cast_signed();
 
         // Negative test: current process should NOT be detected as .NET initially
         let result = Language::from_dotnet(current_pid);
@@ -601,7 +601,7 @@ mod tests {
             c.wait().ok();
         });
 
-        let pid = child.id() as i32;
+        let pid = child.id().cast_signed();
 
         // Wait for the "READY" signal from the Go process to ensure it's fully started
         let stdout = child.stdout.as_mut().expect("Failed to get stdout");
@@ -625,7 +625,7 @@ mod tests {
     #[test]
     fn test_from_go_with_non_go_binary() {
         // Test with current process (Rust binary) - should NOT be detected as Go
-        let current_pid = std::process::id() as i32;
+        let current_pid = std::process::id().cast_signed();
         let result = Language::from_go(current_pid);
         assert_eq!(
             result, None,

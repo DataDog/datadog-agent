@@ -13,7 +13,6 @@ bazel:test:linux-amd64:
       -//pkg/discovery/module/rust:dd_discovery
       -//pkg/discovery/module/rust:dd_discovery_test
       -//pkg/discovery/module/rust:libdd_discovery
-    - bazel build //packages/agent/linux:debian
 
 bazel:test:linux-arm64:
   extends: [ .bazel:test, .bazel:runner:linux-arm64 ]

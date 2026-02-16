@@ -129,6 +129,11 @@ func (d *Manager) ComposeStrUp(name string, composeManifests []ComposeInlineMani
 		return utils.StrHash(mergedContent)
 	}).(pulumi.StringOutput)
 
+	// Initialize envVars if nil to prevent panic
+	if envVars == nil {
+		envVars = pulumi.StringMap{}
+	}
+
 	// We include a hash of the manifests content in the environment variables to trigger an update when a manifest changes
 	// This is a workaround to avoid a force replace with Triggers when the content of the manifest changes
 	envVars["CONTENT_HASH"] = contentHash

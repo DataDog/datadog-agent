@@ -21,6 +21,7 @@ const (
 	PARUrn                = "private_action_runner.urn"
 
 	// General config
+	PARTaskConcurrency    = "private_action_runner.task_concurrency"
 	PARTaskTimeoutSeconds = "private_action_runner.task_timeout_seconds"
 	PARActionsAllowlist   = "private_action_runner.actions_allowlist"
 
@@ -46,6 +47,7 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault(PARUrn, "")
 
 	// General config
+	config.BindEnvAndSetDefault(PARTaskConcurrency, 5)
 	config.BindEnvAndSetDefault(PARTaskTimeoutSeconds, 60)
 	config.BindEnvAndSetDefault(PARActionsAllowlist, []string{})
 

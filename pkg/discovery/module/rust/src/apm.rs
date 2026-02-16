@@ -329,7 +329,7 @@ mod tests {
 
         use memmap2::Mmap;
 
-        let current_pid = std::process::id() as i32;
+        let current_pid = std::process::id().cast_signed();
         let cmdline = cmdline![];
         let envs = HashMap::new();
 
@@ -365,7 +365,7 @@ mod tests {
 
         use memmap2::Mmap;
 
-        let current_pid = std::process::id() as i32;
+        let current_pid = std::process::id().cast_signed();
         let cmdline = cmdline![];
         let envs = HashMap::new(); // No env vars set
 

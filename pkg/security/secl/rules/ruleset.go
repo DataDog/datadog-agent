@@ -289,6 +289,14 @@ func (rs *RuleSet) GetVariables() map[string]eval.SECLVariable {
 	return rs.evalOpts.VariableStore.Variables
 }
 
+// GetVariableStore returns the variable store
+func (rs *RuleSet) GetVariableStore() *eval.VariableStore {
+	if rs.evalOpts == nil {
+		return nil
+	}
+	return rs.evalOpts.VariableStore
+}
+
 // AddMacros parses the macros AST and adds them to the list of macros of the ruleset
 func (rs *RuleSet) AddMacros(macros []*PolicyMacro) *multierror.Error {
 	var result *multierror.Error

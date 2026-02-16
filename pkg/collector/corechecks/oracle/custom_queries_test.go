@@ -57,6 +57,61 @@ func TestCustomQueries(t *testing.T) {
 	sender.AssertMetricTaggedWith(t, "Gauge", "oracle.custom_query.test.c1", []string{"c2:A"})
 }
 
+func TestMultipleCustomQueriesNoMetricLeak(t *testing.T) {
+	db, dbMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	// First query returns 2 rows
+	dbMock.ExpectExec("alter.*").WillReturnResult(sqlmock.NewResult(1, 1))
+	rows1 := sqlmock.NewRows([]string{"val", "tag"}).
+		AddRow(10, "A").
+		AddRow(20, "B")
+	dbMock.ExpectQuery("SELECT val, tag FROM t1").WillReturnRows(rows1)
+
+	// Second query returns 1 row
+	dbMock.ExpectExec("alter.*").WillReturnResult(sqlmock.NewResult(1, 1))
+	rows2 := sqlmock.NewRows([]string{"val", "tag"}).
+		AddRow(99, "Z")
+	dbMock.ExpectQuery("SELECT val, tag FROM t2").WillReturnRows(rows2)
+
+	columns := []config.CustomQueryColumns{
+		{Name: "val", Type: "gauge"},
+		{Name: "tag", Type: "tag"},
+	}
+	q1 := config.CustomQuery{
+		MetricPrefix: "oracle.q1",
+		Query:        "SELECT val, tag FROM t1",
+		Columns:      columns,
+	}
+	q2 := config.CustomQuery{
+		MetricPrefix: "oracle.q2",
+		Query:        "SELECT val, tag FROM t2",
+		Columns:      columns,
+	}
+
+	chk, sender := newDbDoesNotExistCheck(t, "", "")
+	chk.Run()
+
+	sender.SetupAcceptAll()
+	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("Commit").Return()
+
+	chk.config.InstanceConfig.CustomQueries = []config.CustomQuery{q1, q2}
+	chk.dbCustomQueries = sqlx.NewDb(db, "sqlmock")
+
+	err = chk.CustomQueries()
+	assert.NoError(t, err)
+
+	// q1 should send 2 Gauge calls, q2 should send 1 = 3 total.
+	// Before the fix, metricRows accumulated across queries so q2 would
+	// re-send q1's metrics, resulting in 5 Gauge calls instead of 3.
+	sender.AssertNumberOfCalls(t, "Gauge", 3)
+	sender.AssertMetricTaggedWith(t, "Gauge", "oracle.q1.val", []string{"tag:A"})
+	sender.AssertMetricTaggedWith(t, "Gauge", "oracle.q1.val", []string{"tag:B"})
+	sender.AssertMetricTaggedWith(t, "Gauge", "oracle.q2.val", []string{"tag:Z"})
+}
+
 const customQueryTestConfig = `- metric_prefix: oracle.custom_query.test
   query: |
     select 'TAG1', 1.012345 value from dual
