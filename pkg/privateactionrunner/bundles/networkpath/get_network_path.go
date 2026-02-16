@@ -145,7 +145,7 @@ func (h *GetNetworkPathHandler) sendToBackend(path payload.NetworkPath) error {
 	}
 
 	msg := message.NewMessage(payloadBytes, nil, "", 0)
-	if err := forwarder.SendEventPlatformEvent(msg, eventplatform.EventTypeNetworkPath); err != nil {
+	if err := forwarder.SendEventPlatformEventBlocking(msg, eventplatform.EventTypeNetworkPath); err != nil {
 		return fmt.Errorf("failed to send network path payload to event platform: %w", err)
 	}
 	return nil
