@@ -556,3 +556,99 @@ class TestMessageExtraction(unittest.TestCase):
         ]
         message = _extract_message_from_raw_output(raw_lines)
         self.assertEqual(message, "")
+
+
+class TestSubtestHierarchy(unittest.TestCase):
+    """Test that subtests are nested under their parent in a tree."""
+
+    def setUp(self):
+        # test_output_failure_parent.json has:
+        #   TestEKSSuite
+        #     TestEKSSuite/TestCPU
+        #       TestEKSSuite/TestCPU/metric___container.cpu.usage{...}
+        #     TestEKSSuite/TestMemory
+        self.result = ResultJson.from_file(str(TESTDATA / "test_output_failure_parent.json"))
+        self.doc = convert_unit_test_results(self.result)
+
+    def test_subtests_nested_under_parent(self):
+        """Top-level doc.tests should only contain the root test."""
+        self.assertEqual(len(self.doc.tests), 1)
+        root = self.doc.tests[0]
+        self.assertEqual(root.name, "TestEKSSuite")
+        self.assertIsNotNone(root.subtests)
+        self.assertEqual(len(root.subtests), 2)
+
+    def test_deep_nesting(self):
+        """Three levels: TestEKSSuite → TestCPU → metric_..."""
+        root = self.doc.tests[0]
+        cpu = next(s for s in root.subtests if s.name == "TestCPU")
+        self.assertIsNotNone(cpu.subtests)
+        self.assertEqual(len(cpu.subtests), 1)
+        metric = cpu.subtests[0]
+        self.assertIn("container.cpu.usage", metric.name)
+
+    def test_leaf_name_is_segment(self):
+        """name should be the leaf segment, not the full path."""
+        root = self.doc.tests[0]
+        cpu = next(s for s in root.subtests if s.name == "TestCPU")
+        self.assertEqual(cpu.name, "TestCPU")
+        # Not the full path
+        self.assertNotIn("/", cpu.name)
+
+    def test_full_name_preserved(self):
+        """full_name should contain the original test2json name."""
+        root = self.doc.tests[0]
+        self.assertEqual(root.full_name, "TestEKSSuite")
+        cpu = next(s for s in root.subtests if s.name == "TestCPU")
+        self.assertEqual(cpu.full_name, "TestEKSSuite/TestCPU")
+        metric = cpu.subtests[0]
+        self.assertTrue(metric.full_name.startswith("TestEKSSuite/TestCPU/"))
+
+    def test_summary_counts_leaves_only(self):
+        """Summary should count only leaf tests to avoid double-counting."""
+        # The tree has 2 leaves: the metric under TestCPU and TestMemory
+        self.assertEqual(self.doc.summary.total, 2)
+        self.assertEqual(self.doc.summary.failed, 2)
+
+    def test_subtests_stripped_from_json_when_empty(self):
+        """subtests: None should be stripped from JSON output (like other optional fields)."""
+        result = ResultJson.from_file(str(TESTDATA / "test_output_varied.json"))
+        doc = convert_unit_test_results(result)
+        d = doc.to_dict()
+        for test in d["tests"]:
+            self.assertNotIn("subtests", test, f"Test {test['name']} should not have subtests field")
+
+    def test_subtests_present_in_json_when_non_empty(self):
+        """subtests should appear in JSON when the test has children."""
+        d = self.doc.to_dict()
+        root = d["tests"][0]
+        self.assertIn("subtests", root)
+        self.assertEqual(len(root["subtests"]), 2)
+
+    def test_synthetic_parent_created(self):
+        """When only a subtest exists (no parent entry), a synthetic parent is created."""
+        result = ResultJson.from_file(str(TESTDATA / "test_output_failure_panic_subtest.json"))
+        doc = convert_unit_test_results(result)
+        # Should have 1 root: the synthetic TestLoadConfigShouldBeFast
+        self.assertEqual(len(doc.tests), 1)
+        root = doc.tests[0]
+        self.assertEqual(root.name, "TestLoadConfigShouldBeFast")
+        self.assertIsNotNone(root.subtests)
+        self.assertEqual(len(root.subtests), 1)
+        sub = root.subtests[0]
+        self.assertEqual(sub.name, "MySubTest")
+        self.assertEqual(sub.status, "fail")
+
+    def test_no_subtests_data_has_flat_structure(self):
+        """Test data without subtests should have no subtests fields set."""
+        result = ResultJson.from_file(str(TESTDATA / "test_output_varied.json"))
+        doc = convert_unit_test_results(result)
+        for t in doc.tests:
+            self.assertIsNone(t.subtests, f"Test {t.name} should not have subtests")
+
+    def test_report_shows_subtests_indented(self):
+        """The report should show subtests indented under their parent."""
+        report = format_report(self.doc)
+        self.assertIn("TestEKSSuite", report)
+        self.assertIn("TestCPU", report)
+        self.assertIn("TestMemory", report)
