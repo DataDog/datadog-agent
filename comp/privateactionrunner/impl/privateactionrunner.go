@@ -208,11 +208,8 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 	if err != nil {
 		return nil, fmt.Errorf("failed to get hostname: %w", err)
 	}
-	now := time.Now().UTC()
-	formattedTime := now.Format("20060102150405")
-	runnerName := runnerHostname + "-" + formattedTime
 
-	enrollmentResult, err := enrollment.SelfEnroll(ctx, ddSite, runnerName, apiKey, appKey)
+	enrollmentResult, err := enrollment.SelfEnroll(ctx, ddSite, runnerHostname, apiKey, appKey)
 	if err != nil {
 		return nil, fmt.Errorf("enrollment API call failed: %w", err)
 	}
@@ -246,7 +243,7 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 			tagsProvider := autoconnections.NewTagsProvider(p.tagger)
 			creator := autoconnections.NewConnectionsCreator(*client, tagsProvider)
 
-			if err := creator.AutoCreateConnections(ctx, urnParts.RunnerID, runnerHostname, runnerName, actionsAllowlist); err != nil {
+			if err := creator.AutoCreateConnections(ctx, urnParts.RunnerID, enrollmentResult, actionsAllowlist); err != nil {
 				p.logger.Warnf("Failed to auto-create connections: %v", err)
 			}
 		}
