@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "ec2",
+    srcs = [
+        "ami.go",
+        "asg.go",
+        "dedicated_host.go",
+        "vm.go",
+        "vmtemplate.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/ec2",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common/config",
+        "//test/e2e-framework/common/utils",
+        "//test/e2e-framework/resources/aws",
+    ],
+)

@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "status",
+    srcs = ["status.go"],
+    embedsrcs = ["status_templates/autodiscovery.tmpl"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/status",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery",
+        "//comp/core/status",
+        "//comp/core/workloadfilter/def",
+        "//pkg/config/env",
+    ],
+)

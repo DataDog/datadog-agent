@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "discovery",
+    srcs = ["discovery.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/discovery",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/util/option",
+    ],
+)
+
+go_test(
+    name = "discovery_test",
+    srcs = ["discovery_test.go"],
+    embed = [":discovery"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

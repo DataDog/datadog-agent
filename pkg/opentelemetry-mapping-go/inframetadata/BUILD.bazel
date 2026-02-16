@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "inframetadata",
+    srcs = [
+        "doc.go",
+        "reporter.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/opentelemetry-mapping-go/inframetadata/internal/hostmap",
+        "//pkg/opentelemetry-mapping-go/inframetadata/payload",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes/source",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//pmetric",
+        "@org_uber_go_zap//:zap",
+        "@org_uber_go_zap//zapcore",
+    ],
+)
+
+go_test(
+    name = "inframetadata_test",
+    srcs = ["reporter_test.go"],
+    embed = [":inframetadata"],
+    deps = [
+        "//pkg/opentelemetry-mapping-go/inframetadata/internal/testutils",
+        "//pkg/opentelemetry-mapping-go/inframetadata/payload",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_otel//semconv/v1.18.0:v1_18_0",
+        "@org_uber_go_zap//:zap",
+        "@org_uber_go_zap//zapcore",
+        "@org_uber_go_zap//zaptest",
+        "@org_uber_go_zap//zaptest/observer",
+    ],
+)

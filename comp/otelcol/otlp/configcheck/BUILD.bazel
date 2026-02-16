@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "configcheck",
+    srcs = [
+        "configcheck_common.go",
+        "configcheck_no_otlp.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/helper",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+    ],
+)

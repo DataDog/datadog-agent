@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "classicimpl",
+    srcs = ["impl.go"],
+    importpath = "github.com/DataDog/datadog-agent/tasks/unit_tests/testdata/components_src/comp/classic/classicimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)

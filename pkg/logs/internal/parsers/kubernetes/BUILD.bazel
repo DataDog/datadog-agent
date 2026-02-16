@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "kubernetes",
+    srcs = ["kubernetes.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/kubernetes",
+    visibility = ["//pkg/logs:__subpackages__"],
+    deps = [
+        "//pkg/config/setup",
+        "//pkg/logs/internal/parsers",
+        "//pkg/logs/message",
+    ],
+)
+
+go_test(
+    name = "kubernetes_test",
+    srcs = [
+        "kubernetes_fuzz_test.go",
+        "kubernetes_test.go",
+    ],
+    embed = [":kubernetes"],
+    deps = [
+        "//pkg/logs/message",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

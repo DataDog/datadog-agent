@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "dogstatsdreplay",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/dogstatsdreplay",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/agent/command",
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/fx",
+        "//comp/core/log/def",
+        "//comp/core/secrets/fx-noop",
+        "//comp/dogstatsd/replay/impl",
+        "//pkg/config/setup",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/fxutil",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
+        "@org_golang_google_grpc//metadata",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "dogstatsdreplay_test",
+    srcs = ["command_test.go"],
+    embed = [":dogstatsdreplay"],
+    deps = [
+        "//cmd/agent/command",
+        "//comp/core",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//require",
+    ],
+)

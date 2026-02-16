@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "subscription",
+    srcs = ["subscription.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/log",
+            "//pkg/util/winutil/eventlog/api",
+            "//pkg/util/winutil/eventlog/bookmark",
+            "//pkg/util/winutil/eventlog/session",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "subscription_test",
+    srcs = [
+        "helpers_test.go",
+        "subscription_test.go",
+    ],
+    embed = [":subscription"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/log",
+            "//pkg/util/winutil/eventlog/api",
+            "//pkg/util/winutil/eventlog/bookmark",
+            "//pkg/util/winutil/eventlog/publishermetadatacache",
+            "//pkg/util/winutil/eventlog/test",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//mock",
+            "@com_github_stretchr_testify//require",
+            "@com_github_stretchr_testify//suite",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)

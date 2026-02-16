@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "handlers",
+    srcs = [
+        "async.go",
+        "disabled.go",
+        "docs.go",
+        "format.go",
+        "level.go",
+        "locking.go",
+        "multi.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/log/slog/handlers",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "handlers_test",
+    srcs = [
+        "async_test.go",
+        "disabled_test.go",
+        "format_test.go",
+        "level_test.go",
+        "locking_test.go",
+        "multi_test.go",
+    ],
+    embed = [":handlers"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

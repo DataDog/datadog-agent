@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "new-e2e",
+    srcs = ["fake.go"],
+    importpath = "github.com/DataDog/datadog-agent/tasks/unit_tests/testdata/add_reviewers/new-e2e",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_aws_aws_sdk_go_v2//e2e"],
+)

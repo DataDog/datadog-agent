@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "rcwebsocket",
+    srcs = ["echo.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/remote/rcwebsocket",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/remote/api",
+        "//pkg/util/log",
+        "@com_github_gorilla_websocket//:websocket",
+    ],
+)
+
+go_test(
+    name = "rcwebsocket_test",
+    srcs = ["echo_test.go"],
+    embed = [":rcwebsocket"],
+    deps = [
+        "//pkg/config/mock",
+        "//pkg/config/remote/api",
+        "@com_github_gorilla_websocket//:websocket",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

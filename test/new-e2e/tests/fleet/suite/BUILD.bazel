@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "suite",
+    srcs = ["suite.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/suite",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/new-e2e/tests/fleet/agent",
+        "//test/new-e2e/tests/fleet/backend",
+        "//test/new-e2e/tests/fleet/host",
+        "//test/new-e2e/tests/fleet/installer",
+    ],
+)

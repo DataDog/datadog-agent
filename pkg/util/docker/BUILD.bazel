@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "docker",
+    srcs = [
+        "global_nodocker.go",
+        "metadata_no_docker.go",
+        "rancher.go",
+        "util_common.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/docker",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/util/log"],
+)
+
+go_test(
+    name = "docker_test",
+    srcs = ["rancher_test.go"],
+    embed = [":docker"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

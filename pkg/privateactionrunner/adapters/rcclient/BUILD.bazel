@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "rcclient",
+    srcs = ["rc_client_adapter.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/remote-config/rcclient",
+        "//pkg/config/remote/data",
+        "//pkg/remoteconfig/state",
+    ],
+)

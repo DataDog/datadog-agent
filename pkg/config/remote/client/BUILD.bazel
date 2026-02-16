@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "client",
+    srcs = ["client.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/remote/client",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/remote/meta",
+        "//pkg/proto/pbgo/core",
+        "//pkg/remoteconfig/state",
+        "//pkg/util/backoff",
+        "//pkg/util/grpc",
+        "//pkg/util/log",
+        "@com_github_pkg_errors//:errors",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//metadata",
+        "@org_golang_google_grpc//status",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)

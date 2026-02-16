@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "rcjson",
+    srcs = [
+        "doc.go",
+        "type.go",
+        "type_string.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/rcjson",
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,76 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "guiimpl",
+    srcs = [
+        "agent.go",
+        "auth.go",
+        "checks.go",
+        "checks_nopy.go",
+        "gui.go",
+        "platform_darwin.go",
+        "platform_nix.go",
+        "platform_windows.go",
+        "render.go",
+    ],
+    embedsrcs = [
+        "views/templates/index.tmpl",
+        "views/templates/runningChecks.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/gui/guiimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/api/def",
+        "//comp/core/autodiscovery/autodiscoveryimpl",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/config",
+        "//comp/core/flare",
+        "//comp/core/flare/helpers",
+        "//comp/core/gui",
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/log/def",
+        "//comp/core/status",
+        "//pkg/api/security",
+        "//pkg/collector",
+        "//pkg/collector/check/stats",
+        "//pkg/collector/corechecks",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/template/html",
+        "//pkg/util/defaultpaths",
+        "//pkg/util/fxutil",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "//pkg/util/system",
+        "//pkg/version",
+        "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
+        "@com_github_gorilla_mux//:mux",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+        "@org_uber_go_fx//:fx",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/executable",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "guiimpl_test",
+    srcs = [
+        "agent_test.go",
+        "auth_test.go",
+        "checks_test.go",
+        "platform_darwin_test.go",
+        "platform_nix_test.go",
+        "platform_windows_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":guiimpl"],
+    deps = [
+        "//comp/core/config",
+        "@com_github_gorilla_mux//:mux",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

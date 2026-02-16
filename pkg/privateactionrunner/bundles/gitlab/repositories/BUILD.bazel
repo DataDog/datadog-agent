@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "repositories",
+    srcs = [
+        "add_changelog.gen.go",
+        "compare.gen.go",
+        "contributors.go",
+        "entrypoint.gen.go",
+        "generate_changelog_data.gen.go",
+        "get_blob.go",
+        "get_file_archive.go",
+        "list_tree.gen.go",
+        "merge_base.gen.go",
+        "raw_blob_content.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/repositories",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/bundle-support/gitlab",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "@com_gitlab_gitlab_org_api_client_go//:client-go",
+    ],
+)

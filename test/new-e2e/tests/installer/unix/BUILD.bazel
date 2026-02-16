@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "unix",
+    srcs = [
+        "all_packages.go",
+        "package_definitions.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/testing/runner",
+        "//test/e2e-framework/testing/runner/parameters",
+        "@com_github_google_go_containerregistry//pkg/crane",
+        "@com_github_google_go_containerregistry//pkg/v1:pkg",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+go_test(
+    name = "unix_test",
+    srcs = [
+        "all_packages_test.go",
+        "package_agent_test.go",
+        "package_apm_inject_test.go",
+        "package_ddot_test.go",
+        "upgrade_scenario_test.go",
+    ],
+    embed = [":unix"],
+    deps = [
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/e2e-framework/testing/utils/e2e/client",
+        "//test/new-e2e/tests/installer/host",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+    ],
+)

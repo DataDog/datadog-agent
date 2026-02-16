@@ -1,0 +1,59 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "generic",
+    srcs = [
+        "adapters.go",
+        "adapters_utils.go",
+        "check.go",
+        "filters.go",
+        "processor.go",
+        "processor_extension.go",
+        "processor_network.go",
+        "rate_capping_sender.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/types",
+        "//comp/core/tagger/utils",
+        "//comp/core/workloadfilter/def",
+        "//comp/core/workloadfilter/util/workloadmeta",
+        "//comp/core/workloadmeta/def",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/util/cache",
+        "//pkg/util/containers/metrics",
+        "//pkg/util/containers/metrics/provider",
+        "//pkg/util/kubernetes",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "//pkg/util/pointer",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)
+
+go_test(
+    name = "generic_test",
+    srcs = [
+        "processor_network_test.go",
+        "processor_test.go",
+        "rate_capping_sender_test.go",
+    ],
+    embed = [":generic"],
+    deps = [
+        "//comp/core/tagger/types",
+        "//comp/core/tagger/utils",
+        "//comp/core/workloadmeta/def",
+        "//pkg/util/cache",
+        "//pkg/util/containers/metrics",
+        "//pkg/util/containers/metrics/mock",
+        "//pkg/util/pointer",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//suite",
+    ],
+)

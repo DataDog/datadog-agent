@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "winmem",
+    srcs = [
+        "winmem.c",
+        "winmem.go",
+        "winmem.h",
+        "winmem_64bits.go",
+    ],
+    cgo = True,
+    clinkopts = select({
+        "@rules_go//go/platform:windows": [
+            "-lpsapi",
+        ],
+        "//conditions:default": [],
+    }),
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/winutil/winmem",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/log",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)

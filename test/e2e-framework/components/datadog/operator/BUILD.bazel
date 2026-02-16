@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "operator",
+    srcs = [
+        "component.go",
+        "docker_image.go",
+        "helm.go",
+        "operator.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/operator",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common/config",
+        "//test/e2e-framework/common/utils",
+        "//test/e2e-framework/components",
+        "//test/e2e-framework/components/datadog/operatorparams",
+        "//test/e2e-framework/components/kubernetes",
+        "//test/e2e-framework/resources/helm",
+        "@com_github_masterminds_semver_v3//:semver",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+    ],
+)

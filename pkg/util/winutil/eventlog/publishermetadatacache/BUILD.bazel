@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "publishermetadatacache",
+    srcs = ["publishermetadatacache.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/publishermetadatacache",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil/eventlog/api",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "publishermetadatacache_test",
+    srcs = ["publishermetadatacache_test.go"],
+    embed = [":publishermetadatacache"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil/eventlog/api",
+            "//pkg/util/winutil/eventlog/api/fake",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//mock",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)

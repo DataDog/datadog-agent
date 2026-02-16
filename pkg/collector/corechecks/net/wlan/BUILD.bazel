@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "wlan",
+    srcs = [
+        "wlan.go",
+        "wlan_darwin.go",
+        "wlan_nix.go",
+        "wlan_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/wlan",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/util/log",
+        "//pkg/util/option",
+    ] + select({
+        "@rules_go//go/platform:darwin": [
+            "//pkg/config/setup",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/config/setup",
+        ],
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)

@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "valuestore",
+    srcs = [
+        "gosnmp_value.go",
+        "value.go",
+        "values.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore",
+    visibility = ["//pkg/collector/corechecks/snmp:__subpackages__"],
+    deps = [
+        "//pkg/networkdevice/profile/profiledefinition",
+        "//pkg/snmp/gosnmplib",
+        "//pkg/util/log",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+    ],
+)
+
+go_test(
+    name = "valuestore_test",
+    srcs = [
+        "gosnmp_value_test.go",
+        "value_test.go",
+        "values_test.go",
+    ],
+    embed = [":valuestore"],
+    deps = [
+        "//pkg/networkdevice/profile/profiledefinition",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

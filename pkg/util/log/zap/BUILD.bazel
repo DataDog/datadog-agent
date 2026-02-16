@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "zap",
+    srcs = [
+        "zapcore.go",
+        "zapencoder.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/log/zap",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/log",
+        "@org_uber_go_zap//zapcore",
+    ],
+)
+
+go_test(
+    name = "zap_test",
+    srcs = [
+        "zapcore_test.go",
+        "zapencoder_test.go",
+    ],
+    embed = [":zap"],
+    deps = [
+        "//pkg/util/log",
+        "//pkg/util/log/slog",
+        "//pkg/util/log/types",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_zap//:zap",
+        "@org_uber_go_zap//zapcore",
+    ],
+)

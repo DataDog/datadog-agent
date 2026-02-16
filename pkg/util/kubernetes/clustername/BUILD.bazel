@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "clustername",
+    srcs = ["clustername.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/env",
+        "//pkg/config/setup",
+        "//pkg/config/setup/constants",
+        "//pkg/util/cache",
+        "//pkg/util/cloudproviders/azure",
+        "//pkg/util/cloudproviders/gce",
+        "//pkg/util/clusteragent",
+        "//pkg/util/ec2/tags",
+        "//pkg/util/kubernetes/hostinfo",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "clustername_test",
+    srcs = ["clustername_test.go"],
+    embed = [":clustername"],
+    deps = [
+        "//pkg/config/env",
+        "//pkg/config/mock",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

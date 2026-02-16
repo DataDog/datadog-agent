@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "pidmapimpl",
+    srcs = ["state.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/dogstatsd/pidmap",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)

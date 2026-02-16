@@ -1,0 +1,41 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "windowsevent",
+    srcs = [
+        "message.go",
+        "transform.go",
+        "util_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/util/windowsevent",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/logs/message",
+        "//pkg/logs/sources",
+        "//pkg/util/log",
+        "//pkg/util/strings",
+        "@com_github_clbanning_mxj//:mxj",
+        "@org_golang_x_text//encoding/unicode",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//comp/publishermetadatacache/def",
+            "//pkg/util/winutil/eventlog/api",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "windowsevent_test",
+    srcs = [
+        "message_test.go",
+        "transform_test.go",
+    ],
+    embed = [":windowsevent"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//pkg/logs/message",
+        "//pkg/logs/sources",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "windows",
+    srcs = [
+        "base_agent_installer_suite.go",
+        "iis.go",
+        "remoteexecutable.go",
+    ],
+    embedsrcs = ["scripts/installiis.ps1"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/testing/components",
+        "//test/e2e-framework/testing/e2e",
+        "//test/new-e2e/tests/agent-platform/common",
+        "//test/new-e2e/tests/windows/common/agent",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

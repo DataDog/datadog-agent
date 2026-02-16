@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "adlistener",
+    srcs = ["ad.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/util/adlistener",
+    visibility = ["//pkg/logs:__subpackages__"],
+    deps = [
+        "//comp/core/autodiscovery",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/scheduler",
+    ],
+)
+
+go_test(
+    name = "adlistener_test",
+    srcs = ["ad_test.go"],
+    embed = [":adlistener"],
+    deps = [
+        "//comp/core",
+        "//comp/core/autodiscovery",
+        "//comp/core/autodiscovery/autodiscoveryimpl",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/scheduler",
+        "//comp/core/secrets/def",
+        "//comp/core/secrets/mock",
+        "//comp/core/workloadfilter/fx-mock",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx-mock",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)

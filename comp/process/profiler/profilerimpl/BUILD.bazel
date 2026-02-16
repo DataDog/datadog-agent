@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "profilerimpl",
+    srcs = ["profiler.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/process/profiler/profilerimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/process/profiler",
+        "//pkg/config/setup",
+        "//pkg/util/fxutil",
+        "//pkg/util/log",
+        "//pkg/util/profiling",
+        "//pkg/version",
+        "@org_uber_go_fx//:fx",
+    ],
+)

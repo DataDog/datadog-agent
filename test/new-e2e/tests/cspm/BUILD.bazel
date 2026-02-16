@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "cspm_test",
+    srcs = ["cspm_test.go"],
+    embedsrcs = ["values.yaml"],
+    deps = [
+        "//test/e2e-framework/components/datadog/kubernetesagentparams",
+        "//test/e2e-framework/scenarios/aws/kindvm",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/fields",
+    ],
+)

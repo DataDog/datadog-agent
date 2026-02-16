@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "processdiscoverycheckimpl",
+    srcs = ["check.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/process/processdiscoverycheck/processdiscoverycheckimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/sysprobeconfig",
+        "//comp/process/processdiscoverycheck",
+        "//comp/process/types",
+        "//pkg/process/checks",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "processdiscoverycheckimpl_test",
+    srcs = ["check_test.go"],
+    embed = [":processdiscoverycheckimpl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/sysprobeconfig/sysprobeconfigimpl",
+        "//comp/process/processdiscoverycheck",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
+    ],
+)

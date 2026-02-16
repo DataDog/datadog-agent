@@ -1,0 +1,11 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "tests_test",
+    srcs = ["collisions_test.go"],
+    deps = [
+        "//pkg/aggregator/ckey",
+        "//pkg/tagset",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

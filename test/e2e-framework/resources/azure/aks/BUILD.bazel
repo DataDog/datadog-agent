@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "aks",
+    srcs = ["cluster.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/resources/azure/aks",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common/config",
+        "//test/e2e-framework/common/utils",
+        "//test/e2e-framework/resources/azure",
+    ],
+)

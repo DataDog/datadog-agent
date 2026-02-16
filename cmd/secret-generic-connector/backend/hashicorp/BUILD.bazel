@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "hashicorp",
+    srcs = ["vault.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/secret-generic-connector/backend/hashicorp",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/secret-generic-connector/secret",
+        "@com_github_hashicorp_vault_api//:api",
+        "@com_github_hashicorp_vault_api_auth_approle//:approle",
+        "@com_github_hashicorp_vault_api_auth_aws//:aws",
+        "@com_github_hashicorp_vault_api_auth_ldap//:ldap",
+        "@com_github_hashicorp_vault_api_auth_userpass//:userpass",
+        "@com_github_mitchellh_mapstructure//:mapstructure",
+        "@com_github_qri_io_jsonpointer//:jsonpointer",
+    ],
+)
+
+go_test(
+    name = "hashicorp_test",
+    srcs = ["vault_test.go"],
+    embed = [":hashicorp"],
+    deps = [
+        "//cmd/secret-generic-connector/secret",
+        "@com_github_hashicorp_vault//http",
+        "@com_github_hashicorp_vault//vault",
+        "@com_github_hashicorp_vault_api//:api",
+        "@com_github_hashicorp_vault_api_auth_aws//:aws",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "stats",
+    srcs = [
+        "stats.go",
+        "util.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/check/stats",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/haagent/def",
+        "//comp/healthplatform/def",
+        "//pkg/collector/check/id",
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/telemetry",
+        "//pkg/util/log",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@com_github_go_viper_mapstructure_v2//:mapstructure",
+    ],
+)
+
+go_test(
+    name = "stats_test",
+    srcs = [
+        "stats_test.go",
+        "util_test.go",
+    ],
+    embed = [":stats"],
+    deps = [
+        "//comp/core/telemetry/telemetryimpl",
+        "//comp/healthplatform/mock",
+        "//pkg/collector/check/id",
+        "//pkg/config/mock",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

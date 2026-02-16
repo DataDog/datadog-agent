@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "common",
+    srcs = [
+        "constants.go",
+        "doc.go",
+        "oidtrie.go",
+        "testing.go",
+        "utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common",
+    visibility = ["//pkg/collector/corechecks/snmp:__subpackages__"],
+    deps = ["//pkg/util/log"],
+)
+
+go_test(
+    name = "common_test",
+    srcs = [
+        "oidtrie_test.go",
+        "utils_test.go",
+    ],
+    embed = [":common"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

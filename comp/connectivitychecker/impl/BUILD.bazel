@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["connectivitychecker.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/connectivitychecker/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/connectivitychecker/checker",
+        "//comp/connectivitychecker/def",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/def",
+        "//comp/metadata/inventoryagent",
+        "//pkg/config/model",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["connectivitychecker_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/log/mock",
+        "//comp/def",
+        "//pkg/config/mock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

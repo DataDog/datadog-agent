@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "hostinfo",
+    srcs = ["hostinfo.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cloud/hostinfo",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/metrics/event",
+        "//pkg/util/cloudproviders",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "@com_github_shirou_gopsutil_v4//host",
+    ],
+)
+
+go_test(
+    name = "hostinfo_test",
+    srcs = ["hostinfo_test.go"],
+    embed = [":hostinfo"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/metrics/event",
+        "//pkg/util/cloudproviders",
+        "@com_github_shirou_gopsutil_v4//host",
+        "@com_github_stretchr_testify//mock",
+    ],
+)

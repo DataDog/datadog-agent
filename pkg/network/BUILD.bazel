@@ -1,0 +1,214 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "network",
+    srcs = [
+        "buffer.go",
+        "client_pool.go",
+        "conn_filter.go",
+        "dns.go",
+        "ephemeral_linux.go",
+        "ephemeral_unsupported.go",
+        "ephemeral_windows.go",
+        "event_common.go",
+        "event_common_notlinux.go",
+        "event_common_string.go",
+        "event_common_windows.go",
+        "event_windows.go",
+        "gateway_lookup.go",
+        "gateway_lookup_linux.go",
+        "gateway_lookup_unsupported.go",
+        "mock_gateway_lookup.go",
+        "nat.go",
+        "port.go",
+        "proc_net.go",
+        "resolver.go",
+        "route_cache.go",
+        "ssl.go",
+        "state.go",
+        "time_converter_windows.go",
+        "usm_connection_keys.go",
+        "usm_unsupported.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/telemetry",
+        "//pkg/network/dns",
+        "//pkg/network/payload",
+        "//pkg/network/protocols",
+        "//pkg/network/protocols/tls",
+        "//pkg/network/slice",
+        "//pkg/process/util",
+        "//pkg/telemetry",
+        "//pkg/util/intern",
+        "//pkg/util/log",
+        "@com_github_dustin_go_humanize//:go-humanize",
+        "@com_github_golang_mock//gomock",
+        "@com_github_vishvananda_netns//:netns",
+        "@org_go4_intern//:intern",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/network/types",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/config/setup",
+            "//pkg/config/utils",
+            "//pkg/network/config/sysctl",
+            "//pkg/network/types",
+            "//pkg/util/ec2",
+            "//pkg/util/fargate",
+            "//pkg/util/kernel",
+            "//pkg/util/kernel/netns",
+            "@com_github_golang_groupcache//lru",
+            "@com_github_hashicorp_golang_lru_v2//simplelru",
+            "@com_github_vishvananda_netlink//:netlink",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/network/types",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/network/types",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/network/types",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/network/types",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/network/types",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/network/types",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/config/setup",
+            "//pkg/config/utils",
+            "//pkg/network/config/sysctl",
+            "//pkg/network/types",
+            "//pkg/util/ec2",
+            "//pkg/util/fargate",
+            "//pkg/util/kernel",
+            "//pkg/util/kernel/netns",
+            "@com_github_golang_groupcache//lru",
+            "@com_github_hashicorp_golang_lru_v2//simplelru",
+            "@com_github_vishvananda_netlink//:netlink",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/network/types",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/network/types",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/network/types",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/network/types",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/network/types",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/network/types",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/network/driver",
+            "//pkg/network/types",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "network_test",
+    srcs = [
+        "buffer_test.go",
+        "client_pool_test.go",
+        "dns_test.go",
+        "event_linux_test.go",
+        "event_test.go",
+        "event_windows_test.go",
+        "mock_route_cache_test.go",
+        "proc_net_test.go",
+        "resolver_test.go",
+        "route_cache_test.go",
+        "state_intrahost_test.go",
+        "state_test.go",
+        "usm_connection_keys_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":network"],
+    deps = [
+        "//pkg/network/dns",
+        "//pkg/network/slice",
+        "//pkg/process/util",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_go4_intern//:intern",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/network/types",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/config/setup",
+            "//pkg/network/types",
+            "@com_github_golang_mock//gomock",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/network/types",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/network/types",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/network/types",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/network/types",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/network/types",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/network/types",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/config/setup",
+            "//pkg/network/types",
+            "@com_github_golang_mock//gomock",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/network/types",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/network/types",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/network/types",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/network/types",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/network/types",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/network/types",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/config/setup",
+            "//pkg/network/driver",
+            "//pkg/network/protocols",
+            "//pkg/network/types",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "//conditions:default": [],
+    }),
+)

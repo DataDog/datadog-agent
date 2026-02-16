@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "k8sapply",
+    srcs = ["component.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/k8sapply",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common/config",
+        "//test/e2e-framework/components/kubernetes",
+    ],
+)

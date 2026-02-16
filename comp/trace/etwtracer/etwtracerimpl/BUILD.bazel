@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "etwtracerimpl",
+    srcs = ["etwtracerimpl.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/trace/etwtracer/etwtracerimpl",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//comp/core/log/def",
+            "//comp/etw",
+            "//comp/trace/etwtracer",
+            "//pkg/util/fxutil",
+            "@com_github_alecthomas_units//:units",
+            "@com_github_microsoft_go_winio//:go-winio",
+            "@org_golang_x_sys//windows",
+            "@org_uber_go_fx//:fx",
+        ],
+        "//conditions:default": [],
+    }),
+)

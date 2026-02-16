@@ -1,0 +1,54 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "transform",
+    srcs = [
+        "obfuscate.go",
+        "transform.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/trace/transform",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/obfuscate",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes/source",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/trace/config",
+        "//pkg/trace/otel/traceutil",
+        "//pkg/trace/sampler",
+        "//pkg/trace/traceutil",
+        "//pkg/trace/traceutil/normalize",
+        "//pkg/util/log",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+        "@io_opentelemetry_go_otel//semconv/v1.17.0:v1_17_0",
+        "@io_opentelemetry_go_otel//semconv/v1.26.0:v1_26_0",
+        "@io_opentelemetry_go_otel//semconv/v1.27.0:v1_27_0",
+        "@io_opentelemetry_go_otel//semconv/v1.6.1:v1_6_1",
+    ],
+)
+
+go_test(
+    name = "transform_test",
+    srcs = [
+        "obfuscate_test.go",
+        "transform_test.go",
+    ],
+    embed = [":transform"],
+    deps = [
+        "//pkg/obfuscate",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/trace/config",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+        "@io_opentelemetry_go_otel//semconv/v1.17.0:v1_17_0",
+        "@io_opentelemetry_go_otel//semconv/v1.26.0:v1_26_0",
+        "@io_opentelemetry_go_otel//semconv/v1.27.0:v1_27_0",
+        "@io_opentelemetry_go_otel//semconv/v1.6.1:v1_6_1",
+        "@io_opentelemetry_go_otel_metric//noop",
+    ],
+)

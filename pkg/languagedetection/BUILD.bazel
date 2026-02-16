@@ -1,0 +1,112 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "languagedetection",
+    srcs = [
+        "detector.go",
+        "parsing.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/languagedetection",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/languagedetection/internal/detectors",
+        "//pkg/languagedetection/languagemodels",
+        "//pkg/proto/pbgo/languagedetection",
+        "//pkg/system-probe/api/client",
+        "//pkg/system-probe/config",
+        "//pkg/telemetry",
+        "//pkg/util/log",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
+
+go_test(
+    name = "languagedetection_test",
+    srcs = [
+        "detector_linux_test.go",
+        "detector_nix_test.go",
+        "detector_test.go",
+        "detector_windows_test.go",
+    ],
+    embed = [":languagedetection"],
+    deps = [
+        "//pkg/process/procutil",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/languagedetection/languagemodels",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/config/mock",
+            "//pkg/languagedetection/languagemodels",
+            "//pkg/proto/pbgo/languagedetection",
+            "//pkg/system-probe/api/server",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_google_protobuf//proto",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/languagedetection/languagemodels",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/languagedetection/languagemodels",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/languagedetection/languagemodels",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/languagedetection/languagemodels",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/languagedetection/languagemodels",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/languagedetection/languagemodels",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/config/mock",
+            "//pkg/languagedetection/languagemodels",
+            "//pkg/proto/pbgo/languagedetection",
+            "//pkg/system-probe/api/server",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_google_protobuf//proto",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/languagedetection/languagemodels",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/languagedetection/languagemodels",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/languagedetection/languagemodels",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/languagedetection/languagemodels",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/languagedetection/languagemodels",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/languagedetection/languagemodels",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/languagedetection/languagemodels",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
+)

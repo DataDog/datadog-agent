@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "service",
+    srcs = [
+        "service.go",
+        "services.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/service",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/util/log"],
+)
+
+go_test(
+    name = "service_test",
+    srcs = ["services_test.go"],
+    embed = [":service"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

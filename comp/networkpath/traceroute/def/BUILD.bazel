@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "def",
+    srcs = ["component.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/networkpath/payload",
+        "//pkg/networkpath/traceroute/config",
+    ],
+)

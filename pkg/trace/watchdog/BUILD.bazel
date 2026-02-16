@@ -1,0 +1,79 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "watchdog",
+    srcs = [
+        "cpu.go",
+        "cpu_aix.go",
+        "cpu_windows.go",
+        "info.go",
+        "logonpanic.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/trace/watchdog",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/trace/log",
+        "@com_github_datadog_datadog_go_v5//statsd",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "@com_github_shirou_gopsutil_v4//process",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@com_github_shirou_gopsutil_v4//process",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "@com_github_shirou_gopsutil_v4//process",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "@com_github_shirou_gopsutil_v4//process",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "@com_github_shirou_gopsutil_v4//process",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_shirou_gopsutil_v4//process",
+        ],
+        "@rules_go//go/platform:js": [
+            "@com_github_shirou_gopsutil_v4//process",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_shirou_gopsutil_v4//process",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "@com_github_shirou_gopsutil_v4//process",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "@com_github_shirou_gopsutil_v4//process",
+        ],
+        "@rules_go//go/platform:osx": [
+            "@com_github_shirou_gopsutil_v4//process",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "@com_github_shirou_gopsutil_v4//process",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "@com_github_shirou_gopsutil_v4//process",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "@com_github_shirou_gopsutil_v4//process",
+        ],
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "watchdog_test",
+    srcs = [
+        "info_test.go",
+        "logonpanic_test.go",
+    ],
+    embed = [":watchdog"],
+    deps = [
+        "//pkg/trace/log",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

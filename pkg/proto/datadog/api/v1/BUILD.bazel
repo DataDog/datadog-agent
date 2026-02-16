@@ -1,0 +1,44 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//proto:def.bzl", "go_proto_library")
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "core_proto",
+    srcs = ["api.proto"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//datadog/autodiscovery:autodiscovery_proto",
+        "//datadog/model/v1:v1_proto",
+        "//datadog/remoteagent:remoteagent_proto",
+        "//datadog/remoteconfig:remoteconfig_proto",
+        "//datadog/workloadfilter:workloadfilter_proto",
+        "//datadog/workloadmeta:workloadmeta_proto",
+        "@com_google_protobuf//:empty_proto",
+    ],
+)
+
+go_proto_library(
+    name = "core_go_proto",
+    compilers = [
+        "@io_bazel_rules_go//proto:go_grpc_v2",
+        "@io_bazel_rules_go//proto:go_proto",
+    ],
+    importpath = "pkg/proto/pbgo/core",
+    proto = ":core_proto",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//datadog/autodiscovery:autodiscovery_proto",
+        "//datadog/model/v1:model_proto",
+        "//datadog/remoteagent:remoteagent_proto",
+        "//datadog/remoteconfig:remoteconfig_proto",
+        "//datadog/workloadfilter:workloadfilter_proto",
+        "//datadog/workloadmeta:workloadmeta_proto",
+    ],
+)
+
+go_library(
+    name = "core",
+    embed = [":core_go_proto"],
+    importpath = "pkg/proto/pbgo/core",
+    visibility = ["//visibility:public"],
+)

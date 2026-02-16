@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tag",
+    srcs = [
+        "local_provider.go",
+        "provider.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/tag",
+    visibility = ["//pkg/logs:__subpackages__"],
+    deps = [
+        "//comp/core/tagger/types",
+        "//comp/logs/agent/config",
+        "//comp/metadata/host/hostimpl/hosttags",
+        "//pkg/config/setup",
+        "//pkg/util/log",
+        "@com_github_benbjohnson_clock//:clock",
+    ],
+)
+
+go_test(
+    name = "tag_test",
+    srcs = [
+        "local_provider_test.go",
+        "provider_benchmark_test.go",
+        "provider_test.go",
+    ],
+    embed = [":tag"],
+    deps = [
+        "//comp/core/tagger/types",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

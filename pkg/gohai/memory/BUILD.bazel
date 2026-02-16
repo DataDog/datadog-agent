@@ -1,0 +1,54 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "memory",
+    srcs = [
+        "memory.go",
+        "memory_darwin.go",
+        "memory_linux.go",
+        "memory_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/gohai/memory",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/gohai/utils",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "memory_test",
+    srcs = [
+        "memory_linux_test.go",
+        "memory_test.go",
+    ],
+    embed = [":memory"],
+    deps = [
+        "//pkg/gohai/utils",
+        "@com_github_stretchr_testify//assert",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "metadata",
+    srcs = [
+        "clients_nodocker.go",
+        "doc.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/util/docker",
+        "//pkg/util/ecs/common",
+        "//pkg/util/ecs/metadata/v1:metadata",
+        "//pkg/util/ecs/metadata/v2:metadata",
+        "//pkg/util/ecs/metadata/v3or4",
+    ],
+)

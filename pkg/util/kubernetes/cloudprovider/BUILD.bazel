@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "cloudprovider",
+    srcs = [
+        "cloudprovider.go",
+        "cloudprovider_no.go",
+        "doc.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/cloudprovider",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/setup/constants",
+        "//pkg/util/cache",
+        "//pkg/util/clusteragent",
+        "//pkg/util/kubernetes/hostinfo",
+    ],
+)
+
+go_test(
+    name = "cloudprovider_test",
+    srcs = ["cloudprovider_test.go"],
+    embed = [":cloudprovider"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

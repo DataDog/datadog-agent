@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "subcommands",
+    srcs = ["subcommands.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/system-probe/command",
+        "//cmd/system-probe/subcommands/compliance",
+        "//cmd/system-probe/subcommands/config",
+        "//cmd/system-probe/subcommands/coverage",
+        "//cmd/system-probe/subcommands/debug",
+        "//cmd/system-probe/subcommands/ebpf",
+        "//cmd/system-probe/subcommands/modrestart",
+        "//cmd/system-probe/subcommands/run",
+        "//cmd/system-probe/subcommands/runtime",
+        "//cmd/system-probe/subcommands/usm",
+        "//cmd/system-probe/subcommands/version",
+    ],
+)

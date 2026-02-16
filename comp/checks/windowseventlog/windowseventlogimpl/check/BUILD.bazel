@@ -1,0 +1,140 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "check",
+    srcs = [
+        "bookmark_saver.go",
+        "check.go",
+        "config.go",
+        "config_helpers.go",
+        "ddevent_submitter.go",
+        "ddlog_submitter.go",
+        "eventdata_filter.go",
+        "eventdata_getter.go",
+        "filters.go",
+        "message_filter.go",
+        "subscription.go",
+        "unsupported_platforms.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/windowseventlogimpl/check",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//comp/checks/windowseventlog/windowseventlogimpl/check/eventdatafilter",
+            "//comp/core/autodiscovery/integration",
+            "//comp/core/config",
+            "//comp/logs/agent",
+            "//comp/logs/agent/config",
+            "//comp/publishermetadatacache/def",
+            "//pkg/aggregator/sender",
+            "//pkg/collector/check",
+            "//pkg/collector/corechecks",
+            "//pkg/logs/message",
+            "//pkg/logs/sources",
+            "//pkg/logs/util/windowsevent",
+            "//pkg/metrics/event",
+            "//pkg/persistentcache",
+            "//pkg/util/log",
+            "//pkg/util/option",
+            "//pkg/util/winutil/eventlog/api",
+            "//pkg/util/winutil/eventlog/api/windows",
+            "//pkg/util/winutil/eventlog/bookmark",
+            "//pkg/util/winutil/eventlog/session",
+            "//pkg/util/winutil/eventlog/subscription",
+            "@in_gopkg_yaml_v2//:yaml_v2",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "check_test",
+    srcs = [
+        "check_test.go",
+        "config_test.go",
+        "filters_test.go",
+    ],
+    embed = [":check"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//comp/core/autodiscovery/integration",
+            "//pkg/collector/check",
+            "//pkg/config/mock",
+            "//pkg/metrics/event",
+            "//pkg/persistentcache",
+            "//pkg/util/option",
+            "//pkg/util/winutil/eventlog/api",
+            "//pkg/util/winutil/eventlog/publishermetadatacache",
+            "//pkg/util/winutil/eventlog/reporter",
+            "//pkg/util/winutil/eventlog/test",
+            "@com_github_datadog_datadog_agent_pkg_util_testutil//flake",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//mock",
+            "@com_github_stretchr_testify//require",
+            "@com_github_stretchr_testify//suite",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)

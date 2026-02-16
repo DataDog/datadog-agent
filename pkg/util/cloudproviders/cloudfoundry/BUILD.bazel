@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "cloudfoundry",
+    srcs = [
+        "cloudfoundry.go",
+        "garden.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/setup",
+        "//pkg/util/log",
+        "//pkg/util/net",
+        "//pkg/util/retry",
+        "@org_cloudfoundry_code_garden//:garden",
+        "@org_cloudfoundry_code_garden//client",
+        "@org_cloudfoundry_code_garden//client/connection",
+    ],
+)
+
+go_test(
+    name = "cloudfoundry_test",
+    srcs = [
+        "cloudfoundry_test.go",
+        "garden_test.go",
+    ],
+    embed = [":cloudfoundry"],
+    deps = [
+        "//pkg/config/mock",
+        "//pkg/util/net",
+        "@com_github_stretchr_testify//assert",
+        "@org_cloudfoundry_code_garden//:garden",
+        "@org_cloudfoundry_code_garden//gardenfakes",
+    ],
+)

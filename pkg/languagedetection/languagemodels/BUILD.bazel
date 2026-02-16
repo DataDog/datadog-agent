@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "languagemodels",
+    srcs = [
+        "annotations.go",
+        "containerlanguages.go",
+        "detector.go",
+        "language.go",
+        "languageset.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/proto/pbgo/process"],
+)
+
+go_test(
+    name = "languagemodels_test",
+    srcs = [
+        "annotations_test.go",
+        "containerlanguages_test.go",
+        "languageset_test.go",
+    ],
+    embed = [":languagemodels"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

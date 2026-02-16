@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "infra_test",
+    srcs = [
+        "basic_common_test.go",
+        "basic_nix_test.go",
+        "basic_win_test.go",
+        "eudm_common_test.go",
+        "eudm_win_test.go",
+        "utils_test.go",
+    ],
+    embedsrcs = ["fixtures/custom_mycheck.py"],
+    deps = [
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/e2e-framework/testing/testcommon/check",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclient",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

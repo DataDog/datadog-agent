@@ -1,0 +1,113 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "system",
+    srcs = [
+        "cpu.go",
+        "cpu_unix.go",
+        "cpu_windows.go",
+        "dlopen_linux.go",
+        "dlopen_other.go",
+        "file_linux.go",
+        "namespace_linux.go",
+        "network.go",
+        "network_linux.go",
+        "network_stub.go",
+        "network_windows.go",
+    ],
+    cgo = True,
+    clinkopts = select({
+        "@rules_go//go/platform:android": [
+            "-ldl",
+        ],
+        "@rules_go//go/platform:linux": [
+            "-ldl",
+        ],
+        "//conditions:default": [],
+    }),
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/system",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/log",
+        "@org_uber_go_atomic//:atomic",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/util/filesystem",
+            "//pkg/util/pointer",
+            "@com_github_shirou_gopsutil_v4//cpu",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+        ],
+        "@rules_go//go/platform:js": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/filesystem",
+            "//pkg/util/pointer",
+            "@com_github_shirou_gopsutil_v4//cpu",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+        ],
+        "@rules_go//go/platform:osx": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil/iphelper",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "system_test",
+    srcs = [
+        "file_linux_test.go",
+        "namespace_linux_test.go",
+        "network_linux_test.go",
+        "network_test.go",
+    ],
+    embed = [":system"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/util/testutil",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/testutil",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

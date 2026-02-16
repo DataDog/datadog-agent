@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "packet",
+    srcs = ["packet.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/snmptraps/packet",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_gosnmp_gosnmp//:gosnmp"],
+)
+
+go_test(
+    name = "packet_test",
+    srcs = ["packet_test.go"],
+    embed = [":packet"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

@@ -1,0 +1,37 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "observability",
+    srcs = [
+        "logging.go",
+        "telemetry.go",
+        "utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/telemetry",
+        "//pkg/util/log",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_gorilla_mux//:mux",
+        "@com_github_urfave_negroni//:negroni",
+    ],
+)
+
+go_test(
+    name = "observability_test",
+    srcs = [
+        "logging_test.go",
+        "telemetry_test.go",
+        "utils_test.go",
+    ],
+    embed = [":observability"],
+    deps = [
+        "//comp/core/telemetry",
+        "//comp/core/telemetry/telemetryimpl",
+        "//pkg/util/fxutil",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,111 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "capture.go",
+        "file.go",
+        "file_common.go",
+        "reader.go",
+        "reader_creator.go",
+        "reader_nix.go",
+        "reader_windows.go",
+        "util_linux.go",
+        "util_nolinux.go",
+        "writer.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/proto",
+        "//comp/core/tagger/types",
+        "//comp/def",
+        "//comp/dogstatsd/packets",
+        "//comp/dogstatsd/replay/def",
+        "//pkg/config/model",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/log",
+        "@com_github_datadog_zstd//:zstd",
+        "@com_github_h2non_filetype//:filetype",
+        "@com_github_h2non_filetype//matchers",
+        "@com_github_spf13_afero//:afero",
+        "@org_golang_google_protobuf//proto",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:android": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:js": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:osx": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "impl_test",
+    srcs = [
+        "file_test.go",
+        "reader_test.go",
+        "writer_test.go",
+    ],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/telemetry",
+        "//comp/core/telemetry/noopsimpl",
+        "//comp/dogstatsd/packets",
+        "//comp/dogstatsd/replay/def",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/fxutil",
+        "//pkg/util/sync",
+        "@com_github_datadog_zstd//:zstd",
+        "@com_github_spf13_afero//:afero",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)

@@ -1,0 +1,37 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "formatters",
+    srcs = [
+        "context.go",
+        "date.go",
+        "docs.go",
+        "file.go",
+        "level.go",
+        "quote.go",
+        "short_function.go",
+        "utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/log/slog/formatters",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/util/log/types"],
+)
+
+go_test(
+    name = "formatters_test",
+    srcs = [
+        "context_test.go",
+        "date_test.go",
+        "file_test.go",
+        "level_test.go",
+        "quote_test.go",
+        "short_function_test.go",
+        "template_test.go",
+    ],
+    embed = [":formatters"],
+    deps = [
+        "//pkg/util/log/types",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

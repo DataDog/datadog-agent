@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "version",
+    srcs = ["version.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/process-agent/subcommands/version",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/process-agent/command",
+        "//pkg/cli/subcommands/version",
+        "@com_github_spf13_cobra//:cobra",
+    ],
+)

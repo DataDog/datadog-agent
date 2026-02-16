@@ -1,0 +1,59 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "run",
+    srcs = [
+        "command.go",
+        "service_windows.go",
+        "tagger.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/privateactionrunner/subcommands/run",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/privateactionrunner/command",
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/hostname/remotehostnameimpl",
+        "//comp/core/ipc/fx",
+        "//comp/core/log/def",
+        "//comp/core/secrets/fx-noop",
+        "//comp/core/settings",
+        "//comp/core/settings/settingsimpl",
+        "//comp/core/tagger/fx",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx",
+        "//comp/forwarder/eventplatform/eventplatformimpl",
+        "//comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl",
+        "//comp/networkpath/traceroute/fx-remote",
+        "//comp/privateactionrunner/def",
+        "//comp/privateactionrunner/fx",
+        "//comp/remote-config/rcclient",
+        "//comp/remote-config/rcclient/rcclientimpl",
+        "//comp/remote-config/rcservice/rcserviceimpl",
+        "//comp/serializer/logscompression/fx",
+        "//pkg/config/settings",
+        "//pkg/config/setup",
+        "//pkg/util/fxutil",
+        "//pkg/version",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/defaultpaths",
+            "//pkg/util/winutil/servicemain",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "run_test",
+    srcs = ["service_windows_test.go"],
+    embed = [":run"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
+)

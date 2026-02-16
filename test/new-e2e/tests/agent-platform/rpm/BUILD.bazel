@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "rpm_test",
+    srcs = ["rpm_test.go"],
+    deps = [
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/e2e-framework/testing/utils/e2e/client",
+        "//test/new-e2e/tests/agent-platform/common",
+        "//test/new-e2e/tests/agent-platform/common/file-manager",
+        "//test/new-e2e/tests/agent-platform/common/helper",
+        "//test/new-e2e/tests/agent-platform/platforms",
+        "@com_github_stretchr_testify//require",
+    ],
+)

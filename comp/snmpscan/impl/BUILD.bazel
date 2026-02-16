@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "devicescan.go",
+        "sendpayload.go",
+        "snmpscan.go",
+        "walkdevice.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/snmpscan/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/log/def",
+        "//comp/def",
+        "//comp/forwarder/eventplatform",
+        "//comp/remote-config/rcclient/types",
+        "//comp/snmpscan/def",
+        "//pkg/logs/message",
+        "//pkg/networkdevice/metadata",
+        "//pkg/snmp/gosnmplib",
+        "//pkg/snmp/snmpparse",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+    ],
+)

@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "init",
+    srcs = [
+        "init.go",
+        "init_three.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/rtloader/test/init",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//rtloader/test/common",
+        "//rtloader/test/helpers",
+    ],
+)
+
+go_test(
+    name = "init_test",
+    srcs = ["init_test.go"],
+    embed = [":init"],
+    deps = ["//rtloader/test/helpers"],
+)

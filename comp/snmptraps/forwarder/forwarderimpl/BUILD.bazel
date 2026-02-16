@@ -1,0 +1,41 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "forwarderimpl",
+    srcs = ["forwarder.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/snmptraps/forwarder/forwarderimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/aggregator/demultiplexer",
+        "//comp/core/log/def",
+        "//comp/forwarder/eventplatform",
+        "//comp/snmptraps/config",
+        "//comp/snmptraps/formatter",
+        "//comp/snmptraps/forwarder",
+        "//comp/snmptraps/listener",
+        "//comp/snmptraps/packet",
+        "//pkg/aggregator/sender",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "forwarderimpl_test",
+    srcs = ["forwarder_test.go"],
+    embed = [":forwarderimpl"],
+    deps = [
+        "//comp/forwarder/eventplatform",
+        "//comp/snmptraps/config/configimpl",
+        "//comp/snmptraps/formatter",
+        "//comp/snmptraps/formatter/formatterimpl",
+        "//comp/snmptraps/forwarder",
+        "//comp/snmptraps/listener",
+        "//comp/snmptraps/listener/listenerimpl",
+        "//comp/snmptraps/packet",
+        "//pkg/util/fxutil",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
+)

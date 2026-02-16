@@ -1,0 +1,62 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "logsagentexporter",
+    srcs = [
+        "factory.go",
+        "logs_exporter.go",
+        "orchestrator_exporter.go",
+        "telemetry.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/telemetry",
+        "//comp/core/telemetry/noopsimpl",
+        "//comp/logs/agent/config",
+        "//pkg/logs/message",
+        "//pkg/logs/sources",
+        "//pkg/opentelemetry-mapping-go/inframetadata",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes",
+        "//pkg/opentelemetry-mapping-go/otlp/logs",
+        "//pkg/orchestrator/util",
+        "//pkg/util/otel",
+        "//pkg/util/scrubber",
+        "//pkg/version",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog//config",
+        "@com_github_patrickmn_go_cache//:go-cache",
+        "@io_opentelemetry_go_collector_component//:component",
+        "@io_opentelemetry_go_collector_config_configoptional//:configoptional",
+        "@io_opentelemetry_go_collector_config_configretry//:configretry",
+        "@io_opentelemetry_go_collector_exporter//:exporter",
+        "@io_opentelemetry_go_collector_exporter_exporterhelper//:exporterhelper",
+        "@io_opentelemetry_go_collector_pdata//plog",
+        "@org_uber_go_zap//:zap",
+    ],
+)
+
+go_test(
+    name = "logsagentexporter_test",
+    srcs = [
+        "logs_exporter_test.go",
+        "orchestrator_exporter_test.go",
+    ],
+    embed = [":logsagentexporter"],
+    deps = [
+        "//comp/otelcol/otlp/testutil",
+        "//pkg/logs/message",
+        "//pkg/opentelemetry-mapping-go/otlp/logs",
+        "//pkg/util/otel",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_patrickmn_go_cache//:go-cache",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_component//:component",
+        "@io_opentelemetry_go_collector_exporter_exportertest//:exportertest",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//plog",
+        "@org_uber_go_zap//:zap",
+    ],
+)

@@ -1,0 +1,55 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "metrics",
+    srcs = [
+        "docs.go",
+        "events.go",
+        "iterable_series.go",
+        "iterable_series_v3.go",
+        "origin_mapping.go",
+        "pipeline.go",
+        "service_checks.go",
+        "sketch_series_list.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics",
+    visibility = ["//pkg/serializer:__subpackages__"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/forwarder/defaultforwarder/resolver",
+        "//comp/forwarder/defaultforwarder/transaction",
+        "//comp/serializer/metricscompression/def",
+        "//pkg/metrics",
+        "//pkg/metrics/event",
+        "//pkg/metrics/servicecheck",
+        "//pkg/serializer/internal/stream",
+        "//pkg/serializer/marshaler",
+        "//pkg/tagset",
+        "//pkg/telemetry",
+        "//pkg/util/compression/selector",
+        "//pkg/util/json",
+        "@com_github_json_iterator_go//:go",
+        "@com_github_richardartoul_molecule//:molecule",
+        "@com_github_twmb_murmur3//:murmur3",
+    ],
+)
+
+go_test(
+    name = "metrics_test",
+    srcs = [
+        "pipeline_test.go",
+        "series_benchmark_test.go",
+    ],
+    embed = [":metrics"],
+    deps = [
+        "//comp/forwarder/defaultforwarder/endpoints",
+        "//comp/forwarder/defaultforwarder/resolver",
+        "//comp/forwarder/defaultforwarder/transaction",
+        "//pkg/config/utils",
+        "//pkg/metrics",
+        "//pkg/tagset",
+        "//pkg/util/testutil",
+        "@com_github_stretchr_testify//require",
+    ],
+)

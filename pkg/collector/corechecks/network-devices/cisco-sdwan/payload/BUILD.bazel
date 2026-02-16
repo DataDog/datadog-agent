@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "payload",
+    srcs = [
+        "cedge_interface.go",
+        "devices.go",
+        "interfaces.go",
+        "vedge_interface.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/payload",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/collector/corechecks/network-devices/cisco-sdwan/client",
+        "//pkg/networkdevice/metadata",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "payload_test",
+    srcs = [
+        "cedge_interface_test.go",
+        "devices_test.go",
+        "interfaces_test.go",
+        "vedge_interface_test.go",
+    ],
+    embed = [":payload"],
+    deps = [
+        "//pkg/collector/corechecks/network-devices/cisco-sdwan/client",
+        "//pkg/networkdevice/metadata",
+        "@com_github_stretchr_testify//require",
+    ],
+)

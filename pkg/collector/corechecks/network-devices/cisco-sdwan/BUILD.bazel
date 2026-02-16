@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "cisco-sdwan",
+    srcs = ["sdwan.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/collector/corechecks/network-devices/cisco-sdwan/client",
+        "//pkg/collector/corechecks/network-devices/cisco-sdwan/payload",
+        "//pkg/collector/corechecks/network-devices/cisco-sdwan/report",
+        "//pkg/snmp/utils",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)

@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "coverage",
+    srcs = ["command_nocoverage.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/coverage",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/security-agent/command",
+        "@com_github_spf13_cobra//:cobra",
+    ],
+)

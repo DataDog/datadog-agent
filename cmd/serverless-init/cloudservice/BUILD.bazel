@@ -1,0 +1,53 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "cloudservice",
+    srcs = [
+        "appservice.go",
+        "cloudrun.go",
+        "cloudrun_jobs.go",
+        "containerapp.go",
+        "service.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/serverless-init/exitcode",
+        "//cmd/serverless-init/metric",
+        "//cmd/serverless-init/trace",
+        "//pkg/config/setup",
+        "//pkg/metrics",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/serverless/metrics",
+        "//pkg/trace/api",
+        "//pkg/trace/traceutil",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "cloudservice_test",
+    srcs = [
+        "appservice_test.go",
+        "cloudrun_jobs_test.go",
+        "cloudrun_test.go",
+        "containerapp_test.go",
+        "service_test.go",
+    ],
+    embed = [":cloudservice"],
+    deps = [
+        "//comp/aggregator/demultiplexer",
+        "//comp/aggregator/demultiplexer/demultiplexerimpl",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//pkg/serverless/metrics",
+        "//pkg/trace/api",
+        "//pkg/util/fxutil",
+        "@com_github_datadog_datadog_agent_comp_serializer_logscompression//fx-mock",
+        "@com_github_datadog_datadog_agent_comp_serializer_metricscompression//fx-mock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
+)

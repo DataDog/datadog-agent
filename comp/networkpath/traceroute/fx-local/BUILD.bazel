@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx-local",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-local",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/networkpath/traceroute/def",
+        "//comp/networkpath/traceroute/impl-local",
+        "//pkg/util/fxutil",
+    ],
+)

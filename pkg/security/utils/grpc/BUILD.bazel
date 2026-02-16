@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "grpc",
+    srcs = ["grpc.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/utils/grpc",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/security/seclog",
+        "//pkg/util/grpc",
+        "@com_github_mdlayher_vsock//:vsock",
+        "@org_golang_google_grpc//:grpc",
+    ],
+)

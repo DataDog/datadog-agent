@@ -1,0 +1,39 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "settings",
+    srcs = [
+        "api.go",
+        "runtime_profiling.go",
+        "runtime_profiling_common.go",
+        "runtime_setting.go",
+        "runtime_setting_activity_dump.go",
+        "runtime_setting_block_profile_rate.go",
+        "runtime_setting_dogstatsd_stream_log_too_big.go",
+        "runtime_setting_log_level.go",
+        "runtime_setting_log_payloads.go",
+        "runtime_setting_mutex_profile_fraction.go",
+        "runtime_setting_profiling.go",
+        "runtine_setting_profiling_goroutines.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/settings",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/settings",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/util/log",
+        "//pkg/util/profiling",
+        "@com_github_fatih_color//:color",
+        "@com_github_spf13_cobra//:cobra",
+    ],
+)
+
+go_test(
+    name = "settings_test",
+    srcs = ["runtime_settings_test.go"],
+    embed = [":settings"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

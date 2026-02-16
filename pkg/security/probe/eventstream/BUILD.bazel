@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "eventstream",
+    srcs = [
+        "eventstream.go",
+        "monitor.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/probe/eventstream",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/ebpf/probes",
+            "//pkg/security/metrics",
+            "//pkg/security/probe/config",
+            "//pkg/security/probe/erpc",
+            "//pkg/security/secl/model",
+            "//pkg/security/utils",
+            "//pkg/util/log",
+            "@com_github_alecthomas_units//:units",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/ebpf/probes",
+            "//pkg/security/metrics",
+            "//pkg/security/probe/config",
+            "//pkg/security/probe/erpc",
+            "//pkg/security/secl/model",
+            "//pkg/security/utils",
+            "//pkg/util/log",
+            "@com_github_alecthomas_units//:units",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "//conditions:default": [],
+    }),
+)

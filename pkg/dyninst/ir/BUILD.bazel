@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "ir",
+    srcs = [
+        "doc.go",
+        "event_kind.go",
+        "event_kind_string.go",
+        "issue.go",
+        "issuekind_string.go",
+        "probe_definition.go",
+        "probe_kind.go",
+        "probe_kind_string.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/ir",
+    visibility = ["//visibility:public"],
+)

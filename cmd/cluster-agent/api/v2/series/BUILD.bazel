@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "series",
+    srcs = [
+        "doc.go",
+        "series_nocompile.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v2/series",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "@com_github_gorilla_mux//:mux",
+    ],
+)

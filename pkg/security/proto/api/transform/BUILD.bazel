@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "transform",
+    srcs = ["kfilters.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/proto/api/transform",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/security/probe/kfilters",
+        "//pkg/security/proto/api",
+        "//pkg/security/secl/compiler/eval",
+        "//pkg/security/secl/rules",
+    ],
+)

@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl-pipeline",
+    srcs = ["no_otlp.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/collector/impl-pipeline",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/otelcol/collector/def",
+        "//comp/otelcol/otlp/datatype",
+    ],
+)

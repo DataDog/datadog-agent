@@ -1,0 +1,133 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "config",
+    srcs = [
+        "config.go",
+        "config_nix.go",
+        "config_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/config",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@in_gopkg_evanphx_json_patch_v4//:json-patch_v4",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/fleet/installer/packages/file",
+            "//pkg/fleet/installer/symlink",
+            "//pkg/fleet/installer/telemetry",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/fleet/installer/packages/file",
+            "//pkg/fleet/installer/symlink",
+            "//pkg/fleet/installer/telemetry",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/fleet/installer/packages/file",
+            "//pkg/fleet/installer/symlink",
+            "//pkg/fleet/installer/telemetry",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/fleet/installer/packages/file",
+            "//pkg/fleet/installer/symlink",
+            "//pkg/fleet/installer/telemetry",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/fleet/installer/packages/file",
+            "//pkg/fleet/installer/symlink",
+            "//pkg/fleet/installer/telemetry",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/fleet/installer/packages/file",
+            "//pkg/fleet/installer/symlink",
+            "//pkg/fleet/installer/telemetry",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/fleet/installer/packages/file",
+            "//pkg/fleet/installer/symlink",
+            "//pkg/fleet/installer/telemetry",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/fleet/installer/packages/file",
+            "//pkg/fleet/installer/symlink",
+            "//pkg/fleet/installer/telemetry",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/fleet/installer/packages/file",
+            "//pkg/fleet/installer/symlink",
+            "//pkg/fleet/installer/telemetry",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/fleet/installer/packages/file",
+            "//pkg/fleet/installer/symlink",
+            "//pkg/fleet/installer/telemetry",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/fleet/installer/packages/file",
+            "//pkg/fleet/installer/symlink",
+            "//pkg/fleet/installer/telemetry",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/fleet/installer/packages/file",
+            "//pkg/fleet/installer/symlink",
+            "//pkg/fleet/installer/telemetry",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/fleet/installer/packages/file",
+            "//pkg/fleet/installer/symlink",
+            "//pkg/fleet/installer/telemetry",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/fleet/installer/packages/file",
+            "//pkg/fleet/installer/symlink",
+            "//pkg/fleet/installer/telemetry",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/fleet/installer/packages/file",
+            "//pkg/fleet/installer/symlink",
+            "//pkg/fleet/installer/telemetry",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/paths",
+            "//pkg/fleet/installer/telemetry",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "config_test",
+    srcs = [
+        "config_nix_test.go",
+        "config_test.go",
+        "config_windows_test.go",
+    ],
+    embed = [":config"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/paths",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)

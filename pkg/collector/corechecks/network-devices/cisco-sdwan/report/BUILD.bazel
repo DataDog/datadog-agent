@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "report",
+    srcs = [
+        "metadata.go",
+        "metrics.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/report",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/forwarder/eventplatform",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/corechecks/network-devices/cisco-sdwan/client",
+        "//pkg/collector/corechecks/network-devices/cisco-sdwan/payload",
+        "//pkg/networkdevice/integrations",
+        "//pkg/networkdevice/metadata",
+        "//pkg/networkdevice/utils",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "report_test",
+    srcs = [
+        "metadata_test.go",
+        "metrics_test.go",
+    ],
+    embed = [":report"],
+    deps = [
+        "//pkg/collector/corechecks/network-devices/cisco-sdwan/client",
+        "//pkg/collector/corechecks/network-devices/cisco-sdwan/payload",
+        "//pkg/networkdevice/metadata",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "autodiscovery",
+    srcs = ["autodiscovery.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/autodiscovery",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/providers",
+        "//comp/core/autodiscovery/providers/names",
+        "//pkg/config/env",
+        "//pkg/config/setup",
+        "//pkg/snmp",
+        "//pkg/util/flavor",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "autodiscovery_test",
+    srcs = ["autodiscovery_test.go"],
+    embed = [":autodiscovery"],
+    deps = [
+        "//pkg/config/mock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

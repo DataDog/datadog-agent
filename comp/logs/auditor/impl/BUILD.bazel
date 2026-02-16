@@ -1,0 +1,46 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "api_v0.go",
+        "api_v1.go",
+        "api_v2.go",
+        "auditor.go",
+        "registry_writer.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/logs/auditor/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/logs-library/kubehealth/def",
+        "//comp/logs/auditor/def",
+        "//pkg/logs/message",
+        "//pkg/logs/types",
+        "//pkg/status/health",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = [
+        "api_v0_test.go",
+        "api_v1_test.go",
+        "api_v2_test.go",
+        "auditor_test.go",
+        "registry_writer_test.go",
+    ],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/mock",
+        "//comp/logs-library/kubehealth/mock",
+        "//comp/logs/agent/config",
+        "//pkg/logs/sources",
+        "//pkg/logs/types",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_stretchr_testify//suite",
+    ],
+)

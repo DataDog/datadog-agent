@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "httphelpers",
+    srcs = [
+        "client.go",
+        "middleware.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/ipc/def",
+        "//pkg/config/model",
+        "//pkg/util/log",
+        "//pkg/util/system",
+        "//pkg/util/system/socket",
+        "@com_github_mdlayher_vsock//:vsock",
+    ],
+)
+
+go_test(
+    name = "httphelpers_test",
+    srcs = ["client_test.go"],
+    embed = [":httphelpers"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//pkg/api/security/cert",
+        "//pkg/config/model",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

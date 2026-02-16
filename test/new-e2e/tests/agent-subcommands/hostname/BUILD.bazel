@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "hostname_test",
+    srcs = [
+        "hostname_azure_nix_test.go",
+        "hostname_ec2_common_test.go",
+        "hostname_ec2_nix_test.go",
+        "hostname_ec2_win_test.go",
+        "hostname_gcp_nix_test.go",
+    ],
+    deps = [
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/e2e-framework/testing/provisioners/azure/host/linux",
+        "//test/e2e-framework/testing/provisioners/gcp/host/linux",
+        "//test/e2e-framework/testing/utils/e2e/client",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

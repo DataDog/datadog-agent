@@ -1,0 +1,6 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "testutil_test",
+    srcs = ["example_test.go"],
+)

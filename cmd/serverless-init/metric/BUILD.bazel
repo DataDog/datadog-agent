@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "metric",
+    srcs = ["metric.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/serverless-init/metric",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/metrics",
+        "//pkg/serverless/metrics",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "metric_test",
+    srcs = ["metric_test.go"],
+    embed = [":metric"],
+    deps = [
+        "//comp/aggregator/demultiplexer",
+        "//comp/aggregator/demultiplexer/demultiplexerimpl",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//pkg/metrics",
+        "//pkg/serverless/metrics",
+        "//pkg/util/fxutil",
+        "@com_github_datadog_datadog_agent_comp_serializer_logscompression//fx-mock",
+        "@com_github_datadog_datadog_agent_comp_serializer_metricscompression//fx-mock",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
+    ],
+)

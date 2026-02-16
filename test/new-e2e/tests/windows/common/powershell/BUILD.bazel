@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "powershell",
+    srcs = ["command_builder.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/powershell",
+    visibility = ["//visibility:public"],
+    deps = ["//test/e2e-framework/testing/components"],
+)

@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "kubeapiserver",
+    srcs = [
+        "kubeapiserver_nop.go",
+        "stub.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubeapiserver",
+    visibility = ["//comp/core/workloadmeta/collectors:__subpackages__"],
+    deps = ["@org_uber_go_fx//:fx"],
+)

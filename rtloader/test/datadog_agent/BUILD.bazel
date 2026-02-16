@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "datadog_agent",
+    srcs = ["datadog_agent.go"],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/rtloader/test/datadog_agent",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/obfuscate",
+        "//rtloader/test/common",
+        "//rtloader/test/helpers",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)
+
+go_test(
+    name = "datadog_agent_test",
+    srcs = [
+        "datadog_agent_py3_test.go",
+        "datadog_agent_test.go",
+    ],
+    embed = [":datadog_agent"],
+    deps = ["//rtloader/test/helpers"],
+)

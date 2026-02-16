@@ -1,0 +1,84 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "usm",
+    srcs = [
+        "checkmaps_unsupported.go",
+        "command.go",
+        "config.go",
+        "netstat_unsupported.go",
+        "shared.go",
+        "symbols_ls_linux.go",
+        "symbols_ls_unsupported.go",
+        "sysinfo_linux.go",
+        "sysinfo_unsupported.go",
+        "sysinfo_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/usm",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/system-probe/command",
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/secrets/fx-noop",
+        "//comp/core/sysprobeconfig",
+        "//comp/core/sysprobeconfig/sysprobeconfigimpl",
+        "//pkg/config/fetcher/sysprobe",
+        "//pkg/util/fxutil",
+        "@com_github_spf13_cobra//:cobra",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+        "@org_uber_go_fx//:fx",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/languagedetection",
+            "//pkg/languagedetection/languagemodels",
+            "//pkg/languagedetection/privileged",
+            "//pkg/process/metadata/parser",
+            "//pkg/process/procutil",
+            "//pkg/util/kernel",
+            "//pkg/util/safeelf",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/languagedetection",
+            "//pkg/languagedetection/languagemodels",
+            "//pkg/languagedetection/privileged",
+            "//pkg/process/metadata/parser",
+            "//pkg/process/procutil",
+            "//pkg/util/kernel",
+            "//pkg/util/safeelf",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "usm_test",
+    srcs = [
+        "config_test.go",
+        "shared_test.go",
+        "sysinfo_linux_test.go",
+    ],
+    embed = [":usm"],
+    deps = [
+        "//cmd/system-probe/command",
+        "//pkg/util/fxutil",
+        "@com_github_spf13_cobra//:cobra",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/languagedetection/languagemodels",
+            "//pkg/languagedetection/privileged",
+            "//pkg/process/procutil",
+            "@in_gopkg_yaml_v3//:yaml_v3",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/languagedetection/languagemodels",
+            "//pkg/languagedetection/privileged",
+            "//pkg/process/procutil",
+            "@in_gopkg_yaml_v3//:yaml_v3",
+        ],
+        "//conditions:default": [],
+    }),
+)

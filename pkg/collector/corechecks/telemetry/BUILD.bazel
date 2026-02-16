@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "telemetry",
+    srcs = ["check.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/telemetry",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/telemetry",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "@com_github_prometheus_client_model//go",
+    ],
+)
+
+go_test(
+    name = "telemetry_test",
+    srcs = ["check_test.go"],
+    embed = [":telemetry"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/collector/corechecks",
+        "@com_github_prometheus_client_golang//prometheus",
+        "@com_github_stretchr_testify//require",
+    ],
+)

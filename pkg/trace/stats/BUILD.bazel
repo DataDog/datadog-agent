@@ -1,0 +1,60 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "stats",
+    srcs = [
+        "aggregation.go",
+        "client_stats_aggregator.go",
+        "concentrator.go",
+        "otel.go",
+        "span_concentrator.go",
+        "statsraw.go",
+        "weight.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/trace/stats",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/obfuscate",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/trace/config",
+        "//pkg/trace/log",
+        "//pkg/trace/otel/traceutil",
+        "//pkg/trace/traceutil",
+        "//pkg/trace/transform",
+        "//pkg/trace/version",
+        "//pkg/trace/watchdog",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_datadog_sketches_go//ddsketch",
+        "@com_github_datadog_sketches_go//ddsketch/mapping",
+        "@com_github_datadog_sketches_go//ddsketch/pb/sketchpb",
+        "@com_github_datadog_sketches_go//ddsketch/store",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+        "@org_golang_google_genproto_googleapis_rpc//code",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
+
+go_test(
+    name = "stats_test",
+    srcs = [
+        "aggregation_test.go",
+        "client_stats_aggregator_test.go",
+        "concentrator_test.go",
+        "statsraw_test.go",
+        "weight_test.go",
+    ],
+    embed = [":stats"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "//pkg/trace/config",
+        "//pkg/trace/sampler",
+        "//pkg/trace/traceutil",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_datadog_sketches_go//ddsketch",
+        "@com_github_datadog_sketches_go//ddsketch/pb/sketchpb",
+        "@com_github_google_gofuzz//:gofuzz",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//proto",
+    ],
+)

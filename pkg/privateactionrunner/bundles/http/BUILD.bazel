@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "http",
+    srcs = [
+        "entrypoint.go",
+        "get_checksum_from_url.go",
+        "helper.go",
+        "request.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/http",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/adapters/config",
+        "//pkg/privateactionrunner/adapters/logging",
+        "//pkg/privateactionrunner/adapters/tmpl",
+        "//pkg/privateactionrunner/bundle-support/httpclient",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "//pkg/privateactionrunner/util",
+    ],
+)

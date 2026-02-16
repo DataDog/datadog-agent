@@ -1,0 +1,47 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "logs",
+    srcs = [
+        "doc.go",
+        "orchestrator.go",
+        "transform.go",
+        "translator.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/opentelemetry-mapping-go/otlp/attributes",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes/source",
+        "//pkg/opentelemetry-mapping-go/otlp/rum",
+        "//pkg/orchestrator/model",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_datadog_datadog_api_client_go_v2//api/datadog",
+        "@com_github_datadog_datadog_api_client_go_v2//api/datadogV2",
+        "@com_github_twmb_murmur3//:murmur3",
+        "@io_opentelemetry_go_collector_component//:component",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//plog",
+        "@io_opentelemetry_go_otel//attribute",
+        "@io_opentelemetry_go_otel//semconv/v1.6.1:v1_6_1",
+        "@org_uber_go_zap//:zap",
+    ],
+)
+
+go_test(
+    name = "logs_test",
+    srcs = ["transform_test.go"],
+    embed = [":logs"],
+    deps = [
+        "//pkg/opentelemetry-mapping-go/otlp/attributes",
+        "@com_github_datadog_datadog_api_client_go_v2//api/datadog",
+        "@com_github_datadog_datadog_api_client_go_v2//api/datadogV2",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//plog",
+        "@io_opentelemetry_go_otel//semconv/v1.6.1:v1_6_1",
+        "@org_uber_go_zap//zaptest",
+    ],
+)

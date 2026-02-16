@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "report",
+    srcs = [
+        "metadata.go",
+        "sender.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa/report",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/forwarder/eventplatform",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/corechecks/network-devices/versa/client",
+        "//pkg/networkdevice/integrations",
+        "//pkg/networkdevice/metadata",
+        "//pkg/networkdevice/sender",
+        "//pkg/util/log",
+        "@org_uber_go_multierr//:multierr",
+    ],
+)

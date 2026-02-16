@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "utils",
+    srcs = [
+        "doc.go",
+        "utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/networkdevice/utils",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/hostname",
+        "//pkg/util/log",
+        "//pkg/version",
+    ],
+)
+
+go_test(
+    name = "utils_test",
+    srcs = ["utils_test.go"],
+    embed = [":utils"],
+    deps = [
+        "//pkg/config/mock",
+        "//pkg/version",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

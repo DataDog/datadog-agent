@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "npcollectorimpl",
+    srcs = [
+        "config.go",
+        "npcollector.go",
+        "npcollectorcomp.go",
+        "utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/forwarder/eventplatform",
+        "//comp/networkpath/npcollector",
+        "//comp/networkpath/npcollector/model",
+        "//comp/networkpath/npcollector/npcollectorimpl/common",
+        "//comp/networkpath/npcollector/npcollectorimpl/connfilter",
+        "//comp/networkpath/npcollector/npcollectorimpl/pathteststore",
+        "//comp/networkpath/traceroute/def",
+        "//comp/rdnsquerier/def",
+        "//comp/rdnsquerier/impl-none",
+        "//pkg/config/structure",
+        "//pkg/logs/message",
+        "//pkg/network/tracer/networkfilter",
+        "//pkg/networkpath/payload",
+        "//pkg/networkpath/traceroute/config",
+        "//pkg/util/cloudproviders/network",
+        "//pkg/util/fxutil",
+        "//pkg/util/log",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@org_uber_go_atomic//:atomic",
+        "@org_uber_go_fx//:fx",
+    ],
+)

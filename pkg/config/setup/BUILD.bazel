@@ -1,0 +1,96 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "setup",
+    srcs = [
+        "apm.go",
+        "config.go",
+        "config_accessor.go",
+        "config_change_checker.go",
+        "config_darwin.go",
+        "config_init.go",
+        "config_nix.go",
+        "config_windows.go",
+        "ipc_address.go",
+        "multi_region_failover.go",
+        "otlp.go",
+        "privateactionrunner.go",
+        "process.go",
+        "security_agent.go",
+        "standard_names.go",
+        "system_probe.go",
+        "system_probe_cws.go",
+        "system_probe_cws_notwin.go",
+        "system_probe_cws_windows.go",
+        "system_probe_usm.go",
+        "unexpectedunicodefinder.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/setup",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/secrets/def",
+        "//pkg/collector/check/defaults",
+        "//pkg/config/create",
+        "//pkg/config/env",
+        "//pkg/config/model",
+        "//pkg/config/setup/constants",
+        "//pkg/config/structure",
+        "//pkg/fips",
+        "//pkg/util/log",
+        "//pkg/util/scrubber",
+        "//pkg/util/system",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/util/executable",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/util/executable",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/util/executable",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/util/executable",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/executable",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/util/executable",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/util/executable",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/util/executable",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
+            "@org_golang_x_sys//windows/registry",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "setup_test",
+    srcs = [
+        "config_change_checker_test.go",
+        "config_secret_test.go",
+        "config_test.go",
+        "ipc_address_test.go",
+        "process_test.go",
+        "unexpectedunicodefinder_test.go",
+    ],
+    embed = [":setup"],
+    deps = [
+        "//comp/core/secrets/mock",
+        "//pkg/config/model",
+        "//pkg/config/nodetreemodel",
+        "//pkg/util/scrubber",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)

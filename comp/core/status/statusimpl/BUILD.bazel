@@ -1,0 +1,60 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "statusimpl",
+    srcs = [
+        "common_header_provider.go",
+        "status.go",
+        "status_api_endpoints.go",
+    ],
+    embedsrcs = [
+        "templates/errors.tmpl",
+        "templates/html.tmpl",
+        "templates/text.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/status/statusimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/api/def",
+        "//comp/core/config",
+        "//comp/core/flare/types",
+        "//comp/core/log/def",
+        "//comp/core/status",
+        "//pkg/config/setup",
+        "//pkg/fips",
+        "//pkg/template/html",
+        "//pkg/template/text",
+        "//pkg/util/flavor",
+        "//pkg/util/fxutil",
+        "//pkg/version",
+        "@com_github_gorilla_mux//:mux",
+        "@org_golang_x_text//cases",
+        "@org_golang_x_text//language",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "statusimpl_test",
+    srcs = [
+        "common_header_provider_test.go",
+        "status_api_endpoints_test.go",
+        "status_test.go",
+    ],
+    embed = [":statusimpl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/core/status",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/util/flavor",
+        "//pkg/util/fxutil",
+        "//pkg/version",
+        "@com_github_gorilla_mux//:mux",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
+)

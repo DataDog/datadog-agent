@@ -1,0 +1,57 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "apiimpl",
+    srcs = [
+        "api.go",
+        "server.go",
+        "server_cmd.go",
+        "server_ipc.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/api/api/apiimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/api/apiimpl/internal/agent",
+        "//comp/api/api/apiimpl/internal/config",
+        "//comp/api/api/apiimpl/listener",
+        "//comp/api/api/apiimpl/observability",
+        "//comp/api/api/def",
+        "//comp/api/grpcserver/def",
+        "//comp/api/grpcserver/helpers",
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/telemetry",
+        "//pkg/config/setup",
+        "//pkg/util/fxutil",
+        "//pkg/util/log",
+        "//pkg/util/log/setup",
+        "@com_github_gorilla_mux//:mux",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "apiimpl_test",
+    srcs = [
+        "api_test.go",
+        "server_test.go",
+    ],
+    embed = [":apiimpl"],
+    deps = [
+        "//comp/api/api/apiimpl/observability",
+        "//comp/api/api/def",
+        "//comp/api/grpcserver/def",
+        "//comp/api/grpcserver/fx-none",
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/mock",
+        "//comp/core/telemetry",
+        "//comp/core/telemetry/telemetryimpl",
+        "//pkg/util/fxutil",
+        "@com_github_prometheus_client_model//go",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_x_net//http2",
+        "@org_uber_go_fx//:fx",
+    ],
+)

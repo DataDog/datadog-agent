@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "containerd",
+    srcs = ["stub.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/containerd",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/def",
+        "//comp/core/workloadfilter/def",
+        "//comp/core/workloadmeta/def",
+        "//pkg/collector/check",
+        "//pkg/util/option",
+    ],
+)

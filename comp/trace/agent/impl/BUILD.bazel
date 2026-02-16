@@ -1,0 +1,60 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "agent.go",
+        "agent_nix.go",
+        "agent_windows.go",
+        "params.go",
+        "run.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/trace/agent/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/trace-agent/config/remote",
+        "//comp/core/ipc/def",
+        "//comp/core/secrets/def",
+        "//comp/core/tagger/def",
+        "//comp/dogstatsd/statsd",
+        "//comp/trace/agent/def",
+        "//comp/trace/compression/def",
+        "//comp/trace/config",
+        "//pkg/config/env",
+        "//pkg/config/remote/client",
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes/source",
+        "//pkg/pidfile",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/runtime",
+        "//pkg/trace/agent",
+        "//pkg/trace/api",
+        "//pkg/trace/config",
+        "//pkg/trace/info",
+        "//pkg/trace/telemetry",
+        "//pkg/trace/watchdog",
+        "//pkg/util/coredump",
+        "//pkg/util/log",
+        "//pkg/util/profiling",
+        "//pkg/version",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = [
+        "agent_test.go",
+        "run_test.go",
+    ],
+    embed = [":impl"],
+    deps = [
+        "//pkg/config/mock",
+        "//pkg/trace/config",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

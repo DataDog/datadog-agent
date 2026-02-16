@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["diagnose.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/diagnose/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/api/def",
+        "//comp/api/api/utils",
+        "//comp/core/diagnose/def",
+        "//comp/core/diagnose/format",
+        "//comp/core/flare/types",
+        "//pkg/util/http",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["diagnose_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/diagnose/def",
+        "//comp/core/flare/helpers",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

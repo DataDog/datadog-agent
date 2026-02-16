@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "npcollector",
+    srcs = ["component.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/networkpath/npcollector",
+    visibility = ["//visibility:public"],
+    deps = ["//comp/networkpath/npcollector/model"],
+)

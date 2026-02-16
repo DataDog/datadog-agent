@@ -1,0 +1,44 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "http",
+    srcs = [
+        "etw_http_service_defs.go",
+        "quantization.go",
+        "stats.go",
+        "types_linux.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/http",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/network/protocols",
+        "//pkg/network/types",
+        "//pkg/process/util",
+        "//pkg/util/common",
+        "//pkg/util/intern",
+        "//pkg/util/log",
+        "//pkg/util/sync",
+        "@com_github_datadog_sketches_go//ddsketch",
+    ],
+)
+
+go_test(
+    name = "http_test",
+    srcs = [
+        "quantization_test.go",
+        "types_linux_test.go",
+    ],
+    embed = [":http"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf/ebpftest",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf/ebpftest",
+        ],
+        "//conditions:default": [],
+    }),
+)

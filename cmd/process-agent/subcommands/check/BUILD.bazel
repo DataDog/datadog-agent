@@ -1,0 +1,49 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "check",
+    srcs = ["check.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/process-agent/subcommands/check",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/process-agent/command",
+        "//comp/core",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/ipc/fx",
+        "//comp/core/secrets/fx",
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/fx-remote",
+        "//comp/core/workloadfilter/def",
+        "//comp/core/workloadfilter/fx-remote",
+        "//comp/core/workloadmeta/collectors/catalog-remote",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx",
+        "//comp/forwarder/eventplatform/eventplatformimpl",
+        "//comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl",
+        "//comp/networkpath/npcollector/npcollectorimpl",
+        "//comp/networkpath/traceroute/fx-remote",
+        "//comp/process",
+        "//comp/rdnsquerier/fx",
+        "//pkg/cli/subcommands/processchecks",
+        "//pkg/process/util/containers",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "check_test",
+    srcs = ["check_test.go"],
+    embed = [":check"],
+    deps = [
+        "//cmd/process-agent/command",
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/fx",
+        "//pkg/cli/subcommands/processchecks",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//require",
+    ],
+)

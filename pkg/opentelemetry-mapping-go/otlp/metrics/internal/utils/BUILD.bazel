@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "utils",
+    srcs = ["tags.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/internal/utils",
+    visibility = ["//pkg/opentelemetry-mapping-go/otlp/metrics:__subpackages__"],
+)
+
+go_test(
+    name = "utils_test",
+    srcs = ["tags_test.go"],
+    embed = [":utils"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

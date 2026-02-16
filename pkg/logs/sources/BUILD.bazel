@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "sources",
+    srcs = [
+        "config_source.go",
+        "replaceable_source.go",
+        "source.go",
+        "sources.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/sources",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//pkg/logs/status/utils",
+        "//pkg/util/log",
+        "//pkg/util/statstracker",
+    ],
+)
+
+go_test(
+    name = "sources_test",
+    srcs = [
+        "config_source_test.go",
+        "source_test.go",
+        "sources_test.go",
+    ],
+    embed = [":sources"],
+    deps = [
+        "//comp/logs/agent/config",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//suite",
+    ],
+)

@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "processor",
+    srcs = [
+        "encoder.go",
+        "json.go",
+        "json_serverless_init.go",
+        "processor.go",
+        "proto.go",
+        "raw.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/processor",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/logs/agent/config",
+        "//pkg/config/model",
+        "//pkg/logs/diagnostic",
+        "//pkg/logs/message",
+        "//pkg/logs/metrics",
+        "//pkg/util/log",
+        "@com_github_datadog_agent_payload_v5//pb",
+    ],
+)
+
+go_test(
+    name = "processor_test",
+    srcs = [
+        "encoder_test.go",
+        "processor_test.go",
+    ],
+    embed = [":processor"],
+    deps = [
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/logs/agent/config",
+        "//pkg/logs/message",
+        "//pkg/logs/sources",
+        "@com_github_datadog_agent_payload_v5//pb",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

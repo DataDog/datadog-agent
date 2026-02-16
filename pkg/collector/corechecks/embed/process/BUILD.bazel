@@ -1,0 +1,104 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "process",
+    srcs = [
+        "process_agent.go",
+        "stub.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/process",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//comp/core/autodiscovery/integration",
+            "//comp/core/diagnose/def",
+            "//pkg/aggregator/sender",
+            "//pkg/collector/check",
+            "//pkg/collector/check/id",
+            "//pkg/collector/check/stats",
+            "//pkg/collector/corechecks",
+            "//pkg/collector/corechecks/embed/common",
+            "//pkg/config/setup",
+            "//pkg/config/utils",
+            "//pkg/util/executable",
+            "//pkg/util/log",
+            "//pkg/util/option",
+            "@in_gopkg_yaml_v2//:yaml_v2",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//comp/core/autodiscovery/integration",
+            "//comp/core/diagnose/def",
+            "//pkg/aggregator/sender",
+            "//pkg/collector/check",
+            "//pkg/collector/check/id",
+            "//pkg/collector/check/stats",
+            "//pkg/collector/corechecks",
+            "//pkg/collector/corechecks/embed/common",
+            "//pkg/config/setup",
+            "//pkg/config/utils",
+            "//pkg/util/executable",
+            "//pkg/util/log",
+            "//pkg/util/option",
+            "@in_gopkg_yaml_v2//:yaml_v2",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/collector/check",
+            "//pkg/util/option",
+        ],
+        "//conditions:default": [],
+    }),
+)

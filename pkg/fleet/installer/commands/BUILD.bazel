@@ -1,0 +1,49 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "commands",
+    srcs = [
+        "apm.go",
+        "bootstrapper.go",
+        "command.go",
+        "command_mock.go",
+        "hooks.go",
+        "status.go",
+        "umask_nix.go",
+        "umask_windows.go",
+    ],
+    embedsrcs = ["status.tmpl"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/commands",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/fleet/installer",
+        "//pkg/fleet/installer/bootstrap",
+        "//pkg/fleet/installer/config",
+        "//pkg/fleet/installer/env",
+        "//pkg/fleet/installer/exec",
+        "//pkg/fleet/installer/packages",
+        "//pkg/fleet/installer/packages/ssi",
+        "//pkg/fleet/installer/paths",
+        "//pkg/fleet/installer/repository",
+        "//pkg/fleet/installer/setup",
+        "//pkg/fleet/installer/telemetry",
+        "//pkg/template/html",
+        "//pkg/version",
+        "@com_github_fatih_color//:color",
+        "@com_github_spf13_cobra//:cobra",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)
+
+go_test(
+    name = "commands_test",
+    srcs = ["command_test.go"],
+    embed = [":commands"],
+    deps = [
+        "//pkg/fleet/installer/env",
+        "//pkg/fleet/installer/exec",
+        "//pkg/fleet/installer/repository",
+        "@com_github_spf13_cobra//:cobra",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

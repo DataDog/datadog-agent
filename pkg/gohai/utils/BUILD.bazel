@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "utils",
+    srcs = [
+        "common.go",
+        "helpers.go",
+        "value.go",
+        "value_helpers.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/gohai/utils",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "utils_test",
+    srcs = [
+        "common_test.go",
+        "value_test.go",
+    ],
+    embed = [":utils"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

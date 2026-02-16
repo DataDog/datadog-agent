@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "util",
+    srcs = [
+        "circuit_breaker.go",
+        "context.go",
+        "error.go",
+        "jwt.go",
+        "response_parser.go",
+        "urn.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/util",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/adapters/logging",
+        "//pkg/proto/pbgo/privateactionrunner/errorcode",
+        "@com_github_go_jose_go_jose_v4//:go-jose",
+        "@com_github_golang_jwt_jwt_v5//:jwt",
+    ],
+)

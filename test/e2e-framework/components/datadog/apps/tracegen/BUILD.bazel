@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "tracegen",
+    srcs = [
+        "ecs.go",
+        "k8s.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/tracegen",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common/config",
+        "//test/e2e-framework/common/utils",
+        "//test/e2e-framework/components/datadog/apps",
+        "//test/e2e-framework/components/ecs",
+        "//test/e2e-framework/components/kubernetes",
+        "//test/e2e-framework/resources/aws",
+    ],
+)

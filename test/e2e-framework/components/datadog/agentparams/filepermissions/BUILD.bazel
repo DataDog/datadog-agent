@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "filepermissions",
+    srcs = [
+        "permissions.go",
+        "permissions_nix.go",
+        "permissions_win.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams/filepermissions",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/option",
+        "//test/e2e-framework/common",
+    ],
+)

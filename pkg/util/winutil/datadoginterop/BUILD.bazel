@@ -1,0 +1,8 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "datadoginterop",
+    srcs = ["msstoreapps.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/winutil/datadoginterop",
+    visibility = ["//visibility:public"],
+)

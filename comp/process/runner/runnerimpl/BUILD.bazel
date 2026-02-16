@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "runnerimpl",
+    srcs = ["runner.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/process/runner/runnerimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/sysprobeconfig",
+        "//comp/core/tagger/def",
+        "//comp/process/agent",
+        "//comp/process/hostinfo",
+        "//comp/process/runner",
+        "//comp/process/submitter",
+        "//comp/process/types",
+        "//pkg/process/checks",
+        "//pkg/process/runner",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)

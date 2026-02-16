@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "forwarder",
+    srcs = ["bundle.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/forwarder",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/forwarder/defaultforwarder",
+        "//pkg/util/fxutil",
+    ],
+)
+
+go_test(
+    name = "forwarder_test",
+    srcs = ["bundle_test.go"],
+    embed = [":forwarder"],
+    deps = [
+        "//comp/core",
+        "//comp/core/secrets/def",
+        "//comp/core/secrets/mock",
+        "//comp/forwarder/defaultforwarder",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)

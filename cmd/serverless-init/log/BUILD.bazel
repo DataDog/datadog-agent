@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "log",
+    srcs = [
+        "channel_writer.go",
+        "log.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/serverless-init/log",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/tagger/def",
+        "//comp/logs/agent",
+        "//comp/logs/agent/config",
+        "//comp/serializer/logscompression/def",
+        "//pkg/logs/sources",
+        "//pkg/serverless/logs",
+        "//pkg/serverless/tags",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "log_test",
+    srcs = [
+        "channel_writer_test.go",
+        "log_test.go",
+    ],
+    embed = [":log"],
+    deps = [
+        "//comp/logs/agent/config",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

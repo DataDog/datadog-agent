@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "core",
+    srcs = [
+        "config.go",
+        "core.go",
+        "impl_mock_linux.go",
+        "params.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/discovery/core",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/config/setup",
+            "//pkg/system-probe/config",
+            "//pkg/util/log",
+            "@com_github_golang_mock//gomock",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/config/setup",
+            "//pkg/system-probe/config",
+            "//pkg/util/log",
+            "@com_github_golang_mock//gomock",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "core_test",
+    srcs = ["core_test.go"],
+    embed = [":core"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
+)

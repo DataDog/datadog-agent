@@ -1,0 +1,67 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "daemon",
+    srcs = [
+        "daemon.go",
+        "local_api.go",
+        "local_api_unix.go",
+        "local_api_windows.go",
+        "remote_config.go",
+        "task_db.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/daemon",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//pkg/config/remote/client",
+        "//pkg/config/utils",
+        "//pkg/fips",
+        "//pkg/fleet/installer",
+        "//pkg/fleet/installer/bootstrap",
+        "//pkg/fleet/installer/config",
+        "//pkg/fleet/installer/env",
+        "//pkg/fleet/installer/errors",
+        "//pkg/fleet/installer/exec",
+        "//pkg/fleet/installer/paths",
+        "//pkg/fleet/installer/repository",
+        "//pkg/fleet/installer/telemetry",
+        "//pkg/proto/pbgo/core",
+        "//pkg/remoteconfig/state",
+        "//pkg/util/log",
+        "//pkg/version",
+        "@com_github_google_go_containerregistry//pkg/name",
+        "@com_github_gorilla_mux//:mux",
+        "@io_etcd_go_bbolt//:bbolt",
+        "@org_golang_x_crypto//nacl/box",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_microsoft_go_winio//:go-winio",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "daemon_test",
+    srcs = [
+        "daemon_test.go",
+        "local_api_test.go",
+        "remote_config_test.go",
+        "task_db_test.go",
+    ],
+    embed = [":daemon"],
+    deps = [
+        "//pkg/fleet/installer",
+        "//pkg/fleet/installer/config",
+        "//pkg/fleet/installer/env",
+        "//pkg/fleet/installer/repository",
+        "//pkg/proto/pbgo/core",
+        "//pkg/remoteconfig/state",
+        "//pkg/version",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_x_crypto//nacl/box",
+    ],
+)

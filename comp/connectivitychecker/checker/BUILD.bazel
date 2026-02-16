@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "checker",
+    srcs = ["checker.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/connectivitychecker/checker",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/diagnose/def",
+        "//comp/core/log/def",
+        "//comp/forwarder/eventplatform/eventplatformimpl",
+        "//pkg/diagnose/connectivity",
+    ],
+)

@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "rcservice",
+    srcs = ["component.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/remote-config/rcservice",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/remote/service",
+        "//pkg/proto/pbgo/core",
+    ],
+)

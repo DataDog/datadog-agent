@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "config",
+    srcs = [
+        "environment.go",
+        "helpers.go",
+        "providers.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/common/config",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common/namer",
+        "@com_github_masterminds_semver_v3//:semver",
+    ],
+)
+
+go_test(
+    name = "config_test",
+    srcs = ["helpers_test.go"],
+    embed = [":config"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

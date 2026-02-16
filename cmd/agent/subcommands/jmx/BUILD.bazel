@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "jmx",
+    srcs = [
+        "command_nojmx.go",
+        "docs.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/jmx",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/agent/command",
+        "@com_github_spf13_cobra//:cobra",
+    ],
+)

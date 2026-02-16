@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "diagnostic",
+    srcs = [
+        "format.go",
+        "message_receiver.go",
+        "noop_message_receiver.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/diagnostic",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/hostname/hostnameinterface",
+        "//pkg/config/setup",
+        "//pkg/logs/message",
+    ],
+)
+
+go_test(
+    name = "diagnostic_test",
+    srcs = ["message_receiver_test.go"],
+    embed = [":diagnostic"],
+    deps = [
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/logs/agent/config",
+        "//pkg/logs/message",
+        "//pkg/logs/sources",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

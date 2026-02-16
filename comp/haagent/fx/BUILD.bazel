@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/haagent/fx",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/haagent/def",
+        "//comp/haagent/impl",
+        "//pkg/util/fxutil",
+    ],
+)

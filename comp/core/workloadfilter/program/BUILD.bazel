@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "program",
+    srcs = [
+        "annotations_program.go",
+        "legacy_program.go",
+        "program.go",
+        "regex_program.go",
+        "remote_program.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadfilter/program",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/log/def",
+        "//comp/core/workloadfilter/def",
+        "//comp/core/workloadfilter/proto",
+        "//comp/core/workloadfilter/telemetry",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/containers",
+        "@com_github_cespare_xxhash_v2//:xxhash",
+        "@com_github_patrickmn_go_cache//:go-cache",
+        "@org_golang_google_grpc//metadata",
+    ],
+)
+
+go_test(
+    name = "program_test",
+    srcs = ["annotations_program_test.go"],
+    embed = [":program"],
+    deps = [
+        "//comp/core/workloadfilter/def",
+        "//comp/core/workloadfilter/mock",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

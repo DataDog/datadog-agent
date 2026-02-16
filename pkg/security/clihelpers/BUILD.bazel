@@ -1,0 +1,61 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "clihelpers",
+    srcs = ["eval.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/clihelpers",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/probe/config",
+            "//pkg/security/probe/kfilters",
+            "//pkg/security/rules/filtermodel",
+            "//pkg/security/secl/compiler/eval",
+            "//pkg/security/secl/model",
+            "//pkg/security/secl/rules",
+            "//pkg/security/seclog",
+            "//pkg/security/seclwin/model",
+            "//pkg/security/utils",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/probe/config",
+            "//pkg/security/probe/kfilters",
+            "//pkg/security/rules/filtermodel",
+            "//pkg/security/secl/compiler/eval",
+            "//pkg/security/secl/model",
+            "//pkg/security/secl/rules",
+            "//pkg/security/seclog",
+            "//pkg/security/seclwin/model",
+            "//pkg/security/utils",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/security/probe/config",
+            "//pkg/security/probe/kfilters",
+            "//pkg/security/rules/filtermodel",
+            "//pkg/security/secl/compiler/eval",
+            "//pkg/security/secl/model",
+            "//pkg/security/secl/rules",
+            "//pkg/security/seclog",
+            "//pkg/security/seclwin/model",
+            "//pkg/security/utils",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "clihelpers_test",
+    srcs = ["eval_test.go"],
+    embed = [":clihelpers"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/secl/rules",
+            "@com_github_hashicorp_go_multierror//:go-multierror",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/secl/rules",
+            "@com_github_hashicorp_go_multierror//:go-multierror",
+        ],
+        "//conditions:default": [],
+    }),
+)

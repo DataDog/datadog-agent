@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "helpers",
+    srcs = ["helpers.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/haagent/helpers",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/config/model"],
+)
+
+go_test(
+    name = "helpers_test",
+    srcs = ["helpers_test.go"],
+    embed = [":helpers"],
+    deps = [
+        "//comp/core/config",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

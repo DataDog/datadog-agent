@@ -1,0 +1,8 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "loadstore",
+    srcs = ["dump_noop.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore",
+    visibility = ["//visibility:public"],
+)

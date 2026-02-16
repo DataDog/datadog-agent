@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "provider",
+    srcs = [
+        "cache.go",
+        "collector.go",
+        "collector_cache.go",
+        "collector_types.go",
+        "metacollector.go",
+        "provider.go",
+        "registry.go",
+        "types.go",
+        "util.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadmeta/def",
+        "//pkg/config/env",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "//pkg/util/retry",
+    ],
+)
+
+go_test(
+    name = "provider_test",
+    srcs = [
+        "collector_cache_test.go",
+        "metacollector_test.go",
+        "provider_test.go",
+        "registry_test.go",
+    ],
+    embed = [":provider"],
+    deps = [
+        "//comp/core/workloadmeta/def",
+        "//pkg/util/option",
+        "//pkg/util/pointer",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

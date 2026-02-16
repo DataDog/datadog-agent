@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "remotehostnameimpl",
+    srcs = ["hostname.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/ipc/def",
+        "//pkg/config/setup",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/fxutil",
+        "//pkg/util/grpc",
+        "//pkg/util/hostname",
+        "//pkg/util/log",
+        "@com_github_avast_retry_go_v4//:retry-go",
+        "@com_github_patrickmn_go_cache//:go-cache",
+        "@org_uber_go_fx//:fx",
+    ],
+)

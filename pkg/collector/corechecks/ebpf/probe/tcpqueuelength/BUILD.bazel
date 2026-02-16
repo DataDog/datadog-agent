@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tcpqueuelength",
+    srcs = [
+        "tcp_queue_length_kern_types_linux.go",
+        "tcp_queue_length_stub.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model",
+        "//pkg/ebpf",
+    ],
+)
+
+go_test(
+    name = "tcpqueuelength_test",
+    srcs = ["tcp_queue_length_kern_types_linux_test.go"],
+    embed = [":tcpqueuelength"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf/ebpftest",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf/ebpftest",
+        ],
+        "//conditions:default": [],
+    }),
+)

@@ -1,0 +1,59 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "demultiplexerimpl",
+    srcs = [
+        "demultiplexer.go",
+        "params.go",
+        "status.go",
+    ],
+    embedsrcs = [
+        "status_templates/aggregator.tmpl",
+        "status_templates/aggregatorHTML.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/aggregator/demultiplexer",
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/log/def",
+        "//comp/core/status",
+        "//comp/core/tagger/def",
+        "//comp/filterlist/def",
+        "//comp/forwarder/defaultforwarder",
+        "//comp/forwarder/eventplatform",
+        "//comp/forwarder/orchestrator",
+        "//comp/haagent/def",
+        "//comp/serializer/metricscompression/def",
+        "//pkg/aggregator",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check/stats",
+        "//pkg/util/fxutil",
+        "//pkg/util/option",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "demultiplexerimpl_test",
+    srcs = ["status_test.go"],
+    embed = [":demultiplexerimpl"],
+    deps = [
+        "//comp/core",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/secrets/def",
+        "//comp/core/secrets/mock",
+        "//comp/core/status",
+        "//comp/core/tagger/def",
+        "//comp/filterlist/fx-mock",
+        "//comp/forwarder/defaultforwarder",
+        "//comp/forwarder/eventplatform/eventplatformimpl",
+        "//comp/forwarder/orchestrator/orchestratorimpl",
+        "//pkg/util/fxutil",
+        "@com_github_datadog_datadog_agent_comp_serializer_logscompression//fx-mock",
+        "@com_github_datadog_datadog_agent_comp_serializer_metricscompression//fx-mock",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
+)

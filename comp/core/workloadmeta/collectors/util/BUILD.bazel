@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "util",
+    srcs = [
+        "doc.go",
+        "image_metadata_util.go",
+        "kube_metadata_util.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadmeta/def",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "util_test",
+    srcs = ["image_metadata_util_test.go"],
+    embed = [":util"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

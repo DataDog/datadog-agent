@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "configutils",
+    srcs = ["utils.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/configutils",
+    visibility = ["//comp/otelcol/otlp:__subpackages__"],
+    deps = [
+        "@in_gopkg_yaml_v2//:yaml_v2",
+        "@io_opentelemetry_go_collector_confmap//:confmap",
+    ],
+)
+
+go_test(
+    name = "configutils_test",
+    srcs = ["utils_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":configutils"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_confmap//:confmap",
+        "@io_opentelemetry_go_collector_confmap_provider_envprovider//:envprovider",
+        "@io_opentelemetry_go_collector_confmap_provider_fileprovider//:fileprovider",
+        "@io_opentelemetry_go_collector_confmap_provider_yamlprovider//:yamlprovider",
+        "@io_opentelemetry_go_collector_exporter//:exporter",
+        "@io_opentelemetry_go_collector_exporter_otlpexporter//:otlpexporter",
+        "@io_opentelemetry_go_collector_extension//:extension",
+        "@io_opentelemetry_go_collector_otelcol//:otelcol",
+        "@io_opentelemetry_go_collector_processor//:processor",
+        "@io_opentelemetry_go_collector_receiver//:receiver",
+        "@io_opentelemetry_go_collector_receiver_otlpreceiver//:otlpreceiver",
+        "@io_opentelemetry_go_collector_service//telemetry/otelconftelemetry",
+    ],
+)

@@ -1,0 +1,62 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "sender",
+    srcs = [
+        "batch.go",
+        "batch_strategy.go",
+        "destination_sender.go",
+        "message_buffer.go",
+        "sender.go",
+        "sender_mock.go",
+        "serializer.go",
+        "strategy.go",
+        "stream_strategy.go",
+        "worker.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/sender",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/logs/client",
+        "//pkg/logs/message",
+        "//pkg/logs/metrics",
+        "//pkg/telemetry",
+        "//pkg/util/compression",
+        "//pkg/util/log",
+        "@com_github_benbjohnson_clock//:clock",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+go_test(
+    name = "sender_test",
+    srcs = [
+        "batch_strategy_test.go",
+        "batch_test.go",
+        "destination_sender_test.go",
+        "message_buffer_test.go",
+        "sender_test.go",
+        "serializer_test.go",
+        "stream_strategy_test.go",
+        "worker_test.go",
+    ],
+    embed = [":sender"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/logs/client",
+        "//pkg/logs/client/http",
+        "//pkg/logs/client/mock",
+        "//pkg/logs/client/tcp",
+        "//pkg/logs/message",
+        "//pkg/logs/metrics",
+        "//pkg/logs/sources",
+        "//pkg/logs/status/statusinterface",
+        "//pkg/util/compression",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_datadog_datadog_agent_comp_serializer_logscompression//fx-mock",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

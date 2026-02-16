@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "message",
+    srcs = [
+        "message.go",
+        "origin.go",
+        "status.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/message",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/logs/sources",
+        "//pkg/logs/types",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "message_test",
+    srcs = [
+        "message_test.go",
+        "origin_slice_aliasing_test.go",
+        "origin_test.go",
+        "status_test.go",
+    ],
+    embed = [":message"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//pkg/logs/sources",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
