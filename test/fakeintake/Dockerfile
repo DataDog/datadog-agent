@@ -1,9 +1,10 @@
 ## Based on https://docs.docker.com/language/golang/build-images/
 # syntax=docker/dockerfile:1
 ARG BASE_IMAGE_REGISTRY=docker.io
+ARG GO_VERSION=1.25.7
 
 ## Build
-FROM golang:1.25.7 AS build
+FROM ${BASE_IMAGE_REGISTRY}/library/golang:${GO_VERSION} AS build
 
 # need gcc to build with CGO_ENABLED=1
 # need musl-dev to get stdlib.h
