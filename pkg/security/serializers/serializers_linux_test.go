@@ -68,6 +68,7 @@ func TestCustomEventVariables_WithoutVariableStore(t *testing.T) {
 	rule := events.NewCustomRule(
 		events.AnomalyDetectionRuleID,
 		events.AnomalyDetectionRuleDesc,
+		nil,
 	)
 
 	event := newAnomalyEvent()
@@ -255,4 +256,3 @@ func TestCustomEventVariables_SECLVariablesExcluded(t *testing.T) {
 		assert.False(t, found, "SECLVariable %q should not be serialized", name)
 	}
 }
-

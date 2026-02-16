@@ -479,7 +479,7 @@ func TestAnomalyDetectionVariables(t *testing.T) {
 			cmd := dockerInstance.Command("getconf", []string{"-a"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(rule *rules.Rule, customEvent *events.CustomEvent) bool {
+		}, func(_ *rules.Rule, customEvent *events.CustomEvent) bool {
 			// Verify the anomaly detection custom event carries the variable.
 			eventJSON, jsonErr := customEvent.MarshalJSON()
 			if jsonErr != nil {

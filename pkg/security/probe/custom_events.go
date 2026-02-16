@@ -131,5 +131,5 @@ func NewEBPFLessHelloMsgEvent(acc *events.AgentContainerContext, msg *ebpfless.H
 
 	evt.FillCustomEventCommonFields(acc)
 
-	return events.NewCustomRule(events.EBPFLessHelloMessageRuleID, events.EBPFLessHelloMessageRuleDesc), events.NewCustomEvent(model.CustomEventType, evt)
+	return events.NewCustomRule(events.EBPFLessHelloMessageRuleID, events.EBPFLessHelloMessageRuleDesc, nil), events.NewCustomEvent(model.CustomEventType, evt)
 }
