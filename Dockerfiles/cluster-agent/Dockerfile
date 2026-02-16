@@ -43,12 +43,11 @@ RUN apt-get update \
     && apt full-upgrade -y \
     && apt-get install --no-install-recommends -y ca-certificates curl libseccomp2 tzdata adduser\
     && rm -rf \
-      /var/cache/debconf/* \
+      /var/cache/debconf/*-old \
       /var/lib/apt/lists/* \
       /var/log/* \
       /tmp/* \
-      /var/tmp/* \
-      /usr/share/man/*
+      /var/tmp/*
 
 COPY ./conf.d /etc/datadog-agent/conf.d
 COPY ./datadog-cluster.yaml /etc/datadog-agent/datadog-cluster.yaml
