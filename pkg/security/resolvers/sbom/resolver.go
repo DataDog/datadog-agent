@@ -85,7 +85,7 @@ type SBOM struct {
 	state  *atomic.Int64
 
 	refresher *debouncer.Debouncer
-	forwarder *debouncer.Debouncer // Debouncer for forwarding LastAccess updates
+	forwarder *debouncer.Debouncer // Debouncer for forwarding SBOM updates
 }
 
 type workloadKey string
