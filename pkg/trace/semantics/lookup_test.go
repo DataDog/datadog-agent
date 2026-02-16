@@ -12,6 +12,42 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// DDSpanAccessor wraps DD span Meta and Metrics maps to implement SpanAccessor.
+// This is used only for testing the semantic lookup functions.
+type DDSpanAccessor struct {
+	Meta    map[string]string
+	Metrics map[string]float64
+}
+
+// GetStringAttribute returns the string value from Meta for the given key.
+func (a *DDSpanAccessor) GetStringAttribute(key string) string {
+	if a.Meta == nil {
+		return ""
+	}
+	return a.Meta[key]
+}
+
+// GetFloat64Attribute returns the float64 value from Metrics for the given key.
+func (a *DDSpanAccessor) GetFloat64Attribute(key string) (float64, bool) {
+	if a.Metrics == nil {
+		return 0, false
+	}
+	v, ok := a.Metrics[key]
+	return v, ok
+}
+
+// GetInt64Attribute returns the int64 value from Metrics for the given key (converted from float64).
+func (a *DDSpanAccessor) GetInt64Attribute(key string) (int64, bool) {
+	if a.Metrics == nil {
+		return 0, false
+	}
+	v, ok := a.Metrics[key]
+	if !ok {
+		return 0, false
+	}
+	return int64(v), true
+}
+
 func TestDDSpanAccessor(t *testing.T) {
 	t.Run("GetStringAttribute", func(t *testing.T) {
 		accessor := &DDSpanAccessor{
@@ -236,7 +272,7 @@ func TestLookup(t *testing.T) {
 
 		result := Lookup(r, accessor, ConceptDBQuery)
 		assert.True(t, result.Found)
-		assert.Equal(t, "db.statement", result.Key)
+		assert.Equal(t, "db.statement", result.TagInfo.Name)
 		assert.Equal(t, "SELECT * FROM users", result.StringValue)
 		assert.Equal(t, ProviderOTel, result.TagInfo.Provider)
 		assert.Equal(t, ValueTypeString, result.TagInfo.Type)
@@ -253,7 +289,7 @@ func TestLookup(t *testing.T) {
 
 		result := Lookup(r, accessor, ConceptDBQuery)
 		assert.True(t, result.Found)
-		assert.Equal(t, "db.query.text", result.Key)
+		assert.Equal(t, "db.query.text", result.TagInfo.Name)
 		assert.Equal(t, "SELECT 1", result.StringValue)
 	})
 
@@ -264,7 +300,7 @@ func TestLookup(t *testing.T) {
 
 		result := Lookup(r, accessor, ConceptDBQuery)
 		assert.False(t, result.Found)
-		assert.Equal(t, "", result.Key)
+		assert.Equal(t, "", result.TagInfo.Name)
 		assert.Equal(t, "", result.StringValue)
 	})
 
@@ -285,43 +321,47 @@ func TestLookupFromMaps(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("string lookup", func(t *testing.T) {
-		meta := map[string]string{
-			"db.statement": "SELECT * FROM users",
+		accessor := &DDSpanAccessor{
+			Meta: map[string]string{
+				"db.statement": "SELECT * FROM users",
+			},
 		}
-		metrics := map[string]float64{}
 
-		result := LookupFromMaps(r, meta, metrics, ConceptDBQuery)
+		result := Lookup(r, accessor, ConceptDBQuery)
 		assert.True(t, result.Found)
 		assert.Equal(t, "SELECT * FROM users", result.StringValue)
 	})
 
 	t.Run("numeric lookup from metrics", func(t *testing.T) {
-		meta := map[string]string{}
-		metrics := map[string]float64{
-			"http.status_code": 200,
+		accessor := &DDSpanAccessor{
+			Metrics: map[string]float64{
+				"http.status_code": 200,
+			},
 		}
 
-		result := LookupFromMaps(r, meta, metrics, ConceptHTTPStatusCode)
+		result := Lookup(r, accessor, ConceptHTTPStatusCode)
 		assert.True(t, result.Found)
 		assert.Equal(t, int64(200), result.Int64Value)
 	})
 
-	t.Run("convenience functions", func(t *testing.T) {
-		meta := map[string]string{
-			"db.statement": "SELECT 1",
-		}
-		metrics := map[string]float64{
-			"http.status_code": 200,
+	t.Run("typed lookup functions", func(t *testing.T) {
+		accessor := &DDSpanAccessor{
+			Meta: map[string]string{
+				"db.statement": "SELECT 1",
+			},
+			Metrics: map[string]float64{
+				"http.status_code": 200,
+			},
 		}
 
-		str := LookupStringFromMaps(r, meta, metrics, ConceptDBQuery)
+		str := LookupString(r, accessor, ConceptDBQuery)
 		assert.Equal(t, "SELECT 1", str)
 
-		f, ok := LookupFloat64FromMaps(r, meta, metrics, ConceptHTTPStatusCode)
+		f, ok := LookupFloat64(r, accessor, ConceptHTTPStatusCode)
 		assert.True(t, ok)
 		assert.Equal(t, float64(200), f)
 
-		i, ok := LookupInt64FromMaps(r, meta, metrics, ConceptHTTPStatusCode)
+		i, ok := LookupInt64(r, accessor, ConceptHTTPStatusCode)
 		assert.True(t, ok)
 		assert.Equal(t, int64(200), i)
 	})
@@ -814,22 +854,24 @@ func BenchmarkLookupInt64(b *testing.B) {
 	}
 }
 
-func BenchmarkLookupFromMaps(b *testing.B) {
+func BenchmarkLookupWithDDSpanAccessor(b *testing.B) {
 	r, err := NewEmbeddedRegistry()
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	meta := map[string]string{
-		"db.statement": "SELECT * FROM users",
-	}
-	metrics := map[string]float64{
-		"http.status_code": 200,
+	accessor := &DDSpanAccessor{
+		Meta: map[string]string{
+			"db.statement": "SELECT * FROM users",
+		},
+		Metrics: map[string]float64{
+			"http.status_code": 200,
+		},
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = LookupFromMaps(r, meta, metrics, ConceptDBQuery)
+		_ = Lookup(r, accessor, ConceptDBQuery)
 	}
 }
 

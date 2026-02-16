@@ -152,17 +152,12 @@ func GetOTelAttrValInResAndSpanAttrs(span ptrace.Span, res pcommon.Resource, nor
 // Semantic Registry Lookup Functions
 // These functions use the semantics registry to look up attributes with automatic fallback handling.
 
-// defaultRegistry returns the default semantic registry for OTel attribute lookups.
-func defaultRegistry() semantics.Registry {
-	return semantics.DefaultRegistry()
-}
-
 // LookupSemanticString looks up a semantic concept from a single OTel attribute map.
 // It uses the semantics registry to check all equivalent attribute keys in precedence order.
 // If shouldNormalize is true, normalize the return value with NormalizeTagValue.
 func LookupSemanticString(attrs pcommon.Map, concept semantics.Concept, shouldNormalize bool) string {
 	accessor := semantics.NewPDataMapAccessor(attrs)
-	val := semantics.LookupString(defaultRegistry(), accessor, concept)
+	val := semantics.LookupString(semantics.DefaultRegistry(), accessor, concept)
 	if shouldNormalize && val != "" {
 		val = normalizeutil.NormalizeTagValue(val)
 	}
@@ -174,7 +169,7 @@ func LookupSemanticString(attrs pcommon.Map, concept semantics.Concept, shouldNo
 // If shouldNormalize is true, normalize the return value with NormalizeTagValue.
 func LookupSemanticStringFromDualMaps(primary, secondary pcommon.Map, concept semantics.Concept, shouldNormalize bool) string {
 	accessor := semantics.NewOTelSpanAccessor(primary, secondary)
-	val := semantics.LookupString(defaultRegistry(), accessor, concept)
+	val := semantics.LookupString(semantics.DefaultRegistry(), accessor, concept)
 	if shouldNormalize && val != "" {
 		val = normalizeutil.NormalizeTagValue(val)
 	}
@@ -185,14 +180,14 @@ func LookupSemanticStringFromDualMaps(primary, secondary pcommon.Map, concept se
 // The primary map takes precedence over secondary.
 func LookupSemanticInt64(primary, secondary pcommon.Map, concept semantics.Concept) (int64, bool) {
 	accessor := semantics.NewOTelSpanAccessor(primary, secondary)
-	return semantics.LookupInt64(defaultRegistry(), accessor, concept)
+	return semantics.LookupInt64(semantics.DefaultRegistry(), accessor, concept)
 }
 
 // LookupSemanticFloat64 looks up a semantic concept as a float64 from two OTel attribute maps.
 // The primary map takes precedence over secondary.
 func LookupSemanticFloat64(primary, secondary pcommon.Map, concept semantics.Concept) (float64, bool) {
 	accessor := semantics.NewOTelSpanAccessor(primary, secondary)
-	return semantics.LookupFloat64(defaultRegistry(), accessor, concept)
+	return semantics.LookupFloat64(semantics.DefaultRegistry(), accessor, concept)
 }
 
 // SpanKind2Type returns a span's type based on the given kind and other present properties.
