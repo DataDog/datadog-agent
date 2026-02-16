@@ -209,7 +209,7 @@ def _generate_unified_output(test_result: TestResult, flavor: AgentFlavor, tw: T
         return
 
     try:
-        from tasks.libs.testing.unified_output import convert_unit_test_results, generate_metadata
+        from tasks.libs.testing.utof import convert_unit_test_results, format_report, generate_metadata
 
         result_json = ResultJson.from_file(test_result.result_json_path)
         metadata = generate_metadata(test_system="unit", flavor=flavor.name)
@@ -217,6 +217,8 @@ def _generate_unified_output(test_result: TestResult, flavor: AgentFlavor, tw: T
         utof_path = test_result.result_json_path.replace('.json', '_unified.json')
         utof.write_json(utof_path)
         print(f"Unified test output written to {utof_path}")
+        with gitlab_section("Unified test report", collapsed=True):
+            print(format_report(utof))
     except Exception as e:
         print(f"Warning: Failed to generate unified test output: {e}")
 

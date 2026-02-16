@@ -4,9 +4,13 @@ import unittest
 from pathlib import Path
 
 from tasks.libs.testing.result_json import ResultJson
-from tasks.libs.testing.unified_output import (
+from tasks.libs.testing.utof import (
     UTOFMetadata,
+    _extract_message_from_raw_output,
+    _extract_stacktrace_from_raw_output,
+    _parse_assertion_blocks,
     convert_unit_test_results,
+    format_report,
 )
 from tasks.testwasher import TestWasher
 
@@ -344,3 +348,211 @@ class TestConvertTestId(unittest.TestCase):
         doc = convert_unit_test_results(result)
         ids = [t.id for t in doc.tests]
         self.assertEqual(len(ids), len(set(ids)), "Test IDs should be unique")
+
+
+class TestFormatReport(unittest.TestCase):
+    """Test the human-readable report formatter."""
+
+    def test_report_header_pass(self):
+        result = ResultJson.from_file(str(TESTDATA / "test_output_no_failure.json"))
+        doc = convert_unit_test_results(result)
+        report = format_report(doc)
+        self.assertIn("PASSED", report)
+        self.assertIn("Test Report (unit)", report)
+
+    def test_report_header_fail(self):
+        result = ResultJson.from_file(str(TESTDATA / "test_output_varied.json"))
+        doc = convert_unit_test_results(result)
+        report = format_report(doc)
+        self.assertIn("FAILED", report)
+
+    def test_report_summary_counts(self):
+        result = ResultJson.from_file(str(TESTDATA / "test_output_varied.json"))
+        doc = convert_unit_test_results(result)
+        report = format_report(doc)
+        self.assertIn("7 total", report)
+        self.assertIn("passed", report)
+        self.assertIn("failed", report)
+        self.assertIn("skipped", report)
+
+    def test_report_failures_section(self):
+        result = ResultJson.from_file(str(TESTDATA / "test_output_varied.json"))
+        doc = convert_unit_test_results(result)
+        report = format_report(doc)
+        self.assertIn("Failures", report)
+        self.assertIn("FAIL", report)
+        # Should show short package path, not full github URL
+        self.assertIn("testpackage1", report)
+
+    def test_report_panic_shows_type(self):
+        result = ResultJson.from_file(str(TESTDATA / "test_output_failure_panic.json"))
+        doc = convert_unit_test_results(result)
+        report = format_report(doc)
+        self.assertIn("type: panic", report)
+        self.assertIn("TestLoadConfigShouldBeFast", report)
+
+    def test_report_retried_section(self):
+        result = ResultJson.from_file(str(TESTDATA / "test_output_flaky_retried.json"))
+        doc = convert_unit_test_results(result)
+        report = format_report(doc)
+        self.assertIn("Retried", report)
+        self.assertIn("test_3", report)
+        self.assertIn("1 retry", report)
+        # Should show per-attempt detail
+        self.assertIn("attempt 1: fail", report)
+        self.assertIn("attempt 2: pass", report)
+
+    def test_report_no_failures_section_when_all_pass(self):
+        result = ResultJson.from_file(str(TESTDATA / "test_output_no_failure.json"))
+        doc = convert_unit_test_results(result)
+        report = format_report(doc)
+        self.assertNotIn("Failures", report)
+        self.assertNotIn("Retried", report)
+
+    def test_report_flaky_section(self):
+        tw = TestWasher(
+            test_output_json_file=str(TESTDATA / "test_output_failure_marker.json"),
+            flakes_file_paths=["tasks/unit_tests/testdata/flakes_2.yaml"],
+        )
+        result = ResultJson.from_file(str(TESTDATA / "test_output_failure_marker.json"))
+        doc = convert_unit_test_results(result, test_washer=tw)
+        report = format_report(doc)
+        self.assertIn("FLAKY", report)
+
+    def test_report_strips_package_prefix(self):
+        result = ResultJson.from_file(str(TESTDATA / "test_output_failure_panic.json"))
+        doc = convert_unit_test_results(result)
+        report = format_report(doc)
+        # The failure header line should use the short path
+        self.assertIn("pkg/serverless/trace :: TestLoadConfigShouldBeFast", report)
+        # The header should NOT use the full github prefix (stacktrace may contain it)
+        self.assertNotIn("github.com/DataDog/datadog-agent/pkg/serverless/trace :: TestLoadConfigShouldBeFast", report)
+
+
+class TestMessageExtraction(unittest.TestCase):
+    """Test that failure messages are extracted from raw output instead of just '--- FAIL: ...'."""
+
+    def test_testify_error_extracted(self):
+        """testify Error: field should be extracted as the message."""
+        result = ResultJson.from_file(str(TESTDATA / "test_output_failure_marker.json"))
+        doc = convert_unit_test_results(result)
+        test = next(t for t in doc.tests if t.name == "TestGetPayload")
+        self.assertIsNotNone(test.failure)
+        self.assertNotIn("--- FAIL:", test.failure.message)
+        self.assertIn("Expected nil, but got:", test.failure.message)
+
+    def test_testify_error_includes_location(self):
+        """Message should include file:line for quick identification."""
+        result = ResultJson.from_file(str(TESTDATA / "test_output_failure_no_marker.json"))
+        doc = convert_unit_test_results(result)
+        test = next(t for t in doc.tests if t.name == "TestGetPayload")
+        self.assertIsNotNone(test.failure)
+        self.assertIn("gohai_test.go:17:", test.failure.message)
+        self.assertIn("Expected nil, but got:", test.failure.message)
+
+    def test_testify_stacktrace_extracted(self):
+        """Error Trace: should populate the stacktrace field (full path)."""
+        result = ResultJson.from_file(str(TESTDATA / "test_output_failure_no_marker.json"))
+        doc = convert_unit_test_results(result)
+        test = next(t for t in doc.tests if t.name == "TestGetPayload")
+        self.assertIsNotNone(test.failure)
+        self.assertIn("gohai_test.go:17", test.failure.stacktrace)
+
+    def test_panic_message_not_overwritten(self):
+        """Panic messages should still come from the 'panic:' line."""
+        result = ResultJson.from_file(str(TESTDATA / "test_output_failure_panic.json"))
+        doc = convert_unit_test_results(result)
+        test = next(t for t in doc.tests if t.name == "TestLoadConfigShouldBeFast")
+        self.assertIn("panic: toto", test.failure.message)
+
+    def test_single_assertion_message(self):
+        """Single testify assertion: file:line: error message."""
+        raw_lines = [
+            "=== RUN   TestFoo",
+            "    foo_test.go:10: ",
+            "        \tError Trace:\t/path/to/foo_test.go:10",
+            "        \tError:      \tNot equal:",
+            "        \t            \texpected: 5",
+            "        \t            \tactual  : 3",
+            "        \tTest:       \tTestFoo",
+            "--- FAIL: TestFoo (0.00s)",
+        ]
+        message = _extract_message_from_raw_output(raw_lines)
+        self.assertIn("foo_test.go:10:", message)
+        self.assertIn("Not equal:", message)
+        self.assertIn("expected: 5", message)
+        # Single assertion — should NOT have numbered entries
+        self.assertNotIn("[1]", message)
+
+    def test_multiple_assertions_numbered(self):
+        """Multiple testify assertions: each numbered with its own location."""
+        raw_lines = [
+            "    value_test.go:62: ",
+            "        \tError Trace:\tgithub.com/DataDog/datadog-agent/pkg/gohai/utils/value_test.go:62",
+            "        \tError:      \tNot equal: ",
+            "        \t            \texpected: 0",
+            "        \t            \tactual  : 1",
+            "        \tTest:       \tTestValueOrDefault",
+            "    value_test.go:63: ",
+            "        \tError Trace:\tgithub.com/DataDog/datadog-agent/pkg/gohai/utils/value_test.go:63",
+            "        \tError:      \tNot equal: ",
+            "        \t            \texpected: 0",
+            "        \t            \tactual  : 1",
+            "        \tTest:       \tTestValueOrDefault",
+            "--- FAIL: TestValueOrDefault (0.00s)",
+        ]
+        message = _extract_message_from_raw_output(raw_lines)
+        # Should say how many failed
+        self.assertIn("2 assertions failed", message)
+        # Each entry numbered with short location
+        self.assertIn("[1] value_test.go:62:", message)
+        self.assertIn("[2] value_test.go:63:", message)
+        # Each shows the error content
+        self.assertEqual(message.count("Not equal:"), 2)
+
+    def test_multiple_assertions_stacktrace_has_all_locations(self):
+        """Stacktrace should list all failure locations, not just the first."""
+        raw_lines = [
+            "        \tError Trace:\t/path/to/value_test.go:62",
+            "        \tError:      \tNot equal",
+            "        \tError Trace:\t/path/to/value_test.go:63",
+            "        \tError:      \tNot equal",
+        ]
+        trace = _extract_stacktrace_from_raw_output(raw_lines)
+        self.assertIn("value_test.go:62", trace)
+        self.assertIn("value_test.go:63", trace)
+
+    def test_parse_assertion_blocks(self):
+        """Direct test of block parsing."""
+        raw_lines = [
+            "        \tError Trace:\t/path/to/a_test.go:10",
+            "        \tError:      \tFoo failed",
+            "        \tError Trace:\t/path/to/a_test.go:20",
+            "        \tError:      \tBar failed",
+        ]
+        blocks = _parse_assertion_blocks(raw_lines)
+        self.assertEqual(len(blocks), 2)
+        self.assertIn("a_test.go:10", blocks[0].trace)
+        self.assertEqual(blocks[0].error_lines, ["Foo failed"])
+        self.assertIn("a_test.go:20", blocks[1].trace)
+        self.assertEqual(blocks[1].error_lines, ["Bar failed"])
+
+    def test_standard_go_error(self):
+        """Standard t.Error output includes file:line in message."""
+        raw_lines = [
+            "=== RUN   TestBar",
+            "    bar_test.go:42: expected 10, got 7",
+            "--- FAIL: TestBar (0.01s)",
+        ]
+        message = _extract_message_from_raw_output(raw_lines)
+        self.assertIn("bar_test.go:42:", message)
+        self.assertIn("expected 10, got 7", message)
+
+    def test_empty_output(self):
+        """Returns empty string when no recognizable pattern."""
+        raw_lines = [
+            "=== RUN   TestBaz",
+            "--- FAIL: TestBaz (0.00s)",
+        ]
+        message = _extract_message_from_raw_output(raw_lines)
+        self.assertEqual(message, "")
