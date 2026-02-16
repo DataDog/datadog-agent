@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
@@ -306,7 +305,7 @@ func detectNVML(features FeatureMap, cfg model.Reader) {
 	}
 
 	// Add common paths for the NVML library as a fallback, matching the logic in the safenvml package.
-	defaultPaths = append(defaultPaths, gpu.GenerateDefaultNvmlPaths()...)
+	defaultPaths = append(defaultPaths, getDefaultNvmlPaths()...)
 
 	for _, path := range defaultPaths {
 		// Use dlopen to search for the library to avoid importing the go-nvml package here,
@@ -369,6 +368,36 @@ func getDefaultPodmanPaths() []string {
 	paths := []string{}
 	for _, prefix := range getHostMountPrefixes() {
 		paths = append(paths, path.Join(prefix, defaultPodmanContainersStoragePath))
+	}
+	return paths
+}
+
+// getDefaultNvmlPaths returns the common paths where the NVML library may be installed.
+// NOTE: This logic is intentionally duplicated in pkg/gpu/safenvml/lib.go
+// (generateDefaultNvmlPaths). We keep it inline here to avoid adding a dependency on
+// pkg/gpu from pkg/config/env, which is imported by nearly every binary in the repo.
+func getDefaultNvmlPaths() []string {
+	if runtime.GOOS != "linux" {
+		return nil
+	}
+
+	systemPaths := []string{
+		"/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1",                   // default system install
+		"/run/nvidia/driver/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1", // nvidia-gpu-operator install
+	}
+
+	hostRoot := os.Getenv("HOST_ROOT")
+	if hostRoot == "" {
+		if IsContainerized() {
+			hostRoot = defaultHostMountPrefix
+		} else {
+			return systemPaths
+		}
+	}
+
+	paths := make([]string, 0, len(systemPaths))
+	for _, p := range systemPaths {
+		paths = append(paths, path.Join(hostRoot, p))
 	}
 	return paths
 }

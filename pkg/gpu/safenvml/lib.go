@@ -13,6 +13,8 @@ package safenvml
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -22,7 +24,6 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -348,7 +349,7 @@ func (s *safeNvml) ensureInitWithOpts(nvmlNewFunc func(opts ...nvml.LibraryOptio
 	// specify some common paths that might not be in the library search paths,
 	// specially in containerized environments.
 	libPaths := []string{libpath}
-	libPaths = append(libPaths, gpu.GenerateDefaultNvmlPaths()...)
+	libPaths = append(libPaths, generateDefaultNvmlPaths()...)
 
 	nvmlNewWithPath := func(path string) nvml.Interface {
 		return nvmlNewFunc(nvml.WithLibraryPath(path))
@@ -388,4 +389,37 @@ func GetSafeNvmlLib() (SafeNVML, error) {
 	}
 
 	return &singleton, nil
+}
+
+// isContainerized checks if the agent is running in a containerized environment.
+// We can't use env.IsContainerized() here to avoid a circular dependency.
+func isContainerized() bool {
+	return os.Getenv("DOCKER_DD_AGENT") == "1"
+}
+
+// generateDefaultNvmlPaths generates the default paths for the NVML library,
+// taking into account containerized environments and the HOST_ROOT environment variable.
+// NOTE: This logic is intentionally duplicated in pkg/config/env/environment_containers.go
+// (getDefaultNvmlPaths) to avoid adding pkg/gpu as a dependency of pkg/config/env, which
+// is imported by nearly every binary in the repo.
+func generateDefaultNvmlPaths() []string {
+	systemPaths := []string{
+		"/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1",                   // default system install
+		"/run/nvidia/driver/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1", // nvidia-gpu-operator install
+	}
+
+	hostRoot := os.Getenv("HOST_ROOT")
+	if hostRoot == "" {
+		if isContainerized() {
+			hostRoot = "/host"
+		} else {
+			return systemPaths
+		}
+	}
+
+	paths := make([]string, 0, len(systemPaths))
+	for _, p := range systemPaths {
+		paths = append(paths, filepath.Join(hostRoot, p))
+	}
+	return paths
 }
