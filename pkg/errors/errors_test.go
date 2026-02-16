@@ -65,6 +65,23 @@ func TestRemoteService(t *testing.T) {
 	require.True(t, IsRemoteService(fmt.Errorf("outer: %w", fmt.Errorf("middle: %w", err))))
 }
 
+func TestDisabled(t *testing.T) {
+	// New
+	err := NewDisabled("logs", "not licensed")
+	require.Error(t, err)
+	require.Equal(t, "component logs is disabled: not licensed", err.Error())
+
+	// Is
+	require.True(t, IsDisabled(err))
+	require.False(t, IsDisabled(errors.New("fake")))
+	require.False(t, IsDisabled(errors.New("component logs is disabled: not licensed")))
+
+	// Wrapped
+	errWrapped := fmt.Errorf("context: %w", err)
+	require.True(t, IsDisabled(errWrapped))
+	require.True(t, IsDisabled(fmt.Errorf("outer: %w", fmt.Errorf("middle: %w", err))))
+}
+
 func TestTimeout(t *testing.T) {
 	// New
 	err := NewTimeoutError("datadog cluster agent", errors.New("context deadline exceeded"))
