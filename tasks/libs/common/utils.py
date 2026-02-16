@@ -312,7 +312,7 @@ def get_build_flags(
         try:
             xcode_version = get_xcode_version(ctx)
             if int(xcode_version.split('.')[0]) >= 15:
-                extldflags += ",-no_warn_duplicate_libraries "
+                extldflags += "-Wl,-no_warn_duplicate_libraries "
         except ValueError:
             print(
                 color_message(
