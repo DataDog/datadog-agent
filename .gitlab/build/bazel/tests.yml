@@ -7,23 +7,15 @@
 bazel:test:linux-amd64:
   extends: [ .bazel:test, .bazel:runner:linux-amd64 ]
   script:
-    #TODO(regis): fix and enable failing targets
     - >-
-      bazel test //... --
-      -//pkg/discovery/module/rust:dd_discovery
-      -//pkg/discovery/module/rust:dd_discovery_test
-      -//pkg/discovery/module/rust:libdd_discovery
+      bazel test //...
     - bazel build //packages/agent/linux:debian
 
 bazel:test:linux-arm64:
   extends: [ .bazel:test, .bazel:runner:linux-arm64 ]
   script:
-    #TODO(regis): fix and enable failing targets
     - >-
-      bazel test //... --
-      -//pkg/discovery/module/rust:dd_discovery
-      -//pkg/discovery/module/rust:dd_discovery_test
-      -//pkg/discovery/module/rust:libdd_discovery
+      bazel test //...
 
 bazel:test:macos-amd64:
   extends: [ .bazel:test, .bazel:runner:macos-amd64 ]
