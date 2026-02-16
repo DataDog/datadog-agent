@@ -65,40 +65,42 @@ type context struct {
 	NetworkPath                      bool
 	ApplicationMonitoring            bool
 	Synthetics                       bool
+	PrivateActionRunner              bool
 }
 
 func mkContext(buildType string) context {
 	buildType = strings.ToLower(buildType)
 
 	agentContext := context{
-		OS:                runtime.GOOS,
-		Common:            true,
-		Agent:             true,
-		Python:            true,
-		Metadata:          true,
-		InternalProfiling: false, // NOTE: hidden for now
-		Dogstatsd:         true,
-		LogsAgent:         true,
-		JMX:               true,
-		Autoconfig:        true,
-		Logging:           true,
-		Autodiscovery:     true,
-		DockerTagging:     true,
-		KubernetesTagging: true,
-		ECS:               true,
-		Containerd:        true,
-		CRI:               true,
-		ProcessAgent:      true,
-		TraceAgent:        true,
-		Kubelet:           true,
-		KubeApiServer:     true, // TODO: remove when phasing out from node-agent
-		Compliance:        true,
-		SBOM:              true,
-		SNMP:              true,
-		PrometheusScrape:  true,
-		OTLP:              true,
-		NetworkPath:       true,
-		Synthetics:        true,
+		OS:                  runtime.GOOS,
+		Common:              true,
+		Agent:               true,
+		Python:              true,
+		Metadata:            true,
+		InternalProfiling:   false, // NOTE: hidden for now
+		Dogstatsd:           true,
+		LogsAgent:           true,
+		JMX:                 true,
+		Autoconfig:          true,
+		Logging:             true,
+		Autodiscovery:       true,
+		DockerTagging:       true,
+		KubernetesTagging:   true,
+		ECS:                 true,
+		Containerd:          true,
+		CRI:                 true,
+		ProcessAgent:        true,
+		TraceAgent:          true,
+		Kubelet:             true,
+		KubeApiServer:       true, // TODO: remove when phasing out from node-agent
+		Compliance:          true,
+		SBOM:                true,
+		SNMP:                true,
+		PrometheusScrape:    true,
+		OTLP:                true,
+		NetworkPath:         true,
+		Synthetics:          true,
+		PrivateActionRunner: false, // NOTE: hidden until v7.77.0
 	}
 
 	switch buildType {
