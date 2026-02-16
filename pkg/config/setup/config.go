@@ -159,8 +159,6 @@ var (
 )
 
 // SetDatadog sets the the reference to the agent configuration.
-// This is currently used by the legacy converter and config mocks and should not be user anywhere else. Once the
-// legacy converter and mock have been migrated we will remove this function.
 func SetDatadog(cfg pkgconfigmodel.BuildableConfig) {
 	datadogMutex.Lock()
 	defer datadogMutex.Unlock()
@@ -168,8 +166,6 @@ func SetDatadog(cfg pkgconfigmodel.BuildableConfig) {
 }
 
 // SetSystemProbe sets the the reference to the systemProbe configuration.
-// This is currently used by the config mocks and should not be user anywhere else. Once the mocks have been migrated we
-// will remove this function.
 func SetSystemProbe(cfg pkgconfigmodel.BuildableConfig) {
 	systemProbeMutex.Lock()
 	defer systemProbeMutex.Unlock()
@@ -309,8 +305,8 @@ func InitConfigObjects(cliPath string, defaultDir string) {
 	// We first load the configuration to see which config library should be used.
 	configLib := resolveConfigLibType(cliPath, defaultDir)
 
-	datadog = create.NewConfig("datadog", configLib)
-	systemProbe = create.NewConfig("system-probe", configLib)
+	SetDatadog(create.NewConfig("datadog", configLib))
+	SetSystemProbe(create.NewConfig("system-probe", configLib))
 
 	// Configuration defaults
 	initConfig()
