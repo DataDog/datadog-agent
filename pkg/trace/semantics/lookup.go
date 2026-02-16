@@ -23,9 +23,51 @@ type SpanAccessor interface {
 	GetInt64Attribute(key string) (int64, bool)
 }
 
+// CombinedAccessor combines multiple SpanAccessors, checking each in order.
+// This is useful for combining span attributes with resource attributes,
+// where span attributes typically take precedence.
+type CombinedAccessor struct {
+	Accessors []SpanAccessor
+}
+
+// GetStringAttribute returns the first non-empty string value from any accessor.
+func (a *CombinedAccessor) GetStringAttribute(key string) string {
+	for _, accessor := range a.Accessors {
+		if v := accessor.GetStringAttribute(key); v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// GetFloat64Attribute returns the first found float64 value from any accessor.
+func (a *CombinedAccessor) GetFloat64Attribute(key string) (float64, bool) {
+	for _, accessor := range a.Accessors {
+		if v, ok := accessor.GetFloat64Attribute(key); ok {
+			return v, true
+		}
+	}
+	return 0, false
+}
+
+// GetInt64Attribute returns the first found int64 value from any accessor.
+func (a *CombinedAccessor) GetInt64Attribute(key string) (int64, bool) {
+	for _, accessor := range a.Accessors {
+		if v, ok := accessor.GetInt64Attribute(key); ok {
+			return v, true
+		}
+	}
+	return 0, false
+}
+
+// NewCombinedAccessor creates a CombinedAccessor from the given accessors.
+// Accessors are checked in order, so put higher-precedence accessors first.
+func NewCombinedAccessor(accessors ...SpanAccessor) *CombinedAccessor {
+	return &CombinedAccessor{Accessors: accessors}
+}
+
 // LookupResult contains the result of a semantic attribute lookup.
 type LookupResult struct {
-	Found        bool    // indicates whether a value was found.
 	TagInfo      TagInfo // contains metadata about the matched attribute (use TagInfo.Name for the key).
 	StringValue  string
 	Float64Value float64
@@ -36,8 +78,8 @@ type LookupResult struct {
 // It checks attributes in precedence order as defined by the registry.
 // For numeric types, converts the value to string.
 func LookupString(r Registry, accessor SpanAccessor, concept Concept) string {
-	result := Lookup(r, accessor, concept)
-	if !result.Found {
+	result, ok := Lookup(r, accessor, concept)
+	if !ok {
 		return ""
 	}
 	switch result.TagInfo.Type {
@@ -54,8 +96,8 @@ func LookupString(r Registry, accessor SpanAccessor, concept Concept) string {
 // It checks attributes in precedence order as defined by the registry.
 // Returns 0 and false if no matching attribute is found.
 func LookupFloat64(r Registry, accessor SpanAccessor, concept Concept) (float64, bool) {
-	result := Lookup(r, accessor, concept)
-	if !result.Found {
+	result, ok := Lookup(r, accessor, concept)
+	if !ok {
 		return 0, false
 	}
 	switch result.TagInfo.Type {
@@ -78,8 +120,8 @@ func LookupFloat64(r Registry, accessor SpanAccessor, concept Concept) (float64,
 // It checks attributes in precedence order as defined by the registry.
 // Returns 0 and false if no matching attribute is found.
 func LookupInt64(r Registry, accessor SpanAccessor, concept Concept) (int64, bool) {
-	result := Lookup(r, accessor, concept)
-	if !result.Found {
+	result, ok := Lookup(r, accessor, concept)
+	if !ok {
 		return 0, false
 	}
 	switch result.TagInfo.Type {
@@ -100,52 +142,49 @@ func LookupInt64(r Registry, accessor SpanAccessor, concept Concept) (int64, boo
 
 // Lookup performs a semantic attribute lookup and returns detailed information about the match.
 // It checks attributes in precedence order as defined by the registry.
-func Lookup(r Registry, accessor SpanAccessor, concept Concept) LookupResult {
+// Returns the result and true if found, or zero value and false if not found.
+func Lookup(r Registry, accessor SpanAccessor, concept Concept) (LookupResult, bool) {
 	tags := r.GetAttributePrecedence(concept)
 	if tags == nil {
-		return LookupResult{}
+		return LookupResult{}, false
 	}
 
 	for _, tag := range tags {
-		result := lookupSingleTag(accessor, tag)
-		if result.Found {
-			return result
+		if result, ok := lookupSingleTag(accessor, tag); ok {
+			return result, true
 		}
 	}
 
-	return LookupResult{}
+	return LookupResult{}, false
 }
 
 // lookupSingleTag looks up a single tag from the accessor based on its type.
 // Only the value field corresponding to the tag type is populated.
 // Type conversions are the caller's responsibility.
-func lookupSingleTag(accessor SpanAccessor, tag TagInfo) LookupResult {
+func lookupSingleTag(accessor SpanAccessor, tag TagInfo) (LookupResult, bool) {
 	switch tag.Type {
 	case ValueTypeFloat64:
 		if v, ok := accessor.GetFloat64Attribute(tag.Name); ok {
 			return LookupResult{
-				Found:        true,
 				TagInfo:      tag,
 				Float64Value: v,
-			}
+			}, true
 		}
 	case ValueTypeInt64:
 		if v, ok := accessor.GetInt64Attribute(tag.Name); ok {
 			return LookupResult{
-				Found:      true,
 				TagInfo:    tag,
 				Int64Value: v,
-			}
+			}, true
 		}
 	case ValueTypeString, "":
 		if v := accessor.GetStringAttribute(tag.Name); v != "" {
 			return LookupResult{
-				Found:       true,
 				TagInfo:     tag,
 				StringValue: v,
-			}
+			}, true
 		}
 	}
 
-	return LookupResult{}
+	return LookupResult{}, false
 }

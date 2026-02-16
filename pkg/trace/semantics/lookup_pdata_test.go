@@ -24,7 +24,8 @@ func TestPDataMapAccessor(t *testing.T) {
 
 	t.Run("GetStringAttribute", func(t *testing.T) {
 		assert.Equal(t, "GET", accessor.GetStringAttribute("http.method"))
-		assert.Equal(t, "200", accessor.GetStringAttribute("http.status_code"))
+		// Only returns value for actual string types, not conversions
+		assert.Equal(t, "", accessor.GetStringAttribute("http.status_code"))
 		assert.Equal(t, "", accessor.GetStringAttribute("nonexistent"))
 	})
 
@@ -33,9 +34,9 @@ func TestPDataMapAccessor(t *testing.T) {
 		assert.True(t, ok)
 		assert.Equal(t, 3.14, v)
 
-		v, ok = accessor.GetFloat64Attribute("http.status_code")
-		assert.True(t, ok)
-		assert.Equal(t, float64(200), v)
+		// Only returns value for actual double types, not conversions
+		_, ok = accessor.GetFloat64Attribute("http.status_code")
+		assert.False(t, ok)
 
 		_, ok = accessor.GetFloat64Attribute("nonexistent")
 		assert.False(t, ok)

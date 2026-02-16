@@ -93,16 +93,16 @@ func TestLookup(t *testing.T) {
 
 	t.Run("returns result with metadata", func(t *testing.T) {
 		a := &testAccessor{strings: map[string]string{"db.statement": "SELECT 1"}}
-		result := Lookup(r, a, ConceptDBStatement)
-		assert.True(t, result.Found)
+		result, ok := Lookup(r, a, ConceptDBStatement)
+		assert.True(t, ok)
 		assert.Equal(t, "db.statement", result.TagInfo.Name)
 		assert.Equal(t, "SELECT 1", result.StringValue)
 	})
 
-	t.Run("unknown concept returns empty", func(t *testing.T) {
+	t.Run("unknown concept returns false", func(t *testing.T) {
 		a := &testAccessor{strings: map[string]string{"any": "value"}}
-		result := Lookup(r, a, Concept("unknown"))
-		assert.False(t, result.Found)
+		_, ok := Lookup(r, a, Concept("unknown"))
+		assert.False(t, ok)
 	})
 }
 

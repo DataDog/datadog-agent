@@ -21,44 +21,39 @@ func NewPDataMapAccessor(attrs pcommon.Map) *PDataMapAccessor {
 }
 
 // GetStringAttribute returns the string value for the given key.
+// Only returns a value if the attribute is actually a string type.
 func (a *PDataMapAccessor) GetStringAttribute(key string) string {
 	v, ok := a.attrs.Get(key)
 	if !ok {
 		return ""
 	}
-	return v.AsString()
+	return v.Str()
 }
 
 // GetFloat64Attribute returns the float64 value for the given key.
+// Only returns a value if the attribute is actually a double type.
 func (a *PDataMapAccessor) GetFloat64Attribute(key string) (float64, bool) {
 	v, ok := a.attrs.Get(key)
 	if !ok {
 		return 0, false
 	}
-	switch v.Type() {
-	case pcommon.ValueTypeDouble:
+	if v.Type() == pcommon.ValueTypeDouble {
 		return v.Double(), true
-	case pcommon.ValueTypeInt:
-		return float64(v.Int()), true
-	default:
-		return 0, false
 	}
+	return 0, false
 }
 
 // GetInt64Attribute returns the int64 value for the given key.
+// Only returns a value if the attribute is actually an int type.
 func (a *PDataMapAccessor) GetInt64Attribute(key string) (int64, bool) {
 	v, ok := a.attrs.Get(key)
 	if !ok {
 		return 0, false
 	}
-	switch v.Type() {
-	case pcommon.ValueTypeInt:
+	if v.Type() == pcommon.ValueTypeInt {
 		return v.Int(), true
-	case pcommon.ValueTypeDouble:
-		return int64(v.Double()), true
-	default:
-		return 0, false
 	}
+	return 0, false
 }
 
 // NewOTelSpanAccessor creates a CombinedAccessor for OTel span and resource attributes.
