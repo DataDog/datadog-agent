@@ -184,16 +184,14 @@ func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefi
 	if _, ok := module.EventTypes[event]; !ok {
 		module.EventTypes[event] = common.NewEventTypeMetada()
 	}
-	module.EventTypes[event].Fields = append(module.EventTypes[event].Fields, alias)
-
-	aliasPrefix = alias
 
 	if field.lengthField {
-		lengthName := name + ".length"
-		lengthAlias := alias + ".length"
+		name = name + ".length"
+		aliasPrefix = alias
+		alias = alias + ".length"
 
 		newStructField := &common.StructField{
-			Name:         lengthName,
+			Name:         name,
 			BasicType:    "int",
 			ReturnType:   "int",
 			OrigType:     "int",
@@ -204,42 +202,20 @@ func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefi
 			CommentText:  doc.SECLDocForLength,
 			OpOverrides:  opOverrides,
 			Struct:       "string",
-			Alias:        lengthAlias,
+			Alias:        alias,
 			AliasPrefix:  aliasPrefix,
 			GettersOnly:  field.gettersOnly,
 			Ref:          field.ref,
 			RestrictedTo: restrictedTo,
 		}
 
-		module.Fields[lengthAlias] = newStructField
-		module.EventTypes[event].Fields = append(module.EventTypes[event].Fields, lengthAlias)
+		module.Fields[alias] = newStructField
 	}
 
-	if field.rootDomainField {
-		rootDomainName := name + ".root_domain"
-		rootDomainAlias := alias + ".root_domain"
-
-		newStructField := &common.StructField{
-			Name:         rootDomainName,
-			BasicType:    "string",
-			ReturnType:   "string",
-			OrigType:     "string",
-			IsArray:      isArray,
-			IsRootDomain: true,
-			Event:        event,
-			Iterator:     iterator,
-			CommentText:  doc.SECLDocForRootDomain,
-			OpOverrides:  opOverrides,
-			Struct:       "string",
-			Alias:        rootDomainAlias,
-			AliasPrefix:  aliasPrefix,
-			GettersOnly:  field.gettersOnly,
-			Ref:          field.ref,
-			RestrictedTo: restrictedTo,
-		}
-
-		module.Fields[rootDomainAlias] = newStructField
-		module.EventTypes[event].Fields = append(module.EventTypes[event].Fields, rootDomainAlias)
+	if _, ok := module.EventTypes[event]; !ok {
+		module.EventTypes[event] = common.NewEventTypeMetada(alias)
+	} else {
+		module.EventTypes[event].Fields = append(module.EventTypes[event].Fields, alias)
 	}
 }
 
@@ -303,23 +279,6 @@ func addLengthOpField(module *common.Module, alias string, field *common.StructF
 	return &lengthField
 }
 
-func addRootDomainOpField(module *common.Module, alias string, field *common.StructField) *common.StructField {
-	rootDomainField := *field
-	rootDomainField.IsRootDomain = true
-	rootDomainField.Name += ".root_domain"
-	rootDomainField.OrigType = "string"
-	rootDomainField.BasicType = "string"
-	rootDomainField.ReturnType = "string"
-	rootDomainField.Struct = "string"
-	rootDomainField.AliasPrefix = alias
-	rootDomainField.Alias = alias + ".root_domain"
-	rootDomainField.CommentText = doc.SECLDocForRootDomain
-
-	module.Fields[rootDomainField.Alias] = &rootDomainField
-
-	return &rootDomainField
-}
-
 // handleIterator adds iterator to list of exposed SECL iterators of the module
 func handleIterator(module *common.Module, field seclField, fieldType, iterator, aliasPrefix, prefixedFieldName, event string, restrictedTo []string, fieldCommentText string, opOverrides []string, isPointer, isArray bool) *common.StructField {
 	alias := field.name
@@ -349,12 +308,6 @@ func handleIterator(module *common.Module, field seclField, fieldType, iterator,
 	lengthField := addLengthOpField(module, alias, module.Iterators[alias])
 	lengthField.Iterator = module.Iterators[alias]
 	lengthField.IsIterator = true
-
-	if field.rootDomainField {
-		rootDomainField := addRootDomainOpField(module, alias, module.Iterators[alias])
-		rootDomainField.Iterator = module.Iterators[alias]
-		rootDomainField.IsIterator = true
-	}
 
 	return module.Iterators[alias]
 }
@@ -403,10 +356,6 @@ func handleFieldWithHandler(module *common.Module, field seclField, aliasPrefix,
 		addLengthOpField(module, alias, module.Fields[alias])
 	}
 
-	if field.rootDomainField {
-		addRootDomainOpField(module, alias, module.Fields[alias])
-	}
-
 	if _, ok := module.EventTypes[event]; !ok {
 		module.EventTypes[event] = common.NewEventTypeMetada(alias)
 	} else {
@@ -447,7 +396,6 @@ type seclField struct {
 	helper                 bool // mark the handler as just a helper and not a real resolver. Won't be called by ResolveFields
 	skipADResolution       bool
 	lengthField            bool
-	rootDomainField        bool
 	weight                 int64
 	check                  string
 	setHandler             string
@@ -499,8 +447,6 @@ func parseFieldDef(def string) (seclField, error) {
 						field.helper = true
 					case "length":
 						field.lengthField = true
-					case "root_domain":
-						field.rootDomainField = true
 					case "skip_ad":
 						field.skipADResolution = true
 					case "exposed_at_event_root_only":
@@ -813,7 +759,7 @@ func _sortFieldsByChecks(module *common.Module, fields map[string]*common.Struct
 
 func sortFieldsByChecks(module *common.Module) {
 	for fieldName, field := range module.Fields {
-		if field.Event != "" || field.IsLength || field.IsRootDomain {
+		if field.Event != "" || field.IsLength {
 			continue
 		}
 		module.FieldsOrderByChecks = append(module.FieldsOrderByChecks, fieldName)
@@ -1148,7 +1094,7 @@ func getHandlers(allFields map[string]*common.StructField) map[string]string {
 	handlers := make(map[string]string)
 
 	for _, field := range allFields {
-		if field.Handler != "" && !field.IsLength && !field.IsRootDomain {
+		if field.Handler != "" && !field.IsLength {
 			returnType := field.ReturnType
 			if field.IsArray {
 				returnType = "[]" + returnType
@@ -1212,7 +1158,7 @@ func getFieldReflectType(field *common.StructField) string {
 }
 
 func isReadOnly(field *common.StructField) bool {
-	return field.IsLength || field.ReadOnly || field.IsRootDomain
+	return field.IsLength || field.ReadOnly
 }
 
 func genGetter(getters []string, getter string) bool {

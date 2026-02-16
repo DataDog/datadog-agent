@@ -139,6 +139,21 @@ def get_gobin(ctx):
     return gobin
 
 
+def link_or_copy(src: Path, dst: Path) -> None:
+    """Create dst from src using the first available strategy: relative symlink, hardlink, absolute symlink, or copy."""
+    dst.unlink(missing_ok=True)
+    for strategy in (
+        lambda: dst.symlink_to(src.relative_to(dst.parent, walk_up=True)),
+        lambda: dst.hardlink_to(src),
+        lambda: dst.symlink_to(src),
+    ):
+        try:
+            return strategy()
+        except (NotImplementedError, OSError, ValueError):
+            pass
+    return shutil.copy2(src, dst)
+
+
 def get_rtloader_paths(embedded_path=None, rtloader_root=None):
     rtloader_lib = []
     rtloader_headers = ""

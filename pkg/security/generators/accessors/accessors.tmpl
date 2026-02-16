@@ -138,10 +138,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 								result := int({{$Return}})
 							{{end}}
 						{{else}}
-							{{if $Field.IsRootDomain}}
-								result := eval.GetPublicTLD({{".root_domain" | TrimSuffix $Return}})
-							{{- else if ne $Field.ReturnType $Field.OrigType}}
-								result := {{$Field.ReturnType}}({{$Return}})
+							{{- if ne $Field.ReturnType $Field.OrigType}}
+							result := {{$Field.ReturnType}}({{$Return}})
 							{{else}}
 							result := {{$Return}}
 							{{end}}
@@ -197,10 +195,8 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 								return int({{$Return}})
 							{{end}}
 						{{else}}
-							{{if $Field.IsRootDomain}}
-							return eval.GetPublicTLD({{".root_domain" | TrimSuffix $Return}})
-							{{- else if ne $Field.ReturnType $Field.OrigType}}
-								return {{$Field.ReturnType}}({{$Return}})
+							{{- if ne $Field.ReturnType $Field.OrigType}}
+							return {{$Field.ReturnType}}({{$Return}})
 							{{else}}
 							return {{$Return}}
 							{{end}}
@@ -215,7 +211,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				{{- $ReturnType := $Field.ReturnType}}
 				EvalFnc: func(ctx *eval.Context) {{- if not $Field.IsIterator}}{{$Field.GetArrayPrefix}}{{end}}{{$ReturnType}} {
 					ctx.AppendResolvedField(field)
-					{{- if not (and $Field.IsIterator (or $Field.IsLength $Field.IsRootDomain))}}
+					{{- if not (and $Field.IsLength $Field.IsIterator)}}
 						ev := ctx.Event.(*Event)
 					{{end}}
 
@@ -270,13 +266,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 						{{- if ne $ReturnType $Field.OrigType}}
 						return {{$ReturnType}}({{$Return}})
 						{{else}}
-							{{if $Field.IsRootDomain}}
-								{{- if not $Field.IsIterator}}
-									return eval.GetPublicTLD({{".root_domain" | TrimSuffix $Return}})
-								{{end}}
-							{{else}}
-								return {{$Return}}
-							{{end}}
+						return {{$Return}}
 						{{end -}}
 					{{end -}}
 				},
