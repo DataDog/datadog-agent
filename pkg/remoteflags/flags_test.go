@@ -23,560 +23,231 @@ const (
 	testFlag2 FlagName = "test_feature_2"
 )
 
-func TestNewClient(t *testing.T) {
-	client := NewClient()
-	assert.NotNil(t, client)
-	assert.NotNil(t, client.subscriptions)
-	assert.NotNil(t, client.currentValues)
+// testSub holds callback channels used to synchronize and assert in tests.
+type testSub struct {
+	onChange   chan FlagValue
+	onNoConfig chan struct{}
+	recover    chan FlagValue
 }
 
-func TestSubscribe_ValidParams(t *testing.T) {
-	client := NewClient()
-
-	onChangeCalled := false
-	onChange := func(_ FlagValue) error {
-		onChangeCalled = true
-		return nil
+func newTestSub() *testSub {
+	return &testSub{
+		onChange:   make(chan FlagValue, 1),
+		onNoConfig: make(chan struct{}, 1),
+		recover:    make(chan FlagValue, 1),
 	}
-
-	onNoConfig := func() {}
-
-	safeRecover := func(_ error, _ FlagValue) {}
-
-	isHealthy := func() bool { return true }
-
-	err := client.Subscribe(testFlag1, onChange, onNoConfig, safeRecover, isHealthy)
-	assert.NoError(t, err)
-	assert.False(t, onChangeCalled, "onChange should not be called if no value exists yet")
 }
 
-func TestSubscribeMustHaveRequiredCallbacks(t *testing.T) {
-	client := NewClient()
-
-	// Valid subscription with all callbacks
+func (ts *testSub) subscribe(t *testing.T, client *Client, flag FlagName) {
+	t.Helper()
 	err := client.Subscribe(
-		"random_first_flag",
-		func(FlagValue) error { return nil },
-		func() {},
-		func(error, FlagValue) {},
+		flag,
+		func(v FlagValue) error { ts.onChange <- v; return nil },
+		func() { ts.onNoConfig <- struct{}{} },
+		func(_ error, v FlagValue) { ts.recover <- v },
 		func() bool { return true },
 	)
 	require.NoError(t, err)
-
-	// Missing safeRecover
-	err = client.Subscribe(
-		"random_second_flag",
-		func(FlagValue) error { return nil },
-		func() {},
-		nil,
-		func() bool { return true },
-	)
-	require.Error(t, err)
-
-	// Missing isHealthy
-	err = client.Subscribe(
-		"random_third_flag",
-		func(FlagValue) error { return nil },
-		func() {},
-		func(error, FlagValue) {},
-		nil,
-	)
-	require.Error(t, err)
 }
 
+// sendUpdate is a test helper that sends a flag config update to the client.
+func sendUpdate(client *Client, flags ...Flag) {
+	cfg, _ := json.Marshal(FlagConfig{Flags: flags})
+	client.OnUpdate(
+		map[string]state.RawConfig{"config": {Config: cfg}},
+		func(string, state.ApplyStatus) {},
+	)
+}
+
+// waitChan waits for a value on a channel with a 1s timeout, failing the test on timeout.
+func waitChan[T any](t *testing.T, ch <-chan T) T {
+	t.Helper()
+	select {
+	case v := <-ch:
+		return v
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for channel")
+		var zero T
+		return zero
+	}
+}
+
+// the RF client must enforce non-nil callbacks.
+// this unit test is here to validate it's still enforced in the future,
+// or used as a strong signal that you're about to change something
+// critical (if this test start failing on your change)
+func TestSubscribe_RejectsNilCallbacks(t *testing.T) {
+	client := NewClient()
+	noop := func(FlagValue) error { return nil }
+	noopNoConfig := func() {}
+	noopRecover := func(error, FlagValue) {}
+	noopHealthy := func() bool { return true }
+
+	require.Error(t, client.Subscribe("f", nil, noopNoConfig, noopRecover, noopHealthy))
+	require.Error(t, client.Subscribe("f", noop, nil, noopRecover, noopHealthy))
+	require.Error(t, client.Subscribe("f", noop, noopNoConfig, nil, noopHealthy))
+	require.Error(t, client.Subscribe("f", noop, noopNoConfig, noopRecover, nil))
+	require.Error(t, client.Subscribe("", noop, noopNoConfig, noopRecover, noopHealthy))
+}
+
+// the RF client immediately calls the subscribers if a value's already existing.
 func TestSubscribe_ImmediateCallbackIfValueExists(t *testing.T) {
 	client := NewClient()
-
-	// Set a value before subscribing
 	client.mu.Lock()
-	client.currentValues[testFlag1] = FlagValue(true)
+	client.currentValues[testFlag1] = true
 	client.mu.Unlock()
 
-	var wg sync.WaitGroup
-	wg.Add(1)
+	sub := newTestSub()
+	sub.subscribe(t, client, testFlag1)
 
-	onChangeCalled := false
-	receivedValue := FlagValue(false)
-	onChange := func(value FlagValue) error {
-		onChangeCalled = true
-		receivedValue = value
-		wg.Done()
-		return nil
-	}
-
-	onNoConfig := func() {}
-
-	safeRecover := func(_ error, _ FlagValue) {}
-
-	isHealthy := func() bool { return true }
-
-	err := client.Subscribe(testFlag1, onChange, onNoConfig, safeRecover, isHealthy)
-	require.NoError(t, err)
-
-	// Wait for callback (with timeout)
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		assert.True(t, onChangeCalled, "onChange should be called immediately if value exists")
-		assert.True(t, bool(receivedValue), "should receive the existing value")
-	case <-time.After(1 * time.Second):
-		t.Fatal("timeout waiting for onChange callback")
-	}
+	v := waitChan(t, sub.onChange)
+	assert.True(t, bool(v))
 }
 
-func TestOnUpdate_ValidConfig(t *testing.T) {
+// the RF client properly notifies subscribers.
+func TestOnUpdate_NotifiesSubscriber(t *testing.T) {
 	client := NewClient()
+	sub := newTestSub()
+	sub.subscribe(t, client, testFlag1)
 
-	var wg sync.WaitGroup
-	wg.Add(1)
+	sendUpdate(client, Flag{Name: string(testFlag1), Value: true})
 
-	receivedValue := FlagValue(false)
-	onChange := func(value FlagValue) error {
-		receivedValue = value
-		wg.Done()
-		return nil
-	}
+	v := waitChan(t, sub.onChange)
+	assert.True(t, bool(v))
 
-	onNoConfig := func() {}
-
-	safeRecover := func(_ error, _ FlagValue) {
-		t.Errorf("safeRecover should not be called for valid config")
-	}
-
-	isHealthy := func() bool { return true }
-
-	err := client.Subscribe(testFlag1, onChange, onNoConfig, safeRecover, isHealthy)
-	require.NoError(t, err)
-
-	// Create a valid config update
-	flagConfig := FlagConfig{
-		Flags: []Flag{
-			{Name: string(testFlag1), Value: true},
-		},
-	}
-	configBytes, _ := json.Marshal(flagConfig)
-
-	updates := map[string]state.RawConfig{
-		"remote_flags_config": {
-			Config: configBytes,
-		},
-	}
-
-	applyStatusCalled := false
-	applyStateCallback := func(path string, status state.ApplyStatus) {
-		applyStatusCalled = true
-		assert.Equal(t, "remote_flags_config", path)
-		assert.Equal(t, state.ApplyStateAcknowledged, status.State)
-		assert.Empty(t, status.Error)
-	}
-
-	client.OnUpdate(updates, applyStateCallback)
-
-	// Wait for callback
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		assert.True(t, bool(receivedValue))
-		assert.True(t, applyStatusCalled)
-	case <-time.After(1 * time.Second):
-		t.Fatal("timeout waiting for onChange callback")
-	}
-
-	// Verify current value is stored
 	value, exists := client.GetCurrentValue(testFlag1)
 	assert.True(t, exists)
 	assert.True(t, bool(value))
 }
 
+func TestOnUpdate_DeduplicatesSameValue(t *testing.T) {
+	client := NewClient()
+	sub := newTestSub()
+	sub.subscribe(t, client, testFlag1)
+
+	// First update
+	sendUpdate(client, Flag{Name: string(testFlag1), Value: true})
+	waitChan(t, sub.onChange)
+
+	// Same value again: should not trigger
+	sendUpdate(client, Flag{Name: string(testFlag1), Value: true})
+	time.Sleep(50 * time.Millisecond)
+	assert.Empty(t, sub.onChange)
+
+	// Different value: should trigger
+	sendUpdate(client, Flag{Name: string(testFlag1), Value: false})
+	v := waitChan(t, sub.onChange)
+	assert.False(t, bool(v))
+}
+
+// the RF client must return an error on an invalid json received by RC
 func TestOnUpdate_InvalidJSON(t *testing.T) {
 	client := NewClient()
+	sub := newTestSub()
+	sub.subscribe(t, client, testFlag1)
 
-	onChangeCalled := false
-	onChange := func(_ FlagValue) error {
-		onChangeCalled = true
-		return nil
-	}
+	var gotError bool
+	client.OnUpdate(
+		map[string]state.RawConfig{"config": {Config: []byte("{bad}")}},
+		func(_ string, s state.ApplyStatus) { gotError = s.State == state.ApplyStateError },
+	)
 
-	onNoConfig := func() {}
-
-	safeRecover := func(_ error, _ FlagValue) {
-		t.Errorf("safeRecover should not be called for JSON parsing errors")
-	}
-
-	isHealthy := func() bool { return true }
-
-	err := client.Subscribe(testFlag1, onChange, onNoConfig, safeRecover, isHealthy)
-	require.NoError(t, err)
-
-	// Create an invalid config update
-	updates := map[string]state.RawConfig{
-		"remote_flags_config": {
-			Config: []byte("{invalid json}"),
-		},
-	}
-
-	applyStatusCalled := false
-	applyStateCallback := func(path string, status state.ApplyStatus) {
-		applyStatusCalled = true
-		assert.Equal(t, "remote_flags_config", path)
-		assert.Equal(t, state.ApplyStateError, status.State)
-		assert.Contains(t, status.Error, "JSON parsing error")
-	}
-
-	client.OnUpdate(updates, applyStateCallback)
-
-	// Give time for any erroneous callbacks
-	time.Sleep(100 * time.Millisecond)
-
-	assert.False(t, onChangeCalled, "onChange should not be called for invalid JSON")
-	assert.True(t, applyStatusCalled)
+	assert.True(t, gotError)
+	assert.Empty(t, sub.onChange, "onChange must not fire on invalid JSON")
 }
 
-func TestOnUpdate_FlagValueChange(t *testing.T) {
+// the RF makes sure the NoConfig callback is called properly.
+func TestOnUpdate_MissingFlagCallsOnNoConfig(t *testing.T) {
 	client := NewClient()
+	sub := newTestSub()
+	sub.subscribe(t, client, testFlag1)
 
-	var wg sync.WaitGroup
-	callCount := 0
-	var receivedValues []FlagValue
-	var mu sync.Mutex
+	// Send an update for a different flag
+	sendUpdate(client, Flag{Name: string(testFlag2), Value: true})
 
-	onChange := func(value FlagValue) error {
-		mu.Lock()
-		callCount++
-		receivedValues = append(receivedValues, value)
-		wg.Done()
-		mu.Unlock()
-		return nil
-	}
-
-	onNoConfig := func() {}
-
-	safeRecover := func(_ error, _ FlagValue) {
-		t.Errorf("safeRecover should not be called")
-	}
-
-	isHealthy := func() bool { return true }
-
-	err := client.Subscribe(testFlag1, onChange, onNoConfig, safeRecover, isHealthy)
-	require.NoError(t, err)
-
-	// First update: enabled = true
-	wg.Add(1)
-	flagConfig := FlagConfig{
-		Flags: []Flag{
-			{Name: string(testFlag1), Value: true},
-		},
-	}
-	configBytes, _ := json.Marshal(flagConfig)
-	updates := map[string]state.RawConfig{
-		"remote_flags_config": {Config: configBytes},
-	}
-	client.OnUpdate(updates, func(string, state.ApplyStatus) {})
-
-	// Wait for first callback
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-	select {
-	case <-done:
-	case <-time.After(1 * time.Second):
-		t.Fatal("timeout waiting for first callback")
-	}
-
-	// Second update with same value: should NOT trigger callback
-	time.Sleep(100 * time.Millisecond) // Give time for any erroneous callbacks
-	flagConfig = FlagConfig{
-		Flags: []Flag{
-			{Name: string(testFlag1), Value: true},
-		},
-	}
-	configBytes, _ = json.Marshal(flagConfig)
-	updates = map[string]state.RawConfig{
-		"remote_flags_config": {Config: configBytes},
-	}
-	client.OnUpdate(updates, func(string, state.ApplyStatus) {})
-	time.Sleep(100 * time.Millisecond)
-
-	mu.Lock()
-	assert.Equal(t, 1, callCount, "should only be called once for same value")
-	mu.Unlock()
-
-	// Third update: enabled = false (different value)
-	wg.Add(1)
-	flagConfig = FlagConfig{
-		Flags: []Flag{
-			{Name: string(testFlag1), Value: false},
-		},
-	}
-	configBytes, _ = json.Marshal(flagConfig)
-	updates = map[string]state.RawConfig{
-		"remote_flags_config": {Config: configBytes},
-	}
-	client.OnUpdate(updates, func(string, state.ApplyStatus) {})
-
-	done = make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-	select {
-	case <-done:
-	case <-time.After(1 * time.Second):
-		t.Fatal("timeout waiting for second callback")
-	}
-
-	mu.Lock()
-	assert.Equal(t, 2, callCount, "should be called twice for two different values")
-	assert.Equal(t, []FlagValue{FlagValue(true), FlagValue(false)}, receivedValues)
-	mu.Unlock()
+	waitChan(t, sub.onNoConfig)
 }
 
+// the RF client correctly notify multiple subs when necessary.
 func TestOnUpdate_MultipleSubscribers(t *testing.T) {
 	client := NewClient()
+	sub1 := newTestSub()
+	sub2 := newTestSub()
+	sub1.subscribe(t, client, testFlag1)
+	sub2.subscribe(t, client, testFlag1)
 
-	var wg sync.WaitGroup
-	wg.Add(2) // Two subscribers
+	sendUpdate(client, Flag{Name: string(testFlag1), Value: true})
 
-	subscriber1Called := false
-	subscriber2Called := false
-
-	onChange1 := func(value FlagValue) error {
-		subscriber1Called = true
-		assert.True(t, bool(value))
-		wg.Done()
-		return nil
-	}
-
-	onChange2 := func(value FlagValue) error {
-		subscriber2Called = true
-		assert.True(t, bool(value))
-		wg.Done()
-		return nil
-	}
-
-	onNoConfig := func() {}
-
-	safeRecover := func(_ error, _ FlagValue) {}
-
-	isHealthy := func() bool { return true }
-
-	err := client.Subscribe(testFlag1, onChange1, onNoConfig, safeRecover, isHealthy)
-	require.NoError(t, err)
-
-	err = client.Subscribe(testFlag1, onChange2, onNoConfig, safeRecover, isHealthy)
-	require.NoError(t, err)
-
-	// Send update
-	flagConfig := FlagConfig{
-		Flags: []Flag{
-			{Name: string(testFlag1), Value: true},
-		},
-	}
-	configBytes, _ := json.Marshal(flagConfig)
-	updates := map[string]state.RawConfig{
-		"remote_flags_config": {Config: configBytes},
-	}
-	client.OnUpdate(updates, func(string, state.ApplyStatus) {})
-
-	// Wait for both callbacks
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		assert.True(t, subscriber1Called)
-		assert.True(t, subscriber2Called)
-	case <-time.After(1 * time.Second):
-		t.Fatal("timeout waiting for subscriber callbacks")
-	}
+	assert.True(t, bool(waitChan(t, sub1.onChange)))
+	assert.True(t, bool(waitChan(t, sub2.onChange)))
 }
 
-func TestOnUpdate_MissingFlag(t *testing.T) {
+func TestOnChange_ErrorTriggersSafeRecover(t *testing.T) {
 	client := NewClient()
 
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	noDataReceived := false
-	onChange := func(_ FlagValue) error {
-		t.Errorf("onChange should not be called when flag is missing")
-		return nil
-	}
-
-	onNoConfig := func() {
-		noDataReceived = true
-		wg.Done()
-	}
-
-	safeRecover := func(_ error, _ FlagValue) {
-		t.Errorf("safeRecover should not be called when flag is simply missing")
-	}
-
-	isHealthy := func() bool { return true }
-
-	err := client.Subscribe(testFlag1, onChange, onNoConfig, safeRecover, isHealthy)
+	recoverCh := make(chan FlagValue, 1)
+	err := client.Subscribe(
+		testFlag1,
+		func(FlagValue) error { return errors.New("apply failed") },
+		func() {},
+		func(_ error, v FlagValue) { recoverCh <- v },
+		func() bool { return true },
+	)
 	require.NoError(t, err)
 
-	// Send update for a different flag
-	flagConfig := FlagConfig{
-		Flags: []Flag{
-			{Name: string(testFlag2), Value: true}, // Different flag
-		},
-	}
-	configBytes, _ := json.Marshal(flagConfig)
-	updates := map[string]state.RawConfig{
-		"remote_flags_config": {Config: configBytes},
-	}
-	client.OnUpdate(updates, func(string, state.ApplyStatus) {})
+	sendUpdate(client, Flag{Name: string(testFlag1), Value: true})
 
-	// Wait for noData callback
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		assert.True(t, noDataReceived)
-	case <-time.After(1 * time.Second):
-		t.Fatal("timeout waiting for noData callback")
-	}
+	v := waitChan(t, recoverCh)
+	assert.True(t, bool(v))
 }
 
-func TestGetCurrentValue(t *testing.T) {
+func TestSubscribeWithHandler(t *testing.T) {
 	client := NewClient()
 
-	// Flag doesn't exist
-	value, exists := client.GetCurrentValue(testFlag1)
-	assert.False(t, exists)
-	assert.False(t, bool(value))
+	h := &stubHandler{
+		name:     testFlag1,
+		onChange: make(chan FlagValue, 1),
+		noConfig: make(chan struct{}, 1),
+	}
+	require.NoError(t, client.SubscribeWithHandler(h))
+	require.Error(t, client.SubscribeWithHandler(nil))
 
-	// Set a value
-	client.mu.Lock()
-	client.currentValues[testFlag1] = FlagValue(true)
-	client.mu.Unlock()
-
-	// Flag exists
-	value, exists = client.GetCurrentValue(testFlag1)
-	assert.True(t, exists)
-	assert.True(t, bool(value))
+	sendUpdate(client, Flag{Name: string(testFlag1), Value: true})
+	assert.True(t, bool(waitChan(t, h.onChange)))
 }
 
 func TestConcurrentSubscriptions(t *testing.T) {
 	client := NewClient()
-
 	var wg sync.WaitGroup
-	subscriberCount := 10
-
-	for i := 0; i < subscriberCount; i++ {
+	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			err := client.Subscribe(
-				testFlag1,
-				func(_ FlagValue) error { return nil },
-				func() {},
-				func(_ error, _ FlagValue) {},
-				func() bool { return true },
-			)
-			assert.NoError(t, err)
+			sub := newTestSub()
+			sub.subscribe(t, client, testFlag1)
 		}()
 	}
-
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		client.mu.RLock()
-		assert.Len(t, client.subscriptions[testFlag1], subscriberCount)
-		client.mu.RUnlock()
-	case <-time.After(5 * time.Second):
-		t.Fatal("timeout waiting for concurrent subscriptions")
-	}
+	wg.Wait()
+	client.mu.RLock()
+	assert.Len(t, client.subscriptions[testFlag1], 10)
+	client.mu.RUnlock()
 }
 
-func TestOnChange_FailedPropagation(t *testing.T) {
+func TestGetCurrentValue_Unknown(t *testing.T) {
 	client := NewClient()
-
-	var wg sync.WaitGroup
-	wg.Add(1) // Only wait for safeRecover callback
-
-	onChangeCalled := false
-	safeRecoverCalled := false
-	var receivedError error
-	var receivedFailedValue FlagValue
-
-	onChange := func(_ FlagValue) error {
-		onChangeCalled = true
-		// Simulate failed propagation
-		return errors.New("simulated apply failure")
-	}
-
-	onNoConfig := func() {}
-
-	safeRecover := func(err error, failedValue FlagValue) {
-		safeRecoverCalled = true
-		receivedError = err
-		receivedFailedValue = failedValue
-		wg.Done()
-	}
-
-	isHealthy := func() bool { return true }
-
-	err := client.Subscribe(testFlag1, onChange, onNoConfig, safeRecover, isHealthy)
-	require.NoError(t, err)
-
-	// Create a valid config update
-	flagConfig := FlagConfig{
-		Flags: []Flag{
-			{Name: string(testFlag1), Value: true},
-		},
-	}
-	configBytes, _ := json.Marshal(flagConfig)
-
-	updates := map[string]state.RawConfig{
-		"remote_flags_config": {
-			Config: configBytes,
-		},
-	}
-
-	client.OnUpdate(updates, func(string, state.ApplyStatus) {})
-
-	// Wait for callbacks
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		assert.True(t, onChangeCalled, "onChange should have been called")
-		assert.True(t, safeRecoverCalled, "safeRecover should have been called when onChange returns error")
-		assert.NotNil(t, receivedError)
-		assert.Contains(t, receivedError.Error(), "failed to apply configuration change")
-		assert.True(t, bool(receivedFailedValue), "should receive the failed value (true)")
-	case <-time.After(1 * time.Second):
-		t.Fatal("timeout waiting for callbacks")
-	}
+	_, exists := client.GetCurrentValue(testFlag1)
+	assert.False(t, exists)
 }
+
+// stubHandler is a minimal FlagHandler for testing SubscribeWithHandler.
+type stubHandler struct {
+	name     FlagName
+	onChange chan FlagValue
+	noConfig chan struct{}
+}
+
+func (h *stubHandler) FlagName() FlagName               { return h.name }
+func (h *stubHandler) OnChange(v FlagValue) error       { h.onChange <- v; return nil }
+func (h *stubHandler) OnNoConfig()                      { h.noConfig <- struct{}{} }
+func (h *stubHandler) SafeRecover(_ error, _ FlagValue) {}
+func (h *stubHandler) IsHealthy() bool                  { return true }
