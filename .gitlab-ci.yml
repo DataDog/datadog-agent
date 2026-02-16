@@ -356,6 +356,8 @@ variables:
     - release.json
     # SMP regression detector experiments
     - test/regression/**/*
+    # Containers
+    - Dockerfiles/**/*
 
 .if_coverage_pipeline: &if_coverage_pipeline
   if: $E2E_COVERAGE_PIPELINE == "true"
@@ -1145,6 +1147,15 @@ workflow:
         - pkg/security/**/*
         - pkg/eventmonitor/**/*
         - test/new-e2e/tests/security-agent-functional/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
+.on_healthplatform_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - comp/healthplatform/**/*
+        - test/new-e2e/tests/agent-health/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 

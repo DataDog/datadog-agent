@@ -110,7 +110,7 @@ func NewDiagnosticsUploader(opts ...Option) *DiagnosticsUploader {
 	}
 	sender := newDiagnosticsSender(cfg.client, cfg.url.String(), cfg.sendTimeout)
 	return &DiagnosticsUploader{
-		batcher: newBatcher("diagnostics", sender, cfg.batcherConfig),
+		batcher: newBatcher("diagnostics", sender, cfg.batcherConfig, &Metrics{}),
 	}
 }
 
