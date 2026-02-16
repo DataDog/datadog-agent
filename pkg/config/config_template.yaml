@@ -3212,6 +3212,12 @@ api_key:
 #
 #     idle_timeout_seconds: 60
 
+#   ## APM Instrumentation for Cluster Agent
+#   ## Enables APM tracing of internal Cluster Agent operations for improved debugging.
+#   ## Traces are sent to the configured Datadog Agent and appear in APM with service name "datadog-cluster-agent".
+#   ## Useful for debugging: cluster check dispatching, K8s API latency, leader election, and WorkloadMeta queries.
+#   ## To view traces: APM -> Services -> datadog-cluster-agent -> Traces
+#
 #   # @param apm_instrumentation_enabled - boolean - optional - default: false
 #   # @env DD_CLUSTER_AGENT_APM_INSTRUMENTATION_ENABLED - boolean - optional - default: false
 #   # Enable APM instrumentation for the Cluster Agent to emit traces for internal operations.
@@ -3226,12 +3232,12 @@ api_key:
 #
 #   apm_instrumentation_env: ""
 
-#   # @param apm_instrumentation_sample_rate - float - optional - default: 1.0
-#   # @env DD_CLUSTER_AGENT_APM_INSTRUMENTATION_SAMPLE_RATE - float - optional - default: 1.0
+#   # @param apm_instrumentation_sample_rate - float - optional - default: 0.1
+#   # @env DD_CLUSTER_AGENT_APM_INSTRUMENTATION_SAMPLE_RATE - float - optional - default: 0.1
 #   # Sample rate for traces emitted by the Cluster Agent (0.0 to 1.0).
-#   # Set to 1.0 to trace all operations, or lower values for sampling.
+#   # Default is 0.1 (10%) for safety. Set to 1.0 to trace all operations.
 #
-#   apm_instrumentation_sample_rate: 1.0
+#   apm_instrumentation_sample_rate: 0.1
 
 #   # @param apm_instrumentation_dd_url - string - optional - default: ""
 #   # @env DD_CLUSTER_AGENT_APM_INSTRUMENTATION_DD_URL - string - optional - default: ""

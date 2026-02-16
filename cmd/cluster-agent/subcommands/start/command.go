@@ -313,10 +313,16 @@ func start(log log.Component,
 			tracer.WithService("datadog-cluster-agent"),
 			tracer.WithEnv(env),
 			tracer.WithServiceVersion(version.AgentVersion),
+			tracer.WithGlobalTag("cluster_name", config.GetString("cluster_name")),
+		}
+
+		// Add cluster_id if available
+		if clusterID := config.GetString("cluster_id"); clusterID != "" {
+			tracerOptions = append(tracerOptions, tracer.WithGlobalTag("cluster_id", clusterID))
 		}
 
 		// Configure agent address if specified
-		if config.IsSet("cluster_agent.apm_instrumentation_dd_url") {
+		if config.IsSet("cluster_agent.apm_instrumentation_dd_url") && agentURL != "" {
 			// WithAgentAddr expects host:port, not a full URL - strip the scheme
 			agentAddr := strings.TrimPrefix(agentURL, "http://")
 			agentAddr = strings.TrimPrefix(agentAddr, "https://")

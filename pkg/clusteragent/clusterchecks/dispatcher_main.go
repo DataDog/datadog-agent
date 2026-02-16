@@ -64,6 +64,9 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 	var err error
 	span := tracer.StartSpan("cluster_checks.workloadmeta.global_tags")
 	d.extraTags, err = tagger.GlobalTags(types.LowCardinality)
+	if err != nil {
+		span.SetTag("error.message", err.Error())
+	}
 	span.Finish(tracer.WithError(err))
 	if err != nil {
 		log.Warnf("Cannot get global tags from the tagger: %v", err)

@@ -657,7 +657,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_agent.apm_instrumentation_enabled", false)
 	config.BindEnvAndSetDefault("cluster_agent.apm_instrumentation_env", "")
 	config.BindEnvAndSetDefault("cluster_agent.apm_instrumentation_dd_url", "")
-	config.BindEnvAndSetDefault("cluster_agent.apm_instrumentation_sample_rate", 1.0)
+	config.BindEnvAndSetDefault("cluster_agent.apm_instrumentation_sample_rate", 0.1)
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.processor.service.namespace", "")
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.istio.namespace", "istio-system")
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.mode", "sidecar")

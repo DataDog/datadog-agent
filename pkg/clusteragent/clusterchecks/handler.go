@@ -93,9 +93,6 @@ func NewHandler(ac pluggableAutoConfig, tagger tagger.Component) (*Handler, erro
 // Run is the main goroutine for the handler. It has to
 // be called in a goroutine with a cancellable context.
 func (h *Handler) Run(ctx context.Context) {
-	span := tracer.StartSpan("cluster_checks.handler.run")
-	defer span.Finish()
-
 	h.m.Lock()
 	if h.leaderStatusCallback != nil {
 		go h.leaderWatch(ctx)
@@ -224,6 +221,7 @@ func (h *Handler) updateLeaderIP() error {
 	newIP, err := h.leaderStatusCallback()
 	if err != nil {
 		span.SetTag("error", true)
+		span.SetTag("error.message", err.Error())
 		return err
 	}
 
