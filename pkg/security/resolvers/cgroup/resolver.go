@@ -307,9 +307,6 @@ func (cr *Resolver) AddPID(pid uint32, ppid uint32, createdAt time.Time, cgroupC
 
 		var cgroupsToClean []*cgroupModel.CacheEntry
 		cr.iterateCacheEntries(func(cacheEntry *cgroupModel.CacheEntry) bool {
-			if cacheEntry == nil {
-				return false
-			}
 			if cc := cacheEntry.GetCGroupContext(); cc.Equals(&cgroupContext) {
 				// if the cgroup context is the same, add the pid to the cache entry
 				cacheEntry.AddPID(pid)
@@ -319,7 +316,7 @@ func (cr *Resolver) AddPID(pid uint32, ppid uint32, createdAt time.Time, cgroupC
 			}
 			return false
 		})
-		for cacheEntry := range cgroupsToClean {
+		for _, cacheEntry := range cgroupsToClean {
 			// the cgroup context is different, but the pid is already present in the cache entry, remove it.
 			// it means that the process has been migrated to a different cgroup.
 			if cacheEntry.RemovePID(pid) == 0 {
