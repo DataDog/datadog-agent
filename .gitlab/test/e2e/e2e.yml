@@ -404,6 +404,7 @@ new-e2e-fips-compliance-test:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7-fips
     - qa_agent_fips_linux
+    - qa_dca_fips
   rules:
     - !reference [.on_arun_or_e2e_changes]
     - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
