@@ -278,15 +278,15 @@ func TestUpdate(t *testing.T) {
 
 	if assert.Contains(t, hosts, "host-1-hostid") {
 		md := hosts["host-1-hostid"]
-		assert.Equal(t, md.InternalHostname, "host-1-hostid")
-		assert.Equal(t, md.Flavor, "otelcol-contrib")
-		assert.Equal(t, md.Meta, &payload.Meta{
+		assert.Equal(t, "host-1-hostid", md.InternalHostname)
+		assert.Equal(t, "otelcol-contrib", md.Flavor)
+		assert.Equal(t, &payload.Meta{
 			InstanceID:  "host-1-hostid",
 			EC2Hostname: "host-1-hostname",
 			Hostname:    "host-1-hostid",
-		})
+		}, md.Meta)
 		assert.ElementsMatch(t, md.Tags.OTel, []string{"cloud_provider:aws", "region:us-east-1", "zone:us-east-1c", "foo:baz", "env:prod"})
-		assert.Equal(t, md.Payload.Gohai.Gohai.Platform, map[string]string{
+		assert.Equal(t, map[string]any{
 			"hostname":                    "host-1-hostid",
 			fieldPlatformOS:               "Fedora Linux",
 			fieldPlatformProcessor:        "amd64",
@@ -297,8 +297,8 @@ func TestUpdate(t *testing.T) {
 			fieldPlatformKernelName:       "GNU/Linux",
 			fieldPlatformKernelRelease:    "5.19.0-43-generic",
 			fieldPlatformKernelVersion:    "#82~18.04.1-Ubuntu SMP Fri Apr 16 15:10:02 UTC 2021",
-		})
-		assert.Equal(t, md.Payload.Gohai.Gohai.CPU, map[string]string{
+		}, md.Payload.Gohai.Gohai.Platform)
+		assert.Equal(t, map[string]any{
 			fieldCPUCacheSize: "12288000",
 			fieldCPUFamily:    "6",
 			fieldCPUModel:     "10",
@@ -307,32 +307,32 @@ func TestUpdate(t *testing.T) {
 			fieldCPUVendorID:  "GenuineIntel",
 			fieldCPUCores:     "32",
 			fieldCPUMHz:       "400.0000055",
-		})
-		assert.Equal(t, md.Payload.Gohai.Gohai.Network, map[string]any{
+		}, md.Payload.Gohai.Gohai.CPU)
+		assert.Equal(t, map[string]any{
 			fieldNetworkIPAddressIPv4: "192.168.1.140",
 			fieldNetworkIPAddressIPv6: "fe80::abc2:4a28:737a:609e",
 			fieldNetworkMACAddress:    "ac:de:48:23:45:67",
-		})
+		}, md.Payload.Gohai.Gohai.Network)
 		assert.Empty(t, md.Payload.Gohai.Gohai.FileSystem)
 		assert.Empty(t, md.Payload.Gohai.Gohai.Memory)
 	}
 
 	if assert.Contains(t, hosts, "host-2-hostid") {
 		md := hosts["host-2-hostid"]
-		assert.Equal(t, md.InternalHostname, "host-2-hostid")
-		assert.Equal(t, md.Flavor, "otelcol-contrib")
-		assert.Equal(t, md.Meta, &payload.Meta{
+		assert.Equal(t, "host-2-hostid", md.InternalHostname)
+		assert.Equal(t, "otelcol-contrib", md.Flavor)
+		assert.Equal(t, &payload.Meta{
 			Hostname:    "host-2-hostid",
 			HostAliases: []string{"host-2-hostid-alias-1", "host-2-hostid-alias-2", "host-2-hostid-alias-3"},
-		})
+		}, md.Meta)
 		assert.ElementsMatch(t, md.Tags.OTel, []string{"cloud_provider:azure", "env:staging"})
-		assert.Equal(t, md.Platform(), map[string]string{
+		assert.Equal(t, map[string]any{
 			"hostname":                    "host-2-hostid",
 			fieldPlatformProcessor:        "arm64",
 			fieldPlatformMachine:          "arm64",
 			fieldPlatformHardwarePlatform: "arm64",
 			fieldPlatformGOOARCH:          "arm64",
-		})
+		}, md.Platform())
 		assert.Empty(t, md.Payload.Gohai.Gohai.CPU)
 		assert.Empty(t, md.Payload.Gohai.Gohai.Network)
 		assert.Empty(t, md.Payload.Gohai.Gohai.FileSystem)
