@@ -37,10 +37,12 @@ const (
 // one and fallback on aws.
 var dockerImageLibrary = map[string][]string{
 	"ubuntu": {
+		"registry.ddbuild.io/images/mirror/ubuntu:20.04",
 		"ubuntu:20.04",
 		"public.ecr.aws/ubuntu/ubuntu:20.04",
 	},
 	"centos": {
+		"registry.ddbuild.io/images/mirror/centos:7",
 		"centos:7",
 		"public.ecr.aws/docker/library/centos:7",
 	},
