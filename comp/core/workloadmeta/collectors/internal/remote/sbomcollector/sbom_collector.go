@@ -226,38 +226,38 @@ func mergeLastAccessProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclone
 			ReleaseNotes:       existingComp.ReleaseNotes,
 		}
 
-		// Check if new BOM has this component with LastAccess property
+		// Check if new BOM has this component with property
 		key := existingComp.Name + "@" + existingComp.Version
 
 		updateProperty := func(newComp *cyclonedx_v1_4.Component, propertyName string) {
 			// Find property in new component
-			var lastProp *cyclonedx_v1_4.Property
+			var newProp *cyclonedx_v1_4.Property
 			for _, prop := range newComp.Properties {
 				if prop != nil && prop.Name == propertyName {
-					lastProp = prop
+					newProp = prop
 					break
 				}
 			}
 
-			// If found, add or update LastAccess in merged component
-			if lastProp != nil {
+			// If found, add or update property in merged component
+			if newProp != nil {
 				// Initialize properties if nil
 				if mergedComp.Properties == nil {
 					mergedComp.Properties = []*cyclonedx_v1_4.Property{}
 				}
 
-				// Check if LastAccess already exists and update it, or add new one
+				// Check if property already exists and update it, or add new one
 				propExists := false
 				for j, prop := range mergedComp.Properties {
 					if prop != nil && prop.Name == propertyName {
-						mergedComp.Properties[j] = lastProp
+						mergedComp.Properties[j] = newProp
 						propExists = true
 						break
 					}
 				}
 
 				if !propExists {
-					mergedComp.Properties = append(mergedComp.Properties, lastProp)
+					mergedComp.Properties = append(mergedComp.Properties, newProp)
 				}
 
 				log.Tracef("Updated %s for component %s@%s", propertyName, existingComp.Name, existingComp.Version)
