@@ -12,29 +12,23 @@ import (
 	"fmt"
 	"html"
 	"net/http"
-	"strings"
 
 	json "github.com/json-iterator/go"
 
 	gorilla "github.com/gorilla/mux"
 
-	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	util "github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const prefixPathSuffix string = "."
-
 type configEndpoint struct {
-	cfg                   model.Reader
-	authorizedConfigPaths api.AuthorizedSet
+	cfg model.Reader
 
 	// runtime metrics about the config endpoint usage
-	expvars            *expvar.Map
-	successExpvar      expvar.Map
-	unauthorizedExpvar expvar.Map
-	errorsExpvar       expvar.Map
+	expvars       *expvar.Map
+	successExpvar expvar.Map
+	errorsExpvar  expvar.Map
 }
 
 func (c *configEndpoint) getConfigValueHandler(w http.ResponseWriter, r *http.Request) {
@@ -42,29 +36,6 @@ func (c *configEndpoint) getConfigValueHandler(w http.ResponseWriter, r *http.Re
 	// escape in case it contains html special characters that would be unsafe to include as is in a response
 	// all valid config paths won't contain such characters so for a valid request this is a no-op
 	path := html.EscapeString(vars["path"])
-
-	authorized := false
-	if _, ok := c.authorizedConfigPaths[path]; ok {
-		authorized = true
-	} else {
-		// check to see if the requested path matches any of the authorized paths by trying to treat
-		// the authorized path as a prefix: if the requested path is `foo.bar` and we have an
-		// authorized path of `foo`, then `foo.bar` would be allowed, or if we had a requested path
-		// of `foo.bar.quux`, and an authorized path of `foo.bar`, it would also be allowed
-		for authorizedPath := range c.authorizedConfigPaths {
-			if strings.HasPrefix(path, authorizedPath+prefixPathSuffix) {
-				authorized = true
-				break
-			}
-		}
-	}
-
-	if !authorized {
-		c.unauthorizedExpvar.Add(path, 1)
-		log.Warnf("config endpoint received a request from '%s' for config '%s' which is not allowed", r.RemoteAddr, path)
-		http.Error(w, fmt.Sprintf("querying config value '%s' is not allowed", path), http.StatusForbidden)
-		return
-	}
 
 	if !c.cfg.IsKnown(path) {
 		c.errorsExpvar.Add(path, 1)
@@ -90,13 +61,14 @@ func (c *configEndpoint) getConfigValueHandler(w http.ResponseWriter, r *http.Re
 }
 
 func (c *configEndpoint) getAllConfigValuesHandler(w http.ResponseWriter, r *http.Request) {
-	log.Debugf("config endpoint received a request from '%s' for all authorized config values", r.RemoteAddr)
-	allValues := make(map[string]interface{}, len(c.authorizedConfigPaths))
-	for key := range c.authorizedConfigPaths {
+	log.Debugf("config endpoint received a request from '%s' for all config values", r.RemoteAddr)
+	keys := c.cfg.AllKeysLowercased()
+	allValues := make(map[string]interface{}, len(keys))
+	for _, key := range keys {
 		if key == "logs_config.additional_endpoints" {
 			entries, err := encodeInterfaceSliceToStringMap(c.cfg, key)
 			if err != nil {
-				log.Warnf("error encoding logs_config.additional endpoints: %v", err)
+				log.Warnf("error encoding logs_config.additional_endpoints: %v", err)
 				continue
 			}
 			allValues[key] = entries
@@ -108,25 +80,23 @@ func (c *configEndpoint) getAllConfigValuesHandler(w http.ResponseWriter, r *htt
 	c.marshalAndSendResponse(w, "/", allValues)
 }
 
-// GetConfigEndpointMuxCore builds and returns the mux for the config endpoint with default values
-// for the core agent
+// GetConfigEndpointMuxCore builds and returns the mux for the config endpoint for the core agent.
+// All config keys are readable; access control is enforced by mTLS on the API server.
 func GetConfigEndpointMuxCore(cfg model.Reader) *gorilla.Router {
-	mux, _ := getConfigEndpoint(cfg, api.AuthorizedConfigPathsCore, "core")
+	mux, _ := getConfigEndpoint(cfg, "core")
 	return mux
 }
 
 // getConfigEndpoint builds and returns the mux and the endpoint state.
-func getConfigEndpoint(cfg model.Reader, authorizedConfigPaths api.AuthorizedSet, expvarNamespace string) (*gorilla.Router, *configEndpoint) {
+func getConfigEndpoint(cfg model.Reader, expvarNamespace string) (*gorilla.Router, *configEndpoint) {
 	configEndpoint := &configEndpoint{
-		cfg:                   cfg,
-		authorizedConfigPaths: authorizedConfigPaths,
-		expvars:               expvar.NewMap(expvarNamespace + "_config_endpoint"),
+		cfg:     cfg,
+		expvars: expvar.NewMap(expvarNamespace + "_config_endpoint"),
 	}
 
 	for name, expv := range map[string]*expvar.Map{
-		"success":      &configEndpoint.successExpvar,
-		"unauthorized": &configEndpoint.unauthorizedExpvar,
-		"errors":       &configEndpoint.errorsExpvar,
+		"success": &configEndpoint.successExpvar,
+		"errors":  &configEndpoint.errorsExpvar,
 	} {
 		configEndpoint.expvars.Set(name, expv)
 	}

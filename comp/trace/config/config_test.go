@@ -682,6 +682,21 @@ func TestUndocumentedYamlConfig(t *testing.T) {
 
 }
 
+// TestEmptyDDAgentBinDoesNotOverwriteDefault ensures that when apm_config.dd_agent_bin is
+// configured to an empty string (e.g. from config API "all config" response), the platform
+// default agent binary path is preserved and not overwritten, so validation does not fail
+// with "agent binary path not set".
+func TestEmptyDDAgentBinDoesNotOverwriteDefault(t *testing.T) {
+	config := buildConfigComponentFromOverrides(t, true, map[string]interface{}{
+		"apm_config.dd_agent_bin": "",
+		"hostname":                "testhostname",
+	})
+	cfg := config.Object()
+
+	require.NotNil(t, cfg)
+	assert.NotEmpty(t, cfg.DDAgentBin, "DDAgentBin must not be overwritten with empty when apm_config.dd_agent_bin is set to \"\"")
+}
+
 func TestAcquireHostnameFallback(t *testing.T) {
 	c := traceconfig.New()
 	err := acquireHostnameFallback(c)

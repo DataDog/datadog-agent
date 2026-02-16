@@ -7,9 +7,11 @@
 package utils
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"maps"
 	"strings"
 	"testing"
@@ -61,8 +63,46 @@ type IAParams struct {
 	Cardinality types.TagCardinality
 }
 
+// getAgentPodLogs returns the last tailLines lines of logs for the given container
+// in the agent pod (from getAgentPod). Used to diagnose failures when metrics/stats/traces
+// do not reach the fake intake (e.g. otel-agent startup errors).
+func getAgentPodLogs(s OTelTestSuite, container string, tailLines int64) string {
+	pod := getAgentPod(s)
+	req := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").GetLogs(pod.Name, &corev1.PodLogOptions{
+		Container: container,
+		TailLines: &tailLines,
+	})
+	stream, err := req.Stream(context.Background())
+	if err != nil {
+		return fmt.Sprintf("failed to get logs for %s: %v", container, err)
+	}
+	defer stream.Close()
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, stream); err != nil {
+		return fmt.Sprintf("failed to read logs for %s: %v", container, err)
+	}
+	return buf.String()
+}
+
+// LogOTelAgentPodLogsOnFailure registers a test cleanup that, when the test has failed,
+// logs the agent and otel-agent container logs from the datadog pod. Call at the start
+// of tests that wait for metrics/stats/traces (e.g. TestHostMetrics, TestSampling) so
+// that failures show why data did not reach the fake intake.
+func LogOTelAgentPodLogsOnFailure(s OTelTestSuite) {
+	t := s.T()
+	t.Cleanup(func() {
+		if !t.Failed() {
+			return
+		}
+		const tailLines = 150
+		t.Logf("--- Agent pod logs (container=agent, last %d lines) ---\n%s", tailLines, getAgentPodLogs(s, "agent", tailLines))
+		t.Logf("--- Agent pod logs (container=otel-agent, last %d lines) ---\n%s", tailLines, getAgentPodLogs(s, "otel-agent", tailLines))
+	})
+}
+
 // TestTraces tests that OTLP traces are received through OTel pipelines as expected
 func TestTraces(s OTelTestSuite, iaParams IAParams) {
+	LogOTelAgentPodLogsOnFailure(s)
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
 
@@ -300,6 +340,7 @@ func TestMetrics(s OTelTestSuite, iaParams IAParams) {
 
 // TestLogs tests that OTLP logs are received through OTel pipelines as expected
 func TestLogs(s OTelTestSuite, iaParams IAParams) {
+	LogOTelAgentPodLogsOnFailure(s)
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
 
@@ -340,6 +381,7 @@ func TestLogs(s OTelTestSuite, iaParams IAParams) {
 
 // TestHosts verifies that OTLP traces, metrics, and logs have consistent hostnames
 func TestHosts(s OTelTestSuite) {
+	LogOTelAgentPodLogsOnFailure(s)
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
 
@@ -383,6 +425,7 @@ func TestHosts(s OTelTestSuite) {
 
 // TestSampling tests that APM stats are correct when using probabilistic sampling
 func TestSampling(s OTelTestSuite, computeTopLevelBySpanKind bool) {
+	LogOTelAgentPodLogsOnFailure(s)
 	s.T().Log("Waiting for APM stats")
 	var stats []*aggregator.APMStatsPayload
 	var err error
@@ -454,6 +497,7 @@ func TestPrometheusMetrics(s OTelTestSuite) {
 
 // TestHostMetrics tests that expected host metrics are scraped
 func TestHostMetrics(s OTelTestSuite) {
+	LogOTelAgentPodLogsOnFailure(s)
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
 	s.T().Log("Waiting for metrics")
