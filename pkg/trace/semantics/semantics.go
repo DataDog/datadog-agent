@@ -3,13 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package semantics provides a unified interface for accessing semantic attribute
-// equivalences across different tracing conventions (Datadog tracers, OpenTelemetry
-// semantic convention versions, framework-specific variants).
-//
-// The semantic registry maps canonical attribute names to their various equivalents,
-// enabling consistent attribute access across all trace-agent subsystems (obfuscation,
-// stats aggregation, normalization, sampling).
+// Package semantics provides a registry for semantic attribute equivalences
+// across different tracing conventions (Datadog tracers, OpenTelemetry).
 package semantics
 
 // Provider indicates the source of a semantic attribute definition.
@@ -27,14 +22,12 @@ const (
 	ValueTypeString  ValueType = "string"
 	ValueTypeFloat64 ValueType = "float64"
 	ValueTypeInt64   ValueType = "int64"
-	// Could add more later: bool, bytes...
 )
 
-// Concept represents a semantic concept identifier (e.g., "db.query", "http.status_code").
-// Concepts are the canonical names used to reference semantic equivalences.
+// Concept represents a semantic concept identifier (e.g., "db.system", "http.method").
 type Concept string
 
-// Peer Tags (Stats Aggregation)
+// Concepts used for OTel span processing.
 const (
 	ConceptPeerService              Concept = "peer.service"
 	ConceptPeerHostname             Concept = "peer.hostname"
@@ -120,30 +113,19 @@ const (
 
 // TagInfo contains metadata about a semantic attribute and its location.
 type TagInfo struct {
-	// Name is the attribute key name (e.g., "http.status_code", "db.statement").
-	Name string `json:"name"`
-
-	// Provider indicates whether this is a Datadog or OpenTelemetry convention.
-	Provider Provider `json:"provider"`
-
-	// Version is the semantic convention version (e.g., "1.26.0" for OTel). Empty if not versioned.
-	Version string `json:"version,omitempty"`
-
-	// Type indicates the value type of the attribute (string, float64, int64). If empty, defaults to "string".
-	Type ValueType `json:"type,omitempty"`
+	Name     string    `json:"name"`
+	Provider Provider  `json:"provider"`
+	Version  string    `json:"version,omitempty"`
+	Type     ValueType `json:"type,omitempty"`
 }
 
-// ConceptMapping represents a semantic concept and all its equivalent attributes.
+// ConceptMapping represents a semantic concept and its equivalent attributes.
 type ConceptMapping struct {
-	// Canonical is the canonical name for this concept.
-	Canonical string `json:"canonical"`
-
-	// Fallbacks is the ordered list of attribute keys to check when looking up this concept. The first matching key takes precedence.
+	Canonical string    `json:"canonical"`
 	Fallbacks []TagInfo `json:"fallbacks"`
 }
 
 // Registry provides access to semantic equivalences for span attributes.
-// Implementations of this interface provide the mapping between canonical concept names and their equivalent attribute keys across different tracing conventions.
 type Registry interface {
 	// GetAttributePrecedence returns ordered list of attribute keys to check
 	GetAttributePrecedence(concept Concept) []TagInfo

@@ -149,33 +149,3 @@ func lookupSingleTag(accessor SpanAccessor, tag TagInfo) LookupResult {
 
 	return LookupResult{}
 }
-
-// GetAttributeKeys returns all attribute keys for a concept in precedence order.
-// This is useful for iterating over possible keys without performing a lookup.
-func GetAttributeKeys(r Registry, concept Concept) []string {
-	tags := r.GetAttributePrecedence(concept)
-	if tags == nil {
-		return nil
-	}
-	keys := make([]string, len(tags))
-	for i, tag := range tags {
-		keys[i] = tag.Name
-	}
-	return keys
-}
-
-// GetAttributeKeysForType returns attribute keys for a concept filtered by value type.
-// This is useful when you only want to check certain types of attributes.
-func GetAttributeKeysForType(r Registry, concept Concept, valueType ValueType) []string {
-	tags := r.GetAttributePrecedence(concept)
-	if tags == nil {
-		return nil
-	}
-	var keys []string
-	for _, tag := range tags {
-		if tag.Type == valueType || (valueType == ValueTypeString && tag.Type == "") {
-			keys = append(keys, tag.Name)
-		}
-	}
-	return keys
-}
