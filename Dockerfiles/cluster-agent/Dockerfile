@@ -42,7 +42,13 @@ ENV PATH="/opt/datadog-agent/bin/:$PATH" \
 RUN apt-get update \
     && apt full-upgrade -y \
     && apt-get install --no-install-recommends -y ca-certificates curl libseccomp2 tzdata adduser\
-    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+    && rm -rf \
+      /var/cache/debconf/* \
+      /var/lib/apt/lists/* \
+      /var/log/* \
+      /tmp/* \
+      /var/tmp/* \
+      /usr/share/man/*
 
 COPY ./conf.d /etc/datadog-agent/conf.d
 COPY ./datadog-cluster.yaml /etc/datadog-agent/datadog-cluster.yaml
