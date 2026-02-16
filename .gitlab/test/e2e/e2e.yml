@@ -356,6 +356,10 @@ new-e2e-agent-runtimes-windows:
   extends: .new_e2e_template_needs_windows_x64
   rules:
     - !reference [.on_e2e_main_release_or_rc]
+    - changes:
+        paths:
+          - test/new-e2e/tests/agent-runtimes/**/*
+        compare_to: $COMPARE_TO_BRANCH
     - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-runtimes
@@ -379,6 +383,10 @@ new-e2e-agent-subcommands-windows:
   extends: .new_e2e_template_needs_windows_x64
   rules:
     - !reference [.on_e2e_main_release_or_rc]
+    - changes:
+        paths:
+          - test/new-e2e/tests/agent-subcommands/**/*
+        compare_to: $COMPARE_TO_BRANCH
     - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-subcommands
