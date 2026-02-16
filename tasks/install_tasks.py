@@ -6,6 +6,7 @@ from pathlib import Path
 
 from invoke import Context, Exit, task
 
+from tasks.libs.build.bazel import bazel
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.go import download_go_dependencies
@@ -95,8 +96,16 @@ def install_rust_license_tool(ctx):
     Install dd-rust-license-tool and cargo-deny for Rust license verification.
     Required to run the lint-rust-licenses task.
     """
-    ctx.run("cargo install --git https://github.com/DataDog/rust-license-tool dd-rust-license-tool")
-    ctx.run("cargo install cargo-deny --locked")
+    bazel(
+        "run",
+        "//:cargo",
+        "--",
+        "install",
+        "--git",
+        "https://github.com/DataDog/rust-license-tool",
+        "dd-rust-license-tool",
+    )
+    bazel("run", "//:cargo", "--", "install", "cargo-deny", "--locked")
 
 
 @task

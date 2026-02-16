@@ -1,8 +1,9 @@
 # Global build settings
 
+load("@bazel_lib//lib:copy_file.bzl", "copy_file")
+load("@bazel_lib//lib:run_binary.bzl", "run_binary")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
 load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
-load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
 load("@gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary")
 
 package(default_visibility = ["//visibility:public"])
@@ -140,6 +141,15 @@ gazelle_binary(
     languages = DEFAULT_LANGUAGES + [
         "//bazel/rules/go_stringer:gazelle_extension",
     ],
+)
+
+# bazel run //:cargo -- ...
+copy_file(
+    name = "cargo",
+    src = "@rules_rust//rust/toolchain:current_cargo_files",
+    out = "cargo_bin",
+    allow_symlink = True,  # best effort on Windows as of bazel-lib 3.2.2
+    is_executable = True,  #TODO(agent-build): file a PR to have it executable in the first place and make it an `alias`
 )
 
 # bazel run //:go -- ...

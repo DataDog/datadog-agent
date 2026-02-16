@@ -13,7 +13,7 @@ lint_licenses:
   needs: ["go_deps", "go_tools_deps"]
 
 lint_rust_licenses:
-  extends: .lint
+  extends: [.lint, .bazel:defs:cache:progressive]
   script:
     - dda inv -- -e lint-rust-licenses
 
