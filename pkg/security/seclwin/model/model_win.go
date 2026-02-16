@@ -30,14 +30,19 @@ func (m *Model) NewEvent() eval.Event {
 func NewFakeEvent() *Event {
 	return &Event{
 		BaseEvent: BaseEvent{
-			FieldHandlers: &FakeFieldHandlers{},
-			Os:            runtime.GOOS,
+			FieldHandlers: &FakeFieldHandlers{
+				PCEs: make(map[uint32]*ProcessCacheEntry),
+			},
+			Os: runtime.GOOS,
 		},
 	}
 }
 
 // ResolveProcessCacheEntryFromPID stub implementation
 func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *ProcessCacheEntry {
+	if fh.PCEs[pid] != nil {
+		return fh.PCEs[pid]
+	}
 	return GetPlaceholderProcessCacheEntry(pid)
 }
 
