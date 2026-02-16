@@ -103,15 +103,9 @@ cc_binary(
     ],
     linkstatic = False,
     linkopts = select({
-        "@platforms//os:linux": [
-            "-Wl,-L/opt/datadog-agent/embedded/lib",
-            "-Wl,-rpath=/opt/datadog-agent/embedded/lib",
-        ],
         "@platforms//os:macos": [
             "-Wl,-framework,CoreFoundation",
             "-Wl,-framework,SystemConfiguration",
-            "-Wl,-L/opt/datadog-agent/embedded/lib",
-            "-Wl,-rpath,/opt/datadog-agent/embedded/lib",
         ],
         "//conditions:default": [],
     }),
@@ -149,13 +143,6 @@ cc_library(
         "-O2",
         # "-fvisibility=hidden",
     ],
-    linkopts = select({
-        "@platforms//os:macos": [
-            "-Wl,-framework,CoreFoundation",
-            "-Wl,-framework,SystemConfiguration",
-        ],
-        "//conditions:default": [],
-    }),
     visibility = ["//visibility:public"],
     deps = [
         "@nghttp2//:nghttp2",
@@ -231,18 +218,6 @@ cc_shared_library(
         "@openssl//:openssl_shared",
         "@zlib//:z",
     ],
-    user_link_flags = select({
-        "@platforms//os:linux": [
-            "-fvisibility=hidden",
-            "-Wl,-L/opt/datadog-agent/embedded/lib",
-            "-Wl,-rpath=/opt/datadog-agent/embedded/lib",
-        ],
-        "@platforms//os:macos": [
-            "-Wl,-L/opt/datadog-agent/embedded/lib",
-            "-Wl,-rpath,/opt/datadog-agent/embedded/lib",
-        ],
-        "//conditions:default": [],
-    }),
     visibility = ["//visibility:public"],
 )
 
