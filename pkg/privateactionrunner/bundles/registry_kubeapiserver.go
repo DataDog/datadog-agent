@@ -9,6 +9,7 @@
 package privatebundles
 
 import (
+	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	com_datadoghq_ddagent "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/ddagent"
 	com_datadoghq_gitlab_branches "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/branches"
@@ -38,7 +39,10 @@ import (
 	com_datadoghq_kubernetes_batch "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/batch"
 	com_datadoghq_kubernetes_core "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/core"
 	com_datadoghq_kubernetes_customresources "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/customresources"
+	com_datadoghq_mongodb "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/mongodb"
+	com_datadoghq_postgresql "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/postgresql"
 	com_datadoghq_script "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/script"
+	com_datadoghq_temporal "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/temporal"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
@@ -46,7 +50,7 @@ type Registry struct {
 	Bundles map[string]types.Bundle
 }
 
-func NewRegistry(configuration *config.Config) *Registry {
+func NewRegistry(configuration *config.Config, _ traceroute.Component) *Registry {
 	return &Registry{
 		Bundles: map[string]types.Bundle{
 			"com.datadoghq.ddagent":                    com_datadoghq_ddagent.NewAgentActions(),
@@ -77,7 +81,10 @@ func NewRegistry(configuration *config.Config) *Registry {
 			"com.datadoghq.kubernetes.batch":           com_datadoghq_kubernetes_batch.NewKubernetesBatch(),
 			"com.datadoghq.kubernetes.core":            com_datadoghq_kubernetes_core.NewKubernetesCore(),
 			"com.datadoghq.kubernetes.customresources": com_datadoghq_kubernetes_customresources.NewKubernetesCustomResources(),
+			"com.datadoghq.mongodb":                    com_datadoghq_mongodb.NewMongoDB(),
+			"com.datadoghq.postgresql":                 com_datadoghq_postgresql.NewPostgreSQL(),
 			"com.datadoghq.script":                     com_datadoghq_script.NewScript(),
+			"com.datadoghq.temporal":                   com_datadoghq_temporal.NewTemporal(),
 		},
 	}
 }

@@ -150,6 +150,7 @@ type encodingContext struct {
 	currentlyEncoding    map[typeAndAddr]struct{}
 	dataItems            map[typeAndAddr]output.DataItem
 	typeResolver         TypeNameResolver
+	missingTypeCollector MissingTypeCollector
 }
 
 // ResolveTypeName implements encodingContext.
@@ -1965,6 +1966,8 @@ func encodeInterface(
 			name = fmt.Sprintf(
 				"UnknownType(0x%x): %v", runtimeType, err,
 			)
+		} else if c.missingTypeCollector != nil {
+			c.missingTypeCollector.RecordMissingType(name)
 		}
 		if err := writeTokens(enc,
 			jsontext.String("type"),
@@ -2032,6 +2035,8 @@ func formatInterface(
 			name = fmt.Sprintf(
 				"UnknownType(0x%x): %v", runtimeType, err,
 			)
+		} else if c.missingTypeCollector != nil {
+			c.missingTypeCollector.RecordMissingType(name)
 		}
 		msg := "unknown type " + name
 		writeBoundedError(buf, limits, "interface", msg)
