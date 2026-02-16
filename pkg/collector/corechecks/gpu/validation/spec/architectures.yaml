@@ -1,0 +1,88 @@
+# GPU Architecture Definitions for Validation
+# Ordered from oldest to newest - metric availability is cumulative
+# A metric with min_architecture: kepler is available on kepler and all later architectures
+
+architecture_generations:
+  - name: fermi
+    description: "GeForce 400/500, Tesla M-class (1st gen)"
+  - name: kepler
+    description: "GeForce 600/700, Tesla K-class"
+  - name: maxwell
+    description: "GeForce 900, Tesla M-class (2nd gen)"
+  - name: pascal
+    description: "GeForce 10-series, Tesla P100, V100 (different from volta)"
+  - name: volta
+    description: "Tesla V100"
+  - name: turing
+    description: "GeForce 20-series, Tesla T4"
+  - name: ampere
+    description: "GeForce 30-series, A100, A10G"
+  - name: hopper
+    description: "H100, H200"
+
+# Device modes (orthogonal to architecture)
+# MIG and vGPU affect which NVML APIs are available
+device_modes:
+  - name: physical
+    description: "Standard GPU, full API access"
+  - name: mig
+    description: >
+      Multi-Instance GPU partition (Ampere+). Most NVML APIs return
+      INVALID_ARGUMENT on MIG handles, which the code treats as
+      'unsupported' via IsAPIUnsupportedOnDevice(). APIs are filtered
+      at collector init via filterSupportedAPIs().
+  - name: vgpu
+    description: >
+      Virtual GPU. Some sampling APIs return NOT_FOUND, which is
+      treated as valid 'no data' (not an error).
+
+# Specific GPU models for e2e testing and live validation
+gpu_models:
+  - name: tesla_t4
+    generation: turing
+    instance_types:
+      - g4dn.xlarge
+      - g4dn.2xlarge
+    capabilities:
+      gpm: false
+      nvlink: false
+      mig: false
+      process_detail_list: false
+      ecc: true
+      device_events: true
+
+  - name: a10g
+    generation: ampere
+    instance_types:
+      - g5.xlarge
+    capabilities:
+      gpm: false
+      nvlink: false
+      mig: false
+      process_detail_list: false
+      ecc: true
+      device_events: true
+
+  - name: a100
+    generation: ampere
+    instance_types:
+      - p4d.24xlarge
+    capabilities:
+      gpm: false
+      nvlink: true
+      mig: true
+      process_detail_list: false
+      ecc: true
+      device_events: true
+
+  - name: h100
+    generation: hopper
+    instance_types:
+      - p5.48xlarge
+    capabilities:
+      gpm: true
+      nvlink: true
+      mig: true
+      process_detail_list: true
+      ecc: true
+      device_events: true
