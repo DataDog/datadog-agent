@@ -305,8 +305,9 @@ pub unsafe extern "C" fn dd_discovery_get_services(
     heartbeat_pids: *const i32,
     heartbeat_pids_len: usize,
 ) -> *mut dd_discovery_result {
-    // SAFETY: caller guarantees new_pids and heartbeat_pids point to valid arrays.
+    // SAFETY: caller guarantees new_pids points to a valid array.
     let new = unsafe { pids_from_c(new_pids, new_pids_len) };
+    // SAFETY: caller guarantees heartbeat_pids points to valid array.
     let heartbeat = unsafe { pids_from_c(heartbeat_pids, heartbeat_pids_len) };
 
     let params = Params {
