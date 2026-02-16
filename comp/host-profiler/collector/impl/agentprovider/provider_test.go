@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/extensions/hpflareextension"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/receiver"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	ddprofilingextensionimpl "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
@@ -39,9 +40,14 @@ import (
 
 var updateGolden = flag.Bool("update", false, "update golden test files")
 
+const testVersion = "7.0.0-test"
+
 func init() {
 	// Enable profiles support for all tests (required for profiles pipeline validation)
 	_ = featuregate.GlobalRegistry().Set("service.profilesSupport", true)
+
+	// Override version for tests to ensure golden files are version-independent
+	version.ProfilerVersion = testVersion
 }
 
 // createTestFactories creates the OTEL factories needed for validation
@@ -107,18 +113,12 @@ func validateOTelConfig(t *testing.T, conf *confmap.Conf) error {
 	return err
 }
 
-// loadConfig loads a YAML file and returns a mock config with explicit overrides
-// to prevent environment variables from interfering with test values
+// loadConfig loads a YAML file and returns a mock config
 func loadConfig(t *testing.T, path string) config.Component {
 	t.Helper()
-	yamlData, err := os.ReadFile(path)
-	require.NoError(t, err)
-
-	var data map[string]interface{}
-	require.NoError(t, yaml.Unmarshal(yamlData, &data))
-
-	// Create mock with explicit overrides to prevent env var interference
-	return config.NewMockWithOverrides(t, data)
+	// Use NewMockFromYAMLFile which properly handles nested config structures
+	// instead of NewMockWithOverrides which doesn't support nested maps
+	return config.NewMockFromYAMLFile(t, path)
 }
 
 func TestProvider(t *testing.T) {
