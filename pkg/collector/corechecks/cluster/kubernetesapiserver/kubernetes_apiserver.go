@@ -297,8 +297,9 @@ func (k *KubeASCheck) Run() error {
 	clusterResources, err := apiserver.GetClusterResources()
 	if err != nil {
 		k.Warnf("Could not get cluster resources: %s", err.Error())
+	} else {
+		k.sendAPIResourceMetrics(sender, clusterResources)
 	}
-	k.sendAPIResourceMetrics(sender, clusterResources)
 
 	return nil
 }
@@ -429,7 +430,7 @@ func (k *KubeASCheck) sendAPIResourceMetrics(sender sender.Sender, resources map
 	for name, resource := range resources {
 		tags := []string{
 			"api_resource_name:" + name,
-			"api_resource_kind:" + resource.Kind,
+			"api_resource_kind:" + strings.ToLower(resource.Kind),
 			"api_resource_group:" + resource.Group,
 			"api_resource_version:" + resource.APIVersion,
 		}
