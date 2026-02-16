@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewStringSet(t *testing.T) {
@@ -129,4 +130,40 @@ func TestStructToMap(t *testing.T) {
 			},
 		},
 	}, StructToMap(top))
+}
+
+func TestToPowerOf2(t *testing.T) {
+	assert.Equal(t, 1, ToPowerOf2(1))
+	assert.Equal(t, 2, ToPowerOf2(2))
+	assert.Equal(t, 4, ToPowerOf2(3))
+	assert.Equal(t, 4, ToPowerOf2(4))
+	assert.Equal(t, 8, ToPowerOf2(7))
+	assert.Equal(t, 1024, ToPowerOf2(1024))
+	assert.Equal(t, 1024, ToPowerOf2(900))
+}
+
+func TestStringSliceTransform(t *testing.T) {
+	values := []string{"hello", "world"}
+	result := StringSliceTransform(values, func(s string) []byte { return []byte(s) })
+	assert.Equal(t, [][]byte{[]byte("hello"), []byte("world")}, result)
+
+	// empty slice
+	result = StringSliceTransform([]string{}, func(s string) []byte { return []byte(s) })
+	assert.Empty(t, result)
+}
+
+func TestGetSliceOfStringMap(t *testing.T) {
+	input := []interface{}{
+		map[interface{}]interface{}{"key1": "val1", "key2": "val2"},
+		map[interface{}]interface{}{"key3": "val3"},
+	}
+	result, err := GetSliceOfStringMap(input)
+	require.NoError(t, err)
+	assert.Len(t, result, 2)
+	assert.Equal(t, "val1", result[0]["key1"])
+	assert.Equal(t, "val3", result[1]["key3"])
+
+	// invalid type returns error
+	_, err = GetSliceOfStringMap([]interface{}{"not a map"})
+	assert.Error(t, err)
 }

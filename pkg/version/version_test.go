@@ -44,13 +44,34 @@ func TestNew(t *testing.T) {
 }
 
 func TestString(t *testing.T) {
+	// all fields: pre + meta + commit
 	v, _ := New("1.2.3-pre+☢", "123beef")
 	assert.Equal(t, "1.2.3-pre+☢.commit.123beef", v.String())
+
+	// commit without meta uses + separator
+	v, _ = New("1.2.3-pre", "123beef")
+	assert.Equal(t, "1.2.3-pre+commit.123beef", v.String())
+
+	// no pre, no meta, no commit
+	v, _ = New("1.2.3", "")
+	assert.Equal(t, "1.2.3", v.String())
+
+	// only meta, no commit
+	v, _ = New("1.2.3+build42", "")
+	assert.Equal(t, "1.2.3+build42", v.String())
 }
 
 func TestGetNumber(t *testing.T) {
 	v, _ := New("1.2.3-pre+☢", "123beef")
 	assert.Equal(t, "1.2.3", v.GetNumber())
+}
+
+func TestGetNumberAndPre(t *testing.T) {
+	v, _ := New("1.2.3-beta.1", "")
+	assert.Equal(t, "1.2.3-beta.1", v.GetNumberAndPre())
+
+	v, _ = New("1.2.3", "")
+	assert.Equal(t, "1.2.3", v.GetNumberAndPre())
 }
 
 func TestCompareToAgentVersion(t *testing.T) {
@@ -77,4 +98,8 @@ func TestCompareToAgentVersion(t *testing.T) {
 
 	res, _ = v.CompareTo("0.12.12")
 	assert.Equal(t, 1, res)
+
+	// invalid version string returns error
+	_, err = v.CompareTo("not-a-version")
+	assert.Error(t, err)
 }
