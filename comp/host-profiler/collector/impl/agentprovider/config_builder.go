@@ -12,6 +12,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converters"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -80,8 +81,25 @@ func buildProcessors(conf confMap) []any {
 	processors := make(confMap)
 
 	_ = converters.Set(processors, "infraattributes/default::allow_hostname_override", true)
+
+	metadata := confMap{
+		"attributes": []any{
+			confMap{
+				"key":    "profiler_name",
+				"value":  version.ProfilerName,
+				"action": "upsert",
+			},
+			confMap{
+				"key":    "profiler_version",
+				"value":  version.ProfilerVersion,
+				"action": "upsert",
+			},
+		},
+	}
+	_ = converters.Set(processors, "resource/dd-profiler-internal-metadata", metadata)
+
 	conf["processors"] = processors
-	return []any{"infraattributes/default"}
+	return []any{"infraattributes/default", "resource/dd-profiler-internal-metadata"}
 }
 
 func buildConfig(agent configManager) confMap {
