@@ -50,12 +50,12 @@ int BPF_KPROBE(kprobe__tcp_close, struct sock *sk) {
     }
 
     // Cleanup Go TLS connections map
-    // Look up the Go TLS connection pointer using the reverse mapping
-    void **go_tls_conn_ptr = bpf_map_lookup_elem(&go_tls_conn_by_tuple, &t);
-    if (go_tls_conn_ptr) {
-        void *go_tls_conn = *go_tls_conn_ptr;
+    // Look up the Go TLS connection key using the reverse mapping
+    go_tls_conn_key_t *go_tls_key = bpf_map_lookup_elem(&go_tls_conn_by_tuple, &t);
+    if (go_tls_key) {
+        go_tls_conn_key_t key_copy = *go_tls_key;
         // Remove both the forward and reverse mappings
-        bpf_map_delete_elem(&conn_tup_by_go_tls_conn, &go_tls_conn);
+        bpf_map_delete_elem(&conn_tup_by_go_tls_conn, &key_copy);
         bpf_map_delete_elem(&go_tls_conn_by_tuple, &t);
     }
     // The cleanup of the map happens either during TCP termination or during the TLS shutdown event.
