@@ -10,13 +10,13 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_fil
 load(
     "lib_contents.bzl",
     "HDRS",
-    "HDRS_DARWIN_ARM64",
-    "HDRS_LINUX_ARM64",
-    "LIB_CURLTOOL_SRCS_DARWIN_ARM64",
-    "LIB_CURLTOOL_SRCS_LINUX_ARM64",
-    "LIB_CURLU_SRCS_DARWIN_ARM64",
-    "LIB_CURLU_SRCS_LINUX_ARM64",
-    "LIB_CURL_SRCS_LINUX_ARM64",
+    "HDRS_DARWIN",
+    "HDRS_LINUX",
+    "LIB_CURLTOOL_SRCS_DARWIN",
+    "LIB_CURLTOOL_SRCS_LINUX",
+    "LIB_CURLU_SRCS_DARWIN",
+    "LIB_CURLU_SRCS_LINUX",
+    "LIB_CURL_SRCS_LINUX",
 )
 
 package(
@@ -72,15 +72,15 @@ LOCAL_DEFINES = [
 ]
 
 ARCH_HDRS_COND = {
-    "@platforms//os:linux": HDRS_LINUX_ARM64,
-    "@platforms//os:macos": HDRS_DARWIN_ARM64,
+    "@platforms//os:linux": HDRS_LINUX,
+    "@platforms//os:macos": HDRS_DARWIN,
 }
 
 cc_binary(
     name = "curl_bin",
     srcs = ["lib/curl_config.h"] + HDRS + PUBLIC_HEADERS + select(ARCH_HDRS_COND) + select({
-        "@platforms//os:linux": LIB_CURLTOOL_SRCS_LINUX_ARM64,
-        "@platforms//os:macos": LIB_CURLTOOL_SRCS_DARWIN_ARM64,
+        "@platforms//os:linux": LIB_CURLTOOL_SRCS_LINUX,
+        "@platforms//os:macos": LIB_CURLTOOL_SRCS_DARWIN,
     }),
     defines = LOCAL_DEFINES,
     includes = [
@@ -111,8 +111,8 @@ cc_binary(
 cc_library(
     name = "curl_static",
     srcs = ["lib/curl_config.h"] + HDRS + select(ARCH_HDRS_COND) + select({
-        "@platforms//os:linux": LIB_CURL_SRCS_LINUX_ARM64,
-        "@platforms//os:macos": LIB_CURLU_SRCS_DARWIN_ARM64,
+        "@platforms//os:linux": LIB_CURL_SRCS_LINUX,
+        "@platforms//os:macos": LIB_CURLU_SRCS_DARWIN,
     }) + ["@openssl//:headers"],
     hdrs = PUBLIC_HEADERS,
     # Using includes because -I just does not work with bzlmod.
@@ -155,8 +155,8 @@ cc_library(
 cc_library(
     name = "curlu_static",
     srcs = ["lib/curl_config.h"] + HDRS + select(ARCH_HDRS_COND) + select({
-        "@platforms//os:linux": LIB_CURLU_SRCS_LINUX_ARM64,
-        "@platforms//os:macos": LIB_CURLU_SRCS_DARWIN_ARM64,
+        "@platforms//os:linux": LIB_CURLU_SRCS_LINUX,
+        "@platforms//os:macos": LIB_CURLU_SRCS_DARWIN,
     }) + ["@openssl//:headers"],
     hdrs = PUBLIC_HEADERS,
     # Using includes because -I just does not work with bzlmod.
