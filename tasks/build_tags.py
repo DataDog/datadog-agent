@@ -362,6 +362,11 @@ build_tags = {
 }
 
 
+_GOOS_TO_SYS_PLATFORM = {
+    "windows": "win32",
+}
+
+
 def compute_build_tags_for_flavor(
     build: str,
     build_include: str | None,
@@ -378,10 +383,15 @@ def compute_build_tags_for_flavor(
 
     Then, remove from these the provided list of tags to exclude.
     """
+    # Normalize GOOS values (e.g. "windows") to sys.platform values (e.g. "win32")
+    # so that downstream functions like filter_incompatible_tags work correctly.
+    if platform is not None:
+        platform = _GOOS_TO_SYS_PLATFORM.get(platform, platform)
+
     build_include = (
         get_default_build_tags(build=build, flavor=flavor, platform=platform)
         if build_include is None
-        else filter_incompatible_tags(build_include.split(","))
+        else filter_incompatible_tags(build_include.split(","), platform=platform)
     )
 
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
@@ -428,11 +438,13 @@ def get_default_build_tags(build="agent", flavor=AgentFlavor.base, platform: str
     return sorted(filter_incompatible_tags(include, platform=platform))
 
 
-def filter_incompatible_tags(include, platform=sys.platform):
+def filter_incompatible_tags(include, platform=None):
     """
     Filter out tags incompatible with the platform.
     include can be a list or a set.
     """
+    if platform is None:
+        platform = sys.platform
 
     exclude = set()
     if not platform.startswith("linux"):
