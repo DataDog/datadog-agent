@@ -7,12 +7,15 @@ package com_datadoghq_ddagent_networkpath
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	tracerouteconfig "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
@@ -20,12 +23,14 @@ import (
 )
 
 type GetNetworkPathHandler struct {
-	traceroute traceroute.Component
+	traceroute    traceroute.Component
+	eventPlatform eventplatform.Component
 }
 
-func NewGetNetworkPathHandler(traceroute traceroute.Component) *GetNetworkPathHandler {
+func NewGetNetworkPathHandler(traceroute traceroute.Component, eventPlatform eventplatform.Component) *GetNetworkPathHandler {
 	return &GetNetworkPathHandler{
-		traceroute: traceroute,
+		traceroute:    traceroute,
+		eventPlatform: eventPlatform,
 	}
 }
 
@@ -41,6 +46,8 @@ type GetNetworkPathInputs struct {
 	TracerouteQueries  int               `json:"tracerouteQueries,omitempty"`
 	E2eQueries         int               `json:"e2eQueries,omitempty"`
 	Namespace          string            `json:"namespace,omitempty"`
+	// SendToBackend forwards traceroute data to the network path backend.
+	SendToBackend bool `json:"sendToBackend,omitempty"`
 }
 
 func (h *GetNetworkPathHandler) Run(
@@ -113,5 +120,33 @@ func (h *GetNetworkPathHandler) Run(
 	path.Source.Service = inputs.SourceService
 	path.Destination.Service = inputs.DestinationService
 
+	if inputs.SendToBackend {
+		if err := h.sendToBackend(path); err != nil {
+			return nil, err
+		}
+	}
+
 	return &path, nil
+}
+
+func (h *GetNetworkPathHandler) sendToBackend(path payload.NetworkPath) error {
+	if h.eventPlatform == nil {
+		return errors.New("event platform forwarder is not available")
+	}
+
+	forwarder, ok := h.eventPlatform.Get()
+	if !ok {
+		return errors.New("event platform forwarder is not available")
+	}
+
+	payloadBytes, err := json.Marshal(path)
+	if err != nil {
+		return fmt.Errorf("failed to marshal network path payload: %w", err)
+	}
+
+	msg := message.NewMessage(payloadBytes, nil, "", 0)
+	if err := forwarder.SendEventPlatformEventBlocking(msg, eventplatform.EventTypeNetworkPath); err != nil {
+		return fmt.Errorf("failed to send network path payload to event platform: %w", err)
+	}
+	return nil
 }
