@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl
 
-go 1.25
+go 1.25.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.76.0-rc.4
