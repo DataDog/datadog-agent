@@ -58,29 +58,23 @@ func (r *PackagesReport) ToCycloneDX() *cyclonedx_v1_4.Bom {
 		// Add LastAccess property if available
 		if !pkg.LastAccess.IsZero() {
 			lastAccess := pkg.LastAccess.Format(time.RFC3339)
-			component.Properties = []*cyclonedx_v1_4.Property{
-				{
-					Name:  LastAccessProperty,
-					Value: pointer.Ptr(lastAccess),
-				},
-			}
+			component.Properties = append(component.Properties, &cyclonedx_v1_4.Property{
+				Name:  LastAccessProperty,
+				Value: pointer.Ptr(lastAccess),
+			})
 		}
 
 		suidBit := strconv.FormatBool(pkg.SuidBit)
-		component.Properties = []*cyclonedx_v1_4.Property{
-			{
-				Name:  HasSetSuidBitProperty,
-				Value: pointer.Ptr(suidBit),
-			},
-		}
+		component.Properties = append(component.Properties, &cyclonedx_v1_4.Property{
+			Name:  HasSetSuidBitProperty,
+			Value: pointer.Ptr(suidBit),
+		})
 
 		runningAsRoot := strconv.FormatBool(pkg.AccessedByRoot)
-		component.Properties = []*cyclonedx_v1_4.Property{
-			{
-				Name:  RunningAsRootProperty,
-				Value: pointer.Ptr(runningAsRoot),
-			},
-		}
+		component.Properties = append(component.Properties, &cyclonedx_v1_4.Property{
+			Name:  RunningAsRootProperty,
+			Value: pointer.Ptr(runningAsRoot),
+		})
 
 		components = append(components, component)
 	}
