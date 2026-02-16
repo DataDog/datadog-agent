@@ -11,6 +11,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"runtime"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
@@ -28,7 +29,11 @@ func connContext(ctx context.Context, c net.Conn) context.Context {
 	case *net.TCPConn:
 		return withConnectionType(ctx, ConnectionTypeTCP)
 	default:
-		return withConnectionType(ctx, ConnectionTypePipe)
+		if runtime.GOOS == "windows" {
+			return withConnectionType(ctx, ConnectionTypePipe)
+		} else {
+			return withConnectionType(ctx, ConnectionTypeUnknown)
+		}
 	}
 }
 

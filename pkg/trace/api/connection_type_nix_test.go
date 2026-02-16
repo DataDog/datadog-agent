@@ -52,3 +52,6 @@ func TestConnContextConnectionTypeUnix(t *testing.T) {
 		assert.Equal(t, ConnectionTypeUnknown, GetConnectionType(ctx))
 	})
 }
+
+// fakeConn implements net.Conn for testing the default/pipe branch.
+type fakeConn struct{ net.Conn }
