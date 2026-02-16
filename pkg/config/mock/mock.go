@@ -44,13 +44,13 @@ func New(t testing.TB) model.BuildableConfig {
 		m.Lock()
 		defer m.Unlock()
 		isConfigMocked = false
-		setup.SetDatadog(originalDatadogConfig) // nolint: forbidigo // legitimate use of SetDatadog
+		setup.SetDatadog(originalDatadogConfig)
 	})
 
 	// Configure Datadog global configuration
 	newCfg := create.NewConfig("datadog", "")
 	// Configuration defaults
-	setup.SetDatadog(newCfg) // nolint forbidigo legitimate use of SetDatadog
+	setup.SetDatadog(newCfg)
 	setup.InitConfig(newCfg)
 	newCfg.BuildSchema()
 	newCfg.SetTestOnlyDynamicSchema(true)
@@ -95,12 +95,12 @@ func NewSystemProbe(t testing.TB) model.BuildableConfig {
 			m.Lock()
 			defer m.Unlock()
 			isSystemProbeConfigMocked = false
-			setup.SetSystemProbe(originalConfig) // nolint forbidigo legitimate use of SetSystemProbe
+			setup.SetSystemProbe(originalConfig)
 		})
 	}
 
 	// Configure Datadog global configuration
-	setup.SetSystemProbe(create.NewConfig("system-probe", "")) // nolint forbidigo legitimate use of SetSystemProbe
+	setup.SetSystemProbe(create.NewConfig("system-probe", ""))
 	// Configuration defaults
 	setup.InitSystemProbeConfig(setup.GlobalSystemProbeConfigBuilder())
 	setup.SystemProbe().SetTestOnlyDynamicSchema(true)

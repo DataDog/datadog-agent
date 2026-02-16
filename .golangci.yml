@@ -328,12 +328,6 @@ linters:
         - pattern: ^model.NewConfig.*$
           pkg: ^github.com/DataDog/datadog-agent/pkg/config/model$
           msg: use pkg/config/mock instead in tests or the config component
-        - pattern: ^setup.SetDatadog.*$
-          pkg: ^github.com/DataDog/datadog-agent/pkg/config/setup$
-          msg: use pkg/config/mock instead for tests or the config component
-        - pattern: ^setup.SetSystemProbe.*$
-          pkg: ^github.com/DataDog/datadog-agent/pkg/config/setup$
-          msg: use pkg/config/mock instead for tests or the config component
         - pattern: ^.*\.BindEnv$
           pkg: ^github.com/DataDog/datadog-agent/pkg/config/model$
           msg: use BindEnvAndSetDefault instead of BindEnv to ensure proper defaults are set
