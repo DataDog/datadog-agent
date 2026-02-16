@@ -137,7 +137,6 @@ cc_library(
         "-Wno-system-headers",
         "-I.",
         "-O2",
-        # "-fvisibility=hidden",
     ],
     visibility = ["//visibility:public"],
     deps = [
@@ -168,7 +167,6 @@ cc_library(
     local_defines = LOCAL_DEFINES + [
         "BUILDING_LIBCURL",
         "NDEBUG",
-        # "CURL_STATICLIB",
     ] + select({
         "@platforms//os:macos": [
             "CURL_MACOS_CALL_COPYPROXIES",
