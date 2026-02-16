@@ -10,36 +10,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 )
 
-// testAccessor is a simple SpanAccessor for testing.
-type testAccessor struct {
-	strings map[string]string
-	floats  map[string]float64
-	ints    map[string]int64
-}
-
-func (a *testAccessor) GetStringAttribute(key string) string {
-	if a.strings == nil {
-		return ""
-	}
-	return a.strings[key]
-}
-
-func (a *testAccessor) GetFloat64Attribute(key string) (float64, bool) {
-	if a.floats == nil {
-		return 0, false
-	}
-	v, ok := a.floats[key]
-	return v, ok
-}
-
-func (a *testAccessor) GetInt64Attribute(key string) (int64, bool) {
-	if a.ints == nil {
-		return 0, false
-	}
-	v, ok := a.ints[key]
-	return v, ok
+// newTestAccessor creates a PDataMapAccessor from a raw map for testing.
+func newTestAccessor(raw map[string]any) *PDataMapAccessor {
+	m := pcommon.NewMap()
+	_ = m.FromRaw(raw)
+	return NewPDataMapAccessor(m)
 }
 
 func TestLookupString(t *testing.T) {
@@ -47,12 +25,12 @@ func TestLookupString(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("finds string value", func(t *testing.T) {
-		a := &testAccessor{strings: map[string]string{"db.statement": "SELECT 1"}}
+		a := newTestAccessor(map[string]any{"db.statement": "SELECT 1"})
 		assert.Equal(t, "SELECT 1", LookupString(r, a, ConceptDBStatement))
 	})
 
 	t.Run("returns empty for missing", func(t *testing.T) {
-		a := &testAccessor{strings: map[string]string{}}
+		a := newTestAccessor(map[string]any{})
 		assert.Equal(t, "", LookupString(r, a, ConceptDBStatement))
 	})
 }
@@ -62,14 +40,14 @@ func TestLookupInt64(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("finds int64 value", func(t *testing.T) {
-		a := &testAccessor{ints: map[string]int64{"http.status_code": 200}}
+		a := newTestAccessor(map[string]any{"http.status_code": int64(200)})
 		v, ok := LookupInt64(r, a, ConceptHTTPStatusCode)
 		assert.True(t, ok)
 		assert.Equal(t, int64(200), v)
 	})
 
 	t.Run("returns false for missing", func(t *testing.T) {
-		a := &testAccessor{}
+		a := newTestAccessor(map[string]any{})
 		_, ok := LookupInt64(r, a, ConceptHTTPStatusCode)
 		assert.False(t, ok)
 	})
@@ -80,7 +58,9 @@ func TestLookupFloat64(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("converts int64 to float64", func(t *testing.T) {
-		a := &testAccessor{ints: map[string]int64{"http.status_code": 200}}
+		// http.status_code is defined as int64 in mappings.json
+		// LookupFloat64 handles the int64 -> float64 conversion
+		a := newTestAccessor(map[string]any{"http.status_code": int64(200)})
 		v, ok := LookupFloat64(r, a, ConceptHTTPStatusCode)
 		assert.True(t, ok)
 		assert.Equal(t, float64(200), v)
@@ -92,7 +72,7 @@ func TestLookup(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("returns result with metadata", func(t *testing.T) {
-		a := &testAccessor{strings: map[string]string{"db.statement": "SELECT 1"}}
+		a := newTestAccessor(map[string]any{"db.statement": "SELECT 1"})
 		result, ok := Lookup(r, a, ConceptDBStatement)
 		assert.True(t, ok)
 		assert.Equal(t, "db.statement", result.TagInfo.Name)
@@ -100,15 +80,15 @@ func TestLookup(t *testing.T) {
 	})
 
 	t.Run("unknown concept returns false", func(t *testing.T) {
-		a := &testAccessor{strings: map[string]string{"any": "value"}}
+		a := newTestAccessor(map[string]any{"any": "value"})
 		_, ok := Lookup(r, a, Concept("unknown"))
 		assert.False(t, ok)
 	})
 }
 
 func TestCombinedAccessor(t *testing.T) {
-	primary := &testAccessor{strings: map[string]string{"key": "primary"}}
-	secondary := &testAccessor{strings: map[string]string{"key": "secondary", "other": "value"}}
+	primary := newTestAccessor(map[string]any{"key": "primary"})
+	secondary := newTestAccessor(map[string]any{"key": "secondary", "other": "value"})
 	combined := NewCombinedAccessor(primary, secondary)
 
 	assert.Equal(t, "primary", combined.GetStringAttribute("key"))
