@@ -191,8 +191,8 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.41.1
 	github.com/aws/aws-sdk-go-v2/config v1.32.7
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.7
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.285.0
-	github.com/aws/aws-sdk-go-v2/service/rds v1.113.2
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.289.0
+	github.com/aws/aws-sdk-go-v2/service/rds v1.115.0
 	github.com/aws/karpenter-provider-aws v1.8.6
 	github.com/beevik/ntp v1.5.0
 	github.com/benbjohnson/clock v1.3.5
@@ -978,8 +978,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/ddtrivy v0.0.0-20260115083325-07614fb0b8d5
 	github.com/Masterminds/squirrel v1.5.4
-	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.0
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.64.4
+	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.1
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.67.8
 	github.com/aymerick/raymond v2.0.2+incompatible
 	github.com/creack/pty v1.1.24
 	github.com/frapposelli/wwhrd v0.4.0
