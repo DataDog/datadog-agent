@@ -221,7 +221,13 @@ func (fl *FilterList) mergeMetricTagListEntry(metric tagEntry, currentHashed has
 
 	if (currentHashed.action == Exclude) == metric.ExcludeTag {
 		// Both metrics define the same action so we can just merge the list.
-		currentHashed.tags = append(currentHashed.tags, hashTags(metric.Tags)...)
+		newTags := hashTags(metric.Tags)
+		currentHashed.tags = append(currentHashed.tags, newTags...)
+
+		// Also update the tagMap with the new tags
+		for _, h := range newTags {
+			currentHashed.tagMap[h] = struct{}{}
+		}
 
 		// Merge unhashed tags too
 		currentEntry.Tags = append(currentEntry.Tags, metric.Tags...)
