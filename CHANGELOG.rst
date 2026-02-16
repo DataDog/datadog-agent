@@ -2,6 +2,38 @@
 Release Notes
 =============
 
+.. _Release Notes_7.75.4:
+
+7.75.4
+======
+
+.. _Release Notes_7.75.4_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-02-17
+
+- Please refer to the `7.75.4 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7754>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.75.1_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Agents are now built with Go ``1.25.7``.
+
+
+.. _Release Notes_7.75.4_Security Notes:
+
+Security Notes
+--------------
+
+- APM: On span tags, add obfuscation for ``HELLO`` and ``MIGRATE`` Redis commands.
+    Similar to ``AUTH``, all arguments passed to these commands will be obfuscated
+    and replaced with ``?``.
+
 .. _Release Notes_7.75.3:
 
 7.75.3
