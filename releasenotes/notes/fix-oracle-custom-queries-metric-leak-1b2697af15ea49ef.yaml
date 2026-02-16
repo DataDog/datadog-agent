@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Oracle check: Fix a bug where custom queries would accumulate metrics
+    across iterations, causing earlier queries' metrics to be re-sent with
+    each subsequent query in the same check run.
