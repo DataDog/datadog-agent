@@ -16,5 +16,15 @@ docker_build_fakeintake:
     BASE_IMAGE_REGISTRY: "registry.ddbuild.io/images/mirror"
   script:
     - !reference [.login_to_docker_readonly]
-    - docker buildx build --push --pull --platform ${PLATFORMS} --build-arg=CI --build-arg=BASE_IMAGE_REGISTRY=${BASE_IMAGE_REGISTRY} --file ${DOCKERFILE} --tag ${TARGET} $BUILD_CONTEXT
+    - |
+      set -o pipefail
+      BUILD_OUTPUT=$(mktemp)
+      if ! docker buildx build --push --pull --platform ${PLATFORMS} --build-arg=CI --build-arg=BASE_IMAGE_REGISTRY=${BASE_IMAGE_REGISTRY} --file ${DOCKERFILE} --tag ${TARGET} $BUILD_CONTEXT 2>&1 | tee "$BUILD_OUTPUT"; then
+        if grep -qE 'failed to resolve reference|failed to resolve|manifest unknown|pull access denied|repository does not exist|failed to fetch' "$BUILD_OUTPUT"; then
+          echo "Build failed likely due to base image not yet in internal registry, retrying with docker.io..."
+          docker buildx build --push --pull --platform ${PLATFORMS} --build-arg=CI --build-arg=BASE_IMAGE_REGISTRY=docker.io --file ${DOCKERFILE} --tag ${TARGET} $BUILD_CONTEXT
+        else
+          exit 1
+        fi
+      fi
   retry: 2
