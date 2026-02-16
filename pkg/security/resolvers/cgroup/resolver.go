@@ -306,6 +306,9 @@ func (cr *Resolver) AddPID(pid uint32, ppid uint32, createdAt time.Time, cgroupC
 		var cacheEntryFound *cgroupModel.CacheEntry
 
 		cr.iterateCacheEntries(func(cacheEntry *cgroupModel.CacheEntry) bool {
+			if cacheEntry == nil {
+				return false
+			}
 			if cc := cacheEntry.GetCGroupContext(); cc.Equals(&cgroupContext) {
 				// if the cgroup context is the same, add the pid to the cache entry
 				cacheEntry.AddPID(pid)
