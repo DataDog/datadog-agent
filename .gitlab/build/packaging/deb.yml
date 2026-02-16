@@ -7,6 +7,7 @@ include:
   stage: packaging
   script:
     - !reference [.cache_omnibus_ruby_deps, setup]
+    - export INSTALL_DIR=/usr/opt/datadog-agent
     - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project ${DD_PROJECT} ${OMNIBUS_EXTRA_ARGS}
     - !reference [.create_signature_and_lint_linux_packages]
   after_script:
