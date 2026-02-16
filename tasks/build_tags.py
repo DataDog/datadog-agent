@@ -223,6 +223,7 @@ SYSTEM_PROBE_TAGS = {
     "pcap",
     "zlib",
     "zstd",
+    "seclmax",
 }
 
 # TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent
