@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ec2",
+    srcs = ["ec2.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/ec2",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_otel//semconv/v1.6.1:v1_6_1",
+    ],
+)
+
+go_test(
+    name = "ec2_test",
+    srcs = ["ec2_test.go"],
+    embed = [":ec2"],
+    deps = [
+        "//pkg/opentelemetry-mapping-go/otlp/attributes/internal/testutils",
+        "@com_github_stretchr_testify//assert",
+        "@io_opentelemetry_go_otel//semconv/v1.6.1:v1_6_1",
+    ],
+)

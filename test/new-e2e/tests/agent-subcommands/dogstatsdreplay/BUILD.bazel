@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "dogstatsdreplay_test",
+    srcs = [
+        "dogstatsdreplay_common_test.go",
+        "dogstatsdreplay_nix_test.go",
+    ],
+    embedsrcs = ["fixtures/metrics_capture.zstd"],
+    deps = [
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "listener_test",
+    srcs = ["listener_test.go"],
+    data = glob(["testdata/**"]),
+    embedsrcs = [
+        "testdata/tcp-compose.yaml",
+        "testdata/udp-compose.yaml",
+    ],
+    deps = [
+        "//test/e2e-framework/components/datadog/apps/logger",
+        "//test/e2e-framework/components/datadog/dockeragentparams",
+        "//test/e2e-framework/scenarios/aws/ec2docker",
+        "//test/e2e-framework/testing/components",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/docker",
+        "//test/new-e2e/tests/agent-log-pipelines/utils",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

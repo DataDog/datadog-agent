@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "customresources",
+    srcs = [
+        "create_custom_object.go",
+        "delete_custom_object.go",
+        "delete_multiple_custom_objects.go",
+        "entrypoint.go",
+        "get_custom_object.go",
+        "list_custom_object.go",
+        "patch_custom_object.go",
+        "update_custom_object.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/customresources",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/bundle-support/kubernetes",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_apimachinery//pkg/types",
+    ],
+)

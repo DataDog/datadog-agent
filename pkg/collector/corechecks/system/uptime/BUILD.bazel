@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "uptime",
+    srcs = ["uptime.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "@com_github_shirou_gopsutil_v4//host",
+    ],
+)
+
+go_test(
+    name = "uptime_test",
+    srcs = ["uptime_test.go"],
+    embed = [":uptime"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "@com_github_shirou_gopsutil_v4//host",
+    ],
+)

@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "timing",
+    srcs = ["timing.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/trace/timing",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+go_test(
+    name = "timing_test",
+    srcs = [
+        "example_test.go",
+        "timing_test.go",
+    ],
+    embed = [":timing"],
+    deps = [
+        "//pkg/trace/teststatsd",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

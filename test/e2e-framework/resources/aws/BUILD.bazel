@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "aws",
+    srcs = [
+        "const.go",
+        "environment.go",
+        "environmentDefaults.go",
+        "platforms.go",
+    ],
+    embedsrcs = ["platforms.json"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common/config",
+        "//test/e2e-framework/common/namer",
+        "//test/e2e-framework/common/utils",
+        "//test/e2e-framework/components/os",
+        "@com_github_aws_aws_sdk_go_v2_config//:config",
+        "@com_github_aws_aws_sdk_go_v2_service_ecr//:ecr",
+        "@com_github_aws_aws_sdk_go_v2_service_ecr//types",
+        "@com_github_pulumi_pulumi_aws_sdk_v6//go/aws",
+        "@com_github_pulumi_pulumi_random_sdk_v4//go/random",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi/config",
+    ],
+)

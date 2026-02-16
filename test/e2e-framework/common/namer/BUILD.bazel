@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "namer",
+    srcs = ["namer.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/common/namer",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+        "@com_github_samber_lo//:lo",
+    ],
+)
+
+go_test(
+    name = "namer_test",
+    srcs = ["namer_test.go"],
+    embed = [":namer"],
+    deps = [
+        "@com_github_google_gofuzz//:gofuzz",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

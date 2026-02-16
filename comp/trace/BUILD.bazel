@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "trace",
+    srcs = ["bundle.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/trace",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/trace/agent/fx",
+        "//comp/trace/config",
+        "//pkg/util/fxutil",
+    ],
+)
+
+go_test(
+    name = "trace_test",
+    srcs = ["bundle_test.go"],
+    embed = [":trace"],
+    deps = [
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/mock",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/core/secrets/def",
+        "//comp/core/secrets/mock",
+        "//comp/core/tagger/fx",
+        "//comp/core/telemetry/telemetryimpl",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx",
+        "//comp/dogstatsd/statsd",
+        "//comp/trace/agent/def",
+        "//comp/trace/agent/impl",
+        "//comp/trace/compression/fx-zstd",
+        "//comp/trace/config",
+        "//comp/trace/payload-modifier/fx",
+        "//pkg/trace/telemetry",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
+)

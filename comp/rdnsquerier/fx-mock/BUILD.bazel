@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx-mock",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/util/fxutil"],
+)

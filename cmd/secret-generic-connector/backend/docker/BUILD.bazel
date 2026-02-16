@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "docker",
+    srcs = ["secrets.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/secret-generic-connector/backend/docker",
+    visibility = ["//visibility:public"],
+    deps = ["//cmd/secret-generic-connector/backend/file"],
+)
+
+go_test(
+    name = "docker_test",
+    srcs = ["secrets_test.go"],
+    embed = [":docker"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

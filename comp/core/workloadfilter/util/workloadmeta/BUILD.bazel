@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "workloadmeta",
+    srcs = ["create.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadfilter/def",
+        "//comp/core/workloadmeta/def",
+        "//pkg/proto/pbgo/core",
+    ],
+)

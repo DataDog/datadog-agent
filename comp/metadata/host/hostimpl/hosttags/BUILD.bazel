@@ -1,0 +1,37 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "hosttags",
+    srcs = ["tags.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/tags",
+        "//pkg/config/env",
+        "//pkg/config/model",
+        "//pkg/config/utils",
+        "//pkg/gpu/tags",
+        "//pkg/util/cache",
+        "//pkg/util/cloudproviders/gce",
+        "//pkg/util/docker",
+        "//pkg/util/ec2/tags",
+        "//pkg/util/hostname",
+        "//pkg/util/kubernetes/cloudprovider",
+        "//pkg/util/kubernetes/clusterinfo",
+        "//pkg/util/kubernetes/clustername",
+        "//pkg/util/kubernetes/hostinfo",
+        "//pkg/util/log",
+        "//pkg/util/sort",
+    ],
+)
+
+go_test(
+    name = "hosttags_test",
+    srcs = ["tags_test.go"],
+    embed = [":hosttags"],
+    deps = [
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

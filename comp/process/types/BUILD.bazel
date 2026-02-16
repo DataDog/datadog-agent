@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "types",
+    srcs = ["check.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/process/types",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/process/checks",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@org_uber_go_fx//:fx",
+    ],
+)

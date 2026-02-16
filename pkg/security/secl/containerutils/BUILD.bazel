@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "containerutils",
+    srcs = [
+        "helpers.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/secl/containerutils",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "containerutils_test",
+    srcs = ["helpers_test.go"],
+    embed = [":containerutils"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
+)

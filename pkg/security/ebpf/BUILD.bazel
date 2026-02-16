@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "ebpf",
+    srcs = [
+        "compile_unsupported.go",
+        "features_unsupported.go",
+        "loader.go",
+        "manager.go",
+        "map.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/ebpf",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf/bytecode",
+            "//pkg/security/ebpf/probes",
+            "//pkg/security/probe/config",
+            "//pkg/security/seclog",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf/bytecode",
+            "//pkg/security/ebpf/probes",
+            "//pkg/security/probe/config",
+            "//pkg/security/seclog",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+        ],
+        "//conditions:default": [],
+    }),
+)

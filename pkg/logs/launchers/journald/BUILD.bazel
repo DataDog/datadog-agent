@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "journald",
+    srcs = ["launcher_nosystemd.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/launchers/journald",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/def",
+        "//comp/logs/agent/flare",
+        "//comp/logs/auditor/def",
+        "//pkg/logs/launchers",
+        "//pkg/logs/pipeline",
+        "//pkg/logs/tailers",
+    ],
+)

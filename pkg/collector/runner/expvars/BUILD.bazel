@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "expvars",
+    srcs = [
+        "expvars.go",
+        "timestamp.go",
+        "workers.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/runner/expvars",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/haagent/def",
+        "//comp/healthplatform/def",
+        "//pkg/collector/check",
+        "//pkg/collector/check/id",
+        "//pkg/collector/check/stats",
+        "//pkg/util/log",
+        "@com_github_mohae_deepcopy//:deepcopy",
+    ],
+)
+
+go_test(
+    name = "expvars_test",
+    srcs = [
+        "expvars_test.go",
+        "timestamp_test.go",
+        "workers_test.go",
+    ],
+    embed = [":expvars"],
+    deps = [
+        "//comp/healthplatform/mock",
+        "//pkg/collector/check/id",
+        "//pkg/collector/check/stats",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

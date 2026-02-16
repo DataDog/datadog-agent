@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "autoconfigure.go",
+        "converter.go",
+        "coreconfig.go",
+        "extensions.go",
+        "infraattributes.go",
+        "prometheus.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/converter/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/otelcol/converter/def",
+        "@io_opentelemetry_go_collector_confmap//:confmap",
+        "@org_uber_go_zap//:zap",
+    ],
+)

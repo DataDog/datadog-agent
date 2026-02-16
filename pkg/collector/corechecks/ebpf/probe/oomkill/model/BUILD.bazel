@@ -1,0 +1,8 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "model",
+    srcs = ["oom_kill_types.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/oomkill/model",
+    visibility = ["//visibility:public"],
+)

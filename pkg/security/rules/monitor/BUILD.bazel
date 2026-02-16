@@ -1,0 +1,46 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "monitor",
+    srcs = [
+        "policy_monitor.go",
+        "policy_monitor_easyjson.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/rules/monitor",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/types",
+        "//comp/dogstatsd/constants",
+        "//pkg/security/events",
+        "//pkg/security/metrics",
+        "//pkg/security/probe/kfilters",
+        "//pkg/security/secl/compiler/eval",
+        "//pkg/security/secl/containerutils",
+        "//pkg/security/secl/model",
+        "//pkg/security/secl/rules",
+        "//pkg/security/utils",
+        "//pkg/util/log",
+        "//pkg/version",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_hashicorp_go_multierror//:go-multierror",
+        "@com_github_mailru_easyjson//:easyjson",
+        "@com_github_mailru_easyjson//jlexer",
+        "@com_github_mailru_easyjson//jwriter",
+    ],
+)
+
+go_test(
+    name = "monitor_test",
+    srcs = ["policy_monitor_test.go"],
+    embed = [":monitor"],
+    deps = [
+        "//pkg/security/rules/filtermodel",
+        "//pkg/security/secl/compiler/eval",
+        "//pkg/security/secl/model",
+        "//pkg/security/secl/rules",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_hashicorp_go_multierror//:go-multierror",
+        "@com_github_masterminds_semver_v3//:semver",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "server",
+    srcs = [
+        "component.go",
+        "listener.go",
+        "server.go",
+        "status.go",
+    ],
+    embedsrcs = [
+        "status_templates/netflow.tmpl",
+        "status_templates/netflowHTML.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/netflow/server",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/aggregator/demultiplexer",
+        "//comp/core/hostname",
+        "//comp/core/log/def",
+        "//comp/core/status",
+        "//comp/ndmtmp/forwarder",
+        "//comp/netflow/config",
+        "//comp/netflow/flowaggregator",
+        "//comp/netflow/goflowlib",
+        "//comp/rdnsquerier/def",
+        "//comp/rdnsquerier/impl-none",
+        "//pkg/util/fxutil",
+        "@com_github_prometheus_client_golang//prometheus/promhttp",
+        "@org_uber_go_atomic//:atomic",
+        "@org_uber_go_fx//:fx",
+    ],
+)

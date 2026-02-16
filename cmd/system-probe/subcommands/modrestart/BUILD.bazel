@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "modrestart",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/modrestart",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/system-probe/command",
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/secrets/fx-noop",
+        "//comp/core/sysprobeconfig",
+        "//comp/core/sysprobeconfig/sysprobeconfigimpl",
+        "//pkg/system-probe/api/client",
+        "//pkg/util/fxutil",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "modrestart_test",
+    srcs = ["command_test.go"],
+    embed = [":modrestart"],
+    deps = [
+        "//cmd/system-probe/command",
+        "//pkg/util/fxutil",
+    ],
+)

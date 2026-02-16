@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "config",
+    srcs = ["config_windows.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/security-agent/config",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
+        ],
+        "//conditions:default": [],
+    }),
+)

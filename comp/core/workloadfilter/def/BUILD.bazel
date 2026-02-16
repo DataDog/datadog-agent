@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "def",
+    srcs = [
+        "component.go",
+        "types.go",
+        "utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/pbgo/core",
+        "@org_golang_google_protobuf//proto",
+    ],
+)

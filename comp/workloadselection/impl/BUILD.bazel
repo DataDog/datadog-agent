@@ -1,0 +1,52 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "workloadselection.go",
+        "workloadselection_unix.go",
+        "workloadselection_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/workloadselection/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/remote-config/rcclient/types",
+        "//comp/workloadselection/def",
+        "//pkg/remoteconfig/state",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "impl_test",
+    srcs = [
+        "workloadselection_test.go",
+        "workloadselection_windows_test.go",
+        "workloadselection_withbin_test.go",
+        "workloadselection_withoutbin_test.go",
+    ],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/mock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/remoteconfig/state",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/remoteconfig/state",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/remoteconfig/state",
+        ],
+        "//conditions:default": [],
+    }),
+)

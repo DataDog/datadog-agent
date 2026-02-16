@@ -1,0 +1,50 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "clusteragent",
+    srcs = [
+        "archive_dca.go",
+        "cluster_checks.go",
+        "diagnose.go",
+        "manifests_nocompile.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/flare/clusteragent",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/providers/names",
+        "//comp/core/diagnose/def",
+        "//comp/core/diagnose/format",
+        "//comp/core/flare/helpers",
+        "//comp/core/flare/types",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
+        "//comp/core/status",
+        "//pkg/clusteragent/api/v1:api",
+        "//pkg/clusteragent/autoscaling/custommetrics",
+        "//pkg/clusteragent/clusterchecks/types",
+        "//pkg/config/setup",
+        "//pkg/diagnose/connectivity",
+        "//pkg/flare",
+        "//pkg/flare/common",
+        "//pkg/status/render",
+        "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/log",
+        "@com_github_fatih_color//:color",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)
+
+go_test(
+    name = "clusteragent_test",
+    srcs = ["archive_dca_test.go"],
+    embed = [":clusteragent"],
+    deps = [
+        "//comp/core/ipc/mock",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/flare",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

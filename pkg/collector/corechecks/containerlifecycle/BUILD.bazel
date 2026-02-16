@@ -1,0 +1,51 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "containerlifecycle",
+    srcs = [
+        "check.go",
+        "event.go",
+        "processor.go",
+        "queue.go",
+        "telemetry.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containerlifecycle",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/workloadmeta/def",
+        "//comp/forwarder/eventplatform",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/config/env",
+        "//pkg/config/setup",
+        "//pkg/containerlifecycle",
+        "//pkg/telemetry",
+        "//pkg/util/ecs",
+        "//pkg/util/hostname",
+        "//pkg/util/kubernetes/clustername",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "@com_github_datadog_agent_payload_v5//contlcycle",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
+
+go_test(
+    name = "containerlifecycle_test",
+    srcs = [
+        "processor_test.go",
+        "queue_test.go",
+    ],
+    embed = [":containerlifecycle"],
+    deps = [
+        "//comp/core/workloadmeta/def",
+        "//pkg/collector/check/id",
+        "//pkg/util/hostname",
+        "@com_github_datadog_agent_payload_v5//contlcycle",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+    ],
+)

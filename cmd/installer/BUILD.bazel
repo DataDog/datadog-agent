@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+
+go_library(
+    name = "installer_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/installer",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//cmd/installer/command",
+        "//cmd/installer/subcommands",
+        "//pkg/fleet/installer/commands",
+        "//pkg/fleet/installer/errors",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_dig//:dig",
+    ],
+)
+
+go_binary(
+    name = "installer",
+    embed = [":installer_lib"],
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "installer_test",
+    srcs = ["main_test.go"],
+    embed = [":installer_lib"],
+    deps = [
+        "//pkg/fleet/installer/commands",
+        "@com_github_spf13_cobra//:cobra",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

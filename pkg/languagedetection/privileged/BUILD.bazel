@@ -1,0 +1,44 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "privileged",
+    srcs = ["privileged_detector.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/languagedetection/privileged",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/languagedetection/internal/detectors/privileged",
+            "//pkg/languagedetection/languagemodels",
+            "//pkg/util/kernel",
+            "//pkg/util/log",
+            "@com_github_hashicorp_golang_lru_v2//simplelru",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/languagedetection/internal/detectors/privileged",
+            "//pkg/languagedetection/languagemodels",
+            "//pkg/util/kernel",
+            "//pkg/util/log",
+            "@com_github_hashicorp_golang_lru_v2//simplelru",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "privileged_test",
+    srcs = ["privileged_detector_test.go"],
+    embed = [":privileged"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/languagedetection/languagemodels",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/languagedetection/languagemodels",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

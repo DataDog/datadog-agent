@@ -1,0 +1,37 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "networkpath",
+    srcs = [
+        "entrypoint.go",
+        "get_network_path.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/ddagent/networkpath",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/forwarder/eventplatform",
+        "//comp/networkpath/traceroute/def",
+        "//pkg/config/setup",
+        "//pkg/logs/message",
+        "//pkg/networkpath/payload",
+        "//pkg/networkpath/traceroute/config",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+    ],
+)
+
+go_test(
+    name = "networkpath_test",
+    srcs = ["get_network_path_test.go"],
+    embed = [":networkpath"],
+    deps = [
+        "//comp/forwarder/eventplatform",
+        "//pkg/config/setup",
+        "//pkg/logs/message",
+        "//pkg/networkpath/payload",
+        "//pkg/networkpath/traceroute/config",
+        "//pkg/privateactionrunner/types",
+        "//pkg/util/option",
+        "@com_github_stretchr_testify//require",
+    ],
+)

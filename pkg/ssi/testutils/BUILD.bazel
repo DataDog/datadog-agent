@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "testutils",
+    srcs = [
+        "container.go",
+        "doc.go",
+        "image.go",
+        "pod.go",
+        "pod_csi.go",
+        "pod_init_container.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/ssi/testutils",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
+    ],
+)
+
+go_test(
+    name = "testutils_test",
+    srcs = [
+        "container_test.go",
+        "image_test.go",
+        "pod_test.go",
+    ],
+    deps = [
+        ":testutils",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+    ],
+)

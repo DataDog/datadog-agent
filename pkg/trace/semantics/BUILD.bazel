@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "semantics",
+    srcs = [
+        "registry.go",
+        "semantics.go",
+    ],
+    embedsrcs = ["mappings.json"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/trace/semantics",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "semantics_test",
+    srcs = ["semantics_test.go"],
+    embed = [":semantics"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

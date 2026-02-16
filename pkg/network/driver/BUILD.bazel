@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "driver",
+    srcs = [
+        "ddnpmapi.h",
+        "doc.go",
+        "driver_windows.go",
+        "flow_windows.go",
+        "handle.go",
+        "types_windows.go",
+        "utils.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/driver",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//comp/core/telemetry",
+            "//pkg/telemetry",
+            "//pkg/util/log",
+            "//pkg/util/winutil",
+            "@org_golang_x_sys//windows",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "//conditions:default": [],
+    }),
+)

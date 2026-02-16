@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "stream",
+    srcs = [
+        "column.go",
+        "compressor.go",
+        "json_payload_builder.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/serializer/internal/stream",
+    visibility = ["//pkg/serializer:__subpackages__"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/forwarder/defaultforwarder/transaction",
+        "//comp/serializer/metricscompression/def",
+        "//pkg/serializer/marshaler",
+        "//pkg/telemetry",
+        "//pkg/util/compression",
+        "@com_github_json_iterator_go//:go",
+    ],
+)
+
+go_test(
+    name = "stream_test",
+    srcs = ["column_test.go"],
+    embed = [":stream"],
+    deps = [
+        "//pkg/util/compression/impl-zlib",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

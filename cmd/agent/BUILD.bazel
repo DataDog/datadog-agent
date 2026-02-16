@@ -1,0 +1,125 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "agent_lib",
+    srcs = [
+        "doc.go",
+        "main.go",
+        "main_common.go",
+        "main_linux_cgo.go",
+        "main_linux_no_cgo.go",
+        "main_windows.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/cmd/agent",
+    visibility = ["//visibility:private"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//cmd/agent/command",
+            "//cmd/agent/subcommands",
+            "//cmd/internal/runcmd",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:android": [
+            "//cmd/agent/command",
+            "//cmd/agent/subcommands",
+            "//cmd/internal/runcmd",
+            "@com_github_spf13_cobra//:cobra",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//cmd/agent/command",
+            "//cmd/agent/subcommands",
+            "//cmd/internal/runcmd",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//cmd/agent/command",
+            "//cmd/agent/subcommands",
+            "//cmd/internal/runcmd",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//cmd/agent/command",
+            "//cmd/agent/subcommands",
+            "//cmd/internal/runcmd",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//cmd/agent/command",
+            "//cmd/agent/subcommands",
+            "//cmd/internal/runcmd",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//cmd/agent/command",
+            "//cmd/agent/subcommands",
+            "//cmd/internal/runcmd",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:js": [
+            "//cmd/agent/command",
+            "//cmd/agent/subcommands",
+            "//cmd/internal/runcmd",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//cmd/agent/command",
+            "//cmd/agent/subcommands",
+            "//cmd/internal/runcmd",
+            "@com_github_spf13_cobra//:cobra",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//cmd/agent/command",
+            "//cmd/agent/subcommands",
+            "//cmd/internal/runcmd",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//cmd/agent/command",
+            "//cmd/agent/subcommands",
+            "//cmd/internal/runcmd",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//cmd/agent/command",
+            "//cmd/agent/subcommands",
+            "//cmd/internal/runcmd",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//cmd/agent/command",
+            "//cmd/agent/subcommands",
+            "//cmd/internal/runcmd",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//cmd/agent/command",
+            "//cmd/agent/subcommands",
+            "//cmd/internal/runcmd",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//cmd/agent/command",
+            "//cmd/agent/subcommands",
+            "//cmd/internal/runcmd",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//cmd/agent/command",
+            "//cmd/agent/subcommands",
+            "//cmd/agent/windows/service",
+            "//cmd/internal/runcmd",
+            "//pkg/util/log",
+            "//pkg/util/winutil/servicemain",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_binary(
+    name = "agent",
+    embed = [":agent_lib"],
+    visibility = ["//visibility:public"],
+)

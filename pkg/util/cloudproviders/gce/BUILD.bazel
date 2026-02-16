@@ -1,0 +1,37 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "gce",
+    srcs = [
+        "diagnosis.go",
+        "gce.go",
+        "gce_tags.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/diagnose/def",
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/util/cache",
+        "//pkg/util/cachedfetch",
+        "//pkg/util/common",
+        "//pkg/util/http",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "gce_test",
+    srcs = [
+        "gce_tags_test.go",
+        "gce_test.go",
+    ],
+    embed = [":gce"],
+    deps = [
+        "//pkg/config/mock",
+        "//pkg/util/cache",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

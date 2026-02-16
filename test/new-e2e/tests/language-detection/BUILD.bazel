@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "language-detection_test",
+    srcs = [
+        "language_detection_test.go",
+        "node_test.go",
+        "php_test.go",
+        "python_test.go",
+        "setup_test.go",
+    ],
+    embedsrcs = [
+        "etc/core_config.yaml",
+        "etc/core_config_no_check.yaml",
+        "etc/node_server.js",
+        "etc/process_config.yaml",
+        "etc/process_config_no_check.yaml",
+    ],
+    deps = [
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

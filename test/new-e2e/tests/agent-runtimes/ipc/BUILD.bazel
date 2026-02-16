@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ipc",
+    srcs = [
+        "docs.go",
+        "ipc_security_common.go",
+    ],
+    embedsrcs = [
+        "fixtures/config.yaml.tmpl",
+        "fixtures/security-agent.yaml",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-runtimes/ipc",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/testing/components",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+go_test(
+    name = "ipc_test",
+    srcs = [
+        "ipc_security_nix_test.go",
+        "ipc_security_win_test.go",
+    ],
+    embed = [":ipc"],
+    deps = [
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclientparams",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

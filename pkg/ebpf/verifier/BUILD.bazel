@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "verifier",
+    srcs = [
+        "stats_no_linux.go",
+        "types.go",
+        "verifier_log_parser.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/verifier",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "verifier_test",
+    srcs = ["verifier_log_parser_test.go"],
+    embed = [":verifier"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = ["cluster_agent_noop.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/impl",
+    visibility = ["//visibility:public"],
+    deps = ["//comp/metadata/clusteragent/def"],
+)

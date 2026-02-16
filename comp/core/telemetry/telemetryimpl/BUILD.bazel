@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "telemetryimpl",
+    srcs = [
+        "prom_counter.go",
+        "prom_gauge.go",
+        "prom_histogram.go",
+        "simple_prom_counter.go",
+        "simple_prom_gauge.go",
+        "simple_prom_histogram.go",
+        "telemetry.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/telemetry",
+        "//pkg/util/fxutil",
+        "@com_github_prometheus_client_golang//prometheus",
+        "@com_github_prometheus_client_golang//prometheus/collectors",
+        "@com_github_prometheus_client_golang//prometheus/promhttp",
+        "@com_github_prometheus_client_model//go",
+        "@com_github_prometheus_common//expfmt",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "telemetryimpl_test",
+    srcs = [
+        "prom_counter_test.go",
+        "telemetry_test.go",
+    ],
+    embed = [":telemetryimpl"],
+    deps = [
+        "//comp/core/telemetry",
+        "//pkg/util/fxutil",
+        "@com_github_prometheus_client_golang//prometheus",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

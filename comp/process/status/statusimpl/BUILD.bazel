@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "statusimpl",
+    srcs = ["status.go"],
+    embedsrcs = ["status_templates/processagent.tmpl"],
+    importpath = "github.com/DataDog/datadog-agent/comp/process/status/statusimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/status",
+        "//pkg/config/setup",
+        "//pkg/process/util/status",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "statusimpl_test",
+    srcs = ["status_test.go"],
+    embed = [":statusimpl"],
+    embedsrcs = [
+        "fixtures/expvar_response.tmpl",
+        "fixtures/text_error_response.tmpl",
+    ],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameimpl",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

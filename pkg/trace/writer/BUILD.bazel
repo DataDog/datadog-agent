@@ -1,0 +1,57 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "writer",
+    srcs = [
+        "sender.go",
+        "stats.go",
+        "trace.go",
+        "tracev1.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/trace/writer",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/trace/compression/def",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/trace/config",
+        "//pkg/trace/containertags",
+        "//pkg/trace/info",
+        "//pkg/trace/log",
+        "//pkg/trace/telemetry",
+        "//pkg/trace/timing",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_tinylib_msgp//msgp",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+go_test(
+    name = "writer_test",
+    srcs = [
+        "sender_test.go",
+        "stats_test.go",
+        "testserver_test.go",
+        "trace_test.go",
+        "tracev1_test.go",
+    ],
+    embed = [":writer"],
+    deps = [
+        "//comp/trace/compression/def",
+        "//comp/trace/compression/impl-gzip",
+        "//comp/trace/compression/impl-zstd",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/trace/config",
+        "//pkg/trace/containertags",
+        "//pkg/trace/info",
+        "//pkg/trace/log",
+        "//pkg/trace/stats",
+        "//pkg/trace/telemetry",
+        "//pkg/trace/testutil",
+        "//pkg/trace/timing",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_tinylib_msgp//msgp",
+        "@org_golang_google_protobuf//proto",
+    ],
+)

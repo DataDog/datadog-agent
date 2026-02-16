@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "check_runner.go",
+        "diagnose.go",
+        "forwarder.go",
+        "health-platform.go",
+        "health-platform_noop.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/api/def",
+        "//comp/core/config",
+        "//comp/core/diagnose/def",
+        "//comp/core/flare/types",
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/log/def",
+        "//comp/core/telemetry",
+        "//comp/def",
+        "//comp/healthplatform/def",
+        "//comp/healthplatform/impl/issues",
+        "//comp/healthplatform/impl/issues/checkfailure",
+        "//comp/healthplatform/impl/issues/dockerpermissions",
+        "//pkg/config/model",
+        "//pkg/config/utils",
+        "//pkg/util/http",
+        "//pkg/version",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@org_golang_google_protobuf//proto",
+    ],
+)

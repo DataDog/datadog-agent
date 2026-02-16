@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "forwarderimpl",
+    srcs = ["forwarder.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/forwarderimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/aggregator/demultiplexer",
+        "//comp/ndmtmp/forwarder",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)

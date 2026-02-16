@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "snmpparse",
+    srcs = [
+        "config_snmp.go",
+        "constants.go",
+        "gosnmp.go",
+        "options.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/snmp/snmpparse",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
+        "//comp/core/log/def",
+        "//comp/snmptraps/snmplog",
+        "//pkg/config/structure",
+        "//pkg/snmp",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)
+
+go_test(
+    name = "snmpparse_test",
+    srcs = [
+        "config_snmp_test.go",
+        "options_test.go",
+    ],
+    embed = [":snmpparse"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/config/mock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

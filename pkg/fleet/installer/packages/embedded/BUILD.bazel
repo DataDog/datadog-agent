@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "embedded",
+    srcs = ["embed.go"],
+    embedsrcs = [
+        "scripts/dd-cleanup",
+        "scripts/dd-container-install",
+        "scripts/dd-host-install",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded",
+    visibility = ["//visibility:public"],
+)

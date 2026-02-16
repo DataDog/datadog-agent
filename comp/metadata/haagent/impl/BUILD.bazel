@@ -1,0 +1,45 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "haagent.go",
+        "haagentimpl.go",
+        "status.go",
+    ],
+    embedsrcs = [
+        "status_templates/inventory.tmpl",
+        "status_templates/inventoryHTML.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/metadata/haagent/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/api/def",
+        "//comp/core/config",
+        "//comp/core/flare/types",
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/log/def",
+        "//comp/core/status",
+        "//comp/haagent/def",
+        "//comp/metadata/haagent/def",
+        "//comp/metadata/internal/util",
+        "//comp/metadata/runner/runnerimpl",
+        "//pkg/serializer",
+        "//pkg/serializer/marshaler",
+        "//pkg/util/http",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["haagentimpl_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/log/mock",
+        "//pkg/serializer/mocks",
+        "@com_github_stretchr_testify//assert",
+        "@org_golang_x_exp//maps",
+    ],
+)

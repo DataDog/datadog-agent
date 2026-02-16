@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "loaders",
+    srcs = ["loaders.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/loaders",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/def",
+        "//comp/core/workloadfilter/def",
+        "//comp/logs/integrations/def",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/util/log",
+        "//pkg/util/option",
+    ],
+)
+
+go_test(
+    name = "loaders_test",
+    srcs = ["loaders_test.go"],
+    embed = [":loaders"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/impl-noop",
+        "//comp/core/workloadfilter/def",
+        "//comp/core/workloadfilter/fx-mock",
+        "//comp/logs/integrations/def",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/util/option",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

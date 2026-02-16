@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "servicetype",
+    srcs = ["servicetype.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/discovery/servicetype",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "servicetype_test",
+    srcs = ["servicetype_test.go"],
+    deps = [":servicetype"],
+)

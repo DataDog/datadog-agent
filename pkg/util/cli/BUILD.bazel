@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "cli",
+    srcs = ["deprecated.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/cli",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "cli_test",
+    srcs = ["deprecated_test.go"],
+    embed = [":cli"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

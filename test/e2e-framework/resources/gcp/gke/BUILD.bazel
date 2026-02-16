@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "gke",
+    srcs = ["cluster.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/resources/gcp/gke",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common/config",
+        "//test/e2e-framework/resources/gcp",
+        "@com_github_pulumi_pulumi_gcp_sdk_v7//go/gcp/container",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)

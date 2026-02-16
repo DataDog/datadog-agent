@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "discovery",
+    srcs = [
+        "discovery.go",
+        "ip_utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/discovery",
+    visibility = ["//pkg/collector/corechecks/snmp:__subpackages__"],
+    deps = [
+        "//comp/core/autodiscovery/listeners",
+        "//comp/core/config",
+        "//comp/snmpscanmanager/def",
+        "//pkg/collector/corechecks/snmp/internal/checkconfig",
+        "//pkg/collector/corechecks/snmp/internal/devicecheck",
+        "//pkg/collector/corechecks/snmp/internal/session",
+        "//pkg/persistentcache",
+        "//pkg/util/log",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+go_test(
+    name = "discovery_test",
+    srcs = [
+        "discovery_test.go",
+        "ip_utils_test.go",
+    ],
+    embed = [":discovery"],
+    deps = [
+        "//comp/core/config",
+        "//comp/snmpscanmanager/def",
+        "//pkg/collector/corechecks/snmp/internal/checkconfig",
+        "//pkg/collector/corechecks/snmp/internal/profile",
+        "//pkg/collector/corechecks/snmp/internal/session",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

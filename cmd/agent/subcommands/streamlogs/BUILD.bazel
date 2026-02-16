@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "streamlogs",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/streamlogs",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/agent/command",
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/fx",
+        "//comp/core/ipc/httphelpers",
+        "//comp/core/log/def",
+        "//comp/core/secrets/fx-noop",
+        "//pkg/config/setup",
+        "//pkg/logs/diagnostic",
+        "//pkg/util/filesystem",
+        "//pkg/util/fxutil",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "streamlogs_test",
+    srcs = ["command_test.go"],
+    embed = [":streamlogs"],
+    deps = [
+        "//cmd/agent/command",
+        "//comp/core",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,50 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "collector",
+    srcs = ["process.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadmeta/def",
+        "//pkg/config/model",
+        "//pkg/process/checks",
+        "//pkg/process/metadata/workloadmeta",
+        "//pkg/process/util/containers",
+        "//pkg/util/log",
+        "@com_github_benbjohnson_clock//:clock",
+    ],
+)
+
+go_test(
+    name = "collector_test",
+    srcs = ["process_test.go"],
+    embed = [":collector"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/ipc/mock",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx-mock",
+        "//comp/core/workloadmeta/mock",
+        "//pkg/config/mock",
+        "//pkg/process/checks",
+        "//pkg/process/metadata/workloadmeta",
+        "//pkg/process/procutil",
+        "//pkg/process/procutil/mocks",
+        "//pkg/process/util/containers/mocks",
+        "//pkg/proto/pbgo/process",
+        "//pkg/trace/testutil",
+        "//pkg/util/flavor",
+        "//pkg/util/fxutil",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_golang_mock//gomock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
+        "@org_uber_go_fx//:fx",
+    ],
+)

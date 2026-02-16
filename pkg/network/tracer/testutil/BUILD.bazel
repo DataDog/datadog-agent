@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "testutil",
+    srcs = [
+        "conntrack.go",
+        "tls.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/network",
+            "//pkg/network/netlink",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/network",
+            "//pkg/network/netlink",
+        ],
+        "//conditions:default": [],
+    }),
+)

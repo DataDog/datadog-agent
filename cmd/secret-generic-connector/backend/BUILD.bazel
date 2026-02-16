@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "backend",
+    srcs = [
+        "backend.go",
+        "error.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/secret-generic-connector/backend",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/secret-generic-connector/backend/akeyless",
+        "//cmd/secret-generic-connector/backend/aws",
+        "//cmd/secret-generic-connector/backend/azure",
+        "//cmd/secret-generic-connector/backend/docker",
+        "//cmd/secret-generic-connector/backend/file",
+        "//cmd/secret-generic-connector/backend/gcp",
+        "//cmd/secret-generic-connector/backend/hashicorp",
+        "//cmd/secret-generic-connector/backend/kubernetes",
+        "//cmd/secret-generic-connector/secret",
+    ],
+)
+
+go_test(
+    name = "backend_test",
+    srcs = ["error_test.go"],
+    embed = [":backend"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

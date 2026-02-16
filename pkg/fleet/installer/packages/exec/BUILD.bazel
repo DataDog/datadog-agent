@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "exec",
+    srcs = [
+        "apm_inject_exec_windows.go",
+        "dotnet_library_exec.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/exec",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/errors",
+            "//pkg/fleet/installer/telemetry",
+        ],
+        "//conditions:default": [],
+    }),
+)

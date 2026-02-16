@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "metrics",
+    srcs = [
+        "capacity_monitor.go",
+        "metrics.go",
+        "pipeline_monitor.go",
+        "utilization_monitor.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/metrics",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/telemetry",
+        "@com_github_benbjohnson_clock//:clock",
+    ],
+)
+
+go_test(
+    name = "metrics_test",
+    srcs = [
+        "capacity_monitor_test.go",
+        "metrics_test.go",
+        "pipeline_monitor_test.go",
+        "utilization_monitor_test.go",
+    ],
+    embed = [":metrics"],
+    deps = [
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

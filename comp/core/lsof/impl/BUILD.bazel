@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = ["lsof.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/lsof/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/flare/types",
+        "//comp/core/lsof/def",
+        "//pkg/util/flavor",
+        "//pkg/util/lsof",
+    ],
+)

@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "defender",
+    srcs = [
+        "component.go",
+        "params.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/defender",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common",
+        "//test/e2e-framework/common/config",
+        "//test/e2e-framework/common/namer",
+        "//test/e2e-framework/common/utils",
+        "//test/e2e-framework/components/command",
+        "//test/e2e-framework/components/remote",
+        "//test/new-e2e/tests/windows/common/powershell",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)

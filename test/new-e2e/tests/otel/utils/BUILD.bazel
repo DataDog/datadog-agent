@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "utils",
+    srcs = [
+        "config_utils.go",
+        "docker_pipelines_utils.go",
+        "pipelines_utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/otel/utils",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/types",
+        "//comp/otelcol/ddflareextension/types",
+        "//pkg/proto/pbgo/trace",
+        "//test/e2e-framework/components/datadog/apps",
+        "//test/e2e-framework/testing/environments",
+        "//test/fakeintake/aggregator",
+        "//test/fakeintake/client",
+        "//test/fakeintake/client/flare",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+        "@io_k8s_api//apps/v1:apps",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/fields",
+        "@io_k8s_apimachinery//pkg/util/intstr",
+    ],
+)

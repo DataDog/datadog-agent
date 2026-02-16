@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "autoscalerlist",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/cli/subcommands/autoscalerlist",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/fx",
+        "//comp/core/ipc/httphelpers",
+        "//comp/core/log/def",
+        "//comp/core/secrets/fx-noop",
+        "//pkg/clusteragent/autoscaling/workload",
+        "//pkg/clusteragent/autoscaling/workload/loadstore",
+        "//pkg/config/setup",
+        "//pkg/util/flavor",
+        "//pkg/util/fxutil",
+        "@com_github_fatih_color//:color",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "autoscalerlist_test",
+    srcs = ["command_test.go"],
+    embed = [":autoscalerlist"],
+    deps = [
+        "//comp/core",
+        "//pkg/util/fxutil",
+        "@com_github_spf13_cobra//:cobra",
+    ],
+)

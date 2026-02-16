@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "nvidia",
+    srcs = [
+        "mocks.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadmeta/def",
+        "//pkg/metrics",
+        "@com_github_stretchr_testify//mock",
+    ],
+)

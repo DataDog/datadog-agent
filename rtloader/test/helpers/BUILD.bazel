@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "helpers",
+    srcs = [
+        "helpers.go",
+        "helpers_native.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/rtloader/test/helpers",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

@@ -1,0 +1,45 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "info",
+    srcs = [
+        "endpoint.go",
+        "info.go",
+        "stats.go",
+        "writer.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/trace/info",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/template/text",
+        "//pkg/trace/config",
+        "//pkg/trace/log",
+        "//pkg/trace/sampler",
+        "//pkg/trace/watchdog",
+        "//pkg/util/scrubber",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+go_test(
+    name = "info_test",
+    srcs = [
+        "helper_test.go",
+        "info_test.go",
+        "stats_test.go",
+        "writer_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":info"],
+    deps = [
+        "//pkg/trace/config",
+        "//pkg/trace/log",
+        "//pkg/trace/sampler",
+        "//pkg/trace/teststatsd",
+        "//pkg/trace/watchdog",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)

@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "apiutil",
+    srcs = [
+        "coverage_off.go",
+        "limited_reader.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/trace/api/apiutil",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "apiutil_test",
+    srcs = ["limited_reader_test.go"],
+    embed = [":apiutil"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

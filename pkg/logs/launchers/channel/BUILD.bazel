@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "channel",
+    srcs = ["launcher.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/launchers/channel",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//comp/logs/auditor/def",
+        "//pkg/logs/launchers",
+        "//pkg/logs/pipeline",
+        "//pkg/logs/sources",
+        "//pkg/logs/tailers",
+        "//pkg/logs/tailers/channel",
+    ],
+)

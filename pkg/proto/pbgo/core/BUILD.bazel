@@ -1,0 +1,41 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "core",
+    srcs = [
+        "api.pb.go",
+        "api_grpc.pb.go",
+        "autodiscovery.pb.go",
+        "flare.pb.go",
+        "flare_grpc.pb.go",
+        "model.pb.go",
+        "remoteagent.pb.go",
+        "remoteconfig.pb.go",
+        "remoteconfig_gen.go",
+        "status.pb.go",
+        "status_grpc.pb.go",
+        "telemetry.pb.go",
+        "telemetry_grpc.pb.go",
+        "workloadfilter.pb.go",
+        "workloadmeta.pb.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_tinylib_msgp//msgp",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+        "@org_golang_google_protobuf//reflect/protoreflect",
+        "@org_golang_google_protobuf//runtime/protoimpl",
+        "@org_golang_google_protobuf//types/known/emptypb",
+        "@org_golang_google_protobuf//types/known/structpb",
+    ],
+)
+
+go_test(
+    name = "core_test",
+    srcs = ["remoteconfig_gen_test.go"],
+    embed = [":core"],
+    deps = ["@com_github_tinylib_msgp//msgp"],
+)

@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = ["filter.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadfilter/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/flare/types",
+        "//comp/core/log/def",
+        "//comp/core/telemetry",
+        "//comp/core/workloadfilter/baseimpl",
+        "//comp/core/workloadfilter/catalog",
+        "//comp/core/workloadfilter/def",
+        "//comp/def",
+    ],
+)

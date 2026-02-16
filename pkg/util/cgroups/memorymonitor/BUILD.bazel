@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "memorymonitor",
+    srcs = ["memory_controller.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/cgroups/memorymonitor",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/util/log",
+            "@com_github_containerd_cgroups_v3//cgroup1",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/log",
+            "@com_github_containerd_cgroups_v3//cgroup1",
+        ],
+        "//conditions:default": [],
+    }),
+)

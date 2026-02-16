@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "scheduler",
+    srcs = [
+        "job.go",
+        "scheduler.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/scheduler",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/collector/check",
+        "//pkg/collector/check/id",
+        "//pkg/status/health",
+        "//pkg/telemetry",
+        "//pkg/util/log",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+go_test(
+    name = "scheduler_test",
+    srcs = [
+        "job_test.go",
+        "scheduler_test.go",
+    ],
+    embed = [":scheduler"],
+    deps = [
+        "//pkg/collector/check",
+        "//pkg/collector/check/id",
+        "//pkg/util/testutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx-securityagent",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-securityagent",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/remoteagent/def",
+        "//comp/core/remoteagent/impl-securityagent",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)

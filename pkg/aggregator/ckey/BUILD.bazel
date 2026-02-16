@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ckey",
+    srcs = ["key.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/aggregator/ckey",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/tagset",
+        "@com_github_twmb_murmur3//:murmur3",
+    ],
+)
+
+go_test(
+    name = "ckey_test",
+    srcs = [
+        "key_test.go",
+        "sort_test.go",
+    ],
+    embed = [":ckey"],
+    deps = [
+        "//pkg/tagset",
+        "//pkg/util/sort",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

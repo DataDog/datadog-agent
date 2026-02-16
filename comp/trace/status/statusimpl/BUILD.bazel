@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "statusimpl",
+    srcs = ["status.go"],
+    embedsrcs = [
+        "status_templates/traceagent.tmpl",
+        "status_templates/traceagentHTML.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/trace/status/statusimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
+        "//comp/core/status",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "statusimpl_test",
+    srcs = ["status_test.go"],
+    embed = [":statusimpl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/mock",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
+    ],
+)

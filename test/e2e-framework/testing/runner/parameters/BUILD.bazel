@@ -1,0 +1,37 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "parameters",
+    srcs = [
+        "caching_store.go",
+        "cascading_store.go",
+        "const.go",
+        "errors.go",
+        "parameters.go",
+        "store.go",
+        "store_aws.go",
+        "store_config_file.go",
+        "store_env.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/components",
+        "//test/e2e-framework/testing/utils/clients",
+        "//test/e2e-framework/testing/utils/common",
+        "@com_github_aws_aws_sdk_go_v2_service_ssm//:ssm",
+        "@com_github_aws_aws_sdk_go_v2_service_ssm//types",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)
+
+go_test(
+    name = "parameters_test",
+    srcs = ["store_config_file_test.go"],
+    embed = [":parameters"],
+    embedsrcs = ["testfixtures/test_config_with_stackparams.yaml"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

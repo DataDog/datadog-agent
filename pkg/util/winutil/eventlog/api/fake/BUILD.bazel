@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fake",
+    srcs = [
+        "fake.go",
+        "test.go",
+        "wevtapi.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/fake",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil/eventlog/api",
+            "@org_golang_x_sys//windows",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "//conditions:default": [],
+    }),
+)

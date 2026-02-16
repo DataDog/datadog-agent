@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "k8s-logs_test",
+    srcs = [
+        "file_tailing_cca_off_test.go",
+        "file_tailing_test.go",
+    ],
+    embedsrcs = ["long_line_log.txt"],
+    deps = [
+        "//test/e2e-framework/components/datadog/kubernetesagentparams",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/new-e2e/tests/agent-log-pipelines/kindfilelogging",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//batch/v1:batch",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+    ],
+)

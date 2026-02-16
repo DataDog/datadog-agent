@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "host",
+    srcs = [
+        "fixtures.go",
+        "host.go",
+        "systemd.go",
+    ],
+    embedsrcs = [
+        "fixtures/exit0.sh",
+        "fixtures/exit1.sh",
+        "fixtures/http_server.py",
+        "fixtures/run_http_server.sh",
+        "fixtures/squid.conf",
+        "fixtures/stop_with_sigkill.sh",
+        "fixtures/stop_with_sigterm.sh",
+        "fixtures/stop_with_sigterm_exit0.sh",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/testing/components",
+        "//test/e2e-framework/testing/utils/e2e/client",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,69 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "mount",
+    srcs = [
+        "dentry_positions.go",
+        "errors.go",
+        "interface.go",
+        "misc.go",
+        "mountlister.go",
+        "no_op_resolver.go",
+        "procfs_mountlister.go",
+        "resolver.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/resolvers/mount",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/ebpf/kernel",
+            "//pkg/security/metrics",
+            "//pkg/security/resolvers/cgroup",
+            "//pkg/security/resolvers/dentry",
+            "//pkg/security/secl/model",
+            "//pkg/security/seclog",
+            "//pkg/security/utils",
+            "//pkg/security/utils/lru/simplelru",
+            "//pkg/util/kernel",
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_moby_sys_mountinfo//:mountinfo",
+            "@org_golang_x_sys//unix",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/ebpf/kernel",
+            "//pkg/security/metrics",
+            "//pkg/security/resolvers/cgroup",
+            "//pkg/security/resolvers/dentry",
+            "//pkg/security/secl/model",
+            "//pkg/security/seclog",
+            "//pkg/security/utils",
+            "//pkg/security/utils/lru/simplelru",
+            "//pkg/util/kernel",
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_moby_sys_mountinfo//:mountinfo",
+            "@org_golang_x_sys//unix",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "mount_test",
+    srcs = ["resolver_test.go"],
+    embed = [":mount"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/resolvers/cgroup",
+            "//pkg/security/secl/model",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/resolvers/cgroup",
+            "//pkg/security/secl/model",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
+)

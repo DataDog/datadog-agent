@@ -1,0 +1,37 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["hostgpu.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/metadata/hostgpu/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/api/def",
+        "//comp/core/config",
+        "//comp/core/flare/types",
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/log/def",
+        "//comp/core/workloadmeta/def",
+        "//comp/metadata/hostgpu/def",
+        "//comp/metadata/internal/util",
+        "//comp/metadata/runner/runnerimpl",
+        "//pkg/serializer",
+        "//pkg/serializer/marshaler",
+        "//pkg/util/http",
+        "//pkg/util/uuid",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["hostgpu_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/log/mock",
+        "//comp/core/workloadmeta/def",
+        "//pkg/config/mock",
+        "//pkg/serializer/mocks",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

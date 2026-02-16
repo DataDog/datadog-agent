@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "agent",
+    srcs = [
+        "agent.go",
+        "install.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/agent",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/runner",
+        "//test/e2e-framework/testing/runner/parameters",
+        "//test/e2e-framework/testing/utils/e2e/client",
+        "//test/new-e2e/tests/windows/common",
+        "//test/new-e2e/tests/windows/common/pipeline",
+        "@com_github_avast_retry_go_v4//:retry-go",
+        "@com_github_goccy_go_yaml//:go-yaml",
+        "@com_github_stretchr_testify//require",
+    ],
+)

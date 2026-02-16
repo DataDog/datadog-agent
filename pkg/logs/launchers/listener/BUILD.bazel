@@ -1,0 +1,53 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "listener",
+    srcs = [
+        "errors.go",
+        "launcher.go",
+        "tcp.go",
+        "udp.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/launchers/listener",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//comp/logs/auditor/def",
+        "//pkg/logs/launchers",
+        "//pkg/logs/pipeline",
+        "//pkg/logs/sources",
+        "//pkg/logs/tailers",
+        "//pkg/logs/tailers/socket",
+        "//pkg/util/log",
+        "//pkg/util/startstop",
+    ],
+)
+
+go_test(
+    name = "listener_test",
+    srcs = [
+        "errors_test.go",
+        "tcp_test.go",
+        "udp_darwin_test.go",
+        "udp_default_test.go",
+        "udp_linux_test.go",
+        "udp_nix_test.go",
+        "udp_test.go",
+    ],
+    embed = [":listener"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//pkg/logs/message",
+        "//pkg/logs/pipeline/mock",
+        "//pkg/logs/sources",
+        "@com_github_stretchr_testify//assert",
+    ] + select({
+        "@rules_go//go/platform:darwin": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/util/log",
+        ],
+        "//conditions:default": [],
+    }),
+)

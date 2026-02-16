@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "reporter",
+    srcs = ["reporter.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/reporter",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//comp/serializer/logscompression/def",
+        "//pkg/config/setup",
+        "//pkg/logs/client",
+        "//pkg/logs/diagnostic",
+        "//pkg/logs/message",
+        "//pkg/logs/pipeline",
+        "//pkg/logs/sender",
+        "//pkg/logs/sources",
+        "//pkg/security/common",
+        "//pkg/util/startstop",
+    ],
+)

@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "kubernetes",
+    srcs = ["kubernetes_dump.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/pointer",
+        "@com_github_aws_aws_sdk_go_v2_config//:config",
+        "@com_github_aws_aws_sdk_go_v2_service_ec2//:ec2",
+        "@com_github_aws_aws_sdk_go_v2_service_ec2//types",
+        "@com_github_aws_aws_sdk_go_v2_service_eks//:eks",
+        "@com_github_aws_aws_sdk_go_v2_service_eks//types",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_cli_runtime//pkg/genericclioptions",
+        "@io_k8s_cli_runtime//pkg/genericiooptions",
+        "@io_k8s_client_go//kubernetes",
+        "@io_k8s_client_go//tools/clientcmd",
+        "@io_k8s_client_go//tools/clientcmd/api",
+        "@io_k8s_kubectl//pkg/cmd/get",
+        "@io_k8s_kubectl//pkg/cmd/util",
+        "@org_golang_x_crypto//ssh",
+        "@org_golang_x_crypto//ssh/agent",
+    ],
+)

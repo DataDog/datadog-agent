@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "scheduler",
+    srcs = [
+        "configstate.go",
+        "controller.go",
+        "doc.go",
+        "scheduler.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/common/types",
+        "//comp/core/autodiscovery/integration",
+        "//pkg/status/health",
+        "//pkg/util/log",
+        "@com_github_mohae_deepcopy//:deepcopy",
+        "@io_k8s_apimachinery//pkg/util/wait",
+        "@io_k8s_client_go//util/workqueue",
+    ],
+)
+
+go_test(
+    name = "scheduler_test",
+    srcs = ["controller_test.go"],
+    embed = [":scheduler"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

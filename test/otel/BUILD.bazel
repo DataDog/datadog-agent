@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "otel",
+    srcs = ["dependencies.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/otel",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/log/def",
+        "//comp/otelcol/logsagentpipeline",
+        "//comp/otelcol/logsagentpipeline/logsagentpipelineimpl",
+        "//comp/otelcol/otlp/components/exporter/logsagentexporter",
+        "//comp/otelcol/otlp/components/metricsclient",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/trace/api",
+        "//pkg/util/compression/impl-noop",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_datadog//config",
+    ],
+)

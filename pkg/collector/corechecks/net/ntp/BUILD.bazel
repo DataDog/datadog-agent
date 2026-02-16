@@ -1,0 +1,51 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ntp",
+    srcs = [
+        "ntp.go",
+        "ntp_local_defined_server_nowindows.go",
+        "ntp_local_defined_server_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/ntp",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/metrics/servicecheck",
+        "//pkg/telemetry",
+        "//pkg/util/cloudproviders",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "@com_github_beevik_ntp//:ntp",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+            "@org_golang_x_sys//windows/registry",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "ntp_test",
+    srcs = [
+        "ntp_local_defined_server_nowindows_test.go",
+        "ntp_local_defined_server_windows_test.go",
+        "ntp_test.go",
+    ],
+    embed = [":ntp"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/aggregator",
+        "//pkg/config/mock",
+        "//pkg/metrics/servicecheck",
+        "//pkg/util/cloudproviders",
+        "@com_github_beevik_ntp//:ntp",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+    ],
+)

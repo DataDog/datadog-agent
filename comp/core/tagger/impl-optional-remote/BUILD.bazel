@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl-optional-remote",
+    srcs = ["optional-remote.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/impl-optional-remote",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/log/def",
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/impl-noop",
+        "//comp/core/tagger/impl-remote",
+        "//comp/core/telemetry",
+        "//comp/def",
+    ],
+)

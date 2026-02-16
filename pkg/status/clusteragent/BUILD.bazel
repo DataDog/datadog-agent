@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "clusteragent",
+    srcs = ["status_no_apiserver.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/status/clusteragent",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/status",
+        "//pkg/util/log",
+    ],
+)

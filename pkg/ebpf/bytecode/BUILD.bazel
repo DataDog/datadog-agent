@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "bytecode",
+    srcs = [
+        "asset_reader.go",
+        "asset_reader_nobindata.go",
+        "permissions.go",
+        "permissions_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/bytecode",
+    visibility = ["//visibility:public"],
+)

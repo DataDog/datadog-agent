@@ -1,0 +1,53 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "eventplatformimpl",
+    srcs = [
+        "epforwarder.go",
+        "epforwarder_mockgen.go",
+        "params.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/diagnose/def",
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/forwarder/eventplatform",
+        "//comp/forwarder/eventplatformreceiver",
+        "//comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl",
+        "//comp/logs/agent/config",
+        "//comp/serializer/logscompression/def",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/logs/client",
+        "//pkg/logs/client/http",
+        "//pkg/logs/message",
+        "//pkg/logs/metrics",
+        "//pkg/logs/sender",
+        "//pkg/logs/sender/http",
+        "//pkg/util/compression",
+        "//pkg/util/fxutil",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "//pkg/util/startstop",
+        "@com_github_golang_mock//gomock",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "eventplatformimpl_test",
+    srcs = ["epforwarder_test.go"],
+    embed = [":eventplatformimpl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/forwarder/eventplatformreceiver",
+        "//comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl",
+        "//comp/logs/agent/config",
+        "//comp/serializer/logscompression/def",
+        "//pkg/util/fxutil",
+        "@com_github_datadog_datadog_agent_comp_serializer_logscompression//fx-mock",
+        "@com_github_stretchr_testify//suite",
+    ],
+)

@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "languagedetection",
+    srcs = [
+        "doc.go",
+        "language_detection_nocompile.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1/languagedetection",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/workloadmeta/def",
+        "@com_github_gorilla_mux//:mux",
+    ],
+)

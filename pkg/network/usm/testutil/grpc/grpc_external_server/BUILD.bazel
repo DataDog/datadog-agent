@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "grpc_external_server_lib",
+    srcs = ["grpc_external_server.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc/grpc_external_server",
+    visibility = ["//visibility:private"],
+    deps = ["//pkg/network/usm/testutil/grpc"],
+)
+
+go_binary(
+    name = "grpc_external_server",
+    embed = [":grpc_external_server_lib"],
+    visibility = ["//visibility:public"],
+)

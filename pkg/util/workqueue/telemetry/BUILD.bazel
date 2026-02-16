@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "telemetry",
+    srcs = [
+        "doc.go",
+        "telemetry.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/workqueue/telemetry",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/telemetry",
+        "@com_github_prometheus_client_golang//prometheus",
+        "@io_k8s_client_go//util/workqueue",
+    ],
+)

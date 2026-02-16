@@ -1,0 +1,47 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "workloadmeta",
+    srcs = ["workloadmeta.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/workloadmeta",
+    visibility = ["//comp/core/workloadmeta/collectors:__subpackages__"],
+    deps = [
+        "//comp/core/ipc/def",
+        "//comp/core/workloadmeta/collectors/internal/remote",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/proto",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/grpc",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//grpclog",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "workloadmeta_test",
+    srcs = ["workloadmeta_test.go"],
+    embed = [":workloadmeta"],
+    deps = [
+        "//comp/core",
+        "//comp/core/ipc/mock",
+        "//comp/core/workloadmeta/collectors/internal/remote",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx-mock",
+        "//comp/core/workloadmeta/mock",
+        "//comp/core/workloadmeta/proto",
+        "//comp/core/workloadmeta/server",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//credentials",
+        "@org_golang_google_grpc//status",
+        "@org_golang_google_protobuf//types/known/emptypb",
+        "@org_uber_go_fx//:fx",
+    ],
+)

@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "otlp-ingest_test",
+    srcs = [
+        "docker_pipelines_test.go",
+        "operation_and_resource_name_logic_v2_test.go",
+        "pipelines_sampling_test.go",
+        "pipelines_test.go",
+        "receive_resource_spans_v2_test.go",
+    ],
+    embedsrcs = ["compose/otlp_ingest_compose.yaml"],
+    deps = [
+        "//test/e2e-framework/components/datadog/apps",
+        "//test/e2e-framework/components/datadog/dockeragentparams",
+        "//test/e2e-framework/components/datadog/kubernetesagentparams",
+        "//test/e2e-framework/scenarios/aws/ec2docker",
+        "//test/e2e-framework/scenarios/aws/kindvm",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/docker",
+        "//test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm",
+        "//test/new-e2e/tests/otel/utils",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)

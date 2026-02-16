@@ -1,0 +1,44 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "formatterimpl",
+    srcs = [
+        "formatter.go",
+        "mock.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/formatterimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/aggregator/demultiplexer",
+        "//comp/core/log/def",
+        "//comp/snmptraps/formatter",
+        "//comp/snmptraps/oidresolver",
+        "//comp/snmptraps/packet",
+        "//pkg/aggregator/sender",
+        "//pkg/util/fxutil",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "formatterimpl_test",
+    srcs = [
+        "formatter_test.go",
+        "mock_test.go",
+    ],
+    embed = [":formatterimpl"],
+    deps = [
+        "//comp/core/log/mock",
+        "//comp/snmptraps/formatter",
+        "//comp/snmptraps/oidresolver",
+        "//comp/snmptraps/oidresolver/oidresolverimpl",
+        "//comp/snmptraps/packet",
+        "//pkg/util/fxutil",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
+)

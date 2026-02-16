@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "networkconfigmanagement",
+    srcs = ["stub.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/networkconfigmanagement",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//pkg/collector/check",
+        "//pkg/util/option",
+    ],
+)

@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "log",
+    srcs = [
+        "logger.go",
+        "throttled.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/trace/log",
+    visibility = ["//visibility:public"],
+    deps = ["@org_uber_go_atomic//:atomic"],
+)
+
+go_test(
+    name = "log_test",
+    srcs = ["throttled_test.go"],
+    embed = [":log"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

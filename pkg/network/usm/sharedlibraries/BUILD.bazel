@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "sharedlibraries",
+    srcs = [
+        "libset.go",
+        "types_linux.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "sharedlibraries_test",
+    srcs = ["types_linux_test.go"],
+    embed = [":sharedlibraries"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf/ebpftest",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf/ebpftest",
+        ],
+        "//conditions:default": [],
+    }),
+)

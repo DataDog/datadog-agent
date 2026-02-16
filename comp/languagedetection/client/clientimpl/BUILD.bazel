@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "clientimpl",
+    srcs = [
+        "client.go",
+        "telemetry.go",
+        "util.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/languagedetection/client/clientimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/telemetry",
+        "//comp/core/workloadmeta/def",
+        "//comp/languagedetection/client",
+        "//pkg/languagedetection/languagemodels",
+        "//pkg/proto/pbgo/process",
+        "//pkg/status/health",
+        "//pkg/util/clusteragent",
+        "//pkg/util/fxutil",
+        "//pkg/util/option",
+        "@org_uber_go_fx//:fx",
+    ],
+)

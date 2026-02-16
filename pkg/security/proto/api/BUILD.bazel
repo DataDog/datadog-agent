@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//proto:def.bzl", "go_proto_library")
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "api_proto",
+    srcs = ["api.proto"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_google_protobuf//:empty_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+go_proto_library(
+    name = "api_go_proto",
+    compilers = [
+        "@io_bazel_rules_go//proto:go_grpc_v2",
+        "@io_bazel_rules_go//proto:go_proto",
+    ],
+    importpath = "pkg/security/proto/api",
+    proto = ":api_proto",
+    visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "api",
+    srcs = [
+        "api_vtproto.pb.go",
+        "vt_grpc.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/proto/api",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_planetscale_vtprotobuf//protohelpers",
+        "@com_github_planetscale_vtprotobuf//types/known/timestamppb",
+        "@org_golang_google_grpc//encoding",
+        "@org_golang_google_grpc//encoding/proto",
+        "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//runtime/protoimpl",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)

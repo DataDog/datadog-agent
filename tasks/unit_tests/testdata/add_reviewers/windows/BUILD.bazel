@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "windows",
+    srcs = ["fake.go"],
+    importpath = "github.com/DataDog/datadog-agent/tasks/unit_tests/testdata/add_reviewers/windows",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_aws_aws_sdk_go_v2//windows"],
+)

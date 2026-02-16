@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "servicemain",
+    srcs = ["servicemain.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
+            "//pkg/util/winutil/messagestrings",
+            "@org_golang_x_sys//windows",
+            "@org_golang_x_sys//windows/svc",
+        ],
+        "//conditions:default": [],
+    }),
+)

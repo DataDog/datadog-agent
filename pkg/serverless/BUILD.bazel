@@ -1,0 +1,8 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "serverless",
+    srcs = ["serverless.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/serverless",
+    visibility = ["//visibility:public"],
+)

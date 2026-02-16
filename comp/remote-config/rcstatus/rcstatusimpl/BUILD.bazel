@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "rcstatusimpl",
+    srcs = ["status.go"],
+    embedsrcs = [
+        "status_templates/remoteconfiguration.tmpl",
+        "status_templates/remoteconfigurationHTML.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/remote-config/rcstatus/rcstatusimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/status",
+        "//pkg/config/utils",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "rcstatusimpl_test",
+    srcs = ["status_test.go"],
+    embed = [":rcstatusimpl"],
+    deps = [
+        "//comp/core/config",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
+    ],
+)

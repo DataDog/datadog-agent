@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "mocks",
+    srcs = ["containers.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/process/util/containers",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_golang_mock//gomock",
+    ],
+)

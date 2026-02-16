@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "endpoints",
+    srcs = ["status.go"],
+    embedsrcs = [
+        "status_templates/endpoints.tmpl",
+        "status_templates/endpointsHTML.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/status/endpoints",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/status",
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+    ],
+)
+
+go_test(
+    name = "endpoints_test",
+    srcs = ["status_test.go"],
+    embed = [":endpoints"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

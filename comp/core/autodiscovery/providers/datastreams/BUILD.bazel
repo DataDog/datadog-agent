@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "datastreams",
+    srcs = [
+        "kafka_actions.go",
+        "kafka_messages.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/providers/names",
+        "//comp/core/autodiscovery/providers/types",
+        "//comp/remote-config/rcclient",
+        "//pkg/config/remote/data",
+        "//pkg/remoteconfig/state",
+        "//pkg/trace/traceutil/normalize",
+        "//pkg/util/log",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)
+
+go_test(
+    name = "datastreams_test",
+    srcs = [
+        "kafka_actions_test.go",
+        "kafka_messages_test.go",
+    ],
+    embed = [":datastreams"],
+    deps = [
+        "//comp/core/autodiscovery",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/noopimpl",
+        "//pkg/config/remote/data",
+        "//pkg/remoteconfig/state",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)

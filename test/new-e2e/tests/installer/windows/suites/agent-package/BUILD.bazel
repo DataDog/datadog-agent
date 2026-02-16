@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "agent-package_test",
+    srcs = [
+        "config_test.go",
+        "domain_test.go",
+        "gmsa_test.go",
+        "install_test.go",
+        "upgrade_test.go",
+    ],
+    deps = [
+        "//test/e2e-framework/components/activedirectory",
+        "//test/e2e-framework/scenarios/aws/ec2/windows",
+        "//test/e2e-framework/testing/components",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/provisioners/aws/host/windows",
+        "//test/new-e2e/tests/installer/unix",
+        "//test/new-e2e/tests/installer/windows",
+        "//test/new-e2e/tests/installer/windows/consts",
+        "//test/new-e2e/tests/windows/common",
+        "//test/new-e2e/tests/windows/common/agent",
+        "@com_github_cenkalti_backoff_v5//:backoff",
+        "@com_github_datadog_datadog_agent_pkg_util_testutil//flake",
+        "@com_github_google_uuid//:uuid",
+    ],
+)

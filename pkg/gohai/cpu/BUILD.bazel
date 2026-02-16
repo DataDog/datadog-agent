@@ -1,0 +1,120 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "cpu",
+    srcs = [
+        "cpu.go",
+        "cpu_darwin.go",
+        "cpu_linux_arm64.go",
+        "cpu_linux_default.go",
+        "cpu_windows.c",
+        "cpu_windows.go",
+        "cpu_windows.h",
+        "lscpu_linux_arm64.go",
+        "util_linux.go",
+    ],
+    cgo = True,
+    clinkopts = select({
+        "@rules_go//go/platform:windows": [
+            "-lkernel32",
+        ],
+        "//conditions:default": [],
+    }),
+    importpath = "github.com/DataDog/datadog-agent/pkg/gohai/cpu",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/gohai/utils",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/log",
+            "@org_golang_x_sys//windows/registry",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "cpu_test",
+    srcs = [
+        "cpu_linux_default_test.go",
+        "util_linux_test.go",
+    ],
+    embed = [":cpu"],
+    deps = select({
+        "@rules_go//go/platform:android_386": [
+            "//pkg/gohai/utils",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:android_amd64": [
+            "//pkg/gohai/utils",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:android_arm": [
+            "//pkg/gohai/utils",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:android_arm64": [
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux_386": [
+            "//pkg/gohai/utils",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux_amd64": [
+            "//pkg/gohai/utils",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux_arm": [
+            "//pkg/gohai/utils",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux_arm64": [
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux_mips": [
+            "//pkg/gohai/utils",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux_mips64": [
+            "//pkg/gohai/utils",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux_mips64le": [
+            "//pkg/gohai/utils",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux_mipsle": [
+            "//pkg/gohai/utils",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux_ppc64": [
+            "//pkg/gohai/utils",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux_ppc64le": [
+            "//pkg/gohai/utils",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux_riscv64": [
+            "//pkg/gohai/utils",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux_s390x": [
+            "//pkg/gohai/utils",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

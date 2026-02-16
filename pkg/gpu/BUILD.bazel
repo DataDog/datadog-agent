@@ -1,0 +1,60 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "gpu",
+    srcs = [
+        "cgroups.go",
+        "doc.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/gpu",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/utils",
+            "//pkg/util/log",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_cilium_ebpf//link",
+            "@com_github_containerd_cgroups_v3//:cgroups",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/utils",
+            "//pkg/util/log",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_cilium_ebpf//link",
+            "@com_github_containerd_cgroups_v3//:cgroups",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "gpu_test",
+    srcs = ["cgroups_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":gpu"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/utils",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_cilium_ebpf//asm",
+            "@com_github_cilium_ebpf//link",
+            "@com_github_containerd_cgroups_v3//:cgroups",
+            "@com_github_containerd_cgroups_v3//cgroup1",
+            "@com_github_containerd_cgroups_v3//cgroup2",
+            "@com_github_opencontainers_runtime_spec//specs-go",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/utils",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_cilium_ebpf//asm",
+            "@com_github_cilium_ebpf//link",
+            "@com_github_containerd_cgroups_v3//:cgroups",
+            "@com_github_containerd_cgroups_v3//cgroup1",
+            "@com_github_containerd_cgroups_v3//cgroup2",
+            "@com_github_opencontainers_runtime_spec//specs-go",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "env",
+    srcs = ["env.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/serverless/env",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/util/log"],
+)
+
+go_test(
+    name = "env_test",
+    srcs = ["env_test.go"],
+    embed = [":env"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

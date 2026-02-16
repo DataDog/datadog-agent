@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "orchestratorimpl",
+    srcs = [
+        "forwarder_no_orchestrator.go",
+        "params.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/forwarder/defaultforwarder",
+        "//comp/forwarder/orchestrator",
+        "//pkg/util/fxutil",
+        "//pkg/util/option",
+        "@org_uber_go_fx//:fx",
+    ],
+)

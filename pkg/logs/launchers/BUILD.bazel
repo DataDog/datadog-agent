@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "launchers",
+    srcs = [
+        "launchers.go",
+        "mock_source_provider.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/launchers",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/logs/auditor/def",
+        "//pkg/logs/pipeline",
+        "//pkg/logs/sources",
+        "//pkg/logs/tailers",
+    ],
+)

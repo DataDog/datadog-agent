@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "agent",
+    srcs = ["agent.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/agent",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/agent/common/signals",
+        "//comp/core/autodiscovery",
+        "//comp/core/diagnose/def",
+        "//comp/core/ipc/def",
+        "//comp/core/settings",
+        "//comp/core/status",
+        "//comp/core/tagger/def",
+        "//comp/core/workloadmeta/def",
+        "//comp/metadata/clusteragent/def",
+        "//comp/metadata/clusterchecks/def",
+        "//pkg/api/coverage",
+        "//pkg/clusteragent/autoscaling/workload",
+        "//pkg/clusteragent/autoscaling/workload/loadstore",
+        "//pkg/config/setup",
+        "//pkg/flare/clusteragent",
+        "//pkg/status/health",
+        "//pkg/util/defaultpaths",
+        "//pkg/util/hostname",
+        "//pkg/util/http",
+        "//pkg/util/log",
+        "//pkg/version",
+        "@com_github_gorilla_mux//:mux",
+    ],
+)

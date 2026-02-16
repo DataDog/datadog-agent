@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "profiledefinition",
+    srcs = [
+        "bundle.go",
+        "clone.go",
+        "doc.go",
+        "listmap.go",
+        "metadata.go",
+        "metrics.go",
+        "profile_definition.go",
+        "splitoids.go",
+        "validation.go",
+        "yaml_utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_invopop_jsonschema//:jsonschema"],
+)
+
+go_test(
+    name = "profiledefinition_test",
+    srcs = [
+        "clone_test.go",
+        "listmap_test.go",
+        "metadata_test.go",
+        "metrics_test.go",
+        "splitoids_test.go",
+        "validation_test.go",
+        "yaml_utils_test.go",
+    ],
+    embed = [":profiledefinition"],
+    deps = [
+        "@com_github_invopop_jsonschema//:jsonschema",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)

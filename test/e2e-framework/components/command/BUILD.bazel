@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "command",
+    srcs = [
+        "filemanager.go",
+        "osCommand.go",
+        "runner.go",
+        "script.go",
+        "unixOSCommand.go",
+        "utils.go",
+        "windowsOSCommand.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/command",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common/config",
+        "//test/e2e-framework/common/namer",
+        "//test/e2e-framework/common/utils",
+        "@com_github_alessio_shellescape//:shellescape",
+        "@com_github_pulumi_pulumi_command_sdk//go/command/local",
+        "@com_github_pulumi_pulumi_command_sdk//go/command/remote",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)
+
+go_test(
+    name = "command_test",
+    srcs = ["windowsOSCommand_test.go"],
+    embed = [":command"],
+)

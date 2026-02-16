@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = ["trace-telemetry.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/trace-telemetry/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
+        "//comp/core/log/def",
+        "//comp/core/telemetry",
+        "//comp/def",
+        "//comp/trace-telemetry/def",
+    ],
+)

@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "network",
+    srcs = ["network.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/setup",
+        "//pkg/util/cache",
+        "//pkg/util/cloudproviders/gce",
+        "//pkg/util/ec2",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "network_test",
+    srcs = ["network_test.go"],
+    embed = [":network"],
+    deps = [
+        "//pkg/util/cache",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "integration",
+    srcs = [
+        "config.go",
+        "matching_program_noop.go",
+        "response.go",
+        "util.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/common/types",
+        "//comp/core/log/def",
+        "//comp/core/workloadfilter/def",
+        "//pkg/util/log",
+        "//pkg/util/scrubber",
+        "@com_github_twmb_murmur3//:murmur3",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)
+
+go_test(
+    name = "integration_test",
+    srcs = ["config_test.go"],
+    embed = [":integration"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)

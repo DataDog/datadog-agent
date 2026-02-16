@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "types",
+    srcs = ["types.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/telemetry",
+        "//comp/core/tagger/def",
+        "//comp/core/workloadfilter/def",
+        "//comp/core/workloadmeta/def",
+        "//pkg/config/setup",
+    ],
+)

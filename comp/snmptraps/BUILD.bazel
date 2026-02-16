@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "snmptraps",
+    srcs = ["bundle.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/snmptraps",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/snmptraps/server/serverimpl",
+        "//pkg/util/fxutil",
+    ],
+)

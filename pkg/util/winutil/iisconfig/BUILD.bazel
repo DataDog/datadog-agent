@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "iisconfig",
+    srcs = [
+        "apmtags.go",
+        "iisconfig.go",
+        "tagtree.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/winutil/iisconfig",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/log",
+            "@com_github_fsnotify_fsnotify//:fsnotify",
+            "@org_golang_x_sys//windows/registry",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "iisconfig_test",
+    srcs = [
+        "apmtags_test.go",
+        "iisconfig_test.go",
+        "matching_subsite_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":iisconfig"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

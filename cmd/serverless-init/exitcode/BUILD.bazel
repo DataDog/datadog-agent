@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "exitcode",
+    srcs = ["exitcode.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/serverless-init/exitcode",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/util/log"],
+)
+
+go_test(
+    name = "exitcode_test",
+    srcs = ["exitcode_test.go"],
+    embed = [":exitcode"],
+)

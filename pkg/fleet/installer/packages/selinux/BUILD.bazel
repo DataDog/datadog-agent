@@ -1,0 +1,71 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "selinux",
+    srcs = ["selinux.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/selinux",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/fleet/installer/telemetry",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/fleet/installer/telemetry",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/fleet/installer/telemetry",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/fleet/installer/telemetry",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/fleet/installer/telemetry",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/fleet/installer/telemetry",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/fleet/installer/telemetry",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/fleet/installer/telemetry",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/fleet/installer/telemetry",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/fleet/installer/telemetry",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/fleet/installer/telemetry",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/fleet/installer/telemetry",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/fleet/installer/telemetry",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/fleet/installer/telemetry",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/fleet/installer/telemetry",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "//conditions:default": [],
+    }),
+)

@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "payload",
+    srcs = ["payload.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/payload",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/opentelemetry-mapping-go/inframetadata/gohai",
+        "//pkg/serializer/marshaler",
+    ],
+)

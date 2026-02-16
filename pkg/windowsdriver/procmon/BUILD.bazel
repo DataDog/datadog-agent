@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "procmon",
+    srcs = [
+        "procmon.go",
+        "types_windows.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
+            "//pkg/windowsdriver/driver",
+            "//pkg/windowsdriver/olreader",
+        ],
+        "//conditions:default": [],
+    }),
+)

@@ -1,0 +1,81 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "procutil",
+    srcs = [
+        "data_scrubber.go",
+        "data_scrubber_fallback.go",
+        "data_scrubber_windows.go",
+        "dirent_linux.go",
+        "option_unsupported.go",
+        "probe.go",
+        "process_fallback.go",
+        "process_linux.go",
+        "process_model.go",
+        "process_windows.go",
+        "process_windows_toolhelp.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/process/procutil",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/discovery/tracermetadata",
+        "//pkg/languagedetection/languagemodels",
+        "//pkg/util/log",
+        "@com_github_datadog_gopsutil//cpu",
+        "@com_github_datadog_gopsutil//process",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/util/filesystem",
+            "//pkg/util/kernel",
+            "//pkg/util/sync",
+            "@org_golang_x_sys//unix",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/filesystem",
+            "//pkg/util/kernel",
+            "//pkg/util/sync",
+            "@org_golang_x_sys//unix",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/pdhutil",
+            "//pkg/util/winutil",
+            "@com_github_hashicorp_golang_lru_v2//:golang-lru",
+            "@com_github_shirou_gopsutil_v4//process",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "procutil_test",
+    srcs = [
+        "data_scrubber_fallback_test.go",
+        "data_scrubber_test.go",
+        "data_scrubber_windows_test.go",
+        "process_linux_test.go",
+        "process_model_test.go",
+        "process_windows_test.go",
+    ],
+    embed = [":procutil"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "@com_github_datadog_gopsutil//host",
+            "@com_github_datadog_gopsutil//process",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_datadog_gopsutil//host",
+            "@com_github_datadog_gopsutil//process",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
+        ],
+        "//conditions:default": [],
+    }),
+)

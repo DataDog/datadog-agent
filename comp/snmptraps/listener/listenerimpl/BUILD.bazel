@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "listenerimpl",
+    srcs = [
+        "listener.go",
+        "mock_listener.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/snmptraps/listener/listenerimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/aggregator/demultiplexer",
+        "//comp/core/log/def",
+        "//comp/snmptraps/config",
+        "//comp/snmptraps/listener",
+        "//comp/snmptraps/packet",
+        "//comp/snmptraps/status",
+        "//pkg/aggregator/sender",
+        "//pkg/util/fxutil",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "listenerimpl_test",
+    srcs = ["listener_test.go"],
+    embed = [":listenerimpl"],
+    deps = [
+        "//comp/core/log/def",
+        "//comp/snmptraps/config",
+        "//comp/snmptraps/config/configimpl",
+        "//comp/snmptraps/listener",
+        "//comp/snmptraps/packet",
+        "//comp/snmptraps/status",
+        "//comp/snmptraps/status/statusimpl",
+        "//pkg/util/fxutil",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
+)

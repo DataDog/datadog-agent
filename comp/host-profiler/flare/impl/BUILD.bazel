@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = ["flare.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/host-profiler/flare/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/flare/types",
+        "//comp/core/ipc/def",
+        "//comp/host-profiler/collector/impl/extensions/hpflareextension",
+    ],
+)

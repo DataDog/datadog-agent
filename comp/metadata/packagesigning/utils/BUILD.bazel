@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "utils",
+    srcs = [
+        "apt.go",
+        "linux.go",
+        "rpm.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/utils",
+    visibility = ["//visibility:public"],
+    deps = ["//comp/core/log/def"],
+)
+
+go_test(
+    name = "utils_test",
+    srcs = ["unit_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":utils"],
+)

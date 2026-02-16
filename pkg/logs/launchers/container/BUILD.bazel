@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "container",
+    srcs = ["launcher_no_kubelet_and_docker.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/launchers/container",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/def",
+        "//comp/core/workloadmeta/def",
+        "//comp/healthplatform/def",
+        "//comp/logs/auditor/def",
+        "//pkg/logs/launchers",
+        "//pkg/logs/pipeline",
+        "//pkg/logs/sources",
+        "//pkg/logs/tailers",
+        "//pkg/util/option",
+    ],
+)

@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "e2e",
+    srcs = [
+        "suite.go",
+        "suite_params.go",
+        "suite_utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/pointer",
+        "//test/e2e-framework/common/utils",
+        "//test/e2e-framework/components",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners",
+        "//test/e2e-framework/testing/runner",
+        "//test/e2e-framework/testing/runner/parameters",
+        "//test/e2e-framework/testing/utils/common",
+        "//test/e2e-framework/testing/utils/infra",
+        "@com_github_cenkalti_backoff_v5//:backoff",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//suite",
+        "@in_gopkg_zorkian_go_datadog_api_v2//:go-datadog-api_v2",
+    ],
+)

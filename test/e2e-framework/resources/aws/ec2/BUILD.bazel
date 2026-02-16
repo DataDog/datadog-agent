@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "ec2",
+    srcs = [
+        "ami.go",
+        "asg.go",
+        "dedicated_host.go",
+        "vm.go",
+        "vmtemplate.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/ec2",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common/config",
+        "//test/e2e-framework/common/utils",
+        "//test/e2e-framework/resources/aws",
+        "@com_github_pulumi_pulumi_aws_sdk_v6//go/aws/autoscaling",
+        "@com_github_pulumi_pulumi_aws_sdk_v6//go/aws/ec2",
+        "@com_github_pulumi_pulumi_aws_sdk_v6//go/aws/ssm",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)

@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "cache",
+    srcs = ["lru_2layers.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/utils/cache",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/security/utils/lru/simplelru",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+go_test(
+    name = "cache_test",
+    srcs = ["lru_2layers_test.go"],
+    embed = [":cache"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

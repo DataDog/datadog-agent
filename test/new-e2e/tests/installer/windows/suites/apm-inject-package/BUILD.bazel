@@ -1,0 +1,39 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "apm-inject-package",
+    srcs = ["base_suite.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/suites/apm-inject-package",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/new-e2e/tests/installer/windows",
+        "@com_github_cenkalti_backoff_v5//:backoff",
+    ],
+)
+
+go_test(
+    name = "apm-inject-package_test",
+    srcs = [
+        "injector_stats_test.go",
+        "install_script_test.go",
+        "install_test.go",
+        "msi_install_test.go",
+    ],
+    embed = [":apm-inject-package"],
+    embedsrcs = [
+        "resources/DummyApp.java",
+        "resources/index.aspx",
+        "resources/web.config",
+    ],
+    deps = [
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/provisioners/aws/host/windows",
+        "//test/new-e2e/tests/installer/unix",
+        "//test/new-e2e/tests/installer/windows",
+        "//test/new-e2e/tests/installer/windows/consts",
+        "//test/new-e2e/tests/windows/common",
+        "//test/new-e2e/tests/windows/common/agent",
+        "@com_github_cenkalti_backoff_v5//:backoff",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+    ],
+)

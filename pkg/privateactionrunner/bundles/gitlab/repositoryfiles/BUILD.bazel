@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "repositoryfiles",
+    srcs = [
+        "create_file.gen.go",
+        "delete_file.gen.go",
+        "entrypoint.gen.go",
+        "get_file.gen.go",
+        "get_file_blame.gen.go",
+        "get_file_meta_data.gen.go",
+        "get_raw_file.go",
+        "update_file.gen.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/repositoryfiles",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/bundle-support/gitlab",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "@com_gitlab_gitlab_org_api_client_go//:client-go",
+    ],
+)

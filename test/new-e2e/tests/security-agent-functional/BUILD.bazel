@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "security-agent-functional_test",
+    srcs = ["security_agent_test.go"],
+    deps = [
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/new-e2e/tests/windows",
+        "//test/new-e2e/tests/windows/common/agent",
+        "@com_github_datadog_datadog_agent_pkg_util_testutil//flake",
+        "@com_github_stretchr_testify//require",
+    ],
+)

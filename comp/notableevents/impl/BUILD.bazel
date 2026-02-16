@@ -1,0 +1,61 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "collector.go",
+        "format.go",
+        "impl.go",
+        "submitter.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/notableevents/impl",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//comp/core/config",
+            "//comp/core/hostname/hostnameinterface",
+            "//comp/core/log/def",
+            "//comp/def",
+            "//comp/forwarder/eventplatform",
+            "//comp/notableevents/def",
+            "//pkg/logs/message",
+            "//pkg/logs/util/windowsevent",
+            "//pkg/persistentcache",
+            "//pkg/util/log",
+            "//pkg/util/winutil/eventlog/api",
+            "//pkg/util/winutil/eventlog/api/windows",
+            "//pkg/util/winutil/eventlog/bookmark",
+            "//pkg/util/winutil/eventlog/subscription",
+            "@com_github_cenkalti_backoff_v5//:backoff",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "impl_test",
+    srcs = [
+        "collector_test.go",
+        "format_test.go",
+        "submitter_test.go",
+    ],
+    embed = [":impl"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//comp/core/hostname/hostnameimpl",
+            "//comp/core/hostname/hostnameinterface",
+            "//comp/forwarder/eventplatform",
+            "//comp/forwarder/eventplatform/eventplatformimpl",
+            "//comp/serializer/logscompression/def",
+            "//pkg/config/mock",
+            "//pkg/persistentcache",
+            "//pkg/util/fxutil",
+            "//pkg/util/winutil/eventlog/test",
+            "@com_github_datadog_datadog_agent_comp_serializer_logscompression//fx-mock",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

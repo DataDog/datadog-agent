@@ -1,0 +1,49 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "containerimage",
+    srcs = [
+        "check.go",
+        "processor.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containerimage",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/types",
+        "//comp/core/workloadmeta/def",
+        "//comp/forwarder/eventplatform",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/config/setup",
+        "//pkg/util/aggregatingqueue",
+        "//pkg/util/hostname",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "@com_github_datadog_agent_payload_v5//contimage",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+        "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)
+
+go_test(
+    name = "containerimage_test",
+    srcs = ["processor_test.go"],
+    embed = [":containerimage"],
+    deps = [
+        "//comp/core/workloadmeta/def",
+        "//comp/forwarder/eventplatform",
+        "//pkg/util/hostname",
+        "//pkg/util/pointer",
+        "@com_github_datadog_agent_payload_v5//contimage",
+        "@com_github_opencontainers_image_spec//specs-go/v1:specs-go",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@org_golang_google_protobuf//proto",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)

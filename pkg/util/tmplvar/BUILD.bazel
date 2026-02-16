@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tmplvar",
+    srcs = [
+        "parse.go",
+        "resolver.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/tmplvar",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadmeta/def",
+        "//pkg/api/util",
+        "//pkg/config/setup",
+        "//pkg/util/log",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)
+
+go_test(
+    name = "tmplvar_test",
+    srcs = [
+        "parse_test.go",
+        "resolver_test.go",
+    ],
+    embed = [":tmplvar"],
+    deps = [
+        "//comp/core/workloadmeta/def",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

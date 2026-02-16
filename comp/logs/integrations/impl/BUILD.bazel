@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["integrations.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/logs/integrations/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/logs/integrations/def",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["integrations_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

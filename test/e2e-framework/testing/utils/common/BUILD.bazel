@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "common",
+    srcs = [
+        "internal_error.go",
+        "output_dirs.go",
+        "random.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common",
+    visibility = ["//visibility:public"],
+)

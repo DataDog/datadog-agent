@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "testutil",
+    srcs = [
+        "backoff.go",
+        "generate.go",
+        "otlp.go",
+        "random.go",
+        "span.go",
+        "stats.go",
+        "testutil.go",
+        "trace.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/trace/testutil",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "//pkg/trace/sampler",
+        "//pkg/trace/stats",
+        "//pkg/trace/traceutil",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+        "@io_opentelemetry_go_collector_pdata//ptrace/ptraceotlp",
+    ],
+)
+
+go_test(
+    name = "testutil_test",
+    srcs = [
+        "generate_test.go",
+        "otlp_test.go",
+        "stats_test.go",
+    ],
+    embed = [":testutil"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+    ],
+)

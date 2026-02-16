@@ -1,0 +1,75 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "setup",
+    srcs = [
+        "defaults_darwin.go",
+        "defaults_nix.go",
+        "log.go",
+        "log_format.go",
+        "log_nix.go",
+        "log_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/log/setup",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/util/log",
+        "//pkg/util/log/setup/internal/seelog",
+        "//pkg/util/log/slog",
+        "//pkg/util/log/slog/formatters",
+    ],
+)
+
+go_test(
+    name = "setup_test",
+    srcs = [
+        "log_nix_test.go",
+        "log_test.go",
+    ],
+    embed = [":setup"],
+    deps = [
+        "//pkg/config/setup",
+        "//pkg/util/log",
+        "//pkg/util/log/setup/internal/seelog",
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/config/mock",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/config/mock",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/config/mock",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/config/mock",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/config/mock",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/config/mock",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/config/mock",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/config/mock",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/config/mock",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
+)

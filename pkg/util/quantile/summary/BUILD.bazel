@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "summary",
+    srcs = [
+        "equal.go",
+        "summary.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/quantile/summary",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "summary_test",
+    srcs = [
+        "equal_test.go",
+        "summary_test.go",
+    ],
+    embed = [":summary"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

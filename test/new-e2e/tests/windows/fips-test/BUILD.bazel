@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "fips-test_test",
+    srcs = [
+        "fips_test.go",
+        "mutually_exclusive_product_test.go",
+    ],
+    deps = [
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host/windows",
+        "//test/new-e2e/tests/windows",
+        "//test/new-e2e/tests/windows/common",
+        "//test/new-e2e/tests/windows/common/agent",
+        "//test/new-e2e/tests/windows/install-test",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

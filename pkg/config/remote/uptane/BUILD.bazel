@@ -1,0 +1,56 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "uptane",
+    srcs = [
+        "client.go",
+        "client_state.go",
+        "local_store.go",
+        "org_store.go",
+        "remote_store.go",
+        "target_store.go",
+        "transactional_store.go",
+        "util.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/remote/uptane",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/remote/data",
+        "//pkg/config/remote/meta",
+        "//pkg/proto/pbgo/core",
+        "//pkg/trace/log",
+        "//pkg/util/log",
+        "@com_github_datadog_go_tuf//client",
+        "@com_github_datadog_go_tuf//data",
+        "@com_github_pkg_errors//:errors",
+        "@io_etcd_go_bbolt//:bbolt",
+        "@io_etcd_go_bbolt//errors",
+    ],
+)
+
+go_test(
+    name = "uptane_test",
+    srcs = [
+        "client_benchmark_test.go",
+        "client_test.go",
+        "local_store_test.go",
+        "remote_store_test.go",
+        "target_store_test.go",
+        "util_test.go",
+    ],
+    embed = [":uptane"],
+    deps = [
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/config/remote/meta",
+        "//pkg/proto/pbgo/core",
+        "@com_github_datadog_go_tuf//client",
+        "@com_github_datadog_go_tuf//data",
+        "@com_github_datadog_go_tuf//pkg/keys",
+        "@com_github_datadog_go_tuf//sign",
+        "@com_github_pkg_errors//:errors",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_etcd_go_bbolt//:bbolt",
+    ],
+)

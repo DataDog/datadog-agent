@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "containers",
+    srcs = [
+        "doc.go",
+        "entity.go",
+        "env_vars_filter.go",
+        "filter.go",
+        "identifier.go",
+        "pause.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/containers",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadfilter/def",
+        "//pkg/config/setup",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "containers_test",
+    srcs = [
+        "entity_test.go",
+        "env_vars_filter_test.go",
+        "filter_test.go",
+        "indentifier_test.go",
+        "pause_test.go",
+    ],
+    embed = [":containers"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "converters",
+    srcs = [
+        "converter_with_agent.go",
+        "converter_without_agent.go",
+        "converters.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converters",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//comp/core/config",
+            "//comp/host-profiler/version",
+            "//pkg/config/utils",
+            "@io_opentelemetry_go_collector_confmap//:confmap",
+            "@org_uber_go_zap_exp//zapslog",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/core/config",
+            "//comp/host-profiler/version",
+            "//pkg/config/utils",
+            "@io_opentelemetry_go_collector_confmap//:confmap",
+            "@org_uber_go_zap_exp//zapslog",
+        ],
+        "//conditions:default": [],
+    }),
+)

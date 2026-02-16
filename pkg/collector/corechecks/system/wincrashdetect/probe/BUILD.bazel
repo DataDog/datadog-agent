@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "probe",
+    srcs = [
+        "crashdump.cc",
+        "crashdump.h",
+        "crashparse.go",
+        "win_crash_types.go",
+        "wincrashprobe.go",
+    ],
+    cgo = True,
+    clinkopts = select({
+        "@rules_go//go/platform:windows": [
+            "-l dbgeng -static",
+        ],
+        "//conditions:default": [],
+    }),
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect/probe",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/system-probe/config/types",
+            "//pkg/util/log",
+            "//pkg/util/winutil",
+            "@org_golang_x_sys//windows/registry",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "probe_test",
+    srcs = ["crashparse_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":probe"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
+)

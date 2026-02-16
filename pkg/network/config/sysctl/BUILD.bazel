@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "sysctl",
+    srcs = [
+        "sysctl.go",
+        "sysctl_darwin.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/config/sysctl",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "sysctl_test",
+    srcs = ["sysctl_test.go"],
+    embed = [":sysctl"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

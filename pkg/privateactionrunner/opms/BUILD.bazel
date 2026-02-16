@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "opms",
+    srcs = [
+        "opms.go",
+        "public_opms.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/env",
+        "//pkg/privateactionrunner/adapters/config",
+        "//pkg/privateactionrunner/adapters/constants",
+        "//pkg/privateactionrunner/adapters/logging",
+        "//pkg/privateactionrunner/adapters/modes",
+        "//pkg/privateactionrunner/adapters/parversion",
+        "//pkg/privateactionrunner/libs/par",
+        "//pkg/privateactionrunner/types",
+        "//pkg/privateactionrunner/util",
+        "//pkg/proto/pbgo/privateactionrunner/actionsclient",
+        "//pkg/proto/pbgo/privateactionrunner/errorcode",
+        "//pkg/util/flavor",
+        "@com_github_datadog_jsonapi//:jsonapi",
+        "@com_github_go_jose_go_jose_v4//:go-jose",
+    ],
+)

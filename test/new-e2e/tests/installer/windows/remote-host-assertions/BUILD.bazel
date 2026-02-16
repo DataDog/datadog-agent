@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "remote-host-assertions",
+    srcs = [
+        "remote_windows_agent_asserts.go",
+        "remote_windows_binary_asserts.go",
+        "remote_windows_host_asserts.go",
+        "remote_windows_installer_asserts.go",
+        "remote_windows_namedpipe_asserts.go",
+        "remote_windows_registry_asserts.go",
+        "remote_windows_service_asserts.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/remote-host-assertions",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/testing/components",
+        "//test/e2e-framework/testing/runner",
+        "//test/e2e-framework/testing/runner/parameters",
+        "//test/e2e-framework/testing/utils/common",
+        "//test/e2e-framework/testing/utils/e2e/client",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclient",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclientparams",
+        "//test/new-e2e/tests/installer/windows/consts",
+        "//test/new-e2e/tests/windows/common",
+        "//test/new-e2e/tests/windows/common/agent",
+        "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)

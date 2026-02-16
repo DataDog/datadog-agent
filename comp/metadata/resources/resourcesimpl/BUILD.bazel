@@ -1,0 +1,126 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "resourcesimpl",
+    srcs = [
+        "params.go",
+        "resources.go",
+        "resources_non_supported.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//comp/core/config",
+            "//comp/core/hostname/hostnameinterface",
+            "//comp/core/log/def",
+            "//comp/metadata/resources",
+            "//comp/metadata/runner/runnerimpl",
+            "//pkg/config/utils",
+            "//pkg/gohai/processes",
+            "//pkg/serializer",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//comp/core/config",
+            "//comp/core/hostname/hostnameinterface",
+            "//comp/core/log/def",
+            "//comp/metadata/resources",
+            "//comp/metadata/runner/runnerimpl",
+            "//pkg/config/utils",
+            "//pkg/gohai/processes",
+            "//pkg/serializer",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//comp/core/config",
+            "//comp/core/log/def",
+            "//comp/metadata/resources",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//comp/core/config",
+            "//comp/core/log/def",
+            "//comp/metadata/resources",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//comp/core/config",
+            "//comp/core/hostname/hostnameinterface",
+            "//comp/core/log/def",
+            "//comp/metadata/resources",
+            "//comp/metadata/runner/runnerimpl",
+            "//pkg/config/utils",
+            "//pkg/gohai/processes",
+            "//pkg/serializer",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/core/config",
+            "//comp/core/hostname/hostnameinterface",
+            "//comp/core/log/def",
+            "//comp/metadata/resources",
+            "//comp/metadata/runner/runnerimpl",
+            "//pkg/config/utils",
+            "//pkg/gohai/processes",
+            "//pkg/serializer",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//comp/core/config",
+            "//comp/core/log/def",
+            "//comp/metadata/resources",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//comp/core/config",
+            "//comp/core/log/def",
+            "//comp/metadata/resources",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//comp/core/config",
+            "//comp/core/log/def",
+            "//comp/metadata/resources",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//comp/core/config",
+            "//comp/core/log/def",
+            "//comp/metadata/resources",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "resourcesimpl_test",
+    srcs = [
+        "params_test.go",
+        "resources_test.go",
+    ],
+    embed = [":resourcesimpl"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//comp/core/config",
+            "//comp/core/hostname/hostnameimpl",
+            "//comp/core/log/def",
+            "//comp/core/log/mock",
+            "//pkg/serializer",
+            "//pkg/serializer/mocks",
+            "//pkg/util/fxutil",
+            "@com_github_stretchr_testify//mock",
+            "@com_github_stretchr_testify//require",
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/core/config",
+            "//comp/core/hostname/hostnameimpl",
+            "//comp/core/log/def",
+            "//comp/core/log/mock",
+            "//pkg/serializer",
+            "//pkg/serializer/mocks",
+            "//pkg/util/fxutil",
+            "@com_github_stretchr_testify//mock",
+            "@com_github_stretchr_testify//require",
+            "@org_uber_go_fx//:fx",
+        ],
+        "//conditions:default": [],
+    }),
+)

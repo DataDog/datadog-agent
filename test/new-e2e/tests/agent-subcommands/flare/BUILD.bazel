@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "flare",
+    srcs = [
+        "flare_files.go",
+        "flare_helpers.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-subcommands/flare",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/fakeintake/client/flare",
+        "@com_github_stretchr_testify//assert",
+    ],
+)
+
+go_test(
+    name = "flare_test",
+    srcs = [
+        "flare_common_test.go",
+        "flare_nix_test.go",
+        "flare_win_test.go",
+    ],
+    embed = [":flare"],
+    embedsrcs = [
+        "fixtures/datadog-agent.yaml",
+        "fixtures/security-agent.yaml",
+        "fixtures/system-probe.yaml",
+    ],
+    deps = [
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclient",
+        "//test/fakeintake/client/flare",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

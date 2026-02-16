@@ -1,0 +1,46 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "orchestrator",
+    srcs = ["orchestrator.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/orchestrator",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "orchestrator_test",
+    srcs = [
+        "ecs_test.go",
+        "k8s_api_key_test.go",
+        "k8s_test.go",
+        "util_test.go",
+    ],
+    embed = [":orchestrator"],
+    embedsrcs = [
+        "agent_api_key_values.yaml",
+        "agent_values.yaml",
+    ],
+    deps = [
+        "//test/e2e-framework/components/datadog/apps/cpustress",
+        "//test/e2e-framework/components/datadog/fakeintake",
+        "//test/e2e-framework/components/datadog/kubernetesagentparams",
+        "//test/e2e-framework/components/ecs",
+        "//test/e2e-framework/resources/aws",
+        "//test/e2e-framework/scenarios/aws/ecs",
+        "//test/e2e-framework/scenarios/aws/kindvm",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/ecs",
+        "//test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm",
+        "//test/fakeintake/aggregator",
+        "//test/fakeintake/client",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+        "@io_k8s_api//apps/v1:apps",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+    ],
+)

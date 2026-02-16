@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "api",
+    srcs = [
+        "config.go",
+        "restart.go",
+        "server.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/system-probe/api",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/system-probe/api/debug",
+        "//cmd/system-probe/modules",
+        "//comp/core/settings",
+        "//comp/remote-config/rcclient",
+        "//pkg/api/coverage",
+        "//pkg/ebpf",
+        "//pkg/system-probe/api/module",
+        "//pkg/system-probe/api/server",
+        "//pkg/system-probe/config",
+        "//pkg/system-probe/config/types",
+        "//pkg/system-probe/utils",
+        "//pkg/util/log",
+        "@com_github_gorilla_mux//:mux",
+    ],
+)

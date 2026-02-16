@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "NamedPipeCmd_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/tools/NamedPipeCmd",
+    visibility = ["//visibility:private"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_microsoft_go_winio//:go-winio",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_binary(
+    name = "NamedPipeCmd",
+    embed = [":NamedPipeCmd_lib"],
+    visibility = ["//visibility:public"],
+)

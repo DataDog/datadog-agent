@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "checks",
+    srcs = ["bundle.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/checks",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//comp/checks/agentcrashdetect/agentcrashdetectimpl",
+            "//pkg/util/fxutil",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "checks_test",
+    srcs = ["bundle_test.go"],
+    embed = [":checks"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//comp/core",
+            "//comp/core/agenttelemetry/fx",
+            "//comp/core/tagger/def",
+            "//pkg/util/crashreport",
+            "//pkg/util/fxutil",
+            "@org_uber_go_fx//:fx",
+        ],
+        "//conditions:default": [],
+    }),
+)

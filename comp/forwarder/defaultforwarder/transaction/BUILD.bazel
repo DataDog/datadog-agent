@@ -1,0 +1,39 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "transaction",
+    srcs = [
+        "bytes_payload.go",
+        "endpoint.go",
+        "intake_offset.go",
+        "sort_by_created_time_and_priority.go",
+        "transaction.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/secrets/def",
+        "//pkg/telemetry",
+        "//pkg/util/scrubber",
+        "@com_github_benbjohnson_clock//:clock",
+    ],
+)
+
+go_test(
+    name = "transaction_test",
+    srcs = [
+        "intake_offset_test.go",
+        "transaction_test.go",
+    ],
+    embed = [":transaction"],
+    deps = [
+        "//comp/core/log/mock",
+        "//comp/core/secrets/mock",
+        "//pkg/config/mock",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "rcservicemrfimpl",
+    srcs = ["rcservicemrf.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/rcservicemrfimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname",
+        "//comp/core/log/def",
+        "//comp/metadata/host/hostimpl/hosttags",
+        "//comp/remote-config/rcservicemrf",
+        "//comp/remote-config/rctelemetryreporter",
+        "//pkg/config/remote/service",
+        "//pkg/config/utils",
+        "//pkg/util/fxutil",
+        "//pkg/util/option",
+        "//pkg/version",
+        "@org_uber_go_fx//:fx",
+    ],
+)

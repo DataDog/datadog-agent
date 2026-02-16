@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "task-verifier",
+    srcs = [
+        "keys_manager.go",
+        "verifier.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/adapters/config",
+        "//pkg/privateactionrunner/adapters/logging",
+        "//pkg/privateactionrunner/adapters/rcclient",
+        "//pkg/privateactionrunner/types",
+        "//pkg/privateactionrunner/util",
+        "//pkg/proto/pbgo/privateactionrunner/errorcode",
+        "//pkg/proto/pbgo/privateactionrunner/privateactions",
+        "//pkg/remoteconfig/state",
+        "@org_golang_google_protobuf//proto",
+    ],
+)

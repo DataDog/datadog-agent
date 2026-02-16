@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "mapper",
+    srcs = [
+        "mapper.go",
+        "mapper_cache.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd/mapper",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_hashicorp_golang_lru_v2//:golang-lru"],
+)
+
+go_test(
+    name = "mapper_test",
+    srcs = ["mapper_cache_test.go"],
+    embed = [":mapper"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

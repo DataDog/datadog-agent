@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "meta",
+    srcs = ["meta.go"],
+    embedsrcs = [
+        "gov.config.json",
+        "gov.director.json",
+        "prod.config.json",
+        "prod.director.json",
+        "staging.config.json",
+        "staging.director.json",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/remote/meta",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/log",
+        "@com_github_datadog_go_tuf//data",
+    ],
+)
+
+go_test(
+    name = "meta_test",
+    srcs = ["meta_test.go"],
+    embed = [":meta"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

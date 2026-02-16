@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "viperconfig",
+    srcs = [
+        "assert.go",
+        "viper.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/viperconfig",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/basic",
+        "//pkg/config/model",
+        "//pkg/util/log",
+        "@com_github_datadog_viper//:viper",
+        "@com_github_mohae_deepcopy//:deepcopy",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+go_test(
+    name = "viperconfig_test",
+    srcs = ["viper_test.go"],
+    embed = [":viperconfig"],
+    deps = [
+        "//pkg/config/model",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

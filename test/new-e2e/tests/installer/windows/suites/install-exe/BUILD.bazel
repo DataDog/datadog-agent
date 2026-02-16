@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "install-exe_test",
+    srcs = ["install_test.go"],
+    deps = [
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/resources/aws",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/scenarios/aws/ec2/windows",
+        "//test/e2e-framework/testing/components",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners",
+        "//test/e2e-framework/testing/provisioners/aws/host/windows",
+        "//test/new-e2e/tests/installer/host",
+        "//test/new-e2e/tests/installer/windows",
+        "//test/new-e2e/tests/installer/windows/consts",
+        "//test/new-e2e/tests/installer/windows/suite-assertions",
+        "//test/new-e2e/tests/windows/common",
+        "//test/new-e2e/tests/windows/common/agent",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)

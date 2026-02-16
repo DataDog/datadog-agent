@@ -1,0 +1,65 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "gops",
+    srcs = [
+        "gops.go",
+        "process_group.go",
+        "process_info.go",
+        "process_info_darwin.go",
+        "process_info_linux.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/gohai/processes/gops",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v4//mem",
+            "@com_github_shirou_gopsutil_v4//process",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v4//mem",
+            "@com_github_shirou_gopsutil_v4//process",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v4//mem",
+            "@com_github_shirou_gopsutil_v4//process",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v4//mem",
+            "@com_github_shirou_gopsutil_v4//process",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "gops_test",
+    srcs = [
+        "process_group_test.go",
+        "process_info_test.go",
+    ],
+    embed = [":gops"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

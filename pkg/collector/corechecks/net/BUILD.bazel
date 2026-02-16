@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "net",
+    srcs = [
+        "doc.go",
+        "status.go",
+    ],
+    embedsrcs = [
+        "status_templates/ntp.tmpl",
+        "status_templates/ntpHTML.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net",
+    visibility = ["//visibility:public"],
+    deps = ["//comp/core/status"],
+)
+
+go_test(
+    name = "net_test",
+    srcs = ["status_test.go"],
+    embed = [":net"],
+    deps = [
+        "//pkg/collector/corechecks/net/ntp",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

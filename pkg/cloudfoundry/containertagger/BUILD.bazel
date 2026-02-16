@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "containertagger",
+    srcs = ["container_tagger.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/utils",
+        "//comp/core/workloadmeta/def",
+        "//comp/metadata/host/hostimpl/hosttags",
+        "//pkg/config/setup",
+        "//pkg/util/cloudproviders/cloudfoundry",
+        "//pkg/util/log",
+        "@org_cloudfoundry_code_garden//:garden",
+    ],
+)

@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "tests_test",
+    srcs = ["activity_tree_test.go"],
+    data = glob(["testdata/**"]),
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/resolvers/cgroup/model",
+            "//pkg/security/resolvers/tags",
+            "//pkg/security/secl/containerutils",
+            "//pkg/security/secl/model",
+            "//pkg/security/security_profile/activity_tree",
+            "//pkg/security/security_profile/dump",
+            "//pkg/security/security_profile/profile",
+            "//pkg/security/serializers",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/resolvers/cgroup/model",
+            "//pkg/security/resolvers/tags",
+            "//pkg/security/secl/containerutils",
+            "//pkg/security/secl/model",
+            "//pkg/security/security_profile/activity_tree",
+            "//pkg/security/security_profile/dump",
+            "//pkg/security/security_profile/profile",
+            "//pkg/security/serializers",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
+)

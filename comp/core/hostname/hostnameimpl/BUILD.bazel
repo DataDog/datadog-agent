@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "hostnameimpl",
+    srcs = ["service.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/hostname",
+        "//pkg/util/fxutil",
+        "//pkg/util/hostname",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "hostnameimpl_test",
+    srcs = ["service_test.go"],
+    embed = [":hostnameimpl"],
+    deps = [
+        "//comp/core/hostname",
+        "//pkg/config/mock",
+        "//pkg/util/cache",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
