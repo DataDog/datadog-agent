@@ -126,6 +126,7 @@ type EBPFProbe struct {
 	profileManager securityprofile.ProfileManager
 	fieldHandlers  *EBPFFieldHandlers
 	eventPool      *ddsync.TypedPool[model.Event]
+	variableStore  *eval.VariableStore
 	numCPU         int
 
 	ctx       context.Context
@@ -887,9 +888,11 @@ func (p *EBPFProbe) sendAnomalyDetection(event *model.Event) {
 		tags = append(tags, "service:"+service)
 	}
 
+	rule := events.NewCustomRule(events.AnomalyDetectionRuleID, events.AnomalyDetectionRuleDesc, &eval.Opts{VariableStore: p.variableStore})
+
 	p.probe.DispatchCustomEvent(
-		events.NewCustomRule(events.AnomalyDetectionRuleID, events.AnomalyDetectionRuleDesc),
-		events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtor(event), tags...),
+		rule,
+		events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtorWithRule(event, rule), tags...),
 	)
 }
 
@@ -992,6 +995,13 @@ func (p *EBPFProbe) GetMonitors() *EBPFMonitors {
 func (p *EBPFProbe) EventMarshallerCtor(event *model.Event) func() events.EventMarshaler {
 	return func() events.EventMarshaler {
 		return serializers.NewEventSerializer(event, nil, p.probe.scrubber)
+	}
+}
+
+// EventMarshallerCtorWithRule returns the event marshaller ctor with a rule for variable serialization
+func (p *EBPFProbe) EventMarshallerCtorWithRule(event *model.Event, rule *rules.Rule) func() events.EventMarshaler {
+	return func() events.EventMarshaler {
+		return serializers.NewEventSerializer(event, rule, p.probe.scrubber)
 	}
 }
 
@@ -2566,6 +2576,7 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, boo
 // OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded
 func (p *EBPFProbe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 	p.processKiller.Reset(rs)
+	p.variableStore = rs.GetVariableStore()
 
 	p.HandleRemediationStatus(rs)
 }

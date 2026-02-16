@@ -106,9 +106,13 @@ func (commonFields *CustomEventCommonFields) FillCustomEventCommonFields(acc *Ag
 }
 
 // NewCustomRule returns a new custom rule
-func NewCustomRule(id eval.RuleID, description string) *rules.Rule {
+func NewCustomRule(id eval.RuleID, description string, opts ...*eval.Opts) *rules.Rule {
+	var evalOpts *eval.Opts
+	if len(opts) > 0 {
+		evalOpts = opts[0]
+	}
 	return &rules.Rule{
-		Rule: &eval.Rule{ID: id},
+		Rule: &eval.Rule{ID: id, Opts: evalOpts},
 		PolicyRule: &rules.PolicyRule{
 			Def: &rules.RuleDefinition{ID: id, Description: description},
 		},
