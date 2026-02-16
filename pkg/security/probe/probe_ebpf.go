@@ -888,7 +888,7 @@ func (p *EBPFProbe) sendAnomalyDetection(event *model.Event) {
 		tags = append(tags, "service:"+service)
 	}
 
-	rule := events.NewCustomRule(events.AnomalyDetectionRuleID, events.AnomalyDetectionRuleDesc, &eval.Opts{VariableStore: p.variableStore})
+	rule := events.NewCustomRule(events.AnomalyDetectionRuleID, events.AnomalyDetectionRuleDesc, p.evalOpts())
 
 	p.probe.DispatchCustomEvent(
 		rule,
@@ -996,6 +996,11 @@ func (p *EBPFProbe) EventMarshallerCtor(event *model.Event) func() events.EventM
 	return func() events.EventMarshaler {
 		return serializers.NewEventSerializer(event, nil, p.probe.scrubber)
 	}
+}
+
+// evalOpts returns the eval options containing the current variable store
+func (p *EBPFProbe) evalOpts() *eval.Opts {
+	return &eval.Opts{VariableStore: p.variableStore}
 }
 
 // EventMarshallerCtorWithRule returns the event marshaller ctor with a rule for variable serialization
@@ -1540,9 +1545,10 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if service := p.probe.GetService(event); service != "" {
 			tags = append(tags, "service:"+service)
 		}
+		rule := events.NewCustomRule(events.RawPacketActionRuleID, events.RawPacketActionRuleDesc, p.evalOpts())
 		p.probe.DispatchCustomEvent(
-			events.NewCustomRule(events.RawPacketActionRuleID, events.RawPacketActionRuleDesc),
-			events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtor(event), tags...),
+			rule,
+			events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtorWithRule(event, rule), tags...),
 		)
 		return false
 	case model.NetworkFlowMonitorEventType:
@@ -2269,7 +2275,7 @@ func (p *EBPFProbe) startSysCtlSnapshotLoop() {
 			}
 
 			// send a sysctl snapshot event
-			rule := events.NewCustomRule(events.SysCtlSnapshotRuleID, events.SysCtlSnapshotRuleDesc)
+			rule := events.NewCustomRule(events.SysCtlSnapshotRuleID, events.SysCtlSnapshotRuleDesc, p.evalOpts())
 			customEvent := events.NewCustomEvent(model.CustomEventType, event)
 
 			p.probe.DispatchCustomEvent(rule, customEvent)
@@ -3455,7 +3461,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 		case action.Def.CoreDump != nil:
 			if p.config.RuntimeSecurity.InternalMonitoringEnabled {
 				dump := NewCoreDump(action.Def.CoreDump, p.Resolvers, serializers.NewEventSerializer(ev, nil, p.probe.scrubber))
-				rule := events.NewCustomRule(events.InternalCoreDumpRuleID, events.InternalCoreDumpRuleDesc)
+				rule := events.NewCustomRule(events.InternalCoreDumpRuleID, events.InternalCoreDumpRuleDesc, p.evalOpts())
 				event := events.NewCustomEvent(model.UnknownEventType, dump)
 
 				p.probe.DispatchCustomEvent(rule, event)
