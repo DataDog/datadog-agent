@@ -87,6 +87,7 @@ const (
 	netpathEndpoint              = "/api/v2/netpath"
 	ncmEndpoint                  = "/api/v2/ndmconfig"
 	apmTelemetryEndpoint         = "/api/v2/apmtelemetry"
+	agentHealthEndpoint          = "/api/v2/agenthealth"
 )
 
 // ErrNoFlareAvailable is returned when no flare is available
@@ -148,6 +149,7 @@ type Client struct {
 	netpathAggregator              aggregator.NetpathAggregator
 	ncmAggregator                  aggregator.NCMAggregator
 	hostAggregator                 aggregator.HostTagsAggregator
+	agentHealthAggregator          aggregator.AgentHealthAggregator
 }
 
 // NewClient creates a new fake intake client
@@ -180,6 +182,7 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		netpathAggregator:              aggregator.NewNetpathAggregator(),
 		ncmAggregator:                  aggregator.NewNCMAggregator(),
 		hostAggregator:                 aggregator.NewHostTagsAggregator(),
+		agentHealthAggregator:          aggregator.NewAgentHealthAggregator(),
 	}
 	for _, opt := range opts {
 		opt(client)
@@ -353,6 +356,14 @@ func (c *Client) getHostTags() error {
 	}
 
 	return c.hostAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getAgentHealth() error {
+	payloads, err := c.getFakePayloads(agentHealthEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.agentHealthAggregator.UnmarshallPayloads(payloads)
 }
 
 // FilterMetrics fetches fakeintake on `/api/v2/series` endpoint and returns
@@ -1115,6 +1126,19 @@ func (c *Client) GetHosts() ([]string, error) {
 	}
 
 	return c.hostAggregator.GetNames(), nil
+}
+
+// GetAgentHealth fetches fakeintake on `/api/v2/agenthealth` endpoint and returns all received agent health payloads
+func (c *Client) GetAgentHealth() ([]*aggregator.AgentHealthPayload, error) {
+	err := c.getAgentHealth()
+	if err != nil {
+		return nil, err
+	}
+	var agentHealthPayloads []*aggregator.AgentHealthPayload
+	for _, name := range c.agentHealthAggregator.GetNames() {
+		agentHealthPayloads = append(agentHealthPayloads, c.agentHealthAggregator.GetPayloadsByName(name)...)
+	}
+	return agentHealthPayloads, nil
 }
 
 // filterPayload returns payloads matching any [MatchOpt](#MatchOpt) options

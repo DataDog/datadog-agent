@@ -774,6 +774,9 @@
 /test/fakeintake/aggregator/ndmAggregator_test.go @DataDog/ndm-core
 /test/fakeintake/aggregator/ndmflowAggregator.go @DataDog/ndm-integrations
 /test/fakeintake/aggregator/ndmflowAggregator_test.go @DataDog/ndm-integrations
+/test/fakeintake/aggregator/agenthealthAggregator.go @DataDog/agent-health
+/test/fakeintake/aggregator/agenthealthAggregator_test.go @DataDog/agent-health
+/test/fakeintake/client/fixtures/api_v2_agenthealth_response @DataDog/agent-health
 /test/new-e2e/                                 @DataDog/agent-devx
 /test/new-e2e/test-infra-definition           @DataDog/agent-devx
 /test/new-e2e/system-probe                    @DataDog/ebpf-platform
@@ -783,6 +786,7 @@
 /test/new-e2e/tests/agent-platform/common/agent_integration.go @DataDog/agent-integrations
 /test/new-e2e/tests/agent-runtimes            @DataDog/agent-runtimes
 /test/new-e2e/tests/agent-configuration       @DataDog/agent-configuration
+/test/new-e2e/tests/agent-health              @DataDog/agent-health
 /test/new-e2e/tests/agent-metric-pipelines    @DataDog/agent-metric-pipelines
 /test/new-e2e/tests/agent-subcommands             @DataDog/agent-configuration
 /test/new-e2e/tests/agent-subcommands/check       @DataDog/agent-runtimes
