@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/trace/otel
 
-go 1.25
+go 1.25.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.72.0-rc.5
