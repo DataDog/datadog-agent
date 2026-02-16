@@ -4,14 +4,13 @@ load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
 load(
     "lib_contents.bzl",
     "HDRS",
-    "HDRS_DARWIN",
-    "HDRS_LINUX",
     "LIB_CURLTOOL_SRCS_DARWIN",
     "LIB_CURLTOOL_SRCS_LINUX",
     "LIB_CURLU_SRCS_DARWIN",
@@ -71,14 +70,24 @@ LOCAL_DEFINES = [
     "VPSM4_ASM",
 ]
 
-ARCH_HDRS_COND = {
-    "@platforms//os:linux": HDRS_LINUX,
-    "@platforms//os:macos": HDRS_DARWIN,
-}
+copy_file(
+    name = "copy_config_h",
+    src = select({
+        "@platforms//os:linux": "linux/lib/curl_config.h",
+        "@platforms//os:macos": "darwin/lib/curl_config.h",
+    }),
+    out = "lib/curl_config.h",
+)
+
+cc_library(
+    name = "config_h",
+    hdrs = ["lib/curl_config.h"],
+    includes = ["lib"],
+)
 
 cc_binary(
     name = "curl_bin",
-    srcs = ["lib/curl_config.h"] + HDRS + PUBLIC_HEADERS + select(ARCH_HDRS_COND) + select({
+    srcs = HDRS + PUBLIC_HEADERS + select({
         "@platforms//os:linux": LIB_CURLTOOL_SRCS_LINUX,
         "@platforms//os:macos": LIB_CURLTOOL_SRCS_DARWIN,
     }),
@@ -97,6 +106,9 @@ cc_binary(
         "@openssl//:openssl_shared",
         "@zlib//:z",
     ],
+    deps = [
+        ":config_h",
+    ],
     linkstatic = False,
     linkopts = select({
         "@platforms//os:macos": [
@@ -110,7 +122,7 @@ cc_binary(
 
 cc_library(
     name = "curl_static",
-    srcs = ["lib/curl_config.h"] + HDRS + select(ARCH_HDRS_COND) + select({
+    srcs = ["lib/curl_config.h"] + HDRS + select({
         "@platforms//os:linux": LIB_CURL_SRCS_LINUX,
         "@platforms//os:macos": LIB_CURLU_SRCS_DARWIN,
     }) + ["@openssl//:headers"],
@@ -144,6 +156,9 @@ cc_library(
         "@openssl//:openssl",
         "@zlib//:zlib",
     ],
+    implementation_deps = [
+        ":config_h",
+    ],
     # Do not build in ... expansion. It triggers an incompatiblity between
     # the toolchain decls, rules_cc, and the compiler we use.  rules_cc
     # ends up using --start-lib/--end-lib options, which are not recognize
@@ -153,7 +168,7 @@ cc_library(
 
 cc_library(
     name = "curlu_static",
-    srcs = ["lib/curl_config.h"] + HDRS + select(ARCH_HDRS_COND) + select({
+    srcs = HDRS + select({
         "@platforms//os:linux": LIB_CURLU_SRCS_LINUX,
         "@platforms//os:macos": LIB_CURLU_SRCS_DARWIN,
     }) + ["@openssl//:headers"],
@@ -188,6 +203,9 @@ cc_library(
         "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
+    implementation_deps = [
+        ":config_h",
+    ],
     deps = [
         ":curl_static",
         "@nghttp2//:nghttp2",
