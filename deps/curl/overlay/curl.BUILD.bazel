@@ -69,10 +69,6 @@ LOCAL_DEFINES = [
     "SM4_ASM",
     "VPAES_ASM",
     "VPSM4_ASM",
-
-    #"OPENSSLDIR='\"/opt/datadog/embedded/ssl/cacerts\"'",
-    #"ENGINESDIR='\"_/opt/datadog/embedded/lib/engines-3\"'",
-    #"MODULESDIR='\"/opt/datadog/embedded/lib/ossl-modules\"'",
 ]
 
 ARCH_HDRS_COND = {
