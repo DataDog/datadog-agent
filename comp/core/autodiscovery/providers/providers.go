@@ -47,19 +47,26 @@ func RegisterProviderWithComponents(name string, factory types.ConfigProviderFac
 }
 
 // RegisterProviders adds all the default providers to the catalog
-func RegisterProviders(providerCatalog map[string]types.ConfigProviderFactory) {
+func RegisterProviders(providerCatalog map[string]types.ConfigProviderFactory, useEndpointSlicesProvider bool) {
 	RegisterProvider(names.CloudFoundryBBS, NewCloudFoundryConfigProvider, providerCatalog)
 	RegisterProvider(names.ClusterChecksRegisterName, NewClusterChecksConfigProvider, providerCatalog)
 	RegisterProvider(names.ConsulRegisterName, NewConsulConfigProvider, providerCatalog)
 	RegisterProviderWithComponents(names.KubeContainer, NewContainerConfigProvider, providerCatalog)
 	RegisterProvider(names.EndpointsChecksRegisterName, NewEndpointsChecksConfigProvider, providerCatalog)
 	RegisterProvider(names.EtcdRegisterName, NewEtcdConfigProvider, providerCatalog)
-	RegisterProvider(names.KubeEndpointsFileRegisterName, NewKubeEndpointsFileConfigProvider, providerCatalog)
-	RegisterProvider(names.KubeEndpointsRegisterName, NewKubeEndpointsConfigProvider, providerCatalog)
 	RegisterProvider(names.KubeServicesFileRegisterName, NewKubeServiceFileConfigProvider, providerCatalog)
 	RegisterProvider(names.KubeServicesRegisterName, NewKubeServiceConfigProvider, providerCatalog)
 	RegisterProviderWithComponents(names.PrometheusPodsRegisterName, NewPrometheusPodsConfigProvider, providerCatalog)
 	RegisterProvider(names.PrometheusServicesRegisterName, NewPrometheusServicesConfigProvider, providerCatalog)
 	RegisterProvider(names.ZookeeperRegisterName, NewZookeeperConfigProvider, providerCatalog)
 	RegisterProviderWithComponents(names.ProcessLog, NewProcessLogConfigProvider, providerCatalog)
+
+	endpointsFileProvider := NewKubeEndpointsFileConfigProvider
+	endpointsProvider := NewKubeEndpointsConfigProvider
+	if useEndpointSlicesProvider {
+		endpointsFileProvider = NewKubeEndpointSlicesFileConfigProvider
+		endpointsProvider = NewKubeEndpointSlicesConfigProvider
+	}
+	RegisterProvider(names.KubeEndpointsFileRegisterName, endpointsFileProvider, providerCatalog)
+	RegisterProvider(names.KubeEndpointsRegisterName, endpointsProvider, providerCatalog)
 }

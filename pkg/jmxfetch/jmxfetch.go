@@ -33,6 +33,7 @@ import (
 	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	netutil "github.com/DataDog/datadog-agent/pkg/util/net"
 )
 
 const (
@@ -46,14 +47,6 @@ const (
 	defaultJavaBinPath                = "java"
 	defaultLogLevel                   = "info"
 	jmxAllowAttachSelf                = " -Djdk.attach.allowAttachSelf=true"
-)
-
-type DSDStatus int
-
-const (
-	DSDStatusRunningUDSDatagram DSDStatus = iota + 1
-	DSDStatusRunningUDP
-	DSDStatusUnknown
 )
 
 var (
@@ -222,22 +215,7 @@ func (j *JMXFetch) Start(manage bool) error {
 	case ReporterJSON:
 		reporter = "json"
 	default:
-		dsdStatus := j.getDSDStatus()
-		if dsdStatus == DSDStatusRunningUDSDatagram {
-			reporter = "statsd:unix://" + pkgconfigsetup.Datadog().GetString("dogstatsd_socket")
-		} else {
-			// We always use UDP if we don't definitively detect UDS running, but we want to let the user know if we
-			// actually detected that UDP should be running, or if we're just in fallback mode.
-			if dsdStatus == DSDStatusUnknown {
-				log.Warnf("DogStatsD status is unknown, falling back to UDP. JMXFetch may not be able to report metrics.")
-			}
-
-			bindHost := configutils.GetBindHost(pkgconfigsetup.Datadog())
-			if bindHost == "" || bindHost == "0.0.0.0" {
-				bindHost = "localhost"
-			}
-			reporter = fmt.Sprintf("statsd:%s:%s", bindHost, pkgconfigsetup.Datadog().GetString("dogstatsd_port"))
-		}
+		reporter = j.getPreferredDSDEndpoint()
 	}
 
 	//TODO : support auto discovery
@@ -524,18 +502,25 @@ func (j *JMXFetch) ConfigureFromInstance(instance integration.Data) error {
 	return nil
 }
 
-func (j *JMXFetch) getDSDStatus() DSDStatus {
-	dsdConfig := dogstatsdConfig.NewConfig(pkgconfigsetup.Datadog())
+// getPreferredDSDEndpoint determines the DogStatsD endpoint for JMXFetch to report to.
+// It prefers UDS datagram if the configured socket is available, otherwise falls back to UDP.
+func (j *JMXFetch) getPreferredDSDEndpoint() string {
+	cfg := pkgconfigsetup.Datadog()
+	dsdConfig := dogstatsdConfig.NewConfig(cfg)
 
-	dsdEnabled := dsdConfig.Enabled()
-	udsEnabled := pkgconfigsetup.Datadog().GetString("dogstatsd_socket") != ""
-	udpEnabled := pkgconfigsetup.Datadog().GetInt("dogstatsd_port") != 0
-
-	if dsdEnabled && udsEnabled {
-		return DSDStatusRunningUDSDatagram
-	} else if dsdEnabled && udpEnabled {
-		return DSDStatusRunningUDP
-	} else {
-		return DSDStatusUnknown
+	// Check UDS datagram first (preferred transport).
+	socketPath := cfg.GetString("dogstatsd_socket")
+	if dsdConfig.Enabled() && socketPath != "" {
+		if netutil.IsUDSAvailable(socketPath) {
+			return "statsd:unix://" + socketPath
+		}
+		log.Warnf("DogStatsD configured to listen on UDS (%q) but not available, falling back to UDP.", socketPath)
 	}
+
+	// Fall back to UDP.
+	bindHost := configutils.GetBindHost(cfg)
+	if bindHost == "" || bindHost == "0.0.0.0" {
+		bindHost = "localhost"
+	}
+	return fmt.Sprintf("statsd:%s:%s", bindHost, cfg.GetString("dogstatsd_port"))
 }
