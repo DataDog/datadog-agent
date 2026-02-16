@@ -158,6 +158,11 @@ func init() {
 
 // agentIdentityTag holds the remote_agent tag value for this agent process.
 // It must be set once at startup via SetAgentIdentity before any log sending occurs.
+//
+// This mirrors the pattern used by pkg/util/flavor (SetFlavor/GetFlavor) rather than
+// importing it directly, because importing flavor would pull in pkg/config/model and
+// pkg/config/setup, significantly widening the dependency graph for the 40+ files that
+// import pkg/logs/metrics.
 var agentIdentityTag = "agent"
 
 // SetAgentIdentity sets the remote_agent tag value for the current agent process.
