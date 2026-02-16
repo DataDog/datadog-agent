@@ -96,7 +96,11 @@ func (h *TestConnectionHandler) validateScriptUser() (string, []string) {
 	}
 
 	// Check if the current user can run command
-	cmd := NewPredefinedScriptCommand(context.Background(), []string{"echo", "test"}, nil)
+	cmd, err := NewPredefinedScriptCommand(context.Background(), []string{"echo", "test"}, nil)
+	if err != nil {
+		errors = append(errors, fmt.Sprintf("Failed to build test command: %v", err))
+		return info.String(), errors
+	}
 	_, err = cmd.CombinedOutput()
 	if err != nil {
 		errors = append(errors, fmt.Sprintf("Failed to check if the current user can use the script user: %v", err))
