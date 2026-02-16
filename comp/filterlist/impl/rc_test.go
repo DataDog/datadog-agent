@@ -698,9 +698,11 @@ func TestMergeMetricTagListEntry_SameActionInclude(t *testing.T) {
 	filterList, _ := newFilterList(t)
 
 	// Setup: current entry with Include action
+	currentTags := hashTags([]string{"env", "host"})
 	currentHashed := hashedMetricTagList{
 		action: Include,
-		tags:   hashTags([]string{"env", "host"}),
+		tags:   currentTags,
+		tagMap: hashTagsToMap(currentTags),
 	}
 	currentEntry := MetricTagListEntry{
 		MetricName: "test.metric",
@@ -718,9 +720,15 @@ func TestMergeMetricTagListEntry_SameActionInclude(t *testing.T) {
 	// Execute merge
 	hashedResult, entryResult := filterList.mergeMetricTagListEntry(newMetric, currentHashed, currentEntry)
 
+	expectedTags := hashTags([]string{"env", "host", "pod", "cluster"})
+	expectedMap := make(map[uint64]struct{}, len(expectedTags))
+	for _, h := range expectedTags {
+		expectedMap[h] = struct{}{}
+	}
 	require.Equal(hashedResult, hashedMetricTagList{
 		action: Include,
-		tags:   hashTags([]string{"env", "host", "pod", "cluster"}),
+		tags:   expectedTags,
+		tagMap: expectedMap,
 	})
 
 	require.Equal(entryResult, MetricTagListEntry{
@@ -737,9 +745,11 @@ func TestMergeMetricTagListEntry_SameActionExclude(t *testing.T) {
 	filterList, _ := newFilterList(t)
 
 	// Setup: current entry with Exclude action
+	currentTags := hashTags([]string{"env", "host"})
 	currentHashed := hashedMetricTagList{
 		action: Exclude,
-		tags:   hashTags([]string{"env", "host"}),
+		tags:   currentTags,
+		tagMap: hashTagsToMap(currentTags),
 	}
 	currentEntry := MetricTagListEntry{
 		MetricName: "test.metric",
@@ -757,9 +767,15 @@ func TestMergeMetricTagListEntry_SameActionExclude(t *testing.T) {
 	// Execute merge
 	hashedResult, entryResult := filterList.mergeMetricTagListEntry(newMetric, currentHashed, currentEntry)
 
+	expectedTags2 := hashTags([]string{"env", "host", "pod", "cluster"})
+	expectedMap2 := make(map[uint64]struct{}, len(expectedTags2))
+	for _, h := range expectedTags2 {
+		expectedMap2[h] = struct{}{}
+	}
 	require.Equal(hashedResult, hashedMetricTagList{
 		action: Exclude,
-		tags:   hashTags([]string{"env", "host", "pod", "cluster"}),
+		tags:   expectedTags2,
+		tagMap: expectedMap2,
 	})
 
 	require.Equal(entryResult, MetricTagListEntry{
@@ -776,9 +792,11 @@ func TestMergeMetricTagListEntry_IncludeOverriddenByExclude(t *testing.T) {
 	filterList, _ := newFilterList(t)
 
 	// Setup: current entry with Include action
+	currentTags := hashTags([]string{"env", "host"})
 	currentHashed := hashedMetricTagList{
 		action: Include,
-		tags:   hashTags([]string{"env", "host"}),
+		tags:   currentTags,
+		tagMap: hashTagsToMap(currentTags),
 	}
 	currentEntry := MetricTagListEntry{
 		MetricName: "test.metric",
@@ -796,9 +814,15 @@ func TestMergeMetricTagListEntry_IncludeOverriddenByExclude(t *testing.T) {
 	// Execute merge
 	hashedResult, entryResult := filterList.mergeMetricTagListEntry(newMetric, currentHashed, currentEntry)
 
+	expectedTags3 := hashTags([]string{"pod"})
+	expectedMap3 := make(map[uint64]struct{}, len(expectedTags3))
+	for _, h := range expectedTags3 {
+		expectedMap3[h] = struct{}{}
+	}
 	require.Equal(hashedResult, hashedMetricTagList{
 		action: Exclude,
-		tags:   hashTags([]string{"pod"}),
+		tags:   expectedTags3,
+		tagMap: expectedMap3,
 	})
 
 	require.Equal(entryResult, MetricTagListEntry{
@@ -815,9 +839,11 @@ func TestMergeMetricTagListEntry_ExcludeIgnoresInclude(t *testing.T) {
 	filterList, _ := newFilterList(t)
 
 	// Setup: current entry with Exclude action
+	currentTags := hashTags([]string{"env", "host"})
 	currentHashed := hashedMetricTagList{
 		action: Exclude,
-		tags:   hashTags([]string{"env", "host"}),
+		tags:   currentTags,
+		tagMap: hashTagsToMap(currentTags),
 	}
 	currentEntry := MetricTagListEntry{
 		MetricName: "test.metric",
@@ -836,9 +862,15 @@ func TestMergeMetricTagListEntry_ExcludeIgnoresInclude(t *testing.T) {
 	hashedResult, entryResult := filterList.mergeMetricTagListEntry(newMetric, currentHashed, currentEntry)
 
 	// Results should be the original exclude
+	expectedTags4 := hashTags([]string{"env", "host"})
+	expectedMap4 := make(map[uint64]struct{}, len(expectedTags4))
+	for _, h := range expectedTags4 {
+		expectedMap4[h] = struct{}{}
+	}
 	require.Equal(hashedResult, hashedMetricTagList{
 		action: Exclude,
-		tags:   hashTags([]string{"env", "host"}),
+		tags:   expectedTags4,
+		tagMap: expectedMap4,
 	})
 
 	require.Equal(entryResult, MetricTagListEntry{

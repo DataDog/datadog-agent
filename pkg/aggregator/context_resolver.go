@@ -108,11 +108,11 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 	defer cr.metricBuffer.Reset()
 
 	if metricSampleContext.GetMetricType() == metrics.DistributionType {
-		if tagMatcher, strip := filterList.ShouldStripTags(metricSampleContext.GetName()); strip {
+		if tagNameHashes, exclude, strip := filterList.GetTagNameFilter(metricSampleContext.GetName()); strip {
 			// Currently only distributions are supported, strip out tags if it is configured to remove tags for this given
-			// metric.
-			cr.taggerBuffer.RetainFunc(tagMatcher)
-			cr.metricBuffer.RetainFunc(tagMatcher)
+			// metric. Use optimized filtering that avoids redundant string operations and hashing.
+			cr.taggerBuffer.RetainWithTagNameFilter(tagNameHashes, exclude)
+			cr.metricBuffer.RetainWithTagNameFilter(tagNameHashes, exclude)
 		}
 	}
 
