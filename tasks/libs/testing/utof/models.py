@@ -84,6 +84,7 @@ class UTOFAttempt:
 class UTOFTestResult:
     id: str = ""
     name: str = ""
+    full_name: str = ""  # original test2json name, e.g. "TestSketch/useStore=true/empty_flush"
     package: str = ""
     suite: str = ""
     type: str = "unit"
@@ -93,6 +94,7 @@ class UTOFTestResult:
     failure: UTOFFailure | None = None
     flaky: UTOFFlaky | None = None
     attempts: list[UTOFAttempt] | None = None
+    subtests: list[UTOFTestResult] | None = None
     tags: list[str] = field(default_factory=list)
 
 

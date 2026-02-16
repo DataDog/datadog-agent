@@ -27,6 +27,123 @@ if TYPE_CHECKING:
     from tasks.testwasher import TestWasher
 
 
+def _leaf_name(full_test_name: str) -> str:
+    """Return the leaf segment of a hierarchical test name.
+
+    E.g. "TestSketch/useStore=true/empty_flush" → "empty_flush"
+    """
+    idx = full_test_name.rfind("/")
+    return full_test_name[idx + 1 :] if idx >= 0 else full_test_name
+
+
+def _build_test_tree(flat_results: list[UTOFTestResult]) -> list[UTOFTestResult]:
+    """Organize flat test results into a tree based on '/' hierarchy.
+
+    Returns only root-level tests; subtests are nested inside via the
+    ``subtests`` field.
+    """
+    # Index every result by its full_name for fast lookup
+    by_full_name: dict[str, UTOFTestResult] = {r.full_name: r for r in flat_results}
+    # Track synthetic parents we create (not in flat_results)
+    synthetics: dict[str, UTOFTestResult] = {}
+
+    # Track which results are attached as children so we skip them at the top level
+    attached: set[str] = set()
+
+    for result in flat_results:
+        full = result.full_name
+        idx = full.rfind("/")
+        if idx < 0:
+            # Top-level test — will be collected as a root
+            continue
+
+        parent_full = full[:idx]
+        parent = by_full_name.get(parent_full)
+        if parent is None:
+            # Defensive: parent not in results — create a synthetic node
+            parent = UTOFTestResult(
+                id=_generate_test_id(result.package, parent_full),
+                name=_leaf_name(parent_full),
+                full_name=parent_full,
+                package=result.package,
+                type=result.type,
+                status="pass",
+            )
+            by_full_name[parent_full] = parent
+            synthetics[parent_full] = parent
+
+        if parent.subtests is None:
+            parent.subtests = []
+        parent.subtests.append(result)
+        attached.add(full)
+
+    # Now attach synthetic parents up the tree as well
+    for syn_full, syn_result in list(synthetics.items()):
+        idx = syn_full.rfind("/")
+        if idx < 0:
+            continue
+        grandparent_full = syn_full[:idx]
+        grandparent = by_full_name.get(grandparent_full)
+        if grandparent is None:
+            grandparent = UTOFTestResult(
+                id=_generate_test_id(syn_result.package, grandparent_full),
+                name=_leaf_name(grandparent_full),
+                full_name=grandparent_full,
+                package=syn_result.package,
+                type=syn_result.type,
+                status="pass",
+            )
+            by_full_name[grandparent_full] = grandparent
+            synthetics[grandparent_full] = grandparent
+        if grandparent.subtests is None:
+            grandparent.subtests = []
+        grandparent.subtests.append(syn_result)
+        attached.add(syn_full)
+
+    # Collect roots: real results not attached + synthetic results not attached
+    roots: list[UTOFTestResult] = []
+    seen: set[str] = set()
+    for result in flat_results:
+        if result.full_name not in attached and result.full_name not in seen:
+            roots.append(result)
+            seen.add(result.full_name)
+    for syn_full, syn_result in synthetics.items():
+        if syn_full not in attached and syn_full not in seen:
+            roots.append(syn_result)
+            seen.add(syn_full)
+
+    return roots
+
+
+def _count_leaves(tests: list[UTOFTestResult]) -> dict[str, int]:
+    """Count leaf tests (those without subtests) by status category.
+
+    Returns a dict with keys: passed, failed, skipped, flaky, retried, total.
+    """
+    counts: dict[str, int] = {"passed": 0, "failed": 0, "skipped": 0, "flaky": 0, "retried": 0, "total": 0}
+
+    def _walk(t: UTOFTestResult):
+        if t.subtests:
+            for sub in t.subtests:
+                _walk(sub)
+        else:
+            counts["total"] += 1
+            if t.status == "pass":
+                counts["passed"] += 1
+            elif t.status == "fail":
+                counts["failed"] += 1
+            elif t.status == "skip":
+                counts["skipped"] += 1
+            if t.status in ("flaky_pass", "flaky_fail"):
+                counts["flaky"] += 1
+            if t.retry_count > 0:
+                counts["retried"] += 1
+
+    for test in tests:
+        _walk(test)
+    return counts
+
+
 def _generate_test_id(package: str, test_name: str) -> str:
     """Generate a deterministic test ID from package and test name."""
     raw = f"{package}/{test_name}"
@@ -248,7 +365,8 @@ def convert_unit_test_results(
 
             test_result = UTOFTestResult(
                 id=_generate_test_id(package, test_name),
-                name=test_name,
+                name=_leaf_name(test_name),
+                full_name=test_name,
                 package=package,
                 suite="",
                 type="unit",
@@ -261,21 +379,26 @@ def convert_unit_test_results(
             )
             tests.append(test_result)
 
-    # Compute summary
-    passed = sum(1 for t in tests if t.status == "pass")
-    failed = sum(1 for t in tests if t.status == "fail")
-    skipped = sum(1 for t in tests if t.status == "skip")
-    flaky_count = sum(1 for t in tests if t.status in ("flaky_pass", "flaky_fail"))
-    retried = sum(1 for t in tests if t.retry_count > 0)
+    # Build tree per-package: nest subtests under their parents.
+    # full_name is only unique within a package, so group first.
+    by_package: dict[str, list[UTOFTestResult]] = {}
+    for t in tests:
+        by_package.setdefault(t.package, []).append(t)
+    tests = []
+    for pkg_tests in by_package.values():
+        tests.extend(_build_test_tree(pkg_tests))
+
+    # Compute summary from leaf tests only (avoid double-counting)
+    counts = _count_leaves(tests)
 
     summary = UTOFSummary(
-        total=len(tests),
-        passed=passed,
-        failed=failed,
-        skipped=skipped,
-        flaky=flaky_count,
-        retried=retried,
-        status="fail" if failed > 0 else "pass",
+        total=counts["total"],
+        passed=counts["passed"],
+        failed=counts["failed"],
+        skipped=counts["skipped"],
+        flaky=counts["flaky"],
+        retried=counts["retried"],
+        status="fail" if counts["failed"] > 0 else "pass",
     )
 
     return UTOFDocument(
