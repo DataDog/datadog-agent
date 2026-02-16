@@ -136,6 +136,35 @@ func TestV6AddressAllocation(t *testing.T) {
 	assert.Equalf(t, 0, allocs, "V6Address should not allocate: got %d allocations", allocs)
 }
 
+func TestFromLowHighV4(t *testing.T) {
+	// low-only should create a v4 address
+	addr := FromLowHigh(889192575, 0)
+	assert.Equal(t, AddressFromString("127.0.0.53"), addr)
+	assert.True(t, addr.Is4())
+}
+
+func TestFromLowHighV6(t *testing.T) {
+	// non-zero high should create a v6 address
+	addr := FromLowHigh(72059793061183488, 3087860000)
+	assert.Equal(t, AddressFromString("2001:db8::2:1"), addr)
+	assert.True(t, addr.Is6())
+}
+
+func TestToLowHighRoundTrip(t *testing.T) {
+	// v4 round-trip
+	original := V4Address(889192575)
+	l, h := ToLowHigh(original)
+	assert.Equal(t, uint64(0), h)
+	reconstructed := FromLowHigh(l, h)
+	assert.Equal(t, original, reconstructed)
+
+	// v6 round-trip
+	originalV6 := V6Address(72059793061183488, 3087860000)
+	l, h = ToLowHigh(originalV6)
+	reconstructedV6 := FromLowHigh(l, h)
+	assert.Equal(t, originalV6, reconstructedV6)
+}
+
 func BenchmarkNetIPFromAddress(b *testing.B) {
 	var (
 		buf  = make([]byte, 16)
