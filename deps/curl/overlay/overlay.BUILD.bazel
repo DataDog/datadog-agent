@@ -23,7 +23,7 @@ package(
     default_visibility = ["@@//packages:__subpackages__"],
 )
 
-VERSION = "8.16.0"
+VERSION = "8.18.0"
 
 SO_VERSION = "4.8.0"
 
