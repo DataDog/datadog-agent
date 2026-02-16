@@ -40,9 +40,9 @@ const (
 
 // HashedMetricTagList contains the list of tags hashed using murmur3.
 type hashedMetricTagList struct {
-	tags    []uint64           // kept for backwards compatibility if needed
-	tagMap  map[uint64]struct{} // O(1) lookup map
-	action  action
+	tags   []uint64            // kept for backwards compatibility if needed
+	tagMap map[uint64]struct{} // O(1) lookup map
+	action action
 }
 
 func NewEmptyTagMatcher() filterlist.TagMatcher {
