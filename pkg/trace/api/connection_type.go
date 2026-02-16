@@ -17,6 +17,8 @@ const (
 	ConnectionTypeUDS ConnectionType = "uds"
 	// ConnectionTypePipe indicates a Windows named pipe connection.
 	ConnectionTypePipe ConnectionType = "pipe"
+	// ConnectionTypeUnknown indicates an unknown connection type (should not happen).
+	ConnectionTypeUnknown ConnectionType = "unknown"
 )
 
 type connectionTypeKey struct{}

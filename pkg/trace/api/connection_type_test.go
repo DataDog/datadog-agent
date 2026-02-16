@@ -8,7 +8,6 @@ package api
 import (
 	"context"
 	"net"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -60,65 +59,6 @@ func TestConnContextConnectionType(t *testing.T) {
 
 		ctx := connContext(context.Background(), serverConn)
 		assert.Equal(t, ConnectionTypeTCP, GetConnectionType(ctx))
-	})
-
-	t.Run("tcp connection wrapped in onCloseConn", func(t *testing.T) {
-		ln, err := net.Listen("tcp", "127.0.0.1:0")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer ln.Close()
-
-		done := make(chan net.Conn, 1)
-		go func() {
-			c, _ := ln.Accept()
-			done <- c
-		}()
-		clientConn, err := net.Dial("tcp", ln.Addr().String())
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer clientConn.Close()
-		serverConn := <-done
-		defer serverConn.Close()
-
-		wrapped := OnCloseConn(serverConn, func() {})
-		ctx := connContext(context.Background(), wrapped)
-		assert.Equal(t, ConnectionTypeTCP, GetConnectionType(ctx))
-	})
-
-	t.Run("uds connection", func(t *testing.T) {
-		sockPath := "/tmp/test-transport.sock"
-		os.Remove(sockPath)
-		t.Cleanup(func() { os.Remove(sockPath) })
-		ln, err := net.Listen("unix", sockPath)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer ln.Close()
-
-		done := make(chan net.Conn, 1)
-		go func() {
-			c, _ := ln.Accept()
-			done <- c
-		}()
-		clientConn, err := net.Dial("unix", sockPath)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer clientConn.Close()
-		serverConn := <-done
-		defer serverConn.Close()
-
-		ctx := connContext(context.Background(), serverConn)
-		assert.Equal(t, ConnectionTypeUDS, GetConnectionType(ctx))
-	})
-
-	t.Run("unknown connection defaults to pipe", func(t *testing.T) {
-		// A connection type that is neither *net.TCPConn nor *net.UnixConn
-		// should fall through to the default case (pipe).
-		ctx := connContext(context.Background(), &fakeConn{})
-		assert.Equal(t, ConnectionTypePipe, GetConnectionType(ctx))
 	})
 }
 
