@@ -1,3 +1,4 @@
+// Session 1: Multi-session PR test - header comment
 # Datadog Agent
 
 ![GitHub Release](https://img.shields.io/github/v/release/DataDog/datadog-agent?style=flat&logo=datadog&logoColor=%23632CA6&labelColor=%23FFF&color=%23632CA6)
@@ -22,3 +23,4 @@ You'll find information and help on how to contribute code to this project under
 The Datadog Agent user space components are licensed under the
 [Apache License, Version 2.0](LICENSE). The BPF code is licensed
 under the [General Public License, Version 2.0](pkg/ebpf/c/COPYING).
+// Session 2: Multi-session PR test - footer comment
