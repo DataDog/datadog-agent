@@ -19,9 +19,9 @@ require (
 	github.com/DataDog/datadog-api-client-go/v2 v2.54.0
 	github.com/aws/aws-sdk-go-v2 v1.41.1
 	github.com/aws/aws-sdk-go-v2/config v1.32.7
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.285.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.289.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/eks v1.74.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.67.7 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.67.8 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/docker/cli v29.0.3+incompatible // indirect
