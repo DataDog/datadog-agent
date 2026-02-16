@@ -29,13 +29,13 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt update
 
 FROM baseimage AS nosys-seccomp
-RUN apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
+RUN apt install --no-install-recommends --no-install-suggests -y gcc libc6-dev libseccomp-dev
 COPY nosys-seccomp/nosys.c   /tmp/nosys.c
 COPY nosys-seccomp/nosys.sym /tmp/nosys.sym
 RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sym -o /tmp/nosys.so /tmp/nosys.c  -lseccomp
 
 FROM baseimage AS extract-base
-RUN apt install --no-install-recommends -y curl ca-certificates maven xz-utils
+RUN apt install --no-install-recommends --no-install-suggests -y curl ca-certificates maven xz-utils
 
 ############################################################
 #  Preparation stage: retrieval of 3rd party dependencies  #
@@ -86,7 +86,7 @@ RUN apt full-upgrade -y \
   # When the network check will have switched from using ss to directly parsing /proc/net/tcp,
   # this can be removed
   # Install libseccomp2 as required by `nosys-seccomp` wrapper
-  && apt install --no-install-recommends -y iproute2 libseccomp2 tzdata adduser
+  && apt install --no-install-recommends --no-install-suggests -y iproute2 libseccomp2 tzdata adduser
 
 ARG WITH_JMX
 ARG WITH_JMX_FIPS
@@ -94,7 +94,7 @@ ARG WITH_JMX_FIPS
 # Install openjdk-11-jre-headless on jmx flavor
 RUN if [ -n "$WITH_JMX" ]; then echo "Pulling openjdk-11 from testing" \
   && mkdir -p /usr/share/man/man1 \
-  && apt install --no-install-recommends -y openjdk-11-jre-headless \
+  && apt install --no-install-recommends --no-install-suggests -y openjdk-11-jre-headless \
   && apt clean; fi
 
 # Extract s6-overlay
