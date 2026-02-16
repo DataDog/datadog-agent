@@ -791,7 +791,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndIOCountersSystemCallRe
 	setupDefaultMocks()
 	diskCheck := createWindowsCheck(t)
 	diskCheck = diskv2.WithDiskIOCounters(diskCheck, func(...string) (map[string]gopsutil_disk.IOCountersStat, error) {
-		return nil, errors.New("Incorrect function.")
+		return nil, errors.New("incorrect function")
 	})
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()

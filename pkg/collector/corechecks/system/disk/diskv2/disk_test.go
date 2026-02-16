@@ -315,7 +315,6 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndIOCountersSystemCallRe
 	assert.Contains(t, b.String(), "Unable to get disk iocounters: error calling diskIOCounters")
 }
 
-
 func TestGivenADiskCheckWithFileSystemGlobalBlackListConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
