@@ -14,3 +14,7 @@ package eval
 func GetPublicTLD(fqdn string) string {
 	return fqdn
 }
+
+func GetPublicTLDs(fqdns []string) []string {
+	return fqdns
+}
