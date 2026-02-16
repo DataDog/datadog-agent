@@ -247,16 +247,6 @@ HDRS = [
     "src/var.h",
 ]
 
-# Header files from generated tree (darwin_arm64)
-HDRS_DARWIN = [
-    "darwin_arm64/lib/curl_config.h",
-]
-
-# Header files from generated tree (linux_arm64)
-HDRS_LINUX = [
-    "linux_arm64/lib/curl_config.h",
-]
-
 LIB_CURLTOOL_SRCS_DARWIN = [
     "lib/curlx/base64.c",
     "lib/curlx/dynbuf.c",
