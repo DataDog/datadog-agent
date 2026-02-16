@@ -52,7 +52,7 @@ Released on: 2026-02-11
 .. _Release Notes_7.75.3_Security Notes:
 
 Security Notes
---------------
+---------
 
 - Bump the version of envoyproxy/gateway to 1.5.7
 
