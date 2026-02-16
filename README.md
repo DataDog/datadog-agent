@@ -1,3 +1,4 @@
+// Session 1: Multi-session PR test - header comment
 # Datadog Agent
 
 ![GitHub Release](https://img.shields.io/github/v/release/DataDog/datadog-agent?style=flat&logo=datadog&logoColor=%23632CA6&labelColor=%23FFF&color=%23632CA6)
