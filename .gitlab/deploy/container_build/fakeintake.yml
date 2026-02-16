@@ -13,7 +13,8 @@ docker_build_fakeintake:
     DOCKERFILE: test/fakeintake/Dockerfile
     PLATFORMS: linux/amd64,linux/arm64
     BUILD_CONTEXT: .
+    BASE_IMAGE_REGISTRY: "registry.ddbuild.io/images/mirror"
   script:
     - !reference [.login_to_docker_readonly]
-    - docker buildx build --push --pull --platform ${PLATFORMS} --build-arg=CI --file ${DOCKERFILE} --tag ${TARGET} $BUILD_CONTEXT
+    - docker buildx build --push --pull --platform ${PLATFORMS} --build-arg=CI --build-arg=BASE_IMAGE_REGISTRY=${BASE_IMAGE_REGISTRY} --file ${DOCKERFILE} --tag ${TARGET} $BUILD_CONTEXT
   retry: 2

@@ -1,5 +1,6 @@
 ## Based on https://docs.docker.com/language/golang/build-images/
 # syntax=docker/dockerfile:1
+ARG BASE_IMAGE_REGISTRY=docker.io
 
 ## Build
 FROM golang:1.25.7-alpine3.22 AS build
@@ -32,7 +33,7 @@ ARG CI
 RUN go build -o /fakeintake cmd/server/main.go
 
 ## Deploy
-FROM alpine:3.21
+FROM ${BASE_IMAGE_REGISTRY}/library/alpine:3.21.3
 
 RUN apk add curl
 
