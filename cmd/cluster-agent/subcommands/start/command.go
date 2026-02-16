@@ -68,12 +68,15 @@ import (
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
+	remotetraceroutefx "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/mcp"
 
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	metadatarunner "github.com/DataDog/datadog-agent/comp/metadata/runner"
 	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/impl"
 	rccomp "github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
@@ -245,6 +248,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 				clusterchecksmetadatafx.Module(),
 				ipcfx.ModuleReadWrite(),
+				remotetraceroutefx.Module(),
 			)
 		},
 	}
@@ -273,9 +277,11 @@ func start(log log.Component,
 	ipc ipc.Component,
 	diagnoseComp diagnose.Component,
 	dcametadataComp dcametadata.Component,
+	hostnameGetter hostnameinterface.Component,
 
 	clusterChecksMetadataComp clusterchecksmetadata.Component,
 	_ metadatarunner.Component,
+	tracerouteComp traceroute.Component,
 ) error {
 	stopCh := make(chan struct{})
 	validatingStopCh := make(chan struct{})
@@ -427,6 +433,10 @@ func start(log log.Component,
 		if config.GetBool("admission_controller.auto_instrumentation.enabled") || config.GetBool("apm_config.instrumentation.enabled") {
 			products = append(products, state.ProductGradualRollout)
 		}
+		// Add private action runner product if enabled
+		if config.GetBool("private_action_runner.enabled") {
+			products = append(products, state.ProductActionPlatformRunnerKeys)
+		}
 
 		if len(products) > 0 {
 			var err error
@@ -523,7 +533,7 @@ func start(log log.Component,
 		go func() {
 			defer wg.Done()
 
-			if err := runCompliance(mainCtx, demultiplexer, wmeta, filterStore, apiCl, compression, ipc, le.IsLeader); err != nil {
+			if err := runCompliance(mainCtx, demultiplexer, wmeta, filterStore, apiCl, compression, le.IsLeader); err != nil {
 				pkglog.Errorf("Error while running compliance agent: %v", err)
 			}
 		}()
@@ -536,11 +546,21 @@ func start(log log.Component,
 	}
 
 	if config.GetBool("appsec.proxy.enabled") && config.GetBool("cluster_agent.appsec.injector.enabled") {
+		// Should be run before admissionpkg.StartControllers
 		if err := appsec.Start(mainCtx, log, config, le.Subscribe); err != nil {
 			log.Errorf("Cannot start appsec injector: %v", err)
 		}
 	} else {
 		appsec.Cleanup(mainCtx, log, config, le.Subscribe)
+	}
+
+	if config.GetBool("private_action_runner.enabled") {
+		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, log, taggerComp, tracerouteComp)
+		if err != nil {
+			log.Errorf("Cannot start private action runner: %v", err)
+		} else {
+			defer drain()
+		}
 	}
 
 	if config.GetBool("admission_controller.enabled") {
@@ -585,7 +605,8 @@ func start(log log.Component,
 			}
 			// Webhook and secret controllers are started successfully
 			// Set up the k8s admission webhook server
-			server := admissioncmd.NewServer()
+			secretsLister := apiCl.CertificateSecretInformerFactory.Core().V1().Secrets().Lister()
+			server := admissioncmd.NewServer(secretsLister)
 
 			for _, webhookConf := range webhooks {
 				server.Register(webhookConf.Endpoint(), webhookConf.Name(), webhookConf.WebhookType(), webhookConf.WebhookFunc(), apiCl.DynamicCl, apiCl.Cl)
@@ -596,7 +617,7 @@ func start(log log.Component,
 			go func() {
 				defer wg.Done()
 
-				errServ := server.Run(mainCtx, apiCl.Cl)
+				errServ := server.Run(mainCtx)
 				if errServ != nil {
 					pkglog.Errorf("Error in the Admission Controller Webhook Server: %v", errServ)
 				}
@@ -662,6 +683,33 @@ func setupClusterCheck(ctx context.Context, ac autodiscovery.Component, tagger t
 
 	pkglog.Info("Started cluster check Autodiscovery")
 	return handler, nil
+}
+
+func startPrivateActionRunner(
+	ctx context.Context,
+	config config.Component,
+	hostnameGetter hostnameinterface.Component,
+	rcClient *rcclient.Client,
+	log log.Component,
+	tagger tagger.Component,
+	tracerouteComp traceroute.Component,
+) (func(), error) {
+	if rcClient == nil {
+		return nil, errors.New("Remote config is disabled or failed to initialize, remote config is a required dependency for private action runner")
+	}
+	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp)
+	if err != nil {
+		return nil, err
+	}
+	err = app.Start(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return func() {
+		if err := app.Stop(context.Background()); err != nil {
+			log.Errorf("Error stopping private action runner: %v", err)
+		}
+	}, nil
 }
 
 func initializeRemoteConfigClient(rcService rccomp.Component, config config.Component, clusterName, clusterID string, products ...string) (*rcclient.Client, error) {

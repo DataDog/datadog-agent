@@ -5,7 +5,12 @@ updater tests.
 
 *simple-v1*
 ```bash
-datadog-package create --archive --version "v1" --archive-path "pkg/fleet/installer/fixtures/oci-layout-simple-v1.tar" --package "simple" --configs pkg/fleet/installer/fixtures/simple-v1-config pkg/fleet/installer/fixtures/simple-v1
+datadog-package create --archive --version "v1" --archive-path "pkg/fleet/installer/fixtures/oci-layout-simple-v1.tar" --package "simple" --configs pkg/fleet/installer/fixtures/simple-v1-config --extension simple-extension=pkg/fleet/installer/fixtures/simple-v1-extension pkg/fleet/installer/fixtures/simple-v1
+```
+
+*simple-v1-with-extension*
+```bash
+datadog-package create --archive --version "v1" --archive-path "pkg/fleet/installer/fixtures/oci-layout-simple-v1-with-extension.tar" --package "simple" --extension simple-extension=pkg/fleet/installer/fixtures/simple-v1-extension pkg/fleet/installer/fixtures/simple-v1
 ```
 
 *simple-v2*

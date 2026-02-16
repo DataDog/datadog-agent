@@ -1725,6 +1725,23 @@ api_key:
 #   # Increase this value if you experience timeouts with large profile uploads.
 #
 #   profiling_receiver_timeout: 5
+#
+#   # @param additional_profile_tags - map of strings - optional
+#   # @env DD_APM_ADDITIONAL_PROFILE_TAGS - JSON string - optional
+#   # Additional tags to add to all profiles. These tags are added on the agent side
+#   # before forwarding profiles to Datadog. This is useful for environment-identifying
+#   # tags that should be applied to all profiles (e.g., origin).
+#   #
+#   # Note: For Azure App Service in Windows, this configuration is set in the AAS Site Extension.
+#   # Overriding the default tags in AAS Windows should be done with reference to https://datadoghq.atlassian.net/wiki/spaces/SLS/pages/6007685143/Profiling.
+#   #
+#   # additional_profile_tags:
+#   #   _dd.origin: appservice
+#   #   <TAG_KEY>: <TAG_VALUE>
+#
+#   ## DD_APM_ADDITIONAL_PROFILE_TAGS='{"_dd.origin":"appservice","secondtag":"custom"}'
+#
+#   # additional_profile_tags: {}
 {{ if .InternalProfiling }}
 #   # @param profiling - custom object - optional
 #   # Enter specific configurations for internal profiling.
@@ -3823,6 +3840,15 @@ api_key:
 #
 # kubernetes_collect_metadata_tags: true
 
+## @param auto_team_tag_collection - boolean - optional - default: true
+## @env DD_AUTO_TEAM_TAG_COLLECTION - boolean - optional - default: true
+## When enabled, the orchestrator check automatically collects the 'team' tag from Kubernetes resources.
+## If a resource has a label or annotation with key 'team', and no 'team' tag has been explicitly configured
+## via kubernetes_resources_labels_as_tags or kubernetes_resources_annotations_as_tags, the agent will
+## automatically add a 'team' tag with the value from the label (preferred) or annotation.
+#
+# auto_team_tag_collection: true
+
 ## @param kubernetes_metadata_tag_update_freq - integer - optional - default: 60
 ## @env DD_KUBERNETES_METADATA_TAG_UPDATE_FREQ - integer - optional - default: 60
 ## Set how often in secons the Agent refreshes the internal mapping of services to ContainerIDs.
@@ -4067,6 +4093,19 @@ api_key:
 #   # This field is used by NDM features (SNMP check, SNMP Traps listener, etc).
 #
 #   namespace: default
+
+#   # @param default_scan - custom object - optional
+#   # Configuration for automatic SNMP device scanning.
+#   # When enabled, discovered SNMP devices are automatically scanned.
+#
+#   # default_scan:
+#
+#     # @param enabled - boolean - optional - default: false
+#     # Enable automatic scanning of discovered SNMP devices.
+#     # When enabled, devices discovered via autodiscovery or configured
+#     # directly will be scanned to collect OID data.
+#
+#     # enabled: false
 
 #   # @param autodiscovery - custom object - optional
 #   # Creates and schedules a listener to automatically discover your SNMP devices.
@@ -4864,15 +4903,6 @@ api_key:
 #
 #       enabled: true
 
-#     # @param ignore_missing_datadog_fields - boolean - optional - default: false
-#     # @env DD_OTLP_CONFIG_IGNORE_MISSING_DATADOG_FIELDS - boolean - optional - default: false
-#     # IgnoreMissingDatadogFields specifies whether to recompute DD span fields if the corresponding "datadog."
-#     # namespaced span attributes are missing. If true (default), incoming "datadog." namespaced
-#     # OTLP span attributes are used to construct the DD span. If these attributes are missing, they are recomputed from the other
-#     # OTLP semantic convention attributes. If it is false, a field is populated only if its associated "datadog."
-#     # OTLP span attribute exists; otherwise, the field is left empty.
-#     ignore_missing_datadog_fields: false
-
 #   # @param logs - custom object - optional
 #   # Logs-specific configuration for OTLP ingest in the Datadog Agent.
 #
@@ -4922,143 +4952,4 @@ api_key:
 #     # Valid values are basic, normal, detailed, none.
 #
 #     verbosity: normal
-{{ end -}}
-{{- if .APMInjection -}}
-##############################################
-## Datadog APM Auto-injection Configuration ##
-##############################################
-
-## @param injection_controller_config - custom object
-## This section configures the Datadog APM Auto Injection controller.
-## Uncomment this parameter and the one below to enable them.
-#
-# injection_controller_config:
-
-#   # @param enabled - boolean - optional - default: false
-#   # Set to true to enable the APM Auto-injection.
-#   # Please note that enabling this service will result in a kernel driver being loaded.
-#
-#   enabled: false
-
-#   # @param log_file - string - optional - default: c:\programdata\datadog\logs\apm-inject.log
-#   # The full path to the file where injection controller logs are written.
-#
-#   log_file: c:\programdata\datadog\logs\apm-inject.log
-
-#   # @param log_level - string - optional - default: info
-#   # Minimum log level of the injection controller.
-#   # Valid log levels are: debug, info, warn, and error.
-#
-#   log_level: 'info'
-
-#   # @param log_to_console - boolean - optional - default: true
-#   # Set to 'false' to disable injection controller logging to stdout.
-#
-#   log_to_console: true
-
-#   # @param socket_port - integer - optional - default: 3030
-#   # The port used for the injection controller communications API (served on localhost).
-#
-#   socket_port: 3030
-
-#   internal_profiling:
-#
-#     # @param enabled - boolean - optional - default: false
-#     # Enable internal profiling for the injection controller process.
-#
-#     enabled: false
-
-## @param service_configs - list of custom objects
-## This section configures the services which will be automatically injected with APM
-## configurations, as well as the APM configurations which will be injected.
-#
-# service_configs:
-
-#   # @param service configuration - custom object
-#   # In order to configure APM auto-injection for a service or set of services, an injection condition
-#   # and APM configuration must be provided.
-#   #
-#   # Example:
-#   # - conditions:
-#   #     command_line_regex: executable_name.exe
-#   #   configuration:
-#   #     service_language: dotnet
-#   #     dd_env: staging
-#   #     dd_service: exampleService
-#   #     dd_version: 1.2.3
-#   #
-#   # To learn about all the available service matching conditions & configuration options, visit
-#   # https://docs.datadoghq.com/tracing/trace_collection/library_injection_local
-{{ end -}}
-{{- if .ApplicationMonitoring -}}
-###############################
-## Datadog APM Configuration ##
-###############################
-
-## @section APM Configuration Rules
-##
-## Enable and configure APM, profiling, and security monitoring features.
-##
-## Settings can be configured via environment variables or the application_monitoring.yaml file.
-## Configuration precedence (highest to lowest priority):
-##   1. Fleet-managed config file
-##      (etc/datadog-agent/managed/datadog-agent/stable/application_monitoring.yaml)
-##   2. Environment variables
-##   3. Local config file
-##      (etc/datadog-agent/application_monitoring.yaml)
-# apm_configuration_default:
-
-#   # @param DD_APM_TRACING_ENABLED - boolean - optional - default: true
-#   # Enable Datadog tracing.
-#   # Docs: https://docs.datadoghq.com/tracing/trace_collection/
-#   DD_APM_TRACING_ENABLED: true
-
-#   # @param DD_RUNTIME_METRICS_ENABLED - boolean - optional - default: false
-#   # Enable runtime metrics.
-#   # Docs: https://docs.datadoghq.com/tracing/metrics/runtime_metrics/?tab=java#environment-variables
-#   DD_RUNTIME_METRICS_ENABLED: false
-
-#   # @param DD_LOGS_INJECTION - boolean - optional - default: false
-#   # Enable automatic trace and span ID injection into logs.
-#   # Docs: https://docs.datadoghq.com/tracing/other_telemetry/connect_logs_and_traces/
-#   DD_LOGS_INJECTION: false
-
-#   # @param DD_PROFILING_ENABLED - boolean - optional - default: false
-#   # Enable continuous profiling.
-#   # Docs: https://docs.datadoghq.com/profiler/
-#   DD_PROFILING_ENABLED: false
-
-#   # @param DD_DATA_STREAMS_ENABLED - boolean - optional - default: false
-#   # Enable data streams monitoring.
-#   # Docs: https://docs.datadoghq.com/data_streams/
-#   DD_DATA_STREAMS_ENABLED: false
-
-#   # @param DD_APPSEC_ENABLED - boolean - optional - default: false
-#   # Enable the Application Security product.
-#   # Docs: https://docs.datadoghq.com/security/application_security/
-#   DD_APPSEC_ENABLED: false
-
-#   # @param DD_IAST_ENABLED - boolean - optional - default: false
-#   # Enable Interactive Application Security Testing (IAST).
-#   # Docs: https://docs.datadoghq.com/security/code_security/iast/setup/#amazon-ecs
-#   DD_IAST_ENABLED: false
-
-#   # @param DD_DYNAMIC_INSTRUMENTATION_ENABLED - boolean - optional - default: false
-#   # Enable Dynamic Instrumentation.
-#   # Docs: https://docs.datadoghq.com/dynamic_instrumentation/
-#   DD_DYNAMIC_INSTRUMENTATION_ENABLED: false
-
-#   # @param DD_DATA_JOBS_ENABLED - boolean - optional - default: false
-#   # Enable data jobs visibility.
-#   DD_DATA_JOBS_ENABLED: false
-
-#   # @param DD_APPSEC_SCA_ENABLED - boolean - optional - default: false
-#   # Enable Software Composition Analysis.
-#   # Docs: https://docs.datadoghq.com/security/code_security/software_composition_analysis/
-#   DD_APPSEC_SCA_ENABLED: false
-
-#   # @param DD_TRACE_DEBUG - boolean - optional - default: false
-#   # Enable debug logging for the tracer.
-#   # Docs: https://docs.datadoghq.com/tracing/troubleshooting/tracer_debug_logs
-#   DD_TRACE_DEBUG: false
 {{ end -}}

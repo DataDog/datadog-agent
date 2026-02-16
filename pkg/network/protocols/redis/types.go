@@ -21,6 +21,7 @@ var (
 	UnknownCommand = CommandType(C.REDIS_UNKNOWN)
 	GetCommand     = CommandType(C.REDIS_GET)
 	SetCommand     = CommandType(C.REDIS_SET)
+	PingCommand    = CommandType(C.REDIS_PING)
 	maxCommand     = CommandType(C.__MAX_REDIS_COMMAND)
 )
 

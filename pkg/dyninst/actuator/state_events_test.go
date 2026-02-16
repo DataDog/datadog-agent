@@ -75,6 +75,19 @@ func TestEventStringer(t *testing.T) {
 			ev:      eventShutdown{},
 			wantStr: "eventShutdown{}",
 		},
+		{
+			ev: eventMissingTypesReported{
+				processID: ProcessID{PID: 100},
+				typeNames: []string{"Foo", "Bar"},
+			},
+			wantStr: "eventMissingTypesReported{processID: {PID:100}, typeNames: 2}",
+		},
+		{
+			ev: eventRuntimeStatsUpdated{
+				programID: 1,
+			},
+			wantStr: "eventRuntimeStatsUpdated{programID: 1}",
+		},
 	}
 
 	for _, tc := range testCases {

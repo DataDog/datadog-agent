@@ -8,6 +8,7 @@
 package metrics
 
 import (
+	"fmt"
 	"slices"
 	"testing"
 
@@ -26,15 +27,18 @@ func TestPayloadsBuilderV3(t *testing.T) {
 	tags := tagset.NewCompositeTags([]string{"foo", "bar"}, []string{"ook", "eek"})
 	series := metrics.Series{
 		&metrics.Serie{
-			Name:    "serie1",
-			NoIndex: true,
-			Points:  []metrics.Point{{Ts: ts, Value: 0}}},
-
+			Name:     "serie1",
+			NoIndex:  true,
+			Points:   []metrics.Point{{Ts: ts, Value: 0}},
+			Interval: 10,
+		},
 		&metrics.Serie{
-			Name:    "serie2",
-			NoIndex: false,
-			Tags:    tags,
-			Points:  []metrics.Point{{Ts: ts, Value: 2}}},
+			Name:     "serie2",
+			NoIndex:  false,
+			Tags:     tags,
+			Points:   []metrics.Point{{Ts: ts, Value: 2}},
+			Interval: 10,
+		},
 		&metrics.Serie{
 			Name:           "serie3",
 			NoIndex:        false,
@@ -42,8 +46,9 @@ func TestPayloadsBuilderV3(t *testing.T) {
 			Host:           "test.example",
 			SourceTypeName: "stn",
 			Source:         metrics.MetricSourceDogstatsd,
-			Points:         []metrics.Point{{Ts: ts, Value: 3}}},
-
+			Points:         []metrics.Point{{Ts: ts, Value: 3}},
+			Interval:       0,
+		},
 		&metrics.Serie{
 			Name:           "serie4",
 			NoIndex:        true,
@@ -51,7 +56,9 @@ func TestPayloadsBuilderV3(t *testing.T) {
 			Device:         "switch1",
 			SourceTypeName: "stn",
 			Source:         metrics.MetricSourceCassandra,
-			Points:         []metrics.Point{{Ts: ts, Value: 3.14}}},
+			Points:         []metrics.Point{{Ts: ts, Value: 3.14}},
+			Interval:       0,
+		},
 	}
 
 	pipelineConfig := PipelineConfig{
@@ -67,6 +74,12 @@ func TestPayloadsBuilderV3(t *testing.T) {
 		err := pb.writeSerie(s)
 		r.NoError(err)
 	}
+
+	r.Equal(uint64(1), pb.stats.valuesZero)
+	r.Equal(uint64(2), pb.stats.valuesSint64)
+	r.Equal(uint64(0), pb.stats.valuesFloat32)
+	r.Equal(uint64(1), pb.stats.valuesFloat64)
+
 	pb.finishPayload()
 	ps := pipelineContext.payloads
 	r.Len(ps, 1)
@@ -120,7 +133,7 @@ func TestPayloadsBuilderV3(t *testing.T) {
 		11<<3 | 2, 4, 2, 2, 2, 2,
 		12<<3 | 2, 4, 0, 4, 0, 3,
 		13<<3 | 2, 4, 0, 0, 2, 2,
-		14<<3 | 2, 4, 0, 0, 0, 0,
+		14<<3 | 2, 4, 10, 10, 0, 0,
 		15<<3 | 2, 4, 1, 1, 1, 1,
 		16<<3 | 2, 1, 8, 0xc2, 0xb8, 0xad, 0x8b, 0xd, 0, 0, 0,
 		17<<3 | 2, 1, 2, 4, 6,
@@ -393,6 +406,11 @@ func TestPayloadsBuilderV3_Sketch(t *testing.T) {
 	for _, sk := range sketches {
 		r.NoError(pb.writeSketch(sk))
 	}
+	r.Equal(uint64(3), pb.stats.valuesZero)
+	r.Equal(uint64(7), pb.stats.valuesSint64)
+	r.Equal(uint64(3), pb.stats.valuesFloat32)
+	r.Equal(uint64(3), pb.stats.valuesFloat64)
+
 	r.NoError(pb.finishPayload())
 	r.NotEmpty(pipelineContext.payloads)
 
@@ -487,4 +505,50 @@ func pointsOf(ts int64, v ...float64) []metrics.SketchPoint {
 	s := &quantile.Sketch{}
 	s.InsertMany(quantile.Default(), v)
 	return []metrics.SketchPoint{{Ts: ts, Sketch: s}}
+}
+
+func TestValueEncoding(t *testing.T) {
+	values := []float64{
+		// cases for zero
+		0,
+		-0,
+		// cases for int24
+		-1,
+		1,
+		float64(-1 << 24),
+		float64(1 << 24),
+		// cases for int48
+		float64(-1<<24 - 1),
+		float64(1<<24 + 1),
+		float64(-1 << 48),
+		float64(1<<48 - 1),
+		// cases for float32
+		-0.5,
+		0.5,
+		// cases for float64
+		float64(-1<<48 - 1),
+		float64(1 << 48),
+		-3.14,
+		3.14,
+	}
+
+	for _, value1 := range values {
+		for _, value2 := range values {
+			ty := pointKindZero.unionOf(value1).unionOf(value2).toValueType()
+			fmt.Printf("v1=%v, v2=%v, type=%x\n", value1, value2, ty)
+			switch ty {
+			case valueZero:
+				require.Equal(t, value1, 0.0)
+				require.Equal(t, value2, 0.0)
+			case valueSint64:
+				require.Equal(t, value1, float64(int64(value1)))
+				require.Equal(t, value2, float64(int64(value2)))
+			case valueFloat32:
+				require.Equal(t, value1, float64(float32(value1)))
+				require.Equal(t, value2, float64(float32(value2)))
+			case valueFloat64:
+				// no conversion
+			}
+		}
+	}
 }

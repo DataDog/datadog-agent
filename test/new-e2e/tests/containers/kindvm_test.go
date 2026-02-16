@@ -23,6 +23,13 @@ type kindSuite struct {
 }
 
 func TestKindSuite(t *testing.T) {
+	helmValues := `
+datadog:
+    logLevel: DEBUG
+clusterAgent:
+    envDict:
+        DD_CLUSTER_AGENT_LANGUAGE_DETECTION_PATCHER_BASE_BACKOFF: "10s"
+`
 	e2e.Run(t, &kindSuite{}, e2e.WithProvisioner(provkind.Provisioner(
 		provkind.WithRunOptions(
 			scenkind.WithVMOptions(
@@ -36,6 +43,7 @@ func TestKindSuite(t *testing.T) {
 			scenkind.WithDeployTestWorkload(),
 			scenkind.WithAgentOptions(
 				kubernetesagentparams.WithDualShipping(),
+				kubernetesagentparams.WithHelmValues(helmValues),
 			),
 			scenkind.WithDeployArgoRollout(),
 		),

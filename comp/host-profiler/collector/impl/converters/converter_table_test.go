@@ -9,13 +9,59 @@ package converters
 
 import (
 	"context"
+	"flag"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
+	"gopkg.in/yaml.v3"
 )
+
+var updateGolden = flag.Bool("update", false, "update golden test files")
+
+// mockConfig is a minimal mock of config.Component for testing
+type mockConfig struct {
+	config.Component
+	values map[string]interface{}
+}
+
+func newMockConfig() *mockConfig {
+	return &mockConfig{
+		values: map[string]interface{}{
+			"site":    "datadoghq.com",
+			"api_key": "test_api_key_123",
+		},
+	}
+}
+
+func (m *mockConfig) GetString(key string) string {
+	if val, ok := m.values[key]; ok {
+		if s, ok := val.(string); ok {
+			return s
+		}
+	}
+	return ""
+}
+
+func (m *mockConfig) GetStringMapStringSlice(key string) map[string][]string {
+	if val, ok := m.values[key]; ok {
+		if m, ok := val.(map[string][]string); ok {
+			return m
+		}
+	}
+	return map[string][]string{}
+}
+
+const testVersion = "7.0.0-test"
+
+func init() {
+	// Override version for tests to ensure golden files are version-independent
+	version.ProfilerVersion = testVersion
+}
 
 // converter is an interface that both converterWithAgent and converterWithoutAgent implement
 type converter interface {
@@ -54,6 +100,17 @@ func runSuccessTests(t *testing.T, conv converter, tests []testCase) {
 			// Run converter
 			err = conv.Convert(context.Background(), conf)
 			require.NoError(t, err, "converter failed for: %s", tc.provided)
+
+			// Update golden files if -update flag is set
+			if *updateGolden {
+				expectedPath := filepath.Join("td", tc.expected)
+				actualYAML, err := yaml.Marshal(conf.ToStringMap())
+				require.NoError(t, err, "failed to marshal output to YAML: %s", tc.provided)
+				err = os.WriteFile(expectedPath, actualYAML, 0644)
+				require.NoError(t, err, "failed to write golden file: %s", expectedPath)
+				t.Logf("Updated golden file: %s", expectedPath)
+				return
+			}
 
 			// Load expected output
 			expectedPath := filepath.Join("td", tc.expected)
@@ -234,9 +291,91 @@ func TestConverterWithAgent(t *testing.T) {
 			provided: "agent/global-procs-notmap/in.yaml",
 			expected: "agent/global-procs-notmap/out.yaml",
 		},
+		{
+			name:     "infers-otlphttp-when-missing",
+			provided: "agent/error-no-otlp/in.yaml",
+			expected: "agent/error-no-otlp/out.yaml",
+		},
+		{
+			name:     "infers-otlphttp-in-empty-pipeline",
+			provided: "agent/empty-pipeline/in.yaml",
+			expected: "agent/empty-pipeline/out.yaml",
+		},
+		{
+			name:     "infers-symbol-endpoints-when-empty",
+			provided: "agent/symbol-up-empty-ep/in.yaml",
+			expected: "agent/symbol-up-empty-ep/out.yaml",
+		},
+		{
+			name:     "does-not-infer-when-endpoints-present",
+			provided: "agent/symbol-ep-no-inference/in.yaml",
+			expected: "agent/symbol-ep-no-inference/out.yaml",
+		},
 	}
 
-	runSuccessTests(t, &converterWithAgent{}, tests)
+	mockCfg := newMockConfig()
+	conv := newConverterWithAgent(confmap.ConverterSettings{}, mockCfg)
+	runSuccessTests(t, conv, tests)
+}
+
+func TestConverterWithAgentDCSite(t *testing.T) {
+	tests := []testCase{
+		{
+			name:     "infers-dc-site-from-profiling-url",
+			provided: "agent/infer-dc-from-url/in.yaml",
+			expected: "agent/infer-dc-from-url/out.yaml",
+		},
+		{
+			name:     "infers-dc-site-from-additional-endpoints",
+			provided: "agent/infer-dc-from-additional-ep/in.yaml",
+			expected: "agent/infer-dc-from-additional-ep/out.yaml",
+		},
+	}
+
+	t.Run("profiling_dd_url", func(t *testing.T) {
+		mockCfg := &mockConfig{
+			values: map[string]interface{}{
+				"apm_config.profiling_dd_url": "https://intake.profile.us3.datadoghq.com/v1/input",
+				"api_key":                     "test_api_key_123",
+			},
+		}
+		conv := newConverterWithAgent(confmap.ConverterSettings{}, mockCfg)
+		runSuccessTests(t, conv, tests[:1])
+	})
+
+	t.Run("duplicate_site_exporters", func(t *testing.T) {
+		mockCfg := &mockConfig{
+			values: map[string]interface{}{
+				"site":    "datadoghq.com",
+				"api_key": "main_api_key",
+				"apm_config.profiling_additional_endpoints": map[string][]string{
+					"https://intake.profile.datadoghq.com/v1/input": {"additional_api_key"},
+				},
+			},
+		}
+		conv := newConverterWithAgent(confmap.ConverterSettings{}, mockCfg)
+		runSuccessTests(t, conv, []testCase{
+			{
+				name:     "unique-exporter-names-for-same-site",
+				provided: "agent/duplicate-site-exporters/in.yaml",
+				expected: "agent/duplicate-site-exporters/out.yaml",
+			},
+		})
+	})
+
+	t.Run("additional_endpoints", func(t *testing.T) {
+		mockCfg := &mockConfig{
+			values: map[string]interface{}{
+				"site":    "datadoghq.com",
+				"api_key": "test_api_key_123",
+				"apm_config.profiling_additional_endpoints": map[string][]string{
+					"https://intake.profile.us3.datadoghq.com/v1/input": {"us3_api_key"},
+				},
+			},
+		}
+		conv := newConverterWithAgent(confmap.ConverterSettings{}, mockCfg)
+		runSuccessTests(t, conv, tests[1:])
+	})
 }
 
 func TestConverterWithAgentErrors(t *testing.T) {
@@ -247,33 +386,30 @@ func TestConverterWithAgentErrors(t *testing.T) {
 			expectedError: "receiver name must be a string",
 		},
 		{
-			name:          "symbol-endpoints-wrong-type",
-			provided:      "agent/symbol-ep-wrongtype/in.yaml",
-			expectedError: "symbol_endpoints must be a list",
-		},
-		{
-			name:          "errors-when-no-otlphttp",
-			provided:      "agent/error-no-otlp/in.yaml",
-			expectedError: "no otlphttp exporter configured",
-		},
-		{
-			name:          "symbol-uploader-empty-endpoints",
-			provided:      "agent/symbol-up-empty-ep/in.yaml",
-			expectedError: "symbol_endpoints cannot be empty",
-		},
-		{
-			name:          "empty-pipeline",
-			provided:      "agent/empty-pipeline/in.yaml",
-			expectedError: "no otlphttp exporter configured",
-		},
-		{
 			name:          "non-string-processor-name-in-pipeline",
 			provided:      "agent/nonstr-proc-pipeline/in.yaml",
 			expectedError: "processor name must be a string",
 		},
+		{
+			name:          "reserved-processor-already-exists",
+			provided:      "agent/reserved-proc-exists/in.yaml",
+			expectedError: "reserved resource processor name",
+		},
+		{
+			name:          "reserved-processor-in-pipeline-not-defined",
+			provided:      "agent/reserved-proc-in-pipeline/in.yaml",
+			expectedError: "reserved resource processor name",
+		},
+		{
+			name:          "reserved-processor-empty",
+			provided:      "agent/reserved-proc-empty/in.yaml",
+			expectedError: "reserved resource processor name",
+		},
 	}
 
-	runErrorTests(t, &converterWithAgent{}, tests)
+	mockCfg := newMockConfig()
+	conv := newConverterWithAgent(confmap.ConverterSettings{}, mockCfg)
+	runErrorTests(t, conv, tests)
 }
 
 func TestConverterWithoutAgent(t *testing.T) {
@@ -419,6 +555,21 @@ func TestConverterWithoutAgentErrors(t *testing.T) {
 			name:          "converter-error-propagation-from-ensure",
 			provided:      "no_agent/conv-err-from-ensure/in.yaml",
 			expectedError: "path element \"pipelines\" is not a map",
+		},
+		{
+			name:          "reserved-processor-already-exists",
+			provided:      "no_agent/reserved-proc-exists/in.yaml",
+			expectedError: "reserved resource processor name",
+		},
+		{
+			name:          "reserved-processor-in-pipeline-not-defined",
+			provided:      "no_agent/reserved-proc-in-pipeline/in.yaml",
+			expectedError: "reserved resource processor name",
+		},
+		{
+			name:          "reserved-processor-empty",
+			provided:      "no_agent/reserved-proc-empty/in.yaml",
+			expectedError: "reserved resource processor name",
 		},
 	}
 

@@ -10,10 +10,17 @@
 package imageresolver
 
 import (
+	"crypto/sha256"
+	"encoding/binary"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+)
+
+const (
+	rolloutBucketCount = 10 // Max number of buckets for gradual rollout
 )
 
 // RemoteConfigClient defines the interface we need for remote config operations
@@ -29,9 +36,18 @@ type Config struct {
 	RCClient       RemoteConfigClient
 	MaxInitRetries int
 	InitRetryDelay time.Duration
+	BucketID       string
+	DigestCacheTTL time.Duration
+	Enabled        bool
 }
 
-// NewConfig creates a new Config
+func calculateRolloutBucket(apiKey string) string {
+	// DEV: If the API key is empty for whatever reason, resolves to bucket 2
+	hash := sha256.Sum256([]byte(apiKey))
+	hashInt := binary.BigEndian.Uint64(hash[:8])
+	return strconv.Itoa(int(hashInt % rolloutBucketCount))
+}
+
 func NewConfig(cfg config.Component, rcClient RemoteConfigClient) Config {
 	return Config{
 		Site:           cfg.GetString("site"),
@@ -39,5 +55,8 @@ func NewConfig(cfg config.Component, rcClient RemoteConfigClient) Config {
 		RCClient:       rcClient,
 		MaxInitRetries: 5,
 		InitRetryDelay: 1 * time.Second,
+		BucketID:       calculateRolloutBucket(cfg.GetString("api_key")),
+		DigestCacheTTL: cfg.GetDuration("admission_controller.auto_instrumentation.gradual_rollout.cache_ttl"),
+		Enabled:        cfg.GetBool("admission_controller.auto_instrumentation.gradual_rollout.enabled"),
 	}
 }

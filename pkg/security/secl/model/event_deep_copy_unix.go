@@ -78,6 +78,9 @@ func (e *Event) DeepCopy() *Event {
 	copied.UnshareMountNS = deepCopyUnshareMountNSEvent(e.UnshareMountNS)
 	copied.Utimes = deepCopyUtimesEvent(e.Utimes)
 	copied.VethPair = deepCopyVethPairEvent(e.VethPair)
+	// FieldHandlers is an interface that must be copied by reference (not deep copied)
+	// It provides access to shared resolvers needed for field resolution
+	copied.FieldHandlers = e.FieldHandlers
 	return copied
 }
 func deepCopyAcceptEvent(fieldToCopy AcceptEvent) AcceptEvent {
@@ -183,6 +186,7 @@ func deepCopyPIDContext(fieldToCopy PIDContext) PIDContext {
 	copied := PIDContext{}
 	copied.ExecInode = fieldToCopy.ExecInode
 	copied.IsKworker = fieldToCopy.IsKworker
+	copied.MntNS = fieldToCopy.MntNS
 	copied.NSID = fieldToCopy.NSID
 	copied.NetNS = fieldToCopy.NetNS
 	copied.Pid = fieldToCopy.Pid
@@ -852,6 +856,7 @@ func deepCopyMount(fieldToCopy Mount) Mount {
 func deepCopyMountReleasedEvent(fieldToCopy MountReleasedEvent) MountReleasedEvent {
 	copied := MountReleasedEvent{}
 	copied.MountID = fieldToCopy.MountID
+	copied.MountIDUnique = fieldToCopy.MountIDUnique
 	return copied
 }
 func deepCopyNetDeviceEvent(fieldToCopy NetDeviceEvent) NetDeviceEvent {

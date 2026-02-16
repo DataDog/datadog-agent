@@ -737,3 +737,84 @@ func (suite *FilteringTestSuite) TestSpecificImageNameFiltering() {
 func TestSummaryFilteringSuite(t *testing.T) {
 	suite.Run(t, new(FilteringTestSuite))
 }
+
+// TestStaticPodUIDMismatchFallback tests that static pods are correctly handled
+// when kubelet_use_api_server is enabled. In this case, workloadmeta stores pods
+// with canonical UUIDs (from API server) but /stats/summary returns mirror hash UIDs
+// (from kubelet). The provider should fall back to name/namespace lookup.
+func TestStaticPodUIDMismatchFallback(t *testing.T) {
+	// Canonical UUID (from API server, stored in workloadmeta)
+	canonicalUID := "85a6cc02-4460-4f8a-b5f0-123456789abc"
+
+	// Setup mock config with kubelet_use_api_server=true
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("kubelet_use_api_server", true)
+
+	// Setup tagger with canonical UUID
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	entityID := taggertypes.NewEntityID(taggertypes.KubernetesPodUID, canonicalUID)
+	fakeTagger.SetTags(entityID, "foo", []string{"app:kube-apiserver", "kube_namespace:kube-system"}, nil, nil, nil)
+
+	// Setup workloadmeta store with pod using canonical UUID
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() configcomp.Component { return configcomp.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	staticPod := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   canonicalUID,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "kube-apiserver-test-node",
+			Namespace: "kube-system",
+		},
+		Containers: []workloadmeta.OrchestratorContainer{
+			{
+				ID:   "apiserver-container-01",
+				Name: "kube-apiserver",
+			},
+		},
+		Phase: "Running",
+	}
+	store.Set(staticPod)
+
+	// Setup kubelet mock with summary containing mirror hash UID (from testdata file)
+	kubeletMock := kubeletmock.NewKubeletMock()
+	filePath := "../../testdata/summary_static_pod.json"
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("unable to read test file at: %s, err: %v", filePath, err)
+	}
+	kubeletMock.MockReplies["/stats/summary"] = &kubeletmock.HTTPReplyMock{
+		Data:         content,
+		ResponseCode: 200,
+		Error:        nil,
+	}
+
+	// Setup sender
+	mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
+	mockSender.SetupAcceptAll()
+
+	// Create provider
+	mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
+	config := &common.KubeletConfig{
+		OpenmetricsInstance: types.OpenmetricsInstance{
+			Tags: []string{"instance_tag:test"},
+		},
+	}
+	provider := NewProvider(mockFilterStore, config, store, fakeTagger)
+
+	// Run provider
+	err = provider.Provide(kubeletMock, mockSender)
+	assert.NoError(t, err)
+
+	// Verify metrics were collected for the static pod (fallback worked)
+	// The tags should come from tagger using canonical UUID
+	mockSender.AssertMetricTaggedWith(t, "Gauge",
+		common.KubeletMetricsPrefix+"ephemeral_storage.usage",
+		[]string{"app:kube-apiserver"})
+}

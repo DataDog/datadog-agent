@@ -4,12 +4,12 @@
 # Copyright 2016-present Datadog, Inc.
 
 name 'openscap'
-default_version '1.4.2'
+default_version '1.4.3'
 
 license "LGPL-3.0-or-later"
 license_file "COPYING"
 
-version("1.4.2") { source sha256: "1d5309fadd9569190289d7296016dc534594f7f7d4fd870fe9e847e24940073d" }
+version("1.4.3") { source sha256: "96ebe697aafc83eb297a8f29596d57319278112467c46e6aaf3649b311cf8fba" }
 
 ship_source_offer true
 
@@ -40,11 +40,28 @@ build do
     " #{install_dir}/embedded/lib/pkgconfig/libsepol.pc" \
     " #{install_dir}/embedded/lib/libsepol.so"
 
+  command_on_repo_root "bazelisk run -- @libyaml//:install --destdir='#{install_dir}/embedded'"
+  sh_lib = if linux_target? then "libyaml.so" else "libyaml.dylib" end
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded' " \
+    "#{install_dir}/embedded/lib/pkgconfig/yaml-0.1.pc " \
+    "#{install_dir}/embedded/lib/#{sh_lib}"
+
   command_on_repo_root "bazelisk run -- @pcre2//:install --destdir=#{install_dir}/embedded"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix " \
     "--prefix #{install_dir}/embedded " \
     "#{install_dir}/embedded/lib/pkgconfig/libpcre2*.pc " \
     "#{install_dir}/embedded/lib/libpcre2*.so"
+
+  command_on_repo_root "bazelisk run -- @popt//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/popt.pc" \
+    " #{install_dir}/embedded/lib/libpopt.so"
+
+  command_on_repo_root "bazelisk run -- @rpm//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/rpm.pc" \
+    " #{install_dir}/embedded/lib/librpm.so" \
+    " #{install_dir}/embedded/lib/librpmio.so"
 
   command_on_repo_root "bazelisk run -- @util-linux//:blkid_install --destdir='#{install_dir}/embedded'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
@@ -56,9 +73,6 @@ dependency 'bzip2'
 dependency 'curl'
 dependency 'libgcrypt'
 dependency 'libxslt'
-dependency 'libyaml'
-dependency 'popt'
-dependency 'rpm'
 dependency 'xmlsec'
 
 relative_path "openscap-#{version}"
@@ -74,6 +88,7 @@ build do
   patch source: "oval_probe_session_reset.patch", env: env # use oval_probe_session_reset instead of oval_probe_session_reinit
   patch source: "sysctl-probe-offline-skip.patch", env: env # skip sysctl probe in offline mode
   patch source: "probes-no-procfs.patch", env: env # handle systems with no procfs available
+  patch source: "dpkginfo-virtual-packages-revert.patch", env: env # revert handling of virtual packages in dpkginfo probe
 
   patch source: "oscap-io.patch", env: env # add new oscap-io tool
 
