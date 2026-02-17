@@ -211,6 +211,13 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 		return
 	}
 
+	// convert the value to the type of the default
+	if declaredNode.IsLeafNode() {
+		if converted, err := convertToDefaultType(newValue, declaredNode.Get()); err == nil {
+			newValue = converted
+		}
+	}
+
 	// convert the key to lower case for the logs line and the notification
 	key = strings.ToLower(key)
 
