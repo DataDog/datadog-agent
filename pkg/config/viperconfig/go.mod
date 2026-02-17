@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/config/viperconfig
 go 1.24.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/config/model v0.62.2
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel
 	github.com/DataDog/viper v1.15.0
