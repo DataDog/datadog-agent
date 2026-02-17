@@ -500,7 +500,11 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 func (c *Check) collectDiskMetrics(sender sender.Sender) {
 	iomap, err := c.diskIOCounters()
 	if err != nil {
-		log.Warnf("Unable to get disk iocounters: %s", err)
+		if isExpectedIOCounterError(err) {
+			log.Debugf("IO counter collection not supported on this system: %s", err)
+		} else {
+			log.Warnf("Unable to get disk IO counters: %s", err)
+		}
 		return
 	}
 	for deviceName, ioCounters := range iomap {

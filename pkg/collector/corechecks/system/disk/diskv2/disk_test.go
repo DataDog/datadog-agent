@@ -312,7 +312,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndIOCountersSystemCallRe
 	m.AssertNotCalled(t, "Rate", "system.disk.write_time_pct", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
 
 	w.Flush()
-	assert.Contains(t, b.String(), "Unable to get disk iocounters: error calling diskIOCounters")
+	assert.Contains(t, b.String(), "Unable to get disk IO counters: error calling diskIOCounters")
 }
 
 func TestGivenADiskCheckWithFileSystemGlobalBlackListConfigured_WhenCheckIsConfigured_ThenWarningMessagedIsLogged(t *testing.T) {

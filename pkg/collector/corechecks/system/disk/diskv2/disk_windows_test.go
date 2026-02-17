@@ -18,6 +18,7 @@ import (
 	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -787,11 +788,11 @@ func TestGivenADiskCheckWithDefaultConfig_WhenPartitionHasEmptyFstype_ThenPartit
 	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
 }
 
-func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndIOCountersSystemCallReturnsError_ThenPartitionMetricsAreStillCommitted(t *testing.T) {
+func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndIOCountersReturnsErrorInvalidFunction_ThenPartitionMetricsAreStillCommitted(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createWindowsCheck(t)
 	diskCheck = diskv2.WithDiskIOCounters(diskCheck, func(...string) (map[string]gopsutil_disk.IOCountersStat, error) {
-		return nil, errors.New("incorrect function")
+		return nil, windows.ERROR_INVALID_FUNCTION
 	})
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
@@ -799,7 +800,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndIOCountersSystemCallRe
 	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 	err := diskCheck.Run()
 
-	// Check should succeed — partition metrics must be committed despite IOCounters failure
+	// ERROR_INVALID_FUNCTION is expected on systems where disk perf counters are disabled
 	assert.Nil(t, err)
 	// Partition/usage metrics should still be reported
 	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
