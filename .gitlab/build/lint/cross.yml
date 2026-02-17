@@ -20,7 +20,7 @@
   - apt-get update && apt-get install -y --no-install-recommends clang cmake libxml2-dev libssl-dev liblzma-dev libbz2-dev zlib1g-dev patch xz-utils g++
   - git clone --depth 1 https://github.com/tpoechtrager/osxcross.git /tmp/osxcross
   - curl -Lo /tmp/osxcross/tarballs/MacOSX14.0.sdk.tar.xz https://github.com/joseluisq/macosx-sdks/releases/download/14.0/MacOSX14.0.sdk.tar.xz
-  - cd /tmp/osxcross && UNATTENDED=1 TARGET_DIR=/opt/osxcross ./build.sh
+  - cd /tmp/osxcross && UNATTENDED=1 TARGET_DIR=/opt/osxcross ./build.sh && cd -
   - export PATH="/opt/osxcross/bin:$PATH"
 
 lint_cross_windows-x64:
