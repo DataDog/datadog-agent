@@ -42,9 +42,19 @@ Use `AskUserQuestion` to collect the following. If `$ARGUMENTS` provides the set
    - System Probe (`cmd/system-probe/subcommands/run/command.go`)
    - DogStatsD (`cmd/dogstatsd/subcommands/start/command.go`)
 
-### Step 2: Create the RuntimeSetting implementation file
+### Step 2: Read reference examples from the codebase
 
-Based on the collected information, create the implementation file.
+Before writing any code, read the appropriate reference files to follow existing patterns exactly.
+
+1. **Read the interface** defined in `comp/core/settings/component.go` to understand the `RuntimeSetting` methods.
+
+2. **Read an existing implementation** matching the chosen value type. Use `Glob` with pattern `pkg/config/settings/runtime_setting_*.go` to list available examples, then read one that matches the desired type (boolean, integer, string, etc.).
+
+3. **Read the test file** alongside the chosen reference to see the test pattern.
+
+4. **Read a registration site**: Look at one of the `command.go` files listed in Step 1.7 to see how settings are added to the `Settings` map.
+
+### Step 3: Create the RuntimeSetting implementation file
 
 **File naming convention**: `runtime_setting_<feature_name>.go`
 
@@ -52,156 +62,34 @@ Based on the collected information, create the implementation file.
 - Shared: `pkg/config/settings/runtime_setting_<feature>.go`
 - Agent-specific: `cmd/agent/subcommands/run/internal/settings/runtime_setting_<feature>.go`
 
-Use this template, adapting it based on the value type:
+Create the implementation following the patterns from the reference file read in Step 2. Every RuntimeSetting needs:
 
-```go
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+1. **Struct** with a `ConfigKey string` field
+2. **Constructor** `New<Name>RuntimeSetting()` that sets the config key
+3. **`Description()`** — returns the human-readable description
+4. **`Hidden()`** — returns whether hidden from list-runtime
+5. **`Name()`** — returns the config key
+6. **`Get(config)`** — reads the current value using the appropriate typed getter
+7. **`Set(config, v, source)`** — validates/converts the input value, then calls `config.Set()`
 
-package settings
+**Type conversion in Set()**: for Boolean and Integer types, use the `GetBool(v)` / `GetInt(v)` helper functions from `pkg/config/settings` — these handle string-to-type conversion. For agent-specific settings, import the helpers via `settings "github.com/DataDog/datadog-agent/pkg/config/settings"`.
 
-import (
-	"fmt"
-
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
-)
-
-// <StructName>RuntimeSetting wraps operations to change <description> at runtime.
-type <StructName>RuntimeSetting struct {
-	ConfigKey string
-}
-
-// New<StructName>RuntimeSetting returns a new <StructName>RuntimeSetting
-func New<StructName>RuntimeSetting() *<StructName>RuntimeSetting {
-	return &<StructName>RuntimeSetting{ConfigKey: "<config_key>"}
-}
-
-// Description returns the runtime setting's description
-func (s *<StructName>RuntimeSetting) Description() string {
-	return "<description>"
-}
-
-// Hidden returns whether this setting is hidden from the list of runtime settings
-func (s *<StructName>RuntimeSetting) Hidden() bool {
-	return <true|false>
-}
-
-// Name returns the name of the runtime setting
-func (s *<StructName>RuntimeSetting) Name() string {
-	return s.ConfigKey
-}
-
-// Get returns the current value of the runtime setting
-func (s *<StructName>RuntimeSetting) Get(config config.Component) (interface{}, error) {
-	return config.Get<Type>(s.ConfigKey), nil
-}
-
-// Set changes the value of the runtime setting
-func (s *<StructName>RuntimeSetting) Set(config config.Component, v interface{}, source model.Source) error {
-	var newValue <type>
-	var err error
-
-	if newValue, err = Get<Type>(v); err != nil {
-		return fmt.Errorf("<StructName>RuntimeSetting: %v", err)
-	}
-
-	config.Set(s.ConfigKey, newValue, source)
-	return nil
-}
-```
-
-**Type-specific patterns for Set/Get**:
-
-- **Boolean**: Use `GetBool(v)` helper from `pkg/config/settings`, `config.GetBool(key)` for Get
-- **Integer**: Use `GetInt(v)` helper from `pkg/config/settings`, `config.GetInt(key)` for Get
-- **String**: Use type assertion `v.(string)`, `config.GetString(key)` for Get
-- **String slice**: Use `config.GetStringSlice(key)` for Get
-
-For **agent-specific** settings, the import path for the helper functions changes:
-```go
-import (
-    settings "github.com/DataDog/datadog-agent/pkg/config/settings"
-)
-// Then use: settings.GetBool(v), settings.GetInt(v)
-```
-
-### Step 3: Create a unit test file
+### Step 4: Create a unit test file
 
 Create a test file alongside the implementation: `runtime_setting_<feature>_test.go`
 
-The test should verify:
+Follow the test patterns from the reference test file read in Step 2. The test should verify:
+- `Name()`, `Description()`, `Hidden()` return expected values
 - `Get` returns the correct value from config
 - `Set` with a valid value updates the config
-- `Set` with a string representation works (e.g. "true"/"false" for bools, string numbers for ints)
+- `Set` with a string representation works (e.g. `"true"`/`"false"` for bools)
 - `Set` with an invalid value returns an error
-- `Description()` returns the expected string
-- `Hidden()` returns the expected value
-- `Name()` returns the expected name
 
-For shared settings (in `pkg/config/settings/`), use this simpler test pattern with `configmock`:
+### Step 5: Register the setting
 
-```go
-package settings
+Find the `settings.Params` provider in the appropriate `command.go` file(s) for each selected service (from Step 1.7). Add the new setting to the `Settings` map following the existing pattern in that file. The import alias convention and registration format are visible in the existing entries.
 
-import (
-	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/comp/core"
-)
-
-func Test<StructName>RuntimeSetting(t *testing.T) {
-	config := fxutil.Test[config.Component](t, core.MockBundle())
-	s := New<StructName>RuntimeSetting()
-
-	// Test metadata
-	assert.Equal(t, "<config_key>", s.Name())
-	assert.Equal(t, "<description>", s.Description())
-	assert.Equal(t, <true|false>, s.Hidden())
-
-	// Test Set and Get
-	err := s.Set(config, <valid_value>, model.SourceCLI)
-	require.NoError(t, err)
-	v, err := s.Get(config)
-	require.NoError(t, err)
-	assert.Equal(t, <expected_value>, v)
-
-	// Test Set with string representation
-	err = s.Set(config, "<string_value>", model.SourceCLI)
-	require.NoError(t, err)
-	v, err = s.Get(config)
-	require.NoError(t, err)
-	assert.Equal(t, <expected_value>, v)
-}
-```
-
-### Step 4: Register the setting
-
-Find the `settings.Params` provider in the appropriate `command.go` file(s) for each selected service. Add the new setting to the `Settings` map:
-
-```go
-"<setting_name>": commonsettings.New<StructName>RuntimeSetting(),
-```
-
-For shared settings, the import alias is typically `commonsettings`:
-```go
-commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
-```
-
-For agent-specific settings, the import alias is typically `internalsettings`:
-```go
-internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
-```
-
-### Step 5: Verify
+### Step 6: Verify
 
 1. Run the new test:
    ```bash
