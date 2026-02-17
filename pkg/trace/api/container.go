@@ -31,9 +31,8 @@ func connContext(ctx context.Context, c net.Conn) context.Context {
 	default:
 		if runtime.GOOS == "windows" {
 			return withConnectionType(ctx, ConnectionTypePipe)
-		} else {
-			return withConnectionType(ctx, ConnectionTypeUnknown)
 		}
+		return withConnectionType(ctx, ConnectionTypeUnknown)
 	}
 }
 
