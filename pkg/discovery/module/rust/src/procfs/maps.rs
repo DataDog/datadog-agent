@@ -4,7 +4,7 @@
 // Copyright 2025-present Datadog, Inc.
 
 use std::fs::File;
-use std::io::{BufReader, Read, Take};
+use std::io::{BufRead, BufReader, Read, Take};
 
 use super::root_path;
 
@@ -28,15 +28,16 @@ const GPU_LIBS: &[&[u8]] = &[
 ];
 
 /// Internal function to check for GPU libraries given a reader
-fn check_for_gpu_libraries<R: Read>(mut reader: R) -> bool {
-    let mut buffer = Vec::new();
-    // Read the entire content of the maps file into a buffer
-    match reader.read_to_end(&mut buffer) {
-        Ok(_) => GPU_LIBS.iter().any(|&lib| {
-            buffer.windows(lib.len()).any(|window| window == lib)
-        }),
-        Err(_) => false,
-    }
+fn check_for_gpu_libraries<R: BufRead>(reader: R) -> bool {
+    // Read the maps file line by line and check for any of the GPU libraries
+    reader
+        .split(b'\n')
+        .filter_map(|line_result| line_result.ok())
+        .any(|line| {
+            GPU_LIBS
+                .iter()
+                .any(|&lib| line.windows(lib.len()).any(|window| window == lib))
+        })
 }
 
 /// Detects if a process is using NVIDIA GPU libraries by checking /proc/[pid]/maps
