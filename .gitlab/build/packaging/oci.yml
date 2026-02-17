@@ -91,7 +91,7 @@
           ${EXTRA_FLAGS} \
           ${INPUT_DIR}/${INSTALL_DIR}/
         rm -f ${INPUT_FILE}
-        if [ "${OCI_PRODUCT}" = "datadog-agent" ] && [ -n "${DDOT_INPUT_FILE:-}" ]; then
+        if [ "${OCI_PRODUCT}" = "datadog-agent" ] && [ -n "$DDOT_INPUT_FILE" ]; then
           rm -f ${DDOT_INPUT_FILE}
         fi
       done
@@ -114,7 +114,7 @@
       if [ -z "$ARTIFACT" ]; then
         echo "No suitable input artifact found"; exit 1
       fi
-      if [ "$(printf '%s\n' "$ARTIFACT" | wc -l)" != 1 ]; then
+      if [ "$(echo "$ARTIFACT" | wc -l)" != 1 ]; then
         echo "Expected exactly one candidate input artifact"; exit 1
       fi
       if [ -z "${PACKAGE_VERSION:-}" ]; then
@@ -175,7 +175,7 @@ agent_win_oci:
       if [ -z "$ARTIFACT" ]; then
         echo "No suitable input artifact found"; exit 1
       fi
-      if [ "$(printf '%s\n' "$ARTIFACT" | wc -l)" != 1 ]; then
+      if [ "$(echo "$ARTIFACT" | wc -l)" != 1 ]; then
         echo "Expected exactly one candidate input artifact"; exit 1
       fi
       if [ -z "${PACKAGE_VERSION:-}" ]; then
