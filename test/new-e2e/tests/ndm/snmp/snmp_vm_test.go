@@ -64,6 +64,7 @@ func (v *snmpVMSuite) TestAPIKeyRefresh() {
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		ndmPayload := checkLastNDMPayload(c, fakeIntake, "default")
+		require.NotEmpty(c, ndmPayload.Devices)
 		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0])
 	}, 6*time.Minute, 10*time.Second)
 
@@ -109,6 +110,7 @@ secret_backend_arguments:
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		ndmPayload := checkLastNDMPayload(c, fakeIntake, "default")
+		require.NotEmpty(c, ndmPayload.Devices)
 		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0])
 	}, 6*time.Minute, 10*time.Second)
 
@@ -130,6 +132,7 @@ secret_backend_arguments:
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		ndmPayload := checkLastNDMPayload(c, fakeIntake, "default")
+		require.NotEmpty(c, ndmPayload.Devices)
 		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0])
 	}, 6*time.Minute, 10*time.Second)
 }

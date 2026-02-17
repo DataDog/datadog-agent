@@ -10,7 +10,6 @@ import (
 	"context"
 	json "encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"runtime"
 	"slices"
@@ -568,7 +567,7 @@ func (a *APIServer) expireDump(dump *api.ActivityDumpStreamMessage) {
 
 	selectorStr := "<unknown>"
 	if sel := dump.GetSelector(); sel != nil {
-		selectorStr = fmt.Sprintf("%s:%s", sel.GetName(), sel.GetTag())
+		selectorStr = sel.GetName() + ":" + sel.GetTag()
 	}
 	seclog.Tracef("the activity dump server channel is full, a dump of [%s] was dropped\n", selectorStr)
 }
@@ -746,7 +745,7 @@ func getEnvAsTags(cfg *config.RuntimeSecurityConfig) []string {
 	for _, env := range cfg.EnvAsTags {
 		value := os.Getenv(env)
 		if value != "" {
-			tags = append(tags, fmt.Sprintf("%s:%s", env, value))
+			tags = append(tags, env+":"+value)
 		}
 	}
 	return tags
