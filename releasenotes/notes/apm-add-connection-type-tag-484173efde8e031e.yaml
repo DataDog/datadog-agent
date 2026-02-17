@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    Agent's metric now include a connection_type tag with the value being either
-    ``tcp``, ``uds`` or ``pipe`` for the lib to agent communications
+    Agent metrics now include a ``connection_type`` tag with a value of
+    ``tcp``, ``uds``, or ``pipe`` for lib-to-agent communications.
