@@ -175,11 +175,6 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		}
 	}
 
-	processResolver, err := process.NewEBPFResolver(manager, config.Probe, statsdClient,
-		scrubber, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, envVarsResolver, processOpts)
-	if err != nil {
-		return nil, err
-	}
 	hashResolver, err := hash.NewResolver(config.RuntimeSecurity, statsdClient, cgroupsResolver)
 	if err != nil {
 		return nil, err
@@ -191,6 +186,12 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	}
 
 	fileMetadataResolver, err := file.NewResolver(config.RuntimeSecurity, statsdClient, &file.Opt{CgroupResolver: cgroupsResolver})
+	if err != nil {
+		return nil, err
+	}
+
+	processResolver, err := process.NewEBPFResolver(manager, config.Probe, statsdClient,
+		scrubber, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, envVarsResolver, userSessionsResolver, processOpts)
 	if err != nil {
 		return nil, err
 	}
