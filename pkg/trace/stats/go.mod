@@ -14,7 +14,7 @@ require (
 	github.com/google/gofuzz v1.2.0
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/pdata v1.51.1-0.20260205185216-81bc641f26c0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20251222181119-0a764e51fe1b
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260128011058-8636f8732409
 	google.golang.org/protobuf v1.36.11
 )
 
