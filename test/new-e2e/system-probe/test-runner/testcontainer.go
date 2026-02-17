@@ -49,6 +49,7 @@ func (ctc *testContainer) start() error {
 	}
 
 	var mounts = []string{
+		"/sys/kernel/debug:/sys/kernel/debug", // bind mount debugfs
 		"/dev:/dev",
 		"/proc:/host/proc",
 		"/etc:/host/etc",
@@ -79,12 +80,6 @@ func (ctc *testContainer) start() error {
 	args = append(args, "sleep", "infinity")
 	if err := ctc.runDockerCmd(args); err != nil {
 		return fmt.Errorf("run docker: %s", err)
-	}
-
-	// mount debugfs
-	args = []string{"exec", containerName, "mount", "-t", "debugfs", "none", "/sys/kernel/debug"}
-	if err := ctc.runDockerCmd(args); err != nil {
-		return fmt.Errorf("run docker: %w", err)
 	}
 
 	return nil
