@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "service-test",
+    srcs = ["diagnostics.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/service-test",
+    visibility = ["//visibility:public"],
+    deps = ["//test/e2e-framework/testing/components"],
+)
+
+go_test(
+    name = "service-test_test",
+    srcs = ["startstop_test.go"],
+    embed = [":service-test"],
+    embedsrcs = [
+        "fixtures/datadog-di-disabled.yaml",
+        "fixtures/datadog-pa-disabled.yaml",
+        "fixtures/datadog-ta-disabled.yaml",
+        "fixtures/datadog.yaml",
+        "fixtures/security-agent-disabled.yaml",
+        "fixtures/security-agent.yaml",
+        "fixtures/system-probe-disabled.yaml",
+        "fixtures/system-probe-nofim.yaml",
+        "fixtures/system-probe.yaml",
+    ],
+    deps = [
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/scenarios/aws/ec2/windows",
+        "//test/e2e-framework/testing/components",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host/windows",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclientparams",
+        "//test/new-e2e/tests/windows/common",
+        "//test/new-e2e/tests/windows/common/agent",
+        "@com_github_cenkalti_backoff_v5//:backoff",
+        "@com_github_datadog_datadog_agent_pkg_util_testutil//flake",
+        "@com_github_stretchr_testify//suite",
+    ],
+)

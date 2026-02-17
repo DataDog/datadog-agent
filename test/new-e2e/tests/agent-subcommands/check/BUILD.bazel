@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "check_test",
+    srcs = [
+        "check_common_test.go",
+        "check_nix_test.go",
+        "check_win_test.go",
+    ],
+    embedsrcs = [
+        "fixtures/hello.py",
+        "fixtures/hello.yaml",
+    ],
+    deps = [
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/e2e-framework/testing/testcommon/check",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclient",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

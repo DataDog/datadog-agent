@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "kernelbugs",
+    srcs = [
+        "kernel_bugs.go",
+        "kernel_bugs_nobpf.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf",
+        ],
+        "//conditions:default": [],
+    }),
+)

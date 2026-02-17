@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "http",
+    srcs = [
+        "client.go",
+        "helpers.go",
+        "token.go",
+        "transport.go",
+        "warnings.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/http",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/util/log",
+        "@org_golang_x_net//http/httpproxy",
+        "@org_golang_x_net//http2",
+    ],
+)
+
+go_test(
+    name = "http_test",
+    srcs = [
+        "client_test.go",
+        "helpers_test.go",
+        "token_test.go",
+        "transport_test.go",
+        "warnings_test.go",
+    ],
+    embed = [":http"],
+    deps = [
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

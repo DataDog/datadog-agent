@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "host",
+    srcs = [
+        "doc.go",
+        "flare_provider.go",
+        "request.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/sbom/collectors/host",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/flare/types",
+        "//pkg/config/env",
+        "//pkg/sbom/scanner",
+        "//pkg/sbom/types",
+    ],
+)

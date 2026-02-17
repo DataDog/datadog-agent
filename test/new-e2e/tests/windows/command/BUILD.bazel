@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "command",
+    srcs = [
+        "agent.go",
+        "doc.go",
+        "product.go",
+        "registry.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/command",
+    visibility = ["//visibility:public"],
+)

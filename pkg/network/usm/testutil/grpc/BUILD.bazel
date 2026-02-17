@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "grpc",
+    srcs = [
+        "builder.go",
+        "client.go",
+        "server.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/network/testutil",
+        "//pkg/util/grpc",
+        "@com_github_pahanini_go_grpc_bidirectional_streaming_example//src/proto",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
+        "@org_golang_google_grpc//credentials/insecure",
+        "@org_golang_google_grpc_examples//helloworld/helloworld",
+        "@org_golang_google_grpc_examples//route_guide/routeguide",
+        "@org_golang_google_protobuf//proto",
+    ],
+)

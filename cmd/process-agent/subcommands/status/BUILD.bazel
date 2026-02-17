@@ -1,0 +1,45 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "status",
+    srcs = ["status.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/process-agent/subcommands/status",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/process-agent/command",
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/fx",
+        "//comp/core/ipc/httphelpers",
+        "//comp/core/log/def",
+        "//comp/core/secrets/fx-noop",
+        "//comp/core/status",
+        "//comp/process",
+        "//pkg/collector/python",
+        "//pkg/config/setup",
+        "//pkg/process/util/status",
+        "//pkg/template/text",
+        "//pkg/util/fxutil",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "status_test",
+    srcs = ["status_test.go"],
+    embed = [":status"],
+    deps = [
+        "//cmd/process-agent/command",
+        "//comp/core/ipc/mock",
+        "//comp/metadata/host/hostimpl/utils",
+        "//pkg/config/mock",
+        "//pkg/config/setup",
+        "//pkg/process/util/status",
+        "//pkg/trace/log",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

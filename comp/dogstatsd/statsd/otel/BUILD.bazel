@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "otel",
+    srcs = ["statsd_otel.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/otel",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/dogstatsd/statsd",
+        "//comp/otelcol/otlp/components/metricsclient",
+        "//pkg/util/fxutil",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@org_uber_go_fx//:fx",
+    ],
+)

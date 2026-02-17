@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "remote",
+    srcs = ["generic.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote",
+    visibility = ["//comp/core/workloadmeta/collectors:__subpackages__"],
+    deps = [
+        "//comp/core/ipc/def",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/telemetry",
+        "//pkg/config/setup",
+        "//pkg/util/grpc",
+        "//pkg/util/log",
+        "//pkg/util/system/socket",
+        "@com_github_cenkalti_backoff_v5//:backoff",
+        "@com_github_mdlayher_vsock//:vsock",
+        "@com_github_pkg_errors//:errors",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
+        "@org_golang_google_grpc//metadata",
+    ],
+)

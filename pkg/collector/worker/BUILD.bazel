@@ -1,0 +1,58 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "worker",
+    srcs = [
+        "check_logger.go",
+        "utilization.go",
+        "worker.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/worker",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/haagent/def",
+        "//comp/healthplatform/def",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/check/id",
+        "//pkg/collector/runner/expvars",
+        "//pkg/collector/runner/tracker",
+        "//pkg/config/setup",
+        "//pkg/metrics/servicecheck",
+        "//pkg/telemetry",
+        "//pkg/util/hostname",
+        "//pkg/util/log",
+        "//pkg/util/utilizationtracker",
+    ],
+)
+
+go_test(
+    name = "worker_test",
+    srcs = [
+        "check_logger_test.go",
+        "utilization_test.go",
+        "worker_test.go",
+    ],
+    embed = [":worker"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/log/mock",
+        "//comp/haagent/impl",
+        "//comp/healthplatform/mock",
+        "//pkg/aggregator",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/check/id",
+        "//pkg/collector/check/stats",
+        "//pkg/collector/runner/expvars",
+        "//pkg/collector/runner/tracker",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/metrics/servicecheck",
+        "//pkg/util/log",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)

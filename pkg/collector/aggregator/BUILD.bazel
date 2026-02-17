@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "aggregator",
+    srcs = [
+        "aggregator.go",
+        "check_context.go",
+        "helpers.go",
+        "inter.go",
+    ],
+    cgo = True,
+    copts = ["-I pkg/collector/aggregator/rtloader/include"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/aggregator",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/types",
+        "//comp/core/workloadfilter/def",
+        "//comp/logs/integrations/def",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check/id",
+        "//pkg/metrics/event",
+        "//pkg/metrics/servicecheck",
+        "//pkg/util/log",
+        "//pkg/util/option",
+    ],
+)
+
+go_test(
+    name = "aggregator_test",
+    srcs = ["helpers_test.go"],
+    embed = [":aggregator"],
+)

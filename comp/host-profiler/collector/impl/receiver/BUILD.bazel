@@ -1,0 +1,60 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "receiver",
+    srcs = [
+        "config.go",
+        "executable_reporter.go",
+        "factory.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/receiver",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//comp/host-profiler/symboluploader",
+            "@io_opentelemetry_go_collector_component//:component",
+            "@io_opentelemetry_go_collector_confmap_xconfmap//:xconfmap",
+            "@io_opentelemetry_go_collector_consumer_xconsumer//:xconsumer",
+            "@io_opentelemetry_go_collector_receiver//:receiver",
+            "@io_opentelemetry_go_collector_receiver_xreceiver//:xreceiver",
+            "@io_opentelemetry_go_ebpf_profiler//collector",
+            "@io_opentelemetry_go_ebpf_profiler//collector/config",
+            "@io_opentelemetry_go_ebpf_profiler//reporter",
+            "@io_opentelemetry_go_ebpf_profiler//tracer/types",
+            "@org_uber_go_zap//:zap",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/host-profiler/symboluploader",
+            "@io_opentelemetry_go_collector_component//:component",
+            "@io_opentelemetry_go_collector_confmap_xconfmap//:xconfmap",
+            "@io_opentelemetry_go_collector_consumer_xconsumer//:xconsumer",
+            "@io_opentelemetry_go_collector_receiver//:receiver",
+            "@io_opentelemetry_go_collector_receiver_xreceiver//:xreceiver",
+            "@io_opentelemetry_go_ebpf_profiler//collector",
+            "@io_opentelemetry_go_ebpf_profiler//collector/config",
+            "@io_opentelemetry_go_ebpf_profiler//reporter",
+            "@io_opentelemetry_go_ebpf_profiler//tracer/types",
+            "@org_uber_go_zap//:zap",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "receiver_test",
+    srcs = ["config_test.go"],
+    embed = [":receiver"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//comp/host-profiler/symboluploader",
+            "@com_github_stretchr_testify//require",
+            "@io_opentelemetry_go_collector_confmap//:confmap",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/host-profiler/symboluploader",
+            "@com_github_stretchr_testify//require",
+            "@io_opentelemetry_go_collector_confmap//:confmap",
+        ],
+        "//conditions:default": [],
+    }),
+)

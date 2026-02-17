@@ -1,0 +1,61 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "lsof",
+    srcs = [
+        "errors.go",
+        "lsof.go",
+        "lsof_darwin.go",
+        "lsof_linux.go",
+        "lsof_windows.go",
+        "modules_other.go",
+        "modules_windows.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/lsof",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/util/log",
+            "@com_github_prometheus_procfs//:procfs",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/log",
+            "@com_github_prometheus_procfs//:procfs",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "lsof_test",
+    srcs = [
+        "lsof_linux_test.go",
+        "lsof_windows_test.go",
+        "types_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":lsof"],
+    deps = [
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "@com_github_prometheus_procfs//:procfs",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_prometheus_procfs//:procfs",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:windows": [
+            "@com_github_stretchr_testify//assert",
+            "@org_golang_x_exp//maps",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)

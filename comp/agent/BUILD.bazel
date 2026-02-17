@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "agent",
+    srcs = ["bundle.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/agent",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/agent/autoexit/autoexitimpl",
+        "//comp/agent/cloudfoundrycontainer/cloudfoundrycontainerimpl",
+        "//comp/agent/expvarserver/expvarserverimpl",
+        "//comp/agent/jmxlogger/jmxloggerimpl",
+        "//pkg/util/fxutil",
+    ],
+)
+
+go_test(
+    name = "agent_test",
+    srcs = ["bundle_test.go"],
+    embed = [":agent"],
+    deps = [
+        "//comp/agent/jmxlogger/jmxloggerimpl",
+        "//comp/aggregator/demultiplexer/demultiplexerimpl",
+        "//comp/core",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx-mock",
+        "//comp/forwarder/defaultforwarder",
+        "//comp/forwarder/eventplatform/eventplatformimpl",
+        "//comp/forwarder/orchestrator/orchestratorimpl",
+        "//pkg/util/fxutil",
+    ],
+)

@@ -1,0 +1,51 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "parser",
+    srcs = [
+        "dockerproxy.go",
+        "scm_reader.go",
+        "scm_reader_windows.go",
+        "service.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/process/metadata/parser",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/process/metadata",
+        "//pkg/process/metadata/parser/java",
+        "//pkg/process/metadata/parser/nodejs",
+        "//pkg/process/procutil",
+        "//pkg/util/log",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_masterminds_semver_v3//:semver",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "parser_test",
+    srcs = [
+        "dockerproxy_test.go",
+        "service_test.go",
+        "service_windows_test.go",
+    ],
+    embed = [":parser"],
+    deps = [
+        "//pkg/process/procutil",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/config/mock",
+            "//pkg/config/model",
+            "//pkg/util/winutil",
+            "@com_github_stretchr_testify//mock",
+        ],
+        "//conditions:default": [],
+    }),
+)

@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "traceutil",
+    srcs = ["otel_util.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/trace/otel/traceutil",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/opentelemetry-mapping-go/otlp/attributes",
+        "//pkg/trace/log",
+        "//pkg/trace/traceutil/normalize",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+        "@io_opentelemetry_go_otel//attribute",
+        "@io_opentelemetry_go_otel//semconv/v1.17.0:v1_17_0",
+        "@io_opentelemetry_go_otel//semconv/v1.26.0:v1_26_0",
+        "@io_opentelemetry_go_otel//semconv/v1.6.1:v1_6_1",
+    ],
+)
+
+go_test(
+    name = "traceutil_test",
+    srcs = ["otel_util_test.go"],
+    embed = [":traceutil"],
+    deps = [
+        "//pkg/opentelemetry-mapping-go/otlp/attributes",
+        "//pkg/trace/traceutil/normalize",
+        "@com_github_stretchr_testify//assert",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+        "@io_opentelemetry_go_otel//semconv/v1.17.0:v1_17_0",
+        "@io_opentelemetry_go_otel//semconv/v1.26.0:v1_26_0",
+        "@io_opentelemetry_go_otel//semconv/v1.6.1:v1_6_1",
+    ],
+)

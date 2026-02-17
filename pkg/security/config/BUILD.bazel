@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "config",
+    srcs = [
+        "config.go",
+        "config_linux.go",
+        "config_others.go",
+        "dump.go",
+        "enum_string.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/config",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/security/probe/config",
+        "//pkg/security/proto/api",
+        "//pkg/security/secl/model",
+        "//pkg/security/seclog",
+        "//pkg/security/utils",
+        "//pkg/system-probe/config",
+        "//pkg/util/fargate",
+    ],
+)

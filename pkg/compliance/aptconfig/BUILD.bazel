@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "aptconfig",
+    srcs = ["aptconfig.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/compliance/aptconfig",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/compliance/types",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "aptconfig_test",
+    srcs = ["aptconfig_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":aptconfig"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

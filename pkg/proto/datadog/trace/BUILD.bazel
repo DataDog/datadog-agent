@@ -1,0 +1,37 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//proto:def.bzl", "go_proto_library")
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+proto_library(
+    name = "trace_proto",
+    srcs = [
+        "agent_payload.proto",
+        "span.proto",
+        "stats.proto",
+        "tracer_payload.proto",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//datadog/trace:trace_proto",
+        "//datadog/trace/idx:idx_proto",
+    ],
+)
+
+go_proto_library(
+    name = "trace_go_proto",
+    importpath = "pkg/proto/pbgo/trace",
+    proto = ":trace_proto",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//datadog/trace:span_proto",
+        "//datadog/trace:tracer_payload_proto",
+        "//datadog/trace/idx:tracer_payload_proto",
+    ],
+)
+
+go_library(
+    name = "trace",
+    embed = [":trace_go_proto"],
+    importpath = "pkg/proto/pbgo/trace",
+    visibility = ["//visibility:public"],
+)

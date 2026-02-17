@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "kubernetes",
+    srcs = [
+        "file.go",
+        "secrets.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/secret-generic-connector/backend/kubernetes",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/secret-generic-connector/backend/file",
+        "//cmd/secret-generic-connector/secret",
+        "@com_github_mitchellh_mapstructure//:mapstructure",
+    ],
+)
+
+go_test(
+    name = "kubernetes_test",
+    srcs = [
+        "file_test.go",
+        "secrets_test.go",
+    ],
+    embed = [":kubernetes"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,61 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "winutil",
+    srcs = [
+        "doc.go",
+        "elevated.go",
+        "eventlog.go",
+        "msi.go",
+        "pe_timestamp_windows.go",
+        "process.go",
+        "scmmonitor.go",
+        "service.go",
+        "setupapi.go",
+        "shutil.go",
+        "time.go",
+        "users.go",
+        "wincrypt.go",
+        "winctrlhandler.go",
+        "winsec.go",
+        "winstrings.go",
+        "winver.go",
+        "wnet.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/winutil",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/log",
+            "@org_golang_x_sys//windows",
+            "@org_golang_x_sys//windows/registry",
+            "@org_golang_x_sys//windows/svc",
+            "@org_golang_x_sys//windows/svc/eventlog",
+            "@org_golang_x_sys//windows/svc/mgr",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "winutil_test",
+    srcs = [
+        "process_test.go",
+        "scmmonitor_test.go",
+        "service_test.go",
+        "time_test.go",
+        "users_test.go",
+    ],
+    embed = [":winutil"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@com_github_stretchr_testify//suite",
+            "@org_golang_x_sys//windows",
+            "@org_golang_x_sys//windows/svc",
+            "@org_golang_x_sys//windows/svc/mgr",
+        ],
+        "//conditions:default": [],
+    }),
+)

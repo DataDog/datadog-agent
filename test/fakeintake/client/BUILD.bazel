@@ -1,0 +1,96 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "client",
+    srcs = ["client.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/fakeintake/client",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/metrics/event",
+        "//test/fakeintake/aggregator",
+        "//test/fakeintake/api",
+        "//test/fakeintake/client/flare",
+        "@com_github_cenkalti_backoff_v5//:backoff",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_samber_lo//:lo",
+    ],
+)
+
+go_test(
+    name = "client_test",
+    srcs = [
+        "client_integration_test.go",
+        "client_test.go",
+    ],
+    embed = [":client"],
+    embedsrcs = [
+        "fixtures/api_support_flare_response",
+        "fixtures/api_v02_apm_stats_response",
+        "fixtures/api_v02_trace_response",
+        "fixtures/api_v1_check_run_response",
+        "fixtures/api_v1_metadata_response",
+        "fixtures/api_v2_contimage_response",
+        "fixtures/api_v2_contlcycle_response",
+        "fixtures/api_v2_logs_response",
+        "fixtures/api_v2_ndm_response",
+        "fixtures/api_v2_ndmflow_response",
+        "fixtures/api_v2_netpath_response",
+        "fixtures/api_v2_sbom_response",
+        "fixtures/api_v2_series_response",
+        "fixtures/api_v2_agenthealth_response",
+    ],
+    deps = [
+        "//test/fakeintake/aggregator",
+        "//test/fakeintake/api",
+        "//test/fakeintake/fixtures",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//test/fakeintake/server",
+        ],
+        "@rules_go//go/platform:android": [
+            "//test/fakeintake/server",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//test/fakeintake/server",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//test/fakeintake/server",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//test/fakeintake/server",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//test/fakeintake/server",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//test/fakeintake/server",
+        ],
+        "@rules_go//go/platform:js": [
+            "//test/fakeintake/server",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//test/fakeintake/server",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//test/fakeintake/server",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//test/fakeintake/server",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//test/fakeintake/server",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//test/fakeintake/server",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//test/fakeintake/server",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//test/fakeintake/server",
+        ],
+        "//conditions:default": [],
+    }),
+)

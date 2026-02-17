@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = ["hostsysteminfo.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/metadata/hostsysteminfo/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/api/def",
+        "//comp/core/config",
+        "//comp/core/flare/types",
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/log/def",
+        "//comp/metadata/hostsysteminfo/def",
+        "//comp/metadata/internal/util",
+        "//comp/metadata/runner/runnerimpl",
+        "//pkg/inventory/systeminfo",
+        "//pkg/serializer",
+        "//pkg/serializer/marshaler",
+        "//pkg/util/http",
+        "//pkg/util/uuid",
+    ],
+)

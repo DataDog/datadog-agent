@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "firewallscanner",
+    srcs = [
+        "firewallscanner.go",
+        "windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/diagnose/firewallscanner",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/diagnose/def",
+        "//comp/netflow/common",
+        "//comp/netflow/config",
+        "//pkg/config/structure",
+    ],
+)
+
+go_test(
+    name = "firewallscanner_test",
+    srcs = [
+        "firewallscanner_test.go",
+        "windows_test.go",
+    ],
+    embed = [":firewallscanner"],
+    deps = [
+        "//comp/core/diagnose/def",
+        "//pkg/config/mock",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

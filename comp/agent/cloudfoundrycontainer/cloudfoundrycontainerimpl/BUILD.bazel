@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "cloudfoundrycontainerimpl",
+    srcs = ["cloudfoundrycontainer.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer/cloudfoundrycontainerimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/agent/cloudfoundrycontainer",
+        "//comp/core/config",
+        "//comp/core/workloadmeta/def",
+        "//pkg/cloudfoundry/containertagger",
+        "//pkg/config/env",
+        "//pkg/util/common",
+        "//pkg/util/fxutil",
+        "//pkg/util/log",
+        "@org_uber_go_fx//:fx",
+    ],
+)

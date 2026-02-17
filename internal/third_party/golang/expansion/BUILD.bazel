@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "expansion",
+    srcs = ["expand.go"],
+    importpath = "github.com/DataDog/datadog-agent/internal/third_party/golang/expansion",
+    visibility = ["//:__subpackages__"],
+)
+
+go_test(
+    name = "expansion_test",
+    srcs = ["expand_test.go"],
+    embed = [":expansion"],
+    deps = ["@io_k8s_api//core/v1:core"],
+)

@@ -1,0 +1,8 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "apps",
+    srcs = ["version.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps",
+    visibility = ["//visibility:public"],
+)

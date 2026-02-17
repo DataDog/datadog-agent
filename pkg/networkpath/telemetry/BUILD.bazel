@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "telemetry",
+    srcs = ["telemetry.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/networkpath/telemetry",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/networkdevice/utils",
+        "//pkg/networkpath/metricsender",
+        "//pkg/networkpath/payload",
+    ],
+)
+
+go_test(
+    name = "telemetry_test",
+    srcs = ["telemetry_test.go"],
+    embed = [":telemetry"],
+    deps = [
+        "//pkg/metrics",
+        "//pkg/networkpath/metricsender",
+        "//pkg/networkpath/payload",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

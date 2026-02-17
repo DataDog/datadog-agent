@@ -1,0 +1,37 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "testutil",
+    srcs = [
+        "doc.go",
+        "testutil.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/origindetection",
+        "//comp/core/tagger/types",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/opentelemetry-mapping-go/inframetadata/payload",
+        "//pkg/opentelemetry-mapping-go/otlp/attributes/source",
+        "//pkg/proto/pbgo/trace",
+        "@com_github_datadog_sketches_go//ddsketch",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//plog",
+        "@io_opentelemetry_go_collector_pdata//pmetric",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
+
+go_test(
+    name = "testutil_test",
+    srcs = ["testutil_test.go"],
+    embed = [":testutil"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

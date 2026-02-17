@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "testdata",
+    srcs = ["clientstats.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/trace-agent/test/testsuite/testdata",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "@com_github_datadog_sketches_go//ddsketch",
+        "@com_github_datadog_sketches_go//ddsketch/mapping",
+        "@com_github_datadog_sketches_go//ddsketch/store",
+        "@org_golang_google_protobuf//proto",
+    ],
+)

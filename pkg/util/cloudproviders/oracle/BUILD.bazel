@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "oracle",
+    srcs = [
+        "diagnosis.go",
+        "oracle.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/oracle",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/diagnose/def",
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/util/cachedfetch",
+        "//pkg/util/http",
+    ],
+)
+
+go_test(
+    name = "oracle_test",
+    srcs = ["oracle_test.go"],
+    embed = [":oracle"],
+    deps = [
+        "//pkg/config/mock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

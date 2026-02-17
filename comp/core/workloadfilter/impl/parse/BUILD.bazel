@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "parse",
+    srcs = [
+        "parse.go",
+        "validation.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadfilter/impl/parse",
+    visibility = ["//visibility:public"],
+    deps = ["//comp/core/workloadfilter/def"],
+)
+
+go_test(
+    name = "parse_test",
+    srcs = ["parse_test.go"],
+    embed = [":parse"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/workloadfilter/def",
+        "//pkg/config/structure",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

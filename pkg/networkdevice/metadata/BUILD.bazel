@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "metadata",
+    srcs = [
+        "payload.go",
+        "payload_constants.go",
+        "payload_utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/networkdevice/integrations",
+        "//pkg/snmp/gosnmplib",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+    ],
+)
+
+go_test(
+    name = "metadata_test",
+    srcs = ["payload_utils_test.go"],
+    embed = [":metadata"],
+    deps = [
+        "//pkg/networkdevice/integrations",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

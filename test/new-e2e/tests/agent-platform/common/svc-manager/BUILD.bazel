@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "svc-manager",
+    srcs = [
+        "service.go",
+        "systemctl.go",
+        "types.go",
+        "upstart.go",
+        "windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/svc-manager",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/testing/components",
+        "//test/new-e2e/tests/windows/common",
+    ],
+)

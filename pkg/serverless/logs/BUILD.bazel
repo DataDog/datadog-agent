@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "logs",
+    srcs = ["scheduler.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/serverless/logs",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/tagger/def",
+        "//comp/logs/agent",
+        "//comp/logs/agent/agentimpl",
+        "//comp/logs/agent/config",
+        "//comp/serializer/logscompression/def",
+        "//pkg/logs/schedulers/channel",
+        "//pkg/util/log",
+    ],
+)

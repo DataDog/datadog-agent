@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "gosnmplib",
+    srcs = [
+        "cmp.go",
+        "errors.go",
+        "gosnmp_auth.go",
+        "gosnmp_log.go",
+        "gosnmp_utils.go",
+        "pdu.go",
+        "testing_utils.go",
+        "walk.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/log",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+    ],
+)
+
+go_test(
+    name = "gosnmplib_test",
+    srcs = [
+        "cmp_test.go",
+        "gosnmp_auth_test.go",
+        "gosnmp_log_test.go",
+        "gosnmp_utils_test.go",
+        "pdu_test.go",
+        "walk_test.go",
+    ],
+    embed = [":gosnmplib"],
+    deps = [
+        "//pkg/util/log",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

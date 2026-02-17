@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "diagnoses",
+    srcs = ["diagnoses.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/networkdevice/diagnoses",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/diagnose/def",
+        "//pkg/networkdevice/metadata",
+    ],
+)
+
+go_test(
+    name = "diagnoses_test",
+    srcs = ["diagnoses_test.go"],
+    embed = [":diagnoses"],
+    deps = [
+        "//comp/core/diagnose/def",
+        "//pkg/networkdevice/metadata",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

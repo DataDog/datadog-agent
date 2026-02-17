@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "topn",
+    srcs = [
+        "filter_noop.go",
+        "filter_per_flush.go",
+        "filter_per_flush_throttler.go",
+        "sorting.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/netflow/topn",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/log/def",
+        "//comp/netflow/common",
+        "//pkg/aggregator/sender",
+    ],
+)
+
+go_test(
+    name = "topn_test",
+    srcs = [
+        "filter_per_flush_test.go",
+        "filter_per_flush_throttler_test.go",
+    ],
+    embed = [":topn"],
+    deps = [
+        "//comp/core/log/mock",
+        "//comp/netflow/common",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+    ],
+)

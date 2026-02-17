@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "metricsender",
+    srcs = [
+        "metric_sender.go",
+        "metric_sender_agent.go",
+        "metric_sender_statsd.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/networkpath/metricsender",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/aggregator/sender",
+        "@com_github_datadog_datadog_go_v5//statsd",
+    ],
+)

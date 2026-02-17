@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "session",
+    srcs = ["session.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/session",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil/eventlog/api",
+        ],
+        "//conditions:default": [],
+    }),
+)

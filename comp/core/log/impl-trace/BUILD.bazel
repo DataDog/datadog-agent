@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl-trace",
+    srcs = ["trace_logger.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/log/impl-trace",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/def",
+        "//pkg/trace/log",
+        "//pkg/util/log",
+        "//pkg/util/log/setup",
+    ],
+)
+
+go_test(
+    name = "impl-trace_test",
+    srcs = ["trace_logger_test.go"],
+    embed = [":impl-trace"],
+    deps = [
+        "//comp/core/log/def",
+        "//comp/def",
+        "//pkg/config/mock",
+        "//pkg/trace/log",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

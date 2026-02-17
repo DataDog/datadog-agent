@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "connfilter",
+    srcs = [
+        "connfilter.go",
+        "connfiltertype.go",
+        "defaultconnfilters.go",
+        "utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/connfilter",
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "composite_registry_delegate.go",
+        "integration_logs_registry_delegate.go",
+        "logging_registry_delegate.go",
+        "metrics_registry_delegate.go",
+        "registry_delegate.go",
+        "winregistryimpl.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/checks/winregistry/impl",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//comp/checks/winregistry",
+            "//comp/core/autodiscovery/integration",
+            "//comp/core/log/def",
+            "//comp/logs/agent",
+            "//comp/logs/agent/config",
+            "//pkg/aggregator/sender",
+            "//pkg/collector/check",
+            "//pkg/collector/corechecks",
+            "//pkg/logs/message",
+            "//pkg/logs/sources",
+            "//pkg/metrics",
+            "//pkg/util/fxutil",
+            "//pkg/util/log",
+            "//pkg/util/option",
+            "@com_github_ghodss_yaml//:yaml",
+            "@com_github_swaggest_jsonschema_go//:jsonschema-go",
+            "@com_github_xeipuuv_gojsonschema//:gojsonschema",
+            "@in_gopkg_yaml_v2//:yaml_v2",
+            "@org_golang_x_sys//windows/registry",
+            "@org_uber_go_fx//:fx",
+        ],
+        "//conditions:default": [],
+    }),
+)

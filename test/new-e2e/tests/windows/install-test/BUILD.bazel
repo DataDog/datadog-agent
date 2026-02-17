@@ -1,0 +1,62 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "install-test",
+    srcs = [
+        "assert.go",
+        "base.go",
+        "installtester.go",
+        "system_file_tester.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/testing/components",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host/windows",
+        "//test/e2e-framework/testing/runner",
+        "//test/e2e-framework/testing/runner/parameters",
+        "//test/e2e-framework/testing/utils/common",
+        "//test/e2e-framework/testing/utils/e2e/client",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclientparams",
+        "//test/new-e2e/tests/agent-platform/common",
+        "//test/new-e2e/tests/agent-platform/common/helper",
+        "//test/new-e2e/tests/windows",
+        "//test/new-e2e/tests/windows/common",
+        "//test/new-e2e/tests/windows/common/agent",
+        "//test/new-e2e/tests/windows/install-test/service-test",
+        "@com_github_datadog_datadog_agent_pkg_util_testutil//flake",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_stretchr_testify//suite",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+    ],
+)
+
+go_test(
+    name = "install-test_test",
+    srcs = [
+        "agent_user_test.go",
+        "install_subservices_test.go",
+        "install_test.go",
+        "npm_test.go",
+        "persisting_integrations_test.go",
+        "upgrade_test.go",
+    ],
+    embed = [":install-test"],
+    deps = [
+        "//test/e2e-framework/testing/components",
+        "//test/e2e-framework/testing/runner",
+        "//test/e2e-framework/testing/runner/parameters",
+        "//test/new-e2e/tests/agent-platform/common",
+        "//test/new-e2e/tests/agent-platform/common/bound-port",
+        "//test/new-e2e/tests/windows/common",
+        "//test/new-e2e/tests/windows/common/agent",
+        "//test/new-e2e/tests/windows/install-test/service-test",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_stretchr_testify//suite",
+    ],
+)

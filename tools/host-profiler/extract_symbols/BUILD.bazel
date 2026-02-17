@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "extract_symbols_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/tools/host-profiler/extract_symbols",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//comp/host-profiler/symboluploader",
+        "//comp/host-profiler/symboluploader/symbol",
+        "//comp/host-profiler/symboluploader/symbolcopier",
+    ],
+)
+
+go_binary(
+    name = "extract_symbols",
+    embed = [":extract_symbols_lib"],
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,94 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "controlsvc",
+    srcs = [
+        "command.go",
+        "command_nix.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands/controlsvc",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//cmd/trace-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:android": [
+            "//cmd/trace-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//cmd/trace-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//cmd/trace-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//cmd/trace-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//cmd/trace-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//cmd/trace-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:js": [
+            "//cmd/trace-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//cmd/trace-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//cmd/trace-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//cmd/trace-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//cmd/trace-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//cmd/trace-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//cmd/trace-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//cmd/trace-agent/subcommands",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//cmd/trace-agent/subcommands",
+            "//cmd/trace-agent/windows/controlsvc",
+            "//pkg/util/fxutil",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "controlsvc_test",
+    srcs = ["command_test.go"],
+    embed = [":controlsvc"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//cmd/trace-agent/subcommands",
+            "//cmd/trace-agent/windows/controlsvc",
+            "//pkg/util/fxutil",
+        ],
+        "//conditions:default": [],
+    }),
+)

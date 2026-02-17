@@ -1,0 +1,52 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "workloadmeta",
+    srcs = [
+        "extractor.go",
+        "grpc.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/languagedetection",
+        "//pkg/languagedetection/languagemodels",
+        "//pkg/process/procutil",
+        "//pkg/process/status",
+        "//pkg/proto/pbgo/process",
+        "//pkg/telemetry",
+        "//pkg/util/grpc",
+        "//pkg/util/log",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials",
+        "@org_golang_google_grpc//keepalive",
+    ],
+)
+
+go_test(
+    name = "workloadmeta_test",
+    srcs = [
+        "extractor_test.go",
+        "grpc_test.go",
+    ],
+    embed = [":workloadmeta"],
+    deps = [
+        "//comp/core/ipc/mock",
+        "//comp/core/telemetry",
+        "//comp/core/telemetry/telemetryimpl",
+        "//pkg/config/mock",
+        "//pkg/config/setup",
+        "//pkg/languagedetection/languagemodels",
+        "//pkg/process/procutil",
+        "//pkg/proto/pbgo/process",
+        "//pkg/trace/testutil",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//connectivity",
+        "@org_golang_google_grpc//credentials",
+    ],
+)

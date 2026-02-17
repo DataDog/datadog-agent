@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "api",
+    srcs = [
+        "check.go",
+        "secrets.go",
+        "server.go",
+        "status.go",
+        "tagger_list.go",
+        "util.go",
+        "workload_list.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/process-agent/api",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/secrets/def",
+        "//comp/core/settings",
+        "//comp/core/status",
+        "//comp/core/tagger/def",
+        "//comp/core/workloadmeta/def",
+        "//pkg/api/coverage",
+        "//pkg/process/checks",
+        "//pkg/util/http",
+        "//pkg/util/log",
+        "@com_github_gorilla_mux//:mux",
+        "@org_uber_go_fx//:fx",
+    ],
+)

@@ -1,0 +1,49 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "quantile",
+    srcs = [
+        "agent.go",
+        "bin.go",
+        "bin_generator.go",
+        "config.go",
+        "ddsketch.go",
+        "key.go",
+        "pool.go",
+        "print.go",
+        "sparse.go",
+        "store.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/quantile",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/quantile/summary",
+        "@com_github_datadog_sketches_go//ddsketch",
+        "@com_github_datadog_sketches_go//ddsketch/mapping",
+        "@com_github_datadog_sketches_go//ddsketch/store",
+        "@com_github_dustin_go_humanize//:go-humanize",
+    ],
+)
+
+go_test(
+    name = "quantile_test",
+    srcs = [
+        "agent_test.go",
+        "bin_generator_test.go",
+        "bin_test.go",
+        "config_test.go",
+        "ddsketch_test.go",
+        "main_test.go",
+        "print_test.go",
+        "sparse_test.go",
+        "store_test.go",
+    ],
+    embed = [":quantile"],
+    deps = [
+        "//pkg/util/quantile/sketchtest",
+        "//pkg/util/quantile/summary",
+        "@com_github_datadog_sketches_go//ddsketch",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

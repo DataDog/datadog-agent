@@ -1,0 +1,184 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "utils",
+    srcs = [
+        "common.go",
+        "host.go",
+        "host_nix.go",
+        "host_windows.go",
+        "meta.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/metadata/host/hostimpl/hosttags",
+        "//comp/otelcol/otlp/configcheck",
+        "//pkg/collector/python",
+        "//pkg/config/model",
+        "//pkg/config/utils",
+        "//pkg/fips",
+        "//pkg/logs/status",
+        "//pkg/util/cache",
+        "//pkg/util/cloudproviders",
+        "//pkg/util/cloudproviders/network",
+        "//pkg/util/containers/metadata",
+        "//pkg/util/ec2",
+        "//pkg/util/flavor",
+        "//pkg/util/hostinfo",
+        "//pkg/util/hostname",
+        "//pkg/util/http",
+        "//pkg/util/installinfo",
+        "//pkg/util/kubelet",
+        "//pkg/util/log",
+        "//pkg/util/net",
+        "//pkg/util/uuid",
+        "//pkg/version",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+        ],
+        "@rules_go//go/platform:android": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+        ],
+        "@rules_go//go/platform:js": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+        ],
+        "@rules_go//go/platform:osx": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/gohai/cpu",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "utils_test",
+    srcs = [
+        "common_test.go",
+        "host_nix_test.go",
+        "host_test.go",
+        "host_windows_test.go",
+        "meta_test.go",
+    ],
+    embed = [":utils"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameimpl",
+        "//pkg/collector/python",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/logs/status",
+        "//pkg/util/cache",
+        "//pkg/util/cloudproviders/network",
+        "//pkg/util/flavor",
+        "//pkg/util/http",
+        "//pkg/util/installinfo",
+        "//pkg/util/uuid",
+        "//pkg/version",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:android": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:js": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:osx": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "@com_github_shirou_gopsutil_v4//cpu",
+            "@com_github_shirou_gopsutil_v4//host",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/gohai/cpu",
+            "//pkg/util/hostinfo",
+        ],
+        "//conditions:default": [],
+    }),
+)

@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "ecs",
+    srcs = [
+        "capacityProviders.go",
+        "client.go",
+        "cluster.go",
+        "fargateService.go",
+        "nodeGroups.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/ecs",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common/config",
+        "//test/e2e-framework/common/utils",
+        "//test/e2e-framework/components/datadog/agent",
+        "//test/e2e-framework/components/datadog/fakeintake",
+        "//test/e2e-framework/resources/aws",
+        "//test/e2e-framework/resources/aws/ec2",
+        "@com_github_aws_aws_sdk_go_v2_config//:config",
+        "@com_github_aws_aws_sdk_go_v2_service_ecs//:ecs",
+    ],
+)

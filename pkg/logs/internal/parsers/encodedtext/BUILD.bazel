@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "encodedtext",
+    srcs = ["encodedtext.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/encodedtext",
+    visibility = ["//pkg/logs:__subpackages__"],
+    deps = [
+        "//pkg/logs/internal/parsers",
+        "//pkg/logs/message",
+        "@org_golang_x_text//encoding",
+        "@org_golang_x_text//encoding/japanese",
+        "@org_golang_x_text//encoding/unicode",
+        "@org_golang_x_text//transform",
+    ],
+)
+
+go_test(
+    name = "encodedtext_test",
+    srcs = [
+        "encodedtext_fuzz_test.go",
+        "encodedtext_test.go",
+    ],
+    embed = [":encodedtext"],
+    deps = [
+        "//pkg/logs/message",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

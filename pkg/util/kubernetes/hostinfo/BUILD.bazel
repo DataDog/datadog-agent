@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "hostinfo",
+    srcs = [
+        "cluster_name_from_node_label.go",
+        "cluster_name_from_node_label_nothing.go",
+        "doc.go",
+        "no_node_labels.go",
+        "no_tags.go",
+        "tags_utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/config/setup",
+    ],
+)

@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "dbconfig",
+    srcs = [
+        "loader.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/compliance/dbconfig",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/compliance/types",
+        "//pkg/compliance/utils",
+        "@com_github_shirou_gopsutil_v4//process",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+    ],
+)
+
+go_test(
+    name = "dbconfig_test",
+    srcs = ["loader_test.go"],
+    embed = [":dbconfig"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/compliance/types",
+            "@com_github_shirou_gopsutil_v4//process",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/compliance/types",
+            "@com_github_shirou_gopsutil_v4//process",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
+)

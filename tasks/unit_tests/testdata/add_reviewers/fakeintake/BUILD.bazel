@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fakeintake",
+    srcs = ["fake.go"],
+    importpath = "github.com/DataDog/datadog-agent/tasks/unit_tests/testdata/add_reviewers/fakeintake",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_redis_go_redis_v9//:go-redis"],
+)

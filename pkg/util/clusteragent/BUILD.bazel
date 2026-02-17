@@ -1,0 +1,58 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "clusteragent",
+    srcs = [
+        "clcrunner.go",
+        "clusteragent.go",
+        "clusterchecks.go",
+        "diagnosis.go",
+        "doc.go",
+        "endpointschecks.go",
+        "leader_client.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/clusteragent",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/diagnose/def",
+        "//pkg/api/security",
+        "//pkg/api/util",
+        "//pkg/clusteragent/api/v1:api",
+        "//pkg/clusteragent/clusterchecks/types",
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/errors",
+        "//pkg/proto/pbgo/process",
+        "//pkg/util/log",
+        "//pkg/util/retry",
+        "//pkg/version",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
+
+go_test(
+    name = "clusteragent_test",
+    srcs = [
+        "clcrunner_test.go",
+        "clusteragent_test.go",
+        "clusterchecks_test.go",
+        "endpointschecks_test.go",
+    ],
+    embed = [":clusteragent"],
+    deps = [
+        "//comp/core/ipc/mock",
+        "//pkg/api/security",
+        "//pkg/api/util",
+        "//pkg/clusteragent/api/v1:api",
+        "//pkg/clusteragent/clusterchecks/types",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/errors",
+        "//pkg/util/log",
+        "//pkg/version",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_stretchr_testify//suite",
+        "@io_k8s_apimachinery//pkg/util/sets",
+    ],
+)

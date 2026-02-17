@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "systray_lib",
+    srcs = [
+        "main_windows.go",
+        "version.h",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/systray",
+    visibility = ["//visibility:private"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//cmd/internal/runcmd",
+            "//cmd/systray/command",
+            "//pkg/util/log",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_binary(
+    name = "systray",
+    embed = [":systray_lib"],
+    visibility = ["//visibility:public"],
+)

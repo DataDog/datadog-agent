@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "apm-library-dotnet-package",
+    srcs = ["base_suite.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/suites/apm-library-dotnet-package",
+    visibility = ["//visibility:public"],
+    deps = ["//test/new-e2e/tests/installer/windows"],
+)
+
+go_test(
+    name = "apm-library-dotnet-package_test",
+    srcs = [
+        "install_no_iis_test.go",
+        "install_script_test.go",
+        "install_test.go",
+        "msi_install_test.go",
+    ],
+    embed = [":apm-library-dotnet-package"],
+    embedsrcs = [
+        "resources/index.aspx",
+        "resources/web.config",
+    ],
+    deps = [
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/provisioners/aws/host/windows",
+        "//test/new-e2e/tests/installer/unix",
+        "//test/new-e2e/tests/installer/windows",
+        "//test/new-e2e/tests/installer/windows/consts",
+        "@com_github_datadog_datadog_agent_pkg_util_testutil//flake",
+    ],
+)

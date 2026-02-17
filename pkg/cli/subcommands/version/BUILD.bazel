@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "version",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/cli/subcommands/version",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/fxutil",
+        "//pkg/version",
+        "@com_github_fatih_color//:color",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "version_test",
+    srcs = ["command_test.go"],
+    embed = [":version"],
+    deps = [
+        "//pkg/util/fxutil",
+        "@com_github_spf13_cobra//:cobra",
+    ],
+)

@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "resolver",
+    srcs = ["domain_resolver.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/forwarder/defaultforwarder/endpoints",
+        "//comp/forwarder/defaultforwarder/transaction",
+        "//pkg/config/model",
+        "//pkg/config/utils",
+        "//pkg/util/scrubber",
+    ],
+)
+
+go_test(
+    name = "resolver_test",
+    srcs = ["domain_resolver_test.go"],
+    embed = [":resolver"],
+    deps = [
+        "//comp/core/log/mock",
+        "//pkg/config/mock",
+        "//pkg/config/utils",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

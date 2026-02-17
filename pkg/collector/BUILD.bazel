@@ -1,0 +1,52 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "collector",
+    srcs = [
+        "infra_mode.go",
+        "scheduler.go",
+        "stats.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/collector/collector",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/tagger/def",
+        "//comp/core/workloadfilter/def",
+        "//comp/logs/integrations/def",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/check/id",
+        "//pkg/collector/loaders",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/util/log",
+        "//pkg/util/option",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+        "@org_golang_x_text//cases",
+        "@org_golang_x_text//language",
+    ],
+)
+
+go_test(
+    name = "collector_test",
+    srcs = [
+        "infra_mode_test.go",
+        "scheduler_test.go",
+        "stats_test.go",
+    ],
+    embed = [":collector"],
+    deps = [
+        "//comp/collector/collector",
+        "//comp/core/autodiscovery/integration",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/check/id",
+        "//pkg/collector/corechecks",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/util/option",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

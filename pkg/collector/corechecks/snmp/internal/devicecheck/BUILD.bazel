@@ -1,0 +1,60 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "devicecheck",
+    srcs = [
+        "connection_manager.go",
+        "devicecheck.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/devicecheck",
+    visibility = ["//pkg/collector/corechecks/snmp:__subpackages__"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/diagnose/def",
+        "//pkg/collector/corechecks/snmp/internal/checkconfig",
+        "//pkg/collector/corechecks/snmp/internal/common",
+        "//pkg/collector/corechecks/snmp/internal/fetch",
+        "//pkg/collector/corechecks/snmp/internal/report",
+        "//pkg/collector/corechecks/snmp/internal/session",
+        "//pkg/collector/corechecks/snmp/internal/valuestore",
+        "//pkg/collector/externalhost",
+        "//pkg/config/utils",
+        "//pkg/metrics/servicecheck",
+        "//pkg/networkdevice/diagnoses",
+        "//pkg/networkdevice/metadata",
+        "//pkg/networkdevice/pinger",
+        "//pkg/networkdevice/profile/profiledefinition",
+        "//pkg/networkdevice/utils",
+        "//pkg/persistentcache",
+        "//pkg/snmp",
+        "//pkg/util/hostname/validate",
+        "//pkg/util/log",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+go_test(
+    name = "devicecheck_test",
+    srcs = [
+        "connection_manager_test.go",
+        "devicecheck_test.go",
+    ],
+    embed = [":devicecheck"],
+    deps = [
+        "//comp/core/config",
+        "//pkg/collector/corechecks/snmp/internal/checkconfig",
+        "//pkg/collector/corechecks/snmp/internal/profile",
+        "//pkg/collector/corechecks/snmp/internal/report",
+        "//pkg/collector/corechecks/snmp/internal/session",
+        "//pkg/metrics/servicecheck",
+        "//pkg/networkdevice/metadata",
+        "//pkg/networkdevice/pinger",
+        "//pkg/networkdevice/utils",
+        "//pkg/snmp",
+        "//pkg/snmp/gosnmplib",
+        "//pkg/version",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+    ],
+)

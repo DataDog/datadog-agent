@@ -1,0 +1,58 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "config",
+    srcs = [
+        "adjust.go",
+        "adjust_npm.go",
+        "adjust_security.go",
+        "adjust_usm.go",
+        "config.go",
+        "config_darwin.go",
+        "config_linux.go",
+        "config_unix.go",
+        "config_unsupported.go",
+        "config_windows.go",
+        "ns.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/system-probe/config",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/system-probe/config/types",
+        "//pkg/util/flavor",
+        "//pkg/util/kernel",
+        "//pkg/util/log",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "config_test",
+    srcs = [
+        "adjust_npm_test.go",
+        "config_test.go",
+    ],
+    embed = [":config"],
+    deps = [
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "@com_github_stretchr_testify//assert",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:windows": [
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "monitor",
+    srcs = ["process_monitor.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/process/monitor",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/eventmonitor/consumers",
+            "//pkg/network/protocols/telemetry",
+            "//pkg/runtime",
+            "//pkg/util/kernel",
+            "//pkg/util/kernel/netns",
+            "//pkg/util/log",
+            "@com_github_vishvananda_netlink//:netlink",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/eventmonitor/consumers",
+            "//pkg/network/protocols/telemetry",
+            "//pkg/runtime",
+            "//pkg/util/kernel",
+            "//pkg/util/kernel/netns",
+            "//pkg/util/log",
+            "@com_github_vishvananda_netlink//:netlink",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "//conditions:default": [],
+    }),
+)

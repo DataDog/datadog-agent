@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "devicededuper",
+    srcs = ["device_deduper.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/snmp/devicededuper",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/snmp",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "devicededuper_test",
+    srcs = ["device_deduper_test.go"],
+    embed = [":devicededuper"],
+    deps = [
+        "//pkg/snmp",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

@@ -1,0 +1,112 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "hostname",
+    srcs = [
+        "common.go",
+        "container.go",
+        "container_stub.go",
+        "drift.go",
+        "fqdn_nix.go",
+        "fqdn_windows.go",
+        "os_hostname_linux.go",
+        "os_hostname_others.go",
+        "os_hostname_windows.go",
+        "providers.go",
+        "warnings.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/hostname",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/hostname/hostnameinterface",
+        "//pkg/config/env",
+        "//pkg/config/setup",
+        "//pkg/telemetry",
+        "//pkg/util/cache",
+        "//pkg/util/cloudproviders/azure",
+        "//pkg/util/cloudproviders/gce",
+        "//pkg/util/ec2",
+        "//pkg/util/fargate",
+        "//pkg/util/hostname/validate",
+        "//pkg/util/log",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/util/docker",
+            "//pkg/util/kubelet",
+            "//pkg/util/kubernetes",
+            "//pkg/util/system",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/util/docker",
+            "//pkg/util/kubelet",
+            "//pkg/util/kubernetes",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/util/docker",
+            "//pkg/util/kubelet",
+            "//pkg/util/kubernetes",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/docker",
+            "//pkg/util/kubelet",
+            "//pkg/util/kubernetes",
+            "//pkg/util/system",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/docker",
+            "//pkg/util/kubelet",
+            "//pkg/util/kubernetes",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "hostname_test",
+    srcs = [
+        "common_test.go",
+        "container_test.go",
+        "drift_test.go",
+        "providers_test.go",
+    ],
+    embed = [":hostname"],
+    deps = [
+        "//pkg/config/env",
+        "//pkg/config/mock",
+        "//pkg/util/cache",
+        "//pkg/util/cloudproviders/azure",
+        "//pkg/util/cloudproviders/gce",
+        "//pkg/util/ec2",
+        "//pkg/util/fargate",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/util/docker",
+            "//pkg/util/kubelet",
+            "//pkg/util/kubernetes",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/util/docker",
+            "//pkg/util/kubelet",
+            "//pkg/util/kubernetes",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/util/docker",
+            "//pkg/util/kubelet",
+            "//pkg/util/kubernetes",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/docker",
+            "//pkg/util/kubelet",
+            "//pkg/util/kubernetes",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/docker",
+            "//pkg/util/kubelet",
+            "//pkg/util/kubernetes",
+        ],
+        "//conditions:default": [],
+    }),
+)

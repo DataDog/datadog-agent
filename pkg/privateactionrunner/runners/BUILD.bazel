@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "runners",
+    srcs = [
+        "common_runner.go",
+        "interface.go",
+        "workflow_executor.go",
+        "workflow_runner.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/forwarder/eventplatform",
+        "//comp/networkpath/traceroute/def",
+        "//pkg/privateactionrunner/adapters/actions",
+        "//pkg/privateactionrunner/adapters/config",
+        "//pkg/privateactionrunner/adapters/logging",
+        "//pkg/privateactionrunner/bundles",
+        "//pkg/privateactionrunner/credentials/resolver",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/observability",
+        "//pkg/privateactionrunner/opms",
+        "//pkg/privateactionrunner/task-verifier",
+        "//pkg/privateactionrunner/types",
+        "//pkg/privateactionrunner/util",
+        "//pkg/proto/pbgo/privateactionrunner/errorcode",
+    ],
+)

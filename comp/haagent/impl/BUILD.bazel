@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "config.go",
+        "haagent.go",
+        "haagent_comp.go",
+        "rcpayload.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/haagent/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/log/def",
+        "//comp/haagent/def",
+        "//comp/haagent/helpers",
+        "//comp/remote-config/rcclient/types",
+        "//pkg/remoteconfig/state",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = [
+        "haagent_test.go",
+        "haagent_testutils_test.go",
+    ],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/haagent/def",
+        "//pkg/remoteconfig/state",
+        "//pkg/util/log",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

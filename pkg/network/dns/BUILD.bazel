@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "dns",
+    srcs = [
+        "null.go",
+        "stats.go",
+        "tcp_dns_layer.go",
+        "types.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/dns",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/process/util",
+        "//pkg/util/intern",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/telemetry",
+            "//pkg/util/log",
+            "@com_github_google_gopacket//:gopacket",
+            "@com_github_google_gopacket//layers",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "dns_test",
+    srcs = [
+        "stats_test.go",
+        "types_test.go",
+    ],
+    embed = [":dns"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/process/util",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

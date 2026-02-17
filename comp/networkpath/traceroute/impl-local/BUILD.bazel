@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl-local",
+    srcs = ["traceroute.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/impl-local",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/hostname",
+        "//comp/core/telemetry",
+        "//comp/def",
+        "//comp/networkpath/traceroute/def",
+        "//pkg/networkpath/payload",
+        "//pkg/networkpath/traceroute/config",
+        "//pkg/networkpath/traceroute/runner",
+    ],
+)

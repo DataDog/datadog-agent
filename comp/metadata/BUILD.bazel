@@ -1,0 +1,44 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "metadata",
+    srcs = ["bundle.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/metadata",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/metadata/haagent/fx",
+        "//comp/metadata/host/hostimpl",
+        "//comp/metadata/hostgpu/fx",
+        "//comp/metadata/hostsysteminfo/fx",
+        "//comp/metadata/inventoryagent/inventoryagentimpl",
+        "//comp/metadata/inventorychecks/inventorychecksimpl",
+        "//comp/metadata/inventoryhost/inventoryhostimpl",
+        "//comp/metadata/packagesigning/packagesigningimpl",
+        "//comp/metadata/resources/resourcesimpl",
+        "//comp/metadata/runner/runnerimpl",
+        "//comp/metadata/securityagent/fx",
+        "//comp/metadata/systemprobe/fx",
+        "//pkg/util/fxutil",
+    ],
+)
+
+go_test(
+    name = "metadata_test",
+    srcs = ["bundle_test.go"],
+    embed = [":metadata"],
+    deps = [
+        "//comp/collector/collector/collectorimpl",
+        "//comp/core",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/mock",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx-mock",
+        "//comp/logs/agent",
+        "//comp/metadata/runner/runnerimpl",
+        "//pkg/serializer",
+        "//pkg/util/fxutil",
+        "//pkg/util/option",
+        "@org_uber_go_fx//:fx",
+    ],
+)

@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "reporter",
+    srcs = ["reporter.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/reporter",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil/eventlog/api",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)

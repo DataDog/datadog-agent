@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "localapiimpl",
+    srcs = ["local_api.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/updater/localapi/localapiimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/updater/localapi",
+        "//comp/updater/updater",
+        "//pkg/fleet/daemon",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)

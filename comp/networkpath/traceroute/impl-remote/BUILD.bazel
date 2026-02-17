@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl-remote",
+    srcs = ["traceroute.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/impl-remote",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/hostname",
+        "//comp/core/log/def",
+        "//comp/core/sysprobeconfig",
+        "//comp/networkpath/traceroute/def",
+        "//pkg/networkpath/payload",
+        "//pkg/networkpath/traceroute/config",
+        "//pkg/system-probe/api/client",
+        "//pkg/system-probe/config",
+        "//pkg/util/funcs",
+    ],
+)
+
+go_test(
+    name = "impl-remote_test",
+    srcs = ["traceroute_test.go"],
+    embed = [":impl-remote"],
+    deps = [
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/log/mock",
+        "//pkg/networkpath/payload",
+        "//pkg/networkpath/traceroute/config",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

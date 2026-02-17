@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "status",
+    srcs = ["status.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/process/util/status",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/metadata/host/hostimpl/utils",
+        "//pkg/config/model",
+        "//pkg/version",
+    ],
+)

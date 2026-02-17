@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "encoding",
+    srcs = [
+        "encoding.go",
+        "json.go",
+        "protobuf.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/process/encoding",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/process/procutil",
+        "//pkg/util/sync",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_gogo_protobuf//jsonpb",
+        "@com_github_gogo_protobuf//proto",
+    ],
+)
+
+go_test(
+    name = "encoding_test",
+    srcs = ["encoding_test.go"],
+    embed = [":encoding"],
+    deps = [
+        "//pkg/process/procutil",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,47 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "software",
+    srcs = [
+        "collector.go",
+        "collector_nix.go",
+        "collector_windows.go",
+        "msi_collector.go",
+        "msstoreapps_collector.go",
+        "registry_collector.go",
+        "types.go",
+        "win32.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/inventory/software",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
+            "//pkg/util/winutil/datadoginterop",
+            "@org_golang_x_sys//windows",
+            "@org_golang_x_sys//windows/registry",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "software_test",
+    srcs = [
+        "collector_test.go",
+        "collector_windows_test.go",
+        "config_test.go",
+        "integration_windows_test.go",
+    ],
+    embed = [":software"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/config/mock",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//windows/registry",
+        ],
+        "//conditions:default": [],
+    }),
+)

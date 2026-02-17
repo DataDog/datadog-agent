@@ -1,0 +1,11 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "v3or4",
+    srcs = [
+        "client_nodocker.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4",
+    visibility = ["//visibility:public"],
+)

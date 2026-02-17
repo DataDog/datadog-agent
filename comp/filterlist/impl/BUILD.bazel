@@ -1,0 +1,46 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "filterlist.go",
+        "noop_filterlist.go",
+        "rc.go",
+        "tagfilterlist.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/filterlist/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/telemetry",
+        "//comp/filterlist/def",
+        "//comp/remote-config/rcclient/types",
+        "//pkg/config/model",
+        "//pkg/config/structure",
+        "//pkg/metrics",
+        "//pkg/remoteconfig/state",
+        "//pkg/trace/log",
+        "//pkg/util/strings",
+        "@com_github_twmb_murmur3//:murmur3",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = [
+        "filterlist_test.go",
+        "tagfilterlist_test.go",
+    ],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/mock",
+        "//comp/core/telemetry",
+        "//comp/core/telemetry/noopsimpl",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_twmb_murmur3//:murmur3",
+    ],
+)

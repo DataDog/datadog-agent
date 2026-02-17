@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "jmx",
+    srcs = [
+        "jmx.go",
+        "state.go",
+        "status.go",
+    ],
+    embedsrcs = [
+        "status_templates/jmx.tmpl",
+        "status_templates/jmxHTML.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/status/jmx",
+    visibility = ["//visibility:public"],
+    deps = ["//comp/core/status"],
+)

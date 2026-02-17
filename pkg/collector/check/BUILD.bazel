@@ -1,0 +1,46 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "check",
+    srcs = [
+        "check.go",
+        "check_mock.go",
+        "context.go",
+        "jmx.go",
+        "loader.go",
+        "metadata.go",
+        "retry.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/check",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/diagnose/def",
+        "//comp/metadata/inventorychecks",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check/id",
+        "//pkg/collector/check/stats",
+        "//pkg/config/setup",
+        "//pkg/util/log",
+        "//pkg/util/scrubber",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)
+
+go_test(
+    name = "check_test",
+    srcs = [
+        "check_test.go",
+        "id_test.go",
+        "jmx_test.go",
+        "metadata_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":check"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/collector/check/id",
+        "@com_github_stretchr_testify//assert",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)

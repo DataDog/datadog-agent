@@ -1,0 +1,53 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "profile",
+    srcs = [
+        "config_profile.go",
+        "profile.go",
+        "profile_cache.go",
+        "profile_initconfig.go",
+        "profile_resolver.go",
+        "profile_yaml.go",
+        "rc_provider.go",
+        "sysobjectid_resolver.go",
+        "updatable.go",
+        "utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile",
+    visibility = ["//pkg/collector/corechecks/snmp:__subpackages__"],
+    deps = [
+        "//comp/remote-config/rcclient",
+        "//pkg/config/setup",
+        "//pkg/networkdevice/profile/profiledefinition",
+        "//pkg/networkdevice/utils",
+        "//pkg/remoteconfig/state",
+        "//pkg/util/filesystem",
+        "//pkg/util/log",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)
+
+go_test(
+    name = "profile_test",
+    srcs = [
+        "profile_initconfig_test.go",
+        "profile_resolver_test.go",
+        "profile_test.go",
+        "profile_yaml_test.go",
+        "rc_provider_test.go",
+        "sysobjectid_resolver_test.go",
+        "updatable_test.go",
+        "utils_test.go",
+    ],
+    embed = [":profile"],
+    deps = [
+        "//pkg/config/mock",
+        "//pkg/networkdevice/profile/profiledefinition",
+        "//pkg/remoteconfig/state",
+        "//pkg/util/log",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

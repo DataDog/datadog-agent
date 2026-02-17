@@ -1,0 +1,57 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ebpftest",
+    srcs = [
+        "bpfdebug_linux.go",
+        "bpfdebug_unsupported.go",
+        "buildmode.go",
+        "buildmode_linux.go",
+        "buildmode_windows.go",
+        "cgo_align.go",
+        "dumpmaps_helper.go",
+        "fail_log.go",
+        "log.go",
+        "trace_pipe.go",
+        "trace_pipe_linux.go",
+        "version_linux.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/log",
+        "//pkg/util/log/slog",
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf/prebuilt",
+            "//pkg/util/funcs",
+            "//pkg/util/kernel",
+            "@com_github_cilium_ebpf//rlimit",
+            "@com_github_datadog_ebpf_manager//tracefs",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf/prebuilt",
+            "//pkg/util/funcs",
+            "//pkg/util/kernel",
+            "@com_github_cilium_ebpf//rlimit",
+            "@com_github_datadog_ebpf_manager//tracefs",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "ebpftest_test",
+    srcs = ["trace_pipe_linux_test.go"],
+    embed = [":ebpftest"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
+)

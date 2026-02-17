@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["status.go"],
+    embedsrcs = [
+        "status_templates/otelagent.tmpl",
+        "status_templates/otelagentHTML.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/status/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
+        "//comp/core/status",
+        "//comp/otelcol/ddflareextension/types",
+        "//comp/otelcol/status/def",
+        "//pkg/util/prometheus",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["status_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/ipc/mock",
+        "//comp/core/status",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "api",
+    srcs = [
+        "handler_telemetry.go",
+        "leader_forwarder.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/api",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/telemetry",
+        "//pkg/util/log",
+        "//pkg/util/log/setup",
+        "@com_github_prometheus_client_golang//prometheus",
+    ],
+)

@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "statusimpl",
+    srcs = [
+        "mock.go",
+        "status.go",
+    ],
+    embedsrcs = [
+        "status_templates/snmp.tmpl",
+        "status_templates/snmpHTML.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/snmptraps/status/statusimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/status",
+        "//comp/forwarder/eventplatform",
+        "//comp/snmptraps/status",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "statusimpl_test",
+    srcs = ["status_test.go"],
+    embed = [":statusimpl"],
+    deps = [
+        "//comp/forwarder/eventplatform",
+        "//pkg/aggregator",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

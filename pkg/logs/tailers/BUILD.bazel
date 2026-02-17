@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tailers",
+    srcs = [
+        "tailer.go",
+        "tailer_tracker.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/tailers",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/logs/status/utils"],
+)
+
+go_test(
+    name = "tailers_test",
+    srcs = ["tailer_tracker_test.go"],
+    embed = [":tailers"],
+    deps = [
+        "//pkg/logs/status/utils",
+        "@com_github_stretchr_testify//require",
+    ],
+)

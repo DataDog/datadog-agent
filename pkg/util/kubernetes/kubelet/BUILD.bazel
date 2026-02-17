@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "kubelet",
+    srcs = [
+        "doc.go",
+        "kubelet_common.go",
+        "metadata_no_kubelet.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/types",
+        "//pkg/util/containers",
+    ],
+)

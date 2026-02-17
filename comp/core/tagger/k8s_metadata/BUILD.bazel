@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "k8s_metadata",
+    srcs = ["k8s_metadata.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/taglist",
+        "//pkg/util/log",
+        "//pkg/util/tmplvar",
+        "@com_github_gobwas_glob//:glob",
+    ],
+)
+
+go_test(
+    name = "k8s_metadata_test",
+    srcs = ["k8s_metadata_test.go"],
+    embed = [":k8s_metadata"],
+    deps = [
+        "//comp/core/tagger/taglist",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

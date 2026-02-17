@@ -1,0 +1,48 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "netns",
+    srcs = [
+        "graph.go",
+        "resolver.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/resolvers/netns",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/metrics",
+            "//pkg/security/probe/config",
+            "//pkg/security/proto/api",
+            "//pkg/security/resolvers/process",
+            "//pkg/security/resolvers/tc",
+            "//pkg/security/secl/model",
+            "//pkg/security/seclog",
+            "//pkg/security/utils",
+            "//pkg/template/text",
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+            "@com_github_hashicorp_golang_lru_v2//simplelru",
+            "@com_github_vishvananda_netlink//:netlink",
+            "@org_golang_x_sys//unix",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/metrics",
+            "//pkg/security/probe/config",
+            "//pkg/security/proto/api",
+            "//pkg/security/resolvers/process",
+            "//pkg/security/resolvers/tc",
+            "//pkg/security/secl/model",
+            "//pkg/security/seclog",
+            "//pkg/security/utils",
+            "//pkg/template/text",
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+            "@com_github_hashicorp_golang_lru_v2//simplelru",
+            "@com_github_vishvananda_netlink//:netlink",
+            "@org_golang_x_sys//unix",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "//conditions:default": [],
+    }),
+)

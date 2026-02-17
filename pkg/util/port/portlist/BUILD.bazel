@@ -1,0 +1,73 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "portlist",
+    srcs = [
+        "netstat.go",
+        "netstat_darwin.go",
+        "netstat_noimpl.go",
+        "netstat_windows.go",
+        "poller.go",
+        "poller_darwin.go",
+        "poller_linux.go",
+        "poller_windows.go",
+        "portlist.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/port/portlist",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/util/log",
+            "@org_go4_mem//:mem",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/util/log",
+            "@org_go4_mem//:mem",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/util/log",
+            "@org_go4_mem//:mem",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/log",
+            "@org_go4_mem//:mem",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//cpu",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "portlist_test",
+    srcs = [
+        "netstat_test.go",
+        "poller_darwin_test.go",
+        "poller_linux_test.go",
+        "poller_test.go",
+    ],
+    embed = [":portlist"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_google_go_cmp//cmp",
+            "@org_go4_mem//:mem",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@org_go4_mem//:mem",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@org_go4_mem//:mem",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_google_go_cmp//cmp",
+            "@org_go4_mem//:mem",
+        ],
+        "//conditions:default": [],
+    }),
+)

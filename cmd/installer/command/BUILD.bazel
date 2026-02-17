@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "command",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/installer/command",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/setup",
+        "//pkg/fleet/installer/commands",
+        "@com_github_fatih_color//:color",
+        "@com_github_spf13_cobra//:cobra",
+    ],
+)
+
+go_test(
+    name = "command_test",
+    srcs = ["command_test.go"],
+    embed = [":command"],
+    deps = [
+        "//pkg/fleet/installer/commands",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

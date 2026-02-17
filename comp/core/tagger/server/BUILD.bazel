@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "server",
+    srcs = [
+        "server.go",
+        "syncthrottler.go",
+        "telemetry.go",
+        "util.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/server",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/origindetection",
+        "//comp/core/tagger/proto",
+        "//comp/core/tagger/types",
+        "//comp/core/telemetry",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/grpc",
+        "//pkg/util/log",
+        "@com_github_google_uuid//:uuid",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
+
+go_test(
+    name = "server_test",
+    srcs = [
+        "syncthrottler_test.go",
+        "util_benchmark_test.go",
+        "util_test.go",
+    ],
+    embed = [":server"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

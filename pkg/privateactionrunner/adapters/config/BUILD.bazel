@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "config",
+    srcs = [
+        "config_adapter.go",
+        "transform.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//pkg/config/setup",
+        "//pkg/privateactionrunner/adapters/actions",
+        "//pkg/privateactionrunner/adapters/modes",
+        "//pkg/privateactionrunner/observability",
+        "//pkg/privateactionrunner/util",
+        "//pkg/version",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_gobwas_glob//:glob",
+        "@io_k8s_apimachinery//pkg/util/sets",
+    ],
+)

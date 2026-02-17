@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "containertags",
+    srcs = [
+        "buffer.go",
+        "deny_container.go",
+        "noop_buffer.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/trace/containertags",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/env",
+        "//pkg/trace/config",
+        "//pkg/trace/log",
+        "@com_github_datadog_datadog_go_v5//statsd",
+    ],
+)
+
+go_test(
+    name = "containertags_test",
+    srcs = [
+        "buffer_test.go",
+        "deny_container_test.go",
+    ],
+    embed = [":containertags"],
+    deps = [
+        "//pkg/trace/config",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

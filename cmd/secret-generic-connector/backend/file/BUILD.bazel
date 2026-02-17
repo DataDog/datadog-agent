@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "file",
+    srcs = [
+        "json.go",
+        "text.go",
+        "yaml.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/secret-generic-connector/backend/file",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/secret-generic-connector/secret",
+        "@com_github_mitchellh_mapstructure//:mapstructure",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)
+
+go_test(
+    name = "file_test",
+    srcs = [
+        "json_test.go",
+        "text_test.go",
+        "yaml_test.go",
+    ],
+    embed = [":file"],
+    deps = [
+        "//cmd/secret-generic-connector/secret",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

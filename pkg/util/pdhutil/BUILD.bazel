@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "pdhutil",
+    srcs = [
+        "pdh.go",
+        "pdh_386.go",
+        "pdh_amd64.go",
+        "pdhcounter.go",
+        "pdhformatter.go",
+        "pdhhelper.go",
+        "pdhmocks_windows.go",
+        "testdata_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/pdhutil",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/config/setup",
+            "//pkg/util/log",
+            "@org_golang_x_sys//windows",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "//conditions:default": [],
+    }),
+)

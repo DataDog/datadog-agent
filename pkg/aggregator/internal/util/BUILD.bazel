@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "util",
+    srcs = ["simple_throttler.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/aggregator/internal/util",
+    visibility = ["//pkg/aggregator:__subpackages__"],
+    deps = ["//pkg/util/log"],
+)
+
+go_test(
+    name = "util_test",
+    srcs = ["simple_throttler_test.go"],
+    embed = [":util"],
+    deps = [
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_stretchr_testify//require",
+    ],
+)

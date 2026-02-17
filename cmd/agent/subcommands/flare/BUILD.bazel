@@ -1,0 +1,140 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "flare",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/flare",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/agent/command",
+        "//cmd/agent/common",
+        "//cmd/agent/subcommands/streamlogs",
+        "//comp/collector/collector",
+        "//comp/core",
+        "//comp/core/autodiscovery",
+        "//comp/core/autodiscovery/autodiscoveryimpl",
+        "//comp/core/config",
+        "//comp/core/diagnose/def",
+        "//comp/core/diagnose/format",
+        "//comp/core/diagnose/fx",
+        "//comp/core/diagnose/local",
+        "//comp/core/flare",
+        "//comp/core/flare/helpers",
+        "//comp/core/flare/types",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/fx",
+        "//comp/core/log/def",
+        "//comp/core/profiler/def",
+        "//comp/core/profiler/fx",
+        "//comp/core/secrets/def",
+        "//comp/core/secrets/fx",
+        "//comp/core/settings",
+        "//comp/core/settings/settingsimpl",
+        "//comp/core/sysprobeconfig",
+        "//comp/core/sysprobeconfig/sysprobeconfigimpl",
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/fx",
+        "//comp/core/workloadfilter/def",
+        "//comp/core/workloadfilter/fx",
+        "//comp/core/workloadmeta/collectors/catalog",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx",
+        "//comp/core/workloadmeta/init",
+        "//comp/haagent/fx",
+        "//comp/metadata/haagent/fx",
+        "//comp/metadata/host/hostimpl",
+        "//comp/metadata/inventoryagent/inventoryagentimpl",
+        "//comp/metadata/inventoryhost/inventoryhostimpl",
+        "//comp/metadata/resources/resourcesimpl",
+        "//comp/serializer/logscompression/fx",
+        "//comp/serializer/metricscompression/fx",
+        "//pkg/config/settings",
+        "//pkg/config/setup",
+        "//pkg/serializer",
+        "//pkg/util/defaultpaths",
+        "//pkg/util/fxutil",
+        "//pkg/util/input",
+        "//pkg/util/option",
+        "@com_github_fatih_color//:color",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "flare_test",
+    srcs = [
+        "command_darwin_test.go",
+        "command_other_test.go",
+        "command_test.go",
+        "command_windows_test.go",
+    ],
+    embed = [":flare"],
+    deps = [
+        "//cmd/agent/command",
+        "//comp/core",
+        "//comp/core/flare/types",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/mock",
+        "//comp/core/profiler/def",
+        "//comp/core/profiler/fx",
+        "//comp/core/settings/settingsimpl",
+        "//pkg/config/mock",
+        "//pkg/system-probe/api/server/testutil",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//require",
+        "@com_github_stretchr_testify//suite",
+        "@org_uber_go_fx//:fx",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/config/model",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/config/model",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/config/model",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/config/model",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/config/model",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/config/model",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/config/model",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/config/model",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/config/model",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/config/model",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/config/model",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/config/model",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/config/model",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/config/model",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/config/model",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/config/model",
+        ],
+        "//conditions:default": [],
+    }),
+)

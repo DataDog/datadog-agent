@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "config",
+    srcs = [
+        "component.go",
+        "config.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/snmptraps/config",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/snmptraps/snmplog",
+        "//pkg/config/structure",
+        "//pkg/snmp/gosnmplib",
+        "//pkg/snmp/utils",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+    ],
+)
+
+go_test(
+    name = "config_test",
+    srcs = ["config_test.go"],
+    embed = [":config"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/log/mock",
+        "//pkg/config/mock",
+        "@com_github_go_viper_mapstructure_v2//:mapstructure",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,117 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "filesystem",
+    srcs = [
+        "common.go",
+        "concurrent_write.go",
+        "disk.go",
+        "disk_usage.go",
+        "disk_windows.go",
+        "file.go",
+        "open_nix.go",
+        "open_windows.go",
+        "permission_nowindows.go",
+        "permission_windows.go",
+        "rights_nix.go",
+        "rights_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/filesystem",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/log",
+        "@com_github_gofrs_flock//:flock",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "@com_github_shirou_gopsutil_v4//disk",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:android": [
+            "@com_github_shirou_gopsutil_v4//disk",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@com_github_shirou_gopsutil_v4//disk",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "@com_github_shirou_gopsutil_v4//disk",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "@com_github_shirou_gopsutil_v4//disk",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "@com_github_shirou_gopsutil_v4//disk",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_shirou_gopsutil_v4//disk",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:js": [
+            "@com_github_shirou_gopsutil_v4//disk",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_shirou_gopsutil_v4//disk",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "@com_github_shirou_gopsutil_v4//disk",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "@com_github_shirou_gopsutil_v4//disk",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:osx": [
+            "@com_github_shirou_gopsutil_v4//disk",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "@com_github_shirou_gopsutil_v4//disk",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "@com_github_shirou_gopsutil_v4//disk",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "@com_github_shirou_gopsutil_v4//disk",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
+            "@com_github_hectane_go_acl//:go-acl",
+            "@org_golang_x_sys//windows",
+            "@org_golang_x_sys//windows/registry",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "filesystem_test",
+    srcs = [
+        "concurrent_write_test.go",
+        "file_test.go",
+        "permission_nowindows_test.go",
+        "permission_windows_test.go",
+        "rights_nix_test.go",
+        "rights_windows_test.go",
+    ],
+    embed = [":filesystem"],
+    deps = [
+        "@com_github_gofrs_flock//:flock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_x_sync//errgroup",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)

@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "environments",
+    srcs = [
+        "coverage.go",
+        "dockerhost.go",
+        "ecs.go",
+        "environments.go",
+        "host.go",
+        "host_win.go",
+        "kubernetes.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/common/config",
+        "//test/e2e-framework/components",
+        "//test/e2e-framework/components/activedirectory",
+        "//test/e2e-framework/components/datadog/agent",
+        "//test/e2e-framework/components/datadog/fakeintake",
+        "//test/e2e-framework/components/datadog/updater",
+        "//test/e2e-framework/components/docker",
+        "//test/e2e-framework/components/ecs",
+        "//test/e2e-framework/components/kubernetes",
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/components/remote",
+        "//test/e2e-framework/scenarios/outputs",
+        "//test/e2e-framework/testing/components",
+        "//test/e2e-framework/testing/utils/common",
+        "//test/e2e-framework/testing/utils/e2e/client",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclient",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclientparams",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/fields",
+    ],
+)

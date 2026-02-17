@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "instrumentationscope",
+    srcs = ["metadata.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/internal/instrumentationscope",
+    visibility = ["//pkg/opentelemetry-mapping-go/otlp/metrics:__subpackages__"],
+    deps = [
+        "//pkg/opentelemetry-mapping-go/otlp/metrics/internal/utils",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+    ],
+)
+
+go_test(
+    name = "instrumentationscope_test",
+    srcs = ["metadata_test.go"],
+    embed = [":instrumentationscope"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+    ],
+)

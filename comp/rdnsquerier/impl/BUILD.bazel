@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "cache.go",
+        "config.go",
+        "querier.go",
+        "ratelimiter.go",
+        "rdnsquerier.go",
+        "resolver.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/rdnsquerier/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/telemetry",
+        "//comp/def",
+        "//comp/rdnsquerier/def",
+        "//comp/rdnsquerier/impl-none",
+        "//pkg/persistentcache",
+        "@org_golang_x_time//rate",
+        "@org_uber_go_multierr//:multierr",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["config_test.go"],
+    embed = [":impl"],
+    deps = [
+        "//pkg/config/mock",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

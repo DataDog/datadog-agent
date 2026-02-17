@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "jsonquery",
+    srcs = [
+        "jsonquery.go",
+        "yaml.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/jsonquery",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/cache",
+        "//pkg/util/log",
+        "@com_github_itchyny_gojq//:gojq",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+    ],
+)
+
+go_test(
+    name = "jsonquery_test",
+    srcs = [
+        "jsonquery_test.go",
+        "yaml_test.go",
+    ],
+    embed = [":jsonquery"],
+    deps = [
+        "//pkg/util/cache",
+        "@com_github_itchyny_gojq//:gojq",
+        "@com_github_stretchr_testify//assert",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+    ],
+)

@@ -1,0 +1,47 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "assertions.go",
+        "config.go",
+        "scheduler.go",
+        "syntheticscomponent.go",
+        "telemetry.go",
+        "worker.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname",
+        "//comp/core/log/def",
+        "//comp/def",
+        "//comp/forwarder/eventplatform",
+        "//comp/networkpath/traceroute/def",
+        "//comp/remote-config/rcclient/types",
+        "//comp/syntheticstestscheduler/common",
+        "//comp/syntheticstestscheduler/def",
+        "//pkg/logs/message",
+        "//pkg/networkpath/payload",
+        "//pkg/networkpath/traceroute/config",
+        "//pkg/remoteconfig/state",
+        "//pkg/telemetry",
+        "@com_github_datadog_datadog_go_v5//statsd",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = [
+        "assertions_test.go",
+        "worker_test.go",
+    ],
+    embed = [":impl"],
+    deps = [
+        "//comp/syntheticstestscheduler/common",
+        "//pkg/networkpath/payload",
+        "//pkg/networkpath/traceroute/config",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "orchestrator",
+    srcs = [
+        "aliases.go",
+        "cache.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/orchestrator",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/orchestrator/model",
+        "//pkg/telemetry",
+        "//pkg/util/log",
+        "@com_github_patrickmn_go_cache//:go-cache",
+        "@io_k8s_apimachinery//pkg/types",
+    ],
+)
+
+go_test(
+    name = "orchestrator_test",
+    srcs = ["cache_test.go"],
+    embed = [":orchestrator"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@io_k8s_apimachinery//pkg/types",
+    ],
+)

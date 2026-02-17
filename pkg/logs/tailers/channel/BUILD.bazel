@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "channel",
+    srcs = ["tailer.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/tailers/channel",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//pkg/logs/message",
+        "//pkg/logs/sources",
+    ],
+)
+
+go_test(
+    name = "channel_test",
+    srcs = ["tailer_test.go"],
+    embed = [":channel"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//pkg/logs/message",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

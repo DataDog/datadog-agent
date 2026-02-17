@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "parsers",
+    srcs = ["interface.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/parsers",
+    visibility = ["//pkg/logs:__subpackages__"],
+    deps = ["//pkg/logs/message"],
+)

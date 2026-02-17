@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "redact",
+    srcs = ["data_scrubber.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/redact",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/util/log"],
+)
+
+go_test(
+    name = "redact_test",
+    srcs = ["data_scrubber_test.go"],
+    embed = [":redact"],
+    deps = [
+        "//pkg/util/scrubber",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

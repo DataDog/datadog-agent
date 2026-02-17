@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "vm",
+    srcs = ["cf_vm.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/cloudfoundry/vm",
+    visibility = ["//comp/core/workloadmeta/collectors:__subpackages__"],
+    deps = [
+        "//comp/core/workloadmeta/def",
+        "//pkg/config/env",
+        "//pkg/config/setup",
+        "//pkg/errors",
+        "//pkg/util/cloudproviders/cloudfoundry",
+        "//pkg/util/clusteragent",
+        "//pkg/util/json",
+        "//pkg/util/log",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "vm_test",
+    srcs = ["cf_vm_test.go"],
+    embed = [":vm"],
+    deps = [
+        "//comp/core",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx-mock",
+        "//comp/core/workloadmeta/mock",
+        "//pkg/clusteragent/api/v1:api",
+        "//pkg/clusteragent/clusterchecks/types",
+        "//pkg/proto/pbgo/process",
+        "//pkg/util/clusteragent",
+        "//pkg/util/fxutil",
+        "//pkg/version",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_cloudfoundry_code_garden//:garden",
+        "@org_cloudfoundry_code_garden//gardenfakes",
+        "@org_uber_go_fx//:fx",
+    ],
+)

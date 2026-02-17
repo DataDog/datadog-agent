@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "gohai",
+    srcs = ["gohai.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/gohai",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/gohai/cpu",
+        "//pkg/gohai/filesystem",
+        "//pkg/gohai/memory",
+        "//pkg/gohai/network",
+        "//pkg/gohai/platform",
+        "//pkg/gohai/processes",
+        "//pkg/gohai/utils",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "gohai_test",
+    srcs = ["gohai_test.go"],
+    embed = [":gohai"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

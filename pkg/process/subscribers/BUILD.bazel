@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "subscribers",
+    srcs = ["gpu_subscriber.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/process/subscribers",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/types",
+        "//comp/core/workloadmeta/def",
+        "//pkg/util/common",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "subscribers_test",
+    srcs = ["gpu_subscriber_test.go"],
+    embed = [":subscribers"],
+    deps = [
+        "//comp/core",
+        "//comp/core/tagger/types",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx-mock",
+        "//comp/core/workloadmeta/mock",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
+    ],
+)

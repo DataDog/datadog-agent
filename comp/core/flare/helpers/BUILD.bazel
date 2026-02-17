@@ -1,0 +1,56 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "helpers",
+    srcs = [
+        "builder.go",
+        "perm_info.go",
+        "perm_info_nix.go",
+        "perm_info_win.go",
+        "send_flare.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/flare/helpers",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/flare/types",
+        "//pkg/config/model",
+        "//pkg/config/utils",
+        "//pkg/util/archive",
+        "//pkg/util/filesystem",
+        "//pkg/util/hostname",
+        "//pkg/util/hostname/validate",
+        "//pkg/util/http",
+        "//pkg/util/log",
+        "//pkg/util/scrubber",
+        "//pkg/version",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "helpers_test",
+    srcs = [
+        "builder_test.go",
+        "perm_info_nix_test.go",
+        "perm_info_win_test.go",
+        "send_flare_test.go",
+    ],
+    embed = [":helpers"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/flare/builder",
+        "//pkg/util/archive",
+        "//pkg/util/hostname",
+        "//pkg/util/hostname/validate",
+        "//pkg/util/scrubber",
+        "//pkg/version",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

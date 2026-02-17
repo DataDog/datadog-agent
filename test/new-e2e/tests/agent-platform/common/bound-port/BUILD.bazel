@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "bound-port",
+    srcs = [
+        "boundport.go",
+        "unix.go",
+        "windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/bound-port",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/testing/components",
+        "//test/new-e2e/tests/windows/common",
+    ],
+)
+
+go_test(
+    name = "bound-port_test",
+    srcs = ["boundport_test.go"],
+    embed = [":bound-port"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,45 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "pclntab",
+    srcs = ["pclntab.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/pclntab",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/util/safeelf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/safeelf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "pclntab_test",
+    srcs = ["pclntab_test.go"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            ":pclntab",
+            "//comp/host-profiler/symboluploader/symbolcopier",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
+        ],
+        "@rules_go//go/platform:linux": [
+            ":pclntab",
+            "//comp/host-profiler/symboluploader/symbolcopier",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@io_opentelemetry_go_ebpf_profiler//libpf",
+            "@io_opentelemetry_go_ebpf_profiler//libpf/pfelf",
+        ],
+        "//conditions:default": [],
+    }),
+)

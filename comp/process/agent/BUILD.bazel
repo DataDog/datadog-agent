@@ -1,0 +1,143 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "agent",
+    srcs = [
+        "agent_fallback.go",
+        "agent_linux.go",
+        "component.go",
+        "flare.go",
+        "status.go",
+    ],
+    embedsrcs = ["status_templates/processcomponent.tmpl"],
+    importpath = "github.com/DataDog/datadog-agent/comp/process/agent",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/flare/types",
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/status",
+        "//pkg/config/setup",
+        "//pkg/process/checks",
+        "//pkg/process/util/status",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:android": [
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:js": [
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//comp/core/log/def",
+            "//comp/process/types",
+            "//pkg/util/flavor",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "agent_test",
+    srcs = [
+        "agent_linux_test.go",
+        "flare_test.go",
+        "status_test.go",
+    ],
+    embed = [":agent"],
+    embedsrcs = [
+        "fixtures/expvar_response.tmpl",
+        "fixtures/text_error_response.tmpl",
+    ],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/flare/helpers",
+        "//comp/core/hostname/hostnameimpl",
+        "//pkg/process/checks",
+        "//pkg/process/checks/mocks",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//comp/core/log/mock",
+            "//comp/process/types",
+            "//pkg/config/mock",
+            "//pkg/util/flavor",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/core/log/mock",
+            "//comp/process/types",
+            "//pkg/config/mock",
+            "//pkg/util/flavor",
+        ],
+        "//conditions:default": [],
+    }),
+)

@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "status",
+    srcs = ["expvars.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/process/status",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//pkg/process/runner/endpoint",
+        "//pkg/process/util/api/config",
+        "//pkg/util/filesystem",
+        "//pkg/version",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)

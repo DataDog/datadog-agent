@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl-process",
+    srcs = ["remoteagent.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/remoteagent/impl-process",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/log/def",
+        "//comp/core/remoteagent/def",
+        "//comp/core/remoteagent/helper",
+        "//comp/core/telemetry",
+        "//comp/def",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/flavor",
+    ],
+)

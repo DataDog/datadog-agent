@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "opener",
+    srcs = ["open.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/util/opener",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/logs/internal/util/opener",
+        "//pkg/util/filesystem",
+        "@com_github_spf13_afero//:afero",
+    ],
+)

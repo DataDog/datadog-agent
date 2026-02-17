@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "hostmap",
+    srcs = [
+        "constants.go",
+        "errors.go",
+        "hostmap.go",
+        "tags.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/internal/hostmap",
+    visibility = ["//pkg/opentelemetry-mapping-go/inframetadata:__subpackages__"],
+    deps = [
+        "//pkg/opentelemetry-mapping-go/inframetadata/gohai",
+        "//pkg/opentelemetry-mapping-go/inframetadata/payload",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//pmetric",
+        "@io_opentelemetry_go_otel//semconv/v1.18.0:v1_18_0",
+        "@io_opentelemetry_go_otel//semconv/v1.21.0:v1_21_0",
+    ],
+)
+
+go_test(
+    name = "hostmap_test",
+    srcs = [
+        "hostmap_test.go",
+        "tags_test.go",
+    ],
+    embed = [":hostmap"],
+    deps = [
+        "//pkg/opentelemetry-mapping-go/inframetadata/internal/testutils",
+        "//pkg/opentelemetry-mapping-go/inframetadata/payload",
+        "@com_github_stretchr_testify//assert",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//pmetric",
+        "@io_opentelemetry_go_otel//semconv/v1.18.0:v1_18_0",
+    ],
+)

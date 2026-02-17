@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "integrations",
+    srcs = ["integrations.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/integrations",
+    visibility = ["//pkg/logs:__subpackages__"],
+    deps = [
+        "//pkg/logs/internal/parsers",
+        "//pkg/logs/message",
+    ],
+)
+
+go_test(
+    name = "integrations_test",
+    srcs = [
+        "integrations_fuzz_test.go",
+        "integrations_test.go",
+    ],
+    embed = [":integrations"],
+    deps = [
+        "//pkg/logs/message",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

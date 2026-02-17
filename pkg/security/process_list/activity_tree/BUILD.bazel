@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "activity_tree",
+    srcs = ["activity_tree.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/process_list/activity_tree",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/process_list",
+            "//pkg/security/process_list/process_resolver",
+            "//pkg/security/secl/model",
+            "//pkg/security/security_profile/activity_tree",
+            "//pkg/security/utils",
+            "@com_github_datadog_datadog_go_v5//statsd",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/process_list",
+            "//pkg/security/process_list/process_resolver",
+            "//pkg/security/secl/model",
+            "//pkg/security/security_profile/activity_tree",
+            "//pkg/security/utils",
+            "@com_github_datadog_datadog_go_v5//statsd",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "activity_tree_test",
+    srcs = ["activity_tree_test.go"],
+    embed = [":activity_tree"],
+)

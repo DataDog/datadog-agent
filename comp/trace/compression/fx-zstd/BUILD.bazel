@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx-zstd",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/trace/compression/fx-zstd",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/trace/compression/def",
+        "//comp/trace/compression/impl-zstd",
+        "//pkg/util/fxutil",
+    ],
+)

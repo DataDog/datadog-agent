@@ -1,0 +1,139 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "agent",
+    srcs = [
+        "agent.go",
+        "normalizer.go",
+        "obfuscate.go",
+        "truncator.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/trace/agent",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/trace/compression/def",
+        "//pkg/obfuscate",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/trace/api",
+        "//pkg/trace/config",
+        "//pkg/trace/containertags",
+        "//pkg/trace/event",
+        "//pkg/trace/filters",
+        "//pkg/trace/info",
+        "//pkg/trace/log",
+        "//pkg/trace/payload",
+        "//pkg/trace/remoteconfighandler",
+        "//pkg/trace/sampler",
+        "//pkg/trace/stats",
+        "//pkg/trace/telemetry",
+        "//pkg/trace/timing",
+        "//pkg/trace/traceutil",
+        "//pkg/trace/traceutil/normalize",
+        "//pkg/trace/transform",
+        "//pkg/trace/version",
+        "//pkg/trace/writer",
+        "@com_github_datadog_datadog_go_v5//statsd",
+    ],
+)
+
+go_test(
+    name = "agent_test",
+    srcs = [
+        "agent_test.go",
+        "fuzz_test.go",
+        "normalizer_test.go",
+        "obfuscate_test.go",
+        "truncator_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":agent"],
+    deps = [
+        "//comp/trace/compression/impl-gzip",
+        "//pkg/obfuscate",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/trace/api",
+        "//pkg/trace/config",
+        "//pkg/trace/containertags",
+        "//pkg/trace/event",
+        "//pkg/trace/filters",
+        "//pkg/trace/info",
+        "//pkg/trace/log",
+        "//pkg/trace/sampler",
+        "//pkg/trace/stats",
+        "//pkg/trace/telemetry",
+        "//pkg/trace/testutil",
+        "//pkg/trace/timing",
+        "//pkg/trace/traceutil",
+        "//pkg/trace/traceutil/normalize",
+        "//pkg/trace/writer",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_datadog_datadog_go_v5//statsd/mocks",
+        "@com_github_golang_mock//gomock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//proto",
+        "@org_uber_go_atomic//:atomic",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "@com_github_google_go_cmp//cmp",
+            "@com_github_google_go_cmp//cmp/cmpopts",
+        ],
+        "@rules_go//go/platform:android": [
+            "@com_github_google_go_cmp//cmp",
+            "@com_github_google_go_cmp//cmp/cmpopts",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@com_github_google_go_cmp//cmp",
+            "@com_github_google_go_cmp//cmp/cmpopts",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "@com_github_google_go_cmp//cmp",
+            "@com_github_google_go_cmp//cmp/cmpopts",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "@com_github_google_go_cmp//cmp",
+            "@com_github_google_go_cmp//cmp/cmpopts",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "@com_github_google_go_cmp//cmp",
+            "@com_github_google_go_cmp//cmp/cmpopts",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_google_go_cmp//cmp",
+            "@com_github_google_go_cmp//cmp/cmpopts",
+        ],
+        "@rules_go//go/platform:js": [
+            "@com_github_google_go_cmp//cmp",
+            "@com_github_google_go_cmp//cmp/cmpopts",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_google_go_cmp//cmp",
+            "@com_github_google_go_cmp//cmp/cmpopts",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "@com_github_google_go_cmp//cmp",
+            "@com_github_google_go_cmp//cmp/cmpopts",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "@com_github_google_go_cmp//cmp",
+            "@com_github_google_go_cmp//cmp/cmpopts",
+        ],
+        "@rules_go//go/platform:osx": [
+            "@com_github_google_go_cmp//cmp",
+            "@com_github_google_go_cmp//cmp/cmpopts",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "@com_github_google_go_cmp//cmp",
+            "@com_github_google_go_cmp//cmp/cmpopts",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "@com_github_google_go_cmp//cmp",
+            "@com_github_google_go_cmp//cmp/cmpopts",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "@com_github_google_go_cmp//cmp",
+            "@com_github_google_go_cmp//cmp/cmpopts",
+        ],
+        "//conditions:default": [],
+    }),
+)

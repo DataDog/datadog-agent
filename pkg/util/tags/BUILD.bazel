@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tags",
+    srcs = ["static_tags.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/tags",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/tagger/tags",
+        "//pkg/config/env",
+        "//pkg/config/utils",
+        "//pkg/util/fargate",
+        "//pkg/util/flavor",
+        "//pkg/util/kubernetes/cloudprovider",
+        "//pkg/util/kubernetes/clusterinfo",
+        "//pkg/util/kubernetes/clustername",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "tags_test",
+    srcs = ["static_tags_test.go"],
+    embed = [":tags"],
+    deps = [
+        "//pkg/config/env",
+        "//pkg/config/mock",
+        "//pkg/util/flavor",
+        "//pkg/util/kubernetes/clustername",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

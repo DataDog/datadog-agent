@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "bomconvert",
+    srcs = ["convert.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/sbom/bomconvert",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/pointer",
+        "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
+        "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
+        "@org_golang_google_protobuf//types/known/durationpb",
+        "@org_golang_google_protobuf//types/known/timestamppb",
+    ],
+)
+
+go_test(
+    name = "bomconvert_test",
+    srcs = ["convert_test.go"],
+    embed = [":bomconvert"],
+    deps = [
+        "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
+        "@com_github_google_gofuzz//:gofuzz",
+        "@com_github_stretchr_testify//assert",
+        "@org_golang_google_protobuf//proto",
+    ],
+)

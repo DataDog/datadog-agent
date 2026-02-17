@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "mock",
+    srcs = [
+        "mock.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadfilter/mock",
+    visibility = ["//visibility:public"],
+    deps = ["//comp/core/workloadfilter/def"],
+)

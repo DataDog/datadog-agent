@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "dogstatsd",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/dogstatsd",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/agent/command",
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/fx",
+        "//comp/core/log/def",
+        "//comp/core/secrets/fx-noop",
+        "//pkg/aggregator",
+        "//pkg/config/setup",
+        "//pkg/util/fxutil",
+        "@com_github_datadog_zstd//:zstd",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "dogstatsd_test",
+    srcs = ["command_test.go"],
+    embed = [":dogstatsd"],
+    deps = [
+        "//cmd/agent/command",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

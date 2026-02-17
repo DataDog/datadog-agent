@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "file-tailing_test",
+    srcs = ["file_tailing_test.go"],
+    embedsrcs = ["config/config.yaml"],
+    deps = [
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/scenarios/aws/ec2",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/new-e2e/tests/agent-log-pipelines/utils",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

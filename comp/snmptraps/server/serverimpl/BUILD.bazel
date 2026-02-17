@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "serverimpl",
+    srcs = ["server.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/snmptraps/server/serverimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/aggregator/demultiplexer",
+        "//comp/core/config",
+        "//comp/core/hostname",
+        "//comp/core/log/def",
+        "//comp/core/status",
+        "//comp/snmptraps/config",
+        "//comp/snmptraps/config/configimpl",
+        "//comp/snmptraps/formatter/formatterimpl",
+        "//comp/snmptraps/forwarder",
+        "//comp/snmptraps/forwarder/forwarderimpl",
+        "//comp/snmptraps/listener",
+        "//comp/snmptraps/listener/listenerimpl",
+        "//comp/snmptraps/oidresolver/oidresolverimpl",
+        "//comp/snmptraps/server",
+        "//comp/snmptraps/status",
+        "//comp/snmptraps/status/statusimpl",
+        "//pkg/util/fxutil",
+        "//pkg/util/fxutil/logging",
+        "@org_uber_go_fx//:fx",
+    ],
+)
