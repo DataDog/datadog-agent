@@ -8,13 +8,15 @@
 package connection
 
 import (
-	"fmt"
+	"errors"
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
 // newEbpfTracer is not supported on non-Linux platforms
+//
+//nolint:unused // used as stub for connection.NewTracer on non-Linux
 func newEbpfTracer(_ *config.Config, _ telemetry.Component) (Tracer, error) {
-	return nil, fmt.Errorf("eBPF tracer not supported on this platform")
+	return nil, errors.New("eBPF tracer not supported on this platform")
 }

@@ -9,6 +9,7 @@
 package filter
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -111,14 +112,14 @@ type DarwinPacketInfo struct {
 type OptSnapLen int
 
 // NewLibpcapSource creates a LibpcapSource using libpcap
-func NewLibpcapSource(size int, opts ...interface{}) (*LibpcapSource, error) {
+func NewLibpcapSource(_ int, opts ...interface{}) (*LibpcapSource, error) {
 	snapLen := defaultSnapLen
 	for _, opt := range opts {
 		switch o := opt.(type) {
 		case OptSnapLen:
 			snapLen = int(o)
 			if snapLen <= 0 || snapLen > 65536 {
-				return nil, fmt.Errorf("snap len should be between 0 and 65536")
+				return nil, errors.New("snap len should be between 0 and 65536")
 			}
 		default:
 			return nil, fmt.Errorf("unknown option %+v", opt)
