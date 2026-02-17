@@ -35,7 +35,7 @@ const (
 const (
 	// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
 	// This value should be enough for typical workloads (e.g. some amount of processes blocked on the `accept` syscall).
-	maxActive = 512
+	maxActive = 512 //nolint:unused // used by Linux eBPF tracer
 )
 
 // Tracer is the common interface implemented by all connection tracers.
