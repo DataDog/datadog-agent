@@ -27,7 +27,7 @@ lint_cross_windows-x64:
   extends: .cross_lint
   script:
     - apt-get update && apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64
-    - dda inv -- -e windows-resources.build-messagetable
+    - dda inv -- -e build-messagetable
     - export GOOS=windows GOARCH=amd64
     - !reference [.lint_script]
 
