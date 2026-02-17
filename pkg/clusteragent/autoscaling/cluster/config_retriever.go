@@ -51,6 +51,9 @@ func NewConfigRetriever(_ context.Context, clock clock.WithTicker, store *store,
 }
 
 func (cr *ConfigRetriever) autoscalingValuesCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+	cr.valuesProcessor.Lock()
+	defer cr.valuesProcessor.Unlock()
+
 	cr.valuesProcessor.preProcess()
 	for configKey, rawConfig := range updates {
 		log.Debugf("Processing config key: %s, product: %s, id: %s, name: %s, version: %d, leader: %v", configKey, rawConfig.Metadata.Product, rawConfig.Metadata.ID, rawConfig.Metadata.Name, rawConfig.Metadata.Version, cr.isLeader())

@@ -9,6 +9,7 @@ package cluster
 
 import (
 	"encoding/json"
+	"sync"
 
 	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
 
@@ -18,6 +19,7 @@ import (
 )
 
 type autoscalingValuesProcessor struct {
+	sync.Mutex
 	store               *store
 	storeUpdated        *bool
 	processed           map[string]struct{}
