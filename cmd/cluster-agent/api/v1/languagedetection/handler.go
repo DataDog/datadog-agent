@@ -130,11 +130,8 @@ func (handler *languageDetectionHandler) preHandler(w http.ResponseWriter, r *ht
 
 // leaderHandler is called only by the leader and used to patch the annotations
 func (handler *languageDetectionHandler) leaderHandler(w http.ResponseWriter, r *http.Request) {
-	log.Debugf("[lang-detection-handler] received language detection request from %s", r.RemoteAddr)
-
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		log.Errorf("[lang-detection-handler] failed to read request body: %v", err)
 		http.Error(w, "Failed to read request body", http.StatusBadRequest)
 		ProcessedRequests.Inc(statusError)
 		return
@@ -146,25 +143,9 @@ func (handler *languageDetectionHandler) leaderHandler(w http.ResponseWriter, r 
 	// Unmarshal the request body into the protobuf message
 	err = proto.Unmarshal(body, requestData)
 	if err != nil {
-		log.Errorf("[lang-detection-handler] failed to unmarshal request body: %v", err)
 		http.Error(w, "Failed to unmarshal request body", http.StatusBadRequest)
 		ProcessedRequests.Inc(statusError)
 		return
-	}
-
-	log.Debugf("[lang-detection-handler] received %d pod details in request", len(requestData.PodDetails))
-	for _, podDetail := range requestData.PodDetails {
-		log.Debugf("[lang-detection-handler] pod %s/%s owned by %s/%s has %d container details, %d init container details",
-			podDetail.Namespace, podDetail.Name, podDetail.Ownerref.Kind, podDetail.Ownerref.Name,
-			len(podDetail.ContainerDetails), len(podDetail.InitContainerDetails))
-		for _, cd := range podDetail.ContainerDetails {
-			langs := make([]string, 0, len(cd.Languages))
-			for _, l := range cd.Languages {
-				langs = append(langs, l.Name)
-			}
-			log.Debugf("[lang-detection-handler] pod %s/%s container %s: languages=%v",
-				podDetail.Namespace, podDetail.Name, cd.ContainerName, langs)
-		}
 	}
 
 	ownersLanguagesFromRequest := getOwnersLanguages(requestData, time.Now().Add(handler.cfg.languageTTL))
@@ -174,19 +155,16 @@ func (handler *languageDetectionHandler) leaderHandler(w http.ResponseWriter, r 
 		log.Tracef("Owner languages received from pld client: %s", ownersLanguagesFromRequest.String())
 	}
 
-	log.Debugf("[lang-detection-handler] merging and flushing %d owners to workloadmeta", len(ownersLanguagesFromRequest.containersLanguages))
 	err = handler.ownersLanguages.mergeAndFlush(ownersLanguagesFromRequest, handler.wlm)
 	if log.ShouldLog(log.TraceLvl) { // Avoid call to String() if not needed
 		log.Tracef("Owner Languages state post merge-and-flush: %s", handler.ownersLanguages.String())
 	}
 	if err != nil {
-		log.Errorf("[lang-detection-handler] failed to store languages in workloadmeta: %v", err)
 		http.Error(w, fmt.Sprintf("failed to store some (or all) languages in workloadmeta store: %s", err), http.StatusInternalServerError)
 		ProcessedRequests.Inc(statusError)
 		return
 	}
 
-	log.Debugf("[lang-detection-handler] successfully processed language detection request")
 	ProcessedRequests.Inc(statusSuccess)
 	w.WriteHeader(http.StatusOK)
 }
