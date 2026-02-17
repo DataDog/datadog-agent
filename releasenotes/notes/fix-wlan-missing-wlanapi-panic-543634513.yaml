@@ -1,0 +1,5 @@
+fixes:
+  - |
+    Windows: Fixed a crash path in the ``wlan`` check when ``wlanapi.dll`` is
+    unavailable (common on server hosts without Wireless LAN components). The
+    Agent now reports a check error instead of panicking and restarting.
