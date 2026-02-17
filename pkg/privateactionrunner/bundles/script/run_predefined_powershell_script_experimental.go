@@ -119,8 +119,8 @@ func (h *RunPredefinedPowershellScriptHandler) Run(
 	return &RunPredefinedPowershellScriptOutputs{
 		ExecutedCommand: cmd.String(),
 		ExitCode:        cmd.ProcessState.ExitCode(),
-		Stdout:          formatOutput(stdoutBuffer.String(), inputs.NoStripTrailingNewline),
-		Stderr:          formatOutput(stderrBuffer.String(), inputs.NoStripTrailingNewline),
+		Stdout:          formatOutput(normalizeWindowsNewlines(stdoutBuffer.String()), inputs.NoStripTrailingNewline),
+		Stderr:          formatOutput(normalizeWindowsNewlines(stderrBuffer.String()), inputs.NoStripTrailingNewline),
 		DurationMillis:  int(time.Since(start).Milliseconds()),
 	}, nil
 }
@@ -258,4 +258,8 @@ func buildAllowedEnv(envVarNames []string) []string {
 	}
 
 	return env
+}
+
+func normalizeWindowsNewlines(output string) string {
+	return strings.ReplaceAll(output, "\r\n", "\n")
 }
