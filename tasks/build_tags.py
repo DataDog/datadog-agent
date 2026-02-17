@@ -438,14 +438,11 @@ def get_default_build_tags(build="agent", flavor=AgentFlavor.base, platform: str
     return sorted(filter_incompatible_tags(include, platform=platform))
 
 
-def filter_incompatible_tags(include, platform=None):
+def filter_incompatible_tags(include, platform=sys.platform):
     """
     Filter out tags incompatible with the platform.
     include can be a list or a set.
     """
-    if platform is None:
-        platform = sys.platform
-
     exclude = set()
     if not platform.startswith("linux"):
         exclude = exclude.union(LINUX_ONLY_TAGS)
