@@ -6,7 +6,9 @@
 package datadogexporter
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -36,6 +38,7 @@ import (
 	"go.opentelemetry.io/collector/exporter/exportertest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"google.golang.org/protobuf/proto"
 )
 
 type testComponent struct {
@@ -241,4 +244,97 @@ func TestNoPanicSendTraceAfterTraceAgentStop(t *testing.T) {
 
 	err = exporter.ConsumeTraces(ctx, simpleTraces())
 	assert.ErrorContains(t, err, "OTLPReceiver in trace agent is already stopped")
+}
+
+func TestNoAgenthost(t *testing.T) {
+	payloadChan := make(chan []byte, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		assert.Equal(t, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", req.Header.Get("DD-Api-Key"))
+		assert.Equal(t, "application/x-protobuf", req.Header.Get("Content-Type"))
+
+		// Read and store the request body
+		body, err := io.ReadAll(req.Body)
+		assert.NoError(t, err)
+		payloadChan <- body
+
+		rw.WriteHeader(http.StatusAccepted)
+	}))
+
+	defer server.Close()
+	cfg := datadogconfig.Config{
+		API: datadogconfig.APIConfig{
+			Key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		},
+		Traces: datadogconfig.TracesExporterConfig{
+			TCPAddrConfig: confignet.TCPAddrConfig{
+				Endpoint: server.URL,
+			},
+			TracesConfig: datadogconfig.TracesConfig{
+				IgnoreResources: []string{},
+			},
+		},
+	}
+
+	params := exportertest.NewNopSettings(Type)
+	tcfg := config.New()
+	tcfg.ReceiverEnabled = false
+	tcfg.TraceWriter.FlushPeriodSeconds = 0.1
+	tcfg.Endpoints[0].APIKey = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	tcfg.Endpoints[0].Host = server.URL
+	tcfg.Hostname = "" // Set hostname to empty string
+	ctx := context.Background()
+	traceagent := pkgagent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &ddgostatsd.NoOpClient{}, gzip.NewComponent())
+
+	telemetryComp := fxutil.Test[coretelemetry.Mock](t, telemetryimpl.MockModule())
+	store := serializerexporter.TelemetryStore{
+		DDOTTraces: telemetryComp.NewGauge(
+			"runtime",
+			"datadog_agent_ddot_traces",
+			[]string{"version", "command", "host", "task_arn"},
+			"Usage metric of OTLP traces in DDOT",
+		),
+
+		DDOTGWUsage: telemetryComp.NewGauge(
+			"runtime",
+			"datadog_agent_ddot_gateway_usage",
+			[]string{"version", "command"},
+			"Usage metric for GW deployments with DDOT",
+		),
+	}
+	f := NewFactory(testComponent{traceagent, nil}, nil, nil, nil, metricsclient.NewStatsdClientWrapper(&ddgostatsd.NoOpClient{}), otel.NewDisabledGatewayUsage(), store)
+	exporter, err := f.CreateTraces(ctx, params, &cfg)
+	assert.NoError(t, err)
+
+	go traceagent.Run()
+
+	err = exporter.ConsumeTraces(ctx, simpleTraces())
+	assert.NoError(t, err)
+
+	// Wait for payload to be received
+	timeout := time.After(2 * time.Second)
+	var payloadBytes []byte
+	select {
+	case payloadBytes = <-payloadChan:
+		// Got the payload
+	case <-timeout:
+		t.Fatal("Timed out waiting for payload")
+	}
+
+	// Decompress and parse the payload
+	reader, err := gzip.NewComponent().NewReader(io.NopCloser(bytes.NewReader(payloadBytes)))
+	require.NoError(t, err)
+	defer reader.Close()
+
+	decompressed, err := io.ReadAll(reader)
+	require.NoError(t, err)
+
+	var agentPayload pb.AgentPayload
+	err = proto.Unmarshal(decompressed, &agentPayload)
+	require.NoError(t, err)
+
+	assert.Empty(t, agentPayload.HostName, "agent hostname should be empty")
+	assert.Len(t, agentPayload.TracerPayloads, 1)
+	assert.Equal(t, "test-host", agentPayload.TracerPayloads[0].Hostname)
+
+	require.NoError(t, exporter.Shutdown(ctx))
 }

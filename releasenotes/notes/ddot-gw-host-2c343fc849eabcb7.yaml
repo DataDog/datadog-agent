@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Set Agent hostname to empty in DDOT when DDOT is in gateway mode. 
+    This fixes a bug in billing that gateway DDOT hosts are incorrectly used as APM billing hosts. 
+    Instead, the hosts where OTLP traces are generated will be used as APM billing hosts.
