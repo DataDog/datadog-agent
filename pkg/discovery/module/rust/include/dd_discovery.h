@@ -76,6 +76,7 @@ struct dd_service {
   bool apm_instrumentation;
   struct dd_str language;
   struct dd_str service_type;
+  bool has_nvidia_gpu;
 };
 
 struct dd_discovery_result {

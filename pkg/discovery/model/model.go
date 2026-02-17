@@ -24,6 +24,7 @@ type Service struct {
 	Language                 string                          `json:"language"`
 	Type                     string                          `json:"service_type"`
 	UST                      UST                             `json:"ust"`
+	HasNvidiaGPU             bool                            `json:"has_nvidia_gpu"`
 }
 
 // UST represents the Unified Service Tagging environment variables of a service.
