@@ -261,7 +261,7 @@ func (p *PrometheusServicesEndpointSlicesConfigProvider) invalidateIfChanged(old
 	}
 
 	// Compare annotations
-	if p.promAnnotationsDiffer(castedObj.GetAnnotations(), castedOld.GetAnnotations()) {
+	if promAnnotationsDiffer(p.checks, castedObj.GetAnnotations(), castedOld.GetAnnotations()) {
 		log.Trace("Invalidating configs on service change")
 		p.setUpToDate(false)
 		return
@@ -308,30 +308,6 @@ func (p *PrometheusServicesEndpointSlicesConfigProvider) invalidateIfChangedEndp
 		// Invalidate only when endpoints change
 		p.upToDate = equality.Semantic.DeepEqual(castedObj.Endpoints, castedOld.Endpoints)
 	}
-}
-
-// promAnnotationsDiffer returns whether a service update corresponds to a config invalidation
-func (p *PrometheusServicesEndpointSlicesConfigProvider) promAnnotationsDiffer(first, second map[string]string) bool {
-	for _, annotation := range types.PrometheusStandardAnnotations {
-		if first[annotation] != second[annotation] {
-			return true
-		}
-	}
-
-	for _, check := range p.checks {
-		for k := range check.AD.GetIncludeAnnotations() {
-			if first[k] != second[k] {
-				return true
-			}
-		}
-		for k := range check.AD.GetExcludeAnnotations() {
-			if first[k] != second[k] {
-				return true
-			}
-		}
-	}
-
-	return false
 }
 
 // GetConfigErrors is not implemented for the PrometheusServicesEndpointSlicesConfigProvider
