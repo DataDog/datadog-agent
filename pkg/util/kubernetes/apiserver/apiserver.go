@@ -41,7 +41,7 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 	apiregistrationclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1"
 
-	httptrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/net/http"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -214,6 +214,48 @@ func WaitForAPIClient(ctx context.Context) (*APIClient, error) {
 	}
 }
 
+// tracedRoundTripper wraps an http.RoundTripper to add lightweight APM tracing.
+// This avoids pulling in the full dd-trace-go/contrib/net/http package (~8-10 MiB).
+type tracedRoundTripper struct {
+	base http.RoundTripper
+}
+
+// RoundTrip executes an HTTP request with APM tracing
+func (t *tracedRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Start span with operation name and resource
+	span, ctx := tracer.StartSpanFromContext(
+		req.Context(),
+		"kubernetes.api.request",
+		tracer.ResourceName(req.Method+" "+req.URL.Path),
+		tracer.SpanType("http"),
+	)
+	defer span.Finish()
+
+	// Add HTTP metadata
+	span.SetTag("http.method", req.Method)
+	span.SetTag("http.url", req.URL.String())
+	if req.URL.Host != "" {
+		span.SetTag("http.host", req.URL.Host)
+	}
+
+	// Execute request with traced context
+	req = req.WithContext(ctx)
+	resp, err := t.base.RoundTrip(req)
+
+	// Tag response metadata
+	if resp != nil {
+		span.SetTag("http.status_code", resp.StatusCode)
+	}
+
+	// Handle errors
+	if err != nil {
+		span.SetTag("error", true)
+		span.SetTag("error.message", err.Error())
+	}
+
+	return resp, err
+}
+
 // GetClientConfig returns a REST client configuration
 func GetClientConfig(timeout time.Duration, qps float32, burst int) (*rest.Config, error) {
 	var clientConfig *rest.Config
@@ -256,7 +298,7 @@ func GetClientConfig(timeout time.Duration, qps float32, burst int) (*rest.Confi
 	// Wrap with APM tracing for automatic instrumentation of Kubernetes API calls (only if enabled)
 	if pkgconfigsetup.Datadog().GetBool("cluster_agent.apm_instrumentation_enabled") {
 		clientConfig.Wrap(func(rt http.RoundTripper) http.RoundTripper {
-			return httptrace.WrapRoundTripper(rt)
+			return &tracedRoundTripper{base: rt}
 		})
 	}
 
