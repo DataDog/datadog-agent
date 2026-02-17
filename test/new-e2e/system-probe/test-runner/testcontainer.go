@@ -62,6 +62,7 @@ func (ctc *testContainer) start() error {
 		"/usr/lib/os-release:/host/usr/lib/os-release",
 		"/sys/fs/cgroup:/host/sys/fs/cgroup",
 		// tests only
+		"/dev:/dev",
 		"/opt/datadog-agent/embedded/:/opt/datadog-agent/embedded/",
 		"/opt/kmt-ramfs:/opt/kmt-ramfs",
 		ctc.bpfDir + ":/opt/bpf",
