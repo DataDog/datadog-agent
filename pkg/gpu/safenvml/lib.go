@@ -21,6 +21,7 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -391,12 +392,6 @@ func GetSafeNvmlLib() (SafeNVML, error) {
 	return &singleton, nil
 }
 
-// isContainerized checks if the agent is running in a containerized environment.
-// We can't use env.IsContainerized() here to avoid a circular dependency.
-func isContainerized() bool {
-	return os.Getenv("DOCKER_DD_AGENT") == "1"
-}
-
 // generateDefaultNvmlPaths generates the default paths for the NVML library,
 // taking into account containerized environments and the HOST_ROOT environment variable.
 // NOTE: This logic is intentionally duplicated in pkg/config/env/environment_containers.go
@@ -410,7 +405,7 @@ func generateDefaultNvmlPaths() []string {
 
 	hostRoot := os.Getenv("HOST_ROOT")
 	if hostRoot == "" {
-		if isContainerized() {
+		if env.IsContainerized() {
 			hostRoot = "/host"
 		} else {
 			return systemPaths

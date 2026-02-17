@@ -388,11 +388,11 @@ func getDefaultNvmlPaths() []string {
 
 	hostRoot := os.Getenv("HOST_ROOT")
 	if hostRoot == "" {
-		if IsContainerized() {
-			hostRoot = defaultHostMountPrefix
-		} else {
+		if !IsContainerized() {
 			return systemPaths
 		}
+
+		hostRoot = defaultHostMountPrefix
 	}
 
 	paths := make([]string, 0, len(systemPaths))
