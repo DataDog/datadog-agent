@@ -458,6 +458,7 @@ var defaultProfiles = `
           aggregate_tags:
             - repository
             - tag
+            - bucket
             - outcome
     schedule:
       start_after: 30
