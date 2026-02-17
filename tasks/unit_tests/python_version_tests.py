@@ -204,19 +204,21 @@ const (
 
 
 class TestGetPythonSha256Hash(unittest.TestCase):
-    VALID_SBOM = json.dumps({
-        "packages": [
-            {
-                "name": "CPython",
-                "checksums": [
-                    {
-                        "algorithm": "SHA256",
-                        "checksumValue": "6c9d80839cfa20024f34d9a6dd31ae2a9cd97ff5e980e969209746037a5153b2",
-                    }
-                ],
-            }
-        ]
-    })
+    VALID_SBOM = json.dumps(
+        {
+            "packages": [
+                {
+                    "name": "CPython",
+                    "checksums": [
+                        {
+                            "algorithm": "SHA256",
+                            "checksumValue": "6c9d80839cfa20024f34d9a6dd31ae2a9cd97ff5e980e969209746037a5153b2",
+                        }
+                    ],
+                }
+            ]
+        }
+    )
 
     @unittest.mock.patch('tasks.python_version._url_get')
     def test_extracts_sha256_from_sbom(self, mock_url_get):
@@ -243,9 +245,9 @@ class TestGetPythonSha256Hash(unittest.TestCase):
         """Test error when SHA256 checksum is missing from CPython package."""
         from tasks.python_version import _get_python_sha256_hash
 
-        mock_url_get.return_value = json.dumps({
-            "packages": [{"name": "CPython", "checksums": [{"algorithm": "MD5", "checksumValue": "abc"}]}]
-        })
+        mock_url_get.return_value = json.dumps(
+            {"packages": [{"name": "CPython", "checksums": [{"algorithm": "MD5", "checksumValue": "abc"}]}]}
+        )
 
         with self.assertRaises(ValueError, msg="Could not find SHA256 checksum in SBOM"):
             _get_python_sha256_hash("3.13.9")
@@ -255,12 +257,21 @@ class TestGetPythonSha256Hash(unittest.TestCase):
         """Test that returned hash is lowercased."""
         from tasks.python_version import _get_python_sha256_hash
 
-        sbom = json.dumps({
-            "packages": [{
-                "name": "CPython",
-                "checksums": [{"algorithm": "SHA256", "checksumValue": "6C9D80839CFA20024F34D9A6DD31AE2A9CD97FF5E980E969209746037A5153B2"}],
-            }]
-        })
+        sbom = json.dumps(
+            {
+                "packages": [
+                    {
+                        "name": "CPython",
+                        "checksums": [
+                            {
+                                "algorithm": "SHA256",
+                                "checksumValue": "6C9D80839CFA20024F34D9A6DD31AE2A9CD97FF5E980E969209746037A5153B2",
+                            }
+                        ],
+                    }
+                ]
+            }
+        )
         mock_url_get.return_value = sbom
 
         result = _get_python_sha256_hash("3.13.9")
