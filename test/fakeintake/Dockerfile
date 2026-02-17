@@ -8,7 +8,7 @@ FROM ${BASE_IMAGE_REGISTRY}/library/golang:${GO_VERSION} AS build
 
 # need gcc to build with CGO_ENABLED=1
 # need musl-dev to get stdlib.h
-RUN apt update && apt install -y musl-dev gcc musl-tools
+RUN apt update && apt install --no-install-recommends -y musl-dev gcc musl-tools && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
