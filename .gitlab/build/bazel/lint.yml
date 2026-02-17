@@ -4,9 +4,7 @@
     - |-
       if [ $CI_JOB_STATUS = failed ]; then
         echo >&2 "💡 To fix the above problem, please consider running the following command:"
-        echo >&2 "$(printf "%${#FIX_COMMAND}s" | tr ' ' 'v')"
         echo >&2 "$FIX_COMMAND"
-        echo >&2 "$(printf "%${#FIX_COMMAND}s" | tr ' ' '^')"
       fi
 
 bazel:mod-deps:
