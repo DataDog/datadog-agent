@@ -76,6 +76,7 @@ func (ctc *testContainer) start() error {
 		"HOST_PROC=/host/proc",
 		"HOST_SYS=/host/sys",
 		"HOST_ETC=/host/etc",
+		"DD_LOG_LEVEL=debug",
 	}
 	for _, env := range envs {
 		args = append(args, "-e", env)
