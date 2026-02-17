@@ -17,9 +17,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/dd-source/domains/actionplatform/apps/private-runner/src/types"
-	"github.com/DataDog/dd-source/domains/actionplatform/libs/privateconnection"
-	"github.com/DataDog/dd-source/libs/go/tmpl"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/tmpl"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
 // requiredWindowsEnvVars are environment variables that must always be available
