@@ -93,12 +93,12 @@ func (fn *FileNode) buildNodeRow(prefix string) string {
 	if fn.Open != nil && fn.File != nil {
 		var pkg string
 		if len(fn.File.PkgName) != 0 {
-			pkg = fmt.Sprintf("%s:%s", fn.File.PkgName, fn.File.PkgVersion)
+			pkg = fn.File.PkgName + ":" + fn.File.PkgVersion
 		}
 		out += "<TR>"
 		out += "<TD>open</TD>"
 		out += "<TD>" + strconv.Itoa(len(fn.File.Hashes)) + " hash(es)</TD>"
-		out += "<TD ALIGN=\"LEFT\">" + fmt.Sprintf("%s/%s", prefix, fn.Name) + "</TD>"
+		out += "<TD ALIGN=\"LEFT\">" + prefix + "/" + fn.Name + "</TD>"
 		out += "<TD>" + pkg + "</TD>"
 		out += "</TR>"
 	}
