@@ -49,6 +49,7 @@ func (ctc *testContainer) start() error {
 	}
 
 	var mounts = []string{
+		// required
 		"/sys/kernel/debug:/sys/kernel/debug", // bind mount debugfs
 		"/dev:/dev",
 		"/proc:/host/proc",
@@ -58,6 +59,7 @@ func (ctc *testContainer) start() error {
 		"/usr/lib/os-release:/host/usr/lib/os-release",
 		"/etc/passwd:/etc/passwd",
 		"/etc/group:/etc/group",
+		// tests only
 		"/opt/datadog-agent/embedded/:/opt/datadog-agent/embedded/",
 		"/opt/kmt-ramfs:/opt/kmt-ramfs",
 		ctc.bpfDir + ":/opt/bpf",
