@@ -148,6 +148,12 @@ configure_make(
         },
         "//conditions:default": {},
     }),
+    install_prefix = select({
+        "@platforms//os:windows": "",
+        # Provide a long value to ensure we end up with a path to openssl in the sandbox that
+        # is longer than the placeholder we will replace it with as part of the postfix script
+        "//conditions:default": "placeholder" + '_' * 50,
+    }),
     lib_source = ":all_srcs",
     out_include_dir = "include",
     out_interface_libs = select({
