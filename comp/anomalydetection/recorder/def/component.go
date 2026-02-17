@@ -38,6 +38,9 @@ type Component interface {
 	// ReadAllProfiles reads all profile metadata from parquet files and returns them as a slice.
 	// Profile binary data is stored in separate files referenced by BinaryPath.
 	ReadAllProfiles(inputDir string) ([]ProfileData, error)
+
+	// ReadAllLogs reads all logs from parquet files and returns them as a slice.
+	ReadAllLogs(inputDir string) ([]LogData, error)
 }
 
 // MetricData represents a single metric read from parquet files.
@@ -108,4 +111,14 @@ type ProfileData struct {
 	ContentType string   // Original Content-Type header
 	BinaryData  []byte   // Embedded profile binary (pprof, JFR, etc.)
 	Tags        []string // Profile tags in "key:value" format
+}
+
+// LogData represents a log entry read from parquet files.
+type LogData struct {
+	Source    string   // Source/namespace (RunID in parquet)
+	Timestamp int64    // Unix timestamp in milliseconds since epoch
+	Content   []byte   // Log message content (raw bytes)
+	Status    string   // Log severity level (debug, info, warn, error, etc.)
+	Hostname  string   // Hostname where log originated
+	Tags      []string // Tags in "key:value" format
 }
