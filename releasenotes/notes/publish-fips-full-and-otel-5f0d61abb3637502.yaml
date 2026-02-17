@@ -1,3 +1,3 @@
 ---
 enhancements:
-  - "Start publishing FIPS variants of the ddot-collector and agent-full images"
+  - FIPS variants of the ``ddot-collector`` and agent ``-full`` images are now published.
