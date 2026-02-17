@@ -465,7 +465,7 @@ func TestProcessResults(t *testing.T) {
 			assert.NotNil(t, actual.Timestamp)
 			diff := cmp.Diff(test.expected, actual,
 				cmpopts.IgnoreFields(payload.NetworkPath{}, "Timestamp"),
-				cmpopts.IgnoreFields(payload.NetworkPath{}, "PathtraceID"),
+				cmpopts.IgnoreFields(payload.NetworkPath{}, "TestRunID"),
 				cmpopts.IgnoreFields(payload.NetworkPath{}, "TestResultID"),
 			)
 			assert.Empty(t, diff)
