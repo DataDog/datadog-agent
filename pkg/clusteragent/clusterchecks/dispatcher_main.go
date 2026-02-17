@@ -62,11 +62,7 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 	// Attach the cluster agent's global tags to all dispatched checks
 	// as defined in the tagger's workloadmeta collector
 	var err error
-	span := tracer.StartSpan("cluster_checks.workloadmeta.global_tags",
-		tracer.ResourceName("get_global_tags"),
-		tracer.SpanType("internal"))
 	d.extraTags, err = tagger.GlobalTags(types.LowCardinality)
-	span.Finish(tracer.WithError(err))
 	if err != nil {
 		log.Warnf("Cannot get global tags from the tagger: %v", err)
 	} else {

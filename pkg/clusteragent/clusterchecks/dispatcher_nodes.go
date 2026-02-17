@@ -12,8 +12,6 @@ import (
 	"math/rand"
 	"time"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -44,12 +42,6 @@ func (d *dispatcher) getClusterCheckConfigs(nodeName string) ([]integration.Conf
 // processNodeStatus keeps the node's status in the store, and returns true
 // if the last configuration change matches the one sent by the node agent.
 func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.NodeStatus) bool {
-	span := tracer.StartSpan("cluster_checks.dispatcher.process_node_status",
-		tracer.ResourceName("process_node_status"),
-		tracer.SpanType("worker"))
-	// Note: node_name is intentionally not tagged to avoid high cardinality in large clusters
-	defer span.Finish()
-
 	var warmingUp bool
 
 	d.store.Lock()

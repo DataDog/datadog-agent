@@ -14,7 +14,6 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
@@ -23,24 +22,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// traceHandler wraps HTTP handlers with APM tracing spans
-func traceHandler(operationName string, handler http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		span, ctx := tracer.StartSpanFromContext(r.Context(), operationName,
-			tracer.ResourceName(r.Method+" "+r.URL.Path),
-			tracer.SpanType("web"))
-		defer span.Finish()
-		handler(w, r.WithContext(ctx))
-	}
-}
-
 // Install registers v1 API endpoints
 func installClusterCheckEndpoints(r *mux.Router, sc clusteragent.ServerContext) {
-	r.HandleFunc("/clusterchecks/status/{identifier}", api.WithTelemetryWrapper("postCheckStatus", traceHandler("cluster_checks.api.post_status", postCheckStatus(sc)))).Methods("POST")
-	r.HandleFunc("/clusterchecks/configs/{identifier}", api.WithTelemetryWrapper("getCheckConfigs", traceHandler("cluster_checks.api.get_configs", getCheckConfigs(sc)))).Methods("GET")
-	r.HandleFunc("/clusterchecks/rebalance", api.WithTelemetryWrapper("postRebalanceChecks", traceHandler("cluster_checks.api.rebalance", postRebalanceChecks(sc)))).Methods("POST")
-	r.HandleFunc("/clusterchecks", api.WithTelemetryWrapper("getState", traceHandler("cluster_checks.api.get_state", getState(sc)))).Methods("GET")
-	r.HandleFunc("/clusterchecks/isolate/check/{identifier}", api.WithTelemetryWrapper("postIsolateCheck", traceHandler("cluster_checks.api.isolate_check", postIsolateCheck(sc)))).Methods("POST")
+	r.HandleFunc("/clusterchecks/status/{identifier}", api.WithTelemetryWrapper("postCheckStatus", postCheckStatus(sc))).Methods("POST")
+	r.HandleFunc("/clusterchecks/configs/{identifier}", api.WithTelemetryWrapper("getCheckConfigs", getCheckConfigs(sc))).Methods("GET")
+	r.HandleFunc("/clusterchecks/rebalance", api.WithTelemetryWrapper("postRebalanceChecks", postRebalanceChecks(sc))).Methods("POST")
+	r.HandleFunc("/clusterchecks", api.WithTelemetryWrapper("getState", getState(sc))).Methods("GET")
+	r.HandleFunc("/clusterchecks/isolate/check/{identifier}", api.WithTelemetryWrapper("postIsolateCheck", postIsolateCheck(sc))).Methods("POST")
 }
 
 // RebalancePostPayload struct is for the JSON messages received from a client POST request
