@@ -126,6 +126,21 @@ func BuildManifestFromK8sResource(k8sResource map[string]interface{}, isTerminat
 
 	resourceVersion, _ := metadata["resourceVersion"].(string)
 	apiVersion, _ := k8sResource["apiVersion"].(string)
+	var nodeName string
+	switch kind {
+	case "Pod":
+		if spec, ok := k8sResource["spec"].(map[string]interface{}); ok {
+			if n, ok := spec["nodeName"].(string); ok {
+				nodeName = n
+			}
+		}
+	case "Node":
+		if n, ok := metadata["name"].(string); ok {
+			nodeName = n
+		}
+	default:
+		nodeName = ""
+	}
 
 	// Convert the Kubernetes resource to JSON bytes for the manifest content
 	content, err := json.Marshal(k8sResource)
@@ -151,6 +166,7 @@ func BuildManifestFromK8sResource(k8sResource map[string]interface{}, isTerminat
 		IsTerminated:    isTerminated,
 		ApiVersion:      apiVersion,
 		Kind:            kind,
+		NodeName:        nodeName,
 	}
 	return manifest, nil
 }
