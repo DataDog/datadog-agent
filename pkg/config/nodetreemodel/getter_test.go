@@ -45,10 +45,9 @@ func TestGet(t *testing.T) {
 
 	assert.Equal(t, nil, cfg.Get("does_not_exists"))
 
-	// test implicit conversion and handle conversion
+	// set converts to default type at insert
 	cfg.Set("a", "1111", model.SourceAgentRuntime)
-	assert.Equal(t, "1111", cfg.Get("a"))
-	assert.Equal(t, 1111, cfg.GetInt("a"))
+	assert.Equal(t, 1111, cfg.Get("a"))
 }
 
 func TestGetDefaultType(t *testing.T) {
@@ -108,14 +107,12 @@ func TestGetCastToDefault(t *testing.T) {
 	cfg.SetDefault("a", []string{})
 	cfg.BuildSchema()
 
-	// type specific GET handle conversion
+	// set converts to default type at insert
 	cfg.Set("a", 9876, model.SourceAgentRuntime)
-	assert.Equal(t, 9876, cfg.Get("a"))
-	assert.Equal(t, []string{"9876"}, cfg.GetStringSlice("a"))
+	assert.Equal(t, []string{"9876"}, cfg.Get("a"))
 
 	cfg.Set("a", "a b c", model.SourceAgentRuntime)
-	assert.Equal(t, "a b c", cfg.Get("a"))
-	assert.Equal(t, []string{"a", "b", "c"}, cfg.GetStringSlice("a"))
+	assert.Equal(t, []string{"a", "b", "c"}, cfg.Get("a"))
 
 	assert.Equal(t, nil, cfg.Get("does_not_exists"))
 }
