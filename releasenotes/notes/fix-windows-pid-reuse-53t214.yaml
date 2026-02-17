@@ -1,0 +1,7 @@
+fixes:
+  - |
+    Windows: Fixed a Process Agent issue where process metadata (for example executable
+    path, command line, and username) could be incorrectly reused after Windows PID
+    recycling. The agent now validates process identity with PID + creation time in
+    both Toolhelp and performance-counter probes, and refreshes cached metadata when
+    a PID is reused.
