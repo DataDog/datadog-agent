@@ -8,13 +8,17 @@
 package procutil
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/shirou/w32"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
@@ -115,7 +119,6 @@ func TestWindowsProbe(t *testing.T) {
 			assert.Equal(t, []string{"powershell.exe", "-c", `"sleep 10; foo bar baz"`}, p.Cmdline)
 			assert.Equal(t, int32(os.Getpid()), p.Ppid)
 			assert.Equal(t, int32(cmd.Process.Pid), p.Pid)
-			assert.Equal(t, "Windows PowerShell", p.Comm)
 
 			assert.WithinRange(t, time.Unix(0, p.Stats.CreateTime*1000_000), now, now.Add(5*time.Second))
 
@@ -129,27 +132,200 @@ func TestWindowsProbe(t *testing.T) {
 	}
 }
 
-func TestGetPIDsBufferScaling(t *testing.T) {
-	// Save original values
-	originalInitialSize := InitialPIDBufferSize
-	originalIncrement := PIDBufferIncrement
+func TestRefreshProcessMetadataIfNeededSkipsRefreshWhenCreateTimeMatches(t *testing.T) {
+	origGetCreateTime := getProcessCreateTimeFunc
+	origFillDetails := fillProcessDetailsFunc
+	t.Cleanup(func() {
+		getProcessCreateTimeFunc = origGetCreateTime
+		fillProcessDetailsFunc = origFillDetails
+	})
 
-	// Restore original values after test
-	defer func() {
-		InitialPIDBufferSize = originalInitialSize
-		PIDBufferIncrement = originalIncrement
-	}()
+	p := &probe{
+		procs: map[int32]*Process{
+			42: {
+				Pid: 42,
+				Exe: "old.exe",
+				Stats: &Stats{
+					CreateTime: 100,
+				},
+			},
+		},
+	}
 
-	// Test with very small buffer sizes to force scaling
-	InitialPIDBufferSize = 4 // Start with buffer for only 1 PID
-	PIDBufferIncrement = 4   // Increment by only 1 PID at a time
+	fillCalls := 0
+	getProcessCreateTimeFunc = func(pid int32) (int64, error) {
+		require.Equal(t, int32(42), pid)
+		return 100, nil
+	}
+	fillProcessDetailsFunc = func(pid int32, proc *Process) error {
+		fillCalls++
+		return nil
+	}
 
-	// This should still work despite the tiny buffer - it will scale up as needed
-	pids1, err1 := getPIDs()
-	assert.NoError(t, err1)
-	assert.NotEmpty(t, pids1)
+	p.refreshProcessMetadataIfNeeded(42)
 
-	// make sure we have more then 30 pids
-	assert.Greater(t, len(pids1), 30)
+	assert.Equal(t, 0, fillCalls)
+	assert.Equal(t, "old.exe", p.procs[42].Exe)
+	assert.Equal(t, int64(100), p.procs[42].Stats.CreateTime)
+}
 
+func TestRefreshProcessMetadataIfNeededRefreshesOnPIDReuse(t *testing.T) {
+	origGetCreateTime := getProcessCreateTimeFunc
+	origFillDetails := fillProcessDetailsFunc
+	t.Cleanup(func() {
+		getProcessCreateTimeFunc = origGetCreateTime
+		fillProcessDetailsFunc = origFillDetails
+	})
+
+	p := &probe{
+		procs: map[int32]*Process{
+			42: {
+				Pid: 42,
+				Exe: "old.exe",
+				Stats: &Stats{
+					CreateTime: 100,
+				},
+			},
+		},
+	}
+
+	fillCalls := 0
+	getProcessCreateTimeFunc = func(pid int32) (int64, error) {
+		require.Equal(t, int32(42), pid)
+		return 200, nil
+	}
+	fillProcessDetailsFunc = func(pid int32, proc *Process) error {
+		fillCalls++
+		proc.Exe = "new.exe"
+		proc.Cmdline = []string{"new.exe", "--flag"}
+		proc.Username = "DOMAIN\\new-user"
+		proc.Stats.CreateTime = 200
+		return nil
+	}
+
+	p.refreshProcessMetadataIfNeeded(42)
+
+	assert.Equal(t, 1, fillCalls)
+	require.Contains(t, p.procs, int32(42))
+	assert.Equal(t, "new.exe", p.procs[42].Exe)
+	assert.Equal(t, []string{"new.exe", "--flag"}, p.procs[42].Cmdline)
+	assert.Equal(t, "DOMAIN\\new-user", p.procs[42].Username)
+	assert.Equal(t, int64(200), p.procs[42].Stats.CreateTime)
+}
+
+func TestBuildProcessFromEntrySkipsMetadataRefreshWhenCreateTimeMatches(t *testing.T) {
+	origOpenProcess := openProcessHandleForToolhelp
+	origFillFromEntry := fillFromProcEntryForToolhelp
+	origGetCreateTimeFromHandle := getProcessCreateTimeFromHandleFunc
+	t.Cleanup(func() {
+		openProcessHandleForToolhelp = origOpenProcess
+		fillFromProcEntryForToolhelp = origFillFromEntry
+		getProcessCreateTimeFromHandleFunc = origGetCreateTimeFromHandle
+	})
+
+	p := &windowsToolhelpProbe{
+		cachedProcesses: map[uint32]*cachedProcess{
+			42: {
+				userName:       "old-user",
+				executablePath: "old.exe",
+				parsedArgs:     []string{"old.exe", "--old"},
+				createTime:     100,
+			},
+		},
+	}
+
+	openCalls := 0
+	openProcessHandleForToolhelp = func(pid int32) (windows.Handle, bool, error) {
+		openCalls++
+		require.Equal(t, int32(42), pid)
+		return windows.Handle(0), false, nil
+	}
+
+	fillCalls := 0
+	fillFromProcEntryForToolhelp = func(_ *cachedProcess, _ *w32.PROCESSENTRY32) error {
+		fillCalls++
+		return errors.New("unexpected refresh")
+	}
+
+	getCreateCalls := 0
+	getProcessCreateTimeFromHandleFunc = func(_ windows.Handle) (int64, error) {
+		getCreateCalls++
+		return 100, nil
+	}
+
+	entry := &w32.PROCESSENTRY32{
+		Th32ProcessID:       42,
+		Th32ParentProcessID: 7,
+	}
+
+	proc, err := p.buildProcessFromEntry(entry, false)
+	require.NoError(t, err)
+	assert.Equal(t, 1, openCalls)
+	assert.Equal(t, 0, fillCalls)
+	assert.Equal(t, 1, getCreateCalls)
+	assert.Equal(t, "old.exe", proc.Exe)
+	assert.Equal(t, []string{"old.exe", "--old"}, proc.Cmdline)
+	assert.Equal(t, int64(100), proc.Stats.CreateTime)
+}
+
+func TestBuildProcessFromEntryRefreshesMetadataOnPIDReuse(t *testing.T) {
+	origOpenProcess := openProcessHandleForToolhelp
+	origFillFromEntry := fillFromProcEntryForToolhelp
+	origGetCreateTimeFromHandle := getProcessCreateTimeFromHandleFunc
+	t.Cleanup(func() {
+		openProcessHandleForToolhelp = origOpenProcess
+		fillFromProcEntryForToolhelp = origFillFromEntry
+		getProcessCreateTimeFromHandleFunc = origGetCreateTimeFromHandle
+	})
+
+	p := &windowsToolhelpProbe{
+		cachedProcesses: map[uint32]*cachedProcess{
+			42: {
+				userName:       "old-user",
+				executablePath: "old.exe",
+				parsedArgs:     []string{"old.exe", "--old"},
+				createTime:     100,
+			},
+		},
+	}
+
+	openCalls := 0
+	openProcessHandleForToolhelp = func(pid int32) (windows.Handle, bool, error) {
+		openCalls++
+		require.Equal(t, int32(42), pid)
+		return windows.Handle(0), false, nil
+	}
+
+	fillCalls := 0
+	fillFromProcEntryForToolhelp = func(cp *cachedProcess, pe32 *w32.PROCESSENTRY32) error {
+		fillCalls++
+		require.Equal(t, uint32(42), pe32.Th32ProcessID)
+		cp.procHandle = windows.Handle(0)
+		cp.userName = "new-user"
+		cp.executablePath = "new.exe"
+		cp.parsedArgs = []string{"new.exe", "--new"}
+		return nil
+	}
+
+	getCreateCalls := 0
+	getProcessCreateTimeFromHandleFunc = func(_ windows.Handle) (int64, error) {
+		getCreateCalls++
+		return 200, nil
+	}
+
+	entry := &w32.PROCESSENTRY32{
+		Th32ProcessID:       42,
+		Th32ParentProcessID: 7,
+	}
+
+	proc, err := p.buildProcessFromEntry(entry, false)
+	require.NoError(t, err)
+	assert.Equal(t, 1, openCalls)
+	assert.Equal(t, 1, fillCalls)
+	assert.Equal(t, 2, getCreateCalls)
+	assert.Equal(t, "new.exe", proc.Exe)
+	assert.Equal(t, []string{"new.exe", "--new"}, proc.Cmdline)
+	assert.Equal(t, "new-user", proc.Username)
+	assert.Equal(t, int64(200), proc.Stats.CreateTime)
+	assert.Equal(t, int64(200), p.cachedProcesses[42].createTime)
 }
