@@ -240,8 +240,8 @@ func (r *Resolver) Start(ctx context.Context) error {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		ticker := time.NewTicker(1 * time.Minute)
-		defer ticker.Stop()
+		enrichTicker := time.NewTicker(r.cfg.SBOMResolverEnrichmentTicker)
+		defer enrichTicker.Stop()
 
 		for {
 			select {
@@ -257,7 +257,7 @@ func (r *Resolver) Start(ctx context.Context) error {
 						seclog.Warnf("Failed to generate SBOM for '%s': %v", sbom.ContainerID, err)
 					}
 				}
-			case <-ticker.C:
+			case <-enrichTicker.C:
 				seclog.Debugf("Enriching SBOM with runtime usage")
 				_, err := r.enrichSBOMsWithUsage()
 				if err != nil {
