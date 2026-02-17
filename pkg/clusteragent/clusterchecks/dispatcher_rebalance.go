@@ -180,11 +180,14 @@ func (d *dispatcher) rebalance(force bool) []types.RebalanceResponse {
 	span.SetTag("force", force)
 	defer span.Finish()
 
+	var result []types.RebalanceResponse
 	if pkgconfigsetup.Datadog().GetBool("cluster_checks.rebalance_with_utilization") {
-		return d.rebalanceUsingUtilization(force)
+		result = d.rebalanceUsingUtilization(force)
+	} else {
+		result = d.rebalanceUsingBusyness()
 	}
-
-	return d.rebalanceUsingBusyness()
+	span.SetTag("checks_moved", len(result))
+	return result
 }
 
 // rebalanceUsingBusyness tries to optimize the checks repartition on cluster

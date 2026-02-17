@@ -152,7 +152,14 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 		tracer.ResourceName("schedule_configs"),
 		tracer.SpanType("worker"))
 	span.SetTag("config_count", len(configs))
-	defer span.Finish()
+	var failedConfigs int
+	defer func() {
+		if failedConfigs > 0 {
+			span.SetTag("failed_configs", failedConfigs)
+			span.SetTag("error", true)
+		}
+		span.Finish()
+	}()
 
 	for _, c := range configs {
 		if _, found := d.excludedChecks[c.Name]; found {
@@ -174,6 +181,7 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 			patched, err := d.patchEndpointsConfiguration(c)
 			if err != nil {
 				log.Warnf("Cannot patch endpoint configuration %s: %s", c.Digest(), err)
+				failedConfigs++
 				continue
 			}
 			d.addEndpointConfig(patched, c.NodeName)
@@ -189,6 +197,7 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 		patched, err := d.patchConfiguration(c)
 		if err != nil {
 			log.Warnf("Cannot patch configuration %s: %s", c.Digest(), err)
+			failedConfigs++
 			continue
 		}
 		d.add(patched)
