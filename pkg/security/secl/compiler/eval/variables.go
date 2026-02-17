@@ -962,8 +962,8 @@ func NewIPArrayVariable(value []net.IPNet, opts VariableOpts) *IPArrayVariable {
 // it currently contains an integer and a string to cover most common use cases
 // the goal of this is to prevent the need to allocate a string for each `Hash()` call
 type ScopeHashKey struct {
-	Integer uint32
 	String  string
+	Uintptr uintptr
 }
 
 // VariableScope is the interface to be implemented by scoped variable in order to be released
