@@ -5,6 +5,7 @@
 
 //go:build (linux && linux_bpf) || darwin
 
+// Package connection provides the connection tracer interface and implementations.
 package connection
 
 import (

@@ -8,6 +8,7 @@
 package tracer
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -31,7 +32,7 @@ type Tracer struct {
 	state          network.State
 	reverseDNS     dns.ReverseDNS
 	closeConnChan  chan struct{}
-	staticTableSet bool
+	staticTableSet bool //nolint:unused // reserved for interface compatibility with Linux tracer
 	sourceExcludes []*networkfilter.ConnectionFilter
 	destExcludes   []*networkfilter.ConnectionFilter
 }
@@ -202,7 +203,7 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 }
 
 // DebugEBPFMaps is not applicable on Darwin (no eBPF)
-func (t *Tracer) DebugEBPFMaps(w io.Writer, maps ...string) error {
+func (t *Tracer) DebugEBPFMaps(w io.Writer, _ ...string) error {
 	_, err := w.Write([]byte("eBPF maps not available on Darwin\n"))
 	return err
 }
@@ -216,12 +217,12 @@ func (t *Tracer) DebugDumpProcessCache(_ any) (interface{}, error) {
 
 // DebugCachedConntrack is not applicable on Darwin (no conntrack)
 func (t *Tracer) DebugCachedConntrack(_ any) (*DebugConntrackTable, error) {
-	return nil, fmt.Errorf("conntrack not available on Darwin")
+	return nil, errors.New("conntrack not available on Darwin")
 }
 
 // DebugHostConntrack is not applicable on Darwin (no conntrack)
 func (t *Tracer) DebugHostConntrack(_ any) (*DebugConntrackTable, error) {
-	return nil, fmt.Errorf("conntrack not available on Darwin")
+	return nil, errors.New("conntrack not available on Darwin")
 }
 
 // DumpProcessCache is not implemented on Darwin yet
@@ -245,10 +246,10 @@ type DebugConntrackTable struct{}
 
 // WriteTo is a stub for Darwin (conntrack is Linux-only)
 func (table *DebugConntrackTable) WriteTo(_ io.Writer, _ int) error {
-	return fmt.Errorf("conntrack not available on Darwin")
+	return errors.New("conntrack not available on Darwin")
 }
 
 // StaticTable is not applicable on Darwin
-func (t *Tracer) StaticTable(proto uint8) []network.ConnectionStats {
+func (t *Tracer) StaticTable(_ uint8) []network.ConnectionStats {
 	return nil
 }

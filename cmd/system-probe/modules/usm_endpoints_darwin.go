@@ -13,7 +13,7 @@ import (
 
 // registerUSMEndpoints is a stub for Darwin
 // Universal Service Monitoring (USM) is not yet implemented on macOS
-func registerUSMEndpoints(nt *networkTracer, httpMux *module.Router) {
+func registerUSMEndpoints(_ *networkTracer, _ *module.Router) {
 	// USM features (HTTP, HTTP/2, Kafka monitoring) not implemented on Darwin yet
 	// This is a no-op stub to allow compilation
 }

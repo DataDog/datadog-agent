@@ -23,7 +23,7 @@ var NetworkTracer = &module.Factory{
 
 // platformRegister is a stub for Darwin
 // Platform-specific endpoints (like network_id on Linux) are not implemented yet
-func (nt *networkTracer) platformRegister(httpMux *module.Router) error {
+func (nt *networkTracer) platformRegister(_ *module.Router) error {
 	// No platform-specific endpoints for Darwin yet
 	return nil
 }
