@@ -33,7 +33,7 @@ require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.9.3
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.180
+	github.com/DataDog/agent-payload/v5 v5.0.181
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def v0.0.0
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx v0.0.0-20251027120702-0e91eee9852f
@@ -1341,6 +1341,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ./pkg/logs/pipeline
 	github.com/DataDog/datadog-agent/pkg/logs/processor => ./pkg/logs/processor
 	github.com/DataDog/datadog-agent/pkg/logs/sender => ./pkg/logs/sender
+	github.com/DataDog/datadog-agent/pkg/logs/sender/grpc => ./pkg/logs/sender/grpc
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ./pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ./pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ./pkg/logs/status/utils

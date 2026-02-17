@@ -109,6 +109,7 @@ use (
 	pkg/logs/pipeline
 	pkg/logs/processor
 	pkg/logs/sender
+	pkg/logs/sender/grpc
 	pkg/logs/sources
 	pkg/logs/status/statusinterface
 	pkg/logs/status/utils

@@ -62,7 +62,7 @@ require (
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.180 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.181 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.73.0-rc.9 // indirect
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/metrics v0.73.0-rc.9 // indirect
@@ -371,6 +371,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ../../pkg/logs/pipeline
 	github.com/DataDog/datadog-agent/pkg/logs/processor => ../../pkg/logs/processor
 	github.com/DataDog/datadog-agent/pkg/logs/sender => ../../pkg/logs/sender
+	github.com/DataDog/datadog-agent/pkg/logs/sender/grpc => ../../pkg/logs/sender/grpc
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../pkg/logs/status/utils

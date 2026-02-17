@@ -47,7 +47,7 @@ require (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.180 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.181 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.76.0-rc.4 // indirect
@@ -358,6 +358,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ../../../../../../pkg/logs/pipeline
 	github.com/DataDog/datadog-agent/pkg/logs/processor => ../../../../../../pkg/logs/processor
 	github.com/DataDog/datadog-agent/pkg/logs/sender => ../../../../../../pkg/logs/sender
+	github.com/DataDog/datadog-agent/pkg/logs/sender/grpc => ../../../../../../pkg/logs/sender/grpc
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../../../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../../../../pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../../../../pkg/logs/status/utils

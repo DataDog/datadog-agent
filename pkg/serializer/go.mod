@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/serializer
 go 1.24.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.180
+	github.com/DataDog/agent-payload/v5 v5.0.181
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.64.0-devel
@@ -237,6 +237,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ../../pkg/logs/pipeline
 	github.com/DataDog/datadog-agent/pkg/logs/processor => ../../pkg/logs/processor
 	github.com/DataDog/datadog-agent/pkg/logs/sender => ../../pkg/logs/sender
+	github.com/DataDog/datadog-agent/pkg/logs/sender/grpc => ../../pkg/logs/sender/grpc
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../pkg/logs/status/utils
