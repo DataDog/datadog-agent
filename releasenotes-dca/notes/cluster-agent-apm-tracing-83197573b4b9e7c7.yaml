@@ -11,7 +11,7 @@ features:
     Add APM tracing instrumentation to the Datadog Cluster Agent for improved observability
     and debugging in production environments. When enabled via the ``cluster_agent.apm_instrumentation_enabled``
     configuration option, the Cluster Agent emits APM traces for internal operations including
-    cluster check dispatching, Kubernetes API calls, and leader election events. Traces appear
+    cluster check dispatching, scheduling, rebalancing, and leader election events. Traces appear
     in APM under the service name ``datadog-cluster-agent`` with cluster context tags.
 
     To enable APM tracing for the Cluster Agent, configure the following options:
