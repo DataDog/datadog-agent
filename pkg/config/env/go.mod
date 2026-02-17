@@ -3,20 +3,20 @@ module github.com/DataDog/datadog-agent/pkg/config/env
 go 1.24.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/model v0.76.0-rc.7
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.76.0-rc.7
-	github.com/DataDog/datadog-agent/pkg/util/log v0.76.0-rc.7
-	github.com/DataDog/datadog-agent/pkg/util/system v0.76.0-rc.7
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.76.0-rc.7
+	github.com/DataDog/datadog-agent/pkg/config/model v0.76.0
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.76.0
+	github.com/DataDog/datadog-agent/pkg/util/log v0.76.0
+	github.com/DataDog/datadog-agent/pkg/util/system v0.76.0
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.76.0
 	github.com/stretchr/testify v1.11.1
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/template v0.76.0-rc.7 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.76.0-rc.7 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.76.0-rc.7 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.76.0-rc.7 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.76.0-rc.7 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.76.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.76.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.76.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.76.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.76.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
