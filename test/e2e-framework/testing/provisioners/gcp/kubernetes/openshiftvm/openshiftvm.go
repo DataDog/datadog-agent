@@ -89,6 +89,10 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 		return err
 	}
 
+	if gcpEnv.InitOnly() {
+		return nil
+	}
+
 	// Building Kubernetes provider for OpenShift
 	openshiftKubeProvider, err := kubernetesNewProvider.NewProvider(ctx, gcpEnv.Namer.ResourceName("openshift-k8s-provider"), &kubernetesNewProvider.ProviderArgs{
 		Kubeconfig:            openshiftCluster.KubeConfig,
