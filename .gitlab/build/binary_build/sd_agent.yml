@@ -1,6 +1,8 @@
 ---
 .sd-agent_build_common:
-  extends: .bazel:defs:cache:ephemeral
+  extends:
+    - .bazel:defs:cache:ephemeral
+    - .rust_internal_registry
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
