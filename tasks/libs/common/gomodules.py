@@ -125,9 +125,9 @@ class GoModule:
 
     # Possible conditions for GoModule.should_test_condition
     SHOULD_TEST_CONDITIONS: ClassVar[dict[str, Callable]] = {
-        'always': lambda: True,
-        'never': lambda: False,
-        'is_linux': lambda: sys.platform == "linux",
+        'always': lambda platform=None: True,
+        'never': lambda platform=None: False,
+        'is_linux': lambda platform=None: (platform or sys.platform) == "linux",
     }
 
     # Posix path of the module's directory
@@ -212,12 +212,17 @@ class GoModule:
 
         return attrs
 
-    def should_test(self) -> bool:
-        """Verify that the module test condition is met from should_test_condition."""
+    def should_test(self, platform: str | None = None) -> bool:
+        """Verify that the module test condition is met from should_test_condition.
+
+        Args:
+            platform: Target platform to check condition against (e.g., "linux", "windows", "darwin").
+                     If None, uses sys.platform.
+        """
 
         function = GoModule.SHOULD_TEST_CONDITIONS[self.should_test_condition]
 
-        return function()
+        return function(platform=platform)
 
     def __version(self, agent_version):
         """Return the module version for a given Agent version.
