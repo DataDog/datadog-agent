@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    GPU: ensure `gpu.nvlink.speed` metric is emitted in Blackwell or newer devices.
+    GPU: ensure ``gpu.nvlink.speed`` metric is emitted in Blackwell or newer devices.
