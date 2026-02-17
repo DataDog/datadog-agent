@@ -9,14 +9,11 @@ package procutil
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"golang.org/x/sys/windows"
-
-	lru "github.com/hashicorp/golang-lru/v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pdhutil"
@@ -36,49 +33,6 @@ var counterPaths = []string{
 	pdhutil.CounterAllProcessIOWriteOpsPerSec,
 	pdhutil.CounterAllProcessIOReadBytesPerSec,
 	pdhutil.CounterAllProcessIOWriteBytesPerSec,
-}
-
-// Global variables for getPIDs buffer scaling - exposed for testing
-var (
-	// InitialPIDBufferSize is the initial size of the buffer used to retrieve PIDs
-	InitialPIDBufferSize uint32 = 1024
-	// PIDBufferIncrement is how much to increase the buffer size when it's too small
-	PIDBufferIncrement uint32 = 1024
-)
-
-var fileDescCache *lru.Cache[string, string]
-
-func init() {
-	var err error
-	fileDescCache, err = lru.New[string, string](512)
-	if err != nil {
-		log.Errorf("Failed to create file description cache: %v", err)
-	}
-}
-
-// getFileDescriptionCached gets the file description for a given executable path
-func getFileDescriptionCached(exePath string) string {
-	if exePath == "" {
-		return ""
-	}
-
-	// Check cache first
-	if cached, ok := fileDescCache.Get(exePath); ok {
-		return cached
-	}
-
-	// Cache miss - get from Windows API
-	desc, err := winutil.GetFileDescription(exePath)
-	if err != nil {
-		log.Debugf("Could not get file description for %s: %v", exePath, err)
-		// for now cache these as a blank string as it could mean they
-		// don't have a description
-		desc = ""
-	}
-
-	// Cache the result
-	fileDescCache.Add(exePath, desc)
-	return desc
 }
 
 // NewProcessProbe returns a Probe object
@@ -250,9 +204,24 @@ func (p *probe) ProcessesByPID(_ time.Time, collectStats bool) (map[int32]*Proce
 
 		delete(knownPids, pid)
 
-		if _, ok := p.procs[pid]; ok {
-			// Process already known, no need to collect metadata
-			continue
+		if cachedProc, ok := p.procs[pid]; ok {
+			cachedCreateTime := int64(0)
+			if cachedProc.Stats != nil {
+				cachedCreateTime = cachedProc.Stats.CreateTime
+			}
+
+			currentCreateTime, err := getProcessCreateTime(pid)
+			if err == nil && cachedCreateTime != 0 && currentCreateTime == cachedCreateTime {
+				// Process already known and PID hasn't been recycled.
+				continue
+			}
+
+			if err != nil {
+				log.Debugf("could not validate cached process identity for pid %d: %v, refreshing metadata", pid, err)
+			} else {
+				log.Debugf("detected PID recycle for pid %d (cached createTime=%d current createTime=%d), refreshing metadata", pid, cachedCreateTime, currentCreateTime)
+			}
+			delete(p.procs, pid)
 		}
 
 		proc := &Process{
@@ -340,7 +309,7 @@ func (p *probe) enumCounters(collectMeta bool, collectStats bool) error {
 }
 
 func (p *probe) StatsWithPermByPID(_ []int32) (map[int32]*StatsWithPerm, error) {
-	return nil, errors.New("probe(Windows): StatsWithPermByPID is not implemented")
+	return nil, fmt.Errorf("probe(Windows): StatsWithPermByPID is not implemented")
 }
 
 func (p *probe) getProc(instance string) *Process {
@@ -507,20 +476,18 @@ func (p *probe) mapIOWriteBytesPerSec(instance string, v float64) {
 
 func getPIDs() ([]int32, error) {
 	var read uint32
-	var psSize = InitialPIDBufferSize
-	const dwordSize uint32 = 4
+	var psSize uint32 = 1024
 
 	for {
 		buf := make([]uint32, psSize)
 		if err := windows.EnumProcesses(buf, &read); err != nil {
 			return nil, err
 		}
-		if uint32(len(buf)*int(dwordSize)) == read {
-			psSize += PIDBufferIncrement
+		if uint32(len(buf)) == read {
+			psSize += 1024
 			continue
 		}
-		// read is a number of bytes, so we need to divide by the size of a DWORD to get the number of PIDs
-		pids := make([]int32, read/dwordSize)
+		pids := make([]int32, read)
 		for i := range pids {
 			pids[i] = int32(buf[i])
 		}
@@ -557,22 +524,36 @@ func fillProcessDetails(pid int32, proc *Process) error {
 		if processCmdParams != nil {
 			proc.Cmdline = ParseCmdLineArgs(processCmdParams.CmdLine)
 			proc.Exe = processCmdParams.ImagePath
-			proc.Comm = getFileDescriptionCached(processCmdParams.ImagePath)
 			if len(processCmdParams.CmdLine) > 0 && len(proc.Cmdline) == 0 {
 				log.Warnf("Failed to parse the cmdline:%s for pid:%d", processCmdParams.CmdLine, pid)
 			}
 		}
 	}
 
-	var CPU windows.Rusage
-	if err := windows.GetProcessTimes(procHandle, &CPU.CreationTime, &CPU.ExitTime, &CPU.KernelTime, &CPU.UserTime); err != nil {
+	ctime, err := getProcessCreateTimeFromHandle(procHandle)
+	if err != nil {
 		log.Errorf("Could not get process times for %v %v", pid, err)
 		return err
 	}
-
-	ctime := CPU.CreationTime.Nanoseconds() / 1000000
 	proc.Stats.CreateTime = ctime
 	return nil
+}
+
+func getProcessCreateTime(pid int32) (int64, error) {
+	procHandle, _, err := OpenProcessHandle(pid)
+	if err != nil {
+		return 0, err
+	}
+	defer windows.Close(procHandle)
+	return getProcessCreateTimeFromHandle(procHandle)
+}
+
+func getProcessCreateTimeFromHandle(procHandle windows.Handle) (int64, error) {
+	var cpu windows.Rusage
+	if err := windows.GetProcessTimes(procHandle, &cpu.CreationTime, &cpu.ExitTime, &cpu.KernelTime, &cpu.UserTime); err != nil {
+		return 0, err
+	}
+	return cpu.CreationTime.Nanoseconds() / 1000000, nil
 }
 
 // OpenProcessHandle attempts to open a process handle with the highest available privilege of memory access
