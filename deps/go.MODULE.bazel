@@ -2,24 +2,13 @@ go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk")
 go_sdk.from_file(go_work = "//:go.work")
 # go_sdk.nogo(nogo = "//:nogo")  # TODO(agent-build): assess benefits of the `nogo` static code analyzer
 
-go_deps_modparser = use_extension("@gazelle//:extensions.bzl", "go_deps", isolate = True)
-go_deps_modparser.from_file(go_mod = "//internal/tools/modparser:go.mod")
+go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
+
+# TODO(agent-build): when all Go modules are migrated, use //:go.work instead of //bazel:go.work
+go_deps.from_file(go_work = "//bazel:go.work")
 use_repo(
-    go_deps_modparser,
+    go_deps,
     "com_github_stretchr_testify",
+    "in_gopkg_yaml_v3",
     "org_golang_x_mod",
 )
-
-go_deps_worksync = use_extension("@gazelle//:extensions.bzl", "go_deps", isolate = True)
-go_deps_worksync.from_file(go_mod = "//internal/tools/worksynchronizer:go.mod")
-use_repo(
-    go_deps_worksync,
-    "in_gopkg_yaml_v3",
-    worksync_golang_x_mod = "org_golang_x_mod",
-    worksync_testify = "com_github_stretchr_testify",
-)
-
-# TODO(agent-build): when all Go modules are migrated, consolidate into single go_deps:
-# go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
-# go_deps.from_file(go_work = "//:go.work")
-# use_repo(go_deps, ...)
