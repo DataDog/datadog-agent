@@ -50,6 +50,7 @@ pub struct Service {
     pub apm_instrumentation: bool,
     pub language: Language,
     pub service_type: String,
+    pub has_nvidia_gpu: bool,
 }
 
 // getServices processes categorized PID lists and returns service information
@@ -130,6 +131,9 @@ fn get_service(pid: i32, context: &mut ParsingContext) -> Option<Service> {
     let apm_instrumentation =
         tracer_metadata.is_some() || apm::detect(&language, pid, &cmdline, &envs);
 
+    // Detect GPU usage
+    let has_nvidia_gpu = procfs::maps::has_gpu_nvidia_libraries(pid);
+
     Some(Service {
         pid,
         generated_name: name_metadata.as_ref().map(|meta| meta.name.clone()),
@@ -145,6 +149,7 @@ fn get_service(pid: i32, context: &mut ParsingContext) -> Option<Service> {
         apm_instrumentation,
         language,
         service_type: String::new(),
+        has_nvidia_gpu,
     })
 }
 
