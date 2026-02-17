@@ -213,3 +213,78 @@ func permittedTargetNotFoundInBinary(loc string) bool {
 		return false
 	}
 }
+
+// BenchmarkIRGenAllSymbols measures the performance of generating IR for all
+// symbols in a binary. This exercises the DWARF line reader code paths,
+// including the workaround for functions without line info.
+func BenchmarkIRGenAllSymbols(b *testing.B) {
+	cfgs := testprogs.MustGetCommonConfigs(b)
+	for _, pkg := range []string{"simple", "sample"} {
+		b.Run(pkg, func(b *testing.B) {
+			for _, cfg := range cfgs {
+				b.Run(cfg.String(), func(b *testing.B) {
+					binPath := testprogs.MustGetBinary(b, pkg, cfg)
+					probes := buildAllSymbolProbes(b, binPath)
+
+					obj, err := object.OpenElfFileWithDwarf(binPath)
+					require.NoError(b, err)
+					defer func() { require.NoError(b, obj.Close()) }()
+
+					b.ResetTimer()
+					b.ReportAllocs()
+					for b.Loop() {
+						v, err := irgen.GenerateIR(1, obj, probes)
+						require.NoError(b, err)
+						require.NotNil(b, v)
+					}
+				})
+			}
+		})
+	}
+}
+
+// buildAllSymbolProbes creates probe definitions for all function symbols in the binary.
+func buildAllSymbolProbes(tb testing.TB, binPath string) []ir.ProbeDefinition {
+	tb.Helper()
+	binary, err := os.Open(binPath)
+	require.NoError(tb, err)
+	elf, err := safeelf.NewFile(binary)
+	require.NoError(tb, err)
+	defer func() { require.NoError(tb, binary.Close()) }()
+
+	var probes []ir.ProbeDefinition
+	symbols, err := elf.Symbols()
+	require.NoError(tb, err)
+
+	for i, s := range symbols {
+		if int(s.Section) >= len(elf.Sections) ||
+			elf.Sections[s.Section].Name != ".text" {
+			continue
+		}
+		// Skip automatically generated symbols that cause problems.
+		if s.Name == "runtime.text" ||
+			s.Name == "runtime.etext" ||
+			s.Name == "" ||
+			strings.HasPrefix(s.Name, "go:") ||
+			strings.HasPrefix(s.Name, "type:.") ||
+			strings.HasPrefix(s.Name, "runtime.vdso") ||
+			strings.HasSuffix(s.Name, ".abi0") ||
+			strings.Contains(s.Name, "..typeAssert") ||
+			strings.Contains(s.Name, "..dict") ||
+			strings.Contains(s.Name, "..gobytes") ||
+			strings.Contains(s.Name, "..interfaceSwitch") ||
+			strings.Contains(s.Name, "go.shape") {
+			continue
+		}
+
+		probes = append(probes, &rcjson.SnapshotProbe{
+			LogProbeCommon: rcjson.LogProbeCommon{
+				ProbeCommon: rcjson.ProbeCommon{
+					ID:    fmt.Sprintf("probe_%d", i),
+					Where: &rcjson.Where{MethodName: s.Name},
+				},
+			},
+		})
+	}
+	return probes
+}
