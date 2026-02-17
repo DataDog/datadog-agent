@@ -5,9 +5,22 @@
 
 package constants
 
-const JwtHeaderName = "X-Datadog-OnPrem-JWT"
-const ModeHeaderName = "X-Datadog-OnPrem-Modes"
-const VersionHeaderName = "X-Datadog-OnPrem-Version"
+const (
+	JwtHeaderName           = "X-Datadog-OnPrem-JWT"
+	ModeHeaderName          = "X-Datadog-OnPrem-Modes"
+	VersionHeaderName       = "X-Datadog-OnPrem-Version"
+	PlatformHeaderName      = "X-Datadog-OnPrem-Platform"
+	ArchitectureHeaderName  = "X-Datadog-OnPrem-Architecture"
+	FlavorHeaderName        = "X-Datadog-OnPrem-Flavor"
+	ContainerizedHeaderName = "X-Datadog-OnPrem-Containerized"
+
+	RunnerVersionQueryParam = "runnerVersion"
+	ModesQueryParam         = "modes"
+	PlatformQueryParam      = "platform"
+	ArchitectureQueryParam  = "architecture"
+	FlavorQueryParam        = "flavor"
+	ContainerizedQueryParam = "containerized"
+)
 
 // HTTP Connection Constants
 var (

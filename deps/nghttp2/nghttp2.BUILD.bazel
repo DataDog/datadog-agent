@@ -131,19 +131,11 @@ pkg_files(
     prefix = "embedded/include/nghttp2",
 )
 
-pkg_files(
-    name = "fetch_ocsp_response",
-    srcs = ["@//third_party/nghttp2:fetch-ocsp-response"],
-    attributes = pkg_attributes(mode = "0755"),
-    prefix = "embedded/share/nghttp2",
-)
-
 pkg_filegroup(
     name = "all_files",
     srcs = [
         ":header_files",
         ":lib_files",
-        ":fetch_ocsp_response",
     ],
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
