@@ -59,10 +59,6 @@ func (c *Check) CustomQueries() error {
 	}
 
 	var metricRows []metricRow
-	sender, err := c.GetSender()
-	if err != nil {
-		return fmt.Errorf("failed to get sender for custom queries %w", err)
-	}
 	var allErrors error
 	var customQueries []config.CustomQuery
 
@@ -200,7 +196,7 @@ func (c *Check) CustomQueries() error {
 			log.Debugf("%s send metric %+v", c.logPrompt, m)
 			sendMetric(c, m.method, m.name, m.value, m.tags)
 		}
-		sender.Commit()
+		commit(c)
 	}
 	return allErrors
 }
