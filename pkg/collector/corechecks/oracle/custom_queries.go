@@ -81,6 +81,7 @@ func (c *Check) CustomQueries() error {
 	}
 
 	for _, q := range customQueries {
+		metricRows = metricRows[:0]
 		var errInQuery bool
 		metricPrefix := q.MetricPrefix
 
