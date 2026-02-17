@@ -66,6 +66,51 @@ func NewCombinedAccessor(accessors ...SpanAccessor) *CombinedAccessor {
 	return &CombinedAccessor{Accessors: accessors}
 }
 
+// StringMapAccessor wraps a map[string]string to implement SpanAccessor.
+// This allows semantic lookups on DD span meta maps and similar string maps.
+type StringMapAccessor struct {
+	m map[string]string
+}
+
+// NewStringMapAccessor creates a new StringMapAccessor from the given map.
+func NewStringMapAccessor(m map[string]string) *StringMapAccessor {
+	return &StringMapAccessor{m: m}
+}
+
+// GetStringAttribute returns the string value for the given key.
+func (a *StringMapAccessor) GetStringAttribute(key string) string {
+	if a.m == nil {
+		return ""
+	}
+	return a.m[key]
+}
+
+// GetFloat64Attribute attempts to parse the string value as float64.
+func (a *StringMapAccessor) GetFloat64Attribute(key string) (float64, bool) {
+	if a.m == nil {
+		return 0, false
+	}
+	if v, ok := a.m[key]; ok && v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f, true
+		}
+	}
+	return 0, false
+}
+
+// GetInt64Attribute attempts to parse the string value as int64.
+func (a *StringMapAccessor) GetInt64Attribute(key string) (int64, bool) {
+	if a.m == nil {
+		return 0, false
+	}
+	if v, ok := a.m[key]; ok && v != "" {
+		if i, err := strconv.ParseInt(v, 10, 64); err == nil {
+			return i, true
+		}
+	}
+	return 0, false
+}
+
 // LookupResult contains the result of a semantic attribute lookup.
 type LookupResult struct {
 	TagInfo      TagInfo // contains metadata about the matched attribute (use TagInfo.Name for the key).
@@ -128,7 +173,12 @@ func LookupInt64(r Registry, accessor SpanAccessor, concept Concept) (int64, boo
 	case ValueTypeInt64:
 		return result.Int64Value, true
 	case ValueTypeFloat64:
-		return int64(result.Float64Value), true
+		// Only convert if the float represents an integer value (no truncation)
+		intVal := int64(result.Float64Value)
+		if float64(intVal) == result.Float64Value {
+			return intVal, true
+		}
+		return 0, false
 	default:
 		// Try to parse string value
 		if result.StringValue != "" {

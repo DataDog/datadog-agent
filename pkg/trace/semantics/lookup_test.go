@@ -95,3 +95,74 @@ func TestCombinedAccessor(t *testing.T) {
 	assert.Equal(t, "value", combined.GetStringAttribute("other"))
 	assert.Equal(t, "", combined.GetStringAttribute("missing"))
 }
+
+func TestStringMapAccessor(t *testing.T) {
+	t.Run("GetStringAttribute", func(t *testing.T) {
+		a := NewStringMapAccessor(map[string]string{
+			"key":   "value",
+			"empty": "",
+		})
+		assert.Equal(t, "value", a.GetStringAttribute("key"))
+		assert.Equal(t, "", a.GetStringAttribute("empty"))
+		assert.Equal(t, "", a.GetStringAttribute("missing"))
+	})
+
+	t.Run("GetStringAttribute nil map", func(t *testing.T) {
+		a := NewStringMapAccessor(nil)
+		assert.Equal(t, "", a.GetStringAttribute("key"))
+	})
+
+	t.Run("GetInt64Attribute", func(t *testing.T) {
+		a := NewStringMapAccessor(map[string]string{
+			"int":     "200",
+			"invalid": "not-a-number",
+			"empty":   "",
+		})
+		v, ok := a.GetInt64Attribute("int")
+		assert.True(t, ok)
+		assert.Equal(t, int64(200), v)
+
+		_, ok = a.GetInt64Attribute("invalid")
+		assert.False(t, ok)
+
+		_, ok = a.GetInt64Attribute("empty")
+		assert.False(t, ok)
+
+		_, ok = a.GetInt64Attribute("missing")
+		assert.False(t, ok)
+	})
+
+	t.Run("GetFloat64Attribute", func(t *testing.T) {
+		a := NewStringMapAccessor(map[string]string{
+			"float":   "3.14",
+			"int":     "200",
+			"invalid": "not-a-number",
+		})
+		v, ok := a.GetFloat64Attribute("float")
+		assert.True(t, ok)
+		assert.Equal(t, 3.14, v)
+
+		v, ok = a.GetFloat64Attribute("int")
+		assert.True(t, ok)
+		assert.Equal(t, float64(200), v)
+
+		_, ok = a.GetFloat64Attribute("invalid")
+		assert.False(t, ok)
+	})
+
+	t.Run("with semantic lookup", func(t *testing.T) {
+		r, err := NewEmbeddedRegistry()
+		require.NoError(t, err)
+
+		a := NewStringMapAccessor(map[string]string{
+			"http.status_code": "404",
+		})
+		v, ok := LookupInt64(r, a, ConceptHTTPStatusCode)
+		assert.True(t, ok)
+		assert.Equal(t, int64(404), v)
+
+		// Also works with string lookup
+		s := LookupString(r, a, ConceptHTTPStatusCode)
+		assert.Equal(t, "404", s)
+	})
+}

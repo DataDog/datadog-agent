@@ -1,0 +1,35 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    APM OTLP: Changed attribute precedence behavior when looking up OpenTelemetry semantic convention attributes that have multiple equivalent keys (e.g., ``http.status_code`` vs ``http.response.status_code``, ``deployment.environment`` vs ``deployment.environment.name``).
+
+    **Previous behavior**: When both old and new semantic convention keys existed, the lookup would check ALL keys in span attributes before checking ANY key in resource attributes. For example, with ``http.status_code`` in resource attributes and ``http.response.status_code`` in span attributes, the span attribute would be returned.
+
+    **New behavior**: The lookup now checks each key in precedence order across both span and resource attributes. For the same example, ``http.status_code`` (the older, higher-precedence key) from resource attributes would be returned instead.
+
+    **Who is affected**: This change only affects users who have BOTH of the following conditions:
+
+    1. An older semantic convention key (e.g., ``http.status_code``) set in resource attributes
+    2. A newer semantic convention key (e.g., ``http.response.status_code``) set in span attributes
+
+    This is an uncommon configuration since most instrumentation libraries use consistent semantic convention versions across span and resource attributes.
+
+    **Functions affected**:
+    
+    - ``GetOTelEnv`` - Environment attribute lookup
+    - ``GetOTelStatusCode`` - HTTP status code lookup
+    - ``GetOTelVersion`` - Service version lookup
+    - ``GetOTelContainerID`` - Container ID lookup
+    - ``GetOTelContainerOrPodID`` - Container ID with K8s pod UID fallback
+    - ``GetOTelResourceV1`` - Resource name lookup (V1 logic)
+    - ``GetOTelOperationNameV1`` - Operation name lookup (V1 logic)
+    - ``Status2Error`` - HTTP status code lookup for error messages (changed from NEW-first to OLD-first precedence)
+
+    Test cases documenting the old behavior are commented out in ``transform_test.go`` and ``otel_util_test.go``.

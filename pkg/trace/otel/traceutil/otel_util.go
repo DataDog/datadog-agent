@@ -13,8 +13,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/otel/attribute"
-	semconv117 "go.opentelemetry.io/otel/semconv/v1.17.0"
-	semconv "go.opentelemetry.io/otel/semconv/v1.6.1"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -265,33 +263,38 @@ func GetOTelService(span ptrace.Span, res pcommon.Resource, normalize bool) stri
 }
 
 // GetOTelResourceV1 returns the DD resource name based on OTel span and resource attributes.
+// Note: V1 uses resource-first precedence for backwards compatibility.
 func GetOTelResourceV1(span ptrace.Span, res pcommon.Resource) (resName string) {
-	resName = GetOTelAttrValInResAndSpanAttrs(span, res, false, "resource.name")
+	// V1 uses resource-first precedence (rattr, sattr order)
+	sattr := span.Attributes()
+	rattr := res.Attributes()
+
+	// Check for explicit resource.name (resource-first precedence)
+	resName = LookupSemanticStringFromDualMaps(rattr, sattr, semantics.ConceptResourceName, false)
 	if resName == "" {
-		if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, "http.request.method", string(semconv.HTTPMethodKey)); m != "" {
-			// use the HTTP method + route (if available)
+		// HTTP: use method + route (resource-first precedence)
+		if m := LookupSemanticStringFromDualMaps(rattr, sattr, semantics.ConceptHTTPMethod, false); m != "" {
 			resName = m
-			if route := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.HTTPRouteKey)); route != "" {
+			if route := LookupSemanticStringFromDualMaps(rattr, sattr, semantics.ConceptHTTPRoute, false); route != "" {
 				resName = resName + " " + route
 			}
-		} else if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.MessagingOperationKey)); m != "" {
+		} else if m := LookupSemanticStringFromDualMaps(rattr, sattr, semantics.ConceptMessagingOperation, false); m != "" {
+			// Messaging: use operation + destination
 			resName = m
-			// use the messaging operation
-			if dest := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.MessagingDestinationKey), string(semconv117.MessagingDestinationNameKey)); dest != "" {
+			if dest := LookupSemanticStringFromDualMaps(rattr, sattr, semantics.ConceptMessagingDest, false); dest != "" {
 				resName = resName + " " + dest
 			}
-		} else if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.RPCMethodKey)); m != "" {
+		} else if m := LookupSemanticStringFromDualMaps(rattr, sattr, semantics.ConceptRPCMethod, false); m != "" {
+			// RPC: use method + service
 			resName = m
-			// use the RPC method
-			if svc := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.RPCServiceKey)); m != "" {
-				// ...and service if available
+			if svc := LookupSemanticStringFromDualMaps(rattr, sattr, semantics.ConceptRPCService, false); svc != "" {
 				resName = resName + " " + svc
 			}
-		} else if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv117.GraphqlOperationTypeKey)); m != "" {
-			// Enrich GraphQL query resource names.
+		} else if m := LookupSemanticStringFromDualMaps(rattr, sattr, semantics.ConceptGraphQLOperationType, false); m != "" {
+			// GraphQL: use operation type + name
 			// See https://github.com/open-telemetry/semantic-conventions/blob/v1.29.0/docs/graphql/graphql-spans.md
 			resName = m
-			if name := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv117.GraphqlOperationNameKey)); name != "" {
+			if name := LookupSemanticStringFromDualMaps(rattr, sattr, semantics.ConceptGraphQLOperationName, false); name != "" {
 				resName = resName + " " + name
 			}
 		} else {
@@ -477,6 +480,7 @@ func GetOTelOperationNameV2(
 }
 
 // GetOTelOperationNameV1 returns the DD operation name based on OTel span and resource attributes and given configs.
+// Note: V1 uses resource-first precedence for backwards compatibility.
 func GetOTelOperationNameV1(
 	span ptrace.Span,
 	res pcommon.Resource,
@@ -484,8 +488,9 @@ func GetOTelOperationNameV1(
 	spanNameAsResourceName bool,
 	spanNameRemappings map[string]string,
 	normalize bool) string {
+	// V1 uses resource-first precedence (rattr, sattr order)
 	// No need to normalize with NormalizeTagValue since we will do NormalizeName later
-	name := GetOTelAttrValInResAndSpanAttrs(span, res, false, "operation.name")
+	name := LookupSemanticStringFromDualMaps(res.Attributes(), span.Attributes(), semantics.ConceptOperationName, false)
 	if name == "" {
 		if spanNameAsResourceName {
 			name = span.Name()

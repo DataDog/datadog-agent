@@ -27,7 +27,7 @@ const (
 // Concept represents a semantic concept identifier (e.g., "db.system", "http.method").
 type Concept string
 
-// Concepts used for OTel span processing.
+// Peer Tags (used for stats aggregation)
 const (
 	ConceptPeerService              Concept = "peer.service"
 	ConceptPeerHostname             Concept = "peer.hostname"
@@ -64,7 +64,6 @@ const (
 	ConceptSpanType        Concept = "span.type"
 	ConceptDBSystem        Concept = "db.system"
 	ConceptDBStatement     Concept = "db.statement"
-	ConceptDBQueryText     Concept = "db.query.text"
 	ConceptRPCSystem       Concept = "rpc.system"
 	ConceptRPCService      Concept = "rpc.service"
 	ConceptMessagingSystem Concept = "messaging.system"

@@ -347,13 +347,6 @@
         {"name": "db.query.text", "provider": "otel", "version": "1.24.0", "type": "string"}
       ]
     },
-    "db.query.text": {
-      "canonical": "db.query.text",
-      "fallbacks": [
-        {"name": "db.statement", "provider": "otel", "type": "string"},
-        {"name": "db.query.text", "provider": "otel", "version": "1.24.0", "type": "string"}
-      ]
-    },
     "rpc.system": {
       "canonical": "rpc.system",
       "fallbacks": [

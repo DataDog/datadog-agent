@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	traceutilotel "github.com/DataDog/datadog-agent/pkg/trace/otel/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -159,7 +160,7 @@ func conditionallyMapOTLPAttributeToMetric(k string, value float64, ddspan *pb.S
 
 // GetOTelEnv returns the environment based on OTel span and resource attributes, with span taking precedence.
 func GetOTelEnv(span ptrace.Span, res pcommon.Resource) string {
-	return traceutilotel.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, string(semconv127.DeploymentEnvironmentNameKey), string(semconv.DeploymentEnvironmentKey))
+	return traceutilotel.LookupSemanticStringFromDualMaps(span.Attributes(), res.Attributes(), semantics.ConceptDeploymentEnv, true)
 }
 
 // GetOTelHostname returns the DD hostname based on OTel span and resource attributes, with span taking precedence.
@@ -187,12 +188,12 @@ func GetOTelHostname(span ptrace.Span, res pcommon.Resource, tr *attributes.Tran
 
 // GetOTelVersion returns the version based on OTel span and resource attributes, with span taking precedence.
 func GetOTelVersion(span ptrace.Span, res pcommon.Resource) string {
-	return traceutilotel.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, string(semconv.ServiceVersionKey))
+	return traceutilotel.LookupSemanticStringFromDualMaps(span.Attributes(), res.Attributes(), semantics.ConceptServiceVersion, true)
 }
 
 // GetOTelContainerID returns the container ID based on OTel span and resource attributes, with span taking precedence.
 func GetOTelContainerID(span ptrace.Span, res pcommon.Resource) string {
-	return traceutilotel.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, string(semconv.ContainerIDKey))
+	return traceutilotel.LookupSemanticStringFromDualMaps(span.Attributes(), res.Attributes(), semantics.ConceptContainerID, true)
 }
 
 // GetOTelContainerOrPodID returns the container ID based on OTel span and resource attributes, with span taking precedence.
@@ -200,31 +201,19 @@ func GetOTelContainerID(span ptrace.Span, res pcommon.Resource) string {
 // The Kubernetes pod UID will be used as a fallback if the container ID is not found.
 // This is only done for backward compatibility; consider using GetOTelContainerID instead.
 func GetOTelContainerOrPodID(span ptrace.Span, res pcommon.Resource) string {
-	return traceutilotel.GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, string(semconv.ContainerIDKey), string(semconv.K8SPodUIDKey))
+	if id := traceutilotel.LookupSemanticStringFromDualMaps(span.Attributes(), res.Attributes(), semantics.ConceptContainerID, true); id != "" {
+		return id
+	}
+	return traceutilotel.LookupSemanticStringFromDualMaps(span.Attributes(), res.Attributes(), semantics.ConceptK8sPodUID, true)
 }
 
 // GetOTelStatusCode returns the HTTP status code based on OTel span and resource attributes, with span taking precedence.
-// Note: This function checks ALL keys in span attributes before ANY key in resource attributes,
-// which differs from the standard semantic lookup pattern. This preserves the existing behavior
-// where span attributes have complete precedence over resource attributes.
 func GetOTelStatusCode(span ptrace.Span, res pcommon.Resource) uint32 {
-	sattr := span.Attributes()
-	rattr := res.Attributes()
-	// Check span attributes first (all fallback keys)
-	if code, ok := sattr.Get(string(semconv.HTTPStatusCodeKey)); ok {
-		return uint32(code.Int())
+	code, ok := traceutilotel.LookupSemanticInt64(span.Attributes(), res.Attributes(), semantics.ConceptHTTPStatusCode)
+	if !ok {
+		return 0
 	}
-	if code, ok := sattr.Get("http.response.status_code"); ok {
-		return uint32(code.Int())
-	}
-	// Then check resource attributes
-	if code, ok := rattr.Get(string(semconv.HTTPStatusCodeKey)); ok {
-		return uint32(code.Int())
-	}
-	if code, ok := rattr.Get("http.response.status_code"); ok {
-		return uint32(code.Int())
-	}
-	return 0
+	return uint32(code)
 }
 
 // GetOTelContainerTags returns a list of DD container tags in the OTel resource attributes.
@@ -555,6 +544,8 @@ func SetMetricOTLPIfEmpty(s *pb.Span, k string, v float64) {
 
 // Status2Error checks the given status and events and applies any potential error and messages
 // to the given span attributes.
+// Note: This function uses the semantic registry for http.status_code lookup precedence.
+// Previously it used NEW-first precedence (http.response.status_code before http.status_code).
 func Status2Error(status ptrace.Status, _ ptrace.SpanEventSlice, metaMap map[string]string) int32 {
 	if status.Code() != ptrace.StatusCodeError {
 		return 0
@@ -564,14 +555,19 @@ func Status2Error(status ptrace.Status, _ ptrace.SpanEventSlice, metaMap map[str
 		if status.Message() != "" {
 			// use the status message
 			metaMap["error.msg"] = status.Message()
-		} else if _, httpCode := GetFirstFromMap(metaMap, "http.response.status_code", "http.status_code"); httpCode != "" {
+		} else {
+			// Use semantic registry lookup for http.status_code
 			// `http.status_code` was renamed to `http.response.status_code` in the HTTP stabilization from v1.23.
 			// See https://opentelemetry.io/docs/specs/semconv/http/migration-guide/#summary-of-changes
-			httpCodeInt, _ := strconv.Atoi(httpCode) // Value returned in case of error will not pass the next test
-			if httptext := http.StatusText(httpCodeInt); httptext != "" {
-				metaMap["error.msg"] = fmt.Sprintf("%s %s", httpCode, httptext)
-			} else {
-				metaMap["error.msg"] = httpCode
+			accessor := semantics.NewStringMapAccessor(metaMap)
+			httpCode := semantics.LookupString(semantics.DefaultRegistry(), accessor, semantics.ConceptHTTPStatusCode)
+			if httpCode != "" {
+				httpCodeInt, _ := strconv.Atoi(httpCode) // Value returned in case of error will not pass the next test
+				if httptext := http.StatusText(httpCodeInt); httptext != "" {
+					metaMap["error.msg"] = fmt.Sprintf("%s %s", httpCode, httptext)
+				} else {
+					metaMap["error.msg"] = httpCode
+				}
 			}
 		}
 	}
