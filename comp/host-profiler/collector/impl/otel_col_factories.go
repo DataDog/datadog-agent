@@ -9,10 +9,10 @@
 package collectorimpl
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"log/slog"
 	"os"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -31,6 +31,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor"
+	"go.uber.org/zap"
 	"go.uber.org/zap/exp/zapslog"
 	"go.uber.org/zap/zapcore"
 
@@ -51,7 +52,7 @@ type ExtraFactories interface {
 	GetConverters() []confmap.ConverterFactory
 	GetExtensions() []extension.Factory
 	GetZapCore() zapcore.Core
-	SetupSlogDefault(core zapcore.Core)
+	GetLoggingOptions() []zap.Option
 }
 
 // extraFactoriesWithAgentCore is a struct that implements the ExtraFactories interface when the Agent Core is available.
@@ -90,12 +91,17 @@ func NewExtraFactoriesWithAgentCore(
 	}
 }
 
-func (e extraFactoriesWithAgentCore) SetupSlogDefault(_ zapcore.Core) {
-	// In Bundled mode, the Agent logger takes care of setting up global logging
-}
-
 func (e extraFactoriesWithAgentCore) GetZapCore() zapcore.Core {
 	return zapAgent.NewZapCoreWithDepth(zapCoreStackDepth)
+}
+
+func (e extraFactoriesWithAgentCore) GetLoggingOptions() []zap.Option {
+	zapCore := e.GetZapCore()
+	return []zap.Option{
+		zap.WrapCore(func(zapcore.Core) zapcore.Core {
+			return zapCore
+		}),
+	}
 }
 
 func (e extraFactoriesWithAgentCore) GetExtensions() []extension.Factory {
@@ -123,10 +129,6 @@ type extraFactoriesWithoutAgentCore struct{}
 
 var _ ExtraFactories = (*extraFactoriesWithoutAgentCore)(nil)
 
-func (e extraFactoriesWithoutAgentCore) SetupSlogDefault(core zapcore.Core) {
-	slog.SetDefault(slog.New(zapslog.NewHandler(core)))
-}
-
 // NewExtraFactoriesWithoutAgentCore creates a new ExtraFactories instance when the Agent Core is not available.
 func NewExtraFactoriesWithoutAgentCore() ExtraFactories {
 	return extraFactoriesWithoutAgentCore{}
@@ -144,6 +146,16 @@ func (e extraFactoriesWithoutAgentCore) GetZapCore() zapcore.Core {
 	logAgent.SetupLogger(slogWrapper.NewWrapper(handler), logLevel)
 
 	return zapAgent.NewZapCoreWithDepth(zapCoreStackDepth)
+}
+
+func (e extraFactoriesWithoutAgentCore) GetLoggingOptions() []zap.Option {
+	return []zap.Option{
+		zap.WrapCore(func(core zapcore.Core) zapcore.Core {
+			slogLogger := zap.New(core)
+			slog.SetDefault(slog.New(zapslog.NewHandler(slogLogger.Core())))
+			return core
+		}),
+	}
 }
 
 // GetExtensions returns the extensions for the collector.
