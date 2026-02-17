@@ -587,6 +587,13 @@ namespace WixSetup.Datadog_Agent
                 "[DDAGENTUSER_PROCESSED_FQ_NAME]",
                 "[DDAGENTUSER_PROCESSED_PASSWORD]",
                 "--config=\"[APPLICATIONDATADIRECTORY]\\datadog.yaml\"");
+            var privateActionRunnerService = GenerateDependentServiceInstaller(
+                new Id("ddagentprivaterunnerservice"),
+                Constants.PrivateActionRunnerServiceName,
+                "Datadog Private Action Runner",
+                "Execute private actions for Datadog",
+                "[DDAGENTUSER_PROCESSED_FQ_NAME]",
+                "[DDAGENTUSER_PROCESSED_PASSWORD]");
             var systemProbeService = GenerateDependentServiceInstaller(
                 new Id("ddagentsysprobeservice"),
                 Constants.SystemProbeServiceName,
@@ -600,7 +607,14 @@ namespace WixSetup.Datadog_Agent
                     ),
                     new WixSharp.File(_agentBinaries.TrayId, _agentBinaries.Tray),
                     new WixSharp.File(_agentBinaries.ProcessAgent, processAgentService),
-                    new WixSharp.File(_agentBinaries.PrivateActionRunner),
+                    new WixSharp.File(_agentBinaries.PrivateActionRunner, privateActionRunnerService),
+                    new EventSource
+                    {
+                        Name = Constants.PrivateActionRunnerServiceName,
+                        Log = "Application",
+                        EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.PrivateActionRunner)}",
+                        AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
+                    },
                     new EventSource
                     {
                         Name = Constants.ProcessAgentServiceName,
