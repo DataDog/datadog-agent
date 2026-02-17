@@ -18,8 +18,8 @@ const (
 )
 
 type ScriptBundleConfig struct {
-	SchemaId                      string                                        `yaml:"schemaId"`
-	RunPredefinedScript           map[string]RunPredefinedScriptConfig          `yaml:"runPredefinedScript,omitempty"`
+	SchemaId                      string                                         `yaml:"schemaId"`
+	RunPredefinedScript           map[string]RunPredefinedScriptConfig           `yaml:"runPredefinedScript,omitempty"`
 	RunPredefinedPowershellScript map[string]RunPredefinedPowershellScriptConfig `yaml:"runPredefinedPowershellScript,omitempty"`
 }
 
@@ -30,9 +30,9 @@ type RunPredefinedScriptConfig struct {
 }
 
 type RunPredefinedPowershellScriptConfig struct {
-	Script string `yaml:"script,omitempty"`
-	File string `yaml:"file,omitempty"`
-	Arguments []string `yaml:"arguments,omitempty"`
+	Script          string                 `yaml:"script,omitempty"`
+	File            string                 `yaml:"file,omitempty"`
+	Arguments       []string               `yaml:"arguments,omitempty"`
 	ParameterSchema map[string]interface{} `yaml:"parameterSchema,omitempty"`
 	AllowedEnvVars  []string               `yaml:"allowedEnvVars,omitempty"`
 }

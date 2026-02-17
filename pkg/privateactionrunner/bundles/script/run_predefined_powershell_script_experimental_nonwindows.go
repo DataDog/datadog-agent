@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build !private_runner_experimental
+//go:build private_runner_experimental && !windows
 
 package com_datadoghq_script
 
@@ -26,5 +26,5 @@ func (h *RunPredefinedPowershellScriptHandler) Run(
 	task *types.Task,
 	credentials *privateconnection.PrivateCredentials,
 ) (interface{}, error) {
-	return nil, errors.New("RunPredefinedPowershellScript is not available")
+	return nil, errors.New("RunPredefinedPowershellScript is only available on Windows")
 }
