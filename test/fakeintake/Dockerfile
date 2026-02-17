@@ -8,7 +8,7 @@ FROM ${BASE_IMAGE_REGISTRY}/library/golang:${GO_VERSION} AS build
 
 # need gcc to build with CGO_ENABLED=1
 # need musl-dev to get stdlib.h
-RUN apt update && apt install -y musl-dev gcc
+RUN apt update && apt install -y musl-dev gcc musl-tools
 
 WORKDIR /app
 
@@ -28,8 +28,9 @@ RUN go mod download
 
 COPY test/fakeintake .
 
-# need to explicitely run with CGO enabled
+# need to explicitely run with CGO enabled and link against musl
 ENV CGO_ENABLED=1
+ENV CC=musl-gcc
 ARG CI
 RUN go build -o /fakeintake cmd/server/main.go
 
