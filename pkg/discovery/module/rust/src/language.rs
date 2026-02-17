@@ -43,7 +43,21 @@ pub enum Language {
 }
 
 impl Language {
-    pub fn detect(pid: u32, exe: &Exe, cmdline: &Cmdline, open_files_info: &OpenFilesInfo) -> Self {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Unknown => "unknown",
+            Self::Java => "jvm",
+            Self::NodeJS => "nodejs",
+            Self::Python => "python",
+            Self::Ruby => "ruby",
+            Self::DotNet => "dotnet",
+            Self::Go => "go",
+            Self::CPlusPlus => "cpp",
+            Self::PHP => "php",
+        }
+    }
+
+    pub fn detect(pid: i32, exe: &Exe, cmdline: &Cmdline, open_files_info: &OpenFilesInfo) -> Self {
         info!("detect: exe={exe:?} cmdline={cmdline:?}");
         if let Some(lang) = Self::from_basename(cmdline) {
             return lang;
@@ -119,7 +133,7 @@ impl Language {
 
     /// Try language detection methods that are tied to a specific binary and
     /// can be cached at a binary level.
-    fn from_binary(pid: u32, open_files_info: &OpenFilesInfo) -> Option<Self> {
+    fn from_binary(pid: i32, open_files_info: &OpenFilesInfo) -> Option<Self> {
         #[allow(clippy::unwrap_used)] // `BINARY_CACHE_SIZE` is a non-zero constant, this cannot fail
         static CACHE: LazyLock<Mutex<LruCache<BinaryID, Language>>> = LazyLock::new(|| {
             Mutex::new(LruCache::new(NonZeroUsize::new(BINARY_CACHE_SIZE).unwrap()))
@@ -180,7 +194,7 @@ impl Language {
     /// This logic is ported from the datadog-agent
     /// (`pkg/network/go/binversion`), itself imported from Go's
     /// `debug/buildinfo` standard library package.
-    fn from_go(pid: u32) -> Option<Self> {
+    fn from_go(pid: i32) -> Option<Self> {
         const ELF_READ_LIMIT: usize = 64 * 1024; // 64KiB
 
         const BUILD_INFO_MAGIC: &[u8] = b"\xff Go buildinf:";
@@ -235,7 +249,7 @@ impl Language {
     /// framework-dependent), and framework-dependent single-file deployments.
     /// It does not work for self-contained single-file deployments since these
     /// do not have any DLLs in their maps file.
-    fn from_dotnet(pid: u32) -> Option<Self> {
+    fn from_dotnet(pid: i32) -> Option<Self> {
         let maps_reader = crate::procfs::maps::get_reader_for_pid(pid).ok()?;
 
         if has_dotnet_dll_in_maps(maps_reader) {
@@ -265,7 +279,7 @@ struct BinaryID {
 }
 
 impl BinaryID {
-    fn get(pid: u32) -> Result<Self> {
+    fn get(pid: i32) -> Result<Self> {
         let stat = Exe::stat(pid)?;
 
         Ok(Self {
@@ -539,7 +553,7 @@ mod tests {
 
         use memmap2::Mmap;
 
-        let current_pid = std::process::id();
+        let current_pid = std::process::id().cast_signed();
 
         // Negative test: current process should NOT be detected as .NET initially
         let result = Language::from_dotnet(current_pid);
@@ -587,7 +601,7 @@ mod tests {
             c.wait().ok();
         });
 
-        let pid = child.id();
+        let pid = child.id().cast_signed();
 
         // Wait for the "READY" signal from the Go process to ensure it's fully started
         let stdout = child.stdout.as_mut().expect("Failed to get stdout");
@@ -611,7 +625,7 @@ mod tests {
     #[test]
     fn test_from_go_with_non_go_binary() {
         // Test with current process (Rust binary) - should NOT be detected as Go
-        let current_pid = std::process::id();
+        let current_pid = std::process::id().cast_signed();
         let result = Language::from_go(current_pid);
         assert_eq!(
             result, None,

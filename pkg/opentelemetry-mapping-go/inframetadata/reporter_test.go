@@ -7,6 +7,7 @@ package inframetadata
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -16,6 +17,7 @@ import (
 	conventions "go.opentelemetry.io/otel/semconv/v1.18.0"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest"
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/internal/testutils"
@@ -119,4 +121,41 @@ func TestRun(t *testing.T) {
 	logs := observed.AllUntimed()
 	assert.Len(t, logs, 1)
 	assert.Equal(t, logs[0].Message, "Failed to send host metadata")
+}
+
+type channelPusher struct {
+	out chan payload.HostMetadata
+}
+
+var _ Pusher = (*channelPusher)(nil)
+
+func (p *channelPusher) Push(_ context.Context, md payload.HostMetadata) error {
+	p.out <- md
+	return nil
+}
+
+func TestHostMapUpdateRace(t *testing.T) {
+	p := &channelPusher{
+		out: make(chan payload.HostMetadata),
+	}
+	r, err := NewReporter(zaptest.NewLogger(t), p, time.Second)
+	require.NoError(t, err)
+
+	go func() {
+		md := <-p.out
+		// Repeatedly iterate over the first payload
+		for range 1000 {
+			_, _ = json.Marshal(md)
+		}
+	}()
+
+	for range 1000 {
+		// Repeatedly modify the payload in the host map
+		err = r.ConsumeResource(testutils.NewResourceFromMap(t, map[string]any{
+			AttributeDatadogHostUseAsMetadata: true,
+			string(conventions.HostNameKey):   "test-hostname",
+		}))
+		assert.NoError(t, err)
+	}
+	close(p.out)
 }
