@@ -43,6 +43,7 @@ type ddInfra struct {
 	defaultInstanceType            string
 	defaultInstanceProfileName     string
 	defaultARMInstanceType         string
+	defaultWindowsInstanceType     string
 	defaultInstanceStorageSize     int
 	defaultShutdownBehavior        string
 	defaultInternalRegistry        string
@@ -121,6 +122,7 @@ func sandboxDefault() environmentDefault {
 			defaultInstanceType:            "t3.medium",
 			defaultInstanceProfileName:     "ec2InstanceRole",
 			defaultARMInstanceType:         "t4g.medium",
+			defaultWindowsInstanceType:     "c5.large",
 			defaultInstanceStorageSize:     200,
 			defaultShutdownBehavior:        "stop",
 			defaultInternalRegistry:        "registry.datadoghq.com", // TODO: revert to 669783387624.dkr.ecr.us-east-1.amazonaws.com after 1 month
@@ -169,6 +171,7 @@ func agentSandboxDefault() environmentDefault {
 			defaultInstanceType:            "t3.medium",
 			defaultInstanceProfileName:     "ec2InstanceRole",
 			defaultARMInstanceType:         "t4g.medium",
+			defaultWindowsInstanceType:     "c5.large",
 			defaultInstanceStorageSize:     200,
 			defaultShutdownBehavior:        "stop",
 			defaultInternalRegistry:        "669783387624.dkr.ecr.us-east-1.amazonaws.com",
@@ -238,6 +241,7 @@ func agentQADefault() environmentDefault {
 			defaultInstanceType:            "t3.medium",
 			defaultInstanceProfileName:     "ec2InstanceRole",
 			defaultARMInstanceType:         "t4g.medium",
+			defaultWindowsInstanceType:     "c5.large",
 			defaultInstanceStorageSize:     200,
 			defaultShutdownBehavior:        "stop",
 			defaultInternalRegistry:        "registry.datadoghq.com",
@@ -309,6 +313,7 @@ func tsePlaygroundDefault() environmentDefault {
 			defaultSecurityGroups:      []string{"sg-091a00b0944f04fd2", "sg-073f15b823d4bb39a", "sg-0a3ec6b0ee295e826"},
 			defaultInstanceType:        "t3.medium",
 			defaultARMInstanceType:     "t4g.medium",
+			defaultWindowsInstanceType: "c5.large",
 			defaultInstanceStorageSize: 200,
 			defaultShutdownBehavior:    "stop",
 			useMacosCompatibleSubnets:  false,

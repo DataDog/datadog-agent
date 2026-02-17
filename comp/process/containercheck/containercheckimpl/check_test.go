@@ -10,24 +10,27 @@ package containercheckimpl
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/process/containercheck"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 )
 
 func TestContainerCheckIsEnabled(t *testing.T) {
 	tests := []struct {
 		name             string
 		configs          map[string]interface{}
+		sysProbeConfigs  map[string]interface{}
 		containerizedEnv bool
 		flavor           string
 		enabled          bool
@@ -99,6 +102,29 @@ func TestContainerCheckIsEnabled(t *testing.T) {
 			flavor:           flavor.DefaultAgent,
 			enabled:          true,
 		},
+		{
+			name: "service discovery disables the container check",
+			configs: map[string]interface{}{
+				"process_config.process_collection.enabled":   false,
+				"process_config.container_collection.enabled": true,
+			},
+			sysProbeConfigs: map[string]interface{}{
+				"discovery.enabled": true,
+			},
+			enabled: false,
+		},
+		{
+			name: "service discovery is disabled, container check is enabled",
+			configs: map[string]interface{}{
+				"process_config.process_collection.enabled":   false,
+				"process_config.container_collection.enabled": true,
+			},
+			sysProbeConfigs: map[string]interface{}{
+				"discovery.enabled": false,
+			},
+			containerizedEnv: true,
+			enabled:          true,
+		},
 	}
 
 	for _, tc := range tests {
@@ -116,6 +142,8 @@ func TestContainerCheckIsEnabled(t *testing.T) {
 			c := fxutil.Test[containercheck.Component](t, fx.Options(
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 				fx.Provide(func(t testing.TB) config.Component { return config.NewMockWithOverrides(t, tc.configs) }),
+				sysprobeconfigimpl.MockModule(),
+				fx.Replace(sysprobeconfigimpl.MockParams{Overrides: tc.sysProbeConfigs}),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 				fx.Provide(func() statsd.ClientInterface {
 					return &statsd.NoOpClient{}

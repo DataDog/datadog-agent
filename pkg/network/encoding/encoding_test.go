@@ -106,6 +106,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 				Direction: model.ConnectionDirection_local,
 
 				RouteIdx:         0,
+				ResolvConfIdx:    -1,
 				HttpAggregations: httpOutBlob,
 				Protocol: &model.ProtocolStack{
 					Stack: []model.ProtocolType{model.ProtocolType_protocolHTTP},
@@ -125,6 +126,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 				DnsSuccessfulResponses:      1, // TODO: verify why this was needed
 				TcpFailuresByErrCode:        map[uint32]uint32{110: 1},
 				RouteIdx:                    -1,
+				ResolvConfIdx:               -1,
 				Protocol: &model.ProtocolStack{
 					Stack: []model.ProtocolType{model.ProtocolType_protocolTLS, model.ProtocolType_protocolHTTP2},
 				},
@@ -574,6 +576,7 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				HttpAggregations: httpOutBlob,
 				RouteIdx:         -1,
+				ResolvConfIdx:    -1,
 				Protocol:         marshal.FormatProtocolStack(protocols.Stack{}, 0),
 			},
 			{
@@ -581,6 +584,7 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 				Raddr:            &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
 				HttpAggregations: httpOutBlob,
 				RouteIdx:         -1,
+				ResolvConfIdx:    -1,
 				Protocol:         marshal.FormatProtocolStack(protocols.Stack{}, 0),
 			},
 		},

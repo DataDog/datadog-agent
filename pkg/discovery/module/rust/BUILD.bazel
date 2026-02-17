@@ -98,6 +98,16 @@ rust_shared_library(
 )
 
 # ============================================================================
+# Headers
+# ============================================================================
+
+filegroup(
+    name = "dd_discovery_headers",
+    srcs = ["include/dd_discovery.h"],
+    visibility = ["//visibility:public"],
+)
+
+# ============================================================================
 # Binary Targets
 # ============================================================================
 
@@ -201,6 +211,7 @@ rust_test(
         "MOCK_SYSTEM_PROBE": "$(rootpath :mock_system_probe)",
     },
     deps = [
+        "@sdagent_crates//:nix",
         "@sdagent_crates//:tempfile",
     ],
 )

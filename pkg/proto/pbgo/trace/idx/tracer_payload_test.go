@@ -6,6 +6,7 @@
 package idx
 
 import (
+	"encoding/base64"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -102,6 +103,53 @@ func TestUnmarshalTracerPayload(t *testing.T) {
 		tp.Strings.assertEqual(t, strings)
 		assert.Equal(t, expectedTP, tp)
 	})
+
+	t.Run("java example - unexpected streaming string", func(t *testing.T) {
+		base64Payload := "gQuRhwEBAgIDkwMDy0A6AAAAAAAABJHeABABBAIFA612dWxuZXJhYmlsaXR5BM9bNBi+OuFgRwUABs8Yk4lX7E0/pQfOADI9AAjCCZOkdGVzdAPLQDoAAAAAAAAKrXZ1bG5lcmFiaWxpdHkLkAyQDQYOpHRvZG8PpHRvZG8QpHRvZG8FwgYHBwA="
+		bts, err := base64.StdEncoding.DecodeString(base64Payload)
+		assert.NoError(t, err)
+
+		var tp = &InternalTracerPayload{Strings: NewStringTable()}
+		_, err = tp.UnmarshalMsg(bts)
+		assert.Error(t, err)
+		t.Logf("Error: %v", err)
+	})
+
+	t.Run("identify nil error wrapping location", func(t *testing.T) {
+		base64Payload := "gQuRhwEBAgIDkwMDy0A6AAAAAAAABJHeABABBAIFA612dWxuZXJhYmlsaXR5BM9bNBi+OuFgRwUABs8Yk4lX7E0/pQfOADI9AAjCCZOkdGVzdAPLQDoAAAAAAAAKrXZ1bG5lcmFiaWxpdHkLkAyQDQYOpHRvZG8PpHRvZG8QpHRvZG8FwgYHBwA="
+		bts, err := base64.StdEncoding.DecodeString(base64Payload)
+		assert.NoError(t, err)
+
+		var tp = &InternalTracerPayload{Strings: NewStringTable()}
+		_, err = tp.UnmarshalMsg(bts)
+		assert.Error(t, err)
+
+		// Check if the error contains nil pointer by trying to call Error()
+		// This will help us identify which code path is causing the issue
+		panicked := false
+		var panicValue interface{}
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					panicked = true
+					panicValue = r
+				}
+			}()
+			_ = err.Error()
+		}()
+
+		if panicked {
+			t.Logf("Panic occurred when calling err.Error(): %v", panicValue)
+			t.Logf("Error type: %T", err)
+			// Try to inspect the error structure
+			if wrappedErr, ok := err.(interface{ Unwrap() error }); ok {
+				unwrapped := wrappedErr.Unwrap()
+				t.Logf("Unwrapped error: %v, type: %T, is nil: %v", unwrapped, unwrapped, unwrapped == nil)
+			}
+		} else {
+			t.Logf("No panic occurred, error message: %s", err.Error())
+		}
+	})
 }
 
 func TestUnmarshalTraceChunk(t *testing.T) {
@@ -166,5 +214,33 @@ func TestUnmarshalTraceChunk(t *testing.T) {
 			assert.Equal(t, v, chunks[0].Attributes[k])
 		}
 		strings.assertEqual(t, []string{"", "lambda", "my-service", "span-name", "GET /res", "foo", "bar", "foo2", "some-num"})
+	})
+}
+
+// FuzzUnmarshalTracerPayloadErrorHandling verifies that any error returned from
+// UnmarshalMsg does not panic when Error() is called on it. This makes sure we don't ever return a wrapped error with an internal nil error.
+func FuzzUnmarshalTracerPayloadErrorHandling(f *testing.F) {
+	// Add the known problematic payload as a seed
+	base64Payload := "gQuRhwEBAgIDkwMDy0A6AAAAAAAABJHeABABBAIFA612dWxuZXJhYmlsaXR5BM9bNBi+OuFgRwUABs8Yk4lX7E0/pQfOADI9AAjCCZOkdGVzdAPLQDoAAAAAAAAKrXZ1bG5lcmFiaWxpdHkLkAyQDQYOpHRvZG8PpHRvZG8QpHRvZG8FwgYHBwA="
+	bts, err := base64.StdEncoding.DecodeString(base64Payload)
+	if err == nil {
+		f.Add(bts)
+	}
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		var tp = &InternalTracerPayload{Strings: NewStringTable()}
+		_, err := tp.UnmarshalMsg(data)
+
+		// If an error occurred, verify that calling Error() on it doesn't panic
+		if err != nil {
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						t.Fatalf("panic when calling err.Error(): %v, error type: %T", r, err)
+					}
+				}()
+				_ = err.Error()
+			}()
+		}
 	})
 }

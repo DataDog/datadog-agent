@@ -105,7 +105,7 @@ func (r *Recommender) updateAutoscaler(key string, horizontalRecommendation *mod
 	recommendation := model.ScalingValues{}
 
 	if err != nil {
-		recommendation.HorizontalError = err
+		recommendation.HorizontalError = autoscaling.NewConditionError(autoscaling.ConditionReasonLocalRecommenderError, err)
 	}
 
 	if horizontalRecommendation != nil {

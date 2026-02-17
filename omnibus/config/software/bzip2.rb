@@ -20,11 +20,7 @@
 name "bzip2"
 default_version "1.0.8"
 
-license "BSD-2-Clause"
-license_file "LICENSE"
 skip_transitive_dependency_licensing true
-
-dependency "zlib"
 
 build do
   command_on_repo_root "bazelisk run -- @bzip2//:install --destdir=#{install_dir}"

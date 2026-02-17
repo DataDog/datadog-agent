@@ -2,7 +2,7 @@ using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
 using Datadog.CustomActions.Rollback;
-using Microsoft.Deployment.WindowsInstaller;
+using WixToolset.Dtf.WindowsInstaller;
 using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
@@ -363,6 +363,7 @@ namespace Datadog.CustomActions
                     Constants.NpmServiceName,
                     Constants.ProcmonServiceName,       // might not exist depending on compile time options**
                     Constants.SecurityAgentServiceName, // might not exist depending on compile time options**
+                    Constants.PrivateActionRunnerServiceName,
                     Constants.ProcessAgentServiceName,
                     Constants.TraceAgentServiceName,
                     Constants.InstallerServiceName,

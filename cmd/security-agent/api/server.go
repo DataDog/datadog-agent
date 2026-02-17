@@ -86,7 +86,7 @@ func (s *Server) Stop() {
 	}
 }
 
-// Address retruns the server address.
+// Address returns the server address.
 func (s *Server) Address() *net.TCPAddr {
 	return s.listener.Addr().(*net.TCPAddr)
 }

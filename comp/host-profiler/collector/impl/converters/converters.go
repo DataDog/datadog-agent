@@ -9,10 +9,11 @@
 package converters
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.opentelemetry.io/collector/confmap"
 )
@@ -23,8 +24,12 @@ func NewFactoryWithoutAgent() confmap.ConverterFactory {
 }
 
 // NewFactoryWithAgent returns a new converterWithAgent factory.
-func NewFactoryWithAgent() confmap.ConverterFactory {
-	return confmap.NewConverterFactory(newConverterWithAgent)
+func NewFactoryWithAgent(c config.Component) confmap.ConverterFactory {
+	newConverterWithAgentWrapper := func(settings confmap.ConverterSettings) confmap.Converter {
+		return newConverterWithAgent(settings, c)
+	}
+
+	return confmap.NewConverterFactory(newConverterWithAgentWrapper)
 }
 
 type confMap = map[string]any
@@ -58,6 +63,13 @@ const (
 	fieldDDAPIKey              = "dd-api-key"
 	fieldAPIKey                = "api_key"
 	fieldAppKey                = "app_key"
+)
+
+// OTEL config path prefixes
+const (
+	pathPrefixReceivers  = "receivers::"
+	pathPrefixExporters  = "exporters::"
+	pathPrefixProcessors = "processors::"
 )
 
 // isComponentType checks if a component name matches a specific type.
@@ -181,92 +193,49 @@ func ensureKeyStringValue(config confMap, key string) bool {
 	}
 }
 
-// fixReceiversPipeline ensures at least one hostprofiler receiver is configured in the pipeline
-// If none exists, it adds a minimal hostprofiler receiver with symbol_uploader disabled
-// warnFunc is called if a default hostprofiler is added
-func fixReceiversPipeline(conf confMap, receiverNames []any, warnFunc func(...any)) ([]any, error) {
-	// Check if hostprofiler is in the pipeline
-	hasHostProfiler := false
-	for _, nameAny := range receiverNames {
-		name, ok := nameAny.(string)
-		if !ok {
-			return nil, fmt.Errorf("receiver name must be a string, got %T", nameAny)
-		}
+// addProfilerMetadataTags always creates a dedicated resource/profiler-metadata processor
+// without searching for existing resource processors.
+func addProfilerMetadataTags(conf confMap, profilesProcessors []any) ([]any, error) {
+	const resourceProcessorName = "resource/dd-profiler-internal-metadata"
 
-		if !isComponentType(name, componentTypeHostProfiler) {
-			continue
-		}
+	// Check if the processor is already defined in root processors
+	globalProcessors, _ := Get[confMap](conf, "processors")
+	if _, exists := globalProcessors[resourceProcessorName]; exists {
+		return nil, fmt.Errorf("%s is a reserved resource processor name. Please change it in your configuration file", resourceProcessorName)
+	}
 
-		hasHostProfiler = true
-
-		if hostProfilerConfig, ok := Get[confMap](conf, "receivers::"+name); ok {
-			if err := checkHostProfilerReceiverConfig(hostProfilerConfig); err != nil {
-				return nil, err
-			}
+	for _, proc := range profilesProcessors {
+		if procName := proc.(string); procName == resourceProcessorName {
+			return nil, fmt.Errorf("%s is a reserved resource processor name. Please remove it from the profiles pipeline", resourceProcessorName)
 		}
 	}
 
-	if hasHostProfiler {
-		return receiverNames, nil
-	}
-
-	// Ensure default config exists if hostprofiler receiver is not configured
-	if err := Set(conf, "receivers::"+defaultHostProfilerName+"::"+pathSymbolUploaderEnabled, false); err != nil {
+	resourceProcessor, err := Ensure[confMap](conf, "processors::"+resourceProcessorName)
+	if err != nil {
 		return nil, err
 	}
 
-	warnFunc("Added minimal hostprofiler receiver to user configuration")
-	return append(receiverNames, defaultHostProfilerName), nil
-}
-
-// checkHostProfilerReceiverConfig validates and normalizes hostprofiler receiver configuration
-// It ensures that if symbol_uploader is enabled, symbol_endpoints is properly configured
-// and all api_key/app_key values are strings
-func checkHostProfilerReceiverConfig(hostProfiler confMap) error {
-	if isEnabled, ok := Get[bool](hostProfiler, pathSymbolUploaderEnabled); !ok || !isEnabled {
-		return nil
+	attributes, err := Ensure[[]any](resourceProcessor, "attributes")
+	if err != nil {
+		return nil, err
 	}
 
-	endpoints, ok := Get[[]any](hostProfiler, pathSymbolEndpoints)
-
-	if !ok {
-		return errors.New("symbol_endpoints must be a list")
+	profilerNameElement := confMap{
+		"key":    "profiler_name",
+		"value":  version.ProfilerName,
+		"action": "upsert",
+	}
+	profilerVersionElement := confMap{
+		"key":    "profiler_version",
+		"value":  version.ProfilerVersion,
+		"action": "upsert",
 	}
 
-	if len(endpoints) == 0 {
-		return errors.New("symbol_endpoints cannot be empty when symbol_uploader is enabled")
+	attributes = append(attributes, profilerNameElement)
+	attributes = append(attributes, profilerVersionElement)
+	if err := Set(resourceProcessor, "attributes", attributes); err != nil {
+		return nil, err
 	}
 
-	for _, epAny := range endpoints {
-		if ep, ok := epAny.(confMap); ok {
-			ensureKeyStringValue(ep, fieldAPIKey)
-			ensureKeyStringValue(ep, fieldAppKey)
-		}
-	}
-	return nil
-}
-
-func ensureOtlpHTTPExporterConfig(conf confMap, exporterNames []any) error {
-	// for each otlphttpexporter used, check if necessary api key is present
-	hasOtlpHTTP := false
-	for _, nameAny := range exporterNames {
-		if name, ok := nameAny.(string); ok && isComponentType(name, componentTypeOtlpHTTP) {
-			hasOtlpHTTP = true
-
-			headers, err := Ensure[confMap](conf, "exporters::"+name+"::headers")
-			if err != nil {
-				return err
-			}
-
-			if !ensureKeyStringValue(headers, fieldDDAPIKey) {
-				return fmt.Errorf("%s exporter missing required dd-api-key header", name)
-			}
-		}
-	}
-
-	if !hasOtlpHTTP {
-		return errors.New("no otlphttp exporter configured in profiles pipeline")
-	}
-
-	return nil
+	return append(profilesProcessors, resourceProcessorName), nil
 }

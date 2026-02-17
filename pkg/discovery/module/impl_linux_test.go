@@ -443,6 +443,7 @@ func TestRustBinary(t *testing.T) {
 	}
 
 	env := os.Environ()
+	env = append(env, "DD_DISCOVERY_USE_SD_AGENT=true")
 	env = append(env, "DD_DISCOVERY_ENABLED=false")
 	// Fake system-probe binary with empty configuration file
 	cmd := exec.Command(binaryPath, "--", truePath, "-c", "/dev/null")

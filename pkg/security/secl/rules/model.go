@@ -259,11 +259,11 @@ func (s *SetDefinition) PreCheck(_ PolicyLoaderOpts) error {
 		return fmt.Errorf("failed to infer type for variable '%s', please set 'default_value'", s.Name)
 	}
 
-	if s.Inherited && s.Scope != "process" {
+	if s.Inherited && s.Scope != ScopeProcess {
 		return errors.New("only variables scoped to process can be marked as inherited")
 	}
 
-	if len(s.ScopeField) > 0 && s.Scope != "process" {
+	if len(s.ScopeField) > 0 && s.Scope != ScopeProcess {
 		return errors.New("only variables scoped to process can have a custom scope_field")
 	}
 
@@ -367,7 +367,7 @@ type LogDefinition struct {
 // PreCheck returns an error if the log action is invalid
 func (l *LogDefinition) PreCheck(_ PolicyLoaderOpts) error {
 	if l.Level == "" {
-		return errors.New("a valid log level must be specified to the the 'log' action")
+		return errors.New("a valid log level must be specified to the 'log' action")
 	}
 
 	return nil
@@ -419,7 +419,7 @@ type HookPointArg struct {
 // PolicyDef represents a policy file definition
 type PolicyDef struct {
 	Version string `yaml:"version,omitempty" json:"version"`
-	// Type is the type of content served by the policy (e.g. "policy" for a default policy, "detection_pack" or empty for others)
+	// Type is the type of content served by the policy (e.g. "policy" for a default policy, "content_pack" or empty for others)
 	Type            string             `yaml:"type,omitempty" json:"type,omitempty"`
 	ReplacePolicyID string             `yaml:"replace_policy_id,omitempty" json:"replace_policy_id,omitempty"`
 	Macros          []*MacroDefinition `yaml:"macros,omitempty" json:"macros,omitempty"`

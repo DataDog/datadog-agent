@@ -962,6 +962,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 		"docker.io/datadog",
 		"public.ecr.aws/datadog",
 	})
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.gradual_rollout.enabled", true)
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.gradual_rollout.cache_ttl", "1h")
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider", false)                                // to be enabled only in e2e tests
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.file_provider_path", "/etc/datadog-agent/patch/auto-instru.json") // to be used only in e2e tests
@@ -1816,6 +1818,7 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_non_local_traffic", false)
 	config.BindEnvAndSetDefault("dogstatsd_socket", defaultStatsdSocket) // Only enabled on unix systems
 	config.BindEnvAndSetDefault("dogstatsd_stream_socket", "")           // Experimental || Notice: empty means feature disabled
+	config.BindEnvAndSetDefault("dogstatsd_stream_log_too_big", false)
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_autoadjust", false)
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_count", 1)
 	config.BindEnvAndSetDefault("dogstatsd_stats_port", 5000)

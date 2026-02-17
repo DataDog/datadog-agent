@@ -7,6 +7,7 @@
 package taggerlist
 
 import (
+	"errors"
 	"fmt"
 
 	"go.uber.org/fx"
@@ -29,6 +30,9 @@ import (
 // cliParams are the command-line arguments for this subcommand
 type cliParams struct {
 	GlobalParams
+	args       []string
+	json       bool
+	prettyJSON bool
 }
 
 // GlobalParams contains the values of agent-global Cobra flags.
@@ -47,14 +51,15 @@ type GlobalParams struct {
 func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cliParams := &cliParams{}
 
-	return &cobra.Command{
-		Use:   "tagger-list",
+	cmd := &cobra.Command{
+		Use:   "tagger-list [search]",
 		Short: "Print the tagger content of a running agent",
 		Long:  ``,
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			globalParams := globalParamsGetter()
 
 			cliParams.GlobalParams = globalParams
+			cliParams.args = args
 
 			return fxutil.OneShot(taggerList,
 				fx.Supply(cliParams),
@@ -72,15 +77,28 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			)
 		},
 	}
+
+	cmd.Flags().BoolVarP(&cliParams.json, "json", "j", false, "print out raw json")
+	cmd.Flags().BoolVarP(&cliParams.prettyJSON, "pretty-json", "p", false, "pretty print json (takes priority over --json)")
+
+	return cmd
 }
 
-func taggerList(_ log.Component, config config.Component, client ipc.HTTPClient, _ *cliParams) error {
+func taggerList(_ log.Component, config config.Component, client ipc.HTTPClient, cliParams *cliParams) error {
 	url, err := getTaggerURL(config)
 	if err != nil {
 		return err
 	}
 
-	return api.GetTaggerList(client, color.Output, url)
+	// Validate search argument
+	var searchTerm string
+	if len(cliParams.args) > 1 {
+		return errors.New("only one search term must be specified")
+	} else if len(cliParams.args) == 1 {
+		searchTerm = cliParams.args[0]
+	}
+
+	return api.GetTaggerList(client, color.Output, url, cliParams.json, cliParams.prettyJSON, searchTerm)
 }
 
 func getTaggerURL(config config.Component) (string, error) {

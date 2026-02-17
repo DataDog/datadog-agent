@@ -100,6 +100,11 @@ func probeConfigsWithMaxReferenceDepth(
 				cfg.Capture = new(rcjson.Capture)
 				cfg.Capture.MaxReferenceDepth = &limit
 			}
+		case *rcjson.CaptureExpressionProbe:
+			if cfg.Capture == nil {
+				cfg.Capture = new(rcjson.Capture)
+				cfg.Capture.MaxReferenceDepth = &limit
+			}
 		}
 	}
 	return probesCfgs

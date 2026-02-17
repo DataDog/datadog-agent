@@ -62,6 +62,10 @@ func (e *Event) DeepCopy() *Event {
 	{{- end}}
 	{{- end}}
 
+	// FieldHandlers is an interface that must be copied by reference (not deep copied)
+	// It provides access to shared resolvers needed for field resolution
+	copied.FieldHandlers = e.FieldHandlers
+
 	return copied
 }
 
