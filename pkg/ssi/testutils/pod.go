@@ -66,6 +66,8 @@ func NewPodValidator(pod *corev1.Pod, mode InjectionMode) *PodValidator {
 	switch mode {
 	case InjectionModeCSI:
 		v.injection = newCSIInjectionValidator(v, pod)
+	case InjectionModeImageVolume:
+		v.injection = newImageVolumeInjectionValidator(v, pod)
 	// Auto mode currently uses init containers as the default injection method
 	case InjectionModeAuto, InjectionModeInitContainer:
 		fallthrough
