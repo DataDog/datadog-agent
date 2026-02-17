@@ -46,263 +46,53 @@ Use `AskUserQuestion` to collect the following. If `$ARGUMENTS` provides the che
    - Windows only
    - Linux + macOS (not Windows)
 
-### Step 2: Create the check package
+### Step 2: Read reference examples from the codebase
+
+Before writing any code, read the appropriate reference files based on the check type determined in Step 1. Follow the patterns found in these files exactly.
+
+| Check type | Reference file to read |
+|---|---|
+| Simple, no config | `pkg/collector/corechecks/system/uptime/uptime.go` |
+| Simple with config | `pkg/collector/corechecks/system/memory/memory.go` |
+| Multi-instance with config | `pkg/collector/corechecks/net/ntp/ntp.go` |
+| With component dependencies | `pkg/collector/corechecks/containerimage/check.go` |
+| Long-running | Read the `NewLongRunningCheckWrapper` usage in `pkg/collector/corechecks/containerimage/check.go` |
+| Platform-specific stubs | Find a `_no*.go` or `_stub.go` file alongside a platform-specific check in `pkg/collector/corechecks/system/` |
+
+Also read these files for registration and test patterns:
+- `pkg/commonchecks/corechecks.go` — to see how checks are registered (import alias convention, `RegisterCheck` calls)
+- The `_test.go` file alongside whichever reference check you read — to see mock sender patterns
+
+### Step 3: Create the check package
 
 **Directory:** `pkg/collector/corechecks/<category>/<checkname>/`
 
-#### Basic check (no config, no dependencies)
+Create the check implementation file following the patterns from the reference files read in Step 2. Key structural elements that every check needs:
 
-**File:** `pkg/collector/corechecks/<category>/<checkname>/<checkname>.go`
+1. **`CheckName` constant** — string identifier for the check
+2. **`Check` struct** — embeds `core.CheckBase`, plus any config or component fields
+3. **`Factory()` function** — returns `option.Option[func() check.Check]`. Components are injected as Factory parameters.
+4. **`Configure()` method** — calls `CommonConfigure`, then `FinalizeCheckServiceTag`, then parses instance config if needed
+5. **`Run()` method** — collects data, calls sender methods, ends with `sender.Commit()`
 
-```go
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+Key rules to follow:
+- For **multi-instance** checks: call `c.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)` **before** `CommonConfigure()`
+- For **long-running** checks: wrap with `core.NewLongRunningCheckWrapper()` in Factory, return `0` from `Interval()`, implement `Stop()`
+- For **platform-specific** checks: add `//go:build <platform>` tag and create a stub file for other platforms that returns `option.None[func() check.Check]()`
 
-package <checkname>
-
-import (
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
-)
-
-const CheckName = "<checkname>"
-
-// Check implements the <checkname> check.
-type Check struct {
-	core.CheckBase
-}
-
-// Factory returns the check factory.
-func Factory() option.Option[func() check.Check] {
-	return option.New(newCheck)
-}
-
-func newCheck() check.Check {
-	return &Check{
-		CheckBase: core.NewCheckBase(CheckName),
-	}
-}
-
-// Configure configures the check.
-func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
-	err := c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source)
-	if err != nil {
-		return err
-	}
-
-	s, err := c.GetSender()
-	if err != nil {
-		return err
-	}
-	s.FinalizeCheckServiceTag()
-
-	return nil
-}
-
-// Run executes the check.
-func (c *Check) Run() error {
-	sender, err := c.GetSender()
-	if err != nil {
-		return err
-	}
-
-	// Collect and send metrics
-	// sender.Gauge("my_check.metric_name", value, "", nil)
-
-	sender.Commit()
-	return nil
-}
-```
-
-#### Check with instance configuration
-
-Add a config struct and parse it in `Configure`:
-
-```go
-import "gopkg.in/yaml.v2"
-
-type instanceConfig struct {
-	MyParam    string   `yaml:"my_param"`
-	SomeFlag   bool     `yaml:"some_flag"`
-	ItemList   []string `yaml:"item_list"`
-}
-
-type Check struct {
-	core.CheckBase
-	config instanceConfig
-}
-
-func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
-	err := c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source)
-	if err != nil {
-		return err
-	}
-
-	s, err := c.GetSender()
-	if err != nil {
-		return err
-	}
-	s.FinalizeCheckServiceTag()
-
-	return yaml.Unmarshal(rawInstance, &c.config)
-}
-```
-
-#### Multi-instance check
-
-Call `BuildID` **before** `CommonConfigure` to create a unique ID per instance:
-
-```go
-func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
-	c.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)
-
-	err := c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source)
-	if err != nil {
-		return err
-	}
-
-	s, err := c.GetSender()
-	if err != nil {
-		return err
-	}
-	s.FinalizeCheckServiceTag()
-
-	return yaml.Unmarshal(rawInstance, &c.config)
-}
-```
-
-#### Check with component dependencies
-
-Components are injected via the Factory function:
-
-```go
-import (
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-)
-
-type Check struct {
-	core.CheckBase
-	tagger tagger.Component
-	store  workloadmeta.Component
-}
-
-func Factory(tagger tagger.Component, store workloadmeta.Component) option.Option[func() check.Check] {
-	return option.New(func() check.Check {
-		return &Check{
-			CheckBase: core.NewCheckBase(CheckName),
-			tagger:    tagger,
-			store:     store,
-		}
-	})
-}
-```
-
-#### Long-running check
-
-For checks that process events continuously:
-
-```go
-import core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-
-type Check struct {
-	core.CheckBase
-	stopCh chan struct{}
-}
-
-func Factory() option.Option[func() check.Check] {
-	return option.New(func() check.Check {
-		return core.NewLongRunningCheckWrapper(&Check{
-			CheckBase: core.NewCheckBase(CheckName),
-			stopCh:    make(chan struct{}),
-		})
-	})
-}
-
-func (c *Check) Run() error {
-	// This never returns — runs until Stop() is called
-	for {
-		select {
-		case <-c.stopCh:
-			return nil
-		case event := <-someEventChannel:
-			sender, _ := c.GetSender()
-			// Process event, send metrics
-			sender.Commit()
-		}
-	}
-}
-
-func (c *Check) Stop() {
-	close(c.stopCh)
-}
-
-func (c *Check) Interval() time.Duration {
-	return 0 // 0 signals long-running check
-}
-```
-
-#### Platform-specific check
-
-Add build tags and create stub files for unsupported platforms:
-
-**Main file** (`<checkname>.go`):
-```go
-//go:build linux
-
-package <checkname>
-// ... full implementation
-```
-
-**Stub file** (`<checkname>_nolinux.go`):
-```go
-//go:build !linux
-
-package <checkname>
-
-import (
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
-)
-
-const CheckName = "<checkname>"
-
-// Factory returns an empty Option on unsupported platforms.
-func Factory() option.Option[func() check.Check] {
-	return option.None[func() check.Check]()
-}
-```
-
-### Step 3: Register the check
+### Step 4: Register the check
 
 Edit `pkg/commonchecks/corechecks.go`:
 
-1. Add an import for the check package:
-   ```go
-   <checkname> "github.com/DataDog/datadog-agent/pkg/collector/corechecks/<category>/<checkname>"
-   ```
+1. Add an import for the check package using the standard alias convention visible in the file (typically the check name)
+2. Add a `corecheckLoader.RegisterCheck()` call in `RegisterChecks()`, matching the Factory signature to available component parameters
 
-2. Add a `RegisterCheck` call in the `RegisterChecks` function:
-   ```go
-   // Simple check (no dependencies)
-   corecheckLoader.RegisterCheck(<checkname>.CheckName, <checkname>.Factory())
-
-   // Check with dependencies
-   corecheckLoader.RegisterCheck(<checkname>.CheckName, <checkname>.Factory(tagger, store))
-   ```
-
-   Match the Factory arguments to the component parameters available in `RegisterChecks`.
-
-### Step 4: Create the default configuration
+### Step 5: Create the default configuration
 
 **File:** `cmd/agent/dist/conf.d/<checkname>.d/conf.yaml.default`
 
-For a check with no user configuration:
+Look at an existing example in `cmd/agent/dist/conf.d/` for the format. At minimum:
+
 ```yaml
 init_config:
 
@@ -310,82 +100,22 @@ instances:
   - {}
 ```
 
-For a check with configuration:
-```yaml
-init_config:
+For checks with configuration, use `@param` annotations following the same format as other `conf.yaml.default` files in the tree.
 
-instances:
-    ## @param my_param - string - optional - default: ""
-    ## Description of what my_param does.
-    #
-    # - my_param: ""
-
-    ## @param some_flag - boolean - optional - default: false
-    ## Description of some_flag.
-    #
-    # - some_flag: false
-```
-
-### Step 5: Write tests
+### Step 6: Write tests
 
 **File:** `pkg/collector/corechecks/<category>/<checkname>/<checkname>_test.go`
 
-```go
-package <checkname>
+Follow the test patterns from the reference file read in Step 2. The standard test flow is:
 
-import (
-	"testing"
+1. Create a `mocksender.NewMockSender("")`
+2. Set up `mockSender.On("FinalizeCheckServiceTag").Return()`
+3. Create and `Configure` the check with `mockSender.GetSenderManager()`
+4. Call `mocksender.SetSender(mockSender, check.ID())`
+5. Set expectations on the mock sender for expected metrics
+6. Call `Run()` and assert expectations
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-)
-
-func TestRun(t *testing.T) {
-	// Create mock sender before Configure
-	mockSender := mocksender.NewMockSender("")
-	mockSender.On("FinalizeCheckServiceTag").Return()
-
-	// Create and configure check
-	c := new(Check)
-	err := c.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
-	require.NoError(t, err)
-
-	// Register mock sender with the check's ID
-	mocksender.SetSender(mockSender, c.ID())
-
-	// Set expectations for metrics
-	mockSender.On("Gauge", "my_check.metric", mock.AnythingOfType("float64"), "", []string(nil)).Return().Times(1)
-	mockSender.On("Commit").Return().Times(1)
-
-	// Run
-	err = c.Run()
-	require.NoError(t, err)
-
-	// Verify
-	mockSender.AssertExpectations(t)
-}
-
-func TestConfigure(t *testing.T) {
-	mockSender := mocksender.NewMockSender("")
-	mockSender.On("FinalizeCheckServiceTag").Return()
-
-	c := new(Check)
-	rawInstance := []byte(`
-my_param: "test_value"
-some_flag: true
-`)
-	err := c.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstance, nil, "test")
-	require.NoError(t, err)
-	assert.Equal(t, "test_value", c.config.MyParam)
-	assert.True(t, c.config.SomeFlag)
-}
-```
-
-### Step 6: Verify
+### Step 7: Verify
 
 1. Run the check tests:
    ```bash
@@ -427,7 +157,7 @@ The sender (`c.GetSender()`) provides these methods for submitting data:
 ## Important Notes
 
 - `CheckBase` provides default implementations for most `Check` interface methods. You only need to override `Run()` and optionally `Configure()`, `Stop()`, and `Interval()`.
-- `CommonConfigure` (called via `c.CommonConfigure(...)`) handles standard configuration: collection interval (`min_collection_interval`), custom tags, service tag, etc.
+- `CommonConfigure` handles standard configuration: collection interval (`min_collection_interval`), custom tags, service tag, etc.
 - `FinalizeCheckServiceTag()` must be called after `CommonConfigure` to apply the service tag to the sender.
 - Always call `sender.Commit()` at the end of `Run()` to flush data.
 - For multi-instance checks, `BuildID()` must be called **before** `CommonConfigure()`.
