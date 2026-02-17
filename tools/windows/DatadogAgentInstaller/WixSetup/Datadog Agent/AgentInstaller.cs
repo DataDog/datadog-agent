@@ -600,6 +600,7 @@ namespace WixSetup.Datadog_Agent
                     ),
                     new WixSharp.File(_agentBinaries.TrayId, _agentBinaries.Tray),
                     new WixSharp.File(_agentBinaries.ProcessAgent, processAgentService),
+                    new WixSharp.File(_agentBinaries.PrivateActionRunner),
                     new EventSource
                     {
                         Name = Constants.ProcessAgentServiceName,
