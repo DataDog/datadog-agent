@@ -456,7 +456,7 @@ func Test_NpCollector_stopWithoutPanic(t *testing.T) {
 	tr := &tracerouteRunner{func(_ctx context.Context, cfg config.Config) (payload.NetworkPath, error) {
 		time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond) // simulate slow processing time, to test for panic
 		return payload.NetworkPath{
-			TestRunID: "pathtrace-id-111-" + cfg.DestHostname,
+			TestRunID:   "pathtrace-id-111-" + cfg.DestHostname,
 			Protocol:    cfg.Protocol,
 			Source:      payload.NetworkPathSource{Hostname: "abc"},
 			Destination: payload.NetworkPathDestination{Hostname: cfg.DestHostname, Port: cfg.DestPort},
