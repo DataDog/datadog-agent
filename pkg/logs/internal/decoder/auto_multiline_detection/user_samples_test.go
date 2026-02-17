@@ -7,6 +7,7 @@
 package automultilinedetection
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tokens"
 	"regexp"
 	"testing"
 
@@ -44,7 +45,7 @@ logs_config:
 
 func TestUserPatternsDefaults(t *testing.T) {
 
-	expectedOutput, _ := NewTokenizer(0).tokenize([]byte("sample"))
+	expectedOutput, _ := tokens.NewTokenizer(0).Tokenize([]byte("sample"))
 
 	datadogYaml := `
 logs_config:
@@ -87,9 +88,9 @@ func TestUserPatternsJSON(t *testing.T) {
 	mockConfig := mock.New(t)
 	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection_custom_samples", `[{"sample": "1", "label": "start_group"}, {"regex": "\\d\\w", "label": "no_aggregate"}, {"sample": "3", "match_threshold": 0.1}]`)
 
-	sampleOneTokens, _ := NewTokenizer(0).tokenize([]byte("1"))
+	sampleOneTokens, _ := tokens.NewTokenizer(0).Tokenize([]byte("1"))
 	sampleTwoRegex, _ := regexp.Compile("^" + "\\d\\w")
-	sampleThreeTokens, _ := NewTokenizer(0).tokenize([]byte("3"))
+	sampleThreeTokens, _ := tokens.NewTokenizer(0).Tokenize([]byte("3"))
 	samples := NewUserSamples(mockConfig, nil)
 	assert.Equal(t, 3, len(samples.samples))
 	assert.Equal(t, startGroup, samples.samples[0].label)
@@ -105,9 +106,9 @@ func TestUserPatternsJSONEnv(t *testing.T) {
 	mockConfig := mock.New(t)
 	t.Setenv("DD_LOGS_CONFIG_AUTO_MULTI_LINE_DETECTION_CUSTOM_SAMPLES", `[{"sample": "1", "label": "start_group"}, {"regex": "\\d\\w", "label": "no_aggregate"}, {"sample": "3", "match_threshold": 0.1}]`)
 
-	sampleOneTokens, _ := NewTokenizer(0).tokenize([]byte("1"))
+	sampleOneTokens, _ := tokens.NewTokenizer(0).Tokenize([]byte("1"))
 	sampleTwoRegex, _ := regexp.Compile("^" + "\\d\\w")
-	sampleThreeTokens, _ := NewTokenizer(0).tokenize([]byte("3"))
+	sampleThreeTokens, _ := tokens.NewTokenizer(0).Tokenize([]byte("3"))
 	samples := NewUserSamples(mockConfig, nil)
 	assert.Equal(t, 3, len(samples.samples))
 	assert.Equal(t, startGroup, samples.samples[0].label)
@@ -153,7 +154,7 @@ logs_config:
 
 	mockConfig := mock.NewFromYAML(t, datadogYaml)
 	samples := NewUserSamples(mockConfig, nil)
-	tokenizer := NewTokenizer(60)
+	tokenizer := tokens.NewTokenizer(60)
 
 	tests := []struct {
 		expectedLabel Label
@@ -174,7 +175,7 @@ logs_config:
 			label:      aggregate,
 		}
 
-		assert.True(t, tokenizer.ProcessAndContinue(context))
+		context.tokens, context.tokenIndicies = tokenizer.Tokenize(context.rawMessage)
 		assert.Equal(t, test.shouldStop, samples.ProcessAndContinue(context), "Expected stop %v, got %v", test.shouldStop, samples.ProcessAndContinue(context))
 		assert.Equal(t, test.expectedLabel, context.label, "Expected label %v, got %v", test.expectedLabel, context.label)
 	}
@@ -192,7 +193,7 @@ logs_config:
 
 	mockConfig := mock.NewFromYAML(t, datadogYaml)
 	samples := NewUserSamples(mockConfig, nil)
-	tokenizer := NewTokenizer(60)
+	tokenizer := tokens.NewTokenizer(60)
 
 	tests := []struct {
 		expectedLabel Label
@@ -213,7 +214,7 @@ logs_config:
 			label:      aggregate,
 		}
 
-		assert.True(t, tokenizer.ProcessAndContinue(context))
+		context.tokens, context.tokenIndicies = tokenizer.Tokenize(context.rawMessage)
 		assert.Equal(t, test.shouldStop, samples.ProcessAndContinue(context), "Expected stop %v, got %v", test.shouldStop, samples.ProcessAndContinue(context))
 		assert.Equal(t, test.expectedLabel, context.label, "Expected label %v, got %v", test.expectedLabel, context.label)
 	}
@@ -231,7 +232,7 @@ logs_config:
 
 	mockConfig := mock.NewFromYAML(t, datadogYaml)
 	samples := NewUserSamples(mockConfig, nil)
-	tokenizer := NewTokenizer(60)
+	tokenizer := tokens.NewTokenizer(60)
 
 	tests := []struct {
 		expectedLabel Label
@@ -253,7 +254,7 @@ logs_config:
 			label:      aggregate,
 		}
 
-		assert.True(t, tokenizer.ProcessAndContinue(context))
+		context.tokens, context.tokenIndicies = tokenizer.Tokenize(context.rawMessage)
 		assert.Equal(t, test.shouldStop, samples.ProcessAndContinue(context), "Expected stop %v, got %v", test.shouldStop, samples.ProcessAndContinue(context))
 		assert.Equal(t, test.expectedLabel, context.label, "Expected label %v, got %v", test.expectedLabel, context.label)
 	}
@@ -269,7 +270,7 @@ logs_config:
 
 	mockConfig := mock.NewFromYAML(t, datadogYaml)
 	samples := NewUserSamples(mockConfig, nil)
-	tokenizer := NewTokenizer(60)
+	tokenizer := tokens.NewTokenizer(60)
 
 	tests := []struct {
 		expectedLabel Label
@@ -287,7 +288,7 @@ logs_config:
 			label:      aggregate,
 		}
 
-		assert.True(t, tokenizer.ProcessAndContinue(context))
+		context.tokens, context.tokenIndicies = tokenizer.Tokenize(context.rawMessage)
 		assert.Equal(t, test.shouldStop, samples.ProcessAndContinue(context), "Expected stop %v, got %v", test.shouldStop, samples.ProcessAndContinue(context))
 		assert.Equal(t, test.expectedLabel, context.label, "Expected label %v, got %v", test.expectedLabel, context.label)
 	}
@@ -304,7 +305,7 @@ logs_config:
 
 	mockConfig := mock.NewFromYAML(t, datadogYaml)
 	samples := NewUserSamples(mockConfig, nil)
-	tokenizer := NewTokenizer(60)
+	tokenizer := tokens.NewTokenizer(60)
 
 	tests := []struct {
 		expectedLabel Label
@@ -324,14 +325,14 @@ logs_config:
 			label:      aggregate,
 		}
 
-		assert.True(t, tokenizer.ProcessAndContinue(context))
+		context.tokens, context.tokenIndicies = tokenizer.Tokenize(context.rawMessage)
 		assert.Equal(t, test.shouldStop, samples.ProcessAndContinue(context), "Expected stop %v, got %v", test.shouldStop, samples.ProcessAndContinue(context))
 		assert.Equal(t, test.expectedLabel, context.label, "Expected label %v, got %v", test.expectedLabel, context.label)
 	}
 }
 
 func TestUserPatternsWithIntegrationSamples(t *testing.T) {
-	expectedOutput, _ := NewTokenizer(0).tokenize([]byte("sample"))
+	expectedOutput, _ := tokens.NewTokenizer(0).Tokenize([]byte("sample"))
 	rawSamples := []*config.AutoMultilineSample{
 		{Sample: "sample"},
 	}
@@ -354,7 +355,7 @@ func TestUserPatternsWithIntegrationSamplesCollection(t *testing.T) {
 
 	mockConfig := mock.NewFromYAML(t, "")
 	samples := NewUserSamples(mockConfig, rawSamples)
-	tokenizer := NewTokenizer(60)
+	tokenizer := tokens.NewTokenizer(60)
 
 	tests := []struct {
 		expectedLabel Label
@@ -375,7 +376,7 @@ func TestUserPatternsWithIntegrationSamplesCollection(t *testing.T) {
 			label:      aggregate,
 		}
 
-		assert.True(t, tokenizer.ProcessAndContinue(context))
+		context.tokens, context.tokenIndicies = tokenizer.Tokenize(context.rawMessage)
 		assert.Equal(t, test.shouldStop, samples.ProcessAndContinue(context), "Expected stop %v, got %v", test.shouldStop, samples.ProcessAndContinue(context))
 		assert.Equal(t, test.expectedLabel, context.label, "Expected label %v, got %v", test.expectedLabel, context.label)
 	}
@@ -389,7 +390,7 @@ func TestUserPatternWithIntegrationSampleMatchThreshold(t *testing.T) {
 
 	mockConfig := mock.NewFromYAML(t, "")
 	samples := NewUserSamples(mockConfig, rawSamples)
-	tokenizer := NewTokenizer(60)
+	tokenizer := tokens.NewTokenizer(60)
 
 	tests := []struct {
 		expectedLabel Label
@@ -407,7 +408,7 @@ func TestUserPatternWithIntegrationSampleMatchThreshold(t *testing.T) {
 			label:      aggregate,
 		}
 
-		assert.True(t, tokenizer.ProcessAndContinue(context))
+		context.tokens, context.tokenIndicies = tokenizer.Tokenize(context.rawMessage)
 		assert.Equal(t, test.shouldStop, samples.ProcessAndContinue(context), "Expected stop %v, got %v", test.shouldStop, samples.ProcessAndContinue(context))
 		assert.Equal(t, test.expectedLabel, context.label, "Expected label %v, got %v", test.expectedLabel, context.label)
 	}

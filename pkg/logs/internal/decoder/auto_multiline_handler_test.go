@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	automultilinedetection "github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tokens"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
@@ -22,16 +23,31 @@ func newTestMessage(content string) *message.Message {
 	return msg
 }
 
-func newCombiningHandler(outputFn func(*message.Message), maxContentSize int, flushTimeout time.Duration) *AutoMultilineHandler {
-	tailerInfo := status.NewInfoRegistry()
-	aggregator := automultilinedetection.NewCombiningAggregator(outputFn, maxContentSize, false, false, tailerInfo)
-	return NewAutoMultilineHandler(aggregator, maxContentSize, flushTimeout, tailerInfo, nil, nil, true)
+// testHandlerWithTokenizer wraps AutoMultilineHandler and tokenizes messages before processing
+type testHandlerWithTokenizer struct {
+	*AutoMultilineHandler
+	tokenizer *tokens.Tokenizer
 }
 
-func newDetectingHandler(outputFn func(*message.Message), maxContentSize int, flushTimeout time.Duration) *AutoMultilineHandler {
+func (t *testHandlerWithTokenizer) process(msg *message.Message) {
+	msg.ParsingExtra.Tokens, msg.ParsingExtra.TokenIndices = t.tokenizer.Tokenize(msg.GetContent())
+	t.AutoMultilineHandler.process(msg)
+}
+
+func newCombiningHandler(outputFn func(*message.Message), maxContentSize int, flushTimeout time.Duration) *testHandlerWithTokenizer {
+	tailerInfo := status.NewInfoRegistry()
+	aggregator := automultilinedetection.NewCombiningAggregator(outputFn, maxContentSize, false, false, tailerInfo)
+	handler := NewAutoMultilineHandler(aggregator, maxContentSize, flushTimeout, tailerInfo, nil, nil, true)
+	tokenizer := tokens.NewTokenizer(1000)
+	return &testHandlerWithTokenizer{AutoMultilineHandler: handler, tokenizer: tokenizer}
+}
+
+func newDetectingHandler(outputFn func(*message.Message), maxContentSize int, flushTimeout time.Duration) *testHandlerWithTokenizer {
 	tailerInfo := status.NewInfoRegistry()
 	aggregator := automultilinedetection.NewDetectingAggregator(outputFn, tailerInfo)
-	return NewAutoMultilineHandler(aggregator, maxContentSize, flushTimeout, tailerInfo, nil, nil, false)
+	handler := NewAutoMultilineHandler(aggregator, maxContentSize, flushTimeout, tailerInfo, nil, nil, false)
+	tokenizer := tokens.NewTokenizer(1000)
+	return &testHandlerWithTokenizer{AutoMultilineHandler: handler, tokenizer: tokenizer}
 }
 
 func TestAutoMultilineHandler_ManualFlush(t *testing.T) {

@@ -11,6 +11,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tokens"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -207,8 +208,8 @@ type ParsingExtra struct {
 	IsMultiLine  bool
 	IsMRFAllow   bool
 	Tags         []string
-	Tokens       []byte // Tokenized representation of log content for pattern detection
-	TokenIndices []int  // Token start indices in the raw message
+	Tokens       []tokens.Token // Tokenized representation of log content for pattern detection
+	TokenIndices []int          // Token start indices in the raw message
 }
 
 // ServerlessExtra ships extra information from logs processing in serverless envs.

@@ -11,7 +11,7 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection/tokens"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tokens"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -69,7 +69,7 @@ func (p *PatternTable) insert(context *messageContext) int {
 	p.index++
 	foundIdx := -1
 	for i, r := range p.table {
-		if isMatch(r.tokens, context.tokens, p.matchThreshold) {
+		if tokens.IsMatch(r.tokens, context.tokens, p.matchThreshold) {
 			r.count++
 			r.label = context.label
 			r.labelAssignedBy = context.labelAssignedBy
@@ -133,7 +133,7 @@ func (p *PatternTable) DumpTable() []DiagnosticRow {
 	debug := make([]DiagnosticRow, 0, len(p.table))
 	for _, r := range p.table {
 		debug = append(debug, DiagnosticRow{
-			TokenString:     tokensToString(r.tokens),
+			TokenString:     tokens.TokensToString(r.tokens),
 			LabelString:     labelToString(r.label),
 			labelAssignedBy: r.labelAssignedBy,
 			Count:           r.count,

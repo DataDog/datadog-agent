@@ -32,14 +32,11 @@ type AutoMultilineHandler struct {
 func NewAutoMultilineHandler(aggregator automultilinedetection.Aggregator, maxContentSize int, flushTimeout time.Duration, tailerInfo *status.InfoRegistry, sourceSettings *config.SourceAutoMultiLineOptions, sourceSamples []*config.AutoMultilineSample, enableJSONAggregation bool) *AutoMultilineHandler {
 
 	// Order is important
+	// Note: Tokenization is handled by TokenizingLineHandler in the decoder pipeline.
+	// Tokens must be pre-populated in msg.ParsingExtra.Tokens before reaching this handler.
 	heuristics := []automultilinedetection.Heuristic{}
 	sourceHasSettings := sourceSettings != nil
 
-	tokenizerMaxInputBytes := pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")
-	if sourceHasSettings && sourceSettings.TokenizerMaxInputBytes != nil {
-		tokenizerMaxInputBytes = *sourceSettings.TokenizerMaxInputBytes
-	}
-	heuristics = append(heuristics, automultilinedetection.NewTokenizer(tokenizerMaxInputBytes))
 	heuristics = append(heuristics, automultilinedetection.NewUserSamples(pkgconfigsetup.Datadog(), sourceSamples))
 
 	enableJSONDetection := pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.enable_json_detection")

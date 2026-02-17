@@ -6,7 +6,7 @@
 // Package automultilinedetection contains auto multiline detection and aggregation logic.
 package automultilinedetection
 
-import "github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection/tokens"
+import "github.com/DataDog/datadog-agent/pkg/logs/internal/tokens"
 
 // TokenGraph is a directed cyclic graph of tokens that model the relationship between any two tokens.
 // It is used to calculate the probability of an unknown sequence of tokens being represented by the graph.
