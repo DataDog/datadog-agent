@@ -229,6 +229,70 @@ func TestNullMetricColumnReportsError(t *testing.T) {
 	sender.AssertNotCalled(t, "Gauge")
 }
 
+func TestColumnCountMismatchMoreColumns(t *testing.T) {
+	db, dbMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	dbMock.ExpectExec("alter.*").WillReturnResult(sqlmock.NewResult(1, 1))
+	rows := sqlmock.NewRows([]string{"a", "b", "c"}).AddRow(1, 2, 3)
+	dbMock.ExpectQuery("SELECT a, b, c FROM t").WillReturnRows(rows)
+
+	q := config.CustomQuery{
+		MetricPrefix: "oracle.mismatch",
+		Query:        "SELECT a, b, c FROM t",
+		Columns: []config.CustomQueryColumns{
+			{Name: "a", Type: "gauge"},
+		},
+	}
+
+	chk, sender := newDbDoesNotExistCheck(t, "", "")
+	chk.Run()
+	sender.SetupAcceptAll()
+	sender.On("Commit").Return()
+
+	chk.config.InstanceConfig.CustomQueries = []config.CustomQuery{q}
+	chk.dbCustomQueries = sqlx.NewDb(db, "sqlmock")
+
+	err = chk.CustomQueries()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "column count mismatch")
+	assert.Contains(t, err.Error(), "3 columns but 1 mappings")
+}
+
+func TestColumnCountMismatchFewerColumns(t *testing.T) {
+	db, dbMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	dbMock.ExpectExec("alter.*").WillReturnResult(sqlmock.NewResult(1, 1))
+	rows := sqlmock.NewRows([]string{"a"}).AddRow(1)
+	dbMock.ExpectQuery("SELECT a FROM t").WillReturnRows(rows)
+
+	q := config.CustomQuery{
+		MetricPrefix: "oracle.mismatch",
+		Query:        "SELECT a FROM t",
+		Columns: []config.CustomQueryColumns{
+			{Name: "a", Type: "gauge"},
+			{Name: "b", Type: "gauge"},
+			{Name: "c", Type: "tag"},
+		},
+	}
+
+	chk, sender := newDbDoesNotExistCheck(t, "", "")
+	chk.Run()
+	sender.SetupAcceptAll()
+	sender.On("Commit").Return()
+
+	chk.config.InstanceConfig.CustomQueries = []config.CustomQuery{q}
+	chk.dbCustomQueries = sqlx.NewDb(db, "sqlmock")
+
+	err = chk.CustomQueries()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "column count mismatch")
+	assert.Contains(t, err.Error(), "1 columns but 3 mappings")
+}
+
 func TestGlobalCustomQueries(t *testing.T) {
 	globalCustomQueries := fmt.Sprintf("global_custom_queries:\n%s", customQueryTestConfig)
 	c, s := newDefaultCheck(t, "", globalCustomQueries)

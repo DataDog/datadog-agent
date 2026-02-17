@@ -123,8 +123,10 @@ func (c *Check) CustomQueries() error {
 				errInQuery = true
 				break
 			}
-			if len(cols) > len(q.Columns) {
-				allErrors = concatenateError(allErrors, fmt.Sprintf("Not enough column mappings for the custom query %s %s", metricPrefix, err))
+			if len(cols) != len(q.Columns) {
+				allErrors = concatenateError(allErrors, fmt.Sprintf(
+					"column count mismatch for custom query %s: query returned %d columns but %d mappings configured",
+					metricPrefix, len(cols), len(q.Columns)))
 				errInQuery = true
 				break
 			}
