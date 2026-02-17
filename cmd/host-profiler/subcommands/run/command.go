@@ -10,6 +10,7 @@ package run
 
 import (
 	"context"
+	"time"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -18,10 +19,11 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/host-profiler/globalparams"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secretfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -83,7 +85,7 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 		)
 		opts = append(opts, getRemoteTaggerOptions()...)
 		opts = append(opts, getTraceAgentOptions(ctx)...)
-
+		opts = append(opts, getConfigOptions()...)
 	} else {
 		opts = append(opts, fx.Provide(collectorimpl.NewExtraFactoriesWithoutAgentCore))
 	}
@@ -98,8 +100,14 @@ func run(collector collector.Component) error {
 func getRemoteTaggerOptions() []fx.Option {
 	return []fx.Option{
 		ipcfx.ModuleReadOnly(),
-		secretfx.Module(),
 		remoteTaggerFx.Module(tagger.NewRemoteParams()),
+	}
+}
+
+func getConfigOptions() []fx.Option {
+	return []fx.Option{
+		secretsnoopfx.Module(),
+		configsyncimpl.Module(configsyncimpl.NewParams(30*time.Second, true, 0)),
 	}
 }
 
