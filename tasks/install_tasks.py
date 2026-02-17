@@ -32,7 +32,6 @@ def install_tools(ctx: Context, max_retry: int = 3):
                 with open(tools_file, encoding='utf-8') as f:
                     tools = json.load(f)
                 for tool, version in tools.items():
-                    print(f"Installing {tool}@{version}")
                     run_command_with_retry(ctx, f"go install {tool}@{version}", max_retry=max_retry)
         for bazelisk in Path(get_gobin(ctx)).glob('bazelisk*'):
             link_or_copy(bazelisk, bazelisk.with_stem(bazelisk.stem.replace('isk', '')))

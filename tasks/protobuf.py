@@ -182,7 +182,6 @@ def check_tools(ctx):
     """
     Check if all the required dependencies are installed
     """
-    # Read tools
     with open("internal/tools/proto.json", encoding='utf-8') as f:
         tool_dict = json.load(f)
     tools = [tool.split("/")[-1] for tool in tool_dict.keys()]
