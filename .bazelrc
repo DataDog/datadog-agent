@@ -62,5 +62,8 @@ build:ci --output_groups=+clippy_checks
 build:ci --aspects=@rules_rust//rust:defs.bzl%rustfmt_aspect
 build:ci --output_groups=+rustfmt_checks
 
+# Project configs --------------------------------------------------------------------------------------
+import %workspace%/bazel/configs/sdagent.bazelrc
+
 # Local development options --------------------------------------------------------------------------------------------
 try-import %workspace%/user.bazelrc

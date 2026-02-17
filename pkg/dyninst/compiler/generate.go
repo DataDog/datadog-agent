@@ -9,15 +9,16 @@ package compiler
 
 import (
 	"cmp"
-	stderrors "errors"
 	"fmt"
 	"math"
 	"slices"
 	"time"
 
 	"github.com/pkg/errors"
+	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Function represents stack machine function.
@@ -192,6 +193,16 @@ func (g *generator) addEventHandler(
 	return g.addFunction(id, ops)
 }
 
+var encodeLocationLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
+
+func logLocationIssue(format string, args ...any) {
+	if encodeLocationLogLimiter.Allow() {
+		log.Infof("dyninst/compiler: location encoding issue: "+format, args...)
+	} else {
+		log.Debugf("dyninst/compiler: location encoding issue: "+format, args...)
+	}
+}
+
 // Generates a function that evaluates an expression (at exprIdx in the root type)
 // at specific user program counter (injectionPC).
 func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventRootType, exprIdx uint32) (FunctionID, error) {
@@ -212,11 +223,17 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 		switch op := op.(type) {
 		case *ir.LocationOp:
 			lastOpSize = op.ByteSize
-			var err error
-			ops, err = g.EncodeLocationOp(injectionPC, op, ops)
+			opsAfter, err := g.EncodeLocationOp(injectionPC, op, ops)
+			// Treat an error as if the location op is not available.
 			if err != nil {
-				return nil, err
+				logLocationIssue(
+					"error encoding location op for expression %s: %v",
+					rootType.Expressions[exprIdx].Name,
+					err,
+				)
+				opsAfter = append(ops, ReturnOp{})
 			}
+			ops = opsAfter
 		case *ir.DereferenceOp:
 			const pointerSize = 8
 			if lastOpSize != pointerSize {
@@ -690,7 +707,7 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 						OutputOffset: paddedOffset - op.Offset,
 					})
 				case ir.Addr:
-					return nil, stderrors.New("unsupported addr location op")
+					return nil, errUnsupportedAddrLocationOp
 				}
 			}
 		}
@@ -700,3 +717,5 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 	ops = append(ops, ReturnOp{})
 	return ops, nil
 }
+
+var errUnsupportedAddrLocationOp = errors.New("unsupported addr location op")

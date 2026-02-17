@@ -66,6 +66,25 @@ pub enum ServiceNameSource {
     Websphere,
 }
 
+impl ServiceNameSource {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::CommandLine => "command-line",
+            Self::Erlang => "erlang",
+            Self::Laravel => "laravel",
+            Self::Python => "python",
+            Self::Nodejs => "nodejs",
+            Self::Gunicorn => "gunicorn",
+            Self::Rails => "rails",
+            Self::Spring => "spring",
+            Self::Jboss => "jboss",
+            Self::Tomcat => "tomcat",
+            Self::Weblogic => "weblogic",
+            Self::Websphere => "websphere",
+        }
+    }
+}
+
 pub fn get(
     language: &Language,
     cmdline: &Cmdline,

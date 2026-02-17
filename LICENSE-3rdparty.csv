@@ -162,17 +162,6 @@ core,github.com/DataDog/datadog-traceroute/tcp,Apache-2.0,"Copyright 2016-presen
 core,github.com/DataDog/datadog-traceroute/traceroute,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/udp,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/winconn,Apache-2.0,"Copyright 2016-present Datadog, Inc"
-core,github.com/DataDog/dd-otel-host-profiler/config,Apache-2.0,"Copyright 2017 Datadog, Inc | Copyright 2024 Datadog, Inc"
-core,github.com/DataDog/dd-otel-host-profiler/containermetadata,Apache-2.0,"Copyright 2017 Datadog, Inc | Copyright 2024 Datadog, Inc"
-core,github.com/DataDog/dd-otel-host-profiler/pclntab,Apache-2.0,"Copyright 2017 Datadog, Inc | Copyright 2024 Datadog, Inc"
-core,github.com/DataDog/dd-otel-host-profiler/reporter,Apache-2.0,"Copyright 2017 Datadog, Inc | Copyright 2024 Datadog, Inc"
-core,github.com/DataDog/dd-otel-host-profiler/reporter/cgroup,Apache-2.0,"Copyright 2017 Datadog, Inc | Copyright 2024 Datadog, Inc"
-core,github.com/DataDog/dd-otel-host-profiler/reporter/oom,Apache-2.0,"Copyright 2017 Datadog, Inc | Copyright 2024 Datadog, Inc"
-core,github.com/DataDog/dd-otel-host-profiler/reporter/pipeline,Apache-2.0,"Copyright 2017 Datadog, Inc | Copyright 2024 Datadog, Inc"
-core,github.com/DataDog/dd-otel-host-profiler/reporter/pprof,Apache-2.0,"Copyright 2017 Datadog, Inc | Copyright 2024 Datadog, Inc"
-core,github.com/DataDog/dd-otel-host-profiler/reporter/samples,Apache-2.0,"Copyright 2017 Datadog, Inc | Copyright 2024 Datadog, Inc"
-core,github.com/DataDog/dd-otel-host-profiler/reporter/symbol,Apache-2.0,"Copyright 2017 Datadog, Inc | Copyright 2024 Datadog, Inc"
-core,github.com/DataDog/dd-otel-host-profiler/version,Apache-2.0,"Copyright 2017 Datadog, Inc | Copyright 2024 Datadog, Inc"
 core,github.com/DataDog/ddtrivy,Apache-2.0,"Copyright 2025-Present Datadog, Inc"
 core,github.com/DataDog/ddtrivy/walker,Apache-2.0,"Copyright 2025-Present Datadog, Inc"
 core,github.com/DataDog/ebpf-manager,MIT,Copyright (c) 2021 Authors of Datadog
@@ -1625,6 +1614,7 @@ core,github.com/open-policy-agent/opa/v1/util/decoding,Apache-2.0,Copyright 2016
 core,github.com/open-policy-agent/opa/v1/version,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector/internal/pdatautil,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector/internal/plogutil,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector/internal/pmetricutil,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector/internal/ptraceutil,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1707,6 +1697,7 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthch
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthcheck/internal/grpc,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthcheck/internal/http,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/k8sconfig,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders/alibaba/ecs,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders/aws/ec2,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders/aws/eks,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders/azure,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1783,6 +1774,7 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/fileco
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/fileconsumer/matcher/internal/filter,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/fileconsumer/matcher/internal/finder,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/flush,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/internal/time,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator/helper,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1855,6 +1847,8 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourc
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/akamai,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/akamai/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/alibaba/ecs,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/alibaba/ecs/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/aws/ec2,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/aws/ec2/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor/internal/aws/ecs,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2052,7 +2046,6 @@ core,github.com/prometheus/prometheus/discovery/file,Apache-2.0,Copyright 2012-2
 core,github.com/prometheus/prometheus/discovery/gce,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/prometheus/discovery/hetzner,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/prometheus/discovery/http,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
-core,github.com/prometheus/prometheus/discovery/install,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/prometheus/discovery/ionos,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/prometheus/discovery/kubernetes,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/prometheus/discovery/linode,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
@@ -2081,6 +2074,7 @@ core,github.com/prometheus/prometheus/model/textparse,Apache-2.0,Copyright 2012-
 core,github.com/prometheus/prometheus/model/timestamp,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/prometheus/model/value,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/prometheus/notifier,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
+core,github.com/prometheus/prometheus/plugins,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/prometheus/prompb,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/prometheus/prompb/io/prometheus/client,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
 core,github.com/prometheus/prometheus/prompb/io/prometheus/write/v2,Apache-2.0,Copyright 2012-2015 The Prometheus Authors
@@ -2302,7 +2296,6 @@ core,github.com/uptrace/bun/internal/tagparser,BSD-2-Clause,Copyright (c) 2021 V
 core,github.com/uptrace/bun/migrate,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
 core,github.com/uptrace/bun/migrate/sqlschema,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
 core,github.com/uptrace/bun/schema,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
-core,github.com/urfave/cli/v3,MIT,Copyright (c) 2023 urfave/cli maintainers
 core,github.com/urfave/negroni,MIT,Copyright (c) 2014 Jeremy Saenz
 core,github.com/valyala/fastjson,MIT,Copyright (c) 2018 Aliaksandr Valialkin
 core,github.com/valyala/fastjson/fastfloat,MIT,Copyright (c) 2018 Aliaksandr Valialkin
@@ -2801,6 +2794,7 @@ core,go.opentelemetry.io/otel/semconv/v1.37.0/httpconv,Apache-2.0,Copyright The 
 core,go.opentelemetry.io/otel/semconv/v1.37.0/otelconv,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.38.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.39.0,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/semconv/v1.39.0/otelconv,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.5.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.6.1,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.9.0,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2956,6 +2950,7 @@ core,golang.org/x/net/http2/hpack,BSD-3-Clause,Copyright (c) 2009 The Go Authors
 core,golang.org/x/net/icmp,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/net/idna,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/net/internal/httpcommon,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
+core,golang.org/x/net/internal/httpsfv,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/net/internal/iana,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/net/internal/socket,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/net/internal/socks,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
@@ -3134,6 +3129,7 @@ core,google.golang.org/grpc/health/grpc_health_v1,Apache-2.0,Copyright 2014 gRPC
 core,google.golang.org/grpc/internal,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/backoff,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/balancer/gracefulswitch,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/internal/balancer/weight,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/balancerload,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/binarylog,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/internal/buffer,Apache-2.0,Copyright 2014 gRPC authors.

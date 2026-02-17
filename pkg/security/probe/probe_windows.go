@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -1301,7 +1302,7 @@ func (p *WindowsProbe) SendStats() error {
 
 func (p *WindowsProbe) sendMapStats(m *map[uint16]uint64, metric string) error {
 	for k, v := range *m {
-		if err := p.statsdClient.Gauge(metric, float64(v), []string{fmt.Sprintf("event_id:%d", k)}, 1); err != nil {
+		if err := p.statsdClient.Gauge(metric, float64(v), []string{"event_id:" + strconv.FormatUint(uint64(k), 10)}, 1); err != nil {
 			return err
 		}
 	}
