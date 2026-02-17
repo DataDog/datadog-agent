@@ -125,7 +125,7 @@ cc_library(
     srcs = ["lib/curl_config.h"] + HDRS + select({
         "@platforms//os:linux": LIB_CURL_SRCS_LINUX,
         "@platforms//os:macos": LIB_CURLU_SRCS_DARWIN,
-    }) + ["@openssl//:headers"],
+    }),
     hdrs = PUBLIC_HEADERS,
     # Using includes because -I just does not work with bzlmod.
     # But yuch. What we need is to  port local_incudes concept from Google out
@@ -171,7 +171,7 @@ cc_library(
     srcs = HDRS + select({
         "@platforms//os:linux": LIB_CURLU_SRCS_LINUX,
         "@platforms//os:macos": LIB_CURLU_SRCS_DARWIN,
-    }) + ["@openssl//:headers"],
+    }),
     hdrs = PUBLIC_HEADERS,
     # Using includes because -I just does not work with bzlmod.
     # But yuch. What we need is to  port local_incudes concept from Google out
