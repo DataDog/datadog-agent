@@ -1,3 +1,4 @@
+import json
 import os
 import platform
 import sys
@@ -7,46 +8,14 @@ from pathlib import Path
 from invoke import Context, Exit, task
 
 from tasks.libs.ciproviders.github_api import GithubAPI
-from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.retry import run_command_with_retry
 from tasks.libs.common.utils import environ, get_gobin, gitlab_section, link_or_copy
 
-TOOL_LIST = [
-    'github.com/bazelbuild/bazelisk',
-    'github.com/frapposelli/wwhrd',
-    'github.com/go-enry/go-license-detector/v4/cmd/license-detector',
-    'github.com/golangci/golangci-lint/v2/cmd/golangci-lint',
-    'github.com/goware/modvendor',
-    'github.com/stormcat24/protodep',
-    'gotest.tools/gotestsum',
-    'github.com/vektra/mockery/v3',
-    'github.com/wadey/gocovmerge',
-    'github.com/uber-go/gopatch',
-    'github.com/aarzilli/whydeadcode',
-]
-
-TOOL_LIST_PROTO = [
-    'github.com/favadi/protoc-go-inject-tag',
-    'google.golang.org/protobuf/cmd/protoc-gen-go',
-    'google.golang.org/grpc/cmd/protoc-gen-go-grpc',
-    'github.com/golang/mock/mockgen',
-    'github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto',
-    'github.com/tinylib/msgp',
-]
-
-TOOLS = {
-    'internal/tools': TOOL_LIST,
-    'internal/tools/proto': TOOL_LIST_PROTO,
+# Tools are now defined in JSON files to avoid go.mod CODEOWNERS noise
+TOOLS_FILES = {
+    'internal/tools/tools.json': None,
+    'internal/tools/proto.json': None,
 }
-
-
-@task
-def download_tools(ctx):
-    """Download all Go tools for testing."""
-    print(color_message("This command is deprecated, please use `install-tools` instead", Color.ORANGE))
-    with environ({'GO111MODULE': 'on'}):
-        download_go_dependencies(ctx, paths=list(TOOLS.keys()))
 
 
 @task
@@ -59,10 +28,12 @@ def install_tools(ctx: Context, max_retry: int = 3):
         if os.getenv('DD_CXX'):
             env['CXX'] = os.getenv('DD_CXX')
         with environ(env):
-            for path, tools in TOOLS.items():
-                with ctx.cd(path):
-                    for tool in tools:
-                        run_command_with_retry(ctx, f"go install {tool}", max_retry=max_retry)
+            for tools_file in TOOLS_FILES.keys():
+                with open(tools_file, encoding='utf-8') as f:
+                    tools = json.load(f)
+                for tool, version in tools.items():
+                    print(f"Installing {tool}@{version}")
+                    run_command_with_retry(ctx, f"go install {tool}@{version}", max_retry=max_retry)
         for bazelisk in Path(get_gobin(ctx)).glob('bazelisk*'):
             link_or_copy(bazelisk, bazelisk.with_stem(bazelisk.stem.replace('isk', '')))
 

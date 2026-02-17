@@ -75,12 +75,10 @@ use (
 	comp/trace/compression/def
 	comp/trace/compression/impl-gzip
 	comp/trace/compression/impl-zstd
-	internal/tools
 	internal/tools/gotest-custom
 	internal/tools/independent-lint
 	internal/tools/modformatter
 	internal/tools/modparser
-	internal/tools/proto
 	internal/tools/worksynchronizer
 	pkg/aggregator/ckey
 	pkg/api

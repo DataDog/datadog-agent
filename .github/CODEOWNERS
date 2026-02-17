@@ -856,6 +856,7 @@
 /tools/agent_QA/                        @DataDog/agent-devx
 
 /internal/tools/                        @DataDog/agent-devx
+/internal/tools/proto.json              @DataDog/agent-runtimes
 /internal/third_party/client-go         @DataDog/container-platform
 /internal/third_party/kubernetes        @DataDog/container-integrations
 /internal/third_party/golang/           @DataDog/container-integrations
@@ -867,9 +868,6 @@
 /**/go.sum                              # do not notify anyone
 
 # Add here modules that need explicit review from the team owning them
-/internal/tools/**/go.mod                @DataDog/agent-devx
-/internal/tools/**/go.sum                @DataDog/agent-devx
-
 /pkg/util/scrubber/go.mod                @DataDog/agent-runtimes
 /pkg/util/scrubber/go.sum                @DataDog/agent-runtimes
 

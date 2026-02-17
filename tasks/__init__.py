@@ -125,7 +125,6 @@ from tasks.gotest import (
     test,
 )
 from tasks.install_tasks import (
-    download_tools,
     install_devcontainer_cli,
     install_protoc,
     install_rust_license_tool,
@@ -168,7 +167,6 @@ ns.add_task(install_shellcheck)
 ns.add_task(install_protoc)
 ns.add_task(install_rust_license_tool)
 ns.add_task(install_devcontainer_cli)
-ns.add_task(download_tools)
 ns.add_task(install_tools)
 ns.add_task(check_mod_tidy)
 ns.add_task(check_go_mod_replaces)

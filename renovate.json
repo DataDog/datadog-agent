@@ -37,6 +37,16 @@
     "customManagers" : [
       {
         "customType": "regex",
+        "description": "Update Go tools defined in tools.json files",
+        "fileMatch": ["^internal/tools/.*\\.json$"],
+        "matchStrings": [
+          "\"(?<depName>[^\"]+)\":\\s*\"(?<currentValue>[^\"]+)\""
+        ],
+        "datasourceTemplate": "go",
+        "versioningTemplate": "loose"
+      },
+      {
+        "customType": "regex",
         "managerFilePatterns": [".gitlab-ci.yml"],
         "matchStrings": [
           "  CI_IMAGE_[^W][^:]*: (?<currentValue>v.*)"

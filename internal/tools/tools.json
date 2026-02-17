@@ -1,0 +1,15 @@
+{
+  "github.com/aarzilli/whydeadcode": "v0.0.0-20241226171816-ed86f8ea0a6f",
+  "github.com/bazelbuild/bazelisk": "v1.28.1",
+  "github.com/frapposelli/wwhrd": "v0.4.0",
+  "github.com/go-enry/go-license-detector/v4/cmd/license-detector": "v4.3.1",
+  "github.com/golangci/golangci-lint/v2/cmd/golangci-lint": "v2.9.0",
+  "github.com/goware/modvendor": "v0.5.0",
+  "github.com/stormcat24/protodep": "v0.1.8",
+  "github.com/uber-go/gopatch": "v0.4.0",
+  "github.com/vektra/mockery/v3": "v3.6.3",
+  "github.com/wadey/gocovmerge": "v0.0.0-20160331181800-b5bfa59ec0ad",
+  "golang.org/x/mobile/cmd/gomobile": "v0.0.0-20201217150744-e6ae53a27f4f",
+  "golang.org/x/perf/cmd/benchstat": "v0.0.0-20210220033136-40a54f11e909",
+  "gotest.tools/gotestsum": "v1.12.3"
+}

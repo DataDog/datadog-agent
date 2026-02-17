@@ -12,7 +12,7 @@ We still want to fix the `revive` and `gosimple` errors that came before [f40667
 
 The version of `go` and `golangci-lint` can have a big impact on the output of the linters. You'll need to have a setup close to the CI's to have the same output. Please meet the following conditions before running the commands:
 - Your `go` version (run `go version`) is identical to the CI's (content of the `.go-version` file).
-- Your `golangci-lint` version is identical to the CI's (look for `golangci-lint` in the `internal/tools/go.mod` file).
+- Your `golangci-lint` version is identical to the CI's (look for `golangci-lint` in the `internal/tools/tools.json` file).
 - You did not install `go` using `brew` (`which go` path shouldn't contain `homebrew`). If it does, please install `go` for example using `gimme`.
 - Use `python >= 3.9.0`.
 - Install the requirements with `python3 -m pip install dda`.

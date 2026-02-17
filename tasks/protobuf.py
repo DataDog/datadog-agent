@@ -1,11 +1,11 @@
 import glob
+import json
 import os
 import re
 from pathlib import Path
 
 from invoke import Exit, UnexpectedExit, task
 
-from tasks.install_tasks import TOOL_LIST_PROTO
 from tasks.libs.common.check_tools_version import check_tools_installed
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_unstaged_files, get_untracked_files
@@ -182,7 +182,10 @@ def check_tools(ctx):
     """
     Check if all the required dependencies are installed
     """
-    tools = [tool.split("/")[-1] for tool in TOOL_LIST_PROTO]
+    # Read tools
+    with open("internal/tools/proto.json", encoding='utf-8') as f:
+        tool_dict = json.load(f)
+    tools = [tool.split("/")[-1] for tool in tool_dict.keys()]
     if not check_tools_installed(tools):
         raise Exit("Please install the required tools with `dda inv install-tools` before running this task.", code=1)
     try:

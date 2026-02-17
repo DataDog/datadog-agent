@@ -11,7 +11,7 @@ from tasks.libs.common.utils import gitlab_section
 
 # VPATH as in version path
 GO_VPATH = ".go-version"
-GOLANGCI_LINT_VPATH = "internal/tools/go.mod"
+GOLANGCI_LINT_VPATH = "internal/tools/tools.json"
 
 
 def expected_go_repo_v() -> str:
@@ -32,14 +32,13 @@ def current_go_v(ctx: Context) -> str:
 
 def expected_golangci_lint_repo_v(ctx: Context) -> str:
     """
-    Returns the installed golangci-lint version by parsing the internal/tools/go.mod file.
+    Returns the installed golangci-lint version by parsing the internal/tools/tools.json file.
     """
-    mod_name = "github.com/golangci/golangci-lint/v2"
-    go_mod_json = json.loads(ctx.run(f"go mod edit -json {GOLANGCI_LINT_VPATH}", hide=True).stdout)
-    for mod in go_mod_json['Require']:
-        if mod['Path'] == mod_name:
-            return mod['Version'].lstrip('v')
-    return ""
+    tool_name = "github.com/golangci/golangci-lint/v2/cmd/golangci-lint"
+    with open(GOLANGCI_LINT_VPATH, encoding='utf-8') as f:
+        tools = json.load(f)
+    version = tools.get(tool_name, "")
+    return version.lstrip('v')
 
 
 def current_golangci_lint_v(ctx: Context, debug: bool = False) -> str:

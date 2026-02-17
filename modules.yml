@@ -136,10 +136,6 @@ modules:
     used_by_otel: true
   comp/trace/compression/impl-zstd:
     used_by_otel: true
-  internal/tools:
-    independent: false
-    should_tag: false
-    should_test_condition: never
   internal/tools/gotest-custom:
     independent: false
     should_tag: false
@@ -160,10 +156,6 @@ modules:
   internal/tools/modparser/testdata/match: ignored
   internal/tools/modparser/testdata/nomatch: ignored
   internal/tools/modparser/testdata/patchgoversion: ignored
-  internal/tools/proto:
-    independent: false
-    should_tag: false
-    should_test_condition: never
   internal/tools/worksynchronizer:
     independent: false
     should_tag: false
