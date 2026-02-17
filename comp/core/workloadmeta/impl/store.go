@@ -136,7 +136,7 @@ func (w *workloadmeta) Subscribe(name string, priority wmdef.SubscriberPriority,
 
 			for _, cachedEntity := range entitiesOfKind {
 				entity := cachedEntity.get(sub.filter.Source())
-				if entity != nil && sub.filter.MatchEntity(&entity) {
+				if entity != nil && sub.filter.MatchEntity(entity) {
 					events = append(events, wmdef.Event{
 						Type:   wmdef.EventTypeSet,
 						Entity: entity,
@@ -791,8 +791,25 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 				continue
 			}
 
-			// keep a copy of cachedEntity before removing sources,
-			// as we may need to merge it later
+			// Save a copy of the entity before removing the source. The
+			// original is used below to notify subscribers with the pre-delete
+			// merged state.
+			//
+			// This serves two purposes:
+			//
+			// 1. Subscribers that process deletes (like the container_lifecycle
+			// check) receive the full entity data (exit code, timestamps, etc.)
+			// instead of just an ID. This way collectors don't need to cache
+			// entity state before emitting an unset.
+			//
+			// 2. When one source is removed but others remain, subscribers get
+			// a Set event with all sources still present. This prevents tags
+			// from disappearing when one collector reports a delete before the
+			// others. For example, if containerd reports a container delete
+			// before kubelet, sending the post-delete state would remove the
+			// containerd tags from the tagger. Those tags would stay missing
+			// until kubelet reports the delete too, and then for 5 more minutes
+			// (the tagger's deletedTTL).
 			c := cachedEntity
 			cachedEntity = c.copy()
 
@@ -834,7 +851,7 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 			}
 
 			entity := cachedEntity.get(filter.Source())
-			if !filter.MatchEntity(&entity) {
+			if !filter.MatchEntity(entity) {
 				continue
 			}
 

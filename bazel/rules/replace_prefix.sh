@@ -45,7 +45,7 @@ for f in "$@"; do
             ;;
         *)
             if file "$f" | grep -q ELF; then
-                ${PATCHELF} --set-rpath "$PREFIX"/lib "$f"
+                ${PATCHELF} --force-rpath --set-rpath "$PREFIX"/lib "$f"
             elif file "$f" | grep -q "Mach-O"; then
                 # Handle macOS binaries (executables and other Mach-O files)
                 install_name_tool -add_rpath "$PREFIX/lib" "$f" 2>/dev/null || true

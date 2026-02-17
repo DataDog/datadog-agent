@@ -191,6 +191,7 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 					"datadog-process-agent",
 					"datadog-security-agent",
 					"datadog-system-probe",
+					"datadog-private-action-runner",
 					"Datadog Installer",
 					"datadogagent",
 				}
@@ -211,6 +212,7 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 					"datadog-process-agent",
 					"datadog-security-agent",
 					"datadog-system-probe",
+					"datadog-private-action-runner",
 					"Datadog Installer",
 					"datadogagent",
 				}
@@ -246,6 +248,7 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 				otherServices := []string{
 					"datadog-process-agent",
 					"datadog-security-agent",
+					"datadog-private-action-runner",
 					"Datadog Installer",
 					"datadogagent",
 				}
@@ -281,6 +284,7 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 				otherServices := []string{
 					"datadog-process-agent",
 					"datadog-security-agent",
+					"datadog-private-action-runner",
 					"Datadog Installer",
 					"datadogagent",
 				}
@@ -306,6 +310,7 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 					"datadog-process-agent",
 					"datadog-security-agent",
 					"datadog-system-probe",
+					"datadog-private-action-runner",
 					"Datadog Installer",
 					"datadogagent",
 				}
@@ -334,6 +339,7 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 					"datadog-process-agent",
 					"datadog-security-agent",
 					"datadog-system-probe",
+					"datadog-private-action-runner",
 					"Datadog Installer",
 					"datadogagent",
 				}
@@ -379,6 +385,7 @@ func TestWinServiceManager_RestartAgentServices(t *testing.T) {
 			"datadog-process-agent",
 			"datadog-security-agent",
 			"datadog-system-probe",
+			"datadog-private-action-runner",
 			"Datadog Installer",
 			"datadogagent",
 		}
@@ -414,6 +421,7 @@ func TestWinServiceManager_RestartAgentServices(t *testing.T) {
 			"datadog-process-agent",
 			"datadog-security-agent",
 			"datadog-system-probe",
+			"datadog-private-action-runner",
 			"Datadog Installer",
 			"datadogagent",
 		}

@@ -7,19 +7,19 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.72.2
 	github.com/DataDog/datadog-agent/pkg/util/log v0.72.2
 	github.com/stretchr/testify v1.11.1
-	golang.org/x/net v0.49.0
+	golang.org/x/net v0.50.0
 )
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.71.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-20260211235139-a5361978c2b6 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.73.0-devel.0.20251030121902-cd89eab046d6 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/structure v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/structure v0.77.0-devel.0.20260211235139-a5361978c2b6 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.72.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.0.0 // indirect
@@ -29,7 +29,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.72.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.72.2 // indirect
 	github.com/DataDog/viper v1.15.0 // indirect
@@ -49,7 +48,7 @@ require (
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
-	github.com/shirou/gopsutil/v4 v4.25.12 // indirect
+	github.com/shirou/gopsutil/v4 v4.26.1 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
@@ -58,8 +57,8 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/sys v0.40.0 // indirect
-	golang.org/x/text v0.33.0 // indirect
+	golang.org/x/sys v0.41.0 // indirect
+	golang.org/x/text v0.34.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
@@ -108,6 +107,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/def => ../../../comp/def
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../../comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../../comp/forwarder/orchestrator/orchestratorinterface
+	github.com/DataDog/datadog-agent/comp/logs-library => ../../../comp/logs-library
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../comp/logs/agent/config
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ../../../comp/netflow/payload
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../../../comp/otelcol/collector-contrib/def
@@ -229,7 +229,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/startstop => ../../../pkg/util/startstop
 	github.com/DataDog/datadog-agent/pkg/util/statstracker => ../../../pkg/util/statstracker
 	github.com/DataDog/datadog-agent/pkg/util/system => ../../../pkg/util/system
-	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../../pkg/util/system/socket
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../../pkg/util/testutil
 	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker => ../../../pkg/util/utilizationtracker
 	github.com/DataDog/datadog-agent/pkg/util/uuid => ../../../pkg/util/uuid

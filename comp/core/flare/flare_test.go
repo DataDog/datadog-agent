@@ -112,34 +112,21 @@ func TestRunProviders(t *testing.T) {
 	firstStarted := make(chan struct{}, 1)
 	var secondDone atomic.Bool
 
-	flare := getFlare(
-		t,
-		map[string]interface{}{},
-		// provider a nil FlareFiller
-		fx.Provide(fx.Annotate(
-			func() *types.FlareFiller { return nil },
-			fx.ResultTags(`group:"flare"`),
-		)),
-		fx.Provide(fx.Annotate(
-			func() *types.FlareFiller {
-				return types.NewFiller(func(_ types.FlareBuilder) error {
-					firstStarted <- struct{}{}
-					return nil
-				})
-			},
-			fx.ResultTags(`group:"flare"`),
-		)),
-		fx.Provide(fx.Annotate(
-			func() *types.FlareFiller {
-				return types.NewFiller(func(_ types.FlareBuilder) error {
-					time.Sleep(10 * time.Second)
-					secondDone.Store(true)
-					return nil
-				})
-			},
-			fx.ResultTags(`group:"flare"`),
-		)),
-	)
+	flare := getFlare(t, nil)
+	// We overrides the providers list as the default implemementation add ExtraFlareProviders and more. Those
+	// providers continue to run after the timeout and will access the config after the current test cleanup. This
+	// will cause those providers to use the non-mocked config.
+	flare.providers = []*types.FlareFiller{
+		types.NewFiller(func(_ types.FlareBuilder) error {
+			firstStarted <- struct{}{}
+			return nil
+		}),
+		types.NewFiller(func(_ types.FlareBuilder) error {
+			time.Sleep(10 * time.Second)
+			secondDone.Store(true)
+			return nil
+		}),
+	}
 
 	cliProviderTimeout := time.Nanosecond
 
