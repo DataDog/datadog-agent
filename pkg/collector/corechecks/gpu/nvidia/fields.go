@@ -191,7 +191,7 @@ var allFieldMetrics = []fieldValueMetric{
 	{name: "nvlink.throughput.raw.tx", fieldValueID: nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX, scopeID: math.MaxUint32, metricType: metrics.GaugeType, computeRate: computeRate},
 
 	// -- NVLink speed --
-	// MediumLow: newer field (164), uses scopeId=0 for link 0 speed.
+	// MediumLow: newer field (164), uses scopeId=0 for link 0 speed. As we do not report per-link speeds, we assume all links are at the same speed.
 	// Low (default): legacy SPEED_MBPS_COMMON (90), returns common speed across all active links.
 	{name: "nvlink.speed", fieldValueID: nvml.FI_DEV_NVLINK_GET_SPEED, priority: MediumLow, metricType: metrics.GaugeType},
 	{name: "nvlink.speed", fieldValueID: nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON, metricType: metrics.GaugeType},
