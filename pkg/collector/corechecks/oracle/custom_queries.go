@@ -25,11 +25,12 @@ type metricRow struct {
 	tags   []string
 }
 
-func concatenateTypeError(_ error, prefix string, expectedType string, column string, value interface{}, query string, err error) error {
-	return fmt.Errorf(
+func concatenateTypeError(input error, prefix string, expectedType string, column string, value interface{}, query string, err error) error {
+	newErr := fmt.Errorf(
 		`Custom query %s encountered a type error during execution. A %s was expected for the column %s, but the query results returned the value "%v" of type %s. Query was: "%s". Error: %w`,
 		prefix, expectedType, column, value, reflect.TypeOf(value), query, err,
 	)
+	return errors.Join(input, newErr)
 }
 
 func concatenateError(input error, new string) error {
