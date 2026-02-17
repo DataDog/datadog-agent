@@ -153,8 +153,16 @@ static NON_DISCOVERY_ENV_VARS: phf::Set<&'static str> = phf_set! {
   "DD_WINDOWS_CRASH_DETECTION_ENABLED", // Windows Crash Detection Module
 };
 
-/// Returns true if any environment variable is set that is not in the list of
-/// non-discovery environment variables.
+/// Returns true if any non-discovery environment variable is set and not
+/// explicitly disabled.
+///
+/// We check the value of each env var rather than just its presence to avoid
+/// unnecessary fallback. This is needed because the Helm chart sets feature
+/// env vars even for disabled features (e.g. `DD_NETWORK_CONFIG_ENABLED=false`).
+///
+/// The logic uses `!= Some(false)` so that non-boolean values still trigger
+/// fallback as a safety net — matching the YAML side where a section without
+/// explicit `enabled: false` triggers fallback.
 ///
 /// Instead of having a list of environment variables we explicitly don't
 /// support, it would be better to make this a list of environment variables we
@@ -165,7 +173,9 @@ static NON_DISCOVERY_ENV_VARS: phf::Set<&'static str> = phf_set! {
 /// So, until we have an exhaustive list of all system-probe environment
 /// variables we don't support, use the approach.
 fn has_non_discovery_env_vars() -> bool {
-    env::vars().any(|(key, _)| NON_DISCOVERY_ENV_VARS.contains(key.as_str()))
+    env::vars().any(|(key, _)| {
+        NON_DISCOVERY_ENV_VARS.contains(key.as_str()) && get_env_bool_option(&key) != Some(false)
+    })
 }
 
 fn get_env_bool_option(env_var: &str) -> Option<bool> {
@@ -471,6 +481,36 @@ discovery:
         temp_env::with_var("DD_DISCOVERY_ENABLED", Some("true"), || {
             // DD_DISCOVERY_ENABLED alone should not count as "other" DD_* vars
             assert!(!has_non_discovery_env_vars());
+        });
+    }
+
+    #[test]
+    fn test_has_non_discovery_env_vars_false_no_fallback() {
+        temp_env::with_var("DD_NETWORK_CONFIG_ENABLED", Some("false"), || {
+            assert!(
+                !has_non_discovery_env_vars(),
+                "Env var set to 'false' should not trigger fallback"
+            );
+        });
+    }
+
+    #[test]
+    fn test_has_non_discovery_env_vars_zero_no_fallback() {
+        temp_env::with_var("DD_NETWORK_CONFIG_ENABLED", Some("0"), || {
+            assert!(
+                !has_non_discovery_env_vars(),
+                "Env var set to '0' should not trigger fallback"
+            );
+        });
+    }
+
+    #[test]
+    fn test_has_non_discovery_env_vars_non_boolean_triggers_fallback() {
+        temp_env::with_var("DD_NETWORK_CONFIG_ENABLED", Some("maybe"), || {
+            assert!(
+                has_non_discovery_env_vars(),
+                "Env var set to non-boolean value should trigger fallback as safety net"
+            );
         });
     }
 
