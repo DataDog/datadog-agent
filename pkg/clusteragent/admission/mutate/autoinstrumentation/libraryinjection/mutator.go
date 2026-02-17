@@ -29,7 +29,7 @@ import (
 // Returns an error if the injection fails.
 func InjectAPMLibraries(pod *corev1.Pod, cfg LibraryInjectionConfig) error {
 	// Select the provider based on the injection mode (annotation or default)
-	factory := NewProviderFactory(InjectionMode(cfg.InjectionMode))
+	factory := NewProviderFactory(InjectionMode(cfg.InjectionMode), cfg.CSIEnabled)
 	provider := factory.GetProviderForPod(pod, cfg)
 
 	// Inject the APM injector
