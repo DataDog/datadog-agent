@@ -10,7 +10,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"strconv"
-	"time"
 
 	cyclonedx_v1_4 "github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
@@ -57,7 +56,7 @@ func (r *PackagesReport) ToCycloneDX() *cyclonedx_v1_4.Bom {
 
 		// Add LastAccess property if available
 		if !pkg.LastAccess.IsZero() {
-			lastAccess := pkg.LastAccess.Format(time.RFC3339)
+			lastAccess := strconv.FormatInt(pkg.LastAccess.Unix(), 10)
 			component.Properties = append(component.Properties, &cyclonedx_v1_4.Property{
 				Name:  LastAccessProperty,
 				Value: pointer.Ptr(lastAccess),
