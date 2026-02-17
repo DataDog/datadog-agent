@@ -41,9 +41,9 @@ func TestFileParser_NetworkFormat_RFC5424(t *testing.T) {
 	// Status from severity
 	assert.Equal(t, message.StatusNotice, result.Status)
 
-	// Origin source/service from appname
-	assert.Equal(t, "evntslog", input.Origin.Source())
-	assert.Equal(t, "evntslog", input.Origin.Service())
+	// Appname stored as source/service override in ParsingExtra
+	assert.Equal(t, "evntslog", result.ParsingExtra.SourceOverride)
+	assert.Equal(t, "evntslog", result.ParsingExtra.ServiceOverride)
 
 	// RawDataLen preserved
 	assert.Equal(t, len(input.GetContent()), result.RawDataLen)
@@ -62,9 +62,9 @@ func TestFileParser_NetworkFormat_BSD(t *testing.T) {
 	assert.Equal(t, message.StateStructured, result.State)
 	assert.Equal(t, message.StatusCritical, result.Status)
 
-	// Origin source/service from appname
-	assert.Equal(t, "su", input.Origin.Source())
-	assert.Equal(t, "su", input.Origin.Service())
+	// Appname stored as source/service override in ParsingExtra
+	assert.Equal(t, "su", result.ParsingExtra.SourceOverride)
+	assert.Equal(t, "su", result.ParsingExtra.ServiceOverride)
 }
 
 func TestFileParser_BSDLineFormat(t *testing.T) {
@@ -80,9 +80,9 @@ func TestFileParser_BSDLineFormat(t *testing.T) {
 	// No PRI -> StatusInfo
 	assert.Equal(t, message.StatusInfo, result.Status)
 
-	// Origin set from appname
-	assert.Equal(t, "su", input.Origin.Source())
-	assert.Equal(t, "su", input.Origin.Service())
+	// Appname stored as source/service override in ParsingExtra
+	assert.Equal(t, "su", result.ParsingExtra.SourceOverride)
+	assert.Equal(t, "su", result.ParsingExtra.ServiceOverride)
 }
 
 func TestFileParser_AppNameNILVALUE(t *testing.T) {
@@ -93,9 +93,9 @@ func TestFileParser_AppNameNILVALUE(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, message.StateStructured, result.State)
 
-	// NILVALUE appname should not overwrite origin
-	assert.Equal(t, "", input.Origin.Source())
-	assert.Equal(t, "", input.Origin.Service())
+	// NILVALUE appname should not set override
+	assert.Equal(t, "", result.ParsingExtra.SourceOverride)
+	assert.Equal(t, "", result.ParsingExtra.ServiceOverride)
 }
 
 func TestFileParser_Malformed(t *testing.T) {

@@ -39,15 +39,17 @@ func TestSeverityToStatus(t *testing.T) {
 
 func TestBuildSyslogFields_RFC5424(t *testing.T) {
 	parsed := SyslogMessage{
-		Pri:            165,
-		Version:        "1",
-		Timestamp:      "2003-10-11T22:14:15.003Z",
-		Hostname:       "mymachine",
-		AppName:        "evntslog",
-		ProcID:         "-",
-		MsgID:          "ID47",
-		StructuredData: []byte(`[exampleSDID@32473 iut="3"]`),
-		Msg:            []byte("An application event log entry"),
+		Pri:       165,
+		Version:   "1",
+		Timestamp: "2003-10-11T22:14:15.003Z",
+		Hostname:  "mymachine",
+		AppName:   "evntslog",
+		ProcID:    "-",
+		MsgID:     "ID47",
+		StructuredData: map[string]map[string]string{
+			"exampleSDID@32473": {"iut": "3"},
+		},
+		Msg: []byte("An application event log entry"),
 	}
 
 	fields := BuildSyslogFields(parsed)
@@ -60,7 +62,9 @@ func TestBuildSyslogFields_RFC5424(t *testing.T) {
 	assert.Equal(t, 5, fields["severity"])  // 165 % 8
 	assert.Equal(t, 20, fields["facility"]) // 165 / 8
 	assert.Equal(t, "1", fields["version"])
-	assert.Equal(t, `[exampleSDID@32473 iut="3"]`, fields["structured_data"])
+	assert.Equal(t, map[string]map[string]string{
+		"exampleSDID@32473": {"iut": "3"},
+	}, fields["structured_data"])
 }
 
 func TestBuildSyslogFields_BSD(t *testing.T) {
@@ -97,4 +101,95 @@ func TestBuildSyslogFields_NoPri(t *testing.T) {
 	assert.False(t, hasSev, "Pri=-1 should omit severity")
 	_, hasFac := fields["facility"]
 	assert.False(t, hasFac, "Pri=-1 should omit facility")
+}
+
+// ---------------------------------------------------------------------------
+// parseStructuredData unit tests
+// ---------------------------------------------------------------------------
+
+func TestParseStructuredData_SingleElement(t *testing.T) {
+	input := []byte(`[exampleSDID@32473 iut="3" eventSource="Application"]`)
+	sd, n, err := parseStructuredData(input)
+	assert.NoError(t, err)
+	assert.Equal(t, len(input), n)
+	assert.Equal(t, map[string]map[string]string{
+		"exampleSDID@32473": {
+			"iut":         "3",
+			"eventSource": "Application",
+		},
+	}, sd)
+}
+
+func TestParseStructuredData_MultipleElements(t *testing.T) {
+	input := []byte(`[id1 a="1"][id2 b="2" c="3"]`)
+	sd, n, err := parseStructuredData(input)
+	assert.NoError(t, err)
+	assert.Equal(t, len(input), n)
+	assert.Equal(t, map[string]map[string]string{
+		"id1": {"a": "1"},
+		"id2": {"b": "2", "c": "3"},
+	}, sd)
+}
+
+func TestParseStructuredData_NILVALUE(t *testing.T) {
+	input := []byte(`-`)
+	sd, n, err := parseStructuredData(input)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, n)
+	assert.Nil(t, sd)
+}
+
+func TestParseStructuredData_ElementNoParams(t *testing.T) {
+	input := []byte(`[myID]`)
+	sd, n, err := parseStructuredData(input)
+	assert.NoError(t, err)
+	assert.Equal(t, len(input), n)
+	assert.Equal(t, map[string]map[string]string{
+		"myID": {},
+	}, sd)
+}
+
+func TestParseStructuredData_EscapedQuote(t *testing.T) {
+	input := []byte(`[id1 key="val\"ue"]`)
+	sd, _, err := parseStructuredData(input)
+	assert.NoError(t, err)
+	assert.Equal(t, `val"ue`, sd["id1"]["key"])
+}
+
+func TestParseStructuredData_EscapedBackslash(t *testing.T) {
+	input := []byte(`[id1 key="val\\ue"]`)
+	sd, _, err := parseStructuredData(input)
+	assert.NoError(t, err)
+	assert.Equal(t, `val\ue`, sd["id1"]["key"])
+}
+
+func TestParseStructuredData_EscapedBracket(t *testing.T) {
+	input := []byte(`[id1 key="val\]ue"]`)
+	sd, _, err := parseStructuredData(input)
+	assert.NoError(t, err)
+	assert.Equal(t, `val]ue`, sd["id1"]["key"])
+}
+
+func TestParseStructuredData_NoEscapeFastPath(t *testing.T) {
+	input := []byte(`[id1 key="simple"]`)
+	sd, _, err := parseStructuredData(input)
+	assert.NoError(t, err)
+	assert.Equal(t, "simple", sd["id1"]["key"])
+}
+
+func TestParseStructuredData_Empty(t *testing.T) {
+	_, _, err := parseStructuredData([]byte{})
+	assert.Error(t, err)
+}
+
+func TestParseStructuredData_InvalidStart(t *testing.T) {
+	_, _, err := parseStructuredData([]byte(`x`))
+	assert.Error(t, err)
+}
+
+func TestParseStructuredData_MultipleEscapes(t *testing.T) {
+	input := []byte(`[id1 key="a\"b\\c\]d"]`)
+	sd, _, err := parseStructuredData(input)
+	assert.NoError(t, err)
+	assert.Equal(t, `a"b\c]d`, sd["id1"]["key"])
 }

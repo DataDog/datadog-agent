@@ -97,15 +97,17 @@ func TestBuildStructuredMessage_Malformed(t *testing.T) {
 
 func TestStructuredContent_Render_RFC5424(t *testing.T) {
 	parsed := syslogparser.SyslogMessage{
-		Pri:            165,
-		Version:        "1",
-		Timestamp:      "2003-10-11T22:14:15.003Z",
-		Hostname:       "mymachine",
-		AppName:        "evntslog",
-		ProcID:         "-",
-		MsgID:          "ID47",
-		StructuredData: []byte(`[exampleSDID@32473 iut="3"]`),
-		Msg:            []byte("An application event log entry"),
+		Pri:       165,
+		Version:   "1",
+		Timestamp: "2003-10-11T22:14:15.003Z",
+		Hostname:  "mymachine",
+		AppName:   "evntslog",
+		ProcID:    "-",
+		MsgID:     "ID47",
+		StructuredData: map[string]map[string]string{
+			"exampleSDID@32473": {"iut": "3"},
+		},
+		Msg: []byte("An application event log entry"),
 	}
 
 	sc := &message.BasicStructuredContent{
@@ -136,7 +138,13 @@ func TestStructuredContent_Render_RFC5424(t *testing.T) {
 	assert.Equal(t, "evntslog", syslogMap["appname"])
 	assert.Equal(t, "-", syslogMap["procid"])
 	assert.Equal(t, "ID47", syslogMap["msgid"])
-	assert.Equal(t, `[exampleSDID@32473 iut="3"]`, syslogMap["structured_data"])
+
+	// structured_data should be a nested JSON object
+	sdRaw, ok := syslogMap["structured_data"].(map[string]interface{})
+	require.True(t, ok, "structured_data should be a map")
+	elemRaw, ok := sdRaw["exampleSDID@32473"].(map[string]interface{})
+	require.True(t, ok, "SD element should be a map")
+	assert.Equal(t, "3", elemRaw["iut"])
 }
 
 func TestStructuredContent_Render_BSD(t *testing.T) {

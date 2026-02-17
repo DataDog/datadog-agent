@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 // Package syslog parses RFC 5424 and RFC 3164 (BSD) syslog messages.
 //
 // Two public entry points:
@@ -77,9 +82,10 @@ type SyslogMessage struct {
 	ProcID    string // PROCID or "-"
 	MsgID     string // MSGID or "-"
 
-	// StructuredData is the raw STRUCTURED-DATA segment (NILVALUE or SD-ELEMENTs).
-	// nil for BSD messages.
-	StructuredData []byte
+	// StructuredData is the parsed STRUCTURED-DATA as a nested map.
+	// Outer key is the SD-ID, inner map is PARAM-NAME to PARAM-VALUE.
+	// nil for BSD messages and NILVALUE ("-").
+	StructuredData map[string]map[string]string
 
 	// Msg is the message body (MSG for RFC 5424, CONTENT for BSD)
 	// after stripping optional UTF-8 BOM (RFC 5424 only).
@@ -308,14 +314,14 @@ func parseRFC5424(line []byte, pri int, pos int) (SyslogMessage, error) {
 		return msg, errMissingSD
 	}
 
-	sdLen, sdErr := parseStructuredData(rest)
+	sd, sdLen, sdErr := parseStructuredData(rest)
 	if sdErr != nil {
 		// Best-effort: treat the entire rest region as MSG.
 		msg.Msg = rest
 		msg.Partial = true
 		return msg, sdErr
 	}
-	msg.StructuredData = rest[:sdLen]
+	msg.StructuredData = sd
 
 	// --- Optional [SP MSG] ---
 	if sdLen < len(rest) && rest[sdLen] == ' ' {
@@ -524,37 +530,41 @@ func isAlphaNumeric(b byte) bool {
 }
 
 // ---------------------------------------------------------------------------
-// STRUCTURED-DATA parsing (RFC 5424 only, unchanged)
+// STRUCTURED-DATA parsing (RFC 5424)
 // ---------------------------------------------------------------------------
 
-// parseStructuredData returns the byte length of STRUCTURED-DATA at the start of b.
-// Either NILVALUE ("-") or 1*SD-ELEMENT.
-func parseStructuredData(b []byte) (int, error) {
+// parseStructuredData parses STRUCTURED-DATA at the start of b.
+// Returns the parsed SD elements as a map (SD-ID -> params), the byte length
+// consumed (needed to locate the MSG field), and any error.
+// NILVALUE ("-") returns (nil, 1, nil).
+func parseStructuredData(b []byte) (map[string]map[string]string, int, error) {
 	if len(b) == 0 {
-		return 0, errSDEmpty
+		return nil, 0, errSDEmpty
 	}
 	if b[0] == '-' {
-		return 1, nil
+		return nil, 1, nil
 	}
 	if b[0] != '[' {
-		return 0, errSDExpected
+		return nil, 0, errSDExpected
 	}
+	result := make(map[string]map[string]string)
 	i := 0
 	for i < len(b) && b[i] == '[' {
-		end, err := parseSDElement(b, i)
+		sdID, params, end, err := parseSDElement(b, i)
 		if err != nil {
-			return 0, err
+			return nil, 0, err
 		}
+		result[sdID] = params
 		i = end
 	}
-	return i, nil
+	return result, i, nil
 }
 
 // parseSDElement parses a single [ SD-ID *(SP SD-PARAM) ] starting at b[pos].
-// Returns the index one past the closing ']'.
-func parseSDElement(b []byte, pos int) (int, error) {
+// Returns the SD-ID, the params map, and the index one past the closing ']'.
+func parseSDElement(b []byte, pos int) (string, map[string]string, int, error) {
 	if pos >= len(b) || b[pos] != '[' {
-		return 0, errSDElemOpen
+		return "", nil, 0, errSDElemOpen
 	}
 	i := pos + 1
 
@@ -566,40 +576,44 @@ func parseSDElement(b []byte, pos int) (int, error) {
 			break
 		}
 		if c == '=' || c == '"' {
-			return 0, errSDIDInvalid
+			return "", nil, 0, errSDIDInvalid
 		}
 		i++
 		if i-idStart > 32 {
-			return 0, errSDIDTooLong
+			return "", nil, 0, errSDIDTooLong
 		}
 	}
 	if i == idStart {
-		return 0, errSDIDRequired
+		return "", nil, 0, errSDIDRequired
 	}
+	sdID := string(b[idStart:i])
+	params := make(map[string]string)
 
 	// *(SP SD-PARAM) then ']'
 	for i < len(b) {
 		if b[i] == ']' {
-			return i + 1, nil
+			return sdID, params, i + 1, nil
 		}
 		if b[i] != ' ' {
-			return 0, errSDElemExpect
+			return "", nil, 0, errSDElemExpect
 		}
 		i++ // skip SP
-		end, err := parseSDParam(b, i)
+		name, value, end, err := parseSDParam(b, i)
 		if err != nil {
-			return 0, err
+			return "", nil, 0, err
 		}
+		params[name] = value
 		i = end
 	}
-	return 0, errSDElemUnclosed
+	return "", nil, 0, errSDElemUnclosed
 }
 
 // parseSDParam parses PARAM-NAME "=" '"' PARAM-VALUE '"' starting at b[pos].
-// Returns the index one past the closing '"'.
-func parseSDParam(b []byte, pos int) (int, error) {
+// Returns PARAM-NAME, the unescaped PARAM-VALUE, and the index one past the
+// closing '"'.
+func parseSDParam(b []byte, pos int) (string, string, int, error) {
 	if pos >= len(b) {
-		return 0, errSDParamEmpty
+		return "", "", 0, errSDParamEmpty
 	}
 	i := pos
 
@@ -607,40 +621,65 @@ func parseSDParam(b []byte, pos int) (int, error) {
 	for i < len(b) && b[i] != '=' {
 		c := b[i]
 		if c == ' ' || c == ']' || c == '"' {
-			return 0, errSDParamNameBad
+			return "", "", 0, errSDParamNameBad
 		}
 		i++
 		if i-pos > 32 {
-			return 0, errSDParamNameLong
+			return "", "", 0, errSDParamNameLong
 		}
 	}
 	if i == pos || i >= len(b) {
-		return 0, errSDParamNoEq
+		return "", "", 0, errSDParamNoEq
 	}
+	name := string(b[pos:i])
 	i++ // skip '='
 	if i >= len(b) || b[i] != '"' {
-		return 0, errSDParamNoQuote
+		return "", "", 0, errSDParamNoQuote
 	}
 	i++ // skip opening '"'
 
 	// Scan PARAM-VALUE: find closing '"', handle escapes.
-	// Any backslash skips the next byte (RFC 5424 §6.3.3: valid escapes are
-	// \", \\, \]; invalid escapes are treated as literal — same skip logic).
+	// Track whether any escapes are present to avoid allocation when possible.
+	valStart := i
+	hasEscape := false
 	for i < len(b) {
 		c := b[i]
 		if c == '\\' {
 			if i+1 >= len(b) {
-				return 0, errSDParamTrailBS
+				return "", "", 0, errSDParamTrailBS
 			}
-			i += 2 // skip backslash + next byte (valid or invalid escape)
+			hasEscape = true
+			i += 2 // skip backslash + next byte
 			continue
 		}
 		if c == '"' {
-			return i + 1, nil
+			var value string
+			if hasEscape {
+				value = unescapeSDValue(b[valStart:i])
+			} else {
+				value = string(b[valStart:i])
+			}
+			return name, value, i + 1, nil
 		}
 		i++
 	}
-	return 0, errSDParamUnclosed
+	return "", "", 0, errSDParamUnclosed
+}
+
+// unescapeSDValue removes RFC 5424 §6.3.3 escapes from a PARAM-VALUE.
+// Valid escapes: \" -> ", \\ -> \, \] -> ]. Invalid escapes are treated
+// as literal (the backslash is removed).
+func unescapeSDValue(b []byte) string {
+	buf := make([]byte, 0, len(b))
+	for i := 0; i < len(b); i++ {
+		if b[i] == '\\' && i+1 < len(b) {
+			i++ // skip backslash, take next byte literally
+			buf = append(buf, b[i])
+		} else {
+			buf = append(buf, b[i])
+		}
+	}
+	return string(buf)
 }
 
 // stripBOM removes the UTF-8 BOM (%xEF.BB.BF) if present.
@@ -708,7 +747,7 @@ func BuildSyslogFields(parsed SyslogMessage) map[string]interface{} {
 		fields["version"] = parsed.Version
 	}
 	if parsed.StructuredData != nil {
-		fields["structured_data"] = string(parsed.StructuredData)
+		fields["structured_data"] = parsed.StructuredData
 	}
 	return fields
 }
