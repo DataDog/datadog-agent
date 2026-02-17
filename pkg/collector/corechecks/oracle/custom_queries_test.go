@@ -293,6 +293,39 @@ func TestColumnCountMismatchFewerColumns(t *testing.T) {
 	assert.Contains(t, err.Error(), "1 columns but 3 mappings")
 }
 
+func TestPdbNameInjectionPrevented(t *testing.T) {
+	db, dbMock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+	require.NoError(t, err)
+	defer db.Close()
+
+	maliciousPdb := `x; DROP TABLE users--`
+
+	dbMock.ExpectExec(`alter session set container = "x; DROP TABLE users--"`).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	rows := sqlmock.NewRows([]string{"val"}).AddRow(1)
+	dbMock.ExpectQuery("SELECT val FROM t").WillReturnRows(rows)
+
+	q := config.CustomQuery{
+		MetricPrefix: "oracle.injection",
+		Pdb:          maliciousPdb,
+		Query:        "SELECT val FROM t",
+		Columns:      []config.CustomQueryColumns{{Name: "val", Type: "gauge"}},
+	}
+
+	chk, sender := newDbDoesNotExistCheck(t, "", "")
+	chk.Run()
+	sender.SetupAcceptAll()
+	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("Commit").Return()
+
+	chk.config.InstanceConfig.CustomQueries = []config.CustomQuery{q}
+	chk.dbCustomQueries = sqlx.NewDb(db, "sqlmock")
+
+	err = chk.CustomQueries()
+	assert.NoError(t, err)
+	assert.NoError(t, dbMock.ExpectationsWereMet())
+}
+
 func TestGlobalCustomQueries(t *testing.T) {
 	globalCustomQueries := fmt.Sprintf("global_custom_queries:\n%s", customQueryTestConfig)
 	c, s := newDefaultCheck(t, "", globalCustomQueries)

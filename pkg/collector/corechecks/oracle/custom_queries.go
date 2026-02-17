@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -96,7 +97,7 @@ func (c *Check) CustomQueries() error {
 			if pdb == "" {
 				pdb = "cdb$root"
 			}
-			_, err := c.dbCustomQueries.Exec("alter session set container = " + pdb)
+			_, err := c.dbCustomQueries.Exec(fmt.Sprintf(`alter session set container = "%s"`, strings.ReplaceAll(pdb, `"`, `""`)))
 			if err != nil {
 				allErrors = concatenateError(allErrors, fmt.Sprintf("failed to set container %s %s", pdb, err))
 				reconnectOnConnectionError(c, &c.dbCustomQueries, err)
