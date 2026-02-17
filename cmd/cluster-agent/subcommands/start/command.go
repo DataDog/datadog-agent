@@ -435,6 +435,7 @@ func start(log log.Component,
 			tracer.WithServiceVersion(version.AgentVersion),
 			tracer.WithSampler(tracer.NewRateSampler(sampleRate)),
 			tracer.WithGlobalTag("cluster_name", clusterName),
+			tracer.WithLogStartup(false),
 		}
 		if clusterID != "" {
 			opts = append(opts, tracer.WithGlobalTag("cluster_id", clusterID))
