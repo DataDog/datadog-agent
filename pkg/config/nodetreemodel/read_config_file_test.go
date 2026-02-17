@@ -197,6 +197,8 @@ c:
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
 
 	cfg.SetDefault("a", "apple")
+
+	// c.d is a bool setting based on SetDefault
 	cfg.SetDefault("c.d", true)
 
 	cfg.BuildSchema()
@@ -214,7 +216,8 @@ c:
 			"a": {val: "orange", source: model.SourceFile},
 			"c": {
 				children: map[string]*nodeImpl{
-					"d":       {val: 1234, source: model.SourceFile},
+					// expects true due to bool setting
+					"d":       {val: true, source: model.SourceFile},
 					"unknown": {val: "key", source: model.SourceFile},
 				},
 			},
