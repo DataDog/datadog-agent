@@ -356,3 +356,62 @@ a:
 
 	assert.Equal(t, true, cfg.GetBool("a"))
 }
+
+// TestReadInConfigScalarYAMLNotWrappedAsFileNotFound verifies that when a config file
+// contains valid YAML that parses as a scalar (e.g. "site:datadoghq.eu" with no space
+// after the colon), ReadInConfig returns a parse error that is NOT wrapped as
+// ErrConfigFileNotFound. The file exists and was read successfully — the problem is
+// its content, not its absence.
+//
+// This test confirms that nodetreemodel correctly distinguishes file-read errors
+// (which are wrapped as ErrConfigFileNotFound) from YAML parse errors (which are not).
+func TestReadInConfigScalarYAMLNotWrappedAsFileNotFound(t *testing.T) {
+	// "site:datadoghq.eu" is valid YAML but parses as a scalar string, not a mapping.
+	confPath := writeTempFile(t, "datadog.yaml", "site:datadoghq.eu")
+
+	cfg := NewNodeTreeConfig("datadog", "DD", nil)
+	cfg.SetConfigFile(confPath)
+	cfg.BuildSchema()
+
+	err := cfg.ReadInConfig()
+
+	// The file exists and was read — we expect an error (YAML parse error),
+	// but it must NOT be classified as ErrConfigFileNotFound.
+	require.Error(t, err, "ReadInConfig should return an error for scalar YAML content")
+	assert.False(t, errors.Is(err, model.ErrConfigFileNotFound),
+		"YAML parse error should not be wrapped as ErrConfigFileNotFound; got: %v", err)
+}
+
+// TestReadInConfigScalarYAMLInMappingHasActionableError verifies that when a config
+// file contains a line like "site:datadoghq.eu" (missing space after colon) amidst
+// other valid YAML mappings, the error message helps the user identify the problem.
+//
+// The raw YAML error is "could not find expected ':'" which is cryptic. The improved
+// error should mention that a missing space after a colon may be the cause.
+func TestReadInConfigScalarYAMLInMappingHasActionableError(t *testing.T) {
+	// Reproduce the real customer scenario: a config file with comments and
+	// a "site:value" line (no space after colon) amidst valid YAML mappings.
+	configContent := `api_key: abc123
+#
+site:datad0g.com
+## some comment
+logs_enabled: true
+`
+	confPath := writeTempFile(t, "datadog.yaml", configContent)
+
+	cfg := NewNodeTreeConfig("datadog", "DD", nil)
+	cfg.SetConfigFile(confPath)
+	cfg.BuildSchema()
+
+	err := cfg.ReadInConfig()
+	require.Error(t, err, "ReadInConfig should return an error for YAML with missing space after colon")
+
+	// The error should NOT be classified as a missing file
+	assert.False(t, errors.Is(err, model.ErrConfigFileNotFound),
+		"YAML parse error should not be wrapped as ErrConfigFileNotFound; got: %v", err)
+
+	// The error message should help the user understand the problem
+	errMsg := err.Error()
+	assert.Contains(t, errMsg, "missing a space after a colon",
+		"error should hint about missing space after colon; got: %v", err)
+}

@@ -96,11 +96,43 @@ func (c *ntmConfig) readConfigurationContent(target *nodeImpl, source model.Sour
 	if strictErr := yaml.UnmarshalStrict(content, &inData); strictErr != nil {
 		log.Errorf("warning reading config file: %v\n", strictErr)
 		if err := yaml.Unmarshal(content, &inData); err != nil {
-			return err
+			return improveYAMLError(err, content)
 		}
 	}
 	c.warnings = append(c.warnings, loadYamlInto(target, source, inData, "", c.defaults, c.knownKeys, c.unknownKeys)...)
 	return nil
+}
+
+// improveYAMLError wraps YAML parse errors with actionable hints when possible.
+//
+// A common misconfiguration is writing "key:value" instead of "key: value" (missing
+// space after the colon). In YAML, "site:datadoghq.eu" is a scalar string, not a
+// key-value mapping. When this appears amidst other mappings, the parser reports
+// "could not find expected ':'" which is cryptic. This function detects such patterns
+// and adds a hint to the error message.
+func improveYAMLError(err error, content []byte) error {
+	if err == nil {
+		return nil
+	}
+
+	errMsg := err.Error()
+
+	// Detect the "could not find expected ':'" pattern, which commonly results
+	// from lines like "site:value" (missing space after colon) in a mapping context.
+	if strings.Contains(errMsg, "could not find expected ':'") {
+		return fmt.Errorf("%w (hint: this may be caused by a line missing a space after a colon, e.g. \"key:value\" should be \"key: value\")", err)
+	}
+
+	// Detect the case where the entire file is a scalar (e.g. file contains only "site:datadoghq.eu")
+	// by trying to unmarshal as interface{} — if it succeeds as a non-map type, the file isn't a mapping.
+	var raw interface{}
+	if yaml.Unmarshal(content, &raw) == nil && raw != nil {
+		if _, isMap := raw.(map[interface{}]interface{}); !isMap {
+			return fmt.Errorf("%w (hint: the config file content is not a YAML mapping; this may be caused by a line missing a space after a colon, e.g. \"key:value\" should be \"key: value\")", err)
+		}
+	}
+
+	return err
 }
 
 // buildNestedMap converts keys with dots into a nested structure

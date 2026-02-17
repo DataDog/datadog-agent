@@ -6,6 +6,7 @@
 package viperconfig
 
 import (
+	"errors"
 	"os"
 	"reflect"
 	"strings"
@@ -529,6 +530,37 @@ func TestMultipleTransformersRaisesError(t *testing.T) {
 			return strings.Split(in, ",")
 		})
 	})
+}
+
+// TestReadInConfigScalarYAMLNotWrappedAsFileNotFound verifies that when a config file
+// contains valid YAML that parses as a scalar (e.g. "site:datadoghq.eu" with no space
+// after the colon), ReadInConfig returns a parse error that is NOT wrapped as
+// ErrConfigFileNotFound. The file exists and was read successfully — the problem is
+// its content, not its absence.
+//
+// This test documents a known bug: the current viper wrapper wraps ALL ReadInConfig
+// errors (including YAML parse errors) as ConfigFileNotFoundError, which causes
+// callers to silently ignore invalid configuration files.
+func TestReadInConfigScalarYAMLNotWrappedAsFileNotFound(t *testing.T) {
+	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+
+	// "site:datadoghq.eu" is valid YAML but parses as a scalar string, not a mapping.
+	yamlContent := []byte("site:datadoghq.eu")
+
+	tempfile, err := os.CreateTemp("", "test-*.yaml")
+	require.NoError(t, err, "failed to create temporary file")
+	defer os.Remove(tempfile.Name())
+	tempfile.Write(yamlContent)
+	tempfile.Close()
+
+	config.SetConfigFile(tempfile.Name())
+	err = config.ReadInConfig()
+
+	// The file exists and was read — we expect an error (YAML parse error),
+	// but it must NOT be classified as ErrConfigFileNotFound.
+	require.Error(t, err, "ReadInConfig should return an error for scalar YAML content")
+	assert.False(t, errors.Is(err, model.ErrConfigFileNotFound),
+		"YAML parse error should not be wrapped as ErrConfigFileNotFound; got: %v", err)
 }
 
 func TestIsConfiguredHasSection(t *testing.T) {
