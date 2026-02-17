@@ -67,10 +67,12 @@ func sendMetric(c *Check, method metricType, metric string, value float64, tags 
 	sender, err := c.GetSender()
 	if err != nil {
 		log.Errorf("failed to get metric sender: %s", err)
+		return
 	}
 	metricFunction, err := getMetricFunction(sender, method)
 	if err != nil {
 		log.Errorf("failed to get metric function: %s", err)
+		return
 	}
 	metricFunction(metric, value, c.dbHostname, tags)
 }
