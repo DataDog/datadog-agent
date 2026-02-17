@@ -24,7 +24,7 @@ notify-on-tagged-success:
     *$CI_COMMIT_REF_NAME* is available in the staging repositories."
     dda self dep sync -f legacy-tasks -f legacy-notifications
     SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
-    dda inv notify.post-message -c "#agent-release-sync" -m "$MESSAGE_TEXT"
+    dda inv notify.post-message -c "#agent-release-sync-ops" -m "$MESSAGE_TEXT"
 
 notify:
   extends: .notify-job
