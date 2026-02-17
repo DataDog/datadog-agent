@@ -31,5 +31,8 @@ upgrade:
     - ``GetOTelResourceV1`` - Resource name lookup (V1 logic)
     - ``GetOTelOperationNameV1`` - Operation name lookup (V1 logic)
     - ``Status2Error`` - HTTP status code lookup for error messages (changed from NEW-first to OLD-first precedence)
+    - ``OtelSpanToDDSpan`` peer tag lookups - Now use semantic registry with fallback support when the tag key is a known concept
+    - ``db.namespace`` lookup - Now uses semantic registry (resource-first precedence preserved)
+    - ``resourceFromTags`` - HTTP route lookup now includes ``grpc.path`` as a fallback via semantic registry
 
     Test cases documenting the old behavior are commented out in ``transform_test.go`` and ``otel_util_test.go``.

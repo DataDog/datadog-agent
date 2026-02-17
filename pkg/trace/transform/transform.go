@@ -18,7 +18,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
-	semconv127 "go.opentelemetry.io/otel/semconv/v1.27.0"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
@@ -81,7 +80,7 @@ func OtelSpanToDDSpanMinimal(
 	if !conf.HasFeature("disable_receive_resource_spans_v2") {
 		ddspan.Type = traceutilotel.GetOTelSpanType(otelspan, otelres)
 	} else {
-		ddspan.Type = traceutilotel.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, "span.type")
+		ddspan.Type = traceutilotel.LookupSemanticStringFromDualMaps(rattr, sattr, semantics.ConceptSpanType, true)
 		if ddspan.Type == "" {
 			ddspan.Type = traceutilotel.SpanKind2Type(otelspan, otelres)
 		}
@@ -96,14 +95,19 @@ func OtelSpanToDDSpanMinimal(
 	if isTopLevel {
 		traceutil.SetTopLevel(ddspan, true)
 	}
-	if isMeasured := traceutilotel.GetOTelAttrFromEitherMap(sattr, rattr, false, "_dd.measured"); isMeasured == "1" {
+	if isMeasured := traceutilotel.LookupSemanticStringFromDualMaps(sattr, rattr, semantics.ConceptDDMeasured, false); isMeasured == "1" {
 		traceutil.SetMeasured(ddspan, true)
 	} else if topLevelByKind && (spanKind == ptrace.SpanKindClient || spanKind == ptrace.SpanKindProducer) {
 		// When enable_otlp_compute_top_level_by_span_kind is true, compute stats for client-side spans
 		traceutil.SetMeasured(ddspan, true)
 	}
 	for _, peerTagKey := range peerTagKeys {
-		if peerTagVal := traceutilotel.GetOTelAttrFromEitherMap(sattr, rattr, false, peerTagKey); peerTagVal != "" {
+		// Try semantic lookup first (uses fallbacks if concept is defined in mappings.json) - else use direct lookup for unknown concepts
+		peerTagVal := traceutilotel.LookupSemanticStringFromDualMaps(sattr, rattr, semantics.Concept(peerTagKey), false)
+		if peerTagVal == "" {
+			peerTagVal = traceutilotel.GetOTelAttrFromEitherMap(sattr, rattr, false, peerTagKey)
+		}
+		if peerTagVal != "" {
 			ddspan.Meta[peerTagKey] = peerTagVal
 		}
 	}
@@ -320,7 +324,7 @@ func OtelSpanToDDSpan(
 
 	// Check for db.namespace and conditionally set db.name
 	if _, ok := ddspan.Meta["db.name"]; !ok {
-		if dbNamespace := traceutilotel.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, false, string(semconv127.DBNamespaceKey)); dbNamespace != "" {
+		if dbNamespace := traceutilotel.LookupSemanticStringFromDualMaps(otelres.Attributes(), otelspan.Attributes(), semantics.ConceptDBNamespace, false); dbNamespace != "" {
 			ddspan.Meta["db.name"] = dbNamespace
 		}
 	}

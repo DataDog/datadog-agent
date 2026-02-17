@@ -5,6 +5,12 @@
 
 // Package semantics provides a registry for semantic attribute equivalences
 // across different tracing conventions (Datadog tracers, OpenTelemetry).
+//
+// Future work (OTel semantic convention updates):
+//   - rpc.service is deprecated; the replacement is to include it as part of rpc.method,
+//     so the fallback system alone cannot extract the concept value. Needs different handling.
+//   - rpc.system is superseded by rpc.system.name; add rpc.system.name as fallback/canonical.
+//   - db.system is deprecated in favor of db.system.name; add db.system.name to mappings.
 package semantics
 
 // Provider indicates the source of a semantic attribute definition.
@@ -64,6 +70,7 @@ const (
 	ConceptSpanType        Concept = "span.type"
 	ConceptDBSystem        Concept = "db.system"
 	ConceptDBStatement     Concept = "db.statement"
+	ConceptDBNamespace     Concept = "db.namespace"
 	ConceptRPCSystem       Concept = "rpc.system"
 	ConceptRPCService      Concept = "rpc.service"
 	ConceptMessagingSystem Concept = "messaging.system"

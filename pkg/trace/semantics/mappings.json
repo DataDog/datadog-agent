@@ -136,7 +136,8 @@
     "http.route": {
       "canonical": "http.route",
       "fallbacks": [
-        {"name": "http.route", "provider": "otel", "type": "string"}
+        {"name": "http.route", "provider": "otel", "type": "string"},
+        {"name": "grpc.path", "provider": "datadog", "type": "string"}
       ]
     },
     "rpc.grpc.status_code": {
@@ -345,6 +346,12 @@
       "fallbacks": [
         {"name": "db.statement", "provider": "otel", "type": "string"},
         {"name": "db.query.text", "provider": "otel", "version": "1.24.0", "type": "string"}
+      ]
+    },
+    "db.namespace": {
+      "canonical": "db.namespace",
+      "fallbacks": [
+        {"name": "db.namespace", "provider": "otel", "version": "1.24.0", "type": "string"}
       ]
     },
     "rpc.system": {
