@@ -2878,9 +2878,8 @@ func TestEnvVarsAlreadySet(t *testing.T) {
 
 func TestSkippedDueToResources(t *testing.T) {
 	// NOTE: This test currently validates behavior under the *default* injection mode.
-	// Today that effectively means init-container injection, so the expectations assert:
-	// - init-container-style resource gating
-	// - init_container-specific injection-error messages
+	// Today that effectively means init-container injection, so the expectations assert
+	// init-container-style resource gating
 	//
 	// If/when the project default injection mode changes (e.g. to CSI or image_volume), this test’s expectations
 	// will likely need to be updated (or the test can pin `apm_config.instrumentation.injection_mode` explicitly).
@@ -2943,7 +2942,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			skipped:            true,
 			expectedContainers: defaultContainerNames,
 			expectedAnnotations: map[string]string{
-				"internal.apm.datadoghq.com/injection-error": "The overall pod's containers limit is too low for init_container injection, memory pod_limit=50Mi needed=100Mi",
+				"internal.apm.datadoghq.com/injection-error": "The overall pod's containers limit is too low for injection, memory pod_limit=50Mi needed=100Mi",
 			},
 		},
 		"a pod with low cpu is skipped": {
@@ -2974,7 +2973,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			skipped:            true,
 			expectedContainers: defaultContainerNames,
 			expectedAnnotations: map[string]string{
-				"internal.apm.datadoghq.com/injection-error": "The overall pod's containers limit is too low for init_container injection, cpu pod_limit=25m needed=50m",
+				"internal.apm.datadoghq.com/injection-error": "The overall pod's containers limit is too low for injection, cpu pod_limit=25m needed=50m",
 			},
 		},
 		"a pod with low cpu and memory is skipped": {
@@ -3007,7 +3006,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			skipped:            true,
 			expectedContainers: defaultContainerNames,
 			expectedAnnotations: map[string]string{
-				"internal.apm.datadoghq.com/injection-error": "The overall pod's containers limit is too low for init_container injection, cpu pod_limit=25m needed=50m, memory pod_limit=50Mi needed=100Mi",
+				"internal.apm.datadoghq.com/injection-error": "The overall pod's containers limit is too low for injection, cpu pod_limit=25m needed=50m, memory pod_limit=50Mi needed=100Mi",
 			},
 		},
 		"a pod with low cpu and memory but with config override is not skipped": {
