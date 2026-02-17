@@ -195,8 +195,16 @@ func convertToDefaultType(value interface{}, defaultValue interface{}) (interfac
 	case string:
 		return cast.ToStringE(value)
 	case int32, int16, int8, int:
+		switch value.(type) {
+		case float32, float64:
+			return value, nil
+		}
 		return cast.ToIntE(value)
 	case int64:
+		switch value.(type) {
+		case float32, float64:
+			return value, nil
+		}
 		return cast.ToInt64E(value)
 	case float64, float32:
 		return cast.ToFloat64E(value)
