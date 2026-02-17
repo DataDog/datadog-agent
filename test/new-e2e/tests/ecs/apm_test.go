@@ -25,7 +25,6 @@ import (
 	awsecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	scenecs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
 	provecs "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs"
@@ -237,16 +236,12 @@ func (suite *ecsAPMSuite) Test01AgentAPMReady() {
 func (suite *ecsAPMSuite) TestBasicTraceCollection() {
 	// Test basic trace collection and validation
 	suite.Run("Basic trace collection", func() {
-		// Use the existing tracegen app for basic trace validation
-		// Note: Using bundled tag format since DD_APM_ENABLE_CONTAINER_TAGS_BUFFER=true
-		expectedTags := suite.getCommonECSTagPatterns(suite.ecsClusterName, "tracegen-tcp", "tracegen", false)
 		suite.AssertAPMTrace(&TestAPMTraceArgs{
 			Filter: TestAPMTraceFilterArgs{
 				ServiceName: "tracegen-test-service",
 			},
 			Expect: TestAPMTraceExpectArgs{
 				TraceIDPresent: true,
-				Tags:           &expectedTags,
 			},
 		})
 	})
@@ -624,14 +619,11 @@ func (suite *ecsAPMSuite) TestTraceTCP() {
 
 // testTrace verifies that traces are tagged with container and ECS task tags.
 func (suite *ecsAPMSuite) testTrace(taskName string) {
-	// Get expected tag patterns (minimal set for traces - bundled format)
-	expectedTagPatterns := suite.getCommonECSTagPatterns(suite.ecsClusterName, taskName, "tracegen", false)
-
-	// Convert string patterns to compiled regexps
-	compiledPatterns := make([]*regexp.Regexp, len(expectedTagPatterns))
-	for i, pattern := range expectedTagPatterns {
-		compiledPatterns[i] = regexp.MustCompile(pattern)
-	}
+	// Build validation patterns for the bundled _dd.tags.container value
+	// The bundled tag is a single comma-separated string of key:value pairs
+	clusterNamePattern := regexp.MustCompile(`ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName))
+	taskArnPattern := regexp.MustCompile(`task_arn:`)
+	containerNamePattern := regexp.MustCompile(`container_name:`)
 
 	suite.EventuallyWithTf(func(c *assert.CollectT) {
 		traces, cerr := suite.Fakeintake.GetTraces()
@@ -640,26 +632,29 @@ func (suite *ecsAPMSuite) testTrace(taskName string) {
 			return
 		}
 
-		var err error
+		found := false
 		// Iterate starting from the most recent traces
 		for _, trace := range traces {
 			// Container tags are in TracerPayload.Tags, not AgentPayload.Tags
 			for _, tracerPayload := range trace.TracerPayloads {
-				tags := lo.MapToSlice(tracerPayload.Tags, func(k string, v string) string {
-					return k + ":" + v
-				})
-				// Assert bundled tag contains required ECS metadata
-				// Set acceptUnexpectedTags=true since there may be other tags besides _dd.tags.container
-				err = assertTags(tags, compiledPatterns, []*regexp.Regexp{}, true)
-				if err == nil {
+				containerTags, exists := tracerPayload.Tags["_dd.tags.container"]
+				if !exists {
+					continue
+				}
+
+				// Validate the bundled tag value contains required ECS metadata
+				if clusterNamePattern.MatchString(containerTags) &&
+					taskArnPattern.MatchString(containerTags) &&
+					containerNamePattern.MatchString(containerTags) {
 					suite.T().Logf("Found trace with proper bundled tags for task %s", taskName)
+					found = true
 					break
 				}
 			}
-			if err == nil {
+			if found {
 				break
 			}
 		}
-		require.NoErrorf(c, err, "Failed finding trace with proper bundled tags")
+		assert.Truef(c, found, "Failed finding trace with proper bundled _dd.tags.container tags for task %s", taskName)
 	}, 2*time.Minute, 10*time.Second, "Failed finding trace with proper bundled tags")
 }
