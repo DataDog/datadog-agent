@@ -348,8 +348,11 @@ func buildDictEntryDefine(id uint64, value string) *statefulpb.Datum {
 // Priority: int64 → dict_index (via tagManager)
 // Returns the encoded DynamicValue and whether a new dict entry was created
 func (mt *MessageTranslator) encodeDynamicValue(value string) (*statefulpb.DynamicValue, uint64, bool) {
-	// Try parsing as int64
-	if intVal, err := strconv.ParseInt(value, 10, 64); err == nil {
+	// Skip int conversion for values with leading zeros (e.g. "01", "-007") to preserve them as strings.
+	// len > 1 check allows literal "0" to still be converted.
+	if len(value) > 1 && (value[0] == '0' || (value[0] == '-' && len(value) > 2 && value[1] == '0')) {
+		// fall through to string dictionary encoding
+	} else if intVal, err := strconv.ParseInt(value, 10, 64); err == nil {
 		return &statefulpb.DynamicValue{
 			Value: &statefulpb.DynamicValue_IntValue{
 				IntValue: intVal,
