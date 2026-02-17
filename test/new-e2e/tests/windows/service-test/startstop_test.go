@@ -506,8 +506,8 @@ func (s *baseStartStopSuite) TestAgentStopsAllServices() {
 	// check event log for N sets of start and stop messages from each service
 	for _, serviceName := range s.runningUserServices() {
 		providerName := serviceName
-		// skip the installer since it doesn't have a registered provider
-		if providerName == "Datadog Installer" {
+		// skip services without registered providers
+		if providerName == "Datadog Installer" || providerName == "datadog-private-action-runner" {
 			continue
 		}
 		entries, err := windowsCommon.GetEventLogEntriesFromProvider(host, "Application", providerName)
@@ -807,6 +807,7 @@ func (s *baseStartStopSuite) getInstalledUserServices() []string {
 		"datadog-process-agent",
 		"datadog-security-agent",
 		"datadog-system-probe",
+		"datadog-private-action-runner",
 		"Datadog Installer",
 	}
 }
