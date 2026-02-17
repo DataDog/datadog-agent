@@ -45,9 +45,10 @@ func TestGet(t *testing.T) {
 
 	assert.Equal(t, nil, cfg.Get("does_not_exists"))
 
-	// test implicit conversion
+	// test implicit conversion and handle conversion
 	cfg.Set("a", "1111", model.SourceAgentRuntime)
-	assert.Equal(t, 1111, cfg.Get("a"))
+	assert.Equal(t, "1111", cfg.Get("a"))
+	assert.Equal(t, 1111, cfg.GetInt("a"))
 }
 
 func TestGetDefaultType(t *testing.T) {
@@ -71,7 +72,7 @@ b:
    - c
 `))
 
-	expected := map[string]interface{}{
+	expected := map[interface{}]interface{}{
 		"url1": []interface{}{"apikey2", "apikey3"},
 		"url2": []interface{}{"apikey4"},
 	}
@@ -107,14 +108,14 @@ func TestGetCastToDefault(t *testing.T) {
 	cfg.SetDefault("a", []string{})
 	cfg.BuildSchema()
 
-	// This test that we mimic viper's behavior on Get where we convert the value from the config to the same type
-	// from the default.
-
+	// type specific GET handle conversion
 	cfg.Set("a", 9876, model.SourceAgentRuntime)
-	assert.Equal(t, []string{"9876"}, cfg.Get("a"))
+	assert.Equal(t, 9876, cfg.Get("a"))
+	assert.Equal(t, []string{"9876"}, cfg.GetStringSlice("a"))
 
 	cfg.Set("a", "a b c", model.SourceAgentRuntime)
-	assert.Equal(t, []string{"a", "b", "c"}, cfg.Get("a"))
+	assert.Equal(t, "a b c", cfg.Get("a"))
+	assert.Equal(t, []string{"a", "b", "c"}, cfg.GetStringSlice("a"))
 
 	assert.Equal(t, nil, cfg.Get("does_not_exists"))
 }
@@ -328,7 +329,7 @@ func TestGetAllSources(t *testing.T) {
 			{Source: model.SourceUnknown, Value: 1},
 			{Source: model.SourceInfraMode, Value: 2},
 			{Source: model.SourceFile, Value: 3},
-			{Source: model.SourceEnvVar, Value: "4"},
+			{Source: model.SourceEnvVar, Value: 4},
 			{Source: model.SourceFleetPolicies, Value: 5},
 			{Source: model.SourceAgentRuntime, Value: 6},
 			{Source: model.SourceLocalConfigProcess, Value: 7},
