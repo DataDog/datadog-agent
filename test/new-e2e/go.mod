@@ -7,7 +7,7 @@ go 1.25.0
 // TODO: Implement hard check in CI
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.179
+	github.com/DataDog/agent-payload/v5 v5.0.180
 	github.com/DataDog/datadog-agent/pkg/util/option v0.73.0-rc.9
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.73.0-rc.9
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.2 // indirect
@@ -194,7 +194,7 @@ require (
 	golang.org/x/time v0.14.0 // indirect
 	golang.org/x/tools v0.42.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251222181119-0a764e51fe1b // indirect
-	google.golang.org/grpc v1.78.0 // indirect
+	google.golang.org/grpc v1.79.1 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
