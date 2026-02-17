@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection/tokens"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tokens"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -39,13 +39,13 @@ func TestLabelerReusesTokensFromParsingExtra(t *testing.T) {
 	msg := message.NewMessage(content, nil, message.StatusInfo, 0)
 
 	// Manually populate tokens (simulating what TokenizingLineHandler does)
-	msg.ParsingExtra.Tokens = []byte{
-		byte(tokens.D1 + 4), // "2024"
-		byte(tokens.Dash),   // "-"
-		byte(tokens.D1 + 2), // "01"
-		byte(tokens.Dash),   // "-"
-		byte(tokens.D1 + 2), // "01"
-		byte(tokens.Space),  // " "
+	msg.ParsingExtra.Tokens = []tokens.Token{
+		tokens.D1 + 4, // "2024"
+		tokens.Dash,   // "-"
+		tokens.D1 + 2, // "01"
+		tokens.Dash,   // "-"
+		tokens.D1 + 2, // "01"
+		tokens.Space,  // " "
 	}
 	msg.ParsingExtra.TokenIndices = []int{0, 4, 5, 7, 8, 10}
 
@@ -54,27 +54,6 @@ func TestLabelerReusesTokensFromParsingExtra(t *testing.T) {
 
 	// Verify the mock heuristic saw tokens (meaning they were reused)
 	assert.Equal(t, 1, mockHeuristic.tokenizeCount, "Heuristic should have seen non-nil tokens")
-}
-
-func TestLabelerTokenizesWhenNoParsingExtra(t *testing.T) {
-	// Create a tokenizer to populate tokens
-	tokenizer := NewTokenizer(1000)
-
-	// Create labeler with tokenizer
-	labeler := NewLabeler([]Heuristic{tokenizer}, nil)
-
-	// Create a message WITHOUT pre-populated tokens
-	content := []byte("2024-01-01 12:00:00 INFO Test message")
-	msg := message.NewMessage(content, nil, message.StatusInfo, 0)
-
-	// Tokens should be nil
-	require.Empty(t, msg.ParsingExtra.Tokens, "Tokens should start empty")
-
-	// Call Label - should tokenize
-	label := labeler.Label(msg)
-
-	// Verify a label was returned (tokenizer ran successfully)
-	assert.NotEqual(t, Label(0), label, "Label should be set")
 }
 
 func TestLabelProducesSameResultWithOrWithoutTokens(t *testing.T) {
@@ -106,7 +85,7 @@ func TestLabelProducesSameResultWithOrWithoutTokens(t *testing.T) {
 
 			// Manually populate tokens to simulate TokenizingLineHandler
 			msg2 := message.NewMessage([]byte(tc.content), nil, message.StatusInfo, 0)
-			msg2.ParsingExtra.Tokens = []byte{byte(tokens.C1), byte(tokens.Space), byte(tokens.D1)}
+			msg2.ParsingExtra.Tokens = []tokens.Token{tokens.C1, tokens.Space, tokens.D1}
 			msg2.ParsingExtra.TokenIndices = []int{0, 1, 2}
 			labelWithTokens := labeler.Label(msg2)
 
@@ -136,10 +115,10 @@ func TestLabelConvertsTokensCorrectly(t *testing.T) {
 
 	// Create message with specific tokens
 	msg := message.NewMessage([]byte("test"), nil, message.StatusInfo, 0)
-	msg.ParsingExtra.Tokens = []byte{
-		byte(tokens.D1 + 4),
-		byte(tokens.Dash),
-		byte(tokens.Space),
+	msg.ParsingExtra.Tokens = []tokens.Token{
+		tokens.D1 + 4,
+		tokens.Dash,
+		tokens.Space,
 	}
 	msg.ParsingExtra.TokenIndices = []int{0, 4, 5}
 

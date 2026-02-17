@@ -7,6 +7,7 @@
 package automultilinedetection
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tokens"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,8 +16,8 @@ import (
 )
 
 func makeContext(str string, label Label) *messageContext {
-	tokenizer := NewTokenizer(0)
-	ts, _ := tokenizer.tokenize([]byte(str))
+	tokenizer := tokens.NewTokenizer(0)
+	ts, _ := tokenizer.Tokenize([]byte(str))
 
 	return &messageContext{
 		rawMessage: []byte(str),

@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection/tokens"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tokens"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -34,7 +34,7 @@ type UserSamples struct {
 
 // NewUserSamples creates a new UserSamples instance.
 func NewUserSamples(cfgRdr model.Reader, sourceSamples []*config.AutoMultilineSample) *UserSamples {
-	tokenizer := NewTokenizer(0)
+	tokenizer := tokens.NewTokenizer(0)
 	configSamples := make([]config.AutoMultilineSample, 0)
 
 	if sourceSamples != nil {
@@ -63,7 +63,7 @@ func NewUserSamples(cfgRdr model.Reader, sourceSamples []*config.AutoMultilineSa
 	for _, configSample := range configSamples {
 		parsedSample := &UserSample{}
 		if configSample.Sample != "" {
-			parsedSample.tokens, _ = tokenizer.tokenize([]byte(configSample.Sample))
+			parsedSample.tokens, _ = tokenizer.Tokenize([]byte(configSample.Sample))
 
 			if configSample.MatchThreshold != nil {
 				if *configSample.MatchThreshold <= 0 || *configSample.MatchThreshold > 1 {
@@ -125,7 +125,7 @@ func (j *UserSamples) ProcessAndContinue(context *messageContext) bool {
 				context.labelAssignedBy = "user_sample"
 				return false
 			}
-		} else if isMatch(sample.tokens, context.tokens, sample.matchThreshold) {
+		} else if tokens.IsMatch(sample.tokens, context.tokens, sample.matchThreshold) {
 			context.label = sample.label
 			context.labelAssignedBy = "user_sample"
 			return false

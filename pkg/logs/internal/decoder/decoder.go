@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tokens"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
@@ -55,12 +56,12 @@ type Decoder interface {
 // TokenizingLineHandler wraps a LineHandler and tokenizes messages before passing them through.
 // This ensures messages have tokens populated in ParsingExtra before reaching handlers like AutoMultilineHandler.
 type TokenizingLineHandler struct {
-	tokenizer   *automultilinedetection.Tokenizer
+	tokenizer   *tokens.Tokenizer
 	lineHandler LineHandler
 }
 
 // NewTokenizingLineHandler creates a wrapper that tokenizes messages before passing to the underlying handler.
-func NewTokenizingLineHandler(tok *automultilinedetection.Tokenizer, lineHandler LineHandler) *TokenizingLineHandler {
+func NewTokenizingLineHandler(tok *tokens.Tokenizer, lineHandler LineHandler) *TokenizingLineHandler {
 	return &TokenizingLineHandler{
 		tokenizer:   tok,
 		lineHandler: lineHandler,
@@ -69,7 +70,7 @@ func NewTokenizingLineHandler(tok *automultilinedetection.Tokenizer, lineHandler
 
 func (t *TokenizingLineHandler) process(msg *message.Message) {
 	// Tokenize first - populates msg.ParsingExtra.Tokens
-	t.tokenizer.TokenizeMessage(msg)
+	msg.ParsingExtra.Tokens, msg.ParsingExtra.TokenIndices = t.tokenizer.Tokenize(msg.GetContent())
 	// Then pass to actual line handler
 	t.lineHandler.process(msg)
 }
@@ -165,10 +166,11 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 	baseLineHandler := buildLineHandler(source, multiLinePattern, tailerInfo, outputFn, detectedPattern)
 
 	// Create tokenizer and wrap the line handler
-	// TODO: Respect source-specific tokenizer settings (source.Config().AutoMultiLineOptions.TokenizerMaxInputBytes)
-	//       to avoid breaking change for sources with custom tokenizer config
+	// TODO: AGNTLOG-553 Respect source-specific tokenizer settings
+	//       (source.Config().AutoMultiLineOptions.TokenizerMaxInputBytes) to
+	//       avoid breaking change for sources with custom tokenizer config
 	tokenizerMaxInputBytes := pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")
-	tok := automultilinedetection.NewTokenizer(tokenizerMaxInputBytes)
+	tok := tokens.NewTokenizer(tokenizerMaxInputBytes)
 	lineHandler := NewTokenizingLineHandler(tok, baseLineHandler)
 
 	var lineParser LineParser

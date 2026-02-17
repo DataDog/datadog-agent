@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tokens"
 	"github.com/stretchr/testify/assert"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -83,7 +84,7 @@ var inputs = []testInput{
 
 func TestCorrectLabelIsAssigned(t *testing.T) {
 	mockConfig := configmock.New(t)
-	tokenizer := NewTokenizer(mockConfig.GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes"))
+	tokenizer := tokens.NewTokenizer(mockConfig.GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes"))
 	timestampDetector := NewTimestampDetector(mockConfig.GetFloat64("logs_config.auto_multi_line.timestamp_detector_match_threshold"))
 
 	for _, testInput := range inputs {
@@ -92,7 +93,7 @@ func TestCorrectLabelIsAssigned(t *testing.T) {
 			label:      aggregate,
 		}
 
-		assert.True(t, tokenizer.ProcessAndContinue(context))
+		context.tokens, context.tokenIndicies = tokenizer.Tokenize(context.rawMessage)
 		assert.True(t, timestampDetector.ProcessAndContinue(context))
 		match := timestampDetector.tokenGraph.MatchProbability(context.tokens)
 		assert.Equal(t, testInput.label, context.label, fmt.Sprintf("input: %s had the wrong label with probability: %f", testInput.input, match.probability))

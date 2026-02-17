@@ -7,7 +7,7 @@
 package automultilinedetection
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection/tokens"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tokens"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -71,14 +71,7 @@ func (l *Labeler) Label(msg *message.Message) Label {
 
 	// Reuse tokens from ParsingExtra if they exist (populated by TokenizingLineHandler)
 	if len(msg.ParsingExtra.Tokens) > 0 {
-		// TODO: Move tokens package out of auto_multiline_detection to a shared location
-		// (e.g., pkg/logs/internal/tokens) so both message.ParsingExtra and labeler can
-		// use []tokens.Token directly, eliminating this conversion.
-		// Convert []byte back to []tokens.Token
-		context.tokens = make([]tokens.Token, len(msg.ParsingExtra.Tokens))
-		for i, b := range msg.ParsingExtra.Tokens {
-			context.tokens[i] = tokens.Token(b)
-		}
+		context.tokens = msg.ParsingExtra.Tokens
 		context.tokenIndicies = msg.ParsingExtra.TokenIndices
 	}
 
