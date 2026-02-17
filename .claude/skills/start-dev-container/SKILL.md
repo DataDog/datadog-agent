@@ -2,7 +2,7 @@
 name: start-dev-container
 description: Start the dda dev container. Use when the dev container is not running and build or test commands fail.
 argument-hint: ""
-allowed-tools: Bash(.claude/skills/start-dev-container/scripts/start.sh)
+allowed-tools: Bash(dda env dev start)
 ---
 
 # Start Dev Container
