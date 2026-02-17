@@ -1,0 +1,46 @@
+---
+# Cross-OS linting from Linux x64 runners.
+# These jobs run the go linting task targeting Windows and macOS using
+# cross-compilation toolchains (mingw-w64 and osxcross).
+
+.cross_lint:
+  stage: lint
+  extends: .linux_x64
+  needs: ["go_deps", "go_tools_deps"]
+  variables:
+    FLAVORS: '--flavor base'
+    KUBERNETES_CPU_REQUEST: 16
+    KUBERNETES_MEMORY_REQUEST: 32Gi
+    KUBERNETES_MEMORY_LIMIT: 32Gi
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps]
+
+.install_osxcross:
+  - apt-get update && apt-get install -y --no-install-recommends clang cmake libxml2-dev libssl-dev liblzma-dev libbz2-dev zlib1g-dev patch xz-utils g++
+  - git clone --depth 1 https://github.com/tpoechtrager/osxcross.git /tmp/osxcross
+  - curl -Lo /tmp/osxcross/tarballs/MacOSX14.0.sdk.tar.xz https://github.com/joseluisq/macosx-sdks/releases/download/14.0/MacOSX14.0.sdk.tar.xz
+  - cd /tmp/osxcross && UNATTENDED=1 TARGET_DIR=/opt/osxcross ./build.sh && cd -
+  - export PATH="/opt/osxcross/bin:$PATH"
+
+lint_cross_windows-x64:
+  extends: .cross_lint
+  script:
+    - apt-get update && apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64
+    - dda inv -- -e build-messagetable
+    - export GOOS=windows GOARCH=amd64
+    - !reference [.lint_script]
+
+lint_cross_macos-x64:
+  extends: .cross_lint
+  script:
+    - !reference [.install_osxcross]
+    - export GOOS=darwin GOARCH=amd64
+    - !reference [.lint_script]
+
+lint_cross_macos-arm64:
+  extends: .cross_lint
+  script:
+    - !reference [.install_osxcross]
+    - export GOOS=darwin GOARCH=arm64
+    - !reference [.lint_script]
