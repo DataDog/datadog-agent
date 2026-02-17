@@ -889,6 +889,9 @@ func convertModelServiceToService(modelService *model.Service) *workloadmeta.Ser
 	var logFiles []string
 	if !tracerCollectsLogs(modelService.TracerMetadata) {
 		logFiles = modelService.LogFiles
+	} else {
+		log.Infof("Skipping log file collection for service (pid: %d): tracer is already collecting logs", modelService.PID)
+		log.Debugf("Log files skipped for pid %d: %v", modelService.PID, modelService.LogFiles)
 	}
 
 	return &workloadmeta.Service{
