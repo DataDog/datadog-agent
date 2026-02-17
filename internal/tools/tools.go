@@ -12,6 +12,7 @@ package tools
 
 import (
 	_ "github.com/aarzilli/whydeadcode"
+	_ "github.com/bazelbuild/bazelisk"
 	_ "github.com/frapposelli/wwhrd"
 	_ "github.com/go-enry/go-license-detector/v4/cmd/license-detector"
 	_ "github.com/golangci/golangci-lint/v2/cmd/golangci-lint"
