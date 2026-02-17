@@ -1830,7 +1830,7 @@ my_bool_setting: "true"
 	err := cfg.ReadConfig(strings.NewReader(configData))
 	require.NoError(t, err)
 
-	// Stringify shows the file layer stores correctly typed values (int, not string)
+	// shows the file layer stores the correctly typed int values
 	txt := cfg.(*ntmConfig).Stringify(model.SourceFile, model.OmitPointerAddr)
 	expect := `tree(#ptr<000000>) source=file
 > my_bool_setting
@@ -1841,7 +1841,7 @@ my_bool_setting: "true"
 }
 
 func TestEnvVarLayerConvertsToDefaultType(t *testing.T) {
-	// Env vars are always strings; they should be converted to match the default type
+	// env vars are always strings and they should be converted to match the default type
 	t.Setenv("TEST_MY_INT_SETTING", "789")
 	t.Setenv("TEST_MY_BOOL_SETTING", "true")
 
@@ -1850,7 +1850,7 @@ func TestEnvVarLayerConvertsToDefaultType(t *testing.T) {
 	cfg.BindEnvAndSetDefault("my_bool_setting", false)
 	cfg.BuildSchema()
 
-	// Stringify shows the env layer stores correctly typed values (int, not string)
+	// shows the file layer stores the correctly typed int values
 	txt := cfg.(*ntmConfig).Stringify(model.SourceEnvVar, model.OmitPointerAddr)
 	expect := `tree(#ptr<000000>) source=environment-variable
 > my_bool_setting
