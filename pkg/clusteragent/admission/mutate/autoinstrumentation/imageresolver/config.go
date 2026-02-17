@@ -16,26 +16,16 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
 const (
 	rolloutBucketCount = 10 // Max number of buckets for gradual rollout
 )
 
-// RemoteConfigClient defines the interface we need for remote config operations
-type RemoteConfigClient interface {
-	GetConfigs(product string) map[string]state.RawConfig
-	Subscribe(product string, callback func(map[string]state.RawConfig, func(string, state.ApplyStatus)))
-}
-
 // Config contains information needed to create a Resolver
 type Config struct {
 	Site           string
 	DDRegistries   map[string]struct{}
-	RCClient       RemoteConfigClient
-	MaxInitRetries int
-	InitRetryDelay time.Duration
 	BucketID       string
 	DigestCacheTTL time.Duration
 	Enabled        bool
@@ -48,13 +38,10 @@ func calculateRolloutBucket(apiKey string) string {
 	return strconv.Itoa(int(hashInt % rolloutBucketCount))
 }
 
-func NewConfig(cfg config.Component, rcClient RemoteConfigClient) Config {
+func NewConfig(cfg config.Component) Config {
 	return Config{
 		Site:           cfg.GetString("site"),
 		DDRegistries:   newDatadoghqRegistries(cfg.GetStringSlice("admission_controller.auto_instrumentation.default_dd_registries")),
-		RCClient:       rcClient,
-		MaxInitRetries: 5,
-		InitRetryDelay: 1 * time.Second,
 		BucketID:       calculateRolloutBucket(cfg.GetString("api_key")),
 		DigestCacheTTL: cfg.GetDuration("admission_controller.auto_instrumentation.gradual_rollout.cache_ttl"),
 		Enabled:        cfg.GetBool("admission_controller.auto_instrumentation.gradual_rollout.enabled"),
