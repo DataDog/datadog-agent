@@ -929,3 +929,63 @@ func TestWLANReceiveRateValid(t *testing.T) {
 	wlanCheck.Run()
 	mockSender.AssertMetric(t, "Gauge", "system.wlan.rxrate", 5.0, "", expectedTags)
 }
+
+func TestWLANGetInfoErrorReturnsError(t *testing.T) {
+	getWiFiInfo = func() (wifiInfo, error) {
+		return wifiInfo{}, errors.New("WLAN API unavailable: missing wlanapi.dll")
+	}
+	defer func() { getWiFiInfo = GetWiFiInfo }()
+
+	wlanCheck := new(WLANCheck)
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
+	mockSender.SetupAcceptAll()
+
+	err := wlanCheck.Run()
+	assert.EqualError(t, err, "WLAN API unavailable: missing wlanapi.dll")
+	mockSender.AssertNumberOfCalls(t, "Gauge", 0)
+	mockSender.AssertNumberOfCalls(t, "Count", 0)
+}
+
+func TestWLANErrorDoesNotWarmState(t *testing.T) {
+	call := 0
+	getWiFiInfo = func() (wifiInfo, error) {
+		call++
+		if call == 1 {
+			return wifiInfo{}, errors.New("WLAN API unavailable: missing wlanapi.dll")
+		}
+		return wifiInfo{
+			rssi:         10,
+			ssid:         "ssid",
+			bssid:        "bssid",
+			channel:      11,
+			noise:        20,
+			noiseValid:   true,
+			transmitRate: 54.0,
+			macAddress:   "aa:bb:cc:dd:ee:ff",
+			phyMode:      "802.11ac",
+		}, nil
+	}
+	defer func() { getWiFiInfo = GetWiFiInfo }()
+
+	expectedTags := []string{"ssid:ssid", "bssid:bssid", "mac_address:aa:bb:cc:dd:ee:ff"}
+
+	wlanCheck := new(WLANCheck)
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	wlanCheck.Configure(senderManager, integration.FakeConfigHash, nil, nil, "test")
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(wlanCheck.ID(), senderManager)
+	mockSender.SetupAcceptAll()
+
+	err := wlanCheck.Run()
+	assert.Error(t, err)
+	mockSender.AssertNumberOfCalls(t, "Gauge", 0)
+	mockSender.AssertNumberOfCalls(t, "Count", 0)
+
+	err = wlanCheck.Run()
+	assert.NoError(t, err)
+	mockSender.AssertMetric(t, "Count", "system.wlan.roaming_events", 0.0, "", expectedTags)
+	mockSender.AssertMetric(t, "Count", "system.wlan.channel_swap_events", 0.0, "", expectedTags)
+}
