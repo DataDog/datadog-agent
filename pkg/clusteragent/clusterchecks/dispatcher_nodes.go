@@ -44,8 +44,10 @@ func (d *dispatcher) getClusterCheckConfigs(nodeName string) ([]integration.Conf
 // processNodeStatus keeps the node's status in the store, and returns true
 // if the last configuration change matches the one sent by the node agent.
 func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.NodeStatus) bool {
-	span := tracer.StartSpan("cluster_checks.dispatcher.process_node_status")
-	span.SetTag("node_name", nodeName)
+	span := tracer.StartSpan("cluster_checks.dispatcher.process_node_status",
+		tracer.ResourceName("process_node_status"),
+		tracer.SpanType("worker"))
+	// Note: node_name is intentionally not tagged to avoid high cardinality in large clusters
 	defer span.Finish()
 
 	var warmingUp bool

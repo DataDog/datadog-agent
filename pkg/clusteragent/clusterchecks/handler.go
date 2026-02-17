@@ -214,14 +214,16 @@ func (h *Handler) leaderWatch(ctx context.Context) {
 // updateLeaderIP queries the leader election engine and updates
 // the leader IP accordlingly. In case of leadership statuschange,
 // a state type is sent on leadershipChan.
-func (h *Handler) updateLeaderIP() error {
-	span := tracer.StartSpan("cluster_checks.leader_election.update_ip")
-	defer span.Finish()
+func (h *Handler) updateLeaderIP() (err error) {
+	span := tracer.StartSpan("cluster_checks.leader_election.update_ip",
+		tracer.ResourceName("update_leader_ip"),
+		tracer.SpanType("internal"))
+	defer func() {
+		span.Finish(tracer.WithError(err))
+	}()
 
 	newIP, err := h.leaderStatusCallback()
 	if err != nil {
-		span.SetTag("error", true)
-		span.SetTag("error.message", err.Error())
 		return err
 	}
 

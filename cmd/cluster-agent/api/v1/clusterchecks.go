@@ -36,11 +36,11 @@ func traceHandler(operationName string, handler http.HandlerFunc) http.HandlerFu
 
 // Install registers v1 API endpoints
 func installClusterCheckEndpoints(r *mux.Router, sc clusteragent.ServerContext) {
-	r.HandleFunc("/clusterchecks/status/{identifier}", api.WithTelemetryWrapper("postCheckStatus", traceHandler("cluster_checks.post_status", postCheckStatus(sc)))).Methods("POST")
-	r.HandleFunc("/clusterchecks/configs/{identifier}", api.WithTelemetryWrapper("getCheckConfigs", traceHandler("cluster_checks.get_configs", getCheckConfigs(sc)))).Methods("GET")
-	r.HandleFunc("/clusterchecks/rebalance", api.WithTelemetryWrapper("postRebalanceChecks", traceHandler("cluster_checks.rebalance", postRebalanceChecks(sc)))).Methods("POST")
-	r.HandleFunc("/clusterchecks", api.WithTelemetryWrapper("getState", traceHandler("cluster_checks.get_state", getState(sc)))).Methods("GET")
-	r.HandleFunc("/clusterchecks/isolate/check/{identifier}", api.WithTelemetryWrapper("postIsolateCheck", traceHandler("cluster_checks.isolate_check", postIsolateCheck(sc)))).Methods("POST")
+	r.HandleFunc("/clusterchecks/status/{identifier}", api.WithTelemetryWrapper("postCheckStatus", traceHandler("cluster_checks.api.post_status", postCheckStatus(sc)))).Methods("POST")
+	r.HandleFunc("/clusterchecks/configs/{identifier}", api.WithTelemetryWrapper("getCheckConfigs", traceHandler("cluster_checks.api.get_configs", getCheckConfigs(sc)))).Methods("GET")
+	r.HandleFunc("/clusterchecks/rebalance", api.WithTelemetryWrapper("postRebalanceChecks", traceHandler("cluster_checks.api.rebalance", postRebalanceChecks(sc)))).Methods("POST")
+	r.HandleFunc("/clusterchecks", api.WithTelemetryWrapper("getState", traceHandler("cluster_checks.api.get_state", getState(sc)))).Methods("GET")
+	r.HandleFunc("/clusterchecks/isolate/check/{identifier}", api.WithTelemetryWrapper("postIsolateCheck", traceHandler("cluster_checks.api.isolate_check", postIsolateCheck(sc)))).Methods("POST")
 }
 
 // RebalancePostPayload struct is for the JSON messages received from a client POST request

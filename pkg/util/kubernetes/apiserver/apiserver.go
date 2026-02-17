@@ -253,10 +253,12 @@ func GetClientConfig(timeout time.Duration, qps float32, burst int) (*rest.Confi
 	clientConfig.Wrap(func(rt http.RoundTripper) http.RoundTripper {
 		return NewCustomRoundTripper(rt, timeout)
 	})
-	// Wrap with APM tracing for automatic instrumentation of Kubernetes API calls
-	clientConfig.Wrap(func(rt http.RoundTripper) http.RoundTripper {
-		return httptrace.WrapRoundTripper(rt)
-	})
+	// Wrap with APM tracing for automatic instrumentation of Kubernetes API calls (only if enabled)
+	if pkgconfigsetup.Datadog().GetBool("cluster_agent.apm_instrumentation_enabled") {
+		clientConfig.Wrap(func(rt http.RoundTripper) http.RoundTripper {
+			return httptrace.WrapRoundTripper(rt)
+		})
+	}
 
 	return clientConfig, nil
 }

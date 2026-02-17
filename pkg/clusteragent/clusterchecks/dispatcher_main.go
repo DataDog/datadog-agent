@@ -62,11 +62,10 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 	// Attach the cluster agent's global tags to all dispatched checks
 	// as defined in the tagger's workloadmeta collector
 	var err error
-	span := tracer.StartSpan("cluster_checks.workloadmeta.global_tags")
+	span := tracer.StartSpan("cluster_checks.workloadmeta.global_tags",
+		tracer.ResourceName("get_global_tags"),
+		tracer.SpanType("internal"))
 	d.extraTags, err = tagger.GlobalTags(types.LowCardinality)
-	if err != nil {
-		span.SetTag("error.message", err.Error())
-	}
 	span.Finish(tracer.WithError(err))
 	if err != nil {
 		log.Warnf("Cannot get global tags from the tagger: %v", err)
@@ -153,7 +152,9 @@ func (d *dispatcher) Stop() {
 
 // Schedule implements the scheduler.Scheduler interface
 func (d *dispatcher) Schedule(configs []integration.Config) {
-	span := tracer.StartSpan("cluster_checks.dispatcher.schedule")
+	span := tracer.StartSpan("cluster_checks.dispatcher.schedule",
+		tracer.ResourceName("schedule_configs"),
+		tracer.SpanType("worker"))
 	span.SetTag("config_count", len(configs))
 	defer span.Finish()
 

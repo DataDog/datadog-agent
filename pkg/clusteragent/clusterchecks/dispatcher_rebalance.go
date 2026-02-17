@@ -174,7 +174,9 @@ func (d *dispatcher) moveCheck(src, dest, checkID string) error {
 }
 
 func (d *dispatcher) rebalance(force bool) []types.RebalanceResponse {
-	span := tracer.StartSpan("cluster_checks.dispatcher.rebalance")
+	span := tracer.StartSpan("cluster_checks.dispatcher.rebalance",
+		tracer.ResourceName("rebalance_checks"),
+		tracer.SpanType("worker"))
 	span.SetTag("force", force)
 	defer span.Finish()
 

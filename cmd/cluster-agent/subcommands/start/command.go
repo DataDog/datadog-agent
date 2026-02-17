@@ -305,26 +305,28 @@ func start(log log.Component,
 	// Setup Internal Profiling
 	common.SetupInternalProfiling(settings, config, "")
 
-	// Setup APM Tracing for Cluster Agent
+	// Setup APM Tracing for Cluster Agent - prepare options but start later after cluster ID is available
+	var apmTracerOptions []tracer.StartOption
 	pkglog.Debugf("Checking APM instrumentation config: enabled=%v", config.GetBool("cluster_agent.apm_instrumentation_enabled"))
 	if config.GetBool("cluster_agent.apm_instrumentation_enabled") {
 		env := config.GetString("cluster_agent.apm_instrumentation_env")
 		sampleRate := config.GetFloat64("cluster_agent.apm_instrumentation_sample_rate")
 		agentURL := config.GetString("cluster_agent.apm_instrumentation_dd_url")
 
-		pkglog.Infof("Starting APM tracer: service=datadog-cluster-agent, env=%s, version=%s, sample_rate=%f, agent_url=%s",
+		// Validate sample rate
+		if sampleRate < 0.0 || sampleRate > 1.0 {
+			pkglog.Warnf("Invalid apm_instrumentation_sample_rate: %f (must be between 0.0 and 1.0), using default 0.1", sampleRate)
+			sampleRate = 0.1
+		}
+
+		pkglog.Debugf("Preparing APM tracer options: service=datadog-cluster-agent, env=%s, version=%s, sample_rate=%f, agent_url=%s",
 			env, version.AgentVersion, sampleRate, agentURL)
 
-		tracerOptions := []tracer.StartOption{
+		apmTracerOptions = []tracer.StartOption{
 			tracer.WithService("datadog-cluster-agent"),
 			tracer.WithEnv(env),
 			tracer.WithServiceVersion(version.AgentVersion),
 			tracer.WithGlobalTag("cluster_name", config.GetString("cluster_name")),
-		}
-
-		// Add cluster_id if available
-		if clusterID := config.GetString("cluster_id"); clusterID != "" {
-			tracerOptions = append(tracerOptions, tracer.WithGlobalTag("cluster_id", clusterID))
 		}
 
 		// Configure agent address if specified
@@ -332,20 +334,16 @@ func start(log log.Component,
 			// WithAgentAddr expects host:port, not a full URL - strip the scheme
 			agentAddr := strings.TrimPrefix(agentURL, "http://")
 			agentAddr = strings.TrimPrefix(agentAddr, "https://")
-			tracerOptions = append(tracerOptions, tracer.WithAgentAddr(agentAddr))
-			pkglog.Infof("APM tracer will send to: %s", agentURL)
+			apmTracerOptions = append(apmTracerOptions, tracer.WithAgentAddr(agentAddr))
+			pkglog.Debugf("APM tracer will send to: %s", agentURL)
 		} else {
-			pkglog.Info("APM tracer will use default agent discovery (localhost:8126 or DD_AGENT_HOST:DD_TRACE_AGENT_PORT)")
+			pkglog.Debug("APM tracer will use default agent discovery (localhost:8126 or DD_AGENT_HOST:DD_TRACE_AGENT_PORT)")
 		}
 
 		// Configure sampling rate
 		if config.IsSet("cluster_agent.apm_instrumentation_sample_rate") {
-			tracerOptions = append(tracerOptions, tracer.WithSampler(tracer.NewRateSampler(sampleRate)))
+			apmTracerOptions = append(apmTracerOptions, tracer.WithSampler(tracer.NewRateSampler(sampleRate)))
 		}
-
-		tracer.Start(tracerOptions...)
-		defer tracer.Stop()
-		pkglog.Info("APM tracer started successfully")
 	} else {
 		pkglog.Info("APM instrumentation is disabled (cluster_agent.apm_instrumentation_enabled=false)")
 	}
@@ -463,6 +461,18 @@ func start(log log.Component,
 	kubeDistro := cloudprovider.DCAGetName(mainCtx)
 
 	pkglog.Infof("Cluster ID: %s, Cluster Name: %s, Kube Distribution: %s", clusterID, clusterName, kubeDistro)
+
+	// Start APM tracer now that we have cluster ID
+	if apmTracerOptions != nil {
+		// Add cluster_id if successfully retrieved
+		if clusterID != "" {
+			apmTracerOptions = append(apmTracerOptions, tracer.WithGlobalTag("cluster_id", clusterID))
+		}
+
+		tracer.Start(apmTracerOptions...)
+		defer tracer.Stop()
+		pkglog.Info("APM tracer started successfully")
+	}
 
 	// Initialize and start remote configuration client
 	var rcClient *rcclient.Client

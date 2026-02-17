@@ -1,0 +1,22 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Add APM tracing instrumentation to the Datadog Cluster Agent for improved observability
+    and debugging in production environments. When enabled via the ``cluster_agent.apm_instrumentation_enabled``
+    configuration option, the Cluster Agent emits APM traces for internal operations including
+    cluster check dispatching, Kubernetes API calls, and leader election events. Traces appear
+    in APM under the service name ``datadog-cluster-agent`` with cluster context tags.
+
+    To enable APM tracing for the Cluster Agent, configure the following options:
+
+    * ``cluster_agent.apm_instrumentation_enabled``: Set to ``true`` to enable tracing (default: ``false``)
+    * ``cluster_agent.apm_instrumentation_env``: Environment tag for traces (e.g., ``production``, ``staging``)
+    * ``cluster_agent.apm_instrumentation_sample_rate``: Sample rate from 0.0 to 1.0 (default: ``0.1`` for 10% sampling)
+    * ``cluster_agent.apm_instrumentation_dd_url``: Optional Datadog Agent URL for trace submission (e.g., ``http://datadog-agent:8126``)
