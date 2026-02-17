@@ -40,11 +40,10 @@ func (ctc *testContainer) start() error {
 	args := []string{
 		"run",
 		"--name", containerName,
-		"--privileged",
 		"--detach",
 	}
 
-	var capabilities = []string{"SYS_ADMIN", "SYS_RESOURCE", "SYS_PTRACE", "NET_ADMIN", "IPC_LOCK", "ALL"}
+	var capabilities = []string{"SYS_ADMIN", "SYS_RESOURCE", "SYS_PTRACE", "NET_ADMIN", "IPC_LOCK"}
 	for _, cap := range capabilities {
 		args = append(args, "--cap-add", cap)
 	}
