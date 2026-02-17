@@ -195,6 +195,40 @@ func TestConcatenateTypeErrorPreservesAccumulatedErrors(t *testing.T) {
 	assert.Contains(t, err.Error(), "oracle.q2", "error from second query should be preserved")
 }
 
+func TestNullMetricColumnReportsError(t *testing.T) {
+	db, dbMock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	dbMock.ExpectExec("alter.*").WillReturnResult(sqlmock.NewResult(1, 1))
+	rows := sqlmock.NewRows([]string{"val", "tag"}).AddRow(nil, "A")
+	dbMock.ExpectQuery("SELECT val, tag FROM t").WillReturnRows(rows)
+
+	columns := []config.CustomQueryColumns{
+		{Name: "val", Type: "gauge"},
+		{Name: "tag", Type: "tag"},
+	}
+	q := config.CustomQuery{
+		MetricPrefix: "oracle.nulltest",
+		Query:        "SELECT val, tag FROM t",
+		Columns:      columns,
+	}
+
+	chk, sender := newDbDoesNotExistCheck(t, "", "")
+	chk.Run()
+
+	sender.SetupAcceptAll()
+	sender.On("Commit").Return()
+
+	chk.config.InstanceConfig.CustomQueries = []config.CustomQuery{q}
+	chk.dbCustomQueries = sqlx.NewDb(db, "sqlmock")
+
+	err = chk.CustomQueries()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "NULL value for metric column val")
+	sender.AssertNotCalled(t, "Gauge")
+}
+
 func TestGlobalCustomQueries(t *testing.T) {
 	globalCustomQueries := fmt.Sprintf("global_custom_queries:\n%s", customQueryTestConfig)
 	c, s := newDefaultCheck(t, "", globalCustomQueries)

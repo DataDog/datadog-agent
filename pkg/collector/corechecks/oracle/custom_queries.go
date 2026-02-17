@@ -134,9 +134,16 @@ func (c *Check) CustomQueries() error {
 					if v != nil {
 						tags = append(tags, fmt.Sprintf("%s:%s", q.Columns[i].Name, v))
 					}
-				} else if method, err := getMetricFunctionCode(q.Columns[i].Type); err == nil {
-					metricRow.name = fmt.Sprintf("%s.%s", metricPrefix, q.Columns[i].Name)
-					if v_str, ok := v.(string); ok {
+			} else if method, err := getMetricFunctionCode(q.Columns[i].Type); err == nil {
+				metricRow.name = fmt.Sprintf("%s.%s", metricPrefix, q.Columns[i].Name)
+				if v == nil {
+					allErrors = concatenateError(allErrors, fmt.Sprintf(
+						"NULL value for metric column %s in custom query %s, skipping row",
+						q.Columns[i].Name, metricPrefix))
+					errInQuery = true
+					break
+				}
+				if v_str, ok := v.(string); ok {
 						metricRow.value, err = strconv.ParseFloat(v_str, 64)
 						if err != nil {
 							allErrors = concatenateTypeError(allErrors, metricPrefix, "number", metricRow.name, v, q.Query, err)
