@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
+	extensionsPkg "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
 	windowssvc "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/windows"
 	windowsuser "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user/windows"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -89,7 +90,17 @@ func postInstallDatadogAgent(ctx HookContext) error {
 
 	// install the new stable Agent
 	err = installAgentPackage(ctx, env, "stable", ctx.WindowsArgs, "setup_agent.log")
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Restore extensions after install
+	if err := restoreAgentExtensions(ctx, datadogAgent, env, false); err != nil {
+		fmt.Printf("failed to restore extensions: %s\n", err.Error())
+		log.Warnf("failed to restore extensions: %s", err)
+	}
+
+	return nil
 }
 
 // preRemoveDatadogAgent runs pre remove scripts for a given package.
@@ -97,6 +108,17 @@ func preRemoveDatadogAgent(ctx HookContext) (err error) {
 	// Don't return an error if the Agent is already not installed.
 	// returning an error here will prevent the package from being removed
 	// from the local repository.
+
+	// During upgrade, save extensions so they can be restored
+	// Note: ctx.Upgrade flag detection needs to be implemented for Windows
+	// For now, always save extensions (they'll be cleaned up after successful restore)
+	if err := saveAgentExtensions(ctx, datadogAgent); err != nil {
+		log.Warnf("failed to save agent extensions: %s", err)
+	}
+	if err := removeAgentExtensions(ctx, datadogAgent, getenv(), false); err != nil {
+		log.Warnf("failed to remove agent extensions: %s", err)
+	}
+
 	if !ctx.Upgrade {
 		return removeAgentIfInstalledAndRestartOnFailure(ctx)
 	}
@@ -111,11 +133,16 @@ func preRemoveDatadogAgent(ctx HookContext) (err error) {
 // Performing the checks in the "pre" hook allows us to return an error before the
 // experiment state is created, which allows us to skip stop_experiment which would
 // otherwise unecessarily try to uninstall and then reinstall the stable Agent.
-func preStartExperimentDatadogAgent(_ HookContext) error {
+func preStartExperimentDatadogAgent(ctx HookContext) error {
 	env := getenv()
 	err := windowsuser.ValidateAgentUserRemoteUpdatePrerequisites(env.MsiParams.AgentUserName)
 	if err != nil {
 		return fmt.Errorf("cannot start remote update: %w", err)
+	}
+
+	// Save extensions before starting experiment
+	if err := saveAgentExtensions(ctx, datadogAgent); err != nil {
+		log.Warnf("failed to save agent extensions: %s", err)
 	}
 
 	return nil
@@ -186,6 +213,18 @@ func postStartExperimentDatadogAgentBackground(ctx context.Context) error {
 		return err
 	}
 
+	// Restore extensions for experiment
+	// Construct HookContext with experiment package path for extension functions
+	// Path follows repository structure: {PackagesPath}/{packageName}/experiment
+	experimentPackagePath := filepath.Join(paths.PackagesPath, datadogAgent, "experiment")
+	hookCtx := HookContext{
+		Context:     ctx,
+		PackagePath: experimentPackagePath,
+	}
+	if err := restoreAgentExtensions(hookCtx, datadogAgent, env, true); err != nil {
+		log.Warnf("failed to restore extensions for experiment: %s", err)
+	}
+
 	// now we start our watchdog to make sure the Agent is running
 	// and we can restore the stable Agent if it stops.
 	err = startWatchdog(ctx, time.Now().Add(getWatchdogTimeout()))
@@ -246,7 +285,7 @@ func postStopExperimentDatadogAgentBackground(ctx context.Context) (err error) {
 }
 
 // postPromoteExperimentDatadogAgent runs post promote scripts for a given package.
-func postPromoteExperimentDatadogAgent(_ HookContext) error {
+func postPromoteExperimentDatadogAgent(ctx HookContext) error {
 	err := setWatchdogStopEvent()
 	if err != nil {
 		// if we can't set the event it means the watchdog has failed
@@ -254,6 +293,11 @@ func postPromoteExperimentDatadogAgent(_ HookContext) error {
 		// so we can return without an error as all we were about to do
 		// is stop the watchdog
 		log.Errorf("failed to set premote event: %s", err)
+	}
+
+	// Promote extensions from experiment to stable
+	if err := extensionsPkg.Promote(ctx.Context, datadogAgent); err != nil {
+		log.Errorf("failed to promote extensions: %s", err)
 	}
 
 	return nil
