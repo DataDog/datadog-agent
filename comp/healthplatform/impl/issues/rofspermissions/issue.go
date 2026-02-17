@@ -7,7 +7,6 @@ package rofspermissions
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -28,11 +27,6 @@ func (t *RofsPermissionIssue) BuildIssue(context map[string]string) (*healthplat
 		directory = "unknown"
 	}
 
-	volName := strings.TrimPrefix(strings.ReplaceAll(directory, "/", "-"), "-")
-	if volName == "" {
-		volName = "data"
-	}
-
 	extra, err := structpb.NewStruct(map[string]any{
 		"directory": directory,
 		"impact":    "The Agent cannot start or function correctly without write access to this directory.",
@@ -47,7 +41,7 @@ func (t *RofsPermissionIssue) BuildIssue(context map[string]string) (*healthplat
 		Title:       "Agent Cannot Write to Read-Only Filesystem",
 		Description: fmt.Sprintf("The Agent attempted to write to %s but failed because the filesystem is read-only. This is common in containerized environments with readOnlyRootFilesystem: true.", directory),
 		Category:    "permissions",
-		Location:    "agent-startup",
+		Location:    "core",
 		Severity:    "high",
 		DetectedAt:  "", // Will be filled by health platform
 		Source:      "agent",
