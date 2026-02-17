@@ -35,9 +35,6 @@ var resourceDetectionDefaultConfig = confMap{
 	},
 }
 
-// TODO: currently converter helpers use datadog-agent's logger which isn't setup when in Standalone mode
-var standaloneLogger = zap.L().Sugar()
-
 // converterWithoutAgent ensures sane configuration that satisfies the following conditions:
 //   - At least one resourcedetection processor declared and used with required defaults
 //   - If no resourcedetection processor used, declare & use a minimal resourcedetection processor
@@ -48,10 +45,14 @@ var standaloneLogger = zap.L().Sugar()
 //   - If hostprofiler::symbol_uploader::enabled == true, convert api_key/app_key to strings in each endpoint
 //   - If no hostprofiler is used & configured, add minimal one with symbol_uploader: false
 //   - remove ddprofiling & hpflare extensions
-type converterWithoutAgent struct{}
+type converterWithoutAgent struct {
+	logger *zap.SugaredLogger
+}
 
-func newConverterWithoutAgent(_ confmap.ConverterSettings) confmap.Converter {
-	return &converterWithoutAgent{}
+func newConverterWithoutAgent(convSettings confmap.ConverterSettings) confmap.Converter {
+	logger := convSettings.Logger.Sugar()
+	SetLogger(logger)
+	return &converterWithoutAgent{logger: logger}
 }
 
 func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) error {
@@ -208,7 +209,7 @@ func (c *converterWithoutAgent) fixProcessorsPipeline(conf confMap, processorNam
 		if err := Set(processors, defaultResourceDetectionName, resourceDetectionDefaultConfig); err != nil {
 			return nil, err
 		}
-		standaloneLogger.Warn("Added minimal resourcedetection processor to user configuration")
+		c.logger.Warn("Added minimal resourcedetection processor to user configuration")
 		processorNames = append(processorNames, defaultResourceDetectionName)
 	}
 
@@ -292,7 +293,7 @@ func (c *converterWithoutAgent) fixReceiversPipeline(conf confMap, receiverNames
 		return nil, err
 	}
 
-	standaloneLogger.Warn("Added minimal hostprofiler receiver to user configuration")
+	c.logger.Warn("Added minimal hostprofiler receiver to user configuration")
 	return append(receiverNames, defaultHostProfilerName), nil
 }
 
