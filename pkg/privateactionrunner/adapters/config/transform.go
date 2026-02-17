@@ -28,7 +28,6 @@ const (
 	waitBeforeRetry              = 5 * time.Minute
 	loopInterval                 = 1 * time.Second
 	opmsRequestTimeout           = 30_000
-	runnerPoolSize               = 1
 	defaultHealthCheckEndpoint   = "/healthz"
 	healthCheckInterval          = 30_000
 	defaultHTTPServerReadTimeout = 10_000
@@ -85,7 +84,7 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		WaitBeforeRetry:           waitBeforeRetry,
 		LoopInterval:              loopInterval,
 		OpmsRequestTimeout:        opmsRequestTimeout,
-		RunnerPoolSize:            runnerPoolSize,
+		RunnerPoolSize:            config.GetInt32(setup.PARTaskConcurrency),
 		HealthCheckInterval:       healthCheckInterval,
 		HttpServerReadTimeout:     defaultHTTPServerReadTimeout,
 		HttpServerWriteTimeout:    defaultHTTPServerWriteTimeout,

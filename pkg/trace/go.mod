@@ -38,7 +38,7 @@ require (
 	go.uber.org/atomic v1.11.0
 	golang.org/x/sys v0.41.0
 	golang.org/x/time v0.14.0
-	google.golang.org/grpc v1.78.0
+	google.golang.org/grpc v1.79.1
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/ini.v1 v1.67.0
 	k8s.io/apimachinery v0.35.0-alpha.0
@@ -51,10 +51,10 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/env v0.72.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.72.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/template v0.72.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/trace/log v0.71.0
-	github.com/DataDog/datadog-agent/pkg/trace/otel v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/trace/stats v0.71.0
-	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.71.0
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.77.0-devel.0.20260211235139-a5361978c2b6
+	github.com/DataDog/datadog-agent/pkg/trace/otel v0.77.0-devel.0.20260211235139-a5361978c2b6
+	github.com/DataDog/datadog-agent/pkg/trace/stats v0.77.0-devel.0.20260211235139-a5361978c2b6
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/shirou/gopsutil/v4 v4.26.1
 	go.opentelemetry.io/collector/component/componenttest v0.145.1-0.20260205185216-81bc641f26c0
 )
