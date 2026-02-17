@@ -30,7 +30,13 @@
       fi
     - |
       for ARCH in "amd64" "arm64"; do
-        INPUT_FILE="${OMNIBUS_PACKAGE_DIR}${OCI_PRODUCT}-*${ARCH}.tar.xz"
+        if [ "${OCI_PRODUCT}" = "datadog-agent" ]; then
+          # For main agent, exclude DDOT files since DDOT will be bundled as an extension
+          INPUT_FILE=$(ls ${OMNIBUS_PACKAGE_DIR}${OCI_PRODUCT}-*${ARCH}.tar.xz | grep -v ddot | head -1)
+        else
+          # For other products (like datadog-agent-ddot), don't filter
+          INPUT_FILE=$(ls ${OMNIBUS_PACKAGE_DIR}${OCI_PRODUCT}-*${ARCH}.tar.xz | head -1)
+        fi
         OUTPUT_FILE="$(basename -a -s .xz ${INPUT_FILE})"
         MERGED_FILE=$(basename -a $OMNIBUS_PACKAGE_DIR/*.tar.xz | head -n 1 | sed "s/-${ARCH}.tar.xz//").oci.tar
         export MERGED_FILE
@@ -46,7 +52,29 @@
           mkdir -p ${INSTALLER_INPUT_DIR}
           echo "Extracting installer to temporary input dir $INSTALLER_INPUT_FILE -> $INSTALLER_INPUT_DIR"
           tar xJf ${INSTALLER_INPUT_FILE} -C ${INSTALLER_INPUT_DIR}
-          EXTRA_FLAGS="--configs ${INPUT_DIR}/etc/datadog-agent --installer ${INSTALLER_INPUT_DIR}/opt/datadog-packages/datadog-installer/${PACKAGE_VERSION}/bin/installer/installer"
+
+          # Extract DDOT
+          DDOT_INPUT_FILE="${OMNIBUS_PACKAGE_DIR}datadog-agent-ddot-*${ARCH}.tar.xz"
+          if ls ${DDOT_INPUT_FILE} 1> /dev/null 2>&1; then
+            DDOT_INPUT_DIR="/tmp/input_ddot_${ARCH}"
+            DDOT_EXTENSION_DIR="/tmp/ddot_extension_${ARCH}"
+            mkdir -p ${DDOT_INPUT_DIR}
+            mkdir -p ${DDOT_EXTENSION_DIR}
+            echo "Extracting DDOT to temporary input dir $DDOT_INPUT_FILE -> $DDOT_INPUT_DIR"
+            tar xJf ${DDOT_INPUT_FILE} -C ${DDOT_INPUT_DIR}
+
+            # Copy DDOT binaries and config templates into extension directory structure
+            cp -r ${DDOT_INPUT_DIR}/opt/datadog-agent/* ${DDOT_EXTENSION_DIR}/
+            mkdir -p ${DDOT_EXTENSION_DIR}/etc
+            if [ -d ${DDOT_INPUT_DIR}/etc/datadog-agent ]; then
+              cp -r ${DDOT_INPUT_DIR}/etc/datadog-agent ${DDOT_EXTENSION_DIR}/etc/
+            fi
+
+            EXTRA_FLAGS="--configs ${INPUT_DIR}/etc/datadog-agent --installer ${INSTALLER_INPUT_DIR}/opt/datadog-packages/datadog-installer/${PACKAGE_VERSION}/bin/installer/installer --extension ddot=${DDOT_EXTENSION_DIR}"
+          else
+            echo "DDOT artifact not found: ${DDOT_INPUT_FILE}, skipping DDOT extension"
+            EXTRA_FLAGS="--configs ${INPUT_DIR}/etc/datadog-agent --installer ${INSTALLER_INPUT_DIR}/opt/datadog-packages/datadog-installer/${PACKAGE_VERSION}/bin/installer/installer"
+          fi
         fi
         if [ "${OCI_PRODUCT}" = "datadog-installer" ]; then
           EXTRA_FLAGS="--installer ${INPUT_DIR}/${INSTALL_DIR}/bin/installer/installer"
@@ -63,6 +91,9 @@
           ${EXTRA_FLAGS} \
           ${INPUT_DIR}/${INSTALL_DIR}/
         rm -f ${INPUT_FILE}
+        if [ "${OCI_PRODUCT}" = "datadog-agent" ] && [ -n "$DDOT_INPUT_FILE" ]; then
+          rm -f ${DDOT_INPUT_FILE}
+        fi
       done
     - echo "Aggregating all layers into one package -> ${MERGED_FILE}"
     - ls -l ${OUTPUT_DIR}/
@@ -83,7 +114,7 @@
       if [ -z "$ARTIFACT" ]; then
         echo "No suitable input artifact found"; exit 1
       fi
-      if [ "$(printf '%s\n' "$ARTIFACT" | wc -l)" != 1 ]; then
+      if [ "$(echo "$ARTIFACT" | wc -l)" != 1 ]; then
         echo "Expected exactly one candidate input artifact"; exit 1
       fi
       if [ -z "${PACKAGE_VERSION:-}" ]; then
@@ -130,10 +161,46 @@ agent_win_oci:
   needs:
     - job: "windows_msi_and_bosh_zip_x64-a7"
       artifacts: true
+    - job: "windows_zip_ddot_x64"
+      artifacts: true
   variables:
     OCI_PRODUCT: "datadog-agent"
     WIN_SOURCE_TYPE: "msi"
     WIN_ARTIFACT_PATTERN: "datadog-agent-[0-9]*-x86_64.msi"
+  script:
+    - |
+      set -euo pipefail
+      PIPE_DIR="$OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID"
+      ARTIFACT=$(ls -1 "${PIPE_DIR}"/${WIN_ARTIFACT_PATTERN} 2>/dev/null)
+      if [ -z "$ARTIFACT" ]; then
+        echo "No suitable input artifact found"; exit 1
+      fi
+      if [ "$(echo "$ARTIFACT" | wc -l)" != 1 ]; then
+        echo "Expected exactly one candidate input artifact"; exit 1
+      fi
+      if [ -z "${PACKAGE_VERSION:-}" ]; then
+        echo "PACKAGE_VERSION is not set"; exit 1
+      fi
+    - |
+      SRC_DIR="$(mktemp -d)"
+      EXTRA_FLAGS=""
+      cp "${ARTIFACT}" "${SRC_DIR}/"
+    - |
+      DDOT_ARTIFACT=$(ls -1 "${PIPE_DIR}"/datadog-agent-ddot-*x86_64.zip 2>/dev/null || true)
+      if [ -n "$DDOT_ARTIFACT" ]; then
+        DDOT_INPUT_DIR="$(mktemp -d)"
+        DDOT_EXTENSION_DIR="$(mktemp -d)"
+        echo "Extracting DDOT to ${DDOT_INPUT_DIR}"
+        unzip -q "${DDOT_ARTIFACT}" -d "${DDOT_INPUT_DIR}"
+
+        # Copy entire DDOT structure to extension directory
+        cp -r "${DDOT_INPUT_DIR}"/* "${DDOT_EXTENSION_DIR}"/
+
+        EXTRA_FLAGS="${EXTRA_FLAGS} --extension ddot=${DDOT_EXTENSION_DIR}"
+      fi
+    - export PATH="$PATH:$(go env GOPATH)/bin"
+    - datadog-package create --version "${PACKAGE_VERSION}" --package "${OCI_PRODUCT}" --os windows --arch amd64 --archive --archive-path "${PIPE_DIR}/${OCI_PRODUCT}-${PACKAGE_VERSION}-windows-amd64.oci.tar" ${EXTRA_FLAGS} "${SRC_DIR}/"
+    - ls -l "${PIPE_DIR}"
 
 agent_oci:
   extends: .package_oci
@@ -144,7 +211,9 @@ agent_oci:
       "go_tools_deps",
       "installer-arm64-oci",
       "installer-amd64-oci",
-      "agent_win_oci"
+      "agent_win_oci",
+      "datadog-otel-agent-x64",
+      "datadog-otel-agent-arm64"
     ]
   variables:
     OCI_PRODUCT: "datadog-agent"

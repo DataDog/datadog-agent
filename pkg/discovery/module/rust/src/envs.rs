@@ -106,7 +106,7 @@ mod tests {
     fn test_get_target_envs_self() {
         // Test reading our own environment variables
         // This should succeed unless we don't have permission to read our own /proc/self/environ
-        let result = get_target_envs(std::process::id() as i32);
+        let result = get_target_envs(std::process::id().cast_signed());
         assert!(result.is_ok());
 
         let env_vars = result.unwrap();
@@ -132,7 +132,7 @@ mod tests {
         cmd.env("SHELL", "/bin/bash");
 
         let mut child = cmd.spawn().expect("Failed to spawn test process");
-        let pid = child.id() as i32;
+        let pid = child.id().cast_signed();
 
         // Wait for process to be fully initialized and environ to be readable
         assert_eventually(Duration::from_secs(5), Duration::from_millis(10), || {

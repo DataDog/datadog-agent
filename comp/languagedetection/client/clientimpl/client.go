@@ -233,30 +233,16 @@ func (c *client) startStreaming() {
 		// frequently send only fresh updates
 		case <-freshUpdateTimer.C:
 			data := c.getFreshBatchProto()
-			if data == nil {
-				c.logger.Debugf("[lang-detection-client] fresh update: no complete language info to send")
-			} else {
-				c.logger.Debugf("[lang-detection-client] fresh update: sending %d pod details to cluster agent", len(data.PodDetails))
-			}
 			err := c.send(ctx, data)
 			if err != nil {
 				c.logger.Errorf("failed to send fresh update %v", err)
-			} else if data != nil {
-				c.logger.Debugf("[lang-detection-client] fresh update sent successfully")
 			}
 		// less frequently, send the entire batch
 		case <-periodicFlushTimer.C:
 			data := c.getCurrentBatchProto()
-			if data == nil {
-				c.logger.Debugf("[lang-detection-client] periodic flush: no complete language info to send")
-			} else {
-				c.logger.Debugf("[lang-detection-client] periodic flush: sending %d pod details to cluster agent", len(data.PodDetails))
-			}
 			err := c.send(ctx, data)
 			if err != nil {
 				c.logger.Errorf("failed to send entire batch %v", err)
-			} else if data != nil {
-				c.logger.Debugf("[lang-detection-client] periodic flush sent successfully")
 			}
 		}
 	}
@@ -361,7 +347,6 @@ func (c *client) handleProcessEvent(processEvent workloadmeta.Event, isRetry boo
 	if added {
 		c.freshlyUpdatedPods[pod.Name] = struct{}{}
 		delete(c.processesWithoutPod, process.ContainerID)
-		c.logger.Debugf("[lang-detection-client] added language %s for container %s in pod %s/%s (owner: %s/%s)", process.Language.Name, containerName, pod.Namespace, pod.Name, pod.Owners[0].Kind, pod.Owners[0].Name)
 	}
 	c.telemetry.ProcessedEvents.Inc(pod.Namespace, pod.Name, containerName, string(process.Language.Name))
 }
@@ -407,20 +392,6 @@ func (c *client) getFreshBatchProto() *pbgo.ParentLanguageAnnotationRequest {
 	for podName := range c.freshlyUpdatedPods {
 		if podInfo, ok := c.currentBatch[podName]; ok {
 			batch[podName] = podInfo
-			// Log why pod might not be included in final proto
-			if !podInfo.hasCompleteLanguageInfo() {
-				c.logger.Debugf("[lang-detection-client] pod %s/%s has incomplete language info: containers=%d, containerInfo=%d",
-					podInfo.namespace, podName, len(podInfo.containers), len(podInfo.containerInfo))
-				for container := range podInfo.containers {
-					if cInfo, ok := podInfo.containerInfo[container]; !ok {
-						c.logger.Debugf("[lang-detection-client] pod %s/%s: container %s has no process events yet",
-							podInfo.namespace, podName, container.Name)
-					} else {
-						c.logger.Debugf("[lang-detection-client] pod %s/%s: container %s has %d languages detected",
-							podInfo.namespace, podName, container.Name, len(cInfo))
-					}
-				}
-			}
 		}
 	}
 

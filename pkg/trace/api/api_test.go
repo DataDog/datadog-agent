@@ -1234,7 +1234,7 @@ func TestHandleTraces(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 
 		// Get initial PayloadTimeout count
-		ts := receiver.tagStats(v04, req.Header, "")
+		ts := receiver.tagStats(v04, req, "")
 		initialTimeout := ts.PayloadTimeout.Load()
 
 		handler.ServeHTTP(rr, req)
@@ -1284,7 +1284,7 @@ func TestHandleTraces(t *testing.T) {
 
 		time.Sleep(10 * time.Millisecond)
 
-		ts := receiver.tagStats(V10, req.Header, "")
+		ts := receiver.tagStats(V10, req, "")
 		initialTimeout := ts.PayloadTimeout.Load()
 
 		handler.ServeHTTP(rr, req)

@@ -9,6 +9,7 @@
 package providers
 
 import (
+	autoutils "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
@@ -47,7 +48,7 @@ func RegisterProviderWithComponents(name string, factory types.ConfigProviderFac
 }
 
 // RegisterProviders adds all the default providers to the catalog
-func RegisterProviders(providerCatalog map[string]types.ConfigProviderFactory, useEndpointSlicesProvider bool) {
+func RegisterProviders(providerCatalog map[string]types.ConfigProviderFactory) {
 	RegisterProvider(names.CloudFoundryBBS, NewCloudFoundryConfigProvider, providerCatalog)
 	RegisterProvider(names.ClusterChecksRegisterName, NewClusterChecksConfigProvider, providerCatalog)
 	RegisterProvider(names.ConsulRegisterName, NewConsulConfigProvider, providerCatalog)
@@ -63,7 +64,7 @@ func RegisterProviders(providerCatalog map[string]types.ConfigProviderFactory, u
 
 	endpointsFileProvider := NewKubeEndpointsFileConfigProvider
 	endpointsProvider := NewKubeEndpointsConfigProvider
-	if useEndpointSlicesProvider {
+	if autoutils.UseEndpointSlices() {
 		endpointsFileProvider = NewKubeEndpointSlicesFileConfigProvider
 		endpointsProvider = NewKubeEndpointSlicesConfigProvider
 	}

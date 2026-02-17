@@ -131,7 +131,7 @@ func (r *Runner) Run(ctx context.Context, cfg config.Config) (payload.NetworkPat
 		Port:                  int(cfg.DestPort),
 		Protocol:              strings.ToLower(string(cfg.Protocol)),
 		MinTTL:                trcommon.DefaultMinTTL,
-		MaxTTL:                int(cfg.MaxTTL),
+		MaxTTL:                int(maxTTL),
 		Delay:                 DefaultDelay,
 		Timeout:               timeout,
 		TCPMethod:             traceroute.TCPMethod(cfg.TCPMethod),

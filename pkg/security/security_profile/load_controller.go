@@ -9,7 +9,7 @@
 package securityprofile
 
 import (
-	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -84,7 +84,7 @@ func (m *Manager) getOverweightDumps() []*dump.ActivityDump {
 		dumpSize := ad.Profile.ComputeInMemorySize()
 
 		// send dump size in memory metric
-		if err := m.statsdClient.Gauge(metrics.MetricActivityDumpActiveDumpSizeInMemory, float64(dumpSize), []string{fmt.Sprintf("dump_index:%d", i)}, 1); err != nil {
+		if err := m.statsdClient.Gauge(metrics.MetricActivityDumpActiveDumpSizeInMemory, float64(dumpSize), []string{"dump_index:" + strconv.Itoa(i)}, 1); err != nil {
 			seclog.Errorf("couldn't send %s metric: %v", metrics.MetricActivityDumpActiveDumpSizeInMemory, err)
 		}
 

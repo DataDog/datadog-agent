@@ -196,7 +196,7 @@ mod tests {
 
             std::fs::write(&log_path, "Service started\n").expect("Failed to write to log");
 
-            let pid = std::process::id() as i32;
+            let pid = std::process::id().cast_signed();
 
             let open_files_info =
                 procfs::fd::get_open_files_info(pid).expect("Failed to collect open files");
@@ -233,7 +233,7 @@ mod tests {
                 .open(&log_path)
                 .expect("Failed to open log file");
 
-            let pid = std::process::id() as i32;
+            let pid = std::process::id().cast_signed();
 
             let proc_path = procfs::root_path().join(pid.to_string());
             assert!(
@@ -284,7 +284,7 @@ mod tests {
                 .open(&log_path)
                 .expect("Failed to open log file 2");
 
-            let pid = std::process::id() as i32;
+            let pid = std::process::id().cast_signed();
 
             let proc_path = procfs::root_path().join(pid.to_string());
             assert!(

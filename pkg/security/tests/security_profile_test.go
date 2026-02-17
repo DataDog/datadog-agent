@@ -385,6 +385,124 @@ func TestAnomalyDetection(t *testing.T) {
 	})
 }
 
+func TestAnomalyDetectionVariables(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+	if !IsDedicatedNodeForAD() {
+		t.Skip("Skip test when not run in dedicated env")
+	}
+
+	var expectedFormats = []string{"profile"}
+	var testActivityDumpTracedEventTypes = []string{"exec", "open", "syscalls", "dns", "bind"}
+
+	outputDir := t.TempDir()
+	os.MkdirAll(outputDir, 0755)
+	defer os.RemoveAll(outputDir)
+
+	// Define a rule with a "set" action that matches exec events.
+	// When both the rule and anomaly detection fire on the same event,
+	// the variable set by the rule should be present in the anomaly
+	// detection custom event.
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_ad_variable_rule",
+			Expression: `exec.file.name == "getconf"`,
+			Actions: []*rules.ActionDefinition{
+				{
+					Set: &rules.SetDefinition{
+						Name:  "ad_test_var",
+						Value: true,
+					},
+				},
+			},
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{
+		enableActivityDump:                      true,
+		activityDumpRateLimiter:                 200,
+		activityDumpTracedCgroupsCount:          3,
+		activityDumpDuration:                    testActivityDumpDuration,
+		activityDumpLocalStorageDirectory:       outputDir,
+		activityDumpLocalStorageCompression:     false,
+		activityDumpLocalStorageFormats:         expectedFormats,
+		activityDumpTracedEventTypes:            testActivityDumpTracedEventTypes,
+		enableSecurityProfile:                   true,
+		securityProfileDir:                      outputDir,
+		securityProfileWatchDir:                 true,
+		enableAnomalyDetection:                  true,
+		anomalyDetectionEventTypes:              []string{"exec", "dns"},
+		anomalyDetectionMinimumStablePeriodExec: time.Second,
+		anomalyDetectionMinimumStablePeriodDNS:  time.Second,
+		anomalyDetectionWarmupPeriod:            time.Second,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("anomaly-detection-variable-in-event", func(t *testing.T) {
+		dockerInstance, dump, err := test.StartADockerGetDump()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer dockerInstance.stop()
+
+		// Run the syscall_tester to populate the activity dump baseline.
+		cmd := dockerInstance.Command(syscallTester, []string{"sleep", "1"}, []string{})
+		_, err = cmd.CombinedOutput()
+		if err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(1 * time.Second) // let events be added to the dump
+
+		err = test.StopActivityDump(dump.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(6 * time.Second) // let the profile load (5s debounce + 1s spare)
+
+		// "getconf" is not in the baseline, so it triggers anomaly detection.
+		// It also matches the rule "test_ad_variable_rule" which sets ad_test_var=true.
+		err = test.GetCustomEventSent(t, func() error {
+			cmd := dockerInstance.Command("getconf", []string{"-a"}, []string{})
+			_, err = cmd.CombinedOutput()
+			return err
+		}, func(_ *rules.Rule, customEvent *events.CustomEvent) bool {
+			// Verify the anomaly detection custom event carries the variable.
+			eventJSON, jsonErr := customEvent.MarshalJSON()
+			if jsonErr != nil {
+				t.Errorf("failed to marshal custom event: %v", jsonErr)
+				return false
+			}
+
+			jsonStr := string(eventJSON)
+
+			// The event JSON should contain the variable set by the rule.
+			if !assert.Contains(t, jsonStr, `"ad_test_var"`, "anomaly detection event should contain the variable name") {
+				t.Logf("event JSON: %s", jsonStr)
+				return false
+			}
+
+			return true
+		}, time.Second*3, model.ExecEventType, events.AnomalyDetectionRuleID)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
 func TestAnomalyDetectionWarmup(t *testing.T) {
 	SkipIfNotAvailable(t)
 

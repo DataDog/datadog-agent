@@ -558,6 +558,12 @@ func buildLinuxHelmValues(baseName, agentImagePath, agentImageTag, clusterAgentI
 					"name":  pulumi.String("DD_ADMISSION_CONTROLLER_AGENT_SIDECAR_KUBELET_API_LOGGING_ENABLED"),
 					"value": pulumi.String("true"),
 				},
+				// Use NoOpResolver for injector version in e2e (avoids gradual rollout / bucket tag resolver).
+				// Override in test Helm values (clusterAgent.env) to "true" to exercise gradual rollout.
+				pulumi.StringMap{
+					"name":  pulumi.String("DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_GRADUAL_ROLLOUT_ENABLED"),
+					"value": pulumi.String("false"),
+				},
 			},
 		},
 		"clusterChecksRunner": pulumi.Map{

@@ -537,7 +537,7 @@ mod tests {
                 .open(&valid_log)
                 .expect("Failed to reopen valid log");
 
-            let pid = std::process::id() as i32;
+            let pid = std::process::id().cast_signed();
 
             let open_files_info = get_open_files_info(pid).expect("Failed to collect open files");
 

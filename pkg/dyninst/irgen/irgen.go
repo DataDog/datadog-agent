@@ -85,13 +85,18 @@ func (g *Generator) GenerateIR(
 	programID ir.ProgramID,
 	binaryPath string,
 	probeDefs []ir.ProbeDefinition,
+	options ...Option,
 ) (*ir.Program, error) {
-	elfFile, err := g.config.objectLoader.Load(binaryPath)
+	cfg := g.config
+	for _, option := range options {
+		option.apply(&cfg)
+	}
+	elfFile, err := cfg.objectLoader.Load(binaryPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load elf file: %w", err)
 	}
 	defer elfFile.Close()
-	return generateIR(g.config, programID, elfFile, probeDefs)
+	return generateIR(cfg, programID, elfFile, probeDefs)
 }
 
 // GenerateIR generates an IR program from a binary and a list of probes.
@@ -240,6 +245,14 @@ func generateIR(
 	}
 	defer cleanupCloser(ib, "method index builder")()
 
+	// Build a set of additional type names requested via
+	// WithAdditionalTypes for efficient lookup during the gotype iteration.
+	additionalTypeSet := make(map[string]struct{}, len(cfg.additionalTypes))
+	for _, name := range cfg.additionalTypes {
+		additionalTypeSet[name] = struct{}{}
+	}
+
+	var additionalTypeRoots []explorationRoot
 	var methodBuf []gotype.Method
 	for tid := range typeIndex.allGoTypes() {
 		goType, err := typeTab.ParseGoType(tid)
@@ -261,6 +274,30 @@ func generateIR(
 			)
 			continue
 		}
+
+		// If this type was requested as an additional type, resolve it to
+		// a DWARF offset and add it to the type catalog for exploration.
+		if len(additionalTypeSet) > 0 {
+			name := goType.Name().UnsafeName()
+			if _, requested := additionalTypeSet[name]; requested {
+				if dwarfOffset, ok := typeIndex.resolveDwarfOffset(tid); ok {
+					t, addErr := typeCatalog.addType(dwarfOffset)
+					if addErr != nil {
+						log.Debugf(
+							"failed to add additional type %q at offset %#x: %v",
+							name, dwarfOffset, addErr,
+						)
+					} else {
+						additionalTypeRoots = append(additionalTypeRoots, explorationRoot{
+							typeID: t.GetID(),
+							budget: additionalTypeBudget,
+						})
+					}
+				}
+				delete(additionalTypeSet, name)
+			}
+		}
+
 		methodBuf, err = goType.Methods(methodBuf[:0])
 		if err != nil {
 			return nil, fmt.Errorf("failed to get methods: %w", err)
@@ -362,6 +399,9 @@ func generateIR(
 	// Resolve placeholder types by a unified, budgeted expansion from
 	// exploration roots. Container internals are zero-cost.
 	{
+		// Include types discovered at runtime via interface decoding.
+		explorationRoots = append(explorationRoots, additionalTypeRoots...)
+
 		// Specialize any already-added container types before traversal.
 		if err := completeGoTypes(typeCatalog, 1, typeCatalog.idAlloc.alloc); err != nil {
 			return nil, err
@@ -778,6 +818,12 @@ func computeDepthBudgets(pending []*pendingSubprogram) map[ir.SubprogramID]uint3
 	}
 	return budgets
 }
+
+// additionalTypeBudget is the exploration budget assigned to types discovered
+// at runtime through interface decoding and fed back via WithAdditionalTypes.
+// A budget of 3 is enough to resolve fields and one level of indirection
+// without being excessively expensive.
+const additionalTypeBudget = 3
 
 // explorationRoot represents a type that should be explored with a budget.
 type explorationRoot struct {

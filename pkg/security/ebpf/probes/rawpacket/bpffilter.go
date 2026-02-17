@@ -9,7 +9,7 @@
 package rawpacket
 
 import (
-	"fmt"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -78,5 +78,5 @@ type Filter struct {
 
 // Key returns a key representing the filter
 func (f *Filter) Key() string {
-	return fmt.Sprintf("%s:%d:%d", f.RuleID, f.Pid, f.CGroupPathKey.Inode)
+	return f.RuleID + ":" + strconv.FormatUint(uint64(f.Pid), 10) + ":" + strconv.FormatUint(f.CGroupPathKey.Inode, 10)
 }

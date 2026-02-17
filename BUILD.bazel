@@ -20,7 +20,10 @@ package(default_visibility = ["//visibility:public"])
 # gazelle:exclude test
 # gazelle:exclude tools
 # gazelle:prefix github.com/DataDog/datadog-agent
-gazelle(name = "gazelle")
+gazelle(
+    name = "gazelle",
+    args = ["-external=static"],  # don't use the network: https://github.com/bazel-contrib/bazel-gazelle/issues/1385
+)
 
 # bazel run //:go -- ...
 alias(

@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 )
@@ -58,9 +60,21 @@ func (i *Installer) InstallExtension(packageURL, extensionName string) (string, 
 	return i.Run("extension", "install", packageURL, extensionName)
 }
 
+// MustInstallExtension installs an extension from a package and fails the test if it returns an error.
+func (i *Installer) MustInstallExtension(packageURL, extensionName string) {
+	output, err := i.InstallExtension(packageURL, extensionName)
+	assert.NoError(i.t(), err, "Failed to install extension: %s", output)
+}
+
 // RemoveExtension removes an extension from a package.
 func (i *Installer) RemoveExtension(packageName, extensionName string) (string, error) {
 	return i.Run("extension", "remove", packageName, extensionName)
+}
+
+// MustRemoveExtension removes an extension from a package and fails the test if it returns an error.
+func (i *Installer) MustRemoveExtension(packageName, extensionName string) {
+	output, err := i.RemoveExtension(packageName, extensionName)
+	assert.NoError(i.t(), err, "Failed to remove extension: %s", output)
 }
 
 // SaveExtensions saves extensions to a directory.

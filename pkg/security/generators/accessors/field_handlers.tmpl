@@ -130,7 +130,9 @@ type FieldHandlers interface {
     ExtraFieldHandlers
 }
 
-type FakeFieldHandlers struct {}
+type FakeFieldHandlers struct {
+    PCEs map[uint32]*ProcessCacheEntry
+}
 
 {{$Handlers := .Fields | GetHandlers}}
 {{range $Proto, $Impl := $Handlers}}

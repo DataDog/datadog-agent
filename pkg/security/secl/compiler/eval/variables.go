@@ -962,8 +962,8 @@ func NewIPArrayVariable(value []net.IPNet, opts VariableOpts) *IPArrayVariable {
 // it currently contains an integer and a string to cover most common use cases
 // the goal of this is to prevent the need to allocate a string for each `Hash()` call
 type ScopeHashKey struct {
-	Integer uint32
 	String  string
+	Uintptr uintptr
 }
 
 // VariableScope is the interface to be implemented by scoped variable in order to be released
@@ -1109,16 +1109,28 @@ func (v *ScopedVariables) NewSECLVariable(name string, value any, scopeName stri
 		v.varsLock.RLock()
 		defer v.varsLock.RUnlock()
 		vars := v.vars[key]
-		if (vars == nil || vars[name] == nil) && opts.Inherited && !noFollowInheritance {
+		if vars != nil && vars[name] != nil {
+			return vars[name]
+		}
+
+		if opts.Inherited && !noFollowInheritance {
 			var ok bool
-			scope, ok = scope.ParentScope()
-			for vars == nil && ok {
-				key := scope.Hash()
-				vars = v.vars[key]
+
+			for {
 				scope, ok = scope.ParentScope()
+				if !ok {
+					break
+				}
+
+				key = scope.Hash()
+				vars = v.vars[key]
+				if vars != nil && vars[name] != nil {
+					return vars[name]
+				}
 			}
 		}
-		return vars[name]
+
+		return nil
 	}
 
 	setVariable := func(ctx *Context, value any) error {
