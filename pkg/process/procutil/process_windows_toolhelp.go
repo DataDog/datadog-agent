@@ -1,3 +1,5 @@
+// /Users/roberto.ahumada/tee-work/ghrepos/datadog-agent/pkg/process/procutil/process_windows_toolhelp.go
+
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
@@ -8,11 +10,12 @@
 package procutil
 
 import (
-	"errors"
+	"fmt"
 	"runtime"
 	"time"
 	"unsafe"
 
+	"github.com/shirou/w32"
 	"golang.org/x/sys/windows"
 
 	process "github.com/shirou/gopsutil/v4/process"
@@ -90,7 +93,7 @@ func (p *windowsToolhelpProbe) StatsForPIDs(_ []int32, now time.Time) (map[int32
 
 // StatsWithPermByPID is currently not implemented in non-linux environments
 func (p *windowsToolhelpProbe) StatsWithPermByPID(_ []int32) (map[int32]*StatsWithPerm, error) {
-	return nil, errors.New("windowsToolhelpProbe: StatsWithPermByPID is not implemented")
+	return nil, fmt.Errorf("windowsToolhelpProbe: StatsWithPermByPID is not implemented")
 }
 
 func (p *windowsToolhelpProbe) ProcessesByPID(_ time.Time, collectStats bool) (map[int32]*Process, error) {
@@ -98,24 +101,24 @@ func (p *windowsToolhelpProbe) ProcessesByPID(_ time.Time, collectStats bool) (m
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	allProcsSnap, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)
-	if err != nil {
-		return nil, err
+	allProcsSnap := w32.CreateToolhelp32Snapshot(w32.TH32CS_SNAPPROCESS, 0)
+	if allProcsSnap == 0 {
+		return nil, windows.GetLastError()
 	}
 	procs := make(map[int32]*Process)
 
-	defer windows.CloseHandle(allProcsSnap)
-	var pe32 windows.ProcessEntry32
-	pe32.Size = uint32(unsafe.Sizeof(pe32))
+	defer w32.CloseHandle(allProcsSnap)
+	var pe32 w32.PROCESSENTRY32
+	pe32.DwSize = uint32(unsafe.Sizeof(pe32))
 
 	knownPids := make(map[uint32]struct{})
 	for pid := range p.cachedProcesses {
 		knownPids[pid] = struct{}{}
 	}
 
-	for err = windows.Process32First(allProcsSnap, &pe32); err == nil; err = windows.Process32Next(allProcsSnap, &pe32) {
-		pid := pe32.ProcessID
-		ppid := pe32.ParentProcessID
+	for success := w32.Process32First(allProcsSnap, &pe32); success; success = w32.Process32Next(allProcsSnap, &pe32) {
+		pid := pe32.Th32ProcessID
+		ppid := pe32.Th32ParentProcessID
 
 		if pid == 0 {
 			// this is the "system idle process".  We'll never be able to open it,
@@ -123,6 +126,8 @@ func (p *windowsToolhelpProbe) ProcessesByPID(_ time.Time, collectStats bool) (m
 			// want to do.
 			continue
 		}
+
+		cachedProcessExists := false
 		cp, ok := p.cachedProcesses[pid]
 		if !ok {
 			// wasn't already in the map.
@@ -134,7 +139,9 @@ func (p *windowsToolhelpProbe) ProcessesByPID(_ time.Time, collectStats bool) (m
 			}
 			p.cachedProcesses[pid] = cp
 		} else {
-			if cp.procHandle, _, err = OpenProcessHandle(int32(pe32.ProcessID)); err != nil {
+			cachedProcessExists = true
+			var err error
+			if cp.procHandle, _, err = OpenProcessHandle(int32(pe32.Th32ProcessID)); err != nil {
 				log.Debugf("Could not reopen process handle for pid %v %v", pid, err)
 				continue
 			}
@@ -144,12 +151,33 @@ func (p *windowsToolhelpProbe) ProcessesByPID(_ time.Time, collectStats bool) (m
 		procHandle := cp.procHandle
 
 		// Collect start time
-		var CPU windows.Rusage
-		if err := windows.GetProcessTimes(procHandle, &CPU.CreationTime, &CPU.ExitTime, &CPU.KernelTime, &CPU.UserTime); err != nil {
+		var cpu windows.Rusage
+		err := windows.GetProcessTimes(procHandle, &cpu.CreationTime, &cpu.ExitTime, &cpu.KernelTime, &cpu.UserTime)
+		if err != nil {
 			log.Debugf("Could not get process times for %v %v", pid, err)
 			continue
 		}
-		ctime := CPU.CreationTime.Nanoseconds() / 1000000
+		ctime := cpu.CreationTime.Nanoseconds() / 1000000
+
+		if cachedProcessExists && cp.createTime != 0 && cp.createTime != ctime {
+			log.Debugf("detected PID recycle for pid %d in toolhelp probe (cached createTime=%d current createTime=%d), refreshing metadata", pid, cp.createTime, ctime)
+
+			// Rebuild metadata to avoid stale cmdline/exe/username after PID reuse.
+			cp.close()
+			if err := cp.fillFromProcEntry(&pe32); err != nil {
+				log.Debugf("could not refresh Win32 process metadata for pid %v %v", pid, err)
+				continue
+			}
+			procHandle = cp.procHandle
+
+			err = windows.GetProcessTimes(procHandle, &cpu.CreationTime, &cpu.ExitTime, &cpu.KernelTime, &cpu.UserTime)
+			if err != nil {
+				log.Debugf("Could not get process times after refresh for %v %v", pid, err)
+				continue
+			}
+			ctime = cpu.CreationTime.Nanoseconds() / 1000000
+		}
+		cp.createTime = ctime
 
 		var stats *Stats
 		if collectStats {
@@ -172,13 +200,13 @@ func (p *windowsToolhelpProbe) ProcessesByPID(_ time.Time, collectStats bool) (m
 				continue
 			}
 
-			utime := float64((int64(CPU.UserTime.HighDateTime) << 32) | int64(CPU.UserTime.LowDateTime))
-			stime := float64((int64(CPU.KernelTime.HighDateTime) << 32) | int64(CPU.KernelTime.LowDateTime))
+			utime := float64((int64(cpu.UserTime.HighDateTime) << 32) | int64(cpu.UserTime.LowDateTime))
+			stime := float64((int64(cpu.KernelTime.HighDateTime) << 32) | int64(cpu.KernelTime.LowDateTime))
 
 			stats = &Stats{
 				CreateTime:  ctime,
 				OpenFdCount: int32(handleCount),
-				NumThreads:  int32(pe32.Threads),
+				NumThreads:  int32(pe32.CntThreads),
 				CPUTime: &CPUTimesStat{
 					User:      utime,
 					System:    stime,
@@ -209,7 +237,6 @@ func (p *windowsToolhelpProbe) ProcessesByPID(_ time.Time, collectStats bool) (m
 			Stats:    stats,
 			Exe:      cp.executablePath,
 			Username: cp.userName,
-			Comm:     cp.comm,
 		}
 	}
 	for pid := range knownPids {
@@ -225,33 +252,25 @@ type cachedProcess struct {
 	userName       string
 	executablePath string
 	commandLine    string
-	comm           string
 	procHandle     windows.Handle
 	parsedArgs     []string
+	createTime     int64
 }
 
-func (cp *cachedProcess) fillFromProcEntry(pe32 *windows.ProcessEntry32) (err error) {
+func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error) {
 	var isProtected bool
-
-	// do not override err below, otherwise the handle will be leaked.
-	cp.procHandle, isProtected, err = OpenProcessHandle(int32(pe32.ProcessID))
+	cp.procHandle, isProtected, err = OpenProcessHandle(int32(pe32.Th32ProcessID))
 	if err != nil {
 		return err
 	}
-
 	var usererr error
 	cp.userName, usererr = GetUsernameForProcess(cp.procHandle)
 	if usererr != nil {
-		log.Debugf("Couldn't get process username %v %v", pe32.ProcessID, usererr)
+		log.Debugf("Couldn't get process username %v %v", pe32.Th32ProcessID, err)
 	}
-	imagePath, imgerr := winutil.GetImagePathForProcess(cp.procHandle)
-	if imgerr != nil {
-		log.Debugf("Error retrieving exe path for pid %v %v", pe32.ProcessID, imgerr)
-	} else {
-		cp.comm = getFileDescriptionCached(imagePath)
-	}
-	cp.executablePath = winutil.ConvertWindowsString16(pe32.ExeFile[:])
+	cp.executablePath = winutil.ConvertWindowsString16(pe32.SzExeFile[:])
 	cp.commandLine = cp.executablePath
+
 	// we cannot read the command line if the process is protected
 	if !isProtected {
 		commandParams, cmderr := winutil.GetCommandParamsForProcess(cp.procHandle, false)
@@ -265,10 +284,10 @@ func (cp *cachedProcess) fillFromProcEntry(pe32 *windows.ProcessEntry32) (err er
 
 	cp.parsedArgs = ParseCmdLineArgs(cp.commandLine)
 	if len(cp.commandLine) > 0 && len(cp.parsedArgs) == 0 {
-		log.Warnf("Failed to parse the cmdline:%s for pid:%d", cp.commandLine, pe32.ProcessID)
+		log.Warnf("Failed to parse the cmdline:%s for pid:%d", cp.commandLine, pe32.Th32ProcessID)
 	}
 
-	return err
+	return
 }
 
 func (cp *cachedProcess) close() {
@@ -283,17 +302,17 @@ func GetParentPid(pid uint32) (uint32, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	var pe32 windows.ProcessEntry32
-	pe32.Size = uint32(unsafe.Sizeof(pe32))
+	var pe32 w32.PROCESSENTRY32
+	pe32.DwSize = uint32(unsafe.Sizeof(pe32))
 
-	allProcsSnap, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)
-	if err != nil {
-		return 0, err
+	allProcsSnap := w32.CreateToolhelp32Snapshot(w32.TH32CS_SNAPPROCESS, 0)
+	if allProcsSnap == 0 {
+		return 0, windows.GetLastError()
 	}
-	defer windows.CloseHandle(allProcsSnap)
-	for err = windows.Process32First(allProcsSnap, &pe32); err == nil; err = windows.Process32Next(allProcsSnap, &pe32) {
-		if pid == pe32.ProcessID {
-			return pe32.ParentProcessID, nil
+	defer w32.CloseHandle(allProcsSnap)
+	for success := w32.Process32First(allProcsSnap, &pe32); success; success = w32.Process32Next(allProcsSnap, &pe32) {
+		if pid == pe32.Th32ProcessID {
+			return pe32.Th32ParentProcessID, nil
 		}
 	}
 	return 0, nil
