@@ -533,3 +533,5 @@ replace (
 	github.com/DataDog/datadog-agent/test/fakeintake => ../../test/fakeintake
 	github.com/DataDog/datadog-agent/test/otel => ../../test/otel
 )
+
+replace github.com/shirou/gopsutil/v4 => github.com/shirou/gopsutil/v4 v4.25.11
