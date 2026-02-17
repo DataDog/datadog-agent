@@ -8,6 +8,7 @@
 package systemd
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"math"
@@ -17,7 +18,6 @@ import (
 
 	"github.com/coreos/go-systemd/v22/dbus"
 	godbus "github.com/godbus/dbus/v5"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"

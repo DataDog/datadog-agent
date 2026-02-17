@@ -9,12 +9,12 @@ package compiler
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"math"
 	"slices"
 	"time"
 
-	"github.com/pkg/errors"
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
@@ -271,7 +271,7 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 
 func (g *generator) addFunction(id FunctionID, ops []Op) error {
 	if _, ok := g.functionReg[id]; ok {
-		return errors.Errorf("internal: function `%s` already exists", id)
+		return fmt.Errorf("internal: function `%s` already exists", id)
 	}
 	if _, ok := ops[len(ops)-1].(ReturnOp); !ok {
 		return errors.New("internal: last op must be a return")
@@ -608,15 +608,15 @@ func (g *generator) typeMemoryLayout(t ir.Type) ([]memoryLayoutPiece, error) {
 
 		// Types that should never be stored in registers nor stack.
 		case *ir.EventRootType:
-			err = errors.Errorf("internal: unexpected EventRootType: %#v", t)
+			err = fmt.Errorf("internal: unexpected EventRootType: %#v", t)
 		case *ir.GoSliceDataType:
-			err = errors.Errorf("internal: unexpected GoSliceDataType: %#v", t)
+			err = fmt.Errorf("internal: unexpected GoSliceDataType: %#v", t)
 		case *ir.GoStringDataType:
-			err = errors.Errorf("internal: unexpected GoStringDataType: %#v", t)
+			err = fmt.Errorf("internal: unexpected GoStringDataType: %#v", t)
 		case *ir.GoSwissMapGroupsType:
-			err = errors.Errorf("internal: unexpected GoSwissMapGroupsType: %#v", t)
+			err = fmt.Errorf("internal: unexpected GoSwissMapGroupsType: %#v", t)
 		case *ir.GoSwissMapHeaderType:
-			err = errors.Errorf("internal: unexpected GoSwissMapHeaderType: %#v", t)
+			err = fmt.Errorf("internal: unexpected GoSwissMapHeaderType: %#v", t)
 		default:
 			panic(fmt.Sprintf("unexpected ir.Type for layout: %#v", t))
 		}
@@ -635,7 +635,7 @@ func offsetOf(fields []ir.Field, name string) (uint32, error) {
 			return field.Offset, nil
 		}
 	}
-	return 0, errors.Errorf("internal: field `%s` not found", name)
+	return 0, fmt.Errorf("internal: field `%s` not found", name)
 }
 
 func offsetOfUint8(fields []ir.Field, name string) (uint8, error) {
@@ -644,7 +644,7 @@ func offsetOfUint8(fields []ir.Field, name string) (uint8, error) {
 		return 0, err
 	}
 	if offset > math.MaxUint8 {
-		return 0, errors.Errorf("offset of %s overflows uint8: %d", name, offset)
+		return 0, fmt.Errorf("offset of %s overflows uint8: %d", name, offset)
 	}
 	return uint8(offset), nil
 }

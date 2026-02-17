@@ -11,8 +11,6 @@ import (
 	"fmt"
 	"runtime/debug"
 
-	"github.com/pkg/errors"
-
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -20,7 +18,7 @@ import (
 // NewMarshallingError creates an error that wraps the cause of a marshalling
 // error.
 func NewMarshallingError(cause error) error {
-	return errors.WithMessage(cause, "unable to marshal resource to JSON")
+	return fmt.Errorf("unable to marshal resource to JSON: %w", cause)
 }
 
 // RecoverOnPanic is used to recover panics triggered by processors.
