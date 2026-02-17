@@ -189,20 +189,23 @@ func convertToDefaultType(value interface{}, defaultValue interface{}) (interfac
 	if defaultValue == nil {
 		return value, nil
 	}
+	// don't truncate floats to ints
+	_, valueIsFloat := value.(float32)
+	if !valueIsFloat {
+		_, valueIsFloat = value.(float64)
+	}
 	switch defaultValue.(type) {
 	case bool:
 		return cast.ToBoolE(value)
 	case string:
 		return cast.ToStringE(value)
 	case int32, int16, int8, int:
-		switch value.(type) {
-		case float32, float64:
+		if valueIsFloat {
 			return value, nil
 		}
 		return cast.ToIntE(value)
 	case int64:
-		switch value.(type) {
-		case float32, float64:
+		if valueIsFloat {
 			return value, nil
 		}
 		return cast.ToInt64E(value)
