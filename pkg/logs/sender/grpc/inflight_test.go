@@ -21,7 +21,7 @@ func createTestPayload(content string) *message.Payload {
 }
 
 func TestNewInflightTracker(t *testing.T) {
-	tracker := newInflightTracker(10)
+	tracker := newInflightTracker("test", 10)
 
 	assert.NotNil(t, tracker)
 	assert.Equal(t, 10, tracker.cap)
@@ -36,7 +36,7 @@ func TestNewInflightTracker(t *testing.T) {
 }
 
 func TestInflightTrackerAppend(t *testing.T) {
-	tracker := newInflightTracker(10)
+	tracker := newInflightTracker("test", 10)
 
 	// Append first payload
 	payload1 := createTestPayload("test1")
@@ -59,7 +59,7 @@ func TestInflightTrackerAppend(t *testing.T) {
 
 func TestInflightTrackerAppendWhenFull(t *testing.T) {
 	// Test filling buffer to absolute capacity from empty state
-	tracker := newInflightTracker(3)
+	tracker := newInflightTracker("test", 3)
 
 	// Fill to capacity (3 items)
 	assert.True(t, tracker.append(createTestPayload("test1")))
@@ -80,7 +80,7 @@ func TestInflightTrackerAppendWhenFull(t *testing.T) {
 }
 
 func TestInflightTrackerMarkSent(t *testing.T) {
-	tracker := newInflightTracker(5)
+	tracker := newInflightTracker("test", 5)
 
 	// Add buffered payloads
 	payload1 := createTestPayload("test1")
@@ -113,7 +113,7 @@ func TestInflightTrackerMarkSent(t *testing.T) {
 }
 
 func TestInflightTrackerPop(t *testing.T) {
-	tracker := newInflightTracker(5)
+	tracker := newInflightTracker("test", 5)
 
 	// Add and mark payloads as sent
 	payload1 := createTestPayload("test1")
@@ -145,7 +145,7 @@ func TestInflightTrackerPop(t *testing.T) {
 }
 
 func TestInflightTrackerNextToSend(t *testing.T) {
-	tracker := newInflightTracker(5)
+	tracker := newInflightTracker("test", 5)
 
 	// NextToSend on empty tracker should return nil
 	assert.Nil(t, tracker.nextToSend())
@@ -176,7 +176,7 @@ func TestInflightTrackerNextToSend(t *testing.T) {
 }
 
 func TestInflightTrackerBatchIDSequence(t *testing.T) {
-	tracker := newInflightTracker(5)
+	tracker := newInflightTracker("test", 5)
 
 	// Add and send payloads
 	for i := 0; i < 3; i++ {
@@ -212,7 +212,7 @@ func TestInflightTrackerBatchIDSequence(t *testing.T) {
 }
 
 func TestInflightTrackerResetOnRotation(t *testing.T) {
-	tracker := newInflightTracker(5)
+	tracker := newInflightTracker("test", 5)
 
 	// Add payloads and mark some as sent
 	for i := 0; i < 3; i++ {
@@ -246,7 +246,7 @@ func TestInflightTrackerResetOnRotation(t *testing.T) {
 
 func TestInflightTrackerWrapAround(t *testing.T) {
 	// Test wrap-around behavior without filling to absolute capacity
-	tracker := newInflightTracker(6)
+	tracker := newInflightTracker("test", 6)
 
 	// Fill and empty to advance head pointer
 	payload1 := createTestPayload("test1")
@@ -289,7 +289,7 @@ func TestInflightTrackerWrapAround(t *testing.T) {
 }
 
 func TestInflightTrackerSentCount(t *testing.T) {
-	tracker := newInflightTracker(5)
+	tracker := newInflightTracker("test", 5)
 
 	// Initially no sent items
 	assert.Equal(t, 0, tracker.sentCount())
@@ -318,7 +318,7 @@ func TestInflightTrackerSentCount(t *testing.T) {
 }
 
 func TestInflightTrackerTotalCount(t *testing.T) {
-	tracker := newInflightTracker(5)
+	tracker := newInflightTracker("test", 5)
 
 	// Initially empty
 	assert.Equal(t, 0, tracker.totalCount())
@@ -344,7 +344,7 @@ func TestInflightTrackerTotalCount(t *testing.T) {
 }
 
 func TestInflightTrackerHasSpace(t *testing.T) {
-	tracker := newInflightTracker(10)
+	tracker := newInflightTracker("test", 10)
 
 	// Initially has space
 	assert.True(t, tracker.hasSpace())
@@ -363,7 +363,7 @@ func TestInflightTrackerHasSpace(t *testing.T) {
 
 func TestInflightTrackerMixedOperations(t *testing.T) {
 	// Test a realistic sequence of operations
-	tracker := newInflightTracker(5)
+	tracker := newInflightTracker("test", 5)
 
 	// Add 3 buffered payloads
 	p1 := createTestPayload("msg1")
@@ -421,7 +421,7 @@ func TestInflightTrackerMixedOperations(t *testing.T) {
 }
 
 func TestInflightTrackerResetOnRotationWithBuffered(t *testing.T) {
-	tracker := newInflightTracker(5)
+	tracker := newInflightTracker("test", 5)
 
 	// Mix of sent and buffered payloads
 	tracker.append(createTestPayload("msg1"))
@@ -454,7 +454,7 @@ func TestInflightTrackerResetOnRotationWithBuffered(t *testing.T) {
 }
 
 func TestInflightTrackerBatchIDAfterRotation(t *testing.T) {
-	tracker := newInflightTracker(5)
+	tracker := newInflightTracker("test", 5)
 
 	// Add and send some payloads
 	tracker.append(createTestPayload("msg1"))

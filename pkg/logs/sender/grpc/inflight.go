@@ -30,6 +30,7 @@ import (
 // - Represents the state "before" the first payload in the queue
 // - Updated when payloads are acknowledged (popped)
 type inflightTracker struct {
+	workerID       string
 	items          []*message.Payload
 	head           int            // Index of the oldest sent item (awaiting ack)
 	sentTail       int            // Index of the first buffered item that's not yet sent
@@ -42,8 +43,9 @@ type inflightTracker struct {
 
 // newInflightTracker creates a new bounded inflight tracker with the given capacity
 // Allocates capacity+1 slots to implement the "waste one slot" ring buffer pattern
-func newInflightTracker(capacity int) *inflightTracker {
+func newInflightTracker(workerID string, capacity int) *inflightTracker {
 	return &inflightTracker{
+		workerID: workerID,
 		items:    make([]*message.Payload, capacity+1),
 		cap:      capacity,
 		snapshot: newSnapshotState(),
@@ -62,6 +64,7 @@ func (t *inflightTracker) append(payload *message.Payload) bool {
 		return false
 	}
 	t.items[t.tail] = payload
+	tlmWorkerInflightSize.Add(float64(len(payload.Encoded)), t.workerID)
 	t.tail = (t.tail + 1) % len(t.items)
 	return true
 }
@@ -76,6 +79,8 @@ func (t *inflightTracker) pop() *message.Payload {
 	payload := t.items[t.head]
 	t.items[t.head] = nil // Allow GC
 	t.head = (t.head + 1) % len(t.items)
+
+	tlmWorkerInflightSize.Sub(float64(len(payload.Encoded)), t.workerID)
 
 	// Apply state changes from this payload to snapshot
 	if payload.StatefulExtra != nil {
