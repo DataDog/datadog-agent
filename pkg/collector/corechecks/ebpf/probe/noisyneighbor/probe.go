@@ -8,6 +8,7 @@
 //go:generate $GOPATH/bin/include_headers pkg/collector/corechecks/ebpf/c/runtime/noisy-neighbor-kern.c pkg/ebpf/bytecode/build/runtime/noisy-neighbor.c pkg/ebpf/c
 //go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/noisy-neighbor.c pkg/ebpf/bytecode/runtime/noisy-neighbor.go runtime
 
+// Package noisyneighbor is the system-probe side of the Noisy Neighbor check.
 package noisyneighbor
 
 import (

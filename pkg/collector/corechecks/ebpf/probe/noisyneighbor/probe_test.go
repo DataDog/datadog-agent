@@ -5,6 +5,7 @@
 
 //go:build linux_bpf
 
+// Package noisyneighbor is the system-probe side of the Noisy Neighbor check.
 package noisyneighbor
 
 import (
