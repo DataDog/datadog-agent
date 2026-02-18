@@ -7,8 +7,8 @@
 package automultilinedetection
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/tokens"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 // Label is a label for a log message.
@@ -26,7 +26,7 @@ type messageContext struct {
 	rawMessage []byte
 	// NOTE: tokens can be nil if the heuristic runs before the tokenizer.
 	// Heuristic implementations must check if tokens is nil before using it.
-	tokens          []tokens.Token
+	tokens          []types.Token
 	tokenIndicies   []int
 	label           Label
 	labelAssignedBy string
