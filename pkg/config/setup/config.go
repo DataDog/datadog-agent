@@ -1908,6 +1908,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.frame_size", 9000)
 	// maximum log message size in bytes
 	config.BindEnvAndSetDefault("logs_config.max_message_size_bytes", DefaultMaxMessageSizeBytes)
+	// use Rust tokenizer for log pattern extraction (requires rust_patterns build tag)
+	config.BindEnvAndSetDefault("logs_config.use_rust_tokenizer", false)
 
 	// increase the number of files that can be tailed in parallel:
 	if runtime.GOOS == "darwin" {

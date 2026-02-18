@@ -13,12 +13,12 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/patterns/automaton"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/tags"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const nanoToMillis = 1000000
@@ -30,18 +30,19 @@ type MessageTranslator struct {
 	patternEvictionManager *clustering.EvictionManager
 	tagManager             *tags.TagManager
 	tagEvictionManager     *tags.TagEvictionManager
+	tokenizer              token.Tokenizer
 
 	pipelineName string
 }
 
-// NewMessageTranslator creates a new MessageTranslator instance
-// If clusterManager is nil, a new one will be created
-func NewMessageTranslator(pipelineName string) *MessageTranslator {
+// NewMessageTranslator creates a new MessageTranslator instance with the specified tokenizer.
+func NewMessageTranslator(pipelineName string, tokenizer token.Tokenizer) *MessageTranslator {
 	mt := &MessageTranslator{
 		clusterManager:         clustering.NewClusterManager(),
 		patternEvictionManager: clustering.NewEvictionManager(),
 		tagManager:             tags.NewTagManager(),
 		tagEvictionManager:     tags.NewTagEvictionManager(),
+		tokenizer:              tokenizer,
 		pipelineName:           pipelineName,
 	}
 	tlmPipelineStateSize.Set(0, pipelineName)
@@ -106,7 +107,11 @@ func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan cha
 	}
 
 	// Tokenize the message content (either json extracted message or full content)
-	tokenList := tokenizeMessage(contentStr)
+	tokenList, err := mt.tokenizer.Tokenize(contentStr)
+	if err != nil {
+		log.Warnf("Failed to tokenize log message: %v", err)
+		return
+	}
 
 	// Process tokenized log through cluster manager to get/create pattern
 	pattern, changeType, patternCount, estimatedBytes := mt.clusterManager.Add(tokenList)
@@ -219,12 +224,6 @@ func getMessageTimestamp(msg *message.Message) time.Time {
 		ts = msg.ServerlessExtra.Timestamp
 	}
 	return ts
-}
-
-// tokenizeMessage tokenizes the message content string
-func tokenizeMessage(contentStr string) *token.TokenList {
-	tokenizer := automaton.NewTokenizer(contentStr)
-	return tokenizer.Tokenize()
 }
 
 // sendPatternDefine creates and sends a PatternDefine datum

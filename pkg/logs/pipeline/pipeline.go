@@ -17,6 +17,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/logs/patterns/automaton"
+	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
+	rtokenizer "github.com/DataDog/datadog-agent/pkg/logs/patterns/tokenizer/rust"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	grpcsender "github.com/DataDog/datadog-agent/pkg/logs/sender/grpc"
@@ -113,9 +116,19 @@ func getStrategy(
 			encoder = compressor.NewCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel)
 		}
 		if endpoints.UseGRPC {
-			translator := grpcsender.NewMessageTranslator(instanceID)
+			// Select tokenizer based on config (checked once at pipeline initialization)
+			var tokenizer token.Tokenizer
+			if pkgconfigsetup.Datadog().GetBool("logs_config.use_rust_tokenizer") {
+				log.Info("Using Rust tokenizer for log pattern extraction")
+				tokenizer = rtokenizer.NewRustTokenizer()
+			} else {
+				log.Info("Using Go automaton tokenizer for log pattern extraction")
+				tokenizer = automaton.NewTokenizer()
+			}
+
+			translator := grpcsender.NewMessageTranslator(instanceID, tokenizer)
 			// TODO: Consider sharing cluster manager across pipelines for better pattern clustering:
-			// translator := grpcsender.NewMessageTranslator(getSharedClusterManager())
+			// translator := grpcsender.NewMessageTranslator(getSharedClusterManager(), tokenizer)
 			statefulInputChan := translator.Start(inputChan, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))
 
 			return grpcsender.NewBatchStrategy(statefulInputChan, outputChan, flushChan, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder, pipelineMonitor, instanceID)

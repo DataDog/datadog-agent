@@ -57,6 +57,7 @@ from tasks import (
     otel_agent,
     owners,
     package,
+    patterns,
     pipeline,
     pkg_template,
     pre_commit,
@@ -238,6 +239,7 @@ ns.add_collection(diff)
 ns.add_collection(installer)
 ns.add_collection(owners)
 ns.add_collection(modules)
+ns.add_collection(patterns)
 ns.add_collection(pre_commit)
 ns.add_collection(devcontainer)
 ns.add_collection(skaffold)

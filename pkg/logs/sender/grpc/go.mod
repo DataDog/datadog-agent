@@ -9,7 +9,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.61.0
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.61.0
-	github.com/DataDog/datadog-agent/pkg/logs/patterns/automaton v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/patterns/processor v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/patterns/tags v0.0.0-00010101000000-000000000000
@@ -225,6 +224,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/patterns/processor => ../../../../pkg/logs/patterns/processor
 	github.com/DataDog/datadog-agent/pkg/logs/patterns/tags => ../../../../pkg/logs/patterns/tags
 	github.com/DataDog/datadog-agent/pkg/logs/patterns/token => ../../../../pkg/logs/patterns/token
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/tokenizer/rust => ../../../../pkg/logs/patterns/tokenizer/rust
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ../../../../pkg/logs/pipeline
 	github.com/DataDog/datadog-agent/pkg/logs/processor => ../../../../pkg/logs/processor
 	github.com/DataDog/datadog-agent/pkg/logs/sender => ../../../../pkg/logs/sender

@@ -224,6 +224,8 @@ modules:
     used_by_otel: true
   pkg/logs/patterns/token:
     used_by_otel: true
+  pkg/logs/patterns/tokenizer/rust:
+    used_by_otel: true
   pkg/logs/pipeline:
     used_by_otel: true
   pkg/logs/processor:

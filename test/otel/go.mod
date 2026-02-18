@@ -64,7 +64,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/patterns/eviction v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/patterns/processor v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/patterns/tags v0.0.0-00010101000000-000000000000 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/patterns/token v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/token v0.0.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/tokenizer/rust v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/sender/grpc v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/orchestrator/util v0.0.0-20251120165911-0b75c97e8b50 // indirect
@@ -76,6 +77,7 @@ require (
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/fatih/color v1.18.0 // indirect
+	github.com/google/flatbuffers v25.2.10+incompatible // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mdlayher/socket v0.5.1 // indirect
@@ -350,6 +352,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/patterns/processor => ../../pkg/logs/patterns/processor
 	github.com/DataDog/datadog-agent/pkg/logs/patterns/tags => ../../pkg/logs/patterns/tags
 	github.com/DataDog/datadog-agent/pkg/logs/patterns/token => ../../pkg/logs/patterns/token
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/tokenizer/rust => ../../pkg/logs/patterns/tokenizer/rust
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ../../pkg/logs/pipeline
 	github.com/DataDog/datadog-agent/pkg/logs/processor => ../../pkg/logs/processor
 	github.com/DataDog/datadog-agent/pkg/logs/sender => ../../pkg/logs/sender

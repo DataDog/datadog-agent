@@ -16,9 +16,9 @@ import (
 // TestTokenizer_SimpleTokenization tests basic tokenization and type classification
 func TestTokenizer_SimpleTokenization(t *testing.T) {
 	input := "GET /api 200"
-	tokenizer := NewTokenizer(input)
+	tokenizer := newTokenizerInternal(input)
 	defer tokenizer.Release()
-	tokenList := tokenizer.Tokenize()
+	tokenList := tokenizer.tokenize()
 
 	assert.NotEqual(t, 0, tokenList.Length(), "Expected tokens, got empty list")
 
@@ -57,7 +57,7 @@ func TestTokenizer_StateTransitions(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		tokenizer := NewTokenizer(test.input)
+		tokenizer := newTokenizerInternal(test.input)
 
 		// Capture state transitions
 		var states []TokenizerState

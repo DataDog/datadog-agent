@@ -245,7 +245,7 @@ func (e *Endpoint) UseSSL() bool {
 }
 
 // GetStatus returns the endpoint status
-func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
+func (e *Endpoint) GetStatus(prefix string, useHTTP bool, useGRPC bool) string {
 	compression := "uncompressed"
 	if e.UseCompression {
 		compression = "compressed"
@@ -256,7 +256,13 @@ func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
 	pathPrefix := e.PathPrefix
 	redactedAPIKey := scrubber.HideKeyExceptLastFiveChars(e.GetAPIKey())
 	var protocol string
-	if useHTTP {
+	if useGRPC {
+		if e.UseSSL() {
+			protocol = "gRPC (TLS)"
+		} else {
+			protocol = "gRPC"
+		}
+	} else if useHTTP {
 		if e.UseSSL() {
 			protocol = "HTTPS"
 			if port == 0 {
@@ -370,10 +376,10 @@ type Endpoints struct {
 func (e *Endpoints) GetStatus() []string {
 	result := make([]string, 0)
 	for _, endpoint := range e.GetReliableEndpoints() {
-		result = append(result, endpoint.GetStatus("Reliable: ", e.UseHTTP))
+		result = append(result, endpoint.GetStatus("Reliable: ", e.UseHTTP, e.UseGRPC))
 	}
 	for _, endpoint := range e.GetUnReliableEndpoints() {
-		result = append(result, endpoint.GetStatus("Unreliable: ", e.UseHTTP))
+		result = append(result, endpoint.GetStatus("Unreliable: ", e.UseHTTP, e.UseGRPC))
 	}
 	return result
 }

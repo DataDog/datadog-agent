@@ -239,7 +239,9 @@ func (a *logAgent) setupAgent() error {
 
 // configureAgent validates and retrieves configuration settings needed for agent operation.
 func (a *logAgent) configureAgent() ([]*config.ProcessingRule, *types.FingerprintConfig, error) {
-	if a.endpoints.UseHTTP {
+	if a.endpoints.UseGRPC {
+		status.SetCurrentTransport(status.TransportGRPC)
+	} else if a.endpoints.UseHTTP {
 		status.SetCurrentTransport(status.TransportHTTP)
 	} else {
 		status.SetCurrentTransport(status.TransportTCP)
