@@ -1,0 +1,23 @@
+receivers:
+  hostprofiler:
+    symbol_uploader:
+      enabled: false
+processors:
+  resourcedetection:
+    detectors: [env]
+    system:
+      resource_attributes:
+        host.arch:
+          enabled: false
+        host.name:
+          enabled: true
+exporters:
+  otlphttp:
+    headers:
+      dd-api-key: "test-key"
+service:
+  pipelines:
+    profiles:
+      receivers: [hostprofiler]
+      processors: [resourcedetection]
+      exporters: [otlphttp]

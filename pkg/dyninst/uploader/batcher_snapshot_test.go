@@ -97,7 +97,7 @@ func runSnapshotFile(t *testing.T, file string, envRewrite bool) {
 	events, err := parseBatcherEvents(eventsNode.Content)
 	require.NoError(t, err)
 
-	state := newBatcherState("test", cfg)
+	state := newBatcherState("test", cfg, &Metrics{})
 	virtualNow := time.Duration(0)
 
 	var outputs [][]byte

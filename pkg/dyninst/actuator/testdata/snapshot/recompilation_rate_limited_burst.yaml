@@ -1,0 +1,242 @@
+# Tests that burst allows multiple recompilations before throttling.
+# With burst=2, two recompilations are allowed before exhausting tokens.
+#
+# Flow:
+# 1. Process attaches, missing types reported -> recompilation triggers (allowance 2->1)
+# 2. Recompilation completes, process re-attaches
+# 3. New missing types -> recompilation triggers again (allowance 1->0)
+# 4. Recompilation completes, process re-attaches
+# 5. More missing types -> throttled (allowance 0 < 1)
+- !config {recompilation_rate_limit: 0.001, recompilation_rate_burst: 2}
+- !processes-updated
+  updated:
+    - process_id: {pid: 1001}
+      executable: {path: /usr/bin/test}
+      service: my-service
+      probes:
+        - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
+- !loaded {program_id: 1}
+- !attached {program_id: 1, process_id: 1001}
+# First recompilation (allowance 2 -> 1)
+- !missing-types-reported {process_id: 1001, type_names: [MyStruct]}
+- !detached {program_id: 1, process_id: 1001}
+- !unloaded {program_id: 1}
+- !loaded {program_id: 2}
+- !attached {program_id: 2, process_id: 1001}
+# Second recompilation (allowance 1 -> 0)
+- !missing-types-reported {process_id: 1001, type_names: [OtherType]}
+- !detached {program_id: 2, process_id: 1001}
+- !unloaded {program_id: 2}
+- !loaded {program_id: 3}
+- !attached {program_id: 3, process_id: 1001}
+# Third attempt -> throttled (allowance 0 < 1)
+- !missing-types-reported {process_id: 1001, type_names: [ThirdType]}
+---
+event: !processes-updated
+  updated:
+    - process_id: {pid: 1001}
+      executable: {path: /usr/bin/test}
+      service: my-service
+      probes:
+        - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
+effects:
+  - !spawn-bpf-loading {executable: /usr/bin/test@0.0m0.0, probes: [probe1], process_id: 1001, program_id: 1}
+state:
+  currently_loading: <nil> -> 1
+  queued_programs: '[]'
+  processes:
+    1001: <nil> -> WaitingForProgram (prog 1)
+  programs:
+    1: <nil> -> Loading (proc 1001)
+  stats:
+    numProcesses: 0 -> 1
+    numPrograms: 0 -> 1
+    numWaitingForProgram: 0 -> 1
+---
+event: !loaded {program_id: 1}
+effects:
+  - !attach-to-process {executable: /usr/bin/test@0.0m0.0, process_id: 1001, program_id: 1}
+state:
+  currently_loading: 1 -> <nil>
+  queued_programs: '[]'
+  processes:
+    1001: WaitingForProgram (prog 1) -> Attaching (prog 1)
+  programs:
+    1: Loading (proc 1001) -> Loaded (proc 1001)
+  stats:
+    loaded: 0 -> 1
+    numAttaching: 0 -> 1
+    numWaitingForProgram: 1 -> 0
+---
+event: !attached {program_id: 1, process_id: 1001}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attaching (prog 1) -> Attached (prog 1)
+  programs:
+    1: Loaded (proc 1001)
+  stats:
+    attached: 0 -> 1
+    numAttached: 0 -> 1
+    numAttaching: 1 -> 0
+---
+event: !missing-types-reported {process_id: 1001, type_names: [MyStruct]}
+effects:
+  - !detach-from-process {failure: "no", process_id: 1001, program_id: 1}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attached (prog 1) -> Detaching (prog 1)
+  programs:
+    1: Loaded (proc 1001) -> Draining (proc 1001)
+  discovered_types:
+    my-service: '[] -> [MyStruct]'
+  stats:
+    numAttached: 1 -> 0
+    numDetaching: 0 -> 1
+    typeRecompilationsTriggered: 0 -> 1
+---
+event: !detached {program_id: 1, process_id: 1001}
+effects:
+  - !unload-program {program_id: 1}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Detaching (prog 1)
+  programs:
+    1: Draining (proc 1001) -> Unloading (proc 1001)
+  stats:
+    detached: 0 -> 1
+---
+event: !unloaded {program_id: 1}
+effects:
+  - !spawn-bpf-loading {additional_types: [MyStruct], executable: /usr/bin/test@0.0m0.0, probes: [probe1], process_id: 1001, program_id: 2}
+state:
+  currently_loading: <nil> -> 2
+  queued_programs: '[]'
+  processes:
+    1001: Detaching (prog 1) -> WaitingForProgram (prog 2)
+  programs:
+    1: Unloading (proc 1001) -> <nil>
+    2: <nil> -> Loading (proc 1001)
+  stats:
+    numDetaching: 1 -> 0
+    numWaitingForProgram: 0 -> 1
+    unloaded: 0 -> 1
+---
+event: !loaded {program_id: 2}
+effects:
+  - !attach-to-process {executable: /usr/bin/test@0.0m0.0, process_id: 1001, program_id: 2}
+state:
+  currently_loading: 2 -> <nil>
+  queued_programs: '[]'
+  processes:
+    1001: WaitingForProgram (prog 2) -> Attaching (prog 2)
+  programs:
+    2: Loading (proc 1001) -> Loaded (proc 1001)
+  stats:
+    loaded: 1 -> 2
+    numAttaching: 0 -> 1
+    numWaitingForProgram: 1 -> 0
+---
+event: !attached {program_id: 2, process_id: 1001}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attaching (prog 2) -> Attached (prog 2)
+  programs:
+    2: Loaded (proc 1001)
+  stats:
+    attached: 1 -> 2
+    numAttached: 0 -> 1
+    numAttaching: 1 -> 0
+---
+event: !missing-types-reported {process_id: 1001, type_names: [OtherType]}
+effects:
+  - !detach-from-process {failure: "no", process_id: 1001, program_id: 2}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attached (prog 2) -> Detaching (prog 2)
+  programs:
+    2: Loaded (proc 1001) -> Draining (proc 1001)
+  discovered_types:
+    my-service: '[MyStruct] -> [MyStruct OtherType]'
+  stats:
+    numAttached: 1 -> 0
+    numDetaching: 0 -> 1
+    typeRecompilationsTriggered: 1 -> 2
+---
+event: !detached {program_id: 2, process_id: 1001}
+effects:
+  - !unload-program {program_id: 2}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Detaching (prog 2)
+  programs:
+    2: Draining (proc 1001) -> Unloading (proc 1001)
+  stats:
+    detached: 1 -> 2
+---
+event: !unloaded {program_id: 2}
+effects:
+  - !spawn-bpf-loading {additional_types: [MyStruct, OtherType], executable: /usr/bin/test@0.0m0.0, probes: [probe1], process_id: 1001, program_id: 3}
+state:
+  currently_loading: <nil> -> 3
+  queued_programs: '[]'
+  processes:
+    1001: Detaching (prog 2) -> WaitingForProgram (prog 3)
+  programs:
+    2: Unloading (proc 1001) -> <nil>
+    3: <nil> -> Loading (proc 1001)
+  stats:
+    numDetaching: 1 -> 0
+    numWaitingForProgram: 0 -> 1
+    unloaded: 1 -> 2
+---
+event: !loaded {program_id: 3}
+effects:
+  - !attach-to-process {executable: /usr/bin/test@0.0m0.0, process_id: 1001, program_id: 3}
+state:
+  currently_loading: 3 -> <nil>
+  queued_programs: '[]'
+  processes:
+    1001: WaitingForProgram (prog 3) -> Attaching (prog 3)
+  programs:
+    3: Loading (proc 1001) -> Loaded (proc 1001)
+  stats:
+    loaded: 2 -> 3
+    numAttaching: 0 -> 1
+    numWaitingForProgram: 1 -> 0
+---
+event: !attached {program_id: 3, process_id: 1001}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attaching (prog 3) -> Attached (prog 3)
+  programs:
+    3: Loaded (proc 1001)
+  stats:
+    attached: 2 -> 3
+    numAttached: 0 -> 1
+    numAttaching: 1 -> 0
+---
+event: !missing-types-reported {process_id: 1001, type_names: [ThirdType]}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attached (prog 3)
+  programs:
+    3: Loaded (proc 1001)
+  discovered_types:
+    my-service: '[MyStruct OtherType] -> [MyStruct OtherType ThirdType]'
+---
