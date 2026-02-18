@@ -1009,7 +1009,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Mostly, keys we use IsSet() on, because IsSet always returns true if a key has a default.
 	config.SetDefault("metadata_providers", []map[string]interface{}{})
 	config.SetDefault("config_providers", []map[string]interface{}{})
-	config.SetDefault("cluster_name", "")
 	config.SetDefault("listeners", []map[string]interface{}{})
 
 	config.BindEnv("provider_kind") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
