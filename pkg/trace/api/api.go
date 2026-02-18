@@ -127,10 +127,10 @@ type HTTPReceiver struct {
 	// outOfCPUCounter is counter to throttle the out of cpu warning log
 	outOfCPUCounter *atomic.Uint32
 
-	statsd   statsd.ClientInterface
-	timing   timing.Reporter
-	info     *watchdog.CurrentInfo
-	Handlers map[string]http.Handler
+	statsd        statsd.ClientInterface
+	timing        timing.Reporter
+	info          *watchdog.CurrentInfo
+	Handlers      map[string]http.Handler
 	extraHandlers map[string]http.Handler
 }
 
@@ -185,10 +185,10 @@ func NewHTTPReceiver(
 
 		outOfCPUCounter: atomic.NewUint32(0),
 
-		statsd:   statsd,
-		timing:   timing,
-		info:     watchdog.NewCurrentInfo(),
-		Handlers: make(map[string]http.Handler),
+		statsd:        statsd,
+		timing:        timing,
+		info:          watchdog.NewCurrentInfo(),
+		Handlers:      make(map[string]http.Handler),
 		extraHandlers: make(map[string]http.Handler),
 	}
 }
