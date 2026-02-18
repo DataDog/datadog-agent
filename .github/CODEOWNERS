@@ -546,7 +546,7 @@
 /pkg/pidfile/                           @DataDog/agent-runtimes
 /pkg/persistentcache/                   @DataDog/agent-runtimes
 /pkg/privateactionrunner/               @DataDog/action-platform
-/pkg/privateactionrunner/bundles/networkpath  @DataDog/action-platform @Datadog/network-path
+/pkg/privateactionrunner/bundles/ddagent/networkpath  @DataDog/action-platform @Datadog/network-path
 /pkg/proto/                             @DataDog/agent-runtimes
 /pkg/proto/datadog/languagedetection    @DataDog/container-experiences
 /pkg/proto/datadog/privateactionrunner  @DataDog/action-platform
@@ -867,9 +867,6 @@
 /**/go.sum                              # do not notify anyone
 
 # Add here modules that need explicit review from the team owning them
-/internal/tools/**/go.mod                @DataDog/agent-devx
-/internal/tools/**/go.sum                @DataDog/agent-devx
-
 /pkg/util/scrubber/go.mod                @DataDog/agent-runtimes
 /pkg/util/scrubber/go.sum                @DataDog/agent-runtimes
 

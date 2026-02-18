@@ -114,7 +114,7 @@ func (h *GetNetworkPathHandler) Run(
 
 	path.Namespace = inputs.Namespace
 	path.Origin = payload.PathOriginNetworkPathIntegration
-	path.TestRunType = payload.TestRunTypeOnDemand
+	path.TestRunType = payload.TestRunTypeTriggered
 	path.SourceProduct = payload.SourceProductNetworkPath
 	path.CollectorType = payload.CollectorTypeAgent
 	path.Source.Service = inputs.SourceService

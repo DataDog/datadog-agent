@@ -61,6 +61,8 @@ include:
 agent_rpm-x64-a7:
   extends: [.package_rpm_common, .package_rpm_x86]
   tags: ["arch:amd64", "specific:true"]
+  rules:
+    - when: on_success
   needs: ["datadog-agent-7-x64"]
   variables:
     DD_PROJECT: agent
@@ -68,6 +70,8 @@ agent_rpm-x64-a7:
 
 agent_rpm-arm64-a7:
   extends: [.package_rpm_common, .package_rpm_arm64]
+  rules:
+    - when: on_success
   needs: ["datadog-agent-7-arm64"]
   variables:
     DD_PROJECT: agent
@@ -75,6 +79,8 @@ agent_rpm-arm64-a7:
 
 agent_suse-x64-a7:
   extends: [.package_suse_rpm_common, .package_rpm_x86]
+  rules:
+    - when: on_success
   needs: ["datadog-agent-7-x64"]
   variables:
     DD_PROJECT: agent
@@ -82,6 +88,8 @@ agent_suse-x64-a7:
 
 agent_suse-arm64-a7:
   extends: [.package_suse_rpm_common, .package_rpm_arm64]
+  rules:
+    - when: on_success
   needs: ["datadog-agent-7-arm64"]
   variables:
     DD_PROJECT: agent
@@ -101,6 +109,8 @@ installer_rpm-amd64:
 agent_rpm-x64-a7-fips:
   extends: [.package_rpm_common, .package_rpm_x86]
   tags: ["arch:amd64", "specific:true"]
+  rules:
+    - when: on_success
   needs: ["datadog-agent-7-x64-fips"]
   variables:
     OMNIBUS_EXTRA_ARGS: "--host-distribution rhel --flavor fips"
@@ -109,6 +119,8 @@ agent_rpm-x64-a7-fips:
 
 agent_rpm-arm64-a7-fips:
   extends: [.package_rpm_common, .package_rpm_arm64]
+  rules:
+    - when: on_success
   needs: ["datadog-agent-7-arm64-fips"]
   variables:
     OMNIBUS_EXTRA_ARGS: "--host-distribution rhel --flavor fips"
@@ -117,6 +129,8 @@ agent_rpm-arm64-a7-fips:
 
 agent_suse-x64-a7-fips:
   extends: [.package_suse_rpm_common, .package_rpm_x86]
+  rules:
+    - when: on_success
   needs: ["datadog-agent-7-x64-fips"]
   variables:
     OMNIBUS_EXTRA_ARGS: "--host-distribution=suse --flavor fips"
@@ -125,6 +139,8 @@ agent_suse-x64-a7-fips:
 
 agent_suse-arm64-a7-fips:
   extends: [.package_suse_rpm_common, .package_rpm_arm64]
+  rules:
+    - when: on_success
   needs: ["datadog-agent-7-arm64-fips"]
   variables:
     OMNIBUS_EXTRA_ARGS: "--host-distribution=suse --flavor fips"
@@ -206,7 +222,6 @@ installer_suse_rpm-arm64:
 .package_iot_rpm_common:
   extends: .bazel:defs:cache:omnibus-transition
   rules:
-    - !reference [.except_mergequeue]
     - when: on_success
   script:
     - !reference [.cache_omnibus_ruby_deps, setup]
@@ -280,6 +295,8 @@ iot_agent_suse-x64:
 
 dogstatsd_rpm-x64:
   extends: [.package_rpm_common, .package_rpm_x86]
+  rules:
+    - when: on_success
   needs: ["dogstatsd-x64"]
   variables:
     DD_PROJECT: dogstatsd
@@ -290,6 +307,8 @@ dogstatsd_rpm-x64:
 
 dogstatsd_suse-x64:
   extends: [.package_suse_rpm_common, .package_rpm_x86]
+  rules:
+    - when: on_success
   needs: ["dogstatsd-x64"]
   variables:
     DD_PROJECT: dogstatsd

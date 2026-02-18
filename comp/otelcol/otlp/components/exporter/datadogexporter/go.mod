@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.76.0-rc.4
@@ -131,7 +131,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.54.0 // indirect
-	github.com/DataDog/go-sqllexer v0.1.12 // indirect
+	github.com/DataDog/go-sqllexer v0.1.13 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/sketches-go v1.4.7 // indirect

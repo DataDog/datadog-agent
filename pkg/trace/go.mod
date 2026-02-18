@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/trace
 
-go 1.24.0
+go 1.25.0
 
 // NOTE: Prefer using simple `require` directives instead of using `replace` if possible.
 // See https://github.com/DataDog/datadog-agent/blob/main/docs/dev/gomodreplace.md
@@ -89,7 +89,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.72.2 // indirect
-	github.com/DataDog/go-sqllexer v0.1.12 // indirect
+	github.com/DataDog/go-sqllexer v0.1.13 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/zstd v1.5.7 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect

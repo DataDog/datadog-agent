@@ -11,6 +11,7 @@ import (
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/gitlab"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+
 	gitlab "gitlab.com/gitlab-org/api/client-go"
 )
 
