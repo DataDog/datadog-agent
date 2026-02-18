@@ -66,9 +66,24 @@ func (l *UDPListener) startNewTailer() error {
 	if err != nil {
 		return err
 	}
-	l.tailer = tailer.NewDatagramTailer(l.source, conn, l.pipelineProvider.NextPipelineChan(), l.source.Config.Format, true, l.frameSize)
+	l.tailer = tailer.NewDatagramTailer(l.source, conn, l.pipelineProvider.NextPipelineChan(), true, l.frameSize)
+	l.tailer.SetOnError(func() { l.resetTailer() })
 	l.tailer.Start()
 	return nil
+}
+
+// resetTailer tears down the current tailer and connection, then starts
+// a fresh one. Called automatically on transient read errors.
+func (l *UDPListener) resetTailer() {
+	log.Infof("Resetting the UDP connection on port: %d", l.source.Config.Port)
+	l.tailer.Stop()
+	err := l.startNewTailer()
+	if err != nil {
+		log.Errorf("Could not reset the UDP connection on port %d: %v", l.source.Config.Port, err)
+		l.source.Status.Error(err)
+		return
+	}
+	l.source.Status.Success()
 }
 
 // newUDPConnection returns a new UDP connection,
@@ -84,17 +99,4 @@ func (l *UDPListener) newUDPConnection() (*net.UDPConn, error) {
 	}
 	l.Conn = udpConn
 	return udpConn, nil
-}
-
-// resetTailer creates a new tailer.
-func (l *UDPListener) resetTailer() {
-	log.Infof("Resetting the UDP connection on port: %d", l.source.Config.Port)
-	l.tailer.Stop()
-	err := l.startNewTailer()
-	if err != nil {
-		log.Errorf("Could not reset the UDP connection on port %d: %v", l.source.Config.Port, err)
-		l.source.Status.Error(err)
-		return
-	}
-	l.source.Status.Success()
 }

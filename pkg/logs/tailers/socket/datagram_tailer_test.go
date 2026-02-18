@@ -37,7 +37,7 @@ func TestDatagramTailer_Syslog_EndToEnd(t *testing.T) {
 	source := sources.NewLogSource("test-syslog-udp", &logsConfig.LogsConfig{Format: logsConfig.SyslogFormat})
 	outputChan := make(chan *message.Message, 10)
 
-	tailer := NewDatagramTailer(source, serverConn, outputChan, logsConfig.SyslogFormat, true, 0)
+	tailer := NewDatagramTailer(source, serverConn, outputChan, true, 0)
 	tailer.Start()
 
 	clientConn, err := net.DialUDP("udp", nil, serverAddr)
@@ -83,7 +83,7 @@ func TestDatagramTailer_Syslog_SourceHostTag(t *testing.T) {
 	source := sources.NewLogSource("test-syslog-udp", &logsConfig.LogsConfig{Format: logsConfig.SyslogFormat})
 	outputChan := make(chan *message.Message, 10)
 
-	tailer := NewDatagramTailer(source, serverConn, outputChan, logsConfig.SyslogFormat, true, 0)
+	tailer := NewDatagramTailer(source, serverConn, outputChan, true, 0)
 	tailer.Start()
 
 	clientConn, err := net.DialUDP("udp", nil, serverAddr)
@@ -125,7 +125,7 @@ func TestDatagramTailer_Syslog_SourceHostTagDisabled(t *testing.T) {
 	source := sources.NewLogSource("test-syslog-udp", &logsConfig.LogsConfig{Format: logsConfig.SyslogFormat})
 	outputChan := make(chan *message.Message, 10)
 
-	tailer := NewDatagramTailer(source, serverConn, outputChan, logsConfig.SyslogFormat, true, 0)
+	tailer := NewDatagramTailer(source, serverConn, outputChan, true, 0)
 	tailer.Start()
 
 	clientConn, err := net.DialUDP("udp", nil, serverAddr)
@@ -160,7 +160,7 @@ func TestDatagramTailer_Unstructured_EndToEnd(t *testing.T) {
 	source := sources.NewLogSource("test-udp", &logsConfig.LogsConfig{})
 	outputChan := make(chan *message.Message, 10)
 
-	tailer := NewDatagramTailer(source, serverConn, outputChan, "", true, 0)
+	tailer := NewDatagramTailer(source, serverConn, outputChan, true, 0)
 	tailer.Start()
 
 	clientConn, err := net.DialUDP("udp", nil, serverAddr)

@@ -67,6 +67,7 @@ func TestStreamTailer_Unstructured_BasicMessages(t *testing.T) {
 }
 
 func TestStreamTailer_Unstructured_ConnectionCloseCleansUp(t *testing.T) {
+	t.Helper()
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
 
@@ -81,6 +82,30 @@ func TestStreamTailer_Unstructured_ConnectionCloseCleansUp(t *testing.T) {
 
 	// Give the tailer a moment to observe EOF and shut down.
 	time.Sleep(100 * time.Millisecond)
+	tailer.Stop()
+}
+
+func TestStreamTailer_OnDoneCallbackFires(t *testing.T) {
+	serverConn, clientConn := net.Pipe()
+	defer serverConn.Close()
+
+	source := sources.NewLogSource("test", &config.LogsConfig{})
+	outputChan := make(chan *message.Message, 10)
+
+	tailer := NewStreamTailer(source, serverConn, outputChan, "", testFrameSize, 0, "")
+
+	done := make(chan struct{})
+	tailer.SetOnDone(func() { close(done) })
+	tailer.Start()
+
+	clientConn.Close()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("onDone callback was not invoked after connection close")
+	}
+
 	tailer.Stop()
 }
 
@@ -139,7 +164,7 @@ func TestStreamTailer_Syslog_NonTransparent(t *testing.T) {
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
 
-	source := sources.NewLogSource("test-syslog", &config.LogsConfig{})
+	source := sources.NewLogSource("test-syslog", &config.LogsConfig{Format: config.SyslogFormat})
 	outputChan := make(chan *message.Message, 10)
 
 	tailer := NewStreamTailer(source, serverConn, outputChan, config.SyslogFormat, testFrameSize, 0, "")
@@ -165,7 +190,7 @@ func TestStreamTailer_Syslog_OctetCounted(t *testing.T) {
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
 
-	source := sources.NewLogSource("test-syslog", &config.LogsConfig{})
+	source := sources.NewLogSource("test-syslog", &config.LogsConfig{Format: config.SyslogFormat})
 	outputChan := make(chan *message.Message, 10)
 
 	tailer := NewStreamTailer(source, serverConn, outputChan, config.SyslogFormat, testFrameSize, 0, "")
@@ -187,7 +212,7 @@ func TestStreamTailer_Syslog_NULFraming(t *testing.T) {
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
 
-	source := sources.NewLogSource("test-syslog", &config.LogsConfig{})
+	source := sources.NewLogSource("test-syslog", &config.LogsConfig{Format: config.SyslogFormat})
 	outputChan := make(chan *message.Message, 10)
 
 	tailer := NewStreamTailer(source, serverConn, outputChan, config.SyslogFormat, testFrameSize, 0, "")
@@ -213,7 +238,7 @@ func TestStreamTailer_Syslog_StructuredContentRendered(t *testing.T) {
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
 
-	source := sources.NewLogSource("test-syslog", &config.LogsConfig{})
+	source := sources.NewLogSource("test-syslog", &config.LogsConfig{Format: config.SyslogFormat})
 	outputChan := make(chan *message.Message, 10)
 
 	tailer := NewStreamTailer(source, serverConn, outputChan, config.SyslogFormat, testFrameSize, 0, "")
@@ -243,7 +268,7 @@ func TestStreamTailer_Syslog_SourceServiceOverride(t *testing.T) {
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
 
-	source := sources.NewLogSource("test-syslog", &config.LogsConfig{})
+	source := sources.NewLogSource("test-syslog", &config.LogsConfig{Format: config.SyslogFormat})
 	outputChan := make(chan *message.Message, 10)
 
 	tailer := NewStreamTailer(source, serverConn, outputChan, config.SyslogFormat, testFrameSize, 0, "")
