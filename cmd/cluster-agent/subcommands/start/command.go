@@ -451,8 +451,8 @@ func start(log log.Component,
 		}
 
 		tracer.Start(opts...)
-		defer tracer.Stop()
 		pkglog.Infof("APM tracing enabled for Cluster Agent (sample_rate=%.2f)", sampleRate)
+		defer tracer.Stop()
 	}
 
 	// Initialize and start remote configuration client
