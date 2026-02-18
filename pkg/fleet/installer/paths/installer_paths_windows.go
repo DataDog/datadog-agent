@@ -50,6 +50,8 @@ var (
 	AgentConfigDirExp string
 	// RootTmpDir is the temporary path where the bootstrapper will be extracted to.
 	RootTmpDir string
+	// ProtectedDir is the path to the protected directory for persistent data across upgrades.
+	ProtectedDir string
 	// DefaultUserConfigsDir is the default Agent configuration directory
 	DefaultUserConfigsDir string
 	// StableInstallerPath is the path to the stable installer binary.
@@ -104,6 +106,7 @@ func init() {
 	PackagesPath = filepath.Join(DatadogInstallerData, "packages")
 	ConfigsPath = filepath.Join(DatadogInstallerData, "managed")
 	RootTmpDir = filepath.Join(DatadogInstallerData, "tmp")
+	ProtectedDir = filepath.Join(DatadogDataDir, "protected")
 	RunPath = filepath.Join(PackagesPath, "run")
 
 	// Install directory

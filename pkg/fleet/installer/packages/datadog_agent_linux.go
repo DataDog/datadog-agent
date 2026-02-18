@@ -14,9 +14,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	extensionsPkg "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/fapolicyd"
@@ -30,10 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/upstart"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var datadogAgentPackage = hooks{
@@ -57,10 +53,19 @@ var datadogAgentPackage = hooks{
 }
 
 const (
-	agentPackage     = "datadog-agent"
 	agentSymlink     = "/usr/bin/datadog-agent"
 	installerSymlink = "/usr/bin/datadog-installer"
 )
+
+// getExtensionStoragePath returns the path where extension lists should be stored.
+// On Linux, for OCI packages use RootTmpDir (temporary storage under installer data),
+// otherwise use the package path itself.
+func getExtensionStoragePath(packagePath string) string {
+	if strings.HasPrefix(packagePath, paths.PackagesPath) {
+		return paths.RootTmpDir
+	}
+	return packagePath
+}
 
 var (
 	// agentDirectories are the directories that the agent needs to function
@@ -253,7 +258,10 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 	if err := integrations.RestoreCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 		log.Warnf("failed to restore custom integrations: %s", err)
 	}
-	if err := restoreAgentExtensions(ctx, agentPackage, env.FromEnv(), false); err != nil {
+	if err := extensionsPkg.SetPackage(ctx, agentPackage, getCurrentAgentVersion(), false); err != nil {
+		return fmt.Errorf("failed to set package version in extensions db: %w", err)
+	}
+	if err := restoreAgentExtensions(ctx, false); err != nil {
 		fmt.Printf("failed to restore extensions: %s\n", err.Error())
 		log.Warnf("failed to restore extensions: %s", err)
 	}
@@ -297,7 +305,7 @@ func preRemoveDatadogAgent(ctx HookContext) error {
 		if err := integrations.RemoveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 			log.Warnf("failed to remove custom integrations: %s\n", err.Error())
 		}
-		if err := removeAgentExtensions(ctx, agentPackage, env.FromEnv(), false); err != nil {
+		if err := removeAgentExtensions(ctx, false); err != nil {
 			log.Warnf("failed to remove agent extensions: %s", err)
 		}
 		if err := integrations.RemoveCompiledFiles(ctx.PackagePath); err != nil {
@@ -313,10 +321,10 @@ func preRemoveDatadogAgent(ctx HookContext) error {
 		if err := integrations.RemoveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 			log.Warnf("failed to remove custom integrations: %s\n", err.Error())
 		}
-		if err := saveAgentExtensions(ctx, agentPackage); err != nil {
+		if err := saveAgentExtensions(ctx); err != nil {
 			log.Warnf("failed to save agent extensions: %s", err)
 		}
-		if err := removeAgentExtensions(ctx, agentPackage, env.FromEnv(), false); err != nil {
+		if err := removeAgentExtensions(ctx, false); err != nil {
 			log.Warnf("failed to remove agent extensions: %s", err)
 		}
 		if err := integrations.RemoveCompiledFiles(ctx.PackagePath); err != nil {
@@ -336,7 +344,7 @@ func preStartExperimentDatadogAgent(ctx HookContext) error {
 	if err := integrations.SaveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 		log.Warnf("failed to save custom integrations: %s", err)
 	}
-	if err := saveAgentExtensions(ctx, agentPackage); err != nil {
+	if err := saveAgentExtensions(ctx); err != nil {
 		log.Warnf("failed to save agent extensions: %s", err)
 	}
 	return nil
@@ -351,7 +359,10 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 	if err := integrations.RestoreCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 		log.Warnf("failed to restore custom integrations: %s", err)
 	}
-	if err := restoreAgentExtensions(ctx, agentPackage, env.FromEnv(), true); err != nil {
+	if err := extensionsPkg.SetPackage(ctx, agentPackage, getCurrentAgentVersion(), true); err != nil {
+		return fmt.Errorf("failed to set package version in extensions db: %w", err)
+	}
+	if err := restoreAgentExtensions(ctx, true); err != nil {
 		log.Warnf("failed to restore agent extensions: %s", err)
 	}
 	if err := agentService.WriteExperiment(ctx); err != nil {

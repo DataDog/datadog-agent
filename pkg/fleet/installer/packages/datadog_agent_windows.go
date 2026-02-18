@@ -62,41 +62,52 @@ var datadogAgentPackage = hooks{
 }
 
 const (
-	datadogAgent          = "datadog-agent"
 	watchdogStopEventName = "Global\\DatadogInstallerStop"
 	oldInstallerDir       = "C:\\ProgramData\\Datadog Installer"
 )
 
+// getExtensionStoragePath returns the path where extension lists should be stored.
+// On Windows, this is always the protected directory to ensure persistence across MSI upgrades.
+func getExtensionStoragePath(_ string) string {
+	return paths.ProtectedDir
+}
+
 // postInstallDatadogAgent runs post install scripts for a given package.
 func postInstallDatadogAgent(ctx HookContext) error {
-	// must get env before uninstalling the Agent since it may read from the registry
-	env := getenv()
+	if ctx.PackageType != PackageTypeMSI {
+		// OCI path: Remove old agent, install via MSI
+		env := getenv()
 
-	// remove the installer if it is installed
-	// if nothing is installed this will return without an error
-	err := removeInstallerIfInstalled(ctx)
-	if err != nil {
-		// failed to remove the installer
-		return fmt.Errorf("failed to remove installer: %w", err)
+		// remove the installer if it is installed
+		// if nothing is installed this will return without an error
+		err := removeInstallerIfInstalled(ctx)
+		if err != nil {
+			// failed to remove the installer
+			return fmt.Errorf("failed to remove installer: %w", err)
+		}
+
+		// remove the Agent if it is installed
+		// if nothing is installed this will return without an error
+		err = removeAgentIfInstalledAndRestartOnFailure(ctx)
+		if err != nil {
+			// failed to remove the Agent
+			return fmt.Errorf("failed to remove Agent: %w", err)
+		}
+
+		// install the new stable Agent
+		err = installAgentPackage(ctx, env, "stable", ctx.WindowsArgs, "setup_agent.log")
+		if err != nil {
+			return err
+		}
 	}
 
-	// remove the Agent if it is installed
-	// if nothing is installed this will return without an error
-	err = removeAgentIfInstalledAndRestartOnFailure(ctx)
-	if err != nil {
-		// failed to remove the Agent
-		return fmt.Errorf("failed to remove Agent: %w", err)
+	// Common for both OCI and MSI: Restore extensions
+	// Call SetPackage separately (not inside restoreAgentExtensions)
+	if err := extensionsPkg.SetPackage(ctx, agentPackage, getCurrentAgentVersion(), false); err != nil {
+		return fmt.Errorf("failed to set package version in extensions db: %w", err)
 	}
 
-	// install the new stable Agent
-	err = installAgentPackage(ctx, env, "stable", ctx.WindowsArgs, "setup_agent.log")
-	if err != nil {
-		return err
-	}
-
-	// Restore extensions after install
-	if err := restoreAgentExtensions(ctx, datadogAgent, env, false); err != nil {
-		fmt.Printf("failed to restore extensions: %s\n", err.Error())
+	if err := restoreAgentExtensions(ctx, false); err != nil {
 		log.Warnf("failed to restore extensions: %s", err)
 	}
 
@@ -109,16 +120,22 @@ func preRemoveDatadogAgent(ctx HookContext) (err error) {
 	// returning an error here will prevent the package from being removed
 	// from the local repository.
 
-	// During upgrade, save extensions so they can be restored
-	// Note: ctx.Upgrade flag detection needs to be implemented for Windows
-	// For now, always save extensions (they'll be cleaned up after successful restore)
-	if err := saveAgentExtensions(ctx, datadogAgent); err != nil {
-		log.Warnf("failed to save agent extensions: %s", err)
+	// Save and remove extensions (all package types)
+	if ctx.Upgrade {
+		if err := saveAgentExtensions(ctx); err != nil {
+			log.Warnf("failed to save extensions: %s", err)
+		}
 	}
-	if err := removeAgentExtensions(ctx, datadogAgent, getenv(), false); err != nil {
-		log.Warnf("failed to remove agent extensions: %s", err)
+	if err := removeAgentExtensions(ctx, false); err != nil {
+		log.Warnf("failed to remove extensions: %s", err)
 	}
 
+	if ctx.PackageType == PackageTypeMSI {
+		// MSI custom action calling hook - done
+		return nil
+	}
+
+	// OCI path: Run MSI to uninstall
 	if !ctx.Upgrade {
 		return removeAgentIfInstalledAndRestartOnFailure(ctx)
 	}
@@ -138,11 +155,6 @@ func preStartExperimentDatadogAgent(ctx HookContext) error {
 	err := windowsuser.ValidateAgentUserRemoteUpdatePrerequisites(env.MsiParams.AgentUserName)
 	if err != nil {
 		return fmt.Errorf("cannot start remote update: %w", err)
-	}
-
-	// Save extensions before starting experiment
-	if err := saveAgentExtensions(ctx, datadogAgent); err != nil {
-		log.Warnf("failed to save agent extensions: %s", err)
 	}
 
 	return nil
@@ -182,6 +194,15 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 func postStartExperimentDatadogAgentBackground(ctx context.Context) error {
 	// must get env before uninstalling the Agent since it may read from the registry
 	env := getenv()
+	hookCtx := HookContext{Context: ctx, PackagePath: paths.DatadogProgramFilesDir}
+
+	// Save stable extensions before removing agent
+	if err := saveAgentExtensions(hookCtx); err != nil {
+		log.Warnf("failed to save extensions: %s", err)
+	}
+	if err := removeAgentExtensions(hookCtx, false); err != nil {
+		log.Warnf("failed to remove extensions: %s", err)
+	}
 
 	// remove the Agent if it is installed
 	// if nothing is installed this will return without an error
@@ -213,16 +234,14 @@ func postStartExperimentDatadogAgentBackground(ctx context.Context) error {
 		return err
 	}
 
-	// Restore extensions for experiment
-	// Construct HookContext with experiment package path for extension functions
-	// Path follows repository structure: {PackagesPath}/{packageName}/experiment
-	experimentPackagePath := filepath.Join(paths.PackagesPath, datadogAgent, "experiment")
-	hookCtx := HookContext{
-		Context:     ctx,
-		PackagePath: experimentPackagePath,
+	// Set package version for experiment
+	if err := extensionsPkg.SetPackage(ctx, agentPackage, getCurrentAgentVersion(), true); err != nil {
+		return fmt.Errorf("failed to set package version for experiment: %w", err)
 	}
-	if err := restoreAgentExtensions(hookCtx, datadogAgent, env, true); err != nil {
-		log.Warnf("failed to restore extensions for experiment: %s", err)
+
+	// Restore as experiment
+	if err := restoreAgentExtensions(hookCtx, true); err != nil {
+		log.Warnf("failed to restore extensions as experiment: %s", err)
 	}
 
 	// now we start our watchdog to make sure the Agent is running
@@ -262,6 +281,15 @@ func postStopExperimentDatadogAgent(ctx HookContext) (err error) {
 func postStopExperimentDatadogAgentBackground(ctx context.Context) (err error) {
 	// must get env before uninstalling the Agent since it may read from the registry
 	env := getenv()
+	hookCtx := HookContext{Context: ctx, PackagePath: paths.DatadogProgramFilesDir}
+
+	// Save experiment extensions before removing
+	if err := saveAgentExtensions(hookCtx); err != nil {
+		log.Warnf("failed to save experiment extensions: %s", err)
+	}
+	if err := removeAgentExtensions(hookCtx, true); err != nil {
+		log.Warnf("failed to remove experiment extensions: %s", err)
+	}
 
 	// remove the Agent
 	err = removeAgentIfInstalledAndRestartOnFailure(ctx)
@@ -281,6 +309,16 @@ func postStopExperimentDatadogAgentBackground(ctx context.Context) (err error) {
 		return fmt.Errorf("failed to reinstall stable Agent: %w", err)
 	}
 
+	// Set package version for stable
+	if err := extensionsPkg.SetPackage(ctx, agentPackage, getCurrentAgentVersion(), false); err != nil {
+		return fmt.Errorf("failed to set package version for stable: %w", err)
+	}
+
+	// Restore stable extensions
+	if err := restoreAgentExtensions(hookCtx, false); err != nil {
+		log.Warnf("failed to restore stable extensions: %s", err)
+	}
+
 	return nil
 }
 
@@ -296,8 +334,8 @@ func postPromoteExperimentDatadogAgent(ctx HookContext) error {
 	}
 
 	// Promote extensions from experiment to stable
-	if err := extensionsPkg.Promote(ctx.Context, datadogAgent); err != nil {
-		log.Errorf("failed to promote extensions: %s", err)
+	if err := extensionsPkg.Promote(ctx.Context, agentPackage); err != nil {
+		log.Warnf("failed to promote extensions: %s", err)
 	}
 
 	return nil
@@ -420,7 +458,7 @@ func installAgentPackage(ctx context.Context, env *env.Env, target string, args 
 
 	opts := []msi.MsiexecOption{
 		msi.Install(),
-		msi.WithMsiFromPackagePath(target, datadogAgent),
+		msi.WithMsiFromPackagePath(target, agentPackage),
 		msi.WithLogFile(logFile),
 	}
 	if env.MsiParams.AgentUserName != "" {
@@ -632,11 +670,20 @@ func newInstallerExec(env *env.Env) (*exec.InstallerExec, error) {
 // The updated repository state will cause the stable daemon to skip the stop-experiment
 // operation received from the backend, which avoids reinstalling the stable Agent again.
 func restoreStableAgentFromExperiment(ctx context.Context, env *env.Env) error {
+	// Clean up experiment extensions and restore stable
+	hookCtx := HookContext{Context: ctx, PackagePath: paths.DatadogProgramFilesDir}
+	if err := extensionsPkg.DeletePackage(ctx, agentPackage, true); err != nil {
+		log.Warnf("failed to delete experiment extensions: %s", err)
+	}
+	if err := restoreAgentExtensions(hookCtx, false); err != nil {
+		log.Warnf("failed to restore stable extensions: %s", err)
+	}
+
 	installer, err := newInstallerExec(env)
 	if err != nil {
 		return fmt.Errorf("failed to create installer exec: %w", err)
 	}
-	err = installer.RemoveExperiment(ctx, datadogAgent)
+	err = installer.RemoveExperiment(ctx, agentPackage)
 	if err != nil {
 		return fmt.Errorf("failed to restore stable Agent: %w", err)
 	}
@@ -764,7 +811,7 @@ func restoreStableConfigFromExperiment(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to create installer exec: %w", err)
 	}
-	err = installer.RemoveConfigExperiment(ctx, datadogAgent)
+	err = installer.RemoveConfigExperiment(ctx, agentPackage)
 	if err != nil {
 		return fmt.Errorf("failed to restore stable config: %w", err)
 	}
@@ -878,7 +925,7 @@ func launchPackageCommandInBackground(ctx context.Context, env *env.Env, command
 		return fmt.Errorf("failed to create installer exec: %w", err)
 	}
 
-	err = installer.StartPackageCommandDetached(ctx, datadogAgent, command)
+	err = installer.StartPackageCommandDetached(ctx, agentPackage, command)
 	if err != nil {
 		return fmt.Errorf("failed to start background process: %w", err)
 	}

@@ -21,6 +21,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
+//nolint:unused // Used in platform-specific files
+const agentPackage = "datadog-agent"
+
+// getCurrentAgentVersion returns the current agent version in URL-safe format with -1 suffix
+//
+//nolint:unused // Used in platform-specific files
+func getCurrentAgentVersion() string {
+	v := version.AgentVersionURLSafe
+	if strings.HasSuffix(v, "-1") {
+		return v
+	}
+	return v + "-1"
+}
+
 // Config structs for reading installer registry configuration from datadog.yaml
 
 //nolint:unused // Used in platform-specific files
@@ -39,17 +53,6 @@ type installerRegistryConfig struct {
 	Auth     string `yaml:"auth,omitempty"`
 	Username string `yaml:"username,omitempty"`
 	Password string `yaml:"password,omitempty"`
-}
-
-// getCurrentAgentVersion returns the current agent version in URL-safe format with -1 suffix
-//
-//nolint:unused // Used in platform-specific files
-func getCurrentAgentVersion() string {
-	v := version.AgentVersionURLSafe
-	if strings.HasSuffix(v, "-1") {
-		return v
-	}
-	return v + "-1"
 }
 
 // setRegistryConfig is a best effort to get the `installer` block from `datadog.yaml` and update the env.
@@ -86,47 +89,40 @@ func setRegistryConfig(env *env.Env) {
 // the extensions can then be picked up by the restoreAgentExtensions function to restore them
 //
 //nolint:unused // Used in platform-specific files
-func saveAgentExtensions(ctx HookContext, packageName string) error {
-	storagePath := ctx.PackagePath
-	if strings.HasPrefix(ctx.PackagePath, paths.PackagesPath) {
-		storagePath = paths.RootTmpDir
-	}
-
-	return extensionsPkg.Save(ctx, packageName, storagePath)
+func saveAgentExtensions(ctx HookContext) error {
+	storagePath := getExtensionStoragePath(ctx.PackagePath)
+	return extensionsPkg.Save(ctx, agentPackage, storagePath)
 }
 
 // removeAgentExtensions removes the extensions of the Agent package & then deletes the package from the extensions db.
 //
 //nolint:unused // Used in platform-specific files
-func removeAgentExtensions(ctx HookContext, packageName string, env *env.Env, experiment bool) error {
+func removeAgentExtensions(ctx HookContext, experiment bool) error {
+	env := env.FromEnv()
 	hooks := NewHooks(env, repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks))
-	err := extensionsPkg.RemoveAll(ctx, packageName, experiment, hooks)
+	err := extensionsPkg.RemoveAll(ctx, agentPackage, experiment, hooks)
 	if err != nil {
 		return fmt.Errorf("failed to remove all extensions: %w", err)
 	}
-	return extensionsPkg.DeletePackage(ctx, packageName, experiment)
+	return extensionsPkg.DeletePackage(ctx, agentPackage, experiment)
 }
 
-// restoreAgentExtensions restores the extensions for a package by setting the new package version in the extensions db &
-// then reading the extensions from a file on disk
+// restoreAgentExtensions restores the extensions for a package by reading the extensions from a file on disk.
+// Note: Caller must call extensionsPkg.SetPackage() separately before calling this function.
 //
 //nolint:unused // Used in platform-specific files
-func restoreAgentExtensions(ctx HookContext, packageName string, env *env.Env, experiment bool) error {
-	if err := extensionsPkg.SetPackage(ctx, packageName, getCurrentAgentVersion(), experiment); err != nil {
-		return fmt.Errorf("failed to set package version in extensions db: %w", err)
-	}
+func restoreAgentExtensions(ctx HookContext, experiment bool) error {
+	env := env.FromEnv()
 
-	storagePath := ctx.PackagePath
-	if strings.HasPrefix(ctx.PackagePath, paths.PackagesPath) {
-		storagePath = paths.RootTmpDir
-	}
+	storagePath := getExtensionStoragePath(ctx.PackagePath)
 
 	// Best effort to get the registry config from datadog.yaml
 	setRegistryConfig(env)
 
+	agentVersion := getCurrentAgentVersion()
 	downloader := oci.NewDownloader(env, env.HTTPClient())
-	url := oci.PackageURL(env, packageName, getCurrentAgentVersion())
+	url := oci.PackageURL(env, agentPackage, agentVersion)
 	hooks := NewHooks(env, repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks))
 
-	return extensionsPkg.Restore(ctx, downloader, packageName, url, storagePath, experiment, hooks)
+	return extensionsPkg.Restore(ctx, downloader, agentPackage, url, storagePath, experiment, hooks)
 }
