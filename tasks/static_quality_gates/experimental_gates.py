@@ -1177,8 +1177,6 @@ def measure_package_local(
     Example:
         dda inv experimental-gates.measure-package-local --package-path /path/to/package.deb --gate-name static_quality_gate_agent_deb_amd64
     """
-    from tasks.libs.common.color import color_message
-
     if not os.path.exists(package_path):
         print(color_message(f"❌ Package file not found: {package_path}", "red"))
         return
