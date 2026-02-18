@@ -42,15 +42,17 @@ func (r *PackagesReport) ToCycloneDX() *cyclonedx_v1_4.Bom {
 	components := make([]*cyclonedx_v1_4.Component, 0, len(r.packages))
 
 	for _, pkg := range r.packages {
-		purl := "pkg:" + pkg.Name + "@" + pkg.Version
+		version := pkg.Version
 		if pkg.Release != "" {
-			purl += "-" + pkg.Release
+			version += "-" + pkg.Release
 		}
+
+		purl := "pkg:" + pkg.Name + "@" + version
 
 		component := &cyclonedx_v1_4.Component{
 			Type:    cyclonedx_v1_4.Classification_CLASSIFICATION_LIBRARY,
 			Name:    pkg.Name,
-			Version: pkg.Version,
+			Version: version,
 			Purl:    pointer.Ptr(purl),
 		}
 
