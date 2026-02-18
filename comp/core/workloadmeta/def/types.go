@@ -2183,8 +2183,8 @@ func (crd *CRD) Merge(e Entity) error {
 
 // DeepCopy returns a deep copy of the given CRD entity
 func (crd CRD) DeepCopy() Entity {
-	copyCrd := deepcopy.Copy(crd).(*CRD)
-	return copyCrd
+	copyCrd := deepcopy.Copy(crd).(CRD)
+	return &copyCrd
 }
 
 // String return the string representation of the given CRD entity.

@@ -10,6 +10,7 @@ package listeners
 import (
 	"errors"
 	"slices"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -62,11 +63,13 @@ func (l *CRDListener) processFn(e workloadmeta.Entity) {
 		return
 	}
 
-	log.Infof("found new crd: %s - check for known integrations", crdEntity.ID)
+	adIdentifiers := []string{strings.ToLower(crdEntity.BuildGVK())}
+
+	log.Infof("found new crd: %s - check for known integrations matching ADIdentifiers %s", crdEntity.ID, adIdentifiers)
 
 	s := &CRDService{
 		entityID:      crdEntity.ID,
-		adIdentifiers: []string{crdEntity.BuildGVK()},
+		adIdentifiers: adIdentifiers,
 	}
 
 	l.AddService(

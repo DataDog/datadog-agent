@@ -20,7 +20,7 @@ const (
 	staticConfigListenerName    = "static config"
 	dbmAuroraListenerName       = "database-monitoring-aurora"
 	dbmRdsListenerName          = "database-monitoring-rds"
-	crdListenerName             = "crd"
+	crdListenerName             = "kube_crd"
 )
 
 // RegisterListeners registers the available autodiscovery listerners.
