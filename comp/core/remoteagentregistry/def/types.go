@@ -51,13 +51,17 @@ type RegistrationData struct {
 	Services         []string
 }
 
-// ObserverTracesData contains traces fetched from a remote agent's observer buffer.
+// ObserverTracesData contains traces and stats fetched from a remote agent's observer buffer.
 type ObserverTracesData struct {
 	RegisteredAgent
 	FailureReason string
 	Traces        []*pb.TraceChunkData
 	DroppedCount  uint64
 	HasMore       bool
+	// StatsPayloads contains msgpack-encoded StatsPayload objects (trace stats/metrics).
+	StatsPayloads [][]byte
+	// StatsDroppedCount indicates how many stats payloads were dropped due to buffer overflow.
+	StatsDroppedCount uint64
 }
 
 // ObserverProfilesData contains profiles fetched from a remote agent's observer buffer.

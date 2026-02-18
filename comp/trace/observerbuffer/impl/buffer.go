@@ -29,6 +29,8 @@ type Config struct {
 	TraceBufferSize int
 	// ProfileBufferSize is the maximum number of profiles to buffer.
 	ProfileBufferSize int
+	// StatsBufferSize is the maximum number of stats payloads to buffer.
+	StatsBufferSize int
 	// Enabled controls whether buffering is active.
 	Enabled bool
 }
@@ -38,6 +40,7 @@ func DefaultConfig() Config {
 	return Config{
 		TraceBufferSize:   1000,
 		ProfileBufferSize: 100,
+		StatsBufferSize:   100,
 		Enabled:           false, // Disabled by default until observer integration is ready
 	}
 }
@@ -66,8 +69,11 @@ func NewComponent(reqs Requires) Provides {
 	if profileSize := reqs.Cfg.GetInt("apm_config.observer.profile_buffer_size"); profileSize > 0 {
 		cfg.ProfileBufferSize = profileSize
 	}
+	if statsSize := reqs.Cfg.GetInt("apm_config.observer.stats_buffer_size"); statsSize > 0 {
+		cfg.StatsBufferSize = statsSize
+	}
 
-	reqs.Log.Infof("Observer buffer configured: enabled=%v, trace_buffer_size=%d, profile_buffer_size=%d", cfg.Enabled, cfg.TraceBufferSize, cfg.ProfileBufferSize)
+	reqs.Log.Infof("Observer buffer configured: enabled=%v, trace_buffer_size=%d, profile_buffer_size=%d, stats_buffer_size=%d", cfg.Enabled, cfg.TraceBufferSize, cfg.ProfileBufferSize, cfg.StatsBufferSize)
 
 	if !cfg.Enabled {
 		return Provides{Comp: &noopBuffer{}}
@@ -77,8 +83,10 @@ func NewComponent(reqs Requires) Provides {
 		Comp: &bufferImpl{
 			traceBuffer:   make([]observerbuffer.BufferedTrace, 0, cfg.TraceBufferSize),
 			profileBuffer: make([]observerbuffer.ProfileData, 0, cfg.ProfileBufferSize),
+			statsBuffer:   make([]observerbuffer.BufferedStats, 0, cfg.StatsBufferSize),
 			traceCap:      cfg.TraceBufferSize,
 			profileCap:    cfg.ProfileBufferSize,
+			statsCap:      cfg.StatsBufferSize,
 		},
 	}
 }
@@ -89,16 +97,20 @@ type bufferImpl struct {
 
 	traceBuffer   []observerbuffer.BufferedTrace
 	profileBuffer []observerbuffer.ProfileData
+	statsBuffer   []observerbuffer.BufferedStats
 
 	traceCap   int
 	profileCap int
+	statsCap   int
 
 	tracesDropped   atomic.Uint64
 	profilesDropped atomic.Uint64
+	statsDropped    atomic.Uint64
 
 	// Counters for dropped items since last drain (reset on drain)
 	traceDroppedSinceDrain   uint64
 	profileDroppedSinceDrain uint64
+	statsDroppedSinceDrain   uint64
 }
 
 // AddTrace adds a trace payload to the buffer.
@@ -322,6 +334,30 @@ func parseProfileMetadata(body []byte, boundary string) *profileMetadata {
 	return nil
 }
 
+// AddStats adds a stats payload to the buffer.
+func (b *bufferImpl) AddStats(payload *pb.StatsPayload) {
+	if payload == nil {
+		return
+	}
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	// If buffer is full, drop the oldest entry
+	if len(b.statsBuffer) >= b.statsCap {
+		// Shift buffer left by one (drop oldest)
+		copy(b.statsBuffer, b.statsBuffer[1:])
+		b.statsBuffer = b.statsBuffer[:len(b.statsBuffer)-1]
+		b.statsDropped.Add(1)
+		b.statsDroppedSinceDrain++
+	}
+
+	b.statsBuffer = append(b.statsBuffer, observerbuffer.BufferedStats{
+		Payload:      payload,
+		ReceivedAtNs: time.Now().UnixNano(),
+	})
+}
+
 // DrainTraces removes and returns up to maxItems traces from the buffer.
 func (b *bufferImpl) DrainTraces(maxItems uint32) (traces []observerbuffer.BufferedTrace, droppedCount uint64, hasMore bool) {
 	b.mu.Lock()
@@ -388,6 +424,28 @@ func (b *bufferImpl) DrainProfiles(maxItems uint32) (profiles []observerbuffer.P
 	return profiles, droppedCount, hasMore
 }
 
+// DrainStats removes and returns all buffered stats payloads.
+func (b *bufferImpl) DrainStats() (stats []observerbuffer.BufferedStats, droppedCount uint64) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	droppedCount = b.statsDroppedSinceDrain
+	b.statsDroppedSinceDrain = 0
+
+	if len(b.statsBuffer) == 0 {
+		return nil, droppedCount
+	}
+
+	// Copy the stats to return
+	stats = make([]observerbuffer.BufferedStats, len(b.statsBuffer))
+	copy(stats, b.statsBuffer)
+
+	// Clear the buffer
+	b.statsBuffer = b.statsBuffer[:0]
+
+	return stats, droppedCount
+}
+
 // Stats returns current buffer statistics.
 func (b *bufferImpl) Stats() observerbuffer.BufferStats {
 	b.mu.Lock()
@@ -400,6 +458,9 @@ func (b *bufferImpl) Stats() observerbuffer.BufferStats {
 		ProfileCount:    len(b.profileBuffer),
 		ProfileCapacity: b.profileCap,
 		ProfilesDropped: b.profilesDropped.Load(),
+		StatsCount:      len(b.statsBuffer),
+		StatsCapacity:   b.statsCap,
+		StatsDropped:    b.statsDropped.Load(),
 	}
 }
 
@@ -409,6 +470,7 @@ type noopBuffer struct{}
 func (n *noopBuffer) AddTrace(_ *pb.TracerPayload)                  {}
 func (n *noopBuffer) AddProfile(_ observerbuffer.ProfileData)       {}
 func (n *noopBuffer) AddRawProfile(_ []byte, _ map[string][]string) {}
+func (n *noopBuffer) AddStats(_ *pb.StatsPayload)                   {}
 
 func (n *noopBuffer) DrainTraces(_ uint32) ([]observerbuffer.BufferedTrace, uint64, bool) {
 	return nil, 0, false
@@ -416,6 +478,10 @@ func (n *noopBuffer) DrainTraces(_ uint32) ([]observerbuffer.BufferedTrace, uint
 
 func (n *noopBuffer) DrainProfiles(_ uint32) ([]observerbuffer.ProfileData, uint64, bool) {
 	return nil, 0, false
+}
+
+func (n *noopBuffer) DrainStats() ([]observerbuffer.BufferedStats, uint64) {
+	return nil, 0
 }
 
 func (n *noopBuffer) Stats() observerbuffer.BufferStats {
