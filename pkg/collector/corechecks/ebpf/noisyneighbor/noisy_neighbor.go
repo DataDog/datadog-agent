@@ -113,7 +113,7 @@ func (n *NoisyNeighborCheck) getContainerTags(stat model.NoisyNeighborStats) []s
 			if !entityID.Empty() {
 				taggerTags, err := n.tagger.Tag(entityID, types.HighCardinality)
 				if err != nil {
-					log.Debugf("noisy_neighbor: tagger error for container %s: %v", containerID, err)
+					log.Warnf("noisy_neighbor: tagger error for container %s: %v", containerID, err)
 				} else {
 					return taggerTags
 				}

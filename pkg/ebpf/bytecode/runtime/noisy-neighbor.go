@@ -3,4 +3,4 @@
 
 package runtime
 
-var NoisyNeighbor = newAsset("noisy-neighbor.c", "c5b57354feb510086e573eb4c728c05c3c3abe30b65a82dbd816f23fe600c9d3")
+var NoisyNeighbor = newAsset("noisy-neighbor.c", "24593733cad148085ff99d2aaeb8fdf174f2c7cf65d8be59884eb54f98707c43")
