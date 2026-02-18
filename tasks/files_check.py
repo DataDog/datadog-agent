@@ -125,11 +125,11 @@ def _inventory_changes_to_comment(added, removed, changed):
         for path, change in changed.items():
             change_str = f"* `{path}`:\n"
             if change.flags & FileChange.Flags.Permissions:
-                change_str += f"  * Permission changed: {oct(change.previous.chmod)} -> {oct(change.current.chmod)}"
+                change_str += f"  * Permission changed: {oct(change.previous.chmod)} -> {oct(change.current.chmod)}\n"
             if change.flags & FileChange.Flags.Size:
                 change_str += f'  * Size changed: {change.size_percent:+.2f}% ({byte_to_string(change.previous.size_bytes)} -> {byte_to_string(change.current.size_bytes)})\n'
             if change.flags & (FileChange.Flags.Owner | FileChange.Flags.Group):
-                change_str += f'  * File owner/group changed: {change.previous.owner}:{change.previous.group} -> {change.current.owner}:{change.current.group}'
+                change_str += f'  * File owner/group changed: {change.previous.owner}:{change.previous.group} -> {change.current.owner}:{change.current.group}\n'
             body += change_str
         body += "</details>"
     return body
