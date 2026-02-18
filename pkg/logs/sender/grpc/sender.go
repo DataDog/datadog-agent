@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 
+	"github.com/DataDog/agent-payload/v5/statefulpb"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -87,7 +88,7 @@ type Sender struct {
 
 	// gRPC connection management (shared across all streams)
 	conn   *grpc.ClientConn
-	client StatefulLogsServiceClient
+	client statefulpb.StatefulLogsServiceClient
 }
 
 // NewSender creates a new gRPC sender that implements PipelineComponent
@@ -209,7 +210,7 @@ func (s *Sender) createConnection() error {
 	}
 
 	s.conn = conn
-	s.client = NewStatefulLogsServiceClient(conn)
+	s.client = statefulpb.NewStatefulLogsServiceClient(conn)
 
 	log.Infof("Successfully created gRPC connection to %s", address)
 	return nil

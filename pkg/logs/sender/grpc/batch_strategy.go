@@ -12,6 +12,7 @@ import (
 	"github.com/benbjohnson/clock"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/DataDog/agent-payload/v5/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
@@ -27,15 +28,15 @@ var (
 // StatefulExtra holds state changes (non-Log datums) from a batch
 // Used by inflight tracker to maintain snapshot state for stream rotation
 type StatefulExtra struct {
-	StateChanges []*Datum
+	StateChanges []*statefulpb.Datum
 }
 
 // isStateDatum returns true if the datum represents a state change
 // (pattern/dict define/delete operations)
-func isStateDatum(datum *Datum) bool {
+func isStateDatum(datum *statefulpb.Datum) bool {
 	switch datum.Data.(type) {
-	case *Datum_PatternDefine, *Datum_PatternDelete,
-		*Datum_DictEntryDefine, *Datum_DictEntryDelete:
+	case *statefulpb.Datum_PatternDefine, *statefulpb.Datum_PatternDelete,
+		*statefulpb.Datum_DictEntryDefine, *statefulpb.Datum_DictEntryDelete:
 		return true
 	default:
 		return false
@@ -57,7 +58,7 @@ type batchStrategy struct {
 	clock        clock.Clock
 
 	// For gRPC: store Datums separately since MessageBuffer only stores metadata
-	grpcDatums []*Datum
+	grpcDatums []*statefulpb.Datum
 
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor
@@ -103,7 +104,7 @@ func newBatchStrategyWithClock(inputChan chan *message.StatefulMessage,
 		stopChan:        make(chan struct{}),
 		pipelineName:    pipelineName,
 		clock:           clock,
-		grpcDatums:      make([]*Datum, 0),
+		grpcDatums:      make([]*statefulpb.Datum, 0),
 		pipelineMonitor: pipelineMonitor,
 		utilization:     pipelineMonitor.MakeUtilizationMonitor(metrics.StrategyTlmName, instanceID),
 		instanceID:      instanceID,
@@ -144,27 +145,23 @@ func (s *batchStrategy) Start() {
 	}()
 }
 
-func (s *batchStrategy) addMessage(m *message.StatefulMessage) (bool, error) {
+func (s *batchStrategy) addMessage(m *message.StatefulMessage) bool {
 	// No utilization tracking here - just trivial slice operations
 	// Real work (proto marshaling) is tracked in sendMessagesWithDatums()
 
-	// Validate Datum first
+	// Defensive check - should never happen with proper message construction
 	if m.Datum == nil {
-		return false, log.Errorf("StatefulMessage has nil Datum")
-	}
-	datum, ok := m.Datum.(*Datum)
-	if !ok {
-		return false, log.Errorf("StatefulMessage Datum has wrong type: %T", m.Datum)
+		return false
 	}
 
 	// Try to add to buffer
 	if s.buffer.AddMessageWithSize(m.Metadata, m.Metadata.RawDataLen) {
-		s.grpcDatums = append(s.grpcDatums, datum)
-		return true, nil
+		s.grpcDatums = append(s.grpcDatums, m.Datum)
+		return true
 	}
 
 	// Buffer full (not an error)
-	return false, nil
+	return false
 }
 
 // Mostly copy/pasted from batch.go
@@ -174,22 +171,14 @@ func (s *batchStrategy) processMessage(m *message.StatefulMessage, outputChan ch
 		m.Metadata.Origin.LogSource.LatencyStats.Add(m.Metadata.GetLatency())
 	}
 
-	added, err := s.addMessage(m)
-	if err != nil {
-		log.Warnf("Invalid message in pipeline=%s: %v - dropping", s.pipelineName, err)
-		return
-	}
+	added := s.addMessage(m)
 	if !added || s.buffer.IsFull() {
 		s.flushBuffer(outputChan)
 	}
 	if !added {
 		// it's possible that the m could not be added because the buffer was full
 		// so we need to retry once again
-		added, err = s.addMessage(m)
-		if err != nil {
-			log.Warnf("Invalid message in pipeline=%s: %v - dropping", s.pipelineName, err)
-			return
-		}
+		added = s.addMessage(m)
 		if !added {
 			log.Warnf("Dropped message in pipeline=%s reason=too-large ContentLength=%d ContentSizeLimit=%d", s.pipelineName, m.Metadata.RawDataLen, s.buffer.ContentSizeLimit())
 			tlmDroppedTooLarge.Inc(s.pipelineName)
@@ -211,12 +200,12 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
 
 	// Use the collected Datums and clear them
 	grpcDatums := s.grpcDatums
-	s.grpcDatums = make([]*Datum, 0)
+	s.grpcDatums = make([]*statefulpb.Datum, 0)
 
 	s.sendMessagesWithDatums(messagesMetadata, grpcDatums, outputChan)
 }
 
-func (s *batchStrategy) sendMessagesWithDatums(messagesMetadata []*message.MessageMetadata, grpcDatums []*Datum, outputChan chan *message.Payload) {
+func (s *batchStrategy) sendMessagesWithDatums(messagesMetadata []*message.MessageMetadata, grpcDatums []*statefulpb.Datum, outputChan chan *message.Payload) {
 	defer s.utilization.Stop()
 
 	unencodedSize := 0
@@ -225,7 +214,7 @@ func (s *batchStrategy) sendMessagesWithDatums(messagesMetadata []*message.Messa
 	}
 
 	// Extract all state changes from this batch for snapshot management
-	var stateChanges []*Datum
+	var stateChanges []*statefulpb.Datum
 	for _, datum := range grpcDatums {
 		if isStateDatum(datum) {
 			stateChanges = append(stateChanges, datum)
@@ -233,7 +222,7 @@ func (s *batchStrategy) sendMessagesWithDatums(messagesMetadata []*message.Messa
 	}
 
 	// Create DatumSequence and marshal to bytes
-	datumSeq := &DatumSequence{
+	datumSeq := &statefulpb.DatumSequence{
 		Data: grpcDatums,
 	}
 
