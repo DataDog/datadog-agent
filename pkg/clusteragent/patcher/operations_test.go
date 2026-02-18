@@ -70,7 +70,6 @@ func TestDeletePodTemplateAnnotations(t *testing.T) {
 	assert.Len(t, annotations, 2)
 }
 
-
 func TestSetMetadataLabels(t *testing.T) {
 	op := SetMetadataLabels(map[string]interface{}{
 		"label1": "val1",
