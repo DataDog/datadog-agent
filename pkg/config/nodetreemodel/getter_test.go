@@ -71,7 +71,7 @@ b:
    - c
 `))
 
-	expected := map[interface{}]interface{}{
+	expected := map[string]interface{}{
 		"url1": []interface{}{"apikey2", "apikey3"},
 		"url2": []interface{}{"apikey4"},
 	}
