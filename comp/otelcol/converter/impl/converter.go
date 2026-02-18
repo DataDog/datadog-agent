@@ -34,7 +34,7 @@ var (
 // OTel configuration. For example, when building in an environment that
 // requires an argument-less constructor, such as with ocb. In this case,
 // the core config component is not available and the converter will not
-// attempt to enhance the configuration using agent data.
+// attempt to enhance the configuration using agent data. test
 type Requires struct {
 	Conf config.Component
 }
