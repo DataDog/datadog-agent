@@ -88,12 +88,12 @@ func (n *NoisyNeighborCheck) Run() error {
 		return fmt.Errorf("get metric sender: %s", err)
 	}
 
-	if n.cgroupReader != nil {
-		_ = n.cgroupReader.RefreshCgroups(0)
+	err = n.cgroupReader.RefreshCgroups(0)
+	if err != nil {
+		return fmt.Errorf("unable to refresh cgroups: %s", err)
 	}
 
 	var totalCgroups uint64
-
 	for _, stat := range stats {
 		totalCgroups++
 		tags := n.getContainerTags(stat)
