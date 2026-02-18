@@ -10,7 +10,6 @@ package run
 
 import (
 	"context"
-	"time"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -63,6 +62,7 @@ func MakeCommand(globalConfGetter func() *globalparams.GlobalParams) []*cobra.Co
 			return runHostProfilerCommand(context.Background(), params)
 		},
 	}
+
 	cmd.Flags().BoolVar(&params.GoRuntimeMetrics, "go-runtime-metrics", false, "Enable Go runtime metrics collection.")
 	return []*cobra.Command{cmd}
 }
@@ -85,7 +85,7 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 		)
 		opts = append(opts, getRemoteTaggerOptions()...)
 		opts = append(opts, getTraceAgentOptions(ctx)...)
-		opts = append(opts, getConfigOptions()...)
+		opts = append(opts, getConfigOptions(cliParams.GlobalParams)...)
 	} else {
 		opts = append(opts, fx.Provide(collectorimpl.NewExtraFactoriesWithoutAgentCore))
 	}
@@ -104,10 +104,10 @@ func getRemoteTaggerOptions() []fx.Option {
 	}
 }
 
-func getConfigOptions() []fx.Option {
+func getConfigOptions(params *globalparams.GlobalParams) []fx.Option {
 	return []fx.Option{
 		secretsnoopfx.Module(),
-		configsyncimpl.Module(configsyncimpl.NewParams(30*time.Second, true, 0)),
+		configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
 	}
 }
 
