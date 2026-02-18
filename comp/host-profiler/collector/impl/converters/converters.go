@@ -196,8 +196,8 @@ func SetDefault[T any](c confMap, path string, value T) (bool, error) {
 		return false, err
 	}
 
-	if existingValue, exists := currentMap[target]; exists && !reflect.DeepEqual(existingValue, value) {
-		return false, nil
+	if existingValue, exists := currentMap[target]; exists {
+		return reflect.DeepEqual(existingValue, value), nil
 	}
 	currentMap[target] = value
 	return true, nil

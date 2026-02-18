@@ -238,10 +238,12 @@ func (c *converterWithoutAgent) ensureResourceDetectionConfig(resourceDetection 
 	}
 
 	// Always ensure host.arch is enabled
-	if ddDefaultValue, err := SetDefault(resourceDetection, "system::resource_attributes::host.arch::enabled", true); err != nil {
+	ddDefaultValue, err := SetDefault(resourceDetection, "system::resource_attributes::host.arch::enabled", true)
+	if err != nil {
 		return err
-	} else if !ddDefaultValue {
-		standaloneLogger.Warn("host.arch is required but is disabled by user configuration and will break symbolication; preserving user value")
+	}
+	if !ddDefaultValue {
+		standaloneLogger.Warn("host.arch is required but is disabled by user configuration; preserving user value. Profiles for compiled languages will be missing symbols.")
 	}
 
 	// Only set these defaults if we added the system detector
