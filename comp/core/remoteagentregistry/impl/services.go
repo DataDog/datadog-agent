@@ -9,6 +9,7 @@ package remoteagentregistryimpl
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -160,13 +161,9 @@ func collectFromPromText(ch chan<- prometheus.Metric, promText string, remoteAge
 			// Check if the metric already has a remote_agent label.
 			// With explicit agent identity, metrics should already have the correct value.
 			// We only add the label if it's missing (for backward compatibility).
-			hasRemoteAgentLabel := false
-			for _, label := range metric.Label {
-				if *label.Name == remoteAgentMetricTagName {
-					hasRemoteAgentLabel = true
-					break
-				}
-			}
+			hasRemoteAgentLabel := slices.ContainsFunc(metric.Label, func(label *dto.LabelPair) bool {
+				return *label.Name == remoteAgentMetricTagName
+			})
 
 			labelNames := make([]string, 0, len(metric.Label)+1)
 			labelValues := make([]string, 0, len(metric.Label)+1)
