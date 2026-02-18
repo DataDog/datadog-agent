@@ -135,6 +135,10 @@ type NodeTreeConfig interface {
 	GetNode(string) (Node, error)
 }
 
+func (c *ntmConfig) GetSchema() map[string]interface{} {
+	return nil
+}
+
 // OnUpdate adds a callback to the list of receivers to be called each time a value is changed in the configuration
 // by a call to the 'Set' method.
 // Callbacks are only called if the value is effectively changed.

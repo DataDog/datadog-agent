@@ -40,6 +40,11 @@ func NewTeeConfig(baseline, compare model.BuildableConfig) model.BuildableConfig
 // GetLibType return "tee"
 func (t *teeConfig) GetLibType() string { return "tee" }
 
+// GetSchema return the current schema from the configuration
+func (t *teeConfig) GetSchema() map[string]interface{} {
+	return t.baseline.GetSchema()
+}
+
 // RevertFinishedBackToBuilder returns an interface that can build more on the
 // current config, instead of treating it as sealed
 // NOTE: Only used by OTel, no new uses please!

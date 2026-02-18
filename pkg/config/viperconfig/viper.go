@@ -70,6 +70,7 @@ type safeConfig struct {
 	warnings []error
 
 	existingTransformers map[string]bool
+	Schema               map[string]interface{}
 }
 
 // GetLibType return "viper"
@@ -93,7 +94,7 @@ func getCallerLocation(nbStack int) string {
 // Set wraps Viper for concurrent access
 func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) {
 	if source == model.SourceDefault {
-		c.SetDefault(key, newValue)
+		c.setDefaultInternal(key, newValue)
 		return
 	}
 
@@ -148,6 +149,11 @@ func (c *safeConfig) SetWithoutSource(key string, value interface{}) {
 
 // SetDefault wraps Viper for concurrent access
 func (c *safeConfig) SetDefault(key string, value interface{}) {
+	c.addToSchema(key, value, nil, true, false)
+	c.setDefaultInternal(key, value)
+}
+
+func (c *safeConfig) setDefaultInternal(key string, value interface{}) {
 	c.Lock()
 	defer c.Unlock()
 	c.configSources[model.SourceDefault].Set(key, value)
@@ -193,6 +199,7 @@ func (c *safeConfig) mergeViperInstances(key string) {
 
 // SetKnown adds a key to the set of known valid config keys
 func (c *safeConfig) SetKnown(key string) {
+	c.addToSchema(key, nil, nil, true, true)
 	c.Lock()
 	defer c.Unlock()
 	c.Viper.SetKnown(key) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
@@ -615,6 +622,11 @@ func (c *safeConfig) mergeWithEnvPrefix(key string) string {
 
 // BindEnv wraps Viper for concurrent access, and adds tracking of the configurable env vars
 func (c *safeConfig) BindEnv(key string, envvars ...string) {
+	c.addToSchema(key, nil, envvars, false, true)
+	c.bindEnvInternal(key, envvars...)
+}
+
+func (c *safeConfig) bindEnvInternal(key string, envvars ...string) {
 	c.Lock()
 	defer c.Unlock()
 	var envKeys []string
@@ -933,8 +945,9 @@ func (c *safeConfig) GetEnvVars() []string {
 
 // BindEnvAndSetDefault implements the Config interface
 func (c *safeConfig) BindEnvAndSetDefault(key string, val interface{}, envvars ...string) {
-	c.SetDefault(key, val)
-	c.BindEnv(key, envvars...) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' //nolint:errcheck
+	c.addToSchema(key, val, envvars, false, false)
+	c.setDefaultInternal(key, val)
+	c.bindEnvInternal(key, envvars...) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' //nolint:errcheck
 }
 
 func (c *safeConfig) Warnings() *model.Warnings {
@@ -962,6 +975,9 @@ func NewViperConfig(name string, envPrefix string, envKeyReplacer *strings.Repla
 		configEnvVars:        map[string]struct{}{},
 		unknownKeys:          map[string]struct{}{},
 		existingTransformers: make(map[string]bool),
+		Schema: map[string]interface{}{
+			"properties": map[string]interface{}{},
+		},
 	}
 
 	// load one Viper instance per source of setting change
@@ -975,6 +991,10 @@ func NewViperConfig(name string, envPrefix string, envKeyReplacer *strings.Repla
 	config.SetEnvKeyReplacer(envKeyReplacer)
 
 	return &config
+}
+
+func (c *safeConfig) GetSchema() map[string]interface{} {
+	return c.Schema
 }
 
 // Stringify stringifies the config, but only for nodetremodel with the test build tag
