@@ -138,7 +138,7 @@ func (c *registryCollector) GetRegisteredAgentsTelemetry(ch chan<- prometheus.Me
 }
 
 // Retrieve the telemetry data in exposition format from the remote agent
-// GetObserverTraces fetches traces from all registered remote agents that support the ObserverProvider service.
+// GetObserverTraces fetches traces and stats from all registered remote agents that support the ObserverProvider service.
 func (ra *remoteAgentRegistry) GetObserverTraces(maxItems uint32) []remoteagentregistry.ObserverTracesData {
 	client := func(ctx context.Context, remoteAgent *remoteAgentClient, opts ...grpc.CallOption) (*pb.GetTracesResponse, error) {
 		return remoteAgent.GetTraces(ctx, &pb.GetTracesRequest{MaxItems: maxItems}, opts...)
@@ -156,6 +156,8 @@ func (ra *remoteAgentRegistry) GetObserverTraces(maxItems uint32) []remoteagentr
 		out.Traces = in.Traces
 		out.DroppedCount = in.DroppedCount
 		out.HasMore = in.HasMore
+		out.StatsPayloads = in.StatsPayloads
+		out.StatsDroppedCount = in.StatsDroppedCount
 		return out
 	}
 

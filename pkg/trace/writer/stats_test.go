@@ -633,7 +633,7 @@ func testStatsWriter() (*DatadogStatsWriter, *testServer) {
 		StatsWriter:   &config.WriterConfig{ConnectionLimit: 20, QueueSize: 20},
 		ContainerTags: func(_ string) ([]string, error) { return nil, nil },
 	}
-	return NewStatsWriter(cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, &containertagsbuffer.NoOpTagsBuffer{}), srv
+	return NewStatsWriter(cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, &containertagsbuffer.NoOpTagsBuffer{}, nil), srv
 }
 
 func testStatsSyncWriter() (*DatadogStatsWriter, *testServer) {
@@ -643,7 +643,7 @@ func testStatsSyncWriter() (*DatadogStatsWriter, *testServer) {
 		StatsWriter:         &config.WriterConfig{ConnectionLimit: 20, QueueSize: 20},
 		SynchronousFlushing: true,
 	}
-	return NewStatsWriter(cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, &containertagsbuffer.NoOpTagsBuffer{}), srv
+	return NewStatsWriter(cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, &containertagsbuffer.NoOpTagsBuffer{}, nil), srv
 }
 
 type key struct {

@@ -28,6 +28,10 @@ message GetTracesResponse {
     uint64 dropped_count = 2;
     // has_more indicates if there is more data available in the buffer.
     bool has_more = 3;
+    // stats_payloads contains msgpack-encoded StatsPayload objects (trace stats/metrics).
+    repeated bytes stats_payloads = 4;
+    // stats_dropped_count indicates how many stats payloads were dropped due to buffer overflow.
+    uint64 stats_dropped_count = 5;
 }
 
 // TraceChunkData wraps a serialized TracerPayload with metadata about when it was received.
