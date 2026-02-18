@@ -25,9 +25,9 @@ func NewRunPredefinedPowershellScriptHandler() *RunPredefinedPowershellScriptHan
 }
 
 func (h *RunPredefinedPowershellScriptHandler) Run(
-	_ context.Context,
-	_ *types.Task,
-	_ *privateconnection.PrivateCredentials,
+	_ctx context.Context,
+	_task *types.Task,
+	_credentials *privateconnection.PrivateCredentials,
 ) (interface{}, error) {
 	return nil, errors.New("RunPredefinedPowershellScript is not available")
 }
