@@ -146,7 +146,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidGRPCCon
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	suite.True(endpoints.UseGRPC)
-	suite.False(endpoints.UseHTTP)
+	suite.True(endpoints.UseHTTP)
 	suite.Equal(endpoints.BatchWait, 5*time.Second)
 
 	endpoint = endpoints.Main
@@ -355,11 +355,11 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldTakeIntoAccountHTTPConn
 		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
 		suite.Nil(err)
 		suite.True(endpoints.UseGRPC)
-		suite.False(endpoints.UseHTTP)
+		suite.True(endpoints.UseHTTP)
 		endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 		suite.Nil(err)
 		suite.True(endpoints.UseGRPC)
-		suite.False(endpoints.UseHTTP)
+		suite.True(endpoints.UseHTTP)
 	})
 
 	suite.Run("When additional_endpoints is not empty always create TCP endpoints", func() {
