@@ -54,7 +54,7 @@ func newCheck(tagger tagger.Component) check.Check {
 }
 
 func (n *NoisyNeighborCheck) Interval() time.Duration {
-	return 5 * time.Second
+	return 10 * time.Second
 }
 
 func (c *NoisyNeighborConfig) Parse(data []byte) error {
