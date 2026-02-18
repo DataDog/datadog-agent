@@ -189,11 +189,6 @@ var (
 	StartTime = time.Now()
 )
 
-// GetDefaultSecurityProfilesDir is the default directory used to store Security Profiles by the runtime security module
-func GetDefaultSecurityProfilesDir() string {
-	return filepath.Join(defaultRunPath, "runtime-security", "profiles")
-}
-
 // List of integrations allowed to be configured by RC by default
 var defaultAllowedRCIntegrations = []string{}
 
