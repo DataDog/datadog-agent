@@ -25,7 +25,6 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/sdk/metric"
-	"go.uber.org/zap"
 )
 
 // Params contains the parameters for the collector component.
@@ -93,8 +92,6 @@ func (c *collectorImpl) Run() error {
 }
 
 func newCollectorSettings(uri string, extraFactories ExtraFactories) (otelcol.CollectorSettings, error) {
-	zapCore := extraFactories.GetZapCore()
-
 	return otelcol.CollectorSettings{
 		BuildInfo: component.BuildInfo{
 			Command:     filepath.Base(os.Args[0]),
@@ -110,9 +107,6 @@ func newCollectorSettings(uri string, extraFactories ExtraFactories) (otelcol.Co
 					fileprovider.NewFactory(),
 				},
 				ConverterFactories: extraFactories.GetConverters(),
-				ProviderSettings: confmap.ProviderSettings{
-					Logger: zap.New(zapCore),
-				},
 			},
 		},
 		LoggingOptions: extraFactories.GetLoggingOptions(),

@@ -12,10 +12,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 
 	"go.opentelemetry.io/collector/confmap"
-	"go.uber.org/zap"
+	"go.uber.org/zap/exp/zapslog"
 )
 
 var resourceDetectionDefaultConfig = confMap{
@@ -45,14 +46,12 @@ var resourceDetectionDefaultConfig = confMap{
 //   - If hostprofiler::symbol_uploader::enabled == true, convert api_key/app_key to strings in each endpoint
 //   - If no hostprofiler is used & configured, add minimal one with symbol_uploader: false
 //   - remove ddprofiling & hpflare extensions
-type converterWithoutAgent struct {
-	logger *zap.SugaredLogger
-}
+type converterWithoutAgent struct{}
 
 func newConverterWithoutAgent(convSettings confmap.ConverterSettings) confmap.Converter {
-	logger := convSettings.Logger.Sugar()
-	SetLogger(logger)
-	return &converterWithoutAgent{logger: logger}
+	logger := convSettings.Logger
+	slog.SetDefault(slog.New(zapslog.NewHandler(logger.Core())))
+	return &converterWithoutAgent{}
 }
 
 func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) error {
@@ -209,7 +208,7 @@ func (c *converterWithoutAgent) fixProcessorsPipeline(conf confMap, processorNam
 		if err := Set(processors, defaultResourceDetectionName, resourceDetectionDefaultConfig); err != nil {
 			return nil, err
 		}
-		c.logger.Warn("Added minimal resourcedetection processor to user configuration")
+		slog.Warn("Added minimal resourcedetection processor to user configuration")
 		processorNames = append(processorNames, defaultResourceDetectionName)
 	}
 
@@ -293,7 +292,7 @@ func (c *converterWithoutAgent) fixReceiversPipeline(conf confMap, receiverNames
 		return nil, err
 	}
 
-	c.logger.Warn("Added minimal hostprofiler receiver to user configuration")
+	slog.Warn("Added minimal hostprofiler receiver to user configuration")
 	return append(receiverNames, defaultHostProfilerName), nil
 }
 

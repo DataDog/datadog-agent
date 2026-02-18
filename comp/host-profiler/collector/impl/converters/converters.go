@@ -14,22 +14,13 @@ package converters
 import (
 	"fmt"
 	"reflect"
+	"log/slog"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
-	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 	"go.opentelemetry.io/collector/confmap"
-	"go.uber.org/zap"
 )
-
-// pkgLogger defines the logger strategy to follow bundle mode by default.
-var pkgLogger *zap.SugaredLogger = zap.New(zapAgent.NewZapCore()).Sugar()
-
-// SetLogger overrides the default logger with the provided logger.
-func SetLogger(l *zap.SugaredLogger) {
-	pkgLogger = l
-}
 
 // NewFactoryWithoutAgent returns a new converterWithoutAgent factory.
 func NewFactoryWithoutAgent() confmap.ConverterFactory {
@@ -106,13 +97,13 @@ func Get[T any](c confMap, path string) (T, bool) {
 	for _, key := range pathSlice[:len(pathSlice)-1] {
 		childConfMap, exists := currentMap[key]
 		if !exists {
-			pkgLogger.Debugf("Non existent %s intermediate map in %s", key, path)
+			slog.Debug("non-existent intermediate map", "key", key, "path", path)
 			return zero, false
 		}
 
 		childMap, isMap := childConfMap.(confMap)
 		if !isMap {
-			pkgLogger.Debugf("Intermediate node %s in %s is not a map", key, path)
+			slog.Debug("intermediate node is not a map", "key", key, "path", path)
 			return zero, false
 		}
 
@@ -121,7 +112,7 @@ func Get[T any](c confMap, path string) (T, bool) {
 
 	obj, exists := currentMap[target]
 	if !exists {
-		pkgLogger.Debugf("leaf element in %s doesn't exist", path)
+		slog.Debug("leaf element doesn't exist", "path", path)
 		return zero, false
 	}
 
@@ -187,7 +178,7 @@ func Set[T any](c confMap, path string, value T) error {
 	}
 
 	if existingValue, exists := currentMap[target]; exists {
-		pkgLogger.Debugf("Overwriting config at %s: %v -> %v", path, existingValue, value)
+		slog.Debug("overwriting config", "path", path, "old", existingValue, "new", value)
 	}
 	currentMap[target] = value
 	return nil
@@ -228,11 +219,11 @@ func ensureKeyStringValue(config confMap, key string) bool {
 	// Only convert primitive numeric types
 	switch v := val.(type) {
 	case int, int32, int64, float32, float64, uint, uint32, uint64:
-		pkgLogger.Debugf("converting %s value from %T to string", key, val)
+		slog.Debug("converting value to string", "key", key, "type", fmt.Sprintf("%T", val))
 		config[key] = fmt.Sprintf("%v", v)
 		return true
 	default:
-		pkgLogger.Warnf("API key %s has unexpected type %T, cannot convert", key, val)
+		slog.Warn("API key has unexpected type, cannot convert", "key", key, "type", fmt.Sprintf("%T", val))
 		return false
 	}
 }

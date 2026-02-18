@@ -9,9 +9,6 @@
 package collectorimpl
 
 import (
-	"log/slog"
-	"os"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -23,8 +20,6 @@ import (
 	ddprofilingextensionimpl "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
-	logAgent "github.com/DataDog/datadog-agent/pkg/util/log"
-	slogWrapper "github.com/DataDog/datadog-agent/pkg/util/log/slog"
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor"
@@ -32,7 +27,6 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor"
 	"go.uber.org/zap"
-	"go.uber.org/zap/exp/zapslog"
 	"go.uber.org/zap/zapcore"
 
 	"go.opentelemetry.io/collector/confmap"
@@ -51,7 +45,6 @@ type ExtraFactories interface {
 	GetProcessors() []processor.Factory
 	GetConverters() []confmap.ConverterFactory
 	GetExtensions() []extension.Factory
-	GetZapCore() zapcore.Core
 	GetLoggingOptions() []zap.Option
 }
 
@@ -91,12 +84,8 @@ func NewExtraFactoriesWithAgentCore(
 	}
 }
 
-func (e extraFactoriesWithAgentCore) GetZapCore() zapcore.Core {
-	return zapAgent.NewZapCoreWithDepth(zapCoreStackDepth)
-}
-
 func (e extraFactoriesWithAgentCore) GetLoggingOptions() []zap.Option {
-	zapCore := e.GetZapCore()
+	zapCore := zapAgent.NewZapCoreWithDepth(zapCoreStackDepth)
 	return []zap.Option{
 		zap.WrapCore(func(zapcore.Core) zapcore.Core {
 			return zapCore
@@ -134,28 +123,8 @@ func NewExtraFactoriesWithoutAgentCore() ExtraFactories {
 	return extraFactoriesWithoutAgentCore{}
 }
 
-func (e extraFactoriesWithoutAgentCore) GetZapCore() zapcore.Core {
-	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
-	logLevel := "info"
-
-	if envLevel := os.Getenv("DD_LOG_LEVEL"); envLevel != "" {
-		logLevel = envLevel
-	}
-
-	// manually init agent's log module since it's not done for us in Standalone mode
-	logAgent.SetupLogger(slogWrapper.NewWrapper(handler), logLevel)
-
-	return zapAgent.NewZapCoreWithDepth(zapCoreStackDepth)
-}
-
 func (e extraFactoriesWithoutAgentCore) GetLoggingOptions() []zap.Option {
-	return []zap.Option{
-		zap.WrapCore(func(core zapcore.Core) zapcore.Core {
-			slogLogger := zap.New(core)
-			slog.SetDefault(slog.New(zapslog.NewHandler(slogLogger.Core())))
-			return core
-		}),
-	}
+	return []zap.Option{}
 }
 
 // GetExtensions returns the extensions for the collector.
