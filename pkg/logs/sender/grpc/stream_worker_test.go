@@ -22,6 +22,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/DataDog/agent-payload/v5/statefulpb"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -55,16 +56,16 @@ type mockLogsStream struct {
 	mu sync.Mutex
 
 	// Channels for communication
-	sendCh chan *StatefulBatch // Batches sent by client
-	recvCh chan *BatchStatus   // Acks to send to client
-	errCh  chan error          // To inject immediate errors in Recv()
+	sendCh chan *statefulpb.StatefulBatch // Batches sent by client
+	recvCh chan *statefulpb.BatchStatus   // Acks to send to client
+	errCh  chan error                     // To inject immediate errors in Recv()
 
 	// Error control
 	sendErr error // If set, next Send() will return this error
 	recvErr error // If set, next Recv() will return this error
 
 	// Track sent batches
-	sentBatches []*StatefulBatch
+	sentBatches []*statefulpb.StatefulBatch
 
 	// Context
 	ctx context.Context
@@ -72,15 +73,15 @@ type mockLogsStream struct {
 
 func newMockLogsStream(ctx context.Context) *mockLogsStream {
 	return &mockLogsStream{
-		sendCh:      make(chan *StatefulBatch, 100),
-		recvCh:      make(chan *BatchStatus, 100),
+		sendCh:      make(chan *statefulpb.StatefulBatch, 100),
+		recvCh:      make(chan *statefulpb.BatchStatus, 100),
 		errCh:       make(chan error, 1),
-		sentBatches: make([]*StatefulBatch, 0),
+		sentBatches: make([]*statefulpb.StatefulBatch, 0),
 		ctx:         ctx,
 	}
 }
 
-func (m *mockLogsStream) Send(batch *StatefulBatch) error {
+func (m *mockLogsStream) Send(batch *statefulpb.StatefulBatch) error {
 	m.mu.Lock()
 	if m.sendErr != nil {
 		err := m.sendErr
@@ -100,7 +101,7 @@ func (m *mockLogsStream) Send(batch *StatefulBatch) error {
 	}
 }
 
-func (m *mockLogsStream) Recv() (*BatchStatus, error) {
+func (m *mockLogsStream) Recv() (*statefulpb.BatchStatus, error) {
 	m.mu.Lock()
 	if m.recvErr != nil {
 		err := m.recvErr
@@ -132,7 +133,7 @@ func (m *mockLogsStream) setSendError(err error) {
 
 // Helper to send an ack to the client
 func (m *mockLogsStream) sendAck(batchID int32) {
-	m.recvCh <- &BatchStatus{
+	m.recvCh <- &statefulpb.BatchStatus{
 		BatchId: batchID,
 	}
 }
@@ -150,7 +151,7 @@ func (m *mockLogsStream) getSentBatchCount() int {
 }
 
 // Helper to get a specific sent batch by index
-func (m *mockLogsStream) getSentBatch(index int) *StatefulBatch {
+func (m *mockLogsStream) getSentBatch(index int) *statefulpb.StatefulBatch {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if index < 0 || index >= len(m.sentBatches) {
@@ -175,7 +176,7 @@ func newMockLogsClient() *mockLogsClient {
 	return &mockLogsClient{}
 }
 
-func (m *mockLogsClient) LogsStream(ctx context.Context, _ ...grpc.CallOption) (StatefulLogsService_LogsStreamClient, error) {
+func (m *mockLogsClient) LogsStream(ctx context.Context, _ ...grpc.CallOption) (statefulpb.StatefulLogsService_LogsStreamClient, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -800,10 +801,10 @@ func TestStreamWorkerErrorRecovery(t *testing.T) {
 }
 
 // Helper functions to create Datum objects for testing
-func createPatternDefine(id uint64, template string) *Datum {
-	return &Datum{
-		Data: &Datum_PatternDefine{
-			PatternDefine: &PatternDefine{
+func createPatternDefine(id uint64, template string) *statefulpb.Datum {
+	return &statefulpb.Datum{
+		Data: &statefulpb.Datum_PatternDefine{
+			PatternDefine: &statefulpb.PatternDefine{
 				PatternId: id,
 				Template:  template,
 			},
@@ -811,20 +812,20 @@ func createPatternDefine(id uint64, template string) *Datum {
 	}
 }
 
-func createPatternDelete(id uint64) *Datum {
-	return &Datum{
-		Data: &Datum_PatternDelete{
-			PatternDelete: &PatternDelete{
+func createPatternDelete(id uint64) *statefulpb.Datum {
+	return &statefulpb.Datum{
+		Data: &statefulpb.Datum_PatternDelete{
+			PatternDelete: &statefulpb.PatternDelete{
 				PatternId: id,
 			},
 		},
 	}
 }
 
-func createDictEntryDefine(id uint64, value string) *Datum {
-	return &Datum{
-		Data: &Datum_DictEntryDefine{
-			DictEntryDefine: &DictEntryDefine{
+func createDictEntryDefine(id uint64, value string) *statefulpb.Datum {
+	return &statefulpb.Datum{
+		Data: &statefulpb.Datum_DictEntryDefine{
+			DictEntryDefine: &statefulpb.DictEntryDefine{
 				Id:    id,
 				Value: value,
 			},
@@ -832,10 +833,10 @@ func createDictEntryDefine(id uint64, value string) *Datum {
 	}
 }
 
-func createDictEntryDelete(id uint64) *Datum {
-	return &Datum{
-		Data: &Datum_DictEntryDelete{
-			DictEntryDelete: &DictEntryDelete{
+func createDictEntryDelete(id uint64) *statefulpb.Datum {
+	return &statefulpb.Datum{
+		Data: &statefulpb.Datum_DictEntryDelete{
+			DictEntryDelete: &statefulpb.DictEntryDelete{
 				Id: id,
 			},
 		},
@@ -843,7 +844,7 @@ func createDictEntryDelete(id uint64) *Datum {
 }
 
 // createPayloadWithState creates a payload with state changes in StatefulExtra
-func createPayloadWithState(content string, stateChanges []*Datum) *message.Payload {
+func createPayloadWithState(content string, stateChanges []*statefulpb.Datum) *message.Payload {
 	payload := createWorkerTestPayload(content)
 	if len(stateChanges) > 0 {
 		payload.StatefulExtra = &StatefulExtra{
@@ -854,12 +855,12 @@ func createPayloadWithState(content string, stateChanges []*Datum) *message.Payl
 }
 
 // verifySnapshotContents checks if a snapshot batch contains the expected state
-func verifySnapshotContents(t *testing.T, batch *StatefulBatch, expectedPatterns map[uint64]string, expectedDictEntries map[uint64]string) {
+func verifySnapshotContents(t *testing.T, batch *statefulpb.StatefulBatch, expectedPatterns map[uint64]string, expectedDictEntries map[uint64]string) {
 	require.NotNil(t, batch)
 	require.Equal(t, uint32(0), batch.BatchId, "Snapshot should have batch ID 0")
 
 	// Deserialize the snapshot data (it's a DatumSequence)
-	var datumSeq DatumSequence
+	var datumSeq statefulpb.DatumSequence
 	err := proto.Unmarshal(batch.Data, &datumSeq)
 	require.NoError(t, err)
 
@@ -869,9 +870,9 @@ func verifySnapshotContents(t *testing.T, batch *StatefulBatch, expectedPatterns
 
 	for _, datum := range datumSeq.Data {
 		switch d := datum.Data.(type) {
-		case *Datum_PatternDefine:
+		case *statefulpb.Datum_PatternDefine:
 			foundPatterns[d.PatternDefine.PatternId] = d.PatternDefine.Template
-		case *Datum_DictEntryDefine:
+		case *statefulpb.Datum_DictEntryDefine:
 			foundDictEntries[d.DictEntryDefine.Id] = d.DictEntryDefine.Value
 		default:
 			t.Fatalf("Snapshot should only contain PatternDefine and DictEntryDefine, got: %T", datum.Data)
@@ -900,7 +901,7 @@ func TestStreamWorkerSnapshot(t *testing.T) {
 	}, testTimeout, testTickInterval, "Initial stream should be established")
 
 	// === Step 1: Send Batch 1 (5 entries) ===
-	batch1StateChanges := []*Datum{
+	batch1StateChanges := []*statefulpb.Datum{
 		createPatternDefine(1, "pattern1"),
 		createDictEntryDefine(1, "value1"),
 		createPatternDefine(2, "pattern2"),
@@ -926,7 +927,7 @@ func TestStreamWorkerSnapshot(t *testing.T) {
 	}
 
 	// === Step 3: Send Batch 2 (6 entries) ===
-	batch2StateChanges := []*Datum{
+	batch2StateChanges := []*statefulpb.Datum{
 		createPatternDelete(1),
 		createDictEntryDelete(1),
 		createPatternDefine(3, "pattern3"),
@@ -990,7 +991,7 @@ func TestStreamWorkerSnapshot(t *testing.T) {
 	}
 
 	// === Step 9: Send Batch 3 (3 entries) ===
-	batch3StateChanges := []*Datum{
+	batch3StateChanges := []*statefulpb.Datum{
 		createPatternDefine(4, "pattern4"),
 		createDictEntryDefine(4, "value4"),
 	}
