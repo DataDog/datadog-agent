@@ -1,0 +1,903 @@
+metric_prefix: gpu
+
+tagsets:
+  device:
+    tags:
+    - gpu_uuid
+    - gpu_device
+    - gpu_vendor
+    - gpu_driver_version
+    fallback_tags:
+    - gpu_uuid
+  container:
+    tags:
+    - container_id
+    - container_name
+  process:
+    tags:
+    - pid
+    - nspid
+    fallback_tags:
+    - pid
+    - nspid
+
+metrics:
+- name: memory.bar1.total
+  type: gauge
+  min_architecture: kepler
+  per_process: false
+  device_support:
+    physical: true
+    mig: unknown
+    vgpu: unknown
+  tagsets:
+  - device
+- name: memory.bar1.free
+  type: gauge
+  min_architecture: kepler
+  per_process: false
+  device_support:
+    physical: true
+    mig: unknown
+    vgpu: unknown
+  tagsets:
+  - device
+- name: memory.bar1.used
+  type: gauge
+  min_architecture: kepler
+  per_process: false
+  device_support:
+    physical: true
+    mig: unknown
+    vgpu: unknown
+  tagsets:
+  - device
+- name: memory.free
+  type: gauge
+  min_architecture: ampere
+  per_process: false
+  device_support:
+    physical: true
+    mig: unknown
+    vgpu: unknown
+  tagsets:
+  - device
+- name: memory.reserved
+  type: gauge
+  min_architecture: ampere
+  per_process: false
+  device_support:
+    physical: true
+    mig: unknown
+    vgpu: unknown
+  tagsets:
+  - device
+- name: pci.throughput.rx
+  type: gauge
+  min_architecture: kepler
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: pci.throughput.tx
+  type: gauge
+  min_architecture: kepler
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: fan_speed
+  type: gauge
+  min_architecture: fermi
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: power.management_limit
+  type: gauge
+  min_architecture: fermi
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: power.usage
+  type: gauge
+  min_architecture: fermi
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: performance_state
+  type: gauge
+  min_architecture: fermi
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: temperature
+  type: gauge
+  min_architecture: fermi
+  per_process: false
+  device_support:
+    physical: true
+    mig: unknown
+    vgpu: unknown
+  tagsets:
+  - device
+- name: clock.speed.sm
+  type: gauge
+  min_architecture: fermi
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: clock.speed.memory
+  type: gauge
+  min_architecture: fermi
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: clock.speed.graphics
+  type: gauge
+  min_architecture: fermi
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: clock.speed.video
+  type: gauge
+  min_architecture: kepler
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: clock.speed.sm.max
+  type: gauge
+  min_architecture: fermi
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: clock.speed.memory.max
+  type: gauge
+  min_architecture: fermi
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: clock.speed.graphics.max
+  type: gauge
+  min_architecture: fermi
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: clock.speed.video.max
+  type: gauge
+  min_architecture: kepler
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: total_energy_consumption
+  type: gauge
+  min_architecture: volta
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: device.total
+  type: gauge
+  min_architecture: fermi
+  per_process: false
+  device_support:
+    physical: true
+    mig: true
+    vgpu: true
+  tagsets:
+  - device
+- name: device.unhealthy
+  type: gauge
+  min_architecture: fermi
+  per_process: false
+  device_support:
+    physical: true
+    mig: unknown
+    vgpu: unknown
+  tagsets:
+  - device
+- name: clock.throttle_reasons.gpu_idle
+  type: gauge
+  min_architecture: kepler
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: clock.throttle_reasons.applications_clocks_setting
+  type: gauge
+  min_architecture: kepler
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: clock.throttle_reasons.sw_power_cap
+  type: gauge
+  min_architecture: kepler
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: clock.throttle_reasons.sync_boost
+  type: gauge
+  min_architecture: kepler
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: clock.throttle_reasons.sw_thermal_slowdown
+  type: gauge
+  min_architecture: kepler
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: clock.throttle_reasons.display_clock_setting
+  type: gauge
+  min_architecture: kepler
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: clock.throttle_reasons.none
+  type: gauge
+  min_architecture: kepler
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: remapped_rows.correctable
+  type: gauge
+  min_architecture: ampere
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: remapped_rows.uncorrectable
+  type: gauge
+  min_architecture: ampere
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: remapped_rows.pending
+  type: gauge
+  min_architecture: ampere
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: remapped_rows.failed
+  type: gauge
+  min_architecture: ampere
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: process.memory.usage
+  type: gauge
+  min_architecture: fermi
+  per_process: true
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+  - process
+  - container
+- name: memory.limit
+  type: gauge
+  min_architecture: fermi
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+  - process
+  - container
+- name: process.memory.usage
+  type: gauge
+  min_architecture: hopper
+  per_process: true
+  device_support:
+    physical: true
+    mig: true
+    vgpu: unknown
+  tagsets:
+  - device
+  - process
+  - container
+- name: memory.limit
+  type: gauge
+  min_architecture: hopper
+  per_process: false
+  device_support:
+    physical: true
+    mig: true
+    vgpu: unknown
+  tagsets:
+  - device
+  - process
+  - container
+- name: nvlink.count.total
+  type: gauge
+  min_architecture: pascal
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: nvlink.count.active
+  type: gauge
+  min_architecture: pascal
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: nvlink.count.inactive
+  type: gauge
+  min_architecture: pascal
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: errors.ecc.corrected.total
+  type: gauge
+  min_architecture: fermi
+  per_process: false
+  custom_tags:
+  - memory_location
+  memory_locations:
+  - l1_cache
+  - l2_cache
+  - device_memory
+  - register_file
+  - texture_memory
+  - texture_shm
+  - cbu
+  - sram
+  device_support:
+    physical: true
+    mig: unknown
+    vgpu: unknown
+  tagsets:
+  - device
+- name: errors.ecc.uncorrected.total
+  type: gauge
+  min_architecture: fermi
+  per_process: false
+  custom_tags:
+  - memory_location
+  memory_locations:
+  - l1_cache
+  - l2_cache
+  - device_memory
+  - register_file
+  - texture_memory
+  - texture_shm
+  - cbu
+  - sram
+  device_support:
+    physical: true
+    mig: unknown
+    vgpu: unknown
+  tagsets:
+  - device
+- name: process.sm_active
+  type: gauge
+  min_architecture: kepler
+  per_process: true
+  device_support:
+    physical: true
+    mig: false
+    vgpu: false
+  tagsets:
+  - device
+  - process
+  - container
+- name: process.dram_active
+  type: gauge
+  min_architecture: kepler
+  per_process: true
+  device_support:
+    physical: true
+    mig: false
+    vgpu: false
+  tagsets:
+  - device
+  - process
+  - container
+- name: process.encoder_active
+  type: gauge
+  min_architecture: kepler
+  per_process: true
+  device_support:
+    physical: true
+    mig: false
+    vgpu: false
+  tagsets:
+  - device
+  - process
+  - container
+- name: process.decoder_active
+  type: gauge
+  min_architecture: kepler
+  per_process: true
+  device_support:
+    physical: true
+    mig: false
+    vgpu: false
+  tagsets:
+  - device
+  - process
+  - container
+- name: sm_active
+  type: gauge
+  min_architecture: kepler
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: false
+  tagsets:
+  - device
+- name: core.limit
+  type: gauge
+  min_architecture: fermi
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+  - process
+  - container
+- name: gr_engine_active
+  type: gauge
+  min_architecture: kepler
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: false
+  tagsets:
+  - device
+- name: dram_active
+  type: gauge
+  min_architecture: kepler
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: false
+  tagsets:
+  - device
+- name: encoder_active
+  type: gauge
+  min_architecture: kepler
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: false
+  tagsets:
+  - device
+- name: decoder_active
+  type: gauge
+  min_architecture: kepler
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: false
+  tagsets:
+  - device
+- name: memory.temperature
+  type: gauge
+  min_architecture: ampere
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: nvlink.throughput.data.rx
+  type: gauge
+  min_architecture: pascal
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: nvlink.throughput.data.tx
+  type: gauge
+  min_architecture: pascal
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: nvlink.throughput.raw.rx
+  type: gauge
+  min_architecture: pascal
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: nvlink.throughput.raw.tx
+  type: gauge
+  min_architecture: pascal
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: nvlink.speed
+  type: gauge
+  min_architecture: pascal
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: nvlink.nvswitch_connected
+  type: gauge
+  min_architecture: volta
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: nvlink.errors.crc.data
+  type: gauge
+  min_architecture: pascal
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: nvlink.errors.crc.flit
+  type: gauge
+  min_architecture: pascal
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: nvlink.errors.ecc
+  type: gauge
+  min_architecture: pascal
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: nvlink.errors.recovery
+  type: gauge
+  min_architecture: pascal
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: nvlink.errors.replay
+  type: gauge
+  min_architecture: pascal
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: pci.replay_counter
+  type: gauge
+  min_architecture: kepler
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: slowdown_temperature
+  type: gauge
+  min_architecture: kepler
+  per_process: false
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: gr_engine_active
+  type: gauge
+  min_architecture: hopper
+  per_process: false
+  device_support:
+    physical: true
+    mig: true
+    vgpu: unknown
+  tagsets:
+  - device
+- name: sm_utilization
+  type: gauge
+  min_architecture: hopper
+  per_process: false
+  device_support:
+    physical: true
+    mig: true
+    vgpu: unknown
+  tagsets:
+  - device
+- name: sm_occupancy
+  type: gauge
+  min_architecture: hopper
+  per_process: false
+  device_support:
+    physical: true
+    mig: true
+    vgpu: unknown
+  tagsets:
+  - device
+- name: integer_active
+  type: gauge
+  min_architecture: hopper
+  per_process: false
+  device_support:
+    physical: true
+    mig: true
+    vgpu: unknown
+  tagsets:
+  - device
+- name: fp16_active
+  type: gauge
+  min_architecture: hopper
+  per_process: false
+  device_support:
+    physical: true
+    mig: true
+    vgpu: unknown
+  tagsets:
+  - device
+- name: fp32_active
+  type: gauge
+  min_architecture: hopper
+  per_process: false
+  device_support:
+    physical: true
+    mig: true
+    vgpu: unknown
+  tagsets:
+  - device
+- name: fp64_active
+  type: gauge
+  min_architecture: hopper
+  per_process: false
+  device_support:
+    physical: true
+    mig: true
+    vgpu: unknown
+  tagsets:
+  - device
+- name: tensor_active
+  type: gauge
+  min_architecture: hopper
+  per_process: false
+  device_support:
+    physical: true
+    mig: true
+    vgpu: unknown
+  tagsets:
+  - device
+- name: process.core.usage
+  type: gauge
+  min_architecture: fermi
+  per_process: true
+  device_support:
+    physical: true
+    mig: unknown
+    vgpu: unknown
+  tagsets:
+  - device
+  - process
+  - container
+- name: process.memory.usage
+  type: gauge
+  min_architecture: fermi
+  per_process: true
+  device_support:
+    physical: true
+    mig: unknown
+    vgpu: unknown
+  tagsets:
+  - device
+  - process
+  - container
+- name: process.sm_active
+  type: gauge
+  min_architecture: fermi
+  per_process: true
+  device_support:
+    physical: true
+    mig: unknown
+    vgpu: unknown
+  tagsets:
+  - device
+  - process
+  - container
+- name: core.limit
+  type: gauge
+  min_architecture: fermi
+  per_process: false
+  device_support:
+    physical: true
+    mig: unknown
+    vgpu: unknown
+  tagsets:
+  - device
+  - process
+  - container
+- name: memory.limit
+  type: gauge
+  min_architecture: fermi
+  per_process: false
+  device_support:
+    physical: true
+    mig: unknown
+    vgpu: unknown
+  tagsets:
+  - device
+  - process
+  - container
+- name: sm_active
+  type: gauge
+  min_architecture: fermi
+  per_process: false
+  device_support:
+    physical: true
+    mig: unknown
+    vgpu: unknown
+  tagsets:
+  - device
+- name: errors.xid.total
+  type: gauge
+  min_architecture: fermi
+  per_process: false
+  custom_tags:
+  - type
+  - origin
+  device_support:
+    physical: true
+    mig: false
+    vgpu: unknown
+  tagsets:
+  - device
+- name: core.usage
+  deprecated: true
+  replaced_by: process.core.usage
+- name: memory.usage
+  deprecated: true
+  replaced_by: process.memory.usage
