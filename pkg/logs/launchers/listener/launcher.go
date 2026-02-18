@@ -62,7 +62,7 @@ func (l *Launcher) run() {
 			listener.Start()
 			l.listeners = append(l.listeners, listener)
 		case source := <-l.unixgramSources:
-			listener := NewUnixgramListener(l.pipelineProvider, source)
+			listener := NewUnixgramListener(l.pipelineProvider, source, l.frameSize)
 			listener.Start()
 			l.listeners = append(l.listeners, listener)
 		case <-l.stop:

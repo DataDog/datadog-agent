@@ -12,63 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	syslogparser "github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/syslog"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
-
-func TestBuildSyslogStructuredMessage_RFC5424(t *testing.T) {
-	frame := []byte(`<165>1 2003-10-11T22:14:15.003Z mymachine evntslog - ID47 [exampleSDID@32473 iut="3"] An application event log entry`)
-	source := sources.NewLogSource("test", &config.LogsConfig{})
-	origin := message.NewOrigin(source)
-
-	msg, err := buildSyslogStructuredMessage(frame, origin)
-	require.NoError(t, err)
-
-	assert.Equal(t, message.StateStructured, msg.State)
-	assert.Equal(t, "An application event log entry", string(msg.GetContent()))
-	assert.Equal(t, message.StatusNotice, msg.Status)
-	assert.Equal(t, "evntslog", origin.Source())
-	assert.Equal(t, "evntslog", origin.Service())
-}
-
-func TestBuildSyslogStructuredMessage_BSD(t *testing.T) {
-	frame := []byte(`<34>Oct 11 22:14:15 mymachine su: 'su root' failed for lonvick on /dev/pts/8`)
-	source := sources.NewLogSource("test", &config.LogsConfig{})
-	origin := message.NewOrigin(source)
-
-	msg, err := buildSyslogStructuredMessage(frame, origin)
-	require.NoError(t, err)
-
-	assert.Equal(t, message.StateStructured, msg.State)
-	assert.Equal(t, message.StatusCritical, msg.Status)
-	assert.Equal(t, "su", origin.Source())
-	assert.Equal(t, "su", origin.Service())
-}
-
-func TestBuildSyslogStructuredMessage_AppNameNILVALUE(t *testing.T) {
-	frame := []byte(`<14>1 2003-10-11T22:14:15.003Z mymachine - - - - test message`)
-	source := sources.NewLogSource("test", &config.LogsConfig{})
-	origin := message.NewOrigin(source)
-
-	msg, err := buildSyslogStructuredMessage(frame, origin)
-	require.NoError(t, err)
-	assert.Equal(t, message.StateStructured, msg.State)
-	assert.Equal(t, "", origin.Source())
-	assert.Equal(t, "", origin.Service())
-}
-
-func TestBuildSyslogStructuredMessage_Malformed(t *testing.T) {
-	frame := []byte(`<14>`)
-	source := sources.NewLogSource("test", &config.LogsConfig{})
-	origin := message.NewOrigin(source)
-
-	msg, err := buildSyslogStructuredMessage(frame, origin)
-	assert.Error(t, err)
-	assert.NotNil(t, msg)
-	assert.Equal(t, message.StateStructured, msg.State)
-}
 
 func TestStructuredContent_Render_RFC5424(t *testing.T) {
 	parsed := syslogparser.SyslogMessage{

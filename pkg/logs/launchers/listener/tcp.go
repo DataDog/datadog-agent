@@ -149,17 +149,18 @@ func (l *TCPListener) startTailer(conn net.Conn) {
 		l.idleTimeout,
 		sourceHostAddr,
 	)
+	t.SetOnDone(func() { l.removeTailer(t) })
 	l.tailers = append(l.tailers, t)
 	t.Start()
 }
 
-// stopTailer stops the tailer.
-func (l *TCPListener) stopTailer(t startstop.StartStoppable) {
+// removeTailer removes a finished tailer from the active list.
+// Called by the tailer's onDone callback when readLoop exits.
+func (l *TCPListener) removeTailer(t startstop.StartStoppable) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	for i, active := range l.tailers {
 		if active == t {
-			t.Stop()
 			l.tailers = slices.Delete(l.tailers, i, i+1)
 			break
 		}

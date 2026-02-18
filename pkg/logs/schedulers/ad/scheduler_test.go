@@ -392,6 +392,47 @@ func TestScheduleWithNilLogConfigurations(t *testing.T) {
 	}
 }
 
+func TestCreateSourcesUnixSocketAutoDerivation(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.Set("dogstatsd_host_socket_path", "/var/run/datadog", model.SourceFile)
+
+	t.Run("unix source with source field gets auto-derived socket_path", func(t *testing.T) {
+		cfg := integration.Config{
+			LogsConfig: []byte(`[{"type":"unix","source":"my_app","service":"my_svc"}]`),
+			Provider:   names.Kubernetes,
+			ServiceID:  "docker://abc123",
+		}
+		sources, err := CreateSources(cfg)
+		require.NoError(t, err)
+		require.Len(t, sources, 1)
+		assert.Equal(t, "/var/run/datadog/logs-my_app.socket", sources[0].Config.SocketPath)
+	})
+
+	t.Run("unixgram source with source field gets auto-derived socket_path", func(t *testing.T) {
+		cfg := integration.Config{
+			LogsConfig: []byte(`[{"type":"unixgram","source":"my_dgram","service":"my_svc"}]`),
+			Provider:   names.Kubernetes,
+			ServiceID:  "docker://abc123",
+		}
+		sources, err := CreateSources(cfg)
+		require.NoError(t, err)
+		require.Len(t, sources, 1)
+		assert.Equal(t, "/var/run/datadog/logs-my_dgram.socket", sources[0].Config.SocketPath)
+	})
+
+	t.Run("explicit socket_path is preserved", func(t *testing.T) {
+		cfg := integration.Config{
+			LogsConfig: []byte(`[{"type":"unix","source":"my_app","socket_path":"/custom/path.sock"}]`),
+			Provider:   names.Kubernetes,
+			ServiceID:  "docker://abc123",
+		}
+		sources, err := CreateSources(cfg)
+		require.NoError(t, err)
+		require.Len(t, sources, 1)
+		assert.Equal(t, "/custom/path.sock", sources[0].Config.SocketPath)
+	})
+}
+
 func TestCreateSourcesWithNilConfigurations(t *testing.T) {
 	testCases := []struct {
 		name            string

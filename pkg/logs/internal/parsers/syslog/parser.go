@@ -57,11 +57,9 @@ func (p *syslogFileParser) Parse(msg *message.Message) (*message.Message, error)
 		time.Now().UnixNano(),
 	)
 	structured.RawDataLen = msg.RawDataLen
+	structured.ParsingExtra = msg.ParsingExtra
 	structured.ParsingExtra.Timestamp = parsed.Timestamp
 
-	// Store appname as source/service override in ParsingExtra. The file
-	// tailer's forwardMessages applies these to the origin after creating it.
-	// (At this point in the decoder pipeline, origin is nil.)
 	if parsed.AppName != "" && parsed.AppName != "-" {
 		structured.ParsingExtra.SourceOverride = parsed.AppName
 		structured.ParsingExtra.ServiceOverride = parsed.AppName

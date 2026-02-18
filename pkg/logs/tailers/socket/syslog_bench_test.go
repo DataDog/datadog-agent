@@ -53,39 +53,10 @@ func BenchmarkParse(b *testing.B) {
 }
 
 // ---------------------------------------------------------------------------
-// BuildSyslogStructuredMessage
-// ---------------------------------------------------------------------------
-
-func BenchmarkBuildSyslogStructuredMessage(b *testing.B) {
-	source := sources.NewLogSource("bench", &config.LogsConfig{})
-
-	for _, tc := range []struct {
-		name string
-		msg  []byte
-	}{
-		{"RFC5424_Short", rfc5424Short},
-		{"RFC5424_Typical", rfc5424Typical},
-		{"RFC5424_Long_1KB", rfc5424Long},
-		{"BSD", bsdTypical},
-	} {
-		b.Run(tc.name, func(b *testing.B) {
-			b.SetBytes(int64(len(tc.msg)))
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				origin := message.NewOrigin(source)
-				_, _ = buildSyslogStructuredMessage(tc.msg, origin)
-			}
-		})
-	}
-}
-
-// ---------------------------------------------------------------------------
 // Render
 // ---------------------------------------------------------------------------
 
 func BenchmarkRender(b *testing.B) {
-	source := sources.NewLogSource("bench", &config.LogsConfig{})
-
 	for _, tc := range []struct {
 		name string
 		msg  []byte
@@ -95,8 +66,16 @@ func BenchmarkRender(b *testing.B) {
 		{"RFC5424_Long_1KB", rfc5424Long},
 		{"BSD", bsdTypical},
 	} {
+		parsed, _ := syslogparser.Parse(tc.msg)
+		sc := &message.BasicStructuredContent{
+			Data: map[string]interface{}{
+				"message": string(parsed.Msg),
+				"syslog":  syslogparser.BuildSyslogFields(parsed),
+			},
+		}
+		source := sources.NewLogSource("bench", &config.LogsConfig{})
 		origin := message.NewOrigin(source)
-		msg, _ := buildSyslogStructuredMessage(tc.msg, origin)
+		msg := message.NewStructuredMessage(sc, origin, syslogparser.SeverityToStatus(parsed.Pri), time.Now().UnixNano())
 		b.Run(tc.name, func(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
@@ -124,7 +103,7 @@ func BenchmarkStreamTailerSyslogEndToEnd(b *testing.B) {
 			serverConn, clientConn := net.Pipe()
 			defer serverConn.Close()
 
-			source := sources.NewLogSource("bench-syslog", &config.LogsConfig{})
+			source := sources.NewLogSource("bench-syslog", &config.LogsConfig{Format: config.SyslogFormat})
 			outputChan := make(chan *message.Message, 256)
 
 			tailer := NewStreamTailer(source, serverConn, outputChan, config.SyslogFormat, 4096, 0, "")
@@ -162,21 +141,4 @@ func BenchmarkStreamTailerSyslogEndToEnd(b *testing.B) {
 			tailer.Stop()
 		})
 	}
-}
-
-// ---------------------------------------------------------------------------
-// Allocation benchmarks
-// ---------------------------------------------------------------------------
-
-func BenchmarkAllocations_BuildSyslogStructuredMessage(b *testing.B) {
-	source := sources.NewLogSource("bench", &config.LogsConfig{})
-
-	b.Run("RFC5424_Typical", func(b *testing.B) {
-		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
-			origin := message.NewOrigin(source)
-			msg, _ := buildSyslogStructuredMessage(rfc5424Typical, origin)
-			msg.Render() //nolint:errcheck
-		}
-	})
 }

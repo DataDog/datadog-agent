@@ -61,6 +61,75 @@ func TestValidateShouldFailWithInvalidConfigs(t *testing.T) {
 	}
 }
 
+func TestApplyDefaultsUnixSocketPath(t *testing.T) {
+	t.Run("unix with source and no socket_path gets auto-derived path", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		mockConfig.SetWithoutSource("dogstatsd_host_socket_path", "/var/run/datadog")
+		cfg := &LogsConfig{Type: UnixType, Source: "my_app"}
+		cfg.ApplyDefaults(mockConfig)
+		assert.Equal(t, "/var/run/datadog/logs-my_app.socket", cfg.SocketPath)
+	})
+
+	t.Run("unixgram with source and no socket_path gets auto-derived path", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		mockConfig.SetWithoutSource("dogstatsd_host_socket_path", "/var/run/datadog")
+		cfg := &LogsConfig{Type: UnixgramType, Source: "my_app"}
+		cfg.ApplyDefaults(mockConfig)
+		assert.Equal(t, "/var/run/datadog/logs-my_app.socket", cfg.SocketPath)
+	})
+
+	t.Run("explicit socket_path is not overwritten", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		mockConfig.SetWithoutSource("dogstatsd_host_socket_path", "/var/run/datadog")
+		cfg := &LogsConfig{Type: UnixType, Source: "my_app", SocketPath: "/custom/path.sock"}
+		cfg.ApplyDefaults(mockConfig)
+		assert.Equal(t, "/custom/path.sock", cfg.SocketPath)
+	})
+
+	t.Run("no source means no auto-derivation", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		mockConfig.SetWithoutSource("dogstatsd_host_socket_path", "/var/run/datadog")
+		cfg := &LogsConfig{Type: UnixType}
+		cfg.ApplyDefaults(mockConfig)
+		assert.Equal(t, "", cfg.SocketPath)
+	})
+
+	t.Run("empty base dir means no auto-derivation", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		mockConfig.SetWithoutSource("dogstatsd_host_socket_path", "")
+		cfg := &LogsConfig{Type: UnixType, Source: "my_app"}
+		cfg.ApplyDefaults(mockConfig)
+		assert.Equal(t, "", cfg.SocketPath)
+	})
+
+	t.Run("tcp type is not affected", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		mockConfig.SetWithoutSource("dogstatsd_host_socket_path", "/var/run/datadog")
+		cfg := &LogsConfig{Type: TCPType, Port: 1234, Source: "my_app"}
+		cfg.ApplyDefaults(mockConfig)
+		assert.Equal(t, "", cfg.SocketPath)
+	})
+
+	t.Run("validate passes after ApplyDefaults derives path", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		mockConfig.SetWithoutSource("dogstatsd_host_socket_path", "/var/run/datadog")
+		cfg := &LogsConfig{Type: UnixType, Source: "my_app"}
+		cfg.ApplyDefaults(mockConfig)
+		err := cfg.Validate()
+		assert.Nil(t, err)
+	})
+
+	t.Run("validate still fails without source or socket_path", func(t *testing.T) {
+		mockConfig := config.NewMock(t)
+		mockConfig.SetWithoutSource("dogstatsd_host_socket_path", "/var/run/datadog")
+		cfg := &LogsConfig{Type: UnixType}
+		cfg.ApplyDefaults(mockConfig)
+		err := cfg.Validate()
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "socket_path")
+	})
+}
+
 func TestAutoMultilineEnabled(t *testing.T) {
 	decode := func(cfg string) *LogsConfig {
 		lc := LogsConfig{}

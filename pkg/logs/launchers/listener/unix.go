@@ -148,77 +148,20 @@ func (l *UnixStreamListener) startTailer(conn net.Conn) {
 		l.idleTimeout,
 		"", // no source_host for Unix sockets
 	)
+	t.SetOnDone(func() { l.removeTailer(t) })
 	l.tailers = append(l.tailers, t)
 	t.Start()
 }
 
-// stopTailer stops and removes a tailer from the active list.
-func (l *UnixStreamListener) stopTailer(t startstop.StartStoppable) {
+// removeTailer removes a finished tailer from the active list.
+// Called by the tailer's onDone callback when readLoop exits.
+func (l *UnixStreamListener) removeTailer(t startstop.StartStoppable) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	for i, active := range l.tailers {
 		if active == t {
-			t.Stop()
 			l.tailers = slices.Delete(l.tailers, i, i+1)
 			break
 		}
 	}
-}
-
-// UnixgramListener listens on a Unix domain datagram socket and reads
-// datagrams using a DatagramTailer.
-type UnixgramListener struct {
-	pipelineProvider pipeline.Provider
-	source           *sources.LogSource
-	tailer           *tailer.DatagramTailer
-	conn             net.PacketConn
-}
-
-// NewUnixgramListener returns an initialized UnixgramListener.
-func NewUnixgramListener(pipelineProvider pipeline.Provider, source *sources.LogSource) *UnixgramListener {
-	return &UnixgramListener{
-		pipelineProvider: pipelineProvider,
-		source:           source,
-	}
-}
-
-// Start creates the Unix datagram socket and starts the tailer.
-func (l *UnixgramListener) Start() {
-	log.Infof("Starting Unix datagram listener on %s", l.source.Config.SocketPath)
-	err := l.startTailer()
-	if err != nil {
-		log.Errorf("Can't start Unix datagram listener on %s: %v", l.source.Config.SocketPath, err)
-		l.source.Status.Error(err)
-		return
-	}
-	l.source.Status.Success()
-}
-
-// Stop stops the tailer and cleans up the socket file.
-func (l *UnixgramListener) Stop() {
-	log.Infof("Stopping Unix datagram listener on %s", l.source.Config.SocketPath)
-	if l.tailer != nil {
-		l.tailer.Stop()
-	}
-	// Clean up the socket file
-	os.Remove(l.source.Config.SocketPath) //nolint:errcheck
-}
-
-// startTailer opens the Unix datagram connection and starts the tailer.
-func (l *UnixgramListener) startTailer() error {
-	// Remove stale socket file if it exists
-	os.Remove(l.source.Config.SocketPath) //nolint:errcheck
-
-	addr, err := net.ResolveUnixAddr("unixgram", l.source.Config.SocketPath)
-	if err != nil {
-		return err
-	}
-	conn, err := net.ListenUnixgram("unixgram", addr)
-	if err != nil {
-		return err
-	}
-	l.conn = conn
-	l.tailer = tailer.NewDatagramTailer(l.source, conn, l.pipelineProvider.NextPipelineChan(), l.source.Config.Format, false, 0)
-	l.tailer.Start()
-	return nil
 }

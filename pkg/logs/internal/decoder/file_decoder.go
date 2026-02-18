@@ -102,27 +102,3 @@ func newSyslogFileDecoder(source *sources.ReplaceableSource, tailerInfo *status.
 
 	return New(inputChan, outputChan, f, lineParser, lineHandler, detectedPattern)
 }
-
-// NewSyslogStreamDecoder builds a decoder for syslog messages arriving over a
-// stream-oriented connection (TCP or Unix stream).
-//
-// It uses SyslogFraming (RFC 6587 octet counting / non-transparent framing)
-// paired with the same syslog parser used for file-based syslog. The parser
-// produces StateStructured messages; a NoopLineHandler is used to prevent
-// truncation logic from corrupting them.
-func NewSyslogStreamDecoder(source *sources.ReplaceableSource, tailerInfo *status.InfoRegistry) Decoder {
-	maxMessageSize := source.Config().GetMaxMessageSizeBytes(pkgconfigsetup.Datadog())
-	inputChan := make(chan *message.Message)
-	outputChan := make(chan *message.Message)
-	detectedPattern := &DetectedPattern{}
-
-	lineHandler := NewNoopLineHandler(outputChan)
-	lineParser := NewSingleLineParser(lineHandler, syslogparser.NewFileParser())
-	f := framer.NewFramer(lineParser.process, framer.SyslogFraming, maxMessageSize)
-
-	formatInfo := status.NewMappedInfo("Format")
-	formatInfo.SetMessage("Format", config.SyslogFormat)
-	tailerInfo.Register(formatInfo)
-
-	return New(inputChan, outputChan, f, lineParser, lineHandler, detectedPattern)
-}

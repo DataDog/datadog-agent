@@ -143,6 +143,44 @@ func TestFileParser_AutoDetect_MixedFormats(t *testing.T) {
 	assert.Equal(t, message.StatusError, pri2Result.Status) // 11%8=3 -> error
 }
 
+func TestFileParser_NonSyslogText(t *testing.T) {
+	parser := NewFileParser()
+
+	lines := []string{
+		"this is not syslog at all",
+		"ERROR 2025-01-15 connection refused",
+		"12345 plain numeric line",
+		`{"json":"log","level":"warn"}`,
+	}
+
+	for _, line := range lines {
+		t.Run(line, func(t *testing.T) {
+			input := newTestMessage([]byte(line))
+			result, err := parser.Parse(input)
+
+			// Parser returns an error but still produces a usable message.
+			assert.Error(t, err)
+			assert.NotNil(t, result)
+			assert.Equal(t, message.StateStructured, result.State)
+
+			// Status falls back to info (Pri=-1 → no severity).
+			assert.Equal(t, message.StatusInfo, result.Status)
+
+			// The entire input is preserved as the structured message body.
+			assert.Equal(t, line, string(result.GetContent()))
+
+			rendered, rerr := result.Render()
+			require.NoError(t, rerr)
+			assert.Contains(t, string(rendered), `"message"`)
+			assert.Contains(t, string(rendered), `"syslog"`)
+
+			// Syslog metadata is sparse — no source/service override.
+			assert.Empty(t, result.ParsingExtra.SourceOverride)
+			assert.Empty(t, result.ParsingExtra.ServiceOverride)
+		})
+	}
+}
+
 func TestFileParser_RenderedContent_RFC5424(t *testing.T) {
 	parser := NewFileParser()
 

@@ -12,10 +12,8 @@ import (
 	"net"
 	"time"
 
-	config "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
@@ -40,6 +38,7 @@ type StreamTailer struct {
 	decoder        decoder.Decoder
 	stop           chan struct{}
 	done           chan struct{}
+	onDone         func() // called when readLoop exits (connection closed/error); used by listeners to prune dead tailers
 }
 
 // NewStreamTailer returns a new StreamTailer.
@@ -56,12 +55,7 @@ func NewStreamTailer(source *sources.LogSource, conn net.Conn, outputChan chan *
 	replSource := sources.NewReplaceableSource(source)
 	tailerInfo := status.NewInfoRegistry()
 
-	var dec decoder.Decoder
-	if format == config.SyslogFormat {
-		dec = decoder.NewSyslogStreamDecoder(replSource, tailerInfo)
-	} else {
-		dec = decoder.InitializeDecoder(replSource, noop.New(), tailerInfo)
-	}
+	dec := decoder.NewStreamDecoder(replSource, tailerInfo)
 
 	return &StreamTailer{
 		source:         source,
@@ -100,6 +94,12 @@ func (t *StreamTailer) Identifier() string {
 	return fmt.Sprintf("stream:%s", t.Conn.RemoteAddr())
 }
 
+// SetOnDone registers a callback invoked when the readLoop exits
+// (connection closed, error, or EOF). Must be called before Start.
+func (t *StreamTailer) SetOnDone(fn func()) {
+	t.onDone = fn
+}
+
 // forwardMessages reads decoded messages from the decoder output and
 // forwards them to the pipeline output channel with a properly configured
 // origin. For syslog format, it applies source/service overrides from
@@ -132,6 +132,9 @@ func (t *StreamTailer) forwardMessages() {
 // decoder. Idle timeout and source_host tagging are handled here.
 func (t *StreamTailer) readLoop() {
 	defer func() {
+		if t.onDone != nil {
+			go t.onDone()
+		}
 		t.Conn.Close()
 		t.decoder.Stop()
 	}()

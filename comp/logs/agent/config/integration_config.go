@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -367,6 +368,22 @@ func (mode TailingMode) String() string {
 	return ""
 }
 
+// ApplyDefaults populates configuration fields with sensible defaults derived
+// from the core agent configuration. Call this before Validate().
+//
+// For unix/unixgram sources without an explicit socket_path, a path is derived
+// as <dogstatsd_host_socket_path>/logs-<source>.socket when the source field
+// is set.
+func (c *LogsConfig) ApplyDefaults(coreConfig pkgconfigmodel.Reader) {
+	if (c.Type == UnixType || c.Type == UnixgramType) && c.SocketPath == "" && c.Source != "" {
+		baseDir := coreConfig.GetString("dogstatsd_host_socket_path")
+		if baseDir != "" {
+			c.SocketPath = filepath.Join(baseDir, fmt.Sprintf("logs-%s.socket", c.Source))
+			log.Infof("Auto-derived socket_path %q for %s source %q", c.SocketPath, c.Type, c.Source)
+		}
+	}
+}
+
 // Validate returns an error if the config is misconfigured
 func (c *LogsConfig) Validate() error {
 	switch {
@@ -388,9 +405,9 @@ func (c *LogsConfig) Validate() error {
 	case c.Type == UDPType && c.Port == 0:
 		return errors.New("udp source must have a port")
 	case c.Type == UnixType && c.SocketPath == "":
-		return errors.New("unix source must have a socket_path")
+		return fmt.Errorf("unix source must have a socket_path (or set source to auto-derive one under %s)", "dogstatsd_host_socket_path")
 	case c.Type == UnixgramType && c.SocketPath == "":
-		return errors.New("unixgram source must have a socket_path")
+		return fmt.Errorf("unixgram source must have a socket_path (or set source to auto-derive one under %s)", "dogstatsd_host_socket_path")
 	}
 
 	if c.Format != "" && c.Format != SyslogFormat {
