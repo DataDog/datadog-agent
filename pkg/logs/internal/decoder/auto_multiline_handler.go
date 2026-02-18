@@ -11,16 +11,16 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	automultilinedetection "github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/preprocessor"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
 // AutoMultilineHandler aggregates or detects multiline logs.
 type AutoMultilineHandler struct {
-	labeler               *automultilinedetection.Labeler
-	aggregator            automultilinedetection.Aggregator
-	jsonAggregator        *automultilinedetection.JSONAggregator
+	labeler               *preprocessor.Labeler
+	aggregator            preprocessor.Aggregator
+	jsonAggregator        *preprocessor.JSONAggregator
 	flushTimeout          time.Duration
 	flushTimer            *time.Timer
 	enableJSONAggregation bool
@@ -29,22 +29,22 @@ type AutoMultilineHandler struct {
 // NewAutoMultilineHandler creates a new auto multiline handler.
 // The aggregator parameter determines whether logs are combined (combiningAggregator) or just tagged (detectingAggregator).
 // enableJSONAggregation controls whether split JSON objects should be combined before processing.
-func NewAutoMultilineHandler(aggregator automultilinedetection.Aggregator, maxContentSize int, flushTimeout time.Duration, tailerInfo *status.InfoRegistry, sourceSettings *config.SourceAutoMultiLineOptions, sourceSamples []*config.AutoMultilineSample, enableJSONAggregation bool) *AutoMultilineHandler {
+func NewAutoMultilineHandler(aggregator preprocessor.Aggregator, maxContentSize int, flushTimeout time.Duration, tailerInfo *status.InfoRegistry, sourceSettings *config.SourceAutoMultiLineOptions, sourceSamples []*config.AutoMultilineSample, enableJSONAggregation bool) *AutoMultilineHandler {
 
 	// Order is important
 	// Note: Tokenization is handled by TokenizingLineHandler in the decoder pipeline.
 	// Tokens must be pre-populated in msg.ParsingExtra.Tokens before reaching this handler.
-	heuristics := []automultilinedetection.Heuristic{}
+	heuristics := []preprocessor.Heuristic{}
 	sourceHasSettings := sourceSettings != nil
 
-	heuristics = append(heuristics, automultilinedetection.NewUserSamples(pkgconfigsetup.Datadog(), sourceSamples))
+	heuristics = append(heuristics, preprocessor.NewUserSamples(pkgconfigsetup.Datadog(), sourceSamples))
 
 	enableJSONDetection := pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.enable_json_detection")
 	if sourceHasSettings && sourceSettings.EnableJSONDetection != nil {
 		enableJSONDetection = *sourceSettings.EnableJSONDetection
 	}
 	if enableJSONDetection {
-		heuristics = append(heuristics, automultilinedetection.NewJSONDetector())
+		heuristics = append(heuristics, preprocessor.NewJSONDetector())
 	}
 
 	enableDatetimeDetection := pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.enable_datetime_detection")
@@ -56,7 +56,7 @@ func NewAutoMultilineHandler(aggregator automultilinedetection.Aggregator, maxCo
 		if sourceHasSettings && sourceSettings.TimestampDetectorMatchThreshold != nil {
 			timestampDetectorMatchThreshold = *sourceSettings.TimestampDetectorMatchThreshold
 		}
-		heuristics = append(heuristics, automultilinedetection.NewTimestampDetector(timestampDetectorMatchThreshold))
+		heuristics = append(heuristics, preprocessor.NewTimestampDetector(timestampDetectorMatchThreshold))
 	}
 
 	patternTableMaxSize := pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line.pattern_table_max_size")
@@ -67,16 +67,16 @@ func NewAutoMultilineHandler(aggregator automultilinedetection.Aggregator, maxCo
 	if sourceHasSettings && sourceSettings.PatternTableMatchThreshold != nil {
 		patternTableMatchThreshold = *sourceSettings.PatternTableMatchThreshold
 	}
-	analyticsHeuristics := []automultilinedetection.Heuristic{automultilinedetection.NewPatternTable(
+	analyticsHeuristics := []preprocessor.Heuristic{preprocessor.NewPatternTable(
 		patternTableMaxSize,
 		patternTableMatchThreshold,
 		tailerInfo),
 	}
 
 	handler := &AutoMultilineHandler{
-		labeler:               automultilinedetection.NewLabeler(heuristics, analyticsHeuristics),
+		labeler:               preprocessor.NewLabeler(heuristics, analyticsHeuristics),
 		aggregator:            aggregator,
-		jsonAggregator:        automultilinedetection.NewJSONAggregator(pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.tag_aggregated_json"), maxContentSize),
+		jsonAggregator:        preprocessor.NewJSONAggregator(pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.tag_aggregated_json"), maxContentSize),
 		flushTimeout:          flushTimeout,
 		enableJSONAggregation: enableJSONAggregation,
 	}

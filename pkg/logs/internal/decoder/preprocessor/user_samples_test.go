@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package automultilinedetection contains auto multiline detection and aggregation logic.
-package automultilinedetection
+package preprocessor
 
 import (
 	"regexp"
@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/tokenizer"
 )
 
 func TestUserPatternsInvalidConfig(t *testing.T) {
@@ -45,7 +44,7 @@ logs_config:
 
 func TestUserPatternsDefaults(t *testing.T) {
 
-	expectedOutput, _ := tokenizer.NewTokenizer(0).Tokenize([]byte("sample"))
+	expectedOutput, _ := NewTokenizer(0).Tokenize([]byte("sample"))
 
 	datadogYaml := `
 logs_config:
@@ -88,9 +87,9 @@ func TestUserPatternsJSON(t *testing.T) {
 	mockConfig := mock.New(t)
 	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection_custom_samples", `[{"sample": "1", "label": "start_group"}, {"regex": "\\d\\w", "label": "no_aggregate"}, {"sample": "3", "match_threshold": 0.1}]`)
 
-	sampleOneTokens, _ := tokenizer.NewTokenizer(0).Tokenize([]byte("1"))
+	sampleOneTokens, _ := NewTokenizer(0).Tokenize([]byte("1"))
 	sampleTwoRegex, _ := regexp.Compile("^" + "\\d\\w")
-	sampleThreeTokens, _ := tokenizer.NewTokenizer(0).Tokenize([]byte("3"))
+	sampleThreeTokens, _ := NewTokenizer(0).Tokenize([]byte("3"))
 	samples := NewUserSamples(mockConfig, nil)
 	assert.Equal(t, 3, len(samples.samples))
 	assert.Equal(t, startGroup, samples.samples[0].label)
@@ -106,9 +105,9 @@ func TestUserPatternsJSONEnv(t *testing.T) {
 	mockConfig := mock.New(t)
 	t.Setenv("DD_LOGS_CONFIG_AUTO_MULTI_LINE_DETECTION_CUSTOM_SAMPLES", `[{"sample": "1", "label": "start_group"}, {"regex": "\\d\\w", "label": "no_aggregate"}, {"sample": "3", "match_threshold": 0.1}]`)
 
-	sampleOneTokens, _ := tokenizer.NewTokenizer(0).Tokenize([]byte("1"))
+	sampleOneTokens, _ := NewTokenizer(0).Tokenize([]byte("1"))
 	sampleTwoRegex, _ := regexp.Compile("^" + "\\d\\w")
-	sampleThreeTokens, _ := tokenizer.NewTokenizer(0).Tokenize([]byte("3"))
+	sampleThreeTokens, _ := NewTokenizer(0).Tokenize([]byte("3"))
 	samples := NewUserSamples(mockConfig, nil)
 	assert.Equal(t, 3, len(samples.samples))
 	assert.Equal(t, startGroup, samples.samples[0].label)
@@ -154,7 +153,7 @@ logs_config:
 
 	mockConfig := mock.NewFromYAML(t, datadogYaml)
 	samples := NewUserSamples(mockConfig, nil)
-	tokenizer := tokenizer.NewTokenizer(60)
+	tokenizer := NewTokenizer(60)
 
 	tests := []struct {
 		expectedLabel Label
@@ -193,7 +192,7 @@ logs_config:
 
 	mockConfig := mock.NewFromYAML(t, datadogYaml)
 	samples := NewUserSamples(mockConfig, nil)
-	tokenizer := tokenizer.NewTokenizer(60)
+	tokenizer := NewTokenizer(60)
 
 	tests := []struct {
 		expectedLabel Label
@@ -232,7 +231,7 @@ logs_config:
 
 	mockConfig := mock.NewFromYAML(t, datadogYaml)
 	samples := NewUserSamples(mockConfig, nil)
-	tokenizer := tokenizer.NewTokenizer(60)
+	tokenizer := NewTokenizer(60)
 
 	tests := []struct {
 		expectedLabel Label
@@ -270,7 +269,7 @@ logs_config:
 
 	mockConfig := mock.NewFromYAML(t, datadogYaml)
 	samples := NewUserSamples(mockConfig, nil)
-	tokenizer := tokenizer.NewTokenizer(60)
+	tokenizer := NewTokenizer(60)
 
 	tests := []struct {
 		expectedLabel Label
@@ -305,7 +304,7 @@ logs_config:
 
 	mockConfig := mock.NewFromYAML(t, datadogYaml)
 	samples := NewUserSamples(mockConfig, nil)
-	tokenizer := tokenizer.NewTokenizer(60)
+	tokenizer := NewTokenizer(60)
 
 	tests := []struct {
 		expectedLabel Label
@@ -332,7 +331,7 @@ logs_config:
 }
 
 func TestUserPatternsWithIntegrationSamples(t *testing.T) {
-	expectedOutput, _ := tokenizer.NewTokenizer(0).Tokenize([]byte("sample"))
+	expectedOutput, _ := NewTokenizer(0).Tokenize([]byte("sample"))
 	rawSamples := []*config.AutoMultilineSample{
 		{Sample: "sample"},
 	}
@@ -355,7 +354,7 @@ func TestUserPatternsWithIntegrationSamplesCollection(t *testing.T) {
 
 	mockConfig := mock.NewFromYAML(t, "")
 	samples := NewUserSamples(mockConfig, rawSamples)
-	tokenizer := tokenizer.NewTokenizer(60)
+	tokenizer := NewTokenizer(60)
 
 	tests := []struct {
 		expectedLabel Label
@@ -390,7 +389,7 @@ func TestUserPatternWithIntegrationSampleMatchThreshold(t *testing.T) {
 
 	mockConfig := mock.NewFromYAML(t, "")
 	samples := NewUserSamples(mockConfig, rawSamples)
-	tokenizer := tokenizer.NewTokenizer(60)
+	tokenizer := NewTokenizer(60)
 
 	tests := []struct {
 		expectedLabel Label
