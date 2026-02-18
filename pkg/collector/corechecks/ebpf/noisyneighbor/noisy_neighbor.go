@@ -14,7 +14,6 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 
@@ -24,8 +23,6 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/noisyneighbor/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -96,29 +93,7 @@ func (n *NoisyNeighborCheck) Run() error {
 }
 
 func (n *NoisyNeighborCheck) buildTags(stat model.NoisyNeighborStats) []string {
-	cgroupName := stat.CgroupName
-	if cgroupName == "" {
-		cgroupName = "unknown"
-	}
-
-	var tags []string
-
-	containerID := getContainerID(cgroupName)
-	if containerID != "" {
-		entityID := types.NewEntityID(types.ContainerID, containerID)
-		if !entityID.Empty() {
-			containerTags, err := n.tagger.Tag(entityID, types.HighCardinality)
-			if err != nil {
-				log.Debugf("Error collecting tags for container %s: %s", containerID, err)
-			} else if containerTags != nil {
-				tags = containerTags
-			}
-		}
-	}
-	tags = append(tags, "cgroup_name:"+cgroupName)
-	tags = append(tags, fmt.Sprintf("cgroup_id:%d", stat.CgroupID))
-
-	return tags
+	return []string{fmt.Sprintf("cgroup_id:%d", stat.CgroupID)}
 }
 
 // submitPrimaryMetrics sends the main PSL and PSP metrics
@@ -138,12 +113,4 @@ func (n *NoisyNeighborCheck) submitPrimaryMetrics(sender sender.Sender, stat mod
 func (n *NoisyNeighborCheck) submitRawCounters(sender sender.Sender, stat model.NoisyNeighborStats, tags []string) {
 	sender.Count("noisy_neighbor.events.total", float64(stat.EventCount), "", tags)
 	sender.Gauge("noisy_neighbor.unique_processes", float64(stat.UniquePidCount), "", tags)
-}
-
-func getContainerID(cgroupName string) string {
-	containerID, err := cgroups.ContainerFilter("", cgroupName)
-	if err != nil {
-		log.Debugf("Unable to extract containerID from cgroup name: %s, err: %v", cgroupName, err)
-	}
-	return containerID
 }

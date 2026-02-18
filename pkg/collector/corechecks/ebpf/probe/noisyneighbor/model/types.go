@@ -8,11 +8,9 @@ package model
 
 // NoisyNeighborStats contains the statistics from the noisy neighbor check
 type NoisyNeighborStats struct {
-	// Primary fields - populated from aggregated eBPF stats
 	CgroupID        uint64
-	CgroupName      string
 	SumLatenciesNs  uint64
 	EventCount      uint64
 	PreemptionCount uint64
-	UniquePidCount  uint64 // Note: "PID" here refers to kernel task_struct->pid, which is actually a Thread ID (TID) in userspace
+	UniquePidCount  uint64 // kernel task_struct->pid (TID) count
 }

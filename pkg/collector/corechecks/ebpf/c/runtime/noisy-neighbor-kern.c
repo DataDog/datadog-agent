@@ -49,18 +49,12 @@ static __always_inline int enqueue_timestamp(struct task_struct *task) {
     return 0;
 }
 
-static __always_inline cgroup_agg_stats_t *get_or_create_cgroup_stats(u64 cgroup_id, struct task_struct *task) {
+static __always_inline cgroup_agg_stats_t *get_or_create_cgroup_stats(u64 cgroup_id) {
     cgroup_agg_stats_t *stats = bpf_map_lookup_elem(&cgroup_agg_stats, &cgroup_id);
     if (!stats) {
         cgroup_agg_stats_t zero = {};
         bpf_map_update_with_telemetry(cgroup_agg_stats, &cgroup_id, &zero, BPF_NOEXIST);
         stats = bpf_map_lookup_elem(&cgroup_agg_stats, &cgroup_id);
-        if (stats) {
-            bpf_rcu_read_lock();
-            bpf_probe_read_kernel_str_with_telemetry(stats->cgroup_name, sizeof(stats->cgroup_name),
-                                                     task->cgroups->dfl_cgrp->kn->name);
-            bpf_rcu_read_unlock();
-        }
     }
     return stats;
 }
@@ -97,7 +91,7 @@ int tp_sched_switch(u64 *ctx) {
     bool preemption = prev_pid != 0 && next_pid == 0 && prev->__state == TASK_RUNNING;
     if (preemption) {
         u64 prev_cgroup_id = get_task_cgroup_id(prev);
-        cgroup_agg_stats_t *stats = get_or_create_cgroup_stats(prev_cgroup_id, prev);
+        cgroup_agg_stats_t *stats = get_or_create_cgroup_stats(prev_cgroup_id);
         if (stats) {
             __sync_fetch_and_add(&stats->preemption_count, 1);
         }
@@ -117,7 +111,7 @@ int tp_sched_switch(u64 *ctx) {
     bpf_task_storage_delete(&runq_enqueued, next);
 
     u64 cgroup_id = get_task_cgroup_id(next);
-    cgroup_agg_stats_t *stats = get_or_create_cgroup_stats(cgroup_id, next);
+    cgroup_agg_stats_t *stats = get_or_create_cgroup_stats(cgroup_id);
     if (stats) {
         __sync_fetch_and_add(&stats->sum_latencies_ns, runq_lat);
         __sync_fetch_and_add(&stats->event_count, 1);
