@@ -225,19 +225,19 @@ func TestFieldsCollectorNegativeDelta(t *testing.T) {
 		return t
 	}
 
-	deltaPositiveId := uint32(1)
-	deltaNegativeId := uint32(2)
-	deltaZeroId := uint32(3)
+	deltaPositiveID := uint32(1)
+	deltaNegativeID := uint32(2)
+	deltaZeroID := uint32(3)
 	fc.fieldMetrics = []fieldValueMetric{
-		{name: "deltaPositive", fieldValueID: deltaPositiveId, metricType: metrics.GaugeType, computeRate: true},
-		{name: "deltaNegative", fieldValueID: deltaNegativeId, metricType: metrics.GaugeType, computeRate: true},
-		{name: "deltaZero", fieldValueID: deltaZeroId, metricType: metrics.GaugeType, computeRate: true},
+		{name: "deltaPositive", fieldValueID: deltaPositiveID, metricType: metrics.GaugeType, computeRate: true},
+		{name: "deltaNegative", fieldValueID: deltaNegativeID, metricType: metrics.GaugeType, computeRate: true},
+		{name: "deltaZero", fieldValueID: deltaZeroID, metricType: metrics.GaugeType, computeRate: true},
 	}
 
 	baseValue := uint32(1000)
-	returnValues[deltaPositiveId] = baseValue
-	returnValues[deltaNegativeId] = baseValue
-	returnValues[deltaZeroId] = baseValue
+	returnValues[deltaPositiveID] = baseValue
+	returnValues[deltaNegativeID] = baseValue
+	returnValues[deltaZeroID] = baseValue
 
 	// First collection, ignore these values
 	_, err = fc.Collect()
@@ -245,9 +245,8 @@ func TestFieldsCollectorNegativeDelta(t *testing.T) {
 
 	// Now increment to create the deltas we want
 	delta := uint32(500)
-	returnValues[deltaPositiveId] = returnValues[deltaPositiveId] + delta
-	returnValues[deltaNegativeId] = returnValues[deltaNegativeId] - delta
-	returnValues[deltaZeroId] = returnValues[deltaZeroId]
+	returnValues[deltaPositiveID] = returnValues[deltaPositiveID] + delta
+	returnValues[deltaNegativeID] = returnValues[deltaNegativeID] - delta
 
 	collected, err := fc.Collect()
 	require.NoError(t, err)
