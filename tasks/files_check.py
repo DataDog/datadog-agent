@@ -168,7 +168,7 @@ def run(ctx, branch_name, reports_folder):
             # rpm pattern is $packagename_$version
             if '-dbg-' in artifact or '-dbg_' in artifact:
                 continue
-            pr_comment += f'## Results for {os.path.basename(artifact)}:\n'
+            pr_comment += f'### Results for {os.path.basename(artifact)}:\n'
             arch = "amd64"
             if 'aarch64' in artifact or 'arm64' in artifact:
                 arch = "arm64"
