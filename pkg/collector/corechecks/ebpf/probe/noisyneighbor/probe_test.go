@@ -27,6 +27,10 @@ func TestNoisyNeighborProbe(t *testing.T) {
 			t.Skipf("Kernel version %v is not supported by the Noisy Neighbor probe", kv)
 		}
 
+		if os.Getenv("CI_JOB_NAME") == "fedora_38" {
+			t.Skip("Noisy Neighbor probe is not supported on Ubuntu 25.10")
+		}
+
 		cfg := testConfig()
 		probe, err := NewProbe(cfg)
 		require.NoError(t, err)
