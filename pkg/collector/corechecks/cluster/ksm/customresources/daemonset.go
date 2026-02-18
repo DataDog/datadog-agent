@@ -23,7 +23,6 @@ import (
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NewDaemonSetRolloutFactory returns a new DaemonSet rollout factory that provides rollout duration metrics
@@ -83,8 +82,6 @@ func (f *daemonSetRolloutFactory) MetricFamilyGenerators() []generator.FamilyGen
 				// Note: Unlike Deployments/StatefulSets, we cannot check "revisionChanged && hasRolloutCondition"
 				// because DaemonSets don't expose their updateRevision in status.
 				isOngoing := isNewRollout || (isActivelyTracked && hasRolloutCondition)
-
-				key := ds.Namespace + "/" + ds.Name
 
 				if isOngoing {
 					f.rolloutTracker.StoreDaemonSet(ds)
