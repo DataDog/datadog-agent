@@ -34,4 +34,5 @@ var SpecialActionsAuthorized = []string{
 	"com.datadoghq.kubernetes.core.testConnection",
 	"com.datadoghq.script.testConnection",
 	"com.datadoghq.script.enrichScript",
+	"com.datadoghq.ddagent.testConnection",
 }
