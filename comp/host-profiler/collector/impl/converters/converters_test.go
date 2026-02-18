@@ -8,12 +8,17 @@
 package converters
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 func loadTestData(t *testing.T, filename string) confMap {
@@ -29,6 +34,11 @@ func loadTestData(t *testing.T, filename string) confMap {
 	require.NoError(t, err, "failed to convert to confmap from: %s", filename)
 
 	return conf.ToStringMap()
+}
+
+func newObserverLogger(level zapcore.Level) (*zap.Logger, *observer.ObservedLogs) {
+	core, logs := observer.New(level)
+	return zap.New(core), logs
 }
 
 func TestGetBasicTypes(t *testing.T) {
@@ -286,4 +296,60 @@ func TestEnsureErrorWhenIntermediateNotMap(t *testing.T) {
 	_, err := Ensure[bool](cm, "processors::batch::enabled")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "processors")
+}
+
+func TestConverterWithoutAgentLogsViaOTelLogger(t *testing.T) {
+	logger, logs := newObserverLogger(zap.WarnLevel)
+
+	conv := newConverterWithoutAgent(confmap.ConverterSettings{Logger: logger})
+	conf := confmap.NewFromStringMap(loadTestData(t, "no_agent/symbol-up-disabled/in.yaml"))
+
+	err := conv.Convert(context.Background(), conf)
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, logs.Len(), 1, "expected at least one log from the converter")
+
+	const expectedMsg = "Added minimal resourcedetection processor to user configuration"
+	found := false
+	for _, entry := range logs.All() {
+		if entry.Level == zap.WarnLevel && entry.Message == expectedMsg {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "expected warning about adding resourcedetection processor, got: %v", logs.All())
+}
+
+func TestSetLoggerOverridesSlog(t *testing.T) {
+	logger, logs := newObserverLogger(zap.DebugLevel)
+
+	SetLogger(logger)
+	t.Cleanup(func() {
+		SetLogger(zap.NewNop())
+	})
+
+	cm := confMap{}
+	Get[string](cm, "nonexistent::path")
+
+	require.GreaterOrEqual(t, logs.Len(), 1, "expected slog to use the overridden logger")
+	assert.Contains(t, logs.All()[0].Message, "non-existent intermediate map")
+}
+
+func TestConverterWithoutAgentLogsHostArchWarning(t *testing.T) {
+	logger, logs := newObserverLogger(zap.DebugLevel)
+
+	conv := newConverterWithoutAgent(confmap.ConverterSettings{Logger: logger})
+	conf := confmap.NewFromStringMap(loadTestData(t, "no_agent/preserve-host-arch/in.yaml"))
+
+	err := conv.Convert(context.Background(), conf)
+	require.NoError(t, err)
+
+	const expectedMsg = "host.arch is required but is disabled by user configuration and will break symbolication; preserving user value"
+	found := false
+	for _, entry := range logs.All() {
+		if entry.Message == expectedMsg {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "expected warning about host.arch being disabled, got logs: %v", logs.All())
 }
