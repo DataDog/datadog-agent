@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/benbjohnson/clock"
@@ -122,6 +123,7 @@ type streamWorker struct {
 	// Stream management
 	currentStream   *streamInfo
 	streamState     streamState
+	stateMu         sync.Mutex                // protects streamState for cross-goroutine reads in tests
 	streamFailureCh chan *streamInfo          // Signal sender/receiver failure with stream identity
 	streamReadyCh   chan streamCreationResult // Signal when async stream creation completes
 	streamLifetime  time.Duration
@@ -147,6 +149,20 @@ type streamWorker struct {
 	stopChan chan struct{}
 	done     chan struct{}
 	clock    clock.Clock
+}
+
+// getState returns the current stream state, safe for cross-goroutine reads
+func (s *streamWorker) getState() streamState {
+	s.stateMu.Lock()
+	defer s.stateMu.Unlock()
+	return s.streamState
+}
+
+// setState sets the stream state, safe for cross-goroutine reads
+func (s *streamWorker) setState(state streamState) {
+	s.stateMu.Lock()
+	s.streamState = state
+	s.stateMu.Unlock()
 }
 
 // newStreamWorker creates a new gRPC stream worker
@@ -250,7 +266,7 @@ func (s *streamWorker) supervisorLoop() {
 
 	// supervisor loop starts without a stream, but asyncCreateNewStream is called
 	// right after in streamWorker's start(), so we are in connecting state right away
-	s.streamState = connecting
+	s.setState(connecting)
 
 	for {
 		// Conditional inputChan - only enabled when inflight tracker has space
@@ -427,7 +443,7 @@ func (s *streamWorker) handleStreamTimeout() {
 	if s.inflight.hasUnacked() {
 		log.Infof("Worker %s: Stream lifetime expired with %d unacked payloads, entering Draining state",
 			s.workerID, s.inflight.sentCount())
-		s.streamState = draining
+		s.setState(draining)
 		s.drainTimer.Reset(drainTimeout)
 	} else {
 		log.Infof("Worker %s: Stream lifetime expired with no unacked payloads, rotating immediately",
@@ -454,7 +470,7 @@ func (s *streamWorker) handleBackoffTimeout() {
 	}
 
 	log.Infof("Worker %s: Backoff timer expired, retrying stream creation (error count: %d)", s.workerID, s.nbErrors)
-	s.streamState = connecting
+	s.setState(connecting)
 	s.asyncCreateNewStream()
 }
 
@@ -494,11 +510,11 @@ func (s *streamWorker) tryBeginStreamRotation(dueToFailure bool) {
 
 	if !dueToFailure || backoffDuration == 0 {
 		log.Infof("Worker %s: Beginning stream creation (state: %v → connecting)", s.workerID, s.streamState)
-		s.streamState = connecting
+		s.setState(connecting)
 		s.asyncCreateNewStream()
 	} else {
 		log.Infof("Worker %s: Backing off stream creation for %v (error count: %d)", s.workerID, backoffDuration, s.nbErrors)
-		s.streamState = disconnected
+		s.setState(disconnected)
 		s.backoffTimer.Reset(backoffDuration)
 	}
 }
@@ -511,7 +527,7 @@ func (s *streamWorker) finishStreamRotation(streamInfo *streamInfo) {
 
 	batchToSendCh := make(chan *statefulpb.StatefulBatch, ioChanBufferSize)
 	s.currentStream = streamInfo
-	s.streamState = active
+	s.setState(active)
 	s.batchToSendCh = batchToSendCh
 
 	// Start sender and receiver goroutines for this stream
