@@ -124,6 +124,12 @@ func GetClusterAgentStaticTags(ctx context.Context, config config.Reader) map[st
 		tags = append(tags, taggertags.KubeDistribution+":"+kubeDistro)
 	}
 
+	// add orch_cluster_id global tag
+	clusterIDValue, _ := clustername.GetClusterID()
+	if clusterIDValue != "" {
+		tags = append(tags, taggertags.OrchClusterID+":"+clusterIDValue)
+	}
+
 	if tags == nil {
 		return nil
 	}
