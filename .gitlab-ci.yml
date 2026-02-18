@@ -1059,7 +1059,8 @@ workflow:
     when: on_success
 
 .on_otel_components_changes:
-  - !reference [.except_mergequeue, .on_main]
+  - !reference [.except_mergequeue]
+  - !reference [.on_main]
   - changes:
       paths:
         - cmd/otel-agent/**/*
