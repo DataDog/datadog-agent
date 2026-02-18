@@ -88,25 +88,80 @@ type telemetryMetrics struct {
 	issuesCounter telemetry.Counter
 }
 
-// IssueState represents the state of a persisted issue
-type IssueState string
+// IssueState is a type alias for the proto enum healthplatform.IssueState.
+type IssueState = healthplatform.IssueState
 
 const (
-	// IssueStateNew indicates a newly detected issue
-	IssueStateNew IssueState = "new"
-	// IssueStateOngoing indicates an issue that persists across checks
-	IssueStateOngoing IssueState = "ongoing"
-	// IssueStateResolved indicates an issue that has been resolved
-	IssueStateResolved IssueState = "resolved"
+	IssueStateNew      = healthplatform.IssueState_ISSUE_STATE_NEW
+	IssueStateOngoing  = healthplatform.IssueState_ISSUE_STATE_ONGOING
+	IssueStateResolved = healthplatform.IssueState_ISSUE_STATE_RESOLVED
 )
 
-// PersistedIssue tracks issue state for disk persistence
+var issueStateToString = map[IssueState]string{
+	IssueStateNew:      "new",
+	IssueStateOngoing:  "ongoing",
+	IssueStateResolved: "resolved",
+}
+
+func issueStateFromString(s string) IssueState {
+	for k, v := range issueStateToString {
+		if v == s {
+			return k
+		}
+	}
+	return 0
+}
+
+// PersistedIssue tracks issue state for disk persistence.
+// Custom JSON marshaling keeps the on-disk format unchanged (state as string).
 type PersistedIssue struct {
 	IssueID    string     `json:"issue_id"`
 	State      IssueState `json:"state"`
 	FirstSeen  string     `json:"first_seen"`
 	LastSeen   string     `json:"last_seen"`
 	ResolvedAt string     `json:"resolved_at,omitempty"`
+}
+
+// MarshalJSON converts the proto IssueState enum to its string representation for disk.
+func (p *PersistedIssue) MarshalJSON() ([]byte, error) {
+	type Alias PersistedIssue
+	return json.Marshal(&struct {
+		*Alias
+		State string `json:"state"`
+	}{
+		Alias: (*Alias)(p),
+		State: issueStateToString[p.State],
+	})
+}
+
+// UnmarshalJSON parses the string state from disk back to the proto enum.
+func (p *PersistedIssue) UnmarshalJSON(data []byte) error {
+	type Alias PersistedIssue
+	aux := &struct {
+		*Alias
+		State string `json:"state"`
+	}{
+		Alias: (*Alias)(p),
+	}
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+	p.State = issueStateFromString(aux.State)
+	return nil
+}
+
+// persistedIssueToProto converts a local PersistedIssue to the proto PersistedIssue
+// used in the Issue payload. The proto type uses *string for ResolvedAt.
+func persistedIssueToProto(p *PersistedIssue) *healthplatform.PersistedIssue {
+	pi := &healthplatform.PersistedIssue{
+		State:     p.State,
+		FirstSeen: p.FirstSeen,
+		LastSeen:  p.LastSeen,
+	}
+	if p.ResolvedAt != "" {
+		pi.ResolvedAt = &p.ResolvedAt
+	}
+	return pi
 }
 
 // PersistedState is the full state written to disk
@@ -478,6 +533,12 @@ func (h *healthPlatformImpl) storeIssue(checkID string, issue *healthplatform.Is
 		existing.LastSeen = now
 	}
 
+	// Populate the proto PersistedIssue on the issue for the health report payload
+	persisted := h.persistedIssues[checkID]
+	if persisted != nil {
+		issue.PersistedIssue = persistedIssueToProto(persisted)
+	}
+
 	h.issuesMux.Unlock()
 
 	// Persist to disk (outside lock to avoid blocking)
@@ -532,6 +593,7 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 				h.log.Warn(fmt.Sprintf("Failed to rebuild issue %s for check %s: %v", persisted.IssueID, checkID, err))
 				continue
 			}
+			issue.PersistedIssue = persistedIssueToProto(persisted)
 			h.issues[checkID] = issue
 			activeCount++
 		}
@@ -630,12 +692,13 @@ func (h *healthPlatformImpl) fillFlare(fb flaretypes.FlareBuilder) error {
 		hostname = "unknown"
 	}
 
+	agentVersion := version.AgentVersion
 	report := &healthplatform.HealthReport{
 		EventType: "agent.health",
 		EmittedAt: time.Now().UTC().Format(time.RFC3339),
 		Host: &healthplatform.HostInfo{
 			Hostname:     hostname,
-			AgentVersion: version.AgentVersion,
+			AgentVersion: &agentVersion,
 		},
 		Issues: issues,
 	}

@@ -20,6 +20,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -155,7 +156,7 @@ func (f *forwarder) buildReport(issues map[string]*healthplatform.Issue) *health
 		EmittedAt: time.Now().UTC().Format(time.RFC3339),
 		Host: &healthplatform.HostInfo{
 			Hostname:     f.hostname,
-			AgentVersion: version.AgentVersion,
+			AgentVersion: pointer.Ptr(version.AgentVersion),
 		},
 		Issues: issues,
 	}

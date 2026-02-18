@@ -129,6 +129,14 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 	assert.NotEmpty(suite.T(), dockerIssue.Remediation.Summary, "Remediation summary should not be empty")
 	assert.NotEmpty(suite.T(), dockerIssue.Remediation.Steps, "Remediation steps should not be empty")
 
+	// Verify the PersistedIssue is populated in the payload
+	require.NotNil(suite.T(), dockerIssue.PersistedIssue, "PersistedIssue should be populated in the health report payload")
+	assert.Contains(suite.T(),
+		[]healthplatform.IssueState{healthplatform.IssueState_ISSUE_STATE_NEW, healthplatform.IssueState_ISSUE_STATE_ONGOING},
+		dockerIssue.PersistedIssue.State, "PersistedIssue state should be NEW or ONGOING")
+	assert.NotEmpty(suite.T(), dockerIssue.PersistedIssue.FirstSeen, "PersistedIssue should have first_seen")
+	assert.NotEmpty(suite.T(), dockerIssue.PersistedIssue.LastSeen, "PersistedIssue should have last_seen")
+
 	suite.T().Log("Phase 1 passed: docker permission issue detected with correct metadata")
 
 	// =========================================================================
@@ -164,16 +172,24 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 		assert.True(t, agent.Client.IsReady(), "Agent should be ready after restart")
 	}, 2*time.Minute, 10*time.Second, "Agent not ready after restart")
 
-	// Wait for a new health report after restart
+	// Wait for a new health report after restart and verify PersistedIssue shows ONGOING
+	var postRestartIssue *healthplatform.Issue
 	require.EventuallyWithT(suite.T(), func(t *assert.CollectT) {
 		payloads, err := fakeIntake.GetAgentHealth()
 		if !assert.NoError(t, err) || !assert.NotEmpty(t, payloads, "Should receive health report after restart") {
 			return
 		}
 		latest := payloads[len(payloads)-1]
-		assert.NotNil(t, findIssue(suite.T(), latest, expectedIssueID),
+		postRestartIssue = findIssue(suite.T(), latest, expectedIssueID)
+		assert.NotNil(t, postRestartIssue,
 			"Docker permission issue should still be present after restart")
 	}, 2*time.Minute, 10*time.Second, "Health report with issue not received after restart")
+
+	require.NotNil(suite.T(), postRestartIssue.PersistedIssue, "PersistedIssue should be populated after restart")
+	assert.Equal(suite.T(), healthplatform.IssueState_ISSUE_STATE_ONGOING, postRestartIssue.PersistedIssue.State,
+		"PersistedIssue in payload should be ONGOING after restart")
+	assert.Equal(suite.T(), initialFirstSeen, postRestartIssue.PersistedIssue.FirstSeen,
+		"PersistedIssue first_seen in payload should be preserved across restart")
 
 	// Verify persistence file: state should be "ongoing" (loaded from disk + re-confirmed by check)
 	persistedIss = suite.readPersistedIssue(dockerPermissionsCheckID)

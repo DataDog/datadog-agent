@@ -74,7 +74,7 @@ func TestForwarderBuildReport(t *testing.T) {
 
 	assert.Equal(t, "agent-health-issues", report.EventType)
 	assert.Equal(t, "test-host", report.Host.Hostname)
-	assert.Equal(t, version.AgentVersion, report.Host.AgentVersion)
+	assert.Equal(t, version.AgentVersion, report.Host.GetAgentVersion())
 	assert.Len(t, report.Issues, 2)
 	assert.NotEmpty(t, report.EmittedAt)
 
