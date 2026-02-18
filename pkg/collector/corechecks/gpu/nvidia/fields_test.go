@@ -15,6 +15,8 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 // mockFieldValues maps each field ID to its expected metric value.
@@ -202,4 +204,71 @@ func TestFieldsCollector_NvlinkSpeedPriority(t *testing.T) {
 			require.Equal(t, tt.expectValue, nvlinkSpeed[0].Value)
 		})
 	}
+}
+
+func TestFieldsCollectorNegativeDelta(t *testing.T) {
+	returnValues := make(map[uint32]uint32)
+	device := setupMockDevice(t, func(d *mock.Device) *mock.Device {
+		d.GetFieldValuesFunc = fieldValuesMockFunc(returnValues, 0)
+		return d
+	})
+
+	collector, err := newFieldsCollector(device, nil)
+	require.NoError(t, err)
+
+	fc, ok := collector.(*fieldsCollector)
+	require.True(t, ok, "expected *fieldsCollector")
+	now := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	fc.now = func() time.Time {
+		t := now
+		now = now.Add(time.Second)
+		return t
+	}
+
+	deltaPositiveId := uint32(1)
+	deltaNegativeId := uint32(2)
+	deltaZeroId := uint32(3)
+	fc.fieldMetrics = []fieldValueMetric{
+		{name: "deltaPositive", fieldValueID: deltaPositiveId, metricType: metrics.GaugeType, computeRate: true},
+		{name: "deltaNegative", fieldValueID: deltaNegativeId, metricType: metrics.GaugeType, computeRate: true},
+		{name: "deltaZero", fieldValueID: deltaZeroId, metricType: metrics.GaugeType, computeRate: true},
+	}
+
+	baseValue := uint32(1000)
+	returnValues[deltaPositiveId] = baseValue
+	returnValues[deltaNegativeId] = baseValue
+	returnValues[deltaZeroId] = baseValue
+
+	// First collection, ignore these values
+	_, err = fc.Collect()
+	require.NoError(t, err)
+
+	// Now increment to create the deltas we want
+	delta := uint32(500)
+	returnValues[deltaPositiveId] = returnValues[deltaPositiveId] + delta
+	returnValues[deltaNegativeId] = returnValues[deltaNegativeId] - delta
+	returnValues[deltaZeroId] = returnValues[deltaZeroId]
+
+	collected, err := fc.Collect()
+	require.NoError(t, err)
+
+	foundPositive, foundNegative, foundZero := false, false, false
+	for _, m := range collected {
+		if m.Name == "deltaPositive" {
+			foundPositive = true
+			require.Equal(t, float64(delta), m.Value)
+		}
+		if m.Name == "deltaNegative" {
+			foundNegative = true
+			require.Equal(t, float64(0), m.Value)
+		}
+		if m.Name == "deltaZero" {
+			foundZero = true
+			require.Equal(t, float64(0), m.Value)
+		}
+	}
+
+	require.True(t, foundPositive, "deltaPositive metric should be present")
+	require.True(t, foundNegative, "deltaNegative metric should be present")
+	require.True(t, foundZero, "deltaZero metric should be present")
 }
