@@ -268,9 +268,6 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_by_flags(struct s
 }
 
 enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct dentry *dentry, struct file_t *file) {
-    // Track total open events that hit the sampling logic
-    monitor_ad_sample_total(EVENT_OPEN);
-
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     if (IS_KTHREAD(pid, pid)) {
         return DISCARDED;
@@ -284,6 +281,8 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct den
     struct path_key_t *process_path_key = bpf_map_lookup_elem(&pid_path_keys, &pid);
     if (process_path_key != NULL) {
         struct process_path_key_t key = {
+            // NOTE should add the parent pid here
+
             .process_path_key = *process_path_key,
             .file_path_key = file->path_key,
         };
