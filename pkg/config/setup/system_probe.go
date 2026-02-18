@@ -374,6 +374,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("gpu_monitoring.cgroup_reapply_interval", 30*time.Second)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.cgroup_reapply_infinitely", false)
 
+	// Windows Injector telemetry, enabled by default
+	cfg.BindEnvAndSetDefault("injector.enable_telemetry", true)
+
 	// gpu - stream config
 	cfg.BindEnvAndSetDefault("gpu_monitoring.streams.max_kernel_launches", 1000)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.streams.max_mem_alloc_events", 1000)
