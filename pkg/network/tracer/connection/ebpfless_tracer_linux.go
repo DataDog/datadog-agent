@@ -21,7 +21,7 @@ const (
 )
 
 // createPacketSource creates a Linux-specific AFPacket packet source
-func createPacketSource(cfg *config.Config) (filter.PacketSource, error) {
+func createPacketSource(_ *config.Config) (filter.PacketSource, error) {
 	packetSrc, err := filter.NewAFPacketSource(
 		8<<20, // 8 MB total space
 		filter.OptSnapLen(segmentLen))
