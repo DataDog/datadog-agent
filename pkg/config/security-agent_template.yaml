@@ -2,11 +2,15 @@
 ## Runtime Security configuration ##
 ####################################
 
+## @param runtime_security_config - custom object - optional
+#
 # runtime_security_config:
+
 #   # @param enabled - boolean - optional - default: false
 #   # Set to true to enable Cloud Workload Security (CWS).
 #
 #   enabled: false
+
 {{ if (eq .OS "windows") }}
 #   # @param socket - string - optional - default: localhost:3334
 #   # The local address and port where the security runtime module is accessed
@@ -18,12 +22,3 @@
 #
 #   socket: /opt/datadog-agent/run/runtime-security.sock
 {{ end }}
-##########################################
-## Compliance monitoring configuration  ##
-##########################################
-
-# compliance_config:
-#   # @param enabled - boolean - optional - default: false
-#   # Set to true to enable Cloud Security Posture Management (CSPM).
-#
-#   enabled: false

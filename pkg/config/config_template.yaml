@@ -758,9 +758,9 @@ api_key:
 #     # URL endpoint for the Observability Pipelines Worker to send traces to
 #
 #     url: "http://127.0.0.1:8080"
-{{- end -}}
+{{ end -}}
 
-{{if .Agent -}}
+{{if .Agent}}
 ############################
 ## Advanced Configuration ##
 ############################
@@ -913,7 +913,8 @@ api_key:
 #
 # windows_use_pythonpath: false
 {{- end }}
-{{- if .Agent -}}
+
+{{ if .Agent -}}
 ## @param secret_backend_type - string - optional - default: ""
 ## @env DD_SECRET_BACKEND_TYPE - string - optional - default: ""
 ## `secret_backend_type` is the type of backend where secrets are stored.
@@ -1068,9 +1069,9 @@ api_key:
 #
 #   log_file: <TRAY_LOG_FILE_PATH>
 {{- end -}}
-{{- end -}}
+{{ end -}}
 
-{{- if .LogsAgent -}}
+{{- if .LogsAgent }}
 
 ##################################
 ## Log collection Configuration ##
@@ -1267,7 +1268,7 @@ api_key:
 #     streamlogs_log_file: <path_to_streamlogs_log_file>
 {{ end -}}
 
-{{ if .TraceAgent -}}
+{{ if .TraceAgent }}
 ####################################
 ## Trace Collection Configuration ##
 ####################################
@@ -1301,11 +1302,14 @@ api_key:
 #   # Set to 0 to disable the HTTP receiver.
 #
 #   receiver_port: 8126
-{{ if (eq .OS "windows") }}
+
+{{ if (eq .OS "windows") -}}
 #   # @param receiver_socket - string - optional - default: ""
 #   # @env DD_APM_RECEIVER_SOCKET - string - optional - default: ""
 #   # Please note that UDS receiver is not available in Windows.
 #   # Enabling this setting may result in unexpected behavior.
+#   # Please note that UDS receiver is not available in Windows.
+#   # @ Enabling this setting may result in unexpected behavior.
 #   #
 #   # Accept traces through Unix Domain Sockets.
 #   # Set to "" to disable the UDS receiver.
@@ -1907,7 +1911,7 @@ api_key:
 #   additional_profile_tags: {}
 {{ end -}}
 
-{{ if .CoreAgent -}}
+{{ if .CoreAgent }}
 ######################################
 ## Process Collection Configuration ##
 ######################################
@@ -1940,6 +1944,18 @@ api_key:
 #     # Enables collection of information about running containers.
 #
 #     enabled: true
+
+#   # @param enabled - boolean - optional - default: false
+#   # @env DD_PROCESS_CONFIG_ENABLED - boolean - optional - default: false
+#   # @env DD_PROCESS_AGENT_ENABLED - boolean - optional - default: false
+#   # Deprecated - use `process_collection.enabled` and `container_collection.enabled` instead
+#   #
+#   #  A string indicating the enabled state of the Process Agent:
+#   #    * "false"    : The Agent collects only containers information.
+#   #    * "true"     : The Agent collects containers and processes information.
+#   #    * "disabled" : The Agent process collection is disabled.
+#
+#   enabled: false
 
 #   # @param expvar_port - integer - optional - default: 6062
 #   # @env DD_PROCESS_CONFIG_EXPVAR_PORT - integer - optional - default: 6062
@@ -2012,24 +2028,28 @@ api_key:
 
 #   # @param queue_size - integer - optional - default: 256
 #   # @env DD_PROCESS_CONFIG_QUEUE_SIZE - integer - optional - default: 256
+#   # @env DD_PROCESS_AGENT_QUEUE_SIZE - integer - optional - default: 256
 #   # The number of check results to buffer in memory when a POST fails.
 #
 #   queue_size: 256
 
 #   # @param process_queue_bytes - integer - optional - default: 60000000
 #   # @env DD_PROCESS_CONFIG_PROCESS_QUEUE_BYTES - integer - optional - default: 60000000
+#   # @env DD_PROCESS_AGENT_PROCESS_QUEUE_BYTES - integer - optional - default: 60000000
 #   # The amount of data (in bytes) to buffer in memory when a POST fails.
 #
 #   process_queue_bytes: 60000000
 
 #   # @param rt_queue_size - integer - optional - default: 5
 #   # @env DD_PROCESS_CONFIG_RT_QUEUE_SIZE - integer - optional - default: 5
+#   # @env DD_PROCESS_AGENT_RT_QUEUE_SIZE - integer - optional - default: 5
 #   # The number of realtime check results to buffer in memory when a POST fails.
 #
 #   rt_queue_size: 5
 
 #   # @param max_per_message - integer - optional - default: 100
 #   # @env DD_PROCESS_CONFIG_MAX_PER_MESSAGE - integer - optional - default: 100
+#   # @env DD_PROCESS_AGENT_MAX_PER_MESSAGE - integer - optional - default: 100
 #   # The maximum number of processes or containers per message.
 #
 #   max_per_message: 100
@@ -2044,6 +2064,7 @@ api_key:
 
 #   # @param dd_agent_env - string - optional - default: ""
 #   # @env DD_PROCESS_CONFIG_DD_AGENT_ENV - string - optional - default: ""
+#   # @env DD_PROCESS_AGENT_DD_AGENT_ENV - string - optional - default: ""
 #   # Overrides of the environment we pass to fetch the hostname.
 #
 #   dd_agent_env: ""
@@ -2051,6 +2072,7 @@ api_key:
 #   # @param scrub_args - boolean - optional - default: true
 #   # @env DD_SCRUB_ARGS - boolean - optional - default: true
 #   # @env DD_PROCESS_CONFIG_SCRUB_ARGS - boolean - optional - default: true
+#   # @env DD_PROCESS_AGENT_SCRUB_ARGS - boolean - optional - default: true
 #   # Hide sensitive data on the Live Processes page.
 #
 #   scrub_args: true
@@ -2278,7 +2300,6 @@ api_key:
 #   enabled: false
 
 #   # @param host - custom object - optional
-#   # uncomment the sections below to enable where the vulnerability scanning is done
 #
 #   host:
 
@@ -2654,7 +2675,7 @@ api_key:
 # jmx_java_tool_options: -javaagent:/path/to/agent.jar -XX:+UseG1GC
 {{ end -}}
 
-{{ if .Logging -}}
+{{ if .Logging }}
 ###########################
 ## Logging Configuration ##
 ###########################
@@ -2742,7 +2763,7 @@ api_key:
 # log_all_goroutines_when_unhealthy: false
 {{ end -}}
 
-{{ if .CoreAgent -}}
+{{ if .CoreAgent }}
 ##############################
 ## Autoconfig Configuration ##
 ##############################
@@ -2971,7 +2992,7 @@ api_key:
 # podman_db_path: ""
 {{ end -}}
 
-{{ if .ClusterAgent -}}
+{{ if .ClusterAgent }}
 #################################
 ## Cluster Agent Configuration ##
 #################################
@@ -3076,7 +3097,7 @@ api_key:
 #     sample_rate: 0.1
 {{ end -}}
 
-{{ if .ClusterChecks -}}
+{{ if .ClusterChecks }}
 #################################
 ## Cluster check Configuration ##
 #################################
@@ -3146,7 +3167,7 @@ api_key:
 #   clc_runners_port: 5005
 {{ end -}}
 
-{{ if .AdmissionController -}}
+{{ if .AdmissionController }}
 ########################################
 ## Admission controller Configuration ##
 ########################################
@@ -3372,7 +3393,7 @@ api_key:
 #     init_security_context: '{"privileged": false}'
 {{ end -}}
 
-{{ if .DockerTagging -}}
+{{ if .DockerTagging }}
 ###########################
 ## Docker tag extraction ##
 ###########################
@@ -3399,7 +3420,7 @@ api_key:
 #   <ENVVAR_NAME>: <TAG_KEY>
 {{ end -}}
 
-{{ if .KubernetesTagging -}}
+{{ if .KubernetesTagging }}
 ###############################
 ## Kubernetes tag extraction ##
 ###############################
@@ -3456,7 +3477,7 @@ api_key:
 #   <HIGH_CARDINALITY_LABEL_NAME>: +<TAG_KEY>
 {{ end -}}
 
-{{ if .ECS -}}
+{{ if .ECS }}
 ###################################
 ## ECS integration Configuration ##
 ###################################
@@ -3516,7 +3537,7 @@ api_key:
 # ecs_deployment_mode: "auto"
 {{ end -}}
 
-{{ if .CoreAgent -}}
+{{ if .CoreAgent }}
 ##################################################
 ## CRI and Containerd integration Configuration ##
 ##################################################
@@ -3580,7 +3601,7 @@ api_key:
 #   - moby
 {{ end -}}
 
-{{ if .Kubelet -}}
+{{ if .Kubelet }}
 ###################################################
 ## Kubernetes kubelet connectivity Configuration ##
 ###################################################
@@ -3652,7 +3673,7 @@ api_key:
 # kubernetes_pod_expiration_duration: 900
 {{ end -}}
 
-{{ if .KubeApiServer -}}
+{{ if .KubeApiServer }}
 ####################################################
 ## Kubernetes apiserver integration Configuration ##
 ####################################################
@@ -3812,7 +3833,7 @@ api_key:
 #
 # kubernetes_ad_tags_disabled:
 #   - kube_service
-{{ end -}}
+{{- end }}
 
 {{ if .CoreAgent -}}
 ## @param prometheus_scrape - custom object - optional
@@ -3843,8 +3864,8 @@ api_key:
 #   # Version of the openmetrics check to be scheduled by the Prometheus auto-discovery
 #
 #   version: 1
-{{ end -}}
 
+{{ end -}}
 {{ if .CloudFoundry -}}
 #######################################################
 ## Cloud Foundry BBS Configuration for Autodiscovery ##
@@ -4345,30 +4366,6 @@ api_key:
 #             - match_field: index
 #               match_value: '2'
 #               disabled: true
-
-#         # @param ping - custom object - optional
-#         # Configure ICMP pings for all hosts in SNMP autodiscovery
-#         # Devices will be pinged with these settings each time the SNMP
-#         # check is run.
-#         #
-#         # By default, Datadog tries to use an unprivileged UDP socket to send ICMP
-#         # pings, but some linux systems require using a raw socket.
-#         #
-#         # If `linux.use_raw_socket` is set, you must enable the `ping` module
-#         # of system-probe for elevated privileges. See
-#         # system-probe.yaml.example for details.
-#
-#         ping:
-#           enabled: true             # Disabled by default
-#           timeout: 3000             # Timeout in milliseconds
-#           count: 2                  # Number of ping packets to send per check run
-#           interval: 10              # Time between sending pings (up to `count` packets) in milliseconds
-#           linux:                    # Linux-specific configuration
-#             use_raw_socket: true    # Send pings in a privileged fashion using a raw socket.
-#                                     # This may be required if your system doesn't support
-#                                     # sending pings in an unprivileged fashion (using a UDP socket).
-#                                     # If `use_raw_socket` is set to true, you MUST also enable
-#                                     # system-probe which has elevated privileges. To enable it, see system-probe.yaml.example.
 
 #   # @param snmp_traps - custom object - optional
 #   # This section configures SNMP traps collection.
@@ -4954,4 +4951,35 @@ api_key:
 #
 #   actions_allowlist:
 #     - com.datadoghq.script.runPredefinedScript
+{{ end -}}
+{{- if .SecurityAgent }}
+
+####################################
+## Runtime Security configuration ##
+####################################
+
+## @param runtime_security_config - custom object - optional
+#
+# runtime_security_config:
+
+#   # @param enabled - boolean - optional - default: false
+#   # @env DD_RUNTIME_SECURITY_CONFIG_ENABLED - boolean - optional - default: false
+#   # Set to true to enable Cloud Workload Security (CWS).
+#
+#   enabled: false
+
+{{ if (eq .OS "windows") -}}
+#   # @param socket - string - optional - default: "localhost:3335"
+#   # @env DD_RUNTIME_SECURITY_CONFIG_SOCKET - string - optional - default: "localhost:3335"
+#   # The local address and port where the security runtime module is accessed
+#
+#   socket: "localhost:3335"
+{{- else -}}
+#   # @param socket - string - optional - default: "/opt/datadog-agent/run/runtime-security.sock"
+#   # @env DD_RUNTIME_SECURITY_CONFIG_SOCKET - string - optional - default: "/opt/datadog-agent/run/runtime-security.sock"
+#   # The full path to the location of the unix socket where security runtime module is accessed.
+#
+#   socket: "/opt/datadog-agent/run/runtime-security.sock"
+{{ end }}
+
 {{ end -}}
