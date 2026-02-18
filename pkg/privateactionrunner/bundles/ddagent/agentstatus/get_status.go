@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package com_datadoghq_ddagent_status
+package com_datadoghq_ddagent_agentstatus
 
 import (
 	"context"
@@ -18,26 +18,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-// GetCoreAgentStatusHandler retrieves the core agent's status via the IPC API.
-type GetCoreAgentStatusHandler struct {
+// GetStatusHandler retrieves the core agent's status via the IPC API.
+type GetStatusHandler struct {
 	ipcClient ipc.HTTPClient
 }
 
-// NewGetCoreAgentStatusHandler creates a new handler with the given IPC client.
-func NewGetCoreAgentStatusHandler(client ipc.HTTPClient) *GetCoreAgentStatusHandler {
-	return &GetCoreAgentStatusHandler{
+// NewGetStatusHandler creates a new handler with the given IPC client.
+func NewGetStatusHandler(client ipc.HTTPClient) *GetStatusHandler {
+	return &GetStatusHandler{
 		ipcClient: client,
 	}
 }
 
-// GetCoreAgentStatusInputs defines the optional inputs for the getStatus action.
-type GetCoreAgentStatusInputs struct {
+// GetStatusInputs defines the optional inputs for the getStatus action.
+type GetStatusInputs struct {
 	Verbose bool   `json:"verbose,omitempty"`
 	Section string `json:"section,omitempty"`
 }
 
 // Run executes the getStatus action by calling the agent's IPC status endpoint.
-func (h *GetCoreAgentStatusHandler) Run(
+func (h *GetStatusHandler) Run(
 	ctx context.Context,
 	task *types.Task,
 	_ *privateconnection.PrivateCredentials,
@@ -46,7 +46,7 @@ func (h *GetCoreAgentStatusHandler) Run(
 		return nil, errors.New("IPC client is not available")
 	}
 
-	inputs, err := types.ExtractInputs[GetCoreAgentStatusInputs](task)
+	inputs, err := types.ExtractInputs[GetStatusInputs](task)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract inputs: %w", err)
 	}

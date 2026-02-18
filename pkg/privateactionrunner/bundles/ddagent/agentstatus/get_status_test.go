@@ -5,7 +5,7 @@
 
 //go:build test
 
-package com_datadoghq_ddagent_status
+package com_datadoghq_ddagent_agentstatus
 
 import (
 	"context"
@@ -29,7 +29,7 @@ func newTask(inputs map[string]interface{}) *types.Task {
 	return task
 }
 
-func TestGetCoreAgentStatus_Success(t *testing.T) {
+func TestGetStatus_Success(t *testing.T) {
 	ipcMock := ipcmock.New(t)
 
 	expectedStatus := map[string]interface{}{
@@ -46,7 +46,7 @@ func TestGetCoreAgentStatus_Success(t *testing.T) {
 	}))
 	_ = server
 
-	handler := NewGetCoreAgentStatusHandler(ipcMock.GetClient())
+	handler := NewGetStatusHandler(ipcMock.GetClient())
 	task := newTask(map[string]interface{}{})
 
 	result, err := handler.Run(context.Background(), task, nil)
@@ -58,7 +58,7 @@ func TestGetCoreAgentStatus_Success(t *testing.T) {
 	assert.Equal(t, "7.50.0", status["version"])
 }
 
-func TestGetCoreAgentStatus_WithSection(t *testing.T) {
+func TestGetStatus_WithSection(t *testing.T) {
 	ipcMock := ipcmock.New(t)
 
 	expectedStatus := map[string]interface{}{
@@ -74,7 +74,7 @@ func TestGetCoreAgentStatus_WithSection(t *testing.T) {
 	}))
 	_ = server
 
-	handler := NewGetCoreAgentStatusHandler(ipcMock.GetClient())
+	handler := NewGetStatusHandler(ipcMock.GetClient())
 	task := newTask(map[string]interface{}{
 		"section": "collector",
 	})
@@ -87,7 +87,7 @@ func TestGetCoreAgentStatus_WithSection(t *testing.T) {
 	assert.Equal(t, "ok", status["collectorStatus"])
 }
 
-func TestGetCoreAgentStatus_WithVerbose(t *testing.T) {
+func TestGetStatus_WithVerbose(t *testing.T) {
 	ipcMock := ipcmock.New(t)
 
 	expectedStatus := map[string]interface{}{
@@ -104,7 +104,7 @@ func TestGetCoreAgentStatus_WithVerbose(t *testing.T) {
 	}))
 	_ = server
 
-	handler := NewGetCoreAgentStatusHandler(ipcMock.GetClient())
+	handler := NewGetStatusHandler(ipcMock.GetClient())
 	task := newTask(map[string]interface{}{
 		"verbose": true,
 	})
@@ -117,8 +117,8 @@ func TestGetCoreAgentStatus_WithVerbose(t *testing.T) {
 	assert.Equal(t, true, status["verbose"])
 }
 
-func TestGetCoreAgentStatus_NilClient(t *testing.T) {
-	handler := NewGetCoreAgentStatusHandler(nil)
+func TestGetStatus_NilClient(t *testing.T) {
+	handler := NewGetStatusHandler(nil)
 	task := newTask(map[string]interface{}{})
 
 	_, err := handler.Run(context.Background(), task, nil)
@@ -126,7 +126,7 @@ func TestGetCoreAgentStatus_NilClient(t *testing.T) {
 	assert.Contains(t, err.Error(), "IPC client is not available")
 }
 
-func TestGetCoreAgentStatus_ServerError(t *testing.T) {
+func TestGetStatus_ServerError(t *testing.T) {
 	ipcMock := ipcmock.New(t)
 
 	server := ipcMock.NewMockServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -135,7 +135,7 @@ func TestGetCoreAgentStatus_ServerError(t *testing.T) {
 	}))
 	_ = server
 
-	handler := NewGetCoreAgentStatusHandler(ipcMock.GetClient())
+	handler := NewGetStatusHandler(ipcMock.GetClient())
 	task := newTask(map[string]interface{}{})
 
 	_, err := handler.Run(context.Background(), task, nil)

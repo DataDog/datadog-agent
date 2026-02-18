@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package com_datadoghq_ddagent_status
+package com_datadoghq_ddagent_agentstatus
 
 import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -21,7 +21,7 @@ type AgentStatusBundle struct {
 func NewAgentStatus(client ipc.HTTPClient) *AgentStatusBundle {
 	return &AgentStatusBundle{
 		actions: map[string]types.Action{
-			"getStatus": NewGetCoreAgentStatusHandler(client),
+			"getStatus": NewGetStatusHandler(client),
 		},
 	}
 }
