@@ -61,6 +61,32 @@ Options:
    - Secret-generic-connector in image:  
      `kubectl exec cluster-agent-test -c agent -- /opt/datadog-agent/bin/secret-generic-connector --version`
 
+## Single copy-paste block (Linux)
+
+Run from the **repo root** on a Linux host (so binaries are linux/amd64 or linux/arm64). Replace `REPO_ROOT` with the actual path (e.g. `$CI_PROJECT_DIR` or `/home/user/datadog-agent`), or omit the `cd` and run from the repo root.
+
+```bash
+cd REPO_ROOT
+minikube start
+eval $(minikube docker-env)
+dda inv cluster-agent.build --skip-assets
+docker build -f test/minikube-cluster-agent/Dockerfile -t zork:latest .
+kubectl apply -f test/minikube-cluster-agent/fake-intake.yaml
+kubectl apply -f test/minikube-cluster-agent/secrets.yaml
+kubectl apply -f test/minikube-cluster-agent/cluster-agent-pod.yaml
+kubectl wait --for=condition=ready pod/cluster-agent-test --timeout=120s
+kubectl get pod cluster-agent-test
+kubectl logs cluster-agent-test -c agent --tail=50
+kubectl exec cluster-agent-test -c agent -- /opt/datadog-agent/bin/secret-generic-connector --version
+```
+
+If anything fails, check pod status and logs:
+
+```bash
+kubectl describe pod cluster-agent-test
+kubectl logs cluster-agent-test -c agent
+```
+
 ## Files
 
 - `datadog.yaml` – cluster agent config (secrets via `secret_backend_command`, fake intake)
