@@ -179,6 +179,57 @@ func (s *extensionsSuite) TestDDOTExtension() {
 	}
 }
 
+// TestExtensionSurvivesAgentUpgrade verifies that extensions installed on the
+// datadog-agent package survive an upgrade via the experiment (start/promote)
+// flow, which is the primary fleet automation upgrade path.
+func (s *extensionsSuite) TestExtensionSurvivesAgentUpgrade() {
+	// Install agent with datadog-installer
+	s.Agent.MustInstall()
+	defer s.Agent.MustUninstall()
+
+	// Install DDOT extension on the agent
+	s.Installer.MustInstallExtension(s.getAgentPackageURL(), "ddot")
+	defer func() {
+		_, _ = s.Installer.RemoveExtension("datadog-agent", "ddot")
+	}()
+
+	// Verify DDOT is running before upgrade
+	s.verifyDDOTRunning()
+
+	// Trigger agent upgrade via experiment start + promote
+	s.Installer.MustStartExperiment("datadog-agent", s.getAgentPackageURL())
+	s.Installer.MustPromoteExperiment("datadog-agent")
+
+	// Verify DDOT extension survived the upgrade
+	s.verifyDDOTRunning()
+}
+
+// TestExtensionRestoredAfterExperimentRollback verifies that extensions are
+// restored to their stable state when an experiment is stopped (rolled back).
+func (s *extensionsSuite) TestExtensionRestoredAfterExperimentRollback() {
+	// Install agent with datadog-installer
+	s.Agent.MustInstall()
+	defer s.Agent.MustUninstall()
+
+	// Install DDOT extension on the agent
+	s.Installer.MustInstallExtension(s.getAgentPackageURL(), "ddot")
+	defer func() {
+		_, _ = s.Installer.RemoveExtension("datadog-agent", "ddot")
+	}()
+
+	// Verify DDOT is running before experiment
+	s.verifyDDOTRunning()
+
+	// Start experiment (upgrade)
+	s.Installer.MustStartExperiment("datadog-agent", s.getAgentPackageURL())
+
+	// Stop experiment (rollback to stable)
+	s.Installer.MustStopExperiment("datadog-agent")
+
+	// Verify DDOT extension is still present on the stable version
+	s.verifyDDOTRunning()
+}
+
 // Helper methods
 
 // getExtensionPath returns the path to an extension directory.
