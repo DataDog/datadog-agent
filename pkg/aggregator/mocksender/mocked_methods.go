@@ -8,6 +8,8 @@
 package mocksender
 
 import (
+	"slices"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -18,7 +20,7 @@ func (m *MockSender) tagsWithCheckTags(tags []string) []string {
 	if len(m.checkTags) == 0 {
 		return tags
 	}
-	return append(tags, m.checkTags...)
+	return slices.Concat(tags, m.checkTags)
 }
 
 // Rate adds a rate type to the mock calls.
