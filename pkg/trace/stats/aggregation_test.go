@@ -121,13 +121,13 @@ func TestGetGRPCStatusCode(t *testing.T) {
 		},
 		{
 			&pb.Span{
-				Meta: map[string]string{"rpc.system": "grpc", "rpc.response.status_code": "OK"},
+				Meta: map[string]string{"rpc.system.name": "grpc", "rpc.response.status_code": "OK"},
 			},
 			"0",
 		},
 		{
 			&pb.Span{
-				Meta: map[string]string{"rpc.system": "grpc", "rpc.response.status_code": "DEADLINE_EXCEEDED"},
+				Meta: map[string]string{"rpc.system.name": "grpc", "rpc.response.status_code": "DEADLINE_EXCEEDED"},
 			},
 			"4",
 		},
@@ -139,7 +139,7 @@ func TestGetGRPCStatusCode(t *testing.T) {
 		},
 		{
 			&pb.Span{
-				Meta: map[string]string{"rpc.system": "jsonrpc", "rpc.response.status_code": "OK"},
+				Meta: map[string]string{"rpc.system.name": "jsonrpc", "rpc.response.status_code": "OK"},
 			},
 			"",
 		},
@@ -157,7 +157,7 @@ func TestGetGRPCStatusCode(t *testing.T) {
 		},
 		{
 			&pb.Span{
-				Meta: map[string]string{"rpc.system": "jsonrpc", "grpc.status_code": "2"},
+				Meta: map[string]string{"rpc.system": "jsonrpc", "rpc.grpc.status_code": "2"},
 			},
 			"2",
 		},

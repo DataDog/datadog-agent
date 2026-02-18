@@ -290,7 +290,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 			name:     "gRPC status code is included in trace metrics",
 			spanName: "grpc_span",
 			rattrs:   map[string]string{"service.name": "grpc-svc"},
-			sattrs:   map[string]any{"rpc.grpc.status_code": int64(2), "rpc.system": "grpc", "rpc.method": "GetUser", "rpc.service": "UserService"},
+			sattrs:   map[string]any{"rpc.grpc.status_code": int64(2), "rpc.system.name": "grpc", "rpc.method": "GetUser", "rpc.service": "UserService"},
 			spanKind: ptrace.SpanKindServer,
 			libname:  "otelgrpc",
 			expected: &pb.StatsPayload{
@@ -380,7 +380,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 			name:     "jsonrpc system can still interpret rpc.grpc.status_code",
 			spanName: "jsonrpc_span",
 			rattrs:   map[string]string{"service.name": "jsonrpc-svc"},
-			sattrs:   map[string]any{"rpc.grpc.status_code": int64(3), "rpc.system.name": "jsonrpc", "rpc.method": "CallMethod", "rpc.service": "JsonService"},
+			sattrs:   map[string]any{"rpc.grpc.status_code": int64(3), "rpc.system": "jsonrpc", "rpc.method": "CallMethod", "rpc.service": "JsonService"},
 			spanKind: ptrace.SpanKindServer,
 			libname:  "oteljsonrpc",
 			expected: &pb.StatsPayload{
