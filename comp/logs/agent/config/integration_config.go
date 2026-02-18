@@ -21,8 +21,9 @@ import (
 const (
 	TCPType           = "tcp"
 	UDPType           = "udp"
+	UnixType          = "unix"
+	UnixgramType      = "unixgram"
 	FileType          = "file"
-	SyslogType        = "syslog"
 	DockerType        = "docker"
 	ContainerdType    = "containerd"
 	JournaldType      = "journald"
@@ -48,15 +49,15 @@ type LogsConfig struct {
 
 	IntegrationName string
 
-	Port        int    // Network
-	IdleTimeout string `mapstructure:"idle_timeout" json:"idle_timeout" yaml:"idle_timeout"` // Network
-	Protocol    string `mapstructure:"protocol" json:"protocol" yaml:"protocol"`             // Syslog ("tcp" or "udp", default "tcp")
+	Port        int    // Network (tcp, udp)
+	IdleTimeout string `mapstructure:"idle_timeout" json:"idle_timeout" yaml:"idle_timeout"` // Network (tcp, unix)
+	SocketPath  string `mapstructure:"socket_path" json:"socket_path" yaml:"socket_path"`    // Unix socket (unix, unixgram)
 	Path        string // File, Journald
 
 	Encoding     string           `mapstructure:"encoding" json:"encoding" yaml:"encoding"`                   // File
 	ExcludePaths StringSliceField `mapstructure:"exclude_paths" json:"exclude_paths" yaml:"exclude_paths"`    // File
 	TailingMode  string           `mapstructure:"start_position" json:"start_position" yaml:"start_position"` // File
-	Format       string           `mapstructure:"format" json:"format" yaml:"format"`                         // File (e.g. "syslog")
+	Format       string           `mapstructure:"format" json:"format" yaml:"format"`                         // Parsing format: "syslog" or "" (unstructured)
 
 	ConfigID           string           `mapstructure:"config_id" json:"config_id" yaml:"config_id"`                            // Journald
 	IncludeSystemUnits StringSliceField `mapstructure:"include_units" json:"include_units" yaml:"include_units"`                // Journald
@@ -212,13 +213,25 @@ func (c *LogsConfig) Dump(multiline bool) string {
 	case TCPType:
 		fmt.Fprintf(&b, ws("Port: %d,"), c.Port)
 		fmt.Fprintf(&b, ws("IdleTimeout: %#v,"), c.IdleTimeout)
+		if c.Format != "" {
+			fmt.Fprintf(&b, ws("Format: %#v,"), c.Format)
+		}
 	case UDPType:
 		fmt.Fprintf(&b, ws("Port: %d,"), c.Port)
+		if c.Format != "" {
+			fmt.Fprintf(&b, ws("Format: %#v,"), c.Format)
+		}
+	case UnixType:
+		fmt.Fprintf(&b, ws("SocketPath: %#v,"), c.SocketPath)
 		fmt.Fprintf(&b, ws("IdleTimeout: %#v,"), c.IdleTimeout)
-	case SyslogType:
-		fmt.Fprintf(&b, ws("Port: %d,"), c.Port)
-		fmt.Fprintf(&b, ws("Protocol: %#v,"), c.Protocol)
-		fmt.Fprintf(&b, ws("IdleTimeout: %#v,"), c.IdleTimeout)
+		if c.Format != "" {
+			fmt.Fprintf(&b, ws("Format: %#v,"), c.Format)
+		}
+	case UnixgramType:
+		fmt.Fprintf(&b, ws("SocketPath: %#v,"), c.SocketPath)
+		if c.Format != "" {
+			fmt.Fprintf(&b, ws("Format: %#v,"), c.Format)
+		}
 	case FileType:
 		fmt.Fprintf(&b, ws("Path: %#v,"), c.Path)
 		fmt.Fprintf(&b, ws("Encoding: %#v,"), c.Encoding)
@@ -374,13 +387,14 @@ func (c *LogsConfig) Validate() error {
 		return errors.New("tcp source must have a port")
 	case c.Type == UDPType && c.Port == 0:
 		return errors.New("udp source must have a port")
-	case c.Type == SyslogType:
-		if c.Port == 0 {
-			return errors.New("syslog source must have a port")
-		}
-		if c.Protocol != "" && c.Protocol != "tcp" && c.Protocol != "udp" {
-			return fmt.Errorf("syslog source has invalid protocol %q, must be \"tcp\" or \"udp\"", c.Protocol)
-		}
+	case c.Type == UnixType && c.SocketPath == "":
+		return errors.New("unix source must have a socket_path")
+	case c.Type == UnixgramType && c.SocketPath == "":
+		return errors.New("unixgram source must have a socket_path")
+	}
+
+	if c.Format != "" && c.Format != SyslogFormat {
+		return fmt.Errorf("unsupported format %q, must be \"syslog\" or omitted", c.Format)
 	}
 
 	// Validate fingerprint configuration

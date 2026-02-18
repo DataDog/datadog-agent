@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package syslog
+package socket
 
 import (
 	"time"
@@ -12,13 +12,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-// buildStructuredMessage parses a raw syslog frame and returns a
+// buildSyslogStructuredMessage parses a raw syslog frame and returns a
 // *message.Message in StateStructured, ready for the pipeline.
 //
 // The origin should be pre-configured by the tailer with source/service/tags.
 // The syslog appname is used to set origin source/service if the appname is
 // present and not NILVALUE ("-").
-func buildStructuredMessage(frame []byte, origin *message.Origin) (*message.Message, error) {
+func buildSyslogStructuredMessage(frame []byte, origin *message.Origin) (*message.Message, error) {
 	parsed, err := syslogparser.Parse(frame)
 
 	sc := &message.BasicStructuredContent{

@@ -7,10 +7,12 @@
 package socket
 
 import (
+	"fmt"
 	"io"
 	"net"
-	"strings"
+	"time"
 
+	config "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
@@ -20,98 +22,149 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Tailer reads data from a net.Conn.  It uses a `read` callback to be generic
-// over types of connections.
-type Tailer struct {
-	source     *sources.LogSource
-	Conn       net.Conn
-	outputChan chan *message.Message
-	read       func(*Tailer) ([]byte, string, error)
-	decoder    decoder.Decoder
-	stop       chan struct{}
-	done       chan struct{}
+// StreamTailer reads data from a stream-oriented connection (TCP or Unix
+// stream) and sends log messages to the pipeline.
+//
+// The format parameter controls how the byte stream is framed and parsed:
+//   - "" (default): UTF-8 newline framing with a noop parser (unstructured)
+//   - "syslog": RFC 6587 syslog framing (octet counting / non-transparent)
+//     with a syslog parser producing StateStructured messages
+type StreamTailer struct {
+	source         *sources.LogSource
+	Conn           net.Conn
+	outputChan     chan *message.Message
+	format         string
+	frameSize      int
+	idleTimeout    time.Duration
+	sourceHostAddr string
+	decoder        decoder.Decoder
+	stop           chan struct{}
+	done           chan struct{}
 }
 
-// NewTailer returns a new Tailer
-func NewTailer(source *sources.LogSource, conn net.Conn, outputChan chan *message.Message, read func(*Tailer) ([]byte, string, error)) *Tailer {
-	return &Tailer{
-		source:     source,
-		Conn:       conn,
-		outputChan: outputChan,
-		read:       read,
-		// tailer info is currently unused for this tailer type.
-		decoder: decoder.InitializeDecoder(sources.NewReplaceableSource(source), noop.New(), status.NewInfoRegistry()),
-		stop:    make(chan struct{}, 1),
-		done:    make(chan struct{}, 1),
+// NewStreamTailer returns a new StreamTailer.
+//
+// Parameters:
+//   - source: the log source configuration
+//   - conn: the stream connection to read from
+//   - outputChan: channel for forwarding parsed messages to the pipeline
+//   - format: "" for unstructured, config.SyslogFormat for syslog
+//   - frameSize: buffer size for conn.Read()
+//   - idleTimeout: idle read timeout (0 means no timeout)
+//   - sourceHostAddr: pre-extracted remote IP for source_host tagging ("" to skip)
+func NewStreamTailer(source *sources.LogSource, conn net.Conn, outputChan chan *message.Message, format string, frameSize int, idleTimeout time.Duration, sourceHostAddr string) *StreamTailer {
+	replSource := sources.NewReplaceableSource(source)
+	tailerInfo := status.NewInfoRegistry()
+
+	var dec decoder.Decoder
+	if format == config.SyslogFormat {
+		dec = decoder.NewSyslogStreamDecoder(replSource, tailerInfo)
+	} else {
+		dec = decoder.InitializeDecoder(replSource, noop.New(), tailerInfo)
+	}
+
+	return &StreamTailer{
+		source:         source,
+		Conn:           conn,
+		outputChan:     outputChan,
+		format:         format,
+		frameSize:      frameSize,
+		idleTimeout:    idleTimeout,
+		sourceHostAddr: sourceHostAddr,
+		decoder:        dec,
+		stop:           make(chan struct{}, 1),
+		done:           make(chan struct{}, 1),
 	}
 }
 
-// Start prepares the tailer to read and decode data from the connection
-func (t *Tailer) Start() {
+// Start begins reading and decoding data from the connection.
+func (t *StreamTailer) Start() {
+	t.source.Status.Success()
+	log.Infof("Start tailing stream from %s (format=%q)", t.Conn.RemoteAddr(), t.format)
+
 	go t.forwardMessages()
 	t.decoder.Start()
-	go t.readForever()
+	go t.readLoop()
 }
 
-// Stop stops the tailer and waits for the decoder to be flushed
-func (t *Tailer) Stop() {
+// Stop stops the tailer and waits for the decoder to be flushed.
+func (t *StreamTailer) Stop() {
+	log.Infof("Stop tailing stream from %s", t.Conn.RemoteAddr())
 	t.stop <- struct{}{}
 	t.Conn.Close()
 	<-t.done
 }
 
-// forwardMessages forwards messages to output channel
-func (t *Tailer) forwardMessages() {
+// Identifier returns a unique identifier for this tailer.
+func (t *StreamTailer) Identifier() string {
+	return fmt.Sprintf("stream:%s", t.Conn.RemoteAddr())
+}
+
+// forwardMessages reads decoded messages from the decoder output and
+// forwards them to the pipeline output channel with a properly configured
+// origin. For syslog format, it applies source/service overrides from
+// ParsingExtra (set by the syslog parser).
+func (t *StreamTailer) forwardMessages() {
 	defer func() {
-		// the decoder has successfully been flushed
-		t.done <- struct{}{}
+		close(t.done)
 	}()
+
 	for output := range t.decoder.OutputChan() {
 		if len(output.GetContent()) > 0 {
 			origin := message.NewOrigin(t.source)
+			origin.Identifier = t.Identifier()
 			origin.SetTags(output.ParsingExtra.Tags)
-			// Preserve ParsingExtra information from decoder output (including IsTruncated flag)
-			msg := message.NewMessageWithParsingExtra(output.GetContent(), origin, output.Status, output.IngestionTimestamp, output.ParsingExtra)
-			t.outputChan <- msg
+
+			if output.ParsingExtra.SourceOverride != "" {
+				origin.SetSource(output.ParsingExtra.SourceOverride)
+			}
+			if output.ParsingExtra.ServiceOverride != "" {
+				origin.SetService(output.ParsingExtra.ServiceOverride)
+			}
+
+			output.Origin = origin
+			t.outputChan <- output
 		}
 	}
 }
 
-// readForever reads the data from conn.
-func (t *Tailer) readForever() {
+// readLoop reads raw bytes from the connection and feeds them to the
+// decoder. Idle timeout and source_host tagging are handled here.
+func (t *StreamTailer) readLoop() {
 	defer func() {
 		t.Conn.Close()
 		t.decoder.Stop()
 	}()
+
+	buf := make([]byte, t.frameSize)
 	for {
 		select {
 		case <-t.stop:
-			// stop reading data from the connection
 			return
 		default:
-			data, ipAddress, err := t.read(t)
-			if err != nil && err == io.EOF {
-				// connection has been closed client-side, stop from reading new data
-				return
+			if t.idleTimeout > 0 {
+				t.Conn.SetReadDeadline(time.Now().Add(t.idleTimeout)) //nolint:errcheck
 			}
+
+			n, err := t.Conn.Read(buf)
 			if err != nil {
-				// an error occurred, stop from reading new data
-				log.Warnf("Couldn't read message from connection: %v", err)
+				if err == io.EOF {
+					return
+				}
+				log.Warnf("Couldn't read message from connection %s: %v", t.Conn.RemoteAddr(), err)
 				return
 			}
-			t.source.RecordBytes(int64(len(data)))
+
+			data := make([]byte, n)
+			copy(data, buf[:n])
+
+			t.source.RecordBytes(int64(n))
 			msg := decoder.NewInput(data)
-			if ipAddress != "" && pkgconfigsetup.Datadog().GetBool("logs_config.use_sourcehost_tag") {
-				lastColonIndex := strings.LastIndex(ipAddress, ":")
-				var ipAddressWithoutPort string
-				if lastColonIndex != -1 {
-					ipAddressWithoutPort = ipAddress[:lastColonIndex]
-				} else {
-					ipAddressWithoutPort = ipAddress
-				}
-				sourceHostTag := "source_host:" + ipAddressWithoutPort
-				msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, sourceHostTag)
+
+			if t.sourceHostAddr != "" && pkgconfigsetup.Datadog().GetBool("logs_config.use_sourcehost_tag") {
+				msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, "source_host:"+t.sourceHostAddr)
 			}
+
 			t.decoder.InputChan() <- msg
 		}
 	}

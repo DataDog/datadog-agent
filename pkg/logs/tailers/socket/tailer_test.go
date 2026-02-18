@@ -6,11 +6,14 @@
 package socket
 
 import (
-	"errors"
+	"encoding/json"
+	"fmt"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -18,106 +21,240 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
-func TestReadAndForwardShouldSucceedWithSuccessfulRead(t *testing.T) {
-	msgChan := make(chan *message.Message)
-	r, w := net.Pipe()
-	tailer := NewTailer(sources.NewLogSource("", &config.LogsConfig{}), r, msgChan, read)
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+const testFrameSize = 4096
+
+func recvMsg(t *testing.T, ch <-chan *message.Message) *message.Message {
+	t.Helper()
+	select {
+	case msg := <-ch:
+		return msg
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for message")
+		return nil
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Unstructured format tests
+// ---------------------------------------------------------------------------
+
+func TestStreamTailer_Unstructured_BasicMessages(t *testing.T) {
+	serverConn, clientConn := net.Pipe()
+	defer serverConn.Close()
+
+	source := sources.NewLogSource("test", &config.LogsConfig{})
+	outputChan := make(chan *message.Message, 10)
+
+	tailer := NewStreamTailer(source, serverConn, outputChan, "", testFrameSize, 0, "")
 	tailer.Start()
 
-	var msg *message.Message
-
-	// should receive and decode one message
-	w.Write([]byte("foo\n"))
-	msg = <-msgChan
+	clientConn.Write([]byte("foo\n"))
+	msg := recvMsg(t, outputChan)
 	assert.Equal(t, "foo", string(msg.GetContent()))
 
-	// should receive and decode two messages
-	w.Write([]byte("bar\nboo\n"))
-	msg = <-msgChan
+	clientConn.Write([]byte("bar\nboo\n"))
+	msg = recvMsg(t, outputChan)
 	assert.Equal(t, "bar", string(msg.GetContent()))
-	msg = <-msgChan
+	msg = recvMsg(t, outputChan)
 	assert.Equal(t, "boo", string(msg.GetContent()))
 
+	clientConn.Close()
 	tailer.Stop()
 }
 
-func TestReadShouldFailWithError(t *testing.T) {
-	msgChan := make(chan *message.Message)
-	r, w := net.Pipe()
-	read := func(*Tailer) ([]byte, string, error) { return nil, "", errors.New("") }
-	tailer := NewTailer(sources.NewLogSource("", &config.LogsConfig{}), r, msgChan, read)
+func TestStreamTailer_Unstructured_ConnectionCloseCleansUp(t *testing.T) {
+	serverConn, clientConn := net.Pipe()
+	defer serverConn.Close()
+
+	source := sources.NewLogSource("test", &config.LogsConfig{})
+	outputChan := make(chan *message.Message, 10)
+
+	tailer := NewStreamTailer(source, serverConn, outputChan, "", testFrameSize, 0, "")
 	tailer.Start()
 
-	w.Write([]byte("foo\n"))
-	select {
-	case <-msgChan:
-		assert.Fail(t, "no data should return")
-	default:
-		break
-	}
+	// Close client side, tailer should stop gracefully.
+	clientConn.Close()
 
+	// Give the tailer a moment to observe EOF and shut down.
+	time.Sleep(100 * time.Millisecond)
 	tailer.Stop()
 }
 
-func TestSourceHostTag(t *testing.T) {
-	msgChan := make(chan *message.Message)
-	r, w := net.Pipe()
+func TestStreamTailer_Unstructured_SourceHostTag(t *testing.T) {
+	serverConn, clientConn := net.Pipe()
+	defer serverConn.Close()
+
 	logsConfig := &config.LogsConfig{
 		Tags: []string{"test:tag"},
 	}
+	source := sources.NewLogSource("test-source", logsConfig)
+	outputChan := make(chan *message.Message, 10)
 
-	logSource := sources.NewLogSource("test-source", logsConfig)
-	tailer := NewTailer(logSource, r, msgChan, readWithIP)
+	tailer := NewStreamTailer(source, serverConn, outputChan, "", testFrameSize, 0, "192.168.1.100")
 	tailer.Start()
 
-	var msg *message.Message
-	w.Write([]byte("foo\n"))
-	msg = <-msgChan
-	assert.Equal(t, []string{"source_host:192.168.1.100", "test:tag"}, msg.Tags())
+	clientConn.Write([]byte("foo\n"))
+	msg := recvMsg(t, outputChan)
+	assert.Contains(t, msg.Origin.Tags(nil), "source_host:192.168.1.100")
+
+	clientConn.Close()
 	tailer.Stop()
 }
 
-func TestSourceHostTagFlagDisabled(t *testing.T) {
+func TestStreamTailer_Unstructured_SourceHostTagFlagDisabled(t *testing.T) {
 	mockConfig := configmock.New(t)
-	// Set the config flag for source_host tag to false
 	mockConfig.BindEnvAndSetDefault("logs_config.use_sourcehost_tag", false)
 
-	// Set up test components
-	msgChan := make(chan *message.Message)
-	r, w := net.Pipe()
+	serverConn, clientConn := net.Pipe()
+	defer serverConn.Close()
+
 	logsConfig := &config.LogsConfig{
 		Tags: []string{"test:tag"},
 	}
+	source := sources.NewLogSource("test-source", logsConfig)
+	outputChan := make(chan *message.Message, 10)
 
-	logSource := sources.NewLogSource("test-source", logsConfig)
-	tailer := NewTailer(logSource, r, msgChan, readWithIP)
+	// Even though sourceHostAddr is set, the tag should not appear when disabled.
+	tailer := NewStreamTailer(source, serverConn, outputChan, "", testFrameSize, 0, "192.168.1.100")
 	tailer.Start()
 
-	var msg *message.Message
-	w.Write([]byte("foo\n"))
-	msg = <-msgChan
+	clientConn.Write([]byte("foo\n"))
+	msg := recvMsg(t, outputChan)
+	assert.NotContains(t, msg.Origin.Tags(nil), "source_host:192.168.1.100",
+		"source_host tag should not be added when flag is disabled")
 
-	// Assert that only the original tag is present (source_host tag should not be added)
-	assert.Equal(t, []string{"test:tag"}, msg.Tags(), "source_host tag should not be added when flag is disabled")
-
+	clientConn.Close()
 	tailer.Stop()
 }
 
-func read(tailer *Tailer) ([]byte, string, error) {
-	inBuf := make([]byte, 4096)
-	n, err := tailer.Conn.Read(inBuf)
-	if err != nil {
-		return nil, "", err
-	}
-	return inBuf[:n], "", nil
+// ---------------------------------------------------------------------------
+// Syslog format tests (migrated from syslog_stream_tailer_test.go)
+// ---------------------------------------------------------------------------
+
+func TestStreamTailer_Syslog_NonTransparent(t *testing.T) {
+	serverConn, clientConn := net.Pipe()
+	defer serverConn.Close()
+
+	source := sources.NewLogSource("test-syslog", &config.LogsConfig{})
+	outputChan := make(chan *message.Message, 10)
+
+	tailer := NewStreamTailer(source, serverConn, outputChan, config.SyslogFormat, testFrameSize, 0, "")
+	tailer.Start()
+
+	clientConn.Write([]byte("<14>1 2003-10-11T22:14:15.003Z myhost myapp - - - Hello world\n"))
+	clientConn.Write([]byte("<11>1 2003-10-11T22:14:16.003Z myhost otherapp - - - Error occurred\n"))
+
+	msg := recvMsg(t, outputChan)
+	assert.Equal(t, message.StateStructured, msg.State)
+	assert.Equal(t, "Hello world", string(msg.GetContent()))
+	assert.Equal(t, message.StatusInfo, msg.Status)
+
+	msg = recvMsg(t, outputChan)
+	assert.Equal(t, "Error occurred", string(msg.GetContent()))
+	assert.Equal(t, message.StatusError, msg.Status)
+
+	clientConn.Close()
+	tailer.Stop()
 }
 
-func readWithIP(tailer *Tailer) ([]byte, string, error) {
-	inBuf := make([]byte, 4096)
-	n, err := tailer.Conn.Read(inBuf)
-	if err != nil {
-		return nil, "", err
-	}
-	mockIPAddress := "192.168.1.100:8080"
-	return inBuf[:n], mockIPAddress, nil
+func TestStreamTailer_Syslog_OctetCounted(t *testing.T) {
+	serverConn, clientConn := net.Pipe()
+	defer serverConn.Close()
+
+	source := sources.NewLogSource("test-syslog", &config.LogsConfig{})
+	outputChan := make(chan *message.Message, 10)
+
+	tailer := NewStreamTailer(source, serverConn, outputChan, config.SyslogFormat, testFrameSize, 0, "")
+	tailer.Start()
+
+	syslogMsg := "<14>1 2003-10-11T22:14:15.003Z h app - - - Hi"
+	frame := []byte(fmt.Sprintf("%d %s", len(syslogMsg), syslogMsg))
+	clientConn.Write(frame)
+
+	msg := recvMsg(t, outputChan)
+	assert.Equal(t, message.StateStructured, msg.State)
+	assert.Equal(t, "Hi", string(msg.GetContent()))
+
+	clientConn.Close()
+	tailer.Stop()
+}
+
+func TestStreamTailer_Syslog_NULFraming(t *testing.T) {
+	serverConn, clientConn := net.Pipe()
+	defer serverConn.Close()
+
+	source := sources.NewLogSource("test-syslog", &config.LogsConfig{})
+	outputChan := make(chan *message.Message, 10)
+
+	tailer := NewStreamTailer(source, serverConn, outputChan, config.SyslogFormat, testFrameSize, 0, "")
+	tailer.Start()
+
+	clientConn.Write([]byte("<14>1 2003-10-11T22:14:15.003Z myhost myapp - - - NUL hello\x00"))
+	clientConn.Write([]byte("<11>1 2003-10-11T22:14:16.003Z myhost otherapp - - - NUL world\x00"))
+
+	msg := recvMsg(t, outputChan)
+	assert.Equal(t, message.StateStructured, msg.State)
+	assert.Equal(t, "NUL hello", string(msg.GetContent()))
+	assert.Equal(t, message.StatusInfo, msg.Status)
+
+	msg = recvMsg(t, outputChan)
+	assert.Equal(t, "NUL world", string(msg.GetContent()))
+	assert.Equal(t, message.StatusError, msg.Status)
+
+	clientConn.Close()
+	tailer.Stop()
+}
+
+func TestStreamTailer_Syslog_StructuredContentRendered(t *testing.T) {
+	serverConn, clientConn := net.Pipe()
+	defer serverConn.Close()
+
+	source := sources.NewLogSource("test-syslog", &config.LogsConfig{})
+	outputChan := make(chan *message.Message, 10)
+
+	tailer := NewStreamTailer(source, serverConn, outputChan, config.SyslogFormat, testFrameSize, 0, "")
+	tailer.Start()
+
+	clientConn.Write([]byte("<165>1 2003-10-11T22:14:15.003Z myhost evntslog - ID47 - Test msg\n"))
+
+	msg := recvMsg(t, outputChan)
+	rendered, err := msg.Render()
+	require.NoError(t, err)
+
+	var data map[string]interface{}
+	err = json.Unmarshal(rendered, &data)
+	require.NoError(t, err)
+
+	assert.Equal(t, "Test msg", data["message"])
+	syslogMap, ok := data["syslog"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "myhost", syslogMap["hostname"])
+	assert.Equal(t, "evntslog", syslogMap["appname"])
+
+	clientConn.Close()
+	tailer.Stop()
+}
+
+func TestStreamTailer_Syslog_SourceServiceOverride(t *testing.T) {
+	serverConn, clientConn := net.Pipe()
+	defer serverConn.Close()
+
+	source := sources.NewLogSource("test-syslog", &config.LogsConfig{})
+	outputChan := make(chan *message.Message, 10)
+
+	tailer := NewStreamTailer(source, serverConn, outputChan, config.SyslogFormat, testFrameSize, 0, "")
+	tailer.Start()
+
+	clientConn.Write([]byte("<14>1 2003-10-11T22:14:15.003Z myhost myapp - - - hello\n"))
+
+	msg := recvMsg(t, outputChan)
+	assert.Equal(t, "myapp", msg.Origin.Source())
+	assert.Equal(t, "myapp", msg.Origin.Service())
+
+	clientConn.Close()
+	tailer.Stop()
 }
