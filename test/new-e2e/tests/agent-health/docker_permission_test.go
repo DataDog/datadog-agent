@@ -9,7 +9,6 @@ package agenthealth
 import (
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -55,15 +54,12 @@ const (
 const (
 	expectedIssueID = "docker-file-tailing-disabled"
 
-	// persistenceRelPath is the path relative to run_path where the health platform persists issues
-	persistenceRelPath = "health-platform/issues.json"
+	// persistenceFilePath is the absolute path to the health platform persistence file on the e2e VM
+	persistenceFilePath = "/opt/datadog-agent/run/health-platform/issues.json"
 )
 
 type dockerPermissionSuite struct {
 	e2e.BaseSuite[dockerPermissionEnv]
-
-	// persistenceFilePath is resolved at runtime from the agent's run_path config
-	persistenceFilePath string
 }
 
 // TestDockerPermissionSuite runs the docker permission health check test
@@ -92,10 +88,6 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 	require.EventuallyWithT(suite.T(), func(t *assert.CollectT) {
 		assert.True(t, agent.Client.IsReady(), "Agent should be ready")
 	}, 2*time.Minute, 10*time.Second, "Agent not ready")
-
-	// Resolve the persistence file path from the agent's runtime config
-	suite.persistenceFilePath = suite.getPersistedFilePath()
-	suite.T().Logf("Persistence file path: %s", suite.persistenceFilePath)
 
 	// Verify containers are running
 	output := host.MustExecute("docker ps --format '{{.Names}}' | grep spam")
@@ -248,25 +240,6 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 // Helper methods
 // ============================================================================
 
-// getPersistedFilePath resolves the persistence file path at runtime by parsing run_path
-// from the full agent config YAML dump.
-func (suite *dockerPermissionSuite) getPersistedFilePath() string {
-	suite.T().Helper()
-
-	configYAML := suite.Env().Agent.Client.Config()
-	var runPath string
-	for _, line := range strings.Split(configYAML, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "run_path:") {
-			runPath = strings.TrimSpace(strings.TrimPrefix(trimmed, "run_path:"))
-			break
-		}
-	}
-	require.NotEmpty(suite.T(), runPath, "run_path not found in agent config output")
-
-	return filepath.Join(runPath, persistenceRelPath)
-}
-
 // readPersistedIssue reads the persistence file from the remote host and returns the issue for the given check ID.
 // Fails the test if the file cannot be read or parsed.
 func (suite *dockerPermissionSuite) readPersistedIssue(checkID string) *persistedIssue {
@@ -275,7 +248,7 @@ func (suite *dockerPermissionSuite) readPersistedIssue(checkID string) *persiste
 	var raw string
 	require.EventuallyWithT(suite.T(), func(t *assert.CollectT) {
 		var err error
-		raw, err = suite.Env().RemoteHost.Execute("cat " + suite.persistenceFilePath)
+		raw, err = suite.Env().RemoteHost.Execute("cat " + persistenceFilePath)
 		assert.NoError(t, err, "Persistence file should exist")
 		assert.NotEmpty(t, raw, "Persistence file should not be empty")
 	}, 30*time.Second, 5*time.Second, "Persistence file not found")
@@ -290,7 +263,7 @@ func (suite *dockerPermissionSuite) readPersistedIssue(checkID string) *persiste
 func (suite *dockerPermissionSuite) readPersistedIssueForAssert(t *assert.CollectT, checkID string) *persistedIssue {
 	suite.T().Helper()
 
-	raw, err := suite.Env().RemoteHost.Execute("cat " + suite.persistenceFilePath)
+	raw, err := suite.Env().RemoteHost.Execute("cat " + persistenceFilePath)
 	if !assert.NoError(t, err) || !assert.NotEmpty(t, raw) {
 		return nil
 	}
