@@ -7,14 +7,17 @@
 package command
 
 import (
-	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
+
+// LoggerName defines the logger name
+const LoggerName = "SYS-PROBE"
 
 // GlobalParams contains the values of system-probe global Cobra flags.
 //
@@ -25,8 +28,25 @@ type GlobalParams struct {
 	// file, to allow overrides from the command line
 	ConfFilePath string
 
+	// datadogConfFilePath holds the path to the folder containing the datadog.yaml configuration file
+	datadogConfFilePath string
+
 	// FleetPoliciesDirPath holds the path to the folder containing the fleet policies
 	FleetPoliciesDirPath string
+}
+
+// DatadogConfFilePath uses a fallback from datadogConfFilePath to ConfFilePath if not specified
+func (g GlobalParams) DatadogConfFilePath() string {
+	confPath := g.datadogConfFilePath
+	// if no explicit path provided for datadog.yaml, fallback to provided directory of system-probe.yaml
+	if confPath == "" && g.ConfFilePath != "" {
+		confPath = g.ConfFilePath
+		if strings.HasSuffix(confPath, ".yaml") {
+			// strip filename because it is specifying system-probe.yaml file, not datadog.yaml
+			confPath = filepath.Dir(confPath)
+		}
+	}
+	return confPath
 }
 
 // SubcommandFactory is a callable that will return a slice of subcommands.
@@ -38,7 +58,7 @@ func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
 
 	// AgentCmd is the root command
 	sysprobeCmd := &cobra.Command{
-		Use:   fmt.Sprintf("%s [command]", os.Args[0]),
+		Use:   os.Args[0] + " [command]",
 		Short: "Datadog Agent System Probe",
 		Long: `
 The Datadog Agent System Probe runs as superuser in order to instrument
@@ -48,6 +68,7 @@ Runtime Security Monitoring, Universal Service Monitoring, and others.`,
 	}
 
 	sysprobeCmd.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "config", "c", "", "path to directory containing system-probe.yaml")
+	sysprobeCmd.PersistentFlags().StringVarP(&globalParams.datadogConfFilePath, "datadogcfgpath", "", "", "path to directory containing datadog.yaml")
 	sysprobeCmd.PersistentFlags().StringVarP(&globalParams.FleetPoliciesDirPath, "fleetcfgpath", "", "", "path to the directory containing fleet policies")
 	_ = sysprobeCmd.PersistentFlags().MarkHidden("fleetcfgpath")
 

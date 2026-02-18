@@ -106,6 +106,10 @@ struct syscall_cache_t {
             struct mount *parent;
             struct dentry *mountpoint_dentry;
             u32 bind_src_mount_id;
+            u64 mount_id_unique;
+            u64 parent_mount_id_unique;
+            u64 bind_src_mount_id_unique;
+
             // populated from collected
             const char *fstype;
             struct path_key_t root_key;
@@ -113,6 +117,7 @@ struct syscall_cache_t {
             dev_t device;
             int clone_mnt_ctr;
             int source;
+            u64 ns_inum;
         } mount;
 
         struct {
@@ -275,7 +280,7 @@ struct syscall_cache_t {
             int option;
             u32 name_size_to_send;
             u32 name_truncated;
-            char name[MAX_PRCTL_NAME_LEN];
+            char name[MAX_PRCTL_NAME_LEN + 1];
         } prctl;
 
         struct {

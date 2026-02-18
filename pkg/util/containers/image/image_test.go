@@ -6,6 +6,7 @@
 package image
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
@@ -22,9 +23,9 @@ func TestSplitImageName(t *testing.T) {
 		err       error
 	}{
 		// Empty
-		{"", "", "", "", "", fmt.Errorf("empty image name")},
+		{"", "", "", "", "", errors.New("empty image name")},
 		// A sha256 string
-		{"sha256:5bef08742407efd622d243692b79ba0055383bbce12900324f75e56f589aedb0", "", "", "", "", fmt.Errorf("invalid image name (is a sha256)")},
+		{"sha256:5bef08742407efd622d243692b79ba0055383bbce12900324f75e56f589aedb0", "", "", "", "", errors.New("invalid image name (is a sha256)")},
 		// Shortest possibility
 		{"alpine", "alpine", "", "alpine", "", nil},
 		// Historical docker format

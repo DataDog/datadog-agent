@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -24,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -92,7 +94,7 @@ func (m *Manager) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDum
 			LinuxDistribution: m.kernelVersion.OsRelease["PRETTY_NAME"],
 			Arch:              utils.RuntimeArch(),
 
-			Name:              fmt.Sprintf("activity-dump-%s", utils.RandString(10)),
+			Name:              "activity-dump-" + utils.RandString(10),
 			ProtobufVersion:   profile.ProtobufVersion,
 			DifferentiateArgs: params.GetDifferentiateArgs(),
 			ContainerID:       containerutils.ContainerID(params.GetContainerID()),
@@ -137,7 +139,7 @@ func (m *Manager) StopActivityDump(params *api.ActivityDumpStopParams) (*api.Act
 			(params.GetCGroupID() != "" && ad.Profile.Metadata.CGroupContext.CGroupID == containerutils.CGroupID(params.GetCGroupID())) {
 			m.finalizeKernelEventCollection(ad, true)
 			// mark the cgroup to ignore from snapshot to prevent re-creation
-			m.ignoreFromSnapshot[ad.Profile.Metadata.CGroupContext.CGroupFile.Inode] = true
+			m.ignoreFromSnapshot[ad.Profile.Metadata.CGroupContext.CGroupPathKey.Inode] = true
 			seclog.Infof("tracing stopped for [%s]", ad.GetSelectorStr())
 			toDelete = i
 
@@ -225,22 +227,12 @@ func (m *Manager) GenerateTranscoding(params *api.TranscodingRequestParams) (*ap
 
 // ListSecurityProfiles returns the list of security profiles
 func (m *Manager) ListSecurityProfiles(params *api.SecurityProfileListParams) (*api.SecurityProfileListMessage, error) {
-	if !m.config.RuntimeSecurity.SecurityProfileEnabled {
-		return &api.SecurityProfileListMessage{
-			Error: ErrSecurityProfileManagerDisabled.Error(),
-		}, ErrSecurityProfileManagerDisabled
+	out, err := listSecurityProfilesCommon(m.config, &m.profilesLock, m.profiles, m.resolvers.TimeResolver, params)
+	if err != nil {
+		return out, err
 	}
 
-	var out api.SecurityProfileListMessage
-
-	m.profilesLock.Lock()
-	defer m.profilesLock.Unlock()
-
-	for _, p := range m.profiles {
-		msg := p.ToSecurityProfileMessage(m.resolvers.TimeResolver)
-		out.Profiles = append(out.Profiles, msg)
-	}
-
+	// V1-specific: include pending cache if requested
 	if params.GetIncludeCache() {
 		m.pendingCacheLock.Lock()
 		defer m.pendingCacheLock.Unlock()
@@ -253,12 +245,60 @@ func (m *Manager) ListSecurityProfiles(params *api.SecurityProfileListParams) (*
 			out.Profiles = append(out.Profiles, msg)
 		}
 	}
-	return &out, nil
+	return out, nil
 }
 
 // SaveSecurityProfile saves the requested security profile to disk
 func (m *Manager) SaveSecurityProfile(params *api.SecurityProfileSaveParams) (*api.SecurityProfileSaveMessage, error) {
-	if !m.config.RuntimeSecurity.SecurityProfileEnabled {
+	return saveSecurityProfileCommon(m.config, &m.profilesLock, m.profiles, params)
+}
+
+// ListSecurityProfiles lists the security profiles for the ManagerV2
+func (m *ManagerV2) ListSecurityProfiles(params *api.SecurityProfileListParams) (*api.SecurityProfileListMessage, error) {
+	return listSecurityProfilesCommon(m.config, &m.profilesLock, m.profiles, m.resolvers.TimeResolver, params)
+}
+
+// SaveSecurityProfile saves the requested security profile to disk for the ManagerV2
+func (m *ManagerV2) SaveSecurityProfile(params *api.SecurityProfileSaveParams) (*api.SecurityProfileSaveMessage, error) {
+	return saveSecurityProfileCommon(m.config, &m.profilesLock, m.profiles, params)
+}
+
+// Common functions for both Manager and ManagerV2
+// listSecurityProfilesCommon is the shared implementation for listing security profiles
+func listSecurityProfilesCommon(
+	cfg *config.Config,
+	profilesLock *sync.Mutex,
+	profiles map[cgroupModel.WorkloadSelector]*profile.Profile,
+	resolver *ktime.Resolver,
+	_ *api.SecurityProfileListParams,
+) (*api.SecurityProfileListMessage, error) {
+	if !cfg.RuntimeSecurity.SecurityProfileEnabled {
+		return &api.SecurityProfileListMessage{
+			Error: ErrSecurityProfileManagerDisabled.Error(),
+		}, ErrSecurityProfileManagerDisabled
+	}
+
+	var out api.SecurityProfileListMessage
+
+	profilesLock.Lock()
+	defer profilesLock.Unlock()
+
+	for _, p := range profiles {
+		msg := p.ToSecurityProfileMessage(resolver)
+		out.Profiles = append(out.Profiles, msg)
+	}
+
+	return &out, nil
+}
+
+// saveSecurityProfileCommon is the shared implementation for saving a security profile
+func saveSecurityProfileCommon(
+	cfg *config.Config,
+	profilesLock *sync.Mutex,
+	profiles map[cgroupModel.WorkloadSelector]*profile.Profile,
+	params *api.SecurityProfileSaveParams,
+) (*api.SecurityProfileSaveMessage, error) {
+	if !cfg.RuntimeSecurity.SecurityProfileEnabled {
 		return &api.SecurityProfileSaveMessage{
 			Error: ErrSecurityProfileManagerDisabled.Error(),
 		}, ErrSecurityProfileManagerDisabled
@@ -271,9 +311,9 @@ func (m *Manager) SaveSecurityProfile(params *api.SecurityProfileSaveParams) (*a
 		}, nil
 	}
 
-	m.profilesLock.Lock()
-	p := m.profiles[selector]
-	m.profilesLock.Unlock()
+	profilesLock.Lock()
+	p := profiles[selector]
+	profilesLock.Unlock()
 
 	if p == nil {
 		return &api.SecurityProfileSaveMessage{
@@ -290,7 +330,7 @@ func (m *Manager) SaveSecurityProfile(params *api.SecurityProfileSaveParams) (*a
 	}
 
 	// write profile to encoded profile to disk
-	f, err := os.CreateTemp("/tmp", fmt.Sprintf("%s-*.profile", p.Metadata.Name))
+	f, err := os.CreateTemp("/tmp", p.Metadata.Name+"-*.profile")
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create temporary file: %w", err)
 	}

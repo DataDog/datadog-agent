@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cenkalti/backoff/v5"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
@@ -49,11 +50,11 @@ type UnimplementedRemoteAgentServer struct {
 	grpcServer      *grpc.Server
 
 	// lifecycle components
-	ctx                   context.Context
-	cancel                context.CancelFunc
-	wg                    sync.WaitGroup
-	defaultTickerInterval time.Duration
-	queryTimeout          time.Duration
+	ctx                    context.Context
+	cancel                 context.CancelFunc
+	wg                     sync.WaitGroup
+	defaultRefreshInterval time.Duration
+	queryTimeout           time.Duration
 }
 
 // NewUnimplementedRemoteAgentServer creates a new unimplemented remote agent server
@@ -79,17 +80,17 @@ func NewUnimplementedRemoteAgentServer(ipcComp ipc.Component, log log.Component,
 	}
 
 	remoteAgentServer := &UnimplementedRemoteAgentServer{
-		ipcComp:               ipcComp,
-		log:                   log,
-		config:                config,
-		agentIpcAddress:       agentIpcAddress,
-		agentFlavor:           agentFlavor,
-		displayName:           displayName,
-		agentClient:           agentClient,
-		listener:              listener,
-		grpcServer:            nil,
-		defaultTickerInterval: time.Millisecond * 500,
-		queryTimeout:          config.GetDuration("remote_agent_registry.query_timeout"),
+		ipcComp:                ipcComp,
+		log:                    log,
+		config:                 config,
+		agentIpcAddress:        agentIpcAddress,
+		agentFlavor:            agentFlavor,
+		displayName:            displayName,
+		agentClient:            agentClient,
+		listener:               listener,
+		grpcServer:             nil,
+		defaultRefreshInterval: 5 * time.Second,
+		queryTimeout:           config.GetDuration("remote_agent_registry.query_timeout"),
 	}
 
 	// Initialize the gRPC server
@@ -165,39 +166,57 @@ func (s *UnimplementedRemoteAgentServer) start() {
 	go func() {
 		defer s.wg.Done()
 
-		// Wait forever, periodically refreshing our registration.
-		refreshTicker := time.NewTicker(s.defaultTickerInterval)
+		// Create exponential backoff for registration retries
+		registrationBackoff := backoff.NewExponentialBackOff()
+		registrationBackoff.InitialInterval = 500 * time.Millisecond
+		registrationBackoff.MaxInterval = time.Minute
+		registrationBackoff.Reset()
+
+		// Start with immediate first registration attempt
+		ticker := time.NewTicker(time.Microsecond)
+		defer ticker.Stop()
+
 		for {
 			select {
 			case <-s.ctx.Done():
 				s.grpcServer.GracefulStop()
 				return
-			case <-refreshTicker.C:
+			case <-ticker.C:
 				s.sessionIDMutex.RLock()
 				sessionID := s.sessionID
 				s.sessionIDMutex.RUnlock()
-				// if empty, trying to register to the coreAgent
+
 				if sessionID == "" {
-					var err error
+					// Registration mode: try to register
 					s.log.Debug("Session ID is empty, entering registration loop")
 					sessionID, refreshInterval, err := s.registerWithAgent()
 					if err != nil {
+						// Registration failed, use exponential backoff for next retry
+						backoffDuration := registrationBackoff.NextBackOff()
+						s.log.Debugf("Registration failed, retrying in %v", backoffDuration)
+						ticker.Reset(backoffDuration)
 						continue
 					}
+
+					// Registration succeeded
 					s.sessionIDMutex.Lock()
 					s.sessionID = sessionID
 					s.sessionIDMutex.Unlock()
-					refreshTicker.Reset(refreshInterval)
+
+					// Reset backoff for next registration cycle and switch to periodic refresh
+					registrationBackoff.Reset()
+					ticker.Reset(refreshInterval)
 				} else {
-					// The sessionID exist, trying to refresh
+					// Refresh mode: try to refresh registration
 					err := s.refreshRegistration()
 					if err != nil {
 						s.log.Warnf("failed to refresh registration with Core Agent: %v, entering registration loop", err)
 						s.sessionIDMutex.Lock()
 						s.sessionID = ""
 						s.sessionIDMutex.Unlock()
-						refreshTicker.Reset(s.defaultTickerInterval)
-						continue
+
+						// Switch back to exponential backoff for registration
+						ticker.Reset(registrationBackoff.NextBackOff())
 					}
 				}
 			}
@@ -250,8 +269,8 @@ func (s *UnimplementedRemoteAgentServer) registerWithAgent() (string, time.Durat
 	// Check that refresh rate is greater than 0 seconds
 	var refreshInterval time.Duration
 	if resp.RecommendedRefreshIntervalSecs == 0 {
-		s.log.Warnf("Recommended refresh interval is 0 seconds, using default refresh interval of %d seconds", s.defaultTickerInterval)
-		refreshInterval = s.defaultTickerInterval
+		s.log.Warnf("Recommended refresh interval is 0 seconds, using default refresh interval of %d seconds", s.defaultRefreshInterval)
+		refreshInterval = s.defaultRefreshInterval
 	} else {
 		refreshInterval = time.Duration(resp.RecommendedRefreshIntervalSecs) * time.Second
 	}

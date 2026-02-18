@@ -91,11 +91,12 @@ extensions:
           branch: "conductor-sandbox"
           parent_environments: ["staging"]
         - name: "stable-nightly-build"
-          ci_pipeline: "//fake_placeholder:fake_placeholder"
-          branch: "7.72.x"
+          branch: "7.75.x"
           schedule: "30 2 * * *"
-          parent_environments: ["staging"]
           build_only: true
+          options:
+            disable_bia: true
+            disable_failure_notifications: true
   datadoghq.com/change-detection:
     source_patterns:
       - service.datadog.yaml
@@ -145,9 +146,6 @@ tags:
   - team:container-integrations
   - service:datadog-cluster-agent
   - app:datadog-cluster-agent
-integrations:
-  pagerduty:
-    service-url: https://datadog.pagerduty.com/service-directory/P55U2GM
 ---
 schema-version: v2.1
 dd-service: datadog-agent-cluster-worker
@@ -194,9 +192,6 @@ tags:
   - team:container-integrations
   - service:datadog-agent-cluster-worker
   - app:datadog-agent-cluster-worker
-integrations:
-  pagerduty:
-    service-url: https://datadog.pagerduty.com/service-directory/P55U2GM
 ---
 apiVersion: v3
 kind: service
@@ -206,7 +201,10 @@ metadata:
   displayName: Datadog-agent CI
   tags:
     - datadog-agent-ci
-  owner: agent-devx
+  owner: agent-supply-chain
+  additionalOwners:
+    - name: agent-devx
+    - name: agent-build
   links:
     - name: datadog-agent
       type: repo
@@ -263,9 +261,6 @@ metadata:
     - name: datadog-agent-pipelines
       type: slack
       contact: https://dd.enterprise.slack.com/archives/CR5TV8QBY
-integrations:
-  pagerduty:
-    serviceURL: https://datadog.pagerduty.com/service-directory/P9SGXPT
 datadog:
   pipelines:
     fingerprints:

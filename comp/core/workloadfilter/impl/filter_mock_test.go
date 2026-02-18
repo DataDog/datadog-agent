@@ -66,7 +66,7 @@ func TestNewMock_UsesMockConfig(t *testing.T) {
 		},
 		nil,
 	)
-	filterBundle := provides.Comp.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}})
+	filterBundle := provides.Comp.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.ContainerLegacyGlobal}})
 	res := filterBundle.IsExcluded(container)
 	assert.Equal(t, false, res, "Container should be included based on mock config")
 

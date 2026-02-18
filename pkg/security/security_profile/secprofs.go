@@ -107,8 +107,6 @@ func (m *Manager) LookupEventInProfiles(event *model.Event) {
 		return
 	}
 
-	_ = event.FieldHandlers.ResolveContainerCreatedAt(event, &event.ProcessContext.Process.ContainerContext)
-
 	ctx, found := profile.GetVersionContext(imageTag)
 	if found {
 		ctx.LastSeenNano = uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now()))
@@ -319,11 +317,11 @@ func (m *Manager) unloadProfileMap(profile *profile.Profile) {
 
 // linkProfile (thread unsafe) updates the kernel space mapping between a workload and its profile
 func (m *Manager) linkProfileMap(profile *profile.Profile, workload *tags.Workload) {
-	if err := m.securityProfileMap.Put(workload.CGroupFile.Inode, profile.GetProfileCookie()); err != nil {
+	if err := m.securityProfileMap.Put(workload.GCroupCacheEntry.GetCGroupInode(), profile.GetProfileCookie()); err != nil {
 		if errors.Is(err, unix.E2BIG) {
-			seclog.Debugf("couldn't link workload %s (selector: %s, key: %v) with profile %s (check map size limit ?): %v", workload.ContainerID, workload.Selector.String(), workload.CGroupFile, profile.Metadata.Name, err)
+			seclog.Debugf("couldn't link workload %s (selector: %s, inode: %d) with profile %s (check map size limit ?): %v", workload.GCroupCacheEntry.GetContainerID(), workload.Selector.String(), workload.GCroupCacheEntry.GetCGroupInode(), profile.Metadata.Name, err)
 		} else {
-			seclog.Errorf("couldn't link workload %s (selector: %s, key: %v) with profile %s (check map size limit ?): %v", workload.ContainerID, workload.Selector.String(), workload.CGroupFile, profile.Metadata.Name, err)
+			seclog.Errorf("couldn't link workload %s (selector: %s, inode: %d) with profile %s (check map size limit ?): %v", workload.GCroupCacheEntry.GetContainerID(), workload.Selector.String(), workload.GCroupCacheEntry.GetCGroupInode(), profile.Metadata.Name, err)
 		}
 		return
 	}
@@ -358,7 +356,7 @@ func (m *Manager) unlinkProfileMap(profile *profile.Profile, workload *tags.Work
 		return
 	}
 
-	if err := m.securityProfileMap.Delete(workload.CGroupFile.Inode); err != nil {
+	if err := m.securityProfileMap.Delete(workload.GCroupCacheEntry.GetCGroupInode()); err != nil {
 		seclog.Errorf("couldn't unlink %s %s (selector: %s) with profile %s: %v", workload.Type(), workload.GetWorkloadID(), workload.Selector.String(), profile.Metadata.Name, err)
 	}
 	seclog.Infof("%s %s (selector: %s) successfully unlinked from profile %s", workload.Type(), workload.GetWorkloadID(), workload.Selector.String(), profile.Metadata.Name)
@@ -395,7 +393,7 @@ func (m *Manager) onWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 	workload.Lock()
 	defer workload.Unlock()
 
-	if workload.Deleted.Load() {
+	if workload.GCroupCacheEntry.IsDeleted() {
 		// this workload was deleted before we had time to apply its profile, ignore
 		return
 	}

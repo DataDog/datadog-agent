@@ -7,7 +7,7 @@ package inventoryagentimpl
 
 import (
 	"bytes"
-	"fmt"
+	"errors"
 	"runtime"
 	"sort"
 	"testing"
@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
+	sysprobecfg "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
@@ -87,7 +88,7 @@ func TestGetPayload(t *testing.T) {
 func TestInitDataErrorInstallInfo(t *testing.T) {
 	defer func() { installinfoGet = installinfo.Get }()
 	installinfoGet = func(config.Reader) (*installinfo.InstallInfo, error) {
-		return nil, fmt.Errorf("some error")
+		return nil, errors.New("some error")
 	}
 
 	ia := getTestInventoryPayload(t, nil, nil)
@@ -258,6 +259,14 @@ func TestInitData(t *testing.T) {
 		expected["system_probe_track_udp_6_connections"] = false
 	}
 
+	// Redis may be disabled by adjust_usm.go on kernels < 5.4
+	if !sysprobecfg.RedisMonitoringSupported() {
+		expected["feature_usm_redis_enabled"] = false
+	}
+
+	// HTTP2 may be disabled by adjust_usm.go on kernels < 5.2
+	expected["feature_usm_http2_enabled"] = sysprobecfg.HTTP2MonitoringSupported()
+
 	for name, value := range expected {
 		assert.Equal(t, value, ia.data[name], "value for '%s' is wrong", name)
 	}
@@ -352,7 +361,7 @@ func TestFetchSecurityAgent(t *testing.T) {
 			"wrong configuration received for security-agent fetcher",
 		)
 
-		return "", fmt.Errorf("some error")
+		return "", errors.New("some error")
 	}
 
 	ia := getTestInventoryPayload(t, nil, nil)
@@ -393,7 +402,7 @@ func TestFetchProcessAgent(t *testing.T) {
 			"wrong configuration received for security-agent fetcher",
 		)
 
-		return "", fmt.Errorf("some error")
+		return "", errors.New("some error")
 	}
 
 	ia := getTestInventoryPayload(t, nil, nil)
@@ -440,17 +449,13 @@ func TestFetchTraceAgent(t *testing.T) {
 			"wrong configuration received for security-agent fetcher",
 		)
 
-		return "", fmt.Errorf("some error")
+		return "", errors.New("some error")
 	}
 
 	ia := getTestInventoryPayload(t, nil, nil)
 	ia.fetchTraceAgentMetadata()
 
-	if runtime.GOARCH == "386" && runtime.GOOS == "windows" {
-		assert.False(t, ia.data["feature_apm_enabled"].(bool))
-	} else {
-		assert.True(t, ia.data["feature_apm_enabled"].(bool))
-	}
+	assert.True(t, ia.data["feature_apm_enabled"].(bool))
 	assert.Equal(t, "", ia.data["config_apm_dd_url"].(string))
 
 	fetchTraceConfig = func(_ pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
@@ -487,7 +492,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 			"wrong configuration received for security-agent fetcher",
 		)
 
-		return "", fmt.Errorf("some error")
+		return "", errors.New("some error")
 	}
 
 	isPrebuiltDeprecated := prebuilt.IsDeprecated()

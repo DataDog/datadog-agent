@@ -114,7 +114,7 @@ func (c *Controller) enqueueOnLeaderNotif(stop <-chan struct{}) {
 
 // triggerReconciliation forces a reconciliation loop by enqueuing the secret object namespaced name.
 func (c *Controller) triggerReconciliation() {
-	c.queue.Add(fmt.Sprintf("%s/%s", c.config.GetNs(), c.config.GetName()))
+	c.queue.Add(c.config.GetNs() + "/" + c.config.GetName())
 }
 
 // handleObject enqueues the targeted Secret object when an event occurs.

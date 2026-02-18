@@ -6,6 +6,7 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -44,7 +45,7 @@ func (client *Client) login() error {
 	}
 
 	if len(bodyBytes) > 0 {
-		return fmt.Errorf("invalid credentials")
+		return errors.New("invalid credentials")
 	}
 
 	// Request to /dataservice/client/token to obtain csrf prevention token
@@ -65,7 +66,7 @@ func (client *Client) login() error {
 
 	token, _ := io.ReadAll(tokenRes.Body)
 	if string(token) == "" {
-		return fmt.Errorf("no csrf prevention token in payload")
+		return errors.New("no csrf prevention token in payload")
 	}
 
 	client.token = string(token)

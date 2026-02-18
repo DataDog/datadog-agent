@@ -41,12 +41,16 @@ func TestDNS(t *testing.T) {
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
-			ID:         "test_rule_dns",
-			Expression: fmt.Sprintf(`dns.question.type == A && dns.question.name == "google.com" && process.file.name == "%s"`, path.Base(executable)),
+			ID:         "test_rule_dns_lowercase",
+			Expression: fmt.Sprintf(`dns.question.type == A && dns.question.name == "perdu.com" && process.file.name == "%s" && process.netns == network.device.netns`, path.Base(executable)),
 		},
 		{
-			ID:         "test_long_query",
-			Expression: `dns.question.type == A && dns.question.name.length > 60 && process.file.name == "testsuite"`,
+			ID:         "test_rule_dns_uppercase",
+			Expression: fmt.Sprintf(`dns.question.type == A && dns.question.name == "MICROSOFT.COM" && process.file.name == "%s" && process.netns == network.device.netns`, path.Base(executable)),
+		},
+		{
+			ID:         "test_rule_long_query",
+			Expression: fmt.Sprintf(`dns.question.type == A && dns.question.name.length > 60 && process.file.name == "%s" && process.netns == network.device.netns`, path.Base(executable)),
 		},
 	}
 
@@ -57,46 +61,46 @@ func TestDNS(t *testing.T) {
 	defer test.Close()
 
 	t.Run("dns", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
-			_, err = net.LookupIP("google.com")
+		test.WaitSignalFromRule(t, func() error {
+			_, err = net.LookupIP("perdu.com")
 			if err != nil {
 				return err
 			}
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_rule_dns")
-			assert.Equal(t, "google.com", event.DNS.Question.Name, "wrong domain name")
+			assertTriggeredRule(t, rule, "test_rule_dns_lowercase")
+			assert.Equal(t, "perdu.com", event.DNS.Question.Name, "wrong domain name")
 
 			test.validateDNSSchema(t, event)
-		})
+		}, "test_rule_dns_lowercase")
 	})
 
 	t.Run("dns-case", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
-			_, err = net.LookupIP("GOOGLE.COM")
+		test.WaitSignalFromRule(t, func() error {
+			_, err = net.LookupIP("MICROSOFT.COM")
 			if err != nil {
 				return err
 			}
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_rule_dns")
-			assert.Equal(t, "GOOGLE.COM", event.DNS.Question.Name, "wrong domain name")
+			assertTriggeredRule(t, rule, "test_rule_dns_uppercase")
+			assert.Equal(t, "MICROSOFT.COM", event.DNS.Question.Name, "wrong domain name")
 
 			test.validateDNSSchema(t, event)
-		})
+		}, "test_rule_dns_uppercase")
 	})
 
 	t.Run("dns-long-domain", func(t *testing.T) {
 		longDomain := strings.Repeat("A", 58) + ".COM"
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			net.LookupIP(longDomain)
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_long_query")
+			assertTriggeredRule(t, rule, "test_rule_long_query")
 			assert.Equal(t, "dns", event.GetType(), "wrong event type")
 			assert.Equal(t, longDomain, event.DNS.Question.Name, "wrong domain name")
 
 			test.validateDNSSchema(t, event)
-		})
+		}, "test_rule_long_query")
 	})
 }

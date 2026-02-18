@@ -165,7 +165,7 @@ func (e *endpointDescription) buildRoute(cfg model.Reader, domain domain) string
 		baseURL = utils.GetMainEndpoint(cfg, joinSuffix(e.prefix, "."), urlOverrideKey)
 	}
 	if !strings.HasPrefix(baseURL, "https://") && !strings.HasPrefix(baseURL, "http://") {
-		baseURL = fmt.Sprintf("https://%s", baseURL)
+		baseURL = "https://" + baseURL
 	}
 
 	path := e.routePath

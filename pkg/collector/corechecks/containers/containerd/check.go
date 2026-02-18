@@ -58,6 +58,7 @@ type ContainerdCheck struct {
 	client          cutil.ContainerdItf
 	httpClient      http.Client
 	containerFilter workloadfilter.FilterBundle
+	pauseFilter     workloadfilter.FilterBundle
 	store           workloadmeta.Component
 	tagger          tagger.Component
 }
@@ -77,6 +78,7 @@ func Factory(store workloadmeta.Component, filterStore workloadfilter.Component,
 			instance:        &ContainerdConfig{},
 			store:           store,
 			containerFilter: filterStore.GetContainerSharedMetricFilters(),
+			pauseFilter:     filterStore.GetContainerPausedFilters(),
 			tagger:          tagger,
 		}
 	})
@@ -106,7 +108,7 @@ func (c *ContainerdCheck) Configure(senderManager sender.SenderManager, _ uint64
 	c.httpClient = http.Client{Timeout: time.Duration(1) * time.Second}
 	c.processor = generic.NewProcessor(metrics.GetProvider(option.New(c.store)), generic.NewMetadataContainerAccessor(c.store), metricsAdapter{}, getProcessorFilter(c.containerFilter, c.store), c.tagger, false)
 	c.processor.RegisterExtension("containerd-custom-metrics", &containerdCustomMetricsExtension{})
-	c.subscriber = createEventSubscriber("ContainerdCheck", c.client, cutil.FiltersWithNamespaces(c.instance.ContainerdFilters))
+	c.subscriber = createEventSubscriber("ContainerdCheck", c.client, cutil.FiltersWithNamespaces(c.instance.ContainerdFilters), c.pauseFilter)
 
 	c.subscriber.isCacheConfigValid = c.isEventConfigValid()
 	if err := c.initializeImageCache(); err != nil {
@@ -183,7 +185,7 @@ func (c *ContainerdCheck) scrapeOpenmetricsEndpoint(sender sender.Sender) error 
 		return nil
 	}
 
-	openmetricsEndpoint := fmt.Sprintf("%s/v1/metrics", c.instance.OpenmetricsEndpoint)
+	openmetricsEndpoint := c.instance.OpenmetricsEndpoint + "/v1/metrics"
 	resp, err := c.httpClient.Get(openmetricsEndpoint)
 	if err != nil {
 		return err
@@ -203,10 +205,6 @@ func (c *ContainerdCheck) scrapeOpenmetricsEndpoint(sender sender.Sender) error 
 
 	for _, mf := range parsedMetrics {
 		for _, sample := range mf.Samples {
-			if sample == nil {
-				continue
-			}
-
 			metric := sample.Metric
 
 			metricName, ok := metric["__name__"]
@@ -215,10 +213,10 @@ func (c *ContainerdCheck) scrapeOpenmetricsEndpoint(sender sender.Sender) error 
 				continue
 			}
 
-			transform, found := defaultContainerdOpenmetricsTransformers[string(metricName)]
+			transform, found := defaultContainerdOpenmetricsTransformers[metricName]
 
 			if found {
-				transform(sender, string(metricName), *sample)
+				transform(sender, metricName, sample)
 			}
 		}
 	}

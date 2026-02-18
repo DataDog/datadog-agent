@@ -61,11 +61,11 @@ var networkIDFetcher = cachedfetch.Fetcher{
 
 		switch len(vpcIDs) {
 		case 0:
-			return "", fmt.Errorf("EC2: GetNetworkID no mac addresses returned")
+			return "", errors.New("EC2: GetNetworkID no mac addresses returned")
 		case 1:
 			return vpcIDs.GetAll()[0], nil
 		default:
-			return "", fmt.Errorf("EC2: GetNetworkID too many mac addresses returned")
+			return "", errors.New("EC2: GetNetworkID too many mac addresses returned")
 		}
 	},
 }
@@ -87,7 +87,7 @@ type Subnet struct {
 // address (mac address) on the current host
 func GetSubnetForHardwareAddr(ctx context.Context, hwAddr net.HardwareAddr) (subnet Subnet, err error) {
 	if len(hwAddr) == 0 {
-		err = fmt.Errorf("could not get subnet for empty hw addr")
+		err = errors.New("could not get subnet for empty hw addr")
 		return
 	}
 
@@ -131,8 +131,8 @@ var vpcSubnetFetcher = cachedfetch.Fetcher{
 			if err != nil {
 				return fmt.Errorf("EC2: GetVPCSubnetsForHost failed to get CIDRs for mac %s: %w", mac, err)
 			}
-			cidrList := strings.Split(cidrs, "\n")
-			for _, cidr := range cidrList {
+			cidrList := strings.SplitSeq(cidrs, "\n")
+			for cidr := range cidrList {
 				allSubnets.Add(cidr)
 			}
 			return nil

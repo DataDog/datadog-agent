@@ -8,6 +8,7 @@
 package evtreporter
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
@@ -39,7 +40,7 @@ func New(channelName string, api evtapi.API) (Reporter, error) {
 	var r reporter
 
 	if api == nil {
-		return nil, fmt.Errorf("event log API is required")
+		return nil, errors.New("event log API is required")
 	}
 	r.eventLogAPI = api
 

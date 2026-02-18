@@ -112,8 +112,8 @@ func newProcessor(workloadmetaStore workloadmeta.Component, filterStore workload
 }
 
 func isProcfsSBOMEnabled(cfg config.Component) bool {
-	// Allowed only on Fargate instance for now
-	return cfg.GetBool("sbom.container.enabled") && fargate.IsFargateInstance()
+	// Allowed only in sidecar mode for now
+	return cfg.GetBool("sbom.container.enabled") && fargate.IsSidecar()
 }
 
 func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBundle) {
@@ -439,6 +439,10 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 			"short_image:"+shortName)
 		for _, t := range repoTags {
 			ddTags2 = append(ddTags2, "image_tag:"+t)
+		}
+
+		if img.SBOM.GenerationMethod != "" {
+			ddTags2 = append(ddTags2, sbom.ScanMethodTagName+":"+img.SBOM.GenerationMethod)
 		}
 
 		sbom := &model.SBOMEntity{

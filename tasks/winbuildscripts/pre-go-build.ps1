@@ -39,3 +39,12 @@ if($err -ne 0){
     Write-Host -ForegroundColor Red "build-messagetable failed $err"
     [Environment]::Exit($err)
 }
+
+# Build libdatadog-interop.dll for software inventory tests
+& dda inv -- -e msi.build-datadog-interop
+$err = $LASTEXITCODE
+Write-Host Build result is $err
+if($err -ne 0){
+    Write-Host -ForegroundColor Red "msi.build-datadog-interop failed $err"
+    [Environment]::Exit($err)
+}

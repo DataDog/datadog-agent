@@ -243,7 +243,37 @@ var defaultRedactors = []jsonRedactor{
 			`UnknownType(0x[GoRuntimeType])`,
 		),
 	),
+	redactor(
+		exactMatcher(`/message`),
+		regexpStringReplacer(
+			`0x[[:xdigit:]]+`,
+			`0x[addr]`,
+		),
+	),
+	redactor(
+		exactMatcher(`/message`),
+		regexpStringReplacer(
+			`map\[.*, \.\.\.\]`,
+			`map[{redacted-entries}, ...]`,
+		),
+	),
+	redactor(
+		exactMatcher(`/message`),
+		regexpStringReplacer(
+			`\{mu: `+mutexInternalsRegexp+`\}|`+mutexInternalsRegexp,
+			`{mutex internals}`,
+		),
+	),
+	redactor(
+		exactMatcher(`/message`),
+		regexpStringReplacer(
+			`[0-9]+\.[0-9]+ms`,
+			`[duration]ms`,
+		),
+	),
 }
+
+const mutexInternalsRegexp = `\{state: [[:digit:]]+, sema: [[:digit:]]+\}`
 
 func redactGoID(v jsontext.Value) jsontext.Value {
 	if v.Kind() != '0' {
@@ -323,10 +353,6 @@ func redactTypesThatDependOnVersion(v jsontext.Value) jsontext.Value {
 
 func regexpStringReplacer(pat, replacement string) replacer {
 	re := regexp.MustCompile(pat)
-	replacementJSON, err := json.Marshal(replacement)
-	if err != nil {
-		panic(err)
-	}
 	return replacerFunc(func(v jsontext.Value) jsontext.Value {
 		var s string
 		if err := json.Unmarshal(v, &s); err != nil {
@@ -335,7 +361,12 @@ func regexpStringReplacer(pat, replacement string) replacer {
 		if !re.MatchString(s) {
 			return v
 		}
-		return jsontext.Value(replacementJSON)
+		replaced := re.ReplaceAllString(s, replacement)
+		marshalled, err := json.Marshal(replaced)
+		if err != nil {
+			return v
+		}
+		return jsontext.Value(marshalled)
 	})
 }
 

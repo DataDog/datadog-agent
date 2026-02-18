@@ -162,7 +162,7 @@ func (f Replacer) replaceAttributeAnyValue(re *regexp.Regexp, val *pb.AttributeA
 		}
 		return val
 	default:
-		log.Error("Unknown OTEL AttributeAnyValue type %v, replacer code must be updated, replacing unknown type with `?`")
+		log.Errorf("Unknown OTEL AttributeAnyValue type %v, replacer code must be updated, replacing unknown type with `?`")
 		return &pb.AttributeAnyValue{
 			Type:        pb.AttributeAnyValue_STRING_VALUE,
 			StringValue: "?",
@@ -187,7 +187,7 @@ func (f Replacer) replaceAttributeArrayValue(re *regexp.Regexp, val *pb.Attribut
 		replacedValue := re.ReplaceAllString(strconv.FormatBool(val.BoolValue), str)
 		return attributeArrayValFromString(replacedValue)
 	default:
-		log.Error("Unknown OTEL AttributeArrayValue type %v, replacer code must be updated, replacing unknown type with `?`")
+		log.Errorf("Unknown OTEL AttributeArrayValue type %v, replacer code must be updated, replacing unknown type with `?`")
 		return &pb.AttributeArrayValue{
 			Type:        pb.AttributeArrayValue_STRING_VALUE,
 			StringValue: "?",

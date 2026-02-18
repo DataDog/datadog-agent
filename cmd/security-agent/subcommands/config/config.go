@@ -9,6 +9,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -168,7 +169,7 @@ func showRuntimeConfiguration(_ log.Component, cfg config.Component, _ secrets.C
 
 func setConfigValue(_ log.Component, _ config.Component, _ secrets.Component, client ipc.HTTPClient, params *cliParams) error {
 	if len(params.args) != 2 {
-		return fmt.Errorf("exactly two parameters are required: the setting name and its value")
+		return errors.New("exactly two parameters are required: the setting name and its value")
 	}
 
 	c, err := getSettingsClient(client)
@@ -192,7 +193,7 @@ func setConfigValue(_ log.Component, _ config.Component, _ secrets.Component, cl
 
 func getConfigValue(_ log.Component, _ config.Component, _ secrets.Component, client ipc.HTTPClient, params *cliParams) error {
 	if len(params.args) != 1 {
-		return fmt.Errorf("a single setting name must be specified")
+		return errors.New("a single setting name must be specified")
 	}
 
 	c, err := getSettingsClient(client)

@@ -12,8 +12,6 @@ import (
 )
 
 // getANodeLabels returns nothing
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (_ *NodeInfo) getANodeLabels(_ context.Context) (map[string]string, error) {
+func (*NodeInfo) getANodeLabels(_ context.Context) (map[string]string, error) {
 	return nil, nil
 }

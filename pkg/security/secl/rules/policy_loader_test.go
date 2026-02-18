@@ -7,7 +7,7 @@
 package rules
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -130,115 +130,130 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 				expectedLoadedPolicies := []*Policy{
 					{
 						Info: PolicyInfo{
-							Name:   DefaultPolicyName,
-							Source: PolicyProviderTypeRC,
-							Type:   DefaultPolicyType,
+							Name:         DefaultPolicyName,
+							Source:       PolicyProviderTypeRC,
+							InternalType: DefaultPolicyType,
 						},
-						Macros: map[string][]*PolicyMacro{},
-						Rules: map[string][]*PolicyRule{
-							"foo": {
-								{
-									Def: &RuleDefinition{
-										ID:         "foo",
-										Expression: "open.file.path == \"/etc/rc-default/foo\"",
-									},
-									Policy: PolicyInfo{
-										Name:   DefaultPolicyName,
-										Source: PolicyProviderTypeRC,
-										Type:   DefaultPolicyType,
-									},
-									Accepted: true,
+						Rules: []*PolicyRule{
+							{
+								Def: &RuleDefinition{
+									ID:         "foo",
+									Expression: "open.file.path == \"/etc/rc-default/foo\"",
 								},
+								Policy: PolicyInfo{
+									Name:         DefaultPolicyName,
+									Source:       PolicyProviderTypeRC,
+									InternalType: DefaultPolicyType,
+								},
+								UsedBy: []PolicyInfo{{
+									Name:         DefaultPolicyName,
+									Source:       PolicyProviderTypeRC,
+									InternalType: DefaultPolicyType,
+								}},
+								Accepted: true,
 							},
-							"bravo": {
-								{
-									Def: &RuleDefinition{
-										ID:         "bravo",
-										Expression: "open.file.path == \"/etc/rc-default/bravo\"",
-									},
-									Policy: PolicyInfo{
-										Name:   DefaultPolicyName,
-										Source: PolicyProviderTypeRC,
-										Type:   DefaultPolicyType,
-									},
-									Accepted: true,
+							{
+								Def: &RuleDefinition{
+									ID:         "bravo",
+									Expression: "open.file.path == \"/etc/rc-default/bravo\"",
 								},
-							},
-						},
-					},
-					{
-						Info: PolicyInfo{
-							Name:   "myRC.policy",
-							Source: PolicyProviderTypeRC,
-							Type:   CustomPolicyType,
-						},
-						Macros: map[string][]*PolicyMacro{},
-						Rules: map[string][]*PolicyRule{
-							"foo": {
-								{
-									Def: &RuleDefinition{
-										ID:         "foo",
-										Expression: "open.file.path == \"/etc/rc-custom/foo\"",
-									},
-									Policy: PolicyInfo{
-										Name:   "myRC.policy",
-										Source: PolicyProviderTypeRC,
-										Type:   CustomPolicyType,
-									},
-									Accepted: true,
+								Policy: PolicyInfo{
+									Name:         DefaultPolicyName,
+									Source:       PolicyProviderTypeRC,
+									InternalType: DefaultPolicyType,
 								},
-							},
-							"alpha": {
-								{
-									Def: &RuleDefinition{
-										ID:         "alpha",
-										Expression: "open.file.path == \"/etc/rc-custom/alpha\"",
-									},
-									Policy: PolicyInfo{
-										Name:   "myRC.policy",
-										Source: PolicyProviderTypeRC,
-										Type:   CustomPolicyType,
-									},
-									Accepted: true,
-								},
+								UsedBy: []PolicyInfo{{
+									Name:         DefaultPolicyName,
+									Source:       PolicyProviderTypeRC,
+									InternalType: DefaultPolicyType,
+								}},
+								Accepted: true,
 							},
 						},
 					},
 					{
 						Info: PolicyInfo{
-							Name:   "myLocal.policy",
-							Source: PolicyProviderTypeDir,
-							Type:   CustomPolicyType,
+							Name:         "myRC.policy",
+							Source:       PolicyProviderTypeRC,
+							InternalType: CustomPolicyType,
 						},
-						Macros: map[string][]*PolicyMacro{},
-						Rules: map[string][]*PolicyRule{
-							"foo": {
-								{
-									Def: &RuleDefinition{
-										ID:         "foo",
-										Expression: "open.file.path == \"/etc/local-custom/foo\"",
-									},
-									Policy: PolicyInfo{
-										Name:   "myLocal.policy",
-										Source: PolicyProviderTypeDir,
-										Type:   CustomPolicyType,
-									},
-									Accepted: true,
+						Rules: []*PolicyRule{
+							{
+								Def: &RuleDefinition{
+									ID:         "foo",
+									Expression: "open.file.path == \"/etc/rc-custom/foo\"",
 								},
+								Policy: PolicyInfo{
+									Name:         "myRC.policy",
+									Source:       PolicyProviderTypeRC,
+									InternalType: CustomPolicyType,
+								},
+								UsedBy: []PolicyInfo{{
+									Name:         "myRC.policy",
+									Source:       PolicyProviderTypeRC,
+									InternalType: CustomPolicyType,
+								}},
+								Accepted: true,
 							},
-							"bar": {
-								{
-									Def: &RuleDefinition{
-										ID:         "bar",
-										Expression: "open.file.path == \"/etc/local-custom/bar\"",
-									},
-									Policy: PolicyInfo{
-										Name:   "myLocal.policy",
-										Source: PolicyProviderTypeDir,
-										Type:   CustomPolicyType,
-									},
-									Accepted: true,
+							{
+								Def: &RuleDefinition{
+									ID:         "alpha",
+									Expression: "open.file.path == \"/etc/rc-custom/alpha\"",
 								},
+								Policy: PolicyInfo{
+									Name:         "myRC.policy",
+									Source:       PolicyProviderTypeRC,
+									InternalType: CustomPolicyType,
+								},
+								UsedBy: []PolicyInfo{{
+									Name:         "myRC.policy",
+									Source:       PolicyProviderTypeRC,
+									InternalType: CustomPolicyType,
+								}},
+								Accepted: true,
+							},
+						},
+					},
+					{
+						Info: PolicyInfo{
+							Name:         "myLocal.policy",
+							Source:       PolicyProviderTypeDir,
+							InternalType: CustomPolicyType,
+						},
+						Rules: []*PolicyRule{
+							{
+								Def: &RuleDefinition{
+									ID:         "foo",
+									Expression: "open.file.path == \"/etc/local-custom/foo\"",
+								},
+								Policy: PolicyInfo{
+									Name:         "myLocal.policy",
+									Source:       PolicyProviderTypeDir,
+									InternalType: CustomPolicyType,
+								},
+								UsedBy: []PolicyInfo{{
+									Name:         "myLocal.policy",
+									Source:       PolicyProviderTypeDir,
+									InternalType: CustomPolicyType,
+								}},
+								Accepted: true,
+							},
+							{
+								Def: &RuleDefinition{
+									ID:         "bar",
+									Expression: "open.file.path == \"/etc/local-custom/bar\"",
+								},
+								Policy: PolicyInfo{
+									Name:         "myLocal.policy",
+									Source:       PolicyProviderTypeDir,
+									InternalType: CustomPolicyType,
+								},
+								UsedBy: []PolicyInfo{{
+									Name:         "myLocal.policy",
+									Source:       PolicyProviderTypeDir,
+									InternalType: CustomPolicyType,
+								}},
+								Accepted: true,
 							},
 						},
 					},
@@ -316,77 +331,87 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 				expectedLoadedPolicies := []*Policy{
 					{
 						Info: PolicyInfo{
-							Name:   "myRC.policy",
-							Source: PolicyProviderTypeRC,
-							Type:   CustomPolicyType,
+							Name:         "myRC.policy",
+							Source:       PolicyProviderTypeRC,
+							InternalType: CustomPolicyType,
 						},
-						Macros: map[string][]*PolicyMacro{},
-						Rules: map[string][]*PolicyRule{
-							"foo": {
-								{
-									Def: &RuleDefinition{
-										ID:         "foo",
-										Expression: "open.file.path == \"/etc/rc-custom/foo\"",
-									},
-									Policy: PolicyInfo{
-										Name:   "myRC.policy",
-										Source: PolicyProviderTypeRC,
-										Type:   CustomPolicyType,
-									},
-									Accepted: true,
+						Rules: []*PolicyRule{
+							{
+								Def: &RuleDefinition{
+									ID:         "foo",
+									Expression: "open.file.path == \"/etc/rc-custom/foo\"",
 								},
+								Policy: PolicyInfo{
+									Name:         "myRC.policy",
+									Source:       PolicyProviderTypeRC,
+									InternalType: CustomPolicyType,
+								},
+								UsedBy: []PolicyInfo{{
+									Name:         "myRC.policy",
+									Source:       PolicyProviderTypeRC,
+									InternalType: CustomPolicyType,
+								}},
+								Accepted: true,
 							},
-							"bar3": {
-								{
-									Def: &RuleDefinition{
-										ID:         "bar3",
-										Expression: "open.file.path == \"/etc/rc-custom/bar\"",
-									},
-									Policy: PolicyInfo{
-										Name:   "myRC.policy",
-										Source: PolicyProviderTypeRC,
-										Type:   CustomPolicyType,
-									},
-									Accepted: true,
+							{
+								Def: &RuleDefinition{
+									ID:         "bar3",
+									Expression: "open.file.path == \"/etc/rc-custom/bar\"",
 								},
+								Policy: PolicyInfo{
+									Name:         "myRC.policy",
+									Source:       PolicyProviderTypeRC,
+									InternalType: CustomPolicyType,
+								},
+								UsedBy: []PolicyInfo{{
+									Name:         "myRC.policy",
+									Source:       PolicyProviderTypeRC,
+									InternalType: CustomPolicyType,
+								}},
+								Accepted: true,
 							},
 						},
 					},
 					{
 						Info: PolicyInfo{
-							Name:   "myLocal.policy",
-							Source: PolicyProviderTypeDir,
-							Type:   CustomPolicyType,
+							Name:         "myLocal.policy",
+							Source:       PolicyProviderTypeDir,
+							InternalType: CustomPolicyType,
 						},
-						Macros: map[string][]*PolicyMacro{},
-						Rules: map[string][]*PolicyRule{
-							"foo": {
-								{
-									Def: &RuleDefinition{
-										ID:         "foo",
-										Expression: "open.file.path == \"/etc/local-custom/foo\"",
-									},
-									Policy: PolicyInfo{
-										Name:   "myLocal.policy",
-										Source: PolicyProviderTypeDir,
-										Type:   CustomPolicyType,
-									},
-									Accepted: true,
+						Rules: []*PolicyRule{
+							{
+								Def: &RuleDefinition{
+									ID:         "foo",
+									Expression: "open.file.path == \"/etc/local-custom/foo\"",
 								},
+								Policy: PolicyInfo{
+									Name:         "myLocal.policy",
+									Source:       PolicyProviderTypeDir,
+									InternalType: CustomPolicyType,
+								},
+								UsedBy: []PolicyInfo{{
+									Name:         "myLocal.policy",
+									Source:       PolicyProviderTypeDir,
+									InternalType: CustomPolicyType,
+								}},
+								Accepted: true,
 							},
-							"bar": {
-								{
-									Def: &RuleDefinition{
-										ID:         "bar",
-										Expression: "open.file.path == \"/etc/local-custom/bar\"",
-									},
-									Policy: PolicyInfo{
-										Name:   "myLocal.policy",
-										Source: PolicyProviderTypeDir,
-										Type:   CustomPolicyType,
-									},
-									Accepted: true,
+							{
+								Def: &RuleDefinition{
+									ID:         "bar",
+									Expression: "open.file.path == \"/etc/local-custom/bar\"",
 								},
+								Policy: PolicyInfo{
+									Name:         "myLocal.policy",
+									Source:       PolicyProviderTypeDir,
+									InternalType: CustomPolicyType,
+								},
+								UsedBy: []PolicyInfo{{
+									Name:         "myLocal.policy",
+									Source:       PolicyProviderTypeDir,
+									InternalType: CustomPolicyType,
+								}},
+								Accepted: true,
 							},
 						},
 					},
@@ -438,7 +463,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							var errs *multierror.Error
 
-							errs = multierror.Append(errs, &ErrPolicyLoad{Name: "myRC.policy", Source: PolicyProviderTypeRC, Err: fmt.Errorf(`yaml: unmarshal error`)})
+							errs = multierror.Append(errs, &ErrPolicyLoad{Name: "myRC.policy", Source: PolicyProviderTypeRC, Err: errors.New(`yaml: unmarshal error`)})
 							return nil, errs
 						},
 					},
@@ -448,39 +473,44 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 				expectedLoadedPolicies := []*Policy{
 					{
 						Info: PolicyInfo{
-							Name:   "myLocal.policy",
-							Source: PolicyProviderTypeDir,
-							Type:   CustomPolicyType,
+							Name:         "myLocal.policy",
+							Source:       PolicyProviderTypeDir,
+							InternalType: CustomPolicyType,
 						},
-						Macros: map[string][]*PolicyMacro{},
-						Rules: map[string][]*PolicyRule{
-							"foo": {
-								{
-									Def: &RuleDefinition{
-										ID:         "foo",
-										Expression: "open.file.path == \"/etc/local-custom/foo\"",
-									},
-									Policy: PolicyInfo{
-										Name:   "myLocal.policy",
-										Source: PolicyProviderTypeDir,
-										Type:   CustomPolicyType,
-									},
-									Accepted: true,
+						Rules: []*PolicyRule{
+							{
+								Def: &RuleDefinition{
+									ID:         "foo",
+									Expression: "open.file.path == \"/etc/local-custom/foo\"",
 								},
+								Policy: PolicyInfo{
+									Name:         "myLocal.policy",
+									Source:       PolicyProviderTypeDir,
+									InternalType: CustomPolicyType,
+								},
+								UsedBy: []PolicyInfo{{
+									Name:         "myLocal.policy",
+									Source:       PolicyProviderTypeDir,
+									InternalType: CustomPolicyType,
+								}},
+								Accepted: true,
 							},
-							"bar": {
-								{
-									Def: &RuleDefinition{
-										ID:         "bar",
-										Expression: "open.file.path == \"/etc/local-custom/bar\"",
-									},
-									Policy: PolicyInfo{
-										Name:   "myLocal.policy",
-										Source: PolicyProviderTypeDir,
-										Type:   CustomPolicyType,
-									},
-									Accepted: true,
+							{
+								Def: &RuleDefinition{
+									ID:         "bar",
+									Expression: "open.file.path == \"/etc/local-custom/bar\"",
 								},
+								Policy: PolicyInfo{
+									Name:         "myLocal.policy",
+									Source:       PolicyProviderTypeDir,
+									InternalType: CustomPolicyType,
+								},
+								UsedBy: []PolicyInfo{{
+									Name:         "myLocal.policy",
+									Source:       PolicyProviderTypeDir,
+									InternalType: CustomPolicyType,
+								}},
+								Accepted: true,
 							},
 						},
 					},
@@ -498,7 +528,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 			},
 			wantErr: func(t assert.TestingT, err *multierror.Error, _ ...interface{}) bool {
 				return assert.Equal(t, err, &multierror.Error{Errors: []error{
-					&ErrPolicyLoad{Name: "myRC.policy", Source: PolicyProviderTypeRC, Err: fmt.Errorf(`yaml: unmarshal error`)},
+					&ErrPolicyLoad{Name: "myRC.policy", Source: PolicyProviderTypeRC, Err: errors.New(`yaml: unmarshal error`)},
 				}}, "Expected no errors but got %+v", err)
 			},
 		},
@@ -534,7 +564,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							var errs *multierror.Error
 
-							errs = multierror.Append(errs, &ErrPolicyLoad{Name: "myRC.policy", Source: PolicyProviderTypeRC, Err: fmt.Errorf(`EOF`)})
+							errs = multierror.Append(errs, &ErrPolicyLoad{Name: "myRC.policy", Source: PolicyProviderTypeRC, Err: errors.New(`EOF`)})
 							return nil, errs
 						},
 					},
@@ -544,39 +574,44 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 				expectedLoadedPolicies := []*Policy{
 					{
 						Info: PolicyInfo{
-							Name:   "myLocal.policy",
-							Source: PolicyProviderTypeDir,
-							Type:   CustomPolicyType,
+							Name:         "myLocal.policy",
+							Source:       PolicyProviderTypeDir,
+							InternalType: CustomPolicyType,
 						},
-						Macros: map[string][]*PolicyMacro{},
-						Rules: map[string][]*PolicyRule{
-							"foo": {
-								{
-									Def: &RuleDefinition{
-										ID:         "foo",
-										Expression: "open.file.path == \"/etc/local-custom/foo\"",
-									},
-									Policy: PolicyInfo{
-										Name:   "myLocal.policy",
-										Source: PolicyProviderTypeDir,
-										Type:   CustomPolicyType,
-									},
-									Accepted: true,
+						Rules: []*PolicyRule{
+							{
+								Def: &RuleDefinition{
+									ID:         "foo",
+									Expression: "open.file.path == \"/etc/local-custom/foo\"",
 								},
+								Policy: PolicyInfo{
+									Name:         "myLocal.policy",
+									Source:       PolicyProviderTypeDir,
+									InternalType: CustomPolicyType,
+								},
+								UsedBy: []PolicyInfo{{
+									Name:         "myLocal.policy",
+									Source:       PolicyProviderTypeDir,
+									InternalType: CustomPolicyType,
+								}},
+								Accepted: true,
 							},
-							"bar": {
-								{
-									Def: &RuleDefinition{
-										ID:         "bar",
-										Expression: "open.file.path == \"/etc/local-custom/bar\"",
-									},
-									Policy: PolicyInfo{
-										Name:   "myLocal.policy",
-										Source: PolicyProviderTypeDir,
-										Type:   CustomPolicyType,
-									},
-									Accepted: true,
+							{
+								Def: &RuleDefinition{
+									ID:         "bar",
+									Expression: "open.file.path == \"/etc/local-custom/bar\"",
 								},
+								Policy: PolicyInfo{
+									Name:         "myLocal.policy",
+									Source:       PolicyProviderTypeDir,
+									InternalType: CustomPolicyType,
+								},
+								UsedBy: []PolicyInfo{{
+									Name:         "myLocal.policy",
+									Source:       PolicyProviderTypeDir,
+									InternalType: CustomPolicyType,
+								}},
+								Accepted: true,
 							},
 						},
 					},
@@ -592,7 +627,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 			wantErr: func(t assert.TestingT, err *multierror.Error, _ ...interface{}) bool {
 				return assert.Equal(t, err, &multierror.Error{
 					Errors: []error{
-						&ErrPolicyLoad{Name: "myRC.policy", Source: PolicyProviderTypeRC, Err: fmt.Errorf(`EOF`)},
+						&ErrPolicyLoad{Name: "myRC.policy", Source: PolicyProviderTypeRC, Err: errors.New(`EOF`)},
 					}})
 			},
 		},
@@ -645,48 +680,51 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 				expectedLoadedPolicies := []*Policy{
 					{
 						Info: PolicyInfo{
-							Name:   "myRC.policy",
-							Source: PolicyProviderTypeRC,
-							Type:   CustomPolicyType,
+							Name:         "myRC.policy",
+							Source:       PolicyProviderTypeRC,
+							InternalType: CustomPolicyType,
 						},
-						Macros: map[string][]*PolicyMacro{},
-						Rules:  map[string][]*PolicyRule{},
 					},
 					{
 						Info: PolicyInfo{
-							Name:   "myLocal.policy",
-							Source: PolicyProviderTypeDir,
-							Type:   CustomPolicyType,
+							Name:         "myLocal.policy",
+							Source:       PolicyProviderTypeDir,
+							InternalType: CustomPolicyType,
 						},
-						Macros: map[string][]*PolicyMacro{},
-						Rules: map[string][]*PolicyRule{
-							"foo": {
-								{
-									Def: &RuleDefinition{
-										ID:         "foo",
-										Expression: "open.file.path == \"/etc/local-custom/foo\"",
-									},
-									Policy: PolicyInfo{
-										Name:   "myLocal.policy",
-										Source: PolicyProviderTypeDir,
-										Type:   CustomPolicyType,
-									},
-									Accepted: true,
+						Rules: []*PolicyRule{
+							{
+								Def: &RuleDefinition{
+									ID:         "foo",
+									Expression: "open.file.path == \"/etc/local-custom/foo\"",
 								},
+								Policy: PolicyInfo{
+									Name:         "myLocal.policy",
+									Source:       PolicyProviderTypeDir,
+									InternalType: CustomPolicyType,
+								},
+								UsedBy: []PolicyInfo{{
+									Name:         "myLocal.policy",
+									Source:       PolicyProviderTypeDir,
+									InternalType: CustomPolicyType,
+								}},
+								Accepted: true,
 							},
-							"bar": {
-								{
-									Def: &RuleDefinition{
-										ID:         "bar",
-										Expression: "open.file.path == \"/etc/local-custom/bar\"",
-									},
-									Policy: PolicyInfo{
-										Name:   "myLocal.policy",
-										Source: PolicyProviderTypeDir,
-										Type:   CustomPolicyType,
-									},
-									Accepted: true,
+							{
+								Def: &RuleDefinition{
+									ID:         "bar",
+									Expression: "open.file.path == \"/etc/local-custom/bar\"",
 								},
+								Policy: PolicyInfo{
+									Name:         "myLocal.policy",
+									Source:       PolicyProviderTypeDir,
+									InternalType: CustomPolicyType,
+								},
+								UsedBy: []PolicyInfo{{
+									Name:         "myLocal.policy",
+									Source:       PolicyProviderTypeDir,
+									InternalType: CustomPolicyType,
+								}},
+								Accepted: true,
 							},
 						},
 					},
@@ -757,10 +795,15 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						PolicyRule: &PolicyRule{
 							Def: &RuleDefinition{ID: "rule_1", Expression: "exec.file.path == \"/etc/default/foo\""},
 							Policy: PolicyInfo{
-								Name:   DefaultPolicyName,
-								Source: PolicyProviderTypeRC,
-								Type:   DefaultPolicyType,
+								Name:         DefaultPolicyName,
+								Source:       PolicyProviderTypeRC,
+								InternalType: DefaultPolicyType,
 							},
+							UsedBy: []PolicyInfo{{
+								Name:         DefaultPolicyName,
+								Source:       PolicyProviderTypeRC,
+								InternalType: DefaultPolicyType,
+							}},
 							Accepted: true,
 						},
 					},
@@ -812,10 +855,15 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						PolicyRule: &PolicyRule{
 							Def: &RuleDefinition{ID: "rule_1", Expression: "exec.file.path == \"/etc/default/foo\""},
 							Policy: PolicyInfo{
-								Name:   DefaultPolicyName,
-								Source: PolicyProviderTypeRC,
-								Type:   DefaultPolicyType,
+								Name:         DefaultPolicyName,
+								Source:       PolicyProviderTypeRC,
+								InternalType: DefaultPolicyType,
 							},
+							UsedBy: []PolicyInfo{{
+								Name:         DefaultPolicyName,
+								Source:       PolicyProviderTypeRC,
+								InternalType: DefaultPolicyType,
+							}},
 							Accepted: true,
 						},
 					},
@@ -868,10 +916,15 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						PolicyRule: &PolicyRule{
 							Def: &RuleDefinition{ID: "rule_1", Expression: "exec.file.path == \"/etc/default/foo\""},
 							Policy: PolicyInfo{
-								Name:   "P1.policy",
-								Source: PolicyProviderTypeRC,
-								Type:   DefaultPolicyType,
+								Name:         "P1.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: DefaultPolicyType,
 							},
+							UsedBy: []PolicyInfo{{
+								Name:         "P1.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: DefaultPolicyType,
+							}},
 							Accepted: true,
 						},
 					},
@@ -1072,10 +1125,15 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						PolicyRule: &PolicyRule{
 							Def: &RuleDefinition{ID: "rule_1", Expression: "exec.file.path == \"/etc/default/foo\""},
 							Policy: PolicyInfo{
-								Name:   "P0.policy",
-								Source: PolicyProviderTypeRC,
-								Type:   DefaultPolicyType,
+								Name:         "P0.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: DefaultPolicyType,
 							},
+							UsedBy: []PolicyInfo{{
+								Name:         "P0.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: DefaultPolicyType,
+							}},
 							Accepted: true,
 						},
 					},
@@ -1083,10 +1141,15 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						PolicyRule: &PolicyRule{
 							Def: &RuleDefinition{ID: "rule_2", Expression: "exec.file.path == \"/etc/default/bar\""},
 							Policy: PolicyInfo{
-								Name:   "P0.policy",
-								Source: PolicyProviderTypeRC,
-								Type:   DefaultPolicyType,
+								Name:         "P0.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: DefaultPolicyType,
 							},
+							UsedBy: []PolicyInfo{{
+								Name:         "P0.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: DefaultPolicyType,
+							}},
 							Accepted: true,
 						},
 					},
@@ -1171,10 +1234,15 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						PolicyRule: &PolicyRule{
 							Def: &RuleDefinition{ID: "rule_2", Expression: "exec.file.path == \"/etc/default/bar\""},
 							Policy: PolicyInfo{
-								Name:   "P0.policy",
-								Source: PolicyProviderTypeRC,
-								Type:   DefaultPolicyType,
+								Name:         "P0.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: DefaultPolicyType,
 							},
+							UsedBy: []PolicyInfo{{
+								Name:         "P0.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: DefaultPolicyType,
+							}},
 							Accepted: true,
 						},
 					},
@@ -1242,10 +1310,15 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						PolicyRule: &PolicyRule{
 							Def: &RuleDefinition{ID: "rule_1", Expression: "exec.file.path == \"/etc/default/foo\""},
 							Policy: PolicyInfo{
-								Name:   "P2.policy",
-								Source: PolicyProviderTypeRC,
-								Type:   CustomPolicyType,
+								Name:         "P2.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: CustomPolicyType,
 							},
+							UsedBy: []PolicyInfo{{
+								Name:         "P2.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: CustomPolicyType,
+							}},
 							Accepted: true,
 						},
 					},
@@ -1340,10 +1413,15 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						PolicyRule: &PolicyRule{
 							Def: &RuleDefinition{ID: "rule_1", Expression: "exec.file.path == \"/etc/custom/foo\""},
 							Policy: PolicyInfo{
-								Name:   "P1.policy",
-								Source: PolicyProviderTypeRC,
-								Type:   CustomPolicyType,
+								Name:         "P1.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: CustomPolicyType,
 							},
+							UsedBy: []PolicyInfo{{
+								Name:         "P1.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: CustomPolicyType,
+							}},
 							Accepted: true,
 						},
 					},
@@ -1395,10 +1473,15 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						PolicyRule: &PolicyRule{
 							Def: &RuleDefinition{ID: "rule_1", Expression: "exec.file.path == \"/etc/default/foo\""},
 							Policy: PolicyInfo{
-								Name:   DefaultPolicyName,
-								Source: PolicyProviderTypeRC,
-								Type:   DefaultPolicyType,
+								Name:         DefaultPolicyName,
+								Source:       PolicyProviderTypeRC,
+								InternalType: DefaultPolicyType,
 							},
+							UsedBy: []PolicyInfo{{
+								Name:         DefaultPolicyName,
+								Source:       PolicyProviderTypeRC,
+								InternalType: DefaultPolicyType,
+							}},
 							Accepted: true,
 						},
 					},
@@ -1451,10 +1534,15 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						PolicyRule: &PolicyRule{
 							Def: &RuleDefinition{ID: "rule_1", Expression: "exec.file.path == \"/etc/custom/foo\""},
 							Policy: PolicyInfo{
-								Name:   "P0.policy",
-								Source: PolicyProviderTypeRC,
-								Type:   CustomPolicyType,
+								Name:         "P0.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: CustomPolicyType,
 							},
+							UsedBy: []PolicyInfo{{
+								Name:         "P0.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: CustomPolicyType,
+							}},
 							Accepted: true,
 						},
 					},
@@ -1507,10 +1595,15 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						PolicyRule: &PolicyRule{
 							Def: &RuleDefinition{ID: "rule_1", Expression: "exec.file.path == \"/etc/custom/foo\""},
 							Policy: PolicyInfo{
-								Name:   "P1.policy",
-								Source: PolicyProviderTypeRC,
-								Type:   CustomPolicyType,
+								Name:         "P1.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: CustomPolicyType,
 							},
+							UsedBy: []PolicyInfo{{
+								Name:         "P1.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: CustomPolicyType,
+							}},
 							Accepted: true,
 						},
 					},
@@ -1562,10 +1655,15 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						PolicyRule: &PolicyRule{
 							Def: &RuleDefinition{ID: "rule_1", Expression: "exec.file.path == \"/etc/custom/foo\""},
 							Policy: PolicyInfo{
-								Name:   "P0.policy",
-								Source: PolicyProviderTypeRC,
-								Type:   CustomPolicyType,
+								Name:         "P0.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: CustomPolicyType,
 							},
+							UsedBy: []PolicyInfo{{
+								Name:         "P0.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: CustomPolicyType,
+							}},
 							Accepted: true,
 						},
 					},
@@ -1682,10 +1780,15 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 								},
 							},
 							Policy: PolicyInfo{
-								Name:   "P1.policy",
-								Source: PolicyProviderTypeRC,
-								Type:   DefaultPolicyType,
+								Name:         "P1.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: DefaultPolicyType,
 							},
+							UsedBy: []PolicyInfo{{
+								Name:         "P1.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: DefaultPolicyType,
+							}},
 							Accepted: true,
 						},
 					},
@@ -1777,10 +1880,15 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 								},
 							},
 							Policy: PolicyInfo{
-								Name:   "P1.policy",
-								Source: PolicyProviderTypeRC,
-								Type:   CustomPolicyType,
+								Name:         "P1.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: CustomPolicyType,
 							},
+							UsedBy: []PolicyInfo{{
+								Name:         "P1.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: CustomPolicyType,
+							}},
 							Accepted: true,
 						},
 					},
@@ -1859,10 +1967,15 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 								},
 							},
 							Policy: PolicyInfo{
-								Name:   "P1.policy",
-								Source: PolicyProviderTypeRC,
-								Type:   CustomPolicyType,
+								Name:         "P1.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: CustomPolicyType,
 							},
+							UsedBy: []PolicyInfo{{
+								Name:         "P1.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: CustomPolicyType,
+							}},
 							Accepted: true,
 						},
 					},
@@ -1941,10 +2054,15 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 								},
 							},
 							Policy: PolicyInfo{
-								Name:   "P0.policy",
-								Source: PolicyProviderTypeRC,
-								Type:   CustomPolicyType,
+								Name:         "P0.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: CustomPolicyType,
 							},
+							UsedBy: []PolicyInfo{{
+								Name:         "P0.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: CustomPolicyType,
+							}},
 							Accepted: true,
 						},
 					},
@@ -2020,10 +2138,15 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 								ID: "rule_1", Expression: "exec.file.path == \"/etc/default/foo\"",
 							},
 							Policy: PolicyInfo{
-								Name:   "P1.policy",
-								Source: PolicyProviderTypeRC,
-								Type:   CustomPolicyType,
+								Name:         "P1.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: CustomPolicyType,
 							},
+							UsedBy: []PolicyInfo{{
+								Name:         "P1.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: CustomPolicyType,
+							}},
 							Accepted: true,
 						},
 					},
@@ -2128,10 +2251,15 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 								Combine: OverridePolicy,
 							},
 							Policy: PolicyInfo{
-								Name:   "P1.policy",
-								Source: PolicyProviderTypeRC,
-								Type:   CustomPolicyType,
+								Name:         "P1.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: CustomPolicyType,
 							},
+							UsedBy: []PolicyInfo{{
+								Name:         "P1.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: CustomPolicyType,
+							}},
 							Accepted: true,
 						},
 					},
@@ -2222,10 +2350,15 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 								},
 							},
 							Policy: PolicyInfo{
-								Name:   "P1.policy",
-								Source: PolicyProviderTypeRC,
-								Type:   CustomPolicyType,
+								Name:         "P1.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: CustomPolicyType,
 							},
+							UsedBy: []PolicyInfo{{
+								Name:         "P1.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: CustomPolicyType,
+							}},
 							Accepted: true,
 						},
 					},
@@ -2304,49 +2437,56 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 				expectedPolicies := []*Policy{
 					{
 						Info: PolicyInfo{
-							Name:   "rc-custom.policy",
-							Source: PolicyProviderTypeRC,
-							Type:   CustomPolicyType,
+							Name:            "rc-custom.policy",
+							Source:          PolicyProviderTypeRC,
+							InternalType:    CustomPolicyType,
+							ReplacePolicyID: "rc-default.policy",
 						},
-						Macros: map[string][]*PolicyMacro{},
-						Rules: map[string][]*PolicyRule{
-							"rule3": {
-								{
-									Def: &RuleDefinition{
-										ID:         "rule3",
-										Expression: "open.file.path == \"/etc/rc-custom/rule3\"",
-									},
-									Policy: PolicyInfo{
-										Name:   "rc-custom.policy",
-										Source: PolicyProviderTypeRC,
-										Type:   CustomPolicyType,
-									},
-									Accepted: true,
+						Rules: []*PolicyRule{
+							{
+								Def: &RuleDefinition{
+									ID:         "rule3",
+									Expression: "open.file.path == \"/etc/rc-custom/rule3\"",
 								},
+								Policy: PolicyInfo{
+									Name:            "rc-custom.policy",
+									Source:          PolicyProviderTypeRC,
+									InternalType:    CustomPolicyType,
+									ReplacePolicyID: "rc-default.policy",
+								},
+								UsedBy: []PolicyInfo{{
+									Name:            "rc-custom.policy",
+									Source:          PolicyProviderTypeRC,
+									InternalType:    CustomPolicyType,
+									ReplacePolicyID: "rc-default.policy",
+								}},
+								Accepted: true,
 							},
 						},
 					},
 					{
 						Info: PolicyInfo{
-							Name:   "local-custom.policy",
-							Source: PolicyProviderTypeDir,
-							Type:   CustomPolicyType,
+							Name:         "local-custom.policy",
+							Source:       PolicyProviderTypeDir,
+							InternalType: CustomPolicyType,
 						},
-						Macros: map[string][]*PolicyMacro{},
-						Rules: map[string][]*PolicyRule{
-							"rule1": {
-								{
-									Def: &RuleDefinition{
-										ID:         "rule1",
-										Expression: "open.file.path == \"/etc/local/rule1\"",
-									},
-									Policy: PolicyInfo{
-										Name:   "local-custom.policy",
-										Source: PolicyProviderTypeDir,
-										Type:   CustomPolicyType,
-									},
-									Accepted: true,
+						Rules: []*PolicyRule{
+							{
+								Def: &RuleDefinition{
+									ID:         "rule1",
+									Expression: "open.file.path == \"/etc/local/rule1\"",
 								},
+								Policy: PolicyInfo{
+									Name:         "local-custom.policy",
+									Source:       PolicyProviderTypeDir,
+									InternalType: CustomPolicyType,
+								},
+								UsedBy: []PolicyInfo{{
+									Name:         "local-custom.policy",
+									Source:       PolicyProviderTypeDir,
+									InternalType: CustomPolicyType,
+								}},
+								Accepted: true,
 							},
 						},
 					},
@@ -2731,7 +2871,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 				Providers: tt.fields.Providers,
 			}
 			rs.LoadPolicies(p, tt.args.opts)
-			tt.want(t, rs.rules)
+			tt.want(t, rs.GetRuleMap())
 		})
 	}
 
@@ -2807,14 +2947,14 @@ type testPolicyDef struct {
 	def        PolicyDef
 	name       string
 	source     string
-	policyType PolicyType
+	policyType InternalPolicyType
 }
 
 func testPolicyToPolicy(testPolicy *testPolicyDef) (*Policy, *multierror.Error) {
 	info := &PolicyInfo{
-		Name:   testPolicy.name,
-		Source: testPolicy.source,
-		Type:   testPolicy.policyType,
+		Name:         testPolicy.name,
+		Source:       testPolicy.source,
+		InternalType: testPolicy.policyType,
 	}
 	policy, err := LoadPolicyFromDefinition(info, &testPolicy.def, nil, nil)
 	if err != nil {
@@ -2848,7 +2988,7 @@ func checkOverrideResult(t assert.TestingT, expected map[eval.RuleID]*Rule, got 
 			assert.Equal(t, r.PolicyRule.Def, got[ruleID].PolicyRule.Def) &&
 			assert.Equal(t, r.PolicyRule.Policy.Name, got[ruleID].Policy.Name) &&
 			assert.Equal(t, r.PolicyRule.Policy.Source, got[ruleID].Policy.Source) &&
-			assert.Equal(t, r.PolicyRule.Policy.Type, got[ruleID].Policy.Type) &&
+			assert.Equal(t, r.PolicyRule.Policy.InternalType, got[ruleID].Policy.InternalType) &&
 			assert.Equal(t, r.PolicyRule.Accepted, got[ruleID].PolicyRule.Accepted)
 		if !res {
 			return res

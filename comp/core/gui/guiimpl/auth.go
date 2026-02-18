@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -39,7 +40,7 @@ func (a *authenticator) ValidateToken(token string) error {
 	// Split the token into the payload and HMAC sum
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
-		return fmt.Errorf("invalid token format")
+		return errors.New("invalid token format")
 	}
 
 	// Check token version
@@ -55,7 +56,7 @@ func (a *authenticator) ValidateToken(token string) error {
 
 	// Ensure the payload contains enough bytes for issued and expiration times
 	if len(payloadBytes) < 16 {
-		return fmt.Errorf("invalid payload")
+		return errors.New("invalid payload")
 	}
 
 	// Extract the issued and expiration times from the payload
@@ -77,22 +78,22 @@ func (a *authenticator) ValidateToken(token string) error {
 
 	// Check if the current time is before the issued time
 	if now.Before(time.Unix(issuedTime, 0)) {
-		return fmt.Errorf("token is invalid")
+		return errors.New("token is invalid")
 	}
 
 	// special case: ignore expirationTime if duration is equal to 0
 	// Check if the current time is after the expiration time
 	if expirationTime != issuedTime && now.After(time.Unix(expirationTime, 0)) {
-		return fmt.Errorf("token is expired")
+		return errors.New("token is expired")
 	}
 
 	if a.duration != 0 && now.After(time.Unix(issuedTime, 0).Add(a.duration)) {
-		return fmt.Errorf("token is expired")
+		return errors.New("token is expired")
 	}
 
 	// Check if the HMAC sum matches the expected HMAC sum
 	if !hmac.Equal(hmacSum, expectedHmacSum) {
-		return fmt.Errorf("invalid token signature")
+		return errors.New("invalid token signature")
 	}
 
 	return nil

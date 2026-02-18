@@ -10,7 +10,6 @@ package testutil
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -199,7 +198,7 @@ func addCgroupPidFiles(tb testing.TB, procfs string, cgroup *FakeCgroup, rootCgr
 			filepath.Join(procfs, strconv.Itoa(pid), "task", strconv.Itoa(pid), "cgroup"),
 			filepath.Join(procfs, strconv.Itoa(pid), "cgroup"),
 		}
-		contents := fmt.Sprintf("0::/%s", cgroupRelativeToRoot)
+		contents := "0::/" + cgroupRelativeToRoot
 
 		for _, targetFile := range targetFiles {
 			tb.Logf("cgroup %s: %s written to %s", cgroup.Name, contents, targetFile)

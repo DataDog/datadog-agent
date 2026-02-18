@@ -35,7 +35,7 @@ def _find_artifact(omnibus_pipeline_dir: str, pattern: str) -> Path:
     base = Path(omnibus_pipeline_dir)
     matches = list(base.rglob(pattern))
     if not matches:
-        raise Exit(message=(f"No MSI file found for pattern {pattern} in {omnibus_pipeline_dir}"))
+        raise Exception(f"No MSI file found for pattern {pattern} in {omnibus_pipeline_dir}")
     return matches[0]
 
 
@@ -53,7 +53,7 @@ def _ensure_vt_api_key(ctx) -> str:
         if res.ok:
             api_key = res.stdout.strip()
     if not api_key:
-        raise Exit(message="VT_API_KEY not set and could not be fetched. Set VT_API_KEY or VIRUS_TOTAL.")
+        raise Exception("VT_API_KEY not set and could not be fetched. Set VT_API_KEY or VIRUS_TOTAL.")
     os.environ["VT_API_KEY"] = api_key
     return api_key
 
@@ -71,7 +71,7 @@ async def _fetch_file_report(apikey: str, file_sha256: str) -> dict:
             file_obj = await client.get_object_async(f"/files/{file_sha256}")
             return file_obj.to_dict()
         except Exception as e:
-            raise Exit(message=f"Error fetching file report: {e}") from e
+            raise Exception(f"Error fetching file report: {e}") from e
 
 
 async def _submit_scan(
@@ -90,10 +90,10 @@ async def _submit_scan(
             analysis_id = analysis.id
             return analysis_id
         except Exception as e:
-            raise Exit(message=f"Failed to submit file for scan: {e}") from e
+            raise Exception(f"Failed to submit file for scan: {e}") from e
 
 
-async def _poll_analysis(apikey: str, analysis_id: str, poll_timeout: int = 300, poll_interval: int = 30):
+async def _poll_analysis(apikey: str, analysis_id: str, poll_timeout: int = 600, poll_interval: int = 30):
     """Poll analysis results until completion and return malicious/suspicious counts."""
 
     import vt
@@ -112,11 +112,11 @@ async def _poll_analysis(apikey: str, analysis_id: str, poll_timeout: int = 300,
                     break
 
                 if time.time() - start_time > poll_timeout:
-                    raise Exit(message=f"Polling analysis timed out after {poll_timeout} seconds")
+                    raise Exception(f"Polling analysis timed out after {poll_timeout} seconds")
 
                 time.sleep(poll_interval)
             except Exception as e:
-                raise Exit(message=f"Error polling analysis: {e}") from e
+                raise Exception(f"Error polling analysis: {e}") from e
 
 
 def _format_engine_findings(file_report: dict) -> tuple[list[str], list[str]]:
@@ -305,7 +305,10 @@ def submit(
         return artifact, file_sha, file_report
 
     with gitlab_section("VirusTotal scan", collapsed=True):
-        artifact, file_sha, file_report = asyncio.run(_async_vt_scan())
+        try:
+            artifact, file_sha, file_report = asyncio.run(_async_vt_scan())
+        except Exception as e:
+            raise Exit(message=f"Error scanning VirusTotal: {e}") from e
 
         attributes = file_report.get("attributes", file_report)
         malicious, suspicious = _write_junit_xml(

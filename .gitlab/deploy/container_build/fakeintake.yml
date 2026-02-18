@@ -1,0 +1,19 @@
+---
+docker_build_fakeintake:
+  stage: container_build
+  rules:
+    - !reference [.except_mergequeue]
+    - !reference [.on_fakeintake_changes]
+    - !reference [.on_fakeintake_changes_on_main]
+  needs: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker:20.10-py3
+  tags: ["arch:amd64", "specific:true"]
+  variables:
+    TARGET: registry.ddbuild.io/ci/datadog-agent/fakeintake:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
+    DOCKERFILE: test/fakeintake/Dockerfile
+    PLATFORMS: linux/amd64,linux/arm64
+    BUILD_CONTEXT: .
+  script:
+    - !reference [.login_to_docker_readonly]
+    - docker buildx build --push --pull --platform ${PLATFORMS} --build-arg=CI --file ${DOCKERFILE} --tag ${TARGET} $BUILD_CONTEXT
+  retry: 2

@@ -1,0 +1,43 @@
+<domain type="kvm">
+	<name>local-ddvm-local-ubuntu_22.04-distro_local-ddvm-4-8192</name>
+	<memory unit="MiB">8192</memory>
+	<vcpu>4</vcpu>
+	<os firmware="efi">
+		<type machine="virt">hvm</type>
+	</os>
+	<features>
+		<pae></pae>
+		<acpi></acpi>
+		<apic></apic>
+	</features>
+	<cpu></cpu>
+	<devices>
+		<disk type="volume" device="disk">
+			<driver name="qemu" type="qcow2"></driver>
+			<source pool="local-ddvm-global-pool"
+				volume="local-ddvm-global-pool-ubuntu_22.04-distro_local-local-final-overlay-ubuntu_22.04-05d642c"></source>
+			<target dev="vda" bus="virtio"></target>
+		</disk>
+		<disk type="volume" device="disk">
+			<driver name="qemu" type="qcow2"></driver>
+			<source pool="local-ddvm-global-pool"
+				volume="local-ddvm-global-pool-docker-arm64.qcow2-distro_local-local-final-overlay-ubuntu_22.04-9c703cf"></source>
+			<target dev="vdb" bus="virtio"></target>
+		</disk>
+		<console>
+			<target type="serial" port="0"></target>
+		</console>
+		<channel type="unix">
+			<target type="virtio" name="org.qemu.guest_agent.0"></target>
+		</channel>
+		<rng model="virtio">
+			<backend model="random">/dev/urandom</backend>
+		</rng>
+		<interface type='user'>
+			<mac address='52:54:00:e2:90:25' />
+			<model type='virtio' />
+			<alias name='net0' />
+			<address type='pci' domain='0x0000' bus='0x03' slot='0x00' function='0x0' />
+		</interface>
+	</devices>
+</domain>

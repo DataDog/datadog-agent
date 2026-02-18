@@ -9,20 +9,23 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"runtime"
+	"strconv"
 	"time"
 
-	backoffticker "github.com/cenkalti/backoff/v4"
+	backoffticker "github.com/cenkalti/backoff/v5"
+	"github.com/mdlayher/vsock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 
-	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 )
 
 // SecurityAgentAPIClient is used to send request to security module
@@ -37,7 +40,6 @@ func newLogBackoffTicker() *backoffticker.Ticker {
 	expBackoff := backoffticker.NewExponentialBackOff()
 	expBackoff.InitialInterval = 2 * time.Second
 	expBackoff.MaxInterval = 60 * time.Second
-	expBackoff.MaxElapsedTime = 0
 	expBackoff.Reset()
 	return backoffticker.NewTicker(expBackoff)
 }
@@ -136,22 +138,21 @@ func (c *SecurityAgentAPIClient) SendActivityDumps(ctx context.Context, msgs cha
 
 // NewSecurityAgentAPIClient instantiates a new SecurityAgentAPIClient
 func NewSecurityAgentAPIClient(cfg *config.RuntimeSecurityConfig) (*SecurityAgentAPIClient, error) {
-	socketPath := cfg.SocketPath
-	if socketPath == "" {
+	if cfg.SocketPath == "" {
 		return nil, errors.New("runtime_security_config.socket must be set, events will not be sent to the security agent")
 	}
 
-	family := common.GetFamilyAddress(socketPath)
+	seclog.Infof("connecting to security agent via socket: %s", cfg.SocketPath)
+	family, socketPath := socket.GetSocketAddress(cfg.SocketPath)
 	if family == "unix" {
 		if runtime.GOOS == "windows" {
-			return nil, fmt.Errorf("unix sockets are not supported on Windows")
+			return nil, errors.New("unix sockets are not supported on Windows")
 		}
 
-		socketPath = fmt.Sprintf("unix://%s", socketPath)
+		socketPath = "unix://" + socketPath
 	}
 
-	conn, err := grpc.NewClient(
-		socketPath,
+	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.CallContentSubtype(api.VTProtoCodecName)),
 		grpc.WithConnectParams(grpc.ConnectParams{
@@ -159,7 +160,30 @@ func NewSecurityAgentAPIClient(cfg *config.RuntimeSecurityConfig) (*SecurityAgen
 				BaseDelay: time.Second,
 				MaxDelay:  time.Second,
 			},
+		}),
+	}
+
+	seclog.Infof("using socket family '%s' and path '%s' to connect to security agent", family, socketPath)
+	if family == "vsock" {
+		cmdPort, parseErr := strconv.Atoi(socketPath)
+		if parseErr != nil {
+			return nil, parseErr
+		}
+
+		if cmdPort <= 0 {
+			return nil, fmt.Errorf("invalid port '%s' for vsock", cfg.SocketPath)
+		}
+
+		socketPath = "passthrough:target"
+		opts = append(opts, grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {
+			return vsock.Dial(vsock.Host, uint32(cmdPort), &vsock.Config{})
 		}))
+	}
+
+	conn, err := grpc.NewClient(
+		socketPath,
+		opts...,
+	)
 
 	if err != nil {
 		return nil, err

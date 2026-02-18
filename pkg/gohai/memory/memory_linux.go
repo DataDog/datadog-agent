@@ -7,6 +7,7 @@ package memory
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -29,8 +30,8 @@ func parseMemoryInfo(reader io.Reader) (totalBytes utils.Value[uint64], swapTota
 		return
 	}
 
-	totalBytes = utils.NewErrorValue[uint64](fmt.Errorf("'MemTotal' not found in /proc/meminfo"))
-	swapTotalKb = utils.NewErrorValue[uint64](fmt.Errorf("'SwapTotal' not found in /proc/meminfo"))
+	totalBytes = utils.NewErrorValue[uint64](errors.New("'MemTotal' not found in /proc/meminfo"))
+	swapTotalKb = utils.NewErrorValue[uint64](errors.New("'SwapTotal' not found in /proc/meminfo"))
 	for _, line := range lines {
 		key, valUnit, found := strings.Cut(line, ":")
 		if !found {

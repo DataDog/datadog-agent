@@ -8,10 +8,10 @@ package injecttests
 import (
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 
@@ -55,7 +55,7 @@ func (s *testAPMInjectInstallSuite) TestExperiment() {
 	s.Require().NoError(err, "failed to install the apm-inject package: %s", output)
 
 	// verify the driver is running
-	s.Require().NoError(s.WaitForServicesWithBackoff("Running", backoff.NewConstantBackOff(30*time.Second), "ddinjector"))
+	s.Require().NoError(s.WaitForServicesWithBackoff("Running", []string{"ddinjector"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
 
 	// start experiment
 	output, err = s.Installer().InstallExperiment("apm-inject-package",
@@ -69,7 +69,7 @@ func (s *testAPMInjectInstallSuite) TestExperiment() {
 	s.Require().NoError(err, "failed to promote the apm-inject experiment: %s", output)
 
 	// verify the driver is running post promote
-	s.Require().NoError(s.WaitForServicesWithBackoff("Running", backoff.NewConstantBackOff(30*time.Second), "ddinjector"))
+	s.Require().NoError(s.WaitForServicesWithBackoff("Running", []string{"ddinjector"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
 }
 
 // TestInstallAPMInjectPackage tests the usage of the Datadog installer to install the apm-inject package.
@@ -85,7 +85,7 @@ func (s *testAPMInjectInstallSuite) TestStopExperiment() {
 	s.Require().NoError(err, "failed to install the apm-inject package: %s", output)
 
 	// verify the driver is running
-	s.Require().NoError(s.WaitForServicesWithBackoff("Running", backoff.NewConstantBackOff(30*time.Second), "ddinjector"))
+	s.Require().NoError(s.WaitForServicesWithBackoff("Running", []string{"ddinjector"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
 
 	// start experiment
 	output, err = s.Installer().InstallExperiment("apm-inject-package",
@@ -99,5 +99,5 @@ func (s *testAPMInjectInstallSuite) TestStopExperiment() {
 	s.Require().NoError(err, "failed to stop the apm-inject experiment: %s", output)
 
 	// verify the driver is running as we should be on stable now
-	s.Require().NoError(s.WaitForServicesWithBackoff("Running", backoff.NewConstantBackOff(30*time.Second), "ddinjector"))
+	s.Require().NoError(s.WaitForServicesWithBackoff("Running", []string{"ddinjector"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
 }

@@ -11,6 +11,7 @@ package netns
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -37,7 +38,7 @@ import (
 var (
 	// ErrNoNetworkNamespaceHandle is used to indicate that we haven't resolved a handle for the requested network
 	// namespace yet.
-	ErrNoNetworkNamespaceHandle = fmt.Errorf("no network namespace handle")
+	ErrNoNetworkNamespaceHandle = errors.New("no network namespace handle")
 
 	// lonelyNamespaceTimeout is the timeout past which a lonely network namespace is expired
 	lonelyNamespaceTimeout = 30 * time.Second
@@ -81,7 +82,7 @@ func NewNetworkNamespace(nsID uint32) *NetworkNamespace {
 }
 
 // NewNetworkNamespaceWithPath returns a new NetworkNamespace instance from a path.
-func NewNetworkNamespaceWithPath(nsID uint32, nsPath *utils.NetNSPath) (*NetworkNamespace, error) {
+func NewNetworkNamespaceWithPath(nsID uint32, nsPath *utils.NSPath) (*NetworkNamespace, error) {
 	netns := NewNetworkNamespace(nsID)
 	if err := netns.openHandle(nsPath); err != nil {
 		return nil, err
@@ -90,12 +91,12 @@ func NewNetworkNamespaceWithPath(nsID uint32, nsPath *utils.NetNSPath) (*Network
 }
 
 // openHandle tries to create a network namespace handle with the provided thread ID
-func (nn *NetworkNamespace) openHandle(nsPath *utils.NetNSPath) error {
+func (nn *NetworkNamespace) openHandle(nsPath *utils.NSPath) error {
 	nn.Lock()
 	defer nn.Unlock()
 
 	// check that the handle matches the expected netns ID
-	threadNetnsID, err := nsPath.GetProcessNetworkNamespace()
+	threadNetnsID, err := nsPath.GetNSID()
 	if err != nil {
 		return err
 	}
@@ -236,15 +237,15 @@ func (nr *Resolver) GetState() int64 {
 
 // SaveNetworkNamespaceHandle inserts the provided process network namespace in the list of tracked network. Returns
 // true if a new entry was added.
-func (nr *Resolver) SaveNetworkNamespaceHandle(nsID uint32, nsPath *utils.NetNSPath) (*NetworkNamespace, bool) {
-	return nr.SaveNetworkNamespaceHandleLazy(nsID, func() *utils.NetNSPath {
+func (nr *Resolver) SaveNetworkNamespaceHandle(nsID uint32, nsPath *utils.NSPath) (*NetworkNamespace, bool) {
+	return nr.SaveNetworkNamespaceHandleLazy(nsID, func() *utils.NSPath {
 		return nsPath
 	})
 }
 
 // SaveNetworkNamespaceHandleLazy inserts the provided process network namespace in the list of tracked network. Returns
 // true if a new entry was added.
-func (nr *Resolver) SaveNetworkNamespaceHandleLazy(nsID uint32, nsPathFunc func() *utils.NetNSPath) (*NetworkNamespace, bool) {
+func (nr *Resolver) SaveNetworkNamespaceHandleLazy(nsID uint32, nsPathFunc func() *utils.NSPath) (*NetworkNamespace, bool) {
 	if !nr.config.NetworkEnabled || nsID == 0 || nsPathFunc == nil {
 		return nil, false
 	}
@@ -379,8 +380,8 @@ func (nr *Resolver) SyncCache(pid uint32) bool {
 		return false
 	}
 
-	nsPath := utils.NetNSPathFromPid(pid)
-	nsID, err := nsPath.GetProcessNetworkNamespace()
+	nsPath := utils.NewNSPathFromPid(pid, utils.NetNsType)
+	nsID, err := nsPath.GetNSID()
 	if err != nil {
 		return false
 	}

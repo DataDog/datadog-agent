@@ -7,7 +7,7 @@
 // results.
 package scap
 
-import "fmt"
+import "errors"
 
 // SystemCharacteristics contains the internal charasteristics of an OVAL
 // evaluation.
@@ -40,7 +40,7 @@ type Item struct {
 // SysChar returns the refined system characteristics from a Document.
 func SysChar(doc *Document) (*SystemCharacteristics, error) {
 	if doc.OvalSystemCharacteristics == nil {
-		return nil, fmt.Errorf("OvalSystemCharacteristics is nil")
+		return nil, errors.New("OvalSystemCharacteristics is nil")
 	}
 
 	systemCharacteristics := SystemCharacteristics{}

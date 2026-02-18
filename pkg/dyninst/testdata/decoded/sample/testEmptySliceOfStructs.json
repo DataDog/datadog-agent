@@ -23,7 +23,7 @@
           {
             "function": "main.executeSliceFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go",
-            "lineNumber": 80
+            "lineNumber": 84
           },
           {
             "function": "main.main",
@@ -52,6 +52,7 @@
             "arguments": {
               "xs": {
                 "type": "[]main.structWithNoStrings",
+                "size": "0",
                 "elements": []
               },
               "a": {
@@ -61,8 +62,15 @@
             }
           }
         }
-      }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "[], 2"
   }
 ]

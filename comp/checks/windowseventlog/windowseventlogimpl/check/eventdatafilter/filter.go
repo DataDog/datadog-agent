@@ -9,6 +9,7 @@
 package eventdatafilter
 
 import (
+	"errors"
 	"fmt"
 
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
@@ -43,7 +44,7 @@ func NewFilterFromConfig(config []byte) (Filter, error) {
 func (f *eventIDFilter) Match(e EventData) (bool, error) {
 	vals := e.SystemValues()
 	if vals == nil {
-		return false, fmt.Errorf("event data is nil")
+		return false, errors.New("event data is nil")
 	}
 	eventID, err := vals.UInt(evtapi.EvtSystemEventID)
 	if err != nil {

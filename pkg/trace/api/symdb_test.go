@@ -6,7 +6,6 @@
 package api
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -69,11 +68,11 @@ func TestSymDBProxyHandler(t *testing.T) {
 		var numCalls atomic.Int32
 		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
 			ddtags := req.Header.Get("X-Datadog-Additional-Tags")
-			assert.Equal(t, fmt.Sprintf("host:myhost,default_env:test,agent_version:v1,%s", extraTag), ddtags)
+			assert.Equal(t, "host:myhost,default_env:test,agent_version:v1,"+extraTag, ddtags)
 			numCalls.Add(1)
 		}))
 		defer srv.Close()
-		req, err := http.NewRequest("POST", fmt.Sprintf("/some/path?ddtags=%s", extraTag), nil)
+		req, err := http.NewRequest("POST", "/some/path?ddtags="+extraTag, nil)
 		assert.NoError(t, err)
 		conf := getSymDBConf(srv.URL)
 		receiver := newTestReceiverFromConfig(conf)

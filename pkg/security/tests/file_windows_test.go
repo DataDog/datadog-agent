@@ -35,9 +35,10 @@ func TestBasicFileTest(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	// this is kinda hokey.  ETW (which is what FIM is based on) takes an indeterminant amount of time to start up.
-	// so wait around for it to start
-	time.Sleep(5 * time.Second)
+	// Wait for ETW to be ready (signaled on first event received)
+	if !test.WaitForETWReady(30 * time.Second) {
+		t.Fatal("Timeout waiting for ETW to be ready")
+	}
 
 	test.RunMultiMode(t, "File test 1", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 
@@ -53,13 +54,13 @@ func TestBasicFileTest(t *testing.T) {
 			"-ItemType",
 			"file",
 		}
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc("powershell", inputargs, nil)
 			_ = cmd.Run()
 			return nil
 		}, test.validateFileEvent(t, noWrapperType, func(event *model.Event, _ *rules.Rule) {
 			assertFieldEqualCaseInsensitve(t, event, "create.file.name", "test.bad", event, "create.file.name file didn't match")
-		}))
+		}), "test_create_file")
 	})
 
 }
@@ -78,9 +79,10 @@ func TestRenameFileEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	// this is kinda hokey.  ETW (which is what FIM is based on) takes an indeterminant amount of time to start up.
-	// so wait around for it to start
-	time.Sleep(5 * time.Second)
+	// Wait for ETW to be ready (signaled on first event received)
+	if !test.WaitForETWReady(30 * time.Second) {
+		t.Fatal("Timeout waiting for ETW to be ready")
+	}
 
 	os.MkdirAll("C:\\Temp", 0755)
 	f, err := os.Create("C:\\Temp\\test.bad")
@@ -92,12 +94,12 @@ func TestRenameFileEvent(t *testing.T) {
 	}
 
 	test.RunMultiMode(t, "rename", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return os.Rename("C:\\Temp\\test.bad", "C:\\Temp\\test.good")
 		}, test.validateFileEvent(t, noWrapperType, func(event *model.Event, _ *rules.Rule) {
 			assertFieldEqualCaseInsensitve(t, event, "rename.file.name", "test.bad", event, "rename.file.name file didn't match")
 			assertFieldEqualCaseInsensitve(t, event, "rename.file.destination.name", "test.good", event, "rename.file.destination.name file didn't match")
-		}))
+		}), "test_rename_file")
 	})
 }
 
@@ -115,9 +117,10 @@ func TestDeleteFileEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	// this is kinda hokey.  ETW (which is what FIM is based on) takes an indeterminant amount of time to start up.
-	// so wait around for it to start
-	time.Sleep(5 * time.Second)
+	// Wait for ETW to be ready (signaled on first event received)
+	if !test.WaitForETWReady(30 * time.Second) {
+		t.Fatal("Timeout waiting for ETW to be ready")
+	}
 
 	os.MkdirAll("C:\\Temp", 0755)
 	f, err := os.Create("C:\\Temp\\test.bad")
@@ -129,11 +132,11 @@ func TestDeleteFileEvent(t *testing.T) {
 	}
 
 	test.RunMultiMode(t, "delete", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return os.Remove("C:\\Temp\\test.bad")
 		}, test.validateFileEvent(t, noWrapperType, func(event *model.Event, _ *rules.Rule) {
 			assertFieldEqualCaseInsensitve(t, event, "delete.file.name", "test.bad", event, "delete.file.name file didn't match")
-		}))
+		}), "test_delete_file")
 	})
 }
 
@@ -151,9 +154,10 @@ func TestWriteFileEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	// this is kinda hokey.  ETW (which is what FIM is based on) takes an indeterminant amount of time to start up.
-	// so wait around for it to start
-	time.Sleep(5 * time.Second)
+	// Wait for ETW to be ready (signaled on first event received)
+	if !test.WaitForETWReady(30 * time.Second) {
+		t.Fatal("Timeout waiting for ETW to be ready")
+	}
 
 	os.MkdirAll("C:\\Temp", 0755)
 	f, err := os.Create("C:\\Temp\\test.bad")
@@ -165,7 +169,7 @@ func TestWriteFileEvent(t *testing.T) {
 	}
 
 	test.RunMultiMode(t, "write", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			f, err := os.OpenFile("C:\\Temp\\test.bad", os.O_WRONLY, 0755)
 			if err != nil {
 				return err
@@ -176,7 +180,7 @@ func TestWriteFileEvent(t *testing.T) {
 			return f.Close()
 		}, test.validateFileEvent(t, noWrapperType, func(event *model.Event, _ *rules.Rule) {
 			assertFieldEqualCaseInsensitve(t, event, "write.file.name", "test.bad", event, "write.file.name file didn't match")
-		}))
+		}), "test_write_file")
 	})
 }
 
@@ -199,9 +203,10 @@ func TestWriteFileEventWithCreate(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-	// this is kinda hokey.  ETW (which is what FIM is based on) takes an indeterminant amount of time to start up.
-	// so wait around for it to start
-	time.Sleep(5 * time.Second)
+	// Wait for ETW to be ready (signaled on first event received)
+	if !test.WaitForETWReady(30 * time.Second) {
+		t.Fatal("Timeout waiting for ETW to be ready")
+	}
 
 	os.MkdirAll("C:\\Temp", 0755)
 	f, err := os.Create("C:\\Temp\\test.bad")
@@ -213,7 +218,7 @@ func TestWriteFileEventWithCreate(t *testing.T) {
 	}
 
 	test.RunMultiMode(t, "write", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			f, err := os.OpenFile("C:\\Temp\\test.bad", os.O_WRONLY, 0755)
 			if err != nil {
 				return err
@@ -224,7 +229,7 @@ func TestWriteFileEventWithCreate(t *testing.T) {
 			return f.Close()
 		}, test.validateFileEvent(t, noWrapperType, func(event *model.Event, _ *rules.Rule) {
 			assertFieldEqualCaseInsensitve(t, event, "write.file.name", "test.bad", "write.file.name file didn't match")
-		}))
+		}), "test_write_file")
 	})
 }
 

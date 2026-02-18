@@ -6,6 +6,7 @@
 package payload
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -64,13 +65,14 @@ func (itf *VEdgeInterface) AdminStatus() devicemetadata.IfAdminStatus {
 func (itf *VEdgeInterface) Metadata(namespace string) (devicemetadata.InterfaceMetadata, error) {
 	return devicemetadata.InterfaceMetadata{
 		DeviceID:    fmt.Sprintf("%s:%s", namespace, itf.VmanageSystemIP), // VmanageSystemIP is the device's System IP from vManage
-		IDTags:      []string{fmt.Sprintf("interface:%s", itf.Ifname)},
+		IDTags:      []string{"interface:" + itf.Ifname},
 		Index:       int32(itf.Ifindex),
 		Name:        itf.Ifname,
 		Description: itf.Desc,
 		MacAddress:  itf.Hwaddr,
 		OperStatus:  convertOperStatus(vEdgeOperStatusMap, itf.IfOperStatus),
 		AdminStatus: convertAdminStatus(vEdgeAdminStatusMap, itf.IfAdminStatus),
+		IsPhysical:  isPhysicalVEdgeInterface(itf),
 	}, nil
 }
 
@@ -108,7 +110,7 @@ func parseVEdgeIP(ip string) (string, int32, error) {
 	}
 
 	if ipaddr.IsUnspecified() {
-		return "", 0, fmt.Errorf("IP address is unspecified")
+		return "", 0, errors.New("IP address is unspecified")
 	}
 
 	prefixLen, _ := ipv4Net.Mask.Size()
@@ -118,4 +120,15 @@ func parseVEdgeIP(ip string) (string, int32, error) {
 
 func isEmptyVEdgeIP(ip string) bool {
 	return ip == "" || ip == "-"
+}
+
+func isPhysicalVEdgeInterface(itf *VEdgeInterface) *bool {
+	isPhysical := false
+	if itf.PortType == "loopback" {
+		return &isPhysical
+	}
+
+	// null encap type means it's a physical interface
+	isPhysical = itf.EncapType == "null"
+	return &isPhysical
 }

@@ -55,7 +55,7 @@ func TestConnectEventAFIntetTCP(t *testing.T) {
 
 	go listener.Accept()
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		if err := runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET", "any", "tcp", "4242"); err != nil {
 			return err
 		}
@@ -68,7 +68,7 @@ func TestConnectEventAFIntetTCP(t *testing.T) {
 		assert.Equal(t, uint16(unix.IPPROTO_TCP), event.Connect.Protocol, "wrong protocol")
 		assert.Equal(t, int64(0), event.Connect.Retval, "wrong retval")
 		test.validateConnectSchema(t, event)
-	})
+	}, "test_connect_af_inet")
 }
 func TestConnectEventAFInetIOUring(t *testing.T) {
 	SkipIfNotAvailable(t)
@@ -122,7 +122,7 @@ func TestConnectEventAFInetIOUring(t *testing.T) {
 	}
 	ch := make(chan iouring.Result, 1)
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		if _, err = iour.SubmitRequest(prepRequest, ch); err != nil {
 			return err
 		}
@@ -130,7 +130,7 @@ func TestConnectEventAFInetIOUring(t *testing.T) {
 		select {
 		case result = <-ch:
 		case <-time.After(8 * time.Second):
-			return fmt.Errorf("timeout waiting for io_uring connect")
+			return errors.New("timeout waiting for io_uring connect")
 		}
 		ret, err := result.ReturnInt()
 		if err != nil {
@@ -155,7 +155,7 @@ func TestConnectEventAFInetIOUring(t *testing.T) {
 		assert.Equal(t, uint16(unix.IPPROTO_TCP), event.Connect.Protocol, "wrong protocol")
 		assert.Contains(t, []int64{0, -int64(syscall.EAGAIN)}, event.Connect.Retval, "wrong retval")
 		test.validateConnectSchema(t, event)
-	})
+	}, "test_connect_af_inet_io_uring")
 }
 func TestConnectEventAFInetAnyUDP(t *testing.T) {
 	SkipIfNotAvailable(t)
@@ -183,7 +183,7 @@ func TestConnectEventAFInetAnyUDP(t *testing.T) {
 	}
 	defer conn.Close()
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		if err := runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET", "any", "udp", "4244"); err != nil {
 			return err
 		}
@@ -196,7 +196,7 @@ func TestConnectEventAFInetAnyUDP(t *testing.T) {
 		assert.Equal(t, uint16(unix.IPPROTO_UDP), event.Connect.Protocol, "wrong protocol")
 		assert.Equal(t, int64(0), event.Connect.Retval, "wrong retval")
 		test.validateConnectSchema(t, event)
-	})
+	}, "test_connect_af_inet")
 }
 func TestConnectEventAFInet6AnyTCP(t *testing.T) {
 	SkipIfNotAvailable(t)
@@ -230,7 +230,7 @@ func TestConnectEventAFInet6AnyTCP(t *testing.T) {
 
 	go listener.Accept()
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		if err := runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET6", "any", "tcp", "4245"); err != nil {
 			return err
 		}
@@ -243,7 +243,7 @@ func TestConnectEventAFInet6AnyTCP(t *testing.T) {
 		assert.Equal(t, uint16(unix.IPPROTO_TCP), event.Connect.Protocol, "wrong protocol")
 		assert.Equal(t, int64(0), event.Connect.Retval, "wrong retval")
 		test.validateConnectSchema(t, event)
-	})
+	}, "test_connect_af_inet6")
 }
 func TestConnectEventAFInet6AnyUDP(t *testing.T) {
 	SkipIfNotAvailable(t)
@@ -275,7 +275,7 @@ func TestConnectEventAFInet6AnyUDP(t *testing.T) {
 	}
 	defer conn.Close()
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		if err := runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET6", "any", "udp", "4246"); err != nil {
 			return err
 		}
@@ -288,7 +288,7 @@ func TestConnectEventAFInet6AnyUDP(t *testing.T) {
 		assert.Equal(t, uint16(unix.IPPROTO_UDP), event.Connect.Protocol, "wrong protocol")
 		assert.Equal(t, int64(0), event.Connect.Retval, "wrong retval")
 		test.validateConnectSchema(t, event)
-	})
+	}, "test_connect_af_inet6")
 }
 func TestConnectEventinetNonBlocking(t *testing.T) {
 	SkipIfNotAvailable(t)
@@ -305,7 +305,7 @@ func TestConnectEventinetNonBlocking(t *testing.T) {
 	}
 	defer test.Close()
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		resp, err := http.Get("https://www.google.com")
 		if err != nil {
 			return err
@@ -317,5 +317,5 @@ func TestConnectEventinetNonBlocking(t *testing.T) {
 		assert.Equal(t, "connect", event.GetType(), "wrong event type")
 		assert.Equal(t, uint16(443), event.Connect.Addr.Port, "wrong address port")
 		test.validateConnectSchema(t, event)
-	})
+	}, "test_connect_nonblocking_socket")
 }

@@ -110,7 +110,7 @@ func (c *Compressor) checkItemSize(data []byte) bool {
 
 // hasRoomForItem checks if the current payload has enough room to store the given item
 func (c *Compressor) hasRoomForItem(item []byte) bool {
-	uncompressedDataSize := c.input.Len() + len(item)
+	uncompressedDataSize := c.input.Len() + len(item) + len(c.footer)
 	if !c.firstItem {
 		uncompressedDataSize += len(c.separator)
 	}
@@ -208,5 +208,5 @@ func (c *Compressor) Close() ([]byte, error) {
 }
 
 func (c *Compressor) remainingSpace() int {
-	return c.maxPayloadSize - c.compressed.Len() - len(c.footer)
+	return c.maxPayloadSize - c.compressed.Len()
 }

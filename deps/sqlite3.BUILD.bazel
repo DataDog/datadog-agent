@@ -1,0 +1,67 @@
+load("@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
+
+package(
+    default_applicable_licenses = [":license"],
+    default_visibility = ["//visibility:private"],
+)
+
+VERSION = "3.50.4"
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:blessing"],
+    license_text = "LICENSE.md",
+    visibility = ["//visibility:public"],
+)
+
+_SQLITE3_PUBLIC_HEADERS = [
+    "sqlite3.h",
+    "sqlite3ext.h",
+]
+
+cc_library(
+    name = "libsqlite3",
+    srcs = ["sqlite3.c"],
+    hdrs = _SQLITE3_PUBLIC_HEADERS,
+    includes = ["."],
+    copts = [
+        "-Wall",
+        "-DSQLITE_ENABLE_MATH_FUNCTIONS",
+        "-DSQLITE_THREADSAFE=1",
+        "-O2",
+    ],
+    linkstatic = True,
+    visibility = ["//visibility:public"],
+)
+
+cc_shared_library(
+    name = "sqlite3",
+    deps = [":libsqlite3"],
+    visibility = ["//visibility:public"],
+)
+
+so_symlink(
+    name = "lib_files",
+    src = ":sqlite3",
+    libname = "libsqlite3",
+    version = VERSION,
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":lib_files",
+    ],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+    ],
+)

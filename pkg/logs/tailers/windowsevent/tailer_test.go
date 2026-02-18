@@ -8,6 +8,7 @@
 package windowsevent
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -15,7 +16,7 @@ import (
 
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
@@ -42,7 +43,7 @@ type ReadEventsSuite struct {
 
 func TestReadEventsSuite(t *testing.T) {
 	for _, tiName := range eventlog_test.GetEnabledAPITesters() {
-		t.Run(fmt.Sprintf("%sAPI", tiName), func(t *testing.T) {
+		t.Run(tiName+"API", func(t *testing.T) {
 			if tiName != "Windows" {
 				t.Skipf("skipping %s: test interface not implemented", tiName)
 			}
@@ -88,14 +89,14 @@ func newtailer(evtapi evtapi.API, tailerconfig *Config, bookmark string, msgChan
 
 	tailer := NewTailer(evtapi, source, tailerconfig, msgChan, registry, publisherMetadataCache)
 	tailer.Start(bookmark)
-	err := backoff.Retry(func() error {
+	_, err := backoff.Retry(context.Background(), func() (any, error) {
 		if source.Status.IsSuccess() {
-			return nil
+			return nil, nil
 		} else if source.Status.IsError() {
-			return errors.New(source.Status.GetError())
+			return nil, errors.New(source.Status.GetError())
 		}
-		return fmt.Errorf("start pending")
-	}, backoff.NewConstantBackOff(50*time.Millisecond))
+		return nil, errors.New("start pending")
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(50*time.Millisecond)))
 	if err != nil {
 		return nil, fmt.Errorf("failed to start tailer: %w", err)
 	}
@@ -184,27 +185,27 @@ func (s *ReadEventsSuite) TestRecoverFromBrokenSubscription() {
 
 	// stop the EventLog service and assert the tailer detects the error
 	s.ti.KillEventLogService(s.T())
-	err = backoff.Retry(func() error {
+	_, err = backoff.Retry(context.Background(), func() (any, error) {
 		if tailer.source.Status.IsSuccess() {
-			return fmt.Errorf("tailer is still running")
+			return nil, errors.New("tailer is still running")
 		} else if tailer.source.Status.IsError() {
-			return nil
+			return nil, nil
 		}
-		return fmt.Errorf("start pending")
-	}, backoff.NewConstantBackOff(50*time.Millisecond))
+		return nil, errors.New("start pending")
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(50*time.Millisecond)))
 	s.Require().NoError(err, "tailer should catch the error and update the source status")
 	fmt.Println(tailer.source.Status.GetError())
 
 	// start the EventLog service and assert the tailer resumes from the previous error
 	s.ti.StartEventLogService(s.T())
-	err = backoff.Retry(func() error {
+	_, err = backoff.Retry(context.Background(), func() (any, error) {
 		if tailer.source.Status.IsSuccess() {
-			return nil
+			return nil, nil
 		} else if tailer.source.Status.IsError() {
-			return errors.New(tailer.source.Status.GetError())
+			return nil, errors.New(tailer.source.Status.GetError())
 		}
-		return fmt.Errorf("start pending")
-	}, backoff.NewConstantBackOff(50*time.Millisecond))
+		return nil, errors.New("start pending")
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(50*time.Millisecond)))
 	s.Require().NoError(err, "tailer should auto restart after an error is resolved")
 
 	// ensure the tailer can receive events again

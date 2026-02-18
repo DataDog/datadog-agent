@@ -8,6 +8,7 @@ package dogstatsdreplay
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -95,7 +96,7 @@ func dogstatsdReplay(_ log.Component, config config.Component, cliParams *cliPar
 	fmt.Printf("Replaying dogstatsd traffic...\n\n")
 
 	md := metadata.MD{
-		"authorization": []string{fmt.Sprintf("Bearer %s", ipc.GetAuthToken())},
+		"authorization": []string{"Bearer " + ipc.GetAuthToken()},
 	}
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
@@ -123,7 +124,7 @@ func dogstatsdReplay(_ log.Component, config config.Component, cliParams *cliPar
 
 	s := pkgconfigsetup.Datadog().GetString("dogstatsd_socket")
 	if s == "" {
-		return fmt.Errorf("Dogstatsd UNIX socket disabled")
+		return errors.New("Dogstatsd UNIX socket disabled")
 	}
 
 	addr, err := net.ResolveUnixAddr("unixgram", s)

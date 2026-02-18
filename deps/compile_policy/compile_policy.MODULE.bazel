@@ -1,0 +1,53 @@
+# Policy compiler
+
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+VERSION = "0.1.2"
+
+# Define URLs for each architecture. This is used for the Linux build only; Windows and Darwin are not supported yet.
+# When we do those, we can make this parameterized.
+http_archive(
+    name = "compile_policy_x86_64",
+    files = {
+        "BUILD.bazel": "//deps/compile_policy:overlay.BUILD.bazel",
+        # These should really be in the release tarball.
+        "LICENSE": "//deps/compile_policy:LICENSE",
+        "LICENSE-3rdparty.csv": "//deps/compile_policy:LICENSE-3rdparty.csv",
+    },
+    sha256 = "f32c245da1e0152e981ea6a3531b244bbab42c02666ec9bf37edc52204a96355",
+    urls = [
+        "https://github.com/DataDog/dd-policy-engine/releases/download/v{version}/dd-compile-policy-linux-amd64.tar.gz".format(
+            version = VERSION,
+        ),
+    ],
+)
+
+http_archive(
+    name = "compile_policy_arm64",
+    files = {
+        "BUILD.bazel": "//deps/compile_policy:overlay.BUILD.bazel",
+        "LICENSE": "//deps/compile_policy:LICENSE",
+        "LICENSE-3rdparty.csv": "//deps/compile_policy:LICENSE-3rdparty.csv",
+    },
+    sha256 = "1e9447733ac2a623d59b657b689811695738e040a7dd7be22a368c07cbd52842",
+    urls = [
+        "https://github.com/DataDog/dd-policy-engine/releases/download/v{version}/dd-compile-policy-linux-arm64.tar.gz".format(
+            version = VERSION,
+        ),
+    ],
+)
+
+http_archive(
+    name = "compile_policy_windows_x86_64",
+    files = {
+        "BUILD.bazel": "//deps/compile_policy:overlay.BUILD.bazel",
+        "LICENSE": "//deps/compile_policy:LICENSE",
+        "LICENSE-3rdparty.csv": "//deps/compile_policy:LICENSE-3rdparty.csv",
+    },
+    sha256 = "39cabb8dc85e29837be223d389b6c00b715513e7ffc6fa8a0d69db03fdc66f2e",
+    urls = [
+        "https://github.com/DataDog/dd-policy-engine/releases/download/v{version}/dd-compile-policy-windows-x64.zip".format(
+            version = VERSION,
+        ),
+    ],
+)

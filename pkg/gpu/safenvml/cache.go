@@ -41,6 +41,9 @@ type DeviceCache interface {
 	Cores(uuid string) (uint64, error)
 }
 
+// DeviceCacheOption customizes DeviceCache
+type DeviceCacheOption func(*deviceCache)
+
 // deviceCache is an implementation of DeviceCache
 type deviceCache struct {
 	mu                 sync.RWMutex
@@ -53,14 +56,20 @@ type deviceCache struct {
 	initialized        bool
 }
 
-// NewDeviceCache creates a new DeviceCache
-func NewDeviceCache() DeviceCache {
-	return NewDeviceCacheWithOptions(nil)
+// WithDeviceCacheLib uses a specific NVML library for the device cache
+func WithDeviceCacheLib(lib SafeNVML) DeviceCacheOption {
+	return func(d *deviceCache) {
+		d.lib = lib
+	}
 }
 
-// NewDeviceCacheWithOptions creates a new DeviceCache with an already initialized NVML library
-func NewDeviceCacheWithOptions(lib SafeNVML) DeviceCache {
-	return &deviceCache{lib: lib}
+// NewDeviceCache creates a new DeviceCache
+func NewDeviceCache(opts ...DeviceCacheOption) DeviceCache {
+	res := &deviceCache{}
+	for _, o := range opts {
+		o(res)
+	}
+	return res
 }
 
 // ensureInit ensures that the cache is initialized, returns an error if the initialization fails

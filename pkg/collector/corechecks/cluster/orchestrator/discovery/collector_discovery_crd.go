@@ -8,6 +8,7 @@
 package discovery
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -47,7 +48,7 @@ func NewDiscoveryCollectorForInventory() *DiscoveryCollector {
 	}
 	err := dc.fillCache()
 	if err != nil {
-		log.Errorc(fmt.Sprintf("Fail to init discovery collector : %s", err.Error()), orchestrator.ExtraLogContext...)
+		log.Errorc("Fail to init discovery collector : "+err.Error(), orchestrator.ExtraLogContext...)
 	}
 	return dc
 }
@@ -62,7 +63,7 @@ func (d *DiscoveryCollector) fillCache() error {
 		}
 
 		if len(d.cache.Resources) == 0 {
-			return fmt.Errorf("failed to discover resources from API groups")
+			return errors.New("failed to discover resources from API groups")
 		}
 		for _, list := range d.cache.Resources {
 			for _, resource := range list.APIResources {

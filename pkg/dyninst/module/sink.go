@@ -11,10 +11,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"slices"
+	"sort"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/time/rate"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
@@ -23,14 +27,53 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// missingTypeTracker collects type names that the decoder encounters in
+// interface values but cannot find in the IR type registry. It implements
+// decode.MissingTypeCollector and is drained by the sink after each Decode.
+type missingTypeTracker struct {
+	typeSet map[string]struct{}
+	nameBuf []string
+}
+
+// RecordMissingType implements decode.MissingTypeCollector.
+func (t *missingTypeTracker) RecordMissingType(typeName string) {
+	if t.typeSet == nil {
+		t.typeSet = make(map[string]struct{})
+	}
+	t.typeSet[typeName] = struct{}{}
+}
+
+// drain returns the accumulated type names and resets the tracker.
+// Returns nil if no types were collected. The returned slice is valid
+// only until the next call to drain.
+func (t *missingTypeTracker) drain() []string {
+	if len(t.typeSet) == 0 {
+		return nil
+	}
+	for name := range t.typeSet {
+		t.nameBuf = append(t.nameBuf, name)
+	}
+	clear(t.typeSet)
+	sort.Strings(t.nameBuf)
+	ret := t.nameBuf
+	t.nameBuf = t.nameBuf[:0]
+	return ret
+}
+
 type sink struct {
 	runtime      *runtimeImpl
 	decoder      Decoder
 	symbolicator symbol.Symbolicator
 	programID    ir.ProgramID
+	processID    actuator.ProcessID
 	service      string
 	logUploader  LogsUploader
 	tree         *bufferTree
+	missingTypes missingTypeTracker
+
+	// Probes is an ordered list of probes. The event header's probe_id is an
+	// index into this list.
+	probes []*ir.Probe
 }
 
 var _ dispatcher.Sink = &sink{}
@@ -39,7 +82,10 @@ var _ dispatcher.Sink = &sink{}
 // about them and we don't want to bail out completely.
 var decodingErrorLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 10)
 
-var noMatchingEventLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 10)
+var noMatchingEventLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
+var eventPairingBufferFullLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
+var eventPairingCallMapFullLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
+var eventPairingCallCountExceededLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
 
 func (s *sink) HandleEvent(msg dispatcher.Message) error {
 	defer func() {
@@ -56,6 +102,24 @@ func (s *sink) HandleEvent(msg dispatcher.Message) error {
 	evHeader, err := msgEvent.Header()
 	if err != nil {
 		return fmt.Errorf("error getting event header: %w", err)
+	}
+
+	recordEventPairingIssue := func(
+		stats *atomic.Uint64, limiter *rate.Limiter, issueMsg string,
+	) {
+		stats.Add(1)
+		var probeID string
+		if int(evHeader.Probe_id) < len(s.probes) {
+			probeID = s.probes[evHeader.Probe_id].GetID()
+		} else {
+			probeID = fmt.Sprintf("unknown probeID %d", evHeader.Probe_id)
+		}
+		const format = "event pairing issue for probe %s: %s"
+		if limiter.Allow() {
+			log.Infof(format, probeID, issueMsg)
+		} else {
+			log.Tracef(format, probeID, issueMsg)
+		}
 	}
 	var entryEvent, returnEvent output.Event
 	switch output.EventPairingExpectation(evHeader.Event_pairing_expectation) {
@@ -90,6 +154,12 @@ func (s *sink) HandleEvent(msg dispatcher.Message) error {
 			stackByteDepth: evHeader.Stack_byte_depth,
 			probeID:        evHeader.Probe_id,
 		}, msg) {
+			// Record stack PCs for later use when the return event arrives.
+			// This works around a bug where the return event may need the PCs
+			// but doesn't have them.
+			if stackPCs, err := msgEvent.StackPCs(); err == nil {
+				s.decoder.ReportStackPCs(evHeader.Stack_hash, slices.Clone(stackPCs))
+			}
 			msg = dispatcher.Message{} // prevent release
 			return nil
 		}
@@ -98,10 +168,29 @@ func (s *sink) HandleEvent(msg dispatcher.Message) error {
 		// it directly.
 		evHeader.Event_pairing_expectation =
 			uint8(output.EventPairingExpectationBufferFull)
-		fallthrough
+		recordEventPairingIssue(
+			&s.runtime.stats.eventPairingBufferFull,
+			eventPairingBufferFullLogLimiter,
+			"userspace buffer capacity exceeded",
+		)
+		entryEvent = msgEvent
+	case output.EventPairingExpectationCallMapFull:
+		recordEventPairingIssue(
+			&s.runtime.stats.eventPairingCallMapFull,
+			eventPairingCallMapFullLogLimiter,
+			"call map capacity exceeded",
+		)
+		entryEvent = msgEvent
+	case output.EventPairingExpectationCallCountExceeded:
+		recordEventPairingIssue(
+			&s.runtime.stats.eventPairingCallCountExceeded,
+			eventPairingCallCountExceededLogLimiter,
+			"maximum call count exceeded",
+		)
+		entryEvent = msgEvent
 	case output.EventPairingExpectationNone,
-		output.EventPairingExpectationCallMapFull,
-		output.EventPairingExpectationCallCountExceeded:
+		output.EventPairingExpectationNoneInlined,
+		output.EventPairingExpectationNoneNoBody:
 		entryEvent = msgEvent
 	default:
 		return fmt.Errorf("unknown event pairing expectation: %d", evHeader.Event_pairing_expectation)
@@ -110,7 +199,7 @@ func (s *sink) HandleEvent(msg dispatcher.Message) error {
 		EntryOrLine: entryEvent,
 		Return:      returnEvent,
 		ServiceName: s.service,
-	}, s.symbolicator, decodedBytes)
+	}, s.symbolicator, &s.missingTypes, decodedBytes)
 	if err != nil {
 		if probe != nil {
 			if reported := s.runtime.reportProbeError(
@@ -140,6 +229,9 @@ func (s *sink) HandleEvent(msg dispatcher.Message) error {
 	}
 	s.runtime.setProbeMaybeEmitting(s.programID, probe)
 	s.logUploader.Enqueue(json.RawMessage(decodedBytes))
+	if missingTypes := s.missingTypes.drain(); len(missingTypes) > 0 {
+		s.runtime.actuator.ReportMissingTypes(s.processID, missingTypes)
+	}
 	return nil
 }
 

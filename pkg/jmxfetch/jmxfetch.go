@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -24,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	dogstatsdConfig "github.com/DataDog/datadog-agent/comp/dogstatsd/config"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -31,6 +33,7 @@ import (
 	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	netutil "github.com/DataDog/datadog-agent/pkg/util/net"
 )
 
 const (
@@ -44,14 +47,6 @@ const (
 	defaultJavaBinPath                = "java"
 	defaultLogLevel                   = "info"
 	jmxAllowAttachSelf                = " -Djdk.attach.allowAttachSelf=true"
-)
-
-type DSDStatus int
-
-const (
-	DSDStatusRunningUDSDatagram DSDStatus = iota + 1
-	DSDStatusRunningUDP
-	DSDStatusUnknown
 )
 
 var (
@@ -220,22 +215,7 @@ func (j *JMXFetch) Start(manage bool) error {
 	case ReporterJSON:
 		reporter = "json"
 	default:
-		dsdStatus := j.getDSDStatus()
-		if dsdStatus == DSDStatusRunningUDSDatagram {
-			reporter = fmt.Sprintf("statsd:unix://%s", pkgconfigsetup.Datadog().GetString("dogstatsd_socket"))
-		} else {
-			// We always use UDP if we don't definitively detect UDS running, but we want to let the user know if we
-			// actually detected that UDP should be running, or if we're just in fallback mode.
-			if dsdStatus == DSDStatusUnknown {
-				log.Warnf("DogStatsD status is unknown, falling back to UDP. JMXFetch may not be able to report metrics.")
-			}
-
-			bindHost := configutils.GetBindHost(pkgconfigsetup.Datadog())
-			if bindHost == "" || bindHost == "0.0.0.0" {
-				bindHost = "localhost"
-			}
-			reporter = fmt.Sprintf("statsd:%s:%s", bindHost, pkgconfigsetup.Datadog().GetString("dogstatsd_port"))
-		}
+		reporter = j.getPreferredDSDEndpoint()
 	}
 
 	//TODO : support auto discovery
@@ -295,7 +275,7 @@ func (j *JMXFetch) Start(manage bool) error {
 		if err := os.MkdirAll(javaTmpDir, 0755); err != nil {
 			log.Warnf("Failed to create jmxfetch temporary directory %s: %v", javaTmpDir, err)
 		} else {
-			javaTmpDirOpt := fmt.Sprintf(" -Djava.io.tmpdir=%s", javaTmpDir)
+			javaTmpDirOpt := " -Djava.io.tmpdir=" + javaTmpDir
 			javaOptions += javaTmpDirOpt
 		}
 	}
@@ -324,15 +304,15 @@ func (j *JMXFetch) Start(manage bool) error {
 		"-classpath", classpath,
 		jmxMainClass,
 		"--ipc_host", ipcHost,
-		"--ipc_port", fmt.Sprintf("%v", ipcPort),
-		"--check_period", fmt.Sprintf("%v", pkgconfigsetup.Datadog().GetInt("jmx_check_period")), // Period of the main loop of jmxfetch in ms
-		"--thread_pool_size", fmt.Sprintf("%v", pkgconfigsetup.Datadog().GetInt("jmx_thread_pool_size")), // Size for the JMXFetch thread pool
-		"--collection_timeout", fmt.Sprintf("%v", pkgconfigsetup.Datadog().GetInt("jmx_collection_timeout")), // Timeout for metric collection in seconds
-		"--reconnection_timeout", fmt.Sprintf("%v", pkgconfigsetup.Datadog().GetInt("jmx_reconnection_timeout")), // Timeout for instance reconnection in seconds
-		"--reconnection_thread_pool_size", fmt.Sprintf("%v", pkgconfigsetup.Datadog().GetInt("jmx_reconnection_thread_pool_size")), // Size for the JMXFetch reconnection thread pool
+		"--ipc_port", strconv.Itoa(ipcPort),
+		"--check_period", strconv.Itoa(pkgconfigsetup.Datadog().GetInt("jmx_check_period")), // Period of the main loop of jmxfetch in ms
+		"--thread_pool_size", strconv.Itoa(pkgconfigsetup.Datadog().GetInt("jmx_thread_pool_size")), // Size for the JMXFetch thread pool
+		"--collection_timeout", strconv.Itoa(pkgconfigsetup.Datadog().GetInt("jmx_collection_timeout")), // Timeout for metric collection in seconds
+		"--reconnection_timeout", strconv.Itoa(pkgconfigsetup.Datadog().GetInt("jmx_reconnection_timeout")), // Timeout for instance reconnection in seconds
+		"--reconnection_thread_pool_size", strconv.Itoa(pkgconfigsetup.Datadog().GetInt("jmx_reconnection_thread_pool_size")), // Size for the JMXFetch reconnection thread pool
 		"--log_level", jmxLogLevel,
 		"--reporter", reporter, // Reporter to use
-		"--statsd_queue_size", fmt.Sprintf("%v", pkgconfigsetup.Datadog().GetInt("jmx_statsd_client_queue_size")), // Dogstatsd client queue size to use
+		"--statsd_queue_size", strconv.Itoa(pkgconfigsetup.Datadog().GetInt("jmx_statsd_client_queue_size")), // Dogstatsd client queue size to use
 	)
 
 	if pkgconfigsetup.Datadog().GetBool("jmx_statsd_telemetry_enabled") {
@@ -348,11 +328,11 @@ func (j *JMXFetch) Start(manage bool) error {
 	}
 
 	if bufSize := pkgconfigsetup.Datadog().GetInt("jmx_statsd_client_buffer_size"); bufSize != 0 {
-		subprocessArgs = append(subprocessArgs, "--statsd_buffer_size", fmt.Sprintf("%d", bufSize))
+		subprocessArgs = append(subprocessArgs, "--statsd_buffer_size", strconv.Itoa(bufSize))
 	}
 
 	if socketTimeout := pkgconfigsetup.Datadog().GetInt("jmx_statsd_client_socket_timeout"); socketTimeout != 0 {
-		subprocessArgs = append(subprocessArgs, "--statsd_socket_timeout", fmt.Sprintf("%d", socketTimeout))
+		subprocessArgs = append(subprocessArgs, "--statsd_socket_timeout", strconv.Itoa(socketTimeout))
 	}
 
 	if pkgconfigsetup.Datadog().GetBool("log_format_rfc3339") {
@@ -366,13 +346,13 @@ func (j *JMXFetch) Start(manage bool) error {
 	// set environment + token
 	j.cmd.Env = append(
 		os.Environ(),
-		fmt.Sprintf("SESSION_TOKEN=%s", j.ipcComp.GetAuthToken()),
+		"SESSION_TOKEN="+j.ipcComp.GetAuthToken(),
 	)
 
 	// append JAVA_TOOL_OPTIONS to cmd Env
 	javaToolOptions := pkgconfigsetup.Datadog().GetString("jmx_java_tool_options")
 	if len(javaToolOptions) > 0 {
-		j.cmd.Env = append(j.cmd.Env, fmt.Sprintf("JAVA_TOOL_OPTIONS=%s", javaToolOptions))
+		j.cmd.Env = append(j.cmd.Env, "JAVA_TOOL_OPTIONS="+javaToolOptions)
 	}
 
 	// forward the standard output to the Agent logger
@@ -522,23 +502,25 @@ func (j *JMXFetch) ConfigureFromInstance(instance integration.Data) error {
 	return nil
 }
 
-func (j *JMXFetch) getDSDStatus() DSDStatus {
-	// Three possible states: DSD is running in the Core Agent, DSD is running via ADP, or the DSD status is unknown.
-	//
-	// We detect these through the `use_dogstatsd` configuration and the `DD_ADP_ENABLED` environment variable, and we
-	// detect whether or not we're listening on UDS or UDP via the configuration settings that define their listening
-	// address.
-	dsdEnabledInternally := pkgconfigsetup.Datadog().GetBool("use_dogstatsd")
-	adpEnabled := os.Getenv("DD_ADP_ENABLED") == "true"
-	dsdEnabled := dsdEnabledInternally || adpEnabled
-	udsEnabled := pkgconfigsetup.Datadog().GetString("dogstatsd_socket") != ""
-	udpEnabled := pkgconfigsetup.Datadog().GetInt("dogstatsd_port") != 0
+// getPreferredDSDEndpoint determines the DogStatsD endpoint for JMXFetch to report to.
+// It prefers UDS datagram if the configured socket is available, otherwise falls back to UDP.
+func (j *JMXFetch) getPreferredDSDEndpoint() string {
+	cfg := pkgconfigsetup.Datadog()
+	dsdConfig := dogstatsdConfig.NewConfig(cfg)
 
-	if dsdEnabled && udsEnabled {
-		return DSDStatusRunningUDSDatagram
-	} else if dsdEnabled && udpEnabled {
-		return DSDStatusRunningUDP
-	} else {
-		return DSDStatusUnknown
+	// Check UDS datagram first (preferred transport).
+	socketPath := cfg.GetString("dogstatsd_socket")
+	if dsdConfig.Enabled() && socketPath != "" {
+		if netutil.IsUDSAvailable(socketPath) {
+			return "statsd:unix://" + socketPath
+		}
+		log.Warnf("DogStatsD configured to listen on UDS (%q) but not available, falling back to UDP.", socketPath)
 	}
+
+	// Fall back to UDP.
+	bindHost := configutils.GetBindHost(cfg)
+	if bindHost == "" || bindHost == "0.0.0.0" {
+		bindHost = "localhost"
+	}
+	return fmt.Sprintf("statsd:%s:%s", bindHost, cfg.GetString("dogstatsd_port"))
 }

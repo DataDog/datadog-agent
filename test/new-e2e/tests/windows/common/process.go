@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
 // IsProcessRunning returns true if process is running
@@ -31,7 +31,7 @@ func FindPID(host *components.RemoteHost, pattern string) ([]int, error) {
 		return nil, err
 	}
 	var pids []int
-	for _, strPID := range strings.Split(out, "\n") {
+	for strPID := range strings.SplitSeq(out, "\n") {
 		strPID = strings.TrimSpace(strPID)
 		if strPID == "" {
 			continue

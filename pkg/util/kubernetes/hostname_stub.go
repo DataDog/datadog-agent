@@ -9,10 +9,10 @@ package kubernetes
 
 import (
 	"context"
-	"fmt"
+	"errors"
 )
 
 // GetKubeAPIServerHostname returns the hostname from kubeapiserver
 func GetKubeAPIServerHostname(context.Context) (string, error) {
-	return "", fmt.Errorf("kubeapiserver hostname provider is not enabled")
+	return "", errors.New("kubeapiserver hostname provider is not enabled")
 }

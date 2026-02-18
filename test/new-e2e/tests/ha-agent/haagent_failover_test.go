@@ -9,23 +9,24 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 
-	componentsOs "github.com/DataDog/test-infra-definitions/components/os"
+	componentsOs "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
-	"github.com/DataDog/test-infra-definitions/resources/aws"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
@@ -45,22 +46,25 @@ type multiVMEnv struct {
 func multiVMEnvProvisioner() provisioners.PulumiEnvRunFunc[multiVMEnv] {
 	return func(ctx *pulumi.Context, env *multiVMEnv) error {
 
+		// Generate a random config_id (0-9) to avoid conflicts when tests run in parallel
+		randomConfigID := fmt.Sprintf("ci-e2e-ha-failover-%d", rand.Intn(10))
+
 		// language=yaml
-		agentConfig1 := `
+		agentConfig1 := fmt.Sprintf(`
 hostname: test-e2e-agent1
 ha_agent:
     enabled: true
-config_id: ci-e2e-ha-failover
+config_id: %s
 log_level: debug
-`
+`, randomConfigID)
 
-		agentConfig2 := `
+		agentConfig2 := fmt.Sprintf(`
 hostname: test-e2e-agent2
 ha_agent:
     enabled: true
-config_id: ci-e2e-ha-failover
+config_id: %s
 log_level: debug
-`
+`, randomConfigID)
 
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {

@@ -10,7 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
+	"net/netip"
 	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -74,18 +74,18 @@ func getVPCSubnetsForHostImpl(ctx context.Context) ([]string, error) {
 var getVPCSubnetsForHost = getVPCSubnetsForHostImpl
 
 // GetVPCSubnetsForHost gets all the subnets in the VPCs this host has network interfaces for
-func GetVPCSubnetsForHost(ctx context.Context) ([]*net.IPNet, error) {
-	return cache.GetWithExpiration[[]*net.IPNet](
+func GetVPCSubnetsForHost(ctx context.Context) ([]netip.Prefix, error) {
+	return cache.GetWithExpiration[[]netip.Prefix](
 		vpcSubnetsForHostCacheKey,
-		func() ([]*net.IPNet, error) {
+		func() ([]netip.Prefix, error) {
 			subnets, err := getVPCSubnetsForHost(ctx)
 			if err != nil {
 				return nil, err
 			}
 
-			var parsedSubnets []*net.IPNet
+			var parsedSubnets []netip.Prefix
 			for _, subnet := range subnets {
-				_, ipnet, err := net.ParseCIDR(subnet)
+				ipnet, err := netip.ParsePrefix(subnet)
 				if err != nil {
 					return nil, err
 				}

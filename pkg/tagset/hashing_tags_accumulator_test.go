@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/twmb/murmur3"
 )
 
 func TestNewHashingTagsAccumulator(t *testing.T) {
@@ -104,4 +105,58 @@ func TestRemoveSorted(t *testing.T) {
 	r.SortUniq()
 	r.removeSorted(l)
 	assert.ElementsMatch(t, []string{"A", "e"}, r.Get())
+}
+
+func testTagsMatchHash(t *testing.T, acc *HashingTagsAccumulator) {
+	assert.Equal(t, len(acc.data), len(acc.hash))
+	for idx, tag := range acc.data {
+		assert.Equal(t, murmur3.StringSum64(tag), acc.hash[idx])
+	}
+}
+
+func TestFilterTags(t *testing.T) {
+	tests := []struct {
+		name         string
+		inputTags    []string
+		keepFunc     func(string) bool
+		expectedTags []string
+	}{
+		{
+			name:         "filter all tags",
+			inputTags:    []string{"env:prod", "host:server1", "version:1.0"},
+			keepFunc:     func(_ string) bool { return false },
+			expectedTags: []string{},
+		},
+		{
+			name:         "keep all tags",
+			inputTags:    []string{"env:prod", "host:server1", "version:1.0"},
+			keepFunc:     func(_ string) bool { return true },
+			expectedTags: []string{"env:prod", "host:server1", "version:1.0"},
+		},
+		{
+			name:      "filter some tags",
+			inputTags: []string{"env:prod", "host:server1", "version:1.0", "region:us-east"},
+			keepFunc: func(tag string) bool {
+				return tag == "env:prod" || tag == "version:1.0"
+			},
+			expectedTags: []string{"env:prod", "version:1.0"},
+		},
+		{
+			name:         "no tags to filter",
+			inputTags:    []string{},
+			keepFunc:     func(_ string) bool { return true },
+			expectedTags: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			acc := NewHashingTagsAccumulatorWithTags(tt.inputTags)
+			removed := acc.RetainFunc(tt.keepFunc)
+
+			assert.Equal(t, tt.expectedTags, acc.Get())
+			assert.Equal(t, len(tt.inputTags)-len(tt.expectedTags), removed)
+			testTagsMatchHash(t, acc)
+		})
+	}
 }

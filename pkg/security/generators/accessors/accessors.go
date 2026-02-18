@@ -119,6 +119,8 @@ func isBasicType(kind string) bool {
 	switch kind {
 	case "string", "bool", "int", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64", "net.IPNet":
 		return true
+	case "containerutils.ContainerID", "containerutils.CGroupID":
+		return true
 	}
 	return false
 }
@@ -416,7 +418,7 @@ func parseFieldDef(def string) (seclField, error) {
 
 	// arguments
 	if splitted {
-		for _, el := range strings.Split(options, ",") {
+		for el := range strings.SplitSeq(options, ",") {
 			kv := strings.Split(el, ":")
 
 			key, value := kv[0], kv[1]
@@ -439,7 +441,7 @@ func parseFieldDef(def string) (seclField, error) {
 			case "set_handler":
 				field.setHandler = value
 			case "opts":
-				for _, opt := range strings.Split(value, "|") {
+				for opt := range strings.SplitSeq(value, "|") {
 					switch opt {
 					case "helper":
 						field.helper = true
@@ -772,7 +774,7 @@ func sortFieldsByChecks(module *common.Module) {
 func parseFile(modelFile string, typesFile string, pkgName string) (*common.Module, error) {
 	cfg := packages.Config{
 		Mode:       packages.NeedSyntax | packages.NeedTypes | packages.NeedImports,
-		BuildFlags: []string{"-mod=readonly", fmt.Sprintf("-tags=%s", buildTags)},
+		BuildFlags: []string{"-mod=readonly", "-tags=" + buildTags},
 	}
 
 	astFiles, err := newAstFiles(&cfg, modelFile, typesFile)
@@ -819,7 +821,7 @@ func formatBuildTags(buildTags string) []string {
 	var formattedBuildTags []string
 	for _, tag := range splittedBuildTags {
 		if tag != "" {
-			formattedBuildTags = append(formattedBuildTags, fmt.Sprintf("go:build %s", tag))
+			formattedBuildTags = append(formattedBuildTags, "go:build "+tag)
 		}
 	}
 	return formattedBuildTags
@@ -827,7 +829,7 @@ func formatBuildTags(buildTags string) []string {
 
 func newField(allFields map[string]*common.StructField, fieldName string, inputField *common.StructField) string {
 	var fieldPath, result string
-	for _, node := range strings.Split(inputField.Name, ".") {
+	for node := range strings.SplitSeq(inputField.Name, ".") {
 		if fieldPath != "" {
 			fieldPath += "." + node
 		} else {
@@ -837,7 +839,7 @@ func newField(allFields map[string]*common.StructField, fieldName string, inputF
 		if field, ok := allFields[fieldPath]; ok {
 			if field.IsOrigTypePtr {
 				// process & exec context are set in the template
-				if !strings.HasPrefix(fieldName, "process.") && !strings.HasPrefix(fieldName, "exec.") {
+				if !strings.HasPrefix(fieldName, "process.") && !strings.HasPrefix(fieldName, "exec.") && !strings.HasPrefix(fieldName, "exit.") && !strings.HasPrefix(fieldName, "ptrace.") {
 					result += fmt.Sprintf("if ev.%s == nil { ev.%s = &%s{} }\n", field.Name, field.Name, field.OrigType)
 				}
 			} else if field.IsArray && fieldPath != inputField.Name {
@@ -851,7 +853,7 @@ func newField(allFields map[string]*common.StructField, fieldName string, inputF
 
 func buildFirstAccessor(allFields map[string]*common.StructField, inputField *common.StructField) string {
 	var fieldPath string
-	for _, node := range strings.Split(inputField.Name, ".") {
+	for node := range strings.SplitSeq(inputField.Name, ".") {
 		if fieldPath != "" {
 			fieldPath += "." + node
 		} else {
@@ -870,7 +872,7 @@ func buildFirstAccessor(allFields map[string]*common.StructField, inputField *co
 
 func generatePrefixNilChecks(allFields map[string]*common.StructField, returnType string, field *common.StructField) string {
 	var fieldPath, result string
-	for _, node := range strings.Split(field.Name, ".") {
+	for node := range strings.SplitSeq(field.Name, ".") {
 		if fieldPath != "" {
 			fieldPath += "." + node
 		} else {

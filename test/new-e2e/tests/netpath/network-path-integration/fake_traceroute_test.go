@@ -14,14 +14,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 )
 
 //go:embed fake-traceroute/datadog_ttl.yaml
@@ -43,13 +44,15 @@ type fakeTracerouteTestSuite struct {
 func TestFakeTracerouteSuite(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &fakeTracerouteTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(
-		awshost.WithAgentOptions(
-			agentparams.WithAgentConfig(string(datadogYaml)),
-			agentparams.WithSystemProbeConfig(string(sysProbeConfig)),
-			agentparams.WithIntegration("network_path.d", string(fakeNetworkPathYaml)),
-			agentparams.WithFile("/tmp/router_setup.sh", string(fakeRouterSetupScript), false),
-			agentparams.WithFile("/tmp/router_teardown.sh", string(fakeRouterTeardownScript), false),
-		)),
+		awshost.WithRunOptions(
+			scenec2.WithAgentOptions(
+				agentparams.WithAgentConfig(string(datadogYaml)),
+				agentparams.WithSystemProbeConfig(string(sysProbeConfig)),
+				agentparams.WithIntegration("network_path.d", string(fakeNetworkPathYaml)),
+				agentparams.WithFile("/tmp/router_setup.sh", string(fakeRouterSetupScript), false),
+				agentparams.WithFile("/tmp/router_teardown.sh", string(fakeRouterTeardownScript), false),
+			)),
+	),
 	))
 
 }
@@ -69,7 +72,7 @@ func (s *fakeTracerouteTestSuite) TestFakeTraceroute() {
 
 	validatePath := func(c *assert.CollectT, np *aggregator.Netpath) {
 		assert.Equal(c, payload.PathOrigin("network_path_integration"), np.Origin)
-		assert.NotEmpty(c, np.PathtraceID)
+		assert.NotEmpty(c, np.TestRunID)
 		assert.Equal(c, "default", np.Namespace)
 
 		// check that the timestamp is reasonably close to the current time

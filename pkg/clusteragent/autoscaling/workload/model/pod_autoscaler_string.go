@@ -196,8 +196,8 @@ func formatObjective(objective *datadoghqcommon.DatadogPodAutoscalerObjective) s
 		_, _ = fmt.Fprintln(&sb, "Container Name:", objective.ContainerResource.Container)
 		formatObjectiveValue(&sb, &objective.ContainerResource.Value)
 	}
-	if objective.CustomQueryObjective != nil {
-		formatObjectiveValue(&sb, &objective.CustomQueryObjective.Value)
+	if objective.CustomQuery != nil {
+		formatObjectiveValue(&sb, &objective.CustomQuery.Value)
 	}
 	return sb.String()
 }

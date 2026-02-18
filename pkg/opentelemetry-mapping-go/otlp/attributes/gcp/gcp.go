@@ -60,19 +60,19 @@ func HostInfoFromAttrs(attrs pcommon.Map) (hostInfo *HostInfo) {
 	hostInfo = &HostInfo{}
 
 	if hostID, ok := attrs.Get(string(conventions.HostIDKey)); ok {
-		hostInfo.GCPTags = append(hostInfo.GCPTags, fmt.Sprintf("instance-id:%s", hostID.Str()))
+		hostInfo.GCPTags = append(hostInfo.GCPTags, "instance-id:"+hostID.Str())
 	}
 
 	if cloudZone, ok := attrs.Get(string(conventions.CloudAvailabilityZoneKey)); ok {
-		hostInfo.GCPTags = append(hostInfo.GCPTags, fmt.Sprintf("zone:%s", cloudZone.Str()))
+		hostInfo.GCPTags = append(hostInfo.GCPTags, "zone:"+cloudZone.Str())
 	}
 
 	if hostType, ok := attrs.Get(string(conventions.HostTypeKey)); ok {
-		hostInfo.GCPTags = append(hostInfo.GCPTags, fmt.Sprintf("instance-type:%s", hostType.Str()))
+		hostInfo.GCPTags = append(hostInfo.GCPTags, "instance-type:"+hostType.Str())
 	}
 
 	if cloudAccount, ok := attrs.Get(string(conventions.CloudAccountIDKey)); ok {
-		hostInfo.GCPTags = append(hostInfo.GCPTags, fmt.Sprintf("project:%s", cloudAccount.Str()))
+		hostInfo.GCPTags = append(hostInfo.GCPTags, "project:"+cloudAccount.Str())
 	}
 
 	return

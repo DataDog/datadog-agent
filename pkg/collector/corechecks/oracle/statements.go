@@ -799,7 +799,7 @@ func (c *Check) StatementMetrics() (int, error) {
 								Statement:      SQLStatement,
 								Metadata:       planStatementMetadata,
 							}
-							tags := strings.Join(append(c.tags, fmt.Sprintf("pdb:%s", statementMetricRow.PDBName)), ",")
+							tags := strings.Join(append(c.tags, "pdb:"+statementMetricRow.PDBName), ",")
 
 							planPayload := PlanPayload{
 								Timestamp:        float64(time.Now().UnixMilli()),

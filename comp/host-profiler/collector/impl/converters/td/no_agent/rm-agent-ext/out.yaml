@@ -1,0 +1,52 @@
+exporters:
+    otlphttp:
+        endpoint: http://localhost:4318
+        headers:
+            dd-api-key: test-key
+extensions:
+    custom:
+        config: value
+    other:
+        config: value
+processors:
+    batch:
+        timeout: 10s
+    resource/dd-profiler-internal-metadata:
+        attributes:
+            - action: upsert
+              key: profiler_name
+              value: full-host-profiler
+            - action: upsert
+              key: profiler_version
+              value: 7.0.0-test
+    resourcedetection/default:
+        detectors:
+            - system
+        system:
+            resource_attributes:
+                host.arch:
+                    enabled: true
+                host.name:
+                    enabled: false
+                os.type:
+                    enabled: false
+receivers:
+    hostprofiler:
+        symbol_uploader:
+            enabled: false
+service:
+    extensions:
+        - custom
+        - other
+    pipelines:
+        metrics:
+            processors: []
+        profiles:
+            exporters:
+                - otlphttp
+            processors:
+                - batch
+                - resourcedetection/default
+                - resource/dd-profiler-internal-metadata
+            receivers:
+                - hostprofiler

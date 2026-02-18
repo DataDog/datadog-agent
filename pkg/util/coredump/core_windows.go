@@ -6,7 +6,7 @@
 package coredump
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
@@ -14,7 +14,7 @@ import (
 // Setup enables core dumps and sets the core dump size limit based on configuration
 func Setup(cfg model.Reader) error {
 	if cfg.GetBool("go_core_dump") {
-		return fmt.Errorf("Not supported on Windows")
+		return errors.New("Not supported on Windows")
 	}
 	return nil
 }

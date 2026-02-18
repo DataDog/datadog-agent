@@ -11,6 +11,7 @@ package windowscertificate
 import (
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -174,7 +175,7 @@ func (w *WinCertChk) Configure(senderManager sender.SenderManager, integrationCo
 				log.Errorf("configuration error: %s (%v)", err, err.Value())
 			}
 		}
-		return fmt.Errorf("configuration validation failed")
+		return errors.New("configuration validation failed")
 	}
 
 	config := Config{
@@ -254,7 +255,7 @@ func (w *WinCertChk) Run() error {
 				servicecheck.ServiceCheckCritical,
 				"",
 				tags,
-				fmt.Sprintf("Certificate has expired. Certificate expiration date is %s", expirationDate))
+				"Certificate has expired. Certificate expiration date is "+expirationDate)
 		} else if daysRemaining < float64(w.config.DaysCritical) {
 			sender.ServiceCheck("windows_certificate.cert_expiration",
 				servicecheck.ServiceCheckCritical,
@@ -282,10 +283,10 @@ func (w *WinCertChk) Run() error {
 			if cert.TrustStatusError != 0 {
 				log.Debugf("Certificate %s has trust status error: %d", cert.Certificate.Subject.String(), cert.TrustStatusError)
 				trustStatusErrors := getCertChainTrustStatusErrors(cert.TrustStatusError)
-				message := fmt.Sprintf("Certificate Validation failed. The certificates in the certificate chain have the following errors: %s", strings.Join(trustStatusErrors, ", "))
+				message := "Certificate Validation failed. The certificates in the certificate chain have the following errors: " + strings.Join(trustStatusErrors, ", ")
 				if cert.ChainPolicyError != 0 {
 					chainPolicyError := getCertChainPolicyErrors(cert.ChainPolicyError)
-					message = fmt.Sprintf("%s, %s", message, chainPolicyError)
+					message = message + ", " + chainPolicyError
 				}
 				sender.ServiceCheck("windows_certificate.cert_chain_validation",
 					servicecheck.ServiceCheckCritical,
@@ -334,7 +335,7 @@ func (w *WinCertChk) Run() error {
 				servicecheck.ServiceCheckCritical,
 				"",
 				crlTags,
-				fmt.Sprintf("CRL has expired. CRL expiration date is %s", crlExpirationDate))
+				"CRL has expired. CRL expiration date is "+crlExpirationDate)
 		} else if crlDaysRemaining < float64(w.config.CrlDaysWarning) {
 			sender.ServiceCheck("windows_certificate.crl_expiration",
 				servicecheck.ServiceCheckWarning,

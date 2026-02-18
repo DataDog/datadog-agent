@@ -11,6 +11,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -20,6 +21,10 @@ import (
 
 #include "datadog_agent_rtloader.h"
 #include "rtloader_mem.h"
+
+static inline void* call_malloc(size_t sz) {
+    return _malloc(sz);
+}
 */
 import "C"
 
@@ -27,7 +32,7 @@ import "C"
 //
 //export Tags
 func Tags(id *C.char, cardinality C.int) **C.char {
-	checkContext, err := getCheckContext()
+	checkContext, err := collectoraggregator.GetCheckContext()
 	if err != nil {
 		log.Errorf("Python check context: %v", err)
 		return nil
@@ -45,14 +50,14 @@ func Tags(id *C.char, cardinality C.int) **C.char {
 	}
 	entityID := types.NewEntityID(prefix, eid)
 
-	tags, _ = checkContext.tagger.Tag(entityID, types.TagCardinality(cardinality))
+	tags, _ = checkContext.Tag(entityID, types.TagCardinality(cardinality))
 
 	length := len(tags)
 	if length == 0 {
 		return nil
 	}
 
-	cTags := C._malloc(C.size_t(length+1) * C.size_t(unsafe.Sizeof(uintptr(0))))
+	cTags := C.call_malloc(C.size_t(uintptr(length+1) * unsafe.Sizeof(uintptr(0))))
 	if cTags == nil {
 		log.Errorf("could not allocate memory for tags")
 		return nil

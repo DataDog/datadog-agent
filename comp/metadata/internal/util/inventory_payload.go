@@ -54,7 +54,7 @@ package util
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"path/filepath"
 	"sync"
 	"time"
@@ -227,7 +227,7 @@ func (i *InventoryPayload) RefreshTriggered() bool {
 // GetAsJSON returns the payload as a JSON string. Useful to be displayed in the CLI or added to a flare.
 func (i *InventoryPayload) GetAsJSON() ([]byte, error) {
 	if !i.Enabled {
-		return nil, fmt.Errorf("inventory metadata is disabled")
+		return nil, errors.New("inventory metadata is disabled")
 	}
 
 	i.m.Lock()

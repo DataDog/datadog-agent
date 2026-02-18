@@ -7,7 +7,7 @@
 package command
 
 import (
-	"fmt"
+	"errors"
 	"path"
 
 	"github.com/fatih/color"
@@ -31,6 +31,13 @@ type GlobalParams struct {
 
 // SubcommandFactory returns a sub-command factory
 type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
+
+// SubcommandFactoryFromOne converts a single-command factory into a multi-command factory
+func SubcommandFactoryFromOne(f func(globalParams *GlobalParams) *cobra.Command) SubcommandFactory {
+	return func(globalParams *GlobalParams) []*cobra.Command {
+		return []*cobra.Command{f(globalParams)}
+	}
+}
 
 // LoggerName defines the logger name
 const LoggerName = "SECURITY"
@@ -60,7 +67,7 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 			}
 
 			if len(globalParams.ConfigFilePaths) == 1 && globalParams.ConfigFilePaths[0] == "" {
-				return fmt.Errorf("no Security Agent config files to load, exiting")
+				return errors.New("no Security Agent config files to load, exiting")
 			}
 			return nil
 		},

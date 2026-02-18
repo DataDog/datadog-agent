@@ -11,13 +11,18 @@ import (
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dockeragentparams"
 )
 
 // systemProbeConfigNPM define the embedded minimal configuration for NPM
 //
 //go:embed config/npm.yaml
 var systemProbeConfigNPM string
+
+// systemProbeConfigNPM define the embedded minimal configuration for NPM in direct send mode
+//
+//go:embed config/npm-direct.yaml
+var systemProbeConfigNPMDirect string
 
 // systemProbeConfigNPMHelmValues define the embedded minimal configuration for NPM
 //

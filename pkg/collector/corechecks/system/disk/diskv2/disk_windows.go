@@ -8,15 +8,16 @@
 package diskv2
 
 import (
+	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	win "golang.org/x/sys/windows"
 	"slices"
 	"strings"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
+	win "golang.org/x/sys/windows"
 )
 
 var defaultStatFn statFunc = func(_ string) (StatT, error) { return StatT{}, nil }
@@ -27,6 +28,12 @@ func defaultIgnoreCase() bool {
 
 func baseDeviceName(device string) string {
 	return strings.ToLower(strings.Trim(device, "\\"))
+}
+
+// normalizeDeviceTag returns the device name for use in the device: tag.
+// On Windows, strips backslashes and lowercases (legacy behavior for C:\\ -> c:).
+func normalizeDeviceTag(deviceName string) string {
+	return strings.ToLower(strings.Trim(deviceName, "\\"))
 }
 
 func (c *Check) fetchAllDeviceLabelsFromLsblk() error {
@@ -147,6 +154,13 @@ func wNetAddConnection2(localName, remoteName, password, username string) error 
 		return err
 	}
 	return nil
+}
+
+// isExpectedIOCounterError returns true for Windows errors that indicate the
+// system does not support IOCTL_DISK_PERFORMANCE (e.g. disk performance
+// counters disabled on Windows Server 2016, or virtual drives like Google Drive).
+func isExpectedIOCounterError(err error) bool {
+	return errors.Is(err, win.ERROR_INVALID_FUNCTION) || errors.Is(err, win.ERROR_NOT_SUPPORTED)
 }
 
 func (c *Check) sendInodesMetrics(_ sender.Sender, _ *gopsutil_disk.UsageStat, _ []string) {

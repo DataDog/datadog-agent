@@ -6,6 +6,7 @@
 package corechecks
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -43,13 +44,13 @@ func NewLongRunningCheckWrapper(check LongRunningCheck) *LongRunningCheckWrapper
 // If the check is already running, it will commit the sender.
 func (cw *LongRunningCheckWrapper) Run() error {
 	if cw.LongRunningCheck == nil {
-		return fmt.Errorf("no check defined")
+		return errors.New("no check defined")
 	}
 	cw.mutex.Lock()
 	defer cw.mutex.Unlock()
 
 	if cw.stopped {
-		return fmt.Errorf("check already stopped")
+		return errors.New("check already stopped")
 	}
 
 	if cw.running {
@@ -83,7 +84,7 @@ func (cw *LongRunningCheckWrapper) Interval() time.Duration {
 // LongRunningCheck to true. It is necessary for formatting the stats in the status page.
 func (cw *LongRunningCheckWrapper) GetSenderStats() (stats.SenderStats, error) {
 	if cw.LongRunningCheck == nil {
-		return stats.SenderStats{}, fmt.Errorf("no check defined")
+		return stats.SenderStats{}, errors.New("no check defined")
 	}
 	s, err := cw.LongRunningCheck.GetSenderStats()
 	if err != nil {

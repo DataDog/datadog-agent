@@ -87,7 +87,7 @@ func TestDumpEmptyMap(t *testing.T) {
 
 	// Dump empty map
 	var buf bytes.Buffer
-	err = dumpMapJSON(m, info, &buf)
+	err = dumpMapJSON(m, info, &buf, false)
 	require.NoError(t, err)
 
 	// Should output empty JSON array
@@ -120,7 +120,7 @@ func TestDumpSingleEntry(t *testing.T) {
 	require.NoError(t, err)
 
 	var buf bytes.Buffer
-	err = dumpMapJSON(m, info, &buf)
+	err = dumpMapJSON(m, info, &buf, false)
 	require.NoError(t, err)
 
 	var entries []mapEntry
@@ -129,8 +129,15 @@ func TestDumpSingleEntry(t *testing.T) {
 
 	// Verify exactly one entry
 	require.Len(t, entries, 1)
-	require.Equal(t, []string{"0x01", "0x02", "0x03", "0x04"}, entries[0].Key)
-	require.Equal(t, []string{"0xaa", "0xbb", "0xcc", "0xdd"}, entries[0].Value)
+
+	// Type assert to handle JSON unmarshaling into interface{}
+	keyArray, ok := entries[0].Key.([]interface{})
+	require.True(t, ok)
+	require.Equal(t, []interface{}{"0x01", "0x02", "0x03", "0x04"}, keyArray)
+
+	valueArray, ok := entries[0].Value.([]interface{})
+	require.True(t, ok)
+	require.Equal(t, []interface{}{"0xaa", "0xbb", "0xcc", "0xdd"}, valueArray)
 }
 
 func TestDumpArrayMap(t *testing.T) {
@@ -161,7 +168,7 @@ func TestDumpArrayMap(t *testing.T) {
 	require.NoError(t, err)
 
 	var buf bytes.Buffer
-	err = dumpMapJSON(m, info, &buf)
+	err = dumpMapJSON(m, info, &buf, false)
 	require.NoError(t, err)
 
 	var entries []mapEntry
@@ -203,7 +210,7 @@ func TestDumpLargeKeyValue(t *testing.T) {
 	require.NoError(t, err)
 
 	var buf bytes.Buffer
-	err = dumpMapJSON(m, info, &buf)
+	err = dumpMapJSON(m, info, &buf, false)
 	require.NoError(t, err)
 
 	var entries []mapEntry
@@ -265,7 +272,7 @@ func TestRunMapDumpByID(t *testing.T) {
 
 	// Dump by ID
 	var buf bytes.Buffer
-	err = runMapDumpByID(mapID, &buf)
+	err = runMapDumpByID(mapID, &buf, false)
 	require.NoError(t, err)
 
 	// Verify output
@@ -273,7 +280,11 @@ func TestRunMapDumpByID(t *testing.T) {
 	err = json.Unmarshal(buf.Bytes(), &entries)
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
-	require.Equal(t, []string{"0x01", "0x02", "0x03", "0x04"}, entries[0].Key)
+
+	// Type assert to handle JSON unmarshaling into interface{}
+	keyArray, ok := entries[0].Key.([]interface{})
+	require.True(t, ok)
+	require.Equal(t, []interface{}{"0x01", "0x02", "0x03", "0x04"}, keyArray)
 }
 
 func TestRunMapDumpByIDNotFound(t *testing.T) {
@@ -281,7 +292,7 @@ func TestRunMapDumpByIDNotFound(t *testing.T) {
 
 	// Try to dump a map with an invalid ID
 	var buf bytes.Buffer
-	err := runMapDumpByID(ebpf.MapID(999999999), &buf)
+	err := runMapDumpByID(ebpf.MapID(999999999), &buf, false)
 	require.Error(t, err)
 }
 
@@ -308,7 +319,7 @@ func TestRunMapDumpByName(t *testing.T) {
 
 	// Dump by name
 	var buf bytes.Buffer
-	err = runMapDumpByName("test_dump_by_name", &buf)
+	err = runMapDumpByName("test_dump_by_name", &buf, false)
 	if err != nil {
 		// Skip if kernel doesn't support map names
 		t.Skipf("Could not dump by name (this is OK on some kernels): %v", err)
@@ -319,7 +330,11 @@ func TestRunMapDumpByName(t *testing.T) {
 	err = json.Unmarshal(buf.Bytes(), &entries)
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
-	require.Equal(t, []string{"0x0a", "0x0b", "0x0c", "0x0d"}, entries[0].Key)
+
+	// Type assert to handle JSON unmarshaling into interface{}
+	keyArray, ok := entries[0].Key.([]interface{})
+	require.True(t, ok)
+	require.Equal(t, []interface{}{"0x0a", "0x0b", "0x0c", "0x0d"}, keyArray)
 }
 
 func TestJSONCompactArrayFormat(t *testing.T) {
@@ -344,7 +359,7 @@ func TestJSONCompactArrayFormat(t *testing.T) {
 	require.NoError(t, err)
 
 	var buf bytes.Buffer
-	err = dumpMapJSON(m, info, &buf)
+	err = dumpMapJSON(m, info, &buf, false)
 	require.NoError(t, err)
 
 	output := buf.String()
@@ -392,7 +407,7 @@ func TestDumpPerCPUArrayMap(t *testing.T) {
 
 	// This should work without errors
 	var buf bytes.Buffer
-	err = dumpMapJSON(m, info, &buf)
+	err = dumpMapJSON(m, info, &buf, false)
 	require.NoError(t, err, "PerCPU map dump should not fail")
 
 	// The output should be valid JSON
@@ -436,7 +451,7 @@ func TestDumpPerCPUHashMap(t *testing.T) {
 
 	// This should work without errors
 	var buf bytes.Buffer
-	err = dumpMapJSON(m, info, &buf)
+	err = dumpMapJSON(m, info, &buf, false)
 	require.NoError(t, err, "PerCPU hash map dump should not fail")
 
 	// The output should be valid JSON
@@ -472,7 +487,7 @@ func TestDumpLRUHash(t *testing.T) {
 
 	// This should work without errors
 	var buf bytes.Buffer
-	err = dumpMapJSON(m, info, &buf)
+	err = dumpMapJSON(m, info, &buf, false)
 	require.NoError(t, err, "LRU hash map dump should not fail")
 
 	// Verify output structure (should be regular map format, not PerCPU)
@@ -480,8 +495,15 @@ func TestDumpLRUHash(t *testing.T) {
 	err = json.Unmarshal(buf.Bytes(), &entries)
 	require.NoError(t, err, "Output should be valid JSON")
 	require.Len(t, entries, 1)
-	require.Equal(t, []string{"0xaa", "0xbb", "0xcc", "0xdd"}, entries[0].Key)
-	require.Equal(t, []string{"0x01", "0x02", "0x03", "0x04", "0x05", "0x06", "0x07", "0x08"}, entries[0].Value)
+
+	// Type assert to handle JSON unmarshaling into interface{}
+	keyArray, ok := entries[0].Key.([]interface{})
+	require.True(t, ok)
+	require.Equal(t, []interface{}{"0xaa", "0xbb", "0xcc", "0xdd"}, keyArray)
+
+	valueArray, ok := entries[0].Value.([]interface{})
+	require.True(t, ok)
+	require.Equal(t, []interface{}{"0x01", "0x02", "0x03", "0x04", "0x05", "0x06", "0x07", "0x08"}, valueArray)
 }
 
 func TestDumpLRUCPUHash(t *testing.T) {
@@ -514,7 +536,7 @@ func TestDumpLRUCPUHash(t *testing.T) {
 
 	// This should work without errors
 	var buf bytes.Buffer
-	err = dumpMapJSON(m, info, &buf)
+	err = dumpMapJSON(m, info, &buf, false)
 	require.NoError(t, err, "LRU per-CPU hash map dump should not fail")
 
 	// The output should be valid JSON
@@ -523,6 +545,173 @@ func TestDumpLRUCPUHash(t *testing.T) {
 	var result interface{}
 	err = json.Unmarshal(buf.Bytes(), &result)
 	require.NoError(t, err, "Output should be valid JSON")
+}
+
+func TestDumpMapPrettyPrint(t *testing.T) {
+	require.NoError(t, rlimit.RemoveMemlock())
+
+	spec := &ebpf.MapSpec{
+		Type:       ebpf.Hash,
+		KeySize:    4,
+		ValueSize:  4,
+		MaxEntries: 10,
+	}
+
+	m, err := ebpf.NewMapWithOptions(spec, ebpf.MapOptions{})
+	require.NoError(t, err)
+	defer m.Close()
+
+	// Add a couple of entries
+	key1 := []byte{0x01, 0x02, 0x03, 0x04}
+	value1 := []byte{0xaa, 0xbb, 0xcc, 0xdd}
+	require.NoError(t, m.Put(key1, value1))
+
+	key2 := []byte{0x05, 0x06, 0x07, 0x08}
+	value2 := []byte{0xee, 0xff, 0x00, 0x11}
+	require.NoError(t, m.Put(key2, value2))
+
+	info, err := m.Info()
+	require.NoError(t, err)
+
+	// Test with pretty=true
+	var bufPretty bytes.Buffer
+	err = dumpMapJSON(m, info, &bufPretty, true)
+	require.NoError(t, err)
+
+	prettyOutput := bufPretty.String()
+
+	// Verify it's valid JSON
+	var entries []mapEntry
+	err = json.Unmarshal(bufPretty.Bytes(), &entries)
+	require.NoError(t, err)
+	require.Len(t, entries, 2)
+
+	// Verify pretty formatting with proper indentation
+	require.Contains(t, prettyOutput, "[\n  {")
+	require.Contains(t, prettyOutput, "    \"key\":")
+	require.Contains(t, prettyOutput, "    \"value\":")
+	require.Contains(t, prettyOutput, "  }")
+
+	// Test with pretty=false for comparison
+	var bufCompact bytes.Buffer
+	err = dumpMapJSON(m, info, &bufCompact, false)
+	require.NoError(t, err)
+
+	compactOutput := bufCompact.String()
+
+	// Verify compact format uses tabs and different structure
+	require.Contains(t, compactOutput, "[{")
+	require.Contains(t, compactOutput, "\t\"key\":")
+	require.Contains(t, compactOutput, "\t\"value\":")
+
+	// Pretty output should be longer due to additional whitespace
+	require.Greater(t, len(prettyOutput), len(compactOutput), "Pretty output should be longer")
+}
+
+func TestDumpPerCPUMapPrettyPrint(t *testing.T) {
+	require.NoError(t, rlimit.RemoveMemlock())
+
+	// Create a PerCPU hash map
+	spec := &ebpf.MapSpec{
+		Type:       ebpf.PerCPUHash,
+		KeySize:    4,
+		ValueSize:  8,
+		MaxEntries: 10,
+	}
+
+	m, err := ebpf.NewMapWithOptions(spec, ebpf.MapOptions{})
+	require.NoError(t, err)
+	defer m.Close()
+
+	// Put values with a specific key
+	key := []byte{0xaa, 0xbb, 0xcc, 0xdd}
+	values := [][]byte{
+		{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08},
+		{0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18},
+	}
+	require.NoError(t, m.Put(key, values))
+
+	info, err := m.Info()
+	require.NoError(t, err)
+
+	// Test with pretty=true
+	var bufPretty bytes.Buffer
+	err = dumpMapJSON(m, info, &bufPretty, true)
+	require.NoError(t, err)
+
+	prettyOutput := bufPretty.String()
+
+	// Verify it's valid JSON
+	var entries []perCPUMapEntry
+	err = json.Unmarshal(bufPretty.Bytes(), &entries)
+	require.NoError(t, err)
+	require.Greater(t, len(entries), 0)
+
+	// Verify pretty formatting with proper indentation
+	require.Contains(t, prettyOutput, "[\n  {")
+	require.Contains(t, prettyOutput, "    \"key\":")
+	require.Contains(t, prettyOutput, "    \"values\":")
+	require.Contains(t, prettyOutput, "      \"cpu\":")
+	require.Contains(t, prettyOutput, "      \"value\":")
+
+	// Test with pretty=false for comparison
+	var bufCompact bytes.Buffer
+	err = dumpMapJSON(m, info, &bufCompact, false)
+	require.NoError(t, err)
+
+	compactOutput := bufCompact.String()
+
+	// Verify compact format
+	require.Contains(t, compactOutput, "[{")
+	require.Contains(t, compactOutput, "\t\"key\":")
+
+	// Pretty output should be longer
+	require.Greater(t, len(prettyOutput), len(compactOutput), "Pretty output should be longer")
+}
+
+func TestRunMapDumpByIDWithPrettyFlag(t *testing.T) {
+	require.NoError(t, rlimit.RemoveMemlock())
+
+	// Create a test map
+	spec := &ebpf.MapSpec{
+		Type:       ebpf.Hash,
+		KeySize:    4,
+		ValueSize:  4,
+		MaxEntries: 10,
+	}
+
+	m, err := ebpf.NewMapWithOptions(spec, ebpf.MapOptions{})
+	require.NoError(t, err)
+	defer m.Close()
+
+	// Add entry
+	key := []byte{0x01, 0x02, 0x03, 0x04}
+	value := []byte{0xaa, 0xbb, 0xcc, 0xdd}
+	require.NoError(t, m.Put(key, value))
+
+	// Get the map ID
+	info, err := m.Info()
+	require.NoError(t, err)
+	mapID, ok := info.ID()
+	require.True(t, ok)
+
+	// Dump by ID with pretty=true
+	var buf bytes.Buffer
+	err = runMapDumpByID(mapID, &buf, true)
+	require.NoError(t, err)
+
+	output := buf.String()
+
+	// Verify output is pretty-formatted
+	require.Contains(t, output, "[\n  {")
+	require.Contains(t, output, "    \"key\":")
+	require.Contains(t, output, "    \"value\":")
+
+	// Verify JSON is valid
+	var entries []mapEntry
+	err = json.Unmarshal(buf.Bytes(), &entries)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
 }
 
 func findSubcommand(parent *cobra.Command, name string) *cobra.Command {

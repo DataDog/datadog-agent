@@ -863,3 +863,44 @@ func compareResults(a, b interface{}) string {
 		}),
 	)
 }
+
+func TestConvertContainerRuntime(t *testing.T) {
+	tests := []struct {
+		name     string
+		runtime  workloadmeta.ContainerRuntime
+		expected string
+	}{
+		{
+			name:     "ECSFargate should be converted to ECS",
+			runtime:  workloadmeta.ContainerRuntimeECSFargate,
+			expected: "ECS",
+		},
+		{
+			name:     "ECSManagedInstances should not be overridden (when in sidecar)",
+			runtime:  workloadmeta.ContainerRuntimeECSManagedInstances,
+			expected: "ecsmanagedinstances",
+		},
+		{
+			name:     "containerd should not be overridden",
+			runtime:  workloadmeta.ContainerRuntimeContainerd,
+			expected: "containerd",
+		},
+		{
+			name:     "docker should not be overridden",
+			runtime:  workloadmeta.ContainerRuntimeDocker,
+			expected: "docker",
+		},
+		{
+			name:     "garden should not be overridden",
+			runtime:  workloadmeta.ContainerRuntimeGarden,
+			expected: "garden",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := convertContainerRuntime(tt.runtime)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}

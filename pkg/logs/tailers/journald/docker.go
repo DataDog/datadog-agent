@@ -9,7 +9,7 @@
 package journald
 
 import (
-	"github.com/coreos/go-systemd/sdjournal"
+	"github.com/coreos/go-systemd/v22/sdjournal"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -26,8 +26,7 @@ func (t *Tailer) isContainerEntry(entry *sdjournal.JournalEntry) bool {
 
 // getContainerID returns the container identifier of the journal entry.
 func (t *Tailer) getContainerID(entry *sdjournal.JournalEntry) string {
-	//nolint:gosimple // TODO(AML) Fix gosimple linter
-	containerID, _ := entry.Fields[containerIDKey]
+	containerID := entry.Fields[containerIDKey]
 	return containerID
 }
 

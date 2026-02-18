@@ -213,7 +213,25 @@ func (c *NTPCheck) Run() error {
 	serviceCheckMessage := ""
 	offsetThreshold := c.cfg.instance.OffsetThreshold
 
-	clockOffset, err := c.queryOffset()
+	// Submit intake offset first (captured from forwarder responses)
+	// This is independent of NTP check success
+	if intakeOffsetVar := expvar.Get("corechecks_net_ntp_intake_time_offset"); intakeOffsetVar != nil {
+		if floatVar, ok := intakeOffsetVar.(*expvar.Float); ok {
+			intakeOffset := floatVar.Value()
+			if !math.IsNaN(intakeOffset) {
+				// Calculate what the intake server's time would be by applying the offset to current time
+				// Using intake server's time as the metric timestamp ensures it appears correctly
+				// in Datadog even when the agent's clock is drifted
+				// (positive offset = agent behind, negative = agent ahead)
+				currentTime := time.Now()
+				intakeServerTime := currentTime.Add(time.Duration(intakeOffset * float64(time.Second)))
+				intakeTS := float64(intakeServerTime.UnixNano()) / 1e9
+				_ = sender.GaugeWithTimestamp("ntp.offset", intakeOffset, "", []string{"source:intake"}, intakeTS)
+			}
+		}
+	}
+
+	clockOffset, ts, err := c.queryOffset()
 	if err != nil {
 		log.Error(err)
 
@@ -230,9 +248,10 @@ func (c *NTPCheck) Run() error {
 		serviceCheckStatus = servicecheck.ServiceCheckOK
 	}
 
-	sender.Gauge("ntp.offset", clockOffset, "", nil)
+	_ = sender.GaugeWithTimestamp("ntp.offset", clockOffset, "", []string{"source:ntp"}, ts)
 	ntpExpVar.Set(clockOffset)
 	tlmNtpOffset.Set(clockOffset)
+
 	sender.ServiceCheck("ntp.in_sync", serviceCheckStatus, "", nil, serviceCheckMessage)
 
 	c.lastCollection = time.Now()
@@ -242,38 +261,71 @@ func (c *NTPCheck) Run() error {
 	return nil
 }
 
-func (c *NTPCheck) queryOffset() (float64, error) {
-	offsets := []float64{}
+func (c *NTPCheck) queryOffset() (float64, float64, error) {
+	type sample struct {
+		offset    float64
+		timestamp float64
+	}
+
+	samples := []sample{}
 
 	for _, host := range c.cfg.instance.Hosts {
-		response, err := ntpQuery(host, ntp.QueryOptions{Version: c.cfg.instance.Version, Port: c.cfg.instance.Port, Timeout: time.Duration(c.cfg.instance.Timeout) * time.Second})
+		response, err := ntpQuery(host, ntp.QueryOptions{
+			Version: c.cfg.instance.Version,
+			Port:    c.cfg.instance.Port,
+			Timeout: time.Duration(c.cfg.instance.Timeout) * time.Second,
+		})
 		if err != nil {
-			log.Debugf("There was an error querying the ntp host %s: %s", host, err)
+			log.Debugf("Error querying ntp host %s: %s", host, err)
 			continue
 		}
-		err = response.Validate()
-		if err != nil {
-			log.Infof("The ntp response is not valid for host %s: %s", host, err)
+
+		if err := response.Validate(); err != nil {
+			log.Infof("Invalid ntp response for host %s: %s", host, err)
 			continue
 		}
-		offsets = append(offsets, response.ClockOffset.Seconds())
+
+		samples = append(samples, sample{
+			offset:    response.ClockOffset.Seconds(),
+			timestamp: float64(response.Time.UnixNano()) / 1e9, // fractional seconds since epoch
+		})
 	}
 
-	if len(offsets) == 0 {
-		return .0, fmt.Errorf("failed to get clock offset from any ntp host: [ %s ]. See https://docs.datadoghq.com/agent/troubleshooting/ntp/ for more details on how to debug this issue", strings.Join(c.cfg.instance.Hosts, ", "))
+	if len(samples) == 0 {
+		return 0, 0, fmt.Errorf(
+			"failed to get clock offset from any ntp host: [ %s ]. See https://docs.datadoghq.com/agent/troubleshooting/ntp/ for more details on how to debug this issue",
+			strings.Join(c.cfg.instance.Hosts, ", "),
+		)
 	}
 
-	var median float64
+	// ---- choose timestamp from sample with absolute offset closest to zero ----
+	bestTS := samples[0].timestamp
+	bestAbs := math.Abs(samples[0].offset)
+
+	for _, s := range samples[1:] {
+		if abs := math.Abs(s.offset); abs < bestAbs {
+			bestAbs = abs
+			bestTS = s.timestamp
+		}
+	}
+
+	// ---- compute median offset (existing behavior) ----
+	offsets := make([]float64, len(samples))
+	for i, s := range samples {
+		offsets[i] = s.offset
+	}
 
 	sort.Float64s(offsets)
-	length := len(offsets)
-	if length%2 == 0 {
-		median = (offsets[length/2-1] + offsets[length/2]) / 2.0
+	mid := len(offsets) / 2
+
+	var median float64
+	if len(offsets)%2 == 1 {
+		median = offsets[mid]
 	} else {
-		median = offsets[length/2]
+		median = (offsets[mid-1] + offsets[mid]) / 2
 	}
 
-	return median, nil
+	return median, bestTS, nil
 }
 
 // Factory creates a new check factory

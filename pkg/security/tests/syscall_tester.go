@@ -21,7 +21,7 @@ import (
 var syscallTesterFS embed.FS
 
 func loadSyscallTester(t *testing.T, test *testModule, binary string) (string, error) {
-	testerBin, err := syscallTesterFS.ReadFile(fmt.Sprintf("syscall_tester/bin/%s", binary))
+	testerBin, err := syscallTesterFS.ReadFile("syscall_tester/bin/" + binary)
 	if err != nil {
 		return "", err
 	}

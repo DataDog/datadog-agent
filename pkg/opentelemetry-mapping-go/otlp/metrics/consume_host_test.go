@@ -61,7 +61,7 @@ func TestHostsConsumed(t *testing.T) {
 			set := componenttest.NewNopTelemetrySettings()
 			attributesTranslator, err := attributes.NewTranslator(set)
 			require.NoError(t, err)
-			translator, err := NewTranslator(set, attributesTranslator,
+			translator, err := NewDefaultTranslator(set, attributesTranslator,
 				WithOriginProduct(OriginProductDatadogAgent),
 			)
 			require.NoError(t, err)

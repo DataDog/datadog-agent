@@ -81,12 +81,12 @@ func NewBatchConsumer[V any](proto string, ebpf *manager.Manager, callback func(
 
 	handler := getHandler(proto)
 	if handler == nil {
-		return nil, fmt.Errorf("unable to detect perf handler. perhaps you forgot to call events.Configure()?")
+		return nil, errors.New("unable to detect perf handler. perhaps you forgot to call events.Configure()?")
 	}
 
 	// setup telemetry
 	metricGroup := telemetry.NewMetricGroup(
-		fmt.Sprintf("usm.%s", proto),
+		"usm."+proto,
 		telemetry.OptStatsd,
 	)
 

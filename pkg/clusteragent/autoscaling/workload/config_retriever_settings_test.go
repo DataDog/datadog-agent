@@ -532,6 +532,8 @@ func TestConfigRetriverAutoscalingSettingsReconcile(t *testing.T) {
 	// Become leader, should reconcile. Unfortunately, as it's another goroutine running the reconcile,
 	// we need to wait for the reconcile to happen.
 	isLeader = true
+	// Wait for the ticker to be registered before stepping the clock to avoid race conditions
+	require.Eventually(t, testClock.HasWaiters, 5*time.Second, 10*time.Millisecond, "ticker should be registered")
 	testClock.Step(settingsReconcileInterval)
 	require.Eventually(t, func() bool {
 		return store.Count() == 1

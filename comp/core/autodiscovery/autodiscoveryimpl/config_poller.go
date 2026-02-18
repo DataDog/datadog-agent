@@ -49,7 +49,7 @@ func newConfigPoller(provider types.ConfigProvider, canPoll bool, interval time.
 
 // stop stops the provider descriptor if it's polling
 func (cp *configPoller) stop() {
-	if !cp.canPoll || cp.isRunning {
+	if !cp.canPoll || !cp.isRunning {
 		return
 	}
 	cp.stopChan <- struct{}{}
@@ -85,7 +85,7 @@ func (cp *configPoller) stream(ch chan struct{}, provider types.StreamingConfigP
 	var ranOnce bool
 	ctx, cancel := context.WithCancel(context.Background())
 	changesCh := provider.Stream(ctx)
-	healthHandle := health.RegisterLiveness(fmt.Sprintf("ad-config-provider-%s", cp.provider.String()))
+	healthHandle := health.RegisterLiveness("ad-config-provider-" + cp.provider.String())
 
 	cp.isRunning = true
 
@@ -128,7 +128,7 @@ func (cp *configPoller) stream(ch chan struct{}, provider types.StreamingConfigP
 func (cp *configPoller) poll(provider types.CollectingConfigProvider, ac *AutoConfig) {
 	ctx, cancel := context.WithCancel(context.Background())
 	ticker := time.NewTicker(cp.pollInterval)
-	healthHandle := health.RegisterLiveness(fmt.Sprintf("ad-config-provider-%s", cp.provider.String()))
+	healthHandle := health.RegisterLiveness("ad-config-provider-" + cp.provider.String())
 
 	cp.isRunning = true
 

@@ -9,7 +9,16 @@ package actuator
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 )
+
+// LoadOptions carries optional parameters for Runtime.Load.
+type LoadOptions struct {
+	// AdditionalTypes is a sorted, deduplicated list of Go type names
+	// discovered at runtime (e.g. from interface decoding) that should be
+	// included in the IR program's type registry.
+	AdditionalTypes []string
+}
 
 // Runtime abstracts the creation, attachment, and cleanup of a program.
 type Runtime interface {
@@ -18,7 +27,7 @@ type Runtime interface {
 	// If loading fails, the process will enter a failed state until new
 	// probes are added for it or the process is removed.
 	Load(
-		ir.ProgramID, Executable, ProcessID, []ir.ProbeDefinition,
+		ir.ProgramID, Executable, ProcessID, []ir.ProbeDefinition, LoadOptions,
 	) (LoadedProgram, error)
 }
 
@@ -26,6 +35,10 @@ type Runtime interface {
 type LoadedProgram interface {
 	// Attach attaches the program to a process.
 	Attach(ProcessID, Executable) (AttachedProgram, error)
+
+	// RuntimeStats returns the per-core runtime stats of the program.
+	RuntimeStats() []loader.RuntimeStats
+
 	// Close closes the loaded program. It will only be called after any
 	// Attach() call have returned and any AttachedProgram.Detach() call have
 	// returned.
@@ -35,5 +48,5 @@ type LoadedProgram interface {
 // AttachedProgram represents a program attached to a process.
 type AttachedProgram interface {
 	// Detach detaches the program from the process.
-	Detach() error
+	Detach(reason error) error
 }

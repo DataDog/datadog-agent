@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -48,7 +48,7 @@ func (c *collector) parseV2TaskWithLaunchType(task *v2.Task) []workloadmeta.Coll
 	seen[entityID] = struct{}{}
 
 	taskContainers, containerEvents := c.parseV2TaskContainers(task, seen)
-	taskRegion, taskAccountID := util.ParseRegionAndAWSAccountID(task.TaskARN)
+	taskRegion, taskAccountID := ecs.ParseRegionAndAWSAccountID(task.TaskARN)
 	entity := &workloadmeta.ECSTask{
 		EntityID: entityID,
 		EntityMeta: workloadmeta.EntityMeta{

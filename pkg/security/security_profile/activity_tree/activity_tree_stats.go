@@ -83,20 +83,21 @@ func (stats *Stats) ApproximateSize() int64 {
 
 // SendStats sends metrics to Datadog
 func (stats *Stats) SendStats(client statsd.ClientInterface, treeType string) error {
-	treeTypeTag := fmt.Sprintf("tree_type:%s", treeType)
+	treeTypeTag := "tree_type:" + treeType
 
+	tags := []string{treeTypeTag, "", ""}
 	for evtType, count := range stats.counts {
-		evtTypeTag := fmt.Sprintf("event_type:%s", evtType)
+		evtTypeTag := "event_type:" + evtType.String()
 
-		tags := []string{evtTypeTag, treeTypeTag}
+		tags[1] = evtTypeTag
 		if value := count.processedCount.Swap(0); value > 0 {
-			if err := client.Count(metrics.MetricActivityDumpEventProcessed, int64(value), tags, 1.0); err != nil {
+			if err := client.Count(metrics.MetricActivityDumpEventProcessed, int64(value), tags[:1], 1.0); err != nil {
 				return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpEventProcessed, err)
 			}
 		}
 
 		for generationType, count := range count.addedCount {
-			tags := []string{evtTypeTag, generationType.Tag(), treeTypeTag}
+			tags[2] = generationType.Tag()
 			if value := count.Swap(0); value > 0 {
 				if err := client.Count(metrics.MetricActivityDumpEventAdded, int64(value), tags, 1.0); err != nil {
 					return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpEventAdded, err)
@@ -105,7 +106,7 @@ func (stats *Stats) SendStats(client statsd.ClientInterface, treeType string) er
 		}
 
 		for reason, count := range count.droppedCount {
-			tags := []string{evtTypeTag, fmt.Sprintf("reason:%s", reason), treeTypeTag}
+			tags[2] = reason.Tag()
 			if value := count.Swap(0); value > 0 {
 				if err := client.Count(metrics.MetricActivityDumpEventDropped, int64(value), tags, 1.0); err != nil {
 					return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpEventDropped, err)

@@ -1,4 +1,4 @@
 ad_identifiers:
-  - _kube_orchestrator
+  - _kubelet_config_orchestrator
 instances:
   - {}

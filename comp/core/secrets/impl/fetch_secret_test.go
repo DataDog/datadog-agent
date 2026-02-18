@@ -8,10 +8,10 @@ package secretsimpl
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -25,20 +25,16 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
 func build(t *testing.T, outTarget string) {
-	// Create a cache directory for the compiler
-	pwd, _ := os.Getwd()
-	cacheDir := filepath.Join(pwd, "cache")
-	os.Mkdir(cacheDir, 0755)
 	// -mod=vendor ensures the `go` command will not use the network to look
 	// for modules. See https://go.dev/ref/mod#build-commands
-	cmd := exec.Command("go", "build", "-v", "-mod=vendor", "-o", outTarget)
+	cmd := testutil.IsolatedGoBuildCmd(t.TempDir(), outTarget, "-v", "-mod=vendor")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	// Append to the command's env vars, which prevents them from affecting other tests
-	cmd.Env = append(cmd.Env, []string{"GOPROXY=off", "GOPRIVATE=*", fmt.Sprintf("GOCACHE=%s", cacheDir)}...)
 	err := cmd.Run()
 	if err != nil {
 		t.Fatalf("Could not compile secret backend binary: %s", err)
@@ -121,20 +117,9 @@ func getBackendCommandBinary(t *testing.T) (string, func()) {
 	// compile it
 	t.Logf("compiling secret backend binary '%s'", targetBin)
 	build(t, targetBin)
-	setCorrectRight(targetBin)
+	filesystem.SetCorrectRight(targetBin)
 
 	return targetBin, cleanup
-}
-
-// TestMain runs before other tests in this package. It hooks the getDDAgentUserSID
-// function to make it work for Windows tests
-func TestMain(m *testing.M) {
-	// Windows-only fix for running on CI. Instead of checking the registry for
-	// permissions (the agent wasn't installed, so that wouldn't work), use a stub
-	// function that gets permissions info directly from the current User
-	testCheckRightsStub()
-
-	os.Exit(m.Run())
 }
 
 func TestExecCommandError(t *testing.T) {
@@ -189,7 +174,7 @@ func TestExecCommandError(t *testing.T) {
 func TestFetchSecretExecError(t *testing.T) {
 	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
-	resolver.commandHookFunc = func(string) ([]byte, error) { return nil, fmt.Errorf("some error") }
+	resolver.commandHookFunc = func(string) ([]byte, error) { return nil, errors.New("some error") }
 	_, err := resolver.fetchSecret([]string{"handle1", "handle2"})
 	assert.NotNil(t, err)
 }
@@ -315,6 +300,20 @@ func TestFetchSecretPayloadIncludesBackendConfig(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, capturedPayload, `"type":"aws.secrets"`)
 	assert.Contains(t, capturedPayload, `"config":{"foo":"bar"}`)
+}
+
+func TestFetchSecretPayloadIncludesTimeout(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.backendTimeout = 60
+	var capturedPayload string
+	resolver.commandHookFunc = func(payload string) ([]byte, error) {
+		capturedPayload = payload
+		return []byte(`{"handle1":{"value":"test_value"}}`), nil
+	}
+	_, err := resolver.fetchSecret([]string{"handle1"})
+	require.NoError(t, err)
+	assert.Contains(t, capturedPayload, `"secret_backend_timeout":60`)
 }
 
 func TestFetchSecretBackendVersionSuccess(t *testing.T) {

@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 
 	//nolint:revive // TODO(PROC) Fix revive linter
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -47,24 +46,18 @@ type Submitter interface {
 
 var _ Submitter = &CheckSubmitter{}
 
+type submitFunc func(transaction.BytesPayloads, http.Header) (chan forwarder.Response, error)
+
 //nolint:revive // TODO(PROC) Fix revive linter
 type CheckSubmitter struct {
-	log log.Component
-	// Per-check Weighted Queues
-	processResults     *api.WeightedQueue
-	rtProcessResults   *api.WeightedQueue
-	eventResults       *api.WeightedQueue
-	connectionsResults *api.WeightedQueue
-
-	// Forwarders
-	processForwarder     defaultforwarder.Component
-	rtProcessForwarder   defaultforwarder.Component
-	connectionsForwarder defaultforwarder.Component
-	eventForwarder       defaultforwarder.Component
+	log            log.Component
+	queues         []*api.WeightedQueue
+	resultsQueue   map[string]*api.WeightedQueue
+	submitFuncs    map[string]submitFunc
+	realtimeUpdate map[string]bool
 
 	// Endpoints for logging purposes
-	processAPIEndpoints       []apicfg.Endpoint
-	processEventsAPIEndpoints []apicfg.Endpoint
+	processAPIEndpoints []apicfg.Endpoint
 
 	hostname string
 
@@ -122,9 +115,6 @@ func NewSubmitter(config config.Component, log log.Component, forwarders forward
 	connectionsResults := api.NewWeightedQueue(queueSize, int64(queueBytes))
 	log.Debugf("Creating connections queue with max_size=%d and max_weight=%d", connectionsResults.MaxSize(), connectionsResults.MaxWeight())
 
-	eventResults := api.NewWeightedQueue(queueSize, int64(queueBytes))
-	log.Debugf("Creating event check queue with max_size=%d and max_weight=%d", eventResults.MaxSize(), eventResults.MaxWeight())
-
 	dropCheckPayloads := config.GetStringSlice("process_config.drop_check_payloads")
 	if len(dropCheckPayloads) > 0 {
 		log.Debugf("Dropping payloads from checks: %v", dropCheckPayloads)
@@ -137,25 +127,40 @@ func NewSubmitter(config config.Component, log log.Component, forwarders forward
 		return nil, err
 	}
 
-	processEventsAPIEndpoints, err := endpoint.GetEventsAPIEndpoints(config)
-	if err != nil {
-		return nil, err
-	}
+	processFwd := forwarders.GetProcessForwarder()
+	rtProcessFwd := forwarders.GetRTProcessForwarder()
 
 	return &CheckSubmitter{
-		log:                log,
-		processResults:     processResults,
-		rtProcessResults:   rtProcessResults,
-		eventResults:       eventResults,
-		connectionsResults: connectionsResults,
+		log: log,
+		queues: []*api.WeightedQueue{
+			processResults,
+			rtProcessResults,
+			connectionsResults,
+		},
+		resultsQueue: map[string]*api.WeightedQueue{
+			checks.ProcessCheckName:     processResults,
+			checks.DiscoveryCheckName:   processResults,
+			checks.ContainerCheckName:   processResults,
+			checks.RTProcessCheckName:   rtProcessResults,
+			checks.RTContainerCheckName: rtProcessResults,
+			checks.ConnectionsCheckName: connectionsResults,
+		},
+		submitFuncs: map[string]submitFunc{
+			checks.ProcessCheckName:     processFwd.SubmitProcessChecks,
+			checks.DiscoveryCheckName:   processFwd.SubmitProcessDiscoveryChecks,
+			checks.ContainerCheckName:   processFwd.SubmitContainerChecks,
+			checks.RTProcessCheckName:   rtProcessFwd.SubmitRTProcessChecks,
+			checks.RTContainerCheckName: rtProcessFwd.SubmitRTContainerChecks,
+			checks.ConnectionsCheckName: forwarders.GetConnectionsForwarder().SubmitConnectionChecks,
+		},
+		realtimeUpdate: map[string]bool{
+			checks.ProcessCheckName:     true,
+			checks.RTProcessCheckName:   true,
+			checks.ContainerCheckName:   true,
+			checks.RTContainerCheckName: true,
+		},
 
-		processForwarder:     forwarders.GetProcessForwarder(),
-		rtProcessForwarder:   forwarders.GetRTProcessForwarder(),
-		connectionsForwarder: forwarders.GetConnectionsForwarder(),
-		eventForwarder:       forwarders.GetEventForwarder(),
-
-		processAPIEndpoints:       processAPIEndpoints,
-		processEventsAPIEndpoints: processEventsAPIEndpoints,
+		processAPIEndpoints: processAPIEndpoints,
 
 		hostname: hostname,
 
@@ -180,52 +185,32 @@ func NewSubmitter(config config.Component, log log.Component, forwarders forward
 	}, nil
 }
 
-func printStartMessage(log log.Component, hostname string, processAPIEndpoints []apicfg.Endpoint, processEventsAPIEndpoints []apicfg.Endpoint) {
+func printStartMessage(log log.Component, hostname string, processAPIEndpoints []apicfg.Endpoint) {
 	eps := make([]string, 0, len(processAPIEndpoints))
 	for _, e := range processAPIEndpoints {
 		eps = append(eps, e.Endpoint.String())
 	}
-	eventsEps := make([]string, 0, len(processEventsAPIEndpoints))
-	for _, e := range processEventsAPIEndpoints {
-		eventsEps = append(eventsEps, e.Endpoint.String())
-	}
 
-	log.Infof("Starting CheckSubmitter for host=%s, endpoints=%s, events endpoints=%s", hostname, eps, eventsEps)
+	log.Infof("Starting CheckSubmitter for host=%s, endpoints=%s", hostname, eps)
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
 func (s *CheckSubmitter) Submit(start time.Time, name string, messages *types.Payload) {
-	results := s.resultsQueueForCheck(name)
+	results := s.resultsQueue[name]
 	s.messagesToResultsQueue(start, name, messages.Message, results)
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
 func (s *CheckSubmitter) Start() error {
-	printStartMessage(s.log, s.hostname, s.processAPIEndpoints, s.processEventsAPIEndpoints)
+	printStartMessage(s.log, s.hostname, s.processAPIEndpoints)
 
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-		s.consumePayloads(s.processResults, s.processForwarder)
-	}()
-
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-		s.consumePayloads(s.rtProcessResults, s.rtProcessForwarder)
-	}()
-
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-		s.consumePayloads(s.connectionsResults, s.connectionsForwarder)
-	}()
-
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-		s.consumePayloads(s.eventResults, s.eventForwarder)
-	}()
+	for _, q := range s.queues {
+		s.wg.Add(1)
+		go func() {
+			defer s.wg.Done()
+			s.consumePayloads(q)
+		}()
+	}
 
 	if flavor.GetFlavor() == flavor.ProcessAgent {
 		heartbeatTicker := s.clock.Ticker(15 * time.Second)
@@ -251,14 +236,12 @@ func (s *CheckSubmitter) Start() error {
 			select {
 			case <-queueSizeTicker.C:
 				status.UpdateQueueStats(&status.QueueStats{
-					ProcessQueueSize:      s.processResults.Len(),
-					RtProcessQueueSize:    s.rtProcessResults.Len(),
-					ConnectionsQueueSize:  s.connectionsResults.Len(),
-					EventQueueSize:        s.eventResults.Len(),
-					ProcessQueueBytes:     s.processResults.Weight(),
-					RtProcessQueueBytes:   s.rtProcessResults.Weight(),
-					ConnectionsQueueBytes: s.connectionsResults.Weight(),
-					EventQueueBytes:       s.eventResults.Weight(),
+					ProcessQueueSize:      s.resultsQueue[checks.ProcessCheckName].Len(),
+					RtProcessQueueSize:    s.resultsQueue[checks.RTProcessCheckName].Len(),
+					ConnectionsQueueSize:  s.resultsQueue[checks.ConnectionsCheckName].Len(),
+					ProcessQueueBytes:     s.resultsQueue[checks.ProcessCheckName].Weight(),
+					RtProcessQueueBytes:   s.resultsQueue[checks.RTProcessCheckName].Weight(),
+					ConnectionsQueueBytes: s.resultsQueue[checks.ConnectionsCheckName].Weight(),
 				})
 			case <-queueLogTicker.C:
 				s.logQueuesSize()
@@ -275,10 +258,9 @@ func (s *CheckSubmitter) Start() error {
 func (s *CheckSubmitter) Stop() {
 	close(s.exit)
 
-	s.processResults.Stop()
-	s.rtProcessResults.Stop()
-	s.connectionsResults.Stop()
-	s.eventResults.Stop()
+	for _, q := range s.queues {
+		q.Stop()
+	}
 
 	close(s.stopHeartbeat)
 
@@ -292,7 +274,7 @@ func (s *CheckSubmitter) GetRTNotifierChan() <-chan types.RTResponse {
 	return s.rtNotifierChan
 }
 
-func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue, fwd forwarder.Forwarder) {
+func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue) {
 	for {
 		// results.Poll() will return ok=false when stopped
 		item, ok := results.Poll()
@@ -312,28 +294,12 @@ func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue, fwd forward
 				continue
 			}
 
-			switch result.name {
-			case checks.ProcessCheckName:
-				updateRTStatus = true
-				responses, err = fwd.SubmitProcessChecks(forwarderPayload, payload.headers)
-			case checks.RTProcessCheckName:
-				updateRTStatus = true
-				responses, err = fwd.SubmitRTProcessChecks(forwarderPayload, payload.headers)
-			case checks.ContainerCheckName:
-				updateRTStatus = true
-				responses, err = fwd.SubmitContainerChecks(forwarderPayload, payload.headers)
-			case checks.RTContainerCheckName:
-				updateRTStatus = true
-				responses, err = fwd.SubmitRTContainerChecks(forwarderPayload, payload.headers)
-			case checks.ConnectionsCheckName:
-				responses, err = fwd.SubmitConnectionChecks(forwarderPayload, payload.headers)
-			case checks.DiscoveryCheckName:
-				// A Process Discovery check does not change the RT mode
-				responses, err = fwd.SubmitProcessDiscoveryChecks(forwarderPayload, payload.headers)
-			case checks.ProcessEventsCheckName:
-				responses, err = fwd.SubmitProcessEventChecks(forwarderPayload, payload.headers)
-			default:
+			submitFn, ok := s.submitFuncs[result.name]
+			updateRTStatus = s.realtimeUpdate[result.name]
+			if !ok {
 				err = fmt.Errorf("unsupported payload type: %s", result.name)
+			} else {
+				responses, err = submitFn(forwarderPayload, payload.headers)
 			}
 
 			if err != nil {
@@ -350,39 +316,24 @@ func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue, fwd forward
 	}
 }
 
-func (s *CheckSubmitter) resultsQueueForCheck(name string) *api.WeightedQueue {
-	switch name {
-	case checks.RTProcessCheckName, checks.RTContainerCheckName:
-		return s.rtProcessResults
-	case checks.ConnectionsCheckName:
-		return s.connectionsResults
-	case checks.ProcessEventsCheckName:
-		return s.eventResults
-	}
-	return s.processResults
-}
-
 func (s *CheckSubmitter) logQueuesSize() {
 	var (
-		processSize     = s.processResults.Len()
-		rtProcessSize   = s.rtProcessResults.Len()
-		connectionsSize = s.connectionsResults.Len()
-		eventsSize      = s.eventResults.Len()
+		processSize     = s.resultsQueue[checks.ProcessCheckName].Len()
+		rtProcessSize   = s.resultsQueue[checks.RTProcessCheckName].Len()
+		connectionsSize = s.resultsQueue[checks.ConnectionsCheckName].Len()
 	)
 
 	if processSize == 0 &&
 		rtProcessSize == 0 &&
-		connectionsSize == 0 &&
-		eventsSize == 0 {
+		connectionsSize == 0 {
 		return
 	}
 
 	s.log.Infof(
-		"Delivery queues: process[size=%d, weight=%d], rtprocess[size=%d, weight=%d], connections[size=%d, weight=%d], event[size=%d, weight=%d]",
-		processSize, s.processResults.Weight(),
-		rtProcessSize, s.rtProcessResults.Weight(),
-		connectionsSize, s.connectionsResults.Weight(),
-		eventsSize, s.eventResults.Weight(),
+		"Delivery queues: process[size=%d, weight=%d], rtprocess[size=%d, weight=%d], connections[size=%d, weight=%d]",
+		processSize, s.resultsQueue[checks.ProcessCheckName].Weight(),
+		rtProcessSize, s.resultsQueue[checks.RTProcessCheckName].Weight(),
+		connectionsSize, s.resultsQueue[checks.ConnectionsCheckName].Weight(),
 	)
 }
 
@@ -424,9 +375,6 @@ func (s *CheckSubmitter) messagesToCheckResult(start time.Time, name string, mes
 		extraHeaders.Set(headers.ServiceDiscoveryEnabled, s.serviceDiscoveryEnabled)
 
 		switch name {
-		case checks.ProcessEventsCheckName:
-			extraHeaders.Set(headers.EVPOriginHeader, "process-agent")
-			extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
 		case checks.ConnectionsCheckName, checks.ProcessCheckName:
 			requestID := s.getRequestID(start, messageIndex)
 			s.log.Debugf("the request id of the current message: %s", requestID)
@@ -472,7 +420,7 @@ func (s *CheckSubmitter) getRequestID(start time.Time, chunkIndex int) string {
 	// Next, we take up to 14 bits to represent the message index in the batch.
 	// It means that we support up to 16384 (2 ^ 14) different messages being sent on the same batch.
 	chunk := uint64(chunkIndex & chunkMask)
-	return fmt.Sprintf("%d", seconds+*s.requestIDCachedHash+chunk)
+	return strconv.FormatUint(seconds+*s.requestIDCachedHash+chunk, 10)
 }
 
 func (s *CheckSubmitter) shouldDropPayload(check string) bool {
@@ -482,8 +430,8 @@ func (s *CheckSubmitter) shouldDropPayload(check string) bool {
 func (s *CheckSubmitter) heartbeat(heartbeatTicker *clock.Ticker) {
 	agentVersion, _ := version.Agent()
 	tags := []string{
-		fmt.Sprintf("version:%s", agentVersion.GetNumberAndPre()),
-		fmt.Sprintf("revision:%s", agentVersion.Commit),
+		"version:" + agentVersion.GetNumberAndPre(),
+		"revision:" + agentVersion.Commit,
 	}
 
 	for {

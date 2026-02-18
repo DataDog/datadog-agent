@@ -11,7 +11,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	workloadmetacomp "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
+	"github.com/DataDog/datadog-agent/pkg/discovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -99,6 +99,7 @@ func mapWLMProcToProc(wlmProc *workloadmetacomp.Process, stats *procutil.Stats) 
 			TracerMetadata:           wlmProc.Service.TracerMetadata,
 			DDService:                wlmProc.Service.UST.Service,
 			APMInstrumentation:       wlmProc.Service.APMInstrumentation,
+			LogFiles:                 wlmProc.Service.LogFiles,
 		}
 		tcpPorts = wlmProc.Service.TCPPorts
 		udpPorts = wlmProc.Service.UDPPorts
@@ -230,11 +231,23 @@ func formatServiceDiscovery(service *procutil.Service) *model.ServiceDiscovery {
 		})
 	}
 
+	var resources []*model.Resource
+	for _, logPath := range service.LogFiles {
+		resources = append(resources, &model.Resource{
+			Resource: &model.Resource_Logs{
+				Logs: &model.LogResource{
+					Path: logPath,
+				},
+			},
+		})
+	}
+
 	return &model.ServiceDiscovery{
 		GeneratedServiceName:     generatedServiceName,
 		DdServiceName:            ddServiceName,
 		AdditionalGeneratedNames: additionalGeneratedNames,
 		TracerMetadata:           tracerMetadata,
 		ApmInstrumentation:       service.APMInstrumentation,
+		Resources:                resources,
 	}
 }

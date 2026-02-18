@@ -31,7 +31,15 @@ const (
 	RunPath = "/opt/datadog-packages/run"
 	// DatadogDataDir is the path to the Datadog data directory.
 	DatadogDataDir = "/etc/datadog-agent"
+	// DatadogProgramFilesDir is the Datadog Program Files directory (not used on non-Windows platforms).
+	DatadogProgramFilesDir = ""
 )
+
+// SetupInstallerDataDir ensures that permissions are set correctly on the installer data directory.
+// This is a no-op on non-Windows platforms.
+func SetupInstallerDataDir() error {
+	return nil
+}
 
 // EnsureInstallerDataDir ensures that permissions are set correctly on the installer data directory.
 // This is a no-op on non-Windows platforms.

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.Datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 // Package flake marks an instance of [testing.TB](https://pkg.go.dev/testing#TB) as flake.
 // Use [flake.Mark] to mark a known flake test.
 // Use `skip-flake` to control the behavior, or set the environment variable `SKIP_FLAKE`.
@@ -10,17 +12,16 @@
 package flake
 
 import (
+	"errors"
 	"flag"
-	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
-
-	"regexp"
 
 	"gopkg.in/yaml.v3"
 )
@@ -42,6 +43,22 @@ func Mark(t testing.TB) {
 	}
 }
 
+// MarkOnJobName marks the test as flaky if the CI_JOB_NAME environment variable exists and
+// contains any of the job names provided. A partial match is considered a match.
+func MarkOnJobName(t testing.TB, jobNames ...string) {
+	t.Helper()
+	jobName := os.Getenv("CI_JOB_NAME")
+	if jobName == "" {
+		return
+	}
+	for _, jobNamePartial := range jobNames {
+		if strings.Contains(jobName, jobNamePartial) {
+			Mark(t)
+			return
+		}
+	}
+}
+
 // Get the test function package which is the topmost function in the stack that is part of the datadog-agent package
 func getPackageName() (string, error) {
 	fullPackageName := ""
@@ -58,7 +75,7 @@ func getPackageName() (string, error) {
 	}
 
 	if fullPackageName == "" {
-		return "", fmt.Errorf("failed to fetch e2e test function information")
+		return "", errors.New("failed to fetch e2e test function information")
 	}
 
 	prefix := filepath.FromSlash("github.com/DataDog/datadog-agent/")

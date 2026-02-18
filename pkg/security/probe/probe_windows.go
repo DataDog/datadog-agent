@@ -11,14 +11,14 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/cenkalti/backoff/v4"
+	"github.com/cenkalti/backoff/v5"
 	lru "github.com/hashicorp/golang-lru/v2"
 
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/etw"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
@@ -131,6 +130,10 @@ type WindowsProbe struct {
 	// approvers
 	approvers    map[eval.Field][]approver
 	approverLock sync.RWMutex
+
+	// ETW ready signaling for tests
+	etwReady     chan struct{}
+	etwReadyOnce sync.Once
 }
 
 type writeRateLimiterKey struct {
@@ -491,6 +494,11 @@ func (p *WindowsProbe) startAuditTracing(ecb etwCallback) error {
 func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 	log.Info("Starting FRIM tracing...")
 	err := p.frimSession.StartTracing(func(e *etw.DDEventRecord) {
+		// Signal that ETW is ready on the first event
+		p.etwReadyOnce.Do(func() {
+			close(p.etwReady)
+			log.Info("ETW FRIM tracing is now ready (first event received)")
+		})
 		p.stats.totalEtwNotifications++
 		switch e.EventHeader.ProviderID {
 		case etw.DDGUID(p.fileguid):
@@ -946,6 +954,12 @@ func (p *WindowsProbe) Start() error {
 	return p.pm.Start()
 }
 
+// ETWReady returns the channel that is closed when ETW is ready (first event received).
+// This is primarily useful for tests to avoid flaky behavior from ETW startup delays.
+func (p *WindowsProbe) ETWReady() <-chan struct{} {
+	return p.etwReady
+}
+
 func (p *WindowsProbe) handleProcessStart(ev *model.Event, start *procmon.ProcessStartNotification) bool {
 	pid := process.Pid(start.Pid)
 	if pid == 0 {
@@ -1132,16 +1146,16 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 
 func (p *WindowsProbe) setProcessContext(pid uint32, event *model.Event) error {
 	event.PIDContext.Pid = pid
-	err := backoff.Retry(func() error {
+	_, err := backoff.Retry(context.Background(), func() (any, error) {
 		entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event, nil)
 		event.ProcessCacheEntry = entry
 		// use ProcessCacheEntry process context as process context
 		event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
 		if !isResolved {
-			return fmt.Errorf("could not resolve process for Process: %v", pid)
+			return nil, fmt.Errorf("could not resolve process for Process: %v", pid)
 		}
-		return nil
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(50*time.Millisecond), 5))
+		return nil, nil
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(50*time.Millisecond)), backoff.WithMaxTries(5))
 
 	if event.ProcessCacheEntry == nil {
 		panic("should always return a process cache entry")
@@ -1154,9 +1168,13 @@ func (p *WindowsProbe) setProcessContext(pid uint32, event *model.Event) error {
 	return err
 }
 
+// ReplayEvents replays the events from the rule set
+func (p *WindowsProbe) ReplayEvents() {
+}
+
 // DispatchEvent sends an event to the probe event handler
 func (p *WindowsProbe) DispatchEvent(event *model.Event) {
-	logTraceEvent(event.GetEventType(), event)
+	p.probe.logTraceEvent(event.GetEventType(), event)
 
 	// send event to wildcard handlers, like the CWS rule engine, first
 	p.probe.sendEventToHandlers(event)
@@ -1284,7 +1302,7 @@ func (p *WindowsProbe) SendStats() error {
 
 func (p *WindowsProbe) sendMapStats(m *map[uint16]uint64, metric string) error {
 	for k, v := range *m {
-		if err := p.statsdClient.Gauge(metric, float64(v), []string{fmt.Sprintf("event_id:%d", k)}, 1); err != nil {
+		if err := p.statsdClient.Gauge(metric, float64(v), []string{"event_id:" + strconv.FormatUint(uint64(k), 10)}, 1); err != nil {
 			return err
 		}
 	}
@@ -1379,6 +1397,8 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 
 		writeRateLimiter: writeRateLimiter,
 
+		etwReady: make(chan struct{}),
+
 		processKiller: processKiller,
 
 		blockonchannelsend: bocs,
@@ -1394,7 +1414,7 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 }
 
 // NewWindowsProbe instantiates a new runtime security agent probe
-func NewWindowsProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts Opts) (*WindowsProbe, error) {
+func NewWindowsProbe(probe *Probe, config *config.Config, hostname string, opts Opts) (*WindowsProbe, error) {
 	p, err := initializeWindowsProbe(config, opts)
 	if err != nil {
 		return nil, err
@@ -1407,11 +1427,6 @@ func NewWindowsProbe(probe *Probe, config *config.Config, ipc ipc.Component, opt
 	p.Resolvers, err = resolvers.NewResolvers(config, p.statsdClient, probe.scrubber, resolversOpts)
 	if err != nil {
 		return nil, err
-	}
-
-	hostname, err := hostnameutils.GetHostname(ipc)
-	if err != nil || hostname == "" {
-		hostname = "unknown"
 	}
 
 	fh, err := NewFieldHandlers(config, p.Resolvers, hostname)
@@ -1429,7 +1444,7 @@ func NewWindowsProbe(probe *Probe, config *config.Config, ipc ipc.Component, opt
 }
 
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
-func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, error) {
+func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, bool, error) {
 	p.enabledEventTypesLock.Lock()
 	clear(p.enabledEventTypes)
 	for _, eventType := range rs.GetEventTypes() {
@@ -1439,7 +1454,7 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, 
 
 	filterReport, err := kfilters.ComputeFilters(p.config.Probe, rs)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	// remove old approvers
@@ -1449,17 +1464,17 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, 
 
 	for eventType, report := range filterReport.ApproverReports {
 		if err := p.setApprovers(eventType, report.Approvers); err != nil {
-			return nil, err
+			return nil, false, err
 		}
 	}
 
 	p.enabledEventTypesLock.RLock()
 	defer p.enabledEventTypesLock.RUnlock()
 	if err := p.reconfigureProvider(); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
-	return filterReport, nil
+	return filterReport, false, nil
 }
 
 // OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded
@@ -1546,8 +1561,8 @@ func (p *WindowsProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 			if ev.Error != nil {
 				return
 			}
-
-			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev) {
+			tryToKill, _ := p.processKiller.KillAndReport(action.Def.Kill, rule, ev)
+			if tryToKill {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 		}
@@ -1579,12 +1594,15 @@ func (p *WindowsProbe) EnableEnforcement(state bool) {
 }
 
 // NewProbe instantiates a new runtime security agent probe
-func NewProbe(config *config.Config, ipc ipc.Component, opts Opts) (*Probe, error) {
+func NewProbe(config *config.Config, hostname string, opts Opts) (*Probe, error) {
 	opts.normalize()
 
-	p := newProbe(config, opts)
+	p, err := newProbe(config, opts)
+	if err != nil {
+		return nil, err
+	}
 
-	pp, err := NewWindowsProbe(p, config, ipc, opts)
+	pp, err := NewWindowsProbe(p, config, hostname, opts)
 	if err != nil {
 		return nil, err
 	}

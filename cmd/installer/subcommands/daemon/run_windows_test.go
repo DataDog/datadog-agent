@@ -44,6 +44,10 @@ func TestMain(m *testing.M) {
 				ID:    "apm",
 				Title: "APM Commands",
 			},
+			&cobra.Group{
+				ID:    "extension",
+				Title: "Extensions Commands",
+			},
 		)
 		cmd.AddCommand(commands.RootCommands()...)
 		cmd.AddCommand(commands.UnprivilegedCommands()...)
@@ -97,7 +101,7 @@ func createConfigDir(t *testing.T) {
 			_ = os.RemoveAll(paths.DatadogInstallerData)
 		}
 	})
-	err := paths.EnsureInstallerDataDir()
+	err := paths.SetupInstallerDataDir()
 	require.NoError(t, err)
 	err = paths.IsInstallerDataDirSecure()
 	require.NoError(t, err)

@@ -18,10 +18,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
 const (
+	agentIpcUseSocket        = false
 	agentIpcPort             = 5004
 	securityCmdPort          = 5010
 	apmCmdPort               = 5012

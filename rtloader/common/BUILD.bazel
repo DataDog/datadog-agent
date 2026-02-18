@@ -1,0 +1,44 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+
+package(default_visibility = ["//rtloader:__subpackages__"])
+
+# There is no common library, rtloader and three individually build
+# the .c files.
+exports_files(glob(["**"]))
+
+# This library only exists to create the right -isystem includes paths
+cc_library(
+    name = "headers",
+    hdrs = [
+        "builtins/_util.h",
+        "builtins/aggregator.h",
+        "builtins/containers.h",
+        "builtins/datadog_agent.h",
+        "builtins/kubeutil.h",
+        "builtins/tagger.h",
+        "builtins/util.h",
+        "cgo_free.h",
+        "log.h",
+        "rtloader_mem.h",
+        "stringutils.h",
+    ],
+    includes = [
+        ".",
+        "builtins",
+    ],
+    deps = [
+        "//rtloader/include",
+        "@rules_python//python/cc:current_py_cc_headers",
+    ],
+)
+
+# What to install
+pkg_files(
+    name = "all_files",
+    srcs = [
+        "rtloader_mem.h",
+    ],
+    # relative to {install_dir}
+    prefix = "embedded/include",
+)

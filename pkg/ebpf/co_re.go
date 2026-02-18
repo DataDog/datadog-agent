@@ -65,7 +65,7 @@ func (c *coreAssetLoader) loadCOREAsset(filename string, startFn func(bytecode.A
 		return fmt.Errorf("BTF load: %w", err)
 	}
 	if ret == nil {
-		return fmt.Errorf("no BTF data")
+		return errors.New("no BTF data")
 	}
 
 	buf, err := bytecode.GetReader(c.coreDir, filename)

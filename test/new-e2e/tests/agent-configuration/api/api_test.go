@@ -20,15 +20,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
@@ -41,7 +41,7 @@ type apiSuite struct {
 }
 
 func TestApiSuite(t *testing.T) {
-	e2e.Run(t, &apiSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
+	e2e.Run(t, &apiSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(ec2.WithoutFakeIntake()))))
 }
 
 type agentEndpointInfo struct {
@@ -68,7 +68,7 @@ func (endpointInfo *agentEndpointInfo) httpRequest(authtoken string) (*http.Requ
 		return nil, err
 	}
 
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authtoken))
+	req.Header.Set("Authorization", "Bearer "+authtoken)
 	return req, nil
 }
 
@@ -544,10 +544,10 @@ hostname: ENC[hostname]`
 	secretClient.SetSecret("hostname", "e2e.test")
 
 	v.UpdateEnv(awshost.Provisioner(
-		awshost.WithAgentOptions(
+		awshost.WithRunOptions(ec2.WithAgentOptions(
 			secretsutils.WithUnixSetupScript(secretResolverPath, true),
 			agentparams.WithAgentConfig(config),
-		),
+		)),
 	))
 
 	authTokenFilePath := "/etc/datadog-agent/auth_token"
@@ -592,10 +592,10 @@ language_detection:
 log_level: debug
 `
 	v.UpdateEnv(awshost.Provisioner(
-		awshost.WithAgentOptions(
+		awshost.WithRunOptions(ec2.WithAgentOptions(
 			agentparams.WithAgentConfig(config),
 		),
-	))
+		)))
 
 	authTokenFilePath := "/etc/datadog-agent/auth_token"
 	authtokenContent := v.Env().RemoteHost.MustExecute("sudo cat " + authTokenFilePath)
@@ -648,10 +648,10 @@ func (v *apiSuite) TestMetadataV5CanonicalCloudResourceID_IMDSVariants() {
 		v.T().Run(tt.name, func(t *testing.T) {
 			agentConfig := fmt.Sprintf(`ec2_prefer_imdsv2: %t`, tt.ec2PreferIMDSv2)
 			opts := []awshost.ProvisionerOption{
-				awshost.WithAgentOptions(agentparams.WithAgentConfig(agentConfig)),
+				awshost.WithRunOptions(ec2.WithAgentOptions(agentparams.WithAgentConfig(agentConfig))),
 			}
 			if tt.withIMDSv1Off {
-				opts = append(opts, awshost.WithEC2InstanceOptions(ec2.WithIMDSv1Disable()))
+				opts = append(opts, awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithIMDSv1Disable())))
 			}
 			v.UpdateEnv(awshost.ProvisionerNoFakeIntake(opts...))
 

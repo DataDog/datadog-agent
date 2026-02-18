@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
+	extensionsPkg "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 )
 
@@ -42,7 +43,11 @@ type testPackageManager struct {
 }
 
 func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string) *testPackageManager {
+	extensionsPkg.ExtensionsDBDir = filepath.Join(rootPath, "run")
+	os.MkdirAll(extensionsPkg.ExtensionsDBDir, 0755)
 	packages := repository.NewRepositories(rootPath, nil)
+	err := os.MkdirAll(filepath.Join(rootPath, "run"), 0755)
+	assert.NoError(t, err)
 	db, err := db.New(filepath.Join(rootPath, "packages.db"))
 	assert.NoError(t, err)
 	hooks := &testHooks{}
@@ -164,6 +169,30 @@ func (h *testHooks) PostPromoteConfigExperiment(ctx context.Context, pkg string)
 		return nil
 	}
 	h.Called(ctx, pkg)
+	return nil
+}
+
+func (h *testHooks) PreInstallExtension(ctx context.Context, pkg string, extension string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg, extension)
+	return nil
+}
+
+func (h *testHooks) PreRemoveExtension(ctx context.Context, pkg string, extension string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg, extension)
+	return nil
+}
+
+func (h *testHooks) PostInstallExtension(ctx context.Context, pkg string, extension string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg, extension)
 	return nil
 }
 
@@ -470,17 +499,18 @@ func TestNoOutsideImport(t *testing.T) {
 		"pkg/version",      // TODO: cleanup & remove
 		"pkg/util/log",     // TODO: cleanup & remove
 		"pkg/util/winutil", // Needed for Windows
+		"pkg/config/setup", // Needed for extensions
 		"pkg/template",
 	}
 
 	// Walk the directory tree
-	err := filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(rootDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
 		// Only check .go files
-		if !info.IsDir() && strings.HasSuffix(info.Name(), ".go") {
+		if !d.IsDir() && strings.HasSuffix(d.Name(), ".go") {
 			// Create a file set and parse the file
 			fs := token.NewFileSet()
 			node, err := parser.ParseFile(fs, path, nil, parser.ImportsOnly)

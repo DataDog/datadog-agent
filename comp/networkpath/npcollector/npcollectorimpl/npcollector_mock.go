@@ -8,28 +8,28 @@
 package npcollectorimpl
 
 import (
-	model "github.com/DataDog/agent-payload/v5/process"
+	"iter"
+
 	"go.uber.org/fx"
 
+	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // MockModule defines the fx options for the mock component.
 func MockModule() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newMock),
+		fx.Provide(NewMock),
 	)
 }
 
 type npCollectorMock struct{}
 
-func (s *npCollectorMock) ScheduleConns(_ *model.Connections) {
-	panic("implement me")
-}
+func (s *npCollectorMock) ScheduleNetworkPathTests(_conns iter.Seq[npmodel.NetworkPathConnection]) {}
 
-func newMock() provides {
+func NewMock() Provides {
 	// Mock initialization
-	return provides{
+	return Provides{
 		Comp: &npCollectorMock{},
 	}
 }

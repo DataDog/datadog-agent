@@ -9,6 +9,7 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -16,7 +17,7 @@ import (
 	"time"
 
 	"github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/zorkian/go-datadog-api.v2"
@@ -39,7 +40,7 @@ import (
 	datadogclientmock "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/errors"
+	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -444,7 +445,7 @@ func TestWPASync(t *testing.T) {
 
 	fakeKey := "default/prometheus"
 	err = hctrl.syncWPA(fakeKey)
-	require.Error(t, err, errors.IsNotFound)
+	require.Error(t, err, pkgerrors.IsNotFound)
 }
 
 // TestWPAGC tests the GC process of of the controller
@@ -555,7 +556,7 @@ func TestUnstructuredIntoWPA(t *testing.T) {
 			caseName:    "obj corrupted",
 			obj:         map[string]interface{}{},
 			expectedWpa: nil,
-			error:       fmt.Errorf("could not cast Unstructured object: map[]"),
+			error:       errors.New("could not cast Unstructured object: map[]"),
 		},
 		{
 			caseName: "All good",
@@ -601,7 +602,7 @@ func TestWPACRDCheck(t *testing.T) {
 		Group:    "datadoghq.com",
 		Resource: "watermarkpodautoscalers",
 	}, "")
-	nonRetryableError := fmt.Errorf("unexpectedError")
+	nonRetryableError := errors.New("unexpectedError")
 	testCases := []struct {
 		caseName      string
 		checkError    error

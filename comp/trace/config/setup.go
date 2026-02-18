@@ -24,6 +24,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	dsdconfig "github.com/DataDog/datadog-agent/comp/dogstatsd/config"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -158,6 +159,17 @@ func appendEndpoints(endpoints []*config.Endpoint, cfgKey string) []*config.Endp
 	return endpoints
 }
 
+// normalizeAPMMode normalizes the APM mode to a valid value for the DD_APM_MODE config. Currently only "edge" is supported.
+func normalizeAPMMode(mode string) string {
+	switch strings.ToLower(mode) {
+	case "edge":
+		return "edge"
+	}
+	// If DD_APM_MODE is set to an invalid value, warn about it and return an empty string
+	log.Warnf("invalid value for 'DD_APM_MODE': '%s', dropping", mode)
+	return ""
+}
+
 func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error {
 	if len(c.Endpoints) == 0 {
 		c.Endpoints = []*config.Endpoint{{}}
@@ -174,7 +186,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 
 	obsPipelineEnabled, prefix := isObsPipelineEnabled(core)
 	if obsPipelineEnabled {
-		if host := core.GetString(fmt.Sprintf("%s.traces.url", prefix)); host == "" {
+		if host := core.GetString(prefix + ".traces.url"); host == "" {
 			log.Errorf("%s.traces.enabled but %s.traces.url is empty.", prefix, prefix)
 		} else {
 			c.Endpoints[0].Host = host
@@ -278,7 +290,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.SpanDerivedPrimaryTags = core.GetStringSlice("apm_config.span_derived_primary_tags")
 	}
 
-	if core.IsSet("apm_config.extra_sample_rate") {
+	if core.IsConfigured("apm_config.extra_sample_rate") {
 		c.ExtraSampleRate = core.GetFloat64("apm_config.extra_sample_rate")
 	}
 	if core.IsSet("apm_config.max_events_per_second") {
@@ -324,7 +336,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if core.IsSet("apm_config.max_remote_traces_per_second") {
 		c.MaxRemoteTPS = core.GetFloat64("apm_config.max_remote_traces_per_second")
 	}
-	if k := "apm_config.features"; core.IsSet(k) {
+	if k := "apm_config.features"; core.IsConfigured(k) {
 		feats := core.GetStringSlice(k)
 		for _, f := range feats {
 			c.Features[f] = struct{}{}
@@ -386,6 +398,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		log.Info("Activating non-local traffic automatically in containerized environment, trace-agent will listen on 0.0.0.0")
 		c.ReceiverHost = "0.0.0.0"
 	}
+
+	dsdConfig := dsdconfig.NewConfig(core)
+	c.StatsdEnabled = dsdConfig.Enabled()
 	c.StatsdPipeName = core.GetString("dogstatsd_pipe_name")
 	c.StatsdSocket = core.GetString("dogstatsd_socket")
 	c.WindowsPipeName = core.GetString("apm_config.windows_pipe_name")
@@ -406,15 +421,14 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 
 	c.OTLPReceiver = &config.OTLP{
-		BindHost:                   c.ReceiverHost,
-		GRPCPort:                   grpcPort,
-		MaxRequestBytes:            c.MaxRequestBytes,
-		SpanNameRemappings:         pkgconfigsetup.Datadog().GetStringMapString("otlp_config.traces.span_name_remappings"),
-		SpanNameAsResourceName:     core.GetBool("otlp_config.traces.span_name_as_resource_name"),
-		IgnoreMissingDatadogFields: core.GetBool("otlp_config.traces.ignore_missing_datadog_fields"),
-		ProbabilisticSampling:      core.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
-		AttributesTranslator:       attributesTranslator,
-		GrpcMaxRecvMsgSizeMib:      core.GetInt("otlp_config.receiver.protocols.grpc.max_recv_msg_size_mib"),
+		BindHost:               c.ReceiverHost,
+		GRPCPort:               grpcPort,
+		MaxRequestBytes:        c.MaxRequestBytes,
+		SpanNameRemappings:     pkgconfigsetup.Datadog().GetStringMapString("otlp_config.traces.span_name_remappings"),
+		SpanNameAsResourceName: core.GetBool("otlp_config.traces.span_name_as_resource_name"),
+		ProbabilisticSampling:  core.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
+		AttributesTranslator:   attributesTranslator,
+		GrpcMaxRecvMsgSizeMib:  core.GetInt("otlp_config.receiver.protocols.grpc.max_recv_msg_size_mib"),
 	}
 
 	if core.IsSet("apm_config.install_id") {
@@ -478,20 +492,20 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	c.Obfuscation.Cache.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.cache.enabled")
 	c.Obfuscation.Cache.MaxSize = pkgconfigsetup.Datadog().GetInt64("apm_config.obfuscation.cache.max_size")
 
-	if core.IsSet("apm_config.filter_tags.require") {
+	if core.IsConfigured("apm_config.filter_tags.require") {
 		tags := core.GetStringSlice("apm_config.filter_tags.require")
 		for _, tag := range tags {
 			c.RequireTags = append(c.RequireTags, splitTag(tag))
 		}
 	}
-	if core.IsSet("apm_config.filter_tags.reject") {
+	if core.IsConfigured("apm_config.filter_tags.reject") {
 		tags := core.GetStringSlice("apm_config.filter_tags.reject")
 		for _, tag := range tags {
 			c.RejectTags = append(c.RejectTags, splitTag(tag))
 		}
 	}
 
-	if pkgconfigsetup.Datadog().IsSet("apm_config.filter_tags_regex.require") {
+	if pkgconfigsetup.Datadog().IsConfigured("apm_config.filter_tags_regex.require") {
 		tags := pkgconfigsetup.Datadog().GetStringSlice("apm_config.filter_tags_regex.require")
 		for _, tag := range tags {
 			splitTag := splitTagRegex(tag)
@@ -502,7 +516,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 			c.RequireTagsRegex = append(c.RequireTagsRegex, splitTag)
 		}
 	}
-	if pkgconfigsetup.Datadog().IsSet("apm_config.filter_tags_regex.reject") {
+	if pkgconfigsetup.Datadog().IsConfigured("apm_config.filter_tags_regex.reject") {
 		tags := pkgconfigsetup.Datadog().GetStringSlice("apm_config.filter_tags_regex.reject")
 		for _, tag := range tags {
 			splitTag := splitTagRegex(tag)
@@ -533,12 +547,12 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		// Default of 4 was chosen through experimentation, but may not be the optimal value.
 		c.MaxSenderRetries = 4
 	}
-	if core.IsSet("apm_config.sync_flushing") {
+	if core.IsConfigured("apm_config.sync_flushing") {
 		c.SynchronousFlushing = core.GetBool("apm_config.sync_flushing")
 	}
 
 	// undocumented deprecated
-	if core.IsSet("apm_config.analyzed_rate_by_service") {
+	if core.IsConfigured("apm_config.analyzed_rate_by_service") {
 		rateByService := make(map[string]float64)
 		cfg := pkgconfigsetup.Datadog()
 		if err := structure.UnmarshalKey(cfg, "apm_config.analyzed_rate_by_service", &rateByService); err != nil {
@@ -569,7 +583,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 
 	// undocumented
-	if core.IsSet("apm_config.dd_agent_bin") {
+	if core.IsConfigured("apm_config.dd_agent_bin") {
 		c.DDAgentBin = core.GetString("apm_config.dd_agent_bin")
 	}
 
@@ -579,9 +593,6 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	c.Site = core.GetString("site")
 	if c.Site == "" {
 		c.Site = pkgconfigsetup.DefaultSite
-	}
-	if k := "use_dogstatsd"; core.IsSet(k) {
-		c.StatsdEnabled = core.GetBool(k)
 	}
 	if v := core.GetInt("apm_config.max_catalog_entries"); v > 0 {
 		c.MaxCatalogEntries = v
@@ -667,8 +678,13 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if k := "apm_config.enable_v1_trace_endpoint"; core.IsSet(k) {
 		c.EnableV1TraceEndpoint = core.GetBool("apm_config.enable_v1_trace_endpoint")
 	}
+	if k := "apm_config.mode"; core.IsConfigured(k) {
+		c.APMMode = normalizeAPMMode(core.GetString(k))
+	}
 	c.SendAllInternalStats = core.GetBool("apm_config.send_all_internal_stats") // default is false
 	c.DebugServerPort = core.GetInt("apm_config.debug.port")
+	c.ContainerTagsBuffer = core.GetBool("apm_config.enable_container_tags_buffer")
+	c.AdditionalProfileTags = core.GetStringMapString("apm_config.additional_profile_tags")
 	return nil
 }
 
@@ -681,14 +697,14 @@ func loadDeprecatedValues(c *config.AgentConfig) error {
 		log.Warn("apm_config.api_key is deprecated. Use core api_key instead")
 		c.Endpoints[0].APIKey = utils.SanitizeAPIKey(cfg.GetString("apm_config.api_key"))
 	}
-	if cfg.IsSet("apm_config.bucket_size_seconds") {
+	if cfg.IsConfigured("apm_config.bucket_size_seconds") {
 		d := time.Duration(cfg.GetInt("apm_config.bucket_size_seconds"))
 		c.BucketInterval = d * time.Second
 	}
 	if cfg.IsSet("apm_config.receiver_timeout") {
 		c.ReceiverTimeout = cfg.GetInt("apm_config.receiver_timeout")
 	}
-	if cfg.IsSet("apm_config.watchdog_check_delay") {
+	if cfg.IsConfigured("apm_config.watchdog_check_delay") {
 		d := time.Duration(cfg.GetInt("apm_config.watchdog_check_delay"))
 		c.WatchdogInterval = d * time.Second
 	}

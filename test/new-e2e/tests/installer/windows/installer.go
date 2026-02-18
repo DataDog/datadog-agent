@@ -7,20 +7,21 @@ package installer
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 )
@@ -217,12 +218,12 @@ func (d *DatadogInstaller) InstallExperiment(packageName string, opts ...install
 
 // RemovePackage requests that the Datadog Installer removes a package on the remote host.
 func (d *DatadogInstaller) RemovePackage(packageName string) (string, error) {
-	return d.execute(fmt.Sprintf("remove %s", packageName))
+	return d.execute("remove " + packageName)
 }
 
 // RemoveExperiment requests that the Datadog Installer removes a package on the remote host.
 func (d *DatadogInstaller) RemoveExperiment(packageName string) (string, error) {
-	return d.execute(fmt.Sprintf("remove-experiment %s", packageName))
+	return d.execute("remove-experiment " + packageName)
 }
 
 // Status returns the status provided by the running daemon
@@ -259,9 +260,9 @@ func (d *DatadogInstaller) Install(opts ...MsiOption) error {
 
 	// MSI can install from a URL or a local file
 	remoteMSIPath := params.installerURL
-	if strings.HasPrefix(remoteMSIPath, "file://") {
+	if after, ok := strings.CutPrefix(remoteMSIPath, "file://"); ok {
 		// developer provided a local file, put it on the remote host
-		localMSIPath := strings.TrimPrefix(remoteMSIPath, "file://")
+		localMSIPath := after
 		remoteMSIPath, err = windowsCommon.GetTemporaryFile(d.env.RemoteHost)
 		if err != nil {
 			return err
@@ -269,7 +270,7 @@ func (d *DatadogInstaller) Install(opts ...MsiOption) error {
 		d.env.RemoteHost.CopyFile(localMSIPath, remoteMSIPath)
 	}
 	if remoteMSIPath == "" {
-		return fmt.Errorf("MSI URL/path is required but was not provided")
+		return errors.New("MSI URL/path is required but was not provided")
 	}
 	logPath := filepath.Join(d.outputDir, params.msiLogFilename)
 	if _, err := os.Stat(logPath); err == nil {
@@ -342,15 +343,15 @@ func createFileRegistryFromLocalOCI(host *components.RemoteHost, localPackagePat
 func CreatePackageSourceIfLocal(host *components.RemoteHost, pkg TestPackageConfig) (TestPackageConfig, error) {
 	url := pkg.URL()
 	// If the URL is a file, upload it to the remote host
-	if strings.HasPrefix(url, "file://") {
-		localPath := strings.TrimPrefix(url, "file://")
+	if after, ok := strings.CutPrefix(url, "file://"); ok {
+		localPath := after
 		outPath, err := createFileRegistryFromLocalOCI(host, localPath)
 		if err != nil {
 			return pkg, err
 		}
 		// Must replace slashes so that daemon can parse it correctly
 		outPath = strings.ReplaceAll(outPath, "\\", "/")
-		pkg.urloverride = fmt.Sprintf("file://%s", outPath)
+		pkg.urloverride = "file://" + outPath
 	}
 	return pkg, nil
 }
@@ -468,7 +469,7 @@ func WithURLOverride(url string) PackageOption {
 // WithPipeline configures the package to be installed from a pipeline.
 func WithPipeline(pipeline string) PackageOption {
 	return func(params *TestPackageConfig) error {
-		params.Version = fmt.Sprintf("pipeline-%s", pipeline)
+		params.Version = "pipeline-" + pipeline
 		if err := WithRegistry(consts.PipelineOCIRegistry)(params); err != nil {
 			return err
 		}
@@ -505,13 +506,13 @@ func WithPackage(pkg TestPackageConfig) PackageOption {
 func WithDevEnvOverrides(prefix string) PackageOption {
 	return func(params *TestPackageConfig) error {
 		// env vars for convenience
-		if url, ok := os.LookupEnv(fmt.Sprintf("%s_OCI_URL", prefix)); ok {
+		if url, ok := os.LookupEnv(prefix + "_OCI_URL"); ok {
 			err := WithURLOverride(url)(params)
 			if err != nil {
 				return err
 			}
 		}
-		if pipeline, ok := os.LookupEnv(fmt.Sprintf("%s_OCI_PIPELINE", prefix)); ok {
+		if pipeline, ok := os.LookupEnv(prefix + "_OCI_PIPELINE"); ok {
 			err := WithPipeline(pipeline)(params)
 			if err != nil {
 				return err
@@ -519,19 +520,19 @@ func WithDevEnvOverrides(prefix string) PackageOption {
 		}
 
 		// env vars for specific fields
-		if version, ok := os.LookupEnv(fmt.Sprintf("%s_OCI_VERSION", prefix)); ok {
+		if version, ok := os.LookupEnv(prefix + "_OCI_VERSION"); ok {
 			err := WithVersion(version)(params)
 			if err != nil {
 				return err
 			}
 		}
-		if registry, ok := os.LookupEnv(fmt.Sprintf("%s_OCI_REGISTRY", prefix)); ok {
+		if registry, ok := os.LookupEnv(prefix + "_OCI_REGISTRY"); ok {
 			err := WithRegistry(registry)(params)
 			if err != nil {
 				return err
 			}
 		}
-		if auth, ok := os.LookupEnv(fmt.Sprintf("%s_OCI_AUTH", prefix)); ok {
+		if auth, ok := os.LookupEnv(prefix + "_OCI_AUTH"); ok {
 			err := WithAuthentication(auth)(params)
 			if err != nil {
 				return err
@@ -543,9 +544,14 @@ func WithDevEnvOverrides(prefix string) PackageOption {
 
 // SetConfigExperiment sets the config catalog for the Datadog Installer daemon.
 func (d *DatadogInstaller) SetConfigExperiment(config ConfigExperiment) (string, error) {
-	serializedConfig, err := json.Marshal(map[string]ConfigExperiment{
-		config.ID: config,
-	})
+	// Convert ConfigExperiment to installerConfig format
+	installerConfig := map[string]interface{}{
+		config.ID: map[string]interface{}{
+			"deployment_id":   config.ID,
+			"file_operations": convertFilesToOperations(config.Files),
+		},
+	}
+	serializedConfig, err := json.Marshal(installerConfig)
 	if err != nil {
 		return "", err
 	}
@@ -557,23 +563,31 @@ func (d *DatadogInstaller) SetConfigExperiment(config ConfigExperiment) (string,
 // StartConfigExperiment starts a config experiment using the provided InstallerConfig through the daemon.
 // It first sets the config catalog and then starts the experiment.
 func (d *DatadogInstaller) StartConfigExperiment(packageName string, config ConfigExperiment) (string, error) {
-	// First set the config catalog
-	_, err := d.SetConfigExperiment(config)
+	// Convert ConfigExperiment to installerConfig format
+	operations := map[string]interface{}{
+		"deployment_id":   config.ID,
+		"file_operations": convertFilesToOperations(config.Files),
+	}
+
+	serializedOps, err := json.Marshal(operations)
 	if err != nil {
 		return "", err
 	}
+	// Escape quotes in the JSON string to handle PowerShell quoting properly
+	opsStr := strings.ReplaceAll(string(serializedOps), `"`, `\"`)
+
 	// Then start the config experiment
-	return d.execute(fmt.Sprintf("daemon start-config-experiment %s %s", packageName, config.ID))
+	return d.execute(fmt.Sprintf("daemon start-config-experiment %s '%s'", packageName, opsStr))
 }
 
 // PromoteConfigExperiment promotes a config experiment through the daemon.
 func (d *DatadogInstaller) PromoteConfigExperiment(packageName string) (string, error) {
-	return d.execute(fmt.Sprintf("daemon promote-config-experiment %s", packageName))
+	return d.execute("daemon promote-config-experiment " + packageName)
 }
 
 // StopConfigExperiment stops a config experiment through the daemon.
 func (d *DatadogInstaller) StopConfigExperiment(packageName string) (string, error) {
-	return d.execute(fmt.Sprintf("daemon stop-config-experiment %s", packageName))
+	return d.execute("daemon stop-config-experiment " + packageName)
 }
 
 // ConfigExperiment represents a configuration experiment for the Datadog Installer.
@@ -633,4 +647,17 @@ func (d *DatadogInstallerGA) StopExperiment(packageName string) (string, error) 
 		return out, ignoreEOF(err)
 	}
 	return out, err
+}
+
+// convertFilesToOperations converts ConfigExperimentFiles to file operations
+func convertFilesToOperations(files []ConfigExperimentFile) []map[string]interface{} {
+	operations := make([]map[string]interface{}, len(files))
+	for i, file := range files {
+		operations[i] = map[string]interface{}{
+			"file_op":   "merge-patch",
+			"file_path": file.Path,
+			"patch":     file.Contents,
+		}
+	}
+	return operations
 }

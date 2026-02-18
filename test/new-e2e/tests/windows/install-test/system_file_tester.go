@@ -6,11 +6,12 @@
 package installtest
 
 import (
+	"testing"
+
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 // SystemPaths returns a list of paths that are known to frequently change and should be ignored when collecting the list of files

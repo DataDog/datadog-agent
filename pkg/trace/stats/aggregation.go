@@ -20,9 +20,10 @@ import (
 )
 
 const (
-	tagSynthetics  = "synthetics"
-	tagSpanKind    = "span.kind"
-	tagBaseService = "_dd.base_service"
+	tagSynthetics    = "synthetics"
+	tagSpanKind      = "span.kind"
+	tagBaseService   = "_dd.base_service"
+	tagServiceSource = "_dd.svc_src"
 )
 
 // Aggregation contains all the dimension on which we aggregate statistics.
@@ -42,6 +43,7 @@ type BucketsAggregationKey struct {
 	Synthetics                 bool
 	PeerTagsHash               uint64
 	SpanDerivedPrimaryTagsHash uint64
+	ServiceSource              string
 	IsTraceRoot                pb.Trilean
 	GRPCStatusCode             string
 	HTTPMethod                 string
@@ -104,6 +106,7 @@ func NewAggregationFromSpan(s *StatSpan, origin string, aggKey PayloadAggregatio
 			SpanKind:                   s.spanKind,
 			Type:                       s.typ,
 			StatusCode:                 s.statusCode,
+			ServiceSource:              s.serviceSource,
 			Synthetics:                 synthetics,
 			IsTraceRoot:                isTraceRoot,
 			GRPCStatusCode:             s.grpcStatusCode,
@@ -152,6 +155,7 @@ func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 			Synthetics:                 g.Synthetics,
 			PeerTagsHash:               tagsFnvHash(g.PeerTags),
 			SpanDerivedPrimaryTagsHash: tagsFnvHash(g.SpanDerivedPrimaryTags),
+			ServiceSource:              g.ServiceSource,
 			IsTraceRoot:                g.IsTraceRoot,
 			GRPCStatusCode:             g.GRPCStatusCode,
 			HTTPMethod:                 g.HTTPMethod,

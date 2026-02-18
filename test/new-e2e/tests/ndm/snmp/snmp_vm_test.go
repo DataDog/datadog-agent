@@ -14,14 +14,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 )
 
 //go:embed config-vm/cisco-nexus.yaml
@@ -33,9 +34,11 @@ type snmpVMSuite struct {
 
 func snmpVMProvisioner(opts ...awshost.ProvisionerOption) provisioners.Provisioner {
 	allOpts := []awshost.ProvisionerOption{
-		awshost.WithDocker(),
-		awshost.WithAgentOptions(
-			agentparams.WithFile("/etc/datadog-agent/conf.d/snmp.d/snmp.yaml", snmpVMConfig, true),
+		awshost.WithRunOptions(
+			scenec2.WithDocker(),
+			scenec2.WithAgentOptions(
+				agentparams.WithFile("/etc/datadog-agent/conf.d/snmp.d/snmp.yaml", snmpVMConfig, true),
+			),
 		),
 	}
 	allOpts = append(allOpts, opts...)
@@ -61,6 +64,7 @@ func (v *snmpVMSuite) TestAPIKeyRefresh() {
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		ndmPayload := checkLastNDMPayload(c, fakeIntake, "default")
+		require.NotEmpty(c, ndmPayload.Devices)
 		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0])
 	}, 6*time.Minute, 10*time.Second)
 
@@ -81,10 +85,12 @@ secret_backend_arguments:
 
 	v.UpdateEnv(
 		snmpVMProvisioner(
-			awshost.WithAgentOptions(
-				agentparams.WithAgentConfig(agentConfig),
-				secretsutils.WithUnixSetupScript("/tmp/test-secret/secret-resolver.py", false),
-				agentparams.WithSkipAPIKeyInConfig(),
+			awshost.WithRunOptions(
+				scenec2.WithAgentOptions(
+					agentparams.WithAgentConfig(agentConfig),
+					secretsutils.WithUnixSetupScript("/tmp/test-secret/secret-resolver.py", false),
+					agentparams.WithSkipAPIKeyInConfig(),
+				),
 			),
 		),
 	)
@@ -104,6 +110,7 @@ secret_backend_arguments:
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		ndmPayload := checkLastNDMPayload(c, fakeIntake, "default")
+		require.NotEmpty(c, ndmPayload.Devices)
 		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0])
 	}, 6*time.Minute, 10*time.Second)
 
@@ -125,6 +132,7 @@ secret_backend_arguments:
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		ndmPayload := checkLastNDMPayload(c, fakeIntake, "default")
+		require.NotEmpty(c, ndmPayload.Devices)
 		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0])
 	}, 6*time.Minute, 10*time.Second)
 }

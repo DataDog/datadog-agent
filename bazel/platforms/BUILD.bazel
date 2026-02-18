@@ -1,0 +1,95 @@
+# The platforms we build the agent for.
+
+package(default_visibility = ["//visibility:public"])
+
+constraint_setting(name = "crypto")
+
+constraint_value(
+    name = "fips",
+    constraint_setting = ":crypto",
+)
+
+platform(
+    name = "linux_x86_64",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+platform(
+    name = "linux_arm64",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:arm64",
+    ],
+)
+
+platform(
+    name = "macos_arm64",
+    constraint_values = [
+        "@platforms//os:macos",
+        "@platforms//cpu:arm64",
+    ],
+)
+
+platform(
+    name = "macos_x86_64",
+    constraint_values = [
+        "@platforms//os:macos",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+platform(
+    name = "windows_x86_64",
+    constraint_values = [
+        "@platforms//os:windows",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+platform(
+    name = "linux_x86_64_fips",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+        ":fips",
+    ],
+)
+
+platform(
+    name = "linux_arm64_fips",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:arm64",
+        ":fips",
+    ],
+)
+
+platform(
+    name = "macos_arm64_fips",
+    constraint_values = [
+        "@platforms//os:macos",
+        "@platforms//cpu:arm64",
+        ":fips",
+    ],
+)
+
+platform(
+    name = "macos_x86_64_fips",
+    constraint_values = [
+        "@platforms//os:macos",
+        "@platforms//cpu:x86_64",
+        ":fips",
+    ],
+)
+
+platform(
+    name = "windows_x86_64_fips",
+    constraint_values = [
+        "@platforms//os:windows",
+        "@platforms//cpu:x86_64",
+        ":fips",
+    ],
+)

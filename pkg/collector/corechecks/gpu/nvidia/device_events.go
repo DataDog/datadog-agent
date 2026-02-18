@@ -8,6 +8,7 @@
 package nvidia
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -55,7 +56,7 @@ func newDeviceEventsCollector(device ddnvml.Device, deps *CollectorDependencies)
 // used internally for testing
 func newDeviceEventsCollectorWithCache(device ddnvml.Device, cache deviceEventsCollectorCache) (c Collector, err error) {
 	if cache == nil {
-		return nil, fmt.Errorf("device events gatherer cannot be nil")
+		return nil, errors.New("device events gatherer cannot be nil")
 	}
 
 	if supported, err := cache.SupportsDevice(device); err != nil {
@@ -102,8 +103,8 @@ func (c *deviceEventsCollector) Collect() ([]Metric, error) {
 			}
 			c.metricsByXidCode[evt.EventData] = &Metric{
 				Name:     "errors.xid.total",
-				Type:     metrics.CountType,
-				Priority: High,
+				Type:     metrics.GaugeType,
+				Priority: Medium,
 				Tags: []string{
 					"type:" + strconv.Itoa(int(evt.EventData)),
 					"origin:" + xidOrigin,
@@ -283,6 +284,10 @@ func (c *DeviceEventsGatherer) GetEvents(deviceUUID string) ([]ddnvml.DeviceEven
 func (c *DeviceEventsGatherer) SupportsDevice(device ddnvml.Device) (bool, error) {
 	evtTypes, err := device.GetSupportedEventTypes()
 	if err != nil {
+		if ddnvml.IsAPIUnsupportedOnDevice(err, device) {
+			return false, nil
+		}
+
 		return false, fmt.Errorf("failed to query supported device event types for %s: %w", device.GetDeviceInfo().UUID, err)
 	}
 	return (evtTypes & eventSetMask) != 0, nil
@@ -305,7 +310,7 @@ func (c *DeviceEventsGatherer) RegisterDevice(device ddnvml.Device) error {
 	c.evtSetMtx.Lock()
 	defer c.evtSetMtx.Unlock()
 	if c.evtSet == nil {
-		return fmt.Errorf("failed registering device events on stopped gatherer")
+		return errors.New("failed registering device events on stopped gatherer")
 	}
 	if err := device.RegisterEvents(evtTypes&eventSetMask, c.evtSet); err != nil {
 		return fmt.Errorf("failed registering device events: %w", err)

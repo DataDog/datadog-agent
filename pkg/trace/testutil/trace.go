@@ -11,6 +11,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 // genNextLevel generates a new level for the trace tree structure,
@@ -49,7 +50,7 @@ func genNextLevel(prevLevel []*pb.Span, maxSpans int) []*pb.Span {
 		curSpans := make([]*pb.Span, 0, childSpans)
 		for j := 0; j < childSpans && timeLeft > 0; j++ {
 			news := RandomSpan()
-			news.TraceID = prev.TraceID
+			traceutil.CopyTraceID(news, prev)
 			news.ParentID = prev.SpanID
 
 			// distribute durations in prev span
@@ -93,7 +94,7 @@ func RandomTrace(maxLevels, maxSpans int) pb.Trace {
 func RandomTraceChunk(maxLevels, maxSpans int) *pb.TraceChunk {
 	return &pb.TraceChunk{
 		Priority: int32(rand.Intn(3)),
-		Origin:   "lambda",
+		Origin:   "cloudrun",
 		Spans:    RandomTrace(maxLevels, maxSpans),
 	}
 }

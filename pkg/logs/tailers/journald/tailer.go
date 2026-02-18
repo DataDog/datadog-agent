@@ -14,7 +14,7 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/coreos/go-systemd/sdjournal"
+	"github.com/coreos/go-systemd/v22/sdjournal"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -30,8 +30,10 @@ import (
 
 // defaultWaitDuration represents the delay before which we try to collect a new log from the journal
 const (
-	defaultWaitDuration    = 1 * time.Second
-	defaultApplicationName = "docker"
+	defaultWaitDuration = 1 * time.Second
+
+	dockerApplicationName = "docker" // Legacy compliant default for unset defaultApplicationName
+	emptyApplicationName  = ""       // Empty string is used to indicate that no default application name should be assumed
 )
 
 // Tailer collects logs from a journal.
@@ -53,9 +55,10 @@ type Tailer struct {
 
 	// tagProvider provides additional tags to be attached to each log message.  It
 	// is called once for each log message.
-	tagProvider tag.Provider
-	tagger      tagger.Component
-	registry    auditor.Registry
+	tagProvider            tag.Provider
+	tagger                 tagger.Component
+	registry               auditor.Registry
+	defaultApplicationName *string
 }
 
 // NewTailer returns a new tailer.
@@ -68,16 +71,17 @@ func NewTailer(source *sources.LogSource, outputChan chan *message.Message, jour
 	}
 
 	return &Tailer{
-		decoder:           decoder.NewNoopDecoder(),
-		source:            source,
-		outputChan:        outputChan,
-		journal:           journal,
-		stop:              make(chan struct{}, 1),
-		done:              make(chan struct{}, 1),
-		processRawMessage: processRawMessage,
-		tagProvider:       tag.NewLocalProvider(source.Config.Tags),
-		tagger:            tagger,
-		registry:          registry,
+		decoder:                decoder.NewNoopDecoder(),
+		source:                 source,
+		outputChan:             outputChan,
+		journal:                journal,
+		stop:                   make(chan struct{}, 1),
+		done:                   make(chan struct{}, 1),
+		processRawMessage:      processRawMessage,
+		tagProvider:            tag.NewLocalProvider(source.Config.Tags),
+		tagger:                 tagger,
+		registry:               registry,
+		defaultApplicationName: source.Config.DefaultApplicationName,
 	}
 }
 
@@ -435,7 +439,14 @@ func (t *Tailer) getApplicationName(entry *sdjournal.JournalEntry, tags []string
 			}
 		}
 
-		return defaultApplicationName
+		// If no default application name is set in the config, use the legacy compliant default
+		if t.defaultApplicationName == nil {
+			return dockerApplicationName
+		}
+
+		if *t.defaultApplicationName != emptyApplicationName {
+			return *t.defaultApplicationName
+		}
 	}
 
 	for _, key := range applicationKeys {

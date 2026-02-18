@@ -49,7 +49,7 @@ func (k *KubeASCheck) retrieveOShiftClusterQuotas() ([]osq.ClusterResourceQuota,
 // reportClusterQuotas reports metrics on OpenShift ClusterResourceQuota objects
 func (k *KubeASCheck) reportClusterQuotas(quotas []osq.ClusterResourceQuota, sender sender.Sender) {
 	for _, quota := range quotas {
-		quotaTags := []string{fmt.Sprintf("clusterquota:%s", quota.Name)}
+		quotaTags := []string{"clusterquota:" + quota.Name}
 		remaining := computeQuotaRemaining(quota.Status.Total.Used, quota.Status.Total.Hard)
 
 		k.reportQuota(quota.Status.Total.Hard, "openshift.clusterquota", "limit", quotaTags, sender)
@@ -57,7 +57,7 @@ func (k *KubeASCheck) reportClusterQuotas(quotas []osq.ClusterResourceQuota, sen
 		k.reportQuota(remaining, "openshift.clusterquota", "remaining", quotaTags, sender)
 
 		for _, nsQuota := range quota.Status.Namespaces {
-			nsTags := append(quotaTags, fmt.Sprintf("kube_namespace:%s", nsQuota.Namespace))
+			nsTags := append(quotaTags, "kube_namespace:"+nsQuota.Namespace)
 			k.reportQuota(nsQuota.Status.Hard, "openshift.appliedclusterquota", "limit", nsTags, sender)
 			k.reportQuota(nsQuota.Status.Used, "openshift.appliedclusterquota", "used", nsTags, sender)
 			k.reportQuota(remaining, "openshift.appliedclusterquota", "remaining", nsTags, sender)

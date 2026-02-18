@@ -7,7 +7,7 @@ package secretsimpl
 
 import (
 	"bytes"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,6 +15,7 @@ import (
 
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
 func TestSecretStatusOutput(t *testing.T) {
@@ -105,7 +106,7 @@ func TestSecretStatusWithPermissions(t *testing.T) {
 		//GroupExecPerm: false,
 	})
 
-	defer func() { checkRightsFunc = checkRights }()
+	defer func() { checkRightsFunc = filesystem.CheckRights }()
 
 	checkRightsFunc = func(_ string, _ bool) error { return nil }
 
@@ -118,7 +119,7 @@ func TestSecretStatusWithPermissions(t *testing.T) {
 	require.Contains(t, stats, "executablePermissions")
 	assert.Equal(t, "OK, the executable has the correct permissions", stats["executablePermissions"])
 
-	checkRightsFunc = func(_ string, _ bool) error { return fmt.Errorf("some error") }
+	checkRightsFunc = func(_ string, _ bool) error { return errors.New("some error") }
 
 	stats = make(map[string]interface{})
 	err = resolver.JSON(false, stats)

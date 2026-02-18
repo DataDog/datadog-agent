@@ -7,6 +7,7 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 )
 
@@ -21,22 +22,22 @@ func parseSLAMetrics(data [][]interface{}) ([]SLAMetrics, error) {
 		// Type assertions for each value
 		var ok bool
 		if m.DrillKey, ok = row[0].(string); !ok {
-			return nil, fmt.Errorf("expected string for CombinedKey")
+			return nil, errors.New("expected string for CombinedKey")
 		}
 		if m.LocalSite, ok = row[1].(string); !ok {
-			return nil, fmt.Errorf("expected string for LocalSite")
+			return nil, errors.New("expected string for LocalSite")
 		}
 		if m.RemoteSite, ok = row[2].(string); !ok {
-			return nil, fmt.Errorf("expected string for RemoteSite")
+			return nil, errors.New("expected string for RemoteSite")
 		}
 		if m.LocalAccessCircuit, ok = row[3].(string); !ok {
-			return nil, fmt.Errorf("expected string for LocalCircuit")
+			return nil, errors.New("expected string for LocalCircuit")
 		}
 		if m.RemoteAccessCircuit, ok = row[4].(string); !ok {
-			return nil, fmt.Errorf("expected string for RemoteCircuit")
+			return nil, errors.New("expected string for RemoteCircuit")
 		}
 		if m.ForwardingClass, ok = row[5].(string); !ok {
-			return nil, fmt.Errorf("expected string for ForwardingClass")
+			return nil, errors.New("expected string for ForwardingClass")
 		}
 
 		// Floats from index 6–11
@@ -67,13 +68,13 @@ func parseApplicationsByApplianceMetrics(data [][]interface{}) ([]ApplicationsBy
 		// Type assertions for each value
 		var ok bool
 		if m.DrillKey, ok = row[0].(string); !ok {
-			return nil, fmt.Errorf("expected string for DrillKey")
+			return nil, errors.New("expected string for DrillKey")
 		}
 		if m.Site, ok = row[1].(string); !ok {
-			return nil, fmt.Errorf("expected string for Site")
+			return nil, errors.New("expected string for Site")
 		}
 		if m.AppID, ok = row[2].(string); !ok {
-			return nil, fmt.Errorf("expected string for AppId")
+			return nil, errors.New("expected string for AppId")
 		}
 
 		// Floats from index 3–8
@@ -104,16 +105,16 @@ func parseLinkStatusMetrics(data [][]interface{}) ([]LinkStatusMetrics, error) {
 		// Type assertions for each value
 		var ok bool
 		if m.DrillKey, ok = row[0].(string); !ok {
-			return nil, fmt.Errorf("expected string for DrillKey")
+			return nil, errors.New("expected string for DrillKey")
 		}
 		if m.Site, ok = row[1].(string); !ok {
-			return nil, fmt.Errorf("expected string for Site")
+			return nil, errors.New("expected string for Site")
 		}
 		if m.AccessCircuit, ok = row[2].(string); !ok {
-			return nil, fmt.Errorf("expected string for AccessCircuit")
+			return nil, errors.New("expected string for AccessCircuit")
 		}
 		if m.Availability, ok = row[3].(float64); !ok {
-			return nil, fmt.Errorf("expected float64 for Availability")
+			return nil, errors.New("expected float64 for Availability")
 		}
 		rows = append(rows, m)
 	}
@@ -131,31 +132,31 @@ func parseLinkUsageMetrics(data [][]interface{}) ([]LinkUsageMetrics, error) {
 		// Type assertions for each value
 		var ok bool
 		if m.DrillKey, ok = row[0].(string); !ok {
-			return nil, fmt.Errorf("expected string for DrillKey")
+			return nil, errors.New("expected string for DrillKey")
 		}
 		if m.Site, ok = row[1].(string); !ok {
-			return nil, fmt.Errorf("expected string for Site")
+			return nil, errors.New("expected string for Site")
 		}
 		if m.AccessCircuit, ok = row[2].(string); !ok {
-			return nil, fmt.Errorf("expected string for AccessCircuit")
+			return nil, errors.New("expected string for AccessCircuit")
 		}
 		if m.UplinkBandwidth, ok = row[3].(string); !ok {
-			return nil, fmt.Errorf("expected string for UplinkBandwidth")
+			return nil, errors.New("expected string for UplinkBandwidth")
 		}
 		if m.DownlinkBandwidth, ok = row[4].(string); !ok {
-			return nil, fmt.Errorf("expected string for DownlinkBandwidth")
+			return nil, errors.New("expected string for DownlinkBandwidth")
 		}
 		if m.Type, ok = row[5].(string); !ok {
-			return nil, fmt.Errorf("expected string for Type")
+			return nil, errors.New("expected string for Type")
 		}
 		if m.Media, ok = row[6].(string); !ok {
-			return nil, fmt.Errorf("expected string for Media")
+			return nil, errors.New("expected string for Media")
 		}
 		if m.IP, ok = row[7].(string); !ok {
-			return nil, fmt.Errorf("expected string for IP")
+			return nil, errors.New("expected string for IP")
 		}
 		if m.ISP, ok = row[8].(string); !ok {
-			return nil, fmt.Errorf("expected string for ISP")
+			return nil, errors.New("expected string for ISP")
 		}
 
 		// Floats from index 9–12
@@ -185,19 +186,19 @@ func parseSiteMetrics(data [][]interface{}) ([]SiteMetrics, error) {
 		// Type assertions for each value
 		var ok bool
 		if m.Site, ok = row[0].(string); !ok {
-			return nil, fmt.Errorf("expected string for Site")
+			return nil, errors.New("expected string for Site")
 		}
 		if m.Address, ok = row[1].(string); !ok {
-			return nil, fmt.Errorf("expected string for Address")
+			return nil, errors.New("expected string for Address")
 		}
 		if m.Latitude, ok = row[2].(string); !ok {
-			return nil, fmt.Errorf("expected string for Latitude")
+			return nil, errors.New("expected string for Latitude")
 		}
 		if m.Longitude, ok = row[3].(string); !ok {
-			return nil, fmt.Errorf("expected string for Longitude")
+			return nil, errors.New("expected string for Longitude")
 		}
 		if m.LocationSource, ok = row[4].(string); !ok {
-			return nil, fmt.Errorf("expected string for LocationSource")
+			return nil, errors.New("expected string for LocationSource")
 		}
 
 		// Floats from index 5–9 (5 float fields)
@@ -228,13 +229,13 @@ func parseTopUserMetrics(data [][]interface{}) ([]TopUserMetrics, error) {
 		// Type assertions for each value
 		var ok bool
 		if m.DrillKey, ok = row[0].(string); !ok {
-			return nil, fmt.Errorf("expected string for DrillKey")
+			return nil, errors.New("expected string for DrillKey")
 		}
 		if m.Site, ok = row[1].(string); !ok {
-			return nil, fmt.Errorf("expected string for Site")
+			return nil, errors.New("expected string for Site")
 		}
 		if m.User, ok = row[2].(string); !ok {
-			return nil, fmt.Errorf("expected string for User")
+			return nil, errors.New("expected string for User")
 		}
 
 		// Floats from index 3–8
@@ -266,31 +267,31 @@ func parseTunnelMetrics(data [][]interface{}) ([]TunnelMetrics, error) {
 		// Type assertions for each value
 		var ok bool
 		if m.DrillKey, ok = row[0].(string); !ok {
-			return nil, fmt.Errorf("expected string for DrillKey")
+			return nil, errors.New("expected string for DrillKey")
 		}
 		if m.Appliance, ok = row[1].(string); !ok {
-			return nil, fmt.Errorf("expected string for Appliance")
+			return nil, errors.New("expected string for Appliance")
 		}
 		if m.LocalIP, ok = row[2].(string); !ok {
-			return nil, fmt.Errorf("expected string for LocalIP")
+			return nil, errors.New("expected string for LocalIP")
 		}
 		if m.RemoteIP, ok = row[3].(string); !ok {
-			return nil, fmt.Errorf("expected string for RemoteIP")
+			return nil, errors.New("expected string for RemoteIP")
 		}
 		if m.VpnProfName, ok = row[4].(string); !ok {
-			return nil, fmt.Errorf("expected string for VpnProfName")
+			return nil, errors.New("expected string for VpnProfName")
 		}
 
 		// Handle float metrics from indices 5-6
 		if val, ok := row[5].(float64); ok {
 			m.VolumeRx = val
 		} else {
-			return nil, fmt.Errorf("expected float64 for VolumeRx at index 5")
+			return nil, errors.New("expected float64 for VolumeRx at index 5")
 		}
 		if val, ok := row[6].(float64); ok {
 			m.VolumeTx = val
 		} else {
-			return nil, fmt.Errorf("expected float64 for VolumeTx at index 6")
+			return nil, errors.New("expected float64 for VolumeTx at index 6")
 		}
 		rows = append(rows, m)
 	}
@@ -308,13 +309,13 @@ func parsePathQoSMetrics(data [][]interface{}) ([]QoSMetrics, error) {
 		// Type assertions for each value
 		var ok bool
 		if m.DrillKey, ok = row[0].(string); !ok {
-			return nil, fmt.Errorf("expected string for DrillKey")
+			return nil, errors.New("expected string for DrillKey")
 		}
 		if m.LocalSiteName, ok = row[1].(string); !ok {
-			return nil, fmt.Errorf("expected string for LocalSiteName")
+			return nil, errors.New("expected string for LocalSiteName")
 		}
 		if m.RemoteSiteName, ok = row[2].(string); !ok {
-			return nil, fmt.Errorf("expected string for RemoteSiteName")
+			return nil, errors.New("expected string for RemoteSiteName")
 		}
 
 		// Floats from index 3–18 (16 float fields)
@@ -347,16 +348,16 @@ func parseDIAMetrics(data [][]interface{}) ([]DIAMetrics, error) {
 		// Type assertions for each value
 		var ok bool
 		if m.DrillKey, ok = row[0].(string); !ok {
-			return nil, fmt.Errorf("expected string for DrillKey")
+			return nil, errors.New("expected string for DrillKey")
 		}
 		if m.Site, ok = row[1].(string); !ok {
-			return nil, fmt.Errorf("expected string for Site")
+			return nil, errors.New("expected string for Site")
 		}
 		if m.AccessCircuit, ok = row[2].(string); !ok {
-			return nil, fmt.Errorf("expected string for AccessCircuit")
+			return nil, errors.New("expected string for AccessCircuit")
 		}
 		if m.IP, ok = row[3].(string); !ok {
-			return nil, fmt.Errorf("expected string for IP")
+			return nil, errors.New("expected string for IP")
 		}
 
 		// Floats from index 4–7 (4 float fields)
@@ -386,16 +387,16 @@ func parseAnalyticsInterfaceMetrics(data [][]interface{}) ([]AnalyticsInterfaceM
 		// Type assertions for each value
 		var ok bool
 		if m.DrillKey, ok = row[0].(string); !ok {
-			return nil, fmt.Errorf("expected string for DrillKey")
+			return nil, errors.New("expected string for DrillKey")
 		}
 		if m.Site, ok = row[1].(string); !ok {
-			return nil, fmt.Errorf("expected string for Site")
+			return nil, errors.New("expected string for Site")
 		}
 		if m.AccessCkt, ok = row[2].(string); !ok {
-			return nil, fmt.Errorf("expected string for AccessCkt")
+			return nil, errors.New("expected string for AccessCkt")
 		}
 		if m.Interface, ok = row[3].(string); !ok {
-			return nil, fmt.Errorf("expected string for Interface")
+			return nil, errors.New("expected string for Interface")
 		}
 
 		// Floats from index 4–11 (8 float fields)

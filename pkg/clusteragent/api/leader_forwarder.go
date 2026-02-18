@@ -9,7 +9,6 @@ package api
 
 import (
 	"crypto/tls"
-	"fmt"
 	stdLog "log"
 	"net"
 	"net/http"
@@ -87,7 +86,8 @@ func (lf *LeaderForwarder) Forward(rw http.ResponseWriter, req *http.Request) {
 	rw.Header().Set(respForwarded, "true")
 
 	if req.Header.Get(forwardHeader) != "" {
-		http.Error(rw, fmt.Sprintf("Query was already forwarded from: %s", req.RemoteAddr), http.StatusLoopDetected)
+		http.Error(rw, "Query was already forwarded from: "+req.RemoteAddr, http.StatusLoopDetected)
+		return
 	}
 
 	var currentProxy *httputil.ReverseProxy

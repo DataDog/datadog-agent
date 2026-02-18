@@ -78,7 +78,7 @@ func (t *unbundledTransformer) Transform(events []*docker.ContainerEvent) ([]eve
 			EventType:      CheckName,
 			AlertType:      alertType,
 			Ts:             ev.Timestamp.Unix(),
-			AggregationKey: fmt.Sprintf("docker:%s", ev.ContainerID),
+			AggregationKey: "docker:" + ev.ContainerID,
 		})
 	}
 

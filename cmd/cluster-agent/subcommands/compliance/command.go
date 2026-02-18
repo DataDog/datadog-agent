@@ -10,29 +10,64 @@ package compliance
 
 import (
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/check"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
+	"github.com/DataDog/datadog-agent/pkg/compliance/cli"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
-//
-//nolint:revive // TODO(CINT) Fix revive linter
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	complianceCmd := &cobra.Command{
 		Use:   "compliance",
 		Short: "compliance utility commands",
 	}
 
-	bundleParams := core.BundleParams{
-		ConfigParams: config.NewClusterAgentParams(""),
-		LogParams:    log.ForOneShot(command.LoggerName, command.DefaultLogLevel, true),
-	}
-
-	complianceCmd.AddCommand(check.ClusterAgentCommands(bundleParams)...)
+	complianceCmd.AddCommand(complianceCheckCommand(globalParams))
 
 	return []*cobra.Command{complianceCmd}
+}
+
+func complianceCheckCommand(globalParams *command.GlobalParams) *cobra.Command {
+	checkArgs := &cli.CheckParams{}
+
+	cmd := &cobra.Command{
+		Use:   "check",
+		Short: "Run compliance check(s)",
+		RunE: func(_ *cobra.Command, args []string) error {
+			bundleParams := core.BundleParams{
+				ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
+				LogParams:    log.ForOneShot(command.LoggerName, command.DefaultLogLevel, true),
+			}
+
+			checkArgs.Args = args
+			if checkArgs.Verbose {
+				bundleParams.LogParams = log.ForOneShot(bundleParams.LogParams.LoggerName(), "trace", true)
+			}
+
+			return fxutil.OneShot(cli.RunCheck,
+				fx.Supply(checkArgs),
+				fx.Supply(bundleParams),
+				core.Bundle(),
+				secretsfx.Module(),
+				logscompressionfx.Module(),
+				statsd.Module(),
+				ipcfx.ModuleReadOnly(),
+				hostnameimpl.Module(),
+			)
+		},
+	}
+
+	cli.FillCheckFlags(cmd.Flags(), checkArgs)
+
+	return cmd
 }

@@ -87,7 +87,7 @@ func addOpenLineageAPIVersion(u *url.URL, version int) {
 
 func openLineageErrorHandler(message string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		msg := fmt.Sprintf("OpenLineage forwarder is OFF: %s", message)
+		msg := "OpenLineage forwarder is OFF: " + message
 		http.Error(w, msg, http.StatusInternalServerError)
 	})
 }
@@ -113,7 +113,7 @@ func newOpenLineageProxy(conf *config.AgentConfig, urls []*url.URL, keys []strin
 	log.Debug("[openlineage] Creating reverse proxy")
 	cidProvider := NewIDProvider(conf.ContainerProcRoot, conf.ContainerIDFromOriginInfo)
 	director := func(req *http.Request) {
-		req.Header.Set("Via", fmt.Sprintf("trace-agent %s", conf.AgentVersion))
+		req.Header.Set("Via", "trace-agent "+conf.AgentVersion)
 		if _, ok := req.Header["User-Agent"]; !ok {
 			// explicitly disable User-Agent so it's not set to the default value
 			// that net/http gives it: Go-http-client/1.1

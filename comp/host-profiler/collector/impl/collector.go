@@ -10,9 +10,13 @@ package collectorimpl
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	collector "github.com/DataDog/datadog-agent/comp/host-profiler/collector/def"
+	"github.com/DataDog/datadog-agent/pkg/version"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
@@ -21,6 +25,8 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/sdk/metric"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 // Params contains the parameters for the collector component.
@@ -88,7 +94,22 @@ func (c *collectorImpl) Run() error {
 }
 
 func newCollectorSettings(uri string, extraFactories ExtraFactories) (otelcol.CollectorSettings, error) {
+	zapCore := extraFactories.GetZapCore()
+	extraFactories.SetupSlogDefault(zapCore)
+
+	// Replace default core to use Agent logger
+	options := []zap.Option{
+		zap.WrapCore(func(zapcore.Core) zapcore.Core {
+			return zapCore
+		}),
+	}
+
 	return otelcol.CollectorSettings{
+		BuildInfo: component.BuildInfo{
+			Command:     filepath.Base(os.Args[0]),
+			Description: "Full Host Profiler: eBPF-based continuous profiling on OpenTelemetry Collector",
+			Version:     version.AgentVersion,
+		},
 		Factories: createFactories(extraFactories),
 		ConfigProviderSettings: otelcol.ConfigProviderSettings{
 			ResolverSettings: confmap.ResolverSettings{
@@ -98,8 +119,12 @@ func newCollectorSettings(uri string, extraFactories ExtraFactories) (otelcol.Co
 					fileprovider.NewFactory(),
 				},
 				ConverterFactories: extraFactories.GetConverters(),
+				ProviderSettings: confmap.ProviderSettings{
+					Logger: zap.New(zapCore),
+				},
 			},
 		},
+		LoggingOptions: options,
 	}, nil
 }
 

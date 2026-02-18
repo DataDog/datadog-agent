@@ -7,7 +7,6 @@
 package socket
 
 import (
-	"fmt"
 	"io"
 	"net"
 	"strings"
@@ -110,7 +109,7 @@ func (t *Tailer) readForever() {
 				} else {
 					ipAddressWithoutPort = ipAddress
 				}
-				sourceHostTag := fmt.Sprintf("source_host:%s", ipAddressWithoutPort)
+				sourceHostTag := "source_host:" + ipAddressWithoutPort
 				msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, sourceHostTag)
 			}
 			t.decoder.InputChan() <- msg

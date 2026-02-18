@@ -27,6 +27,13 @@ static void initTaggerTests(rtloader_t *rtloader) {
    set_tags_cb(rtloader, Tags);
 }
 
+static inline void* call_malloc(size_t sz) {
+    return _malloc(sz);
+}
+
+static inline void call_free(void* ptr) {
+    _free(ptr);
+}
 */
 import "C"
 
@@ -76,7 +83,7 @@ except Exception as e:
 	with open(r'%s', 'w') as f:
 		f.write("{}: {}\n".format(type(e).__name__, e))
 `, call, tmpfile.Name())))
-	defer C._free(unsafe.Pointer(code))
+	defer C.call_free(unsafe.Pointer(code))
 
 	runtime.LockOSThread()
 	state := C.ensure_gil(rtloader)
@@ -104,7 +111,7 @@ func Tags(id *C.char, cardinality C.int) **C.char {
 	}
 
 	length := 4
-	cTags := C._malloc(C.size_t(length) * C.size_t(unsafe.Sizeof(uintptr(0))))
+	cTags := C.call_malloc(C.size_t(uintptr(length) * unsafe.Sizeof(uintptr(0))))
 	// convert the C array to a Go Array so we can index it
 	indexTag := (*[1<<29 - 1]*C.char)(cTags)[:length:length]
 	indexTag[length-1] = nil
@@ -124,7 +131,7 @@ func Tags(id *C.char, cardinality C.int) **C.char {
 		indexTag[1] = (*C.char)(helpers.TrackedCString("2"))
 		indexTag[2] = (*C.char)(helpers.TrackedCString("3"))
 	default:
-		C._free(cTags)
+		C.call_free(cTags)
 		return nil
 	}
 	return (**C.char)(cTags)

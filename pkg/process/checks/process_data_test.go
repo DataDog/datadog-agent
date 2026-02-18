@@ -6,7 +6,7 @@
 package checks
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -69,7 +69,7 @@ func TestProcessDataFetch(t *testing.T) {
 
 			if tc.wantErr {
 				probe.On("ProcessesByPID", mock.Anything, mock.Anything).
-					Return(nil, fmt.Errorf("unable to retrieve process data"))
+					Return(nil, errors.New("unable to retrieve process data"))
 				assert.Error(t, p.Fetch())
 			} else {
 				probe.On("ProcessesByPID", mock.Anything, mock.Anything).

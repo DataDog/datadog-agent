@@ -23,9 +23,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
+	"github.com/DataDog/datadog-agent/pkg/discovery/core"
+	"github.com/DataDog/datadog-agent/pkg/discovery/language"
+	"github.com/DataDog/datadog-agent/pkg/discovery/model"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -352,8 +352,9 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 				})
 
 				c.collector.lastCollectedProcesses[process.Pid] = &procutil.Process{
-					Pid:   process.Pid,
-					Stats: &procutil.Stats{CreateTime: process.CreationTime.UnixMilli()}, // Use actual creation time from process entity
+					Pid:     process.Pid,
+					Cmdline: []string{"python3", "--version"},
+					Stats:   &procutil.Stats{CreateTime: process.CreationTime.UnixMilli()},
 				}
 			}
 
@@ -569,8 +570,9 @@ func TestServiceStoreLifetime(t *testing.T) {
 				})
 
 				c.collector.lastCollectedProcesses[process.Pid] = &procutil.Process{
-					Pid:   process.Pid,
-					Stats: &procutil.Stats{CreateTime: process.CreationTime.UnixMilli()}, // Use actual creation time from process entity
+					Pid:     process.Pid,
+					Cmdline: []string{"python3", "--version"},
+					Stats:   &procutil.Stats{CreateTime: process.CreationTime.UnixMilli()},
 				}
 
 				// If this is a process whose injection status we've reported (but has no service), add to tracking
@@ -956,4 +958,77 @@ func assertProcessData(t *testing.T, store workloadmetamock.Mock, expectedProces
 			assert.Equal(collectT, expectedProcess.InjectionState, entity.InjectionState)
 		}
 	}, 1*time.Second, 100*time.Millisecond)
+}
+
+func TestConvertModelServiceToService_Normalization(t *testing.T) {
+	tests := []struct {
+		name                    string
+		inputService            *model.Service
+		expectedGeneratedName   string
+		expectedAdditionalNames []string
+	}{
+		{
+			name: "normalize service name",
+			inputService: &model.Service{
+				GeneratedName:            "My@service_12🤪",
+				GeneratedNameSource:      "env",
+				AdditionalGeneratedNames: []string{"@foo", "def", "ABC", "service.name"},
+				Language:                 "java",
+			},
+			expectedGeneratedName:   "my_service_12",
+			expectedAdditionalNames: []string{"_foo", "abc", "def", "service.name"},
+		},
+		{
+			name: "fallback service name",
+			inputService: &model.Service{
+				GeneratedName:            "",
+				GeneratedNameSource:      "env",
+				AdditionalGeneratedNames: []string{},
+				Language:                 "jvm",
+			},
+			expectedGeneratedName:   "unnamed-jvm-service",
+			expectedAdditionalNames: []string{},
+		},
+		{
+			name: "fallback service name with unknown language",
+			inputService: &model.Service{
+				GeneratedName:            "",
+				GeneratedNameSource:      "env",
+				AdditionalGeneratedNames: []string{},
+				Language:                 string(language.Unknown),
+			},
+			expectedGeneratedName:   "unnamed-service",
+			expectedAdditionalNames: []string{},
+		},
+		{
+			name: "filter empty additional names",
+			inputService: &model.Service{
+				GeneratedName:            "service",
+				GeneratedNameSource:      "env",
+				AdditionalGeneratedNames: []string{"", "  ", "valid"},
+				Language:                 "node",
+			},
+			expectedGeneratedName:   "service",
+			expectedAdditionalNames: []string{"valid"},
+		},
+		{
+			name: "empty additional names list",
+			inputService: &model.Service{
+				GeneratedName:            "service",
+				GeneratedNameSource:      "env",
+				AdditionalGeneratedNames: []string{},
+				Language:                 "ruby",
+			},
+			expectedGeneratedName:   "service",
+			expectedAdditionalNames: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := convertModelServiceToService(tt.inputService)
+			assert.Equal(t, tt.expectedGeneratedName, result.GeneratedName)
+			assert.Equal(t, tt.expectedAdditionalNames, result.AdditionalGeneratedNames)
+		})
+	}
 }

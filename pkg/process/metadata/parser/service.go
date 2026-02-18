@@ -11,9 +11,10 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
 	"unicode"
 
-	"github.com/Masterminds/semver"
+	"github.com/Masterminds/semver/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	javaparser "github.com/DataDog/datadog-agent/pkg/process/metadata/parser/java"
@@ -64,6 +65,8 @@ type ServiceExtractor struct {
 	useWindowsServiceName bool
 	serviceByPID          map[int32]*serviceMetadata
 	scmReader             *scmReader
+
+	mtx sync.RWMutex
 }
 
 type serviceMetadata struct {
@@ -94,6 +97,8 @@ func (d *ServiceExtractor) Extract(processes map[int32]*procutil.Process) {
 	if !d.enabled {
 		return
 	}
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
 
 	serviceByPID := make(map[int32]*serviceMetadata)
 
@@ -108,13 +113,51 @@ func (d *ServiceExtractor) Extract(processes map[int32]*procutil.Process) {
 			}
 		}
 		meta := d.extractServiceMetadata(proc)
-		if meta != nil && log.ShouldLog(log.TraceLvl) {
-			log.Tracef("detected service metadata: %v", meta)
+		if meta != nil {
+			if log.ShouldLog(log.TraceLvl) {
+				log.Tracef("detected service metadata: %v", meta)
+			}
+			serviceByPID[proc.Pid] = meta
 		}
-		serviceByPID[proc.Pid] = meta
 	}
 
 	d.serviceByPID = serviceByPID
+}
+
+// ExtractSingle extracts process metadata from a single process
+func (d *ServiceExtractor) ExtractSingle(proc *procutil.Process) {
+	if !d.enabled {
+		return
+	}
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
+	if meta, seen := d.serviceByPID[proc.Pid]; seen {
+		// check the service metadata is for the same process
+		if len(proc.Cmdline) == len(meta.cmdline) {
+			if len(proc.Cmdline) == 0 || proc.Cmdline[0] == meta.cmdline[0] {
+				return
+			}
+		}
+	}
+	meta := d.extractServiceMetadata(proc)
+	if meta != nil {
+		if log.ShouldLog(log.TraceLvl) {
+			log.Tracef("detected service metadata: %v", meta)
+		}
+		d.serviceByPID[proc.Pid] = meta
+	}
+}
+
+// Remove deletes process metadata for the provided PID
+func (d *ServiceExtractor) Remove(pid int32) {
+	if !d.enabled {
+		return
+	}
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
+	delete(d.serviceByPID, pid)
 }
 
 // GetServiceContext returns the service context for the PID
@@ -122,6 +165,8 @@ func (d *ServiceExtractor) GetServiceContext(pid int32) []string {
 	if !d.enabled {
 		return nil
 	}
+	d.mtx.RLock()
+	defer d.mtx.RUnlock()
 
 	if runtime.GOOS == "windows" && d.useWindowsServiceName {
 		tags, err := d.getWindowsServiceTags(pid)
@@ -147,9 +192,7 @@ func (d *ServiceExtractor) GetServiceContext(pid int32) []string {
 func (d *ServiceExtractor) extractServiceMetadata(process *procutil.Process) *serviceMetadata {
 	cmd := process.Cmdline
 	if len(cmd) == 0 || len(cmd[0]) == 0 {
-		return &serviceMetadata{
-			cmdline: cmd,
-		}
+		return nil
 	}
 
 	// check if all args are packed into the first argument
@@ -159,7 +202,7 @@ func (d *ServiceExtractor) extractServiceMetadata(process *procutil.Process) *se
 	cmdOrig := cmd
 	envs, cmd := extractEnvsFromCommand(cmd)
 	if len(envs) > 0 { // evaluate and skip the envs
-		svc, ok := chooseServiceNameFromEnvs(envs)
+		svc, ok := ChooseServiceNameFromEnvs(envs)
 		if ok {
 			return &serviceMetadata{
 				cmdline:        cmdOrig,
@@ -169,9 +212,7 @@ func (d *ServiceExtractor) extractServiceMetadata(process *procutil.Process) *se
 	}
 
 	if len(cmd) == 0 || len(cmd[0]) == 0 {
-		return &serviceMetadata{
-			cmdline: cmdOrig,
-		}
+		return nil
 	}
 	exe := cmd[0]
 
@@ -186,9 +227,11 @@ func (d *ServiceExtractor) extractServiceMetadata(process *procutil.Process) *se
 
 	if contextFn, ok := binsWithContext[exe]; ok {
 		tag := contextFn(d, process, cmd[1:])
-		return &serviceMetadata{
-			cmdline:        cmdOrig,
-			serviceContext: "process_context:" + tag,
+		if tag != "" {
+			return &serviceMetadata{
+				cmdline:        cmdOrig,
+				serviceContext: "process_context:" + tag,
+			}
 		}
 	}
 
@@ -197,10 +240,13 @@ func (d *ServiceExtractor) extractServiceMetadata(process *procutil.Process) *se
 		exe = exe[:i]
 	}
 
-	return &serviceMetadata{
-		cmdline:        cmdOrig,
-		serviceContext: "process_context:" + exe,
+	if exe != "" {
+		return &serviceMetadata{
+			cmdline:        cmdOrig,
+			serviceContext: "process_context:" + exe,
+		}
 	}
+	return nil
 }
 
 // GetWindowsServiceTags returns the process_context associated with a process by scraping the SCM.
@@ -216,7 +262,9 @@ func (d *ServiceExtractor) getWindowsServiceTags(pid int32) ([]string, error) {
 
 	serviceTags := make([]string, 0, len(entry.ServiceName))
 	for _, serviceName := range entry.ServiceName {
-		serviceTags = append(serviceTags, "process_context:"+serviceName)
+		if serviceName != "" {
+			serviceTags = append(serviceTags, "process_context:"+serviceName)
+		}
 	}
 	return serviceTags, nil
 }
@@ -253,18 +301,20 @@ func extractEnvsFromCommand(cmd []string) ([]string, []string) {
 	return cmd[:pos], cmd[pos:]
 }
 
-// chooseServiceNameFromEnvs extracts the service name from usual tracer env variables (DD_SERVICE, DD_TAGS).
+// ChooseServiceNameFromEnvs extracts the service name from usual tracer env variables (DD_SERVICE, DD_TAGS).
 // returns the service name, true if found, otherwise "", false
-func chooseServiceNameFromEnvs(envs []string) (string, bool) {
+func ChooseServiceNameFromEnvs(envs []string) (string, bool) {
 	for _, env := range envs {
-		if strings.HasPrefix(env, "DD_SERVICE=") {
-			return strings.TrimPrefix(env, "DD_SERVICE="), true
+		if after, ok := strings.CutPrefix(env, "DD_SERVICE="); ok {
+			svc := after
+			return svc, len(svc) > 0
 		}
 		if strings.HasPrefix(env, "DD_TAGS=") && strings.Contains(env, "service:") {
-			parts := strings.Split(strings.TrimPrefix(env, "DD_TAGS="), ",")
-			for _, p := range parts {
-				if strings.HasPrefix(p, "service:") {
-					return strings.TrimPrefix(p, "service:"), true
+			parts := strings.SplitSeq(strings.TrimPrefix(env, "DD_TAGS="), ",")
+			for p := range parts {
+				if after, ok := strings.CutPrefix(p, "service:"); ok {
+					svc := after
+					return svc, len(svc) > 0
 				}
 			}
 		}
@@ -379,8 +429,8 @@ func parseCommandContextJava(se *ServiceExtractor, process *procutil.Process, ar
 					// take the project name after the package 'org.apache.' while stripping off the remaining package
 					// and class name
 					arg = arg[len(javaApachePrefix):]
-					if idx := strings.Index(arg, "."); idx != -1 {
-						return arg[:idx]
+					if before, _, ok := strings.Cut(arg, "."); ok {
+						return before
 					}
 				}
 				if idx := strings.LastIndex(arg, "."); idx != -1 && idx+1 < len(arg) {

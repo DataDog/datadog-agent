@@ -12,6 +12,7 @@ from invoke import task
 from tasks.build_tags import (
     compute_build_tags_for_flavor,
 )
+from tasks.flavor import AgentFlavor
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
@@ -34,6 +35,7 @@ def build(
     go_mod="readonly",
     no_strip_binary=True,
     no_cgo=False,
+    fips_mode=False,
 ):
     """
     Build the installer.
@@ -52,14 +54,17 @@ def build(
         )
 
     build_tags = compute_build_tags_for_flavor(
-        build="installer", build_include=build_include, build_exclude=build_exclude
+        build="installer",
+        build_include=build_include,
+        build_exclude=build_exclude,
+        flavor=AgentFlavor.fips if fips_mode else AgentFlavor.base,
     )
 
     installer_bin = INSTALLER_BIN
     if output_bin:
         installer_bin = output_bin
 
-    if no_cgo:
+    if no_cgo and not fips_mode:
         env["CGO_ENABLED"] = "0"
     else:
         env["CGO_ENABLED"] = "1"
@@ -101,6 +106,23 @@ def build_linux_script(ctx, flavor, version, bin_amd64, bin_arm64, output, packa
     install_script = install_script.replace('INSTALLER_AMD64_SHA256', bin_amd64_sha256)
     install_script = install_script.replace('INSTALLER_ARM64_SHA256', bin_arm64_sha256)
     install_script = install_script.replace('PACKAGE_NAME', package)
+
+    if flavor in ("emr", "databricks", "dataproc"):
+        install_script = install_script.replace(
+            'DATADOG_AGENT_OPTIONAL_REMOVE_CMD',
+            """
+if command -v dpkg >/dev/null && dpkg -s datadog-agent >/dev/null 2>&1; then
+  "${sudo_cmd[@]+"${sudo_cmd[@]}"}" datadog-agent purge >/dev/null 2>&1 || true
+  "${sudo_cmd[@]+"${sudo_cmd[@]}"}" dpkg --purge datadog-agent >/dev/null 2>&1 || true
+  DATADOG_AGENT_OPTIONAL_REMOVE_DEB_CMD
+elif command -v rpm >/dev/null && rpm -q datadog-agent >/dev/null 2>&1; then
+  "${sudo_cmd[@]+"${sudo_cmd[@]}"}" datadog-agent purge >/dev/null 2>&1 || true
+  "${sudo_cmd[@]+"${sudo_cmd[@]}"}" rpm -e datadog-agent >/dev/null 2>&1 || true
+fi
+""",
+        )
+    else:
+        install_script = install_script.replace('DATADOG_AGENT_OPTIONAL_REMOVE_CMD', '')
 
     makedirs(DIR_BIN, exist_ok=True)
     with open(path.join(DIR_BIN, output), 'w') as f:

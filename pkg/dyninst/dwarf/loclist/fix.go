@@ -9,7 +9,7 @@
 package loclist
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
@@ -120,7 +120,7 @@ func fixLoclists(loclists []ir.Location, expectedByteSize uint32) ([]ir.Location
 		}
 
 		if !found {
-			return nil, fmt.Errorf("could not compact pieces")
+			return nil, errors.New("could not compact pieces")
 		}
 
 		// Remove and merge pieces at the found index

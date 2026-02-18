@@ -8,6 +8,7 @@
 package connection
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -172,7 +173,7 @@ func (t *ebpfLessTracer) processConnection(
 		return nil
 	}
 	if !flags.ip4Present && !flags.ip6Present {
-		return fmt.Errorf("expected to have an IP layer")
+		return errors.New("expected to have an IP layer")
 	}
 
 	// don't trace families/protocols that are disabled by configuration
@@ -233,7 +234,7 @@ func (t *ebpfLessTracer) processConnection(
 			return err
 		}
 		if direction == network.UNKNOWN {
-			return fmt.Errorf("could not determine connection direction")
+			return errors.New("could not determine connection direction")
 		}
 		conn.Direction = direction
 
@@ -422,7 +423,7 @@ func (t *ebpfLessTracer) GetMap(string) (*ebpf.Map, error) { return nil, nil }
 
 // DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
 func (t *ebpfLessTracer) DumpMaps(_ io.Writer, _ ...string) error {
-	return fmt.Errorf("not implemented")
+	return errors.New("not implemented")
 }
 
 // Type returns the type of the underlying ebpf ebpfLessTracer that is currently loaded
@@ -431,11 +432,11 @@ func (t *ebpfLessTracer) Type() TracerType {
 }
 
 func (t *ebpfLessTracer) Pause() error {
-	return fmt.Errorf("not implemented")
+	return errors.New("not implemented")
 }
 
 func (t *ebpfLessTracer) Resume() error {
-	return fmt.Errorf("not implemented")
+	return errors.New("not implemented")
 }
 
 // Describe returns all descriptions of the collector

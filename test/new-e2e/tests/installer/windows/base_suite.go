@@ -6,16 +6,18 @@
 package installer
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	suiteasserts "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/suite-assertions"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
@@ -25,6 +27,17 @@ import (
 
 	"github.com/stretchr/testify/suite"
 )
+
+// isWERDumpCollectionEnabled returns true by default; it is disabled when DD_E2E_SKIP_WER_DUMPS is truthy
+func isWERDumpCollectionEnabled() bool {
+	val := os.Getenv("DD_E2E_SKIP_WER_DUMPS")
+	switch strings.ToLower(strings.TrimSpace(val)) {
+	case "1", "true", "yes", "on":
+		return false
+	default:
+		return true
+	}
+}
 
 // BaseSuite the base suite for all installer tests on Windows (install script, MSI, exe etc...).
 // To run the test suites locally, pick a pipeline and define the following environment variables:
@@ -111,15 +124,19 @@ func (s *BaseSuite) SetupSuite() {
 	s.T().Logf("stable agent version: %s", s.StableAgentVersion())
 
 	// Enable crash dumps
-	host := s.Env().RemoteHost
-	s.dumpFolder = `C:\dumps`
-	err := windowscommon.EnableWERGlobalDumps(host, s.dumpFolder)
-	s.Require().NoError(err, "should enable WER dumps")
-	// Set the environment variable at the machine level.
-	// The tests will be re-installing services so the per-service environment
-	// won't be persisted.
-	_, err = host.Execute(`[Environment]::SetEnvironmentVariable("GOTRACEBACK", "wer", "Machine")`)
-	s.Require().NoError(err, "should set GOTRACEBACK environment variable")
+	if isWERDumpCollectionEnabled() {
+		host := s.Env().RemoteHost
+		s.dumpFolder = `C:\dumps`
+		err := windowscommon.EnableWERGlobalDumps(host, s.dumpFolder)
+		s.Require().NoError(err, "should enable WER dumps")
+		// Set the environment variable at the machine level.
+		// The tests will be re-installing services so the per-service environment
+		// won't be persisted.
+		_, err = host.Execute(`[Environment]::SetEnvironmentVariable("GOTRACEBACK", "wer", "Machine")`)
+		s.Require().NoError(err, "should set GOTRACEBACK environment variable")
+	} else {
+		s.T().Log("WER dump collection disabled via DD_E2E_SKIP_WER_DUMPS")
+	}
 }
 
 // createCurrentAgent sets the current agent version for the test suite.
@@ -181,11 +198,10 @@ func (s *BaseSuite) createStableAgent() {
 	}
 	// else, use the defaults (last stable release)
 
-	// TODO: update to last stable when there is one
-	agentVersion := "7.68.0-rc.5"
-	agentVersionPackage := "7.68.0-rc.5-1"
-	agentRegistry := consts.BetaS3OCIRegistry
-	agentMSIURL := "https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/ddagent-cli-7.68.0-rc.5.msi"
+	agentVersion := "7.75.0"
+	agentVersionPackage := "7.75.0-1"
+	agentRegistry := consts.StableS3OCIRegistry
+	agentMSIURL := "https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-7.75.0.msi"
 	// Allow override of version and version package via environment variables
 	if val := os.Getenv("STABLE_AGENT_VERSION"); val != "" {
 		agentVersion = val
@@ -227,8 +243,8 @@ func (s *BaseSuite) createStableAgent() {
 //
 // see doc.go for more information
 func (s *BaseSuite) getAgentVersionVars(prefix string) (string, string) {
-	versionVar := fmt.Sprintf("%s_VERSION", prefix)
-	versionPackageVar := fmt.Sprintf("%s_VERSION_PACKAGE", prefix)
+	versionVar := prefix + "_VERSION"
+	versionPackageVar := prefix + "_VERSION_PACKAGE"
 
 	// Agent version
 	version := os.Getenv(versionVar)
@@ -276,14 +292,66 @@ func (s *BaseSuite) AfterTest(suiteName, testName string) {
 	}
 
 	// look for and download crashdumps
-	dumps, err := windowscommon.DownloadAllWERDumps(s.Env().RemoteHost, s.dumpFolder, s.SessionOutputDir())
-	s.Assert().NoError(err, "should download crash dumps")
-	if !s.Assert().Empty(dumps, "should not have crash dumps") {
-		s.T().Logf("Found crash dumps:")
-		for _, dump := range dumps {
-			s.T().Logf("  %s", dump)
+	if isWERDumpCollectionEnabled() {
+		// Poll for up to ~30s (1s interval) to allow WER to finish writing full dumps (DumpType=2)
+		h := s.Env().RemoteHost
+		deadline := time.Now().Add(30 * time.Second)
+		for time.Now().Before(deadline) {
+			entries, _ := h.ReadDir(s.dumpFolder)
+			hasDump := false
+			for _, e := range entries {
+				if !e.IsDir() && strings.HasSuffix(strings.ToLower(e.Name()), ".dmp") {
+					hasDump = true
+					break
+				}
+			}
+			if hasDump {
+				break
+			}
+			time.Sleep(1 * time.Second)
+		}
+		dumps, err := windowscommon.DownloadAllWERDumps(s.Env().RemoteHost, s.dumpFolder, s.SessionOutputDir())
+		s.Assert().NoError(err, "should download crash dumps")
+		if !s.Assert().Empty(dumps, "should not have crash dumps") {
+			s.T().Logf("Found crash dumps:")
+			for _, dump := range dumps {
+				s.T().Logf("  %s", dump)
+			}
 		}
 	}
+	// Collect WER ReportArchive entries for powershell.exe if present.
+	// Synchronously scan the WER ReportArchive for PowerShell crash
+	// reports and copy any found files into the test’s output directory.
+	func() {
+		host := s.Env().RemoteHost
+		base := `C:\ProgramData\Microsoft\Windows\WER\ReportArchive`
+		entries, derr := host.ReadDir(base)
+		if derr != nil {
+			return
+		}
+		for _, e := range entries {
+			if !e.IsDir() {
+				continue
+			}
+			name := e.Name()
+			if !strings.HasPrefix(strings.ToLower(name), strings.ToLower("AppCrash_powershell.exe")) {
+				continue
+			}
+			dir := filepath.Join(base, name)
+			files, derr2 := host.ReadDir(dir)
+			if derr2 != nil {
+				continue
+			}
+			for _, f := range files {
+				if f.IsDir() {
+					continue
+				}
+				src := filepath.Join(dir, f.Name())
+				dst := filepath.Join(s.SessionOutputDir(), fmt.Sprintf("WER_%s_%s", name, f.Name()))
+				_ = host.GetFile(src, dst)
+			}
+		}
+	}()
 
 	if s.T().Failed() {
 		// If the test failed, export the event logs for debugging
@@ -291,7 +359,7 @@ func (s *BaseSuite) AfterTest(suiteName, testName string) {
 		for _, logName := range []string{"System", "Application"} {
 			// collect the full event log as an evtx file
 			s.T().Logf("Exporting %s event log", logName)
-			outputPath := filepath.Join(s.SessionOutputDir(), fmt.Sprintf("%s.evtx", logName))
+			outputPath := filepath.Join(s.SessionOutputDir(), logName+".evtx")
 			err := windowscommon.ExportEventLog(vm, logName, outputPath)
 			s.Assert().NoError(err, "should export %s event log", logName)
 			// Log errors and warnings to the screen for easy access
@@ -319,11 +387,16 @@ func (s *BaseSuite) collectAgentLogs() {
 		return
 	}
 	for _, entry := range entries {
-		s.T().Logf("Found log file: %s", entry.Name())
-		err = host.GetFile(
-			filepath.Join(logsFolder, entry.Name()),
-			filepath.Join(s.SessionOutputDir(), entry.Name()),
-		)
+		sourcePath := filepath.Join(logsFolder, entry.Name())
+		destPath := filepath.Join(s.SessionOutputDir(), entry.Name())
+
+		if entry.IsDir() {
+			s.T().Logf("Found log directory: %s", entry.Name())
+			err = host.GetFolder(sourcePath, destPath)
+		} else {
+			s.T().Logf("Found log file: %s", entry.Name())
+			err = host.GetFile(sourcePath, destPath)
+		}
 		s.Assert().NoError(err, "should download %s", entry.Name())
 	}
 }
@@ -400,7 +473,7 @@ func (s *BaseSuite) MustStartExperimentPreviousVersion() {
 	s.WaitForDaemonToStop(func() {
 		_, err := s.startExperimentPreviousVersion()
 		s.Require().NoError(err, "daemon should stop cleanly")
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(10))
 
 	// Assert
 	// have to wait for experiment to finish installing
@@ -453,6 +526,118 @@ func (s *BaseSuite) collectxperf() {
 	}
 }
 
+// startProcdump sets up procdump and starts it in the background.
+func (s *BaseSuite) startProcdump() *windowscommon.ProcdumpSession {
+	host := s.Env().RemoteHost
+
+	// Setup procdump on remote host
+	s.T().Log("Setting up procdump on remote host")
+	err := windowscommon.SetupProcdump(host)
+	s.Require().NoError(err, "should setup procdump")
+
+	// Start procdump
+	ps, err := windowscommon.StartProcdump(host, "agent.exe")
+	s.Require().NoError(err, "should start procdump")
+
+	return ps
+}
+
+// collectProcdumps stops procdump and downloads any captured dumps if the test failed.
+func (s *BaseSuite) collectProcdumps(ps *windowscommon.ProcdumpSession) {
+	// Only collect dumps if the test failed
+	if !s.T().Failed() {
+		ps.Close()
+		return
+	}
+
+	host := s.Env().RemoteHost
+
+	// Wait for procdump to finish writing dump files BEFORE closing the session.
+	// Procdump is configured to capture 5 dumps, so wait until all 5 are created.
+	expectedDumpCount := 5
+	s.T().Logf("Waiting for procdump to create %d dump files...", expectedDumpCount)
+	deadline := time.Now().Add(120 * time.Second)
+	for time.Now().Before(deadline) {
+		output, err := host.Execute(fmt.Sprintf(`(Get-ChildItem -Path '%s' -Filter '*.dmp' -ErrorAction SilentlyContinue | Measure-Object).Count`, windowscommon.ProcdumpsPath))
+		if err == nil {
+			countStr := strings.TrimSpace(output)
+			count, parseErr := strconv.Atoi(countStr)
+			if parseErr == nil && count >= expectedDumpCount {
+				s.T().Logf("All %d dump files ready", count)
+				break
+			}
+			s.T().Logf("Found %s dump files, waiting for %d...", countStr, expectedDumpCount)
+		}
+		time.Sleep(5 * time.Second)
+	}
+
+	ps.Close()
+
+	// Download all dump files
+	outDir := s.SessionOutputDir()
+	if err := host.GetFolder(windowscommon.ProcdumpsPath, outDir); err != nil {
+		s.T().Logf("Warning: failed to download dump %s: %v", windowscommon.ProcdumpsPath, err)
+	} else {
+		s.T().Logf("Downloaded procdumps to: %s", outDir)
+	}
+}
+
+// InstallWithXperf installs the MSI with xperf tracing to diagnose service startup issues.
+// This wraps the MSI installation with performance tracing and service status checking.
+//
+// Usage:
+//
+//	s.InstallWithXperf(
+//	    installerwindows.WithMSILogFile("install.log"),
+//	)
+//
+// The xperf trace will be collected automatically if the test fails.
+func (s *BaseSuite) InstallWithXperf(opts ...MsiOption) {
+	s.T().Helper()
+
+	s.T().Log("Starting xperf tracing")
+	s.startxperf()
+	defer s.collectxperf()
+
+	s.T().Log("Installing MSI")
+	err := s.Installer().Install(opts...)
+	s.Require().NoError(err, "MSI installation failed")
+
+	s.T().Log("Checking agent service status after MSI installation")
+	err = s.WaitForAgentService("Running")
+	s.Require().NoError(err, "Agent service status check failed")
+
+	s.T().Log("MSI installation and service startup completed successfully")
+}
+
+// InstallWithDiagnostics installs the MSI with comprehensive diagnostics collection:
+// - xperf tracing for system-wide performance analysis
+// - procdump collection to capture agent memory dump if it crashes during startup
+func (s *BaseSuite) InstallWithDiagnostics(opts ...MsiOption) {
+	s.T().Helper()
+
+	// Start xperf tracing
+	s.T().Log("Starting xperf tracing")
+	s.startxperf()
+	defer s.collectxperf()
+
+	// Start procdump in background to capture crash dumps
+	s.T().Log("Starting procdump")
+	ps := s.startProcdump()
+	defer s.collectProcdumps(ps)
+
+	// Proceed with installation
+	s.T().Log("Installing MSI")
+	err := s.Installer().Install(opts...)
+	s.Require().NoError(err, "MSI installation failed")
+
+	// Wait for service to be running
+	s.T().Log("Checking agent service status after MSI installation")
+	err = s.WaitForAgentService("Running")
+	s.Require().NoError(err, "Agent service status check failed")
+	s.T().Log("MSI installation and service startup completed successfully")
+}
+
 // MustStartExperimentCurrentVersion start an experiment with current version of the Agent
 func (s *BaseSuite) MustStartExperimentCurrentVersion() {
 	s.T().Helper()
@@ -464,7 +649,7 @@ func (s *BaseSuite) MustStartExperimentCurrentVersion() {
 	s.WaitForDaemonToStop(func() {
 		_, err := s.StartExperimentCurrentVersion()
 		s.Require().NoError(err, "daemon should stop cleanly")
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(10))
 
 	// Assert
 	// have to wait for experiment to finish installing
@@ -513,23 +698,31 @@ func (s *BaseSuite) AssertSuccessfulAgentPromoteExperiment(version string) {
 func (s *BaseSuite) WaitForInstallerService(state string) error {
 	// usually waiting after MSI runs so we have to wait awhile
 	// max wait is 30*30 -> 900 seconds (15 minutes)
-	return s.WaitForServicesWithBackoff(state, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 30), consts.ServiceName)
+	return s.WaitForServicesWithBackoff(state, []string{consts.ServiceName}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(30))
+}
+
+// WaitForAgentService waits for the Datadog Agent service to be in the expected state
+func (s *BaseSuite) WaitForAgentService(state string) error {
+	// usually waiting after MSI runs so we have to wait awhile
+	// max wait is 30*30 -> 900 seconds (15 minutes)
+	return s.WaitForServicesWithBackoff(state, []string{"datadogagent"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(30))
 }
 
 // WaitForServicesWithBackoff waits for the specified services to be in the desired state using backoff retry.
-func (s *BaseSuite) WaitForServicesWithBackoff(state string, b backoff.BackOff, services ...string) error {
-	return backoff.Retry(func() error {
+func (s *BaseSuite) WaitForServicesWithBackoff(state string, services []string, opts ...backoff.RetryOption) error {
+	_, err := backoff.Retry(context.Background(), func() (any, error) {
 		for _, service := range services {
 			status, err := windowscommon.GetServiceStatus(s.Env().RemoteHost, service)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if !strings.Contains(status, state) {
-				return fmt.Errorf("service %s is not in state %s, status: %s", service, state, status)
+				return nil, fmt.Errorf("service %s is not in state %s, status: %s", service, state, status)
 			}
 		}
-		return nil
-	}, b)
+		return nil, nil
+	}, opts...)
+	return err
 }
 
 // AssertSuccessfulConfigStartExperiment that config experiment started successfully
@@ -572,8 +765,8 @@ func (s *BaseSuite) AssertSuccessfulConfigStopExperiment() {
 		HasARunningDatadogAgentService()
 }
 
-// WaitForDaemonToStop waits for the daemon service PID to change after the function is called.
-func (s *BaseSuite) WaitForDaemonToStop(f func(), b backoff.BackOff) {
+// WaitForDaemonToStop waits for the daemon service PID or start time to change after the function is called.
+func (s *BaseSuite) WaitForDaemonToStop(f func(), opts ...backoff.RetryOption) {
 	s.T().Helper()
 
 	// service must be running before we can get the PID
@@ -585,20 +778,33 @@ func (s *BaseSuite) WaitForDaemonToStop(f func(), b backoff.BackOff) {
 	s.Require().NoError(err)
 	s.Require().Greater(originalPID, 0)
 
+	originalStartTime, err := windowscommon.GetProcessStartTimeAsFileTimeUtc(s.Env().RemoteHost, originalPID)
+	s.Require().NoError(err)
+
 	s.startxperf()
 	defer s.collectxperf()
 
 	f()
 
-	err = backoff.Retry(func() error {
+	_, err = backoff.Retry(context.Background(), func() (any, error) {
 		newPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		if newPID == originalPID {
-			return fmt.Errorf("daemon PID %d is still running", newPID)
+		if newPID != originalPID {
+			// PID changed, the daemon has restarted
+			return nil, nil
 		}
-		return nil
-	}, b)
+		// PID is the same, check if start time changed (in case of PID reuse)
+		newStartTime, err := windowscommon.GetProcessStartTimeAsFileTimeUtc(s.Env().RemoteHost, newPID)
+		if err != nil {
+			return nil, err
+		}
+		if newStartTime != originalStartTime {
+			// Start time changed, the daemon has restarted with the same PID
+			return nil, nil
+		}
+		return nil, fmt.Errorf("daemon PID %d with start time %d is still running", newPID, newStartTime)
+	}, opts...)
 	s.Require().NoError(err)
 }

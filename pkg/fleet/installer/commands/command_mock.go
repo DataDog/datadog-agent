@@ -43,15 +43,6 @@ func (m *installerMock) State(_ context.Context, pkg string) (repository.State, 
 	return repository.State{}, nil
 }
 
-func (m *installerMock) States(_ context.Context) (map[string]repository.State, error) {
-	return map[string]repository.State{
-		"datadog-agent": {
-			Stable:     "7.31.0",
-			Experiment: "7.32.0",
-		},
-	}, nil
-}
-
 func (m *installerMock) ConfigState(_ context.Context, pkg string) (repository.State, error) {
 	if pkg == "datadog-agent" {
 		return repository.State{
@@ -62,11 +53,19 @@ func (m *installerMock) ConfigState(_ context.Context, pkg string) (repository.S
 	return repository.State{}, nil
 }
 
-func (m *installerMock) ConfigStates(_ context.Context) (map[string]repository.State, error) {
-	return map[string]repository.State{
-		"datadog-agent": {
-			Stable:     "abc-def-hij",
-			Experiment: "",
+func (m *installerMock) ConfigAndPackageStates(_ context.Context) (*repository.PackageStates, error) {
+	return &repository.PackageStates{
+		ConfigStates: map[string]repository.State{
+			"datadog-agent": {
+				Stable:     "abc-def-hij",
+				Experiment: "",
+			},
+		},
+		States: map[string]repository.State{
+			"datadog-agent": {
+				Stable:     "7.31.0",
+				Experiment: "7.32.0",
+			},
 		},
 	}, nil
 }
@@ -101,7 +100,7 @@ func (m *installerMock) PromoteExperiment(_ context.Context, _ string) error {
 	return nil
 }
 
-func (m *installerMock) InstallConfigExperiment(_ context.Context, _ string, _ config.Operations) error {
+func (m *installerMock) InstallConfigExperiment(_ context.Context, _ string, _ config.Operations, _ map[string]string) error {
 	return nil
 }
 
@@ -122,6 +121,22 @@ func (m *installerMock) InstrumentAPMInjector(_ context.Context, _ string) error
 }
 
 func (m *installerMock) UninstrumentAPMInjector(_ context.Context, _ string) error {
+	return nil
+}
+
+func (m *installerMock) InstallExtensions(_ context.Context, _ string, _ []string) error {
+	return nil
+}
+
+func (m *installerMock) RemoveExtensions(_ context.Context, _ string, _ []string) error {
+	return nil
+}
+
+func (m *installerMock) SaveExtensions(_ context.Context, _ string, _ string) error {
+	return nil
+}
+
+func (m *installerMock) RestoreExtensions(_ context.Context, _ string, _ string) error {
 	return nil
 }
 

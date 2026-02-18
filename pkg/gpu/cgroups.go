@@ -22,14 +22,13 @@ import (
 
 	"github.com/containerd/cgroups/v3"
 
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ConfigureDeviceCgroups configures the cgroups for a process to allow access to the NVIDIA character devices
-func ConfigureDeviceCgroups(pid uint32, hostRoot string, reapplyDelay time.Duration) error {
+// reapplyInfinitely controls whether the configuration should be reapplied infinitely (true) or only once (false)
+func ConfigureDeviceCgroups(pid uint32, hostRoot string) error {
 	cgroupMode := cgroups.Mode()
 	cgroupPath, err := getAbsoluteCgroupForProcess("/", hostRoot, uint32(os.Getpid()), pid, cgroupMode)
 	if err != nil {
@@ -42,36 +41,16 @@ func ConfigureDeviceCgroups(pid uint32, hostRoot string, reapplyDelay time.Durat
 		return fmt.Errorf("failed to configure systemd device allow for cgroup %s: %w", cgroupPath, err)
 	}
 
-	// Now configure the cgroup device allow, depending on the cgroup version
 	if cgroupMode == cgroups.Legacy {
-		log.Infof("Configuring PID %d cgroupv1 device allow, cgroup path %s", pid, cgroupPath)
+		log.Debugf("Configuring PID %d cgroupv1 device allow, cgroup path %s", pid, cgroupPath)
 		err = configureCgroupV1DeviceAllow(hostRoot, cgroupPath, nvidiaDeviceMajor)
 	} else {
-		log.Infof("Configuring PID %d cgroupv2 device programs, cgroup path %s", pid, cgroupPath)
+		log.Debugf("Configuring PID %d cgroupv2 device programs, cgroup path %s", pid, cgroupPath)
 		err = detachAllDeviceCgroupPrograms(hostRoot, cgroupPath)
 	}
 
 	if err != nil {
-		return fmt.Errorf("failed to configure cgroup device allow for cgroup path %s: %w", cgroupPath, err)
-	}
-
-	// Schedule background re-application if configured
-	if reapplyDelay > 0 {
-		time.AfterFunc(reapplyDelay, func() {
-			// Re-apply only the cgroup device configuration, not systemd
-			var err error
-			if cgroupMode == cgroups.Legacy {
-				err = configureCgroupV1DeviceAllow(hostRoot, cgroupPath, nvidiaDeviceMajor)
-			} else {
-				err = detachAllDeviceCgroupPrograms(hostRoot, cgroupPath)
-			}
-
-			if err != nil {
-				log.Warnf("Failed to re-apply cgroup device configuration for pid %d after delay: %v", pid, err)
-			} else {
-				log.Debugf("Successfully re-applied cgroup device configuration for pid %d after %v delay", pid, reapplyDelay)
-			}
-		})
+		return fmt.Errorf("failed to configure cgroup device allow for cgroup path %s of PID %d: %w", cgroupPath, pid, err)
 	}
 
 	return nil

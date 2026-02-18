@@ -281,29 +281,6 @@ func TestProfileProxyHandler(t *testing.T) {
 		assert.Equal(t, expected, called, "The request should be proxied to all valid targets")
 	})
 
-	t.Run("lambda_function", func(t *testing.T) {
-		var called bool
-		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
-			v := req.Header.Get("X-Datadog-Additional-Tags")
-			if !strings.Contains(v, "functionname:my-function-name") || !strings.Contains(v, "_dd.origin:lambda") {
-				t.Fatalf("invalid X-Datadog-Additional-Tags header, fargate env should contain '%s' tag: %q", "orchestrator", v)
-			}
-			called = true
-		}))
-		conf := newTestReceiverConfig()
-		conf.ProfilingProxy = config.ProfilingProxyConfig{DDURL: srv.URL}
-		conf.LambdaFunctionName = "my-function-name"
-		req, err := http.NewRequest("POST", "/some/path", nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		receiver := newTestReceiverFromConfig(conf)
-		receiver.profileProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
-		if !called {
-			t.Fatal("request not proxied")
-		}
-	})
-
 	t.Run("azure_container_app", func(t *testing.T) {
 		var called bool
 		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
@@ -323,7 +300,15 @@ func TestProfileProxyHandler(t *testing.T) {
 		}))
 		conf := newTestReceiverConfig()
 		conf.ProfilingProxy = config.ProfilingProxyConfig{DDURL: srv.URL}
-		conf.AzureServerlessTags = ",subscription_id:123,resource_group:test-rg,resource_id:456,aca.subscription.id:123,aca.resource.group:test-rg,aca.resource.id:456,aca.replica.name:test-replica"
+		conf.AdditionalProfileTags = map[string]string{
+			"subscription_id":     "123",
+			"resource_group":      "test-rg",
+			"resource_id":         "456",
+			"aca.subscription.id": "123",
+			"aca.resource.group":  "test-rg",
+			"aca.resource.id":     "456",
+			"aca.replica.name":    "test-replica",
+		}
 		req, err := http.NewRequest("POST", "/some/path", nil)
 		if err != nil {
 			t.Fatal(err)
@@ -354,7 +339,11 @@ func TestProfileProxyHandler(t *testing.T) {
 		}))
 		conf := newTestReceiverConfig()
 		conf.ProfilingProxy = config.ProfilingProxyConfig{DDURL: srv.URL}
-		conf.AzureServerlessTags = ",aas.subscription.id:123,aas.resource.group:test-rg,aas.resource.id:456"
+		conf.AdditionalProfileTags = map[string]string{
+			"aas.subscription.id": "123",
+			"aas.resource.group":  "test-rg",
+			"aas.resource.id":     "456",
+		}
 		req, err := http.NewRequest("POST", "/some/path", nil)
 		if err != nil {
 			t.Fatal(err)

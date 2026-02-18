@@ -7,6 +7,7 @@ package cachedfetch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -16,7 +17,7 @@ import (
 // If Attempt never succeeds, f.Fetch returns an error
 func TestFetcherNeverSucceeds(t *testing.T) {
 	f := Fetcher{
-		Attempt: func(context.Context) (interface{}, error) { return nil, fmt.Errorf("uhoh") },
+		Attempt: func(context.Context) (interface{}, error) { return nil, errors.New("uhoh") },
 	}
 
 	v, err := f.Fetch(context.TODO())
@@ -55,7 +56,7 @@ func TestFetcherUsesCachedValue(t *testing.T) {
 		Attempt: func(context.Context) (interface{}, error) {
 			count++
 			if count%2 == 0 {
-				return nil, fmt.Errorf("uhoh")
+				return nil, errors.New("uhoh")
 			}
 			return count, nil
 		},
@@ -76,7 +77,7 @@ func TestFetcherLogsWhenUsingCached(t *testing.T) {
 		Attempt: func(context.Context) (interface{}, error) {
 			count++
 			if count%2 == 0 {
-				return nil, fmt.Errorf("uhoh")
+				return nil, errors.New("uhoh")
 			}
 			return count, nil
 		},
@@ -107,7 +108,7 @@ func TestFetchString(t *testing.T) {
 // FetchString casts to a string
 func TestFetchStringError(t *testing.T) {
 	f := Fetcher{
-		Attempt: func(context.Context) (interface{}, error) { return nil, fmt.Errorf("uhoh") },
+		Attempt: func(context.Context) (interface{}, error) { return nil, errors.New("uhoh") },
 	}
 	v, err := f.FetchString(context.TODO())
 	require.Equal(t, "", v)
@@ -127,7 +128,7 @@ func TestFetchStringSlice(t *testing.T) {
 // FetchStringSlice casts to a []string
 func TestFetchStringSliceError(t *testing.T) {
 	f := Fetcher{
-		Attempt: func(context.Context) (interface{}, error) { return nil, fmt.Errorf("uhoh") },
+		Attempt: func(context.Context) (interface{}, error) { return nil, errors.New("uhoh") },
 	}
 	v, err := f.FetchStringSlice(context.TODO())
 	require.Nil(t, v)
@@ -136,7 +137,7 @@ func TestFetchStringSliceError(t *testing.T) {
 
 func TestReset(t *testing.T) {
 	succeed := func(context.Context) (interface{}, error) { return "yay", nil }
-	fail := func(context.Context) (interface{}, error) { return nil, fmt.Errorf("uhoh") }
+	fail := func(context.Context) (interface{}, error) { return nil, errors.New("uhoh") }
 	f := Fetcher{}
 
 	f.Attempt = succeed

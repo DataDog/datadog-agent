@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -61,7 +62,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryotel/inventoryotelimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	logscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
@@ -159,7 +159,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				inventoryagentimpl.Module(),
 				hostimpl.Module(),
 				inventoryhostimpl.Module(),
-				inventoryotelimpl.Module(),
 				haagentmetadatafx.Module(),
 				resourcesimpl.Module(),
 				// inventoryagent require a serializer. Since we're not actually sending the payload to
@@ -168,6 +167,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					return nil
 				}),
 				core.Bundle(),
+				hostnameimpl.Module(),
 				haagentfx.Module(),
 				logscompressorfx.Module(),
 				metricscompressorfx.Module(),

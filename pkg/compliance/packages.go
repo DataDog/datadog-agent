@@ -53,8 +53,8 @@ func findApkPackage(path string, names []string) *packageInfo {
 	scanner.Split(scanBlock)
 	for scanner.Scan() {
 		var p packageInfo
-		lines := bytes.Split(scanner.Bytes(), []byte("\n"))
-		for _, line := range lines {
+		lines := bytes.SplitSeq(scanner.Bytes(), []byte("\n"))
+		for line := range lines {
 			if len(line) < 2 {
 				continue
 			}
@@ -98,8 +98,8 @@ func findDpkgPackage(path string, names []string) *packageInfo {
 	pkgNamePrefix := []byte("Package:")
 	for scanner.Scan() {
 		chunk := scanner.Bytes()
-		lines := bytes.Split(chunk, []byte("\n"))
-		for _, line := range lines {
+		lines := bytes.SplitSeq(chunk, []byte("\n"))
+		for line := range lines {
 			if !bytes.HasPrefix(line, pkgNamePrefix) {
 				continue
 			}

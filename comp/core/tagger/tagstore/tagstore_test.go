@@ -96,7 +96,7 @@ func (s *StoreTestSuite) TestLookup() {
 	assert.Nil(s.T(), tagsNone)
 }
 
-func (s *StoreTestSuite) TestLookupHashedWithEntityStr() {
+func (s *StoreTestSuite) TestLookupHashed() {
 	entityID := types.NewEntityID(types.ContainerID, "test")
 	s.tagstore.ProcessTagInfo([]*types.TagInfo{
 		{
@@ -117,15 +117,25 @@ func (s *StoreTestSuite) TestLookupHashedWithEntityStr() {
 		},
 	})
 
-	tagsLow := s.tagstore.LookupHashedWithEntityStr(entityID, types.LowCardinality)
-	tagsOrch := s.tagstore.LookupHashedWithEntityStr(entityID, types.OrchestratorCardinality)
-	tagsHigh := s.tagstore.LookupHashedWithEntityStr(entityID, types.HighCardinality)
-	tagsNone := s.tagstore.LookupHashedWithEntityStr(entityID, types.NoneCardinality)
+	tagsLow, err := s.tagstore.LookupHashed(entityID, types.LowCardinality)
+	assert.NoError(s.T(), err)
+	tagsOrch, err := s.tagstore.LookupHashed(entityID, types.OrchestratorCardinality)
+	assert.NoError(s.T(), err)
+	tagsHigh, err := s.tagstore.LookupHashed(entityID, types.HighCardinality)
+	assert.NoError(s.T(), err)
+	tagsNone, err := s.tagstore.LookupHashed(entityID, types.NoneCardinality)
+	assert.NoError(s.T(), err)
 
 	assert.ElementsMatch(s.T(), tagsLow.Get(), []string{"low1", "low2"})
 	assert.ElementsMatch(s.T(), tagsOrch.Get(), []string{"low1", "low2", "orchestrator1"})
 	assert.ElementsMatch(s.T(), tagsHigh.Get(), []string{"low1", "low2", "orchestrator1", "high1"})
 	assert.ElementsMatch(s.T(), tagsNone.Get(), []string{})
+
+	// Test entity not found
+	nonExistentEntityID := types.NewEntityID(types.ContainerID, "non_existent")
+	_, err = s.tagstore.LookupHashed(nonExistentEntityID, types.LowCardinality)
+	assert.Error(s.T(), err)
+	assert.Equal(s.T(), ErrNotFound, err)
 }
 
 func (s *StoreTestSuite) TestLookupStandard() {

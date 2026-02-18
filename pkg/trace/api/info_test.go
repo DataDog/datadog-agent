@@ -12,6 +12,7 @@ import (
 	"log"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -23,12 +24,12 @@ import (
 )
 
 // ensureKeys takes 2 maps, expect and result, and ensures that the set of keys in expect and
-// result match. For each key (k) in expect, if expect[k] is of type map[string]interface{}, then
+// result match. For each key (k) in expect, if expect[k] is of type map[string]any, then
 // ensureKeys recurses on expect[k], result[k], prefix + "." + k.
 //
 // This should ensure that whatever keys and maps are defined in expect are exactly mirrored in
 // result, but without checking for specific values in result.
-func ensureKeys(expect, result map[string]interface{}, prefix string) error {
+func ensureKeys(expect, result map[string]any, prefix string) error {
 	for k, ev := range expect {
 		rv, ok := result[k]
 		if !ok {
@@ -39,8 +40,8 @@ func ensureKeys(expect, result map[string]interface{}, prefix string) error {
 			return fmt.Errorf("expected key %s, but it is not present in the output", path)
 		}
 
-		if em, ok := ev.(map[string]interface{}); ok {
-			rm, ok := rv.(map[string]interface{})
+		if em, ok := ev.(map[string]any); ok {
+			rm, ok := rv.(map[string]any)
 			if !ok {
 				return fmt.Errorf("expected key %s to be a map, but it is '%#v'", k, rv)
 			}
@@ -69,38 +70,38 @@ func ensureKeys(expect, result map[string]interface{}, prefix string) error {
 
 func TestEnsureKeys(t *testing.T) {
 	for _, tt := range []struct {
-		expect map[string]interface{}
-		result map[string]interface{}
+		expect map[string]any
+		result map[string]any
 		err    bool
 	}{
 		{
-			expect: map[string]interface{}{
+			expect: map[string]any{
 				"one": nil,
 				"two": nil,
 			},
-			result: map[string]interface{}{
+			result: map[string]any{
 				"one": 1,
 				"two": "two",
 			},
 		},
 		{
-			expect: map[string]interface{}{
+			expect: map[string]any{
 				"one":   nil,
 				"two":   nil,
 				"three": nil,
 			},
-			result: map[string]interface{}{
+			result: map[string]any{
 				"one": 1,
 				"two": "two",
 			},
 			err: true,
 		},
 		{
-			expect: map[string]interface{}{
+			expect: map[string]any{
 				"one": nil,
 				"two": nil,
 			},
-			result: map[string]interface{}{
+			result: map[string]any{
 				"one":   1,
 				"two":   "two",
 				"three": 3,
@@ -108,61 +109,61 @@ func TestEnsureKeys(t *testing.T) {
 			err: true,
 		},
 		{
-			expect: map[string]interface{}{
+			expect: map[string]any{
 				"one": nil,
 				"two": nil,
-				"sub": map[string]interface{}{
+				"sub": map[string]any{
 					"subone": nil,
 					"subtwo": nil,
 				},
 			},
-			result: map[string]interface{}{
+			result: map[string]any{
 				"one": 1,
 				"two": "two",
-				"sub": map[string]interface{}{
+				"sub": map[string]any{
 					"subone": 1,
 					"subtwo": 2,
 				},
 			},
 		},
 		{
-			expect: map[string]interface{}{
+			expect: map[string]any{
 				"one": nil,
 				"two": nil,
-				"sub": map[string]interface{}{
+				"sub": map[string]any{
 					"subone": nil,
 					"subtwo": nil,
 				},
 			},
-			result: map[string]interface{}{
+			result: map[string]any{
 				"one": 1,
-				"two": map[string]interface{}{ // Map values not described in expect are NOT checked, so this is OK.
+				"two": map[string]any{ // Map values not described in expect are NOT checked, so this is OK.
 					"subone": 1,
 					"subtwo": 2,
 				},
-				"sub": map[string]interface{}{
+				"sub": map[string]any{
 					"subone": 1,
 					"subtwo": 2,
 				},
 			},
 		},
 		{
-			expect: map[string]interface{}{
+			expect: map[string]any{
 				"one": nil,
 				"two": nil,
-				"sub": map[string]interface{}{
+				"sub": map[string]any{
 					"subone":   nil,
 					"subtwo":   nil,
 					"subthree": nil,
 				},
 			},
-			result: map[string]interface{}{
+			result: map[string]any{
 				"one": 1,
-				"two": map[string]interface{}{ // Map values not described in expect are NOT checked, so this is OK.
+				"two": map[string]any{ // Map values not described in expect are NOT checked, so this is OK.
 					"subone": 1,
 					"subtwo": 2,
 				},
-				"sub": map[string]interface{}{
+				"sub": map[string]any{
 					"subone": 1,
 					"subtwo": 2,
 				},
@@ -170,21 +171,21 @@ func TestEnsureKeys(t *testing.T) {
 			err: true,
 		},
 		{
-			expect: map[string]interface{}{
+			expect: map[string]any{
 				"one": nil,
 				"two": nil,
-				"sub": map[string]interface{}{
+				"sub": map[string]any{
 					"subone": nil,
 					"subtwo": nil,
 				},
 			},
-			result: map[string]interface{}{
+			result: map[string]any{
 				"one": 1,
-				"two": map[string]interface{}{ // Map values not described in expect are NOT checked, so this is OK.
+				"two": map[string]any{ // Map values not described in expect are NOT checked, so this is OK.
 					"subone": 1,
 					"subtwo": 2,
 				},
-				"sub": map[string]interface{}{
+				"sub": map[string]any{
 					"subone":   1,
 					"subtwo":   2,
 					"subthree": 3,
@@ -282,7 +283,11 @@ func TestInfoHandler(t *testing.T) {
 		WatchdogInterval:            time.Minute,
 		ProxyURL:                    u,
 		SkipSSLValidation:           false,
-		Ignore:                      map[string][]string{"K": {"1", "2"}},
+		Ignore:                      map[string][]string{"resource": {"(GET|POST) /healthcheck", "GET /ping"}},
+		RejectTags:                  []*config.Tag{{K: "env", V: "test"}, {K: "debug", V: ""}},
+		RequireTags:                 []*config.Tag{{K: "env", V: "prod"}},
+		RejectTagsRegex:             []*config.TagRegex{{K: "version", V: regexp.MustCompile(`.*-beta`)}},
+		RequireTagsRegex:            []*config.TagRegex{{K: "version", V: regexp.MustCompile(`v1\\..*`)}},
 		ReplaceTags:                 []*config.ReplaceRule{{Name: "a", Pattern: "*", Repl: "b"}},
 		AnalyzedRateByServiceLegacy: map[string]float64{"X": 1.2},
 		AnalyzedSpansByService:      map[string]map[string]float64{"X": {"Y": 2.4}},
@@ -301,7 +306,7 @@ func TestInfoHandler(t *testing.T) {
 		Features: map[string]struct{}{"feature_flag": {}},
 	}
 
-	expectedKeys := map[string]interface{}{
+	expectedKeys := map[string]any{
 		"version":                   nil,
 		"git_commit":                nil,
 		"endpoints":                 nil,
@@ -314,7 +319,16 @@ func TestInfoHandler(t *testing.T) {
 		"peer_tags":                 nil,
 		"span_kinds_stats_computed": nil,
 		"obfuscation_version":       nil,
-		"config": map[string]interface{}{
+		"filter_tags": map[string]any{
+			"require": nil,
+			"reject":  nil,
+		},
+		"filter_tags_regex": map[string]any{
+			"require": nil,
+			"reject":  nil,
+		},
+		"ignore_resources": nil,
+		"config": map[string]any{
 			"default_env":               nil,
 			"target_tps":                nil,
 			"max_eps":                   nil,
@@ -327,12 +341,12 @@ func TestInfoHandler(t *testing.T) {
 			"max_memory":                nil,
 			"max_cpu":                   nil,
 			"analyzed_spans_by_service": nil,
-			"obfuscation": map[string]interface{}{
+			"obfuscation": map[string]any{
 				"elastic_search":          nil,
 				"mongo":                   nil,
 				"sql_exec_plan":           nil,
 				"sql_exec_plan_normalize": nil,
-				"http": map[string]interface{}{
+				"http": map[string]any{
 					"remove_query_string": nil,
 					"remove_path_digits":  nil,
 				},
@@ -350,11 +364,83 @@ func TestInfoHandler(t *testing.T) {
 	req := httptest.NewRequest("GET", "/info", nil)
 	req.Header.Add("Datadog-Container-ID", "id1")
 	h.ServeHTTP(rec, req)
-	var m map[string]interface{}
+	var m map[string]any
 	if !assert.NoError(t, json.NewDecoder(rec.Body).Decode(&m)) {
 		return
 	}
 	assert.NoError(t, ensureKeys(expectedKeys, m, ""))
 	expectedContainerHash := fmt.Sprintf("%x", sha256.Sum256([]byte(strings.Join([]string{"kube_cluster_name:clusterA", "kube_namespace:namespace1"}, ","))))
 	assert.Equal(t, expectedContainerHash, rec.Header().Get(containerTagsHashHeader))
+}
+
+func TestInfoHandlerFilterTags(t *testing.T) {
+	conf := config.New()
+	conf.Endpoints = []*config.Endpoint{{Host: "http://localhost:8126", APIKey: "test"}}
+	conf.RequireTags = []*config.Tag{
+		{K: "env", V: "prod"},
+		{K: "team", V: "backend"},
+	}
+	conf.RejectTags = []*config.Tag{
+		{K: "env", V: "test"},
+		{K: "debug", V: ""},
+		{K: "internal", V: "true"},
+	}
+	conf.RequireTagsRegex = []*config.TagRegex{
+		{K: "service", V: regexp.MustCompile("^api-.*")},
+	}
+	conf.RejectTagsRegex = []*config.TagRegex{
+		{K: "version", V: regexp.MustCompile(".*-beta")},
+		{K: "experimental_.*", V: nil},
+	}
+	conf.Ignore = map[string][]string{
+		"resource": {"(GET|POST) /healthcheck", "GET /ping"},
+	}
+
+	rcv := newTestReceiverFromConfig(conf)
+	_, h := rcv.makeInfoHandler()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/info", nil)
+	h.ServeHTTP(rec, req)
+
+	var result map[string]any
+	assert.NoError(t, json.NewDecoder(rec.Body).Decode(&result))
+
+	// Check filter_tags
+	filterTags, ok := result["filter_tags"].(map[string]any)
+	assert.True(t, ok, "filter_tags should be present and should be a map")
+
+	requireTags, ok := filterTags["require"].([]any)
+	assert.True(t, ok, "filter_tags.require should be an array")
+	assert.Len(t, requireTags, 2)
+	assert.Contains(t, requireTags, "env:prod")
+	assert.Contains(t, requireTags, "team:backend")
+
+	rejectTags, ok := filterTags["reject"].([]any)
+	assert.True(t, ok, "filter_tags.reject should be an array")
+	assert.Len(t, rejectTags, 3)
+	assert.Contains(t, rejectTags, "env:test")
+	assert.Contains(t, rejectTags, "debug")
+	assert.Contains(t, rejectTags, "internal:true")
+
+	// Check filter_tags_regex
+	filterTagsRegex, ok := result["filter_tags_regex"].(map[string]any)
+	assert.True(t, ok, "filter_tags_regex should be present and should be a map")
+
+	requireTagsRegex, ok := filterTagsRegex["require"].([]any)
+	assert.True(t, ok, "filter_tags_regex.require should be an array")
+	assert.Len(t, requireTagsRegex, 1)
+	assert.Contains(t, requireTagsRegex, "service:^api-.*")
+
+	rejectTagsRegex, ok := filterTagsRegex["reject"].([]any)
+	assert.True(t, ok, "filter_tags_regex.reject should be an array")
+	assert.Len(t, rejectTagsRegex, 2)
+	assert.Contains(t, rejectTagsRegex, "version:.*-beta")
+	assert.Contains(t, rejectTagsRegex, "experimental_.*")
+
+	// Check ignore_resources
+	ignoreResources, ok := result["ignore_resources"].([]any)
+	assert.True(t, ok, "ignore_resources should be an array")
+	assert.Len(t, ignoreResources, 2)
+	assert.Contains(t, ignoreResources, "(GET|POST) /healthcheck")
+	assert.Contains(t, ignoreResources, "GET /ping")
 }

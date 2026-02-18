@@ -1,0 +1,95 @@
+###############################
+## Datadog APM Configuration ##
+###############################
+
+## @section APM Configuration Rules
+##
+## Enable and configure APM, profiling, and security monitoring features.
+##
+## Settings can be configured via environment variables or the application_monitoring.yaml file.
+## Configuration precedence (highest to lowest priority):
+##   1. Fleet-managed config file
+##      (etc/datadog-agent/managed/datadog-agent/stable/application_monitoring.yaml)
+##   2. Environment variables
+##   3. Local config file
+##      (etc/datadog-agent/application_monitoring.yaml)
+# apm_configuration_default:
+
+#   # @param DD_APM_TRACING_ENABLED - boolean - optional - default: true
+#   # Enable Datadog tracing.
+#   # Docs: https://docs.datadoghq.com/tracing/trace_collection/
+#   DD_APM_TRACING_ENABLED: true
+
+#   # @param DD_RUNTIME_METRICS_ENABLED - boolean - optional - default: false
+#   # Enable runtime metrics.
+#   # Docs: https://docs.datadoghq.com/tracing/metrics/runtime_metrics/?tab=java#environment-variables
+#   DD_RUNTIME_METRICS_ENABLED: false
+
+#   # @param DD_LOGS_INJECTION - boolean - optional - default: false
+#   # Enable automatic trace and span ID injection into logs.
+#   # Docs: https://docs.datadoghq.com/tracing/other_telemetry/connect_logs_and_traces/
+#   DD_LOGS_INJECTION: false
+
+#   # @param DD_PROFILING_ENABLED - boolean - optional - default: false
+#   # Enable continuous profiling.
+#   # Docs: https://docs.datadoghq.com/profiler/
+#   DD_PROFILING_ENABLED: false
+
+#   # @param DD_DATA_STREAMS_ENABLED - boolean - optional - default: false
+#   # Enable data streams monitoring.
+#   # Docs: https://docs.datadoghq.com/data_streams/
+#   DD_DATA_STREAMS_ENABLED: false
+
+#   # @param DD_APPSEC_ENABLED - boolean - optional - default: false
+#   # Enable the Application Security product.
+#   # Docs: https://docs.datadoghq.com/security/application_security/
+#   DD_APPSEC_ENABLED: false
+
+#   # @param DD_IAST_ENABLED - boolean - optional - default: false
+#   # Enable Interactive Application Security Testing (IAST).
+#   # Docs: https://docs.datadoghq.com/security/code_security/iast/setup/#amazon-ecs
+#   DD_IAST_ENABLED: false
+
+#   # @param DD_DYNAMIC_INSTRUMENTATION_ENABLED - boolean - optional - default: false
+#   # Enable Dynamic Instrumentation.
+#   # Docs: https://docs.datadoghq.com/dynamic_instrumentation/
+#   DD_DYNAMIC_INSTRUMENTATION_ENABLED: false
+
+#   # @param DD_DATA_JOBS_ENABLED - boolean - optional - default: false
+#   # Enable data jobs visibility.
+#   DD_DATA_JOBS_ENABLED: false
+
+#   # @param DD_APPSEC_SCA_ENABLED - boolean - optional - default: false
+#   # Enable Software Composition Analysis.
+#   # Docs: https://docs.datadoghq.com/security/code_security/software_composition_analysis/
+#   DD_APPSEC_SCA_ENABLED: false
+
+#   # @param DD_TRACE_DEBUG - boolean - optional - default: false
+#   # Enable debug logging for the tracer.
+#   # Docs: https://docs.datadoghq.com/tracing/troubleshooting/tracer_debug_logs
+#   DD_TRACE_DEBUG: false
+
+#   # @param DD_RUM_ENABLED - boolean - optional - default: false
+#   # Enable Real User Monitoring (RUM).
+#   # Docs: https://docs.datadoghq.com/real_user_monitoring/
+#   DD_RUM_ENABLED: false
+
+#   # @param DD_RUM_APPLICATION_ID - string - optional
+#   # The RUM application ID for this application.
+#   # Docs: https://docs.datadoghq.com/real_user_monitoring/browser/setup/
+#   DD_RUM_APPLICATION_ID: ""
+
+#   # @param DD_RUM_CLIENT_TOKEN - string - optional
+#   # The RUM client token for this application.
+#   # Note: This is a public token and safe to use in client-side code.
+#   # Docs: https://docs.datadoghq.com/real_user_monitoring/browser/setup/
+#   DD_RUM_CLIENT_TOKEN: ""
+
+#   # @param DD_RUM_REMOTE_CONFIGURATION_ID - string - optional
+#   # The RUM remote configuration ID for this application.
+#   DD_RUM_REMOTE_CONFIGURATION_ID: ""
+
+#   # @param DD_RUM_SITE - string - optional
+#   # The Datadog site to send RUM data to (e.g., datadoghq.com, datadoghq.eu).
+#   # Docs: https://docs.datadoghq.com/getting_started/site/
+#   DD_RUM_SITE: ""

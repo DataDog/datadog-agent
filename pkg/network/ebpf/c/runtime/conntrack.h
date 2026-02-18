@@ -5,10 +5,13 @@
 #include <net/netfilter/nf_conntrack.h>
 #include <linux/types.h>
 #include <linux/sched.h>
+#include <linux/skbuff.h>
+#include <linux/version.h>
 #endif
 
 #include "bpf_core_read.h"
 #include "bpf_builtins.h"
+#include "bpf_telemetry.h"
 #include "conn_tuple.h"
 #include "ip.h"
 #include "netns.h"
@@ -16,6 +19,35 @@
 #include "conntrack/types.h"
 #include "conntrack/maps.h"
 #include "conntrack/helpers.h"
+
+// get_nfct extracts the struct nf_conn * from a struct sk_buff
+// Note that the _nfct field was named nfct prior to kernel 4.11, but this
+// function is only used by an alternate probe supported in kernels >= 4.11.
+#if defined(COMPILE_CORE) || defined(FEATURE_CONNTRACK_ALTERNATE_PROBES_SUPPORTED)
+static __always_inline struct nf_conn *get_nfct(struct sk_buff *skb) {
+    u64 nfct = 0;
+
+#ifdef COMPILE_CORE
+    if (bpf_core_field_exists(skb->_nfct)) {
+        BPF_CORE_READ_INTO(&nfct, skb, _nfct);
+    } else {
+        log_debug("skb->_nfct field does not exist");
+        return NULL;
+    }
+#endif // COMPILE_CORE
+
+#ifdef COMPILE_RUNTIME
+    bpf_probe_read_kernel_with_telemetry(&nfct, sizeof(nfct), &skb->_nfct);
+#endif // COMPILE_RUNTIME
+
+    if (!nfct) {
+        return NULL;
+    }
+
+    // Extract ct pointer: lower 3 bits contain ctinfo, mask them off
+    return (struct nf_conn *)(nfct & ~7UL);
+}
+#endif // COMPILE_CORE || FEATURE_CONNTRACK_ALTERNATE_PROBES_SUPPORTED
 
 static __always_inline u32 get_netns(const struct nf_conn *ct) {
     u32 net_ns_inum = 0;

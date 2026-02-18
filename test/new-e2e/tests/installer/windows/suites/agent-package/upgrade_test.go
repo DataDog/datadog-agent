@@ -6,6 +6,7 @@
 package agenttests
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -13,10 +14,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
-
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
@@ -25,7 +24,7 @@ import (
 
 	"testing"
 
-	"github.com/cenkalti/backoff/v4"
+	"github.com/cenkalti/backoff/v5"
 )
 
 type testAgentUpgradeSuite struct {
@@ -72,6 +71,48 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackage() {
 	windowsagent.TestAgentHasNoWorldWritablePaths(s.T(), s.Env().RemoteHost)
 }
 
+// TestUpgradeAgentPackageOCIBootstrap tests the upgrade workflow using the OCI bootstrap path.
+// It uses InstallerBootstrapMode=OCI to force the OCI path, ensuring the test fails if the
+// installer layer is missing from the OCI package.
+//
+// This test validates that:
+// 1. The current pipeline OCI package contains the installer layer
+// 2. The OCI bootstrap code path extracts and uses the installer correctly
+//
+// If this test fails, check that the OCI package build includes --installer flag.
+func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageOCIBootstrap() {
+	// Arrange
+	s.setAgentConfig()
+	s.installPreviousAgentVersion()
+	s.setInstallerBootstrapMode("OCI")
+
+	// Act
+	s.MustStartExperimentCurrentVersion()
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
+	_, err := s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.Require().NoError(err, "daemon should respond to request")
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
+}
+
+// TestUpgradeAgentPackageMSIBootstrap tests the upgrade workflow using the MSI fallback bootstrap path.
+// It uses InstallerBootstrapMode=MSI to force the MSI path, validating backward compatibility
+// with older OCI packages (< 7.70) that don't have a dedicated installer layer.
+//
+// IMPORTANT: Do not remove this test without ensuring backward compatibility is still tested.
+func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageMSIBootstrap() {
+	// Arrange
+	s.setAgentConfig()
+	s.installPreviousAgentVersion()
+	s.setInstallerBootstrapMode("MSI")
+
+	// Act
+	s.MustStartExperimentCurrentVersion()
+	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
+	_, err := s.Installer().PromoteExperiment(consts.AgentPackage)
+	s.Require().NoError(err, "daemon should respond to request")
+	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
+}
+
 // TestUpgradeAgentPackageWithAltDir tests that an Agent installed with the MSI
 // and custom paths maintains those paths when remotely upgraded
 func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageWithAltDir() {
@@ -109,7 +150,6 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageWithAltDir() {
 // This is a regression test for WINA-1469, where the Agent account password and
 // password from the LSA did not match after rollback to a version before LSA support was added.
 func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageAfterRollback() {
-	flake.Mark(s.T())
 	// Arrange
 	s.setAgentConfig()
 	s.installPreviousAgentVersion()
@@ -122,7 +162,7 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageAfterRollback() {
 	s.WaitForDaemonToStop(func() {
 		_, err := s.Installer().StopExperiment(consts.AgentPackage)
 		s.Require().NoError(err, "daemon should stop cleanly")
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(10))
 	s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().PackageVersion())
 
 	// Try upgrade again
@@ -189,7 +229,7 @@ func (s *testAgentUpgradeSuite) TestStopExperiment() {
 	s.WaitForDaemonToStop(func() {
 		_, err := s.Installer().StopExperiment(consts.AgentPackage)
 		s.Require().NoError(err, "daemon should stop cleanly")
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(10))
 	s.assertSuccessfulAgentStopExperiment(s.StableAgentVersion().PackageVersion())
 
 	// Assert
@@ -359,7 +399,7 @@ func (s *testAgentUpgradeSuite) TestExperimentMSIRollbackMaintainsCustomUserAndA
 		// This returns while the upgrade is still running, so we need to wait for the service to stop
 		// We can't use WaitForInstallerService here because it can be racy with MSI rollback,
 		// the service could stop and then restart before we check the status again.
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), 100))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(5*time.Second)), backoff.WithMaxTries(100))
 
 	// wait for upgrade to restart the service
 	// this is racy, we'll either catch the new service running briefly before MSI rollback
@@ -601,6 +641,16 @@ func (s *testAgentUpgradeSuite) setWatchdogTimeout(timeout int) {
 	s.Require().NoError(err)
 }
 
+// setInstallerBootstrapMode sets the InstallerBootstrapMode registry key.
+// - "OCI" forces the OCI bootstrap path, fails if installer layer is missing
+// - "MSI" forces the MSI fallback path
+// - "" (empty) uses default behavior (try OCI, fallback to MSI)
+func (s *testAgentUpgradeSuite) setInstallerBootstrapMode(mode string) {
+	err := windowscommon.SetTypedRegistryValue(s.Env().RemoteHost,
+		`HKLM:\SOFTWARE\Datadog\Datadog Agent`, "InstallerBootstrapMode", mode, "String")
+	s.Require().NoError(err)
+}
+
 func (s *testAgentUpgradeSuite) setTerminatePolicy(terminatePolicy bool) {
 	termValue := 0
 	if terminatePolicy {
@@ -618,7 +668,7 @@ func (s *testAgentUpgradeSuite) installPreviousAgentVersion(opts ...installerwin
 		installerwindows.WithMSILogFile("install-previous-version.log"),
 	}
 	options = append(options, opts...)
-	s.Require().NoError(s.Installer().Install(options...))
+	s.InstallWithDiagnostics(options...)
 
 	// sanity check: make sure we did indeed install the stable version
 	s.Require().Host(s.Env().RemoteHost).
@@ -637,9 +687,7 @@ func (s *testAgentUpgradeSuite) installCurrentAgentVersion(opts ...installerwind
 		installerwindows.WithMSILogFile("install-current-version.log"),
 	}
 	options = append(options, opts...)
-	s.Require().NoError(s.Installer().Install(
-		options...,
-	))
+	s.InstallWithDiagnostics(options...)
 
 	// sanity check: make sure we did indeed install the stable version
 	s.Require().Host(s.Env().RemoteHost).
@@ -674,26 +722,27 @@ func (s *testAgentUpgradeSuite) assertSuccessfulAgentStopExperiment(version stri
 }
 
 func (s *testAgentUpgradeSuite) waitForInstallerVersion(version string) error {
+	// usually waiting after MSI runs so we have to wait awhile
+	// max wait is 30*30 -> 900 seconds (15 minutes)
 	return s.waitForInstallerVersionWithBackoff(version,
-		// usually waiting after MSI runs so we have to wait awhile
-		// max wait is 30*30 -> 900 seconds (15 minutes)
-		backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 30))
+		backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(30))
 }
 
-func (s *testAgentUpgradeSuite) waitForInstallerVersionWithBackoff(version string, b backoff.BackOff) error {
-	return backoff.Retry(func() error {
+func (s *testAgentUpgradeSuite) waitForInstallerVersionWithBackoff(version string, opts ...backoff.RetryOption) error {
+	_, err := backoff.Retry(context.Background(), func() (any, error) {
 		actual, err := s.Installer().Version()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if !strings.Contains(actual, version) {
-			return fmt.Errorf("expected version %s, got %s", version, actual)
+			return nil, fmt.Errorf("expected version %s, got %s", version, actual)
 		}
-		return nil
-	}, b)
+		return nil, nil
+	}, opts...)
+	return err
 }
 
-// assertDaemonStaysRunning asserts that the daemon service PID is the same before and after the function is called.
+// assertDaemonStaysRunning asserts that the daemon service PID and start time are the same before and after the function is called.
 //
 // For example, used to verify that "stop-experiment" does not reinstall stable when it is already installed.
 func (s *testAgentUpgradeSuite) assertDaemonStaysRunning(f func()) {
@@ -708,11 +757,18 @@ func (s *testAgentUpgradeSuite) assertDaemonStaysRunning(f func()) {
 	s.Require().NoError(err)
 	s.Require().Greater(originalPID, 0)
 
+	originalStartTime, err := windowscommon.GetProcessStartTimeAsFileTimeUtc(s.Env().RemoteHost, originalPID)
+	s.Require().NoError(err)
+
 	f()
 
 	newPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
 	s.Require().NoError(err)
-	s.Require().Equal(originalPID, newPID, "daemon should not have been restarted")
+	s.Require().Equal(originalPID, newPID, "daemon should not have been restarted (PID changed)")
+
+	newStartTime, err := windowscommon.GetProcessStartTimeAsFileTimeUtc(s.Env().RemoteHost, newPID)
+	s.Require().NoError(err)
+	s.Require().Equal(originalStartTime, newStartTime, "daemon should not have been restarted (start time changed, PID reused)")
 }
 
 type testAgentUpgradeFromGASuite struct {
@@ -720,6 +776,11 @@ type testAgentUpgradeFromGASuite struct {
 }
 
 // TestAgentUpgradesFromGA tests that we can upgrade from GA release (7.65.0) to current
+//
+// NOTE: This test exercises the MSI fallback bootstrap path because the 7.65.x installer
+// does not support extracting from the OCI installer layer - it only has the MSI admin install
+// extraction flow. The dedicated test for validating the MSI fallback path with the current
+// installer is TestUpgradeAgentPackageMSIBootstrap.
 //
 // It embeds testAgentUpgradeSuite so it can run any of the upgrade tests.
 func TestAgentUpgradesFromGA(t *testing.T) {

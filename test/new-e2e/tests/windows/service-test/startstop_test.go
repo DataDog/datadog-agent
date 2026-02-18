@@ -15,15 +15,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
+	scenwindows "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awsHostWindows "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
@@ -409,7 +411,7 @@ func (s *agentServiceDisabledSuite) TestStartingDisabledService() {
 		if !slices.Contains(kernel, service) {
 			// try and start it and verify that it does correctly outputs to event log
 			err := windowsCommon.StartService(s.Env().RemoteHost, service)
-			s.Require().NoError(err, fmt.Sprintf("should start %s", service))
+			s.Require().NoError(err, "should start "+service)
 
 			// verify that service returns to stopped state
 			s.assertServiceState("Stopped", service, nil)
@@ -424,13 +426,15 @@ func (s *agentServiceDisabledSuite) TestStartingDisabledService() {
 
 func run[Env any](t *testing.T, s e2e.Suite[Env], systemProbeConfig string, agentConfig string, securityAgentConfig string) {
 	opts := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.ProvisionerNoFakeIntake(
-		awsHostWindows.WithAgentOptions(
-			agentparams.WithAgentConfig(agentConfig),
-			agentparams.WithSystemProbeConfig(systemProbeConfig),
-			agentparams.WithSecurityAgentConfig(securityAgentConfig),
-		),
-		awsHostWindows.WithAgentClientOptions(
-			agentclientparams.WithSkipWaitForAgentReady(),
+		awsHostWindows.WithRunOptions(
+			scenwindows.WithAgentOptions(
+				agentparams.WithAgentConfig(agentConfig),
+				agentparams.WithSystemProbeConfig(systemProbeConfig),
+				agentparams.WithSecurityAgentConfig(securityAgentConfig),
+			),
+			scenwindows.WithAgentClientOptions(
+				agentclientparams.WithSkipWaitForAgentReady(),
+			),
 		),
 	))}
 	e2e.Run(t, s, opts...)
@@ -616,7 +620,7 @@ func (s *baseStartStopSuite) BeforeTest(suiteName, testName string) {
 	entries, err := host.ReadDir(logsFolder)
 	if s.Assert().NoError(err, "should read log folder") {
 		for _, entry := range entries {
-			err = host.Remove(filepath.Join(logsFolder, entry.Name()))
+			err = host.RemoveAll(filepath.Join(logsFolder, entry.Name()))
 			s.Assert().NoError(err, "should remove %s", entry.Name())
 		}
 	}
@@ -645,7 +649,7 @@ func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
 		for _, logName := range []string{"System", "Application"} {
 			// collect the full event log as an evtx file
 			s.T().Logf("Exporting %s event log", logName)
-			outputPath := filepath.Join(s.SessionOutputDir(), fmt.Sprintf("%s.evtx", logName))
+			outputPath := filepath.Join(s.SessionOutputDir(), logName+".evtx")
 			err := windowsCommon.ExportEventLog(host, logName, outputPath)
 			s.Assert().NoError(err, "should export %s event log", logName)
 			// Log errors and warnings to the screen for easy access
@@ -675,11 +679,16 @@ func (s *baseStartStopSuite) collectAgentLogs() {
 		return
 	}
 	for _, entry := range entries {
-		s.T().Logf("Found log file: %s", entry.Name())
-		err = host.GetFile(
-			filepath.Join(logsFolder, entry.Name()),
-			filepath.Join(s.SessionOutputDir(), entry.Name()),
-		)
+		sourcePath := filepath.Join(logsFolder, entry.Name())
+		destPath := filepath.Join(s.SessionOutputDir(), entry.Name())
+
+		if entry.IsDir() {
+			s.T().Logf("Found log directory: %s", entry.Name())
+			err = host.GetFolder(sourcePath, destPath)
+		} else {
+			s.T().Logf("Found log file: %s", entry.Name())
+			err = host.GetFile(sourcePath, destPath)
+		}
 		s.Assert().NoError(err, "should download %s", entry.Name())
 	}
 }

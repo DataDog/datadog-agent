@@ -12,7 +12,6 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"encoding/hex"
-	"fmt"
 	"slices"
 	"sync"
 	"time"
@@ -198,7 +197,7 @@ func newAgentGRPCClient(ipcAddress string, cmdPort string, tlsConfig *tls.Config
 // ClientGetConfigs implements the ConfigFetcher interface for agentGRPCConfigFetcher
 func (g *agentGRPCConfigFetcher) ClientGetConfigs(ctx context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
 	md := metadata.MD{
-		"authorization": []string{fmt.Sprintf("Bearer %s", g.authToken)},
+		"authorization": []string{"Bearer " + g.authToken},
 	}
 
 	ctx = metadata.NewOutgoingContext(ctx, md)
@@ -349,6 +348,11 @@ func (c *Client) Start() {
 // A client that has been closed cannot be restarted
 func (c *Client) Close() {
 	c.closeFn()
+}
+
+// GetClientID gets the client ID
+func (c *Client) GetClientID() string {
+	return c.ID
 }
 
 // UpdateApplyStatus updates the config's metadata to reflect its applied status

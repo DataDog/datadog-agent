@@ -59,7 +59,7 @@ func OpenPrivileged(socketPath string, filePath string) (*os.File, error) {
 
 	unixConn, ok := conn.(*net.UnixConn)
 	if !ok {
-		return nil, fmt.Errorf("not a Unix connection")
+		return nil, errors.New("not a Unix connection")
 	}
 
 	// Read the message and file descriptor using ReadMsgUnix
@@ -73,7 +73,7 @@ func OpenPrivileged(socketPath string, filePath string) (*os.File, error) {
 	}
 
 	if n == 0 {
-		return nil, fmt.Errorf("no response received")
+		return nil, errors.New("no response received")
 	}
 
 	var response common.OpenFileResponse
@@ -82,7 +82,7 @@ func OpenPrivileged(socketPath string, filePath string) (*os.File, error) {
 	}
 
 	if !response.Success {
-		return nil, fmt.Errorf("file descriptor transfer failed: %s", response.Error)
+		return nil, fmt.Errorf("module error: %s", response.Error)
 	}
 
 	// Parse the file descriptor from the control message
@@ -108,7 +108,25 @@ func OpenPrivileged(socketPath string, filePath string) (*os.File, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("no file descriptor received")
+	return nil, errors.New("no file descriptor received")
+}
+
+func maybeOpenPrivileged(path string, originalError error) (*os.File, error) {
+	enabled := pkgconfigsetup.SystemProbe().GetBool("privileged_logs.enabled")
+	if !enabled {
+		return nil, originalError
+	}
+
+	log.Debugf("Permission denied, opening file with system-probe: %v", path)
+
+	socketPath := pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")
+	file, spErr := OpenPrivileged(socketPath, path)
+	log.Tracef("Opened file with system-probe: %v, err: %v", path, spErr)
+	if spErr != nil {
+		return nil, fmt.Errorf("failed to open file with system-probe: %w, original error: %w", spErr, originalError)
+	}
+
+	return file, nil
 }
 
 // Open attempts to open a file, and if it fails due to permissions, it opens
@@ -119,19 +137,33 @@ func Open(path string) (*os.File, error) {
 		return file, err
 	}
 
-	enabled := pkgconfigsetup.SystemProbe().GetBool("privileged_logs.enabled")
-	if !enabled {
-		return file, err
+	file, err = maybeOpenPrivileged(path, err)
+	if err != nil {
+		return nil, err
 	}
 
-	log.Debugf("Permission denied, opening file with system-probe: %v", path)
+	return file, nil
+}
 
-	socketPath := pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")
-	fd, spErr := OpenPrivileged(socketPath, path)
-	log.Tracef("Opened file with system-probe: %v, err: %v", path, spErr)
-	if spErr != nil {
-		return file, fmt.Errorf("failed to open file with system-probe: %w, original error: %w", spErr, err)
+// Stat attempts to stat a file, and if it fails due to permissions, it opens
+// the file using system-probe if the privileged logs module is available and
+// stats the opened file.
+func Stat(path string) (os.FileInfo, error) {
+	info, err := os.Stat(path)
+	if err == nil || !errors.Is(err, os.ErrPermission) {
+		return info, err
 	}
 
-	return fd, nil
+	file, err := maybeOpenPrivileged(path, err)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	info, err = file.Stat()
+	if err != nil {
+		return nil, err
+	}
+
+	return info, nil
 }

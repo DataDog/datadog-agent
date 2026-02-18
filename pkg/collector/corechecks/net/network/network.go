@@ -11,8 +11,10 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -149,9 +151,7 @@ func (c *NetworkCheck) Run() error {
 			if err != nil {
 				log.Debug(err)
 			} else {
-				for counter, value := range counters {
-					protocolStats.Stats[counter] = value
-				}
+				maps.Copy(protocolStats.Stats, counters)
 			}
 		}
 		submitProtocolMetrics(sender, protocolStats)
@@ -188,10 +188,8 @@ func (c *NetworkCheck) Run() error {
 }
 
 func (c *NetworkCheck) isDeviceExcluded(deviceName string) bool {
-	for _, excludedDevice := range c.config.instance.ExcludedInterfaces {
-		if deviceName == excludedDevice {
-			return true
-		}
+	if slices.Contains(c.config.instance.ExcludedInterfaces, deviceName) {
+		return true
 	}
 	if c.config.instance.ExcludedInterfacePattern != nil {
 		return c.config.instance.ExcludedInterfacePattern.MatchString(deviceName)
@@ -200,7 +198,7 @@ func (c *NetworkCheck) isDeviceExcluded(deviceName string) bool {
 }
 
 func submitInterfaceMetrics(sender sender.Sender, interfaceIO net.IOCountersStat) {
-	tags := []string{fmt.Sprintf("device:%s", interfaceIO.Name), fmt.Sprintf("device_name:%s", interfaceIO.Name)}
+	tags := []string{"device:" + interfaceIO.Name, "device_name:" + interfaceIO.Name}
 	sender.Rate("system.net.bytes_rcvd", float64(interfaceIO.BytesRecv), "", tags)
 	sender.Rate("system.net.bytes_sent", float64(interfaceIO.BytesSent), "", tags)
 	sender.Rate("system.net.packets_in.count", float64(interfaceIO.PacketsRecv), "", tags)
@@ -216,7 +214,7 @@ func submitProtocolMetrics(sender sender.Sender, protocolStats net.ProtoCounters
 		for rawMetricName, metricName := range protocolMapping {
 			if metricValue, ok := protocolStats.Stats[rawMetricName]; ok {
 				sender.Rate(metricName, float64(metricValue), "", nil)
-				sender.MonotonicCount(fmt.Sprintf("%s.count", metricName), float64(metricValue), "", nil)
+				sender.MonotonicCount(metricName+".count", float64(metricValue), "", nil)
 			}
 		}
 	}

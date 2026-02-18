@@ -83,7 +83,7 @@ func udpCreateSocketAndSend(sockDomain int, serverSockAddr syscall.Sockaddr, bin
 		boundPort <- addr.Port
 	default:
 		close(boundPort)
-		clientErr <- fmt.Errorf("getsockname error: unknown Sockaddr type")
+		clientErr <- errors.New("getsockname error: unknown Sockaddr type")
 		return
 	}
 	<-next
@@ -165,7 +165,7 @@ func tcpCreateSocketAndSend(sockDomain int, serverSockAddr syscall.Sockaddr, bin
 		boundPort <- addr.Port
 	default:
 		close(boundPort)
-		clientErr <- fmt.Errorf("getsockname error: unknown Sockaddr type")
+		clientErr <- errors.New("getsockname error: unknown Sockaddr type")
 		return
 	}
 
@@ -296,7 +296,7 @@ func startServer(sockDomain int, sockType int, sockAddr syscall.Sockaddr, server
 				if !serverAcceptedChanClosed {
 					close(serverAccepted)
 				}
-				serverErr <- fmt.Errorf("accept timed out after 10s")
+				serverErr <- errors.New("accept timed out after 10s")
 				return
 			}
 

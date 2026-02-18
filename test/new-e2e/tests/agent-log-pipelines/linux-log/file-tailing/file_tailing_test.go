@@ -3,23 +3,26 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// linuxfiletailing is a test suite for the log agent interacting with a virtual machine and fake intake.
 package linuxfiletailing
 
 import (
 	_ "embed"
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/utils"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/utils"
+
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
 // LinuxFakeintakeSuite defines a test suite for the log agent interacting with a virtual machine and fake intake.
@@ -40,10 +43,11 @@ func TestLinuxVMFileTailingSuite(t *testing.T) {
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(
 			awshost.Provisioner(
-				awshost.WithAgentOptions(
-					agentparams.WithLogs(),
-					agentparams.WithIntegration("custom_logs.d", logConfig),
-				))),
+				awshost.WithRunOptions(
+					scenec2.WithAgentOptions(
+						agentparams.WithLogs(),
+						agentparams.WithIntegration("custom_logs.d", logConfig),
+					)))),
 	}
 	t.Parallel()
 	e2e.Run(t, &LinuxFakeintakeSuite{}, options...)
@@ -68,7 +72,7 @@ func (s *LinuxFakeintakeSuite) BeforeTest(suiteName, testName string) {
 	}, 2*time.Minute, 10*time.Second)
 
 	// Create a new log folder location
-	s.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo mkdir -p %s", utils.LinuxLogsFolderPath))
+	s.Env().RemoteHost.MustExecute("sudo mkdir -p " + utils.LinuxLogsFolderPath)
 }
 
 func (s *LinuxFakeintakeSuite) TearDownSuite() {
@@ -103,8 +107,8 @@ func (s *LinuxFakeintakeSuite) TestLinuxLogTailing() {
 
 func (s *LinuxFakeintakeSuite) testLogCollection() {
 	t := s.T()
-	// Create a new log file with permissionn inaccessible to the agent
-	s.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo touch %s", logFilePath))
+	// Create a new log file with permissions accessible to the agent
+	s.Env().RemoteHost.MustExecute("sudo touch " + logFilePath)
 
 	// Adjust permissions of new log file before log generation
 	output, err := s.Env().RemoteHost.Execute(fmt.Sprintf("sudo chmod +r %s && echo true", logFilePath))
@@ -112,14 +116,16 @@ func (s *LinuxFakeintakeSuite) testLogCollection() {
 	assert.NoErrorf(t, err, "Unable to adjust permissions for the log file '%s'.", logFilePath)
 	assert.Equalf(t, "true", strings.TrimSpace(output), "Unable to adjust permissions for the log file '%s'.", logFilePath)
 
-	// t.Logf("Permissions granted for new log file.")
+	// Verify the tailer is in OK state before generating logs
+	utils.AssertAgentTailerOK(s, logFileName)
+
 	// Generate log
 	utils.AppendLog(s, logFileName, "hello-world", 1)
 
 	// Given expected tags
 	expectedTags := []string{
-		fmt.Sprintf("filename:%s", logFileName),
-		fmt.Sprintf("dirname:%s", utils.LinuxLogsFolderPath),
+		"filename:" + logFileName,
+		"dirname:" + utils.LinuxLogsFolderPath,
 	}
 	// Check intake for new logs
 	utils.CheckLogsExpected(s.T(), s.Env().FakeIntake, "hello", "hello-world", expectedTags)
@@ -139,21 +145,20 @@ func (s *LinuxFakeintakeSuite) testLogNoPermission() {
 	// => Restart the agent to force it to reopen the file
 	s.Env().RemoteHost.Execute("sudo service datadog-agent restart")
 
+	// Verify tailer is in Error state due to permission issue
+	utils.AssertAgentTailerError(s, logFileName)
+
 	// Generate logs and check the intake for no new logs because of revoked permissions
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		agentReady := s.Env().Agent.Client.IsReady()
-		if assert.Truef(c, agentReady, "Agent is not ready after restart") {
-			// Generate log
-			utils.AppendLog(s, logFileName, "access-denied", 1)
-			// Check intake for new logs
-			utils.CheckLogsNotExpected(s.T(), s.Env().FakeIntake, "hello", "access-denied")
-		}
-	}, 2*time.Minute, 5*time.Second)
+	utils.AppendLog(s, logFileName, "access-denied", 1)
+	utils.CheckLogsNotExpected(s.T(), s.Env().FakeIntake, "hello", "access-denied")
 }
 
 func (s *LinuxFakeintakeSuite) testLogCollectionAfterPermission() {
 	t := s.T()
 	utils.CheckLogFilePresence(s, logFileName)
+
+	// Verify the tailer is in an error state before granting permissions
+	utils.AssertAgentTailerError(s, logFileName)
 
 	// Generate logs
 	utils.AppendLog(s, logFileName, "hello-after-permission-world", 1)
@@ -163,6 +168,9 @@ func (s *LinuxFakeintakeSuite) testLogCollectionAfterPermission() {
 	assert.NoErrorf(t, err, "Unable to adjust permissions for the log file '%s'.", logFilePath)
 	assert.Equalf(t, "true", strings.TrimSpace(output), "Unable to adjust permissions for the log file '%s'.", logFilePath)
 	t.Logf("Permissions granted for log file.")
+
+	// Verify tailer transitions to OK state after permissions are granted
+	utils.AssertAgentTailerOK(s, logFileName)
 
 	// Check intake for new logs
 	utils.CheckLogsExpected(s.T(), s.Env().FakeIntake, "hello", "hello-after-permission-world", []string{})
@@ -182,8 +190,9 @@ func (s *LinuxFakeintakeSuite) testLogCollectionBeforePermission() {
 	assert.NoErrorf(t, err, "Unable to adjust permissions for the log file '%s'.", logFilePath)
 	assert.Equalf(t, "true", strings.TrimSpace(output), "Unable to adjust permissions for the log file '%s'.", logFilePath)
 	t.Logf("Permissions granted.")
-	// Wait for the agent to tail the log file since there is a delay between permissions being granted and the agent tailing the log file
-	time.Sleep(1000 * time.Millisecond)
+
+	// Wait for the agent to tail the log file and verify it's in OK state
+	utils.AssertAgentTailerOK(s, logFileName)
 
 	// Generate logs
 	utils.AppendLog(s, logFileName, "access-granted", 1)
@@ -208,6 +217,9 @@ func (s *LinuxFakeintakeSuite) testLogRecreateRotation() {
 	assert.NoError(t, err, "Failed to find the old log file after rotation")
 	assert.Equalf(t, "true", strings.TrimSpace(output), "Unable to adjust permissions for the log file '%s'.", logFilePath)
 	t.Logf("Permissions granted for new log file.")
+
+	// Verify tailer is in OK state for the rotated file before generating logs
+	utils.AssertAgentTailerOK(s, logFileName)
 
 	// Generate new logs
 	utils.AppendLog(s, logFileName, "hello-world-new-content", 1)

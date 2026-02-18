@@ -8,6 +8,7 @@
 package probe
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -197,7 +198,7 @@ func (wcs *WinCrashStatus) getCurrentCrashSettings() error {
 		//  kernel, complete, automatic, active
 		fn, _, err := k.GetStringValue("DumpFile")
 		if err != nil {
-			return fmt.Errorf("Error reading dump file name")
+			return errors.New("Error reading dump file name")
 		}
 		fn, err = winutil.ExpandEnvironmentStrings(fn)
 		if err != nil {

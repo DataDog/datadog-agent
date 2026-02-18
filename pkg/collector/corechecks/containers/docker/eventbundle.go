@@ -80,7 +80,7 @@ func (b *dockerEventBundle) toDatadogEvent(hostname string) (event.Event, error)
 		EventType:      CheckName,
 		AlertType:      b.alertType,
 		Ts:             b.maxTimestamp.Unix(),
-		AggregationKey: fmt.Sprintf("docker:%s", b.imageName),
+		AggregationKey: "docker:" + b.imageName,
 	}
 
 	seenContainers := make(map[string]bool)

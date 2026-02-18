@@ -1,0 +1,36 @@
+exporters:
+    debug: {}
+    logging: {}
+    otlphttp:
+        headers:
+            dd-api-key: test-api-key
+processors:
+    infraattributes/default:
+        allow_hostname_override: true
+    resource/dd-profiler-internal-metadata:
+        attributes:
+            - action: upsert
+              key: profiler_name
+              value: full-host-profiler
+            - action: upsert
+              key: profiler_version
+              value: 7.0.0-test
+receivers:
+    hostprofiler:
+        symbol_uploader:
+            enabled: true
+            symbol_endpoints:
+                - api_key: test_api_key_123
+                  site: datadoghq.com
+service:
+    pipelines:
+        profiles:
+            exporters:
+                - logging
+                - debug
+                - otlphttp
+            processors:
+                - infraattributes/default
+                - resource/dd-profiler-internal-metadata
+            receivers:
+                - hostprofiler

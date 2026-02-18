@@ -15,23 +15,27 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/k8s"
 )
 
 const agentNamespace = "datadog"
+const jobNamespace = "default"
 const podSelectorField = "app"
 const jobQueryInterval = 500 * time.Millisecond
 const jobQueryTimeout = 120 * time.Second // Might take some time to create the container
 const errMsgNoCudaCapableDevice = "error code no CUDA-capable device is detected"
 const maxWorkloadRetries = 3
+const nvidiaRuntimeClassName = "nvidia"
 
 type agentComponent string
 
@@ -58,11 +62,14 @@ type suiteCapabilities interface {
 	QuerySysprobe(path string) (string, error)
 	RunContainerWorkloadWithGPUs(image string, arguments ...string) (string, error)
 	GetRestartCount(component agentComponent) int
+	CheckWorkloadErrors(containerID string) error
+	ExpectedWorkloadTags() []string
 }
 
 // hostCapabilities is an implementation of suiteCapabilities for the Host environment
 type hostCapabilities struct {
-	suite *e2e.BaseSuite[environments.Host]
+	suite             *e2e.BaseSuite[environments.Host]
+	containerIDToName map[string]string // maps container ID to container name
 }
 
 var _ suiteCapabilities = &hostCapabilities{}
@@ -87,12 +94,16 @@ func (c *hostCapabilities) QuerySysprobe(path string) (string, error) {
 }
 
 func (c *hostCapabilities) removeContainer(containerName string) error {
-	_, err := c.suite.Env().RemoteHost.Execute(fmt.Sprintf("docker rm -f %s", containerName))
+	_, err := c.suite.Env().RemoteHost.Execute("docker rm -f " + containerName)
 	return err
 }
 
 // RunContainerWorkloadWithGPUs runs a container workload with GPUs on the host using Docker
 func (c *hostCapabilities) RunContainerWorkloadWithGPUs(image string, arguments ...string) (string, error) {
+	if c.containerIDToName == nil {
+		c.containerIDToName = make(map[string]string)
+	}
+
 	containerName := strings.ToLower("workload-" + common.RandString(5))
 
 	args := strings.Join(arguments, " ")
@@ -122,15 +133,20 @@ func (c *hostCapabilities) RunContainerWorkloadWithGPUs(image string, arguments 
 		// Cleanup the container
 		_ = c.removeContainer(containerName)
 	})
-	containerIDCmd := fmt.Sprintf("docker inspect -f {{.Id}} %s", containerName)
+	containerIDCmd := "docker inspect -f {{.Id}} " + containerName
 	idOut, err := c.suite.Env().RemoteHost.Execute(containerIDCmd)
+	if err != nil {
+		return "", err
+	}
 
-	return strings.TrimSpace(idOut), err
+	containerID := strings.TrimSpace(idOut)
+	c.containerIDToName[containerID] = containerName
+	return containerID, nil
 }
 
 func (c *hostCapabilities) GetRestartCount(component agentComponent) int {
 	service := agentComponentToSystemdService[component]
-	out, err := c.suite.Env().RemoteHost.Execute(fmt.Sprintf("systemctl show -p NRestarts %s", service))
+	out, err := c.suite.Env().RemoteHost.Execute("systemctl show -p NRestarts " + service)
 	c.suite.Require().NoError(err)
 	c.suite.Require().NotEmpty(out)
 
@@ -140,9 +156,49 @@ func (c *hostCapabilities) GetRestartCount(component agentComponent) int {
 	return count
 }
 
+// CheckWorkloadErrors checks if a workload container has any errors.
+// For host environments, it checks the Docker container exit code.
+func (c *hostCapabilities) CheckWorkloadErrors(containerID string) error {
+	containerName, found := c.containerIDToName[containerID]
+	if !found {
+		// Container ID not found in map, can't check status
+		return nil
+	}
+
+	// Check container exit code using docker inspect
+	exitCodeCmd := "docker inspect -f '{{.State.ExitCode}}' " + containerName
+	exitCodeOut, err := c.suite.Env().RemoteHost.Execute(exitCodeCmd)
+	if err != nil {
+		return fmt.Errorf("error inspecting container %s: %w", containerName, err)
+	}
+
+	exitCodeStr := strings.TrimSpace(exitCodeOut)
+	exitCode, err := strconv.Atoi(exitCodeStr)
+	if err != nil {
+		return fmt.Errorf("error parsing exit code for container %s: %w", containerName, err)
+	}
+
+	if exitCode != 0 {
+		// Get container status for more details
+		statusCmd := "docker inspect -f '{{.State.Status}}' " + containerName
+		statusOut, _ := c.suite.Env().RemoteHost.Execute(statusCmd)
+		status := strings.TrimSpace(statusOut)
+
+		return fmt.Errorf("workload container %s exited with code %d (status: %s)", containerName, exitCode, status)
+	}
+
+	return nil
+}
+
+// ExpectedWorkloadTags returns tags that are expected to be present on workloads
+func (c *hostCapabilities) ExpectedWorkloadTags() []string {
+	return []string{"container_id", "container_name", "short_image"}
+}
+
 // kubernetesCapabilities is an implementation of suiteCapabilities for the Kubernetes environment
 type kubernetesCapabilities struct {
-	suite *e2e.BaseSuite[environments.Kubernetes]
+	suite          *e2e.BaseSuite[environments.Kubernetes]
+	containerToJob map[string]string // maps container ID to job name
 }
 
 var _ suiteCapabilities = &kubernetesCapabilities{}
@@ -187,8 +243,12 @@ func (c *kubernetesCapabilities) QuerySysprobe(path string) (string, error) {
 // RunContainerWorkloadWithGPUs runs a container workload with GPUs on the Kubernetes cluster
 // using a Kubernetes Job.
 func (c *kubernetesCapabilities) RunContainerWorkloadWithGPUs(image string, arguments ...string) (string, error) {
+	if c.containerToJob == nil {
+		c.containerToJob = make(map[string]string)
+	}
+
 	jobName := strings.ToLower("workload-" + common.RandString(5))
-	jobNamespace := "default"
+	runtimeClassName := nvidiaRuntimeClassName
 
 	jobSpec := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
@@ -203,9 +263,15 @@ func (c *kubernetesCapabilities) RunContainerWorkloadWithGPUs(image string, argu
 							Name:    "workload",
 							Image:   image,
 							Command: arguments,
+							Resources: corev1.ResourceRequirements{
+								Limits: corev1.ResourceList{
+									"nvidia.com/gpu": resource.MustParse("1"),
+								},
+							},
 						},
 					},
-					RestartPolicy: corev1.RestartPolicyNever,
+					RestartPolicy:    corev1.RestartPolicyNever,
+					RuntimeClassName: &runtimeClassName,
 				},
 			},
 		},
@@ -231,7 +297,11 @@ func (c *kubernetesCapabilities) RunContainerWorkloadWithGPUs(image string, argu
 		if len(pods.Items) > 0 {
 			pod := pods.Items[0]
 			if pod.Status.Phase != corev1.PodPending {
-				return pod.Status.ContainerStatuses[0].ContainerID, nil
+				if len(pod.Status.ContainerStatuses) > 0 {
+					containerID := pod.Status.ContainerStatuses[0].ContainerID
+					c.containerToJob[containerID] = jobName
+					return containerID, nil
+				}
 			}
 		}
 
@@ -245,6 +315,18 @@ func (c *kubernetesCapabilities) RunContainerWorkloadWithGPUs(image string, argu
 
 	pod := pods.Items[0]
 	return "", fmt.Errorf("Pod %s found but is not running, status: %s %s (%s)", pod.Name, pod.Status.Phase, pod.Status.Message, pod.Status.Reason)
+}
+
+// CheckWorkloadErrors checks if a workload container has any errors.
+// For Kubernetes environments, it checks the Job status and returns an error if the job failed.
+func (c *kubernetesCapabilities) CheckWorkloadErrors(containerID string) error {
+	jobName, found := c.containerToJob[containerID]
+	if !found {
+		// Container ID not found in map, can't check status
+		return nil
+	}
+
+	return k8s.CheckJobErrors(context.Background(), c.suite.Env().KubernetesCluster.Client(), jobNamespace, jobName)
 }
 
 func (c *kubernetesCapabilities) GetRestartCount(component agentComponent) int {
@@ -266,4 +348,10 @@ func (c *kubernetesCapabilities) GetRestartCount(component agentComponent) int {
 	}
 
 	return restartCount
+}
+
+// ExpectedWorkloadTags returns tags that are expected to be present on workloads
+func (c *kubernetesCapabilities) ExpectedWorkloadTags() []string {
+	// Kubernetes tag support not added yet
+	return nil
 }

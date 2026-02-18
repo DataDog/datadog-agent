@@ -9,7 +9,6 @@ package agentimpl
 import (
 	"net/http"
 
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 
 	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
@@ -22,8 +21,11 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadfilterServer "github.com/DataDog/datadog-agent/comp/core/workloadfilter/server"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -55,6 +57,7 @@ type Requires struct {
 	TagProcessor        option.Option[tagger.Processor]
 	Cfg                 config.Component
 	AutoConfig          autodiscovery.Component
+	Workloadfilter      workloadfilter.Component
 	WorkloadMeta        workloadmeta.Component
 	Collector           option.Option[collector.Component]
 	RemoteAgentRegistry remoteagentregistry.Component
@@ -68,6 +71,7 @@ type server struct {
 	tagger              tagger.Component
 	tagProcessor        option.Option[tagger.Processor]
 	workloadMeta        workloadmeta.Component
+	workloadfilter      workloadfilter.Component
 	configService       option.Option[rcservice.Component]
 	configServiceMRF    option.Option[rcservicemrf.Component]
 	dogstatsdServer     dogstatsdServer.Component
@@ -87,9 +91,15 @@ func (s *server) BuildServer() http.Handler {
 	maxMessageSize := s.configComp.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
 
 	// Use the convenience function that combines metrics and auth interceptors
-	opts := grpcutil.ServerOptionsWithMetricsAndAuth(
-		grpc_auth.UnaryServerInterceptor(authInterceptor),
-		grpc_auth.StreamServerInterceptor(authInterceptor),
+	var opts []googleGrpc.ServerOption
+	if vsockAddr := s.configComp.GetString("vsock_addr"); vsockAddr == "" {
+		opts = append(opts,
+			googleGrpc.UnaryInterceptor(grpcutil.CombinedUnaryServerInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor))),
+			googleGrpc.StreamInterceptor(grpcutil.CombinedStreamServerInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor))),
+		)
+	}
+
+	opts = append(opts,
 		googleGrpc.Creds(credentials.NewTLS(s.IPC.GetTLSServerConfig())),
 		googleGrpc.MaxRecvMsgSize(maxMessageSize),
 		googleGrpc.MaxSendMsgSize(maxMessageSize),
@@ -105,14 +115,15 @@ func (s *server) BuildServer() http.Handler {
 		taggerServer:     taggerserver.NewServer(s.tagger, s.telemetry, maxEventSize, s.configComp.GetInt("remote_tagger.max_concurrent_sync")),
 		tagProcessor:     s.tagProcessor,
 		// TODO(components): decide if workloadmetaServer should be componentized itself
-		workloadmetaServer:  workloadmetaServer.NewServer(s.workloadMeta),
-		dogstatsdServer:     s.dogstatsdServer,
-		capture:             s.capture,
-		pidMap:              s.pidMap,
-		remoteAgentRegistry: s.remoteAgentRegistry,
-		autodiscovery:       s.autodiscovery,
-		configComp:          s.configComp,
-		configStreamServer:  configstreamServer.NewServer(s.configComp, s.configStream),
+		workloadmetaServer:   workloadmetaServer.NewServer(s.workloadMeta),
+		workloadfilterServer: workloadfilterServer.NewServer(s.workloadfilter),
+		dogstatsdServer:      s.dogstatsdServer,
+		capture:              s.capture,
+		pidMap:               s.pidMap,
+		remoteAgentRegistry:  s.remoteAgentRegistry,
+		autodiscovery:        s.autodiscovery,
+		configComp:           s.configComp,
+		configStreamServer:   configstreamServer.NewServer(s.configComp, s.configStream, s.remoteAgentRegistry),
 	})
 
 	return grpcServer
@@ -133,6 +144,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 			tagger:              reqs.Tagger,
 			tagProcessor:        reqs.TagProcessor,
 			workloadMeta:        reqs.WorkloadMeta,
+			workloadfilter:      reqs.Workloadfilter,
 			dogstatsdServer:     reqs.DogstatsdServer,
 			capture:             reqs.Capture,
 			pidMap:              reqs.PidMap,

@@ -20,10 +20,9 @@ import (
 )
 
 const (
-	emrInjectorVersion   = "0.45.0-1"
-	emrJavaTracerVersion = "1.55.0-1"
-	emrAgentVersion      = "7.71.1-1"
-	hadoopLogFolder      = "/var/log/hadoop-yarn/containers/"
+	emrInjectorVersion   = "0.53.0-1"
+	emrJavaTracerVersion = "1.58.0-1"
+	emrAgentVersion      = "7.74.0-1"
 	hadoopDriverFolder   = "/mnt/var/log/hadoop/steps/"
 )
 
@@ -93,17 +92,18 @@ func SetupEmr(s *common.Setup) error {
 	if isMaster {
 		s.Out.WriteString("Setting up Spark integration config on the Resource Manager\n")
 		setupResourceManager(s, clusterName)
-		if os.Getenv("DD_EMR_DRIVER_LOGS_ENABLED") == "true" {
-			s.Out.WriteString("Enabling EMR logs collection from driver based on env variable DD_EMR_DRIVER_LOGS_ENABLED=true\n")
-			enableEmrLogs(s, true)
+		// Add logs config to the Resource Manager only
+		if os.Getenv("DD_EMR_LOGS_ENABLED") == "true" {
+			s.Out.WriteString("Enabling EMR logs collection\n")
+			s.Span.SetTag("host_tag_set.logs_enabled", "true")
+			enableEmrLogs(s)
+		} else if os.Getenv("DD_EMR_DRIVER_LOGS_ENABLED") == "true" {
+			// Tag install spans to track usage of DD_EMR_DRIVER_LOGS_ENABLED versus DD_EMR_LOGS_ENABLED
+			s.Span.SetTag("host_tag_set.driver_logs_enabled", "true")
+			enableEmrLogs(s)
+		} else if os.Getenv("DD_EMR_DRIVER_LOGS_ENABLED") != "true" {
+			s.Out.WriteString("EMR logs collection not enabled. To enable it, set DD_EMR_LOGS_ENABLED=true\n")
 		}
-	}
-	// Add logs config to both Resource Manager and Workers
-	if os.Getenv("DD_EMR_LOGS_ENABLED") == "true" {
-		s.Out.WriteString("Enabling EMR logs collection based on env variable DD_EMR_LOGS_ENABLED=true\n")
-		enableEmrLogs(s, false)
-	} else if os.Getenv("DD_EMR_DRIVER_LOGS_ENABLED") != "true" {
-		s.Out.WriteString("EMR logs collection not enabled. To enable it, set DD_EMR_LOGS_ENABLED=true\n")
 	}
 	return nil
 }
@@ -192,52 +192,27 @@ func resolveEmrClusterName(s *common.Setup, jobFlowID string) string {
 	return clusterName
 }
 
-func enableEmrLogs(s *common.Setup, collectFromDriver bool) {
+func enableEmrLogs(s *common.Setup) {
 	s.Config.DatadogYAML.LogsEnabled = config.BoolToPtr(true)
 	loadLogProcessingRules(s)
 	// Load the existing integration config and add logs section to it
 	sparkIntegration := s.Config.IntegrationConfigs["spark.d/conf.yaml"]
-	var emrLogs []config.IntegrationConfigLogs
-	if collectFromDriver {
-		s.Span.SetTag("host_tag_set.driver_logs_enabled", "true")
-		emrLogs = []config.IntegrationConfigLogs{
-			{
-				Type:    "file",
-				Path:    hadoopDriverFolder + "*/stdout",
-				Source:  "hadoop-yarn",
-				Service: "emr-logs",
-				LogProcessingRules: []config.LogProcessingRule{
-					{Type: "multi_line", Name: "logger_dataframe_show", Pattern: "(^\\+[-+]+\\n(\\|.*\\n)+\\+[-+]+$)|^(ERROR|INFO|DEBUG|WARN|CRITICAL|NOTSET|Traceback)"},
-				},
+	emrLogs := []config.IntegrationConfigLogs{
+		{
+			Type:    "file",
+			Path:    hadoopDriverFolder + "*/stdout",
+			Source:  "hadoop-yarn",
+			Service: "emr-logs",
+			LogProcessingRules: []config.LogProcessingRule{
+				{Type: "multi_line", Name: "logger_dataframe_show", Pattern: "(^\\+[-+]+\\n(\\|.*\\n)+\\+[-+]+$)|^(ERROR|INFO|DEBUG|WARN|CRITICAL|NOTSET|Traceback)"},
 			},
-			{
-				Type:    "file",
-				Path:    hadoopDriverFolder + "*/stderr",
-				Source:  "hadoop-yarn",
-				Service: "emr-logs",
-			},
-		}
-	} else {
-		s.Span.SetTag("host_tag_set.logs_enabled", "true")
-		// Add dd-agent user to yarn group so that it gets read permission to the hadoop-yarn logs folder
-		s.DdAgentAdditionalGroups = append(s.DdAgentAdditionalGroups, "yarn")
-		emrLogs = []config.IntegrationConfigLogs{
-			{
-				Type:    "file",
-				Path:    hadoopLogFolder + "*/*/stdout",
-				Source:  "hadoop-yarn",
-				Service: "emr-logs",
-				LogProcessingRules: []config.LogProcessingRule{
-					{Type: "multi_line", Name: "logger_dataframe_show", Pattern: "(^\\+[-+]+\\n(\\|.*\\n)+\\+[-+]+$)|^(ERROR|INFO|DEBUG|WARN|CRITICAL|NOTSET|Traceback)"},
-				},
-			},
-			{
-				Type:    "file",
-				Path:    hadoopLogFolder + "*/*/stderr",
-				Source:  "hadoop-yarn",
-				Service: "emr-logs",
-			},
-		}
+		},
+		{
+			Type:    "file",
+			Path:    hadoopDriverFolder + "*/stderr",
+			Source:  "hadoop-yarn",
+			Service: "emr-logs",
+		},
 	}
 	sparkIntegration.Logs = emrLogs
 	s.Config.IntegrationConfigs["spark.d/conf.yaml"] = sparkIntegration

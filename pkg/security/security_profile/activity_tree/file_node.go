@@ -44,7 +44,7 @@ type OpenNode struct {
 func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, imageTag string, generationType NodeGenerationType, reducedFilePath string, resolvers *resolvers.EBPFResolvers) *FileNode {
 	// call resolver. Safeguard: the process context might be empty if from a snapshot.
 	if resolvers != nil && fileEvent != nil && event.ProcessContext != nil {
-		resolvers.HashResolver.ComputeHashesFromEvent(event, fileEvent)
+		resolvers.HashResolver.ComputeHashesFromEvent(event, fileEvent, 0)
 	}
 
 	fan := &FileNode{
@@ -68,24 +68,24 @@ func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, im
 }
 
 func (fn *FileNode) getNodeLabel(prefix string) string {
-	var label string
+	var builder strings.Builder
 	if prefix == "" {
-		label += tableHeader
-		label += "<TR>"
-		label += "<TD>Events</TD>"
-		label += "<TD>Hash count</TD>"
-		label += "<TD>File</TD>"
-		label += "<TD>Package</TD>"
-		label += "</TR>"
+		builder.WriteString(tableHeader)
+		builder.WriteString("<TR>")
+		builder.WriteString("<TD>Events</TD>")
+		builder.WriteString("<TD>Hash count</TD>")
+		builder.WriteString("<TD>File</TD>")
+		builder.WriteString("<TD>Package</TD>")
+		builder.WriteString("</TR>")
 	}
-	label += fn.buildNodeRow(prefix)
+	builder.WriteString(fn.buildNodeRow(prefix))
 	for _, child := range fn.Children {
-		label += child.getNodeLabel(prefix + "/" + fn.Name)
+		builder.WriteString(child.getNodeLabel(prefix + "/" + fn.Name))
 	}
 	if prefix == "" {
-		label += "</TABLE>>"
+		builder.WriteString("</TABLE>>")
 	}
-	return label
+	return builder.String()
 }
 
 func (fn *FileNode) buildNodeRow(prefix string) string {
@@ -93,12 +93,12 @@ func (fn *FileNode) buildNodeRow(prefix string) string {
 	if fn.Open != nil && fn.File != nil {
 		var pkg string
 		if len(fn.File.PkgName) != 0 {
-			pkg = fmt.Sprintf("%s:%s", fn.File.PkgName, fn.File.PkgVersion)
+			pkg = fn.File.PkgName + ":" + fn.File.PkgVersion
 		}
 		out += "<TR>"
 		out += "<TD>open</TD>"
 		out += "<TD>" + strconv.Itoa(len(fn.File.Hashes)) + " hash(es)</TD>"
-		out += "<TD ALIGN=\"LEFT\">" + fmt.Sprintf("%s/%s", prefix, fn.Name) + "</TD>"
+		out += "<TD ALIGN=\"LEFT\">" + prefix + "/" + fn.Name + "</TD>"
 		out += "<TD>" + pkg + "</TD>"
 		out += "</TR>"
 	}

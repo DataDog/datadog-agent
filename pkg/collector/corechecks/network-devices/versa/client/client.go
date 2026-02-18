@@ -136,13 +136,13 @@ func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint stri
 
 func validateParams(directorEndpoint string, directorPort int, analyticsEndpoint string) error {
 	if directorEndpoint == "" {
-		return fmt.Errorf("invalid director endpoint")
+		return errors.New("invalid director endpoint")
 	}
 	if directorPort < 0 {
 		return fmt.Errorf("invalid director port: %d", directorPort)
 	}
 	if analyticsEndpoint == "" {
-		return fmt.Errorf("invalid analytics endpoint")
+		return errors.New("invalid analytics endpoint")
 	}
 	return nil
 }
@@ -188,7 +188,7 @@ func WithMaxAttempts(maxAttempts int) ClientOptions {
 // WithMaxCount is a functional option to set the client max count
 func WithMaxCount(maxCount int) ClientOptions {
 	return func(c *Client) {
-		c.maxCount = fmt.Sprintf("%d", maxCount)
+		c.maxCount = strconv.Itoa(maxCount)
 	}
 }
 
@@ -262,7 +262,7 @@ func (client *Client) GetChildAppliancesDetail(tenant string) ([]Appliance, erro
 	totalPages := (*totalCount + maxCount - 1) / maxCount // calculate total pages, rounding up if there's any remainder
 	for i := 0; i < totalPages; i++ {
 		params["fetch"] = "all"
-		params["offset"] = fmt.Sprintf("%d", i*maxCount)
+		params["offset"] = strconv.Itoa(i * maxCount)
 		resp, err := get[[]Appliance](client, uri, params, false)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get appliance detail response: %v", err)
@@ -330,7 +330,7 @@ func (client *Client) GetAppliances() ([]Appliance, error) {
 // GetInterfaces retrieves a list of interfaces for a specific tenant
 func (client *Client) GetInterfaces(tenantName string) ([]Interface, error) {
 	if tenantName == "" {
-		return nil, fmt.Errorf("tenantName cannot be empty")
+		return nil, errors.New("tenantName cannot be empty")
 	}
 
 	params := map[string]string{
@@ -351,10 +351,10 @@ func (client *Client) GetInterfaces(tenantName string) ([]Interface, error) {
 // GetInterfaceMetrics retrieves interface metrics for a specific appliance and tenant using pagination
 func (client *Client) GetInterfaceMetrics(applianceName string, tenantName string) ([]InterfaceMetrics, error) {
 	if applianceName == "" {
-		return nil, fmt.Errorf("applianceName cannot be empty")
+		return nil, errors.New("applianceName cannot be empty")
 	}
 	if tenantName == "" {
-		return nil, fmt.Errorf("tenantName cannot be empty")
+		return nil, errors.New("tenantName cannot be empty")
 	}
 
 	var allMetrics []InterfaceMetrics
@@ -604,7 +604,7 @@ func (client *Client) GetTopUsers(tenant string) ([]TopUserMetrics, error) {
 // GetTunnelMetrics retrieves tunnel metrics from the Versa Analytics API
 func (client *Client) GetTunnelMetrics(tenant string) ([]TunnelMetrics, error) {
 	if tenant == "" {
-		return nil, fmt.Errorf("tenant cannot be empty")
+		return nil, errors.New("tenant cannot be empty")
 	}
 
 	return getPaginatedAnalytics(
@@ -626,7 +626,7 @@ func (client *Client) GetTunnelMetrics(tenant string) ([]TunnelMetrics, error) {
 // GetDIAMetrics retrieves DIA (Direct Internet Access) metrics from the Versa Analytics API
 func (client *Client) GetDIAMetrics(tenant string) ([]DIAMetrics, error) {
 	if tenant == "" {
-		return nil, fmt.Errorf("tenant cannot be empty")
+		return nil, errors.New("tenant cannot be empty")
 	}
 
 	return getPaginatedAnalytics(
@@ -650,7 +650,7 @@ func (client *Client) GetDIAMetrics(tenant string) ([]DIAMetrics, error) {
 // GetAnalyticsInterfaces retrieves interface utilization metrics from the Versa Analytics API
 func (client *Client) GetAnalyticsInterfaces(tenant string) ([]AnalyticsInterfaceMetrics, error) {
 	if tenant == "" {
-		return nil, fmt.Errorf("tenant cannot be empty")
+		return nil, errors.New("tenant cannot be empty")
 	}
 
 	return getPaginatedAnalytics(

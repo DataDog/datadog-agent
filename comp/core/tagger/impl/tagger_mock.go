@@ -114,11 +114,6 @@ func (f *fakeTagger) GenerateContainerIDFromOriginInfo(originInfo origindetectio
 	return f.tagger.GenerateContainerIDFromOriginInfo(originInfo)
 }
 
-// AccumulateTagsFor calls tagger.AccumulateTagsFor().
-func (f *fakeTagger) AccumulateTagsFor(entityID types.EntityID, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
-	return f.tagger.AccumulateTagsFor(entityID, cardinality, tb)
-}
-
 // Standard calls tagger.Standard().
 func (f *fakeTagger) Standard(entityID types.EntityID) ([]string, error) {
 	return f.tagger.Standard(entityID)

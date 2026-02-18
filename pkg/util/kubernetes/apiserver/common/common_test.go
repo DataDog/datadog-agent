@@ -16,6 +16,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 )
 
 func TestGetOrCreateClusterID(t *testing.T) {
@@ -24,7 +26,7 @@ func TestGetOrCreateClusterID(t *testing.T) {
 	// kube-system doesn't exist
 	GetOrCreateClusterID(client)
 
-	_, err := client.ConfigMaps(GetMyNamespace()).Get(context.TODO(), defaultClusterIDMap, metav1.GetOptions{})
+	_, err := client.ConfigMaps(namespace.GetMyNamespace()).Get(context.TODO(), defaultClusterIDMap, metav1.GetOptions{})
 	assert.True(t, errors.IsNotFound(err))
 
 	// kube-system does exist
@@ -39,7 +41,7 @@ func TestGetOrCreateClusterID(t *testing.T) {
 
 	GetOrCreateClusterID(client)
 
-	cm, err := client.ConfigMaps(GetMyNamespace()).Get(context.TODO(), defaultClusterIDMap, metav1.GetOptions{})
+	cm, err := client.ConfigMaps(namespace.GetMyNamespace()).Get(context.TODO(), defaultClusterIDMap, metav1.GetOptions{})
 	assert.Nil(t, err)
 	id, found := cm.Data["id"]
 	assert.True(t, found)

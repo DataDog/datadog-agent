@@ -68,7 +68,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "25"
   },
   {
     "service": "sample",
@@ -144,7 +145,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "3"
   },
   {
     "service": "sample",
@@ -220,7 +222,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "150"
   },
   {
     "service": "sample",
@@ -301,7 +304,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "150"
   },
   {
     "service": "sample",
@@ -372,6 +376,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "1"
   }
 ]

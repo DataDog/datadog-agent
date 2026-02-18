@@ -66,7 +66,7 @@ func (c *CLCRunnerClient) init() {
 
 	// Set headers
 	c.clcRunnerAPIRequestHeaders = http.Header{}
-	c.clcRunnerAPIRequestHeaders.Set(authorizationHeaderKey, fmt.Sprintf("Bearer %s", authToken))
+	c.clcRunnerAPIRequestHeaders.Set(authorizationHeaderKey, "Bearer "+authToken)
 
 	// Set TLS config
 	crossNodeClientTLSConfig, err := pkgapiutil.GetCrossNodeClientTLSConfig()

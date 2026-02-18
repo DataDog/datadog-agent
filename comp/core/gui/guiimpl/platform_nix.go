@@ -8,7 +8,7 @@
 package guiimpl
 
 import (
-	"fmt"
+	"errors"
 
 	template "github.com/DataDog/datadog-agent/pkg/template/html"
 )
@@ -27,5 +27,5 @@ func restartEnabled() bool {
 }
 
 func restart() error {
-	return fmt.Errorf("restarting the agent is not implemented on non-windows platforms")
+	return errors.New("restarting the agent is not implemented on non-windows platforms")
 }

@@ -30,7 +30,7 @@ type AttachedProgram struct {
 }
 
 // Detach detaches the program from the target process.
-func (p *AttachedProgram) Detach() error {
+func (p *AttachedProgram) Detach(_ error) error {
 	var retErr error
 	for _, attachpoint := range p.attachpoints {
 		if err := attachpoint.Close(); err != nil {
@@ -79,7 +79,7 @@ func Attach(
 
 	textSection := elfFile.Section(".text")
 	if textSection == nil {
-		return nil, fmt.Errorf("text section not found")
+		return nil, errors.New("text section not found")
 	}
 
 	// As close to injection as possible, check that executable that we analyzed

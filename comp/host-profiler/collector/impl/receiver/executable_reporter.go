@@ -10,34 +10,28 @@ package receiver
 
 import (
 	"context"
-	"os"
 
 	"go.uber.org/zap"
 
-	"github.com/DataDog/dd-otel-host-profiler/reporter"
-	"github.com/DataDog/dd-otel-host-profiler/runner"
-
 	ebpfreporter "go.opentelemetry.io/ebpf-profiler/reporter"
+
+	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader"
 )
 
 var _ ebpfreporter.ExecutableReporter = (*executableReporter)(nil)
 
 type executableReporter struct {
-	symbolUploader *reporter.DatadogSymbolUploader
+	symbolUploader *symboluploader.DatadogSymbolUploader
 }
 
-func newExecutableReporter(config *reporter.SymbolUploaderConfig, logger *zap.Logger) (*executableReporter, error) {
-	config.SymbolEndpoints = runner.GetValidSymbolEndpoints(
-		os.Getenv("DD_SITE"), os.Getenv("DD_API_KEY"), os.Getenv("DD_APP_KEY"),
-		config.SymbolEndpoints,
-		func(msg string) { logger.Info(msg) }, func(msg string) { logger.Warn(msg) })
-
-	symbolUploader, err := reporter.NewDatadogSymbolUploader(config)
+func newExecutableReporter(config *symboluploader.SymbolUploaderConfig, _ *zap.Logger) (*executableReporter, error) {
+	ctx := context.Background()
+	symbolUploader, err := symboluploader.NewDatadogSymbolUploader(ctx, config)
 	if err != nil {
 		return nil, err
 	}
 
-	symbolUploader.Start(context.Background())
+	symbolUploader.Start(ctx)
 	return &executableReporter{
 		symbolUploader: symbolUploader,
 	}, nil

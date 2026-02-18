@@ -14,23 +14,23 @@ import (
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	"github.com/DataDog/test-infra-definitions/common/utils"
-	"github.com/DataDog/test-infra-definitions/components/command"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent/helm"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
-	"github.com/DataDog/test-infra-definitions/components/docker"
-	"github.com/DataDog/test-infra-definitions/components/kubernetes/nvidia"
-	"github.com/DataDog/test-infra-definitions/components/os"
-	componentsremote "github.com/DataDog/test-infra-definitions/components/remote"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/nvidia"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	componentsremote "github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
+	awskubernetes "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 )
 
 //go:embed testdata/config/agent_config.yaml
@@ -60,6 +60,10 @@ type systemData struct {
 	// supportsSystemProbeComponent is true if the system supports the system-probe component
 	// that is used to collect GPU metrics. Some systems have older kernels that we don't support.
 	supportsSystemProbeComponent bool
+
+	// cudaVersion is the version of CUDA installed in the system, will be used to validate the installation
+	// This avoids weird compatibility issues that can arise without explicit errors.
+	cudaVersion string
 }
 
 type systemName string
@@ -78,7 +82,7 @@ const nvidiaSMIValidationCmd = "nvidia-smi -L | grep GPU"
 
 // validationCommandMarker is a command that can be appended to all validation commands
 // to identify them in the output, which can be useful to later force retries. Retries
-// are controlled in test/new-e2e/pkg/utils/infra/retriable_errors.go, and the way to
+// are controlled in test/e2e-framework/testing/utils/infra/retriable_errors.go, and the way to
 // identify them are based on the pulumi logs. This command will be echoed to the output
 // and can be used to identify the validation commands.
 const validationCommandMarker = "echo 'gpu-validation-command'"
@@ -112,6 +116,19 @@ agents:
           value: "true"
         - name: DD_GPU_USE_SP_PROCESS_METRICS
           value: "true"
+`
+
+const ddAgentSetup = `#!/bin/bash
+# /var/run/datadog directory is necessary for UDS socket creation
+sudo mkdir -p /var/run/datadog
+sudo groupadd -r dd-agent
+sudo useradd -r -M -g dd-agent dd-agent
+sudo chown dd-agent:dd-agent /var/run/datadog
+
+# Agent must be in the docker group to be able to open and read
+# container info from the docker socket.
+sudo groupadd -f -r docker
+sudo usermod -a -G docker dd-agent
 `
 
 const dockerPullMaxRetries = 3
@@ -148,6 +165,7 @@ func gpuHostProvisioner(params *provisionerParams) provisioners.Provisioner {
 		host, err := ec2.NewVM(awsEnv, name,
 			ec2.WithInstanceType(params.instanceType),
 			ec2.WithAMI(params.systemData.ami, params.systemData.os, os.AMD64Arch),
+			ec2.WithUserData(ddAgentSetup),
 		)
 		if err != nil {
 			return fmt.Errorf("ec2.NewVM: %w", err)
@@ -168,7 +186,7 @@ func gpuHostProvisioner(params *provisionerParams) provisioners.Provisioner {
 		}
 
 		// Validate GPU devices
-		validateGPUDevicesCmd, err := validateGPUDevices(&awsEnv, host)
+		validateGPUDevicesCmd, err := validateGPUDevices(&awsEnv, host, params.systemData.cudaVersion)
 		if err != nil {
 			return fmt.Errorf("validateGPUDevices: %w", err)
 		}
@@ -245,7 +263,7 @@ func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 			return fmt.Errorf("ec2.InstallECRCredentialsHelper %w", err)
 		}
 
-		validateDevices, err := validateGPUDevices(&awsEnv, host)
+		validateDevices, err := validateGPUDevices(&awsEnv, host, params.systemData.cudaVersion)
 		if err != nil {
 			return fmt.Errorf("validateGPUDevices: %w", err)
 		}
@@ -323,17 +341,19 @@ func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 		return nil
 	}, nil)
 
-	provisioner.SetDiagnoseFunc(awskubernetes.KindDiagnoseFunc)
+	provisioner.SetDiagnoseFunc(awskubernetes.DiagnoseFunc)
 
 	return provisioner
 }
 
 // validateGPUDevices checks that there are GPU devices present and accesible
-func validateGPUDevices(e *aws.Environment, vm *componentsremote.Host) ([]pulumi.Resource, error) {
+func validateGPUDevices(e *aws.Environment, vm *componentsremote.Host, cudaVersion string) ([]pulumi.Resource, error) {
 	commands := map[string]string{
-		"pci":    fmt.Sprintf("lspci -d %s:: | grep NVIDIA", nvidiaPCIVendorID),
-		"driver": "lsmod | grep nvidia",
-		"nvidia": "nvidia-smi -L | grep GPU",
+		"pci":            fmt.Sprintf("lspci -d %s:: | grep NVIDIA", nvidiaPCIVendorID),
+		"driver":         "lsmod | grep nvidia",
+		"nvidia":         "nvidia-smi -L | grep GPU",
+		"driver-version": "cat /proc/driver/nvidia/version | grep NVRM",
+		"cuda-version":   fmt.Sprintf("nvidia-smi | grep 'CUDA Version:' | grep %s ; nvidia-smi | grep 'CUDA Version:'", cudaVersion), // print the cuda version for debugging even if there's not a match
 	}
 
 	var cmds []pulumi.Resource
@@ -359,7 +379,7 @@ func downloadDockerImages(e *aws.Environment, vm *componentsremote.Host, images 
 	var cmds []pulumi.Resource
 
 	for i, image := range images {
-		pullCmd := makeRetryCommand(fmt.Sprintf("docker pull %s", image), dockerPullMaxRetries)
+		pullCmd := makeRetryCommand("docker pull "+image, dockerPullMaxRetries)
 		cmd, err := vm.OS.Runner().Command(
 			e.CommonNamer().ResourceName("docker-pull", strconv.Itoa(i)),
 			&command.Args{
@@ -395,7 +415,7 @@ func downloadContainerdImagesInKindNodes(e *aws.Environment, vm *componentsremot
 	var cmds []pulumi.Resource
 
 	for i, image := range images {
-		pullCmd := makeRetryCommand(fmt.Sprintf("crictl pull %s", image), dockerPullMaxRetries)
+		pullCmd := makeRetryCommand("crictl pull "+image, dockerPullMaxRetries)
 		cmd, err := vm.OS.Runner().Command(
 			e.CommonNamer().ResourceName("kind-node-pull", fmt.Sprintf("image-%d", i)),
 			&command.Args{

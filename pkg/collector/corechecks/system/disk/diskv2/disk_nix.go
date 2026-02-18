@@ -10,6 +10,7 @@ package diskv2
 import (
 	"bufio"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -40,6 +41,19 @@ func defaultIgnoreCase() bool {
 
 func baseDeviceName(device string) string {
 	return filepath.Base(device)
+}
+
+// normalizeDeviceTag returns the device name for use in the device: tag.
+// On Linux/Unix, returns unchanged (Windows version strips backslashes and lowercases).
+func normalizeDeviceTag(deviceName string) string {
+	return deviceName
+}
+
+// isExpectedIOCounterError returns true for errors that are expected and
+// non-fatal for IO counter collection. On Linux/Unix, no such errors are
+// expected so this always returns false.
+func isExpectedIOCounterError(_ error) bool {
+	return false
 }
 
 func (c *Check) configureCreateMounts() {
@@ -93,8 +107,8 @@ func (c *Check) fetchAllDeviceLabelsFromLsblk() error {
 	return nil
 }
 
-// Device represents a device entry in an XML structure.
-type device struct {
+// blkidDeviceEntry represents a device entry in a blkid XML cache file.
+type blkidDeviceEntry struct {
 	XMLName xml.Name `xml:"device"`
 	Label   string   `xml:"LABEL,attr"`
 	Text    string   `xml:",chardata"`
@@ -130,14 +144,14 @@ func (c *Check) fetchAllDeviceLabelsFromBlkidCache() error {
 			log.Debugf("skipping empty line")
 			continue
 		}
-		var device device
-		err := xml.Unmarshal([]byte(line), &device)
+		var entry blkidDeviceEntry
+		err := xml.Unmarshal([]byte(line), &entry)
 		if err != nil {
 			log.Debugf("Failed to parse line %s because of %v - skipping the line (some labels might be missing)\n", line, err)
 			continue
 		}
-		if device.Label != "" && device.Text != "" {
-			c.deviceLabels[device.Text] = device.Label
+		if entry.Label != "" && entry.Text != "" {
+			c.deviceLabels[entry.Text] = entry.Label
 		}
 	}
 	return nil
@@ -319,8 +333,8 @@ func (r *rootFsDeviceFinder) askSysDevBlock() (string, error) {
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := scanner.Text()
-		if strings.HasPrefix(line, "DEVNAME=") {
-			name := strings.TrimPrefix(line, "DEVNAME=")
+		if after, ok := strings.CutPrefix(line, "DEVNAME="); ok {
+			name := after
 			if name != "" {
 				return "/dev/" + name, nil
 			}
@@ -375,7 +389,7 @@ func (r *rootFsDeviceFinder) Find() (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("could not determine rootfs device")
+	return "", errors.New("could not determine rootfs device")
 }
 
 // ReadlinkFs method
@@ -418,7 +432,7 @@ func (c *Check) loadRootDevices() (map[string]string, error) {
 				log.Debugf("error finding root device: %v", err)
 			}
 		} else {
-			log.Debugf("error stat’ing /: %v", err)
+			log.Debugf("error stat'ing /: %v", err)
 		}
 		hostSys := getSysfsPath()
 		for _, line := range lines {
@@ -436,6 +450,7 @@ func (c *Check) loadRootDevices() (map[string]string, error) {
 			blockDeviceID := fieldsFirstPart[2]
 			fieldsSecondPart := strings.Fields(parts[1])
 			device := fieldsSecondPart[1]
+
 			// /dev/root is not the real device name
 			// so we get the real device name from its major/minor number
 			if device == "/dev/root" || device == "rootfs" {
@@ -452,7 +467,34 @@ func (c *Check) loadRootDevices() (map[string]string, error) {
 					rootDevices[deviceResolved] = device
 				}
 			}
+
+			// Handle device-mapper devices: gopsutil resolves /dev/mapper/name symlinks
+			// to /dev/dm-X, but we want to use the friendly mapper name for tagging
+			// (matching Python psutil behavior which reads from /etc/mtab)
+			if strings.HasPrefix(device, "/dev/mapper/") {
+				// Resolve the symlink to get the dm-X device that gopsutil will return
+				// Use ReadlinkFs to support testing with mock filesystems
+				resolvedPath, err := ReadlinkFs(c.fs, device)
+				if err != nil {
+					log.Debugf("error resolving device-mapper symlink %s: %v", device, err)
+					continue
+				}
+				// The symlink target could be relative (e.g., "../dm-0") or absolute
+				var resolvedDevice string
+				if filepath.IsAbs(resolvedPath) {
+					resolvedDevice = resolvedPath
+				} else {
+					resolvedDevice = filepath.Join(filepath.Dir(device), resolvedPath)
+					resolvedDevice = filepath.Clean(resolvedDevice)
+				}
+				base := filepath.Base(resolvedDevice)
+				if strings.HasPrefix(base, "dm-") {
+					log.Debugf("device-mapper mapping from mountinfo: %s -> %s", resolvedDevice, device)
+					rootDevices[resolvedDevice] = device
+				}
+			}
 		}
 	}
+
 	return rootDevices, nil
 }

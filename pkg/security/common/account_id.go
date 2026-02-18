@@ -8,6 +8,7 @@ package common
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -47,7 +48,7 @@ func queryAccountID(ctx context.Context) (string, string, error) {
 		}
 	}
 
-	return "", "", fmt.Errorf("no cloud provider detected")
+	return "", "", errors.New("no cloud provider detected")
 }
 
 var accountIDTagCache struct {
@@ -66,7 +67,7 @@ func QueryAccountIDTag() string {
 			log.Errorf("failed to query account id: %v", err)
 			return
 		}
-		accountIDTagCache.value = fmt.Sprintf("%s:%s", tagName, tagValue)
+		accountIDTagCache.value = tagName + ":" + tagValue
 	})
 
 	return accountIDTagCache.value

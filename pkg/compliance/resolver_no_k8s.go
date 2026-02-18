@@ -33,6 +33,6 @@ func (r *k8sapiserverResolver) resolveKubeClusterID(context.Context) string {
 	return ""
 }
 
-func (r *k8sapiserverResolver) resolveKubeApiserver(context.Context, InputSpecKubeapiserver) (interface{}, error) {
+func (r *k8sapiserverResolver) resolveKubeApiserver(context.Context, string, InputSpecKubeapiserver) (interface{}, error) {
 	return nil, ErrIncompatibleEnvironment
 }

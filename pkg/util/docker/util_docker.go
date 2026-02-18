@@ -8,6 +8,7 @@
 package docker
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/docker/docker/api/types/filters"
@@ -20,7 +21,7 @@ import (
 func buildDockerFilter(args ...string) (volume.ListOptions, error) {
 	filter := filters.NewArgs()
 	if len(args)%2 != 0 {
-		return volume.ListOptions{Filters: filter}, fmt.Errorf("an even number of arguments is required")
+		return volume.ListOptions{Filters: filter}, errors.New("an even number of arguments is required")
 	}
 	for i := 0; i < len(args); i += 2 {
 		filter.Add(args[i], args[i+1])

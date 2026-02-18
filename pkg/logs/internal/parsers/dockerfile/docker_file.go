@@ -9,8 +9,10 @@ package dockerfile
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
@@ -62,7 +64,7 @@ func (p *dockerFileFormat) Parse(msg *message.Message) (*message.Message, error)
 	// Check if log is nil (e.g., when input is the JSON literal null)
 	if log == nil {
 		msg.Status = message.StatusInfo
-		return msg, fmt.Errorf("cannot parse docker message, invalid format: got null")
+		return msg, errors.New("cannot parse docker message, invalid format: got null")
 	}
 
 	var status string
@@ -89,6 +91,12 @@ func (p *dockerFileFormat) Parse(msg *message.Message) (*message.Message, error)
 	msg.Status = status
 	msg.ParsingExtra.IsPartial = partial
 	msg.ParsingExtra.Timestamp = log.Time
+	// Tag the stream (stdout/stderr) for container logs parsed from docker JSON files
+	if pkgconfigsetup.Datadog().GetBool("logs_config.add_logsource_tag") {
+		if log.Stream == "stdout" || log.Stream == "stderr" {
+			msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.LogSourceTag(log.Stream))
+		}
+	}
 	return msg, nil
 }
 

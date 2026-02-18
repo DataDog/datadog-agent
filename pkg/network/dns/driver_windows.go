@@ -46,23 +46,23 @@ type dnsDriver struct {
 	iocp        windows.Handle
 }
 
-func newDriver(telemetrycomp telemetry.Component) (*dnsDriver, error) {
+func newDriver(telemetrycomp telemetry.Component, dnsMonitoringPorts []int) (*dnsDriver, error) {
 	d := &dnsDriver{}
-	err := d.setupDNSHandle(telemetrycomp)
+	err := d.setupDNSHandle(telemetrycomp, dnsMonitoringPorts)
 	if err != nil {
 		return nil, err
 	}
 	return d, nil
 }
 
-func (d *dnsDriver) setupDNSHandle(telemetrycomp telemetry.Component) error {
+func (d *dnsDriver) setupDNSHandle(telemetrycomp telemetry.Component, dnsMonitoringPorts []int) error {
 	var err error
 	d.h, err = driver.NewHandle(windows.FILE_FLAG_OVERLAPPED, driver.DataHandle, telemetrycomp)
 	if err != nil {
 		return err
 	}
 
-	filters, err := createDNSFilters()
+	filters, err := createDNSFilters(dnsMonitoringPorts)
 	if err != nil {
 		return err
 	}
@@ -117,9 +117,7 @@ func (d *dnsDriver) ReadDNSPacket(visit func(data []byte, info filter.PacketInfo
 		return false, errors.Wrap(err, "could not get queued completion status")
 	}
 
-	//nolint:gosimple // TODO(WKIT) Fix gosimple linter
-	var buf *readbuffer
-	buf = (*readbuffer)(unsafe.Pointer(ol))
+	buf := (*readbuffer)(unsafe.Pointer(ol))
 
 	fph := (*driver.FilterPacketHeader)(unsafe.Pointer(&buf.data[0]))
 	captureTime := time.Unix(0, int64(fph.Timestamp))
@@ -156,28 +154,30 @@ func (d *dnsDriver) Close() error {
 	return nil
 }
 
-func createDNSFilters() ([]driver.FilterDefinition, error) {
+func createDNSFilters(dnsMonitoringPorts []int) ([]driver.FilterDefinition, error) {
 	var filters []driver.FilterDefinition
 
-	filters = append(filters, driver.FilterDefinition{
-		FilterVersion:  driver.Signature,
-		Size:           driver.FilterDefinitionSize,
-		FilterLayer:    driver.LayerTransport,
-		Af:             windows.AF_INET,
-		RemotePort:     53,
-		InterfaceIndex: uint64(0),
-		Direction:      driver.DirectionOutbound,
-	})
+	for _, p := range dnsMonitoringPorts {
+		filters = append(filters, driver.FilterDefinition{
+			FilterVersion:  driver.Signature,
+			Size:           driver.FilterDefinitionSize,
+			FilterLayer:    driver.LayerTransport,
+			Af:             windows.AF_INET,
+			RemotePort:     uint64(p),
+			InterfaceIndex: uint64(0),
+			Direction:      driver.DirectionOutbound,
+		})
 
-	filters = append(filters, driver.FilterDefinition{
-		FilterVersion:  driver.Signature,
-		Size:           driver.FilterDefinitionSize,
-		FilterLayer:    driver.LayerTransport,
-		Af:             windows.AF_INET,
-		RemotePort:     53,
-		InterfaceIndex: uint64(0),
-		Direction:      driver.DirectionInbound,
-	})
+		filters = append(filters, driver.FilterDefinition{
+			FilterVersion:  driver.Signature,
+			Size:           driver.FilterDefinitionSize,
+			FilterLayer:    driver.LayerTransport,
+			Af:             windows.AF_INET,
+			RemotePort:     uint64(p),
+			InterfaceIndex: uint64(0),
+			Direction:      driver.DirectionInbound,
+		})
+	}
 
 	return filters, nil
 }

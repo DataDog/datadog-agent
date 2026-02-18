@@ -2,7 +2,7 @@
 # Scan twice - second scan should not rediscover the same process.
 - !initialize
   current_time: 0
-  start_delay: 100
+  process_delays: [100]
 - !create-process
   pid: 1001
   start_time: 50
@@ -16,7 +16,7 @@
 ---
 command: !initialize
   current_time: 0
-  start_delay: 100
+  process_delays: [100]
 ---
 command: !create-process
   pid: 1001
@@ -31,8 +31,8 @@ command: !scan {}
 new: [1001]
 state:
   current_time: 200
-  last_watermark: 100
-  start_delay: 100
+  last_scan: 200
+  process_delays: [100]
   live: [1001]
   processes_in_procfs: [1001]
 ---
@@ -41,6 +41,6 @@ command: !advance-time {to: 300}
 command: !scan {}
 state:
   current_time: 300
-  last_watermark: 200
+  last_scan: 300
   live: [1001]
   processes_in_procfs: [1001]

@@ -7,10 +7,10 @@ package ec2
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -389,7 +389,7 @@ func TestMetedataRequestWithToken(t *testing.T) {
 					if h == "" {
 						w.WriteHeader(http.StatusUnauthorized)
 					}
-					r.Header.Add("X-sequence", fmt.Sprintf("%v", seq))
+					r.Header.Add("X-sequence", strconv.Itoa(seq))
 					seq++
 					requestForToken = r
 					io.WriteString(w, testIMDSToken)
@@ -397,7 +397,7 @@ func TestMetedataRequestWithToken(t *testing.T) {
 					// Should be a metadata request
 					t := r.Header.Get("X-aws-ec2-metadata-token")
 					if t != testIMDSToken {
-						r.Header.Add("X-sequence", fmt.Sprintf("%v", seq))
+						r.Header.Add("X-sequence", strconv.Itoa(seq))
 						seq++
 						requestWithoutToken = r
 						w.WriteHeader(http.StatusUnauthorized)
@@ -405,7 +405,7 @@ func TestMetedataRequestWithToken(t *testing.T) {
 					}
 					switch r.RequestURI {
 					case "/public-ipv4":
-						r.Header.Add("X-sequence", fmt.Sprintf("%v", seq))
+						r.Header.Add("X-sequence", strconv.Itoa(seq))
 						seq++
 						requestWithToken = r
 						io.WriteString(w, ipv4)
@@ -433,7 +433,7 @@ func TestMetedataRequestWithToken(t *testing.T) {
 
 			assert.Equal(t, "0", requestForToken.Header.Get("X-sequence"))
 			assert.Equal(t, "1", requestWithToken.Header.Get("X-sequence"))
-			assert.Equal(t, fmt.Sprint(conf.GetInt("ec2_metadata_token_lifetime")), requestForToken.Header.Get("X-aws-ec2-metadata-token-ttl-seconds"))
+			assert.Equal(t, strconv.Itoa(conf.GetInt("ec2_metadata_token_lifetime")), requestForToken.Header.Get("X-aws-ec2-metadata-token-ttl-seconds"))
 			assert.Equal(t, http.MethodPut, requestForToken.Method)
 			assert.Equal(t, "/", requestForToken.RequestURI)
 			assert.Equal(t, testIMDSToken, requestWithToken.Header.Get("X-aws-ec2-metadata-token"))

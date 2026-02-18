@@ -15,12 +15,7 @@
 
 char _license[] SEC("license") = "GPL";
 
-struct {
-  __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
-  __uint(max_entries, 1);
-  __type(key, uint32_t);
-  __type(value, uint64_t);
-} throttled_events SEC(".maps");
+const uint32_t zero_uint32 = 0;
 
 static inline __attribute__((always_inline)) void
 read_g_fields(uint64_t g_ptr, uint64_t stack_ptr, uint64_t* goid, uint32_t* stack_byte_depth) {
@@ -66,8 +61,6 @@ read_g_fields(uint64_t g_ptr, uint64_t stack_ptr, uint64_t* goid, uint32_t* stac
   return;
 }
 
-const uint32_t zero_uint32 = 0;
-
 struct {
   __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
   __uint(max_entries, 1);
@@ -75,39 +68,17 @@ struct {
   __type(value, call_depths_t);
 } in_progress_calls_buf SEC(".maps");
 
-SEC("uprobe")
-int probe_run_with_cookie(struct pt_regs* regs) {
-  uint64_t start_ns = bpf_ktime_get_ns();
-
-  const uint64_t cookie = bpf_get_attach_cookie(regs);
-  if (cookie >= num_probe_params) {
-    return 0;
-  }
-  const probe_params_t* params = bpf_map_lookup_elem(&probe_params, &cookie);
-  if (!params) {
-    return 0;
-  }
-
-  if (params->kind != EVENT_KIND_RETURN) {
-    if (should_throttle(params->throttler_idx, start_ns)) {
-      uint32_t zero = 0;
-      uint64_t* cnt = bpf_map_lookup_elem(&throttled_events, &zero);
-      if (cnt) {
-        ++*cnt;
-      }
-      return 0;
-    }
-  }
-  LOG(4, "probe_run_with_cookie: %d %d %llx",
-      params->probe_id, cookie, params->stack_machine_pc);
+static inline __attribute__((always_inline)) void
+probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs) {
+  LOG(4, "probe_run: %d %d %llx", params->probe_id, params->stack_machine_pc);
   global_ctx_t global_ctx;
   global_ctx.stack_machine = stack_machine_ctx_load(params);
   if (!global_ctx.stack_machine) {
-    return 0;
+    return;
   }
   global_ctx.stack_walk = stack_walk_ctx_load();
   if (!global_ctx.stack_walk) {
-    return 0;
+    return;
   }
   global_ctx.regs = NULL;
 
@@ -117,15 +88,15 @@ int probe_run_with_cookie(struct pt_regs* regs) {
   const int64_t out_ringbuf_avail_space =
       (int64_t)(RINGBUF_CAPACITY)-out_ringbuf_avail_data;
   if (out_ringbuf_avail_space < (int64_t)SCRATCH_BUF_LEN) {
-    LOG(1, "probe_run_with_cookie: out_ringbuf_avail_space < SCRATCH_BUF_LEN: %lld < %d",
+    LOG(1, "probe_run: out_ringbuf_avail_space < SCRATCH_BUF_LEN: %lld < %d",
         out_ringbuf_avail_space, SCRATCH_BUF_LEN);
     // TODO: Report dropped events metric.
-    return 0;
+    return;
   }
 
   di_event_header_t* header = events_scratch_buf_init(&global_ctx.buf);
   if (!header) {
-    return 0;
+    return;
   }
   *header = (di_event_header_t){
       .data_byte_len = sizeof(di_event_header_t),
@@ -153,7 +124,7 @@ int probe_run_with_cookie(struct pt_regs* regs) {
       // Common case where the associated call was not found.
       LOG(4, "failed to lookup in_progress_calls %lld (%lld): %d",
           header->goid, header->stack_byte_depth, params->probe_id);
-      return 0;
+      return;
     }
     int remaining;
     if (!call_depths_delete(depths, header->stack_byte_depth, params->probe_id, &remaining)) {
@@ -161,7 +132,7 @@ int probe_run_with_cookie(struct pt_regs* regs) {
       // this one.
       LOG(4, "failed to delete in_progress_calls %lld (%lld): %d",
           header->goid, header->stack_byte_depth, params->probe_id);
-      return 0;
+      return;
     }
     // If we're the last call for this goid, delete the entry.
     if (remaining == 0) {
@@ -185,7 +156,7 @@ int probe_run_with_cookie(struct pt_regs* regs) {
     if (!depths) {
       // This should never happen.
       LOG(1, "failed to get in_progress_calls_buf for %lld", header->goid);
-      return 0;
+      return;
     }
     depths->depths[0].depth = header->stack_byte_depth;
     depths->depths[0].probe_id = params->probe_id;
@@ -201,7 +172,7 @@ int probe_run_with_cookie(struct pt_regs* regs) {
         depths = bpf_map_lookup_elem(&in_progress_calls, &header->goid);
         if (!depths) {
           LOG(1, "failed to lookup in_progress_calls for goid %lld after failing to insert", header->goid);
-          return 0;
+          return;
         }
         // If we can't insert this call, we need to tell userspace not to expect
         // a return event.
@@ -211,7 +182,19 @@ int probe_run_with_cookie(struct pt_regs* regs) {
       }
     }
   } else {
-    header->event_pairing_expectation = EVENT_PAIRING_EXPECTATION_NONE;
+    switch (params->no_return_reason) {
+    case NO_RETURN_REASON_INLINED:
+      LOG(4, "no return reason: inlined for goid %lld stack byte depth %d probe id %d", header->goid, header->stack_byte_depth, params->probe_id);
+      header->event_pairing_expectation = EVENT_PAIRING_EXPECTATION_NONE_INLINED;
+      break;
+    case NO_RETURN_REASON_NO_BODY:
+      LOG(4, "no return body for goid %lld stack byte depth %d probe id %d", header->goid, header->stack_byte_depth, params->probe_id);
+      header->event_pairing_expectation = EVENT_PAIRING_EXPECTATION_NONE_NO_BODY;
+      break;
+    default:
+      header->event_pairing_expectation = EVENT_PAIRING_EXPECTATION_NONE;
+      break;
+    }
   }
   __maybe_unused int process_steps = 0;
   __maybe_unused int chase_steps = 0;
@@ -228,7 +211,7 @@ int probe_run_with_cookie(struct pt_regs* regs) {
     if (bpf_probe_read_user(&global_ctx.stack_walk->stack.pcs.pcs[1],
                             sizeof(global_ctx.stack_walk->stack.pcs.pcs[1]),
                             (void*)(regs->sp))) {
-      return 1;
+      return;
     }
     global_ctx.stack_walk->stack.fps[1] = regs->DWARF_BP_REG;
     global_ctx.stack_walk->idx_shift = 1;
@@ -278,11 +261,47 @@ int probe_run_with_cookie(struct pt_regs* regs) {
   if (!events_scratch_buf_submit(global_ctx.buf)) {
     // TODO: Report dropped events metric.
     LOG(1, "probe_run output dropped");
-  }
-  if (stack_hash != 0) {
+  } else if (stack_hash != 0) {
     upsert_stack_hash(stack_hash);
   }
   LOG(1, "probe_run done: %d steps", process_steps + chase_steps);
+  return;
+}
+
+// Cumulative stats aggregated throughout probe lifetime.
+struct {
+  __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+  __uint(max_entries, 1);
+  __type(key, uint32_t);
+  __type(value, stats_t);
+} stats_buf SEC(".maps");
+
+SEC("uprobe")
+int probe_run_with_cookie(struct pt_regs* regs) {
+  uint64_t start_ns = bpf_ktime_get_ns();
+
+  stats_t* stats = bpf_map_lookup_elem(&stats_buf, &zero_uint32);
+  if (!stats) {
+    return 0;
+  }
+  stats->hit_cnt++;
+
+  const uint64_t cookie = bpf_get_attach_cookie(regs);
+  if (cookie >= num_probe_params) {
+    return 0;
+  }
+  const probe_params_t* params = bpf_map_lookup_elem(&probe_params, &cookie);
+  if (!params) {
+    return 0;
+  }
+
+  if (params->kind != EVENT_KIND_RETURN && should_throttle(params->throttler_idx, start_ns)) {
+    stats->throttled_cnt++;
+  } else {
+    probe_run(start_ns, params, regs);
+  }
+
+  stats->cpu_ns += bpf_ktime_get_ns() - start_ns;
   return 0;
 }
 

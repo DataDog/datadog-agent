@@ -148,7 +148,7 @@ func (rc *runtimeSettingsClient) FullConfig() (string, error) {
 }
 
 func (rc *runtimeSettingsClient) FullConfigWithoutDefaults() (string, error) {
-	r, err := rc.doGet(fmt.Sprintf("%s/without-defaults", rc.baseURL), true)
+	r, err := rc.doGet(rc.baseURL+"/without-defaults", true)
 	if err != nil {
 		return "", err
 	}
@@ -156,7 +156,7 @@ func (rc *runtimeSettingsClient) FullConfigWithoutDefaults() (string, error) {
 }
 
 func (rc *runtimeSettingsClient) FullConfigBySource() (string, error) {
-	r, err := rc.doGet(fmt.Sprintf("%s/by-source", rc.baseURL), true)
+	r, err := rc.doGet(rc.baseURL+"/by-source", true)
 	if err != nil {
 		return "", err
 	}
@@ -164,7 +164,7 @@ func (rc *runtimeSettingsClient) FullConfigBySource() (string, error) {
 }
 
 func (rc *runtimeSettingsClient) List() (map[string]settingsComponent.RuntimeSettingResponse, error) {
-	r, err := rc.doGet(fmt.Sprintf("%s/list-runtime", rc.baseURL), false)
+	r, err := rc.doGet(rc.baseURL+"/list-runtime", false)
 	if err != nil {
 		return nil, err
 	}
@@ -223,7 +223,7 @@ func (rc *runtimeSettingsClient) Set(key string, value string) (bool, error) {
 		return false, err
 	}
 
-	body := fmt.Sprintf("value=%s", html.EscapeString(value))
+	body := "value=" + html.EscapeString(value)
 	r, err := rc.c.DoPost(fmt.Sprintf("%s/%s", rc.baseURL, key), "application/x-www-form-urlencoded", bytes.NewBuffer([]byte(body)))
 	if err != nil {
 		errMap := make(map[string]string)

@@ -15,6 +15,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -81,7 +82,7 @@ func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (types.Res
 		node.Manifests.KubeApiserver = c
 	}
 	if c, ok := l.loadConfigFileMeta(filepath.Join(k8sManifestsDir, "kube-controller-manager.yaml")); ok {
-		node.Manifests.KubeContollerManager = c
+		node.Manifests.KubeControllerManager = c
 	}
 	if c, ok := l.loadConfigFileMeta(filepath.Join(k8sManifestsDir, "kube-scheduler.yaml")); ok {
 		node.Manifests.KubeScheduler = c
@@ -96,7 +97,7 @@ func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (types.Res
 			node.Components.Etcd = l.newK8sEtcdConfig(proc.flags)
 		case "apiserver":
 			// excludes apiserver process that is running on Bottlerocket OS.
-			// identitied via --datastore-path flag that is not a valid flag of K8s's apiserver
+			// identified via --datastore-path flag that is not a valid flag of K8s's apiserver
 			if _, ok := proc.flags["--datastore-path"]; !ok {
 				node.Components.KubeApiserver = l.newK8sKubeApiserverConfig(proc.flags)
 			}
@@ -144,7 +145,7 @@ func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (types.Res
 func (l *loader) detectManagedEnvironment(flags map[string]string, kubelet *K8sKubeletConfig) *K8sManagedEnvConfig {
 	nodeLabels, ok := flags["--node-labels"]
 	if ok {
-		for _, label := range strings.Split(nodeLabels, ",") {
+		for label := range strings.SplitSeq(nodeLabels, ",") {
 			label = strings.TrimSpace(label)
 			switch {
 			case strings.HasPrefix(label, "cloud.google.com/gke"):
@@ -440,11 +441,11 @@ func (l *loader) extractCertData(certData []byte) *K8sCertFileMeta {
 	const CertificateBlockType = "CERTIFICATE"
 	certPemBlock, _ := pem.Decode(certData)
 	if certPemBlock == nil {
-		l.pushError(fmt.Errorf("could not PEM decode certificate data"))
+		l.pushError(errors.New("could not PEM decode certificate data"))
 		return nil
 	}
 	if certPemBlock.Type != CertificateBlockType {
-		l.pushError(fmt.Errorf("decoded PEM does not start with correct block type"))
+		l.pushError(errors.New("decoded PEM does not start with correct block type"))
 		return nil
 	}
 	c, err := x509.ParseCertificate(certPemBlock.Bytes)
@@ -564,7 +565,7 @@ func (l *loader) loadKubeconfigMeta(name string) (*K8sKubeconfigMeta, bool) {
 
 // in OpenSSH >= 2.6, a fingerprint is now displayed as base64 SHA256.
 func printSHA256Fingerprint(f []byte) string {
-	return fmt.Sprintf("SHA256:%s", strings.TrimSuffix(base64.StdEncoding.EncodeToString(f), "="))
+	return "SHA256:" + strings.TrimSuffix(base64.StdEncoding.EncodeToString(f), "=")
 }
 
 func printColumnSeparatedHex(d []byte) string {

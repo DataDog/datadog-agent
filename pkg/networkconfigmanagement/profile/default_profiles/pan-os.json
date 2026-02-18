@@ -1,0 +1,30 @@
+{
+  "commands": [
+    {
+      "type": "running",
+      "values": [
+        "show config running"
+      ],
+      "processing_rules": {
+        "validation": [
+          {
+            "type": "valid_output",
+            "pattern": "(?s)<config.*</config>"
+          }
+        ],
+        "redaction": [
+          {
+            "regex": "<phash>.*?</phash>",
+            "replacement": "<phash><secret hidden></phash>"
+          }
+        ]
+      }
+    },
+    {
+      "type": "version",
+      "values": [
+        "show system info"
+      ]
+    }
+  ]
+}

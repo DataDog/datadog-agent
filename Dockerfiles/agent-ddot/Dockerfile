@@ -1,5 +1,5 @@
 ARG BASE_IMAGE_DD_VERSION=latest
-FROM gcr.io/datadoghq/agent:$BASE_IMAGE_DD_VERSION AS baseimage
+FROM registry.datadoghq.com/agent:$BASE_IMAGE_DD_VERSION AS baseimage
 
 FROM baseimage
 
@@ -13,6 +13,6 @@ COPY s6-services/otel /etc/services.d/otel
 COPY entrypoint.d /opt/entrypoints
 RUN chmod 755 -R /opt/entrypoints \
   && chown dd-agent:root /etc/datadog-agent/otel-config.yaml \
-  && rm -rf /var/run && mkdir -p /var/run/s6 && mkdir -p /var/run/datadog \
-  && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ \
-  && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/
+  && rm -rf /var/run && mkdir -p /var/run/s6 && mkdir -p /var/run/datadog && mkdir -p /opt/datadog-agent/run \
+  && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run \
+  && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run

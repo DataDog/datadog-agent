@@ -236,7 +236,7 @@ def launch_stack(
         x86_ami_id=x86_ami,
         arm_ami_id=arm_ami,
         ssh_key_name=ssh_key_obj['aws_key_name'] if ssh_key_obj is not None else None,
-        infra_env="aws/sandbox",
+        infra_env="aws/agent-sandbox",
         vmconfig=vm_config,
         stack_name=stack,
         local=local,
@@ -269,7 +269,7 @@ def destroy_stack_pulumi(ctx: Context, stack: str, ssh_key: str | None):
         prefix = f"aws-vault exec {AWS_ACCOUNT} -- "
 
     build_start_microvms_binary(ctx)
-    start_cmd = start_microvms_cmd(infra_env="aws/sandbox", stack_name=stack, destroy=True, local=True)
+    start_cmd = start_microvms_cmd(infra_env="aws/agent-sandbox", stack_name=stack, destroy=True, local=True)
     ctx.run(f"{prefix}{start_cmd}", env=env)
 
 
@@ -407,7 +407,7 @@ def destroy_stack_force(ctx: Context, stack: str):
     pulumi_stack_name = cast(
         'Result',
         ctx.run(
-            f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack ls -a -C ../test-infra-definitions 2> /dev/null | grep {stack} | cut -d ' ' -f 1",
+            f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack ls -a -C ./test/e2e-framework 2> /dev/null | grep {stack} | cut -d ' ' -f 1",
             warn=True,
             hide=True,
         ),
@@ -417,12 +417,12 @@ def destroy_stack_force(ctx: Context, stack: str):
         return
 
     ctx.run(
-        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi cancel -y -C ../test-infra-definitions -s {pulumi_stack_name}",
+        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi cancel -y -C ./test/e2e-framework -s {pulumi_stack_name}",
         warn=True,
         hide=True,
     )
     ctx.run(
-        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack rm --force -y -C ../test-infra-definitions -s {pulumi_stack_name}",
+        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack rm --force -y -C ./test/e2e-framework -s {pulumi_stack_name}",
         warn=True,
         hide=True,
     )

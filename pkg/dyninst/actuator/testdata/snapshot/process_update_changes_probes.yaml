@@ -74,7 +74,7 @@ event: !processes-updated
       probes:
         - {type: LOG_PROBE, id: probe2, where: {methodName: newFunc}, captureSnapshot: true}
 effects:
-  - !detach-from-process {process_id: 1001, program_id: 1}
+  - !detach-from-process {failure: "no", process_id: 1001, program_id: 1}
 state:
   currently_loading: <nil>
   queued_programs: '[]'

@@ -12,6 +12,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
+// VariableProvider is the interface implemented by SECL variable providers
+// (Should be named VariableValueProvider)
+type VariableProvider interface {
+	NewSECLVariable(name string, value interface{}, scope string, opts eval.VariableOpts) (eval.SECLVariable, error)
+	CleanupExpiredVariables()
+	GetScopedVariables(name string) map[eval.ScopeHashKey]eval.Variable
+}
+
+// VariableProviderFactory describes a function called to instantiate a variable provider
+type VariableProviderFactory func() VariableProvider
+
 // RuleActionPerformedCb describes the callback function called after a rule action is performed
 type RuleActionPerformedCb func(r *Rule, action *ActionDefinition)
 
@@ -22,9 +33,10 @@ type Opts struct {
 	ExcludedRuleFromDiscarders map[eval.RuleID]bool
 	ReservedRuleIDs            []RuleID
 	EventTypeEnabled           map[eval.EventType]bool
-	VariableScopers            map[Scope]*eval.VariableScoper
+	StateScopes                map[Scope]VariableProviderFactory
 	Logger                     log.Logger
 	ruleActionPerformedCb      RuleActionPerformedCb
+	RuleCacheEnabled           bool
 }
 
 // WithSupportedDiscarders set supported discarders
@@ -63,9 +75,9 @@ func (o *Opts) WithLogger(logger log.Logger) *Opts {
 	return o
 }
 
-// WithVariableScopers sets the variable scopers
-func (o *Opts) WithVariableScopers(scopers map[Scope]*eval.VariableScoper) *Opts {
-	o.VariableScopers = scopers
+// WithStateScopes set state scopes
+func (o *Opts) WithStateScopes(stateScopes map[Scope]VariableProviderFactory) *Opts {
+	o.StateScopes = stateScopes
 	return o
 }
 
@@ -75,12 +87,18 @@ func (o *Opts) WithRuleActionPerformedCb(cb RuleActionPerformedCb) *Opts {
 	return o
 }
 
+// WithRuleCacheEnabled sets the rule cache enabled
+func (o *Opts) WithRuleCacheEnabled(ruleCacheEnabled bool) *Opts {
+	o.RuleCacheEnabled = ruleCacheEnabled
+	return o
+}
+
 // NewRuleOpts returns rule options
 func NewRuleOpts(eventTypeEnabled map[eval.EventType]bool) *Opts {
 	var ruleOpts Opts
 	ruleOpts.
 		WithEventTypeEnabled(eventTypeEnabled).
-		WithVariableScopers(DefaultVariableScopers())
+		WithStateScopes(DefaultStateScopes())
 
 	return &ruleOpts
 }

@@ -40,23 +40,23 @@ func FuzzParseDockerStream(f *testing.F) {
 	// Valid messages with headers
 	for _, ts := range timestamps {
 		// stdout messages
-		msg := fmt.Sprintf("%s valid log message", ts)
+		msg := ts + " valid log message"
 		f.Add(append(createHeader(1, uint32(len(msg))), []byte(msg)...))
 
 		// stderr messages
-		msg = fmt.Sprintf("%s error log message", ts)
+		msg = ts + " error log message"
 		f.Add(append(createHeader(2, uint32(len(msg))), []byte(msg)...))
 
 		// Empty content after timestamp
-		msg = fmt.Sprintf("%s ", ts)
+		msg = ts + " "
 		f.Add(append(createHeader(1, uint32(len(msg))), []byte(msg)...))
 	}
 
 	// TTY messages (no header) with valid timestamps
 	for _, ts := range timestamps {
-		f.Add([]byte(fmt.Sprintf("%s tty message without header", ts)))
-		f.Add([]byte(ts))                     // Just timestamp
-		f.Add([]byte(fmt.Sprintf("%s ", ts))) // Timestamp with space
+		f.Add([]byte(ts + " tty message without header"))
+		f.Add([]byte(ts))       // Just timestamp
+		f.Add([]byte(ts + " ")) // Timestamp with space
 	}
 
 	// Large messages that trigger partial handling

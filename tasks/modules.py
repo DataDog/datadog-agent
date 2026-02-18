@@ -13,6 +13,7 @@ from pathlib import Path
 import yaml
 from invoke import Context, Exit, task
 
+from tasks.libs.build.bazel import bazel
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.gomodules import (
     ConfigDumper,
@@ -84,10 +85,7 @@ def go_work(ctx: Context):
     """
     Update the go work to use all the modules defined in modules.yml
     """
-
-    ctx.run(
-        "go run ./internal/tools/worksynchronizer/worksynchronizer.go --path ./go.work --modules-file ./modules.yml"
-    )
+    bazel("run", "//:write_go_work")
 
 
 @task
@@ -352,6 +350,9 @@ def add_all_replace(ctx: Context):
     After months of pain and manually editing our 150+ go.mod in this repo we have come to this.
     """
 
+    # Avoid circular import
+    from tasks.go import check_go_mod_replaces
+
     # First we find all go.mod in comp and pkg
     gomods = [
         mods for mods in get_default_modules().values() if mods.path.split(os.sep)[0] not in ["tools", "internal"]
@@ -363,6 +364,9 @@ def add_all_replace(ctx: Context):
     for mod in gomods:
         if mod.should_replace_internal_modules:
             update_go_mod(mod_to_replace, mod.path)
+
+    # Add extra replaces
+    check_go_mod_replaces(ctx, fix=True)
 
 
 @task

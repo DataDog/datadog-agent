@@ -1,0 +1,71 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "rawpacket_action.schema.json",
+    "type": "object",
+    "properties": {
+        "agent": {
+            "type": "object",
+            "properties": {
+                "properties": {
+                    "rule_id": {
+                        "type": "string"
+                    },
+                    "version": {
+                        "type": "string"
+                    },
+                    "os": {
+                        "type": "string"
+                    },
+                    "arch": {
+                        "type": "string"
+                    },
+                    "origin": {
+                        "type": "string"
+                    },
+                    "kernel_version": {
+                        "type": "string"
+                    },
+                    "distribution": {
+                        "type": "string"
+                    }
+                }
+            },
+            "required": [
+                "rule_id",
+                "version",
+                "os",
+                "arch",
+                "origin",
+                "kernel_version",
+                "distribution"
+            ]
+        },
+        "packet": {
+            "type": "object",
+            "properties": {
+                "tls": {
+                    "type": "object"
+                },
+                "dropped": {
+                    "type": "boolean"
+                },
+                "layers": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                }
+            },
+            "required": [
+                "tls",
+                "dropped",
+                "layers"
+            ]
+        }
+    },
+    "required": [
+        "agent",
+        "network",
+        "packet"
+    ]
+}

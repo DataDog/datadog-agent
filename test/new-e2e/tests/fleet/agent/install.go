@@ -9,13 +9,14 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
 )
 
@@ -81,9 +82,20 @@ func (a *Agent) installLinuxInstallScript(params *installParams) error {
 			return fmt.Errorf("error reexecuting systemd: %w", err)
 		}
 	}
-
-	// reset failure from previous tests (best effort)
-	_, _ = a.host.RemoteHost.Execute("systemctl list-units --type=service --all | awk '/datadog-/{print $1}' | xargs -r -n1 systemctl reset-failed")
+	// reset failure from previous tests (try up to 3 times)
+	var err error
+	for i := 0; i < 3; i++ {
+		_, err = a.host.RemoteHost.Execute(`sudo systemctl list-units --type=service --all --no-legend --no-pager --output=json | jq -r '.[] | .unit | select(test("^datadog-.*\\.service$"))' | xargs -r -n1 sudo systemctl reset-failed`)
+		if err == nil {
+			break
+		}
+		if i < 2 { // Don't sleep after the last attempt
+			time.Sleep(time.Second)
+		}
+	}
+	if err != nil {
+		return fmt.Errorf("error resetting failed units after 3 attempts: %w", err)
+	}
 
 	env := map[string]string{
 		"DD_API_KEY": apiKey(),
@@ -100,14 +112,14 @@ func (a *Agent) installLinuxInstallScript(params *installParams) error {
 		env["TESTING_YUM_VERSION_PATH"] = fmt.Sprintf("testing/pipeline-%s-a7/7", os.Getenv("E2E_PIPELINE_ID"))
 		env["DD_APM_INSTRUMENTATION_PIPELINE_ID"] = os.Getenv("E2E_PIPELINE_ID")
 	}
-	_, err := a.host.RemoteHost.Execute(fmt.Sprintf(`bash -c "$(curl -L %s)"`, linuxInstallScriptURL), client.WithEnvVariables(env))
+	_, err = a.host.RemoteHost.Execute(fmt.Sprintf(`bash -c "$(curl -L %s)"`, linuxInstallScriptURL), client.WithEnvVariables(env))
 	return err
 }
 
 func (a *Agent) installWindowsInstallScript(params *installParams) error {
 	env := map[string]string{
 		"DD_API_KEY": apiKey(),
-		"DD_SITE":    "datad0g.com",
+		"DD_SITE":    "datadoghq.com",
 	}
 	if params.remoteUpdates {
 		env["DD_REMOTE_UPDATES"] = "true"
@@ -120,8 +132,9 @@ func (a *Agent) installWindowsInstallScript(params *installParams) error {
 		if err != nil {
 			return err
 		}
+		env["DD_SITE"] = "datad0g.com"
 		env["DD_INSTALLER_URL"] = artifactURL
-		env["DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT"] = fmt.Sprintf("pipeline-%s", os.Getenv("E2E_PIPELINE_ID"))
+		env["DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT"] = "pipeline-" + os.Getenv("E2E_PIPELINE_ID")
 		env["DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE"] = "installtesting.datad0g.com.internal.dda-testing.com"
 		scriptURL = fmt.Sprintf("https://installtesting.datad0g.com/pipeline-%s/scripts/Install-Datadog.ps1", os.Getenv("E2E_PIPELINE_ID"))
 	}
@@ -164,7 +177,7 @@ start-process msiexec -Wait -ArgumentList ('/log', 'C:\uninst.log', '/q', '/x', 
 	if err != nil {
 		return err
 	}
-	_, err = a.host.RemoteHost.Execute(`Remove-Item -Recurse -Force "C:\ProgramData\Datadog"`)
+	_, err = a.host.RemoteHost.Execute(`cmd /c rmdir /s /q "C:\ProgramData\Datadog"`)
 	return err
 }
 

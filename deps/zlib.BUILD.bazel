@@ -35,16 +35,16 @@
 
 """Agent specific BUILD file for zlib."""
 
-load("@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(
-    default_applicable_licenses = [":license"],
-    default_visibility = ["//visibility:private"],
+    default_package_metadata = [":license"],
+    default_visibility = ["@@//packages:__subpackages__"],
 )
 
 license(
@@ -54,22 +54,10 @@ license(
     visibility = ["//visibility:public"],
 )
 
-exports_files([
-    "LICENSE",
-])
-
 _ZLIB_PUBLIC_HEADERS = [
     "zconf.h",
     "zlib.h",
 ]
-
-config_setting(
-    name = "mingw_gcc_compiler",
-    flag_values = {
-        "@bazel_tools//tools/cpp:compiler": "mingw-gcc",
-    },
-    visibility = [":__subpackages__"],
-)
 
 cc_library(
     name = "zlib",
@@ -104,17 +92,8 @@ cc_library(
         "-I.",
         "-Wall",
     ] + select({
-        ":mingw_gcc_compiler": [
-            "-fpermissive",
-        ],
         "@platforms//os:windows": [
-            "-fpermissive",
-            "/O2",
-            "/wd4127",  # conditional expression is constant
-            "/wd4242",  # possible loss of data
-            "/wd4244",  # possible loss of data
-            "/wd4711",  # it inlined a function
-            "/wd5045",  # padding bytes inserted
+            "-O2",
         ],
         "@platforms//os:macos": [
             "-fPIC",
@@ -152,29 +131,36 @@ so_symlink(
     src = ":z",
     libname = "libz",
     version = "1.3.1",
+    prefix = "embedded",
 )
 
 pkg_files(
     name = "hdr_files",
     srcs = _ZLIB_PUBLIC_HEADERS,
-    prefix = "include",
+    prefix = "embedded/include",
 )
 
-pkg_install(
-    name = "install",
+pkg_filegroup(
+    name = "all_files",
     srcs = [
         ":hdr_files",
         ":lib_files",
     ],
 )
 
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+    ],
+)
+
 # buildifier: disable=no-effect
 """
-TODO: Syntheizes license file up to licenses.csv
-TODO: patch source: "zlib-windows-relocate.patch", env: env
+TODO: Things we might need for windows.
+This is a save of lines from a patch file.
+It gives a hint at other copts we might need.
 
-build do
-    patch <<THIS
  IMAGE_BASE = 0x63300000
  LDFLAGS = $(LOC)
 

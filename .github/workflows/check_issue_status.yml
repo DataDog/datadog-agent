@@ -4,60 +4,152 @@ name: Check if datadog commented an issue
 on:
   issue_comment:
     types: [created]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to check'
+        required: true
+        type: number
 
 jobs:
   check_comment:
     runs-on: ubuntu-latest
     if: github.event.issue.pull_request == null
+    permissions:
+      id-token: write # Required for OIDC token
+    environment:
+      name: main
     steps:
-      - name: Check if there is a comment from a datadog member
+      - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
+        id: octo-sts
+        with:
+          scope: DataDog/datadog-agent
+          policy: self.assign-issue.label-issue
+
+      - name: Check if the latest comment is from a datadog member
         id: datadog-comment
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
+          github-token: ${{ steps.octo-sts.outputs.token }}
           result-encoding: string
           script: |
-            const comments = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number
-            });
-            let commented = "false";
-            for (const comment of comments.data) {
-              try {
-                const membership = await github.rest.orgs.checkMembershipForUser({
-                  org: 'datadog',
-                  username: comment.user.login
-                });
-                if (membership.status === 204) {
-                  commented = "true";
-                  break;
-                }
-              } catch (error) {
-                if (error.name === 'HttpError') {
-                  // User is not a datadog member
-                  continue;
-                }
-                throw error;
+            const issueNumber = context.eventName === 'issue_comment'
+              ? context.issue.number
+              : parseInt(context.payload.inputs.issue_number);
+
+            // Determine the username of the current comment's author depending on event type
+            let username = null;
+            if (context.eventName === 'issue_comment') {
+              username = context.payload.comment.user.login;
+            } else if (context.payload.inputs && context.payload.inputs.issue_number) {
+              // For workflow_dispatch, fetch the latest comment's author on the issue
+
+              const comments = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+              });
+              if (comments.data.length === 0) {
+                // no comments, cannot determine user
+                return "false";
               }
+              username = comments.data[comments.data.length - 1].user.login;
+            } else {
+              return "false";
             }
-            return commented;
+
+            try {
+              const membership = await github.rest.orgs.checkMembershipForUser({
+                org: 'datadog',
+                username: username
+              });
+              if (membership.status === 204) {
+                return "true";
+              }
+              return "false";
+            } catch (error) {
+              if (error.message.startsWith('User does not exist or is not a member')) {
+                // User is not a datadog member
+                return "false";
+              }
+              throw error;
+            }
       - name: Remove the pending label when issue is commented
         if: steps.datadog-comment.outputs.result == 'true'
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
+          github-token: ${{ steps.octo-sts.outputs.token }}
           script: |
+            const issueNumber = context.eventName === 'issue_comment'
+              ? context.issue.number
+              : parseInt(context.payload.inputs.issue_number);
             const labels = await github.rest.issues.listLabelsOnIssue({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.issue.number
+              issue_number: issueNumber
             });
             for (const label of labels.data) {
               if (label.name === 'pending') {
                 await github.rest.issues.removeLabel({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  issue_number: context.issue.number,
+                  issue_number: issueNumber,
                   name: label.name
                 });
               }
+            }
+      - name: Remove the "waiting on author" label when issue is commented
+        if: steps.datadog-comment.outputs.result == 'false'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          github-token: ${{ steps.octo-sts.outputs.token }}
+          script: |
+            const issueNumber = context.eventName === 'issue_comment'
+              ? context.issue.number
+              : parseInt(context.payload.inputs.issue_number);
+            const labels = await github.rest.issues.listLabelsOnIssue({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber
+            });
+            for (const label of labels.data) {
+              if (label.name === 'waiting on author') {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  name: label.name
+                });
+              }
+            }
+      - name: Remove the team/triage label if another team label exists
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          github-token: ${{ steps.octo-sts.outputs.token }}
+          script: |
+            const issueNumber = context.eventName === 'issue_comment'
+              ? context.issue.number
+              : parseInt(context.payload.inputs.issue_number);
+            const labels = await github.rest.issues.listLabelsOnIssue({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber
+            });
+            let hasTeamLabel = false;
+            let hasTriageLabel = false;
+            for (const label of labels.data) {
+              if (label.name === 'team/triage') {
+                hasTriageLabel = true;
+              } else if (label.name.startsWith('team/')) {
+                hasTeamLabel = true;
+              }
+            }
+            if (hasTriageLabel && hasTeamLabel) {
+              // Remove only 'team/triage' label, let others be
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                name: 'team/triage'
+              });
             }

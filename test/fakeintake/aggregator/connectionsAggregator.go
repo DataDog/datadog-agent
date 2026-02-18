@@ -6,7 +6,7 @@
 package aggregator
 
 import (
-	"fmt"
+	"errors"
 	"time"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
@@ -47,7 +47,7 @@ func decodeCollectorConnection(b []byte) (cnx *agentmodel.CollectorConnections, 
 	}
 	conns, ok := m.Body.(*agentmodel.CollectorConnections)
 	if !ok {
-		return nil, fmt.Errorf("not protobuf process.CollectorConnections type")
+		return nil, errors.New("not protobuf process.CollectorConnections type")
 	}
 	return conns, nil
 }

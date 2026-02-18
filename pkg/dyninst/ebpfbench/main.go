@@ -10,6 +10,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -123,7 +124,7 @@ func runBenchmark() error {
 
 	textSection := obj.Section(".text")
 	if textSection == nil {
-		return fmt.Errorf("no .text section found")
+		return errors.New("no .text section found")
 	}
 	var allAttached []link.Link
 	for _, attachpoint := range program.Attachpoints {

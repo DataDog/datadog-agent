@@ -9,7 +9,6 @@ package ecs
 
 import (
 	"context"
-	"fmt"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -91,6 +90,7 @@ func verifyV4ParserResults(t *testing.T, store *fakeWorkloadmetaStore, checkTags
 			}
 		case *workloadmeta.Container:
 			require.Equal(t, "RUNNING", entity.KnownStatus)
+			require.Equal(t, workloadmeta.ContainerStatusRunning, entity.State.Status)
 			require.Equal(t, "HEALTHY", entity.Health.Status)
 			if entity.Image.Name == "datadog/datadog-agent" {
 				require.Equal(t, "7.50.0", entity.Image.Tag)
@@ -215,7 +215,7 @@ func getFakeWorkloadmetaStore(ecsAgentURL string) *fakeWorkloadmetaStore {
 				// add delay to trigger timeout
 				return &workloadmeta.Container{
 					EnvVars: map[string]string{
-						v3or4.DefaultMetadataURIv4EnvVariable: fmt.Sprintf("%s/v4/1234-2", ecsAgentURL),
+						v3or4.DefaultMetadataURIv4EnvVariable: ecsAgentURL + "/v4/1234-2",
 					},
 				}, nil
 			}
@@ -224,13 +224,13 @@ func getFakeWorkloadmetaStore(ecsAgentURL string) *fakeWorkloadmetaStore {
 				// add delay to trigger timeout
 				return &workloadmeta.Container{
 					EnvVars: map[string]string{
-						v3or4.DefaultMetadataURIv4EnvVariable: fmt.Sprintf("%s/v4/1234-1", ecsAgentURL),
+						v3or4.DefaultMetadataURIv4EnvVariable: ecsAgentURL + "/v4/1234-1",
 					},
 				}, nil
 			}
 			return &workloadmeta.Container{
 				EnvVars: map[string]string{
-					v3or4.DefaultMetadataURIv4EnvVariable: fmt.Sprintf("%s/v4/undefined", ecsAgentURL),
+					v3or4.DefaultMetadataURIv4EnvVariable: ecsAgentURL + "/v4/undefined",
 				},
 			}, nil
 		},

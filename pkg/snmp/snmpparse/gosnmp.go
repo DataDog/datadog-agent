@@ -6,18 +6,20 @@
 package snmpparse
 
 import (
+	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/core/log/def"
+	"time"
+
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/snmplog"
 	"github.com/gosnmp/gosnmp"
-	"time"
 )
 
 // NewSNMP validates an SNMPConfig and builds a GoSNMP from it.
 func NewSNMP(conf *SNMPConfig, logger log.Component) (*gosnmp.GoSNMP, error) {
 	// Communication options check
 	if conf.Timeout == 0 {
-		return nil, fmt.Errorf("timeout cannot be 0")
+		return nil, errors.New("timeout cannot be 0")
 	}
 	var version gosnmp.SnmpVersion
 	var ok bool
@@ -39,7 +41,7 @@ func NewSNMP(conf *SNMPConfig, logger log.Component) (*gosnmp.GoSNMP, error) {
 
 	// Authentication check
 	if version == gosnmp.Version3 && conf.Username == "" {
-		return nil, fmt.Errorf("username is required for snmp v3")
+		return nil, errors.New("username is required for snmp v3")
 	}
 
 	port := conf.Port

@@ -9,6 +9,7 @@ package loclist
 
 import (
 	"debug/dwarf"
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
@@ -42,7 +43,7 @@ func ProcessLocations(
 			return nil, err
 		}
 		if len(loclist.Default) > 0 {
-			return nil, fmt.Errorf("unexpected default location pieces")
+			return nil, errors.New("unexpected default location pieces")
 		}
 		locations = loclist.Locations
 

@@ -1,12 +1,12 @@
 ARG AGENT_VERSION=7
-FROM datadog/agent:${AGENT_VERSION}
+FROM registry.datadoghq.com/agent:${AGENT_VERSION}
 
 RUN apt-get update
 RUN rm -vf /etc/ssl/openssl.cnf
 RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y gdb build-essential strace less vim
 
 # Install go
-RUN curl -fSL -o golang.tgz https://go.dev/dl/go1.24.10.linux-$(dpkg --print-architecture).tar.gz
+RUN curl -fSL -o golang.tgz https://go.dev/dl/go1.25.7.linux-$(dpkg --print-architecture).tar.gz
 RUN tar xzvf golang.tgz
 RUN ln -s /go /goroot
 

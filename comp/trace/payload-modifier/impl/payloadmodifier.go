@@ -7,11 +7,13 @@
 package payloadmodifierimpl
 
 import (
+	"strings"
+
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	payloadmodifier "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/def"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
-	serverlesstags "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	serverlessmodifier "github.com/DataDog/datadog-agent/pkg/serverless/trace/modifier"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 )
@@ -39,7 +41,8 @@ func NewComponent(deps Dependencies) Provides {
 	// TracerPayloadModifier, but it instantiates its tracer without using fx,
 	// so we don't need to worry about that here.
 	if serverlessenv.IsAzureAppServicesExtension() {
-		functionTags := serverlesstags.GetFunctionTags(deps.Config)
+		configuredTags := configUtils.GetConfiguredTags(deps.Config, false)
+		functionTags := strings.Join(configuredTags, ",")
 		modifier = serverlessmodifier.NewTracerPayloadModifier(functionTags)
 	}
 

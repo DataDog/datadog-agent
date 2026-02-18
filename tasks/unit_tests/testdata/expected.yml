@@ -62,8 +62,9 @@
 - changes:
     compare_to: main
     paths:
-    - test/new-e2e/pkg/**/*
+    - test/e2e-framework/testing/**/*
     - test/new-e2e/go.mod
+    - go.mod
 .on_packaging_change:
 - !reference [.except_mergequeue]
 - changes:

@@ -8,6 +8,7 @@
 package agentsidecar
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 
@@ -87,7 +88,7 @@ func applyProviderOverrides(pod *corev1.Pod, provider string) (bool, error) {
 // This function returns a boolean that indicates if the pod was mutated.
 func applyFargateOverrides(pod *corev1.Pod) (bool, error) {
 	if pod == nil {
-		return false, fmt.Errorf("can't apply profile overrides to nil pod")
+		return false, errors.New("can't apply profile overrides to nil pod")
 	}
 
 	mutated := deleteConfigWebhookVolumesAndMounts(pod)

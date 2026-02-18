@@ -73,8 +73,7 @@ func newProcessCache(maxProcs int) (*processCache, error) {
 	var err error
 	pc.cache, err = lru.NewWithEvict(maxProcs, func(_ processCacheKey, p *events.Process) {
 		log.TraceFunc(func() string { return fmt.Sprintf("evicting process %+v", p) })
-		//nolint:gosimple // TODO(NET) Fix gosimple linter
-		pl, _ := pc.cacheByPid[p.Pid]
+		pl := pc.cacheByPid[p.Pid]
 		if pl = pl.remove(p); len(pl) == 0 {
 			delete(pc.cacheByPid, p.Pid)
 			return

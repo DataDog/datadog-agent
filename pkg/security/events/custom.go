@@ -29,6 +29,11 @@ const (
 	// HeartbeatRuleDesc is the rule description for the heartbeat events
 	HeartbeatRuleDesc = "Heartbeat"
 
+	// RemediationStatusRuleID is the rule ID for the remediation_status events
+	RemediationStatusRuleID = "remediation_status"
+	// RemediationStatusRuleDesc is the rule description for the remediation_status events
+	RemediationStatusRuleDesc = "Remediation status"
+
 	// AbnormalPathRuleID is the rule ID for the abnormal_path events
 	AbnormalPathRuleID = "abnormal_path"
 	// AbnormalPathRuleDesc is the rule description for the abnormal_path events
@@ -101,9 +106,9 @@ func (commonFields *CustomEventCommonFields) FillCustomEventCommonFields(acc *Ag
 }
 
 // NewCustomRule returns a new custom rule
-func NewCustomRule(id eval.RuleID, description string) *rules.Rule {
+func NewCustomRule(id eval.RuleID, description string, opts *eval.Opts) *rules.Rule {
 	return &rules.Rule{
-		Rule: &eval.Rule{ID: id},
+		Rule: &eval.Rule{ID: id, Opts: opts},
 		PolicyRule: &rules.PolicyRule{
 			Def: &rules.RuleDefinition{ID: id, Description: description},
 		},
@@ -122,6 +127,13 @@ func AllCustomRuleIDs() []string {
 		InternalCoreDumpRuleID,
 		SysCtlSnapshotRuleID,
 		FailedDNSRuleID,
+		RemediationStatusRuleID,
+	}
+}
+
+func AllSecInfoRuleIDs() []string {
+	return []string{
+		RemediationStatusRuleID,
 	}
 }
 

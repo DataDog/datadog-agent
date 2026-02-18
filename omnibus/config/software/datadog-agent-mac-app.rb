@@ -4,7 +4,10 @@ description "Generate mac app manifest and assets"
 
 dependency "datadog-agent"
 
-source path: "#{project.files_path}/#{name}"
+source path: "#{project.files_path}/#{name}",
+       options: {
+         exclude: ["**/.cache/**/*"],
+       }
 
 always_build true
 

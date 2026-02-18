@@ -6,6 +6,7 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -49,11 +50,11 @@ func setupSecurityDescriptor() (string, error) {
 
 	// Sanity checks
 	if len(sidString) == 0 {
-		return "", fmt.Errorf("failed to get SID string from ddagentuser")
+		return "", errors.New("failed to get SID string from ddagentuser")
 	}
 
 	if sidString == everyoneSid {
-		return "", fmt.Errorf("ddagentuser as Everyone is not supported")
+		return "", errors.New("ddagentuser as Everyone is not supported")
 	}
 
 	sd, err := formatSecurityDescriptorWithSid(sidString)

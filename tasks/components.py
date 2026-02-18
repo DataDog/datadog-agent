@@ -4,6 +4,7 @@ Invoke entrypoint, import here all the tasks we want to make available
 
 import os
 import pathlib
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from string import Template
@@ -137,7 +138,6 @@ components_classic_style = [
     'comp/metadata/host/hostimpl',
     'comp/metadata/inventorychecks/inventorychecksimpl',
     'comp/metadata/inventoryhost/inventoryhostimpl',
-    'comp/metadata/inventoryotel/inventoryotelimpl',
     'comp/metadata/packagesigning/packagesigningimpl',
     'comp/metadata/resources/resourcesimpl',
     'comp/metadata/runner/runnerimpl',
@@ -152,7 +152,6 @@ components_classic_style = [
     'comp/process/hostinfo/hostinfoimpl',
     'comp/process/processcheck/processcheckimpl',
     'comp/process/processdiscoverycheck/processdiscoverycheckimpl',
-    'comp/process/processeventscheck/processeventscheckimpl',
     'comp/process/profiler/profilerimpl',
     'comp/process/rtcontainercheck/rtcontainercheckimpl',
     'comp/process/runner/runnerimpl',
@@ -268,15 +267,25 @@ def check_component_contents_and_file_hiearchy(comp):
                 return f"** {src_file} should not import 'fxutil' because it a component implementation"
         # FX files should use correct filename and package name, and call ProvideComponentConstructor
         for src_file in locate_fx_source_files(root_path):
-            if src_file.name != 'fx.go':
-                return f"** {src_file} should be named 'fx.go'"
+            # Skip test files
+            if src_file.name.endswith('_test.go'):
+                continue
+            # Allow fx.go or fx_<suffix>.go (e.g., fx_unsupported.go)
+            if src_file.name != 'fx.go' and not src_file.name.startswith('fx_'):
+                return f"** {src_file} should be named 'fx.go' or 'fx_<suffix>.go'"
             pkgname = parse_package_name(src_file)
             expectname = comp.name + 'fx'
             if pkgname != 'fx' and pkgname != expectname:
                 return f"** {src_file} has wrong package name '{pkgname}', must be 'fx' or '{expectname}'"
+            # All fx files must define a Module function (with optional prefix/suffix) returning fxutil.Module
+            src_content = read_file_content(src_file)
+            if not re.search(r'func \w*Module\w*\([^)]*\) fxutil\.Module', src_content):
+                return f"** {src_file} must define a function matching 'func <Prefix>Module<Suffix>(...) fxutil.Module'"
+            # Only check ProvideComponentConstructor for the main fx.go file
+            if src_file.name != 'fx.go':
+                continue
             if comp.path in ignore_provide_component_constructor_missing:
                 continue
-            src_content = read_file_content(src_file)
             if 'ProvideComponentConstructor' not in src_content:
                 return f"** {src_file} should call ProvideComponentConstructor to convert regular constructor into fx-aware"
 

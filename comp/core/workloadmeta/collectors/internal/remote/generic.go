@@ -14,7 +14,8 @@ import (
 	"net"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
+	"github.com/mdlayher/vsock"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -26,6 +27,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 )
 
 const (
@@ -93,6 +95,13 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Compone
 	c.ctx, c.cancel = context.WithCancel(ctx)
 
 	opts := []grpc.DialOption{grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
+		if vsockAddr := pkgconfigsetup.Datadog().GetString("vsock_addr"); vsockAddr != "" {
+			cid, err := socket.ParseVSockAddress(vsockAddr)
+			if err != nil {
+				return nil, err
+			}
+			return vsock.Dial(cid, uint32(c.StreamHandler.Port()), &vsock.Config{})
+		}
 		return net.Dial("tcp", url)
 	})}
 
@@ -125,12 +134,11 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 	expBackoff := backoff.NewExponentialBackOff()
 	expBackoff.InitialInterval = 500 * time.Millisecond
 	expBackoff.MaxInterval = 5 * time.Minute
-	expBackoff.MaxElapsedTime = maxElapsed
 
-	return backoff.Retry(func() error {
+	_, err := backoff.Retry(c.ctx, func() (any, error) {
 		select {
 		case <-c.ctx.Done():
-			return &backoff.PermanentError{Err: errWorkloadmetaStreamNotStarted}
+			return nil, &backoff.PermanentError{Err: errWorkloadmetaStreamNotStarted}
 		default:
 		}
 
@@ -141,7 +149,7 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 				c.ctx,
 				metadata.MD{
 					"authorization": []string{
-						fmt.Sprintf("Bearer %s", c.IPC.GetAuthToken()), // TODO IPC: Remove this raw usage of the auth token
+						"Bearer " + c.IPC.GetAuthToken(), // TODO IPC: Remove this raw usage of the auth token
 					},
 				},
 			),
@@ -150,12 +158,13 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 		c.stream, err = c.client.StreamEntities(c.streamCtx)
 		if err != nil {
 			log.Infof("unable to establish stream, will possibly retry: %s", err)
-			return err
+			return nil, err
 		}
 
 		log.Info("workloadmeta stream established successfully")
-		return nil
-	}, expBackoff)
+		return nil, nil
+	}, backoff.WithBackOff(expBackoff), backoff.WithMaxElapsedTime(maxElapsed))
+	return err
 }
 
 // Run will run the generic collector streaming loop

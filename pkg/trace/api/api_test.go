@@ -613,6 +613,36 @@ func TestReceiverV1MsgpackDecoder(t *testing.T) {
 
 }
 
+// Test the response message when decoding with a mismatched type somewhere
+func TestReceiverV1MsgpackDecoderError(t *testing.T) {
+	assert := assert.New(t)
+	conf := newTestReceiverConfig()
+
+	r := newTestReceiverFromConfig(conf)
+	server := httptest.NewServer(
+		r.handleWithVersion(V10, r.handleTraces),
+	)
+
+	// tip: decode this using https://ref45638.github.io/msgpack-converter/
+	bts := []byte{0x81, 0xa2, 0x31, 0x31, 0x91, 0x82, 0xa1, 0x34, 0x91, 0x89, 0xa1, 0x31, 0x7b, 0xa1, 0x32, 0xd9, 0x28, 0x73, 0x6f, 0x6d, 0x65, 0x74, 0x68, 0x69, 0x6e, 0x67, 0x20, 0x26, 0x26, 0x3c, 0x40, 0x23, 0x20, 0x74, 0x68, 0x61, 0x74, 0x20, 0x73, 0x68, 0x6f, 0x75, 0x6c, 0x64, 0x20, 0x62, 0x65, 0x20, 0x61, 0x20, 0x6d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x21, 0xa1, 0x33, 0xd9, 0x2c, 0x4e, 0x4f, 0x54, 0x20, 0x74, 0x6f, 0x75, 0x63, 0x68, 0x65, 0x64, 0x20, 0x62, 0x65, 0x63, 0x61, 0x75, 0x73, 0x65, 0x20, 0x69, 0x74, 0x20, 0x69, 0x73, 0x20, 0x67, 0x6f, 0x69, 0x6e, 0x67, 0x20, 0x74, 0x6f, 0x20, 0x62, 0x65, 0x20, 0x68, 0x61, 0x73, 0x68, 0x65, 0x64, 0xa1, 0x34, 0x34, 0xa1, 0x35, 0x2a, 0xa1, 0x36, 0xcb, 0x43, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xa1, 0x37, 0xcb, 0x43, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xa1, 0x39, 0x96, 0xa9, 0x68, 0x74, 0x74, 0x70, 0x2e, 0x68, 0x6f, 0x73, 0x74, 0x01, 0xab, 0x31, 0x39, 0x32, 0x2e, 0x31, 0x36, 0x38, 0x2e, 0x30, 0x2e, 0x31, 0xac, 0x68, 0x74, 0x74, 0x70, 0x2e, 0x6d, 0x6f, 0x6e, 0x69, 0x74, 0x6f, 0x72, 0x03, 0xcb, 0x40, 0x44, 0xfe, 0xb8, 0x51, 0xeb, 0x85, 0x1f, 0xa2, 0x31, 0x31, 0x91, 0x85, 0xa1, 0x31, 0x81, 0xa1, 0x30, 0x2a, 0xa1, 0x32, 0x34, 0xa1, 0x33, 0x96, 0xa2, 0x61, 0x31, 0x01, 0xa2, 0x76, 0x31, 0xa2, 0x61, 0x32, 0x01, 0xa2, 0x76, 0x32, 0xa1, 0x34, 0xb9, 0x64, 0x64, 0x3d, 0x73, 0x3a, 0x32, 0x3b, 0x6f, 0x3a, 0x72, 0x75, 0x6d, 0x2c, 0x63, 0x6f, 0x6e, 0x67, 0x6f, 0x3d, 0x62, 0x61, 0x7a, 0x31, 0x32, 0x33, 0xa1, 0x35, 0xce, 0x80, 0x00, 0x00, 0x01, 0xa1, 0x36, 0xde, 0x00, 0x10, 0xa1, 0x30, 0x53, 0xa1, 0x31, 0xcc, 0x8c, 0xa1, 0x32, 0x7f, 0xa1, 0x33, 0xcc, 0x96, 0xa1, 0x34, 0xcc, 0xb1, 0xa1, 0x35, 0x64, 0xa1, 0x36, 0xcc, 0xbf, 0xa1, 0x37, 0x1b, 0xa1, 0x38, 0xcc, 0x97, 0xa1, 0x39, 0xcc, 0xbb, 0xa2, 0x31, 0x30, 0xcc, 0x9f, 0xa2, 0x31, 0x31, 0x4b, 0xa2, 0x31, 0x32, 0xcc, 0xb4, 0xa2, 0x31, 0x33, 0x72, 0xa2, 0x31, 0x34, 0xcc, 0xe8, 0xa2, 0x31, 0x35, 0xcc, 0x9f}
+	req, err := http.NewRequest("POST", server.URL, bytes.NewReader(bts))
+	assert.Nil(err)
+	req.Header.Set("Content-Type", "application/msgpack")
+
+	var client http.Client
+	resp, err := client.Do(req)
+	require.Nil(t, err)
+	assert.Equal(400, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.Nil(err)
+	assert.Contains(string(body), "msgp: attempted to decode type \"str\" with method for \"uint\"")
+
+	resp.Body.Close()
+	server.Close()
+
+}
+
 func TestReceiverV1DecodingError(t *testing.T) {
 	assert := assert.New(t)
 	conf := newTestReceiverConfig()
@@ -733,9 +763,14 @@ func TestReceiverUnexpectedEOF(t *testing.T) {
 	resp, err := client.Do(req)
 	assert.NoError(err)
 
+	respBodyBytes, err := io.ReadAll(resp.Body)
+	assert.NoError(err)
+	respBody := string(respBodyBytes)
+
 	resp.Body.Close()
 	assert.Equal(400, resp.StatusCode)
 	assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.5"}).TracesDropped.MSGPShortBytes.Load())
+	assert.Contains(respBody, "too few bytes left to read")
 }
 
 func TestTraceCount(t *testing.T) {
@@ -1162,6 +1197,104 @@ func TestHandleTraces(t *testing.T) {
 		defer result.Body.Close()
 		assert.Equal(t, http.StatusTooManyRequests, result.StatusCode)
 		assert.Equal(t, "application/json", result.Header.Get("Content-Type"))
+	})
+
+	t.Run("context_timeout", func(t *testing.T) {
+		// prepare the msgpack payload
+		bts, err := testutil.GetTestTraces(10, 10, true).MarshalMsg(nil)
+		assert.Nil(t, err)
+
+		// prepare the receiver
+		conf := newTestReceiverConfig()
+		conf.Decoders = 1
+		dynConf := sampler.NewDynamicConfig()
+
+		rawTraceChan := make(chan *Payload)
+		receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, nil, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+
+		// Block the recvsem to ensure the handler waits for the semaphore
+		receiver.recvsem = make(chan struct{})
+
+		// response recorder
+		handler := receiver.handleWithVersion(v04, receiver.handleTraces)
+		rr := httptest.NewRecorder()
+
+		// Create a request with a context that times out immediately
+		req, _ := http.NewRequest("POST", "/v0.4/traces", bytes.NewReader(bts))
+		req.Header.Set("Content-Type", "application/msgpack")
+		req.Header.Set("Datadog-Send-Real-Http-Status", "true")
+		req.Header.Set(header.Lang, "go")
+
+		// Create a context with a very short timeout to trigger the context cancellation
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+		defer cancel()
+		req = req.WithContext(ctx)
+
+		// Wait a bit to ensure the context is cancelled before the handler processes it
+		time.Sleep(10 * time.Millisecond)
+
+		// Get initial PayloadTimeout count
+		ts := receiver.tagStats(v04, req, "")
+		initialTimeout := ts.PayloadTimeout.Load()
+
+		handler.ServeHTTP(rr, req)
+		result := rr.Result()
+		defer result.Body.Close()
+
+		// Verify that we got a 429 status code
+		assert.Equal(t, http.StatusTooManyRequests, result.StatusCode)
+
+		// Verify that PayloadTimeout was incremented
+		finalTimeout := ts.PayloadTimeout.Load()
+		assert.Equal(t, initialTimeout+1, finalTimeout, "PayloadTimeout should be incremented when request context is cancelled")
+	})
+
+	t.Run("context_timeout_v10", func(t *testing.T) {
+		// Test the same scenario for V10 endpoint
+		strings := idx.NewStringTable()
+		tp := idx.InternalTracerPayload{
+			Strings: strings,
+		}
+		tp.SetLanguageName("python")
+		bts, err := tp.MarshalMsg(nil)
+		assert.Nil(t, err)
+
+		conf := newTestReceiverConfig()
+		conf.Decoders = 1
+		dynConf := sampler.NewDynamicConfig()
+
+		rawTraceChanV1 := make(chan *PayloadV1)
+		receiver := NewHTTPReceiver(conf, dynConf, nil, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+
+		// Block the recvsem
+		receiver.recvsem = make(chan struct{})
+
+		handler := receiver.handleWithVersion(V10, receiver.handleTraces)
+		rr := httptest.NewRecorder()
+
+		req, _ := http.NewRequest("POST", "/v1.0/traces", bytes.NewReader(bts))
+		req.Header.Set("Content-Type", "application/msgpack")
+		req.Header.Set(header.TraceCount, "1")
+		req.Header.Set(header.Lang, "python")
+
+		// Create a context with a very short timeout
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+		defer cancel()
+		req = req.WithContext(ctx)
+
+		time.Sleep(10 * time.Millisecond)
+
+		ts := receiver.tagStats(V10, req, "")
+		initialTimeout := ts.PayloadTimeout.Load()
+
+		handler.ServeHTTP(rr, req)
+		result := rr.Result()
+		defer result.Body.Close()
+
+		assert.Equal(t, http.StatusTooManyRequests, result.StatusCode)
+
+		finalTimeout := ts.PayloadTimeout.Load()
+		assert.Equal(t, initialTimeout+1, finalTimeout, "PayloadTimeout should be incremented for V10 endpoint")
 	})
 }
 

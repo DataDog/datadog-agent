@@ -12,6 +12,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
+	connectionsforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/mock"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders/forwardersimpl"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/hostinfoimpl"
 	"github.com/DataDog/datadog-agent/comp/process/submitter"
@@ -22,6 +24,7 @@ func TestSubmitterLifecycle(t *testing.T) {
 	_ = fxutil.Test[submitter.Component](t, fx.Options(
 		hostinfoimpl.MockModule(),
 		core.MockBundle(),
+		fx.Provide(func() connectionsforwarder.Component { return connectionsforwardermock.Mock(t) }),
 		forwardersimpl.MockModule(),
 		fx.Provide(func() statsd.ClientInterface {
 			return &statsd.NoOpClient{}

@@ -18,27 +18,38 @@ type Component interface {
 	GetContainerFilters(containerFilters [][]ContainerFilter) FilterBundle
 	// GetPodFilters retrieves the selected pod FilterBundle
 	GetPodFilters(podFilters [][]PodFilter) FilterBundle
-	// GetServiceFilters retrieves the selected service FilterBundle
-	GetServiceFilters(serviceFilters [][]ServiceFilter) FilterBundle
-	// GetEndpointFilters retrieves the selected endpoint FilterBundle
-	GetEndpointFilters(endpointFilters [][]EndpointFilter) FilterBundle
+	// GetKubeServiceFilters retrieves the selected kube service FilterBundle
+	GetKubeServiceFilters(serviceFilters [][]KubeServiceFilter) FilterBundle
+	// GetKubeEndpointFilters retrieves the selected kube endpoint FilterBundle
+	GetKubeEndpointFilters(endpointFilters [][]KubeEndpointFilter) FilterBundle
 	// GetProcessFilters retrieves the selected process FilterBundle
 	GetProcessFilters(processFilters [][]ProcessFilter) FilterBundle
 
 	// GetContainerAutodiscoveryFilters retrieves the container AD FilterBundle
 	GetContainerAutodiscoveryFilters(filterScope Scope) FilterBundle
-	// GetServiceAutodiscoveryFilters retrieves the service AD FilterBundle
-	GetServiceAutodiscoveryFilters(filterScope Scope) FilterBundle
-	// GetEndpointAutodiscoveryFilters retrieves the endpoint AD FilterBundle
-	GetEndpointAutodiscoveryFilters(filterScope Scope) FilterBundle
+	// GetKubeServiceAutodiscoveryFilters retrieves the kube service AD FilterBundle
+	GetKubeServiceAutodiscoveryFilters(filterScope Scope) FilterBundle
+	// GetKubeEndpointAutodiscoveryFilters retrieves the kube endpoint AD FilterBundle
+	GetKubeEndpointAutodiscoveryFilters(filterScope Scope) FilterBundle
 
-	// GetContainerSharedMetricFilters retrieves the container shared metric FilterBundle
-	GetContainerSharedMetricFilters() FilterBundle
 	// GetContainerPausedFilters retrieves the container paused FilterBundle
 	GetContainerPausedFilters() FilterBundle
+	// GetContainerSharedMetricFilters retrieves the container shared metric FilterBundle
+	GetContainerSharedMetricFilters() FilterBundle
 	// GetPodSharedMetricFilters retrieves the pod shared metric FilterBundle
 	GetPodSharedMetricFilters() FilterBundle
 
 	// GetContainerSBOMFilters retrieves the container SBOM FilterBundle
 	GetContainerSBOMFilters() FilterBundle
+	// GetContainerRuntimeSecurityFilters retrieves the container RuntimeSecurity FilterBundle
+	GetContainerRuntimeSecurityFilters() FilterBundle
+	// GetContainerComplianceFilters retrieves the container Compliance FilterBundle
+	GetContainerComplianceFilters() FilterBundle
+
+	// String returns a string representation of the workloadfilter configuration
+	// If useColor is true, the output will include ANSI color codes.
+	String(useColor bool) string
+
+	// Evaluate evaluates a program for a given entity
+	Evaluate(programName string, entity Filterable) (Result, error)
 }

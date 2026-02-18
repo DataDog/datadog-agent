@@ -6,7 +6,6 @@ exporters:
       key: "[REDACTED]"
       site: datadoghq.com
     force_attempt_http2: true
-    headers: {}
     host_metadata:
       enabled: true
       hostname_source: config_or_system
@@ -36,6 +35,9 @@ exporters:
         cumulative_monotonic_mode: to_delta
         initial_cumulative_monotonic_value: auto
     only_metadata: false
+    orchestrator_explorer:
+      enabled: false
+      endpoint: https://orchestrator.datadoghq.com/api/v2/orchmanif
     retry_on_failure:
       enabled: true
       initial_interval: 5s
@@ -46,7 +48,6 @@ exporters:
     sending_queue:
       batch:
       block_on_overflow: false
-      enabled: true
       num_consumers: 10
       queue_size: 1000
       sizer: {}
@@ -78,22 +79,21 @@ receivers:
         cors: null
         idle_timeout: 0s
         read_header_timeout: 0s
-        response_headers: {}
         tls: null
+        transport: tcp
         write_timeout: 0s
     config:
       global:
         evaluation_interval: 1m
+        extra_scrape_metrics: false
         metric_name_escaping_scheme: allow-utf-8
         metric_name_validation_scheme: utf8
         scrape_interval: 1m
-        scrape_protocols:
-          - OpenMetricsText1.0.0
-          - OpenMetricsText0.0.1
-          - PrometheusText1.0.0
-          - PrometheusText0.0.4
+        scrape_native_histograms: false
         scrape_timeout: 10s
       otlp:
+        label_name_preserve_multiple_underscores: true
+        label_name_underscore_sanitization: true
         translation_strategy: UnderscoreEscapingWithSuffixes
       runtime:
         gogc: 75
@@ -102,6 +102,7 @@ receivers:
           convert_classic_histograms_to_nhcb: false
           enable_compression: true
           enable_http2: true
+          extra_scrape_metrics: false
           fallback_scrape_protocol: PrometheusText0.0.4
           follow_redirects: true
           honor_timestamps: true
@@ -111,6 +112,7 @@ receivers:
           metrics_path: /metrics
           scheme: http
           scrape_interval: 5s
+          scrape_native_histograms: false
           scrape_protocols:
             - PrometheusText0.0.4
           scrape_timeout: 5s
@@ -119,10 +121,8 @@ receivers:
                 - 0.0.0.0:8888
           track_timestamps_staleness: false
     report_extra_scrape_metrics: false
-    start_time_metric_regex: ""
     target_allocator: null
     trim_metric_suffixes: false
-    use_start_time_metric: false
 service:
   pipelines:
     logs:

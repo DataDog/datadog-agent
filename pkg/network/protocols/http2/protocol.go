@@ -8,7 +8,6 @@
 package http2
 
 import (
-	"fmt"
 	"io"
 	"time"
 	"unsafe"
@@ -219,7 +218,8 @@ func newHTTP2Protocol(mgr *manager.Manager, cfg *config.Config) (protocols.Proto
 	}
 
 	if !Supported() {
-		return nil, fmt.Errorf("http2 feature not available on pre %s kernels", MinimumKernelVersion.String())
+		log.Warnf("HTTP2 monitoring is not supported on kernels < %s. Disabling HTTP2 monitoring.", MinimumKernelVersion.String())
+		return nil, nil
 	}
 
 	telemetry := http.NewTelemetry("http2")

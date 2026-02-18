@@ -116,6 +116,7 @@ message ClientUpdater {
   repeated string tags = 1;
   repeated PackageState packages = 2;
   uint64 available_disk_space = 3;
+  string secrets_pub_key = 4;
 }
 
 message PackageState {
@@ -126,6 +127,8 @@ message PackageState {
   reserved 5, 6, 7, 8, 9, 10;
   string stable_config_version = 11;
   string experiment_config_version = 12;
+  string running_version = 13;
+  string running_config_version = 14;
 }
 
 message PackageStateTask {

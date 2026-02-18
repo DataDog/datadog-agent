@@ -8,6 +8,7 @@ package hostname
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -25,7 +26,7 @@ import (
 
 // for testing purposes
 var (
-	isFargateInstance                = fargate.IsFargateInstance
+	isSidecar                        = fargate.IsSidecar
 	ec2GetInstanceID                 = ec2.GetInstanceID
 	ec2GetLegacyResolutionInstanceID = ec2.GetLegacyResolutionInstanceID
 	isContainerized                  = env.IsContainerized //nolint:unused
@@ -53,7 +54,7 @@ func fromHostnameFile(ctx context.Context, _ string) (string, error) {
 	// Try `hostname_file` config option next
 	hostnameFilepath := pkgconfigsetup.Datadog().GetString("hostname_file")
 	if hostnameFilepath == "" {
-		return "", fmt.Errorf("'hostname_file' configuration is not enabled")
+		return "", errors.New("'hostname_file' configuration is not enabled")
 	}
 
 	fileContent, err := os.ReadFile(hostnameFilepath)
@@ -74,10 +75,10 @@ func fromHostnameFile(ctx context.Context, _ string) (string, error) {
 func fromFargate(_ context.Context, _ string) (string, error) {
 	// If we're running in sidecar mode (Fargate or managed instances) we strip the hostname
 	// because the task/pod is the unit of identity, not the host
-	if isFargateInstance() {
+	if isSidecar() {
 		return "", nil
 	}
-	return "", fmt.Errorf("agent is not running in sidecar mode")
+	return "", errors.New("agent is not running in sidecar mode")
 }
 
 func fromGCE(ctx context.Context, _ string) (string, error) {
@@ -90,7 +91,7 @@ func fromAzure(ctx context.Context, _ string) (string, error) {
 
 func fromFQDN(ctx context.Context, _ string) (string, error) {
 	if !osHostnameUsable(ctx) {
-		return "", fmt.Errorf("FQDN hostname is not usable")
+		return "", errors.New("FQDN hostname is not usable")
 	}
 
 	if pkgconfigsetup.Datadog().GetBool("hostname_fqdn") {
@@ -100,7 +101,7 @@ func fromFQDN(ctx context.Context, _ string) (string, error) {
 		}
 		return "", fmt.Errorf("Unable to get FQDN from system: %s", err)
 	}
-	return "", fmt.Errorf("'hostname_fqdn' configuration is not enabled")
+	return "", errors.New("'hostname_fqdn' configuration is not enabled")
 }
 
 func fromOS(ctx context.Context, currentHostname string) (string, error) {
@@ -108,9 +109,9 @@ func fromOS(ctx context.Context, currentHostname string) (string, error) {
 		if currentHostname == "" {
 			return osHostname()
 		}
-		return "", fmt.Errorf("Skipping OS hostname as a previous provider found a valid hostname")
+		return "", errors.New("Skipping OS hostname as a previous provider found a valid hostname")
 	}
-	return "", fmt.Errorf("OS hostname is not usable")
+	return "", errors.New("OS hostname is not usable")
 }
 
 func getValidEC2Hostname(ctx context.Context, legacyHostnameResolution bool) (string, error) {
@@ -161,7 +162,7 @@ func resolveEC2Hostname(ctx context.Context, currentHostname string, legacyHostn
 				" For more information: https://docs.datadoghq.com/ec2-use-win-prefix-detection", currentHostname, ec2Hostname)
 		}
 	}
-	return "", fmt.Errorf("not retrieving hostname from AWS: the host is not an ECS instance and other providers already retrieve non-default hostnames")
+	return "", errors.New("not retrieving hostname from AWS: the host is not an ECS instance and other providers already retrieve non-default hostnames")
 }
 
 func fromEC2(ctx context.Context, currentHostname string) (string, error) {

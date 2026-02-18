@@ -34,7 +34,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 	}
 	c.sbomScanner = scanner.GetGlobalScanner()
 	if c.sbomScanner == nil {
-		return fmt.Errorf("global SBOM scanner not found")
+		return errors.New("global SBOM scanner not found")
 	}
 
 	filter := workloadmeta.NewFilterBuilder().
@@ -46,12 +46,12 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 
 	scanner := collectors.GetCrioScanner()
 	if scanner == nil {
-		return fmt.Errorf("failed to retrieve CRI-O SBOM scanner")
+		return errors.New("failed to retrieve CRI-O SBOM scanner")
 	}
 
 	resultChan := scanner.Channel()
 	if resultChan == nil {
-		return fmt.Errorf("failed to retrieve scanner result channel")
+		return errors.New("failed to retrieve scanner result channel")
 	}
 
 	errs := c.sbomFilter.GetErrors()

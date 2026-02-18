@@ -106,7 +106,7 @@ func fetchColumnOids(sess session.Session, oids []string, bulkMaxRepetitions uin
 func getResults(sess session.Session, requestOids []string, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (*gosnmp.SnmpPacket, error) {
 	if sess.GetVersion() == gosnmp.Version1 && fetchStrategy == useGetBulk {
 		// snmp v1 doesn't support GetBulk
-		return nil, fmt.Errorf("GetBulk not supported in SNMP v1")
+		return nil, errors.New("GetBulk not supported in SNMP v1")
 	}
 
 	var results *gosnmp.SnmpPacket
@@ -114,7 +114,7 @@ func getResults(sess session.Session, requestOids []string, bulkMaxRepetitions u
 		getNextResults, err := sess.GetNext(requestOids)
 		if err != nil {
 			fetchErr := newFetchError(columnOid, requestOids, snmpGetNext, err)
-			log.Debugf(fetchErr.Error())
+			log.Debug(fetchErr.Error())
 			return nil, fetchErr
 		}
 		results = getNextResults
@@ -125,7 +125,7 @@ func getResults(sess session.Session, requestOids []string, bulkMaxRepetitions u
 		getBulkResults, err := sess.GetBulk(requestOids, bulkMaxRepetitions)
 		if err != nil {
 			fetchErr := newFetchError(columnOid, requestOids, snmpGetBulk, err)
-			log.Debugf(fetchErr.Error())
+			log.Debug(fetchErr.Error())
 			return nil, fetchErr
 		}
 		results = getBulkResults

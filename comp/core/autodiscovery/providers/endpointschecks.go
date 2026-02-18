@@ -9,7 +9,7 @@ package providers
 
 import (
 	"context"
-	"fmt"
+	stderrors "errors"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -112,7 +112,7 @@ func getNodename(ctx context.Context) (string, error) {
 	if pkgconfigsetup.Datadog().GetBool("cloud_foundry") {
 		boshID := pkgconfigsetup.Datadog().GetString("bosh_id")
 		if boshID == "" {
-			return "", fmt.Errorf("configuration variable cloud_foundry is set to true, but bosh_id is empty, can't retrieve node name")
+			return "", stderrors.New("configuration variable cloud_foundry is set to true, but bosh_id is empty, can't retrieve node name")
 		}
 		return boshID, nil
 	}

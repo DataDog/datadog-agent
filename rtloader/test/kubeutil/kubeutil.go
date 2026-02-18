@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"unsafe"
 
 	common "github.com/DataDog/datadog-agent/rtloader/test/common"
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
@@ -25,6 +24,10 @@ extern void getConnectionInfo(char **);
 static void initKubeUtilTests(rtloader_t *rtloader) {
    set_cgo_free_cb(rtloader, _free);
    set_get_connection_info_cb(rtloader, getConnectionInfo);
+}
+
+static inline void call_free(void* ptr) {
+    _free(ptr);
 }
 */
 import "C"
@@ -68,20 +71,20 @@ func tearDown() {
 
 func run(call string) (string, error) {
 	tmpfile.Truncate(0)
-	code := (*C.char)(helpers.TrackedCString(fmt.Sprintf(`
+	code := helpers.TrackedCString(fmt.Sprintf(`
 try:
 	import kubeutil
 	%s
 except Exception as e:
 	with open(r'%s', 'w') as f:
 		f.write("{}\n".format(e))
-`, call, tmpfile.Name())))
-	defer C._free(unsafe.Pointer(code))
+`, call, tmpfile.Name()))
+	defer C.call_free(code)
 
 	runtime.LockOSThread()
 	state := C.ensure_gil(rtloader)
 
-	ret := C.run_simple_string(rtloader, code) == 1
+	ret := C.run_simple_string(rtloader, (*C.char)(code)) == 1
 
 	C.release_gil(rtloader, state)
 	runtime.UnlockOSThread()

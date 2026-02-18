@@ -47,7 +47,7 @@ func SetAgentPermissions(ctx context.Context, configPath, installPath string) (e
 
 	// Load the SELinux policy module for the agent
 	fmt.Println("Loading SELinux policy module for datadog-agent.")
-	cmd := exec.Command("semodule", "-v", "-i", filepath.Join(configPath, "selinux/system_probe_policy.pp"))
+	cmd := telemetry.CommandContext(ctx, "semodule", "-v", "-i", filepath.Join(configPath, "selinux/system_probe_policy.pp"))
 	if err := cmd.Run(); err != nil {
 		fmt.Printf("Couldn't load system-probe policy (%v).\n", err)
 		printManualInstructions(configPath, installPath)
@@ -63,25 +63,25 @@ func SetAgentPermissions(ctx context.Context, configPath, installPath string) (e
 
 	// Label the system-probe binary
 	fmt.Println("Labeling SELinux type for the system-probe binary.")
-	cmd = exec.Command("semanage", "fcontext", "-a", "-t", "system_probe_t", filepath.Join(installPath, "embedded/bin/system-probe"))
+	cmd = telemetry.CommandContext(ctx, "semanage", "fcontext", "-a", "-t", "system_probe_t", filepath.Join(installPath, "embedded/bin/system-probe"))
 	if err := cmd.Run(); err != nil {
 		fmt.Printf("Couldn't install system-probe policy (%v).\n", err)
 		printManualInstructions(configPath, installPath)
 		return fmt.Errorf("couldn't install system-probe policy: %v", err)
 	}
-	cmd = exec.Command("semanage", "fcontext", "-a", "-t", "system_probe_t", filepath.Join(installPath, "bin/agent/agent"))
+	cmd = telemetry.CommandContext(ctx, "semanage", "fcontext", "-a", "-t", "system_probe_t", filepath.Join(installPath, "bin/agent/agent"))
 	if err := cmd.Run(); err != nil {
 		fmt.Printf("Couldn't install system-probe policy (%v).\n", err)
 		printManualInstructions(configPath, installPath)
 		return fmt.Errorf("couldn't install system-probe policy: %v", err)
 	}
-	cmd = exec.Command("restorecon", "-v", filepath.Join(installPath, "embedded/bin/system-probe"))
+	cmd = telemetry.CommandContext(ctx, "restorecon", "-v", filepath.Join(installPath, "embedded/bin/system-probe"))
 	if err := cmd.Run(); err != nil {
 		fmt.Printf("Couldn't install system-probe policy (%v).\n", err)
 		printManualInstructions(configPath, installPath)
 		return fmt.Errorf("couldn't install system-probe policy: %v", err)
 	}
-	cmd = exec.Command("restorecon", "-v", filepath.Join(installPath, "bin/agent/agent"))
+	cmd = telemetry.CommandContext(ctx, "restorecon", "-v", filepath.Join(installPath, "bin/agent/agent"))
 	if err := cmd.Run(); err != nil {
 		fmt.Printf("Couldn't install system-probe policy (%v).\n", err)
 		printManualInstructions(configPath, installPath)

@@ -12,7 +12,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 
-	"github.com/golang/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/sketches-go/ddsketch"
 )
@@ -79,6 +79,7 @@ func (s *groupedStats) export(a Aggregation) (*pb.ClientGroupedStats, error) {
 		SpanKind:               a.SpanKind,
 		PeerTags:               s.peerTags,
 		SpanDerivedPrimaryTags: s.spanDerivedPrimaryTags,
+		ServiceSource:          a.ServiceSource,
 		IsTraceRoot:            a.IsTraceRoot,
 		GRPCStatusCode:         a.GRPCStatusCode,
 		HTTPMethod:             a.HTTPMethod,

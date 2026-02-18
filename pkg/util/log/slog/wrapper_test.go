@@ -76,7 +76,7 @@ func TestNewWrapperWithCloseAndFlush(t *testing.T) {
 	flushFunc := func() { flushCalled = true }
 	closeFunc := func() { closeCalled = true }
 
-	wrapper := newWrapperWithCloseAndFlush(handler, flushFunc, closeFunc)
+	wrapper := NewWrapperWithCloseAndFlush(handler, flushFunc, closeFunc)
 
 	wrapper.Flush()
 	assert.True(t, flushCalled)
@@ -462,4 +462,43 @@ func TestContextValuesNotRendered(t *testing.T) {
 
 	wrapper.Trace("test message")
 	assert.False(t, stringerCalled, "String() should not be called by the wrapper itself")
+}
+
+func TestLoggingToClosedWrapperDoesNotCallHandler(t *testing.T) {
+	handler := newMockHandler()
+	wrapper := NewWrapper(handler)
+
+	// Close the wrapper
+	wrapper.Close()
+
+	// Attempt to log at various levels after closing
+	wrapper.Trace("trace message")
+	wrapper.Tracef("trace message %s", "formatted")
+	wrapper.Debug("debug message")
+	wrapper.Debugf("debug message %s", "formatted")
+	wrapper.Info("info message")
+	wrapper.Infof("info message %s", "formatted")
+	wrapper.Warn("warn message")
+	wrapper.Warnf("warn message %s", "formatted")
+	wrapper.Error("error message")
+	wrapper.Errorf("error message %s", "formatted")
+	wrapper.Critical("critical message")
+	wrapper.Criticalf("critical message %s", "formatted")
+
+	// Verify that handler was never called (no records logged)
+	assert.Empty(t, handler.records, "handler should not be called after wrapper is closed")
+}
+
+func TestRecordTimeZone(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows uses syscalls to get the timezone, so we can't test it")
+	}
+
+	t.Setenv("TZ", "CET")
+	handler := newMockHandler()
+	wrapper := NewWrapper(handler)
+
+	wrapper.Info("test message")
+	record := handler.lastRecord()
+	assert.Equal(t, "CET", record.Time.Location().String())
 }

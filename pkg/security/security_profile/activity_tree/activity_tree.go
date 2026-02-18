@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"io"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 
@@ -228,9 +227,7 @@ func (at *ActivityTree) ComputeSyscallsList() []uint32 {
 	for key := range at.SyscallsMask {
 		output = append(output, uint32(key))
 	}
-	sort.Slice(output, func(i, j int) bool {
-		return output[i] < output[j]
-	})
+	slices.Sort(output)
 	return output
 }
 
@@ -331,11 +328,11 @@ func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, err
 	case model.IMDSEventType:
 		// ignore IMDS answers without AccessKeyIDS
 		if event.IMDS.Type == model.IMDSResponseType && len(event.IMDS.AWS.SecurityCredentials.AccessKeyID) == 0 {
-			return false, fmt.Errorf("untraced event: IMDS response without credentials")
+			return false, errors.New("untraced event: IMDS response without credentials")
 		}
 		// ignore IMDS requests without URLs
 		if event.IMDS.Type == model.IMDSRequestType && len(event.IMDS.URL) == 0 {
-			return false, fmt.Errorf("invalid event: IMDS request without any URL")
+			return false, errors.New("invalid event: IMDS request without any URL")
 		}
 	}
 	return true, nil
@@ -379,7 +376,7 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 		return true, nil
 	} else if node == nil {
 		// a process node couldn't be found or created for this event, ignore it
-		return false, errors.New("a process node couldn't be found or created for this event")
+		return false, fmt.Errorf("a process node couldn't be found or created for this event: %w", err)
 	}
 
 	// resolve fields

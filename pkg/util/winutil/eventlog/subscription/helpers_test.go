@@ -8,6 +8,7 @@
 package evtsubscribe
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
@@ -33,11 +34,11 @@ func ReadNumEvents(t testing.TB, _ eventlog_test.APITester, sub PullSubscription
 		}
 		if count == numEvents {
 			if !assert.Nil(t, events, "events should be nil when count is reached") {
-				return nil, fmt.Errorf("events should be nil when count is reached")
+				return nil, errors.New("events should be nil when count is reached")
 			}
 		} else {
 			if !assert.NotNil(t, events, "events should not be nil if count is not reached %v/%v", count, numEvents) {
-				return nil, fmt.Errorf("events should not be nil")
+				return nil, errors.New("events should not be nil")
 			}
 		}
 		if events != nil {
@@ -51,7 +52,7 @@ func ReadNumEvents(t testing.TB, _ eventlog_test.APITester, sub PullSubscription
 
 	for _, eventRecord := range eventRecords {
 		if !assert.NotEqual(t, evtapi.EventRecordHandle(0), eventRecord.EventRecordHandle, "EventRecordHandle should not be NULL") {
-			return nil, fmt.Errorf("EventRecordHandle should not be NULL")
+			return nil, errors.New("EventRecordHandle should not be NULL")
 		}
 	}
 

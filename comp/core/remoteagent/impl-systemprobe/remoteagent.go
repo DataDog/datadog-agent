@@ -37,6 +37,12 @@ type Provides struct {
 
 // NewComponent creates a new remoteagent component
 func NewComponent(reqs Requires) (Provides, error) {
+	// Check if the remoteAgentRegistry is enabled
+	if !reqs.Config.GetBool("remote_agent_registry.enabled") {
+		return Provides{}, nil
+	}
+
+	// Get the registry address
 	registryAddress := net.JoinHostPort(reqs.Config.GetString("cmd_host"), reqs.Config.GetString("cmd_port"))
 
 	remoteAgentServer, err := helper.NewUnimplementedRemoteAgentServer(reqs.IPC, reqs.Log, reqs.Config, reqs.Lifecycle, registryAddress, flavor.GetFlavor(), flavor.GetHumanReadableFlavor())
@@ -73,8 +79,27 @@ type remoteagentImpl struct {
 
 func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetryRequest) (*pbcore.GetTelemetryResponse, error) {
 	prometheusText, err := r.telemetry.GatherText(false, telemetry.StaticMetricFilter(
-	// Add here the metric names that should be included in the telemetry response.
-	// This is useful to avoid sending too many metrics to the Core Agent.
+		// Add here the metric names that should be included in the telemetry response.
+		// This is useful to avoid sending too many metrics to the Core Agent.
+
+		// Windows Injector metrics (using double underscore format from telemetry component)
+		"injector__processes_added_to_injection_tracker",
+		"injector__processes_removed_from_injection_tracker",
+		"injector__processes_skipped_subsystem",
+		"injector__processes_skipped_container",
+		"injector__processes_skipped_protected",
+		"injector__processes_skipped_system",
+		"injector__processes_skipped_excluded",
+		"injector__injection_attempts",
+		"injector__injection_attempt_failures",
+		"injector__injection_max_time_us",
+		"injector__injection_successes",
+		"injector__injection_failures",
+		"injector__pe_caching_failures",
+		"injector__import_directory_restoration_failures",
+		"injector__pe_memory_allocation_failures",
+		"injector__pe_injection_context_allocated",
+		"injector__pe_injection_context_cleanedup",
 	))
 	if err != nil {
 		return nil, err

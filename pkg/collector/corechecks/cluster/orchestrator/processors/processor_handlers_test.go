@@ -87,6 +87,8 @@ func (rh *TestResourceHandlers) BuildManifestMessageBody(ctx ProcessorContext, r
 		ClusterId:    pctx.GetClusterID(),
 		GroupId:      pctx.GetMsgGroupID(),
 		GroupSize:    int32(groupSize),
+		HostName:     string(pctx.HostName),
+		SystemInfo:   pctx.GetSystemInfo(),
 		Manifests:    manifests,
 	}
 }

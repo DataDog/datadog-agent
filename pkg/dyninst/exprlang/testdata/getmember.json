@@ -3,7 +3,7 @@
   "operation": "getmember",
   "argument": [
     {
-      "ref": "self"
+      "Ref": "self"
     },
     "name"
   ],

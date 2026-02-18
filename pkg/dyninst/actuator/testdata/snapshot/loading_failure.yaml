@@ -2,11 +2,16 @@
 # and the program should be cleaned up.
 - !processes-updated
   updated:
-    - process_id: {pid: 1001}
-      executable: {path: /usr/bin/test}
+    - process_id: { pid: 1001 }
+      executable: { path: /usr/bin/test }
       probes:
-        - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
-- !loading-failed {program_id: 1, error: "eBPF loading failed"} 
+        - {
+            type: LOG_PROBE,
+            id: probe1,
+            where: { methodName: main },
+            captureSnapshot: true,
+          }
+- !loading-failed { program_id: 1, error: "eBPF loading failed" }
 ---
 event: !processes-updated
   updated:
@@ -33,11 +38,11 @@ state:
   currently_loading: 1 -> <nil>
   queued_programs: '[]'
   processes:
-    1001: WaitingForProgram (prog 1) -> LoadingFailed
+    1001: WaitingForProgram (prog 1) -> Failed
   programs:
     1: Loading (proc 1001) -> <nil>
   stats:
     loadFailed: 0 -> 1
-    numLoadingFailed: 0 -> 1
+    numFailed: 0 -> 1
     numPrograms: 1 -> 0
     numWaitingForProgram: 1 -> 0

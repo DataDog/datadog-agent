@@ -27,7 +27,7 @@ type OpenSelfTest struct {
 
 // GetRuleDefinition returns the rule
 func (o *OpenSelfTest) GetRuleDefinition() *rules.RuleDefinition {
-	o.ruleID = fmt.Sprintf("%s_open", ruleIDPrefix)
+	o.ruleID = ruleIDPrefix + "_open"
 
 	return &rules.RuleDefinition{
 		ID:         o.ruleID,

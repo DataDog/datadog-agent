@@ -1,0 +1,53 @@
+# Agent packages
+
+load("@bazel_skylib//lib:selects.bzl", "selects")
+load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+
+package(default_visibility = ["//visibility:public"])
+
+string_flag(
+    name = "flavor",
+    build_setting_default = "base",
+    # These values match omnibus.
+    values = [
+        "base",
+        "fips",
+        "heroku",
+    ],
+)
+
+alias(
+    name = "default_flavor",
+    actual = ":base_flavor",
+)
+
+config_setting(
+    name = "base_flavor",
+    flag_values = {"@@//packages/agent:flavor": "base"},
+)
+
+config_setting(
+    name = "fips_flavor",
+    flag_values = {"@@//packages/agent:flavor": "fips"},
+)
+
+config_setting(
+    name = "heroku_flavor",
+    flag_values = {"@@//packages/agent:flavor": "heroku"},
+)
+
+selects.config_setting_group(
+    name = "linux_heroku",
+    match_all = [
+        ":heroku_flavor",
+        "@platforms//os:linux",
+    ],
+)
+
+selects.config_setting_group(
+    name = "linux_default",
+    match_all = [
+        ":base_flavor",
+        "@platforms//os:linux",
+    ],
+)

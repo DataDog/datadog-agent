@@ -67,7 +67,7 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 			return r == ',' || r == ' '
 		}) // comma and space-separated list, consistent with viper and documentation
 	}
-	span, ctx := telemetry.StartSpanFromContext(ctx, fmt.Sprintf("setup.%s", flavor))
+	span, ctx := telemetry.StartSpanFromContext(ctx, "setup."+flavor)
 	s := &Setup{
 		configDir: paths.DatadogDataDir,
 		installer: installer,
@@ -79,9 +79,9 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 		Span:      span,
 		Config: config.Config{
 			DatadogYAML: config.DatadogConfig{
-				APIKey:   env.APIKey,
+				APIKey:   os.Getenv("DD_API_KEY"),
 				Hostname: os.Getenv("DD_HOSTNAME"),
-				Site:     env.Site,
+				Site:     os.Getenv("DD_SITE"),
 				Proxy: config.DatadogConfigProxy{
 					HTTP:    os.Getenv("DD_PROXY_HTTP"),
 					HTTPS:   os.Getenv("DD_PROXY_HTTPS"),
@@ -96,6 +96,13 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 			install: make(map[string]packageWithVersion),
 		},
 	}
+
+	// Map DD_LOGS_ENABLED env var into datadog.yaml
+	if logsEnabledEnv := os.Getenv("DD_LOGS_ENABLED"); logsEnabledEnv != "" {
+		logsEnabled := strings.EqualFold(logsEnabledEnv, "true") || logsEnabledEnv == "1"
+		s.Config.DatadogYAML.LogsEnabled = config.BoolToPtr(logsEnabled)
+	}
+
 	return s, nil
 }
 
@@ -119,7 +126,7 @@ func (s *Setup) Run() (err error) {
 	}
 	s.Out.WriteString("Applying configurations...\n")
 	// ensure config root is created with correct permissions
-	err = paths.EnsureInstallerDataDir()
+	err = paths.SetupInstallerDataDir()
 	if err != nil {
 		return fmt.Errorf("could not create config directory: %w", err)
 	}
@@ -129,7 +136,7 @@ func (s *Setup) Run() (err error) {
 			return fmt.Errorf("failed to write configuration: %w", err)
 		}
 	}
-	err = installinfo.WriteInstallInfo(ctx, fmt.Sprintf("install-script-%s", s.flavor))
+	err = installinfo.WriteInstallInfo(ctx, "install-script-"+s.flavor)
 	if err != nil {
 		return fmt.Errorf("failed to write install info: %w", err)
 	}

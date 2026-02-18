@@ -25,7 +25,7 @@ func TestComputeServiceNameOrderOfPrecedent(t *testing.T) {
 	assert.Equal(t, "dd-service-name", getServiceName())
 }
 
-func TestBuildMessageNoLambda(t *testing.T) {
+func TestBuildMessage(t *testing.T) {
 	logline := &config.ChannelMessage{
 		Content:   []byte("bababang"),
 		Timestamp: time.Date(2010, 01, 01, 01, 01, 01, 00, time.UTC),
@@ -34,25 +34,6 @@ func TestBuildMessageNoLambda(t *testing.T) {
 	origin := &message.Origin{}
 	builtMessage := buildMessage(logline, origin)
 	assert.Equal(t, "bababang", string(builtMessage.GetContent()))
-	assert.Nil(t, builtMessage.ServerlessExtra.Lambda)
-	assert.Equal(t, message.StatusInfo, builtMessage.GetStatus())
-}
-
-func TestBuildMessageLambda(t *testing.T) {
-	logline := &config.ChannelMessage{
-		Content:   []byte("bababang"),
-		Timestamp: time.Date(2010, 01, 01, 01, 01, 01, 00, time.UTC),
-		IsError:   false,
-		Lambda: &config.Lambda{
-			ARN:       "myTestARN",
-			RequestID: "myTestRequestId",
-		},
-	}
-	origin := &message.Origin{}
-	builtMessage := buildMessage(logline, origin)
-	assert.Equal(t, "bababang", string(builtMessage.GetContent()))
-	assert.Equal(t, "myTestARN", builtMessage.ServerlessExtra.Lambda.ARN)
-	assert.Equal(t, "myTestRequestId", builtMessage.ServerlessExtra.Lambda.RequestID)
 	assert.Equal(t, message.StatusInfo, builtMessage.GetStatus())
 }
 

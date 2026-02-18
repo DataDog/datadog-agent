@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -116,6 +117,14 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 	cs.Direction = connDirection(flow.Flags)
 	cs.SPortIsEphemeral = IsPortInEphemeralRange(cs.Family, cs.Type, cs.SPort)
 	cs.Cookie = flow.FlowCookie
+
+	// cipher suite not yet supported on windows.
+	cs.TLSTags = tls.Tags{
+		ChosenVersion:   flow.Tls_version_chosen,
+		OfferedVersions: uint8(flow.Tls_versions_offered),
+		CipherSuite:     flow.Tls_cipher_suite,
+	}
+
 	if connectionType == TCP {
 
 		tf := flow.TCPFlow()

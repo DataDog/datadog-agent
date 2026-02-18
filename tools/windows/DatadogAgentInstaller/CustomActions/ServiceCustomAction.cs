@@ -2,7 +2,7 @@ using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
 using Datadog.CustomActions.Rollback;
-using Microsoft.Deployment.WindowsInstaller;
+using WixToolset.Dtf.WindowsInstaller;
 using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
@@ -363,6 +363,7 @@ namespace Datadog.CustomActions
                     Constants.NpmServiceName,
                     Constants.ProcmonServiceName,       // might not exist depending on compile time options**
                     Constants.SecurityAgentServiceName, // might not exist depending on compile time options**
+                    Constants.PrivateActionRunnerServiceName,
                     Constants.ProcessAgentServiceName,
                     Constants.TraceAgentServiceName,
                     Constants.InstallerServiceName,
@@ -431,6 +432,14 @@ namespace Datadog.CustomActions
 
         private ActionResult StartDDServices()
         {
+            // Check if DD_INSTALL_ONLY flag is set
+            var installOnly = _session.Property("DD_INSTALL_ONLY");
+            if (!string.IsNullOrEmpty(installOnly) && (installOnly == "1" || installOnly.ToLower() == "true"))
+            {
+                _session.Log("DD_INSTALL_ONLY is set, skipping service start.");
+                return ActionResult.Success;
+            }
+
             try
             {
                 var ddservices = new[]

@@ -23,7 +23,12 @@ from tasks.libs.ciproviders.gitlab_api import (
 from tasks.libs.common.check_tools_version import check_tools_version
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import GITHUB_REPO_NAME
-from tasks.libs.common.git import get_file_modifications, get_staged_files
+from tasks.libs.common.git import (
+    get_ancestor_base_branch,
+    get_common_ancestor,
+    get_file_modifications,
+    get_staged_files,
+)
 from tasks.libs.common.utils import gitlab_section, is_pr_context, running_in_ci
 from tasks.libs.linter.gitlab import (
     ALL_GITLABCI_SUBLINTERS,
@@ -70,7 +75,6 @@ def go(
     timeout: int | None = None,
     golangci_lint_kwargs="",
     headless_mode=False,
-    include_sds=False,
     only_modified_packages=False,
     verbose=False,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
@@ -125,7 +129,6 @@ def go(
         timeout=timeout,
         golangci_lint_kwargs=golangci_lint_kwargs,
         headless_mode=headless_mode,
-        include_sds=include_sds,
         verbose=verbose,
         recursive=not only_modified_packages,  # Disable recursive linting when only modified packages is enabled, to avoid linting a package and all its subpackages
     )
@@ -154,7 +157,7 @@ def update_go(_):
 
 
 # === PYTHON === #
-@task
+@task()
 def python(ctx, show_versions=False):
     """Lints Python files.
 
@@ -162,6 +165,7 @@ def python(ctx, show_versions=False):
     running locally, you probably want to use the pre-commit instead.
 
     Args:
+        files: Optional list of files to lint (space-separated). If not provided, lints all files.
         show_versions: Show the versions of the linters that are being used.
     """
 
@@ -176,14 +180,15 @@ def python(ctx, show_versions=False):
         print(f"mypy version: {ctx.run('mypy --version', hide=True).stdout.strip()}")
 
     if running_in_ci():
-        # We want to the CI to fail if there are any issues
-        ctx.run("ruff format --check --diff .")
-        ctx.run("ruff check --diff .")
+        # We want to the CI to fail if there are any issues, lint everything in CI
+        ctx.run("ruff format --check .")
+        ctx.run("ruff check --no-fix .")
     else:
         # Otherwise we just need to format the files
         ctx.run("ruff format .")
         ctx.run("ruff check --fix .")
 
+    # vulture and mypy don't work well with individual files, run on full codebase
     ctx.run("vulture")
     ctx.run("mypy --warn-unused-configs")
 
@@ -211,6 +216,55 @@ def releasenote(ctx):
             ctx.run("reno lint")
         else:
             print("'changelog/no-changelog' label found on the PR: skipping linting")
+
+
+@task
+def rst_releasenotes(ctx, files=None, only_changed=False):
+    """Check release notes for RST formatting issues.
+
+    Validates that release notes use proper reStructuredText (RST) formatting
+    instead of Markdown, using docutils as the reference RST parser.
+
+    Args:
+        files: Optional comma-separated list of files to lint. If not provided,
+               lints all .yaml files in releasenotes/notes/ and releasenotes-dca/notes/.
+        only_changed: If True, only lint release note files that have been modified
+                      compared to the base branch (main). Used in CI to only check
+                      files in the current PR.
+    """
+    from tasks.libs.linter.releasenotes import lint_releasenotes
+
+    if files:
+        file_list = [f.strip() for f in files.split(',') if f.strip()]
+    elif only_changed:
+        # Get release note files that have been added or modified compared to the base branch
+        # Uses COMPARE_TO_BRANCH in CI, or falls back to detecting the PR's target branch
+        base_branch = get_ancestor_base_branch()
+        merge_base = get_common_ancestor(ctx, "HEAD", f"origin/{base_branch}")
+        result = ctx.run(
+            f"git diff --name-only --diff-filter=AM {merge_base} | grep -E '^releasenotes(-dca)?/notes/.*\\.yaml$'",
+            warn=True,
+            hide=True,
+        )
+        file_list = [f.strip() for f in result.stdout.splitlines() if f.strip()]
+    else:
+        file_list = list(glob('releasenotes/notes/*.yaml')) + list(glob('releasenotes-dca/notes/*.yaml'))
+
+    if not file_list:
+        print(color_message("No release note files to lint", "yellow"))
+        return
+
+    results = lint_releasenotes(file_list)
+
+    if results:
+        print(color_message("RST formatting issues found in release notes:", "red"))
+        print()
+        for result in results:
+            print(result.format_output())
+            print()
+        raise Exit(code=1)
+
+    print(color_message(f"All {len(file_list)} release note files have valid RST formatting", "green"))
 
 
 @task
@@ -482,7 +536,7 @@ def list_parameters(_, type):
 
 
 @task
-def ssm_parameters(ctx, mode="all", folders=None):
+def ssm_parameters(ctx, mode="all", folders=None, exclude_folders=None):
     """Lints SSM parameters in the datadog-agent repository."""
 
     modes = ["env", "wrapper", "all"]
@@ -490,12 +544,16 @@ def ssm_parameters(ctx, mode="all", folders=None):
         raise Exit(f"Invalid mode: {mode}. Must be one of {modes}")
     if folders is None:
         lint_folders = [".github", ".gitlab", "test"]
+    if exclude_folders is None:
+        exclude_folders = ["test/e2e-framework"]
     else:
         lint_folders = folders.split(",")
     repo_files = ctx.run("git ls-files", hide="both")
     error_files = []
     for filename in repo_files.stdout.split("\n"):
-        if any(filename.startswith(f) for f in lint_folders):
+        if any(filename.startswith(f) for f in lint_folders) and not any(
+            filename.startswith(f) for f in exclude_folders
+        ):
             calls = list_get_parameter_calls(filename)
             if calls:
                 error_files.extend(calls)
@@ -731,7 +789,7 @@ def filenames(ctx):
 
     print("Checking filename length")
     # Approximated length of the prefix of the repo during the windows release build
-    prefix_length = 160
+    prefix_length = 159
     # Maximum length supported by the win32 API
     max_length = 255
     for filename in files:

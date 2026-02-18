@@ -8,7 +8,7 @@
 package utils
 
 import (
-	"fmt"
+	"errors"
 	"slices"
 	"strconv"
 	"strings"
@@ -106,6 +106,6 @@ func (w *Walker) Walk(data *interface{}) error {
 	case []interface{}:
 		return w.slice(v, nil)
 	default:
-		return fmt.Errorf("given data is not of expected type map not slice")
+		return errors.New("given data is not of expected type map not slice")
 	}
 }

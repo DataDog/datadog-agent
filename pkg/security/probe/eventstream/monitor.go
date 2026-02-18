@@ -10,6 +10,7 @@ package eventstream
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -484,11 +485,11 @@ func (pbm *Monitor) sendEventsAndBytesReadStats(client statsd.ClientInterface) e
 	tags := []string{pbm.config.StatsTagsCardinality, "", "", ""}
 
 	for m := range pbm.eventStats {
-		tags[1] = fmt.Sprintf("map:%s", m)
+		tags[1] = "map:" + m
 		for cpu := range pbm.eventStats[m] {
 			for eventType := range pbm.eventStats[m][cpu] {
 				evtType := model.EventType(eventType)
-				tags[2], tags[3] = fmt.Sprintf("event_type:%s", evtType), ""
+				tags[2], tags[3] = "event_type:"+evtType.String(), ""
 
 				count, bytes, adSaved, sortingError := pbm.getAndResetEventStats(evtType, m, cpu)
 
@@ -528,7 +529,7 @@ func (pbm *Monitor) sendEventsAndBytesReadStats(client statsd.ClientInterface) e
 	for mapName, causes := range pbm.invalidEventStats {
 		for cause, stats := range causes {
 			count, bytes := stats.getAndReset()
-			tags := []string{fmt.Sprintf("map:%s", mapName), fmt.Sprintf("cause:%s", InvalidEventCause(cause).String())}
+			tags := []string{"map:" + mapName, "cause:" + InvalidEventCause(cause).String()}
 			if count > 0 {
 				if err := client.Count(metrics.MetricPerfBufferInvalidEventsCount, int64(count), tags, 1.0); err != nil {
 					return err
@@ -550,7 +551,7 @@ func (pbm *Monitor) sendLostEventsReadStats(client statsd.ClientInterface) error
 
 	for m := range pbm.readLostEvents {
 		var total float64
-		tags[1] = fmt.Sprintf("map:%s", m)
+		tags[1] = "map:" + m
 
 		for cpu := range pbm.readLostEvents[m] {
 			if count := float64(pbm.getAndResetReadLostCount(m, cpu)); count > 0 {
@@ -565,14 +566,14 @@ func (pbm *Monitor) sendLostEventsReadStats(client statsd.ClientInterface) error
 }
 
 func (pbm *Monitor) getRingbufUsage(statsMap *statMap) (uint64, error) {
-	req := erpc.NewERPCRequest(erpc.GetRingbufUsage)
+	req := erpc.NewERPCRequest(erpc.GetRingbufUsageOp)
 	if err := pbm.eRPC.Request(req); err != nil {
 		return 0, err
 	}
 
 	var ringUsage uint64
 	if err := statsMap.ebpfRingBufferMap.Lookup(int32(0), &ringUsage); err != nil {
-		return 0, fmt.Errorf("failed to retrieve ring buffer usage")
+		return 0, errors.New("failed to retrieve ring buffer usage")
 	}
 
 	return ringUsage, nil
@@ -598,7 +599,7 @@ func (pbm *Monitor) collectAndSendKernelStats(client statsd.ClientInterface) err
 		// total and perEvent are used for alerting
 		var total uint64
 		perEvent := map[string]uint64{}
-		mapNameTag := fmt.Sprintf("map:%s", perfMapName)
+		mapNameTag := "map:" + perfMapName
 		tags[1] = mapNameTag
 
 		// loop through all the values of the active buffer
@@ -611,8 +612,8 @@ func (pbm *Monitor) collectAndSendKernelStats(client statsd.ClientInterface) err
 
 			// retrieve event type from key
 			evtType := model.EventType(id % uint32(model.MaxKernelEventType))
-			tags[2] = fmt.Sprintf("event_type:%s", evtType)
-			tags[3] = fmt.Sprintf("category:%s", model.GetEventTypeCategory(evtType.String()))
+			tags[2] = "event_type:" + evtType.String()
+			tags[3] = "category:" + model.GetEventTypeCategory(evtType.String()).String()
 
 			// loop over each cpu entry
 			for cpu, stats := range perCPUMapStats {

@@ -113,7 +113,7 @@ func (d *dockerCmdWrapper) CommandContext(ctx context.Context, bin string, args 
 }
 
 func (d *dockerCmdWrapper) start() ([]byte, error) {
-	d.containerName = fmt.Sprintf("docker-wrapper-%s", utils.RandString(6))
+	d.containerName = "docker-wrapper-" + utils.RandString(6)
 	cmd := exec.Command(d.executable, "run", "--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined", "--rm", "--cap-add", "NET_ADMIN", "-d", "--name", d.containerName, "-v", d.mountSrc+":"+d.mountDest, d.image, "sleep", "1200")
 	out, err := cmd.CombinedOutput()
 	if err != nil {

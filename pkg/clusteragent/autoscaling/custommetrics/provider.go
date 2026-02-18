@@ -9,6 +9,7 @@ package custommetrics
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -128,7 +129,7 @@ func (p *datadogProvider) externalMetricsSetter(ctx context.Context) {
 // GetExternalMetric is called by the Autoscaler Controller to get the value of the external metric it is currently evaluating.
 func (p *datadogProvider) GetExternalMetric(_ context.Context, _ string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
 	if !p.isServing || time.Now().Unix()-p.timestamp > 2*p.maxAge {
-		return nil, fmt.Errorf("external metrics invalid")
+		return nil, errors.New("external metrics invalid")
 	}
 
 	matchingMetrics := []external_metrics.ExternalMetricValue{}

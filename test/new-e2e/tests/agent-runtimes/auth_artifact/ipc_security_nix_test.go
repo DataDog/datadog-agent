@@ -10,12 +10,13 @@ import (
 	"path"
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 )
 
 //go:embed fixtures/security-agent.yaml
@@ -41,12 +42,13 @@ func TestIPCSecurityLinuxSuite(t *testing.T) {
 			},
 		},
 		e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
-			awshost.WithAgentOptions(
-				agentparams.WithAgentConfig(agentConfig),
-				agentparams.WithSecurityAgentConfig(securityAgentConfig),
-			),
-			awshost.WithAgentClientOptions(agentclientparams.WithSkipWaitForAgentReady()),
-		)),
-		e2e.WithSkipCoverage(), // Test Suite is not compatible with built-in coverage computation, because auth tokens are removed at the end of the test
+			awshost.WithRunOptions(
+				ec2.WithAgentOptions(
+					agentparams.WithAgentConfig(agentConfig),
+					agentparams.WithSecurityAgentConfig(securityAgentConfig),
+				),
+				ec2.WithAgentClientOptions(agentclientparams.WithSkipWaitForAgentReady()),
+			)),
+		), e2e.WithSkipCoverage(), // Test Suite is not compatible with coverage computation, because auth tokens are removed at the end of the test
 	)
 }

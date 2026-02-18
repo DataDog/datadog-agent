@@ -441,6 +441,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "rule_context": {
                     "$ref": "#/$defs/RuleContext",
                     "description": "RuleContext rule context"
+                },
+                "source": {
+                    "type": "string",
+                    "description": "Source of the event"
                 }
             },
             "additionalProperties": false,
@@ -1463,6 +1467,13 @@ Workload Protection events for Linux systems have the following JSON schema:
                     },
                     "type": "array",
                     "description": "List of AWS Security Credentials that the process had access to"
+                },
+                "tracer": {
+                    "additionalProperties": {
+                        "type": "string"
+                    },
+                    "type": "object",
+                    "description": "Tags from an APM tracer instrumentation"
                 }
             },
             "additionalProperties": false,
@@ -1620,6 +1631,13 @@ Workload Protection events for Linux systems have the following JSON schema:
                     },
                     "type": "array",
                     "description": "List of AWS Security Credentials that the process had access to"
+                },
+                "tracer": {
+                    "additionalProperties": {
+                        "type": "string"
+                    },
+                    "type": "object",
+                    "description": "Tags from an APM tracer instrumentation"
                 },
                 "parent": {
                     "$ref": "#/$defs/Process",
@@ -1953,6 +1971,34 @@ Workload Protection events for Linux systems have the following JSON schema:
             ],
             "description": "SetSockOptEventSerializer defines a setsockopt event serializer"
         },
+        "SetrlimitEvent": {
+            "properties": {
+                "resource": {
+                    "type": "string",
+                    "description": "Resource being limited"
+                },
+                "rlim_cur": {
+                    "type": "integer",
+                    "description": "Current limit"
+                },
+                "rlim_max": {
+                    "type": "integer",
+                    "description": "Maximum limit"
+                },
+                "target": {
+                    "$ref": "#/$defs/ProcessContext",
+                    "description": "process context of the setrlimit target"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "resource",
+                "rlim_cur",
+                "rlim_max"
+            ],
+            "description": "SetrlimitEventSerializer serializes a setrlimit event"
+        },
         "SignalEvent": {
             "properties": {
                 "type": {
@@ -2179,13 +2225,21 @@ Workload Protection events for Linux systems have the following JSON schema:
         },
         "UserSessionContext": {
             "properties": {
+                "session_type": {
+                    "type": "string",
+                    "description": "Type of the user session"
+                },
                 "id": {
                     "type": "string",
                     "description": "Unique identifier of the user session on the host"
                 },
-                "session_type": {
+                "identity": {
                     "type": "string",
-                    "description": "Type of the user session"
+                    "description": "Identity of the user session"
+                },
+                "k8s_session_id": {
+                    "type": "string",
+                    "description": "Unique identifier of the user session on the host"
                 },
                 "k8s_username": {
                     "type": "string",
@@ -2211,6 +2265,26 @@ Workload Protection events for Linux systems have the following JSON schema:
                     },
                     "type": "object",
                     "description": "Extra of the Kubernetes \"kubectl exec\" session"
+                },
+                "ssh_session_id": {
+                    "type": "string",
+                    "description": "Unique identifier of the SSH session"
+                },
+                "ssh_client_port": {
+                    "type": "integer",
+                    "description": "Port of the SSH session"
+                },
+                "ssh_client_ip": {
+                    "type": "string",
+                    "description": "Client IP of the SSH session"
+                },
+                "ssh_auth_method": {
+                    "type": "string",
+                    "description": "Authentication method of the SSH session"
+                },
+                "ssh_public_key": {
+                    "type": "string",
+                    "description": "Public key of the SSH session"
                 }
             },
             "additionalProperties": false,
@@ -2247,6 +2321,9 @@ Workload Protection events for Linux systems have the following JSON schema:
         },
         "container": {
             "$ref": "#/$defs/ContainerContext"
+        },
+        "signature": {
+            "type": "string"
         },
         "network": {
             "$ref": "#/$defs/NetworkContext"
@@ -2331,6 +2408,9 @@ Workload Protection events for Linux systems have the following JSON schema:
         },
         "prctl": {
             "$ref": "#/$defs/PrCtlEvent"
+        },
+        "setrlimit": {
+            "$ref": "#/$defs/SetrlimitEvent"
         }
     },
     "additionalProperties": false,
@@ -2353,6 +2433,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `exit` | $ref | Please see [ExitEvent](#exitevent) |
 | `process` | $ref | Please see [ProcessContext](#processcontext) |
 | `container` | $ref | Please see [ContainerContext](#containercontext) |
+| `signature` | string |  |
 | `network` | $ref | Please see [NetworkContext](#networkcontext) |
 | `dd` | $ref | Please see [DDContext](#ddcontext) |
 | `security_profile` | $ref | Please see [SecurityProfileContext](#securityprofilecontext) |
@@ -2381,6 +2462,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `cgroup_write` | $ref | Please see [CGroupWriteEvent](#cgroupwriteevent) |
 | `capabilities` | $ref | Please see [CapabilitiesEvent](#capabilitiesevent) |
 | `prctl` | $ref | Please see [PrCtlEvent](#prctlevent) |
+| `setrlimit` | $ref | Please see [SetrlimitEvent](#setrlimitevent) |
 
 ## `AWSIMDSEvent`
 
@@ -3067,6 +3149,10 @@ Workload Protection events for Linux systems have the following JSON schema:
         "rule_context": {
             "$ref": "#/$defs/RuleContext",
             "description": "RuleContext rule context"
+        },
+        "source": {
+            "type": "string",
+            "description": "Source of the event"
         }
     },
     "additionalProperties": false,
@@ -3085,6 +3171,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `matched_rules` | The list of rules that the event matched (only valid in the context of an anomaly) |
 | `variables` | Variables values |
 | `rule_context` | RuleContext rule context |
+| `source` | Source of the event |
 
 | References |
 | ---------- |
@@ -4506,6 +4593,13 @@ Workload Protection events for Linux systems have the following JSON schema:
             },
             "type": "array",
             "description": "List of AWS Security Credentials that the process had access to"
+        },
+        "tracer": {
+            "additionalProperties": {
+                "type": "string"
+            },
+            "type": "object",
+            "description": "Tags from an APM tracer instrumentation"
         }
     },
     "additionalProperties": false,
@@ -4553,6 +4647,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `source` | Process source |
 | `syscalls` | List of syscalls captured to generate the event |
 | `aws_security_credentials` | List of AWS Security Credentials that the process had access to |
+| `tracer` | Tags from an APM tracer instrumentation |
 
 | References |
 | ---------- |
@@ -4715,6 +4810,13 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "array",
             "description": "List of AWS Security Credentials that the process had access to"
         },
+        "tracer": {
+            "additionalProperties": {
+                "type": "string"
+            },
+            "type": "object",
+            "description": "Tags from an APM tracer instrumentation"
+        },
         "parent": {
             "$ref": "#/$defs/Process",
             "description": "Parent process"
@@ -4780,6 +4882,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `source` | Process source |
 | `syscalls` | List of syscalls captured to generate the event |
 | `aws_security_credentials` | List of AWS Security Credentials that the process had access to |
+| `tracer` | Tags from an APM tracer instrumentation |
 | `parent` | Parent process |
 | `ancestors` | Ancestor processes |
 | `variables` | Variables values |
@@ -5252,6 +5355,52 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `filter_hash` | Filter hash |
 
 
+## `SetrlimitEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "resource": {
+            "type": "string",
+            "description": "Resource being limited"
+        },
+        "rlim_cur": {
+            "type": "integer",
+            "description": "Current limit"
+        },
+        "rlim_max": {
+            "type": "integer",
+            "description": "Maximum limit"
+        },
+        "target": {
+            "$ref": "#/$defs/ProcessContext",
+            "description": "process context of the setrlimit target"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "resource",
+        "rlim_cur",
+        "rlim_max"
+    ],
+    "description": "SetrlimitEventSerializer serializes a setrlimit event"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `resource` | Resource being limited |
+| `rlim_cur` | Current limit |
+| `rlim_max` | Maximum limit |
+| `target` | process context of the setrlimit target |
+
+| References |
+| ---------- |
+| [ProcessContext](#processcontext) |
+
 ## `SignalEvent`
 
 
@@ -5607,13 +5756,21 @@ Workload Protection events for Linux systems have the following JSON schema:
 {{< code-block lang="json" collapsible="true" >}}
 {
     "properties": {
+        "session_type": {
+            "type": "string",
+            "description": "Type of the user session"
+        },
         "id": {
             "type": "string",
             "description": "Unique identifier of the user session on the host"
         },
-        "session_type": {
+        "identity": {
             "type": "string",
-            "description": "Type of the user session"
+            "description": "Identity of the user session"
+        },
+        "k8s_session_id": {
+            "type": "string",
+            "description": "Unique identifier of the user session on the host"
         },
         "k8s_username": {
             "type": "string",
@@ -5639,6 +5796,26 @@ Workload Protection events for Linux systems have the following JSON schema:
             },
             "type": "object",
             "description": "Extra of the Kubernetes \"kubectl exec\" session"
+        },
+        "ssh_session_id": {
+            "type": "string",
+            "description": "Unique identifier of the SSH session"
+        },
+        "ssh_client_port": {
+            "type": "integer",
+            "description": "Port of the SSH session"
+        },
+        "ssh_client_ip": {
+            "type": "string",
+            "description": "Client IP of the SSH session"
+        },
+        "ssh_auth_method": {
+            "type": "string",
+            "description": "Authentication method of the SSH session"
+        },
+        "ssh_public_key": {
+            "type": "string",
+            "description": "Public key of the SSH session"
         }
     },
     "additionalProperties": false,
@@ -5650,12 +5827,19 @@ Workload Protection events for Linux systems have the following JSON schema:
 
 | Field | Description |
 | ----- | ----------- |
-| `id` | Unique identifier of the user session on the host |
 | `session_type` | Type of the user session |
+| `id` | Unique identifier of the user session on the host |
+| `identity` | Identity of the user session |
+| `k8s_session_id` | Unique identifier of the user session on the host |
 | `k8s_username` | Username of the Kubernetes "kubectl exec" session |
 | `k8s_uid` | UID of the Kubernetes "kubectl exec" session |
 | `k8s_groups` | Groups of the Kubernetes "kubectl exec" session |
 | `k8s_extra` | Extra of the Kubernetes "kubectl exec" session |
+| `ssh_session_id` | Unique identifier of the SSH session |
+| `ssh_client_port` | Port of the SSH session |
+| `ssh_client_ip` | Client IP of the SSH session |
+| `ssh_auth_method` | Authentication method of the SSH session |
+| `ssh_public_key` | Public key of the SSH session |
 
 
 ## `Variables`

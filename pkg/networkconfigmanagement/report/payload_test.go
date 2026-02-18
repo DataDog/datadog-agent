@@ -118,3 +118,31 @@ func TestNetworkDevicesConfigPayload_EmptyConfigs(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(jsonData), "\"configs\":[]")
 }
+
+func TestNetworkDevicesConfigPayload_EmptyTimestamps(t *testing.T) {
+	agentTs := time.Now().Unix()
+	ndc := NetworkDeviceConfig{
+		DeviceID:     "default:10.0.0.1",
+		DeviceIP:     "10.0.0.1",
+		ConfigType:   string(RUNNING),
+		ConfigSource: string(CLI),
+		Timestamp:    0,
+	}
+	payload := ToNCMPayload("test", []NetworkDeviceConfig{ndc}, agentTs)
+
+	expected := NetworkDeviceConfig{
+		DeviceID:     "default:10.0.0.1",
+		DeviceIP:     "10.0.0.1",
+		ConfigType:   string(RUNNING),
+		ConfigSource: string(CLI),
+		Timestamp:    agentTs,
+	}
+
+	// check NCM payload
+	assert.Equal(t, "test", payload.Namespace)
+	assert.Len(t, payload.Configs, 1)
+	assert.Equal(t, agentTs, payload.CollectTimestamp)
+
+	// check the config's empty timestamp replaced with agent collection timestamp
+	assert.Equal(t, payload.Configs[0], expected)
+}

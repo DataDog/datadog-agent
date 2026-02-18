@@ -13,15 +13,19 @@ package safenvml
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // getCriticalAPIs returns the list of critical NVML APIs
@@ -50,6 +54,7 @@ func getNonCriticalAPIs() []string {
 		"nvmlGpmMetricsGet",
 		"nvmlGpmQueryDeviceSupport",
 		"nvmlGpmSampleGet",
+		"nvmlGpmMigSampleGet",
 		"nvmlEventSetCreate",
 		"nvmlEventSetFree",
 		"nvmlEventSetWait_v1",
@@ -65,6 +70,7 @@ func getNonCriticalAPIs() []string {
 		toNativeName("GetFanSpeed"),
 		toNativeName("GetFieldValues"),
 		toNativeName("GetGpuInstanceId"),
+		toNativeName("GetGpuInstanceProfileInfo"),
 		toNativeName("GetMaxClockInfo"),
 		toNativeName("GetMaxMigDeviceCount"),
 		toNativeName("GetMemoryBusWidth"),
@@ -86,6 +92,8 @@ func getNonCriticalAPIs() []string {
 		toNativeName("GetVirtualizationMode"),
 		toNativeName("GetSupportedEventTypes"),
 		toNativeName("RegisterEvents"),
+		toNativeName("GetMemoryErrorCounter"),
+		toNativeName("GetRunningProcessDetailList"),
 	}
 }
 
@@ -284,6 +292,27 @@ func populateCapabilities(lib nvml.Interface) (map[string]struct{}, error) {
 	return capabilities, nil
 }
 
+// tryCandidateNvmlPaths tries to load the NVML library from the given paths, using the given function to create a new NVML library instance.
+// We use nvmlNewWithPath to wrap the nvmlNewFunc, so that we can more easily test this code (we can't inspect the NVML library options).
+func tryCandidateNvmlPaths(paths []string, nvmlNewWithPath func(path string) nvml.Interface) (nvml.Interface, error) {
+	for _, path := range paths {
+		log.Debugf("Trying to load NVML library from path '%s'", path)
+
+		lib := nvmlNewWithPath(path)
+		if lib == nil {
+			return nil, errors.New("failed to create NVML library")
+		}
+		ret := lib.Init()
+		if ret == nvml.SUCCESS || ret == nvml.ERROR_ALREADY_INITIALIZED {
+			return lib, nil
+		} else if ret != nvml.ERROR_LIBRARY_NOT_FOUND {
+			return nil, NewNvmlAPIErrorOrNil("Init", ret)
+		}
+	}
+
+	return nil, fmt.Errorf("failed to find NVML library in any of the candidate paths, searched: %v", paths)
+}
+
 // ensureInitWithOpts initializes the NVML library with the given options (used for testing)
 func (s *safeNvml) ensureInitWithOpts(nvmlNewFunc func(opts ...nvml.LibraryOption) nvml.Interface) error {
 	// If the library is already initialized, return nil without locking
@@ -313,18 +342,25 @@ func (s *safeNvml) ensureInitWithOpts(nvmlNewFunc func(opts ...nvml.LibraryOptio
 		libpath = cfg.GetString("gpu.nvml_lib_path")
 	}
 
-	lib := nvmlNewFunc(nvml.WithLibraryPath(libpath))
-	if lib == nil {
-		return fmt.Errorf("failed to create NVML library")
-	}
+	// Note that if the default "libpath" is empty, NVML will just invoke
+	// `dlopen` with no specified path, and the linker will try to open the
+	// library from the default library search paths. This is the default we
+	// want. The alternative paths are only used if the default path is not
+	// found, to make it more convenient and robust, without users having to
+	// specify some common paths that might not be in the library search paths,
+	// specially in containerized environments.
+	libPaths := []string{libpath}
+	libPaths = append(libPaths, generateDefaultNvmlPaths()...)
 
-	ret := lib.Init()
-	if ret != nvml.SUCCESS && ret != nvml.ERROR_ALREADY_INITIALIZED {
-		return NewNvmlAPIErrorOrNil("Init", ret)
+	nvmlNewWithPath := func(path string) nvml.Interface {
+		return nvmlNewFunc(nvml.WithLibraryPath(path))
+	}
+	lib, err := tryCandidateNvmlPaths(libPaths, nvmlNewWithPath)
+	if err != nil {
+		return err
 	}
 
 	// Populate and verify critical capabilities
-	var err error
 	s.capabilities, err = populateCapabilities(lib)
 	if err != nil {
 		return fmt.Errorf("failed to verify NVML capabilities: %w", err)
@@ -354,4 +390,31 @@ func GetSafeNvmlLib() (SafeNVML, error) {
 	}
 
 	return &singleton, nil
+}
+
+// generateDefaultNvmlPaths generates the default paths for the NVML library,
+// taking into account containerized environments and the HOST_ROOT environment variable.
+// NOTE: This logic is intentionally duplicated in pkg/config/env/environment_containers.go
+// (getDefaultNvmlPaths) to avoid adding pkg/gpu as a dependency of pkg/config/env, which
+// is imported by nearly every binary in the repo.
+func generateDefaultNvmlPaths() []string {
+	systemPaths := []string{
+		"/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1",                   // default system install
+		"/run/nvidia/driver/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1", // nvidia-gpu-operator install
+	}
+
+	hostRoot := os.Getenv("HOST_ROOT")
+	if hostRoot == "" {
+		if env.IsContainerized() {
+			hostRoot = "/host"
+		} else {
+			return systemPaths
+		}
+	}
+
+	paths := make([]string, 0, len(systemPaths))
+	for _, p := range systemPaths {
+		paths = append(paths, filepath.Join(hostRoot, p))
+	}
+	return paths
 }

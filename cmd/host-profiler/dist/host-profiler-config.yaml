@@ -7,29 +7,46 @@ receivers:
       grpc:
       http:
   hostprofiler:
+    symbol_uploader:
+      enabled: true
 processors:
-# infraattributes/default is automatically removed when the Agent Core is not available  
+# infraattributes/default is automatically removed when the Agent Core is not available
   infraattributes/default:
     cardinality: 2 # HighCardinality
+    allow_hostname_override: true
   cumulativetodelta: {}
+# resourcedetection is automatically removed when the Agent Core is available
+  resourcedetection:
+    detectors: ["system"]
+    system:
+      # TODO: which resource attributes do we want as default?
+      # https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/resourcedetectionprocessor/internal/system/documentation.md
+      resource_attributes:
+        host.arch:
+          enabled: true
+        host.name:
+          enabled: false
+        os.type:
+          enabled: false
 
 exporters:
   debug: {}
-  otlphttp:
+  otlphttp/metrics:
     metrics_endpoint: https://otlp.datadoghq.com/v1/metrics
-    profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles
     headers:
       dd-api-key: ${env:DD_API_KEY}
+      dd-otel-metric-config: '{"resource_attributes_as_tags": true}'
 service:
   extensions: [hpflare/default]
   pipelines:
     profiles:
       receivers: [hostprofiler]
-      # infraattributes/default is automatically removed when the Agent Core is not available  
-      processors: [infraattributes/default]
-      exporters: [otlphttp, debug]   
+      # infraattributes/default is automatically removed when the Agent Core is not available
+      # resourcedetection is automatically removed when the Agent Core is available
+      processors: [infraattributes/default, resourcedetection]
+      exporters: [debug]
     metrics:
       receivers: [otlp]
-      # infraattributes/default is automatically removed when the Agent Core is not available  
+      # infraattributes/default is automatically removed when the Agent Core is not available
       processors: [cumulativetodelta, infraattributes/default]
-      exporters: [otlphttp]
+      exporters: [otlphttp/metrics]

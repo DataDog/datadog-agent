@@ -235,7 +235,7 @@ func (q *pullSubscription) Running() bool {
 func (q *pullSubscription) Start() error {
 
 	if q.started {
-		return fmt.Errorf("Query subscription is already started")
+		return errors.New("Query subscription is already started")
 	}
 
 	// Initialize bookmark (may load from saver or create new)
@@ -346,7 +346,7 @@ func (q *pullSubscription) initializeBookmark() (evtbookmark.Bookmark, error) {
 func (q *pullSubscription) initializeBookmarkFromLatestEvent() (evtbookmark.Bookmark, error) {
 	if q.bookmarkSaver == nil {
 		// This function doesn't make sense if we're not going to save the bookmark
-		return nil, fmt.Errorf("bookmark saver not provided")
+		return nil, errors.New("bookmark saver not provided")
 	}
 
 	bookmark, err := evtbookmark.FromLatestEvent(q.eventLogAPI, q.channelPath, q.query)
@@ -437,7 +437,7 @@ waitLoop:
 					select {
 					case q.eventsChannel <- q.parseEventRecordHandles(eventRecordHandles):
 					case <-q.notifyStop:
-						q.err = fmt.Errorf("received stop signal")
+						q.err = errors.New("received stop signal")
 						pkglog.Info(q.err)
 						return
 					}
@@ -458,18 +458,15 @@ waitLoop:
 			}
 		} else if dwWait == (windows.WAIT_OBJECT_0 + 1) {
 			// Stop event is set
-			q.err = fmt.Errorf("received stop signal")
+			q.err = errors.New("received stop signal")
 			pkglog.Info(q.err)
 			return
 		}
 
-		// some other error occurred
-		gle := windows.GetLastError()
-		q.logAndSetError(fmt.Errorf("WaitForMultipleObjects unknown error: wait(%d,%#x) gle(%d,%#x)",
+		// some other unexpected return value
+		q.logAndSetError(fmt.Errorf("WaitForMultipleObjects unexpected return value: %d (%#x)",
 			dwWait,
-			dwWait,
-			gle,
-			gle))
+			dwWait))
 		return
 	}
 }

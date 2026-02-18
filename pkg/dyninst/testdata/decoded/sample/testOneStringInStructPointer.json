@@ -23,7 +23,7 @@
           {
             "function": "main.executeStringFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go",
-            "lineNumber": 59
+            "lineNumber": 63
           },
           {
             "function": "main.main",
@@ -63,8 +63,15 @@
             }
           }
         }
-      }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "{a: omg}"
   }
 ]

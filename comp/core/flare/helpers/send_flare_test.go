@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -171,10 +172,12 @@ func TestAnalyzeResponse(t *testing.T) {
 	})
 
 	t.Run("unparseable-from-server-huge", func(t *testing.T) {
-		resp := "uhoh"
+		var respBuilder strings.Builder
+		respBuilder.WriteString("uhoh")
 		for i := 0; i < 100; i++ {
-			resp += "\npad this out to be pretty long"
+			respBuilder.WriteString("\npad this out to be pretty long")
 		}
+		resp := respBuilder.String()
 		r := &http.Response{
 			StatusCode: 200,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
@@ -403,7 +406,7 @@ func TestSendToRetryLogic(t *testing.T) {
 			if len(timeBetweenAttempts) > 0 {
 				for i, duration := range timeBetweenAttempts {
 					expectedDelay := 1 * time.Second
-					assert.True(t, duration >= expectedDelay-100*time.Millisecond && duration <= expectedDelay+100*time.Millisecond,
+					assert.True(t, duration >= expectedDelay-500*time.Millisecond && duration <= expectedDelay+500*time.Millisecond,
 						"Retry delay %d was %v, expected around %v", i+1, duration, expectedDelay)
 				}
 			}

@@ -9,7 +9,7 @@ package workload
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"sync"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -21,7 +21,7 @@ const (
 	patcherQueueSize = 100
 )
 
-var errDeploymentNotValidOwner = fmt.Errorf("deployment is not a valid owner")
+var errDeploymentNotValidOwner = errors.New("deployment is not a valid owner")
 
 // NamespacedPodOwner represents a pod owner in a namespace
 type NamespacedPodOwner struct {

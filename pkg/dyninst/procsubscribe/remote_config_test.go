@@ -168,7 +168,7 @@ func TestRemoteConfigProcessSubscriberTracksUpdatesAndRemovals(t *testing.T) {
 
 	waitRequests := make(waitRequestChan)
 	streams, remoteSub := runFakeAgentSecureServer(t)
-	subscriber := procsubscribe.NewRemoteConfigProcessSubscriber(
+	subscriber := procsubscribe.NewSubscriber(
 		remoteSub,
 		procsubscribe.WithProcessScanner(scanner),
 		procsubscribe.WithClock(mockClock),
@@ -319,7 +319,7 @@ func TestRetrackAfterNewStream(t *testing.T) {
 	}
 
 	streams, remoteSub := runFakeAgentSecureServer(t)
-	subscriber := procsubscribe.NewRemoteConfigProcessSubscriber(
+	subscriber := procsubscribe.NewSubscriber(
 		remoteSub,
 		procsubscribe.WithProcessScanner(scanner),
 		procsubscribe.WithClock(mockClock),
@@ -394,7 +394,7 @@ func TestRemoteConfigSymDBUpdates(t *testing.T) {
 	}
 
 	streams, remoteSub := runFakeAgentSecureServer(t)
-	subscriber := procsubscribe.NewRemoteConfigProcessSubscriber(
+	subscriber := procsubscribe.NewSubscriber(
 		remoteSub,
 		procsubscribe.WithProcessScanner(scanner),
 		procsubscribe.WithClock(mockClock),
@@ -512,7 +512,7 @@ func TestContainerAndGitInfoParsing(t *testing.T) {
 	}
 
 	streams, remoteSub := runFakeAgentSecureServer(t)
-	subscriber := procsubscribe.NewRemoteConfigProcessSubscriber(
+	subscriber := procsubscribe.NewSubscriber(
 		remoteSub,
 		procsubscribe.WithProcessScanner(scanner),
 		procsubscribe.WithClock(mockClock),
@@ -576,7 +576,7 @@ func TestExponentialBackoffUpToMaxDelayForNewStream(t *testing.T) {
 	mockClock := clock.NewMock()
 	streams, remoteSub := runFakeAgentSecureServer(t)
 	waitRequests := make(waitRequestChan)
-	subscriber := procsubscribe.NewRemoteConfigProcessSubscriber(
+	subscriber := procsubscribe.NewSubscriber(
 		remoteSub,
 		procsubscribe.WithProcessScanner(scanner),
 		procsubscribe.WithClock(mockClock),
@@ -635,7 +635,7 @@ func TestSymDBStatePreservedWhenNotInMatchedConfigs(t *testing.T) {
 	}
 
 	streams, remoteSub := runFakeAgentSecureServer(t)
-	subscriber := procsubscribe.NewRemoteConfigProcessSubscriber(
+	subscriber := procsubscribe.NewSubscriber(
 		remoteSub,
 		procsubscribe.WithProcessScanner(scanner),
 		procsubscribe.WithClock(mockClock),

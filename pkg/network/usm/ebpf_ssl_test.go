@@ -10,11 +10,12 @@ package usm
 import (
 	"context"
 	"errors"
-	"fmt"
 	nethttp "net/http"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"strconv"
 	"syscall"
 	"testing"
 	"time"
@@ -31,6 +32,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	globalutils "github.com/DataDog/datadog-agent/pkg/util/testutil"
+	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
 const (
@@ -47,7 +50,7 @@ func setNativeTLSPeriodicTerminatedProcessesScanInterval(tb testing.TB, interval
 }
 
 func testArch(t *testing.T, arch string) {
-	cfg := utils.NewUSMEmptyConfig()
+	cfg := NewUSMEmptyConfig()
 	cfg.EnableNativeTLSMonitoring = true
 
 	utils.SkipIfTLSUnsupported(t, cfg)
@@ -57,7 +60,7 @@ func testArch(t *testing.T, arch string) {
 
 	// Named site-packages/ddtrace since it is used from servicediscovery tests too.
 	libmmap := filepath.Join(curDir, "testdata", "site-packages", "ddtrace")
-	lib := filepath.Join(libmmap, fmt.Sprintf("libssl.so.%s", arch))
+	lib := filepath.Join(libmmap, "libssl.so."+arch)
 
 	monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 	require.NotNil(t, monitor)
@@ -101,7 +104,7 @@ func findNonExistingPid(t *testing.T) int {
 func TestSSLMapsCleaner(t *testing.T) {
 	setNativeTLSPeriodicTerminatedProcessesScanInterval(t, time.Second)
 	// setup monitor
-	cfg := utils.NewUSMEmptyConfig()
+	cfg := NewUSMEmptyConfig()
 	cfg.EnableNativeTLSMonitoring = true
 	// test cleanup is faster without event stream, this test does not require event stream
 	cfg.EnableUSMEventStream = false
@@ -226,9 +229,9 @@ func startDummyProgram(t *testing.T) (*exec.Cmd, context.CancelFunc) {
 // correctly removes entries from the ssl_sock_by_ctx and ssl_ctx_by_tuple maps
 // when the TCP connection associated with a TLS session is closed.
 func TestSSLMapsCleanup(t *testing.T) {
-	utils.SkipIfTLSUnsupported(t, utils.NewUSMEmptyConfig())
+	utils.SkipIfTLSUnsupported(t, NewUSMEmptyConfig())
 
-	cfg := utils.NewUSMEmptyConfig()
+	cfg := NewUSMEmptyConfig()
 	cfg.EnableNativeTLSMonitoring = true
 	cfg.EnableHTTPMonitoring = true
 	usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
@@ -310,4 +313,143 @@ func TestSSLMapsCleanup(t *testing.T) {
 		ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, sslSockByCtxMap, sslCtxByTupleMap)
 		t.FailNow()
 	}
+}
+
+// TestPIDKeyedMapNameUniqueness verifies that all PID-keyed TLS map names are unique
+// within their first 15 characters to prevent collisions from kernel truncation.
+//
+// eBPF map names are limited to 15 characters by the kernel (BPF_OBJ_NAME_LEN - 1).
+// The leak detection system searches maps by truncated names, so names like
+// "hash_map_name_10" and "hash_map_name_11" would collide as both truncate to
+// "hash_map_name_1".
+//
+// This test ensures we catch such collisions at compile/test time rather than
+// discovering them in production.
+func TestPIDKeyedMapNameUniqueness(t *testing.T) {
+	names := GetPIDKeyedTLSMapNames()
+	require.NotEmpty(t, names, "No PID-keyed map names found")
+
+	truncated := make(map[string]string)
+	for _, name := range names {
+		truncName := name
+		if len(name) > 15 {
+			truncName = name[:15]
+		}
+
+		if existing, found := truncated[truncName]; found {
+			t.Errorf("Map name collision detected:\n"+
+				"  Map 1: %q\n"+
+				"  Map 2: %q\n"+
+				"  Both truncate to: %q\n"+
+				"Map names must be unique within their first 15 characters due to kernel limitation (BPF_OBJ_NAME_LEN - 1).",
+				existing, name, truncName)
+		}
+		truncated[truncName] = name
+	}
+
+	// Log all truncated names for reference
+	t.Logf("Current PID-keyed TLS map names and their truncated forms:")
+	for _, name := range names {
+		if len(name) > 15 {
+			truncName := name[:15]
+			t.Logf("  %q -> %q (truncated)", name, truncName)
+		} else {
+			t.Logf("  %q (no truncation)", name)
+		}
+	}
+}
+
+// TestFdBySSLBioMapLeak verifies that the fd_by_ssl_bio map is properly cleaned
+// up when BIO_new_socket is called without a subsequent SSL_set_bio.
+//
+// The original bug: uretprobe__BIO_new_socket adds entries to fd_by_ssl_bio,
+// but entries were only deleted by uprobe__SSL_set_bio. If SSL_set_bio was
+// never called (e.g., error paths where BIO_free is called directly), entries
+// would leak.
+//
+// The fix: uprobe__BIO_free now deletes entries when BIO is freed.
+//
+// This test verifies the fix by:
+// 1. Starting a TLS server
+// 2. Running a helper program that calls BIO_new_socket without SSL_set_bio
+// 3. Verifying that fd_by_ssl_bio map entries do NOT accumulate (leak is fixed)
+func TestFdBySSLBioMapLeak(t *testing.T) {
+	cfg := NewUSMEmptyConfig()
+	cfg.EnableNativeTLSMonitoring = true
+	cfg.EnableHTTPMonitoring = true
+
+	utils.SkipIfTLSUnsupported(t, cfg)
+
+	// Start HTTPS server
+	const serverAddr = "127.0.0.1:8443"
+	serverDone := testutil.HTTPServer(t, serverAddr, testutil.Options{
+		EnableTLS: true,
+	})
+	t.Cleanup(serverDone)
+
+	// Setup USM monitor
+	monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
+	require.NotNil(t, monitor)
+
+	// Get the fd_by_ssl_bio map
+	fdBioMap, mapExists, err := monitor.ebpfProgram.Manager.GetMap(fdBySSLBioMap)
+	require.NoError(t, err, "Error getting fd_by_ssl_bio map")
+	require.True(t, mapExists, "fd_by_ssl_bio map does not exist")
+	require.NotNil(t, fdBioMap, "fd_by_ssl_bio map is nil")
+
+	// Count entries before running leak helper
+	countBefore := utils.CountMapEntries(t, fdBioMap)
+	t.Logf("fd_by_ssl_bio entries before: %d", countBefore)
+
+	// Run the bio_leak helper via Docker to create stale entries
+	const numStaleEntries = 50
+	runBioLeakHelperDocker(t, "127.0.0.1", "8443", numStaleEntries)
+
+	// Count entries after - they should NOT have increased (leak is fixed)
+	countAfter := utils.CountMapEntries(t, fdBioMap)
+	t.Logf("fd_by_ssl_bio entries after: %d (attempted to create %d stale entries)", countAfter, numStaleEntries)
+
+	// Verify no entries leaked (entries should be cleaned up)
+	entriesAdded := countAfter - countBefore
+	assert.Equal(t, 0, entriesAdded,
+		"fd_by_ssl_bio map should not have stale entries; before=%d, after=%d, leaked=%d",
+		countBefore, countAfter, entriesAdded)
+
+	if t.Failed() {
+		ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, fdBySSLBioMap)
+	}
+}
+
+// runBioLeakHelperDocker runs the bio_leak helper in a Docker container.
+// The helper calls BIO_new_socket without SSL_set_bio to test map cleanup.
+func runBioLeakHelperDocker(t *testing.T, host, port string, numEntries int) {
+	t.Helper()
+
+	// Get the testdata directory path using CurDir() which handles
+	// the difference between build-time and runtime paths in CI
+	curDir, err := testutil.CurDir()
+	require.NoError(t, err, "Failed to get current directory")
+	testDataDir := filepath.Join(curDir, "testdata", "bio_leak_test")
+
+	env := []string{
+		"TESTDIR=" + testDataDir,
+		"HOST=" + host,
+		"PORT=" + port,
+		"NUM_ENTRIES=" + strconv.Itoa(numEntries),
+	}
+
+	// Wait for "ready" output which indicates the binary was built and is about to run
+	scanner, err := globalutils.NewScanner(regexp.MustCompile("ready"), globalutils.NoPattern)
+	require.NoError(t, err, "failed to create pattern scanner")
+
+	dockerCfg := dockerutils.NewComposeConfig(
+		dockerutils.NewBaseConfig(
+			"bio-leak",
+			scanner,
+			dockerutils.WithEnv(env),
+		),
+		filepath.Join(testDataDir, "docker-compose.yml"))
+
+	err = dockerutils.Run(t, dockerCfg)
+	require.NoError(t, err, "failed to run bio_leak docker container")
 }

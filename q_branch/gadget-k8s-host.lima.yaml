@@ -1,0 +1,78 @@
+minimumLimaVersion: "1.0.0"
+
+# Software versions - update these to keep tools current
+# Check latest: https://github.com/kubernetes-sigs/kind/releases
+#               https://kubernetes.io/releases/
+env:
+  KIND_VERSION: "v0.27.0"
+  KUBECTL_VERSION: "v1.32"
+
+images:
+- location: "https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-arm64.img"
+  arch: "aarch64"
+
+cpus: 6
+memory: 12GiB
+disk: 80GiB
+
+ssh:
+  localPort: 0
+
+# Port forwarding for Kind API server (6443) and NodePorts
+portForwards:
+  - guestPort: 6443
+    hostPort: 6443
+  - guestPortRange: [30000, 30100]
+    hostPortRange: [30000, 30100]
+
+mounts: []
+
+provision:
+  # System packages + Docker CE + k8s tools
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux
+      export DEBIAN_FRONTEND=noninteractive
+
+      apt-get update
+      apt-get install -y \
+        build-essential ca-certificates curl gnupg lsb-release \
+        git wget rsync jq stress-ng
+
+      # Docker CE
+      install -m 0755 -d /etc/apt/keyrings
+      curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+      chmod a+r /etc/apt/keyrings/docker.gpg
+      echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
+      apt-get update
+      apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+      usermod -aG docker lima
+      systemctl enable docker
+      systemctl start docker
+
+      # kubectl
+      curl -fsSL "https://pkgs.k8s.io/core:/stable:/${KUBECTL_VERSION}/deb/Release.key" | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/${KUBECTL_VERSION}/deb/ /" > /etc/apt/sources.list.d/kubernetes.list
+      apt-get update
+      apt-get install -y kubectl
+
+      # Kind
+      curl -Lo /usr/local/bin/kind "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-$(dpkg --print-architecture)"
+      chmod +x /usr/local/bin/kind
+
+      # Helm
+      curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+  # Datadog helm repo for lima user
+  - mode: user
+    script: |
+      #!/bin/bash
+      set -eux
+      helm repo add datadog https://helm.datadoghq.com
+      helm repo update
+
+message: |
+  Tools installed: docker, kubectl, kind, helm
+
+  Run setup-k8s-host.sh to create the Kind cluster and configure kubectl.

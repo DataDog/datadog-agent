@@ -1,0 +1,97 @@
+.bazel:defs:
+  needs: [ ]
+  variables:
+    BAZELISK_HOME: "$XDG_CACHE_HOME/bazelisk" # not all bazelisk versions may honor $XDG_CACHE_HOME
+
+.bazel:defs:cache:ephemeral:
+  extends: .bazel:defs
+  cache:
+    - &bazelversion_cache
+      key:
+        prefix: bazelversion-$CI_RUNNER_DESCRIPTION
+        files: [ .bazelversion ]
+      paths:
+        - .cache/bazelisk
+        - .cache/bazel/*/install
+      policy: pull$BAZEL_CACHE_POLICY_SUFFIX
+      when: on_success
+    - &bazel_cache
+      key: bazel-$CI_RUNNER_DESCRIPTION
+      paths:
+        - .cache/bazel/*/cache
+        - .cache/pip
+      policy: pull$BAZEL_CACHE_POLICY_SUFFIX
+      when: on_success
+  variables:
+    XDG_CACHE_HOME: "$CI_PROJECT_DIR/.cache"
+
+.bazel:defs:cache:omnibus-transition:
+  extends: .bazel:defs
+  cache:
+    - !reference [ .cache_omnibus_ruby_deps, cache ]
+    - *bazelversion_cache
+    - *bazel_cache
+  variables:
+    XDG_CACHE_HOME: "$CI_PROJECT_DIR/.cache"
+
+.bazel:defs:cache:macos:
+  extends: .bazel:defs
+  variables:
+    XDG_CACHE_HOME: "$RUNNER_TEMP_PROJECT_DIR"
+
+.bazel:defs:cache:persistent:
+  extends: .bazel:defs
+  variables:
+    XDG_CACHE_HOME: /data/bzl
+
+.bazel:defs:cache:windows:
+  extends: .bazel:defs
+  variables:
+    XDG_CACHE_HOME: c:/bzl
+
+# ⚠️ swap `extends` and `tags` only for *experimental* purposes with persistent runners
+.bazel:runner:linux-amd64:
+  #extends: .bazel:defs:cache:persistent
+  #tags: [ "k8s-persistent:amd64", "specific:true" ]
+  extends: .bazel:defs:cache:ephemeral
+  tags: [ "arch:amd64", "specific:true" ]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+
+.bazel:runner:linux-arm64:
+  #extends: .bazel:defs:cache:persistent
+  #tags: [ "k8s-persistent:arm64", "specific:true" ]
+  extends: .bazel:defs:cache:ephemeral
+  tags: [ "arch:arm64", "specific:true" ]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+
+.bazel:runner:macos-amd64:
+  extends: .bazel:defs:cache:macos
+  tags: [ "macos:sonoma-amd64", "specific:true" ]
+
+.bazel:runner:macos-arm64:
+  extends: .bazel:defs:cache:macos
+  tags: [ "macos:sonoma-arm64", "specific:true" ]
+
+.bazel:runner:windows-amd64:
+  extends: [ .bazel:defs:cache:windows, .windows_docker_default ]
+  timeout: 60m # pulling images alone can take more than 30m
+  variables:
+    ARCH: x64
+    GIT_DEPTH: 2
+  script:
+    - |-
+      $FailFast = @'
+      $ErrorActionPreference = 'Stop'
+      $PSNativeCommandUseErrorActionPreference = $true
+      Set-StrictMode -Version 3.0
+      '@
+      Invoke-Expression $FailFast
+      $Utf8Script = [Text.Encoding]::UTF8.GetString([Text.Encoding]::GetEncoding([Console]::OutputEncoding.CodePage).GetBytes($POWERSHELL_SCRIPT))
+      $EncodedCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes("$FailFast`n$Utf8Script"))
+    - >-
+      .\tools\ci\docker-run-with-bazel-cache.ps1
+      --env=CI_IDENTITIES_GITLAB_ID_TOKEN
+      --volume="${CI_PROJECT_DIR}:$CI_PROJECT_DIR"
+      --workdir="$CI_PROJECT_DIR"
+      "$WINBUILDIMAGE"
+      powershell -NonInteractive -NoLogo -NoProfile -InputFormat Text -OutputFormat Text -EncodedCommand $EncodedCommand

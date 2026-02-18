@@ -1,0 +1,266 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+// Code generated - DO NOT EDIT.
+
+{{range .BuildTags}}//{{.}}
+{{end}}
+
+package {{.Name}}
+
+import (
+	{{if has "go:build unix" .BuildTags}}
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
+	"github.com/google/gopacket"
+	{{end}}
+	
+	{{if ne $.SourcePkg $.TargetPkg}}"{{.SourcePkg}}"{{end}}
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+)
+
+{{$FieldsTree := .FieldTree}}
+{{$GeneratedFunctions := dict}}
+
+// DeepCopy creates a deep copy of the Event where the copy shares nothing with the original
+func (e *Event) DeepCopy() *Event {
+	if e == nil {
+		return nil
+	}
+
+	copied := &Event{}
+
+	{{- range $FieldsTree.Children}}
+	{{- if .Field}}
+	{{- /* Fixed-size arrays are value types, copy by assignment; slices and maps always need functions; scalars can be direct assigned */}}
+	{{- if and .Field.IsArray .Field.IsFixedArray}}
+	copied.{{.Field.Name}} = e.{{.Field.Name}}
+	{{- else if and .Field.IsBasic (not .Field.IsArray) (not .Field.IsMap)}}
+	copied.{{.Field.Name}} = e.{{.Field.Name}}
+	{{- else}}
+	{{- $baseName := BaseName .Field.OrigType}}
+	{{- /* For arrays/maps, check element/value properties; otherwise check field properties */}}
+	{{- $ptrSuffix := ""}}
+	{{- if .Field.IsArray}}
+		{{- if .Field.ArrayElement.IsPtr}}{{$ptrSuffix = "Ptr"}}{{end}}
+	{{- else if .Field.IsMap}}
+		{{- if .Field.MapValue.IsPtr}}{{$ptrSuffix = "Ptr"}}{{end}}
+	{{- else}}
+		{{- if .Field.IsOrigTypePtr}}{{$ptrSuffix = "Ptr"}}{{end}}
+	{{- end}}
+	{{- $arrSuffix := ""}}
+	{{- if .Field.IsArray}}
+		{{$arrSuffix = "Arr"}}
+		{{- if .Field.ArrayElement.IsArray}}{{$arrSuffix = "ArrArr"}}{{end}}
+	{{- else if .Field.IsMap}}
+		{{- if .Field.MapValue.IsArray}}{{$arrSuffix = "Arr"}}{{end}}
+	{{- end}}
+	{{- $mapSuffix := ""}}
+	{{- if .Field.IsMap}}{{$mapSuffix = "Map"}}{{end}}
+	copied.{{.Field.Name}} = deepCopy{{$baseName}}{{$ptrSuffix}}{{$arrSuffix}}{{$mapSuffix}}(e.{{.Field.Name}})
+	{{- end}}
+	{{- end}}
+	{{- end}}
+
+	// FieldHandlers is an interface that must be copied by reference (not deep copied)
+	// It provides access to shared resolvers needed for field resolution
+	copied.FieldHandlers = e.FieldHandlers
+
+	return copied
+}
+
+{{- define "generateDeepCopyFunctions"}}
+{{- $node := .Node}}
+{{- $generated := .Generated}}
+	{{- if $node.Field}}
+		{{- $baseName := BaseName $node.Field.OrigType}}
+		
+		{{- /* For arrays/maps, check element/value properties; otherwise check field properties */}}
+		{{- $isPtr := false}}
+		{{- $isArray := $node.Field.IsArray}}
+		{{- $isMap := $node.Field.IsMap}}
+		{{- if $isArray}}
+			{{- $isPtr = $node.Field.ArrayElement.IsPtr}}
+		{{- else if $isMap}}
+			{{- $isPtr = $node.Field.MapValue.IsPtr}}
+		{{- else}}
+			{{- $isPtr = $node.Field.IsOrigTypePtr}}
+		{{- end}}
+		
+		{{- /* Generate unique key for this function */ -}}
+		{{- $key := $baseName}}
+		{{- if $isPtr}}{{$key = printf "%sPtr" $key}}{{end}}
+		{{- if $isArray}}{{$key = printf "%sArr" $key}}{{end}}
+		{{- if and $isArray $node.Field.ArrayElement.IsArray}}{{$key = printf "%sArr" $key}}{{end}}
+		{{- if $isMap}}
+			{{- if $node.Field.MapValue.IsArray}}{{$key = printf "%sArr" $key}}{{end}}
+			{{- $key = printf "%sMap" $key}}
+		{{- end}}
+		
+		{{- /* Only generate if not already generated */ -}}
+		{{- if not (hasKey $generated $key)}}
+		{{- $_ := set $generated $key true}}
+		
+		{{- /* Build function name */ -}}
+		{{- $funcName := printf "deepCopy%s" $baseName}}
+		{{- if $isPtr}}{{$funcName = printf "%sPtr" $funcName}}{{end}}
+		{{- if $isArray}}{{$funcName = printf "%sArr" $funcName}}{{end}}
+		{{- if and $isArray $node.Field.ArrayElement.IsArray}}{{$funcName = printf "%sArr" $funcName}}{{end}}
+		{{- if $isMap}}
+			{{- if $node.Field.MapValue.IsArray}}{{$funcName = printf "%sArr" $funcName}}{{end}}
+			{{- $funcName = printf "%sMap" $funcName}}
+		{{- end}}
+		
+		{{- /* Build type signature */ -}}
+		{{- $typePrefix := ""}}
+		{{- if $isArray}}{{$typePrefix = "[]"}}{{end}}
+		{{- if $isMap}}
+			{{- $typePrefix = "map[string]"}}
+			{{- if $node.Field.MapValue.IsArray}}{{$typePrefix = printf "%s[]" $typePrefix}}{{end}}
+		{{- end}}
+		{{- if $isPtr}}{{$typePrefix = printf "%s*" $typePrefix}}{{end}}
+		{{- $fullType := printf "%s%s" $typePrefix $node.Field.OrigType}}
+		
+func {{$funcName}}(fieldToCopy {{$fullType}}) {{$fullType}} {
+		{{- $strategy := GetFieldCopyStrategy $node.Field}}
+		
+		{{- if eq $strategy "pointer"}}
+	if fieldToCopy == nil {
+		return nil
+	}
+	copied := &{{$node.Field.OrigType}}{}
+			{{- range $node.Children}}
+			{{- $childBaseName := BaseName .Field.OrigType}}
+			{{- /* For arrays/maps, check element/value properties; otherwise check field properties */}}
+			{{- $childPtrSuffix := ""}}
+			{{- if .Field.IsArray}}
+				{{- if .Field.ArrayElement.IsPtr}}{{$childPtrSuffix = "Ptr"}}{{end}}
+			{{- else if .Field.IsMap}}
+				{{- if .Field.MapValue.IsPtr}}{{$childPtrSuffix = "Ptr"}}{{end}}
+			{{- else}}
+				{{- if .Field.IsOrigTypePtr}}{{$childPtrSuffix = "Ptr"}}{{end}}
+			{{- end}}
+			{{- $childArrSuffix := ""}}
+			{{- if .Field.IsArray}}
+				{{$childArrSuffix = "Arr"}}
+				{{- if .Field.ArrayElement.IsArray}}{{$childArrSuffix = "ArrArr"}}{{end}}
+			{{- else if .Field.IsMap}}
+				{{- if .Field.MapValue.IsArray}}{{$childArrSuffix = "Arr"}}{{end}}
+			{{- end}}
+			{{- $childMapSuffix := ""}}
+			{{- if .Field.IsMap}}{{$childMapSuffix = "Map"}}{{end}}
+			{{- /* Fixed-size arrays are value types, copy by assignment; slices and maps always need functions; scalars can be direct assigned */}}
+			{{- if and .Field.IsArray .Field.IsFixedArray}}
+	copied.{{.Name}} = fieldToCopy.{{.Name}}
+			{{- else if and .Field.IsBasic (not .Field.IsArray) (not .Field.IsMap)}}
+	copied.{{.Name}} = fieldToCopy.{{.Name}}
+			{{- else}}
+	copied.{{.Name}} = deepCopy{{$childBaseName}}{{$childPtrSuffix}}{{$childArrSuffix}}{{$childMapSuffix}}(fieldToCopy.{{.Name}})
+			{{- end}}
+			{{- end}}
+	return copied
+		
+		{{- else if eq $strategy "array"}}
+	if fieldToCopy == nil {
+		return nil
+	}
+			{{- $elemTypePrefix := ""}}
+			{{- if $isPtr}}{{$elemTypePrefix = "*"}}{{end}}
+	copied := make([]{{$elemTypePrefix}}{{$node.Field.OrigType}}, len(fieldToCopy))
+			{{- if $node.Field.IsBasic}}
+	for i := range fieldToCopy {
+		copied[i] = fieldToCopy[i]
+	}
+			{{- else}}
+			{{- $elemCopyFunc := printf "deepCopy%s" $baseName}}
+			{{- if $isPtr}}{{$elemCopyFunc = printf "%sPtr" $elemCopyFunc}}{{end}}
+	for i := range fieldToCopy {
+		copied[i] = {{$elemCopyFunc}}(fieldToCopy[i])
+	}
+			{{- end}}
+	return copied
+		
+		{{- else if eq $strategy "map"}}
+	if fieldToCopy == nil {
+		return nil
+	}
+			{{- $valueTypePrefix := ""}}
+			{{- if $isPtr}}{{$valueTypePrefix = "*"}}{{end}}
+			{{- $isValueArray := false}}
+			{{- if $node.Field.MapValue}}{{$isValueArray = $node.Field.MapValue.IsArray}}{{end}}
+			{{- if $isValueArray}}{{$valueTypePrefix = printf "%s[]" $valueTypePrefix}}{{end}}
+	copied := make(map[string]{{$valueTypePrefix}}{{$node.Field.OrigType}}, len(fieldToCopy))
+			{{- if $node.Field.IsBasic}}
+	for k, v := range fieldToCopy {
+		copied[k] = v
+	}
+			{{- else}}
+			{{- $valueCopyFunc := printf "deepCopy%s" $baseName}}
+			{{- if $isPtr}}{{$valueCopyFunc = printf "%sPtr" $valueCopyFunc}}{{end}}
+			{{- if $isValueArray}}{{$valueCopyFunc = printf "%sArr" $valueCopyFunc}}{{end}}
+	for k, v := range fieldToCopy {
+		copied[k] = {{$valueCopyFunc}}(v)
+	}
+			{{- end}}
+	return copied
+		
+		{{- else if eq $strategy "struct"}}
+	copied := {{$node.Field.OrigType}}{}
+			{{- range $node.Children}}
+			{{- $childBaseName := BaseName .Field.OrigType}}
+			{{- /* For arrays/maps, check element/value properties; otherwise check field properties */}}
+			{{- $childPtrSuffix := ""}}
+			{{- if .Field.IsArray}}
+				{{- if .Field.ArrayElement.IsPtr}}{{$childPtrSuffix = "Ptr"}}{{end}}
+			{{- else if .Field.IsMap}}
+				{{- if .Field.MapValue.IsPtr}}{{$childPtrSuffix = "Ptr"}}{{end}}
+			{{- else}}
+				{{- if .Field.IsOrigTypePtr}}{{$childPtrSuffix = "Ptr"}}{{end}}
+			{{- end}}
+			{{- $childArrSuffix := ""}}
+			{{- if .Field.IsArray}}
+				{{$childArrSuffix = "Arr"}}
+				{{- if .Field.ArrayElement.IsArray}}{{$childArrSuffix = "ArrArr"}}{{end}}
+			{{- else if .Field.IsMap}}
+				{{- if .Field.MapValue.IsArray}}{{$childArrSuffix = "Arr"}}{{end}}
+			{{- end}}
+			{{- $childMapSuffix := ""}}
+			{{- if .Field.IsMap}}{{$childMapSuffix = "Map"}}{{end}}
+			
+			{{- /* Fixed-size arrays are value types, copy by assignment; slices and maps always need functions; scalars can be direct assigned */}}
+			{{- if and .Field.IsArray .Field.IsFixedArray}}
+	copied.{{.Name}} = fieldToCopy.{{.Name}}
+			{{- else if and .Field.IsBasic (not .Field.IsArray) (not .Field.IsMap)}}
+	copied.{{.Name}} = fieldToCopy.{{.Name}}
+			{{- else}}
+	copied.{{.Name}} = deepCopy{{$childBaseName}}{{$childPtrSuffix}}{{$childArrSuffix}}{{$childMapSuffix}}(fieldToCopy.{{.Name}})
+			{{- end}}
+			{{- end}}
+	return copied
+		
+		{{- else}}
+	return fieldToCopy
+		{{- end}}
+}
+		{{- end}}
+	{{- end}}
+
+{{- range $node.Children}}
+{{- /* Generate functions for: non-basic types, slices (not fixed arrays), maps */}}
+{{- if or (not .Field.IsBasic) (and .Field.IsArray (not .Field.IsFixedArray)) .Field.IsMap}}
+{{- template "generateDeepCopyFunctions" (dict "Node" . "Generated" $generated)}}
+{{- if .ElementOfArrayField}}
+{{- if or (not .ElementOfArrayField.Field.IsBasic) (and .ElementOfArrayField.Field.IsArray (not .ElementOfArrayField.Field.IsFixedArray)) .ElementOfArrayField.Field.IsMap}}
+{{- template "generateDeepCopyFunctions" (dict "Node" .ElementOfArrayField "Generated" $generated)}}
+{{- end}}
+{{- end}}
+{{- if .ElementOfMapField}}
+{{- if or (not .ElementOfMapField.Field.IsBasic) (and .ElementOfMapField.Field.IsArray (not .ElementOfMapField.Field.IsFixedArray)) .ElementOfMapField.Field.IsMap}}
+{{- template "generateDeepCopyFunctions" (dict "Node" .ElementOfMapField "Generated" $generated)}}
+{{- end}}
+{{- end}}
+{{- end}}
+{{- end}}
+{{- end}}
+
+{{template "generateDeepCopyFunctions" (dict "Node" $FieldsTree "Generated" $GeneratedFunctions)}}

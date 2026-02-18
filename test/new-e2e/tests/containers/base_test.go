@@ -14,6 +14,7 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
@@ -21,9 +22,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 )
 
 type baseSuite[Env any] struct {
@@ -105,7 +106,7 @@ func (suite *baseSuite[Env]) testMetric(args *testMetricArgs) {
 			})
 
 			if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
-				Title: pointer.Ptr(fmt.Sprintf("testMetric %s", prettyMetricQuery)),
+				Title: pointer.Ptr("testMetric " + prettyMetricQuery),
 				Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
 ### Result
 
@@ -234,7 +235,7 @@ func (suite *baseSuite[Env]) testLog(args *testLogArgs) {
 			})
 
 			if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
-				Title: pointer.Ptr(fmt.Sprintf("testLog %s", prettyLogQuery)),
+				Title: pointer.Ptr("testLog " + prettyLogQuery),
 				Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
 ### Result
 
@@ -303,7 +304,11 @@ func (suite *baseSuite[Env]) testLog(args *testLogArgs) {
 
 			// Check tags
 			if expectedTags != nil {
-				err := assertTags(logs[len(logs)-1].GetTags(), expectedTags, []*regexp.Regexp{}, false)
+				// Allow additional logsource tags (e.g. logsource:stdout, logsource:stderr) without failing the test.
+				optionalTags := []*regexp.Regexp{
+					regexp.MustCompile("logsource:.*"),
+				}
+				err := assertTags(logs[len(logs)-1].GetTags(), expectedTags, optionalTags, false)
 				assert.NoErrorf(c, err, "Tags mismatch on `%s`", prettyLogQuery)
 			}
 
@@ -363,7 +368,7 @@ func (suite *baseSuite[Env]) testCheckRun(args *testCheckRunArgs) {
 			})
 
 			if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
-				Title: pointer.Ptr(fmt.Sprintf("testCheckRun %s", prettyCheckRunQuery)),
+				Title: pointer.Ptr("testCheckRun " + prettyCheckRunQuery),
 				Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
 ### Result
 
@@ -476,7 +481,7 @@ func (suite *baseSuite[Env]) testEvent(args *testEventArgs) {
 			})
 
 			if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
-				Title: pointer.Ptr(fmt.Sprintf("testEvent %s", prettyEventQuery)),
+				Title: pointer.Ptr("testEvent " + prettyEventQuery),
 				Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
 ### Result
 
@@ -574,4 +579,101 @@ func (suite *baseSuite[Env]) testEvent(args *testEventArgs) {
 			}
 		}, 2*time.Minute, 10*time.Second, "Failed finding `%s` with proper tags and message", prettyEventQuery)
 	})
+}
+
+type testHostTags struct {
+	ExpectedTags []string
+	OptionalTags []string
+}
+
+func sendEvent[Env any](suite *baseSuite[Env], alertType, text string, args *testHostTags) {
+	formattedArgs, err := yaml.Marshal(args)
+	suite.Require().NoError(err)
+
+	_, err = suite.DatadogClient().PostEvent(&datadog.Event{
+		Title:     pointer.Ptr("test Host-Tags " + suite.T().Name()),
+		AlertType: &alertType,
+		Tags: append([]string{
+			"app:agent-new-e2e-tests-containers",
+			"cluster_name:" + suite.clusterName,
+			"test:" + suite.T().Name(),
+		}, args.ExpectedTags...),
+		Text: pointer.Ptr(fmt.Sprintf(
+			`%%%%%%
+### Result
+
+`+"```"+`
+%s
+`+"```"+`
+
+### Expected Tags
+
+`+"```"+`
+%s
+`+"```"+`
+%%%%%%
+`, text, formattedArgs)),
+	})
+
+	if err != nil {
+		suite.T().Logf("Failed to post event: %s", err)
+	}
+}
+
+func (suite *baseSuite[Env]) testHostTags(args *testHostTags) {
+	suite.EventuallyWithT(func(ct *assert.CollectT) {
+		c := &myCollectT{
+			CollectT: ct,
+			errors:   []error{},
+		}
+
+		defer func() {
+			if len(c.errors) == 0 {
+				sendEvent(suite, "success", "All good!", args)
+			} else {
+				sendEvent(suite, "warning", errors.Join(c.errors...).Error(), args)
+			}
+		}()
+
+		hosts, err := suite.Fakeintake.GetHosts()
+		assert.NoError(c, err, "failed to get hosts from host-tags payload")
+		assert.GreaterOrEqual(c, len(hosts), 1, "empty host-tags payload, no hosts found")
+
+		regexTags := lo.Map(args.ExpectedTags, func(tag string, _ int) *regexp.Regexp {
+			return regexp.MustCompile(tag)
+		})
+
+		var optionalRegexTags []*regexp.Regexp
+		if args.OptionalTags != nil {
+			optionalRegexTags = lo.Map(args.OptionalTags, func(tag string, _ int) *regexp.Regexp {
+				return regexp.MustCompile(tag)
+			})
+		}
+
+		for _, host := range hosts {
+			suite.T().Logf("%s - validate host tags on host %s", time.Now().Format(time.TimeOnly), host)
+
+			hostInfos, err := suite.Fakeintake.GetHostTags(host)
+			require.NoError(c, err, "failed to get host-tags for host %s", host)
+			require.NotEmpty(c, hostInfos, "missing host tags in payload, should be len >= 1")
+
+			// we only want the latest known hostInfos
+			hostInfo := hostInfos[len(hostInfos)-1]
+
+			// we don't know how to handle payloads with no host-name.
+			// these are fargate host that runs side containers for the test.
+			if hostInfo.InternalHostname == "" {
+				continue
+			}
+
+			hostTags := hostInfo.HostTags
+
+			suite.T().Logf("Found host tags:\n- %s\n", strings.ReplaceAll(strings.Join(hostTags, "\n"), "\n", "\n- "))
+
+			require.NotNil(c, hostTags, "wrong payload, could not find 'host-tags' object in payload")
+			err = assertTags(hostTags, regexTags, optionalRegexTags, false)
+			assert.NoError(c, err)
+		}
+
+	}, 33*time.Minute, 1*time.Minute, "Failed to validate all host-tags")
 }

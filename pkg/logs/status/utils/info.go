@@ -7,7 +7,7 @@
 package utils
 
 import (
-	"fmt"
+	"strconv"
 	"sync"
 
 	"go.uber.org/atomic"
@@ -63,7 +63,7 @@ func (c *CountInfo) InfoKey() string {
 
 // Info returns the info
 func (c *CountInfo) Info() []string {
-	return []string{fmt.Sprintf("%d", c.count.Load())}
+	return []string{strconv.FormatInt(c.count.Load(), 10)}
 }
 
 // MappedInfo collects multiple info messages with a unique key

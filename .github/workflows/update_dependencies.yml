@@ -29,7 +29,7 @@ jobs:
         with:
           # credentials are needed to create the PR at the end of the workflow
           persist-credentials: true
-      - uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5.2.0
+      - uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
         with:
           go-version-file: ".go-version"
       - name: Install dda
@@ -67,4 +67,4 @@ jobs:
             ### Describe how you validated your changes
             CI is considered enough to validate changes.
           team-reviewers: agent-runtimes
-          labels: team/agent-runtimes,qa/done,changelog/no-changelog,ask-review
+          labels: team/agent-runtimes,qa/done,changelog/no-changelog

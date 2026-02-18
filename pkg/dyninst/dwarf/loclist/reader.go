@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"debug/dwarf"
 	"encoding/binary"
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/dwarfutil"
@@ -93,11 +94,11 @@ func (r *Reader) Read(unit *dwarf.Entry, offset int64, typeByteSize uint32) (Loc
 		loclist, err = readDwarf2(data, r.ptrSize, typeByteSize)
 	} else {
 		if r.debugAddr == nil {
-			return Loclist{}, fmt.Errorf("missing debug_addr section")
+			return Loclist{}, errors.New("missing debug_addr section")
 		}
 		addrBase, ok := unit.Val(dwarf.AttrAddrBase).(int64)
 		if !ok {
-			return Loclist{}, fmt.Errorf("missing addr_base attribute")
+			return Loclist{}, errors.New("missing addr_base attribute")
 		}
 		if addrBase > int64(len(r.debugAddr)) {
 			return Loclist{}, fmt.Errorf("addr base %d out of bounds for section length %d", addrBase, len(r.debugAddr))

@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -107,14 +108,14 @@ func discoverIntegrationSources() map[string]bool {
 			continue
 		}
 
-		err := filepath.Walk(searchPath, func(path string, info os.FileInfo, err error) error {
+		err := filepath.WalkDir(searchPath, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
 				return nil // Continue walking, don't fail on individual errors
 			}
-			if info.IsDir() {
+			if d.IsDir() {
 				return nil
 			}
-			if info.Name() != "conf.yaml.example" && info.Name() != "conf.yaml" {
+			if d.Name() != "conf.yaml.example" && d.Name() != "conf.yaml" {
 				return nil
 			}
 
@@ -235,7 +236,7 @@ func checkFileReadable(logPath string) error {
 
 	if !utf8.Valid(buf) {
 		log.Infof("Discovered log file %s is not a text file", logPath)
-		return fmt.Errorf("file is not a text file")
+		return errors.New("file is not a text file")
 	}
 
 	return nil
@@ -283,18 +284,13 @@ var agentProcessNames = []string{
 	"trace-agent",
 	"security-agent",
 	"system-probe",
+	"privateactionrunner",
 }
 
 func isAgentProcess(process *workloadmeta.Process) bool {
 	// Check if the process name matches any of the known agent process names;
 	// we may not be able to make assumptions about the executable paths.
-	for _, agentName := range agentProcessNames {
-		if process.Name == agentName {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(agentProcessNames, process.Name)
 }
 
 func (p *processLogConfigProvider) processEventsInner(evBundle workloadmeta.EventBundle, verifyReadable bool) integration.ConfigChanges {
@@ -500,7 +496,7 @@ func getServiceID(logFile string) string {
 
 func (p *processLogConfigProvider) getProcessTags(pid int32) ([]string, error) {
 	if p.tagger == nil {
-		return nil, fmt.Errorf("tagger not available")
+		return nil, errors.New("tagger not available")
 	}
 	entityID := taggertypes.NewEntityID(taggertypes.Process, strconv.Itoa(int(pid)))
 	return p.tagger.Tag(entityID, taggertypes.HighCardinality)

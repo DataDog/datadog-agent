@@ -8,7 +8,6 @@
 package config
 
 import (
-	"fmt"
 	"os"
 	"runtime"
 	"strconv"
@@ -204,7 +203,7 @@ func TestMaxClosedConnectionsBuffered(t *testing.T) {
 
 	t.Run("value set", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_SYSTEM_PROBE_CONFIG_MAX_CLOSED_CONNECTIONS_BUFFERED", fmt.Sprintf("%d", maxTrackedConnections-1))
+		t.Setenv("DD_SYSTEM_PROBE_CONFIG_MAX_CLOSED_CONNECTIONS_BUFFERED", strconv.FormatUint(uint64(maxTrackedConnections-1), 10))
 		cfg := New()
 
 		require.Equal(t, maxTrackedConnections-1, cfg.MaxClosedConnectionsBuffered)
@@ -223,7 +222,7 @@ func TestMaxFailedConnectionsBuffered(t *testing.T) {
 
 	t.Run("value set", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_NETWORK_CONFIG_MAX_FAILED_CONNECTIONS_BUFFERED", fmt.Sprintf("%d", maxTrackedConnections-1))
+		t.Setenv("DD_NETWORK_CONFIG_MAX_FAILED_CONNECTIONS_BUFFERED", strconv.FormatUint(uint64(maxTrackedConnections-1), 10))
 		cfg := New()
 
 		require.Equal(t, maxTrackedConnections-1, cfg.MaxFailedConnectionsBuffered)
@@ -508,5 +507,96 @@ func TestEnableCertCollectionMapCleanerInterval(t *testing.T) {
 		cfg := New()
 
 		assert.Equal(t, 42*time.Second, cfg.CertCollectionMapCleanerInterval)
+	})
+}
+
+func TestEnableContainerStore(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+
+		assert.Equal(t, true, cfg.EnableContainerStore)
+	})
+	t.Run("via YAML", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("event_monitoring_config.network_process.container_store.enabled", true)
+		cfg := New()
+
+		assert.Equal(t, true, cfg.EnableContainerStore)
+	})
+	t.Run("via ENV variable", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_EVENT_MONITORING_CONFIG_NETWORK_PROCESS_CONTAINER_STORE_ENABLED", "true")
+		cfg := New()
+
+		assert.Equal(t, true, cfg.EnableContainerStore)
+	})
+}
+
+func TestMaxContainersTracked(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+
+		assert.Equal(t, 1024, cfg.MaxContainersTracked)
+	})
+	t.Run("via YAML", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("event_monitoring_config.network_process.container_store.max_containers_tracked", 42)
+		cfg := New()
+
+		assert.Equal(t, 42, cfg.MaxContainersTracked)
+	})
+	t.Run("via ENV variable", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_EVENT_MONITORING_CONFIG_NETWORK_PROCESS_CONTAINER_STORE_MAX_CONTAINERS_TRACKED", "42")
+		cfg := New()
+
+		assert.Equal(t, 42, cfg.MaxContainersTracked)
+	})
+}
+
+func TestDNSMonitoringPorts(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{53}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via YAML - single port 53", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("network_config.dns_monitoring_ports", []int{53})
+		cfg := New()
+		assert.Equal(t, []int{53}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via YAML - single port non-53", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("network_config.dns_monitoring_ports", []int{5353})
+		cfg := New()
+		assert.Equal(t, []int{5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via YAML - multiple ports including 53", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("network_config.dns_monitoring_ports", []int{53, 5353})
+		cfg := New()
+		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via YAML - multiple ports excluding 53", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("network_config.dns_monitoring_ports", []int{8053, 5353})
+		cfg := New()
+		assert.Equal(t, []int{8053, 5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via YAML - http ports should be removed", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		// HTTP ports would capture an enormous amount of traffic and cause issues.
+		// network config prevents the user from accidentally enabling these ports
+		mockSystemProbe.SetWithoutSource("network_config.dns_monitoring_ports", []int{53, 443, 5353, 80})
+		cfg := New()
+		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
 	})
 }

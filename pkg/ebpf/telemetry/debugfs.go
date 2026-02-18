@@ -74,8 +74,8 @@ func getProbeStats(pid int, profile string) map[string]uint64 {
 			event = parts[1]
 		}
 		event = strings.ToLower(event)
-		res[fmt.Sprintf("%s_hits", event)] = st.Hits
-		res[fmt.Sprintf("%s_misses", event)] = st.Misses
+		res[event+"_hits"] = st.Hits
+		res[event+"_misses"] = st.Misses
 	}
 
 	return res

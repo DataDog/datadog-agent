@@ -11,6 +11,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -59,7 +60,7 @@ func buildTLSConfig(config *TLSFilesConfig) (*tls.Config, error) {
 		}
 		rootCA = x509.NewCertPool()
 		if !rootCA.AppendCertsFromPEM(caPEM) {
-			return nil, fmt.Errorf("failed to append root CA to pool")
+			return nil, errors.New("failed to append root CA to pool")
 		}
 	}
 

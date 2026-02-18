@@ -106,7 +106,7 @@ state:
 ---
 event: !shutdown {error: "test shutdown"}
 effects:
-  - !detach-from-process {process_id: 1001, program_id: 1}
+  - !detach-from-process {failure: "no", process_id: 1001, program_id: 1}
 state:
   currently_loading: "2"
   queued_programs: '[]'

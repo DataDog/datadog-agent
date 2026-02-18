@@ -9,6 +9,7 @@ package crio
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -79,7 +80,7 @@ func (c *Collector) Init(cfg config.Component, wmeta option.Option[workloadmeta.
 // Scan performs the scan using CRI-O methods
 func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.ScanResult {
 	if !c.opts.OverlayFsScan {
-		return sbom.ScanResult{Error: fmt.Errorf("overlayfs direct scan is not enabled, but required to scan CRI-O images")}
+		return sbom.ScanResult{Error: errors.New("overlayfs direct scan is not enabled, but required to scan CRI-O images")}
 	}
 
 	imageID := request.ID()
@@ -94,7 +95,7 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 
 	wmeta, ok := c.wmeta.Get()
 	if !ok {
-		return sbom.ScanResult{Error: fmt.Errorf("workloadmeta store is not initialized")}
+		return sbom.ScanResult{Error: errors.New("workloadmeta store is not initialized")}
 	}
 
 	imageMeta, err := wmeta.GetImage(imageID)
@@ -106,9 +107,10 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 	report, err := scanner(ctx, imageMeta, c.crioClient, c.opts)
 
 	scanResult := sbom.ScanResult{
-		Error:   err,
-		Report:  report,
-		ImgMeta: imageMeta,
+		Error:            err,
+		Report:           report,
+		ImgMeta:          imageMeta,
+		GenerationMethod: "overlayfs",
 	}
 
 	return scanResult

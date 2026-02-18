@@ -8,6 +8,7 @@
 package eventdatafilter
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/Masterminds/semver/v3"
@@ -34,7 +35,7 @@ func unmarshalEventdataFilterSchema(config []byte) (*eventDataFilterSchema, erro
 		return nil, fmt.Errorf("could not unmarshal schema_version: %w", err)
 	}
 	if version.SchemaVersion == "" {
-		return nil, fmt.Errorf("schema_version is required but is missing or empty")
+		return nil, errors.New("schema_version is required but is missing or empty")
 	}
 	supported, err := supportedVersion(version.SchemaVersion)
 	if err != nil {

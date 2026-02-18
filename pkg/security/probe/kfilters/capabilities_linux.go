@@ -76,4 +76,6 @@ func init() {
 	allCapabilities["bpf"] = bpfCapabilities
 	allCapabilities["sysctl"] = sysctlCapabilities
 	allCapabilities["connect"] = connectCapabilities
+	allCapabilities["prctl"] = prctlCapabilities
+	allCapabilities["setsockopt"] = setsockoptCapabilities
 }

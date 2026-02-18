@@ -34,7 +34,7 @@ func GetClusterAgentEndpoint() (string, error) {
 		}
 		if !strings.Contains(dcaURL, "://") {
 			log.Tracef("Adding https scheme to %s: https://%s", dcaURL, dcaURL)
-			dcaURL = fmt.Sprintf("https://%s", dcaURL)
+			dcaURL = "https://" + dcaURL
 		}
 		u, err := url.Parse(dcaURL)
 		if err != nil {
@@ -59,14 +59,14 @@ func GetClusterAgentEndpoint() (string, error) {
 	dcaSvc = strings.ReplaceAll(dcaSvc, "-", "_") // Kubernetes replaces "-" with "_" in the service names injected in the env var.
 
 	// host
-	dcaSvcHostEnv := fmt.Sprintf("%s_SERVICE_HOST", dcaSvc)
+	dcaSvcHostEnv := dcaSvc + "_SERVICE_HOST"
 	dcaSvcHost := os.Getenv(dcaSvcHostEnv)
 	if dcaSvcHost == "" {
 		return "", fmt.Errorf("cannot get a cluster agent endpoint for kubernetes service %s, env %s is empty", dcaSvc, dcaSvcHostEnv)
 	}
 
 	// port
-	dcaSvcPort := os.Getenv(fmt.Sprintf("%s_SERVICE_PORT", dcaSvc))
+	dcaSvcPort := os.Getenv(dcaSvc + "_SERVICE_PORT")
 	if dcaSvcPort == "" {
 		return "", fmt.Errorf("cannot get a cluster agent endpoint for kubernetes service %s, env %s is empty", dcaSvc, dcaSvcPort)
 	}

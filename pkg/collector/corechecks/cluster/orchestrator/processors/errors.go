@@ -27,6 +27,6 @@ func NewMarshallingError(cause error) error {
 func RecoverOnPanic() {
 	if r := recover(); r != nil {
 		stack := debug.Stack()
-		log.Errorc(fmt.Sprintf("unable to process resources (panic!): %s", stack), orchestrator.ExtraLogContext)
+		log.Errorc(fmt.Sprintf("unable to process resources (panic!): %s", stack), orchestrator.ExtraLogContext...)
 	}
 }

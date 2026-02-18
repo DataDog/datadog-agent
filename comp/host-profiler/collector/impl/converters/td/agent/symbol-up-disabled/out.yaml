@@ -1,0 +1,29 @@
+exporters:
+    otlphttp:
+        headers:
+            dd-api-key: test-api-key
+processors:
+    infraattributes/default:
+        allow_hostname_override: true
+    resource/dd-profiler-internal-metadata:
+        attributes:
+            - action: upsert
+              key: profiler_name
+              value: full-host-profiler
+            - action: upsert
+              key: profiler_version
+              value: 7.0.0-test
+receivers:
+    hostprofiler:
+        symbol_uploader:
+            enabled: false
+service:
+    pipelines:
+        profiles:
+            exporters:
+                - otlphttp
+            processors:
+                - infraattributes/default
+                - resource/dd-profiler-internal-metadata
+            receivers:
+                - hostprofiler

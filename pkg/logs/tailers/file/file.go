@@ -47,5 +47,5 @@ func (t *File) GetScanKey() string {
 
 // Identifier returns a unique identifier for this file
 func (t *File) Identifier() string {
-	return fmt.Sprintf("file:%s", t.Path)
+	return "file:" + t.Path
 }

@@ -9,24 +9,21 @@
 package mount
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // ResolverInterface defines the resolver interface
 type ResolverInterface interface {
 	IsMountIDValid(mountID uint32) (bool, error)
-	SyncCache(pid uint32) error
-	HasListMount() bool
-	SyncCacheFromListMount() error
-	Delete(mountID uint32) error
-	ResolveFilesystem(mountID uint32, device uint32, pid uint32, containerID containerutils.ContainerID) (string, error)
-	Insert(m model.Mount, pid uint32) error
+	SyncCache() error
+	Delete(mountID uint32, mountIDUnique uint64) error
+	ResolveFilesystem(mountID uint32, pid uint32) (string, error)
+	Insert(m model.Mount) error
 	InsertMoved(m model.Mount) error
-	DelPid(pid uint32)
-	ResolveMountRoot(mountID uint32, device uint32, pid uint32, containerID containerutils.ContainerID) (string, model.MountSource, model.MountOrigin, error)
-	ResolveMountPath(mountID uint32, device uint32, pid uint32, containerID containerutils.ContainerID) (string, model.MountSource, model.MountOrigin, error)
-	ResolveMount(mountID uint32, device uint32, pid uint32, containerID containerutils.ContainerID) (*model.Mount, model.MountSource, model.MountOrigin, error)
+	ResolveMountRoot(mountID uint32, pid uint32) (string, model.MountSource, model.MountOrigin, error)
+	ResolveMountPath(mountID uint32, pid uint32) (string, model.MountSource, model.MountOrigin, error)
+	ResolveMount(mountID uint32, pid uint32) (*model.Mount, model.MountSource, model.MountOrigin, error)
 	SendStats() error
 	ToJSON() ([]byte, error)
+	Iterate(cb func(*model.Mount))
 }

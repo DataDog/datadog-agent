@@ -8,6 +8,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	stdlog "log"
@@ -129,7 +130,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 
 	// Sanitize the input, don't accept any valid URL but just some limited subset
 	if len(subdomain) == 0 {
-		return nil, fmt.Errorf("EVPProxy: no subdomain specified")
+		return nil, errors.New("EVPProxy: no subdomain specified")
 	}
 	if !isValidSubdomain(subdomain) {
 		return nil, fmt.Errorf("EVPProxy: invalid subdomain: %s", subdomain)
@@ -143,7 +144,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	}
 
 	if needsAppKey && t.conf.EVPProxy.ApplicationKey == "" {
-		return nil, fmt.Errorf("EVPProxy: ApplicationKey needed but not set")
+		return nil, errors.New("EVPProxy: ApplicationKey needed but not set")
 	}
 
 	// We don't want to forward arbitrary headers, create a copy of the input headers and clear them
@@ -152,7 +153,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 
 	// Set standard headers
 	req.Header.Set("User-Agent", "") // Set to empty string so Go doesn't set its default
-	req.Header.Set("Via", fmt.Sprintf("trace-agent %s", t.conf.AgentVersion))
+	req.Header.Set("Via", "trace-agent "+t.conf.AgentVersion)
 
 	// Copy allowed headers from the input request
 	for _, header := range EvpProxyAllowedHeaders {
@@ -186,7 +187,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	timeout := getConfiguredEVPRequestTimeoutDuration(t.conf)
 	req.Header.Set("X-Datadog-Timeout", strconv.Itoa((int(timeout.Seconds()))))
 	deadline := time.Now().Add(timeout)
-	//nolint:govet,lostcancel we don't need to manually cancel this context, we can rely on the parent context being cancelled
+	//nolint:govet,lostcancel // we don't need to manually cancel this context, we can rely on the parent context being cancelled
 	ctx, _ := context.WithDeadline(req.Context(), deadline)
 	req = req.WithContext(ctx)
 

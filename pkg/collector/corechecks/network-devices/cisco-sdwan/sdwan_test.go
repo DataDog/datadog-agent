@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -38,7 +39,7 @@ type deps struct {
 }
 
 func createDeps(t *testing.T) deps {
-	return fxutil.Test[deps](t, demultiplexerimpl.MockModule(), defaultforwarder.MockModule(), core.MockBundle())
+	return fxutil.Test[deps](t, demultiplexerimpl.MockModule(), defaultforwarder.MockModule(), core.MockBundle(), hostnameimpl.MockModule())
 }
 
 // mockTimeNow mocks time.Now
@@ -245,7 +246,8 @@ collect_bgp_neighbor_states: true
       "index": 3,
       "name": "system",
       "admin_status": 1,
-      "oper_status": 1
+      "oper_status": 1,
+      "is_physical": false
     },
     {
       "device_id": "test:10.10.1.17",
@@ -256,7 +258,9 @@ collect_bgp_neighbor_states: true
       "name": "GigabitEthernet4",
       "mac_address": "52:54:00:0b:6e:90",
       "admin_status": 1,
-      "oper_status": 1
+      "oper_status": 1,
+      "type": 6,
+      "is_physical": true
     }
   ],
   "ip_addresses": [

@@ -7,6 +7,7 @@ package daemon
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -26,6 +27,7 @@ type remoteConfigClient interface {
 	Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
 	GetInstallerState() *pbgo.ClientUpdater
 	SetInstallerState(state *pbgo.ClientUpdater)
+	GetClientID() string
 }
 
 type remoteConfig struct {
@@ -224,13 +226,13 @@ func handleUpdaterCatalogDDUpdate(h handleCatalogUpdate, firstCatalogApplied fun
 
 func validatePackage(pkg Package) error {
 	if pkg.Name == "" {
-		return fmt.Errorf("package name is empty")
+		return errors.New("package name is empty")
 	}
 	if pkg.Version == "" {
-		return fmt.Errorf("package version is empty")
+		return errors.New("package version is empty")
 	}
 	if pkg.URL == "" {
-		return fmt.Errorf("package URL is empty")
+		return errors.New("package URL is empty")
 	}
 	url, err := url.Parse(pkg.URL)
 	if err != nil {
@@ -277,11 +279,18 @@ type expectedState struct {
 	Experiment       string `json:"experiment"`
 	StableConfig     string `json:"stable_config"`
 	ExperimentConfig string `json:"experiment_config"`
+	ClientID         string `json:"client_id"`
+}
+
+type encryptedSecret struct {
+	Key            string `json:"key"`
+	EncryptedValue string `json:"encrypted_value"`
 }
 
 type experimentTaskParams struct {
-	Version     string   `json:"version"`
-	InstallArgs []string `json:"install_args"`
+	Version          string            `json:"version"`
+	InstallArgs      []string          `json:"install_args"`
+	EncryptedSecrets []encryptedSecret `json:"encrypted_secrets"`
 }
 
 type installPackageTaskParams struct {

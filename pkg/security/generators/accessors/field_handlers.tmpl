@@ -10,7 +10,10 @@ package {{.Name}}
 
 import (
     "time"
+    "net"
 )
+
+var _ = net.IP{}
 
 // ResolveFields resolves all the fields associate to the event type. Context fields are automatically resolved.
 func (ev *Event) ResolveFields() {
@@ -127,7 +130,9 @@ type FieldHandlers interface {
     ExtraFieldHandlers
 }
 
-type FakeFieldHandlers struct {}
+type FakeFieldHandlers struct {
+    PCEs map[uint32]*ProcessCacheEntry
+}
 
 {{$Handlers := .Fields | GetHandlers}}
 {{range $Proto, $Impl := $Handlers}}

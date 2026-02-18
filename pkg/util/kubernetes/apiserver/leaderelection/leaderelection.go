@@ -12,6 +12,7 @@ package leaderelection
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -32,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -77,7 +79,7 @@ func newLeaderEngine(ctx context.Context) *LeaderEngine {
 	return &LeaderEngine{
 		ctx:             ctx,
 		LeaseName:       pkgconfigsetup.Datadog().GetString("leader_lease_name"),
-		LeaderNamespace: common.GetResourcesNamespace(),
+		LeaderNamespace: namespace.GetResourcesNamespace(),
 		ServiceName:     pkgconfigsetup.Datadog().GetString("cluster_agent.kubernetes_service_name"),
 		leaderMetric:    metrics.NewLeaderMetric(),
 		subscribers:     []chan struct{}{},
@@ -104,7 +106,7 @@ func (le *LeaderEngine) initialize() *retry.Error {
 // GetLeaderEngine returns an initialized leader engine.
 func GetLeaderEngine() (*LeaderEngine, error) {
 	if globalLeaderEngine == nil {
-		return nil, fmt.Errorf("Global Leader Engine was not created")
+		return nil, errors.New("Global Leader Engine was not created")
 	}
 	err := globalLeaderEngine.initialize()
 	if err != nil {
@@ -336,7 +338,7 @@ func CanUseLeases(client discovery.DiscoveryInterface) (bool, error) {
 
 func getLeaseLeaderElectionRecord(client coordinationv1.CoordinationV1Interface) (rl.LeaderElectionRecord, error) {
 	var empty rl.LeaderElectionRecord
-	lease, err := client.Leases(common.GetResourcesNamespace()).Get(context.TODO(), pkgconfigsetup.Datadog().GetString("leader_lease_name"), metav1.GetOptions{})
+	lease, err := client.Leases(namespace.GetResourcesNamespace()).Get(context.TODO(), pkgconfigsetup.Datadog().GetString("leader_lease_name"), metav1.GetOptions{})
 	if err != nil {
 		return empty, err
 	}
@@ -347,7 +349,7 @@ func getLeaseLeaderElectionRecord(client coordinationv1.CoordinationV1Interface)
 
 func getConfigMapLeaderElectionRecord(client corev1.CoreV1Interface) (rl.LeaderElectionRecord, error) {
 	var led rl.LeaderElectionRecord
-	leaderElectionCM, err := client.ConfigMaps(common.GetResourcesNamespace()).Get(context.TODO(), pkgconfigsetup.Datadog().GetString("leader_lease_name"), metav1.GetOptions{})
+	leaderElectionCM, err := client.ConfigMaps(namespace.GetResourcesNamespace()).Get(context.TODO(), pkgconfigsetup.Datadog().GetString("leader_lease_name"), metav1.GetOptions{})
 	if err != nil {
 		return led, err
 	}

@@ -27,6 +27,14 @@ func buildTracesMap(cfg PipelineConfig) (*confmap.Conf, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Remove infraattributes if disabled
+	if !cfg.TracesInfraAttributesEnabled {
+		if err := removeInfraAttributesProcessor(baseMap, "traces"); err != nil {
+			return nil, err
+		}
+	}
+
 	smap := map[string]interface{}{
 		buildKey("exporters", "otlp", "endpoint"): fmt.Sprintf("%s:%d", "localhost", cfg.TracePort),
 	}
@@ -37,13 +45,23 @@ func buildTracesMap(cfg PipelineConfig) (*confmap.Conf, error) {
 	return baseMap, err
 }
 
+// ensureNonNilMap converts a nil map to an empty map.
+// This ensures consistent behavior when merging configurations.
+func ensureNonNilMap(m map[string]interface{}) map[string]interface{} {
+	if m == nil {
+		return map[string]interface{}{}
+	}
+	return m
+}
+
 func buildMetricsMap(cfg PipelineConfig) (*confmap.Conf, error) {
 	baseMap, err := configutils.NewMapFromYAMLString(defaultMetricsConfig)
 	if err != nil {
 		return nil, err
 	}
 	smap := map[string]interface{}{
-		buildKey("exporters", "serializer", "metrics"): cfg.Metrics,
+		buildKey("exporters", "serializer", "metrics"):                cfg.Metrics,
+		buildKey("exporters", "serializer", "sending_queue", "batch"): ensureNonNilMap(cfg.MetricsBatch),
 	}
 	{
 		configMap := confmap.NewFromStringMap(smap)
@@ -52,11 +70,21 @@ func buildMetricsMap(cfg PipelineConfig) (*confmap.Conf, error) {
 	return baseMap, err
 }
 
-func buildLogsMap(_ PipelineConfig) (*confmap.Conf, error) {
+func buildLogsMap(cfg PipelineConfig) (*confmap.Conf, error) {
 	baseMap, err := configutils.NewMapFromYAMLString(defaultLogsConfig)
 	if err != nil {
 		return nil, err
 	}
+
+	smap := map[string]interface{}{
+		buildKey("exporters", "logsagent", "sending_queue", "batch"): ensureNonNilMap(cfg.Logs)["batch"],
+	}
+
+	{
+		configMap := confmap.NewFromStringMap(smap)
+		err = baseMap.Merge(configMap)
+	}
+
 	return baseMap, err
 }
 
@@ -65,6 +93,24 @@ func buildReceiverMap(cfg PipelineConfig) *confmap.Conf {
 		"otlp": cfg.OTLPReceiverConfig,
 	}
 	return confmap.NewFromStringMap(map[string]interface{}{"receivers": rcvs})
+}
+
+// removeInfraAttributesProcessor removes the infraattributes processor from the pipeline config
+func removeInfraAttributesProcessor(cfg *confmap.Conf, pipelineType string) error {
+	// Remove from processors section
+	processorsKey := buildKey("service", "pipelines", pipelineType, "processors")
+	if processors, ok := cfg.Get(processorsKey).([]interface{}); ok {
+		filtered := make([]interface{}, 0, len(processors))
+		for _, p := range processors {
+			if p != "infraattributes" {
+				filtered = append(filtered, p)
+			}
+		}
+		return cfg.Merge(confmap.NewFromStringMap(map[string]interface{}{
+			processorsKey: filtered,
+		}))
+	}
+	return nil
 }
 
 func buildMap(cfg PipelineConfig) (*confmap.Conf, error) {

@@ -22,9 +22,6 @@ func metricSourceToOriginProduct(ms metrics.MetricSource) int32 {
 	}
 	switch ms {
 	case metrics.MetricSourceServerless,
-		metrics.MetricSourceAwsLambdaCustom,
-		metrics.MetricSourceAwsLambdaEnhanced,
-		metrics.MetricSourceAwsLambdaRuntime,
 		metrics.MetricSourceAzureContainerAppCustom,
 		metrics.MetricSourceAzureContainerAppEnhanced,
 		metrics.MetricSourceAzureContainerAppRuntime,
@@ -367,7 +364,9 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceBentoMl,
 		metrics.MetricSourceHuggingFaceTgi,
 		metrics.MetricSourceIbmSpectrumLsf,
-		metrics.MetricSourceDatadogOperator:
+		metrics.MetricSourceDatadogOperator,
+		metrics.MetricSourceBattery,
+		metrics.MetricSourcePinot:
 		return 11 // integrationMetrics
 	case metrics.MetricSourceGPU:
 		return 72 // ref: https://github.com/DataDog/dd-source/blob/276882b71d84785ec89c31973046ab66d5a01807/domains/metrics/shared/libs/proto/origin/origin.proto#L427
@@ -383,10 +382,6 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceAzureContainerAppEnhanced,
 		metrics.MetricSourceAzureContainerAppRuntime:
 		return 37
-	case metrics.MetricSourceAwsLambdaCustom,
-		metrics.MetricSourceAwsLambdaEnhanced,
-		metrics.MetricSourceAwsLambdaRuntime:
-		return 38
 	default:
 		return 0
 	}
@@ -1091,18 +1086,15 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 464
 	case metrics.MetricSourceInfiniband:
 		return 465
-	case metrics.MetricSourceAwsLambdaCustom,
-		metrics.MetricSourceAzureContainerAppCustom,
+	case metrics.MetricSourceAzureContainerAppCustom,
 		metrics.MetricSourceAzureAppServiceCustom,
 		metrics.MetricSourceGoogleCloudRunCustom:
 		return 472
-	case metrics.MetricSourceAwsLambdaEnhanced,
-		metrics.MetricSourceAzureContainerAppEnhanced,
+	case metrics.MetricSourceAzureContainerAppEnhanced,
 		metrics.MetricSourceAzureAppServiceEnhanced,
 		metrics.MetricSourceGoogleCloudRunEnhanced:
 		return 473
-	case metrics.MetricSourceAwsLambdaRuntime,
-		metrics.MetricSourceAzureContainerAppRuntime,
+	case metrics.MetricSourceAzureContainerAppRuntime,
 		metrics.MetricSourceAzureAppServiceRuntime,
 		metrics.MetricSourceGoogleCloudRunRuntime:
 		return 474
@@ -1142,6 +1134,10 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 503
 	case metrics.MetricSourcePerfect:
 		return 504
+	case metrics.MetricSourceBattery:
+		return 511
+	case metrics.MetricSourcePinot:
+		return 512
 	default:
 		return 0
 	}

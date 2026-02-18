@@ -7,6 +7,7 @@ package client
 
 import (
 	_ "embed"
+	"strconv"
 	"time"
 
 	"encoding/base64"
@@ -63,6 +64,9 @@ var apiV2NDMFlow []byte
 //go:embed fixtures/api_v2_netpath_response
 var apiV2Netpath []byte
 
+//go:embed fixtures/api_v2_agenthealth_response
+var apiV2AgentHealth []byte
+
 func NewServer(handler http.Handler) *httptest.Server {
 	handlerWitHeader := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Fakeintake-ID", "20000000-0000-0000-0000-000000000000")
@@ -83,7 +87,7 @@ func TestClient(t *testing.T) {
 					Data: []byte(r.URL.Path),
 				},
 				{
-					Data: []byte(fmt.Sprintf("%d", len(routes))),
+					Data: []byte(strconv.Itoa(len(routes))),
 				},
 				{
 					Data: []byte(routes[0]),
@@ -684,6 +688,47 @@ func TestClient(t *testing.T) {
 		require.NoError(t, err)
 		_, err = client.get("fakeintake/health")
 		require.NoError(t, err)
+	})
+
+	t.Run("getAgentHealth", func(t *testing.T) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Write(apiV2AgentHealth)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		err := client.getAgentHealth()
+		require.NoError(t, err)
+		assert.True(t, client.agentHealthAggregator.ContainsPayloadName("test-hostname"))
+		assert.False(t, client.agentHealthAggregator.ContainsPayloadName("totoro"))
+	})
+
+	t.Run("GetAgentHealth", func(t *testing.T) {
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Write(apiV2AgentHealth)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		healthPayloads, err := client.GetAgentHealth()
+		require.NoError(t, err)
+		require.Len(t, healthPayloads, 1)
+
+		payload := healthPayloads[0]
+		assert.Equal(t, "test-hostname", payload.Host.Hostname)
+		assert.Equal(t, "7.50.0", payload.Host.AgentVersion)
+		assert.Equal(t, "agent-health-issues", payload.EventType)
+		assert.Len(t, payload.Issues, 1)
+
+		issue, ok := payload.Issues["check-id-123"]
+		require.True(t, ok)
+		assert.Equal(t, "docker-permissions-issue", issue.Id)
+		assert.Equal(t, "Docker Permissions Issue", issue.IssueName)
+		assert.Equal(t, "Docker socket permissions error", issue.Title)
+		assert.Equal(t, "permissions", issue.Category)
+		assert.Equal(t, "error", issue.Severity)
+		assert.Contains(t, issue.Tags, "os:linux")
+		assert.Contains(t, issue.Tags, "docker:installed")
 	})
 
 }

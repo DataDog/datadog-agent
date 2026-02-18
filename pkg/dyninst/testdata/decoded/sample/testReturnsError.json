@@ -79,7 +79,8 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "true"
   },
   {
     "service": "sample",
@@ -142,11 +143,7 @@
             "locals": {
               "~r0": {
                 "type": "error",
-                "fields": {
-                  "data": {
-                    "isNull": true
-                  }
-                }
+                "isNull": true
               }
             }
           }
@@ -154,6 +151,7 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "false"
   }
 ]

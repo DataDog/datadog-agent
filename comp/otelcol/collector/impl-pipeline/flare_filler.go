@@ -61,7 +61,7 @@ func (c *collectorImpl) fillFlare(fb flaretypes.FlareBuilder) error {
 		sourceURLs := src.URLs
 		for _, sourceURL := range sourceURLs {
 			if !strings.HasPrefix(sourceURL, "http://") && !strings.HasPrefix(sourceURL, "https://") {
-				sourceURL = fmt.Sprintf("http://%s", sourceURL)
+				sourceURL = "http://" + sourceURL
 			}
 
 			urll, err := url.Parse(sourceURL)

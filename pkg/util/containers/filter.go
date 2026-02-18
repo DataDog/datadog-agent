@@ -27,6 +27,7 @@ const (
 
 	pauseContainerKubernetes = "image:kubernetes/pause"
 	pauseContainerECS        = "image:amazon/amazon-ecs-pause"
+	pauseContainerFargate    = "image:aws-fargate-pause"
 	pauseContainerOpenshift  = "image:openshift/origin-pod"
 	pauseContainerOpenshift3 = "image:.*rhel7/pod-infrastructure"
 
@@ -176,6 +177,7 @@ func GetPauseContainerExcludeList() []string {
 		pauseContainerGoogle,
 		pauseContainerAzure,
 		pauseContainerECS,
+		pauseContainerFargate,
 		pauseContainerEKS,
 		pauseContainerRancher,
 		pauseContainerRancherMirrored,

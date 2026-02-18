@@ -10,7 +10,7 @@ package testutil
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -192,7 +192,7 @@ func GetCertsPaths() (string, string, error) {
 func CurDir() (string, error) {
 	_, file, _, ok := runtime.Caller(1)
 	if !ok {
-		return "", fmt.Errorf("unable to get current file build path")
+		return "", errors.New("unable to get current file build path")
 	}
 
 	buildDir := filepath.Dir(file)

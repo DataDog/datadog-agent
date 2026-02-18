@@ -6,17 +6,17 @@
 package installtest
 
 import (
-	"fmt"
+	"errors"
 	"io/fs"
 	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	utilscommon "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
-	agentClient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	agentClientParams "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	utilscommon "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
+	agentClient "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
+	agentClientParams "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	commonHelper "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/helper"
 	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
@@ -72,7 +72,7 @@ func NewTester(context utilscommon.Context, host *components.RemoteHost, opts ..
 	}
 
 	if t.expectedAgentVersion == "" {
-		return nil, fmt.Errorf("expectedAgentVersion is required")
+		return nil, errors.New("expectedAgentVersion is required")
 	}
 
 	// Ensure the expected version is well formed
@@ -199,6 +199,8 @@ func (t *Tester) runTestsForKitchenCompat(tt *testing.T) {
 				common.CheckCWSBehaviour(tt, t.InstallTestClient)
 			})
 		}
+
+		// TODO(ADP): Update this for Windows when we add Windows support to ADP.
 	})
 }
 
@@ -617,7 +619,7 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity
 
 // TestInstallExpectations tests the current agent installation meets the expectations provided to the Tester
 func (t *Tester) TestInstallExpectations(tt *testing.T) bool {
-	return tt.Run(fmt.Sprintf("test %s", t.agentPackage.AgentVersion()), func(tt *testing.T) {
+	return tt.Run("test "+t.agentPackage.AgentVersion(), func(tt *testing.T) {
 		if !tt.Run("running expected agent version", func(tt *testing.T) {
 			installedVersion, err := t.InstallTestClient.GetAgentVersion()
 			require.NoError(tt, err, "should get agent version")

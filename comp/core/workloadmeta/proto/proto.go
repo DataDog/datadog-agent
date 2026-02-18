@@ -7,6 +7,7 @@
 package proto
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -20,7 +21,15 @@ var emptyTimestampUnix = new(time.Time).Unix()
 
 // Conversions from Workloadmeta types to protobuf
 
-// ProtobufEventFromWorkloadmetaEvent converts the given workloadmeta.Event into protobuf
+// ProtobufEventFromWorkloadmetaEvent converts the given workloadmeta.Event into
+// protobuf.
+//
+// Note: the IsComplete field is intentionally not included in this conversion.
+// Users of remote workloadmeta don't need completeness info. Also, the field is
+// not directly usable on the receiving side without further changes: the
+// receiving store has only one source (SourceRemoteWorkloadmeta), so its
+// completeness calculation based on expectedSources is not the same as in the
+// core agent.
 func ProtobufEventFromWorkloadmetaEvent(event workloadmeta.Event) (*pb.WorkloadmetaEvent, error) {
 	entity := event.Entity
 
@@ -81,6 +90,17 @@ func ProtobufEventFromWorkloadmetaEvent(event workloadmeta.Event) (*pb.Workloadm
 		return &pb.WorkloadmetaEvent{
 			Type:    protoEventType,
 			Process: protoProcess,
+		}, nil
+	case workloadmeta.KindCRD:
+		crd := entity.(*workloadmeta.CRD)
+		protoCrd, err := protoCRDFromWorkloadmetaCRD(crd)
+		if err != nil {
+			return nil, err
+		}
+
+		return &pb.WorkloadmetaEvent{
+			Type: protoEventType,
+			Crd:  protoCrd,
 		}, nil
 	}
 
@@ -229,6 +249,8 @@ func toProtoKind(kind workloadmeta.Kind) (pb.WorkloadmetaKind, error) {
 		return pb.WorkloadmetaKind_ECS_TASK, nil
 	case workloadmeta.KindProcess:
 		return pb.WorkloadmetaKind_PROCESS, nil
+	case workloadmeta.KindCRD:
+		return pb.WorkloadmetaKind_CRD, nil
 	}
 
 	return pb.WorkloadmetaKind_CONTAINER, fmt.Errorf("unknown kind: %s", kind)
@@ -554,6 +576,34 @@ func protoProcessFromWorkloadmetaProcess(process *workloadmeta.Process) (*pb.Pro
 	}, nil
 }
 
+func toProtoEntityMetaFromCrd(crd *workloadmeta.CRD) *pb.EntityMeta {
+	if crd == nil {
+		return nil
+	}
+
+	return &pb.EntityMeta{
+		Name:        crd.EntityMeta.Name,
+		Namespace:   crd.EntityMeta.Namespace,
+		Annotations: crd.EntityMeta.Annotations,
+		Labels:      crd.EntityMeta.Labels,
+	}
+}
+
+func protoCRDFromWorkloadmetaCRD(crd *workloadmeta.CRD) (*pb.Crd, error) {
+	protoEntityID, err := toProtoEntityID(&crd.EntityID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.Crd{
+		EnityId:    protoEntityID,
+		EntityMeta: toProtoEntityMetaFromCrd(crd),
+		Group:      crd.Group,
+		Kind:       crd.Kind,
+		Version:    crd.Version,
+	}, nil
+}
+
 func toProtoEntityID(entityID *workloadmeta.EntityID) (*pb.WorkloadmetaEntityId, error) {
 	if entityID == nil {
 		return nil, nil
@@ -719,9 +769,18 @@ func WorkloadmetaEventFromProtoEvent(protoEvent *pb.WorkloadmetaEvent) (workload
 			Type:   eventType,
 			Entity: process,
 		}, nil
+	} else if protoEvent.Crd != nil {
+		crd, err := toWorkloadmetaCrd(protoEvent.Crd)
+		if err != nil {
+			return workloadmeta.Event{}, err
+		}
+		return workloadmeta.Event{
+			Type:   eventType,
+			Entity: crd,
+		}, nil
 	}
 
-	return workloadmeta.Event{}, fmt.Errorf("unknown entity")
+	return workloadmeta.Event{}, errors.New("unknown entity")
 }
 
 func toWorkloadmetaKind(protoKind pb.WorkloadmetaKind) (workloadmeta.Kind, error) {
@@ -734,6 +793,8 @@ func toWorkloadmetaKind(protoKind pb.WorkloadmetaKind) (workloadmeta.Kind, error
 		return workloadmeta.KindECSTask, nil
 	case pb.WorkloadmetaKind_PROCESS:
 		return workloadmeta.KindProcess, nil
+	case pb.WorkloadmetaKind_CRD:
+		return workloadmeta.KindCRD, nil
 	}
 
 	return workloadmeta.KindContainer, fmt.Errorf("unknown kind: %s", protoKind)
@@ -1108,6 +1169,21 @@ func toWorkloadmetaProcess(protoProcess *pb.Process) (*workloadmeta.Process, err
 		Owner:          owner,
 		Service:        toWorkloadmetaService(protoProcess.Service),
 		InjectionState: workloadmeta.InjectionState(protoProcess.InjectionState),
+	}, nil
+}
+
+func toWorkloadmetaCrd(protoCrd *pb.Crd) (*workloadmeta.CRD, error) {
+	entityID, err := toWorkloadmetaEntityID(protoCrd.EnityId)
+	if err != nil {
+		return nil, err
+	}
+
+	return &workloadmeta.CRD{
+		EntityID:   entityID,
+		EntityMeta: toWorkloadmetaEntityMeta(protoCrd.EntityMeta),
+		Group:      protoCrd.Group,
+		Kind:       protoCrd.Kind,
+		Version:    protoCrd.Version,
 	}, nil
 }
 

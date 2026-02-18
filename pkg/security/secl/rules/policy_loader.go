@@ -92,13 +92,13 @@ func removeReplacedPolicies(policies []*Policy) []*Policy {
 	policyIDsToRemove := make([]string, 0)
 
 	for _, policy := range policies {
-		if policy.Info.Source == PolicyProviderTypeRC && policy.Info.Type == CustomPolicyType && policy.Def.ReplacePolicyID != "" {
+		if policy.Info.Source == PolicyProviderTypeRC && policy.Info.InternalType == CustomPolicyType && policy.Def.ReplacePolicyID != "" {
 			policyIDsToRemove = append(policyIDsToRemove, policy.Def.ReplacePolicyID)
 		}
 	}
 
 	policies = slices.DeleteFunc(policies, func(p *Policy) bool {
-		return p.Info.Source == PolicyProviderTypeRC && p.Info.Type == DefaultPolicyType && slices.Contains(policyIDsToRemove, p.Info.Name)
+		return p.Info.Source == PolicyProviderTypeRC && p.Info.InternalType == DefaultPolicyType && slices.Contains(policyIDsToRemove, p.Info.Name)
 	})
 
 	return policies

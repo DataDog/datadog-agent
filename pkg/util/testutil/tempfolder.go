@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package testutil
 
 import (
@@ -55,7 +57,7 @@ func (f *TempFolder) Delete(fileName string) error {
 // Detab removes whitespace from the front of a string on every line
 func Detab(str string) string {
 	detabbed := make([]string, 0)
-	for _, l := range strings.Split(str, "\n") {
+	for l := range strings.SplitSeq(str, "\n") {
 		s := strings.TrimSpace(l)
 		if len(s) > 0 {
 			detabbed = append(detabbed, s)

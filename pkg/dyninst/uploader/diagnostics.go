@@ -25,9 +25,24 @@ type DiagnosticMessage struct {
 	DDSource  debuggerSource `json:"ddsource"`
 	Timestamp int64          `json:"timestamp"`
 
-	Debugger struct {
+	Debugger debugger `json:"debugger"`
+}
+
+// debugger wraps the diagnostics message and provides JSON marshaling in the
+// format expected by the backend.
+type debugger struct {
+	Diagnostic `json:"diagnostics"`
+}
+
+func (d debugger) MarshalJSON() ([]byte, error) {
+	type alias struct {
 		Diagnostic `json:"diagnostics"`
-	} `json:"debugger"`
+		Type       string `json:"type"`
+	}
+	return json.Marshal(alias{
+		Diagnostic: d.Diagnostic,
+		Type:       "diagnostic",
+	})
 }
 
 type debuggerSource struct{}
@@ -50,9 +65,7 @@ func (d debuggerSource) UnmarshalJSON(b []byte) error {
 func NewDiagnosticMessage(service string, d Diagnostic) *DiagnosticMessage {
 	return &DiagnosticMessage{
 		Service: service,
-		Debugger: struct {
-			Diagnostic `json:"diagnostics"`
-		}{
+		Debugger: debugger{
 			Diagnostic: d,
 		},
 	}
@@ -95,9 +108,9 @@ func NewDiagnosticsUploader(opts ...Option) *DiagnosticsUploader {
 	for _, opt := range opts {
 		opt(&cfg)
 	}
-	sender := newDiagnosticsSender(cfg.client, cfg.url.String())
+	sender := newDiagnosticsSender(cfg.client, cfg.url.String(), cfg.sendTimeout)
 	return &DiagnosticsUploader{
-		batcher: newBatcher("diagnostics", sender, cfg.batcherConfig),
+		batcher: newBatcher("diagnostics", sender, cfg.batcherConfig, &Metrics{}),
 	}
 }
 
@@ -123,14 +136,18 @@ func (u *DiagnosticsUploader) Stats() map[string]int64 {
 }
 
 type diagnosticsSender struct {
-	client *http.Client
-	url    string
+	client      *http.Client
+	url         string
+	sendTimeout time.Duration
 }
 
-func newDiagnosticsSender(client *http.Client, url string) *diagnosticsSender {
+func newDiagnosticsSender(
+	client *http.Client, url string, sendTimeout time.Duration,
+) *diagnosticsSender {
 	return &diagnosticsSender{
-		client: client,
-		url:    url,
+		client:      client,
+		url:         url,
+		sendTimeout: sendTimeout,
 	}
 }
 
@@ -152,7 +169,9 @@ func (s *diagnosticsSender) send(batch []json.RawMessage) error {
 		return fmt.Errorf("failed to close multipart writer: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, s.url, &buf)
+	ctx, cancel := context.WithTimeout(context.Background(), s.sendTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.url, &buf)
 	if err != nil {
 		return fmt.Errorf("failed to build request: %w", err)
 	}
@@ -162,13 +181,7 @@ func (s *diagnosticsSender) send(batch []json.RawMessage) error {
 	if err != nil {
 		return fmt.Errorf("failed to send batch: %w", err)
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		return fmt.Errorf("uploader received error response: status=%d", resp.StatusCode)
-	}
-
-	return nil
+	return responseToError(resp)
 }
 
 func encodeJSON(w io.Writer, data []json.RawMessage) error {

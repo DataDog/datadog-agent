@@ -212,9 +212,9 @@ const (
 	Unscoped RuleScope = "none"
 	// DockerScope used for rules requiring a Docker daemon running.
 	DockerScope RuleScope = "docker"
-	// KubernetesNodeScope used for rules requireing a kubelet process running.
+	// KubernetesNodeScope used for rules requiring a kubelet process running.
 	KubernetesNodeScope RuleScope = "kubernetesNode"
-	// KubernetesClusterScope used for rules requireing a kube-apiserver process running.
+	// KubernetesClusterScope used for rules requiring a kube-apiserver process running.
 	KubernetesClusterScope RuleScope = "kubernetesCluster"
 )
 
@@ -351,7 +351,7 @@ func NewResolvedInputs(resolvingContext ResolvingContext, resolved map[string]in
 	ri := make(ResolvedInputs, len(resolved)+1)
 	for k, v := range resolved {
 		if k == "context" {
-			return nil, fmt.Errorf("NewResolvedInputs: \"context\" is a reserved keyword")
+			return nil, errors.New("NewResolvedInputs: \"context\" is a reserved keyword")
 		}
 		ri[k] = v
 	}
@@ -398,14 +398,14 @@ func (i *InputSpec) Valid() error {
 	// constrained to a specific input type.
 	if i.KubeApiserver != nil || i.Docker != nil || i.Audit != nil {
 		if i.Type != "array" {
-			return fmt.Errorf("input of types kubeApiserver docker and audit have to be arrays")
+			return errors.New("input of types kubeApiserver docker and audit have to be arrays")
 		}
 	} else if i.Type == "array" {
 		if i.File == nil {
-			return fmt.Errorf("bad input results `array`")
+			return errors.New("bad input results `array`")
 		}
 		if isGlob := i.File.Glob != "" || strings.Contains(i.File.Path, "*"); !isGlob {
-			return fmt.Errorf("file input results defined as array has to be a glob path")
+			return errors.New("file input results defined as array has to be a glob path")
 		}
 	}
 	return nil
@@ -416,7 +416,7 @@ func (i *InputSpec) Valid() error {
 // valid.
 func (b *Benchmark) Valid() error {
 	if len(b.Rules) == 0 {
-		return fmt.Errorf("bad benchmark: empty rule set")
+		return errors.New("bad benchmark: empty rule set")
 	}
 	for _, rule := range b.Rules {
 		if len(rule.InputSpecs) == 0 {

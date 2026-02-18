@@ -27,13 +27,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// DuplicateConnectionErr is an error that explains the connection was closed because another client tried to connect
+// ErrDuplicateConnection is an error that explains the connection was closed because another client tried to connect
 //
 //nolint:revive // TODO(PROC) Fix revive linter
-var DuplicateConnectionErr = errors.New("the stream was closed because another client called StreamEntities")
+var ErrDuplicateConnection = errors.New("the stream was closed because another client called StreamEntities")
 
 // GRPCServer implements a gRPC server to expose Process Entities collected with a WorkloadMetaExtractor
 type GRPCServer struct {
+	pbgo.UnimplementedProcessEntityStreamServer
+
 	config    pkgconfigmodel.Reader
 	extractor *WorkloadMetaExtractor
 	server    *grpc.Server
@@ -163,7 +165,7 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 			// Ensure that if streamCtx.Done() is closed, we always choose that path.
 			select {
 			case <-streamCtx.Done():
-				return DuplicateConnectionErr
+				return ErrDuplicateConnection
 			default:
 			}
 
@@ -174,7 +176,7 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 
 			// The diff received from the channel should be 1 + the previous version. Otherwise, we have lost data,
 			// and we should signal the client to resync by closing the stream.
-			log.Trace("[WorkloadMeta GRPCServer] expected diff version %d, actual %d", expectedVersion, diff.cacheVersion)
+			log.Tracef("[WorkloadMeta GRPCServer] expected diff version %d, actual %d", expectedVersion, diff.cacheVersion)
 			if diff.cacheVersion != expectedVersion {
 				invalidVersionError.Inc()
 				log.Debug("[WorkloadMeta GRPCServer] missing cache diff - dropping stream")
@@ -202,7 +204,7 @@ func (l *GRPCServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 			}
 			return nil
 		case <-streamCtx.Done():
-			return DuplicateConnectionErr
+			return ErrDuplicateConnection
 		}
 	}
 }

@@ -8,6 +8,7 @@ package checkconfig
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"net"
@@ -205,6 +206,8 @@ type CheckConfig struct {
 
 	PingEnabled bool
 	PingConfig  pinger.Config
+
+	UseUnconnectedUDPSocket bool
 }
 
 // UpdateDeviceIDAndTags updates DeviceID and DeviceIDTags
@@ -302,11 +305,11 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.Network = instance.Network
 
 	if c.IPAddress == "" && c.Network == "" {
-		return nil, fmt.Errorf("`ip_address` or `network` config must be provided")
+		return nil, errors.New("`ip_address` or `network` config must be provided")
 	}
 
 	if c.IPAddress != "" && c.Network != "" {
-		return nil, fmt.Errorf("`ip_address` and `network` cannot be used at the same time")
+		return nil, errors.New("`ip_address` and `network` cannot be used at the same time")
 	}
 	if c.Network != "" {
 		_, _, err = net.ParseCIDR(c.Network)
@@ -453,7 +456,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	if useRCProfiles {
 		if rcClient == nil {
-			return nil, fmt.Errorf("rc client not initialized, cannot use rc profiles")
+			return nil, errors.New("rc client not initialized, cannot use rc profiles")
 		}
 		if len(initConfig.Profiles) > 0 {
 			// We don't support merging inline profiles with profiles fetched via remote
@@ -475,7 +478,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		}
 		if haveLegacyProfile || profiledefinition.IsLegacyMetrics(instance.Metrics) {
 			if initConfig.Loader == "" && instance.Loader == "" {
-				return nil, fmt.Errorf("legacy profile detected with no loader specified, falling back to the Python loader")
+				return nil, errors.New("legacy profile detected with no loader specified, falling back to the Python loader")
 			}
 		}
 	}
@@ -572,16 +575,16 @@ func (c *CheckConfig) getResolvedSubnetName() string {
 func (c *CheckConfig) DeviceDigest(address string) DeviceDigest {
 	h := fnv.New64()
 	// Hash write never returns an error
-	h.Write([]byte(address))                   //nolint:errcheck
-	h.Write([]byte(fmt.Sprintf("%d", c.Port))) //nolint:errcheck
-	h.Write([]byte(c.SnmpVersion))             //nolint:errcheck
-	h.Write([]byte(c.CommunityString))         //nolint:errcheck
-	h.Write([]byte(c.User))                    //nolint:errcheck
-	h.Write([]byte(c.AuthKey))                 //nolint:errcheck
-	h.Write([]byte(c.AuthProtocol))            //nolint:errcheck
-	h.Write([]byte(c.PrivKey))                 //nolint:errcheck
-	h.Write([]byte(c.PrivProtocol))            //nolint:errcheck
-	h.Write([]byte(c.ContextName))             //nolint:errcheck
+	h.Write([]byte(address))                                //nolint:errcheck
+	h.Write([]byte(strconv.FormatUint(uint64(c.Port), 10))) //nolint:errcheck
+	h.Write([]byte(c.SnmpVersion))                          //nolint:errcheck
+	h.Write([]byte(c.CommunityString))                      //nolint:errcheck
+	h.Write([]byte(c.User))                                 //nolint:errcheck
+	h.Write([]byte(c.AuthKey))                              //nolint:errcheck
+	h.Write([]byte(c.AuthProtocol))                         //nolint:errcheck
+	h.Write([]byte(c.PrivKey))                              //nolint:errcheck
+	h.Write([]byte(c.PrivProtocol))                         //nolint:errcheck
+	h.Write([]byte(c.ContextName))                          //nolint:errcheck
 
 	// Sort the addresses to get a stable digest
 	addresses := make([]string, 0, len(c.IgnoredIPAddresses))
@@ -648,6 +651,8 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.PingConfig.Timeout = c.PingConfig.Timeout
 	newConfig.PingConfig.Count = c.PingConfig.Count
 	newConfig.PingConfig.UseRawSocket = c.PingConfig.UseRawSocket
+
+	newConfig.UseUnconnectedUDPSocket = c.UseUnconnectedUDPSocket
 
 	return &newConfig
 }

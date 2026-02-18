@@ -53,6 +53,8 @@ var AuthorizedConfigPathsCore = buildAuthorizedSet(
 	"dd_url",
 	"additional_endpoints",
 
+	"multi_region_failover.api_key",
+
 	"external_metrics_provider.api_key",
 	"external_metrics_provider.app_key",
 
@@ -71,6 +73,10 @@ var AuthorizedConfigPathsCore = buildAuthorizedSet(
 	"sbom.additional_endpoints",
 	"service_discovery.forwarder.additional_endpoints",
 	"runtime_security_config.endpoints.additional_endpoints",
+	"runtime_security_config.activity_dump.remote_storage.endpoints",
+	"compliance_config.endpoints",
+	"process_config.process_dd_url",
+	"process_config.additional_endpoints",
 )
 
 func buildAuthorizedSet(paths ...string) AuthorizedSet {

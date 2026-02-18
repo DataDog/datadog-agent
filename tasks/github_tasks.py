@@ -154,7 +154,13 @@ def get_token_from_app(_, app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64')
     GithubAPI.get_token_from_app(app_id_env, pkey_env)
 
 
-def _get_teams(changed_files, owners_file='.github/CODEOWNERS') -> list[str]:
+def _get_teams(changed_files, owners_file='.github/CODEOWNERS', best_teams_only=True) -> list[str]:
+    """Returns a list of teams that are responsible for changed files
+
+    :param changed_files: list of changed files
+    :param owners_file: path to the CODEOWNERS file
+    :param best_teams_only: if True, returns only the teams with the most changed files
+    """
     codeowners = read_owners(owners_file)
 
     team_counter = Counter()
@@ -167,9 +173,9 @@ def _get_teams(changed_files, owners_file='.github/CODEOWNERS') -> list[str]:
         return []
 
     _, best_count = team_count[0]
-    best_teams = [team.casefold() for (team, count) in team_count if count == best_count]
-
-    return best_teams
+    if best_teams_only:
+        return [team.casefold() for (team, count) in team_count if count == best_count]
+    return [team.casefold() for (team, _) in team_count]
 
 
 def _get_team_labels():
@@ -188,30 +194,31 @@ def _get_team_labels():
 def assign_team_label(_, pr_id=-1):
     """
     Assigns the github team label name if teams can
-    be deduced from the changed files
+    be deduced from the changed files.
+    Removes the team/triage label if it exists.
     """
     from tasks.libs.ciproviders.github_api import GithubAPI
 
     gh = GithubAPI('DataDog/datadog-agent')
-
-    labels = gh.get_pr_labels(pr_id)
-
-    # Skip if necessary
-    if 'qa/done' in labels or 'qa/no-code-change' in labels:
-        print('Qa done or no code change, skipping')
-        return
-
-    if any(label.startswith('team/') for label in labels):
-        print('This PR already has a team label, skipping')
-        return
-
-    # Find team
-    teams = _get_teams(gh.get_pr_files(pr_id))
+    # Fetch all teams first, and early return if no team is found
+    teams = _get_teams(gh.get_pr_files(pr_id), best_teams_only=False)
     if teams == []:
         print('No team found')
         return
 
+    # Remove 'team/triage' label if it exists
+    if 'team/triage' in gh.get_pr_labels(pr_id):
+        _remove_pr_label(gh, pr_id, 'team/triage')
+
     _assign_pr_team_labels(gh, pr_id, teams)
+
+
+def _remove_pr_label(gh, pr_id, label):
+    """
+    Remove a label from a pull request
+    """
+    pr = gh.get_pr(pr_id)
+    pr.remove_from_labels(label)
 
 
 def _assign_pr_team_labels(gh, pr_id, teams):
@@ -309,6 +316,7 @@ def pr_commenter(
     body: str = '',
     body_file: str = '',
     pr_id: int = 0,
+    pr=None,
     verbose: bool = True,
     delete: bool = False,
     force_delete: bool = False,
@@ -320,6 +328,7 @@ def pr_commenter(
     The title is used to identify the comment to update.
 
     - pr_id: If None, will use $CI_COMMIT_BRANCH to identify which PR to comment on.
+    - pr: Pass an existing PR object to avoid an additional GitHub API call.
     - delete: If True and the body is empty, will delete the comment.
     - force_delete: Won't throw error if the comment to delete is not found.
     - echo: Print comment content to stdout.
@@ -346,16 +355,18 @@ def pr_commenter(
 
     github = GithubAPI()
 
-    if pr_id == 0:
-        branch = os.environ["CI_COMMIT_BRANCH"]
-        prs = list(github.get_pr_for_branch(branch))
-        if len(prs) == 0 and not fail_on_pr_missing:
-            print(f'{color_message("Warning", Color.ORANGE)}: No PR found for branch {branch}, skipping PR comment')
-            return
-        assert len(prs) == 1, f"Expected 1 PR for branch {branch}, found {len(prs)} PRs"
-        pr = prs[0]
-    else:
-        pr = github.get_pr(pr_id)
+    # Use provided PR object if available, otherwise fetch from API
+    if pr is None:
+        if pr_id == 0:
+            branch = os.environ["CI_COMMIT_BRANCH"]
+            prs = list(github.get_pr_for_branch(branch))
+            if len(prs) == 0 and not fail_on_pr_missing:
+                print(f'{color_message("Warning", Color.ORANGE)}: No PR found for branch {branch}, skipping PR comment')
+                return
+            assert len(prs) == 1, f"Expected 1 PR for branch {branch}, found {len(prs)} PRs"
+            pr = prs[0]
+        else:
+            pr = github.get_pr(pr_id)
 
     # Created / updated / deleted comment
     action = ''
@@ -512,7 +523,7 @@ def agenttelemetry_list_change_ack_check(_, pr_id=-1):
     files = gh.get_pr_files(pr_id)
     if "comp/core/agenttelemetry/impl/config.go" in files:
         if "need-change/agenttelemetry-governance" not in labels:
-            message = f"{color_message('Error', 'red')}: If you change the `comp/core/agenttelemetry/impl/config.go` file, you need to add `need-change/agenttelemetry-governance` label. If you have access, pleas follow the instructions specified in https://datadoghq.atlassian.net/wiki/spaces/ASUP/pages/4340679635/Agent+Telemetry+Governance"
+            message = f"{color_message('Error', 'red')}: If you change the `comp/core/agenttelemetry/impl/config.go` file, you need to add `need-change/agenttelemetry-governance` label. If you have access, please follow the instructions specified in https://datadoghq.atlassian.net/wiki/spaces/ASUP/pages/4340679635/Agent+Telemetry+Governance"
             raise Exit(message, code=1)
         else:
             print(

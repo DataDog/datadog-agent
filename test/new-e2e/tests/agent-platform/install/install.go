@@ -30,7 +30,7 @@ func Unix(t *testing.T, client ExecutorWithRetry, options ...installparams.Optio
 		testEnvVars := []string{}
 		testEnvVars = append(testEnvVars, fmt.Sprintf("TESTING_APT_URL=s3.amazonaws.com/apttesting.datad0g.com/datadog-agent/pipeline-%v-a%v", params.PipelineID, params.MajorVersion))
 		if params.TestingKeysURL != "" {
-			testEnvVars = append(testEnvVars, fmt.Sprintf("TESTING_KEYS_URL=%s", params.TestingKeysURL))
+			testEnvVars = append(testEnvVars, "TESTING_KEYS_URL="+params.TestingKeysURL)
 		}
 		// apt testing repo
 		// TESTING_APT_REPO_VERSION="pipeline-xxxxx-ay y"
@@ -41,7 +41,7 @@ func Unix(t *testing.T, client ExecutorWithRetry, options ...installparams.Optio
 		testEnvVars = append(testEnvVars, fmt.Sprintf(`TESTING_YUM_VERSION_PATH="testing/pipeline-%v-a%v/%v"`, params.PipelineID, params.MajorVersion, params.MajorVersion))
 		commandLine = strings.Join(testEnvVars, " ")
 	} else {
-		commandLine = fmt.Sprintf("DD_AGENT_MAJOR_VERSION=%s", params.MajorVersion)
+		commandLine = "DD_AGENT_MAJOR_VERSION=" + params.MajorVersion
 	}
 
 	if params.Flavor != "" {

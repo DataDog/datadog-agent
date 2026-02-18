@@ -10,11 +10,12 @@ import (
 	_ "embed"
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
+	scenkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	provkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/otel/utils"
 )
 
@@ -43,7 +44,19 @@ agents:
           value: 'disable_receive_resource_spans_v2,disable_operation_and_resource_name_logic_v2'
 `
 	t.Parallel()
-	e2e.Run(t, &completeTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(completeConfig)))))
+	e2e.Run(t, &completeTestSuite{},
+		e2e.WithProvisioner(
+			provkindvm.Provisioner(
+				provkindvm.WithRunOptions(
+					scenkindvm.WithAgentOptions(
+						kubernetesagentparams.WithHelmValues(values),
+						kubernetesagentparams.WithOTelAgent(),
+						kubernetesagentparams.WithOTelConfig(completeConfig),
+					),
+				),
+			),
+		),
+	)
 }
 
 func (s *completeTestSuite) SetupSuite() {

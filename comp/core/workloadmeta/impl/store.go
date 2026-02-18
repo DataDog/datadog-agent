@@ -7,17 +7,18 @@ package workloadmetaimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"sort"
 	"strconv"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/errors"
+	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -135,10 +136,11 @@ func (w *workloadmeta) Subscribe(name string, priority wmdef.SubscriberPriority,
 
 			for _, cachedEntity := range entitiesOfKind {
 				entity := cachedEntity.get(sub.filter.Source())
-				if entity != nil && sub.filter.MatchEntity(&entity) {
+				if entity != nil && sub.filter.MatchEntity(entity) {
 					events = append(events, wmdef.Event{
-						Type:   wmdef.EventTypeSet,
-						Entity: entity,
+						Type:       wmdef.EventTypeSet,
+						Entity:     entity,
+						IsComplete: w.isEntityComplete(kind, cachedEntity),
 					})
 				}
 			}
@@ -246,7 +248,7 @@ func (w *workloadmeta) GetKubernetesPodByName(podName, podNamespace string) (*wm
 		}
 	}
 
-	return nil, errors.NewNotFound(podName)
+	return nil, pkgerrors.NewNotFound(podName)
 }
 
 // ListKubernetesPods implements Store#ListKubernetesPods
@@ -270,6 +272,17 @@ func (w *workloadmeta) GetKubeletMetrics() (*wmdef.KubeletMetrics, error) {
 	}
 
 	return entity.(*wmdef.KubeletMetrics), nil
+}
+
+func (w *workloadmeta) GetKubeCapabilities() (*wmdef.KubeCapabilities, error) {
+	// There should only be one entity of this kind with the ID used in the
+	// Kubelet collector
+	entity, err := w.getEntityByKind(wmdef.KindKubeCapabilities, wmdef.KubeCapabilitiesID)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.KubeCapabilities), nil
 }
 
 // GetProcess implements Store#GetProcess.
@@ -319,27 +332,27 @@ func (w *workloadmeta) GetContainerForProcess(processID string) (*wmdef.Containe
 
 	processEntities, ok := w.store[wmdef.KindProcess]
 	if !ok {
-		return nil, errors.NewNotFound(string(wmdef.KindProcess))
+		return nil, pkgerrors.NewNotFound(string(wmdef.KindProcess))
 	}
 
 	processEntity, ok := processEntities[processID]
 	if !ok {
-		return nil, errors.NewNotFound(processID)
+		return nil, pkgerrors.NewNotFound(processID)
 	}
 
 	process := processEntity.cached.(*wmdef.Process)
 	if process.Owner == nil || process.Owner.Kind != wmdef.KindContainer {
-		return nil, errors.NewNotFound(processID)
+		return nil, pkgerrors.NewNotFound(processID)
 	}
 
 	containerEntities, ok := w.store[wmdef.KindContainer]
 	if !ok {
-		return nil, errors.NewNotFound(process.Owner.ID)
+		return nil, pkgerrors.NewNotFound(process.Owner.ID)
 	}
 
 	container, ok := containerEntities[process.Owner.ID]
 	if !ok {
-		return nil, errors.NewNotFound(process.Owner.ID)
+		return nil, pkgerrors.NewNotFound(process.Owner.ID)
 	}
 
 	return container.cached.(*wmdef.Container), nil
@@ -352,27 +365,27 @@ func (w *workloadmeta) GetKubernetesPodForContainer(containerID string) (*wmdef.
 
 	containerEntities, ok := w.store[wmdef.KindContainer]
 	if !ok {
-		return nil, errors.NewNotFound(containerID)
+		return nil, pkgerrors.NewNotFound(containerID)
 	}
 
 	containerEntity, ok := containerEntities[containerID]
 	if !ok {
-		return nil, errors.NewNotFound(containerID)
+		return nil, pkgerrors.NewNotFound(containerID)
 	}
 
 	container := containerEntity.cached.(*wmdef.Container)
 	if container.Owner == nil || container.Owner.Kind != wmdef.KindKubernetesPod {
-		return nil, errors.NewNotFound(containerID)
+		return nil, pkgerrors.NewNotFound(containerID)
 	}
 
 	podEntities, ok := w.store[wmdef.KindKubernetesPod]
 	if !ok {
-		return nil, errors.NewNotFound(container.Owner.ID)
+		return nil, pkgerrors.NewNotFound(container.Owner.ID)
 	}
 
 	pod, ok := podEntities[container.Owner.ID]
 	if !ok {
-		return nil, errors.NewNotFound(container.Owner.ID)
+		return nil, pkgerrors.NewNotFound(container.Owner.ID)
 	}
 
 	return pod.cached.(*wmdef.KubernetesPod), nil
@@ -581,7 +594,7 @@ func (w *workloadmeta) IsInitialized() bool {
 func (w *workloadmeta) validatePushEvents(events []wmdef.Event) error {
 	for _, event := range events {
 		if event.Type != wmdef.EventTypeSet && event.Type != wmdef.EventTypeUnset {
-			return fmt.Errorf("unsupported Event type: only EventTypeSet and EventTypeUnset types are allowed for push events")
+			return errors.New("unsupported Event type: only EventTypeSet and EventTypeUnset types are allowed for push events")
 		}
 	}
 	return nil
@@ -611,26 +624,26 @@ func (w *workloadmeta) startCandidatesWithRetry(ctx context.Context) error {
 	expBackoff := backoff.NewExponentialBackOff()
 	expBackoff.InitialInterval = retryCollectorInitialInterval
 	expBackoff.MaxInterval = retryCollectorMaxInterval
-	expBackoff.MaxElapsedTime = 0 // Don't stop trying
 
 	if len(w.candidates) == 0 {
 		// TODO: this should actually probably just be an error?
 		return nil
 	}
 
-	return backoff.Retry(func() error {
+	_, err := backoff.Retry(ctx, func() (any, error) {
 		select {
 		case <-ctx.Done():
-			return &backoff.PermanentError{Err: fmt.Errorf("stopped before all collectors were able to start: %v", w.candidates)}
+			return nil, &backoff.PermanentError{Err: fmt.Errorf("stopped before all collectors were able to start: %v", w.candidates)}
 		default:
 		}
 
 		if w.startCandidates(ctx) {
-			return nil
+			return nil, nil
 		}
 
-		return fmt.Errorf("some collectors failed to start. Will retry")
-	}, expBackoff)
+		return nil, errors.New("some collectors failed to start. Will retry")
+	}, backoff.WithBackOff(expBackoff), backoff.WithMaxElapsedTime(0))
+	return err
 }
 
 func (w *workloadmeta) startCandidates(ctx context.Context) bool {
@@ -779,8 +792,25 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 				continue
 			}
 
-			// keep a copy of cachedEntity before removing sources,
-			// as we may need to merge it later
+			// Save a copy of the entity before removing the source. The
+			// original is used below to notify subscribers with the pre-delete
+			// merged state.
+			//
+			// This serves two purposes:
+			//
+			// 1. Subscribers that process deletes (like the container_lifecycle
+			// check) receive the full entity data (exit code, timestamps, etc.)
+			// instead of just an ID. This way collectors don't need to cache
+			// entity state before emitting an unset.
+			//
+			// 2. When one source is removed but others remain, subscribers get
+			// a Set event with all sources still present. This prevents tags
+			// from disappearing when one collector reports a delete before the
+			// others. For example, if containerd reports a container delete
+			// before kubelet, sending the post-delete state would remove the
+			// containerd tags from the tagger. Those tags would stay missing
+			// until kubelet reports the delete too, and then for 5 more minutes
+			// (the tagger's deletedTTL).
 			c := cachedEntity
 			cachedEntity = c.copy()
 
@@ -822,14 +852,15 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 			}
 
 			entity := cachedEntity.get(filter.Source())
-			if !filter.MatchEntity(&entity) {
+			if !filter.MatchEntity(entity) {
 				continue
 			}
 
 			if isEventTypeSet {
 				filteredEvents[sub] = append(filteredEvents[sub], wmdef.Event{
-					Type:   wmdef.EventTypeSet,
-					Entity: entity,
+					Type:       wmdef.EventTypeSet,
+					Entity:     entity,
+					IsComplete: w.isEntityComplete(entityID.Kind, cachedEntity),
 				})
 			} else {
 				entity = entity.DeepCopy()
@@ -842,6 +873,9 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 				filteredEvents[sub] = append(filteredEvents[sub], wmdef.Event{
 					Type:   wmdef.EventTypeUnset,
 					Entity: entity,
+					// Same as with entity, completeness refers to the copy
+					// before the unset took place
+					IsComplete: w.isEntityComplete(entityID.Kind, cachedEntity),
 				})
 			}
 		}
@@ -869,12 +903,12 @@ func (w *workloadmeta) getEntityByKind(kind wmdef.Kind, id string) (wmdef.Entity
 
 	entitiesOfKind, ok := w.store[kind]
 	if !ok {
-		return nil, errors.NewNotFound(string(kind))
+		return nil, pkgerrors.NewNotFound(string(kind))
 	}
 
 	entity, ok := entitiesOfKind[id]
 	if !ok {
-		return nil, errors.NewNotFound(id)
+		return nil, pkgerrors.NewNotFound(id)
 	}
 
 	return entity.cached, nil
@@ -959,4 +993,24 @@ func classifyByKindAndID(entities []wmdef.Entity) map[wmdef.Kind]map[string]wmde
 	}
 
 	return res
+}
+
+// isEntityComplete checks if an entity is complete, meaning all expected
+// collectors have reported data for it. If no expected sources are defined for
+// the entity kind, it returns true (considered complete by default).
+func (w *workloadmeta) isEntityComplete(kind wmdef.Kind, cachedEntity *cachedEntity) bool {
+	expectedSources, ok := w.expectedSources[kind]
+	if !ok || len(expectedSources) == 0 {
+		// No expected sources defined for this kind, consider it complete
+		return true
+	}
+
+	// Check if all expected sources have reported
+	for _, expectedSource := range expectedSources {
+		if _, reported := cachedEntity.sources[expectedSource]; !reported {
+			return false
+		}
+	}
+
+	return true
 }

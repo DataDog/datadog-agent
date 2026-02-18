@@ -53,14 +53,16 @@ func (f podMutatorFunc) mutatePod(pod *corev1.Pod) error {
 	return f(pod)
 }
 
-// mutatePodContainers applies a containerMutator to all of
-// the containers of a pod (init and not).
-func mutatePodContainers(pod *corev1.Pod, mutator containerMutator) error {
-	for idx, c := range pod.Spec.InitContainers {
-		if err := mutator.mutateContainer(&c); err != nil {
-			return err
+// mutatePodContainers applies a containerMutator to containers of a pod.
+// If includeInitContainers is true, it also applies to init containers.
+func mutatePodContainers(pod *corev1.Pod, mutator containerMutator, includeInitContainers bool) error {
+	if includeInitContainers {
+		for idx, c := range pod.Spec.InitContainers {
+			if err := mutator.mutateContainer(&c); err != nil {
+				return err
+			}
+			pod.Spec.InitContainers[idx] = c
 		}
-		pod.Spec.InitContainers[idx] = c
 	}
 
 	for idx, c := range pod.Spec.Containers {
@@ -115,11 +117,6 @@ type volume struct {
 
 var _ podMutator = (*volume)(nil)
 
-func (v volume) mount(mount corev1.VolumeMount) volumeMount {
-	mount.Name = v.Name
-	return volumeMount{VolumeMount: mount}
-}
-
 // mutatePod implements podMutator for volume.
 func (v volume) mutatePod(pod *corev1.Pod) error {
 	common.MarkVolumeAsSafeToEvictForAutoscaler(pod, v.Name)
@@ -164,12 +161,6 @@ func (v volumeMount) readOnly() volumeMount { // nolint:unused
 	m := v.VolumeMount
 	m.ReadOnly = true
 	return volumeMount{m, v.Prepend}
-}
-
-func (v volumeMount) prepended() volumeMount {
-	v2 := v
-	v2.Prepend = true
-	return v2
 }
 
 func appendOrPrepend[T any](item T, toList []T, prepend bool) []T {

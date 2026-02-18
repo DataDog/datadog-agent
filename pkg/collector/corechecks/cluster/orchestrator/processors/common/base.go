@@ -61,6 +61,7 @@ func ExtractModelManifests(ctx processors.ProcessorContext, resourceManifests []
 		GroupSize:       int32(groupSize),
 		Tags:            pctx.Cfg.ExtraTags,
 		HostName:        pctx.HostName,
+		SystemInfo:      pctx.SystemInfo,
 		AgentVersion:    ctx.GetAgentVersion(),
 		OriginCollector: model.OriginCollector_datadogAgent,
 	}

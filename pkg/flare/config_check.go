@@ -108,7 +108,7 @@ func PrintConfigWithInstanceIDs(w io.Writer, c integration.Config, instanceIDs [
 		printContainerExclusionRulesInfo(w, &c)
 	}
 	if c.NodeName != "" {
-		state := fmt.Sprintf("dispatched to %s", c.NodeName)
+		state := "dispatched to " + c.NodeName
 		fmt.Fprintf(w, "%s: %s\n", color.BlueString("State"), color.CyanString(state))
 	}
 	fmt.Fprintln(w, "===")
@@ -162,7 +162,7 @@ func PrintClusterCheckConfig(w io.Writer, c integration.Config, checkName string
 		printContainerExclusionRulesInfo(w, &c)
 	}
 	if c.NodeName != "" {
-		state := fmt.Sprintf("dispatched to %s", c.NodeName)
+		state := "dispatched to " + c.NodeName
 		fmt.Fprintf(w, "%s: %s\n", color.BlueString("State"), color.CyanString(state))
 	}
 	fmt.Fprintln(w, "===")

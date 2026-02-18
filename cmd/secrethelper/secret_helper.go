@@ -172,7 +172,7 @@ func readSecretsUsingPrefixes(secretsList []string, rootPath string, kubeSecretG
 		case k8sSecretPrefix:
 			res[secretID] = providers.ReadKubernetesSecret(kubeSecretGetter, id)
 		default:
-			res[secretID] = secrets.SecretVal{Value: "", ErrorMsg: fmt.Sprintf("provider not supported: %s", prefix)}
+			res[secretID] = secrets.SecretVal{Value: "", ErrorMsg: "provider not supported: " + prefix}
 		}
 	}
 

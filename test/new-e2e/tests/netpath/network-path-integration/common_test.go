@@ -9,6 +9,7 @@ package networkpathintegration
 import (
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -17,12 +18,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 )
 
 //go:embed fixtures/system-probe.yaml
@@ -63,7 +64,7 @@ func (s *baseNetworkPathIntegrationTestSuite) findNetpath(isMatch func(*aggregat
 		return nil, err
 	}
 	if nps == nil {
-		return nil, fmt.Errorf("GetLatestNetpathEvents() returned nil netpaths")
+		return nil, errors.New("GetLatestNetpathEvents() returned nil netpaths")
 	}
 
 	var match *aggregator.Netpath
@@ -91,7 +92,7 @@ func assertPayloadBase(c *assert.CollectT, np *aggregator.Netpath, hostname stri
 	}
 
 	assert.Equal(c, payload.PathOrigin("network_path_integration"), np.Origin)
-	assert.NotEmpty(c, np.PathtraceID)
+	assert.NotEmpty(c, np.TestRunID)
 	assert.Equal(c, "default", np.Namespace)
 
 	// check that the timestamp is reasonably close to the current time

@@ -13,7 +13,9 @@ __attribute__((always_inline)) int parse_dns_request(struct __sk_buff *skb, stru
     u8 end_of_name = 0;
 
 // Handle DNS request
+#ifndef USE_FENTRY
 #pragma unroll
+#endif
     for (int i = 0; i < DNS_MAX_LENGTH; i++) {
         if (end_of_name) {
             evt->name[i] = 0;

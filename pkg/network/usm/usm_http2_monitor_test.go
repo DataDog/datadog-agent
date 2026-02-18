@@ -46,7 +46,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 type pathType uint8
@@ -78,23 +77,15 @@ type usmHTTP2Suite struct {
 }
 
 func (s *usmHTTP2Suite) getCfg() *config.Config {
-	cfg := utils.NewUSMEmptyConfig()
+	cfg := NewUSMEmptyConfig()
 	cfg.EnableHTTP2Monitoring = true
 	cfg.EnableGoTLSSupport = s.isTLS
 	cfg.GoTLSExcludeSelf = s.isTLS
 	return cfg
 }
 
-func skipIfKernelNotSupported(t *testing.T) {
-	currKernelVersion, err := kernel.HostVersion()
-	require.NoError(t, err)
-	if currKernelVersion < usmhttp2.MinimumKernelVersion {
-		t.Skipf("HTTP2 monitoring can not run on kernel before %v", usmhttp2.MinimumKernelVersion)
-	}
-}
-
 func TestHTTP2Scenarios(t *testing.T) {
-	skipIfKernelNotSupported(t)
+	skipIfKernelNotSupported(t, usmhttp2.MinimumKernelVersion, "HTTP2")
 	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
 		for _, tc := range []struct {
 			name  string
@@ -1125,7 +1116,102 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 						bytes(),
 				}
 			},
-			expectedEndpoints: nil,
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
+		},
+		{
+			name: "validate path sent as literal key (Huffman encoded)",
+			// The purpose of this test is to verify our ability to identify paths which were sent with a key that
+			// sent by value (:path with huffman encoded format).
+			messageBuilder: func() [][]byte {
+				headerFields := removeHeaderFieldByKey(testHeaders(), ":path")
+				headersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{Headers: headerFields})
+				require.NoError(t, err, "could not create headers frame")
+				// pathHeaderField is created with a key that sent by value (:path) and
+				// the value (of the path) is /aaa.
+
+				pathHeaderField := []byte{0x40, 0x05, 0x3a, 0x70, 0x61, 0x74, 0x68, 0x04, 0x2f, 0x61, 0x61, 0x61}
+				headersFrame = append(pathHeaderField, headersFrame...)
+				framer := newFramer()
+				return [][]byte{
+					framer.
+						writeRawHeaders(t, 1, endHeaders, headersFrame).
+						writeData(t, 1, endStream, emptyBody).
+						bytes(),
+				}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
+		},
+		{
+			name: "validate method sent as literal key (plain text)",
+			// The purpose of this test is to verify our ability to identify methods which were sent with a key
+			// sent by value (:method in plain text format).
+			messageBuilder: func() [][]byte {
+				headerFields := removeHeaderFieldByKey(testHeaders(), ":method")
+				headersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{Headers: headerFields})
+				require.NoError(t, err, "could not create headers frame")
+				// methodHeaderField is created with a key sent by value (:method) and the value POST.
+				// 0x40 = Literal Header Field with Incremental Indexing
+				// 0x07 = key length (7 for ":method")
+				// 0x3a, 0x6d, 0x65, 0x74, 0x68, 0x6f, 0x64 = ":method" in ASCII
+				// 0x04 = value length (4 for "POST")
+				// 0x50, 0x4f, 0x53, 0x54 = "POST" in ASCII
+				methodHeaderField := []byte{0x40, 0x07, 0x3a, 0x6d, 0x65, 0x74, 0x68, 0x6f, 0x64, 0x04, 0x50, 0x4f, 0x53, 0x54}
+				headersFrame = append(methodHeaderField, headersFrame...)
+				framer := newFramer()
+				return [][]byte{
+					framer.
+						writeRawHeaders(t, 1, endHeaders, headersFrame).
+						writeData(t, 1, endStream, emptyBody).
+						bytes(),
+				}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
+		},
+		{
+			name: "validate method sent as literal key (Huffman encoded)",
+			// The purpose of this test is to verify our ability to identify methods which were sent with a key
+			// sent by value (:method with Huffman encoded format).
+			messageBuilder: func() [][]byte {
+				headerFields := removeHeaderFieldByKey(testHeaders(), ":method")
+				headersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{Headers: headerFields})
+				require.NoError(t, err, "could not create headers frame")
+				// methodHeaderField is created with a key sent by value (:method Huffman encoded) and the value POST.
+				// 0x40 = Literal Header Field with Incremental Indexing
+				// 0x85 = Huffman flag (0x80) + length 5 for Huffman encoded ":method"
+				// 0xb9, 0x49, 0x53, 0x39, 0xe4 = ":method" Huffman encoded
+				// 0x04 = value length (4 for "POST")
+				// 0x50, 0x4f, 0x53, 0x54 = "POST" in ASCII
+				methodHeaderField := []byte{0x40, 0x85, 0xb9, 0x49, 0x53, 0x39, 0xe4, 0x04, 0x50, 0x4f, 0x53, 0x54}
+				headersFrame = append(methodHeaderField, headersFrame...)
+				framer := newFramer()
+				return [][]byte{
+					framer.
+						writeRawHeaders(t, 1, endHeaders, headersFrame).
+						writeData(t, 1, endStream, emptyBody).
+						bytes(),
+				}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
 		},
 		{
 			name: "Interesting frame header sent separately from frame payload",
@@ -1802,8 +1888,8 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 }
 
 func TestHTTP2InFlightMapCleaner(t *testing.T) {
-	skipIfKernelNotSupported(t)
-	cfg := utils.NewUSMEmptyConfig()
+	skipIfKernelNotSupported(t, usmhttp2.MinimumKernelVersion, "HTTP2")
+	cfg := NewUSMEmptyConfig()
 	cfg.EnableHTTP2Monitoring = true
 	cfg.HTTP2DynamicTableMapCleanerInterval = 5 * time.Second
 	cfg.HTTPIdleConnectionTTL = time.Second
@@ -2124,7 +2210,7 @@ func getExpectedOutcomeForPathWithRepeatedChars() map[usmhttp.Key]captureRange {
 	for i := 1; i < 100; i++ {
 		expected[usmhttp.Key{
 			Path: usmhttp.Path{
-				Content: usmhttp.Interner.GetString(fmt.Sprintf("/%s", strings.Repeat("a", i))),
+				Content: usmhttp.Interner.GetString("/" + strings.Repeat("a", i)),
 			},
 			Method: usmhttp.MethodPost,
 		}] = captureRange{

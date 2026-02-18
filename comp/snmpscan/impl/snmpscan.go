@@ -7,6 +7,7 @@
 package snmpscanimpl
 
 import (
+	"context"
 	"errors"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -80,7 +81,8 @@ func (s snmpScannerImpl) startDeviceScan(task rcclienttypes.AgentTaskConfig) err
 		namespace = deviceNamespace
 	}
 
-	return s.ScanDeviceAndSendData(instance, namespace, snmpscan.ScanParams{
-		ScanType: metadata.RCTriggeredScan,
-	})
+	return s.ScanDeviceAndSendData(context.Background(), instance, namespace,
+		snmpscan.ScanParams{
+			ScanType: metadata.RCTriggeredScan,
+		})
 }

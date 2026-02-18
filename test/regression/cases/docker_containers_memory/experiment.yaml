@@ -24,7 +24,7 @@ target:
     DD_PROFILING_WAIT_PROFILE_MAX_GOROUTINES: 2000
     DD_APM_INTERNAL_PROFILING_ENABLED: true
 
-    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:docker_containers
+    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:docker_containers_memory
 
 checks:
   - name: memory_usage

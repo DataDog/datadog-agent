@@ -17,7 +17,7 @@ const remoteSource = "remote"
 
 type tagStore struct {
 	mutex     sync.RWMutex
-	store     types.ObjectStore[*types.Entity]
+	store     *genericstore.ObjectStore[*types.Entity]
 	telemetry map[string]float64
 
 	telemetryStore *telemetry.Store

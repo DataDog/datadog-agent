@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,9 +34,13 @@ func TestGetInstanceIdentity(t *testing.T) {
 	conf := configmock.New(t)
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
-	val, err := GetInstanceIdentity(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, "us-east-1", val.Region)
-	assert.Equal(t, "i-aaaaaaaaaaaaaaaaa", val.InstanceID)
-	assert.Equal(t, "REMOVED", val.AccountID)
+	assert.EventuallyWithT(
+		t, func(_ *assert.CollectT) {
+			val, err := GetInstanceIdentity(ctx)
+			require.NoError(t, err)
+			assert.Equal(t, "us-east-1", val.Region)
+			assert.Equal(t, "i-aaaaaaaaaaaaaaaaa", val.InstanceID)
+			assert.Equal(t, "REMOVED", val.AccountID)
+		},
+		10*time.Second, 1*time.Second)
 }

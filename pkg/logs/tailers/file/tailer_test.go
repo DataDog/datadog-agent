@@ -33,6 +33,10 @@ import (
 var chanSize = 10
 var closeTimeout = 1 * time.Second
 
+// TailerTestSuite contains unit tests for the file tailer.
+// These tests are focused on verifying the core functionality of the file tailer
+// with minimal external dependencies. The goal moving forward is to move
+// all of these tests over to file mocks or the integration test suite.
 type TailerTestSuite struct {
 	suite.Suite
 	testDir  string
@@ -237,7 +241,13 @@ func (suite *TailerTestSuite) TestRecoverTailing() {
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tailer.decodedOffset.Load()))
 }
 
-func (suite *TailerTestSuite) TestWithBlanklines() {
+func (suite *TailerTestSuite) TestWithBlanklinesSingleLineHandler() {
+	mockConfig := configmock.New(suite.T())
+	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection_tagging", false)
+
+	// Recreate the tailer after config change so decoder uses SingleLineHandler
+	suite.tailer = NewTailer(suite.createTailerOptions(nil))
+
 	lines := "\t\t\t     \t\t\n    \n\n   \n\n\r\n\r\n\r\n"
 	lines += "message 1\n"
 	lines += "\n\n\n\n\n\n\n\n\n\t\n"
@@ -268,7 +278,7 @@ func (suite *TailerTestSuite) TestWithBlanklines() {
 func (suite *TailerTestSuite) TestTailerIdentifier() {
 	suite.tailer.StartFromBeginning()
 	suite.Equal(
-		fmt.Sprintf("file:%s", filepath.Join(suite.testDir, "tailer.log")),
+		"file:"+filepath.Join(suite.testDir, "tailer.log"),
 		suite.tailer.Identifier())
 }
 
@@ -350,12 +360,69 @@ func (suite *TailerTestSuite) TestBuildTagsFileDir() {
 	}, tags)
 }
 
-func (suite *TailerTestSuite) TestTruncatedTag() {
+func (suite *TailerTestSuite) TestTruncatedTagAutoMultilineHandler() {
+	mockConfig := configmock.New(suite.T())
+	mockConfig.SetWithoutSource("logs_config.max_message_size_bytes", 100)     // Small size to force truncation when aggregated
+	mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", true)        // Enable truncation tagging
+	mockConfig.SetWithoutSource("logs_config.tag_multi_line_logs", true)       // Enable multiline tagging
+	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection", true) // Enable multiline tagging
+
+	// Enable auto multiline detection with aggregation (not just detection-only tagging)
+	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection_tagging", false) // Disable detection-only
+	// Instead, enable full auto multiline on the source itself
+
+	defer mockConfig.SetWithoutSource("logs_config.max_message_size_bytes", pkgconfigsetup.DefaultMaxMessageSizeBytes)
+	defer mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", false)
+	defer mockConfig.SetWithoutSource("logs_config.tag_multi_line_logs", false)
+
+	autoML := true
+	source := sources.NewLogSource("", &config.LogsConfig{
+		Type:          config.FileType,
+		Path:          suite.testPath,
+		AutoMultiLine: &autoML, // Enable auto multiline aggregation
+	})
+
+	suite.tailer = NewTailer(suite.createTailerOptions(&tailerTestOptions{
+		source:     source,
+		isWildcard: true,
+	}))
+	suite.tailer.StartFromBeginning()
+
+	// Write multiline logs that will exceed the size limit when combined
+	// Use a recognized timestamp format with time component
+	// Line 1: ~60 bytes, Line 2: ~50 bytes, Combined: ~112 bytes (exceeds 100 byte limit)
+	_, err := suite.testFile.WriteString("2024-01-01 10:00:00 [ERROR] First line of multiline log message\n")
+	suite.Nil(err)
+	_, err = suite.testFile.WriteString("  continuation line that should be aggregated here\n") // This should be aggregated with the first line
+	suite.Nil(err)
+	// Write a new log with timestamp to trigger flush of the previous multiline group
+	_, err = suite.testFile.WriteString("2024-01-01 10:00:01 [INFO] Next log\n")
+	suite.Nil(err)
+
+	// First message should be the aggregated multiline log with truncation
+	msg := <-suite.outputChan
+	tags := msg.Tags()
+
+	// Check for truncation tag with "auto_multiline" reason
+	suite.Contains(tags, message.TruncatedReasonTag("auto_multiline"))
+
+	// The content should contain the truncation flag
+	content := string(msg.GetContent())
+	suite.Contains(content, "...TRUNCATED...")
+
+	// Second message should be the single-line log
+	msg2 := <-suite.outputChan
+	suite.NotNil(msg2)
+}
+
+func (suite *TailerTestSuite) TestTruncatedTagSingleLineHandler() {
 	mockConfig := configmock.New(suite.T())
 	mockConfig.SetWithoutSource("logs_config.max_message_size_bytes", 3)
 	mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", true)
+	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection_tagging", false)
 	defer mockConfig.SetWithoutSource("logs_config.max_message_size_bytes", pkgconfigsetup.DefaultMaxMessageSizeBytes)
 	defer mockConfig.SetWithoutSource("logs_config.tag_truncated_logs", false)
+	defer mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection_tagging", true)
 
 	source := sources.NewLogSource("", &config.LogsConfig{
 		Type: config.FileType,

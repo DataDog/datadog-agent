@@ -551,6 +551,29 @@ func TestNormalizeTraceTraceIdMismatch(t *testing.T) {
 	assert.Equal(t, tsDropped(&info.TracesDropped{ForeignSpan: *atomic.NewInt64(1)}), ts)
 }
 
+// TestNormalizeTraceTraceIdMismatch128Bit tests that spans with matching low 64 bits
+// but different high 64 bits (_dd.p.tid) are correctly detected as foreign spans.
+//
+// Note: In normal operation, two spans in the same chunk would NOT both have _dd.p.tid.
+// Tracers only set _dd.p.tid on the first span in each chunk to avoid redundant data.
+// This test validates an edge case where this invariant is violated.
+func TestNormalizeTraceTraceIdMismatch128Bit(t *testing.T) {
+	a := &Agent{conf: config.New()}
+	ts := newTagStats()
+	span1, span2 := newTestSpan(), newTestSpan()
+
+	// Same low 64 bits, different high 64 bits (_dd.p.tid)
+	span1.TraceID = 1
+	span2.TraceID = 1
+	span1.Meta["_dd.p.tid"] = "0000000000000001"
+	span2.Meta["_dd.p.tid"] = "0000000000000002"
+
+	trace := pb.Trace{span1, span2}
+	err := a.normalizeTrace(ts, trace)
+	assert.Error(t, err)
+	assert.Equal(t, tsDropped(&info.TracesDropped{ForeignSpan: *atomic.NewInt64(1)}), ts)
+}
+
 func TestNormalizeTraceInvalidSpan(t *testing.T) {
 	a := &Agent{conf: config.New()}
 	ts := newTagStats()
@@ -610,9 +633,9 @@ func TestNormalizeChunkNotPopulatingOrigin(t *testing.T) {
 	root := newTestSpan()
 	traceutil.SetMeta(root, "_dd.origin", "rum")
 	chunk := testutil.TraceChunkWithSpan(root)
-	chunk.Origin = "lambda"
+	chunk.Origin = "cloudrun"
 	setChunkAttributes(chunk, root)
-	assert.Equal("lambda", chunk.Origin)
+	assert.Equal("cloudrun", chunk.Origin)
 }
 
 func TestNormalizeChunkPopulatingSamplingPriority(t *testing.T) {

@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"cmp"
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -420,5 +421,5 @@ outer:
 func computeCacheKey(b []byte) string {
 	h := sha256.New()
 	h.Write(b)
-	return fmt.Sprintf("%x", h.Sum(nil))
+	return hex.EncodeToString(h.Sum(nil))
 }

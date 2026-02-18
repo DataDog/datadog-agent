@@ -1,0 +1,14 @@
+---
+clusterAgent:
+  admissionController:
+    configMode: "hostip"
+datadog:
+  apm:
+    instrumentation:
+      enabled: true
+      injector:
+        imageTag: "0.52.0"
+      enabledNamespaces:
+        - "expect-injection"
+      libVersions:
+        python: "v3.18.1"

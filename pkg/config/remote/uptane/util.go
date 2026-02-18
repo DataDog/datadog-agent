@@ -70,7 +70,7 @@ func unsafeMetaVersion(rawMeta json.RawMessage) (uint64, error) {
 		return 0, err
 	}
 	if metaVersion.Signed == nil || metaVersion.Signed.Version == nil {
-		return 0, fmt.Errorf("invalid meta: version field is missing")
+		return 0, errors.New("invalid meta: version field is missing")
 	}
 	return *metaVersion.Signed.Version, nil
 }
@@ -86,7 +86,7 @@ func unsafeMetaCustom(rawMeta json.RawMessage) ([]byte, error) {
 		return nil, err
 	}
 	if metaVersion.Signed == nil {
-		return nil, fmt.Errorf("invalid meta: signed is missing")
+		return nil, errors.New("invalid meta: signed is missing")
 	}
 	return []byte(metaVersion.Signed.Custom), nil
 }
@@ -102,7 +102,7 @@ func unsafeMetaExpires(rawMeta json.RawMessage) (time.Time, error) {
 		return time.Time{}, err
 	}
 	if metaExpires.Signed == nil {
-		return time.Time{}, fmt.Errorf("invalid meta: signed is missing")
+		return time.Time{}, errors.New("invalid meta: signed is missing")
 	}
 	return metaExpires.Signed.Expires, nil
 }
@@ -184,7 +184,7 @@ func recreate(path string, agentVersion string, apiKeyHash string, url string) (
 	})
 	if err != nil {
 		if errors.Is(err, bbolterr.ErrTimeout) {
-			return nil, fmt.Errorf("rc db is locked. Please check if another instance of the agent is running and using the same `run_path` parameter")
+			return nil, errors.New("rc db is locked. Please check if another instance of the agent is running and using the same `run_path` parameter")
 		}
 		return nil, err
 	}
@@ -217,12 +217,12 @@ func getMetadata(db *bbolt.DB) (AgentMetadata, error) {
 		bucket := tx.Bucket([]byte(metaBucket))
 		if bucket == nil {
 			log.Infof("Missing meta bucket")
-			return fmt.Errorf("could not get RC metadata: missing bucket")
+			return errors.New("could not get RC metadata: missing bucket")
 		}
 		metadataBytes := bucket.Get([]byte(metaFile))
 		if metadataBytes == nil {
 			log.Infof("Missing meta file in meta bucket")
-			return fmt.Errorf("could not get RC metadata: missing meta file")
+			return errors.New("could not get RC metadata: missing meta file")
 		}
 		err = json.Unmarshal(metadataBytes, &metadata)
 		if err != nil {
@@ -242,7 +242,7 @@ func openCacheDB(path string, agentVersion string, apiKey string, url string) (*
 	})
 	if err != nil {
 		if errors.Is(err, bbolterr.ErrTimeout) {
-			return nil, fmt.Errorf("rc db is locked. Please check if another instance of the agent is running and using the same `run_path` parameter")
+			return nil, errors.New("rc db is locked. Please check if another instance of the agent is running and using the same `run_path` parameter")
 		}
 		log.Infof("Failed to open remote configuration database %s", err)
 		return recreate(path, agentVersion, apiKeyHash, url)

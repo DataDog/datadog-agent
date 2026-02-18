@@ -1,5 +1,5 @@
 module github.com/DataDog/datadog-agent/internal/tools/modformatter
 
-go 1.24.0
+go 1.25.0
 
-require golang.org/x/mod v0.29.0
+require golang.org/x/mod v0.33.0

@@ -296,6 +296,16 @@ func buildNetworkInterfacesMetadata(deviceID string, store *metadata.Store) []de
 		ifIDTags := store.GetIDTags("interface", strIndex)
 
 		name := store.GetColumnAsString("interface.name", strIndex)
+		ifType := int32(store.GetColumnAsFloat("interface.type", strIndex))
+
+		// Compute is_physical based on ifType
+		// Physical ethernet types: 6 (ethernetCsmacd), 62 (fastEther), 69 (fastEtherFX), 117 (gigabitEthernet)
+		var isPhysical *bool
+		if ifType != 0 {
+			physical := ifType == 6 || ifType == 62 || ifType == 69 || ifType == 117
+			isPhysical = &physical
+		}
+
 		networkInterface := devicemetadata.InterfaceMetadata{
 			DeviceID:    deviceID,
 			Index:       int32(index),
@@ -305,6 +315,8 @@ func buildNetworkInterfacesMetadata(deviceID string, store *metadata.Store) []de
 			MacAddress:  store.GetColumnAsString("interface.mac_address", strIndex),
 			AdminStatus: devicemetadata.IfAdminStatus(store.GetColumnAsFloat("interface.admin_status", strIndex)),
 			OperStatus:  devicemetadata.IfOperStatus(store.GetColumnAsFloat("interface.oper_status", strIndex)),
+			Type:        ifType,
+			IsPhysical:  isPhysical,
 			IDTags:      ifIDTags,
 		}
 		interfaces = append(interfaces, networkInterface)
@@ -355,7 +367,7 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store, interf
 func buildNetworkTopologyMetadataWithLLDP(deviceID string, store *metadata.Store, interfaces []devicemetadata.InterfaceMetadata) []devicemetadata.TopologyLinkMetadata {
 	interfaceIndexByIDType := buildInterfaceIndexByIDType(interfaces)
 
-	remManAddrByLLDPRemIndex := getRemManIPAddrByLLDPRemIndex(store.GetColumnIndexes("lldp_remote_management.interface_id_type"))
+	remManAddrByLLDPRemIndexAndLLDPRemLocalPortNum := getRemManIPAddrByLLDPRemIndexAndLLDPRemLocalPortNum(store.GetColumnIndexes("lldp_remote_management.interface_id_type"))
 
 	indexes := store.GetColumnIndexes("lldp_remote.interface_id") // using `lldp_remote.interface_id` to get indexes since it's expected to be always present
 	if len(indexes) == 0 {
@@ -403,7 +415,7 @@ func buildNetworkTopologyMetadataWithLLDP(deviceID string, store *metadata.Store
 					Description: store.GetColumnAsString("lldp_remote.device_desc", strIndex),
 					ID:          remoteDeviceID,
 					IDType:      remoteDeviceIDType,
-					IPAddress:   remManAddrByLLDPRemIndex[lldpRemIndex],
+					IPAddress:   remManAddrByLLDPRemIndexAndLLDPRemLocalPortNum[buildLLDPRemoteKey(localPortNum, lldpRemIndex)],
 				},
 				Interface: &devicemetadata.TopologyLinkInterface{
 					ID:          remoteInterfaceID,
@@ -572,7 +584,11 @@ func buildInterfaceIndexByIDType(interfaces []devicemetadata.InterfaceMetadata) 
 	return interfaceIndexByIDType
 }
 
-func getRemManIPAddrByLLDPRemIndex(remManIndexes []string) map[string]string {
+func buildLLDPRemoteKey(localPortNum, lldpRemIndex string) string {
+	return fmt.Sprintf("%s.%s", localPortNum, lldpRemIndex)
+}
+
+func getRemManIPAddrByLLDPRemIndexAndLLDPRemLocalPortNum(remManIndexes []string) map[string]string {
 	remManAddrByRemIndex := make(map[string]string)
 	for _, fullIndex := range remManIndexes {
 		indexElems := strings.Split(fullIndex, ".")
@@ -586,6 +602,7 @@ func getRemManIPAddrByLLDPRemIndex(remManIndexes []string) map[string]string {
 			//      the first elements is the IP type e.g. 4 for IPv4
 			continue
 		}
+		lldpRemLocalPortNum := indexElems[1]
 		lldpRemIndex := indexElems[2]
 		lldpRemManAddrSubtype := indexElems[3]
 		ipAddrType := indexElems[4]
@@ -594,7 +611,7 @@ func getRemManIPAddrByLLDPRemIndex(remManIndexes []string) map[string]string {
 		// We only support IPv4 for the moment
 		// TODO: Support IPv6
 		if lldpRemManAddrSubtype == "1" && ipAddrType == "4" {
-			remManAddrByRemIndex[lldpRemIndex] = strings.Join(lldpRemManAddr, ".")
+			remManAddrByRemIndex[buildLLDPRemoteKey(lldpRemLocalPortNum, lldpRemIndex)] = strings.Join(lldpRemManAddr, ".")
 		}
 	}
 	return remManAddrByRemIndex

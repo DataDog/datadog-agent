@@ -6,6 +6,7 @@
 package state
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -61,7 +62,7 @@ func parseDatadogConfigPath(path string) (configPath, error) {
 	}
 	rawProduct := matchedGroups[2]
 	if len(rawProduct) == 0 {
-		return configPath{}, fmt.Errorf("product is empty")
+		return configPath{}, errors.New("product is empty")
 	}
 	return configPath{
 		Source:   sourceDatadog,
@@ -79,7 +80,7 @@ func parseEmployeeConfigPath(path string) (configPath, error) {
 	}
 	rawProduct := matchedGroups[1]
 	if len(rawProduct) == 0 {
-		return configPath{}, fmt.Errorf("product is empty")
+		return configPath{}, errors.New("product is empty")
 	}
 	return configPath{
 		Source:   sourceEmployee,

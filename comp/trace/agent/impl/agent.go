@@ -113,7 +113,7 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 	tracecfg := deps.Config.Object()
 	if !tracecfg.Enabled {
 		log.Info(messageAgentDisabled)
-		deps.TelemetryCollector.SendStartupError(telemetry.TraceAgentNotEnabled, fmt.Errorf(""))
+		deps.TelemetryCollector.SendStartupError(telemetry.TraceAgentNotEnabled, errors.New(""))
 		// Required to signal that the whole app must stop.
 		_ = deps.Shutdowner.Shutdown()
 		return c, nil

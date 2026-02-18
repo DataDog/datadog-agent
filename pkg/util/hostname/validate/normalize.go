@@ -7,7 +7,7 @@ package validate
 
 import (
 	"bytes"
-	"fmt"
+	"errors"
 	"regexp"
 )
 
@@ -27,14 +27,14 @@ func NormalizeHost(host string) (string, error) {
 
 	// hosts longer than 253 characters are illegal
 	if len(host) > 253 {
-		return "", fmt.Errorf("hostname is too long, should contain less than 253 characters")
+		return "", errors.New("hostname is too long, should contain less than 253 characters")
 	}
 
 	for _, r := range host {
 		switch r {
 		// has null rune just toss the whole thing
 		case '\x00':
-			return "", fmt.Errorf("hostname cannot contain null character")
+			return "", errors.New("hostname cannot contain null character")
 		// drop these characters entirely
 		case '\n', '\r', '\t':
 			continue

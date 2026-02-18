@@ -12,10 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
-	"os"
-	"runtime"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -23,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
+	"github.com/DataDog/datadog-agent/pkg/network/sender"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
@@ -56,15 +54,48 @@ func createNetworkTracerModule(_ *sysconfigtypes.Config, deps module.FactoryDepe
 	}
 
 	t, err := tracer.NewTracer(ncfg, deps.Telemetry, deps.Statsd)
+	if err != nil {
+		return nil, err
+	}
 
-	return &networkTracer{tracer: t}, err
+	ctx, cancel := context.WithCancel(context.Background())
+	var connsSender sender.Sender
+	if ncfg.DirectSend {
+		connsSender, err = sender.New(ctx, t, sender.Dependencies{
+			Config:         deps.CoreConfig,
+			Logger:         deps.Log,
+			Sysprobeconfig: deps.SysprobeConfig,
+			Tagger:         deps.Tagger,
+			Wmeta:          deps.WMeta,
+			Hostname:       deps.Hostname,
+			Forwarder:      deps.ConnectionsForwarder,
+			NPCollector:    deps.NPCollector,
+		})
+		if err != nil {
+			t.Stop()
+			cancel()
+			return nil, fmt.Errorf("create direct sender: %s", err)
+		}
+	}
+
+	return &networkTracer{
+		tracer:      t,
+		cfg:         ncfg,
+		connsSender: connsSender,
+		ctx:         ctx,
+		cancelFunc:  cancel,
+	}, nil
 }
 
 var _ module.Module = &networkTracer{}
 
 type networkTracer struct {
 	tracer       *tracer.Tracer
+	cfg          *networkconfig.Config
 	restartTimer *time.Timer
+	connsSender  sender.Sender
+	ctx          context.Context
+	cancelFunc   context.CancelFunc
 }
 
 func (nt *networkTracer) GetStats() map[string]interface{} {
@@ -74,50 +105,50 @@ func (nt *networkTracer) GetStats() map[string]interface{} {
 
 // Register all networkTracer endpoints
 func (nt *networkTracer) Register(httpMux *module.Router) error {
-	var runCounter atomic.Uint64
+	if !nt.cfg.DirectSend {
+		var runCounter atomic.Uint64
 
-	httpMux.HandleFunc("/connections", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
-		start := time.Now()
-		id := utils.GetClientID(req)
-		cs, cleanup, err := nt.tracer.GetActiveConnections(id)
-		if err != nil {
-			log.Errorf("unable to retrieve connections: %s", err)
-			w.WriteHeader(500)
-			return
-		}
-		defer cleanup()
-		contentType := req.Header.Get("Accept")
-		marshaler := marshal.GetMarshaler(contentType)
-		writeConnections(w, marshaler, cs)
+		httpMux.HandleFunc("/connections", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
+			start := time.Now()
+			id := utils.GetClientID(req)
+			cs, cleanup, err := nt.tracer.GetActiveConnections(id)
+			if err != nil {
+				log.Errorf("unable to retrieve connections: %s", err)
+				w.WriteHeader(500)
+				return
+			}
+			defer cleanup()
+			contentType := req.Header.Get("Accept")
+			marshaler := marshal.GetMarshaler(contentType)
+			writeConnections(w, marshaler, cs)
 
-		if nt.restartTimer != nil {
-			nt.restartTimer.Reset(inactivityRestartDuration)
-		}
-		count := runCounter.Add(1)
-		logRequests(id, count, len(cs.Conns), start)
-	}))
+			if nt.restartTimer != nil {
+				nt.restartTimer.Reset(inactivityRestartDuration)
+			}
+			count := runCounter.Add(1)
+			logRequests(id, count, len(cs.Conns), start)
+		}))
 
-	httpMux.HandleFunc("/network_id", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
-		id, err := nt.tracer.GetNetworkID(req.Context())
-		if err != nil {
-			log.Debugf("unable to retrieve network ID: %s", err)
-			w.WriteHeader(500)
-			return
-		}
-		io.WriteString(w, id)
-	}))
+		httpMux.HandleFunc("/register", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
+			id := utils.GetClientID(req)
+			err := nt.tracer.RegisterClient(id)
+			log.Debugf("Got request on /network_tracer/register?client_id=%s", id)
+			if err != nil {
+				log.Errorf("unable to register client: %s", err)
+				w.WriteHeader(http.StatusInternalServerError)
+			} else {
+				w.WriteHeader(http.StatusOK)
+			}
+		}))
 
-	httpMux.HandleFunc("/register", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
-		id := utils.GetClientID(req)
-		err := nt.tracer.RegisterClient(id)
-		log.Debugf("Got request on /network_tracer/register?client_id=%s", id)
-		if err != nil {
-			log.Errorf("unable to register client: %s", err)
-			w.WriteHeader(http.StatusInternalServerError)
-		} else {
-			w.WriteHeader(http.StatusOK)
-		}
-	}))
+		// Convenience logging if nothing has made any requests to the system-probe in some time, let's log something.
+		// This should be helpful for customers + support to debug the underlying issue.
+		time.AfterFunc(inactivityLogDuration, func() {
+			if runCounter.Load() == 0 {
+				log.Warnf("%v since the agent started without activity, the process-agent may not be configured correctly and/or running", inactivityLogDuration)
+			}
+		})
+	}
 
 	httpMux.HandleFunc("/debug/net_maps", func(w http.ResponseWriter, req *http.Request) {
 		cs, err := nt.tracer.DebugNetworkMaps()
@@ -200,29 +231,16 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 
 	registerUSMEndpoints(nt, httpMux)
 
-	// Convenience logging if nothing has made any requests to the system-probe in some time, let's log something.
-	// This should be helpful for customers + support to debug the underlying issue.
-	time.AfterFunc(inactivityLogDuration, func() {
-		if runCounter.Load() == 0 {
-			log.Warnf("%v since the agent started without activity, the process-agent may not be configured correctly and/or running", inactivityLogDuration)
-		}
-	})
-
-	if runtime.GOOS == "windows" {
-		nt.restartTimer = time.AfterFunc(inactivityRestartDuration, func() {
-			log.Criticalf("%v since the process-agent last queried for data. It may not be configured correctly and/or running. Exiting system-probe to save system resources.", inactivityRestartDuration)
-			inactivityEventLog(inactivityRestartDuration)
-			nt.Close()
-			os.Exit(1)
-		})
-	}
-
-	return nil
+	return nt.platformRegister(httpMux)
 }
 
 // Close will stop all system probe activities
 func (nt *networkTracer) Close() {
+	if nt.connsSender != nil {
+		nt.connsSender.Stop()
+	}
 	nt.tracer.Stop()
+	nt.cancelFunc()
 }
 
 func logRequests(client string, count uint64, connectionsCount int, start time.Time) {

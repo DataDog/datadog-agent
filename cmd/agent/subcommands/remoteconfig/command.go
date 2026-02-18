@@ -94,7 +94,7 @@ func reset(_ *cliParams, config config.Component, ipc ipc.Component) error {
 	ctx, closeFn := context.WithCancel(context.Background())
 	defer closeFn()
 	md := metadata.MD{
-		"authorization": []string{fmt.Sprintf("Bearer %s", ipc.GetAuthToken())},
+		"authorization": []string{"Bearer " + ipc.GetAuthToken()},
 	}
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
@@ -126,7 +126,7 @@ func state(_ *cliParams, config config.Component, ipc ipc.Component) error {
 	ctx, closeFn := context.WithCancel(context.Background())
 	defer closeFn()
 	md := metadata.MD{
-		"authorization": []string{fmt.Sprintf("Bearer %s", ipc.GetAuthToken())}, // TODO IPC: use GRPC client
+		"authorization": []string{"Bearer " + ipc.GetAuthToken()}, // TODO IPC: use GRPC client
 	}
 	ctx = metadata.NewOutgoingContext(ctx, md)
 

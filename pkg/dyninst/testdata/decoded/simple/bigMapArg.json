@@ -615,6 +615,7 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "m: map[b: {Field1: 1, Field2: 0, Field3: 0, Field4: 0, Field5: 0, ...}}]"
   }
 ]

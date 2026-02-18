@@ -11,10 +11,9 @@ import (
 	"testing"
 	"time"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
-
-	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -31,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/submitter/submitterimpl"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 func TestRunnerLifecycle(t *testing.T) {
@@ -38,10 +38,14 @@ func TestRunnerLifecycle(t *testing.T) {
 }
 
 func TestRunnerRealtime(t *testing.T) {
+	// https://datadoghq.atlassian.net/browse/CXP-2284
+	flake.Mark(t)
+
 	enableProcessAgent(t)
 
 	t.Run("rt allowed", func(t *testing.T) {
 		rtChan := make(chan types.RTResponse)
+		defer close(rtChan)
 
 		deps := createDeps(t,
 			map[string]interface{}{"process_config.disable_realtime_checks": false},
@@ -66,6 +70,7 @@ func TestRunnerRealtime(t *testing.T) {
 	t.Run("rt disallowed", func(t *testing.T) {
 		// Buffer the channel because the runner will never consume from it, otherwise we will deadlock
 		rtChan := make(chan types.RTResponse, 1)
+		defer close(rtChan)
 
 		deps := createDeps(t,
 			map[string]interface{}{"process_config.disable_realtime_checks": true},

@@ -71,12 +71,12 @@ func EvaluateRegoRule(ctx context.Context, resolvedInputs ResolvedInputs, benchm
 		return wrapErr(err)
 	}
 	if len(rSet) == 0 || len(rSet[0].Expressions) == 0 {
-		return wrapErr(fmt.Errorf("empty results set"))
+		return wrapErr(errors.New("empty results set"))
 	}
 
 	results, ok := rSet[0].Expressions[0].Value.([]interface{})
 	if !ok {
-		return wrapErr(fmt.Errorf("could not cast expression value"))
+		return wrapErr(errors.New("could not cast expression value"))
 	}
 
 	log.TraceFunc(func() string {
@@ -103,7 +103,7 @@ func EvaluateRegoRule(ctx context.Context, resolvedInputs ResolvedInputs, benchm
 func newCheckEventFromRegoResult(data interface{}, rule *Rule, resolvedInputs ResolvedInputs, benchmark *Benchmark) *CheckEvent {
 	m, ok := data.(map[string]interface{})
 	if !ok || m == nil {
-		return NewCheckError(RegoEvaluator, fmt.Errorf("failed to cast event"), "", "", rule, benchmark)
+		return NewCheckError(RegoEvaluator, errors.New("failed to cast event"), "", "", rule, benchmark)
 	}
 	var result CheckResult
 	var errReason error
@@ -149,7 +149,7 @@ func buildRegoModules(rootDir string, rule *Rule) (map[string]string, error) {
 	modules := map[string]string{
 		"datadog_helpers.rego": regoHelpersSource,
 	}
-	ruleFilename := fmt.Sprintf("%s.rego", rule.ID)
+	ruleFilename := rule.ID + ".rego"
 	ruleCode, err := loadFile(rootDir, ruleFilename)
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
@@ -212,7 +212,7 @@ var regoBuiltins = []func(*rego.Rego){
 		func(_ rego.BuiltinContext, a *regoast.Term) (*regoast.Term, error) {
 			str, ok := a.Value.(regoast.String)
 			if !ok {
-				return nil, fmt.Errorf("rego builtin parse_octal was not given a String")
+				return nil, errors.New("rego builtin parse_octal was not given a String")
 			}
 			value, err := strconv.ParseInt(string(str), 8, 0)
 			if err != nil {

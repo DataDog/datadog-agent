@@ -24,7 +24,7 @@ var (
 )
 
 func getRelPyPath() string {
-	return filepath.Join("embedded", "bin", fmt.Sprintf("%s3", pythonBin))
+	return filepath.Join("embedded", "bin", pythonBin+"3")
 }
 
 func getRelChecksPath(cliParams *cliParams) (string, error) {

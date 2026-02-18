@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -78,14 +79,12 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 		flaretypes.NewFiller(provideContainers(workloadmeta)),
 	}
 
-	pprofURL := fmt.Sprintf("http://127.0.0.1:%s/debug/pprof/goroutine?debug=2",
-		pkgconfigsetup.Datadog().GetString("expvar_port"))
 	telemetryURL := fmt.Sprintf("http://127.0.0.1:%s/telemetry", pkgconfigsetup.Datadog().GetString("expvar_port"))
 
 	for filename, fromFunc := range map[string]func() ([]byte, error){
 		"envvars.log":         common.GetEnvVars,
 		"health.yaml":         getHealth,
-		"go-routine-dump.log": func() ([]byte, error) { return remote.getHTTPCallContent(pprofURL) },
+		"go-routine-dump.log": func() ([]byte, error) { return remote.GetGoRoutineDump() },
 		"telemetry.log":       func() ([]byte, error) { return remote.getHTTPCallContent(telemetryURL) },
 	} {
 		providers = append(providers, flaretypes.NewFiller(
@@ -221,7 +220,7 @@ func getSystemProbeConfig() ([]byte, error) {
 func (r *RemoteFlareProvider) getProcessAgentFullConfig() ([]byte, error) {
 	addressPort, err := pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
 	if err != nil {
-		return nil, fmt.Errorf("wrong configuration to connect to process-agent")
+		return nil, errors.New("wrong configuration to connect to process-agent")
 	}
 
 	procStatusURL := fmt.Sprintf("https://%s/config/all", addressPort)
@@ -242,7 +241,7 @@ func (r *RemoteFlareProvider) getChecksFromProcessAgent(fb flaretypes.FlareBuild
 	checkURL := fmt.Sprintf("https://%s/check/", addressPort)
 
 	getCheck := func(checkName, setting string) {
-		filename := fmt.Sprintf("%s_check_output.json", checkName)
+		filename := checkName + "_check_output.json"
 
 		if !pkgconfigsetup.Datadog().GetBool(setting) {
 			fb.AddFile(filename, []byte(fmt.Sprintf("'%s' is disabled", setting))) //nolint:errcheck
@@ -279,7 +278,7 @@ func (r *RemoteFlareProvider) getAgentTaggerList() ([]byte, error) {
 func (r *RemoteFlareProvider) getProcessAgentTaggerList() ([]byte, error) {
 	addressPort, err := pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
 	if err != nil {
-		return nil, fmt.Errorf("wrong configuration to connect to process-agent")
+		return nil, errors.New("wrong configuration to connect to process-agent")
 	}
 
 	taggerListURL := fmt.Sprintf("https://%s/agent/tagger-list", addressPort)
@@ -348,15 +347,17 @@ func getHealth() ([]byte, error) {
 }
 
 func getECSMeta() ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
-	defer cancel()
-
-	ecsMeta, err := ecs.NewECSMeta(ctx)
+	ecsMeta, err := ecs.GetClusterMeta()
 	if err != nil {
 		return nil, err
 	}
 
 	return json.MarshalIndent(ecsMeta, "", "\t")
+}
+
+func (r *RemoteFlareProvider) GetGoRoutineDump() ([]byte, error) {
+	pprofURL := "http://127.0.0.1:" + pkgconfigsetup.Datadog().GetString("expvar_port") + "/debug/pprof/goroutine?debug=2"
+	return r.getHTTPCallContent(pprofURL)
 }
 
 // getHTTPCallContent does a GET HTTP call to the given url and

@@ -166,7 +166,7 @@ func updateTagsInContainer(container garden.Container, tags []string) (int, erro
 		Path: shell_path,
 		Args: []string{"/home/vcap/app/.datadog/scripts/update_agent_config.sh"},
 		User: "vcap",
-		Env:  []string{fmt.Sprintf("DD_NODE_AGENT_TAGS=%s", strings.Join(tags, ","))},
+		Env:  []string{"DD_NODE_AGENT_TAGS=" + strings.Join(tags, ",")},
 	}, garden.ProcessIO{})
 	if err != nil {
 		return -1, err

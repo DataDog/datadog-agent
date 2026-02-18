@@ -113,6 +113,24 @@ static __always_inline int cleanup_conn(void *ctx, conn_tuple_t *tup, struct soc
         }
         conn.tup.pid = tup->pid;
         conn.tcp_stats.state_transitions |= (1 << TCP_CLOSE);
+
+        if (sk) {
+            __u32 packets_in = 0;
+            __u32 packets_out = 0;
+            __u32 total_retrans = 0;
+            get_tcp_segment_counts(sk, &packets_in, &packets_out);
+            get_tcp_retrans_counts(sk, &total_retrans);
+
+            if (packets_out > conn.conn_stats.sent_packets) {
+                conn.conn_stats.sent_packets = packets_out;
+            }
+            if (packets_in > conn.conn_stats.recv_packets) {
+                conn.conn_stats.recv_packets = packets_in;
+            }
+            if (total_retrans > conn.tcp_stats.retransmits) {
+                conn.tcp_stats.retransmits = total_retrans;
+            }
+        }
     }
 
     // update the `duration` field to reflect the duration of the

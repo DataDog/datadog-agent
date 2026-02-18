@@ -6,6 +6,8 @@
 package gosnmplib
 
 import (
+	"context"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -23,10 +25,17 @@ const (
 )
 
 // ConditionalWalk mimics gosnmp.GoSNMP.Walk, except that the walkFn can return
-// a next OID to walk from. Use e.g. SkipOIDRowsNaive to skip over additional
-// rows.
+// a next OID to walk from. Use e.g. SkipOIDRowsNaive to skip over additional rows.
 // This code is adapated directly from gosnmp's walk function.
-func ConditionalWalk(session *gosnmp.GoSNMP, rootOID string, useBulk bool, callInterval time.Duration, walkFn func(dataUnit gosnmp.SnmpPDU) (string, error)) error {
+func ConditionalWalk(
+	ctx context.Context,
+	session *gosnmp.GoSNMP,
+	rootOID string,
+	useBulk bool,
+	callInterval time.Duration,
+	maxCallCount int,
+	walkFn func(dataUnit gosnmp.SnmpPDU) (string, error),
+) error {
 	if rootOID == "" || rootOID == "." {
 		rootOID = baseOID
 	}
@@ -45,11 +54,23 @@ func ConditionalWalk(session *gosnmp.GoSNMP, rootOID string, useBulk bool, callI
 
 RequestLoop:
 	for {
+		select {
+		case <-ctx.Done():
+			session.Logger.Printf("ConditionalWalk cancelled after %d requests", requests)
+			return ctx.Err()
+		default:
+		}
+
 		if callInterval > 0 {
 			time.Sleep(callInterval)
 		}
 
 		requests++
+		if maxCallCount > 0 && requests >= maxCallCount {
+			session.Logger.Printf("ConditionalWalk exceeded the maximum request limit (%d)", maxCallCount)
+			return fmt.Errorf("exceeded the maximum request limit (%d)", maxCallCount)
+		}
+
 		var response *gosnmp.SnmpPacket
 		var err error
 		if useBulk {
@@ -58,7 +79,7 @@ RequestLoop:
 			response, err = session.GetNext([]string{oid})
 		}
 		if err != nil {
-			return err
+			return NewConnectionError(err)
 		}
 		if len(response.Variables) == 0 {
 			break RequestLoop
@@ -67,6 +88,8 @@ RequestLoop:
 			session.Logger.Printf("ConditionalWalk terminated with %s", response.Error.String())
 			break RequestLoop
 		}
+
+		lastOid := oid
 
 		for i, pdu := range response.Variables {
 			if pdu.Type == gosnmp.EndOfMibView || pdu.Type == gosnmp.NoSuchObject || pdu.Type == gosnmp.NoSuchInstance {
@@ -98,6 +121,19 @@ RequestLoop:
 			if oid == "" {
 				oid = pdu.Name
 			}
+		}
+
+		next, err := OIDToInts(oid)
+		if err != nil {
+			return err
+		}
+		last, err := OIDToInts(lastOid)
+		if err != nil {
+			return err
+		}
+		if !CmpOIDs(next, last).IsAfter() {
+			session.Logger.Printf("Error: detected infinite cycle: next OID '%s' is not after last OID '%s'", oid, lastOid)
+			return fmt.Errorf("detected infinite cycle: next OID '%s' is not after last OID '%s'", oid, lastOid)
 		}
 	}
 	session.Logger.Printf("ConditionalWalk completed in %d requests", requests)

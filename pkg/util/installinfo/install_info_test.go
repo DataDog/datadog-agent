@@ -7,8 +7,8 @@ package installinfo
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -131,7 +131,7 @@ func Test_logVersionHistoryToFile_maxVersionHistoryEntries(t *testing.T) {
 	expected := make([]versionHistoryEntry, maxVersionHistoryEntries)
 	for i := 0; i < maxVersionHistoryEntries; i++ {
 		entries[i] = versionHistoryEntry{
-			Version:   fmt.Sprintf("%d", i),
+			Version:   strconv.Itoa(i),
 			Timestamp: now.Add(time.Duration(i) * time.Second),
 			InstallMethod: InstallInfo{
 				Tool:             "tool",
@@ -140,7 +140,7 @@ func Test_logVersionHistoryToFile_maxVersionHistoryEntries(t *testing.T) {
 			},
 		}
 		expected[i] = versionHistoryEntry{
-			Version:   fmt.Sprintf("%d", i+10),
+			Version:   strconv.Itoa(i + 10),
 			Timestamp: now.Add(time.Duration(i+10) * time.Second),
 			InstallMethod: InstallInfo{
 				Tool:             "tool",
@@ -169,7 +169,7 @@ install_method:
 		logVersionHistoryToFile(
 			actual.Name(),
 			installInfoFile.Name(),
-			fmt.Sprintf("%d", i),
+			strconv.Itoa(i),
 			now.Add(time.Duration(i)*time.Second),
 		)
 	}
