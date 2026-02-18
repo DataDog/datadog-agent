@@ -107,7 +107,6 @@ func newFactoryForAgentWithType(
 		options = append(options, otlpmetrics.WithOTelPrefix())
 	}
 	if featuregates.AttributeSliceMultiTagExportingFeatureGate.IsEnabled() {
-		fmt.Println("Adding WithEncodeSliceMetadataAsTags from AttributeSliceMultiTagExportingFeatureGate")
 		options = append(options, otlpmetrics.WithEncodeSliceMetadataAsTags())
 	}
 
@@ -156,7 +155,6 @@ func NewFactoryForOSSExporter(typ component.Type, statsIn chan []byte) exp.Facto
 		options = append(options, otlpmetrics.WithRemapping())
 	}
 	if featuregates.AttributeSliceMultiTagExportingFeatureGate.IsEnabled() {
-		fmt.Println("Adding WithEncodeSliceMetadataAsTags from AttributeSliceMultiTagExportingFeatureGate")
 		options = append(options, otlpmetrics.WithEncodeSliceMetadataAsTags())
 	}
 
