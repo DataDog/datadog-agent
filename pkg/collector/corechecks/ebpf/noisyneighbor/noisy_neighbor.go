@@ -36,12 +36,6 @@ type NoisyNeighborCheck struct {
 	config         *NoisyNeighborConfig
 	tagger         tagger.Component
 	sysProbeClient *sysprobeclient.CheckClient
-
-	// PERFORMANCE: Cache tagger results to avoid repeated lookups for stable containers
-	// Key: container ID, Value: cached tags
-	// Simple size-bounded cache (evicts random entry when full)
-	tagCache    map[string][]string
-	tagCacheMax int
 }
 
 func Factory(tagger tagger.Component) option.Option[func() check.Check] {
@@ -52,11 +46,9 @@ func Factory(tagger tagger.Component) option.Option[func() check.Check] {
 
 func newCheck(tagger tagger.Component) check.Check {
 	return &NoisyNeighborCheck{
-		CheckBase:   core.NewCheckBase(CheckName),
-		config:      &NoisyNeighborConfig{},
-		tagger:      tagger,
-		tagCache:    make(map[string][]string),
-		tagCacheMax: 1000, // Cache up to 1000 containers
+		CheckBase: core.NewCheckBase(CheckName),
+		config:    &NoisyNeighborConfig{},
+		tagger:    tagger,
 	}
 }
 
@@ -90,62 +82,17 @@ func (n *NoisyNeighborCheck) Run() error {
 		return fmt.Errorf("get metric sender: %s", err)
 	}
 
-	var totalCgroups, starvedCgroups uint64
+	var totalCgroups uint64
 
 	for _, stat := range stats {
-		if stat.EventCount == 0 && stat.PreemptionCount > 0 {
-			starvedCgroups++
-			continue
-		}
-
 		totalCgroups++
 		tags := n.buildTags(stat)
 		n.submitPrimaryMetrics(sender, stat, tags)
 		n.submitRawCounters(sender, stat, tags)
 	}
-
 	sender.Gauge("noisy_neighbor.system.cgroups_tracked", float64(totalCgroups), "", nil)
-	if starvedCgroups > 0 {
-		sender.Gauge("noisy_neighbor.system.cgroups_starved", float64(starvedCgroups), "", nil)
-		log.Warnf("[noisy_neighbor] Detected %d starved cgroups (preempted but never scheduled)", starvedCgroups)
-	}
-
 	sender.Commit()
 	return nil
-}
-
-// getContainerTagsCached returns tags for a container, using cache when possible
-// PERFORMANCE: Reduces tagger lookups by ~90% for stable containers
-func (n *NoisyNeighborCheck) getContainerTagsCached(containerID string) []string {
-	// Check cache first
-	if cachedTags, found := n.tagCache[containerID]; found {
-		return cachedTags
-	}
-
-	// Cache miss - query tagger
-	entityID := types.NewEntityID(types.ContainerID, containerID)
-	if entityID.Empty() {
-		return nil
-	}
-
-	containerTags, err := n.tagger.Tag(entityID, types.ChecksConfigCardinality)
-	if err != nil {
-		log.Debugf("Error collecting tags for container %s: %s", containerID, err)
-		return nil
-	}
-
-	// Store in cache (with simple size limit)
-	if len(n.tagCache) >= n.tagCacheMax {
-		// Evict a random entry when cache is full
-		// For production, could use LRU, but this is simple and effective
-		for k := range n.tagCache {
-			delete(n.tagCache, k)
-			break
-		}
-	}
-	n.tagCache[containerID] = containerTags
-
-	return containerTags
 }
 
 func (n *NoisyNeighborCheck) buildTags(stat model.NoisyNeighborStats) []string {
@@ -156,22 +103,21 @@ func (n *NoisyNeighborCheck) buildTags(stat model.NoisyNeighborStats) []string {
 
 	var tags []string
 
-	// OPTIMIZATION: Extract container ID once and cache tags
 	containerID := getContainerID(cgroupName)
 	if containerID != "" {
-		// Use cached tagger lookup
-		containerTags := n.getContainerTagsCached(containerID)
-		if containerTags != nil {
-			tags = containerTags
+		entityID := types.NewEntityID(types.ContainerID, containerID)
+		if !entityID.Empty() {
+			containerTags, err := n.tagger.Tag(entityID, types.HighCardinality)
+			if err != nil {
+				log.Debugf("Error collecting tags for container %s: %s", containerID, err)
+			} else if containerTags != nil {
+				tags = containerTags
+			}
 		}
 	}
 
 	tags = append(tags, "cgroup_name:"+cgroupName)
 	tags = append(tags, fmt.Sprintf("cgroup_id:%d", stat.CgroupID))
-
-	if containerID != "" && containerID != "host" {
-		tags = append(tags, "container_id:"+containerID)
-	}
 
 	return tags
 }
@@ -188,9 +134,6 @@ func (n *NoisyNeighborCheck) submitPrimaryMetrics(sender sender.Sender, stat mod
 
 	psp := float64(stat.PreemptionCount) / float64(stat.UniquePidCount)
 	sender.Gauge("noisy_neighbor.process_scheduler_preemptions.per_process", psp, "", tags)
-
-	eventsPerProcess := float64(stat.EventCount) / float64(stat.UniquePidCount)
-	sender.Gauge("noisy_neighbor.events.per_process", eventsPerProcess, "", tags)
 }
 
 func (n *NoisyNeighborCheck) submitRawCounters(sender sender.Sender, stat model.NoisyNeighborStats, tags []string) {
