@@ -8,8 +8,6 @@ package remoteflags
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/remoteflags"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"go.uber.org/fx"
 )
 
@@ -36,11 +34,4 @@ func NewRemoteFlagSubscriber(subscriber remoteflags.RemoteFlagSubscriber) Remote
 	return RemoteFlagSubscriber{
 		Subscriber: subscriber,
 	}
-}
-
-// NoneModule returns a None optional type for remoteflags.Component.
-func NoneModule() fxutil.Module {
-	return fxutil.Component(fx.Provide(func() option.Option[Component] {
-		return option.None[Component]()
-	}))
 }

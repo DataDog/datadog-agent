@@ -38,15 +38,13 @@ func NewComponent(deps Requires) Provides {
 		client: client,
 	}
 
-	log.Info("Starting Remote Flags component")
+	log.Debug("Starting Remote Flags component")
 
 	// Register all subscribers collected via fx groups
 	for _, subscriber := range deps.Subscribers {
 		for _, handler := range subscriber.Handlers() {
 			if err := client.SubscribeWithHandler(handler); err != nil {
-				log.Errorf("Failed to register remote flag handler for flag %s: %v", handler.FlagName(), err)
-			} else {
-				log.Debugf("Registered remote flag handler for flag %s", handler.FlagName())
+				log.Errorf("Remote flag %s: registration failed: %v", handler.FlagName(), err)
 			}
 		}
 	}

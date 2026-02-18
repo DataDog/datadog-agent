@@ -7,7 +7,6 @@
 package fx
 
 import (
-	remoteflags "github.com/DataDog/datadog-agent/comp/core/remoteflags/def"
 	remoteflagsimpl "github.com/DataDog/datadog-agent/comp/core/remoteflags/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -16,6 +15,5 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(remoteflagsimpl.NewComponent),
-		fxutil.ProvideOptional[remoteflags.Component](),
 	)
 }
