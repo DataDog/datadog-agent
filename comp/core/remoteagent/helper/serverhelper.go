@@ -263,8 +263,8 @@ func (s *UnimplementedRemoteAgentServer) registerWithAgent() (string, time.Durat
 		return "", 0, err
 	}
 
-	// Store the session ID for use in the session ID interceptor
-	s.log.Infof("Registered with Core Agent. Recommended refresh interval of %d seconds.", resp.RecommendedRefreshIntervalSecs)
+	// Store the session ID for use in the session ID interceptor and config streaming
+	s.log.Infof("Registered with Remote Agent Registry for config streaming (session_id=%s). Recommended refresh interval: %d seconds.", resp.SessionId, resp.RecommendedRefreshIntervalSecs)
 
 	// Check that refresh rate is greater than 0 seconds
 	var refreshInterval time.Duration
