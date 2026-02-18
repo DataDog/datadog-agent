@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
 	"sync"
@@ -442,14 +441,6 @@ func start(log log.Component,
 		if clusterID != "" {
 			opts = append(opts, tracer.WithGlobalTag("cluster_id", clusterID))
 		}
-		if agentURL := config.GetString("cluster_agent.tracing.agent_url"); agentURL != "" {
-			if u, err := url.Parse(agentURL); err == nil && u.Host != "" {
-				opts = append(opts, tracer.WithAgentAddr(u.Host))
-			} else {
-				pkglog.Warnf("Invalid cluster_agent.tracing.agent_url %q, using default agent address", agentURL)
-			}
-		}
-
 		tracer.Start(opts...)
 		pkglog.Infof("APM tracing enabled for Cluster Agent (sample_rate=%.2f)", sampleRate)
 		defer tracer.Stop()

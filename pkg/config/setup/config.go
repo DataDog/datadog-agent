@@ -659,7 +659,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// APM tracing for the cluster agent itself
 	config.BindEnvAndSetDefault("cluster_agent.tracing.enabled", false)
 	config.BindEnvAndSetDefault("cluster_agent.tracing.env", "")
-	config.BindEnvAndSetDefault("cluster_agent.tracing.agent_url", "")
 	config.BindEnvAndSetDefault("cluster_agent.tracing.sample_rate", 0.1)
 
 	// Processor mode and sidecar configuration

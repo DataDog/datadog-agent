@@ -11,12 +11,4 @@ features:
     Add APM tracing instrumentation to the Datadog Cluster Agent for improved observability
     and debugging in production environments. When enabled, the Cluster Agent emits APM traces
     for cluster check dispatching and rebalancing operations, surfacing patch failures and
-    rebalancing decisions as span tags. Traces appear in APM under the service name
-    ``datadog-cluster-agent`` with cluster name and cluster ID context tags.
-
-    To enable APM tracing for the Cluster Agent, configure the following options:
-
-    * ``cluster_agent.tracing.enabled``: Set to ``true`` to enable tracing (default: ``false``)
-    * ``cluster_agent.tracing.env``: Environment tag for traces (e.g., ``production``, ``staging``)
-    * ``cluster_agent.tracing.sample_rate``: Sample rate from 0.0 to 1.0 (default: ``0.1`` for 10% sampling)
-    * ``cluster_agent.tracing.agent_url``: Optional Datadog Agent URL for trace submission (e.g., ``http://datadog-agent:8126``)
+    rebalancing decisions as span tags. 

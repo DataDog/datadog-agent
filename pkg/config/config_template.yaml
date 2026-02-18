@@ -2828,13 +2828,6 @@ api_key:
 #     # Default is 0.1 (10%) for safety. Set to 1.0 to trace all operations.
 #
 #     sample_rate: 0.1
-
-#     # @param agent_url - string - optional - default: ""
-#     # @env DD_CLUSTER_AGENT_TRACING_AGENT_URL - string - optional - default: ""
-#     # The URL of the Datadog Agent to send traces to (e.g., "http://datadog-agent:8126").
-#     # If not set, traces will be sent to the default agent location (localhost:8126).
-#
-#     agent_url: ""
 {{ end -}}
 {{ if .ClusterChecks }}
 #################################
