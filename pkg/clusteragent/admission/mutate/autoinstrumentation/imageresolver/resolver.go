@@ -37,7 +37,7 @@ func NewNoOpResolver() Resolver {
 }
 
 // ResolveImage returns the original image reference.
-func (r *noOpResolver) Resolve(registry string, repository string, tag string) (*ResolvedImage, bool) {
+func (r *noOpResolver) Resolve(_ string, repository string, tag string) (*ResolvedImage, bool) {
 	metrics.ImageResolutionAttempts.Inc(repository, tag, "-", tag)
 	return nil, false
 }
