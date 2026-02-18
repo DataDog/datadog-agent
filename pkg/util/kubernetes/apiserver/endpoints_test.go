@@ -204,8 +204,7 @@ func TestSearchTargetPerNameInEndpointSlices(t *testing.T) {
 				assert.Equal(t, tc.expectedErr.Error(), err.Error())
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, tc.expectedIP, result.IP)
-				assert.Equal(t, nodeName, result.NodeName)
+				assert.Equal(t, tc.expectedIP, result)
 			}
 		})
 	}
