@@ -50,7 +50,7 @@ func TestDownloadCommand(t *testing.T) {
 }
 
 func newMockRSClient(t *testing.T) secagent.SecurityModuleCmdClientWrapper {
-	m := mocks.NewSecurityModuleClientWrapper(t)
+	m := mocks.NewSecurityModuleCmdClientWrapper(t)
 	m.On("GetRuleSetReport").Return(&api.GetRuleSetReportMessage{
 		RuleSetReportMessage: &api.RuleSetReportMessage{
 			Filters: &api.FilterReport{
