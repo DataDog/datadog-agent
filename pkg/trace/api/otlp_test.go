@@ -2063,7 +2063,7 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 			operationNameV1: "ddtracer.server",
 			operationNameV2: "ddtracer.server",
 			resourceNameV1:  "POST /uploads/:document_id",
-			resourceNameV2:  "POST",
+			resourceNameV2:  "POST /uploads/:document_id",
 			out: &pb.Span{
 				Service:  "document-uploader",
 				TraceID:  2594128270069917171,
@@ -2121,7 +2121,7 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 			operationNameV1: "ddtracer.server",
 			operationNameV2: "ddtracer.server",
 			resourceNameV1:  "POST /uploads/:document_id",
-			resourceNameV2:  "POST",
+			resourceNameV2:  "POST /uploads/:document_id",
 			out: &pb.Span{
 				Service:  "document-uploader",
 				TraceID:  2594128270069917171,
@@ -2936,7 +2936,7 @@ func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 			operationNameV1: "ddtracer.server",
 			operationNameV2: "ddtracer.server",
 			resourceNameV1:  "POST /uploads/:document_id",
-			resourceNameV2:  "POST",
+			resourceNameV2:  "POST /uploads/:document_id",
 			out: &pb.Span{
 				Service:  "document-uploader",
 				TraceID:  2594128270069917171,
@@ -2996,7 +2996,7 @@ func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 			operationNameV1: "ddtracer.server",
 			operationNameV2: "ddtracer.server",
 			resourceNameV1:  "POST /uploads/:document_id",
-			resourceNameV2:  "POST",
+			resourceNameV2:  "POST /uploads/:document_id",
 			out: &pb.Span{
 				Service:  "document-uploader",
 				TraceID:  2594128270069917171,
