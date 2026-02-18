@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/core/tagger/impl-remote
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.72.0-rc.1
@@ -34,7 +34,7 @@ require (
 	github.com/mdlayher/vsock v1.2.1
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.11.1
-	google.golang.org/grpc v1.78.0
+	google.golang.org/grpc v1.79.1
 )
 
 require github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect

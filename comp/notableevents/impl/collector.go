@@ -104,13 +104,14 @@ type collector struct {
 func getEventDefinitions() []eventDefinition {
 	e := []eventDefinition{
 		{
-			Provider:  "Microsoft-Windows-Kernel-Power",
-			EventID:   41,
-			Channel:   "System",
-			QueryBody: `    <Select Path="System">*[System[Provider[@Name='Microsoft-Windows-Kernel-Power'] and EventID=41]]</Select>`,
-			EventType: "Unexpected reboot",
-			Title:     "Unexpected reboot",
-			Message:   "The system has rebooted without cleanly shutting down first",
+			Provider:      "Microsoft-Windows-Kernel-Power",
+			EventID:       41,
+			Channel:       "System",
+			QueryBody:     `    <Select Path="System">*[System[Provider[@Name='Microsoft-Windows-Kernel-Power'] and EventID=41]]</Select>`,
+			EventType:     "Unexpected reboot",
+			Title:         "Unexpected reboot",
+			Message:       "The system has rebooted without cleanly shutting down first",
+			FormatPayload: formatUnexpectedRebootPayload,
 		},
 		{
 			Provider:      "Application Error",
