@@ -3,14 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
-
 package extensions
 
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -103,4 +103,91 @@ func TestHookErrorPropagation(t *testing.T) {
 
 	require.Error(t, err, "hook failure should return error")
 	assert.Contains(t, err.Error(), "hook failed", "error should contain hook failure message")
+}
+
+// TestSaveWritesExtensionList verifies that Save writes the list of installed
+// extensions to a file on disk so that restoreAgentExtensions can read them back.
+func TestSaveWritesExtensionList(t *testing.T) {
+	tmpDir := t.TempDir()
+	ExtensionsDBDir = tmpDir
+
+	packageName := "datadog-agent"
+	ctx := context.Background()
+
+	// Setup: create DB with a package that has extensions
+	db, err := newExtensionsDB(filepath.Join(tmpDir, "extensions.db"))
+	require.NoError(t, err)
+
+	pkg := dbPackage{
+		Name:       packageName,
+		Version:    "7.50.0",
+		Extensions: map[string]struct{}{"ddot": {}, "python": {}},
+	}
+	err = db.SetPackage(pkg, false)
+	require.NoError(t, err)
+	db.Close()
+
+	// Save extensions to disk
+	saveDir := t.TempDir()
+	err = Save(ctx, packageName, saveDir)
+	require.NoError(t, err)
+
+	// Verify save file exists and contains extension names
+	savePath := filepath.Join(saveDir, ".datadog-agent-extensions.txt")
+	content, err := os.ReadFile(savePath)
+	require.NoError(t, err)
+
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	assert.Len(t, lines, 2, "should have 2 extensions saved")
+	assert.Contains(t, lines, "ddot")
+	assert.Contains(t, lines, "python")
+}
+
+// TestSaveNoExtensionsNoFile verifies that Save does not create a file
+// when the package has no extensions installed.
+func TestSaveNoExtensionsNoFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	ExtensionsDBDir = tmpDir
+
+	packageName := "datadog-agent"
+	ctx := context.Background()
+
+	// Setup: create DB with a package that has no extensions
+	db, err := newExtensionsDB(filepath.Join(tmpDir, "extensions.db"))
+	require.NoError(t, err)
+
+	pkg := dbPackage{
+		Name:       packageName,
+		Version:    "7.50.0",
+		Extensions: map[string]struct{}{},
+	}
+	err = db.SetPackage(pkg, false)
+	require.NoError(t, err)
+	db.Close()
+
+	// Save should succeed without creating a file
+	saveDir := t.TempDir()
+	err = Save(ctx, packageName, saveDir)
+	require.NoError(t, err)
+
+	// Verify no save file was created
+	savePath := filepath.Join(saveDir, ".datadog-agent-extensions.txt")
+	_, err = os.Stat(savePath)
+	assert.True(t, os.IsNotExist(err), "save file should not exist when no extensions are installed")
+}
+
+// TestSavePackageNotFound verifies that Save returns an error
+// when the package is not found in the database.
+func TestSavePackageNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	ExtensionsDBDir = tmpDir
+
+	ctx := context.Background()
+
+	// Don't set up any packages -- the DB will be empty
+
+	saveDir := t.TempDir()
+	err := Save(ctx, "nonexistent-package", saveDir)
+	require.Error(t, err, "Save should fail for a package not in the DB")
+	assert.Contains(t, err.Error(), "not installed")
 }

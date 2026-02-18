@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
+	extensionsPkg "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
 	windowssvc "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/windows"
 	windowsuser "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user/windows"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -62,7 +63,6 @@ var datadogAgentPackage = hooks{
 }
 
 const (
-	datadogAgent          = "datadog-agent"
 	watchdogStopEventName = "Global\\DatadogInstallerStop"
 	oldInstallerDir       = "C:\\ProgramData\\Datadog Installer"
 )
@@ -190,6 +190,16 @@ func postStartExperimentDatadogAgentBackground(ctx context.Context) error {
 	// must get env before uninstalling the Agent since it may read from the registry
 	env := getenv()
 
+	hookCtx := HookContext{Context: ctx, PackagePath: paths.DatadogProgramFilesDir}
+
+	// Save extensions before removing the agent
+	if err := saveAgentExtensions(hookCtx); err != nil {
+		log.Warnf("failed to save extensions: %s", err)
+	}
+	if err := removeAgentExtensions(hookCtx, false); err != nil {
+		log.Warnf("failed to remove extensions: %s", err)
+	}
+
 	// remove the Agent if it is installed
 	// if nothing is installed this will return without an error
 	removeCtx, cancelRemoveCtx := context.WithTimeout(ctx, 5*time.Minute)
@@ -218,6 +228,11 @@ func postStartExperimentDatadogAgentBackground(ctx context.Context) error {
 			err = fmt.Errorf("%w, %w", err, restoreErr)
 		}
 		return err
+	}
+
+	// Restore extensions as experiment
+	if err := restoreAgentExtensions(hookCtx, version.AgentPackageVersion, true); err != nil {
+		log.Warnf("failed to restore extensions as experiment: %s", err)
 	}
 
 	// now we start our watchdog to make sure the Agent is running
@@ -258,6 +273,16 @@ func postStopExperimentDatadogAgentBackground(ctx context.Context) (err error) {
 	// must get env before uninstalling the Agent since it may read from the registry
 	env := getenv()
 
+	hookCtx := HookContext{Context: ctx, PackagePath: paths.DatadogProgramFilesDir}
+
+	// Save experiment extensions before removing the agent
+	if err := saveAgentExtensions(hookCtx); err != nil {
+		log.Warnf("failed to save experiment extensions: %s", err)
+	}
+	if err := removeAgentExtensions(hookCtx, true); err != nil {
+		log.Warnf("failed to remove experiment extensions: %s", err)
+	}
+
 	// remove the Agent
 	err = removeAgentIfInstalledAndRestartOnFailure(ctx)
 	if err != nil {
@@ -276,11 +301,16 @@ func postStopExperimentDatadogAgentBackground(ctx context.Context) (err error) {
 		return fmt.Errorf("failed to reinstall stable Agent: %w", err)
 	}
 
+	// Restore stable extensions
+	if err := restoreAgentExtensions(hookCtx, version.AgentPackageVersion, false); err != nil {
+		log.Warnf("failed to restore stable extensions: %s", err)
+	}
+
 	return nil
 }
 
 // postPromoteExperimentDatadogAgent runs post promote scripts for a given package.
-func postPromoteExperimentDatadogAgent(_ HookContext) error {
+func postPromoteExperimentDatadogAgent(ctx HookContext) error {
 	err := setWatchdogStopEvent()
 	if err != nil {
 		// if we can't set the event it means the watchdog has failed
@@ -288,6 +318,11 @@ func postPromoteExperimentDatadogAgent(_ HookContext) error {
 		// so we can return without an error as all we were about to do
 		// is stop the watchdog
 		log.Errorf("failed to set premote event: %s", err)
+	}
+
+	// Promote experiment extensions to stable
+	if err := extensionsPkg.Promote(ctx, agentPackageName); err != nil {
+		log.Warnf("failed to promote extensions: %s", err)
 	}
 
 	return nil
@@ -410,7 +445,7 @@ func installAgentPackage(ctx context.Context, env *env.Env, target string, args 
 
 	opts := []msi.MsiexecOption{
 		msi.Install(),
-		msi.WithMsiFromPackagePath(target, datadogAgent),
+		msi.WithMsiFromPackagePath(target, agentPackageName),
 		msi.WithLogFile(logFile),
 	}
 	if env.MsiParams.AgentUserName != "" {
@@ -626,9 +661,18 @@ func restoreStableAgentFromExperiment(ctx context.Context, env *env.Env) error {
 	if err != nil {
 		return fmt.Errorf("failed to create installer exec: %w", err)
 	}
-	err = installer.RemoveExperiment(ctx, datadogAgent)
+	err = installer.RemoveExperiment(ctx, agentPackageName)
 	if err != nil {
 		return fmt.Errorf("failed to restore stable Agent: %w", err)
+	}
+
+	// Restore stable extensions after reverting the agent
+	hookCtx := HookContext{Context: ctx, PackagePath: paths.DatadogProgramFilesDir}
+	if err := extensionsPkg.DeletePackage(ctx, agentPackageName, true); err != nil {
+		log.Warnf("failed to delete experiment extensions from db: %s", err)
+	}
+	if err := restoreAgentExtensions(hookCtx, version.AgentPackageVersion, false); err != nil {
+		log.Warnf("failed to restore stable extensions: %s", err)
 	}
 
 	return nil
@@ -754,7 +798,7 @@ func restoreStableConfigFromExperiment(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to create installer exec: %w", err)
 	}
-	err = installer.RemoveConfigExperiment(ctx, datadogAgent)
+	err = installer.RemoveConfigExperiment(ctx, agentPackageName)
 	if err != nil {
 		return fmt.Errorf("failed to restore stable config: %w", err)
 	}
@@ -868,7 +912,7 @@ func launchPackageCommandInBackground(ctx context.Context, env *env.Env, command
 		return fmt.Errorf("failed to create installer exec: %w", err)
 	}
 
-	err = installer.StartPackageCommandDetached(ctx, datadogAgent, command)
+	err = installer.StartPackageCommandDetached(ctx, agentPackageName, command)
 	if err != nil {
 		return fmt.Errorf("failed to start background process: %w", err)
 	}

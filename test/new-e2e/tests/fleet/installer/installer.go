@@ -90,3 +90,43 @@ func (i *Installer) SaveExtensions(packageName, path string) (string, error) {
 func (i *Installer) RestoreExtensions(packageURL, path string) (string, error) {
 	return i.Run("extension", "restore", packageURL, path)
 }
+
+// MustRun executes a datadog-installer command and fails the test if it returns an error.
+func (i *Installer) MustRun(args ...string) string {
+	output, err := i.Run(args...)
+	assert.NoError(i.t(), err, "Failed to run installer command %v: %s", args, output)
+	return output
+}
+
+// StartExperiment starts an experiment for the given package using the daemon.
+func (i *Installer) StartExperiment(packageName, packageURL string) (string, error) {
+	return i.Run("daemon", "start-experiment", packageName, packageURL)
+}
+
+// MustStartExperiment starts an experiment and fails the test if it returns an error.
+func (i *Installer) MustStartExperiment(packageName, packageURL string) {
+	output, err := i.StartExperiment(packageName, packageURL)
+	assert.NoError(i.t(), err, "Failed to start experiment: %s", output)
+}
+
+// PromoteExperiment promotes an experiment for the given package using the daemon.
+func (i *Installer) PromoteExperiment(packageName string) (string, error) {
+	return i.Run("daemon", "promote-experiment", packageName)
+}
+
+// MustPromoteExperiment promotes an experiment and fails the test if it returns an error.
+func (i *Installer) MustPromoteExperiment(packageName string) {
+	output, err := i.PromoteExperiment(packageName)
+	assert.NoError(i.t(), err, "Failed to promote experiment: %s", output)
+}
+
+// StopExperiment stops an experiment for the given package using the daemon.
+func (i *Installer) StopExperiment(packageName string) (string, error) {
+	return i.Run("daemon", "stop-experiment", packageName)
+}
+
+// MustStopExperiment stops an experiment and fails the test if it returns an error.
+func (i *Installer) MustStopExperiment(packageName string) {
+	output, err := i.StopExperiment(packageName)
+	assert.NoError(i.t(), err, "Failed to stop experiment: %s", output)
+}
