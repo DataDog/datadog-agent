@@ -82,6 +82,7 @@ build do
               move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", "#{output_config_dir}/etc/datadog-agent", :force=>true
               move "#{install_dir}/etc/datadog-agent/runtime-security.d", "#{output_config_dir}/etc/datadog-agent", :force=>true
               move "#{install_dir}/etc/datadog-agent/compliance.d", "#{output_config_dir}/etc/datadog-agent"
+              move "#{install_dir}/etc/datadog-agent/private-action-runner", "#{output_config_dir}/etc/datadog-agent"
             end
 
             # Create the installer symlink if the file doesn't already exist
