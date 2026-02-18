@@ -1,0 +1,22 @@
+load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
+load("//bazel/tools:generate_module_bazel.bzl", "generate_module_bazel")
+
+VERSION = "8.16.0"
+
+generate_module_bazel(
+    name = "curl_module_bazel_new",
+    out = "curl.MODULE.bazel.new",
+    module = "curl",
+    sha256 = "a21e20476e39eca5a4fc5cfb00acf84bbc1f5d8443ec3853ad14c26b3c85b970",
+    strip_prefix = "curl-%s" % VERSION,
+    tags = ["manual"],
+    target_compatible_with = ["@platforms//os:linux"],
+    url = "https://curl.haxx.se/download/curl-%s.tar.gz" % VERSION,
+)
+
+diff_test(
+    name = "module_file_up_to_date_test",
+    file1 = ":curl.MODULE.bazel.new",
+    file2 = "curl.MODULE.bazel",
+    target_compatible_with = ["@platforms//os:linux"],
+)
