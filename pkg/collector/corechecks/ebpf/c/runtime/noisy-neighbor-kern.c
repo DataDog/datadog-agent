@@ -95,7 +95,6 @@ int tp_sched_switch(u64 *ctx) {
         if (stats) {
             __sync_fetch_and_add(&stats->preemption_count, 1);
         }
-        track_pid(prev_cgroup_id, prev_pid);
     }
 
     if (!next_pid) {
