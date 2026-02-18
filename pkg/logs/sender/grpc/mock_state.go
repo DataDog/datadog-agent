@@ -31,7 +31,7 @@ func StartMessageTranslator(inputChan chan *message.Message, outputChan chan *me
 
 			// Create the Log message using stateful_encoding.proto definitions
 			log := &statefulpb.Log{
-				Timestamp: uint64(ts.UnixNano() / nanoToMillis),
+				Timestamp: int64(ts.UnixNano() / nanoToMillis),
 				Content: &statefulpb.Log_Raw{
 					Raw: toValidUtf8(msg.GetContent()),
 				},

@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"sync/atomic"
 	"time"
 
 	"github.com/benbjohnson/clock"
@@ -121,7 +122,7 @@ type streamWorker struct {
 
 	// Stream management
 	currentStream   *streamInfo
-	streamState     streamState
+	streamState     atomic.Int32              // Since stream_worker_test reads this value from a separate goroutine, we need to use an atomic.Int32 to ensure proper synchronization.
 	streamFailureCh chan *streamInfo          // Signal sender/receiver failure with stream identity
 	streamReadyCh   chan streamCreationResult // Signal when async stream creation completes
 	streamLifetime  time.Duration
@@ -147,6 +148,14 @@ type streamWorker struct {
 	stopChan chan struct{}
 	done     chan struct{}
 	clock    clock.Clock
+}
+
+func (s *streamWorker) getStreamState() streamState {
+	return streamState(s.streamState.Load())
+}
+
+func (s *streamWorker) setStreamState(state streamState) {
+	s.streamState.Store(int32(state))
 }
 
 // newStreamWorker creates a new gRPC stream worker
@@ -200,7 +209,6 @@ func newStreamWorkerWithClock(
 		sink:                sink,
 		conn:                conn,
 		client:              client,
-		streamState:         disconnected,
 		streamFailureCh:     make(chan *streamInfo),
 		batchAckCh:          make(chan *batchAck, ioChanBufferSize),
 		streamReadyCh:       make(chan streamCreationResult),
@@ -216,6 +224,7 @@ func newStreamWorkerWithClock(
 		backoffTimer:        createStoppedTimer(clock, 0),
 		drainTimer:          createStoppedTimer(clock, 0),
 	}
+	worker.setStreamState(disconnected)
 
 	return worker
 }
@@ -250,7 +259,7 @@ func (s *streamWorker) supervisorLoop() {
 
 	// supervisor loop starts without a stream, but asyncCreateNewStream is called
 	// right after in streamWorker's start(), so we are in connecting state right away
-	s.streamState = connecting
+	s.setStreamState(connecting)
 
 	for {
 		// Conditional inputChan - only enabled when inflight tracker has space
@@ -268,7 +277,7 @@ func (s *streamWorker) supervisorLoop() {
 		// so if write to sendChan is blocked, next iteration will try again with the same batch.
 		var nextBatch *statefulpb.StatefulBatch
 		var sendChan chan<- *statefulpb.StatefulBatch
-		if s.streamState == active && s.inflight.hasUnSent() {
+		if s.getStreamState() == active && s.inflight.hasUnSent() {
 			sendChan = s.batchToSendCh // Enable sending
 			nextBatch = s.getNextBatch()
 		} else {
@@ -383,7 +392,7 @@ func (s *streamWorker) handleBatchAck(ack *batchAck) {
 	}
 
 	// If in Draining state and all acks received, transition to Connecting
-	if s.streamState == draining && !s.inflight.hasUnacked() {
+	if s.getStreamState() == draining && !s.inflight.hasUnacked() {
 		log.Infof("Worker %s: All acks received in draining state, proceeding with rotation", s.workerID)
 		s.drainTimer.Stop()
 		s.tryBeginStreamRotation(false)
@@ -393,18 +402,18 @@ func (s *streamWorker) handleBatchAck(ack *batchAck) {
 // handleStreamFailure processes sender/receiver failure signals
 func (s *streamWorker) handleStreamFailure(failedStream *streamInfo) {
 	// Ignore if: stale signal OR not in active/draining state
-	if failedStream != s.currentStream || (s.streamState != active && s.streamState != draining) {
+	if failedStream != s.currentStream || (s.getStreamState() != active && s.getStreamState() != draining) {
 		return
 	}
 
 	log.Infof("Worker %s: Sender or Receiver reported failure (state: %v), terminating stream",
-		s.workerID, s.streamState)
+		s.workerID, s.getStreamState())
 	s.tryBeginStreamRotation(true)
 }
 
 // handleStreamReady processes async stream creation results
 func (s *streamWorker) handleStreamReady(result streamCreationResult) {
-	if s.streamState != connecting {
+	if s.getStreamState() != connecting {
 		return
 	}
 
@@ -420,14 +429,14 @@ func (s *streamWorker) handleStreamReady(result streamCreationResult) {
 
 // handleStreamTimeout processes stream lifetime expiration
 func (s *streamWorker) handleStreamTimeout() {
-	if s.streamState != active {
+	if s.getStreamState() != active {
 		return
 	}
 
 	if s.inflight.hasUnacked() {
 		log.Infof("Worker %s: Stream lifetime expired with %d unacked payloads, entering Draining state",
 			s.workerID, s.inflight.sentCount())
-		s.streamState = draining
+		s.setStreamState(draining)
 		s.drainTimer.Reset(drainTimeout)
 	} else {
 		log.Infof("Worker %s: Stream lifetime expired with no unacked payloads, rotating immediately",
@@ -438,7 +447,7 @@ func (s *streamWorker) handleStreamTimeout() {
 
 // handleDrainTimeout handles drain timer expiration
 func (s *streamWorker) handleDrainTimeout() {
-	if s.streamState != draining {
+	if s.getStreamState() != draining {
 		return
 	}
 
@@ -449,12 +458,12 @@ func (s *streamWorker) handleDrainTimeout() {
 
 // handleBackoffTimeout processes backoff timer expiration and retries stream creation
 func (s *streamWorker) handleBackoffTimeout() {
-	if s.streamState != disconnected {
+	if s.getStreamState() != disconnected {
 		return
 	}
 
 	log.Infof("Worker %s: Backoff timer expired, retrying stream creation (error count: %d)", s.workerID, s.nbErrors)
-	s.streamState = connecting
+	s.setStreamState(connecting)
 	s.asyncCreateNewStream()
 }
 
@@ -493,12 +502,12 @@ func (s *streamWorker) tryBeginStreamRotation(dueToFailure bool) {
 	}
 
 	if !dueToFailure || backoffDuration == 0 {
-		log.Infof("Worker %s: Beginning stream creation (state: %v → connecting)", s.workerID, s.streamState)
-		s.streamState = connecting
+		log.Infof("Worker %s: Beginning stream creation (state: %v → connecting)", s.workerID, s.getStreamState())
+		s.setStreamState(connecting)
 		s.asyncCreateNewStream()
 	} else {
 		log.Infof("Worker %s: Backing off stream creation for %v (error count: %d)", s.workerID, backoffDuration, s.nbErrors)
-		s.streamState = disconnected
+		s.setStreamState(disconnected)
 		s.backoffTimer.Reset(backoffDuration)
 	}
 }
@@ -511,7 +520,7 @@ func (s *streamWorker) finishStreamRotation(streamInfo *streamInfo) {
 
 	batchToSendCh := make(chan *statefulpb.StatefulBatch, ioChanBufferSize)
 	s.currentStream = streamInfo
-	s.streamState = active
+	s.setStreamState(active)
 	s.batchToSendCh = batchToSendCh
 
 	// Start sender and receiver goroutines for this stream
