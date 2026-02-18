@@ -5,9 +5,6 @@
 
 //go:build linux_bpf
 
-//go:generate $GOPATH/bin/include_headers pkg/collector/corechecks/ebpf/c/runtime/noisy-neighbor-kern.c pkg/ebpf/bytecode/build/runtime/noisy-neighbor.c pkg/ebpf/c
-//go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/noisy-neighbor.c pkg/ebpf/bytecode/runtime/noisy-neighbor.go runtime
-
 package noisyneighbor
 
 import (
@@ -27,19 +24,6 @@ import (
 // 5.13 for kfuncs
 // 6.2 for bpf_rcu_read_lock kfunc
 var minimumKernelVersion = kernel.VersionCode(6, 2, 0)
-
-// PERFORMANCE OPTIMIZATION:
-// Instead of scanning the cgroup_pids map for each cgroup (O(N×M) complexity),
-// we scan it once per GetAndFlush and build counts for all cgroups (O(M) complexity).
-//
-// Previous approach: For each cgroup, scan ALL entries in the cgroup_pids BPF map
-//   - 100 cgroups × 10,000 total PIDs = 1,000,000 iterations per GetAndFlush()
-//   - With 1000 cgroups × 100,000 PIDs = 100,000,000 iterations (catastrophic!)
-//
-// Optimized approach: Scan cgroup_pids map once, build counts for all cgroups
-//   - 10,000 PIDs = 10,000 iterations total (not per cgroup!)
-//   - Simple, no ringbuffer overhead, no event drops
-//   - O(M) where M = total PIDs, amortized to O(1) per cgroup
 
 // Probe is the eBPF side of the noisy neighbor check
 type Probe struct {
@@ -103,12 +87,7 @@ func (p *Probe) Close() {
 
 // GetAndFlush gets the stats
 func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
-	start, _ := ddebpf.NowNanoseconds()
-
 	var nnstats []model.NoisyNeighborStats
-	var totalEvents, totalPreemptions, totalLatencies uint64
-	cgroupCount := 0
-
 	// Get the aggregation map for PSL/PSP calculation
 	aggMap, found, err := p.mgr.GetMap("cgroup_agg_stats")
 	if err != nil {
@@ -120,8 +99,6 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 		return nnstats
 	}
 
-	// Build PID counts by scanning cgroup_pids map ONCE for all cgroups
-	// This is O(M) where M = total PIDs, much better than O(N×M) per-cgroup scanning
 	pidCounts := p.buildPidCounts()
 
 	// Iterate through all cgroups in the aggregation map
@@ -129,11 +106,8 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 	var cgroupID uint64
 	var perCPUStats []ebpfCgroupAggStats
 	var cgroupsToDelete []uint64
-	var starvedCgroups int
 
 	for iter.Next(&cgroupID, &perCPUStats) {
-		cgroupCount++
-
 		// Aggregate across all CPUs and extract cgroup name from first non-empty entry
 		var cgroupLatencies, cgroupEvents, cgroupPreemptions uint64
 		var cgroupName string
@@ -147,34 +121,11 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 			}
 		}
 
-		// Accumulate totals for logging
-		totalLatencies += cgroupLatencies
-		totalEvents += cgroupEvents
-		totalPreemptions += cgroupPreemptions
-
 		// Collect key for deletion
 		cgroupsToDelete = append(cgroupsToDelete, cgroupID)
 
 		// Get unique PID count from our pre-built map
 		uniquePidCount := pidCounts[cgroupID]
-
-		// Track cgroups that were preempted but never scheduled (extremely throttled)
-		// Include these as special entries so the check can count them
-		if cgroupEvents == 0 && cgroupPreemptions > 0 {
-			starvedCgroups++
-			log.Debugf("[noisy_neighbor] Cgroup %d (%s): %d preemptions but 0 scheduling events (extreme throttling)",
-				cgroupID, cgroupName, cgroupPreemptions)
-
-			// Add special entry with zero events but preemptions counted
-			// The check will detect this pattern and emit a separate metric
-			nnstats = append(nnstats, model.NoisyNeighborStats{
-				CgroupID:        cgroupID,
-				CgroupName:      cgroupName,
-				PreemptionCount: cgroupPreemptions,
-				EventCount:      0, // Marker for starved cgroup
-			})
-			continue
-		}
 
 		// Skip cgroups with no events and no preemptions (inactive)
 		if cgroupEvents == 0 {
@@ -207,34 +158,10 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 		p.deletePidsForCgroup(cgID)
 	}
 
-	// Calculate flush duration
-	end, _ := ddebpf.NowNanoseconds()
-	flushDurationNs := end - start
-	flushDurationMs := float64(flushDurationNs) / 1e6
-
-	// Log performance statistics
-	log.Debugf("[noisy_neighbor] Flushed %d cgroups (%d with events, %d starved), %d total events (%d preemptions) in %.2fms",
-		cgroupCount, len(nnstats), starvedCgroups, totalEvents, totalPreemptions, flushDurationMs)
-
-	// Warn on performance issues
-	if flushDurationMs > 50.0 {
-		log.Warnf("[noisy_neighbor] Slow flush detected: %.2fms for %d cgroups", flushDurationMs, cgroupCount)
-	}
-
-	// Warn if no data collected
-	if totalEvents == 0 && cgroupCount > 0 {
-		log.Debugf("[noisy_neighbor] No events collected for %d tracked cgroups in this interval", cgroupCount)
-	}
-
 	return nnstats
 }
 
-// Note: In this code, "PID" follows kernel convention (task_struct->pid)
-// which is actually the Thread ID (TID) in userspace terminology.
-// The Linux scheduler operates at thread granularity, not process granularity.
-
 // buildPidCounts scans the cgroup_pids BPF map once and builds a count of unique PIDs per cgroup
-// OPTIMIZED: O(M) where M = total PIDs, instead of O(N×M) by scanning once for all cgroups
 func (p *Probe) buildPidCounts() map[uint64]uint64 {
 	pidCounts := make(map[uint64]uint64)
 
@@ -243,7 +170,6 @@ func (p *Probe) buildPidCounts() map[uint64]uint64 {
 		return pidCounts
 	}
 
-	// Single scan of the entire map - O(M) where M = total PIDs
 	iter := pidMap.Iterate()
 	var key ebpfPidKey
 	var val uint8
@@ -256,15 +182,12 @@ func (p *Probe) buildPidCounts() map[uint64]uint64 {
 }
 
 // deletePidsForCgroup cleans up PID tracking for a cgroup
-// Now simply deletes all PIDs for a cgroup from the BPF map
 func (p *Probe) deletePidsForCgroup(cgroupID uint64) {
 	pidMap, found, err := p.mgr.GetMap("cgroup_pids")
 	if err != nil || !found {
 		return
 	}
 
-	// We need to iterate to find all PIDs for this cgroup
-	// This is still O(M) but only happens during cleanup
 	var keysToDelete []ebpfPidKey
 	iter := pidMap.Iterate()
 	var key ebpfPidKey
