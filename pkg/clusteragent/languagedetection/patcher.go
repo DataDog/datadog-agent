@@ -17,7 +17,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -42,7 +41,6 @@ const (
 type languagePatcher struct {
 	ctx             context.Context
 	cancel          context.CancelFunc
-	k8sClient       dynamic.Interface
 	workloadPatcher *workloadpatcher.Patcher
 	store           workloadmeta.Component
 	logger          log.Component
@@ -57,7 +55,6 @@ func newLanguagePatcher(ctx context.Context, isLeader func() bool, store workloa
 	return &languagePatcher{
 		ctx:             ctx,
 		cancel:          cancel,
-		k8sClient:       k8sClient,
 		workloadPatcher: workloadpatcher.NewPatcher(k8sClient, isLeader),
 		store:           store,
 		logger:          logger,
