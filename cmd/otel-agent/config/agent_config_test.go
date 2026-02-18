@@ -545,6 +545,20 @@ func (suite *ConfigTestSuite) TestGatewayModeViaEnvVarHostnameEmpty() {
 	assert.Equal(t, "", c.GetString("hostname"), "hostname should be empty when gateway mode is enabled via env var")
 }
 
+func (suite *ConfigTestSuite) TestGatewayModeOverridesDDHostnameEnvVar() {
+	t := suite.T()
+	fileName := "testdata/config_default.yaml"
+	ddFileName := "testdata/datadog_gateway_mode.yaml"
+	// Simulate the Helm chart setting DD_HOSTNAME to the Kubernetes node name
+	t.Setenv("DD_HOSTNAME", "k8s-node-name")
+	c, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
+	require.NoError(t, err, "NewConfigComponent should succeed with gateway mode enabled")
+
+	// Gateway mode should override DD_HOSTNAME and set hostname to empty
+	assert.True(t, c.GetBool("otelcollector.gateway.mode"), "gateway mode should be enabled")
+	assert.Equal(t, "", c.GetString("hostname"), "hostname should be empty in gateway mode even when DD_HOSTNAME is set")
+}
+
 // TestSuite runs the CalculatorTestSuite
 func TestSuite(t *testing.T) {
 	suite.Run(t, new(ConfigTestSuite))
