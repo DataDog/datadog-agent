@@ -24,40 +24,47 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	v1 "k8s.io/api/core/v1"
+	discv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
-	infov1 "k8s.io/client-go/informers/core/v1"
+	discinfov1 "k8s.io/client-go/informers/discovery/v1"
 	listersv1 "k8s.io/client-go/listers/core/v1"
+	disclistersv1 "k8s.io/client-go/listers/discovery/v1"
 	"k8s.io/client-go/tools/cache"
 )
 
-// ServiceAPI abstracts the dependency on the Kubernetes API (useful for testing)
-type ServiceAPI interface {
-	// List lists all Services
+const (
+	kubernetesServiceNameLabel = "kubernetes.io/service-name"
+)
+
+// ServiceEndpointSlicesAPI abstracts the dependency on the Kubernetes API (useful for testing)
+type ServiceEndpointSlicesAPI interface {
+	// ListServices lists all Services
 	ListServices() ([]*v1.Service, error)
-	// GetEndpoints gets Endpoints by namespace and name
-	GetEndpoints(namespace, name string) (*v1.Endpoints, error)
+	// ListEndpointSlices lists EndpointSlices by namespace and service name
+	ListEndpointSlices(namespace, name string) ([]*discv1.EndpointSlice, error)
 }
 
-type svcAPI struct {
-	serviceLister   listersv1.ServiceLister
-	endpointsLister listersv1.EndpointsLister
+type svcEndpointSlicesAPI struct {
+	serviceLister       listersv1.ServiceLister
+	endpointSliceLister disclistersv1.EndpointSliceLister
 }
 
-func (api *svcAPI) ListServices() ([]*v1.Service, error) {
+func (api *svcEndpointSlicesAPI) ListServices() ([]*v1.Service, error) {
 	return api.serviceLister.List(labels.Everything())
 }
 
-func (api *svcAPI) GetEndpoints(namespace, name string) (*v1.Endpoints, error) {
-	return api.endpointsLister.Endpoints(namespace).Get(name)
+func (api *svcEndpointSlicesAPI) ListEndpointSlices(namespace, name string) ([]*discv1.EndpointSlice, error) {
+	return api.endpointSliceLister.EndpointSlices(namespace).List(
+		labels.Set{kubernetesServiceNameLabel: name}.AsSelector(),
+	)
 }
 
-// PrometheusServicesConfigProvider implements the ConfigProvider interface for prometheus services
-type PrometheusServicesConfigProvider struct {
+// PrometheusServicesEndpointSlicesConfigProvider implements the ConfigProvider interface for prometheus services using EndpointSlices
+type PrometheusServicesEndpointSlicesConfigProvider struct {
 	sync.RWMutex
 
-	api      ServiceAPI
+	api      ServiceEndpointSlicesAPI
 	upToDate bool
 
 	collectEndpoints   bool
@@ -66,8 +73,8 @@ type PrometheusServicesConfigProvider struct {
 	checks []*types.PrometheusCheck
 }
 
-// NewPrometheusServicesConfigProvider returns a new Prometheus ConfigProvider connected to kube apiserver
-func NewPrometheusServicesConfigProvider(*pkgconfigsetup.ConfigurationProviders, *telemetry.Store) (providerTypes.ConfigProvider, error) {
+// NewPrometheusServicesEndpointSlicesConfigProvider returns a new Prometheus ConfigProvider connected to kube apiserver using EndpointSlices
+func NewPrometheusServicesEndpointSlicesConfigProvider(*pkgconfigsetup.ConfigurationProviders, *telemetry.Store) (providerTypes.ConfigProvider, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -79,21 +86,21 @@ func NewPrometheusServicesConfigProvider(*pkgconfigsetup.ConfigurationProviders,
 		return nil, errors.New("cannot get services informer")
 	}
 
-	var endpointsInformer infov1.EndpointsInformer
-	var endpointsLister listersv1.EndpointsLister
+	var endpointSliceInformer discinfov1.EndpointSliceInformer
+	var endpointSliceLister disclistersv1.EndpointSliceLister
 
 	collectEndpoints := pkgconfigsetup.Datadog().GetBool("prometheus_scrape.service_endpoints")
 	if collectEndpoints {
-		endpointsInformer = ac.InformerFactory.Core().V1().Endpoints()
-		if endpointsInformer == nil {
-			return nil, errors.New("cannot get endpoints informer")
+		endpointSliceInformer = ac.InformerFactory.Discovery().V1().EndpointSlices()
+		if endpointSliceInformer == nil {
+			return nil, errors.New("cannot get endpointslice informer")
 		}
-		endpointsLister = endpointsInformer.Lister()
+		endpointSliceLister = endpointSliceInformer.Lister()
 	}
 
-	api := &svcAPI{
-		serviceLister:   servicesInformer.Lister(),
-		endpointsLister: endpointsLister,
+	api := &svcEndpointSlicesAPI{
+		serviceLister:       servicesInformer.Lister(),
+		endpointSliceLister: endpointSliceLister,
 	}
 
 	checks, err := getPrometheusConfigs()
@@ -101,7 +108,7 @@ func NewPrometheusServicesConfigProvider(*pkgconfigsetup.ConfigurationProviders,
 		return nil, err
 	}
 
-	p := newPromServicesProvider(checks, api, collectEndpoints)
+	p := newPromServicesEndpointSlicesProvider(checks, api, collectEndpoints)
 
 	if _, err := servicesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    p.invalidate,
@@ -111,19 +118,19 @@ func NewPrometheusServicesConfigProvider(*pkgconfigsetup.ConfigurationProviders,
 		return nil, fmt.Errorf("cannot add event handler to services informer: %s", err)
 	}
 
-	if endpointsInformer != nil {
-		if _, err := endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-			AddFunc:    p.invalidateIfAddedEndpoints,
-			UpdateFunc: p.invalidateIfChangedEndpoints,
+	if endpointSliceInformer != nil {
+		if _, err := endpointSliceInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+			AddFunc:    p.invalidateIfAddedEndpointSlices,
+			UpdateFunc: p.invalidateIfChangedEndpointSlices,
 		}); err != nil {
-			return nil, fmt.Errorf("cannot add event handler to endpoints informer: %s", err)
+			return nil, fmt.Errorf("cannot add event handler to endpointslice informer: %s", err)
 		}
 	}
 	return p, nil
 }
 
-func newPromServicesProvider(checks []*types.PrometheusCheck, api ServiceAPI, collectEndpoints bool) *PrometheusServicesConfigProvider {
-	return &PrometheusServicesConfigProvider{
+func newPromServicesEndpointSlicesProvider(checks []*types.PrometheusCheck, api ServiceEndpointSlicesAPI, collectEndpoints bool) *PrometheusServicesEndpointSlicesConfigProvider {
+	return &PrometheusServicesEndpointSlicesConfigProvider{
 		checks:             checks,
 		api:                api,
 		collectEndpoints:   collectEndpoints,
@@ -131,13 +138,13 @@ func newPromServicesProvider(checks []*types.PrometheusCheck, api ServiceAPI, co
 	}
 }
 
-// String returns a string representation of the PrometheusServicesConfigProvider
-func (p *PrometheusServicesConfigProvider) String() string {
-	return names.PrometheusServices
+// String returns a string representation of the PrometheusServicesEndpointSlicesConfigProvider
+func (p *PrometheusServicesEndpointSlicesConfigProvider) String() string {
+	return names.PrometheusServicesEndpointSlices
 }
 
 // Collect retrieves services from the apiserver, builds Config objects and returns them
-func (p *PrometheusServicesConfigProvider) Collect(_ context.Context) ([]integration.Config, error) {
+func (p *PrometheusServicesEndpointSlicesConfigProvider) Collect(_ context.Context) ([]integration.Config, error) {
 	services, err := p.api.ListServices()
 	if err != nil {
 		return nil, err
@@ -152,34 +159,37 @@ func (p *PrometheusServicesConfigProvider) Collect(_ context.Context) ([]integra
 			}
 
 			if !p.collectEndpoints {
-				// Only generates Service checks is Endpoints checks are not active
+				// Only generates Service checks if EndpointSlice checks are not active
 				serviceConfigs := utils.ConfigsForService(check, svc)
 
 				if len(serviceConfigs) != 0 {
 					configs = append(configs, serviceConfigs...)
 				}
 			} else {
-				ep, err := p.api.GetEndpoints(svc.GetNamespace(), svc.GetName())
+				slices, err := p.api.ListEndpointSlices(svc.GetNamespace(), svc.GetName())
 				if err != nil {
-					// This can happen if a service does not have an endpoint just yet
-					// Or on headless/external services.
-					if k8serrors.IsNotFound(err) {
-						continue
-					}
 					return nil, err
 				}
 
+				if len(slices) == 0 {
+					// No EndpointSlices found for this service, which can happen when
+					// the service is headless/external or the service hasn't been assigned an endpoint yet.
+					continue
+				}
+
 				// Add endpoint to tracking as soon as there are annotations (even if no config yet due to no endpoints)
-				// Otherwise if `Collect` happens to run before Endpoint object has at least one target
+				// Otherwise if `Collect` happens to run before EndpointSlice object has at least one target
 				// It will be ignored forever.
 				// Note: a race can still happen and delay the check scheduling for 5 minutes (first creation of the service)
-				endpointsID := apiserver.EntityForEndpoints(ep.GetNamespace(), ep.GetName(), "")
+				endpointsID := apiserver.EntityForEndpoints(svc.GetNamespace(), svc.GetName(), "")
 				p.Lock()
 				p.monitoredEndpoints[endpointsID] = true
 				p.Unlock()
 
-				endpointConfigs := utils.ConfigsForServiceEndpoints(check, svc, ep)
-				configs = append(configs, endpointConfigs...)
+				for _, slice := range slices {
+					endpointSliceConfigs := utils.ConfigsForServiceEndpointSlices(check, svc, slice)
+					configs = append(configs, endpointSliceConfigs...)
+				}
 			}
 		}
 	}
@@ -189,20 +199,20 @@ func (p *PrometheusServicesConfigProvider) Collect(_ context.Context) ([]integra
 }
 
 // setUpToDate is a thread-safe method to update the upToDate value
-func (p *PrometheusServicesConfigProvider) setUpToDate(v bool) {
+func (p *PrometheusServicesEndpointSlicesConfigProvider) setUpToDate(v bool) {
 	p.Lock()
 	defer p.Unlock()
 	p.upToDate = v
 }
 
 // IsUpToDate allows to cache configs as long as no changes are detected in the apiserver
-func (p *PrometheusServicesConfigProvider) IsUpToDate(_ context.Context) (bool, error) {
+func (p *PrometheusServicesEndpointSlicesConfigProvider) IsUpToDate(_ context.Context) (bool, error) {
 	p.RLock()
 	defer p.RUnlock()
 	return p.upToDate, nil
 }
 
-func (p *PrometheusServicesConfigProvider) invalidate(obj interface{}) {
+func (p *PrometheusServicesEndpointSlicesConfigProvider) invalidate(obj interface{}) {
 	castedObj, ok := obj.(*v1.Service)
 	if !ok {
 		// It's possible that we got a DeletedFinalStateUnknown here
@@ -228,7 +238,7 @@ func (p *PrometheusServicesConfigProvider) invalidate(obj interface{}) {
 	p.upToDate = false
 }
 
-func (p *PrometheusServicesConfigProvider) invalidateIfChanged(old, obj interface{}) {
+func (p *PrometheusServicesEndpointSlicesConfigProvider) invalidateIfChanged(old, obj interface{}) {
 	// Cast the updated object, don't invalidate on casting error.
 	// nil pointers are safely handled by the casting logic.
 	castedObj, ok := obj.(*v1.Service)
@@ -258,22 +268,22 @@ func (p *PrometheusServicesConfigProvider) invalidateIfChanged(old, obj interfac
 	}
 }
 
-func (p *PrometheusServicesConfigProvider) invalidateIfAddedEndpoints(_ interface{}) {
-	// An endpoint can be added after a service is created, in which case we need to re-run Collect
+func (p *PrometheusServicesEndpointSlicesConfigProvider) invalidateIfAddedEndpointSlices(_ interface{}) {
+	// An endpointslice can be added after a service is created, in which case we need to re-run Collect
 	p.setUpToDate(false)
 }
 
-func (p *PrometheusServicesConfigProvider) invalidateIfChangedEndpoints(old, obj interface{}) {
+func (p *PrometheusServicesEndpointSlicesConfigProvider) invalidateIfChangedEndpointSlices(old, obj interface{}) {
 	// Cast the updated object, don't invalidate on casting error.
 	// nil pointers are safely handled by the casting logic.
-	castedObj, ok := obj.(*v1.Endpoints)
+	castedObj, ok := obj.(*discv1.EndpointSlice)
 	if !ok {
-		log.Errorf("Expected a Endpoints type, got: %T", obj)
+		log.Errorf("Expected an EndpointSlice type, got: %T", obj)
 		return
 	}
 
 	// Cast the old object, invalidate on casting error
-	castedOld, ok := old.(*v1.Endpoints)
+	castedOld, ok := old.(*discv1.EndpointSlice)
 	if !ok {
 		p.setUpToDate(false)
 		return
@@ -284,17 +294,23 @@ func (p *PrometheusServicesConfigProvider) invalidateIfChangedEndpoints(old, obj
 		return
 	}
 
+	// Get service name from labels
+	serviceName := castedObj.Labels[kubernetesServiceNameLabel]
+	if serviceName == "" {
+		return
+	}
+
 	// Make sure we invalidate a monitored endpoints object
-	endpointsID := apiserver.EntityForEndpoints(castedObj.Namespace, castedObj.Name, "")
+	endpointsID := apiserver.EntityForEndpoints(castedObj.Namespace, serviceName, "")
 	p.Lock()
 	defer p.Unlock()
 	if found := p.monitoredEndpoints[endpointsID]; found {
-		// Invalidate only when subsets change
-		p.upToDate = equality.Semantic.DeepEqual(castedObj.Subsets, castedOld.Subsets)
+		// Invalidate only when endpoints change
+		p.upToDate = equality.Semantic.DeepEqual(castedObj.Endpoints, castedOld.Endpoints)
 	}
 }
 
-// GetConfigErrors is not implemented for the PrometheusServicesConfigProvider
-func (p *PrometheusServicesConfigProvider) GetConfigErrors() map[string]providerTypes.ErrorMsgSet {
+// GetConfigErrors is not implemented for the PrometheusServicesEndpointSlicesConfigProvider
+func (p *PrometheusServicesEndpointSlicesConfigProvider) GetConfigErrors() map[string]providerTypes.ErrorMsgSet {
 	return make(map[string]providerTypes.ErrorMsgSet)
 }

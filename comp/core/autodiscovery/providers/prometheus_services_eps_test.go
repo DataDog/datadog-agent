@@ -19,25 +19,26 @@ import (
 	pkgconfigmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 
 	v1 "k8s.io/api/core/v1"
+	discv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 )
 
-type MockServiceAPI struct {
+type MockServiceEndpointSlicesAPI struct {
 	mock.Mock
 }
 
-func (api *MockServiceAPI) ListServices() ([]*v1.Service, error) {
+func (api *MockServiceEndpointSlicesAPI) ListServices() ([]*v1.Service, error) {
 	args := api.Called()
 	return args.Get(0).([]*v1.Service), args.Error(1)
 }
 
-func (api *MockServiceAPI) GetEndpoints(namespace, name string) (*v1.Endpoints, error) {
+func (api *MockServiceEndpointSlicesAPI) ListEndpointSlices(namespace, name string) ([]*discv1.EndpointSlice, error) {
 	args := api.Called(namespace, name)
-	return args.Get(0).(*v1.Endpoints), args.Error(1)
+	return args.Get(0).([]*discv1.EndpointSlice), args.Error(1)
 }
 
-func TestPrometheusServicesCollect(t *testing.T) {
+func TestPrometheusServicesEPS_Collect(t *testing.T) {
 	nodeNames := []string{
 		"node1",
 		"node2",
@@ -47,7 +48,7 @@ func TestPrometheusServicesCollect(t *testing.T) {
 		name             string
 		checks           []*types.PrometheusCheck
 		services         []*v1.Service
-		endpoints        []*v1.Endpoints
+		endpointSlices   []*discv1.EndpointSlice
 		collectEndpoints bool
 		expectConfigs    []integration.Config
 		expectErr        error
@@ -84,7 +85,7 @@ func TestPrometheusServicesCollect(t *testing.T) {
 			},
 		},
 		{
-			name:   "collect only endpoints",
+			name:   "collect only endpointslices",
 			checks: []*types.PrometheusCheck{types.DefaultPrometheusCheck},
 			services: []*v1.Service{
 				{
@@ -100,32 +101,31 @@ func TestPrometheusServicesCollect(t *testing.T) {
 					},
 				},
 			},
-			endpoints: []*v1.Endpoints{
+			endpointSlices: []*discv1.EndpointSlice{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "svc",
+						Name:      "svc-abc123",
 						Namespace: "ns",
+						Labels: map[string]string{
+							"kubernetes.io/service-name": "svc",
+						},
 					},
-					Subsets: []v1.EndpointSubset{
+					Endpoints: []discv1.Endpoint{
 						{
-							Addresses: []v1.EndpointAddress{
-								{
-									IP: "10.0.0.1",
-									TargetRef: &v1.ObjectReference{
-										Kind: "Pod",
-										UID:  "svc-pod-1",
-									},
-									NodeName: &nodeNames[0],
-								},
-								{
-									IP: "10.0.0.2",
-									TargetRef: &v1.ObjectReference{
-										Kind: "Pod",
-										UID:  "svc-pod-2",
-									},
-									NodeName: &nodeNames[1],
-								},
+							Addresses: []string{"10.0.0.1"},
+							TargetRef: &v1.ObjectReference{
+								Kind: "Pod",
+								UID:  "svc-pod-1",
 							},
+							NodeName: &nodeNames[0],
+						},
+						{
+							Addresses: []string{"10.0.0.2"},
+							TargetRef: &v1.ObjectReference{
+								Kind: "Pod",
+								UID:  "svc-pod-2",
+							},
+							NodeName: &nodeNames[1],
 						},
 					},
 				},
@@ -141,7 +141,7 @@ func TestPrometheusServicesCollect(t *testing.T) {
 					},
 					ADIdentifiers: []string{"kube_endpoint_uid://ns/svc/10.0.0.1", "kubernetes_pod://svc-pod-1"},
 					NodeName:      "node1",
-					Provider:      "prometheus-services",
+					Provider:      "prometheus-services-endpointslices",
 					ClusterCheck:  true,
 					Source:        "prometheus_services:kube_endpoint_uid://ns/svc/10.0.0.1",
 				},
@@ -154,7 +154,7 @@ func TestPrometheusServicesCollect(t *testing.T) {
 					},
 					ADIdentifiers: []string{"kube_endpoint_uid://ns/svc/10.0.0.2", "kubernetes_pod://svc-pod-2"},
 					NodeName:      "node2",
-					Provider:      "prometheus-services",
+					Provider:      "prometheus-services-endpointslices",
 					ClusterCheck:  true,
 					Source:        "prometheus_services:kube_endpoint_uid://ns/svc/10.0.0.2",
 				},
@@ -167,19 +167,20 @@ func TestPrometheusServicesCollect(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.Background()
-			api := &MockServiceAPI{}
+			api := &MockServiceEndpointSlicesAPI{}
 			defer api.AssertExpectations(t)
 
 			api.On("ListServices").Return(test.services, nil)
-			for _, endpoint := range test.endpoints {
-				api.On("GetEndpoints", endpoint.GetNamespace(), endpoint.GetName()).Return(endpoint, nil)
+			for _, slice := range test.endpointSlices {
+				serviceName := slice.Labels["kubernetes.io/service-name"]
+				api.On("ListEndpointSlices", slice.GetNamespace(), serviceName).Return([]*discv1.EndpointSlice{slice}, nil)
 			}
 
 			for _, check := range test.checks {
 				check.Init(2)
 			}
 
-			p := newPromServicesProvider(test.checks, api, test.collectEndpoints)
+			p := newPromServicesEndpointSlicesProvider(test.checks, api, test.collectEndpoints)
 			configs, err := p.Collect(ctx)
 
 			assert.Equal(t, test.expectConfigs, configs)
@@ -188,9 +189,9 @@ func TestPrometheusServicesCollect(t *testing.T) {
 	}
 }
 
-func TestPrometheusServicesInvalidate(t *testing.T) {
+func TestPrometheusServicesEPS_Invalidate(t *testing.T) {
 	ctx := context.Background()
-	api := &MockServiceAPI{}
+	api := &MockServiceEndpointSlicesAPI{}
 	svc := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			UID:       k8stypes.UID("test"),
@@ -203,7 +204,7 @@ func TestPrometheusServicesInvalidate(t *testing.T) {
 			},
 		},
 	}
-	p := newPromServicesProvider([]*types.PrometheusCheck{}, api, true)
+	p := newPromServicesEndpointSlicesProvider([]*types.PrometheusCheck{}, api, true)
 	p.monitoredEndpoints["kube_endpoint_uid://ns/svc/"] = true
 	p.setUpToDate(true)
 	p.invalidate(svc)
@@ -214,8 +215,8 @@ func TestPrometheusServicesInvalidate(t *testing.T) {
 	assert.Empty(t, p.monitoredEndpoints)
 }
 
-func TestPrometheusServicesInvalidateIfChanged(t *testing.T) {
-	api := &MockServiceAPI{}
+func TestPrometheusServicesEPS_InvalidateIfChanged(t *testing.T) {
+	api := &MockServiceEndpointSlicesAPI{}
 	defer api.AssertExpectations(t)
 
 	checks := []*types.PrometheusCheck{types.DefaultPrometheusCheck}
@@ -326,7 +327,7 @@ func TestPrometheusServicesInvalidateIfChanged(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.Background()
-			p := newPromServicesProvider(checks, api, true)
+			p := newPromServicesEndpointSlicesProvider(checks, api, true)
 			p.setUpToDate(true)
 			p.invalidateIfChanged(test.old, test.new)
 
@@ -338,8 +339,8 @@ func TestPrometheusServicesInvalidateIfChanged(t *testing.T) {
 
 }
 
-func TestPrometheusServicesInvalidateIfChangedEndpoints(t *testing.T) {
-	api := &MockServiceAPI{}
+func TestPrometheusServicesEPS_InvalidateIfChangedEndpointSlices(t *testing.T) {
+	api := &MockServiceEndpointSlicesAPI{}
 	defer api.AssertExpectations(t)
 
 	checks := []*types.PrometheusCheck{types.DefaultPrometheusCheck}
@@ -350,98 +351,94 @@ func TestPrometheusServicesInvalidateIfChangedEndpoints(t *testing.T) {
 	node := "node1"
 	tests := []struct {
 		name               string
-		old                *v1.Endpoints
-		new                *v1.Endpoints
+		old                *discv1.EndpointSlice
+		new                *discv1.EndpointSlice
 		monitoredEndpoints []string
 		expectUpToDate     bool
 	}{
 		{
 			name: "no change",
-			old: &v1.Endpoints{
+			old: &discv1.EndpointSlice{
 				ObjectMeta: metav1.ObjectMeta{
 					ResourceVersion: "v1",
-					Name:            "svc",
+					Name:            "svc-abc123",
 					Namespace:       "ns",
+					Labels: map[string]string{
+						"kubernetes.io/service-name": "svc",
+					},
 				},
-				Subsets: []v1.EndpointSubset{
+				Endpoints: []discv1.Endpoint{
 					{
-						Addresses: []v1.EndpointAddress{
-							{
-								IP: "10.0.0.1",
-								TargetRef: &v1.ObjectReference{
-									Kind: "Pod",
-									UID:  "svc-pod-1",
-								},
-								NodeName: &node,
-							},
+						Addresses: []string{"10.0.0.1"},
+						TargetRef: &v1.ObjectReference{
+							Kind: "Pod",
+							UID:  "svc-pod-1",
 						},
+						NodeName: &node,
 					},
 				},
 			},
-			new: &v1.Endpoints{
+			new: &discv1.EndpointSlice{
 				ObjectMeta: metav1.ObjectMeta{
 					ResourceVersion: "v1",
-					Name:            "svc",
+					Name:            "svc-abc123",
 					Namespace:       "ns",
+					Labels: map[string]string{
+						"kubernetes.io/service-name": "svc",
+					},
 				},
-				Subsets: []v1.EndpointSubset{
+				Endpoints: []discv1.Endpoint{
 					{
-						Addresses: []v1.EndpointAddress{
-							{
-								IP: "10.0.0.1",
-								TargetRef: &v1.ObjectReference{
-									Kind: "Pod",
-									UID:  "svc-pod-1",
-								},
-								NodeName: &node,
-							},
+						Addresses: []string{"10.0.0.1"},
+						TargetRef: &v1.ObjectReference{
+							Kind: "Pod",
+							UID:  "svc-pod-1",
 						},
+						NodeName: &node,
 					},
 				},
 			},
 			expectUpToDate: true,
 		},
 		{
-			name: "no subsets change",
-			old: &v1.Endpoints{
+			name: "no endpoints change",
+			old: &discv1.EndpointSlice{
 				ObjectMeta: metav1.ObjectMeta{
 					ResourceVersion: "v1",
-					Name:            "svc",
+					Name:            "svc-abc123",
 					Namespace:       "ns",
+					Labels: map[string]string{
+						"kubernetes.io/service-name": "svc",
+					},
 				},
-				Subsets: []v1.EndpointSubset{
+				Endpoints: []discv1.Endpoint{
 					{
-						Addresses: []v1.EndpointAddress{
-							{
-								IP: "10.0.0.1",
-								TargetRef: &v1.ObjectReference{
-									Kind: "Pod",
-									UID:  "svc-pod-1",
-								},
-								NodeName: &node,
-							},
+						Addresses: []string{"10.0.0.1"},
+						TargetRef: &v1.ObjectReference{
+							Kind: "Pod",
+							UID:  "svc-pod-1",
 						},
+						NodeName: &node,
 					},
 				},
 			},
-			new: &v1.Endpoints{
+			new: &discv1.EndpointSlice{
 				ObjectMeta: metav1.ObjectMeta{
 					ResourceVersion: "v2",
-					Name:            "svc",
+					Name:            "svc-abc123",
 					Namespace:       "ns",
+					Labels: map[string]string{
+						"kubernetes.io/service-name": "svc",
+					},
 				},
-				Subsets: []v1.EndpointSubset{
+				Endpoints: []discv1.Endpoint{
 					{
-						Addresses: []v1.EndpointAddress{
-							{
-								IP: "10.0.0.1",
-								TargetRef: &v1.ObjectReference{
-									Kind: "Pod",
-									UID:  "svc-pod-1",
-								},
-								NodeName: &node,
-							},
+						Addresses: []string{"10.0.0.1"},
+						TargetRef: &v1.ObjectReference{
+							Kind: "Pod",
+							UID:  "svc-pod-1",
 						},
+						NodeName: &node,
 					},
 				},
 			},
@@ -451,54 +448,52 @@ func TestPrometheusServicesInvalidateIfChangedEndpoints(t *testing.T) {
 			expectUpToDate: true,
 		},
 		{
-			name: "subsets change",
-			old: &v1.Endpoints{
+			name: "new address added to endpoint slice",
+			old: &discv1.EndpointSlice{
 				ObjectMeta: metav1.ObjectMeta{
 					ResourceVersion: "v1",
-					Name:            "svc",
+					Name:            "svc-abc123",
 					Namespace:       "ns",
+					Labels: map[string]string{
+						"kubernetes.io/service-name": "svc",
+					},
 				},
-				Subsets: []v1.EndpointSubset{
+				Endpoints: []discv1.Endpoint{
 					{
-						Addresses: []v1.EndpointAddress{
-							{
-								IP: "10.0.0.1",
-								TargetRef: &v1.ObjectReference{
-									Kind: "Pod",
-									UID:  "svc-pod-1",
-								},
-								NodeName: &node,
-							},
+						Addresses: []string{"10.0.0.1"},
+						TargetRef: &v1.ObjectReference{
+							Kind: "Pod",
+							UID:  "svc-pod-1",
 						},
+						NodeName: &node,
 					},
 				},
 			},
-			new: &v1.Endpoints{
+			new: &discv1.EndpointSlice{
 				ObjectMeta: metav1.ObjectMeta{
 					ResourceVersion: "v2",
-					Name:            "svc",
+					Name:            "svc-abc123",
 					Namespace:       "ns",
+					Labels: map[string]string{
+						"kubernetes.io/service-name": "svc",
+					},
 				},
-				Subsets: []v1.EndpointSubset{
+				Endpoints: []discv1.Endpoint{
 					{
-						Addresses: []v1.EndpointAddress{
-							{
-								IP: "10.0.0.1",
-								TargetRef: &v1.ObjectReference{
-									Kind: "Pod",
-									UID:  "svc-pod-1",
-								},
-								NodeName: &node,
-							},
-							{
-								IP: "10.0.0.2",
-								TargetRef: &v1.ObjectReference{
-									Kind: "Pod",
-									UID:  "svc-pod-2",
-								},
-								NodeName: &node,
-							},
+						Addresses: []string{"10.0.0.1"},
+						TargetRef: &v1.ObjectReference{
+							Kind: "Pod",
+							UID:  "svc-pod-1",
 						},
+						NodeName: &node,
+					},
+					{
+						Addresses: []string{"10.0.0.2"},
+						TargetRef: &v1.ObjectReference{
+							Kind: "Pod",
+							UID:  "svc-pod-2",
+						},
+						NodeName: &node,
 					},
 				},
 			},
@@ -512,12 +507,12 @@ func TestPrometheusServicesInvalidateIfChangedEndpoints(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.Background()
-			p := newPromServicesProvider(checks, api, true)
+			p := newPromServicesEndpointSlicesProvider(checks, api, true)
 			p.setUpToDate(true)
 			for _, monitored := range test.monitoredEndpoints {
 				p.monitoredEndpoints[monitored] = true
 			}
-			p.invalidateIfChangedEndpoints(test.old, test.new)
+			p.invalidateIfChangedEndpointSlices(test.old, test.new)
 
 			upToDate, err := p.IsUpToDate(ctx)
 			assert.NoError(t, err)
