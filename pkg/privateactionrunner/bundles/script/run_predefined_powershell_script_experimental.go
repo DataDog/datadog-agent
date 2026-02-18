@@ -12,26 +12,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/tmpl"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
-
-// requiredWindowsEnvVars are environment variables that must always be available
-// for PowerShell and Windows to function correctly
-var requiredWindowsEnvVars = []string{
-	"SYSTEMROOT",
-	"COMSPEC",
-	"PATHEXT",
-	"WINDIR",
-	"TEMP",
-	"TMP",
-}
 
 type RunPredefinedPowershellScriptHandler struct{}
 
@@ -75,7 +64,6 @@ func (h *RunPredefinedPowershellScriptHandler) Run(
 		return nil, fmt.Errorf("powershell script %s not found", inputs.ScriptName)
 	}
 
-	// Validate that either Script or File is provided, but not both
 	if script.Script == "" && script.File == "" {
 		return nil, errors.New("either 'script' or 'file' must be specified in the configuration")
 	}
@@ -83,7 +71,6 @@ func (h *RunPredefinedPowershellScriptHandler) Run(
 		return nil, errors.New("cannot specify both 'script' and 'file' - use one or the other")
 	}
 
-	// Evaluate templates in the script/file/arguments
 	evaluatedScript, err := evaluatePowershellScript(script, inputs.Parameters)
 	if err != nil {
 		return nil, fmt.Errorf("failed to evaluate script templates: %w", err)
@@ -96,7 +83,12 @@ func (h *RunPredefinedPowershellScriptHandler) Run(
 		defer cancel()
 	}
 
-	cmd := newPowershellCommand(ctx, evaluatedScript, script.AllowedEnvVars)
+	cmd, cleanup, err := newPowershellCommand(ctx, evaluatedScript, script.AllowedEnvVars)
+	if err != nil {
+		return nil, err
+	}
+	defer cleanup()
+
 	var stdoutBuffer bytes.Buffer
 	cmd.Stdout = &stdoutBuffer
 	var stderrBuffer bytes.Buffer
@@ -125,16 +117,12 @@ func (h *RunPredefinedPowershellScriptHandler) Run(
 	}, nil
 }
 
-// evaluatedPowershellScript holds the evaluated script configuration after template rendering
 type evaluatedPowershellScript struct {
-	// For inline scripts
-	Script string
-	// For file-based scripts
-	File      string
-	Arguments []string
+	Script    string   // inline script content
+	File      string   // path to .ps1 file
+	Arguments []string // arguments for file mode
 }
 
-// evaluatePowershellScript evaluates template expressions in the script configuration
 func evaluatePowershellScript(config RunPredefinedPowershellScriptConfig, parameters interface{}) (*evaluatedPowershellScript, error) {
 	if parameters == nil {
 		parameters = map[string]interface{}{}
@@ -151,7 +139,6 @@ func evaluatePowershellScript(config RunPredefinedPowershellScriptConfig, parame
 	result := &evaluatedPowershellScript{}
 
 	if config.Script != "" {
-		// Inline script mode
 		rendered, err := renderTemplate(config.Script, templateContext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to render script template: %w", err)
@@ -161,7 +148,6 @@ func evaluatePowershellScript(config RunPredefinedPowershellScriptConfig, parame
 		}
 		result.Script = rendered
 	} else {
-		// File mode
 		rendered, err := renderTemplate(config.File, templateContext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to render file path template: %w", err)
@@ -170,8 +156,6 @@ func evaluatePowershellScript(config RunPredefinedPowershellScriptConfig, parame
 			return nil, errors.New("file path cannot be empty")
 		}
 		result.File = rendered
-
-		// Render arguments
 		result.Arguments = make([]string, len(config.Arguments))
 		for i, arg := range config.Arguments {
 			rendered, err := renderTemplate(arg, templateContext)
@@ -185,7 +169,6 @@ func evaluatePowershellScript(config RunPredefinedPowershellScriptConfig, parame
 	return result, nil
 }
 
-// renderTemplate parses and renders a template string with the given context
 func renderTemplate(templateStr string, context map[string]interface{}) (string, error) {
 	template, err := tmpl.Parse(templateStr)
 	if err != nil {
@@ -200,64 +183,37 @@ func renderTemplate(templateStr string, context map[string]interface{}) (string,
 	return rendered, nil
 }
 
-// newPowershellCommand creates an exec.Cmd for running PowerShell
-func newPowershellCommand(ctx context.Context, script *evaluatedPowershellScript, envVarNames []string) *exec.Cmd {
-	// Base PowerShell arguments for security and consistency
+// newPowershellCommand creates an exec.Cmd that always runs as dd-scriptuser.
+// The returned cleanup func must be deferred to release the user token.
+func newPowershellCommand(ctx context.Context, script *evaluatedPowershellScript, envVarNames []string) (*exec.Cmd, func(), error) {
 	baseArgs := []string{
-		"-NoProfile",                 // Don't load user profile (faster, more predictable)
-		"-NonInteractive",            // No interactive prompts
-		"-ExecutionPolicy", "Bypass", // Allow script execution
+		"-NoProfile",
+		"-NonInteractive",
+		"-ExecutionPolicy", "Bypass",
 	}
 
 	var cmd *exec.Cmd
 
 	if script.File != "" {
-		// File mode: run a .ps1 script file
 		args := append(baseArgs, "-File", script.File)
 		args = append(args, script.Arguments...)
 		cmd = exec.CommandContext(ctx, "powershell.exe", args...)
 	} else {
-		// Inline script mode: pass script directly to -Command
-		// The script is passed as-is - users write native PowerShell
 		args := append(baseArgs, "-Command", script.Script)
 		cmd = exec.CommandContext(ctx, "powershell.exe", args...)
 	}
 
-	// Build restricted environment from allowlist
+	token, err := logonScriptUser()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to obtain restricted user token for %s: %w", ScriptUserName, err)
+	}
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Token: token,
+	}
+	cleanup := func() { token.Close() }
 	cmd.Env = buildAllowedEnv(envVarNames)
 
-	return cmd
-}
-
-// buildAllowedEnv constructs an environment variable list containing only
-// the required Windows env vars plus any explicitly allowed vars
-func buildAllowedEnv(envVarNames []string) []string {
-	allowed := make(map[string]bool)
-
-	// Always include required Windows environment variables
-	for _, name := range requiredWindowsEnvVars {
-		allowed[strings.ToUpper(name)] = true
-	}
-
-	// Add user-specified allowed env vars
-	for _, name := range envVarNames {
-		allowed[strings.ToUpper(name)] = true
-	}
-
-	// Filter current environment to only allowed variables
-	var env []string
-	for _, e := range os.Environ() {
-		parts := strings.SplitN(e, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-		name := strings.ToUpper(parts[0])
-		if allowed[name] {
-			env = append(env, e)
-		}
-	}
-
-	return env
+	return cmd, cleanup, nil
 }
 
 func formatPowershellOutput(output string, noStripTrailingNewline bool) string {
