@@ -14,6 +14,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
+// This is temporary translation layer between the main logs pipeline and the gRPC sender. In the future this is
+// where state extraction and storage will happen.
+
 const nanoToMillis = 1000000
 
 // StartMessageTranslator starts a goroutine that translates message.Message to message.StatefulMessage

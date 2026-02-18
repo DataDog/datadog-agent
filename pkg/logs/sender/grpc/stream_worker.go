@@ -29,38 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// TODO For PoC Stage 1
-// - telemetries (send/recv, failure, rotations)
-
-// TODO for PoC Stage 2
-// - better handle unrecoverable errors - auth/perm, protocol, stream-level gRPC status
-// - implement more graceful shutdown, the current version we could lose some acks
-// - implement jitter is stream lifetime, otherwise all streams will rotate at the same time
-// - implement proper "stream/ordered" backpressure
-
-// TODO for production
-// - implement stream neotiation (state size, etc), able to downgrade to HTTP transport
-// - Testing plan
-
-// Notes on failure handling and backoff strategy:
-// Unlike HTTP transport, stateful transport is stream-based. Once the stream is established,
-// it's unlikely to fail sporadically at request level. The failure mode is likely to be:
-// - Proxy is not available
-//   fail in asyncCreateNewStream after connectionTimeout (10s)
-// - Proxy is available, but Intake is not available
-//   succeed in asyncCreateNewStream, but currentStream fails to send or receive any message
-// - Stream is functioning, but agent has wrong credentials configuration
-//   succeed in asyncCreateNewStream, but recv will fail with auth/perm error consistently
-// Note: again unlike HTTP transport where a Intake back-pressure shows up a rejection at request
-// level, in stateful transport, the back-pressure is more likely to show up as blocking send on
-// a functioning stream.
-// Due to reasons above, we will track the failures at stream level, and implement backoff
-// for stream creation only. We use the same backoff policy as HTTP transport (defined for endpoint)
-// with 1 tweak.
-//   - nbErrors is incremented for each send/recv/protocol-error/stream-creation failures
-//   - first time an valid ack is received on a new stream, we consider the stream established
-//     and reset nbErrors to 0 (via RecoveryReset=true)
-
 const (
 	// Various constants - may become configurable
 	ioChanBufferSize  = 10
@@ -106,6 +74,7 @@ type batchAck struct {
 
 // streamWorker manages a single gRPC bidirectional stream with Master - 2 Slave threading model
 // Architecture: One supervisor goroutine + one sender goroutine + one receiver goroutine per stream
+// See DESIGN.md for more details.
 type streamWorker struct {
 	// Configuration
 	workerID            string
