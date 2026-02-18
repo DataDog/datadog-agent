@@ -33,7 +33,7 @@ require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.9.3
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.180
+	github.com/DataDog/agent-payload/v5 v5.0.182
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def v0.0.0
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx v0.0.0-20251027120702-0e91eee9852f
@@ -1033,6 +1033,7 @@ require (
 	github.com/Azure/go-autorest/autorest/azure/cli v0.4.6 // indirect
 	github.com/Azure/go-autorest/autorest/to v0.4.0 // indirect
 	github.com/Azure/go-autorest/autorest/validation v0.3.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/sender/grpc v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs v0.74.0-devel.0.20251125141836-2ae7a968751c // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/otel v0.77.0-devel.0.20260211235139-a5361978c2b6 // indirect
@@ -1341,6 +1342,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ./pkg/logs/pipeline
 	github.com/DataDog/datadog-agent/pkg/logs/processor => ./pkg/logs/processor
 	github.com/DataDog/datadog-agent/pkg/logs/sender => ./pkg/logs/sender
+	github.com/DataDog/datadog-agent/pkg/logs/sender/grpc => ./pkg/logs/sender/grpc
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ./pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ./pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ./pkg/logs/status/utils

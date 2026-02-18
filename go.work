@@ -6,6 +6,7 @@ go 1.25.7
 godebug tlsmlkem=0
 
 use (
+
 	.
 	comp/api/api/def
 	comp/core/agenttelemetry/def
@@ -109,6 +110,7 @@ use (
 	pkg/logs/pipeline
 	pkg/logs/processor
 	pkg/logs/sender
+	pkg/logs/sender/grpc
 	pkg/logs/sources
 	pkg/logs/status/statusinterface
 	pkg/logs/status/utils
