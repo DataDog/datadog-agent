@@ -43,17 +43,17 @@ namespace Datadog.CustomActions
             var env = new Dictionary<string, string>();
             var registryProps = new[]
             {
-                ("DD_INSTALLER_REGISTRY_URL", "DD_INSTALLER_REGISTRY_URL"),
-                ("DD_INSTALLER_REGISTRY_AUTH", "DD_INSTALLER_REGISTRY_AUTH"),
-                ("DD_INSTALLER_REGISTRY_USERNAME", "DD_INSTALLER_REGISTRY_USERNAME"),
-                ("DD_INSTALLER_REGISTRY_PASSWORD", "DD_INSTALLER_REGISTRY_PASSWORD"),
+                "DD_INSTALLER_REGISTRY_URL",
+                "DD_INSTALLER_REGISTRY_AUTH",
+                "DD_INSTALLER_REGISTRY_USERNAME",
+                "DD_INSTALLER_REGISTRY_PASSWORD",
             };
-            foreach (var (prop, envVar) in registryProps)
+            foreach (var prop in registryProps)
             {
                 var value = _session.Property(prop);
                 if (!string.IsNullOrEmpty(value))
                 {
-                    env[envVar] = value;
+                    env[prop] = value;
                 }
             }
             return env;
