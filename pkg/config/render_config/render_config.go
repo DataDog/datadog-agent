@@ -14,8 +14,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/pmezard/go-difflib/difflib"
-	"go.yaml.in/yaml/v3"
+	"gopkg.in/yaml.v3"
 )
 
 // context contains the context used to render the config file template
@@ -39,6 +38,7 @@ type context struct {
 	AdmissionController bool
 	CloudFoundry        bool
 	PrivateActionRunner bool
+	SecurityAgent       bool
 }
 
 func mkContext(buildType string, osName string) context {
@@ -106,7 +106,8 @@ func mkContext(buildType string, osName string) context {
 	// security-agent and system-probe use their own templating file, they only require OS
 	case "security-agent":
 		return context{
-			OS: osName,
+			OS:            osName,
+			SecurityAgent: true,
 		}
 	case "system-probe":
 		return context{
@@ -144,7 +145,7 @@ func renderAll(destFolder string, tplFolder string) {
 		"dca":            "config_template.yaml",
 		"dcacf":          "config_template.yaml",
 		"system-probe":   "system-probe_template.yaml",
-		"security-agent": "security-agent_template.yaml",
+		"security-agent": "config_template.yaml",
 	} {
 		for _, osName := range []string{"windows", "darwin", "linux"} {
 			destFile := filepath.Join(destFolder, component+"_"+osName+".yaml")
