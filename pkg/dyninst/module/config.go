@@ -147,7 +147,7 @@ const (
 
 	traceAgentURLEnvVar = "DD_TRACE_AGENT_URL"
 
-	logUploaderPath   = "/debugger/v1/input"
+	logUploaderPath   = "/debugger/v2/input"
 	diagsUploaderPath = "/debugger/v1/diagnostics"
 	symdbUploaderPath = "/symdb/v1/input"
 )
