@@ -197,8 +197,10 @@ func (s *extensionsSuite) TestExtensionSurvivesAgentUpgrade() {
 	s.verifyDDOTRunning()
 
 	// Trigger agent upgrade via experiment start + promote
-	s.Installer.MustStartExperiment("datadog-agent", s.getAgentPackageURL())
-	s.Installer.MustPromoteExperiment("datadog-agent")
+	err := s.Backend.StartExperiment("datadog-agent", s.getAgentPackageURL())
+	s.Require().NoError(err, "Failed to start experiment")
+	err = s.Backend.PromoteExperiment("datadog-agent")
+	s.Require().NoError(err, "Failed to promote experiment")
 
 	// Verify DDOT extension survived the upgrade
 	s.verifyDDOTRunning()
@@ -221,10 +223,12 @@ func (s *extensionsSuite) TestExtensionRestoredAfterExperimentRollback() {
 	s.verifyDDOTRunning()
 
 	// Start experiment (upgrade)
-	s.Installer.MustStartExperiment("datadog-agent", s.getAgentPackageURL())
+	err := s.Backend.StartExperiment("datadog-agent", s.getAgentPackageURL())
+	s.Require().NoError(err, "Failed to start experiment")
 
 	// Stop experiment (rollback to stable)
-	s.Installer.MustStopExperiment("datadog-agent")
+	err = s.Backend.StopExperiment("datadog-agent")
+	s.Require().NoError(err, "Failed to stop experiment")
 
 	// Verify DDOT extension is still present on the stable version
 	s.verifyDDOTRunning()
