@@ -167,9 +167,9 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 	// Wait for a new health report after restart
 	require.EventuallyWithT(suite.T(), func(t *assert.CollectT) {
 		payloads, err := fakeIntake.GetAgentHealth()
-		assert.NoError(t, err)
-		assert.NotEmpty(t, payloads, "Should receive health report after restart")
-		// Verify the issue is still present in the report
+		if !assert.NoError(t, err) || !assert.NotEmpty(t, payloads, "Should receive health report after restart") {
+			return
+		}
 		latest := payloads[len(payloads)-1]
 		assert.NotNil(t, findIssue(suite.T(), latest, expectedIssueID),
 			"Docker permission issue should still be present after restart")
