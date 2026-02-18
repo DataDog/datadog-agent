@@ -43,7 +43,7 @@ test_kmt_local_setup_macos:
     - !reference [.install_python_dependencies]
     # See there is no virtualization, we need to clean the environment regularly
     - !reference [.macos_runner_maintenance]
-  tags: ["macos:sonoma-amd64", "specific:true"]
+  tags: ["macos:sonoma-arm64", "specific:true"]
   variables:
      # Some requirements cannot be tested in the CI yet:
     # - Docker,Compiler,UserInDockerGroup: no docker-in-docker support in these jobs yet

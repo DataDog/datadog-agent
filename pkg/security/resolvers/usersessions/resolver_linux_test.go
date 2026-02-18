@@ -25,6 +25,7 @@ func Test_parseSSHLogLine(t *testing.T) {
 		expectedPort       string
 		expectedAuthMethod int
 		expectedPublicKey  string
+		expectedSSHDPid    string
 		shouldAddToLRU     bool
 	}{
 		{
@@ -34,6 +35,7 @@ func Test_parseSSHLogLine(t *testing.T) {
 			expectedPort:       "38835",
 			expectedAuthMethod: int(usersession.SSHAuthMethodPublicKey),
 			expectedPublicKey:  "J3I5W45pnQtan5u0m27HWzyqAMZfTbG+nRet/pzzylU",
+			expectedSSHDPid:    "1234",
 			shouldAddToLRU:     true,
 		},
 		{
@@ -43,6 +45,7 @@ func Test_parseSSHLogLine(t *testing.T) {
 			expectedPort:       "38835",
 			expectedAuthMethod: int(usersession.SSHAuthMethodPublicKey),
 			expectedPublicKey:  "J3I5W45pnQtan5u0m27HWzyqAMZfTbG+nRet/pzzylU",
+			expectedSSHDPid:    "5678",
 			shouldAddToLRU:     true,
 		},
 		{
@@ -52,6 +55,7 @@ func Test_parseSSHLogLine(t *testing.T) {
 			expectedPort:       "12345",
 			expectedAuthMethod: int(usersession.SSHAuthMethodPassword),
 			expectedPublicKey:  "",
+			expectedSSHDPid:    "5678",
 			shouldAddToLRU:     true,
 		},
 		{
@@ -80,8 +84,9 @@ func Test_parseSSHLogLine(t *testing.T) {
 
 			if tt.shouldAddToLRU {
 				key := SSHSessionKey{
-					IP:   tt.expectedIP,
-					Port: tt.expectedPort,
+					SSHDPid: tt.expectedSSHDPid,
+					IP:      tt.expectedIP,
+					Port:    tt.expectedPort,
 				}
 
 				value, found := sshSessionParsed.Get(key)

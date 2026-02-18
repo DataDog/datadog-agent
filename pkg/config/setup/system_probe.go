@@ -166,7 +166,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("dynamic_instrumentation.circuit_breaker.interval", 1*time.Second)
 	cfg.BindEnvAndSetDefault("dynamic_instrumentation.circuit_breaker.per_probe_cpu_limit", 0.1)
 	cfg.BindEnvAndSetDefault("dynamic_instrumentation.circuit_breaker.all_probes_cpu_limit", 0.5)
-	cfg.BindEnvAndSetDefault("dynamic_instrumentation.circuit_breaker.interrupt_overhead", 5*time.Microsecond)
+	cfg.BindEnvAndSetDefault("dynamic_instrumentation.circuit_breaker.interrupt_overhead", 2*time.Microsecond)
 
 	// network_tracer settings
 	// we cannot use BindEnvAndSetDefault for network_config.enabled because we need to know if it was manually set.
@@ -373,6 +373,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("gpu_monitoring.device_cache_refresh_interval", 5*time.Second)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.cgroup_reapply_interval", 30*time.Second)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.cgroup_reapply_infinitely", false)
+
+	// Windows Injector telemetry, enabled by default
+	cfg.BindEnvAndSetDefault("injector.enable_telemetry", true)
 
 	// gpu - stream config
 	cfg.BindEnvAndSetDefault("gpu_monitoring.streams.max_kernel_launches", 1000)

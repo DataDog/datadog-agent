@@ -505,11 +505,13 @@ const (
 
 // TagStats returns the stats and tags coinciding with the information found in header.
 // For more information, check the "Datadog-Meta-*" HTTP headers defined in this file.
-func (r *HTTPReceiver) TagStats(v Version, header http.Header, service string) *info.TagStats {
-	return r.tagStats(v, header, service)
+func (r *HTTPReceiver) TagStats(v Version, req *http.Request, service string) *info.TagStats {
+	return r.tagStats(v, req, service)
 }
 
-func (r *HTTPReceiver) tagStats(v Version, httpHeader http.Header, service string) *info.TagStats {
+func (r *HTTPReceiver) tagStats(v Version, req *http.Request, service string) *info.TagStats {
+	httpHeader := req.Header
+	connectionType := GetConnectionType(req.Context())
 	return r.Stats.GetTagStats(info.Tags{
 		Lang:            httpHeader.Get(header.Lang),
 		LangVersion:     httpHeader.Get(header.LangVersion),
@@ -517,6 +519,7 @@ func (r *HTTPReceiver) tagStats(v Version, httpHeader http.Header, service strin
 		LangVendor:      httpHeader.Get(header.LangInterpreterVendor),
 		TracerVersion:   httpHeader.Get(header.TracerVersion),
 		EndpointVersion: string(v),
+		ConnectionType:  string(connectionType),
 		Service:         service,
 	})
 }
@@ -631,7 +634,7 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	in := &pb.ClientStatsPayload{}
 	if err := msgp.Decode(rd, in); err != nil {
 		log.Errorf("Error decoding pb.ClientStatsPayload: %v", err)
-		tags := append(r.tagStats(V06, req.Header, "").AsTags(), "reason:decode")
+		tags := append(r.tagStats(V06, req, "").AsTags(), "reason:decode")
 		_ = r.statsd.Count("datadog.trace_agent.receiver.stats_payload_rejected", 1, tags, 1)
 		httpDecodingError(err, []string{"handler:stats", "codec:msgpack", "v:v0.6"}, w, r.statsd)
 		return
@@ -644,7 +647,7 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 		return cs.Stats[0].Stats[0].Service
 	}
 
-	ts := r.tagStats(V06, req.Header, firstService(in))
+	ts := r.tagStats(V06, req, firstService(in))
 	_ = r.statsd.Count("datadog.trace_agent.receiver.stats_payload", 1, ts.AsTags(), 1)
 	_ = r.statsd.Count("datadog.trace_agent.receiver.stats_bytes", rd.Count, ts.AsTags(), 1)
 	_ = r.statsd.Count("datadog.trace_agent.receiver.stats_buckets", int64(len(in.Stats)), ts.AsTags(), 1)
@@ -683,7 +686,7 @@ func (r *HTTPReceiver) handleTracesV1(w http.ResponseWriter, req *http.Request) 
 		// Either the client closed the connection, or we hit a middleware timeout
 		log.Debugf("request context timed out, payload dropped")
 		w.WriteHeader(http.StatusTooManyRequests)
-		r.tagStats(V10, req.Header, "").PayloadTimeout.Inc()
+		r.tagStats(V10, req, "").PayloadTimeout.Inc()
 		return
 	case <-time.After(time.Duration(r.conf.DecoderTimeout) * time.Millisecond):
 		log.Debugf("trace-agent is overwhelmed, a payload has been rejected")
@@ -691,7 +694,7 @@ func (r *HTTPReceiver) handleTracesV1(w http.ResponseWriter, req *http.Request) 
 		io.Copy(io.Discard, req.Body) //nolint:errcheck
 		w.WriteHeader(http.StatusTooManyRequests)
 		r.replyOK(req, V10, w)
-		r.tagStats(V10, req.Header, "").PayloadRefused.Inc()
+		r.tagStats(V10, req, "").PayloadRefused.Inc()
 		return
 	}
 	defer func() {
@@ -709,7 +712,7 @@ func (r *HTTPReceiver) handleTracesV1(w http.ResponseWriter, req *http.Request) 
 
 	start := time.Now()
 	tp, err := r.decodeTracerPayloadV1(req, r.containerIDProvider, r.conf)
-	ts := r.tagStats(V10, req.Header, firstService(tp))
+	ts := r.tagStats(V10, req, firstService(tp))
 	defer func(err error) {
 		tags := append(ts.AsTags(), fmt.Sprintf("success:%v", err == nil))
 		_ = r.statsd.Histogram("datadog.trace_agent.receiver.serve_traces_ms", float64(time.Since(start))/float64(time.Millisecond), tags, 1)
@@ -782,7 +785,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		// Either the client closed the connection, or we hit a middleware timeout
 		log.Debugf("request context timed out, payload dropped")
 		w.WriteHeader(http.StatusTooManyRequests)
-		r.tagStats(v, req.Header, "").PayloadTimeout.Inc()
+		r.tagStats(v, req, "").PayloadTimeout.Inc()
 		return
 	case <-time.After(time.Duration(r.conf.DecoderTimeout) * time.Millisecond):
 		log.Debugf("trace-agent is overwhelmed, a payload has been rejected")
@@ -800,7 +803,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 			w.WriteHeader(r.rateLimiterResponse)
 		}
 		r.replyOK(req, v, w)
-		r.tagStats(v, req.Header, "").PayloadRefused.Inc()
+		r.tagStats(v, req, "").PayloadRefused.Inc()
 		return
 	}
 	defer func() {
@@ -818,7 +821,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 
 	start := time.Now()
 	tp, err := r.decodeTracerPayload(v, req, r.containerIDProvider, req.Header.Get(header.Lang), req.Header.Get(header.LangVersion), req.Header.Get(header.TracerVersion))
-	ts := r.tagStats(v, req.Header, firstService(tp))
+	ts := r.tagStats(v, req, firstService(tp))
 	defer func(err error) {
 		tags := append(ts.AsTags(), fmt.Sprintf("success:%v", err == nil))
 		_ = r.statsd.Histogram("datadog.trace_agent.receiver.serve_traces_ms", float64(time.Since(start))/float64(time.Millisecond), tags, 1)

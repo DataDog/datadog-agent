@@ -106,13 +106,54 @@ func processMemoryUsage(device ddnvml.Device, usage []processMemoryUsageData, pr
 		})
 	}
 
+	// This covers for the edge case where the higher-priority API is returning
+	// an error but the lower-priority API is still returning metrics. More
+	// detailed explanation follows:
+	//
+	// First, we want to always emit memory.limit even if the process-level API
+	// returns an error. The limit is always retrievable, and this way we have a
+	// consistent limit that can be shown in the UI or dashboards.
+	//
+	// Second, we have two different APIs for getting the process-level memory
+	// usage. One is higher-priority as it's more reliable, but it's not
+	// available on all architectures, so we need to keep the lower-priority API
+	// as a fallback.
+	//
+	// The edge case is when the higher-priority API returns an error but the
+	// lower-priority API is still returning metrics. In that case, the
+	// higher-priority API would still try to send the corresponding
+	// memory.limit metric with high priority, which would not have all the
+	// workload tags because we don't have the process data. The lower-priority
+	// API would have all the workload tags, but the memory.limit metric would
+	// be emitted with low priority and get overridden by the higher-priority
+	// API's memory.limit metric. The end result is that we would have
+	// process.memory.usage metrics tagged with PIDs, but no memory.limit metric
+	// with corresponding tags.
+	//
+	// The solution is the following change: the priority for memory.limit is
+	// set to low if there are no workloads associated with the metric. It fixes
+	// the edge case described above. In the case that all APIs are returning no
+	// workloads, the memory.limit will have the same tag and value so it
+	// doesn't matter which one we choose. If there are conflicts between the
+	// data reported by the two APIs, we will still keep the high-priority
+	// metric, consistently sending the highest-priority metric for both
+	// memory.limit and process.memory.usage.
+	//
+	// We set MediumLow as the priority as we still want to ensure that any of the APIs
+	// for the stateless collector are higher priority than the eBPF collector, which should
+	// only emit metrics if neither of the NVML APIs are supported.
+	metricLimitPriority := priority
+	if len(allWorkloadIDs) == 0 {
+		metricLimitPriority = MediumLow
+	}
+
 	// Add device memory limit
 	devInfo := device.GetDeviceInfo()
 	processMetrics = append(processMetrics, Metric{
 		Name:                "memory.limit",
 		Value:               float64(devInfo.Memory),
 		Type:                metrics.GaugeType,
-		Priority:            priority,
+		Priority:            metricLimitPriority,
 		AssociatedWorkloads: allWorkloadIDs,
 	})
 

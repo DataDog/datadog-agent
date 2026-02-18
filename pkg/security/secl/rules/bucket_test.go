@@ -122,7 +122,7 @@ func TestRuleBucket_AddRule_Order(t *testing.T) {
 				t.Error(err)
 			}
 		}
-		assertOrder(t, bucket, []string{"E2", "N2", "N1", "E3", "E1"})
+		assertOrder(t, bucket, []string{"E2", "E3", "E1", "N2", "N1"})
 	})
 
 	t.Run("test4", func(t *testing.T) {
