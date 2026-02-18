@@ -42,38 +42,24 @@ func SearchTargetPerName(endpoints *v1.Endpoints, targetName string) (v1.Endpoin
 	return v1.EndpointAddress{}, dderrors.NewNotFound("target named " + targetName)
 }
 
-// endpointResult represents a found endpoint with its IP address
-type endpointResult struct {
-	IP       string
-	NodeName string
-}
-
 // SearchTargetPerNameInEndpointSlices returns the endpoint IP matching a given target name from EndpointSlices.
 // It allows to retrieve a given pod's IP address from a service's EndpointSlices.
-func SearchTargetPerNameInEndpointSlices(slices []*discv1.EndpointSlice, targetName string) (endpointResult, error) {
+func SearchTargetPerNameInEndpointSlices(slices []*discv1.EndpointSlice, targetName string) (string, error) {
 	if slices == nil {
-		return endpointResult{}, errors.New("nil endpointslices array passed")
+		return "", errors.New("nil endpointslices array passed")
 	}
 	for _, slice := range slices {
 		for _, endpoint := range slice.Endpoints {
 			if endpoint.TargetRef == nil {
 				continue
 			}
-			if endpoint.TargetRef.Name == targetName {
-				// Return the first address if available
-				if len(endpoint.Addresses) > 0 {
-					result := endpointResult{
-						IP: endpoint.Addresses[0],
-					}
-					if endpoint.NodeName != nil {
-						result.NodeName = *endpoint.NodeName
-					}
-					return result, nil
-				}
+			// Addresses is guaranteed to have at least one IP, but we'll still check for safety.
+			if endpoint.TargetRef.Name == targetName && len(endpoint.Addresses) > 0 {
+				return endpoint.Addresses[0], nil
 			}
 		}
 	}
-	return endpointResult{}, dderrors.NewNotFound("target named " + targetName)
+	return "", dderrors.NewNotFound("target named " + targetName)
 }
 
 // EntityForEndpoints builds entity strings for Endpoints

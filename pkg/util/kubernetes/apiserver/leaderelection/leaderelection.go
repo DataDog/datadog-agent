@@ -273,28 +273,25 @@ func (le *LeaderEngine) GetLeaderIP() (string, error) {
 	var targetIP string
 	var err error
 
-	// Try EndpointSlices first if supported
 	if apiserver.UseEndpointSlices() {
 		targetIP, err = le.getLeaderIPFromEndpointSlices(leaderName)
-		if err == nil {
-			cache.Cache.Set(cacheKey, targetIP, 5*time.Minute)
-			return targetIP, nil
+		if err != nil {
+			return "", err
 		}
-		log.Debugf("Failed to get leader IP from EndpointSlices, falling back to Endpoints: %v", err)
+		cache.Cache.Set(cacheKey, targetIP, 5*time.Minute)
+	} else {
+		endpointList, err := le.coreClient.Endpoints(le.LeaderNamespace).Get(context.TODO(), le.ServiceName, metav1.GetOptions{})
+		if err != nil {
+			return "", err
+		}
+		target, err := apiserver.SearchTargetPerName(endpointList, leaderName)
+		if err != nil {
+			return "", err
+		}
+		targetIP = target.IP
 	}
-
-	// Fallback to Endpoints API
-	endpointList, err := le.coreClient.Endpoints(le.LeaderNamespace).Get(context.TODO(), le.ServiceName, metav1.GetOptions{})
-	if err != nil {
-		return "", err
-	}
-	target, err := apiserver.SearchTargetPerName(endpointList, leaderName)
-	if err != nil {
-		return "", err
-	}
-	cache.Cache.Set(cacheKey, target.IP, 5*time.Minute)
-
-	return target.IP, nil
+	cache.Cache.Set(cacheKey, targetIP, 5*time.Minute)
+	return targetIP, nil
 }
 
 // getLeaderIPFromEndpointSlices retrieves the leader IP from EndpointSlices
@@ -320,12 +317,12 @@ func (le *LeaderEngine) getLeaderIPFromEndpointSlices(leaderName string) (string
 		slices[i] = &sliceList.Items[i]
 	}
 
-	result, err := apiserver.SearchTargetPerNameInEndpointSlices(slices, leaderName)
+	resultIP, err := apiserver.SearchTargetPerNameInEndpointSlices(slices, leaderName)
 	if err != nil {
 		return "", err
 	}
 
-	return result.IP, nil
+	return resultIP, nil
 }
 
 // IsLeader returns true if the last observed leader was this client else returns false.
