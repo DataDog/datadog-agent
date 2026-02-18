@@ -13,14 +13,17 @@ import (
 )
 
 // GetTraces implements the ObserverProvider gRPC service.
-// It drains buffered traces from the observer buffer and returns them to the core-agent.
+// It drains buffered traces and stats from the observer buffer and returns them to the core-agent.
 func (r *remoteagentImpl) GetTraces(ctx context.Context, req *pbcore.GetTracesRequest) (*pbcore.GetTracesResponse, error) {
 	traces, droppedCount, hasMore := r.observerBuffer.DrainTraces(req.GetMaxItems())
+	stats, statsDroppedCount := r.observerBuffer.DrainStats()
 
 	response := &pbcore.GetTracesResponse{
-		Traces:       make([]*pbcore.TraceChunkData, 0, len(traces)),
-		DroppedCount: droppedCount,
-		HasMore:      hasMore,
+		Traces:            make([]*pbcore.TraceChunkData, 0, len(traces)),
+		DroppedCount:      droppedCount,
+		HasMore:           hasMore,
+		StatsPayloads:     make([][]byte, 0, len(stats)),
+		StatsDroppedCount: statsDroppedCount,
 	}
 
 	for _, t := range traces {
@@ -34,6 +37,16 @@ func (r *remoteagentImpl) GetTraces(ctx context.Context, req *pbcore.GetTracesRe
 			PayloadData:  payloadData,
 			ReceivedAtNs: t.ReceivedAtNs,
 		})
+	}
+
+	for _, s := range stats {
+		// Serialize the StatsPayload to msgpack bytes
+		statsData, err := s.Payload.MarshalMsg(nil)
+		if err != nil {
+			// Skip this stats payload if serialization fails
+			continue
+		}
+		response.StatsPayloads = append(response.StatsPayloads, statsData)
 	}
 
 	return response, nil
