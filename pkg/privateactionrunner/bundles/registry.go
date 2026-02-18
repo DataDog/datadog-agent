@@ -58,7 +58,7 @@ func NewRegistry(configuration *config.Config, traceroute traceroute.Component, 
 		Bundles: map[string]types.Bundle{
 			"com.datadoghq.ddagent":                    com_datadoghq_ddagent.NewAgentActions(),
 			"com.datadoghq.ddagent.networkpath":        com_datadoghq_ddagent_networkpath.NewNetworkPath(traceroute, eventPlatform),
-			"com.datadoghq.ddagent.status":             com_datadoghq_ddagent_status.NewAgentStatus(ipcClient),
+			"com.datadoghq.ddagent.agentstatus":             com_datadoghq_ddagent_status.NewAgentStatus(ipcClient),
 			"com.datadoghq.gitlab.branches":            com_datadoghq_gitlab_branches.NewGitlabBranches(),
 			"com.datadoghq.gitlab.commits":             com_datadoghq_gitlab_commits.NewGitlabCommits(),
 			"com.datadoghq.gitlab.customattributes":    com_datadoghq_gitlab_customattributes.NewGitlabCustomAttributes(),

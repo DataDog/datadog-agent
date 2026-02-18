@@ -22,7 +22,7 @@ import (
 func newTask(inputs map[string]interface{}) *types.Task {
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{
-		BundleID: "com.datadoghq.ddagent.status",
+		BundleID: "com.datadoghq.ddagent.agentstatus",
 		Name:     "getCoreAgentStatus",
 		Inputs:   inputs,
 	}
