@@ -17,6 +17,7 @@ from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import query_metrics
 from tasks.libs.common.git import (
     create_tree,
+    get_commit_sha,
     is_a_release_branch,
 )
 from tasks.libs.common.utils import running_in_ci
@@ -745,6 +746,8 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     # This is done for all branches to include delta metrics in Datadog
     # Use get_ancestor_base_branch to correctly handle PRs targeting release branches
     ancestor = get_ancestor(ctx, branch)
+    current_commit = get_commit_sha(ctx)
+    is_on_main_branch = ancestor == current_commit
     metric_handler.generate_relative_size(ancestor=ancestor)
 
     # Post-process gate failures: mark as non-blocking if delta <= 0
