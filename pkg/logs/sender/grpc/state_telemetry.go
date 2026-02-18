@@ -8,7 +8,7 @@ package grpc
 import "github.com/DataDog/datadog-agent/pkg/telemetry"
 
 // Per-worker metrics
-// TODO: right now pipeline name isn't associated with workers, but pipelines are always sent via a single worker. We can adderss this when
+// TODO: right now pipeline name isn't associated with workers, but pipelines are always sent via a single worker. We can address this when
 // we add per-pipeline metrics.
 var (
 	tlmWorkerStreamsOpened = telemetry.NewCounter("logs_sender_grpc_worker", "streams_opened", []string{"worker"}, "# Streams opened")
