@@ -104,18 +104,18 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 		allowlist[bundleName] = previous.Insert(actionName)
 	}
 
-	specialActions := GetRelevantSpecialActions(allowlist)
-	for bundleID, actionsSet := range specialActions {
+	bundleInheritedActions := GetBundleInheritedAllowedActions(allowlist)
+	for bundleID, actionsSet := range bundleInheritedActions {
 		allowlist[bundleID] = allowlist[bundleID].Union(actionsSet)
 	}
 
 	return allowlist
 }
 
-func GetRelevantSpecialActions(actionsAllowlist map[string]sets.Set[string]) map[string]sets.Set[string] {
+func GetBundleInheritedAllowedActions(actionsAllowlist map[string]sets.Set[string]) map[string]sets.Set[string] {
 	result := make(map[string]sets.Set[string])
 
-	for _, specialAction := range SpecialActionsAuthorized {
+	for _, specialAction := range BundleInheritedAllowedActions {
 		specialBundleID, specialActionName := actions.SplitFQN(specialAction)
 		specialBundleID = strings.ToLower(specialBundleID)
 		specialActionName = strings.ToLower(specialActionName)

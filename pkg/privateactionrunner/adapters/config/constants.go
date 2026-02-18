@@ -27,9 +27,9 @@ const (
 	defaultHTTPClientTimeout      = 30 * time.Second
 )
 
-// SpecialActionsAuthorized is a list of special actions that are allowed if at least one other action
-// from the same bundle is allowed
-var SpecialActionsAuthorized = []string{
+// BundleInheritedAllowedActions is a list of actions that are automatically allowed
+// if at least one other action from the same bundle is allowed
+var BundleInheritedAllowedActions = []string{
 	"com.datadoghq.gitlab.users.testConnection",
 	"com.datadoghq.kubernetes.core.testConnection",
 	"com.datadoghq.script.testConnection",

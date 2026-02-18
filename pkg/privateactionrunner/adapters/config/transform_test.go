@@ -12,18 +12,18 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
-func TestGetRelevantSpecialActions(t *testing.T) {
+func TestGetBundleInheritedAllowedActions(t *testing.T) {
 	tests := []struct {
-		name                   string
-		actionsAllowlist       map[string]sets.Set[string]
-		expectedSpecialActions map[string]sets.Set[string]
+		name                     string
+		actionsAllowlist         map[string]sets.Set[string]
+		expectedInheritedActions map[string]sets.Set[string]
 	}{
 		{
 			name: "returns special actions for existing bundle",
 			actionsAllowlist: map[string]sets.Set[string]{
 				"com.datadoghq.script": sets.New[string]("action1"),
 			},
-			expectedSpecialActions: map[string]sets.Set[string]{
+			expectedInheritedActions: map[string]sets.Set[string]{
 				"com.datadoghq.script": sets.New[string]("testconnection", "enrichscript"),
 			},
 		},
@@ -32,19 +32,19 @@ func TestGetRelevantSpecialActions(t *testing.T) {
 			actionsAllowlist: map[string]sets.Set[string]{
 				"com.other.bundle": sets.New[string]("action1"),
 			},
-			expectedSpecialActions: map[string]sets.Set[string]{},
+			expectedInheritedActions: map[string]sets.Set[string]{},
 		},
 		{
 			name: "returns empty when bundle has empty set",
 			actionsAllowlist: map[string]sets.Set[string]{
 				"com.datadoghq.script": sets.New[string](),
 			},
-			expectedSpecialActions: map[string]sets.Set[string]{},
+			expectedInheritedActions: map[string]sets.Set[string]{},
 		},
 		{
-			name:                   "returns empty for empty allowlist",
-			actionsAllowlist:       map[string]sets.Set[string]{},
-			expectedSpecialActions: map[string]sets.Set[string]{},
+			name:                     "returns empty for empty allowlist",
+			actionsAllowlist:         map[string]sets.Set[string]{},
+			expectedInheritedActions: map[string]sets.Set[string]{},
 		},
 		{
 			name: "returns special actions for multiple matching bundles",
@@ -54,7 +54,7 @@ func TestGetRelevantSpecialActions(t *testing.T) {
 				"com.datadoghq.gitlab.users":    sets.New[string]("action2"),
 				"com.datadoghq.kubernetes.core": sets.New[string]("action3"),
 			},
-			expectedSpecialActions: map[string]sets.Set[string]{
+			expectedInheritedActions: map[string]sets.Set[string]{
 				"com.datadoghq.script":          sets.New[string]("testconnection", "enrichscript"),
 				"com.datadoghq.gitlab.users":    sets.New[string]("testconnection"),
 				"com.datadoghq.kubernetes.core": sets.New[string]("testconnection"),
@@ -64,8 +64,8 @@ func TestGetRelevantSpecialActions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := GetRelevantSpecialActions(tt.actionsAllowlist)
-			assert.Equal(t, tt.expectedSpecialActions, result)
+			result := GetBundleInheritedAllowedActions(tt.actionsAllowlist)
+			assert.Equal(t, tt.expectedInheritedActions, result)
 		})
 	}
 }
