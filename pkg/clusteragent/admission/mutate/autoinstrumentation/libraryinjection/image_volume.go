@@ -117,5 +117,5 @@ func (p *ImageVolumeProvider) InjectLibrary(pod *corev1.Pod, cfg LibraryConfig) 
 	}
 }
 
-// Verify that InitContainerProvider implements LibraryInjectionProvider.
+// Verify that ImageVolumeProvider implements LibraryInjectionProvider.
 var _ LibraryInjectionProvider = (*ImageVolumeProvider)(nil)
