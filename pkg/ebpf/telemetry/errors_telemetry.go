@@ -31,7 +31,6 @@ const (
 	skbLoadBytes
 	perfEventOutput
 	ringbufOutput
-	ringbufReserve
 	mapErr = math.MaxInt
 )
 
@@ -42,7 +41,6 @@ var helperNames = map[int]string{
 	skbLoadBytes:    "bpf_skb_load_bytes",
 	perfEventOutput: "bpf_perf_event_output",
 	ringbufOutput:   "bpf_ringbuf_output",
-	ringbufReserve:  "bpf_ringbuf_reserve",
 }
 
 type telemetryKey struct {
