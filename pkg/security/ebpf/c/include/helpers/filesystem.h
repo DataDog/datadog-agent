@@ -31,22 +31,14 @@ static __attribute__((always_inline)) void bump_high_path_id(u32 mount_id) {
 static __attribute__((always_inline)) u32 get_path_id(u64 ino, u32 mount_id, int nlink, enum PATH_ID_INVALIDATE_TYPE invalidate_type) {
     u32 key = mount_id % PATH_ID_HIGH_MAP_SIZE;
 
-<<<<<<< HEAD
     u32 *high_id_ptr = bpf_map_lookup_elem(&path_id_high, &key);
-=======
-    u32 *high_id_ptr = bpf_map_lookup_elem(&path_id, &key);
->>>>>>> f9b7a48cfdc (rever low/high)
     if (!high_id_ptr) {
         return 0;
     }
 
     u32 high_id_value = *high_id_ptr;
 
-<<<<<<< HEAD
     key = ino % PATH_ID_LOW_MAP_SIZE;
-=======
-    key = ino % PATH_ID_HIGH_MAP_SIZE;
->>>>>>> f9b7a48cfdc (rever low/high)
     u32 *low_id_ptr = bpf_map_lookup_elem(&path_id_low, &key);
     if (!low_id_ptr) {
         // will never happen
@@ -57,11 +49,7 @@ static __attribute__((always_inline)) u32 get_path_id(u64 ino, u32 mount_id, int
         __sync_fetch_and_add(low_id_ptr, 1);
     }
 
-<<<<<<< HEAD
     u32 low_id_value = *low_id_ptr % PATH_ID_LOW_MASK;
-=======
-    u32 low_id_value = *low_id_ptr % 0xFFFF;
->>>>>>> f9b7a48cfdc (rever low/high)
 
     // need to invalidate the current path id for event which may change the association inode/name like.
     // After the operation, the path id should be incremented.

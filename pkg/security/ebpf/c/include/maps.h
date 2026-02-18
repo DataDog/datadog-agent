@@ -15,11 +15,7 @@
         __type(key, u32);                      \
     } _name SEC(".maps");
 
-<<<<<<< HEAD
 BPF_ARRAY_MAP(path_id_high, u32, PATH_ID_HIGH_MAP_SIZE)
-=======
-BPF_ARRAY_MAP(path_id, u32, PATH_ID_HIGH_MAP_SIZE)
->>>>>>> f9b7a48cfdc (rever low/high)
 BPF_ARRAY_MAP(path_id_low, u32, PATH_ID_LOW_MAP_SIZE)
 BPF_ARRAY_MAP(enabled_events, u64, 1)
 BPF_ARRAY_MAP(buffer_selector, u32, 5)
