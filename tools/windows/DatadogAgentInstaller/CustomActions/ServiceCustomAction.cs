@@ -209,6 +209,7 @@ namespace Datadog.CustomActions
             }
             _serviceController.SetCredentials(Constants.AgentServiceName, ddAgentUserName, ddAgentUserPassword);
             _serviceController.SetCredentials(Constants.TraceAgentServiceName, ddAgentUserName, ddAgentUserPassword);
+            _serviceController.SetCredentials(Constants.PrivateActionRunnerServiceName, ddAgentUserName, ddAgentUserPassword);
 
             // SYSTEM
             // LocalSystem is a SCM specific shorthand that doesn't need to be localized
@@ -245,6 +246,7 @@ namespace Datadog.CustomActions
                 Constants.ProcessAgentServiceName,
                 Constants.SystemProbeServiceName,
                 Constants.TraceAgentServiceName,
+                Constants.PrivateActionRunnerServiceName,
                 Constants.AgentServiceName,
                 Constants.InstallerServiceName,
             };
