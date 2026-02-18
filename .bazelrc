@@ -54,6 +54,7 @@ common:cache --remote_retries=1
 common:cache --remote_timeout=60
 
 # CI config ------------------------------------------------------------------------------------------------------------
+common:ci --config=adms
 common:ci --config=cache
 
 # For Rust targets, enable clippy and rustfmt checks during the build
@@ -63,7 +64,7 @@ build:ci --aspects=@rules_rust//rust:defs.bzl%rustfmt_aspect
 build:ci --output_groups=+rustfmt_checks
 
 # Project configs --------------------------------------------------------------------------------------
-import %workspace%/bazel/configs/sdagent_rc
+import %workspace%/bazel/configs/sdagent.bazelrc
 
 # Local development options --------------------------------------------------------------------------------------------
 try-import %workspace%/user.bazelrc
