@@ -1754,8 +1754,8 @@ func forwarder(config pkgconfigmodel.Setup) {
 	// Forwarder
 	config.BindEnvAndSetDefault("additional_endpoints", map[string][]string{})
 	config.BindEnvAndSetDefault("forwarder_timeout", 20)
-	config.BindEnv("forwarder_retry_queue_max_size")                                                     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // Deprecated in favor of `forwarder_retry_queue_payloads_max_size`
-	config.BindEnv("forwarder_retry_queue_payloads_max_size")                                            //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // Default value is defined inside `NewOptions` in pkg/forwarder/forwarder.go
+	config.BindEnvAndSetDefault("forwarder_retry_queue_max_size", 0) // Deprecated in favor of `forwarder_retry_queue_payloads_max_size`
+	config.BindEnvAndSetDefault("forwarder_retry_queue_payloads_max_size", 15*1024*1024)
 	config.BindEnvAndSetDefault("forwarder_connection_reset_interval", 0)                                // in seconds, 0 means disabled
 	config.BindEnvAndSetDefault("forwarder_apikey_validation_interval", DefaultAPIKeyValidationInterval) // in minutes
 	config.BindEnvAndSetDefault("forwarder_num_workers", 1)
