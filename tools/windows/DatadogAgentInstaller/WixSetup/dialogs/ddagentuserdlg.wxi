@@ -1,4 +1,4 @@
-<Include>
+<Include xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Dialog Id="DDAgentUserDlg" Width="370" Height="270" Title="!(loc.DDAgentUserDialog_Title)">
 
     <!-- Username and Password fields
@@ -33,12 +33,14 @@
     <!-- cancel button -->
     <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes"
                Text="Cancel">
-      <Publish Event="EndDialog" Value="Exit">1</Publish>
+      <!-- WiX 5: Condition moved to attribute -->
+      <Publish Event="EndDialog" Value="Exit" Condition="1" />
     </Control>
 
     <!-- The InfoLabel is listed last so that its tab order is after the buttons and before the edit controls. -->
+    <!-- WiX 5: Text inner text moved to Value attribute -->
     <Control Id="InfoLabel" Type="Hyperlink" X="20" Y="52" Width="330" Height="40" >
-	  <Text>!(loc.DDAgentUserDialogInfoLabel)</Text>
+	  <Text Value="!(loc.DDAgentUserDialogInfoLabel)" />
     </Control>
 
     <!-- Title + Banner -->
