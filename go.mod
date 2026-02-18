@@ -995,6 +995,7 @@ require (
 	github.com/jarcoal/httpmock v1.4.1
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
 	github.com/modelcontextprotocol/go-sdk v1.1.0
+	github.com/pganalyze/pg_query_go/v6 v6.2.2
 	github.com/qri-io/jsonpointer v0.1.1
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	gitlab.com/gitlab-org/api/client-go v1.14.0
@@ -1165,7 +1166,6 @@ require (
 	github.com/oracle/oci-go-sdk/v60 v60.0.0 // indirect
 	github.com/packethost/packngo v0.1.1-0.20180711074735-b9cb5096f54c // indirect
 	github.com/petermattis/goid v0.0.0-20250721140440-ea1c0173183e // indirect
-	github.com/pganalyze/pg_query_go/v6 v6.2.2 // indirect
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
 	github.com/pires/go-proxyproto v0.8.0 // indirect
 	github.com/pjbgf/sha1cd v0.3.2 // indirect
