@@ -10,9 +10,9 @@ package filter
 // Define packet type constants for Darwin (these exist in unix package on Linux)
 // We define them here to match the Linux values for compatibility
 const (
-	PACKET_HOST      = 0 // To us
-	PACKET_BROADCAST = 1 // To all
-	PACKET_MULTICAST = 2 // To group
-	PACKET_OTHERHOST = 3 // To someone else
-	PACKET_OUTGOING  = 4 // Outgoing of any type
+	PacketHost      = 0 // To us
+	PacketBroadcast = 1 // To all
+	PacketMulticast = 2 // To group
+	PacketOtherHost = 3 // To someone else
+	PacketOutgoing  = 4 // Outgoing of any type
 )

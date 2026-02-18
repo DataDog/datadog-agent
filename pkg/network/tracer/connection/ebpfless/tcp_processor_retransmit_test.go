@@ -19,7 +19,7 @@ import (
 
 // retransmitNth repeats the nth packet twice
 func retransmitNth(packets []testCapture, n int) []testCapture {
-	if packets[n].pktType != filter.PACKET_OUTGOING {
+	if packets[n].pktType != filter.PacketOutgoing {
 		panic("can only retransmit outgoing packets")
 	}
 

@@ -15,5 +15,5 @@ func extractPacketType(info filter.PacketInfo) uint8 {
 		return darwinInfo.PktType
 	}
 	// Default to outgoing if we can't determine
-	return filter.PACKET_OUTGOING
+	return filter.PacketOutgoing
 }

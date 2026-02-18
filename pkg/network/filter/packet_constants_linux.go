@@ -11,9 +11,9 @@ import "golang.org/x/sys/unix"
 
 // On Linux, alias the constants from the unix package for consistency with Darwin
 const (
-	PACKET_HOST      = unix.PACKET_HOST
-	PACKET_BROADCAST = unix.PACKET_BROADCAST
-	PACKET_MULTICAST = unix.PACKET_MULTICAST
-	PACKET_OTHERHOST = unix.PACKET_OTHERHOST
-	PACKET_OUTGOING  = unix.PACKET_OUTGOING
+	PacketHost      = unix.PACKET_HOST
+	PacketBroadcast = unix.PACKET_BROADCAST
+	PacketMulticast = unix.PACKET_MULTICAST
+	PacketOtherHost = unix.PACKET_OTHERHOST
+	PacketOutgoing  = unix.PACKET_OUTGOING
 )

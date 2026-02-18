@@ -28,9 +28,9 @@ type PCAPTuple network.ConnectionTuple
 
 func connDirectionFromPktType(pktType uint8) network.ConnectionDirection {
 	switch pktType {
-	case filter.PACKET_HOST:
+	case filter.PacketHost:
 		return network.INCOMING
-	case filter.PACKET_OUTGOING:
+	case filter.PacketOutgoing:
 		return network.OUTGOING
 	default:
 		return network.UNKNOWN
@@ -161,9 +161,9 @@ func isSeqBeforeEq(prev, cur uint32) bool {
 
 func debugPacketDir(pktType uint8) string {
 	switch pktType {
-	case filter.PACKET_HOST:
+	case filter.PacketHost:
 		return "Incoming"
-	case filter.PACKET_OUTGOING:
+	case filter.PacketOutgoing:
 		return "Outgoing"
 	default:
 		return "InvalidDir-" + strconv.Itoa(int(pktType))
