@@ -14,15 +14,18 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/noisyneighbor/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -33,6 +36,7 @@ type NoisyNeighborCheck struct {
 	config         *NoisyNeighborConfig
 	tagger         tagger.Component
 	sysProbeClient *sysprobeclient.CheckClient
+	cgroupReader   *cgroups.Reader
 }
 
 func Factory(tagger tagger.Component) option.Option[func() check.Check] {
@@ -65,6 +69,12 @@ func (n *NoisyNeighborCheck) Configure(senderManager sender.SenderManager, _ uin
 		return fmt.Errorf("noisy_neighbor check config: %s", err)
 	}
 	n.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")))
+	reader, err := cgroups.NewReader(cgroups.WithReaderFilter(cgroups.ContainerFilter))
+	if err != nil {
+		log.Debugf("noisy_neighbor: cgroup reader init failed (container tags may be missing): %v", err)
+	} else {
+		n.cgroupReader = reader
+	}
 	return nil
 }
 
@@ -77,6 +87,10 @@ func (n *NoisyNeighborCheck) Run() error {
 	sender, err := n.GetSender()
 	if err != nil {
 		return fmt.Errorf("get metric sender: %s", err)
+	}
+
+	if n.cgroupReader != nil {
+		_ = n.cgroupReader.RefreshCgroups(0)
 	}
 
 	var totalCgroups uint64
@@ -93,7 +107,24 @@ func (n *NoisyNeighborCheck) Run() error {
 }
 
 func (n *NoisyNeighborCheck) buildTags(stat model.NoisyNeighborStats) []string {
-	return []string{fmt.Sprintf("cgroup_id:%d", stat.CgroupID)}
+	tags := []string{fmt.Sprintf("cgroup_id:%d", stat.CgroupID)}
+	if n.cgroupReader != nil {
+		if cg := n.cgroupReader.GetCgroupByInode(stat.CgroupID); cg != nil {
+			containerID := cg.Identifier()
+			if containerID != "" {
+				entityID := types.NewEntityID(types.ContainerID, containerID)
+				if !entityID.Empty() {
+					taggerTags, err := n.tagger.Tag(entityID, types.ChecksConfigCardinality)
+					if err != nil {
+						log.Debugf("noisy_neighbor: tagger error for container %s: %v", containerID, err)
+					} else {
+						tags = append(tags, taggerTags...)
+					}
+				}
+			}
+		}
+	}
+	return tags
 }
 
 // submitPrimaryMetrics sends the main PSL and PSP metrics
