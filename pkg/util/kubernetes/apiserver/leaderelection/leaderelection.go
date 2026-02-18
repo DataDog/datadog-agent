@@ -278,7 +278,6 @@ func (le *LeaderEngine) GetLeaderIP() (string, error) {
 		if err != nil {
 			return "", err
 		}
-		cache.Cache.Set(cacheKey, targetIP, 5*time.Minute)
 	} else {
 		endpointList, err := le.coreClient.Endpoints(le.LeaderNamespace).Get(context.TODO(), le.ServiceName, metav1.GetOptions{})
 		if err != nil {
