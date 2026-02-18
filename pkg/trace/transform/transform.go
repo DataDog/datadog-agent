@@ -101,13 +101,10 @@ func OtelSpanToDDSpanMinimal(
 		// When enable_otlp_compute_top_level_by_span_kind is true, compute stats for client-side spans
 		traceutil.SetMeasured(ddspan, true)
 	}
+	// Use direct lookup only: peerTagKeys already lists every precursor from peer_tags.ini (semantic-core).
+	// future migration to semantics library
 	for _, peerTagKey := range peerTagKeys {
-		// Try semantic lookup first (uses fallbacks if concept is defined in mappings.json) - else use direct lookup for unknown concepts
-		peerTagVal := traceutilotel.LookupSemanticStringFromDualMaps(sattr, rattr, semantics.Concept(peerTagKey), false)
-		if peerTagVal == "" {
-			peerTagVal = traceutilotel.GetOTelAttrFromEitherMap(sattr, rattr, false, peerTagKey)
-		}
-		if peerTagVal != "" {
+		if peerTagVal := traceutilotel.GetOTelAttrFromEitherMap(sattr, rattr, false, peerTagKey); peerTagVal != "" {
 			ddspan.Meta[peerTagKey] = peerTagVal
 		}
 	}

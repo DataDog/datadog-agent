@@ -136,8 +136,7 @@
     "http.route": {
       "canonical": "http.route",
       "fallbacks": [
-        {"name": "http.route", "provider": "otel", "type": "string"},
-        {"name": "grpc.path", "provider": "datadog", "type": "string"}
+        {"name": "http.route", "provider": "otel", "type": "string"}
       ]
     },
     "rpc.grpc.status_code": {

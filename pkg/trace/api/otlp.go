@@ -463,11 +463,7 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 			}
 			if containerID == "" {
 				// no cid at resource level, grab what we can
-				metaAccessor := semantics.NewStringMapAccessor(ddspan.Meta)
-				containerID = semantics.LookupString(semantics.DefaultRegistry(), metaAccessor, semantics.ConceptContainerID)
-				if containerID == "" {
-					containerID = semantics.LookupString(semantics.DefaultRegistry(), metaAccessor, semantics.ConceptK8sPodUID)
-				}
+				_, containerID = transform.GetFirstFromMap(ddspan.Meta, string(semconv.ContainerIDKey), string(semconv.K8SPodUIDKey))
 			}
 			if p, ok := ddspan.Metrics["_sampling_priority_v1"]; ok {
 				priorityByID[traceID] = sampler.SamplingPriority(p)
@@ -684,7 +680,7 @@ func (o *OTLPReceiver) convertSpan(res pcommon.Resource, lib pcommon.Instrumenta
 		}
 	}
 
-	// Check for db.namespace and conditionally set db.name (resource-first precedence)
+	// Check for db.namespace and conditionally set db.name
 	if _, ok := span.Meta["db.name"]; !ok {
 		if dbNamespace := traceutilotel.LookupSemanticStringFromDualMaps(res.Attributes(), in.Attributes(), semantics.ConceptDBNamespace, false); dbNamespace != "" {
 			transform.SetMetaOTLP(span, "db.name", dbNamespace)
@@ -749,8 +745,11 @@ func (o *OTLPReceiver) convertSpan(res pcommon.Resource, lib pcommon.Instrumenta
 func resourceFromTags(meta map[string]string) string {
 	accessor := semantics.NewStringMapAccessor(meta)
 	if m := semantics.LookupString(semantics.DefaultRegistry(), accessor, semantics.ConceptHTTPMethod); m != "" {
-		// use the HTTP method + route (if available)
+		// use the HTTP method + route (if available). grpc.path is used as a fallback for resource name only (legacy receiveResourceSpansV1 behavior), not as part of the http.route concept.
 		if route := semantics.LookupString(semantics.DefaultRegistry(), accessor, semantics.ConceptHTTPRoute); route != "" {
+			return m + " " + route
+		}
+		if route := meta["grpc.path"]; route != "" {
 			return m + " " + route
 		}
 		return m
