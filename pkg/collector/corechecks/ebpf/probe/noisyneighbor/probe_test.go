@@ -32,6 +32,8 @@ func TestNoisyNeighborProbe(t *testing.T) {
 			t.Skip("Noisy Neighbor probe is not supported on Fedora 38")
 		}
 
+		t.Logf("testing on %s", os.Getenv("CI_JOB_NAME"))
+
 		cfg := testConfig()
 		probe, err := NewProbe(cfg)
 		require.NoError(t, err)
