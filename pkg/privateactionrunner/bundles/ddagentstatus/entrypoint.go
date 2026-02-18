@@ -21,7 +21,7 @@ type AgentStatusBundle struct {
 func NewAgentStatus(client ipc.HTTPClient) *AgentStatusBundle {
 	return &AgentStatusBundle{
 		actions: map[string]types.Action{
-			"getCoreAgentStatus": NewGetCoreAgentStatusHandler(client),
+			"getStatus": NewGetCoreAgentStatusHandler(client),
 		},
 	}
 }

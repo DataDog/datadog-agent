@@ -30,13 +30,13 @@ func NewGetCoreAgentStatusHandler(client ipc.HTTPClient) *GetCoreAgentStatusHand
 	}
 }
 
-// GetCoreAgentStatusInputs defines the optional inputs for the getCoreAgentStatus action.
+// GetCoreAgentStatusInputs defines the optional inputs for the getStatus action.
 type GetCoreAgentStatusInputs struct {
 	Verbose bool   `json:"verbose,omitempty"`
 	Section string `json:"section,omitempty"`
 }
 
-// Run executes the getCoreAgentStatus action by calling the agent's IPC status endpoint.
+// Run executes the getStatus action by calling the agent's IPC status endpoint.
 func (h *GetCoreAgentStatusHandler) Run(
 	ctx context.Context,
 	task *types.Task,

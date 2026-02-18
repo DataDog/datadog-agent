@@ -23,7 +23,7 @@ func newTask(inputs map[string]interface{}) *types.Task {
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{
 		BundleID: "com.datadoghq.ddagent.agentstatus",
-		Name:     "getCoreAgentStatus",
+		Name:     "getStatus",
 		Inputs:   inputs,
 	}
 	return task
@@ -148,6 +148,6 @@ func TestNewAgentStatusBundle(t *testing.T) {
 
 	bundle := NewAgentStatus(ipcMock.GetClient())
 
-	assert.NotNil(t, bundle.GetAction("getCoreAgentStatus"))
+	assert.NotNil(t, bundle.GetAction("getStatus"))
 	assert.Nil(t, bundle.GetAction("nonexistent"))
 }
