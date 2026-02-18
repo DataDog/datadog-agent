@@ -99,6 +99,17 @@ find "$RUN_DIR/ipc" -maxdepth 1 -name 'gui-*.sock' -exec rm -fv {} \;
 chown -vR root:wheel "$RUN_DIR/ipc"
 chmod -v 1777 "$RUN_DIR/ipc"  # Sticky bit: users can create GUI sockets but not delete others' files
 
+# Reset location permission prompt attempt count for all users so each user gets a fresh 2 prompt
+# attempts after each installation (per-installation behavior). UserDefaults key is in
+# ~/Library/Preferences/com.datadoghq.agent.plist and survives reinstall otherwise.
+echo "# Resetting location permission prompt attempt count for all users"
+for user_home in /Users/*; do
+    [ -d "$user_home" ] || continue
+    user=$(basename "$user_home")
+    [ "$user" = "Shared" ] && continue
+    sudo -u "$user" defaults delete com.datadoghq.agent locationPermissionPromptAttemptCount 2>/dev/null || true
+done
+
 echo "# Copying conf"
 mkdir -vp $CONF_DIR/checks.d
 
