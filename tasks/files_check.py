@@ -111,17 +111,17 @@ def _print_inventory_diff(added, removed, changed):
 def _inventory_changes_to_comment(added, removed, changed):
     body = "## Detected file changes:\n"
     if len(added):
-        body += f"<details><summary>{len(added)} Added files:</summary>"
+        body += f"<details><summary>{len(added)} Added files:</summary>\n\n"
         for f in added:
             body += f"* `{f.relative_path}` ({byte_to_string(f.size_bytes)})\n"
         body += "</details>"
     if len(removed):
-        body += f"<details><summary>{len(removed)} Removed files:</summary>"
+        body += f"<details><summary>{len(removed)} Removed files:</summary>\n\n"
         for f in removed:
             body += f"* `{f.relative_path}` ({byte_to_string(f.size_bytes)})\n"
         body += "</details>"
     if len(changed):
-        body += f"<details><summary>{len(changed)} Changed files:</summary>"
+        body += f"<details><summary>{len(changed)} Changed files:</summary>\n\n"
         for path, change in changed.items():
             change_str = f"* `{path}`:\n"
             if change.flags & FileChange.Flags.Permissions:
