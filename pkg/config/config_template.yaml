@@ -2810,8 +2810,8 @@ api_key:
 #
 #   tracing:
 
-#     # @param enabled - Boolean - optional - default: false
-#     # @env DD_CLUSTER_AGENT_TRACING_ENABLED - Boolean - optional - default: false
+#     # @param enabled - boolean - optional - default: false
+#     # @env DD_CLUSTER_AGENT_TRACING_ENABLED - boolean - optional - default: false
 #     # Enable APM tracing for the Cluster Agent.
 #
 #     enabled: false
