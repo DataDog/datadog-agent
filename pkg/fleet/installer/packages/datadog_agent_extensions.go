@@ -18,6 +18,7 @@ import (
 	extensionsPkg "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -62,11 +63,13 @@ func setRegistryConfig(env *env.Env) {
 	configPath := filepath.Join(paths.AgentConfigDir, "datadog.yaml")
 	rawConfig, err := os.ReadFile(configPath)
 	if err != nil {
+		log.Debugf("could not read agent config at %s: %v", configPath, err)
 		return
 	}
 	var config datadogAgentConfig
 	err = yaml.Unmarshal(rawConfig, &config)
 	if err != nil {
+		log.Warnf("could not parse agent config at %s: %v", configPath, err)
 		return
 	}
 

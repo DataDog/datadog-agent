@@ -51,7 +51,9 @@ namespace Datadog.CustomActions
                 return ActionResult.Failure;
             }
 
-            // TODO: What environment variables are needed for the hook?
+            // OCI registry credentials (DD_INSTALLER_REGISTRY_URL, DD_INSTALLER_REGISTRY_AUTH, etc.)
+            // are not available as env vars in the MSI context, but the hook reads them from
+            // datadog.yaml via setRegistryConfig() as a fallback, so no extra env vars are needed.
 
             try
             {

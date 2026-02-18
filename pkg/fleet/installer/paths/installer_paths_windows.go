@@ -196,6 +196,12 @@ func SetupInstallerDataDir() error {
 			return fmt.Errorf("failed to reset permissions for RootTmpDir: %w", err)
 		}
 
+		// Create protected directory under DatadogDataDir for persistent data across upgrades.
+		// It inherits permissions from DatadogDataDir (managed by MSI).
+		if err := createDirIfNotExists(ProtectedDir); err != nil {
+			return fmt.Errorf("failed to create ProtectedDir: %w", err)
+		}
+
 		// Create subdirectories that have different permissions (global read)
 		// PackagesPath should only contain files from public OCI packages
 		if err := createDirIfNotExists(PackagesPath); err != nil {

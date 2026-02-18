@@ -5,16 +5,18 @@
 
 package packages
 
-import "github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+import (
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+)
 
 // getExtensionStoragePath returns the path where extension lists should be stored.
 // On Darwin (macOS), this follows the same pattern as Linux.
 //
 //nolint:unused // Used in shared extension functions
 func getExtensionStoragePath(packagePath string) string {
-	// Darwin follows Linux pattern
-	if packagePath != "" && len(packagePath) > len(paths.PackagesPath) &&
-		packagePath[:len(paths.PackagesPath)] == paths.PackagesPath {
+	if strings.HasPrefix(packagePath, paths.PackagesPath) {
 		return paths.RootTmpDir
 	}
 	return packagePath
