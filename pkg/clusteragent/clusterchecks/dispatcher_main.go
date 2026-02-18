@@ -9,6 +9,7 @@ package clusterchecks
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -152,6 +153,11 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 		tracer.ResourceName("schedule_configs"),
 		tracer.SpanType("worker"))
 	span.SetTag("config_count", len(configs))
+	var checkNames []string
+	for _, c := range configs {
+		checkNames = append(checkNames, c.Name)
+	}
+	span.SetTag("check_names", strings.Join(checkNames, ","))
 	var failedConfigs int
 	defer func() {
 		if failedConfigs > 0 {
