@@ -10,6 +10,7 @@ package noisyneighbor
 
 import (
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,8 +29,8 @@ func TestNoisyNeighborProbe(t *testing.T) {
 			t.Skipf("Kernel version %v is not supported by the Noisy Neighbor probe", kv)
 		}
 
-		if os.Getenv("CI_JOB_NAME") == "fedora_38" {
-			t.Skip("Noisy Neighbor probe is not supported on Fedora 38")
+		if strings.Contains(os.Getenv("CI_JOB_NAME"), "fedora_38") {
+			t.Skipf("Noisy Neighbor probe is not supported on this environment: %s", os.Getenv("CI_JOB_NAME"))
 		}
 
 		t.Logf("testing on %s", os.Getenv("CI_JOB_NAME"))
