@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/benbjohnson/clock"
@@ -47,6 +48,11 @@ const (
 
 	// Unit conversion
 	bytesPerKB = 1024
+
+	// defaultMaxInflightUsage limits the maximum number of concurrent disk usage
+	// calls. This prevents thread explosion when multiple remote mounts become
+	// unresponsive, as each blocked syscall consumes an OS thread.
+	defaultMaxInflightUsage = 8
 )
 
 // diskInitConfig represents initialization configuration shared across instances.
@@ -154,6 +160,22 @@ type Check struct {
 	excludedMountpoints []regexp.Regexp
 	deviceTagRe         map[*regexp.Regexp][]string
 	deviceLabels        map[string]string
+
+	// Concurrency guardrails to prevent thread explosion on unreachable remote mounts.
+	// When a remote filesystem (NFS/CIFS) becomes unresponsive, the statfs() syscall
+	// blocks in kernel uninterruptible sleep (D state). Without guardrails, each check
+	// interval would spawn new goroutines that accumulate blocked in D state, eventually
+	// causing agent instability.
+
+	// usageSem limits the total number of concurrent/inflight disk usage calls.
+	// This provides a global cap on OS threads that can be blocked in kernel I/O wait.
+	usageSem chan struct{}
+
+	// inflightMu protects inflightByMount
+	inflightMu sync.Mutex
+	// inflightByMount tracks mountpoints with an active disk usage call in progress.
+	// This prevents spawning multiple goroutines for the same wedged mount.
+	inflightByMount map[string]struct{}
 }
 
 // Run executes the check
@@ -536,7 +558,42 @@ func (c *Check) sendDiskMetrics(sender sender.Sender, ioCounter gopsutil_disk.IO
 	sender.Rate(fmt.Sprintf(diskMetric, "write_time_pct"), float64(ioCounter.WriteTime)*100/1000, "", tags)
 }
 
+// tryMarkInflight attempts to mark a mountpoint as having an inflight disk usage call.
+// Returns true if successful, false if a call is already in progress.
+func (c *Check) tryMarkInflight(mountpoint string) bool {
+	c.inflightMu.Lock()
+	defer c.inflightMu.Unlock()
+	if _, ok := c.inflightByMount[mountpoint]; ok {
+		return false
+	}
+	c.inflightByMount[mountpoint] = struct{}{}
+	return true
+}
+
+// clearInflight removes the inflight marker for a mountpoint.
+func (c *Check) clearInflight(mountpoint string) {
+	c.inflightMu.Lock()
+	delete(c.inflightByMount, mountpoint)
+	c.inflightMu.Unlock()
+}
+
+// getDiskUsageWithTimeout wraps diskUsage with timeout and concurrency guardrails.
+//
+// Protection:
+// 1. Per-mountpoint inflight tracking: one wedged mount = one stuck goroutine, not one per interval.
+// 2. Global semaphore: caps total concurrent disk usage calls across all mounts.
 func (c *Check) getDiskUsageWithTimeout(mountpoint string) (*gopsutil_disk.UsageStat, error) {
+	if !c.tryMarkInflight(mountpoint) {
+		return nil, errors.New("skipping: previous disk usage call still inflight (may be blocked in kernel)")
+	}
+
+	select {
+	case c.usageSem <- struct{}{}:
+	default:
+		c.clearInflight(mountpoint)
+		return nil, fmt.Errorf("skipping: too many inflight disk usage calls (max %d)", defaultMaxInflightUsage)
+	}
+
 	type usageResult struct {
 		usage *gopsutil_disk.UsageStat
 		err   error
@@ -544,22 +601,27 @@ func (c *Check) getDiskUsageWithTimeout(mountpoint string) (*gopsutil_disk.Usage
 	resultCh := make(chan usageResult, 1)
 	timeout := time.Duration(c.instanceConfig.Timeout) * time.Second
 	timeoutCh := c.clock.After(timeout)
-	// Start the disk usage call in a separate goroutine.
+
 	go func() {
-		// UsageWithContext in gopsutil ignores the context for now (PR opened: https://github.com/shirou/gopsutil/pull/1837)
 		usage, err := c.diskUsage(mountpoint)
-		// Use select to avoid writing to resultCh if timeout already occurred.
+
+		// Only clean up when the syscall actually returns; if blocked in D state,
+		// this never runs, preventing future goroutines from piling up.
+		c.clearInflight(mountpoint)
+		<-c.usageSem
+
 		select {
 		case resultCh <- usageResult{usage, err}:
 		case <-timeoutCh:
 		}
 	}()
-	// Use select to wait for either the disk usage result or a timeout.
+
 	select {
 	case result := <-resultCh:
 		return result.usage, result.err
 	case <-timeoutCh:
-		return nil, fmt.Errorf("disk usage call timed out after %s", timeout)
+		// Goroutine will clean up inflight/semaphore if/when the syscall returns.
+		return nil, fmt.Errorf("disk usage call timed out after %s (syscall may be blocked in kernel D state)", timeout)
 	}
 }
 
@@ -778,5 +840,8 @@ func newCheck() check.Check {
 		excludedMountpoints: []regexp.Regexp{},
 		deviceTagRe:         make(map[*regexp.Regexp][]string),
 		deviceLabels:        make(map[string]string),
+		// Initialize concurrency guardrails
+		usageSem:        make(chan struct{}, defaultMaxInflightUsage),
+		inflightByMount: make(map[string]struct{}),
 	}
 }
