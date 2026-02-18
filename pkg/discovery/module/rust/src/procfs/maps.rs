@@ -175,9 +175,8 @@ mod tests {
     }
 
     #[test]
-    fn test_has_gpu_nvidia_libraries_early_exit() {
-        // GPU library at the start: verifies the scanner short-circuits on first match
-        // and does not read the rest of the file
+    fn test_gpu_library_at_start_large_maps_file() {
+        // Verifies that a GPU library present at the beginning of the maps file is correctly detected even when followed by many non-GPU entries.
         let mut maps_content = String::new();
         maps_content.push_str(
             "7f8e00000000-7f8e00021000 r--p 00000000 08:01 000001 /usr/lib/libcuda.so.535\n",
