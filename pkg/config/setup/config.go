@@ -423,8 +423,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("secret_backend_config", map[string]interface{}{})
 	config.BindEnvAndSetDefault("secret_backend_command", "")
 	config.BindEnvAndSetDefault("secret_backend_arguments", []string{})
-	config.BindEnvAndSetDefault("secret_backend_output_max_size", 0)
-	config.BindEnvAndSetDefault("secret_backend_timeout", 0)
+	config.BindEnvAndSetDefault("secret_backend_output_max_size", 1024*1024)
+	config.BindEnvAndSetDefault("secret_backend_timeout", 30)
 	config.BindEnvAndSetDefault("secret_backend_command_allow_group_exec_perm", false)
 	config.BindEnvAndSetDefault("secret_backend_skip_checks", false)
 	config.BindEnvAndSetDefault("secret_backend_remove_trailing_line_break", false)
@@ -434,7 +434,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("secret_scope_integration_to_their_k8s_namespace", false)
 	config.BindEnvAndSetDefault("secret_allowed_k8s_namespace", []string{})
 	config.BindEnvAndSetDefault("secret_image_to_handle", map[string][]string{})
-	config.SetDefault("secret_audit_file_max_size", 0)
+	config.BindEnvAndSetDefault("secret_audit_file_max_size", 1024*1024)
 
 	// IPC API server timeout
 	config.BindEnvAndSetDefault("server_timeout", 30)
@@ -1009,7 +1009,6 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Mostly, keys we use IsSet() on, because IsSet always returns true if a key has a default.
 	config.SetDefault("metadata_providers", []map[string]interface{}{})
 	config.SetDefault("config_providers", []map[string]interface{}{})
-	config.SetDefault("cluster_name", "")
 	config.SetDefault("listeners", []map[string]interface{}{})
 
 	config.BindEnv("provider_kind") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
@@ -1652,7 +1651,7 @@ func debugging(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("tracemalloc_whitelist", "") // deprecated
 	config.BindEnvAndSetDefault("tracemalloc_blacklist", "") // deprecated
 	config.BindEnvAndSetDefault("run_path", defaultRunPath)
-	config.BindEnv("no_proxy_nonexact_match") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("no_proxy_nonexact_match", false)
 }
 
 func telemetry(config pkgconfigmodel.Setup) {
@@ -1754,8 +1753,8 @@ func forwarder(config pkgconfigmodel.Setup) {
 	// Forwarder
 	config.BindEnvAndSetDefault("additional_endpoints", map[string][]string{})
 	config.BindEnvAndSetDefault("forwarder_timeout", 20)
-	config.BindEnv("forwarder_retry_queue_max_size")                                                     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // Deprecated in favor of `forwarder_retry_queue_payloads_max_size`
-	config.BindEnv("forwarder_retry_queue_payloads_max_size")                                            //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // Default value is defined inside `NewOptions` in pkg/forwarder/forwarder.go
+	config.BindEnvAndSetDefault("forwarder_retry_queue_max_size", 0) // Deprecated in favor of `forwarder_retry_queue_payloads_max_size`
+	config.BindEnvAndSetDefault("forwarder_retry_queue_payloads_max_size", 15*1024*1024)
 	config.BindEnvAndSetDefault("forwarder_connection_reset_interval", 0)                                // in seconds, 0 means disabled
 	config.BindEnvAndSetDefault("forwarder_apikey_validation_interval", DefaultAPIKeyValidationInterval) // in minutes
 	config.BindEnvAndSetDefault("forwarder_num_workers", 1)

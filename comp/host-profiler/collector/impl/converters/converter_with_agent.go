@@ -341,9 +341,12 @@ func (c *converterWithAgent) fixProcessorsPipeline(conf confMap, processorNames 
 
 		// Track if we have infraattributes
 		if isComponentType(name, componentTypeInfraAttributes) {
-			// Make sure allow_hostname_override is true
-			if err := Set(processors, name+"::"+fieldAllowHostnameOverride, true); err != nil {
+			ddDefaultValue, err := SetDefault(processors, name+"::"+fieldAllowHostnameOverride, true)
+			if err != nil {
 				return nil, err
+			}
+			if !ddDefaultValue {
+				log.Warn("allow_hostname_override is required but is disabled by user configuration; preserving user value.")
 			}
 			foundInfraattributes = true
 		}
