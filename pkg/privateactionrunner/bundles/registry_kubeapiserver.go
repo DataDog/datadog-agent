@@ -10,8 +10,11 @@ package privatebundles
 
 import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	com_datadoghq_ddagent "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/ddagent"
+	com_datadoghq_ddagent_networkpath "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/ddagent/networkpath"
 	com_datadoghq_gitlab_branches "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/branches"
 	com_datadoghq_gitlab_commits "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/commits"
 	com_datadoghq_gitlab_customattributes "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/customattributes"
@@ -39,7 +42,10 @@ import (
 	com_datadoghq_kubernetes_batch "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/batch"
 	com_datadoghq_kubernetes_core "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/core"
 	com_datadoghq_kubernetes_customresources "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/customresources"
+	com_datadoghq_mongodb "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/mongodb"
+	com_datadoghq_postgresql "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/postgresql"
 	com_datadoghq_script "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/script"
+	com_datadoghq_temporal "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/temporal"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
@@ -47,10 +53,11 @@ type Registry struct {
 	Bundles map[string]types.Bundle
 }
 
-func NewRegistry(configuration *config.Config, _ ipc.HTTPClient) *Registry {
+func NewRegistry(configuration *config.Config, traceroute traceroute.Component, eventPlatform eventplatform.Component, _ ipc.HTTPClient) *Registry {
 	return &Registry{
 		Bundles: map[string]types.Bundle{
 			"com.datadoghq.ddagent":                    com_datadoghq_ddagent.NewAgentActions(),
+			"com.datadoghq.ddagent.networkpath":        com_datadoghq_ddagent_networkpath.NewNetworkPath(traceroute, eventPlatform),
 			"com.datadoghq.gitlab.branches":            com_datadoghq_gitlab_branches.NewGitlabBranches(),
 			"com.datadoghq.gitlab.commits":             com_datadoghq_gitlab_commits.NewGitlabCommits(),
 			"com.datadoghq.gitlab.customattributes":    com_datadoghq_gitlab_customattributes.NewGitlabCustomAttributes(),
@@ -78,7 +85,10 @@ func NewRegistry(configuration *config.Config, _ ipc.HTTPClient) *Registry {
 			"com.datadoghq.kubernetes.batch":           com_datadoghq_kubernetes_batch.NewKubernetesBatch(),
 			"com.datadoghq.kubernetes.core":            com_datadoghq_kubernetes_core.NewKubernetesCore(),
 			"com.datadoghq.kubernetes.customresources": com_datadoghq_kubernetes_customresources.NewKubernetesCustomResources(),
+			"com.datadoghq.mongodb":                    com_datadoghq_mongodb.NewMongoDB(),
+			"com.datadoghq.postgresql":                 com_datadoghq_postgresql.NewPostgreSQL(),
 			"com.datadoghq.script":                     com_datadoghq_script.NewScript(),
+			"com.datadoghq.temporal":                   com_datadoghq_temporal.NewTemporal(),
 		},
 	}
 }

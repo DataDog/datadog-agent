@@ -1467,6 +1467,13 @@ Workload Protection events for Linux systems have the following JSON schema:
                     },
                     "type": "array",
                     "description": "List of AWS Security Credentials that the process had access to"
+                },
+                "tracer": {
+                    "additionalProperties": {
+                        "type": "string"
+                    },
+                    "type": "object",
+                    "description": "Tags from an APM tracer instrumentation"
                 }
             },
             "additionalProperties": false,
@@ -1624,6 +1631,13 @@ Workload Protection events for Linux systems have the following JSON schema:
                     },
                     "type": "array",
                     "description": "List of AWS Security Credentials that the process had access to"
+                },
+                "tracer": {
+                    "additionalProperties": {
+                        "type": "string"
+                    },
+                    "type": "object",
+                    "description": "Tags from an APM tracer instrumentation"
                 },
                 "parent": {
                     "$ref": "#/$defs/Process",
@@ -4579,6 +4593,13 @@ Workload Protection events for Linux systems have the following JSON schema:
             },
             "type": "array",
             "description": "List of AWS Security Credentials that the process had access to"
+        },
+        "tracer": {
+            "additionalProperties": {
+                "type": "string"
+            },
+            "type": "object",
+            "description": "Tags from an APM tracer instrumentation"
         }
     },
     "additionalProperties": false,
@@ -4626,6 +4647,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `source` | Process source |
 | `syscalls` | List of syscalls captured to generate the event |
 | `aws_security_credentials` | List of AWS Security Credentials that the process had access to |
+| `tracer` | Tags from an APM tracer instrumentation |
 
 | References |
 | ---------- |
@@ -4788,6 +4810,13 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "array",
             "description": "List of AWS Security Credentials that the process had access to"
         },
+        "tracer": {
+            "additionalProperties": {
+                "type": "string"
+            },
+            "type": "object",
+            "description": "Tags from an APM tracer instrumentation"
+        },
         "parent": {
             "$ref": "#/$defs/Process",
             "description": "Parent process"
@@ -4853,6 +4882,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `source` | Process source |
 | `syscalls` | List of syscalls captured to generate the event |
 | `aws_security_credentials` | List of AWS Security Credentials that the process had access to |
+| `tracer` | Tags from an APM tracer instrumentation |
 | `parent` | Parent process |
 | `ancestors` | Ancestor processes |
 | `variables` | Variables values |
