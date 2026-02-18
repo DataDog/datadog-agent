@@ -1,6 +1,0 @@
----
-fixes:
-  - |
-    Pin ``gopsutil`` to v4.25.11 to fix a disk device labeling regression
-    present in v4.25.12 and v4.26.1 that caused ``system.disk.*`` metric
-    cardinality explosion on Kubernetes nodes.
