@@ -33,7 +33,7 @@ require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.9.3
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.179
+	github.com/DataDog/agent-payload/v5 v5.0.181-0.20260211134051-225ae79aa333
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-devel
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def v0.0.0
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx v0.0.0-20251027120702-0e91eee9852f
@@ -1420,5 +1420,3 @@ replace (
 	github.com/DataDog/datadog-agent/test/new-e2e => ./test/new-e2e
 	github.com/DataDog/datadog-agent/test/otel => ./test/otel
 )
-
-replace github.com/DataDog/agent-payload/v5 => C:/Users/bar.fins/Desktop/Projects/agent-payload
