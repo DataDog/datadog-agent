@@ -15,6 +15,7 @@ import (
 	"fmt"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf/btf"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/noisyneighbor/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -24,9 +25,28 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// 5.13 for kfuncs
-// 6.2 for bpf_rcu_read_lock kfunc
+// 5.13 for kfuncs, 6.2 for bpf_rcu_read_lock kfunc
 var minimumKernelVersion = kernel.VersionCode(6, 2, 0)
+
+// hasRcuBTFTagSupport checks whether the running kernel's vmlinux BTF contains
+// __rcu type tags. These are emitted by GCC 13+ / Clang 15+ and are required
+// for bpf_rcu_read_lock to work correctly. A kernel version check alone is
+// insufficient because some 6.2 kernels (e.g. Fedora 38 with GCC 12) lack them.
+func hasRcuBTFTagSupport() bool {
+	spec, err := btf.LoadKernelSpec()
+	if err != nil {
+		return false
+	}
+	for typ, err := range spec.All() {
+		if err != nil {
+			break
+		}
+		if tag, ok := typ.(*btf.TypeTag); ok && tag.Value == "rcu" {
+			return true
+		}
+	}
+	return false
+}
 
 // Probe is the eBPF side of the noisy neighbor check
 type Probe struct {
@@ -41,6 +61,9 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 	}
 	if kv < minimumKernelVersion {
 		return nil, fmt.Errorf("minimum kernel version %s not met, read %s", minimumKernelVersion, kv)
+	}
+	if !hasRcuBTFTagSupport() {
+		return nil, fmt.Errorf("vmlinux BTF lacks __rcu type tag support; kernel must be built with GCC 13+ or Clang 15+")
 	}
 
 	p := &Probe{}
