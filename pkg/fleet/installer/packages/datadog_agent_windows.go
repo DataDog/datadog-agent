@@ -150,7 +150,7 @@ func preRemoveDatadogAgent(ctx HookContext) (err error) {
 // Performing the checks in the "pre" hook allows us to return an error before the
 // experiment state is created, which allows us to skip stop_experiment which would
 // otherwise unecessarily try to uninstall and then reinstall the stable Agent.
-func preStartExperimentDatadogAgent(ctx HookContext) error {
+func preStartExperimentDatadogAgent(_ HookContext) error {
 	env := getenv()
 	err := windowsuser.ValidateAgentUserRemoteUpdatePrerequisites(env.MsiParams.AgentUserName)
 	if err != nil {
