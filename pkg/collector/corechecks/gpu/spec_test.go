@@ -13,7 +13,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
@@ -21,6 +23,8 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	mock_containers "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
@@ -30,7 +34,7 @@ import (
 type specFile struct {
 	MetricPrefix string                `yaml:"metric_prefix"`
 	Tagsets      map[string]specTagset `yaml:"tagsets"`
-	Metrics      []specMetric          `yaml:"metrics"`
+	Metrics      metricsMap            `yaml:"metrics"`
 }
 
 type specTagset struct {
@@ -38,8 +42,11 @@ type specTagset struct {
 	FallbackTags []string `yaml:"fallback_tags"`
 }
 
+// metricsMap is metrics by name (map format in YAML only).
+type metricsMap map[string]specMetric
+
+// specMetric is a metric definition without the name (name is the map key).
 type specMetric struct {
-	Name            string            `yaml:"name"`
 	Type            string            `yaml:"type"`
 	Tagsets         []string          `yaml:"tagsets"`
 	CustomTags      []string          `yaml:"custom_tags"`
@@ -59,9 +66,16 @@ type architecturesFile struct {
 	Architectures map[string]architectureSpec `yaml:"architectures"`
 }
 
+type architectureCapabilities struct {
+	GPM          bool `yaml:"gpm"`
+	NVLink       bool `yaml:"nvlink"`
+	ECC          bool `yaml:"ecc"`
+	DeviceEvents bool `yaml:"device_events"`
+}
+
 type architectureSpec struct {
-	Capabilities              map[string]bool `yaml:"capabilities"`
-	UnsupportedDeviceFeatures []string        `yaml:"unsupported_device_features"`
+	Capabilities              architectureCapabilities `yaml:"capabilities"`
+	UnsupportedDeviceFeatures []string                 `yaml:"unsupported_device_features"`
 }
 
 func loadSpec(t *testing.T) *specFile {
@@ -116,12 +130,40 @@ func isModeSupportedByArchitecture(archSpec architectureSpec, mode string) bool 
 	return true
 }
 
+// buildMockOptionsForArchAndMode returns the same NVML mock options used by runCheckAndCollectMetricNamesWithConfig
+// for the given architecture and device feature mode, so capability assertions use the same mock contract.
+func buildMockOptionsForArchAndMode(archName string, mode testutil.DeviceFeatureMode, archSpec architectureSpec) []testutil.NvmlMockOption {
+	caps := testutil.Capabilities{
+		GPM:          archSpec.Capabilities.GPM,
+		NVLink:       archSpec.Capabilities.NVLink,
+		ECC:          archSpec.Capabilities.ECC,
+		DeviceEvents: archSpec.Capabilities.DeviceEvents,
+	}
+	opts := []testutil.NvmlMockOption{
+		testutil.WithArchitecture(archName),
+		testutil.WithCapabilities(caps),
+		testutil.WithMockAllFunctions(),
+	}
+	switch mode {
+	case testutil.DeviceFeaturePhysical:
+		opts = append([]testutil.NvmlMockOption{testutil.WithDeviceCount(1), testutil.WithMIGDisabled()}, opts...)
+	case testutil.DeviceFeatureMIG:
+		opts = append([]testutil.NvmlMockOption{testutil.WithDeviceFeatureMode(mode)}, opts...)
+	case testutil.DeviceFeatureVGPU:
+		opts = append([]testutil.NvmlMockOption{testutil.WithDeviceCount(1), testutil.WithDeviceFeatureMode(mode)}, opts...)
+	}
+	return opts
+}
+
 func TestLoadSpecNotEmpty(t *testing.T) {
 	spec := loadSpec(t)
 
 	require.NotEmpty(t, spec.MetricPrefix, "metric_prefix should not be empty")
 	require.NotEmpty(t, spec.Tagsets, "tagsets should not be empty")
 	require.NotEmpty(t, spec.Metrics, "metrics should not be empty")
+	for name := range spec.Metrics {
+		require.NotEmpty(t, name, "metric name should not be empty")
+	}
 }
 
 func TestLoadArchitecturesNotEmpty(t *testing.T) {
@@ -132,26 +174,90 @@ func TestLoadArchitecturesNotEmpty(t *testing.T) {
 		name := name
 		spec := spec
 		t.Run(name, func(t *testing.T) {
-			require.NotEmpty(t, spec.Capabilities, "capabilities should not be empty")
 			require.NotNil(t, spec.UnsupportedDeviceFeatures, "unsupported_device_features should be present")
 		})
 	}
 }
 
-func TestRunMetricsArePresentInSpec(t *testing.T) {
+// TestMockCapabilitiesMatchArchitectureSpec ensures that for each architecture and supported device mode,
+// the NVML mock configured from architectures.yaml returns API behavior that matches the capability flags
+// (gpm, nvlink, ecc, device_events). This validates that the mock actually applies the spec.
+func TestMockCapabilitiesMatchArchitectureSpec(t *testing.T) {
+	archFile := loadArchitectures(t)
+	deviceModes := []testutil.DeviceFeatureMode{
+		testutil.DeviceFeaturePhysical,
+		testutil.DeviceFeatureMIG,
+		testutil.DeviceFeatureVGPU,
+	}
+
+	for archName, archSpec := range archFile.Architectures {
+		for _, mode := range deviceModes {
+			if !isModeSupportedByArchitecture(archSpec, string(mode)) {
+				continue
+			}
+
+			subtestName := "arch=" + archName + "/mode=" + string(mode)
+			t.Run(subtestName, func(t *testing.T) {
+				opts := buildMockOptionsForArchAndMode(archName, mode, archSpec)
+				ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(opts...))
+
+				lib, err := ddnvml.GetSafeNvmlLib()
+				require.NoError(t, err, "arch=%s mode=%s: get NVML lib", archName, mode)
+				dev, err := lib.DeviceGetHandleByIndex(0)
+				require.NoError(t, err, "arch=%s mode=%s: get device 0", archName, mode)
+
+				caps := archSpec.Capabilities
+				ctx := "arch=" + archName + " mode=" + string(mode)
+
+				// gpm -> GpmQueryDeviceSupport(): IsSupportedDevice 1 when enabled, 0 when disabled
+				support, err := dev.GpmQueryDeviceSupport()
+				require.NoError(t, err, "%s: GpmQueryDeviceSupport", ctx)
+				expected := uint32(0)
+				if caps.GPM {
+					expected = 1
+				}
+				assert.Equal(t, expected, support.IsSupportedDevice, "%s: capability gpm=%v should yield GpmQueryDeviceSupport.IsSupportedDevice=%d", ctx, caps.GPM, expected)
+
+				_, err = dev.GetNvLinkState(0)
+				if caps.NVLink {
+					require.NoError(t, err, "%s: GetNvLinkState (capability nvlink=true)", ctx)
+				} else {
+					require.True(t, ddnvml.IsUnsupported(err), "%s: capability nvlink=false should yield unsupported from GetNvLinkState, got %v", ctx, err)
+				}
+
+				_, err = dev.GetMemoryErrorCounter(nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.AGGREGATE_ECC, nvml.MEMORY_LOCATION_DEVICE_MEMORY)
+				if caps.ECC {
+					require.NoError(t, err, "%s: GetMemoryErrorCounter (capability ecc=true)", ctx)
+				} else {
+					require.True(t, ddnvml.IsUnsupported(err), "%s: capability ecc=false should yield unsupported from GetMemoryErrorCounter, got %v", ctx, err)
+				}
+
+				evtTypes, err := dev.GetSupportedEventTypes()
+				if caps.DeviceEvents {
+					require.NoError(t, err, "%s: GetSupportedEventTypes (capability device_events=true)", ctx)
+					require.NotZero(t, evtTypes, "%s: capability device_events=true should yield non-zero event types", ctx)
+				} else {
+					require.True(t, ddnvml.IsUnsupported(err), "%s: capability device_events=false should yield unsupported from GetSupportedEventTypes, got %v", ctx, err)
+				}
+			})
+		}
+	}
+}
+
+func TestMetricsFollowSpec(t *testing.T) {
 	spec := loadSpec(t)
 	archFile := loadArchitectures(t)
 
 	// Build spec metric set for quick membership checks.
 	specMetrics := make(map[string]struct{}, len(spec.Metrics))
-	for _, m := range spec.Metrics {
-		specMetrics[m.Name] = struct{}{}
+	for name := range spec.Metrics {
+		specMetrics[name] = struct{}{}
 	}
 
 	// Deprecated metrics are kept in spec for visibility/history but are not expected
 	// from current check runs. XID metrics require real device events.
-	notExpectedOnBasicRun := map[string]string{
-		"errors.xid.total": "requires XID device events",
+	notExpectedOnBasicRun := map[string]bool{
+		"errors.xid.total": true,
 	}
 
 	deviceModes := []testutil.DeviceFeatureMode{
@@ -176,37 +282,20 @@ func TestRunMetricsArePresentInSpec(t *testing.T) {
 					emittedSet[name] = struct{}{}
 				}
 
-				t.Run("EmittedMetricsExistInSpec", func(t *testing.T) {
-					for _, metricName := range emittedMetrics {
-						metricName := metricName
-						t.Run(metricName, func(t *testing.T) {
-							_, found := specMetrics[metricName]
-							require.True(t, found, "metric emitted by check is missing from spec: %s", metricName)
-						})
-					}
-				})
+				for _, metricName := range emittedMetrics {
+					assert.Contains(t, specMetrics, metricName, "metric emitted by check is missing from spec: %s", metricName)
+				}
 
-				t.Run("SpecMetricsAreEmittedByRun", func(t *testing.T) {
-					for _, metric := range spec.Metrics {
-						metric := metric
-						t.Run(metric.Name, func(t *testing.T) {
-							if metric.Deprecated {
-								t.Skip("deprecated metric; not expected from current check runs")
-							}
-							if reason, shouldSkip := notExpectedOnBasicRun[metric.Name]; shouldSkip {
-								t.Skip(reason)
-							}
-							if !isArchitectureSupported(metric, archName) {
-								t.Skip("metric not supported on this architecture")
-							}
-							if !isDeviceFeatureSupported(metric, string(mode)) {
-								t.Skip("metric not supported for this device feature mode")
-							}
-							_, found := emittedSet[metric.Name]
-							require.True(t, found, "spec metric is not emitted by check run: %s", metric.Name)
-						})
+				for name, m := range spec.Metrics {
+					if m.Deprecated || notExpectedOnBasicRun[name] || !isArchitectureSupported(m, archName) || !isDeviceFeatureSupported(m, string(mode)) {
+						continue
 					}
-				})
+
+					t.Run(name, func(t *testing.T) {
+						_, found := emittedSet[name]
+						require.True(t, found, "spec metric is not emitted by check run: %s", name)
+					})
+				}
 			})
 		}
 	}
@@ -219,7 +308,12 @@ func runCheckAndCollectMetricNamesWithConfig(t *testing.T, archName string, mode
 
 	opts := []testutil.NvmlMockOption{
 		testutil.WithArchitecture(archName),
-		testutil.WithCapabilities(testutil.CapabilitiesMap(archSpec.Capabilities)),
+		testutil.WithCapabilities(testutil.Capabilities{
+			GPM:          archSpec.Capabilities.GPM,
+			NVLink:       archSpec.Capabilities.NVLink,
+			ECC:          archSpec.Capabilities.ECC,
+			DeviceEvents: archSpec.Capabilities.DeviceEvents,
+		}),
 		testutil.WithMockAllFunctions(),
 	}
 	switch mode {
@@ -260,6 +354,41 @@ func runCheckAndCollectMetricNamesWithConfig(t *testing.T, archName string, mode
 	require.NoError(t, check.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test"))
 	t.Cleanup(func() { checkGeneric.Cancel() })
 
+	// process.core.usage comes from system-probe/eBPF collector. Provide deterministic
+	// cache data so spec tests can assert those metrics on physical mode.
+	spCache := &nvidia.SystemProbeCache{}
+	spCache.SetStatsForTest(&model.GPUStats{
+		ProcessMetrics: []model.ProcessStatsTuple{
+			{
+				Key: model.ProcessStatsKey{
+					PID:        1234,
+					DeviceUUID: testutil.DefaultGpuUUID,
+				},
+				UtilizationMetrics: model.UtilizationMetrics{
+					UsedCores: 42,
+					Memory: model.MemoryMetrics{
+						CurrentBytes: 100,
+						MaxBytes:     200,
+					},
+					ActiveTimePct: 50,
+				},
+			},
+		},
+		DeviceMetrics: []model.DeviceStatsTuple{
+			{
+				DeviceUUID: testutil.DefaultGpuUUID,
+				Metrics: model.DeviceUtilizationMetrics{
+					ActiveTimePct: 50,
+				},
+			},
+		},
+	})
+	check.spCache = spCache
+
+	// Some metrics require a second run to be collected, so we run it twice and clear
+	// the mock sender between runs.
+	require.NoError(t, checkGeneric.Run())
+	mockSender.ResetCalls()
 	require.NoError(t, checkGeneric.Run())
 
 	return getEmittedGPUMetrics(mockSender)

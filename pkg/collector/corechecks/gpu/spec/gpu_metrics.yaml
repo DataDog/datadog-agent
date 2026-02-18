@@ -1,1106 +1,1358 @@
 metric_prefix: gpu
 tagsets:
-  device:
-    tags:
-    - gpu_uuid
-    - gpu_device
-    - gpu_vendor
-    - gpu_driver_version
-    fallback_tags:
-    - gpu_uuid
   container:
     tags:
-    - container_id
-    - container_name
+      - container_id
+      - container_name
+    fallback_tags: []
+  device:
+    tags:
+      - gpu_uuid
+      - gpu_device
+      - gpu_vendor
+      - gpu_driver_version
+    fallback_tags:
+      - gpu_uuid
   process:
     tags:
-    - pid
-    - nspid
+      - pid
+      - nspid
     fallback_tags:
-    - pid
-    - nspid
+      - pid
+      - nspid
 metrics:
-- name: memory.bar1.total
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    device_features:
-      physical: true
-      mig: unknown
-      vgpu: unknown
-- name: memory.bar1.free
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    device_features:
-      physical: true
-      mig: unknown
-      vgpu: unknown
-- name: memory.bar1.used
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    device_features:
-      physical: true
-      mig: unknown
-      vgpu: unknown
-- name: memory.free
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    - pascal
-    - volta
-    - turing
-    device_features:
-      physical: true
-      mig: unknown
-      vgpu: unknown
-- name: memory.reserved
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    - pascal
-    - volta
-    - turing
-    device_features:
-      physical: true
-      mig: unknown
-      vgpu: unknown
-- name: pci.throughput.rx
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: pci.throughput.tx
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: fan_speed
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures: []
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: power.management_limit
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures: []
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: power.usage
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures: []
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: performance_state
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures: []
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: temperature
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures: []
-    device_features:
-      physical: true
-      mig: unknown
-      vgpu: unknown
-- name: clock.speed.sm
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures: []
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: clock.speed.memory
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures: []
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: clock.speed.graphics
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures: []
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: clock.speed.video
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: clock.speed.sm.max
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures: []
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: clock.speed.memory.max
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures: []
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: clock.speed.graphics.max
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures: []
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: clock.speed.video.max
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: total_energy_consumption
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    - pascal
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: device.total
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures: []
-    device_features:
-      physical: true
-      mig: true
-      vgpu: true
-- name: device.unhealthy
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures: []
-    device_features:
-      physical: true
-      mig: unknown
-      vgpu: unknown
-- name: clock.throttle_reasons.gpu_idle
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: clock.throttle_reasons.applications_clocks_setting
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: clock.throttle_reasons.sw_power_cap
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: clock.throttle_reasons.sync_boost
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: clock.throttle_reasons.sw_thermal_slowdown
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: clock.throttle_reasons.display_clock_setting
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: clock.throttle_reasons.none
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: remapped_rows.correctable
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    - pascal
-    - volta
-    - turing
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: remapped_rows.uncorrectable
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    - pascal
-    - volta
-    - turing
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: remapped_rows.pending
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    - pascal
-    - volta
-    - turing
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: remapped_rows.failed
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    - pascal
-    - volta
-    - turing
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: process.memory.usage
-  type: gauge
-  tagsets:
-  - device
-  - process
-  - container
-  support:
-    unsupported_architectures: []
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-    process_data: true
-- name: memory.limit
-  type: gauge
-  tagsets:
-  - device
-  - process
-  - container
-  support:
-    unsupported_architectures: []
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: process.memory.usage
-  type: gauge
-  tagsets:
-  - device
-  - process
-  - container
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    - pascal
-    - volta
-    - turing
-    - ampere
-    device_features:
-      physical: true
-      mig: true
-      vgpu: unknown
-    process_data: true
-- name: memory.limit
-  type: gauge
-  tagsets:
-  - device
-  - process
-  - container
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    - pascal
-    - volta
-    - turing
-    - ampere
-    device_features:
-      physical: true
-      mig: true
-      vgpu: unknown
-- name: nvlink.count.total
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: nvlink.count.active
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: nvlink.count.inactive
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: errors.ecc.corrected.total
-  type: gauge
-  custom_tags:
-  - memory_location
-  memory_locations:
-  - l1_cache
-  - l2_cache
-  - device_memory
-  - register_file
-  - texture_memory
-  - texture_shm
-  - cbu
-  - sram
-  tagsets:
-  - device
-  support:
-    unsupported_architectures: []
-    device_features:
-      physical: true
-      mig: unknown
-      vgpu: unknown
-- name: errors.ecc.uncorrected.total
-  type: gauge
-  custom_tags:
-  - memory_location
-  memory_locations:
-  - l1_cache
-  - l2_cache
-  - device_memory
-  - register_file
-  - texture_memory
-  - texture_shm
-  - cbu
-  - sram
-  tagsets:
-  - device
-  support:
-    unsupported_architectures: []
-    device_features:
-      physical: true
-      mig: unknown
-      vgpu: unknown
-- name: process.sm_active
-  type: gauge
-  tagsets:
-  - device
-  - process
-  - container
-  support:
-    unsupported_architectures:
-    - fermi
-    device_features:
-      physical: true
-      mig: false
-      vgpu: false
-    process_data: true
-- name: process.dram_active
-  type: gauge
-  tagsets:
-  - device
-  - process
-  - container
-  support:
-    unsupported_architectures:
-    - fermi
-    device_features:
-      physical: true
-      mig: false
-      vgpu: false
-    process_data: true
-- name: process.encoder_active
-  type: gauge
-  tagsets:
-  - device
-  - process
-  - container
-  support:
-    unsupported_architectures:
-    - fermi
-    device_features:
-      physical: true
-      mig: false
-      vgpu: false
-    process_data: true
-- name: process.decoder_active
-  type: gauge
-  tagsets:
-  - device
-  - process
-  - container
-  support:
-    unsupported_architectures:
-    - fermi
-    device_features:
-      physical: true
-      mig: false
-      vgpu: false
-    process_data: true
-- name: sm_active
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    device_features:
-      physical: true
-      mig: false
-      vgpu: false
-- name: core.limit
-  type: gauge
-  tagsets:
-  - device
-  - process
-  - container
-  support:
-    unsupported_architectures: []
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: gr_engine_active
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    device_features:
-      physical: true
-      mig: false
-      vgpu: false
-- name: dram_active
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    device_features:
-      physical: true
-      mig: false
-      vgpu: false
-- name: encoder_active
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    device_features:
-      physical: true
-      mig: false
-      vgpu: false
-- name: decoder_active
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    device_features:
-      physical: true
-      mig: false
-      vgpu: false
-- name: memory.temperature
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    - pascal
-    - volta
-    - turing
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: nvlink.throughput.data.rx
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: nvlink.throughput.data.tx
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: nvlink.throughput.raw.rx
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: nvlink.throughput.raw.tx
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: nvlink.speed
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: nvlink.nvswitch_connected
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    - pascal
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: nvlink.errors.crc.data
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: nvlink.errors.crc.flit
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: nvlink.errors.ecc
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: nvlink.errors.recovery
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: nvlink.errors.replay
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: pci.replay_counter
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: slowdown_temperature
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: gr_engine_active
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    - pascal
-    - volta
-    - turing
-    - ampere
-    device_features:
-      physical: true
-      mig: true
-      vgpu: unknown
-- name: sm_utilization
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    - pascal
-    - volta
-    - turing
-    - ampere
-    device_features:
-      physical: true
-      mig: true
-      vgpu: unknown
-- name: sm_occupancy
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    - pascal
-    - volta
-    - turing
-    - ampere
-    device_features:
-      physical: true
-      mig: true
-      vgpu: unknown
-- name: integer_active
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    - pascal
-    - volta
-    - turing
-    - ampere
-    device_features:
-      physical: true
-      mig: true
-      vgpu: unknown
-- name: fp16_active
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    - pascal
-    - volta
-    - turing
-    - ampere
-    device_features:
-      physical: true
-      mig: true
-      vgpu: unknown
-- name: fp32_active
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    - pascal
-    - volta
-    - turing
-    - ampere
-    device_features:
-      physical: true
-      mig: true
-      vgpu: unknown
-- name: fp64_active
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    - pascal
-    - volta
-    - turing
-    - ampere
-    device_features:
-      physical: true
-      mig: true
-      vgpu: unknown
-- name: tensor_active
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures:
-    - fermi
-    - kepler
-    - maxwell
-    - pascal
-    - volta
-    - turing
-    - ampere
-    device_features:
-      physical: true
-      mig: true
-      vgpu: unknown
-- name: process.core.usage
-  type: gauge
-  tagsets:
-  - device
-  - process
-  - container
-  support:
-    unsupported_architectures: []
-    device_features:
-      physical: true
-      mig: unknown
-      vgpu: unknown
-    process_data: true
-- name: process.memory.usage
-  type: gauge
-  tagsets:
-  - device
-  - process
-  - container
-  support:
-    unsupported_architectures: []
-    device_features:
-      physical: true
-      mig: unknown
-      vgpu: unknown
-    process_data: true
-- name: process.sm_active
-  type: gauge
-  tagsets:
-  - device
-  - process
-  - container
-  support:
-    unsupported_architectures: []
-    device_features:
-      physical: true
-      mig: unknown
-      vgpu: unknown
-    process_data: true
-- name: core.limit
-  type: gauge
-  tagsets:
-  - device
-  - process
-  - container
-  support:
-    unsupported_architectures: []
-    device_features:
-      physical: true
-      mig: unknown
-      vgpu: unknown
-- name: memory.limit
-  type: gauge
-  tagsets:
-  - device
-  - process
-  - container
-  support:
-    unsupported_architectures: []
-    device_features:
-      physical: true
-      mig: unknown
-      vgpu: unknown
-- name: sm_active
-  type: gauge
-  tagsets:
-  - device
-  support:
-    unsupported_architectures: []
-    device_features:
-      physical: true
-      mig: unknown
-      vgpu: unknown
-- name: errors.xid.total
-  type: gauge
-  custom_tags:
-  - type
-  - origin
-  tagsets:
-  - device
-  support:
-    unsupported_architectures: []
-    device_features:
-      physical: true
-      mig: false
-      vgpu: unknown
-- name: core.usage
-  deprecated: true
-  replaced_by: process.core.usage
-  support:
-    unsupported_architectures: []
-    device_features:
-      physical: unknown
-      mig: unknown
-      vgpu: unknown
-- name: memory.usage
-  deprecated: true
-  replaced_by: process.memory.usage
-  support:
-    unsupported_architectures: []
-    device_features:
-      physical: unknown
-      mig: unknown
-      vgpu: unknown
+  clock.speed.graphics:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  clock.speed.graphics.max:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  clock.speed.memory:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  clock.speed.memory.max:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  clock.speed.sm:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  clock.speed.sm.max:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  clock.speed.video:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  clock.speed.video.max:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  clock.throttle_reasons.applications_clocks_setting:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  clock.throttle_reasons.display_clock_setting:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  clock.throttle_reasons.gpu_idle:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  clock.throttle_reasons.none:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  clock.throttle_reasons.sw_power_cap:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  clock.throttle_reasons.sw_thermal_slowdown:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  clock.throttle_reasons.sync_boost:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  core.limit:
+    type: gauge
+    tagsets:
+      - device
+      - process
+      - container
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: unknown
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  core.usage:
+    type: ""
+    tagsets: []
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: unknown
+        physical: unknown
+        vgpu: unknown
+      process_data: false
+    deprecated: true
+    replaced_by: process.core.usage
+  decoder_active:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: "false"
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  device.total:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: "true"
+        physical: "true"
+        vgpu: "true"
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  device.unhealthy:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: unknown
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  dram_active:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: "false"
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  encoder_active:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: "false"
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  errors.ecc.corrected.total:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags:
+      - memory_location
+    memory_locations:
+      - l1_cache
+      - l2_cache
+      - device_memory
+      - register_file
+      - texture_memory
+      - texture_shm
+      - cbu
+      - sram
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: unknown
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  errors.ecc.uncorrected.total:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags:
+      - memory_location
+    memory_locations:
+      - l1_cache
+      - l2_cache
+      - device_memory
+      - register_file
+      - texture_memory
+      - texture_shm
+      - cbu
+      - sram
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: unknown
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  errors.xid.total:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags:
+      - type
+      - origin
+    memory_locations: []
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  fan_speed:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  fp16_active:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+      device_features:
+        mig: "true"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  fp32_active:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+      device_features:
+        mig: "true"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  fp64_active:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+      device_features:
+        mig: "true"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  gr_engine_active:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: "true"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  integer_active:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+      device_features:
+        mig: "true"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  memory.bar1.free:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: unknown
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  memory.bar1.total:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: unknown
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  memory.bar1.used:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: unknown
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  memory.free:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+      device_features:
+        mig: unknown
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  memory.limit:
+    type: gauge
+    tagsets:
+      - device
+      - process
+      - container
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: "true"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  memory.reserved:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+      device_features:
+        mig: unknown
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  memory.temperature:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  memory.usage:
+    type: ""
+    tagsets: []
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: unknown
+        physical: unknown
+        vgpu: unknown
+      process_data: false
+    deprecated: true
+    replaced_by: process.memory.usage
+  nvlink.count.active:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  nvlink.count.inactive:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  nvlink.count.total:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  nvlink.errors.crc.data:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  nvlink.errors.crc.flit:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  nvlink.errors.ecc:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  nvlink.errors.recovery:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  nvlink.errors.replay:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  nvlink.nvswitch_connected:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  nvlink.speed:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  nvlink.throughput.data.rx:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  nvlink.throughput.data.tx:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  nvlink.throughput.raw.rx:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  nvlink.throughput.raw.tx:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  pci.replay_counter:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  pci.throughput.rx:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  pci.throughput.tx:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  performance_state:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  power.management_limit:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  power.usage:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  process.core.usage:
+    type: gauge
+    tagsets:
+      - device
+      - process
+      - container
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: unknown
+        physical: "true"
+        vgpu: unknown
+      process_data: true
+    deprecated: false
+    replaced_by: ""
+  process.decoder_active:
+    type: gauge
+    tagsets:
+      - device
+      - process
+      - container
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: "false"
+      process_data: true
+    deprecated: false
+    replaced_by: ""
+  process.dram_active:
+    type: gauge
+    tagsets:
+      - device
+      - process
+      - container
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: "false"
+      process_data: true
+    deprecated: false
+    replaced_by: ""
+  process.encoder_active:
+    type: gauge
+    tagsets:
+      - device
+      - process
+      - container
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: "false"
+      process_data: true
+    deprecated: false
+    replaced_by: ""
+  process.memory.usage:
+    type: gauge
+    tagsets:
+      - device
+      - process
+      - container
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: "true"
+        physical: "true"
+        vgpu: unknown
+      process_data: true
+    deprecated: false
+    replaced_by: ""
+  process.sm_active:
+    type: gauge
+    tagsets:
+      - device
+      - process
+      - container
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: unknown
+        physical: "true"
+        vgpu: unknown
+      process_data: true
+    deprecated: false
+    replaced_by: ""
+  remapped_rows.correctable:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  remapped_rows.failed:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  remapped_rows.pending:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  remapped_rows.uncorrectable:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  slowdown_temperature:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  sm_active:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: unknown
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  sm_occupancy:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+      device_features:
+        mig: "true"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  sm_utilization:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+      device_features:
+        mig: "true"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  temperature:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures: []
+      device_features:
+        mig: unknown
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  tensor_active:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+        - volta
+        - turing
+        - ampere
+      device_features:
+        mig: "true"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
+  total_energy_consumption:
+    type: gauge
+    tagsets:
+      - device
+    custom_tags: []
+    memory_locations: []
+    support:
+      unsupported_architectures:
+        - fermi
+        - kepler
+        - maxwell
+        - pascal
+      device_features:
+        mig: "false"
+        physical: "true"
+        vgpu: unknown
+      process_data: false
+    deprecated: false
+    replaced_by: ""
