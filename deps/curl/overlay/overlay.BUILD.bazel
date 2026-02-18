@@ -274,6 +274,7 @@ so_symlink(
     libname = "libcurl",
     version = SO_VERSION,
     prefix = "embedded",
+    attributes = pkg_attributes(mode = "0755"),
 )
 
 pkg_files(
