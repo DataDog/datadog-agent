@@ -533,21 +533,15 @@ func (c *Client) update() error {
 
 	c.m.Lock()
 	defer c.m.Unlock()
-	for product, productListeners := range c.listeners {
-		if containsProduct(changedProducts, product) {
-			for _, listener := range productListeners {
-				if response.ConfigStatus == pbgo.ConfigStatus_CONFIG_STATUS_OK ||
-					!listener.ShouldIgnoreSignatureExpiration() {
-					listener.OnUpdate(c.state.GetConfigs(product), c.state.UpdateApplyStatus)
-				}
+	for _, product := range changedProducts {
+		for _, listener := range c.listeners[product] {
+			if response.ConfigStatus == pbgo.ConfigStatus_CONFIG_STATUS_OK ||
+				!listener.ShouldIgnoreSignatureExpiration() {
+				listener.OnUpdate(c.state.GetConfigs(product), c.state.UpdateApplyStatus)
 			}
 		}
 	}
 	return nil
-}
-
-func containsProduct(products []string, product string) bool {
-	return slices.Contains(products, product)
 }
 
 func (c *Client) applyUpdate(pbUpdate *pbgo.ClientGetConfigsResponse) ([]string, error) {
