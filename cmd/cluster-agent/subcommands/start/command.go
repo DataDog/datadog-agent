@@ -15,7 +15,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
+	"net/url"
 	"sync"
 	"syscall"
 	"time"
@@ -431,23 +431,28 @@ func start(log log.Component,
 
 		opts := []tracer.StartOption{
 			tracer.WithService("datadog-cluster-agent"),
-			tracer.WithEnv(config.GetString("cluster_agent.tracing.env")),
 			tracer.WithServiceVersion(version.AgentVersion),
 			tracer.WithSampler(tracer.NewRateSampler(sampleRate)),
 			tracer.WithGlobalTag("cluster_name", clusterName),
 			tracer.WithLogStartup(false),
 		}
+		if env := config.GetString("cluster_agent.tracing.env"); env != "" {
+			opts = append(opts, tracer.WithEnv(env))
+		}
 		if clusterID != "" {
 			opts = append(opts, tracer.WithGlobalTag("cluster_id", clusterID))
 		}
 		if agentURL := config.GetString("cluster_agent.tracing.agent_url"); agentURL != "" {
-			agentAddr := strings.TrimPrefix(agentURL, "http://")
-			agentAddr = strings.TrimPrefix(agentAddr, "https://")
-			opts = append(opts, tracer.WithAgentAddr(agentAddr))
+			if u, err := url.Parse(agentURL); err == nil && u.Host != "" {
+				opts = append(opts, tracer.WithAgentAddr(u.Host))
+			} else {
+				pkglog.Warnf("Invalid cluster_agent.tracing.agent_url %q, using default agent address", agentURL)
+			}
 		}
 
 		tracer.Start(opts...)
 		defer tracer.Stop()
+		pkglog.Infof("APM tracing enabled for Cluster Agent (sample_rate=%.2f)", sampleRate)
 	}
 
 	// Initialize and start remote configuration client
