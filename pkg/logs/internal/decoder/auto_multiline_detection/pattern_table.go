@@ -11,13 +11,14 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/tokens"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tokenizer"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type row struct {
-	tokens          []tokens.Token
+	tokens          []types.Token
 	label           Label
 	labelAssignedBy string
 	count           int64
@@ -69,7 +70,7 @@ func (p *PatternTable) insert(context *messageContext) int {
 	p.index++
 	foundIdx := -1
 	for i, r := range p.table {
-		if tokens.IsMatch(r.tokens, context.tokens, p.matchThreshold) {
+		if tokenizer.IsMatch(r.tokens, context.tokens, p.matchThreshold) {
 			r.count++
 			r.label = context.label
 			r.labelAssignedBy = context.labelAssignedBy
@@ -133,7 +134,7 @@ func (p *PatternTable) DumpTable() []DiagnosticRow {
 	debug := make([]DiagnosticRow, 0, len(p.table))
 	for _, r := range p.table {
 		debug = append(debug, DiagnosticRow{
-			TokenString:     tokens.TokensToString(r.tokens),
+			TokenString:     tokenizer.TokensToString(r.tokens),
 			LabelString:     labelToString(r.label),
 			labelAssignedBy: r.labelAssignedBy,
 			Count:           r.count,

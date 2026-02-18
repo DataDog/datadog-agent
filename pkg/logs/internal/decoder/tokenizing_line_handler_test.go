@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/tokens"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tokenizer"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -38,7 +38,7 @@ func TestTokenizingLineHandler_TokenizesMessages(t *testing.T) {
 	}
 
 	// Create tokenizer with reasonable limit
-	tokenizer := tokens.NewTokenizer(1000)
+	tokenizer := tokenizer.NewTokenizer(1000)
 
 	// Create the tokenizing wrapper
 	handler := NewTokenizingLineHandler(tokenizer, mockHandler)
@@ -66,7 +66,7 @@ func TestTokenizingLineHandler_TokenizesDifferentMessages(t *testing.T) {
 	mockHandler := &mockLineHandler{
 		messages: make([]*message.Message, 0),
 	}
-	tokenizer := tokens.NewTokenizer(1000)
+	tokenizer := tokenizer.NewTokenizer(1000)
 	handler := NewTokenizingLineHandler(tokenizer, mockHandler)
 
 	testCases := []struct {
@@ -113,7 +113,7 @@ func TestTokenizingLineHandler_RespectsMaxInputBytes(t *testing.T) {
 
 	// Create tokenizer with small limit
 	maxBytes := 50
-	tokenizer := tokens.NewTokenizer(maxBytes)
+	tokenizer := tokenizer.NewTokenizer(maxBytes)
 	handler := NewTokenizingLineHandler(tokenizer, mockHandler)
 
 	// Create a message longer than the limit
@@ -140,7 +140,7 @@ func TestTokenizingLineHandler_EmptyMessage(t *testing.T) {
 	mockHandler := &mockLineHandler{
 		messages: make([]*message.Message, 0),
 	}
-	tokenizer := tokens.NewTokenizer(1000)
+	tokenizer := tokenizer.NewTokenizer(1000)
 	handler := NewTokenizingLineHandler(tokenizer, mockHandler)
 
 	// Create an empty message
@@ -159,7 +159,7 @@ func TestTokenizingLineHandler_EmptyMessage(t *testing.T) {
 
 func TestTokenizingLineHandler_FlushChanDelegates(t *testing.T) {
 	mockHandler := &mockLineHandler{}
-	tokenizer := tokens.NewTokenizer(1000)
+	tokenizer := tokenizer.NewTokenizer(1000)
 	handler := NewTokenizingLineHandler(tokenizer, mockHandler)
 
 	// Verify flushChan returns nil from mock handler
@@ -168,7 +168,7 @@ func TestTokenizingLineHandler_FlushChanDelegates(t *testing.T) {
 
 func TestTokenizingLineHandler_FlushDelegates(t *testing.T) {
 	mockHandler := &mockLineHandler{}
-	tokenizer := tokens.NewTokenizer(1000)
+	tokenizer := tokenizer.NewTokenizer(1000)
 	handler := NewTokenizingLineHandler(tokenizer, mockHandler)
 
 	// Verify flush doesn't panic (delegates to underlying handler)

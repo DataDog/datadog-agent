@@ -11,27 +11,27 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/tokens"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 func TestMatchEmpty(t *testing.T) {
 	emptyTokenGraph := NewTokenGraph(2, nil)
-	assert.Equal(t, float64(0), emptyTokenGraph.MatchProbability([]tokens.Token{}).probability)
+	assert.Equal(t, float64(0), emptyTokenGraph.MatchProbability([]types.Token{}).probability)
 }
 
 func TestExpectedMatch(t *testing.T) {
-	graph := NewTokenGraph(0, [][]tokens.Token{{1, 2, 3}})
-	assert.Equal(t, float64(1), graph.MatchProbability([]tokens.Token{1, 2, 3}).probability, "Input should match exactly")
-	assert.Equal(t, float64(-1), graph.MatchProbability([]tokens.Token{3, 2, 1}).probability, "Backwards input should not match because the graph is directed")
-	assert.Equal(t, float64(-1), graph.MatchProbability([]tokens.Token{4, 5, 6}).probability, "Unknown input should not match")
+	graph := NewTokenGraph(0, [][]types.Token{{1, 2, 3}})
+	assert.Equal(t, float64(1), graph.MatchProbability([]types.Token{1, 2, 3}).probability, "Input should match exactly")
+	assert.Equal(t, float64(-1), graph.MatchProbability([]types.Token{3, 2, 1}).probability, "Backwards input should not match because the graph is directed")
+	assert.Equal(t, float64(-1), graph.MatchProbability([]types.Token{4, 5, 6}).probability, "Unknown input should not match")
 
-	graph = NewTokenGraph(0, [][]tokens.Token{{1, 2, 3}, {3, 2, 1}})
-	assert.Equal(t, float64(1), graph.MatchProbability([]tokens.Token{1, 2, 3}).probability, "Input should match exactly")
-	assert.Equal(t, float64(1), graph.MatchProbability([]tokens.Token{3, 2, 1}).probability, "Backwards input should match")
-	assert.Equal(t, float64(-1), graph.MatchProbability([]tokens.Token{4, 5, 6}).probability, "Unknown input should not match")
+	graph = NewTokenGraph(0, [][]types.Token{{1, 2, 3}, {3, 2, 1}})
+	assert.Equal(t, float64(1), graph.MatchProbability([]types.Token{1, 2, 3}).probability, "Input should match exactly")
+	assert.Equal(t, float64(1), graph.MatchProbability([]types.Token{3, 2, 1}).probability, "Backwards input should match")
+	assert.Equal(t, float64(-1), graph.MatchProbability([]types.Token{4, 5, 6}).probability, "Unknown input should not match")
 
-	graph = NewTokenGraph(0, [][]tokens.Token{{1, 2, 3, 4, 5, 6}})
-	assert.Equal(t, float64(1), graph.MatchProbability([]tokens.Token{7, 2, 3, 4, 5, 8}).probability, "Input should match because unmatch tokens are trimmed")
+	graph = NewTokenGraph(0, [][]types.Token{{1, 2, 3, 4, 5, 6}})
+	assert.Equal(t, float64(1), graph.MatchProbability([]types.Token{7, 2, 3, 4, 5, 8}).probability, "Input should match because unmatch tokens are trimmed")
 }
 
 func TestMaxSubsequence(t *testing.T) {

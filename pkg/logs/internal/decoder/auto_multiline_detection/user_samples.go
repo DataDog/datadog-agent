@@ -12,7 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/tokens"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tokenizer"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -21,7 +22,7 @@ const defaultMatchThreshold = 0.75
 // UserSample represents a user-defined sample for auto multi-line detection.
 type UserSample struct {
 	// Parse fields
-	tokens         []tokens.Token
+	tokens         []types.Token
 	matchThreshold float64
 	label          Label
 	compiledRegex  *regexp.Regexp
@@ -34,7 +35,7 @@ type UserSamples struct {
 
 // NewUserSamples creates a new UserSamples instance.
 func NewUserSamples(cfgRdr model.Reader, sourceSamples []*config.AutoMultilineSample) *UserSamples {
-	tokenizer := tokens.NewTokenizer(0)
+	tokenizer := tokenizer.NewTokenizer(0)
 	configSamples := make([]config.AutoMultilineSample, 0)
 
 	if sourceSamples != nil {
@@ -125,7 +126,7 @@ func (j *UserSamples) ProcessAndContinue(context *messageContext) bool {
 				context.labelAssignedBy = "user_sample"
 				return false
 			}
-		} else if tokens.IsMatch(sample.tokens, context.tokens, sample.matchThreshold) {
+		} else if tokenizer.IsMatch(sample.tokens, context.tokens, sample.matchThreshold) {
 			context.label = sample.label
 			context.labelAssignedBy = "user_sample"
 			return false

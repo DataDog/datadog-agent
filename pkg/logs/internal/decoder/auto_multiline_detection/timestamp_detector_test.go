@@ -11,10 +11,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/tokens"
 	"github.com/stretchr/testify/assert"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tokenizer"
 )
 
 type testInput struct {
@@ -84,7 +84,7 @@ var inputs = []testInput{
 
 func TestCorrectLabelIsAssigned(t *testing.T) {
 	mockConfig := configmock.New(t)
-	tokenizer := tokens.NewTokenizer(mockConfig.GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes"))
+	tokenizer := tokenizer.NewTokenizer(mockConfig.GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes"))
 	timestampDetector := NewTimestampDetector(mockConfig.GetFloat64("logs_config.auto_multi_line.timestamp_detector_match_threshold"))
 
 	for _, testInput := range inputs {
