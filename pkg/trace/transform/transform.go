@@ -225,7 +225,17 @@ func GetOTelStatusCode(span ptrace.Span, res pcommon.Resource) uint32 {
 	return 0
 }
 
-var grpcStatusCodeFields = []string{"rpc.grpc.status_code", "grpc.code", "rpc.grpc.status.code", "grpc.status.code"}
+var grpcStatusCodeFields = []string{"rpc.grpc.status_code", "grpc.code", "rpc.grpc.status.code", "grpc.status.code", "grpc.status_code"}
+
+func isRPCSystemGRPC(attrs pcommon.Map) bool {
+	if rpcSystem, ok := attrs.Get("rpc.system"); ok && rpcSystem.AsString() == "grpc" {
+		return true
+	}
+	if rpcSystem, ok := attrs.Get("rpc.system.name"); ok && rpcSystem.AsString() == "grpc" {
+		return true
+	}
+	return false
+}
 
 // GetOTelGRPCStatusCode returns the gRPC status code from span or resource attributes.
 func GetOTelGRPCStatusCode(span ptrace.Span, res pcommon.Resource) string {
@@ -242,6 +252,16 @@ func GetOTelGRPCStatusCode(span ptrace.Span, res pcommon.Resource) string {
 			return code.AsString()
 		}
 	}
+
+	if isRPCSystemGRPC(sattr) || isRPCSystemGRPC(rattr) {
+		if code, ok := sattr.Get("rpc.response.status_code"); ok {
+			return code.AsString()
+		}
+		if code, ok := rattr.Get("rpc.response.status_code"); ok {
+			return code.AsString()
+		}
+	}
+
 	return ""
 }
 

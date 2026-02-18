@@ -330,6 +330,41 @@ func TestGetOTelGRPCStatusCode(t *testing.T) {
 			sattrs:   map[string]any{"grpc.status.code": int64(8)},
 			expected: "8",
 		},
+		{
+			name:     "rpc.response.status_code with rpc.system=grpc",
+			sattrs:   map[string]any{"rpc.system": "grpc", "rpc.response.status_code": "DEADLINE_EXCEEDED"},
+			expected: "DEADLINE_EXCEEDED",
+		},
+		{
+			name:     "rpc.response.status_code with rpc.system.name=grpc",
+			sattrs:   map[string]any{"rpc.system.name": "grpc", "rpc.response.status_code": int64(4)},
+			expected: "4",
+		},
+		{
+			name:     "rpc.response.status_code ignored without rpc.system",
+			sattrs:   map[string]any{"rpc.response.status_code": "DEADLINE_EXCEEDED"},
+			expected: "",
+		},
+		{
+			name:     "rpc.response.status_code ignored for non-grpc system",
+			sattrs:   map[string]any{"rpc.system": "jsonrpc", "rpc.response.status_code": "DEADLINE_EXCEEDED"},
+			expected: "",
+		},
+		{
+			name:     "rpc.response.status_code ignored for non-grpc system.name",
+			sattrs:   map[string]any{"rpc.system.name": "jsonrpc", "rpc.response.status_code": "DEADLINE_EXCEEDED"},
+			expected: "",
+		},
+		{
+			name:     "rpc.grpc.status_code takes precedence over rpc.response.status_code",
+			sattrs:   map[string]any{"rpc.system": "grpc", "rpc.grpc.status_code": int64(2), "rpc.response.status_code": "DEADLINE_EXCEEDED"},
+			expected: "2",
+		},
+		{
+			name:     "grpc.status_code works for jsonrpc system",
+			sattrs:   map[string]any{"rpc.system": "jsonrpc", "grpc.status_code": int64(2)},
+			expected: "2",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
