@@ -23,32 +23,37 @@ const (
 	testFlag2 FlagName = "test_feature_2"
 )
 
-// testSub holds callback channels used to synchronize and assert in tests.
-type testSub struct {
-	onChange   chan FlagValue
-	onNoConfig chan struct{}
-	recover    chan FlagValue
+// stubHandler is a FlagHandler for testing.
+type stubHandler struct {
+	name       FlagName
+	onChangeCh chan FlagValue
+	noConfigCh chan struct{}
+	recoverCh  chan FlagValue
+	healthy    bool
+	onChangeFn func(FlagValue) error
 }
 
-func newTestSub() *testSub {
-	return &testSub{
-		onChange:   make(chan FlagValue, 1),
-		onNoConfig: make(chan struct{}, 1),
-		recover:    make(chan FlagValue, 1),
+func newStubHandler(flag FlagName) *stubHandler {
+	return &stubHandler{
+		name:       flag,
+		onChangeCh: make(chan FlagValue, 1),
+		noConfigCh: make(chan struct{}, 1),
+		recoverCh:  make(chan FlagValue, 1),
+		healthy:    true,
 	}
 }
 
-func (ts *testSub) subscribe(t *testing.T, client *Client, flag FlagName) {
-	t.Helper()
-	err := client.Subscribe(
-		flag,
-		func(v FlagValue) error { ts.onChange <- v; return nil },
-		func() { ts.onNoConfig <- struct{}{} },
-		func(_ error, v FlagValue) { ts.recover <- v },
-		func() bool { return true },
-	)
-	require.NoError(t, err)
+func (h *stubHandler) FlagName() FlagName { return h.name }
+func (h *stubHandler) OnChange(v FlagValue) error {
+	if h.onChangeFn != nil {
+		return h.onChangeFn(v)
+	}
+	h.onChangeCh <- v
+	return nil
 }
+func (h *stubHandler) OnNoConfig()                      { h.noConfigCh <- struct{}{} }
+func (h *stubHandler) SafeRecover(_ error, v FlagValue) { h.recoverCh <- v }
+func (h *stubHandler) IsHealthy() bool                  { return h.healthy }
 
 // sendUpdate is a test helper that sends a flag config update to the client.
 func sendUpdate(client *Client, flags ...Flag) {
@@ -72,22 +77,11 @@ func waitChan[T any](t *testing.T, ch <-chan T) T {
 	}
 }
 
-// the RF client must enforce non-nil callbacks.
-// this unit test is here to validate it's still enforced in the future,
-// or used as a strong signal that you're about to change something
-// critical (if this test start failing on your change)
-func TestSubscribe_RejectsNilCallbacks(t *testing.T) {
+// the RF client must enforce non-nil handler and non-empty flag name.
+func TestSubscribeWithHandler_RejectsInvalid(t *testing.T) {
 	client := NewClient()
-	noop := func(FlagValue) error { return nil }
-	noopNoConfig := func() {}
-	noopRecover := func(error, FlagValue) {}
-	noopHealthy := func() bool { return true }
-
-	require.Error(t, client.Subscribe("f", nil, noopNoConfig, noopRecover, noopHealthy))
-	require.Error(t, client.Subscribe("f", noop, nil, noopRecover, noopHealthy))
-	require.Error(t, client.Subscribe("f", noop, noopNoConfig, nil, noopHealthy))
-	require.Error(t, client.Subscribe("f", noop, noopNoConfig, noopRecover, nil))
-	require.Error(t, client.Subscribe("", noop, noopNoConfig, noopRecover, noopHealthy))
+	require.Error(t, client.SubscribeWithHandler(nil))
+	require.Error(t, client.SubscribeWithHandler(newStubHandler("")))
 }
 
 // the RF client immediately calls the subscribers if a value's already existing.
@@ -97,22 +91,22 @@ func TestSubscribe_ImmediateCallbackIfValueExists(t *testing.T) {
 	client.currentValues[testFlag1] = true
 	client.mu.Unlock()
 
-	sub := newTestSub()
-	sub.subscribe(t, client, testFlag1)
+	h := newStubHandler(testFlag1)
+	require.NoError(t, client.SubscribeWithHandler(h))
 
-	v := waitChan(t, sub.onChange)
+	v := waitChan(t, h.onChangeCh)
 	assert.True(t, bool(v))
 }
 
 // the RF client properly notifies subscribers.
 func TestOnUpdate_NotifiesSubscriber(t *testing.T) {
 	client := NewClient()
-	sub := newTestSub()
-	sub.subscribe(t, client, testFlag1)
+	h := newStubHandler(testFlag1)
+	require.NoError(t, client.SubscribeWithHandler(h))
 
 	sendUpdate(client, Flag{Name: string(testFlag1), Value: true})
 
-	v := waitChan(t, sub.onChange)
+	v := waitChan(t, h.onChangeCh)
 	assert.True(t, bool(v))
 
 	value, exists := client.GetCurrentValue(testFlag1)
@@ -122,29 +116,29 @@ func TestOnUpdate_NotifiesSubscriber(t *testing.T) {
 
 func TestOnUpdate_DeduplicatesSameValue(t *testing.T) {
 	client := NewClient()
-	sub := newTestSub()
-	sub.subscribe(t, client, testFlag1)
+	h := newStubHandler(testFlag1)
+	require.NoError(t, client.SubscribeWithHandler(h))
 
 	// First update
 	sendUpdate(client, Flag{Name: string(testFlag1), Value: true})
-	waitChan(t, sub.onChange)
+	waitChan(t, h.onChangeCh)
 
 	// Same value again: should not trigger
 	sendUpdate(client, Flag{Name: string(testFlag1), Value: true})
 	time.Sleep(50 * time.Millisecond)
-	assert.Empty(t, sub.onChange)
+	assert.Empty(t, h.onChangeCh)
 
 	// Different value: should trigger
 	sendUpdate(client, Flag{Name: string(testFlag1), Value: false})
-	v := waitChan(t, sub.onChange)
+	v := waitChan(t, h.onChangeCh)
 	assert.False(t, bool(v))
 }
 
 // the RF client must return an error on an invalid json received by RC
 func TestOnUpdate_InvalidJSON(t *testing.T) {
 	client := NewClient()
-	sub := newTestSub()
-	sub.subscribe(t, client, testFlag1)
+	h := newStubHandler(testFlag1)
+	require.NoError(t, client.SubscribeWithHandler(h))
 
 	var gotError bool
 	client.OnUpdate(
@@ -153,67 +147,57 @@ func TestOnUpdate_InvalidJSON(t *testing.T) {
 	)
 
 	assert.True(t, gotError)
-	assert.Empty(t, sub.onChange, "onChange must not fire on invalid JSON")
+	assert.Empty(t, h.onChangeCh, "onChange must not fire on invalid JSON")
 }
 
 // the RF makes sure the NoConfig callback is called properly.
 func TestOnUpdate_MissingFlagCallsOnNoConfig(t *testing.T) {
 	client := NewClient()
-	sub := newTestSub()
-	sub.subscribe(t, client, testFlag1)
+	h := newStubHandler(testFlag1)
+	require.NoError(t, client.SubscribeWithHandler(h))
 
 	// Send an update for a different flag
 	sendUpdate(client, Flag{Name: string(testFlag2), Value: true})
 
-	waitChan(t, sub.onNoConfig)
+	waitChan(t, h.noConfigCh)
 }
 
 // the RF client correctly notify multiple subs when necessary.
 func TestOnUpdate_MultipleSubscribers(t *testing.T) {
 	client := NewClient()
-	sub1 := newTestSub()
-	sub2 := newTestSub()
-	sub1.subscribe(t, client, testFlag1)
-	sub2.subscribe(t, client, testFlag1)
+	h1 := newStubHandler(testFlag1)
+	h2 := newStubHandler(testFlag1)
+	require.NoError(t, client.SubscribeWithHandler(h1))
+	require.NoError(t, client.SubscribeWithHandler(h2))
 
 	sendUpdate(client, Flag{Name: string(testFlag1), Value: true})
 
-	assert.True(t, bool(waitChan(t, sub1.onChange)))
-	assert.True(t, bool(waitChan(t, sub2.onChange)))
+	assert.True(t, bool(waitChan(t, h1.onChangeCh)))
+	assert.True(t, bool(waitChan(t, h2.onChangeCh)))
 }
 
 func TestOnChange_ErrorTriggersSafeRecover(t *testing.T) {
 	client := NewClient()
 
-	recoverCh := make(chan FlagValue, 1)
-	err := client.Subscribe(
-		testFlag1,
-		func(FlagValue) error { return errors.New("apply failed") },
-		func() {},
-		func(_ error, v FlagValue) { recoverCh <- v },
-		func() bool { return true },
-	)
-	require.NoError(t, err)
+	h := newStubHandler(testFlag1)
+	h.onChangeFn = func(FlagValue) error { return errors.New("apply failed") }
+	require.NoError(t, client.SubscribeWithHandler(h))
 
 	sendUpdate(client, Flag{Name: string(testFlag1), Value: true})
 
-	v := waitChan(t, recoverCh)
+	v := waitChan(t, h.recoverCh)
 	assert.True(t, bool(v))
 }
 
 func TestSubscribeWithHandler(t *testing.T) {
 	client := NewClient()
 
-	h := &stubHandler{
-		name:     testFlag1,
-		onChange: make(chan FlagValue, 1),
-		noConfig: make(chan struct{}, 1),
-	}
+	h := newStubHandler(testFlag1)
 	require.NoError(t, client.SubscribeWithHandler(h))
 	require.Error(t, client.SubscribeWithHandler(nil))
 
 	sendUpdate(client, Flag{Name: string(testFlag1), Value: true})
-	assert.True(t, bool(waitChan(t, h.onChange)))
+	assert.True(t, bool(waitChan(t, h.onChangeCh)))
 }
 
 func TestConcurrentSubscriptions(t *testing.T) {
@@ -223,14 +207,14 @@ func TestConcurrentSubscriptions(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			sub := newTestSub()
-			sub.subscribe(t, client, testFlag1)
+			h := newStubHandler(testFlag1)
+			_ = client.SubscribeWithHandler(h)
 		}()
 	}
 	wg.Wait()
-	client.mu.RLock()
+	client.mu.Lock()
 	assert.Len(t, client.subscriptions[testFlag1], 10)
-	client.mu.RUnlock()
+	client.mu.Unlock()
 }
 
 func TestGetCurrentValue_Unknown(t *testing.T) {
@@ -238,16 +222,3 @@ func TestGetCurrentValue_Unknown(t *testing.T) {
 	_, exists := client.GetCurrentValue(testFlag1)
 	assert.False(t, exists)
 }
-
-// stubHandler is a minimal FlagHandler for testing SubscribeWithHandler.
-type stubHandler struct {
-	name     FlagName
-	onChange chan FlagValue
-	noConfig chan struct{}
-}
-
-func (h *stubHandler) FlagName() FlagName               { return h.name }
-func (h *stubHandler) OnChange(v FlagValue) error       { h.onChange <- v; return nil }
-func (h *stubHandler) OnNoConfig()                      { h.noConfig <- struct{}{} }
-func (h *stubHandler) SafeRecover(_ error, _ FlagValue) {}
-func (h *stubHandler) IsHealthy() bool                  { return true }
