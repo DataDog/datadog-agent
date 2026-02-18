@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package automultilinedetection contains auto multiline detection and aggregation logic.
-package automultilinedetection
+package preprocessor
 
 import (
 	"regexp"
@@ -12,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/tokenizer"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -35,7 +34,7 @@ type UserSamples struct {
 
 // NewUserSamples creates a new UserSamples instance.
 func NewUserSamples(cfgRdr model.Reader, sourceSamples []*config.AutoMultilineSample) *UserSamples {
-	tokenizer := tokenizer.NewTokenizer(0)
+	tokenizer := NewTokenizer(0)
 	configSamples := make([]config.AutoMultilineSample, 0)
 
 	if sourceSamples != nil {
@@ -126,7 +125,7 @@ func (j *UserSamples) ProcessAndContinue(context *messageContext) bool {
 				context.labelAssignedBy = "user_sample"
 				return false
 			}
-		} else if tokenizer.IsMatch(sample.tokens, context.tokens, sample.matchThreshold) {
+		} else if IsMatch(sample.tokens, context.tokens, sample.matchThreshold) {
 			context.label = sample.label
 			context.labelAssignedBy = "user_sample"
 			return false

@@ -4,14 +4,13 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package automultilinedetection contains auto multiline detection and aggregation logic.
-package automultilinedetection
+package preprocessor
 
 import (
 	"fmt"
 	"slices"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/tokenizer"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -70,7 +69,7 @@ func (p *PatternTable) insert(context *messageContext) int {
 	p.index++
 	foundIdx := -1
 	for i, r := range p.table {
-		if tokenizer.IsMatch(r.tokens, context.tokens, p.matchThreshold) {
+		if IsMatch(r.tokens, context.tokens, p.matchThreshold) {
 			r.count++
 			r.label = context.label
 			r.labelAssignedBy = context.labelAssignedBy
@@ -134,7 +133,7 @@ func (p *PatternTable) DumpTable() []DiagnosticRow {
 	debug := make([]DiagnosticRow, 0, len(p.table))
 	for _, r := range p.table {
 		debug = append(debug, DiagnosticRow{
-			TokenString:     tokenizer.TokensToString(r.tokens),
+			TokenString:     TokensToString(r.tokens),
 			LabelString:     labelToString(r.label),
 			labelAssignedBy: r.labelAssignedBy,
 			Count:           r.count,

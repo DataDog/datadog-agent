@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package automultilinedetection contains auto multiline detection and aggregation logic.
-package automultilinedetection
+package preprocessor
 
 import (
 	"testing"

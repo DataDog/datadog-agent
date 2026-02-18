@@ -11,8 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	automultilinedetection "github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/tokenizer"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/preprocessor"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
@@ -26,7 +25,7 @@ func newTestMessage(content string) *message.Message {
 // testHandlerWithTokenizer wraps AutoMultilineHandler and tokenizes messages before processing
 type testHandlerWithTokenizer struct {
 	*AutoMultilineHandler
-	tokenizer *tokenizer.Tokenizer
+	tokenizer *preprocessor.Tokenizer
 }
 
 func (t *testHandlerWithTokenizer) process(msg *message.Message) {
@@ -36,17 +35,17 @@ func (t *testHandlerWithTokenizer) process(msg *message.Message) {
 
 func newCombiningHandler(outputFn func(*message.Message), maxContentSize int, flushTimeout time.Duration) *testHandlerWithTokenizer {
 	tailerInfo := status.NewInfoRegistry()
-	aggregator := automultilinedetection.NewCombiningAggregator(outputFn, maxContentSize, false, false, tailerInfo)
+	aggregator := preprocessor.NewCombiningAggregator(outputFn, maxContentSize, false, false, tailerInfo)
 	handler := NewAutoMultilineHandler(aggregator, maxContentSize, flushTimeout, tailerInfo, nil, nil, true)
-	tokenizer := tokenizer.NewTokenizer(1000)
+	tokenizer := preprocessor.NewTokenizer(1000)
 	return &testHandlerWithTokenizer{AutoMultilineHandler: handler, tokenizer: tokenizer}
 }
 
 func newDetectingHandler(outputFn func(*message.Message), maxContentSize int, flushTimeout time.Duration) *testHandlerWithTokenizer {
 	tailerInfo := status.NewInfoRegistry()
-	aggregator := automultilinedetection.NewDetectingAggregator(outputFn, tailerInfo)
+	aggregator := preprocessor.NewDetectingAggregator(outputFn, tailerInfo)
 	handler := NewAutoMultilineHandler(aggregator, maxContentSize, flushTimeout, tailerInfo, nil, nil, false)
-	tokenizer := tokenizer.NewTokenizer(1000)
+	tokenizer := preprocessor.NewTokenizer(1000)
 	return &testHandlerWithTokenizer{AutoMultilineHandler: handler, tokenizer: tokenizer}
 }
 

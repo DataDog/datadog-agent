@@ -4,19 +4,18 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package automultilinedetection contains auto multiline detection and aggregation logic.
-package automultilinedetection
+package preprocessor
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/tokenizer"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
 func makeContext(str string, label Label) *messageContext {
-	tokenizer := tokenizer.NewTokenizer(0)
+	tokenizer := NewTokenizer(0)
 	ts, _ := tokenizer.Tokenize([]byte(str))
 
 	return &messageContext{

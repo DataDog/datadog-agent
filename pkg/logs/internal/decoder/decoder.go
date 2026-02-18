@@ -11,11 +11,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	automultilinedetection "github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/preprocessor"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/tokenizer"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
@@ -56,12 +55,12 @@ type Decoder interface {
 // TokenizingLineHandler wraps a LineHandler and tokenizes messages before passing them through.
 // This ensures messages have tokens populated in ParsingExtra before reaching handlers like AutoMultilineHandler.
 type TokenizingLineHandler struct {
-	tokenizer   *tokenizer.Tokenizer
+	tokenizer   *preprocessor.Tokenizer
 	lineHandler LineHandler
 }
 
 // NewTokenizingLineHandler creates a wrapper that tokenizes messages before passing to the underlying handler.
-func NewTokenizingLineHandler(tok *tokenizer.Tokenizer, lineHandler LineHandler) *TokenizingLineHandler {
+func NewTokenizingLineHandler(tok *preprocessor.Tokenizer, lineHandler LineHandler) *TokenizingLineHandler {
 	return &TokenizingLineHandler{
 		tokenizer:   tok,
 		lineHandler: lineHandler,
@@ -170,7 +169,7 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 	//       (source.Config().AutoMultiLineOptions.TokenizerMaxInputBytes) to
 	//       avoid breaking change for sources with custom tokenizer config
 	tokenizerMaxInputBytes := pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")
-	tok := tokenizer.NewTokenizer(tokenizerMaxInputBytes)
+	tok := preprocessor.NewTokenizer(tokenizerMaxInputBytes)
 	lineHandler := NewTokenizingLineHandler(tok, baseLineHandler)
 
 	var lineParser LineParser
@@ -219,12 +218,12 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 func getAutoMultilineDetectingHandler(outputFn func(msg *message.Message), tailerInfo *status.InfoRegistry, maxContentSize int, source *sources.ReplaceableSource) LineHandler {
 	// JSON aggregation is disabled in detection mode for consistency - we don't want to combine JSON
 	// while only tagging everything else
-	aggregator := automultilinedetection.NewDetectingAggregator(outputFn, tailerInfo)
+	aggregator := preprocessor.NewDetectingAggregator(outputFn, tailerInfo)
 	return NewAutoMultilineHandler(aggregator, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo, source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, false)
 }
 
 func getAutoMultilineAggregatingHandler(outputFn func(msg *message.Message), maxContentSize int, tailerInfo *status.InfoRegistry, source *sources.ReplaceableSource) LineHandler {
-	aggregator := automultilinedetection.NewCombiningAggregator(
+	aggregator := preprocessor.NewCombiningAggregator(
 		outputFn,
 		maxContentSize,
 		pkgconfigsetup.Datadog().GetBool("logs_config.tag_truncated_logs"),
