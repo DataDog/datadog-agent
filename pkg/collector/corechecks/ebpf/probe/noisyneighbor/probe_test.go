@@ -9,6 +9,7 @@
 package noisyneighbor
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -28,7 +29,7 @@ func TestNoisyNeighborProbe(t *testing.T) {
 		}
 
 		if os.Getenv("CI_JOB_NAME") == "fedora_38" {
-			t.Skip("Noisy Neighbor probe is not supported on Ubuntu 25.10")
+			t.Skip("Noisy Neighbor probe is not supported on Fedora 38")
 		}
 
 		cfg := testConfig()
