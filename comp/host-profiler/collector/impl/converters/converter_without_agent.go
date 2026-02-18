@@ -243,7 +243,7 @@ func (c *converterWithoutAgent) ensureResourceDetectionConfig(resourceDetection 
 		return err
 	}
 	if !ddDefaultValue {
-		standaloneLogger.Warn("host.arch is required but is disabled by user configuration; preserving user value. Profiles for compiled languages will be missing symbols.")
+		slog.Warn("host.arch is required but is disabled by user configuration; preserving user value. Profiles for compiled languages will be missing symbols.")
 	}
 
 	// Only set these defaults if we added the system detector

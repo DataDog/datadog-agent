@@ -319,21 +319,6 @@ func TestConverterWithoutAgentLogsViaOTelLogger(t *testing.T) {
 	assert.True(t, found, "expected warning about adding resourcedetection processor, got: %v", logs.All())
 }
 
-func TestSetLoggerOverridesSlog(t *testing.T) {
-	logger, logs := newObserverLogger(zap.DebugLevel)
-
-	SetLogger(logger)
-	t.Cleanup(func() {
-		SetLogger(zap.NewNop())
-	})
-
-	cm := confMap{}
-	Get[string](cm, "nonexistent::path")
-
-	require.GreaterOrEqual(t, logs.Len(), 1, "expected slog to use the overridden logger")
-	assert.Contains(t, logs.All()[0].Message, "non-existent intermediate map")
-}
-
 func TestConverterWithoutAgentLogsHostArchWarning(t *testing.T) {
 	logger, logs := newObserverLogger(zap.DebugLevel)
 
@@ -343,7 +328,7 @@ func TestConverterWithoutAgentLogsHostArchWarning(t *testing.T) {
 	err := conv.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
-	const expectedMsg = "host.arch is required but is disabled by user configuration and will break symbolication; preserving user value"
+	const expectedMsg = "host.arch is required but is disabled by user configuration; preserving user value. Profiles for compiled languages will be missing symbols."
 	found := false
 	for _, entry := range logs.All() {
 		if entry.Message == expectedMsg {

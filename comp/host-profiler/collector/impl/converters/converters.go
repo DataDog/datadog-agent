@@ -13,8 +13,8 @@ package converters
 
 import (
 	"fmt"
-	"reflect"
 	"log/slog"
+	"reflect"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
