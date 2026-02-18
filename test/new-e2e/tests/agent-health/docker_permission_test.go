@@ -19,11 +19,37 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
-	healthplatformimpl "github.com/DataDog/datadog-agent/comp/healthplatform/impl"
-	"github.com/DataDog/datadog-agent/comp/healthplatform/impl/issues/dockerpermissions"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
+)
+
+// issueState mirrors healthplatformimpl.IssueState (can't import from main module)
+type issueState string
+
+const (
+	issueStateNew      issueState = "new"
+	issueStateOngoing  issueState = "ongoing"
+	issueStateResolved issueState = "resolved"
+)
+
+// persistedIssue mirrors healthplatformimpl.PersistedIssue
+type persistedIssue struct {
+	IssueID    string     `json:"issue_id"`
+	State      issueState `json:"state"`
+	FirstSeen  string     `json:"first_seen"`
+	LastSeen   string     `json:"last_seen"`
+	ResolvedAt string     `json:"resolved_at,omitempty"`
+}
+
+// persistedState mirrors healthplatformimpl.PersistedState
+type persistedState struct {
+	UpdatedAt string                     `json:"updated_at"`
+	Issues    map[string]*persistedIssue `json:"issues"`
+}
+
+const (
+	// dockerPermissionsCheckID mirrors dockerpermissions.CheckID
+	dockerPermissionsCheckID = "docker-socket-permissions"
 )
 
 const (
@@ -118,17 +144,17 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 	// =========================================================================
 	suite.T().Log("=== Phase 2: Persistence file — state should be 'new' ===")
 
-	persistedIssue := suite.readPersistedIssue(dockerpermissions.CheckID)
-	require.NotNil(suite.T(), persistedIssue, "Docker permission issue should be persisted under check ID %s", dockerpermissions.CheckID)
+	persistedIss := suite.readPersistedIssue(dockerPermissionsCheckID)
+	require.NotNil(suite.T(), persistedIss, "Docker permission issue should be persisted under check ID %s", dockerPermissionsCheckID)
 
-	assert.Equal(suite.T(), expectedIssueID, persistedIssue.IssueID)
-	assert.NotEmpty(suite.T(), persistedIssue.FirstSeen, "Issue should have first_seen timestamp")
-	assert.NotEmpty(suite.T(), persistedIssue.LastSeen, "Issue should have last_seen timestamp")
-	assert.Contains(suite.T(), []healthplatformimpl.IssueState{healthplatformimpl.IssueStateNew, healthplatformimpl.IssueStateOngoing},
-		persistedIssue.State, "Initial issue state should be 'new' or 'ongoing'")
+	assert.Equal(suite.T(), expectedIssueID, persistedIss.IssueID)
+	assert.NotEmpty(suite.T(), persistedIss.FirstSeen, "Issue should have first_seen timestamp")
+	assert.NotEmpty(suite.T(), persistedIss.LastSeen, "Issue should have last_seen timestamp")
+	assert.Contains(suite.T(), []issueState{issueStateNew, issueStateOngoing},
+		persistedIss.State, "Initial issue state should be 'new' or 'ongoing'")
 
-	initialFirstSeen := persistedIssue.FirstSeen
-	suite.T().Logf("Phase 2 passed: persisted issue state=%s, first_seen=%s", persistedIssue.State, persistedIssue.FirstSeen)
+	initialFirstSeen := persistedIss.FirstSeen
+	suite.T().Logf("Phase 2 passed: persisted issue state=%s, first_seen=%s", persistedIss.State, persistedIss.FirstSeen)
 
 	// =========================================================================
 	// Phase 3: Restart agent — issue should be loaded from disk and become "ongoing"
@@ -158,16 +184,16 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 	}, 2*time.Minute, 10*time.Second, "Health report with issue not received after restart")
 
 	// Verify persistence file: state should be "ongoing" (loaded from disk + re-confirmed by check)
-	persistedIssue = suite.readPersistedIssue(dockerpermissions.CheckID)
-	require.NotNil(suite.T(), persistedIssue, "Issue should still be persisted after restart")
+	persistedIss = suite.readPersistedIssue(dockerPermissionsCheckID)
+	require.NotNil(suite.T(), persistedIss, "Issue should still be persisted after restart")
 
-	assert.Equal(suite.T(), healthplatformimpl.IssueStateOngoing, persistedIssue.State,
+	assert.Equal(suite.T(), issueStateOngoing, persistedIss.State,
 		"Issue should transition to 'ongoing' after being re-detected post-restart")
-	assert.Equal(suite.T(), initialFirstSeen, persistedIssue.FirstSeen,
+	assert.Equal(suite.T(), initialFirstSeen, persistedIss.FirstSeen,
 		"first_seen should be preserved across restart")
 
 	suite.T().Logf("Phase 3 passed: post-restart state=%s, first_seen=%s (preserved), last_seen=%s",
-		persistedIssue.State, persistedIssue.FirstSeen, persistedIssue.LastSeen)
+		persistedIss.State, persistedIss.FirstSeen, persistedIss.LastSeen)
 
 	// =========================================================================
 	// Phase 4: Fix the permission issue and verify resolution
@@ -196,24 +222,24 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 	// Wait for the persistence file to reflect the resolved state
 	// The check runs immediately on start, detects no issue, and ClearIssuesForCheck sets state to "resolved"
 	require.EventuallyWithT(suite.T(), func(t *assert.CollectT) {
-		pi := suite.readPersistedIssueForAssert(t, dockerpermissions.CheckID)
+		pi := suite.readPersistedIssueForAssert(t, dockerPermissionsCheckID)
 		if !assert.NotNil(t, pi, "Issue should still be tracked in persistence file") {
 			return
 		}
-		assert.Equal(t, healthplatformimpl.IssueStateResolved, pi.State, "Issue should be 'resolved' after permission fix")
+		assert.Equal(t, issueStateResolved, pi.State, "Issue should be 'resolved' after permission fix")
 	}, 2*time.Minute, 10*time.Second, "Issue not resolved in persistence file after permission fix")
 
 	// Read the final state for detailed logging
-	persistedIssue = suite.readPersistedIssue(dockerpermissions.CheckID)
-	require.NotNil(suite.T(), persistedIssue)
+	persistedIss = suite.readPersistedIssue(dockerPermissionsCheckID)
+	require.NotNil(suite.T(), persistedIss)
 
-	assert.Equal(suite.T(), healthplatformimpl.IssueStateResolved, persistedIssue.State)
-	assert.NotEmpty(suite.T(), persistedIssue.ResolvedAt, "Issue should have resolved_at timestamp")
-	assert.Equal(suite.T(), initialFirstSeen, persistedIssue.FirstSeen,
+	assert.Equal(suite.T(), issueStateResolved, persistedIss.State)
+	assert.NotEmpty(suite.T(), persistedIss.ResolvedAt, "Issue should have resolved_at timestamp")
+	assert.Equal(suite.T(), initialFirstSeen, persistedIss.FirstSeen,
 		"first_seen should be preserved through the entire lifecycle")
 
 	suite.T().Logf("Phase 4 passed: state=%s, resolved_at=%s, first_seen=%s (preserved)",
-		persistedIssue.State, persistedIssue.ResolvedAt, persistedIssue.FirstSeen)
+		persistedIss.State, persistedIss.ResolvedAt, persistedIss.FirstSeen)
 
 	suite.T().Log("=== Full lifecycle test passed ===")
 }
@@ -222,50 +248,54 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssueLifecycle() {
 // Helper methods
 // ============================================================================
 
-// getPersistedFilePath resolves the persistence file path at runtime by querying the agent's run_path config.
-// Output format of `datadog-agent config get run_path` is: "run_path is set to: <value>\n"
+// getPersistedFilePath resolves the persistence file path at runtime by parsing run_path
+// from the full agent config YAML dump.
 func (suite *dockerPermissionSuite) getPersistedFilePath() string {
 	suite.T().Helper()
 
-	output := suite.Env().Agent.Client.Config(agentclient.WithArgs([]string{"get", "run_path"}))
-	// Parse "run_path is set to: /opt/datadog-agent/run"
-	parts := strings.SplitN(strings.TrimSpace(output), ":", 2)
-	require.Len(suite.T(), parts, 2, "Unexpected output from 'config get run_path': %s", output)
-	runPath := strings.TrimSpace(parts[1])
-	require.NotEmpty(suite.T(), runPath, "run_path should not be empty")
+	configYAML := suite.Env().Agent.Client.Config()
+	var runPath string
+	for _, line := range strings.Split(configYAML, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "run_path:") {
+			runPath = strings.TrimSpace(strings.TrimPrefix(trimmed, "run_path:"))
+			break
+		}
+	}
+	require.NotEmpty(suite.T(), runPath, "run_path not found in agent config output")
 
 	return filepath.Join(runPath, persistenceRelPath)
 }
 
 // readPersistedIssue reads the persistence file from the remote host and returns the issue for the given check ID.
 // Fails the test if the file cannot be read or parsed.
-func (suite *dockerPermissionSuite) readPersistedIssue(checkID string) *healthplatformimpl.PersistedIssue {
+func (suite *dockerPermissionSuite) readPersistedIssue(checkID string) *persistedIssue {
 	suite.T().Helper()
 
 	var raw string
 	require.EventuallyWithT(suite.T(), func(t *assert.CollectT) {
 		var err error
-		raw, err = suite.Env().RemoteHost.Execute(fmt.Sprintf("cat %s", suite.persistenceFilePath))
+		raw, err = suite.Env().RemoteHost.Execute("cat " + suite.persistenceFilePath)
 		assert.NoError(t, err, "Persistence file should exist")
 		assert.NotEmpty(t, raw, "Persistence file should not be empty")
 	}, 30*time.Second, 5*time.Second, "Persistence file not found")
 
-	var state healthplatformimpl.PersistedState
+	var state persistedState
 	require.NoError(suite.T(), json.Unmarshal([]byte(raw), &state), "Persistence file should be valid JSON")
 	return state.Issues[checkID]
 }
 
 // readPersistedIssueForAssert reads the persistence file and returns the issue for the given check ID.
 // For use inside EventuallyWithT callbacks — returns nil if the file can't be read yet.
-func (suite *dockerPermissionSuite) readPersistedIssueForAssert(t *assert.CollectT, checkID string) *healthplatformimpl.PersistedIssue {
+func (suite *dockerPermissionSuite) readPersistedIssueForAssert(t *assert.CollectT, checkID string) *persistedIssue {
 	suite.T().Helper()
 
-	raw, err := suite.Env().RemoteHost.Execute(fmt.Sprintf("cat %s", suite.persistenceFilePath))
+	raw, err := suite.Env().RemoteHost.Execute("cat " + suite.persistenceFilePath)
 	if !assert.NoError(t, err) || !assert.NotEmpty(t, raw) {
 		return nil
 	}
 
-	var state healthplatformimpl.PersistedState
+	var state persistedState
 	if !assert.NoError(t, json.Unmarshal([]byte(raw), &state)) {
 		return nil
 	}
