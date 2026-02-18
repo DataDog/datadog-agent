@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -58,6 +59,7 @@ type Requires struct {
 	Tagger        tagger.Component
 	Traceroute    traceroute.Component
 	EventPlatform eventplatform.Component
+	IPC           ipc.Component
 }
 
 // Provides defines the output of the privateactionrunner component
@@ -73,6 +75,7 @@ type PrivateActionRunner struct {
 	tagger         tagger.Component
 	traceroute     traceroute.Component
 	eventPlatform  eventplatform.Component
+	ipcClient      ipc.HTTPClient
 
 	workflowRunner *runners.WorkflowRunner
 	commonRunner   *runners.CommonRunner
@@ -88,7 +91,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
 
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform)
+	ipcClient := reqs.IPC.GetClient()
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, ipcClient)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -108,6 +112,7 @@ func NewPrivateActionRunner(
 	taggerComp tagger.Component,
 	tracerouteComp traceroute.Component,
 	eventPlatform eventplatform.Component,
+	ipcClient ipc.HTTPClient,
 ) (*PrivateActionRunner, error) {
 	return &PrivateActionRunner{
 		coreConfig:     coreConfig,
@@ -117,6 +122,7 @@ func NewPrivateActionRunner(
 		tagger:         taggerComp,
 		traceroute:     tracerouteComp,
 		eventPlatform:  eventPlatform,
+		ipcClient:      ipcClient,
 	}, nil
 }
 
@@ -165,7 +171,7 @@ func (p *PrivateActionRunner) Start(ctx context.Context) error {
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(cfg)
 
-	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform)
+	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipcClient)
 	if err != nil {
 		return err
 	}

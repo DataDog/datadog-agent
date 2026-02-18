@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"time"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
@@ -44,9 +45,10 @@ func NewWorkflowRunner(
 	opmsClient opms.Client,
 	traceroute traceroute.Component,
 	eventPlatform eventplatform.Component,
+	ipcClient ipc.HTTPClient,
 ) (*WorkflowRunner, error) {
 	return &WorkflowRunner{
-		registry:     privatebundles.NewRegistry(configuration, traceroute, eventPlatform),
+		registry:     privatebundles.NewRegistry(configuration, traceroute, eventPlatform, ipcClient),
 		opmsClient:   opmsClient,
 		resolver:     resolver.NewPrivateCredentialResolver(),
 		config:       configuration,

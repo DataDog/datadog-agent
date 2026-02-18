@@ -557,7 +557,7 @@ func start(log log.Component,
 	}
 
 	if config.GetBool("private_action_runner.enabled") {
-		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, log, taggerComp, tracerouteComp, eventPlatform)
+		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, log, taggerComp, tracerouteComp, eventPlatform, ipc.GetClient())
 		if err != nil {
 			log.Errorf("Cannot start private action runner: %v", err)
 		} else {
@@ -695,11 +695,12 @@ func startPrivateActionRunner(
 	tagger tagger.Component,
 	tracerouteComp traceroute.Component,
 	eventPlatform eventplatform.Component,
+	ipcClient ipc.HTTPClient,
 ) (func(), error) {
 	if rcClient == nil {
 		return nil, errors.New("Remote config is disabled or failed to initialize, remote config is a required dependency for private action runner")
 	}
-	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform)
+	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform, ipcClient)
 	if err != nil {
 		return nil, err
 	}
