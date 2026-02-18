@@ -26,6 +26,9 @@ func TestNoisyNeighborProbe(t *testing.T) {
 		if kv < minimumKernelVersion {
 			t.Skipf("Kernel version %v is not supported by the Noisy Neighbor probe", kv)
 		}
+		if !hasRcuBTFTagSupport() {
+			t.Skip("vmlinux BTF lacks __rcu type tag support; kernel must be built with GCC 13+ or Clang 15+")
+		}
 
 		cfg := testConfig()
 		probe, err := NewProbe(cfg)
