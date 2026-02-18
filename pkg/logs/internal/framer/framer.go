@@ -43,6 +43,11 @@ const (
 	// headers are included in the log frame.  The size in those headers is not
 	// consulted.  The result does not include the trailing newlines.
 	DockerStream
+
+	// SyslogFraming handles syslog TCP streams per RFC 6587. It auto-detects
+	// between octet counting (MSG-LEN SP SYSLOG-MSG) and non-transparent
+	// framing (LF or NUL delimited) on a per-message basis.
+	SyslogFraming
 )
 
 // Framer gets chunks of bytes (via Process(..)) and uses an
@@ -108,6 +113,8 @@ func NewFramer(
 		matcher = &oneByteNewLineMatcher{contentLenLimit}
 	case DockerStream:
 		matcher = &dockerStreamMatcher{contentLenLimit}
+	case SyslogFraming:
+		matcher = &syslogFrameMatcher{contentLenLimit}
 	case NoFraming:
 		matcher = &noFramingMatcher{}
 	default:

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,14 +21,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
-// A TCPListener listens and accepts TCP connections and delegates the read operations to a tailer.
+// A TCPListener listens and accepts TCP connections and delegates the read
+// operations to a StreamTailer. The source's Format field controls whether
+// syslog or unstructured parsing is used.
 type TCPListener struct {
 	pipelineProvider pipeline.Provider
 	source           *sources.LogSource
 	idleTimeout      time.Duration
 	frameSize        int
 	listener         net.Listener
-	tailers          []*tailer.Tailer
+	tailers          []startstop.StartStoppable
 	mu               sync.Mutex
 	stop             chan struct{}
 }
@@ -49,7 +52,7 @@ func NewTCPListener(pipelineProvider pipeline.Provider, source *sources.LogSourc
 		source:           source,
 		idleTimeout:      idleTimeout,
 		frameSize:        frameSize,
-		tailers:          []*tailer.Tailer{},
+		tailers:          []startstop.StartStoppable{},
 		stop:             make(chan struct{}, 1),
 	}
 }
@@ -77,13 +80,13 @@ func (l *TCPListener) Stop() {
 		l.listener.Close()
 	}
 	stopper := startstop.NewParallelStopper()
-	for _, tailer := range l.tailers {
-		stopper.Add(tailer)
+	for _, t := range l.tailers {
+		stopper.Add(t)
 	}
 	stopper.Stop()
 
 	// At this point all the tailers have been stopped - remove them all from the active tailer list
-	l.tailers = []*tailer.Tailer{}
+	l.tailers = []startstop.StartStoppable{}
 }
 
 // run accepts new TCP connections and create a dedicated tailer for each.
@@ -129,40 +132,45 @@ func (l *TCPListener) startListener() error {
 	return nil
 }
 
-// read reads data from connection, returns an error if it failed and stop the tailer.
-func (l *TCPListener) read(tailer *tailer.Tailer) ([]byte, string, error) {
-	if l.idleTimeout > 0 {
-		tailer.Conn.SetReadDeadline(time.Now().Add(l.idleTimeout)) //nolint:errcheck
-	}
-	frame := make([]byte, l.frameSize)
-	n, err := tailer.Conn.Read(frame)
-	if err != nil {
-		l.source.Status.Error(err)
-		go l.stopTailer(tailer)
-		return nil, "", err
-	}
-	return frame[:n], tailer.Conn.RemoteAddr().String(), nil
-}
-
-// startTailer creates and starts a new tailer that reads from the connection.
+// startTailer creates and starts a StreamTailer for the connection.
 func (l *TCPListener) startTailer(conn net.Conn) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	tailer := tailer.NewTailer(l.source, conn, l.pipelineProvider.NextPipelineChan(), l.read)
-	l.tailers = append(l.tailers, tailer)
-	tailer.Start()
+
+	outputChan := l.pipelineProvider.NextPipelineChan()
+	sourceHostAddr := extractIPFromAddr(conn.RemoteAddr().String())
+
+	t := tailer.NewStreamTailer(
+		l.source,
+		conn,
+		outputChan,
+		l.source.Config.Format,
+		l.frameSize,
+		l.idleTimeout,
+		sourceHostAddr,
+	)
+	l.tailers = append(l.tailers, t)
+	t.Start()
 }
 
 // stopTailer stops the tailer.
-func (l *TCPListener) stopTailer(tailer *tailer.Tailer) {
+func (l *TCPListener) stopTailer(t startstop.StartStoppable) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	for i, t := range l.tailers {
-		if t == tailer {
-			// Only stop the tailer if it has not already been stopped
-			tailer.Stop()
+	for i, active := range l.tailers {
+		if active == t {
+			t.Stop()
 			l.tailers = slices.Delete(l.tailers, i, i+1)
 			break
 		}
 	}
+}
+
+// extractIPFromAddr strips the port from an address string (e.g. "1.2.3.4:5678" -> "1.2.3.4").
+func extractIPFromAddr(addr string) string {
+	lastColon := strings.LastIndex(addr, ":")
+	if lastColon != -1 {
+		return addr[:lastColon]
+	}
+	return addr
 }
