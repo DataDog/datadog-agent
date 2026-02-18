@@ -68,3 +68,28 @@
 #   # Enable debug logging for the tracer.
 #   # Docs: https://docs.datadoghq.com/tracing/troubleshooting/tracer_debug_logs
 #   DD_TRACE_DEBUG: false
+
+#   # @param DD_RUM_ENABLED - boolean - optional - default: false
+#   # Enable Real User Monitoring (RUM).
+#   # Docs: https://docs.datadoghq.com/real_user_monitoring/
+#   DD_RUM_ENABLED: false
+
+#   # @param DD_RUM_APPLICATION_ID - string - optional
+#   # The RUM application ID for this application.
+#   # Docs: https://docs.datadoghq.com/real_user_monitoring/browser/setup/
+#   DD_RUM_APPLICATION_ID: ""
+
+#   # @param DD_RUM_CLIENT_TOKEN - string - optional
+#   # The RUM client token for this application.
+#   # Note: This is a public token and safe to use in client-side code.
+#   # Docs: https://docs.datadoghq.com/real_user_monitoring/browser/setup/
+#   DD_RUM_CLIENT_TOKEN: ""
+
+#   # @param DD_RUM_REMOTE_CONFIGURATION_ID - string - optional
+#   # The RUM remote configuration ID for this application.
+#   DD_RUM_REMOTE_CONFIGURATION_ID: ""
+
+#   # @param DD_RUM_SITE - string - optional
+#   # The Datadog site to send RUM data to (e.g., datadoghq.com, datadoghq.eu).
+#   # Docs: https://docs.datadoghq.com/getting_started/site/
+#   DD_RUM_SITE: ""

@@ -126,6 +126,7 @@ type EBPFProbe struct {
 	profileManager securityprofile.ProfileManager
 	fieldHandlers  *EBPFFieldHandlers
 	eventPool      *ddsync.TypedPool[model.Event]
+	variableStore  *eval.VariableStore
 	numCPU         int
 
 	ctx       context.Context
@@ -887,9 +888,11 @@ func (p *EBPFProbe) sendAnomalyDetection(event *model.Event) {
 		tags = append(tags, "service:"+service)
 	}
 
+	rule := events.NewCustomRule(events.AnomalyDetectionRuleID, events.AnomalyDetectionRuleDesc, p.evalOpts())
+
 	p.probe.DispatchCustomEvent(
-		events.NewCustomRule(events.AnomalyDetectionRuleID, events.AnomalyDetectionRuleDesc),
-		events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtor(event), tags...),
+		rule,
+		events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtorWithRule(event, rule), tags...),
 	)
 }
 
@@ -992,6 +995,18 @@ func (p *EBPFProbe) GetMonitors() *EBPFMonitors {
 func (p *EBPFProbe) EventMarshallerCtor(event *model.Event) func() events.EventMarshaler {
 	return func() events.EventMarshaler {
 		return serializers.NewEventSerializer(event, nil, p.probe.scrubber)
+	}
+}
+
+// evalOpts returns the eval options containing the current variable store
+func (p *EBPFProbe) evalOpts() *eval.Opts {
+	return &eval.Opts{VariableStore: p.variableStore}
+}
+
+// EventMarshallerCtorWithRule returns the event marshaller ctor with a rule for variable serialization
+func (p *EBPFProbe) EventMarshallerCtorWithRule(event *model.Event, rule *rules.Rule) func() events.EventMarshaler {
+	return func() events.EventMarshaler {
+		return serializers.NewEventSerializer(event, rule, p.probe.scrubber)
 	}
 }
 
@@ -1530,9 +1545,10 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if service := p.probe.GetService(event); service != "" {
 			tags = append(tags, "service:"+service)
 		}
+		rule := events.NewCustomRule(events.RawPacketActionRuleID, events.RawPacketActionRuleDesc, p.evalOpts())
 		p.probe.DispatchCustomEvent(
-			events.NewCustomRule(events.RawPacketActionRuleID, events.RawPacketActionRuleDesc),
-			events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtor(event), tags...),
+			rule,
+			events.NewCustomEventLazy(event.GetEventType(), p.EventMarshallerCtorWithRule(event, rule), tags...),
 		)
 		return false
 	case model.NetworkFlowMonitorEventType:
@@ -1639,10 +1655,10 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			p.Resolvers.ProcessResolver.UpdateProcessContexts(pce, cacheEntry.GetCGroupContext(), cacheEntry.GetContainerContext())
 		}
 	case model.ExecEventType:
-		p.HandleSSHUserSession(event)
+		p.HandleSSHUserSessionFromEvent(event)
 
 	case model.ForkEventType:
-		p.HandleSSHUserSession(event)
+		p.HandleSSHUserSessionFromEvent(event)
 	}
 	return true
 }
@@ -2259,7 +2275,7 @@ func (p *EBPFProbe) startSysCtlSnapshotLoop() {
 			}
 
 			// send a sysctl snapshot event
-			rule := events.NewCustomRule(events.SysCtlSnapshotRuleID, events.SysCtlSnapshotRuleDesc)
+			rule := events.NewCustomRule(events.SysCtlSnapshotRuleID, events.SysCtlSnapshotRuleDesc, p.evalOpts())
 			customEvent := events.NewCustomEvent(model.CustomEventType, event)
 
 			p.probe.DispatchCustomEvent(rule, customEvent)
@@ -2566,6 +2582,7 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, boo
 // OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded
 func (p *EBPFProbe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 	p.processKiller.Reset(rs)
+	p.variableStore = rs.GetVariableStore()
 
 	p.HandleRemediationStatus(rs)
 }
@@ -3241,6 +3258,8 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDSb, "struct dentry", "d_sb")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMntID, "struct mount", "mnt_id")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMntNs, "struct mount", "mnt_ns")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountParent, "struct mount", "mnt_parent")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMountpoint, "struct mount", "mnt_mp")
 
 	if kv.Code >= kernel.Kernel3_19 {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMntNamespaceNs, "struct mnt_namespace", "ns")
@@ -3444,7 +3463,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 		case action.Def.CoreDump != nil:
 			if p.config.RuntimeSecurity.InternalMonitoringEnabled {
 				dump := NewCoreDump(action.Def.CoreDump, p.Resolvers, serializers.NewEventSerializer(ev, nil, p.probe.scrubber))
-				rule := events.NewCustomRule(events.InternalCoreDumpRuleID, events.InternalCoreDumpRuleDesc)
+				rule := events.NewCustomRule(events.InternalCoreDumpRuleID, events.InternalCoreDumpRuleDesc, p.evalOpts())
 				event := events.NewCustomEvent(model.UnknownEventType, dump)
 
 				p.probe.DispatchCustomEvent(rule, event)

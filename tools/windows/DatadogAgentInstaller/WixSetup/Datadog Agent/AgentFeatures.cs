@@ -24,10 +24,11 @@ namespace WixSetup.Datadog_Agent
                 configurableDir: "PROJECTLOCATION")
             {
                 Id = new Id("NPM"),
+                // WiX 5 migration: Absent was renamed to AllowAbsent, values changed to yes/no
                 Attributes = new Dictionary<string, string>
                 {
                     {"AllowAdvertise", "no"},
-                    {"Absent", "allow"},
+                    {"AllowAbsent", "yes"},
                     {"Display", "hidden"},
                     {"InstallDefault", "local"},
                     {"TypicalDefault", "install"},
@@ -41,10 +42,11 @@ namespace WixSetup.Datadog_Agent
                 configurableDir: "PROJECTLOCATION")
             {
                 Id = new Id("MainApplication"),
+                // WiX 5 migration: Absent was renamed to AllowAbsent, values changed to yes/no
                 Attributes = new Dictionary<string, string>
                 {
                     {"AllowAdvertise", "no"},
-                    {"Absent", "disallow"},
+                    {"AllowAbsent", "no"},
                     {"Display", "collapse"},
                     {"InstallDefault", "local"},
                     {"TypicalDefault", "install"},

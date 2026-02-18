@@ -433,6 +433,7 @@ func deepCopySSHSessionContext(fieldToCopy SSHSessionContext) SSHSessionContext 
 	copied.SSHAuthMethod = fieldToCopy.SSHAuthMethod
 	copied.SSHClientIP = fieldToCopy.SSHClientIP
 	copied.SSHClientPort = fieldToCopy.SSHClientPort
+	copied.SSHDPid = fieldToCopy.SSHDPid
 	copied.SSHPublicKey = fieldToCopy.SSHPublicKey
 	copied.SSHSessionID = fieldToCopy.SSHSessionID
 	return copied
