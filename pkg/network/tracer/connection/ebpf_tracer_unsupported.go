@@ -5,6 +5,7 @@
 
 //go:build !linux || !linux_bpf
 
+// Package connection provides network connection tracking functionality.
 package connection
 
 import (

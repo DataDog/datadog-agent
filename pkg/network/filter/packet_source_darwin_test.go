@@ -54,7 +54,7 @@ func TestDeterminePacketDirection_IPv4_Outgoing(t *testing.T) {
 	}
 
 	dir := ih.determinePacketDirection(data)
-	assert.Equal(t, uint8(PACKET_OUTGOING), dir, "src local, dst remote should be PACKET_OUTGOING")
+	assert.Equal(t, uint8(PacketOutgoing), dir, "src local, dst remote should be PACKET_OUTGOING")
 }
 
 func TestDeterminePacketDirection_IPv4_Host(t *testing.T) {
@@ -69,7 +69,7 @@ func TestDeterminePacketDirection_IPv4_Host(t *testing.T) {
 	}
 
 	dir := ih.determinePacketDirection(data)
-	assert.Equal(t, uint8(PACKET_HOST), dir, "src remote, dst local should be PACKET_HOST")
+	assert.Equal(t, uint8(PacketHost), dir, "src remote, dst local should be PACKET_HOST")
 }
 
 func TestDeterminePacketDirection_IPv4_ShortData(t *testing.T) {
@@ -84,7 +84,7 @@ func TestDeterminePacketDirection_IPv4_ShortData(t *testing.T) {
 	}
 
 	dir := ih.determinePacketDirection(data)
-	assert.Equal(t, uint8(PACKET_HOST), dir, "truncated packet should default to PACKET_HOST")
+	assert.Equal(t, uint8(PacketHost), dir, "truncated packet should default to PACKET_HOST")
 }
 
 func TestDeterminePacketDirection_IPv4_VeryShort(t *testing.T) {
@@ -94,7 +94,7 @@ func TestDeterminePacketDirection_IPv4_VeryShort(t *testing.T) {
 		localAddrs: map[string]struct{}{},
 	}
 	dir := ih.determinePacketDirection([]byte{1, 2, 3})
-	assert.Equal(t, uint8(PACKET_HOST), dir, "very short data should default to PACKET_HOST")
+	assert.Equal(t, uint8(PacketHost), dir, "very short data should default to PACKET_HOST")
 }
 
 func TestDeterminePacketDirection_IPv6_Outgoing(t *testing.T) {
@@ -110,7 +110,7 @@ func TestDeterminePacketDirection_IPv6_Outgoing(t *testing.T) {
 	}
 
 	dir := ih.determinePacketDirection(data)
-	assert.Equal(t, uint8(PACKET_OUTGOING), dir, "IPv6 src local, dst remote should be PACKET_OUTGOING")
+	assert.Equal(t, uint8(PacketOutgoing), dir, "IPv6 src local, dst remote should be PACKET_OUTGOING")
 }
 
 func TestDeterminePacketDirection_IPv6_Host(t *testing.T) {
@@ -126,7 +126,7 @@ func TestDeterminePacketDirection_IPv6_Host(t *testing.T) {
 	}
 
 	dir := ih.determinePacketDirection(data)
-	assert.Equal(t, uint8(PACKET_HOST), dir, "IPv6 src remote, dst local should be PACKET_HOST")
+	assert.Equal(t, uint8(PacketHost), dir, "IPv6 src remote, dst local should be PACKET_HOST")
 }
 
 func TestDeterminePacketDirection_IPv6_ShortData(t *testing.T) {
@@ -140,7 +140,7 @@ func TestDeterminePacketDirection_IPv6_ShortData(t *testing.T) {
 		localAddrs: map[string]struct{}{},
 	}
 	dir := ih.determinePacketDirection(data)
-	assert.Equal(t, uint8(PACKET_HOST), dir, "truncated IPv6 packet should default to PACKET_HOST")
+	assert.Equal(t, uint8(PacketHost), dir, "truncated IPv6 packet should default to PACKET_HOST")
 }
 
 func TestDeterminePacketDirection_NonIP_EtherType(t *testing.T) {
@@ -154,5 +154,5 @@ func TestDeterminePacketDirection_NonIP_EtherType(t *testing.T) {
 		localAddrs: map[string]struct{}{},
 	}
 	dir := ih.determinePacketDirection(data)
-	assert.Equal(t, uint8(PACKET_HOST), dir, "non-IP ethertype should default to PACKET_HOST")
+	assert.Equal(t, uint8(PacketHost), dir, "non-IP ethertype should default to PACKET_HOST")
 }

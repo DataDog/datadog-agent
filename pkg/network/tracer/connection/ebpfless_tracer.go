@@ -126,8 +126,8 @@ func (t *ebpfLessTracer) Start(closeCallback func(*network.ConnectionStats)) err
 				// Extract packet type from platform-specific PacketInfo
 				pktType := extractPacketType(info)
 
-				// only process PACKET_HOST and PACKET_OUTGOING packets
-				if pktType != filter.PACKET_HOST && pktType != filter.PACKET_OUTGOING {
+				// only process PacketHost and PacketOutgoing packets
+				if pktType != filter.PacketHost && pktType != filter.PacketOutgoing {
 					ebpfLessTracerTelemetry.skippedPackets.Inc("unsupported_packet_type")
 					return nil
 				}
@@ -304,7 +304,7 @@ func buildTuple(pktType uint8, ip4 *layers.IPv4, ip6 *layers.IPv6, udp *layers.U
 		}
 	}
 
-	if pktType == filter.PACKET_HOST {
+	if pktType == filter.PacketHost {
 		tuple.Dest, tuple.Source = tuple.Source, tuple.Dest
 		tuple.DPort, tuple.SPort = tuple.SPort, tuple.DPort
 	}
@@ -332,9 +332,9 @@ func (t *ebpfLessTracer) guessConnectionDirection(conn *network.ConnectionStats,
 	}
 
 	switch pktType {
-	case filter.PACKET_HOST:
+	case filter.PacketHost:
 		return network.INCOMING, nil
-	case filter.PACKET_OUTGOING:
+	case filter.PacketOutgoing:
 		return network.OUTGOING, nil
 	default:
 		return network.UNKNOWN, fmt.Errorf("unknown packet type %d", pktType)
@@ -460,10 +460,10 @@ func (u *udpProcessor) process(conn *network.ConnectionStats, pktType uint8, udp
 	}
 
 	switch pktType {
-	case filter.PACKET_OUTGOING:
+	case filter.PacketOutgoing:
 		conn.Monotonic.SentPackets++
 		conn.Monotonic.SentBytes += uint64(payloadLen)
-	case filter.PACKET_HOST:
+	case filter.PacketHost:
 		conn.Monotonic.RecvPackets++
 		conn.Monotonic.RecvBytes += uint64(payloadLen)
 	}

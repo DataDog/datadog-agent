@@ -374,7 +374,7 @@ func (ih *interfaceHandle) isLocalAddr(ip []byte) bool {
 func (ih *interfaceHandle) determinePacketDirection(data []byte) uint8 {
 	// Need at least Ethernet header (14 bytes)
 	if len(data) < 14 {
-		return PACKET_HOST
+		return PacketHost
 	}
 
 	// EtherType is at offset 12-13
@@ -383,7 +383,7 @@ func (ih *interfaceHandle) determinePacketDirection(data []byte) uint8 {
 	switch etherType {
 	case 0x0800: // IPv4
 		if len(data) < 34 { // Ethernet (14) + IPv4 header minimum (20)
-			return PACKET_HOST
+			return PacketHost
 		}
 		// Source IP at offset 26-29 (14 + 12)
 		// Destination IP at offset 30-33 (14 + 16)
@@ -398,13 +398,13 @@ func (ih *interfaceHandle) determinePacketDirection(data []byte) uint8 {
 
 		if srcIsLocal && !dstIsLocal {
 			log.Debugf("returning PACKET_OUTGOING")
-			return PACKET_OUTGOING
+			return PacketOutgoing
 		}
-		return PACKET_HOST
+		return PacketHost
 
 	case 0x86DD: // IPv6
 		if len(data) < 54 { // Ethernet (14) + IPv6 header minimum (40)
-			return PACKET_HOST
+			return PacketHost
 		}
 		// Source IP at offset 22-37 (14 + 8)
 		// Destination IP at offset 38-53 (14 + 24)
@@ -419,12 +419,12 @@ func (ih *interfaceHandle) determinePacketDirection(data []byte) uint8 {
 
 		if srcIsLocal && !dstIsLocal {
 			log.Debugf("returning PACKET_OUTGOING")
-			return PACKET_OUTGOING
+			return PacketOutgoing
 		}
-		return PACKET_HOST
+		return PacketHost
 
 	default:
-		return PACKET_HOST
+		return PacketHost
 	}
 }
 

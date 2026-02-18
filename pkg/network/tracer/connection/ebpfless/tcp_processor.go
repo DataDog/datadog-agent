@@ -151,7 +151,7 @@ func (t *TCPProcessor) updateSynFlag(conn *network.ConnectionStats, st *connecti
 		st.connDirection = connDirectionFromPktType(pktType)
 	}
 	// progress the synStates based off this packet
-	if pktType == filter.PACKET_OUTGOING {
+	if pktType == filter.PacketOutgoing {
 		st.localSynState.update(tcp.SYN, tcp.ACK)
 	} else {
 		st.remoteSynState.update(tcp.SYN, tcp.ACK)
@@ -179,7 +179,7 @@ func (t *TCPProcessor) updateTCPStats(conn *network.ConnectionStats, st *connect
 	nextSeq := calcNextSeq(tcp, payloadLen)
 
 	st.lastUpdateEpoch = timestampNs
-	if pktType == filter.PACKET_OUTGOING {
+	if pktType == filter.PacketOutgoing {
 		conn.Monotonic.SentPackets++
 		// packetCanRetransmit filters out packets that look like retransmits but aren't, like TCP keepalives
 		packetCanRetransmit := nextSeq != tcp.Seq
@@ -243,7 +243,7 @@ func (t *TCPProcessor) updateFinFlag(conn *network.ConnectionStats, st *connecti
 	nextSeq := calcNextSeq(tcp, payloadLen)
 	// update FIN sequence numbers
 	if tcp.FIN {
-		if pktType == filter.PACKET_OUTGOING {
+		if pktType == filter.PacketOutgoing {
 			st.hasLocalFin = true
 			st.localFinSeq = nextSeq
 		} else {
@@ -291,7 +291,7 @@ func (t *TCPProcessor) updateRstFlag(conn *network.ConnectionStats, st *connecti
 // Process handles a TCP packet, calculating stats and keeping track of its state according to the
 // TCP state machine.
 func (t *TCPProcessor) Process(conn *network.ConnectionStats, timestampNs uint64, pktType uint8, ip4 *layers.IPv4, ip6 *layers.IPv6, tcp *layers.TCP) (ProcessResult, error) {
-	if pktType != filter.PACKET_OUTGOING && pktType != filter.PACKET_HOST {
+	if pktType != filter.PacketOutgoing && pktType != filter.PacketHost {
 		return ProcessResultNone, fmt.Errorf("TCPProcessor saw invalid pktType: %d", pktType)
 	}
 	payloadLen, err := TCPPayloadLen(conn.Family, ip4, ip6, tcp)
