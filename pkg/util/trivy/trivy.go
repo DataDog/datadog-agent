@@ -25,10 +25,10 @@ import (
 	"github.com/aquasecurity/trivy/pkg/fanal/artifact"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
-	"github.com/aquasecurity/trivy/pkg/scanner"
-	"github.com/aquasecurity/trivy/pkg/scanner/langpkg"
-	"github.com/aquasecurity/trivy/pkg/scanner/local"
-	"github.com/aquasecurity/trivy/pkg/scanner/ospkg"
+	trivyscanner "github.com/aquasecurity/trivy/pkg/scan"
+	"github.com/aquasecurity/trivy/pkg/scan/langpkg"
+	"github.com/aquasecurity/trivy/pkg/scan/local"
+	"github.com/aquasecurity/trivy/pkg/scan/ospkg"
 	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/vulnerability"
 
@@ -200,7 +200,7 @@ func (c *Collector) Close() error {
 	}
 
 	if c.config.clearCacheOnClose {
-		if err := c.persistentCache.Clear(); err != nil {
+		if err := c.persistentCache.Clear(context.TODO()); err != nil {
 			return fmt.Errorf("error when clearing trivy persistentCache: %w", err)
 		}
 	}
@@ -238,9 +238,9 @@ func (c *Collector) ScanFSTrivyReport(ctx context.Context, path string, scanOpti
 
 	artifactOption := getDefaultArtifactOption(scanOptions)
 
-	artifactType := artifact.TypeContainerImage
+	artifactType := ftypes.TypeContainerImage
 	if removeLayers {
-		artifactType = artifact.TypeFilesystem
+		artifactType = ftypes.TypeFilesystem
 	}
 	report, err := ddtrivy.ScanRootFS(ctx, artifactOption, cache, path, artifactType)
 	if err != nil {
@@ -268,10 +268,10 @@ func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions
 }
 
 func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applier applier.Applier) (*types.Report, error) {
-	localScanner := local.NewScanner(applier, c.osScanner, c.langScanner, c.vulnClient)
-	s := scanner.NewScanner(localScanner, artifact)
+	localScanner := local.NewService(applier, c.osScanner, c.langScanner, c.vulnClient)
+	trivyScanner := trivyscanner.NewService(localScanner, artifact)
 
-	trivyReport, err := s.ScanArtifact(ctx, types.ScanOptions{
+	trivyReport, err := trivyScanner.ScanArtifact(ctx, types.ScanOptions{
 		ScanRemovedPackages: false,
 		PkgTypes:            types.PkgTypes,
 		PkgRelationships:    ftypes.Relationships,
