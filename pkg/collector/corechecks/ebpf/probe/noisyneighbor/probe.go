@@ -11,7 +11,6 @@ import (
 	"fmt"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/noisyneighbor/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -57,6 +56,7 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 		p.mgr.Maps = []*manager.Map{
 			{Name: "runq_enqueued"},
 			{Name: "cgroup_agg_stats"},
+			{Name: "cgroup_pids"},
 		}
 		if err := p.mgr.InitWithOptions(buf, &opts); err != nil {
 			return fmt.Errorf("failed to init ebpf manager: %w", err)
@@ -108,35 +108,22 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 	var cgroupsToDelete []uint64
 
 	for iter.Next(&cgroupID, &perCPUStats) {
-		// Aggregate across all CPUs and extract cgroup name from first non-empty entry
 		var cgroupLatencies, cgroupEvents, cgroupPreemptions uint64
-		var cgroupName string
 		for _, cpuStat := range perCPUStats {
 			cgroupLatencies += cpuStat.Sum_latencies_ns
 			cgroupEvents += cpuStat.Event_count
 			cgroupPreemptions += cpuStat.Preemption_count
-			// Get cgroup name from first CPU that has it (they should all have the same name)
-			if cgroupName == "" && len(cpuStat.Cgroup_name) > 0 {
-				cgroupName = unix.ByteSliceToString(cpuStat.Cgroup_name[:])
-			}
 		}
 
-		// Collect key for deletion
 		cgroupsToDelete = append(cgroupsToDelete, cgroupID)
-
-		// Get unique PID count from our pre-built map
 		uniquePidCount := pidCounts[cgroupID]
 
-		// Skip cgroups with no events and no preemptions (inactive)
 		if cgroupEvents == 0 {
 			continue
 		}
 
-		// Build stats entry with aggregated data
-		// Cgroup name comes from aggregation map (reliable, comprehensive)
 		stat := model.NoisyNeighborStats{
 			CgroupID:        cgroupID,
-			CgroupName:      cgroupName,
 			SumLatenciesNs:  cgroupLatencies,
 			EventCount:      cgroupEvents,
 			PreemptionCount: cgroupPreemptions,

@@ -33,12 +33,12 @@ func TestNoisyNeighborProbe(t *testing.T) {
 
 		require.Eventually(t, func() bool {
 			for _, r := range probe.GetAndFlush() {
-				if r.CgroupName != "" {
+				if r.EventCount > 0 || r.PreemptionCount > 0 {
 					return true
 				}
 			}
 			return false
-		}, 10*time.Second, 500*time.Millisecond, "failed to find an noisy neighbor process")
+		}, 10*time.Second, 500*time.Millisecond, "failed to get noisy neighbor stats")
 	})
 }
 
