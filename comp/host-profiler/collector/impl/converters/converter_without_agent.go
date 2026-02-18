@@ -91,6 +91,10 @@ func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) e
 	if err != nil {
 		return err
 	}
+	newProcessorNames, err = addProfilerMetadataTags(confStringMap, newProcessorNames)
+	if err != nil {
+		return err
+	}
 	profilesPipeline["processors"] = newProcessorNames
 
 	// Ensures at least one hostprofiler is used & configured
@@ -234,16 +238,20 @@ func (c *converterWithoutAgent) ensureResourceDetectionConfig(resourceDetection 
 	}
 
 	// Always ensure host.arch is enabled
-	if err := Set(resourceDetection, "system::resource_attributes::host.arch::enabled", true); err != nil {
+	ddDefaultValue, err := SetDefault(resourceDetection, "system::resource_attributes::host.arch::enabled", true)
+	if err != nil {
 		return err
+	}
+	if !ddDefaultValue {
+		standaloneLogger.Warn("host.arch is required but is disabled by user configuration; preserving user value. Profiles for compiled languages will be missing symbols.")
 	}
 
 	// Only set these defaults if we added the system detector
 	if !hasSystemDetector {
-		if err := Set(resourceDetection, "system::resource_attributes::host.name::enabled", false); err != nil {
+		if _, err := SetDefault(resourceDetection, "system::resource_attributes::host.name::enabled", false); err != nil {
 			return err
 		}
-		if err := Set(resourceDetection, "system::resource_attributes::os.type::enabled", false); err != nil {
+		if _, err := SetDefault(resourceDetection, "system::resource_attributes::os.type::enabled", false); err != nil {
 			return err
 		}
 	}

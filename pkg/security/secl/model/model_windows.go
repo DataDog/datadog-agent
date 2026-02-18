@@ -12,6 +12,7 @@ package model
 import (
 	"runtime"
 	"time"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
@@ -29,14 +30,19 @@ func (m *Model) NewEvent() eval.Event {
 func NewFakeEvent() *Event {
 	return &Event{
 		BaseEvent: BaseEvent{
-			FieldHandlers: &FakeFieldHandlers{},
-			Os:            runtime.GOOS,
+			FieldHandlers: &FakeFieldHandlers{
+				PCEs: make(map[uint32]*ProcessCacheEntry),
+			},
+			Os: runtime.GOOS,
 		},
 	}
 }
 
 // ResolveProcessCacheEntryFromPID stub implementation
 func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *ProcessCacheEntry {
+	if fh.PCEs[pid] != nil {
+		return fh.PCEs[pid]
+	}
 	return GetPlaceholderProcessCacheEntry(pid)
 }
 
@@ -250,7 +256,7 @@ func SetAncestorFields(_ *ProcessCacheEntry, _ string, _ interface{}) (bool, err
 // Hash returns a unique key for the entity
 func (pc *ProcessCacheEntry) Hash() eval.ScopeHashKey {
 	return eval.ScopeHashKey{
-		Integer: pc.Pid,
+		Uintptr: uintptr(unsafe.Pointer(pc)),
 	}
 }
 

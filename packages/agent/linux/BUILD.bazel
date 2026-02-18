@@ -14,53 +14,77 @@ load("//compliance:package_licenses.bzl", "package_licenses")
 
 package(default_visibility = ["//packages:__subpackages__"])
 
-# This is a placeholder for an eventual group containg (the future) top level binaries
-# such as //cmd/agent:agent.  The individual items here will become dependencies of
-# those targets.
-filegroup(
-    name = "all_deps",
-    srcs = [
-        "//deps:all_deps",
-    ] + select({
-        "@platforms//os:linux": [
-            "//deps/nfsiostat:all_files",
-            "//deps/openscap:all_deps",
-        ],
-        "//conditions:default": [],
-    }),
-)
-
-package_licenses(
-    name = "license_files",
-    src = ":all_deps",
-)
-
-# This is good enough for today. It will go away as part of
-# https://datadoghq.atlassian.net/browse/ABLD-363
+# This is everything in the distro. All the things that were explicit
+# in datadog-agent-dependencies.rb should show up here.
 pkg_filegroup(
-    name = "whole_distro",
+    name = "agent_components",
     srcs = [
-        ":license_files",
-        "//deps/msodbcsql18:all_files",
-        "//deps/nfsiostat:all_files",
-        "//deps/openscap:all_files",
+        "//deps/jmxfetch:all_files",
+        "//deps/snmp_traps:all_files",
         "//packages/install_dir:embedded",
         "//packages/install_dir:etc",
-        "@freetds//:all_files",
-        "@krb5//:all_files",
-        "@nghttp2//:all_files",
+        "@libpcap//:all_files",
     ],
     prefix = "/opt/datadog-agent",
 )
 
-pkg_tar(
-    name = "whole_distro_tar",
-    srcs = [":whole_distro"] + select({
+# This is the list of things we depend on transitively. It is temporary.
+# They are really deps of things that the agent binary or python3 depends
+# on. We should pick up the dependencies from the build graph.
+# https://datadoghq.atlassian.net/browse/ABLD-363 will resolve that.
+# This is good enough for today.
+pkg_filegroup(
+    name = "transitive_deps",
+    srcs = [
+        "//deps/gstatus:bin_files",
+        "//deps/msodbcsql18:all_files",
+        "//deps/nfsiostat:all_files",
+        "//deps/openscap:all_files",
+        "@freetds//:all_files",
+        "@krb5//:all_files",
+        "@nghttp2//:all_files",
+        "@xz//:all_files",
+    ],
+    prefix = "/opt/datadog-agent",
+)
+
+# This is an intermediate node so that have a place to collect all
+# the dependencies so we can walk the aspect to gather the OSS
+# licenses.  This is close to "everything except for licenses"
+# Do not include things that vary per build, like symlinks using
+# the pipeline name.
+pkg_filegroup(
+    name = "everything",
+    srcs = [
+        ":agent_components",
+        ":transitive_deps",
+    ],
+)
+
+# Gather licenses for all the pieces of the distribuion
+package_licenses(
+    name = "license_files",
+    src = ":everything",
+)
+
+# Blend the dependencies, the license files and things that vary
+# a build time into the distribution.
+pkg_filegroup(
+    name = "whole_distro",
+    srcs = [
+        ":everything",
+        ":license_files",
+    ] + select({
         "//:is_standard_install": [
             ":datadog_agent_installer_symlinks",
         ],
         "//conditions:default": [],
     }),
+)
+
+pkg_tar(
+    name = "whole_distro_tar",
+    srcs = [":whole_distro"],
     extension = "tar.xz",
     # TODO: account for pipeline injected compression level.
     # https://datadoghq.atlassian.net/browse/ABLD-364
@@ -121,14 +145,11 @@ dd_agent_pkg_mklink(
     target = "/opt/datadog-packages/datadog-agent/stable",
 )
 
-# TODO: Figure out how to point to the build version
-# stable -> /opt/datadog-packages/run/datadog-agent/7.75.0-devel.git.510.0eb2d89.pipeline.87895082
 dd_agent_pkg_mklink(
     name = "stable_link",
     attributes = pkg_attributes(mode = "755"),
     link_name = "/opt/datadog-packages/datadog-agent/stable",
     target = "/opt/datadog-packages/run/datadog-agent/{build_version}",
-    #link "/opt/datadog-agent", "/opt/datadog-packages/run/datadog-agent/{build_version}"
 )
 
 dd_agent_pkg_mklink(
@@ -141,7 +162,9 @@ dd_agent_pkg_mklink(
 # note that this does not follow the naming pattern of "all_files".
 # Instead, I'm using the name of the omnibus script it will replace.
 # That provides a clearer meaning during the migration than the name
-# of the package (packages/agent/linux) alone.
+# of the package (packages/agent/linux) alone. The "all_files" in
+# //deps/... does not have the problem because the intent is obvious
+# from the path.
 pkg_filegroup(
     name = "datadog_agent_installer_symlinks",
     srcs = [
@@ -152,12 +175,22 @@ pkg_filegroup(
     ],
 )
 
-pkg_install(
-    name = "install",
-    srcs = select({
+# NOTE: These are files that get installed outside of {install_dir}. During the
+# migration we must account for them with extra_package_files in omnibus scripts
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        "//pkg/privateactionrunner/autoconnections/conf:all_files",
+    ] + select({
         "//:is_standard_install": [
             ":datadog_agent_installer_symlinks",
         ],
         "//conditions:default": [],
     }),
+)
+
+# This target is only for the omnibus install
+pkg_install(
+    name = "install",
+    srcs = [":all_files"],
 )
