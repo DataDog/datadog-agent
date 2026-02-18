@@ -191,13 +191,13 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(c config.Component, deps struct {
 			fx.In
 			SessionProvider configstreamconsumerimpl.SessionIDProvider `optional:"true"`
-		}) configstreamconsumerimpl.Params {
+		}) *configstreamconsumerimpl.Params {
 			host := c.GetString("cmd_host")
 			port := c.GetInt("cmd_port")
 			if port <= 0 {
 				port = 5001
 			}
-			return configstreamconsumerimpl.Params{
+			return &configstreamconsumerimpl.Params{
 				ClientName:        "system-probe",
 				CoreAgentAddress:  net.JoinHostPort(host, strconv.Itoa(port)),
 				SessionIDProvider: deps.SessionProvider,
@@ -224,7 +224,7 @@ var configStreamReadyTimeoutForTest time.Duration
 
 // run starts the main loop.
 func run(
-	_ config.Component,
+	agentConfig config.Component,
 	rcclient rcclient.Component,
 	_ pid.Component,
 	_ healthprobe.Component,
@@ -248,7 +248,10 @@ func run(
 		if err := cfgStream.WaitReady(ctx); err != nil {
 			return fmt.Errorf("waiting for initial config snapshot: %w", err)
 		}
-		deps.Log.Info("Initial configuration received, starting system-probe")
+		deps.Log.Info("Initial configuration received from core agent. Starting system-probe.")
+	} else {
+		rarEnabled := agentConfig.GetBool("remote_agent_registry.enabled")
+		deps.Log.Infof("Config streaming not in use; proceeding without waiting for initial configuration (remote_agent_registry.enabled=%v).", rarEnabled)
 	}
 
 	if deps.SysprobeConfig.GetBool("system_probe_config.disable_thp") {
