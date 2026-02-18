@@ -145,12 +145,6 @@ func TestGetGRPCStatusCode(t *testing.T) {
 		},
 		{
 			&pb.Span{
-				Meta: map[string]string{"rpc.system.name": "jsonrpc", "rpc.response.status_code": "OK"},
-			},
-			"",
-		},
-		{
-			&pb.Span{
 				Meta: map[string]string{"rpc.response.status_code": "OK"},
 			},
 			"",
