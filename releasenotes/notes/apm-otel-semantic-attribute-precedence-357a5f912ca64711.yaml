@@ -34,5 +34,3 @@ upgrade:
     - ``OtelSpanToDDSpan`` peer tag lookups - Now use semantic registry with fallback support when the tag key is a known concept
     - ``db.namespace`` lookup - Now uses semantic registry (resource-first precedence preserved)
     - ``resourceFromTags`` - HTTP route lookup now includes ``grpc.path`` as a fallback via semantic registry
-
-    Test cases documenting the old behavior are commented out in ``transform_test.go`` and ``otel_util_test.go``.

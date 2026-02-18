@@ -480,7 +480,6 @@ func GetOTelOperationNameV2(
 }
 
 // GetOTelOperationNameV1 returns the DD operation name based on OTel span and resource attributes and given configs.
-// Note: V1 uses resource-first precedence for backwards compatibility.
 func GetOTelOperationNameV1(
 	span ptrace.Span,
 	res pcommon.Resource,
@@ -488,7 +487,6 @@ func GetOTelOperationNameV1(
 	spanNameAsResourceName bool,
 	spanNameRemappings map[string]string,
 	normalize bool) string {
-	// V1 uses resource-first precedence (rattr, sattr order)
 	// No need to normalize with NormalizeTagValue since we will do NormalizeName later
 	name := LookupSemanticStringFromDualMaps(res.Attributes(), span.Attributes(), semantics.ConceptOperationName, false)
 	if name == "" {

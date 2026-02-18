@@ -22,34 +22,11 @@ func TestPDataMapAccessor(t *testing.T) {
 
 	accessor := NewPDataMapAccessor(attrs)
 
-	t.Run("GetStringAttribute", func(t *testing.T) {
-		assert.Equal(t, "GET", accessor.GetStringAttribute("http.method"))
-		// Only returns value for actual string types, not conversions
-		assert.Equal(t, "", accessor.GetStringAttribute("http.status_code"))
-		assert.Equal(t, "", accessor.GetStringAttribute("nonexistent"))
-	})
-
-	t.Run("GetFloat64Attribute", func(t *testing.T) {
-		v, ok := accessor.GetFloat64Attribute("custom.float")
-		assert.True(t, ok)
-		assert.Equal(t, 3.14, v)
-
-		// Only returns value for actual double types, not conversions
-		_, ok = accessor.GetFloat64Attribute("http.status_code")
-		assert.False(t, ok)
-
-		_, ok = accessor.GetFloat64Attribute("nonexistent")
-		assert.False(t, ok)
-	})
-
-	t.Run("GetInt64Attribute", func(t *testing.T) {
-		v, ok := accessor.GetInt64Attribute("http.status_code")
-		assert.True(t, ok)
-		assert.Equal(t, int64(200), v)
-
-		_, ok = accessor.GetInt64Attribute("nonexistent")
-		assert.False(t, ok)
-	})
+	assert.Equal(t, "GET", accessor("http.method"))
+	assert.Equal(t, "SELECT * FROM users", accessor("db.statement"))
+	assert.Equal(t, "200", accessor("http.status_code"))
+	assert.Equal(t, "3.14", accessor("custom.float"))
+	assert.Equal(t, "", accessor("nonexistent"))
 }
 
 func TestNewOTelSpanAccessor(t *testing.T) {
@@ -62,12 +39,9 @@ func TestNewOTelSpanAccessor(t *testing.T) {
 
 	accessor := NewOTelSpanAccessor(spanAttrs, resAttrs)
 
-	// Span takes precedence
-	assert.Equal(t, "POST", accessor.GetStringAttribute("http.method"))
-	// Falls back to resource
-	assert.Equal(t, "my-service", accessor.GetStringAttribute("service.name"))
-	// Missing returns empty
-	assert.Equal(t, "", accessor.GetStringAttribute("nonexistent"))
+	assert.Equal(t, "POST", accessor("http.method"))
+	assert.Equal(t, "my-service", accessor("service.name"))
+	assert.Equal(t, "", accessor("nonexistent"))
 }
 
 func TestPDataAccessorWithRegistry(t *testing.T) {

@@ -6,59 +6,33 @@
 package semantics
 
 import (
+	"strconv"
+
 	"go.opentelemetry.io/collector/pdata/pcommon"
 )
 
-// PDataMapAccessor wraps a pcommon.Map to implement SpanAccessor.
-// This is useful for accessing OTel span or resource attributes directly.
-type PDataMapAccessor struct {
-	attrs pcommon.Map
+// NewPDataMapAccessor returns an AttrGetter for a pcommon.Map. All value types are returned as string
+// (Double and Int are formatted so LookupFloat64/LookupInt64 can parse them).
+func NewPDataMapAccessor(attrs pcommon.Map) AttrGetter {
+	return func(key string) string {
+		v, ok := attrs.Get(key)
+		if !ok {
+			return ""
+		}
+		switch v.Type() {
+		case pcommon.ValueTypeDouble:
+			return strconv.FormatFloat(v.Double(), 'f', -1, 64)
+		case pcommon.ValueTypeInt:
+			return strconv.FormatInt(v.Int(), 10)
+		default:
+			return v.Str()
+		}
+	}
 }
 
-// NewPDataMapAccessor creates a new PDataMapAccessor from a pcommon.Map.
-func NewPDataMapAccessor(attrs pcommon.Map) *PDataMapAccessor {
-	return &PDataMapAccessor{attrs: attrs}
-}
-
-// GetStringAttribute returns the string value for the given key.
-// Only returns a value if the attribute is actually a string type.
-func (a *PDataMapAccessor) GetStringAttribute(key string) string {
-	v, ok := a.attrs.Get(key)
-	if !ok {
-		return ""
-	}
-	return v.Str()
-}
-
-// GetFloat64Attribute returns the float64 value for the given key.
-// Only returns a value if the attribute is actually a double type.
-func (a *PDataMapAccessor) GetFloat64Attribute(key string) (float64, bool) {
-	v, ok := a.attrs.Get(key)
-	if !ok {
-		return 0, false
-	}
-	if v.Type() == pcommon.ValueTypeDouble {
-		return v.Double(), true
-	}
-	return 0, false
-}
-
-// GetInt64Attribute returns the int64 value for the given key.
-// Only returns a value if the attribute is actually an int type.
-func (a *PDataMapAccessor) GetInt64Attribute(key string) (int64, bool) {
-	v, ok := a.attrs.Get(key)
-	if !ok {
-		return 0, false
-	}
-	if v.Type() == pcommon.ValueTypeInt {
-		return v.Int(), true
-	}
-	return 0, false
-}
-
-// NewOTelSpanAccessor creates a CombinedAccessor for OTel span and resource attributes.
+// NewOTelSpanAccessor returns an AttrGetter for OTel span and resource attributes.
 // Span attributes take precedence over resource attributes.
-func NewOTelSpanAccessor(spanAttrs, resAttrs pcommon.Map) *CombinedAccessor {
+func NewOTelSpanAccessor(spanAttrs, resAttrs pcommon.Map) AttrGetter {
 	return NewCombinedAccessor(
 		NewPDataMapAccessor(spanAttrs),
 		NewPDataMapAccessor(resAttrs),
