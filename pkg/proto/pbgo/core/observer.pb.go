@@ -75,9 +75,13 @@ type GetTracesResponse struct {
 	// dropped_count indicates how many traces were dropped due to buffer overflow.
 	DroppedCount uint64 `protobuf:"varint,2,opt,name=dropped_count,json=droppedCount,proto3" json:"dropped_count,omitempty"`
 	// has_more indicates if there is more data available in the buffer.
-	HasMore       bool `protobuf:"varint,3,opt,name=has_more,json=hasMore,proto3" json:"has_more,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	HasMore bool `protobuf:"varint,3,opt,name=has_more,json=hasMore,proto3" json:"has_more,omitempty"`
+	// stats_payloads contains msgpack-encoded StatsPayload objects (trace stats/metrics).
+	StatsPayloads [][]byte `protobuf:"bytes,4,rep,name=stats_payloads,json=statsPayloads,proto3" json:"stats_payloads,omitempty"`
+	// stats_dropped_count indicates how many stats payloads were dropped due to buffer overflow.
+	StatsDroppedCount uint64 `protobuf:"varint,5,opt,name=stats_dropped_count,json=statsDroppedCount,proto3" json:"stats_dropped_count,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *GetTracesResponse) Reset() {
@@ -129,6 +133,20 @@ func (x *GetTracesResponse) GetHasMore() bool {
 		return x.HasMore
 	}
 	return false
+}
+
+func (x *GetTracesResponse) GetStatsPayloads() [][]byte {
+	if x != nil {
+		return x.StatsPayloads
+	}
+	return nil
+}
+
+func (x *GetTracesResponse) GetStatsDroppedCount() uint64 {
+	if x != nil {
+		return x.StatsDroppedCount
+	}
+	return 0
 }
 
 // TraceChunkData wraps a serialized TracerPayload with metadata about when it was received.
@@ -459,11 +477,13 @@ const file_datadog_remoteagent_observer_proto_rawDesc = "" +
 	"\n" +
 	"\"datadog/remoteagent/observer.proto\x12\x1fdatadog.remoteagent.observer.v1\"/\n" +
 	"\x10GetTracesRequest\x12\x1b\n" +
-	"\tmax_items\x18\x01 \x01(\rR\bmaxItems\"\x9c\x01\n" +
+	"\tmax_items\x18\x01 \x01(\rR\bmaxItems\"\xf3\x01\n" +
 	"\x11GetTracesResponse\x12G\n" +
 	"\x06traces\x18\x01 \x03(\v2/.datadog.remoteagent.observer.v1.TraceChunkDataR\x06traces\x12#\n" +
 	"\rdropped_count\x18\x02 \x01(\x04R\fdroppedCount\x12\x19\n" +
-	"\bhas_more\x18\x03 \x01(\bR\ahasMore\"Y\n" +
+	"\bhas_more\x18\x03 \x01(\bR\ahasMore\x12%\n" +
+	"\x0estats_payloads\x18\x04 \x03(\fR\rstatsPayloads\x12.\n" +
+	"\x13stats_dropped_count\x18\x05 \x01(\x04R\x11statsDroppedCount\"Y\n" +
 	"\x0eTraceChunkData\x12!\n" +
 	"\fpayload_data\x18\x01 \x01(\fR\vpayloadData\x12$\n" +
 	"\x0ereceived_at_ns\x18\x02 \x01(\x03R\freceivedAtNs\"1\n" +

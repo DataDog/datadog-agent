@@ -131,7 +131,7 @@ func (f *observerFetcher) runProfileFetcher() {
 	}
 }
 
-// fetchTraces fetches traces from all registered trace-agents using the registry.
+// fetchTraces fetches traces and stats from all registered trace-agents using the registry.
 func (f *observerFetcher) fetchTraces() {
 	results := f.registry.GetObserverTraces(f.config.MaxTraceBatch)
 
@@ -146,6 +146,11 @@ func (f *observerFetcher) fetchTraces() {
 			pkglog.Warnf("[observer] %d traces were dropped in %s buffer", result.DroppedCount, result.DisplayName)
 		}
 
+		if result.StatsDroppedCount > 0 {
+			pkglog.Warnf("[observer] %d stats payloads were dropped in %s buffer", result.StatsDroppedCount, result.DisplayName)
+		}
+
+		// Process traces
 		for _, traceData := range result.Traces {
 			if len(traceData.PayloadData) > 0 {
 				// Deserialize the msgpack-encoded TracerPayload
@@ -156,6 +161,19 @@ func (f *observerFetcher) fetchTraces() {
 				}
 				f.handle.ObserveTrace(&tracerPayloadView{payload: &payload, receivedAt: traceData.ReceivedAtNs})
 			}
+		}
+
+		// Process stats payloads as metrics
+		for _, statsBytes := range result.StatsPayloads {
+			if len(statsBytes) == 0 {
+				continue
+			}
+			var statsPayload pb.StatsPayload
+			if _, err := statsPayload.UnmarshalMsg(statsBytes); err != nil {
+				pkglog.Warnf("[observer] failed to unmarshal stats payload: %v", err)
+				continue
+			}
+			processStatsPayload(f.handle, &statsPayload)
 		}
 
 		if result.HasMore {

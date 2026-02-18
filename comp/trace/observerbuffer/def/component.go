@@ -13,7 +13,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 )
 
-// Component is the interface for the observer buffer that stores traces and profiles
+// Component is the interface for the observer buffer that stores traces, profiles, and stats
 // until they are fetched by the core-agent.
 type Component interface {
 	// AddTrace adds a trace payload to the buffer.
@@ -29,6 +29,10 @@ type Component interface {
 	// This method parses the multipart form data to extract profile metadata and binary data.
 	AddRawProfile(body []byte, headers map[string][]string)
 
+	// AddStats adds a stats payload to the buffer.
+	// If the buffer is full, the oldest stats payload is dropped.
+	AddStats(payload *pb.StatsPayload)
+
 	// DrainTraces removes and returns up to maxItems traces from the buffer.
 	// If maxItems is 0, all buffered traces are returned.
 	// Returns the traces, count of dropped traces since last drain, and whether more data is available.
@@ -39,6 +43,10 @@ type Component interface {
 	// Returns the profiles, count of dropped profiles since last drain, and whether more data is available.
 	DrainProfiles(maxItems uint32) (profiles []ProfileData, droppedCount uint64, hasMore bool)
 
+	// DrainStats removes and returns all buffered stats payloads.
+	// Returns the stats payloads and count of dropped stats since last drain.
+	DrainStats() (stats []BufferedStats, droppedCount uint64)
+
 	// Stats returns current buffer statistics.
 	Stats() BufferStats
 }
@@ -48,6 +56,14 @@ type BufferedTrace struct {
 	// Payload is the trace data from the tracer.
 	Payload *pb.TracerPayload
 	// ReceivedAtNs is when the trace was received (nanoseconds since epoch).
+	ReceivedAtNs int64
+}
+
+// BufferedStats contains a stats payload with metadata.
+type BufferedStats struct {
+	// Payload is the stats data from the concentrator.
+	Payload *pb.StatsPayload
+	// ReceivedAtNs is when the stats were received (nanoseconds since epoch).
 	ReceivedAtNs int64
 }
 
@@ -96,4 +112,10 @@ type BufferStats struct {
 	ProfileCapacity int
 	// ProfilesDropped is the total number of profiles dropped due to overflow.
 	ProfilesDropped uint64
+	// StatsCount is the current number of buffered stats payloads.
+	StatsCount int
+	// StatsCapacity is the maximum number of stats payloads the buffer can hold.
+	StatsCapacity int
+	// StatsDropped is the total number of stats payloads dropped due to overflow.
+	StatsDropped uint64
 }
