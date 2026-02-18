@@ -39,6 +39,7 @@ type context struct {
 	AdmissionController bool
 	CloudFoundry        bool
 	PrivateActionRunner bool
+	SecurityAgent       bool
 }
 
 func mkContext(buildType string, osName string) context {
@@ -149,10 +150,10 @@ func renderAll(destFolder string, tplFolder string) {
 		for _, osName := range []string{"windows", "darwin", "linux"} {
 			destFile := filepath.Join(destFolder, component+"_"+osName+".yaml")
 			render(destFile, filepath.Join(tplFolder, templateName), component, osName)
+			fmt.Println("Successfully wrote", destFile)
 			if err := lint(destFile); err != nil {
 				panic(err)
 			}
-			fmt.Println("Successfully wrote", destFile)
 		}
 	}
 }
@@ -205,7 +206,7 @@ func lint(destFile string) error {
 		// if there are no nodes then all comments are removed, so this
 		// allows us to make a comparison even for files which only have comments,
 		// such as system-probe.yaml.
-		normalized = append(normalized, []byte("lint_testing: true # ignore me\n")...)
+		normalized = append(normalized, []byte("\nlint_testing: true # ignore me\n")...)
 		if err := yaml.Unmarshal(normalized, &root); err != nil {
 			return fmt.Errorf("lint: YAML unmarshal failed: %w", err)
 		}

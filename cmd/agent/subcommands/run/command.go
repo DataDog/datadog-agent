@@ -315,6 +315,7 @@ func run(log log.Component,
 	snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component,
 ) error {
+
 	defer func() {
 		stopAgent(cfg, sysprobeConf)
 	}()
