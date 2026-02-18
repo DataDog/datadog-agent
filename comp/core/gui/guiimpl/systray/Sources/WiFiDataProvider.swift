@@ -42,9 +42,10 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
     // manually via System Settings -> Privacy & Security -> Location Services.
     // During the launch time of thhis GUI app, we will attempt to prompt for permission
     // based on the availability of the GUI environment.
+    private static let userDefaultsPromptCountKey = "locationPermissionPromptAttemptCount"
     private let locationManager: CLLocationManager
     private var permissionPromptProcess: Process? = nil
-    private var permissionAttemptCount: Int = 0  // Track number of permission prompt attempts (max 2)
+    private var permissionAttemptCount: Int = 0  // Track number of permission prompt attempts (max 2), persisted per-user
     private let initializationTime: Date = Date()  // Track when WiFiDataProvider was initialized
 
     override init() {
@@ -52,6 +53,9 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
         super.init()
         // Keep delegate to monitor permission status changes
         self.locationManager.delegate = self
+
+        // Load persisted attempt count (per-user, per-installation); clamp to 0...2 (negative/corrupt → 0)
+        permissionAttemptCount = min(max(UserDefaults.standard.integer(forKey: Self.userDefaultsPromptCountKey), 0), 2)
         
         Logger.info("WiFiDataProvider initialized", context: "WiFiDataProvider")
     }
@@ -156,6 +160,8 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
             // Don't wait for completion - let it run detached
             permissionPromptProcess = task
             permissionAttemptCount += 1  // Increment on successful spawn
+            // Persist per-user so 2-attempt limit survives app restarts (never write 0)
+            UserDefaults.standard.set(permissionAttemptCount, forKey: Self.userDefaultsPromptCountKey)
             Logger.info("Permission prompt process spawned (PID: \(task.processIdentifier), attempt \(permissionAttemptCount)/2)", context: "WiFiDataProvider")
         } catch {
             Logger.error("Failed to spawn permission prompt: \(error)", context: "WiFiDataProvider")
@@ -253,9 +259,9 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
         let status = getAuthorizationStatus()
         Logger.info("Location authorization changed to: \(authorizationStatusString())", context: "WiFiDataProvider")
         
-        // Reset flags when authorization status changes
-        // This allows showing the prompt again if permission is revoked or status changes
-        permissionAttemptCount = 0
+        // Clean up prompt process when authorization status changes
+        // Do not reset permissionAttemptCount so we respect user's manual choice:
+        // if they denied twice or later manually disable in Settings, we do not prompt again
         permissionPromptProcess = nil
 
         switch status {
