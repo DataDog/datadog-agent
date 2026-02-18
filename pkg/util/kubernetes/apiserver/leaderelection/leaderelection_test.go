@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/suite"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	v1 "k8s.io/api/core/v1"
+	discv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
@@ -28,6 +29,7 @@ import (
 	cmLock "github.com/DataDog/datadog-agent/internal/third_party/client-go/tools/leaderelection/resourcelock"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
 func makeLeaderLease(name, namespace, leaderIdentity string, leaseDuration int) *coordinationv1.Lease {
@@ -456,6 +458,93 @@ func TestGetLeaderIPFollower_Lease(t *testing.T) {
 	cache.Cache.Delete("ip://bar")
 	storedEndpoints.Subsets[0].Addresses = storedEndpoints.Subsets[0].Addresses[0:1]
 	_, err = client.CoreV1().Endpoints("default").Update(context.TODO(), storedEndpoints, metav1.UpdateOptions{})
+	require.NoError(t, err)
+
+	// GetLeaderIP will "gracefully" error out
+	ip, err = le.GetLeaderIP()
+	assert.Equal(t, "", ip)
+	assert.True(t, dderrors.IsNotFound(err))
+}
+
+func TestGetLeaderIPFollower_EndpointSlices(t *testing.T) {
+	const leaseName = "datadog-leader-election"
+	const serviceName = "datadog-cluster-agent"
+
+	client := fake.NewSimpleClientset()
+
+	le := &LeaderEngine{
+		ctx:             context.Background(),
+		HolderIdentity:  "foo",
+		LeaseName:       leaseName,
+		ServiceName:     serviceName,
+		LeaderNamespace: "default",
+		LeaseDuration:   120 * time.Second,
+		coreClient:      client.CoreV1(),
+		coordClient:     client.CoordinationV1(),
+		discoveryClient: client.DiscoveryV1(),
+		leaderMetric:    &dummyGauge{},
+		lockType:        rl.LeasesResourceLock,
+	}
+
+	// Create leader-election lease with current node as follower
+	electionLease := makeLeaderLease(leaseName, "default", "bar", 120)
+	_, err := client.CoordinationV1().Leases("default").Create(context.TODO(), electionLease, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	// Create EndpointSlice
+	nodeName := "test-node"
+	endpointSlice := &discv1.EndpointSlice{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      serviceName + "-abc123",
+			Namespace: "default",
+			Labels: map[string]string{
+				apiserver.KubernetesServiceNameLabel: serviceName,
+			},
+		},
+		Endpoints: []discv1.Endpoint{
+			{
+				Addresses: []string{"1.1.1.1"},
+				TargetRef: &v1.ObjectReference{
+					Kind:      "Pod",
+					Namespace: "default",
+					Name:      "foo",
+				},
+				NodeName: &nodeName,
+			},
+			{
+				Addresses: []string{"1.1.1.2"},
+				TargetRef: &v1.ObjectReference{
+					Kind:      "Pod",
+					Namespace: "default",
+					Name:      "bar",
+				},
+				NodeName: &nodeName,
+			},
+		},
+	}
+	storedSlice, err := client.DiscoveryV1().EndpointSlices("default").Create(context.TODO(), endpointSlice, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	// Run leader election
+	le.leaderElector, err = le.newElection()
+	require.NoError(t, err)
+	err = le.EnsureLeaderElectionRuns()
+	require.NoError(t, err)
+	lease, err := client.CoordinationV1().Leases("default").Get(context.TODO(), leaseName, metav1.GetOptions{})
+	require.NoError(t, err)
+	require.NotNil(t, lease.Spec.LeaseTransitions)
+	require.Equal(t, int32(1), *lease.Spec.LeaseTransitions)
+
+	// We should be follower, and GetLeaderIP should return bar's IP
+	require.False(t, le.IsLeader())
+	ip, err := le.GetLeaderIP()
+	assert.NoError(t, err)
+	assert.Equal(t, "1.1.1.2", ip)
+
+	// Remove bar from endpointslice and clear cache
+	cache.Cache.Delete("ip://bar")
+	storedSlice.Endpoints = storedSlice.Endpoints[0:1]
+	_, err = client.DiscoveryV1().EndpointSlices("default").Update(context.TODO(), storedSlice, metav1.UpdateOptions{})
 	require.NoError(t, err)
 
 	// GetLeaderIP will "gracefully" error out

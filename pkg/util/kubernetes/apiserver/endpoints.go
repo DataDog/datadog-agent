@@ -12,11 +12,16 @@ import (
 	"fmt"
 
 	v1 "k8s.io/api/core/v1"
+	discv1 "k8s.io/api/discovery/v1"
 
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 )
 
-const kubeEndpointIDPrefix = "kube_endpoint_uid://"
+const (
+	kubeEndpointIDPrefix = "kube_endpoint_uid://"
+	// KubernetesServiceNameLabel is the standard label used by EndpointSlices to reference their parent service
+	KubernetesServiceNameLabel = "kubernetes.io/service-name"
+)
 
 // SearchTargetPerName returns the endpoint matching a given target name. It allows
 // to retrieve a given pod's endpoint address from a service.
@@ -35,6 +40,40 @@ func SearchTargetPerName(endpoints *v1.Endpoints, targetName string) (v1.Endpoin
 		}
 	}
 	return v1.EndpointAddress{}, dderrors.NewNotFound("target named " + targetName)
+}
+
+// endpointResult represents a found endpoint with its IP address
+type endpointResult struct {
+	IP       string
+	NodeName string
+}
+
+// SearchTargetPerNameInEndpointSlices returns the endpoint IP matching a given target name from EndpointSlices.
+// It allows to retrieve a given pod's IP address from a service's EndpointSlices.
+func SearchTargetPerNameInEndpointSlices(slices []*discv1.EndpointSlice, targetName string) (endpointResult, error) {
+	if slices == nil {
+		return endpointResult{}, errors.New("nil endpointslices array passed")
+	}
+	for _, slice := range slices {
+		for _, endpoint := range slice.Endpoints {
+			if endpoint.TargetRef == nil {
+				continue
+			}
+			if endpoint.TargetRef.Name == targetName {
+				// Return the first address if available
+				if len(endpoint.Addresses) > 0 {
+					result := endpointResult{
+						IP: endpoint.Addresses[0],
+					}
+					if endpoint.NodeName != nil {
+						result.NodeName = *endpoint.NodeName
+					}
+					return result, nil
+				}
+			}
+		}
+	}
+	return endpointResult{}, dderrors.NewNotFound("target named " + targetName)
 }
 
 // EntityForEndpoints builds entity strings for Endpoints
