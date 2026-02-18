@@ -160,11 +160,9 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 	span.SetTag("check_names", strings.Join(checkNames, ","))
 	var failedConfigs, excludedConfigs int
 	defer func() {
-		if excludedConfigs > 0 {
-			span.SetTag("excluded_configs", excludedConfigs)
-		}
+		span.SetTag("excluded_configs", excludedConfigs)
+		span.SetTag("failed_configs", failedConfigs)
 		if failedConfigs > 0 {
-			span.SetTag("failed_configs", failedConfigs)
 			span.SetTag("error", true)
 		}
 		span.Finish()
@@ -222,8 +220,8 @@ func (d *dispatcher) Unschedule(configs []integration.Config) {
 	span.SetTag("config_count", len(configs))
 	var failedConfigs int
 	defer func() {
+		span.SetTag("failed_configs", failedConfigs)
 		if failedConfigs > 0 {
-			span.SetTag("failed_configs", failedConfigs)
 			span.SetTag("error", true)
 		}
 		span.Finish()
