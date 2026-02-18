@@ -131,25 +131,26 @@ func (suite *ecsConfigSuite) TestEnvVarConfiguration() {
 	// Test environment variable configuration propagation
 	suite.Run("Environment variable configuration", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			// Use a well-known metric that the agent always reports
-			metrics, err := suite.Fakeintake.FilterMetrics("datadog.agent.running")
-			if !assert.NoErrorf(c, err, "Failed to query metrics") {
+			// Use container metrics which carry workload-level tags (service, env)
+			// set via DD_SERVICE, DD_ENV environment variables
+			metrics, err := suite.Fakeintake.FilterMetrics("container.cpu.usage")
+			if err != nil || len(metrics) == 0 {
+				metrics, err = suite.Fakeintake.FilterMetrics("container.memory.usage")
+			}
+			if !assert.NoErrorf(c, err, "Failed to query container metrics") {
 				return
 			}
-			if !assert.NotEmptyf(c, metrics, "No datadog.agent.running metrics found") {
+			if !assert.NotEmptyf(c, metrics, "No container metrics found") {
 				return
 			}
 
-			// Look for metrics with custom tags from DD_TAGS
-			// The testing workload should have standard DD_ENV, DD_SERVICE, DD_VERSION tags
+			// Look for workload-level tags from DD_ENV, DD_SERVICE, and ECS metadata
 			foundServiceTag := false
 			foundEnvTag := false
 			foundClusterTag := false
 
 			for _, metric := range metrics {
-				tags := metric.GetTags()
-
-				for _, tag := range tags {
+				for _, tag := range metric.GetTags() {
 					if strings.HasPrefix(tag, "service:") {
 						foundServiceTag = true
 					}
@@ -382,13 +383,15 @@ func (suite *ecsConfigSuite) TestServiceDiscovery() {
 	// Test automatic service discovery
 	suite.Run("Service discovery", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			// Use a targeted metric to validate service discovery
-			// The datadog.agent.running metric carries agent-level tags including service
-			metrics, err := suite.Fakeintake.FilterMetrics("datadog.agent.running")
-			if !assert.NoErrorf(c, err, "Failed to query metrics") {
+			// Use container metrics which carry workload-level service tags
+			metrics, err := suite.Fakeintake.FilterMetrics("container.cpu.usage")
+			if err != nil || len(metrics) == 0 {
+				metrics, err = suite.Fakeintake.FilterMetrics("container.memory.usage")
+			}
+			if !assert.NoErrorf(c, err, "Failed to query container metrics") {
 				return
 			}
-			if !assert.NotEmptyf(c, metrics, "No datadog.agent.running metrics found") {
+			if !assert.NotEmptyf(c, metrics, "No container metrics found") {
 				return
 			}
 
