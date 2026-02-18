@@ -140,7 +140,7 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 	tracecfg.SecretsRefreshFn = func() (string, error) {
 		if deps.Secrets == nil {
 			log.Error("Secrets component not available, cannot trigger refresh")
-			return "", fmt.Errorf("secrets component not available")
+			return "", errors.New("secrets component not available")
 		}
 		return deps.Secrets.Refresh(true)
 	}
