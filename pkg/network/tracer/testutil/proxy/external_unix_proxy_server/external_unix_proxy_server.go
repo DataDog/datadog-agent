@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build unix
+//go:build !darwin && !windows
 
 // Package main provides a unix transparent proxy server that can be used for testing.
 package main
