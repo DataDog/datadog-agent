@@ -9,7 +9,7 @@ typedef struct {
     __u64 sum_latencies_ns;
     __u64 event_count;
     __u64 preemption_count;
-} __attribute__((packed)) cgroup_agg_stats_t;
+} cgroup_agg_stats_t;
 
 typedef struct {
     __u64 cgroup_id;
