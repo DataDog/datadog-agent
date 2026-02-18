@@ -330,6 +330,124 @@ func WithProcessInfoCallback(callback func(uuid string) ([]nvml.ProcessInfo, nvm
 	}
 }
 
+// ArchNameToNVML converts a spec architecture name (e.g. "fermi", "kepler", "hopper") to
+// NVML device architecture and compute capability (major, minor). It panics on unknown names.
+func ArchNameToNVML(archName string) (arch nvml.DeviceArchitecture, major, minor int) {
+	info, ok := archNameToNVML[archName]
+	if !ok {
+		panic("unknown architecture: " + archName)
+	}
+	return info.arch, info.major, info.minor
+}
+
+var archNameToNVML = map[string]struct {
+	arch  nvml.DeviceArchitecture
+	major int
+	minor int
+}{
+	"fermi":   {nvml.DEVICE_ARCH_KEPLER - 1, 2, 0},
+	"kepler":  {nvml.DEVICE_ARCH_KEPLER, 3, 0},
+	"maxwell": {nvml.DEVICE_ARCH_MAXWELL, 5, 0},
+	"pascal":  {nvml.DEVICE_ARCH_PASCAL, 6, 0},
+	"volta":   {nvml.DEVICE_ARCH_VOLTA, 7, 0},
+	"turing":  {nvml.DEVICE_ARCH_TURING, 7, 5},
+	"ampere":  {nvml.DEVICE_ARCH_AMPERE, 8, 0},
+	"hopper":  {nvml.DEVICE_ARCH_HOPPER, 9, 0},
+}
+
+// WithArchitecture sets device architecture and compute capability from a spec architecture name
+// (e.g. "fermi", "kepler", "hopper"). Panics on unknown architecture name.
+func WithArchitecture(archName string) NvmlMockOption {
+	arch, major, minor := ArchNameToNVML(archName)
+	return func(o *nvmlMockOptions) {
+		o.deviceOptions = append(o.deviceOptions, func(d *nvmlmock.Device) {
+			d.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
+				return arch, nvml.SUCCESS
+			}
+			d.GetCudaComputeCapabilityFunc = func() (int, int, nvml.Return) {
+				return major, minor, nvml.SUCCESS
+			}
+		})
+	}
+}
+
+// DeviceFeatureMode is the device mode for capability-driven mocks.
+type DeviceFeatureMode string
+
+const (
+	DeviceFeaturePhysical DeviceFeatureMode = "physical"
+	DeviceFeatureMIG      DeviceFeatureMode = "mig"
+	DeviceFeatureVGPU    DeviceFeatureMode = "vgpu"
+)
+
+// WithDeviceFeatureMode configures the mock for physical, mig, or vgpu behavior.
+// - physical: default; MIG disabled, virtualization none.
+// - mig: MIG enabled on first device; DeviceGetHandleByIndex(0) returns a MIG child mock.
+// - vgpu: GetVirtualizationMode returns HOST_VGPU; sampling APIs can return ERROR_NOT_FOUND.
+func WithDeviceFeatureMode(mode DeviceFeatureMode) NvmlMockOption {
+	switch mode {
+	case DeviceFeaturePhysical:
+		return WithMIGDisabled()
+	case DeviceFeatureMIG:
+		return func(o *nvmlMockOptions) {
+			o.libOptions = append(o.libOptions, func(lib *nvmlmock.Interface) {
+				lib.DeviceGetCountFunc = func() (int, nvml.Return) {
+					return 1, nvml.SUCCESS
+				}
+				lib.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
+					if index != 0 {
+						return nil, nvml.ERROR_INVALID_ARGUMENT
+					}
+					return GetMIGDeviceMock(0, 0, o.deviceOptions...), nvml.SUCCESS
+				}
+			})
+		}
+	case DeviceFeatureVGPU:
+		return func(o *nvmlMockOptions) {
+			o.deviceOptions = append(o.deviceOptions, func(d *nvmlmock.Device) {
+				d.GetVirtualizationModeFunc = func() (nvml.GpuVirtualizationMode, nvml.Return) {
+					return nvml.GPU_VIRTUALIZATION_MODE_HOST_VGPU, nvml.SUCCESS
+				}
+			})
+		}
+	default:
+		return func(*nvmlMockOptions) {}
+	}
+}
+
+// CapabilitiesMap drives API support in the mock (e.g. from spec/architectures.yaml capabilities).
+// Keys: gpm, nvlink, ecc, device_events. When false, the corresponding APIs return unsupported.
+// process_detail_list is derived from architecture (Hopper+ only) and is not a capability.
+type CapabilitiesMap map[string]bool
+
+// WithCapabilities configures the mock so that APIs return NOT_SUPPORTED or equivalent when a capability is false.
+func WithCapabilities(caps CapabilitiesMap) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.deviceOptions = append(o.deviceOptions, func(d *nvmlmock.Device) {
+			if caps["gpm"] == false {
+				d.GpmQueryDeviceSupportFunc = func() (nvml.GpmSupport, nvml.Return) {
+					return nvml.GpmSupport{IsSupportedDevice: 0}, nvml.SUCCESS
+				}
+			}
+			if caps["nvlink"] == false {
+				d.GetNvLinkStateFunc = func(n int) (nvml.EnableState, nvml.Return) {
+					return nvml.EnableState(0), nvml.ERROR_NOT_SUPPORTED
+				}
+			}
+			if caps["ecc"] == false {
+				d.GetMemoryErrorCounterFunc = func(ct nvml.MemoryErrorType, ec nvml.EccCounterType, lt nvml.MemoryLocation) (uint64, nvml.Return) {
+					return 0, nvml.ERROR_NOT_SUPPORTED
+				}
+			}
+			if caps["device_events"] == false {
+				d.GetSupportedEventTypesFunc = func() (uint64, nvml.Return) {
+					return 0, nvml.ERROR_NOT_SUPPORTED
+				}
+			}
+		})
+	}
+}
+
 // GetBasicNvmlMock returns a mock of the nvml.Interface with the default devices and options.
 func GetBasicNvmlMock() *nvmlmock.Interface {
 	return GetBasicNvmlMockWithOptions()

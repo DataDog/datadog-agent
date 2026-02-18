@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
@@ -54,6 +55,15 @@ type metricSupportSpec struct {
 	ProcessData              bool              `yaml:"process_data"`
 }
 
+type architecturesFile struct {
+	Architectures map[string]architectureSpec `yaml:"architectures"`
+}
+
+type architectureSpec struct {
+	Capabilities              map[string]bool `yaml:"capabilities"`
+	UnsupportedDeviceFeatures []string        `yaml:"unsupported_device_features"`
+}
+
 func loadSpec(t *testing.T) *specFile {
 	t.Helper()
 	data, err := os.ReadFile("spec/gpu_metrics.yaml")
@@ -64,6 +74,48 @@ func loadSpec(t *testing.T) *specFile {
 	return &spec
 }
 
+func loadArchitectures(t *testing.T) *architecturesFile {
+	t.Helper()
+	data, err := os.ReadFile("spec/architectures.yaml")
+	require.NoError(t, err, "failed to read architectures spec file")
+
+	var arch architecturesFile
+	require.NoError(t, yaml.Unmarshal(data, &arch))
+	return &arch
+}
+
+// isArchitectureSupported returns true if the metric is supported on the given architecture.
+// A metric is supported if the architecture is not in the metric's unsupported_architectures list.
+func isArchitectureSupported(metric specMetric, arch string) bool {
+	for _, u := range metric.Support.UnsupportedArchitectures {
+		if u == arch {
+			return false
+		}
+	}
+	return true
+}
+
+// isDeviceFeatureSupported returns true if the metric's device_features explicitly allows the mode.
+// "true" = supported, "false" = not supported, "unknown" or missing = treat as not required for assertion.
+func isDeviceFeatureSupported(metric specMetric, mode string) bool {
+	if metric.Support.DeviceFeatures == nil {
+		return false
+	}
+	v, ok := metric.Support.DeviceFeatures[mode]
+	return ok && v == "true"
+}
+
+// isModeSupportedByArchitecture returns true if the architecture spec allows the device feature mode
+// (i.e. mode is not in unsupported_device_features).
+func isModeSupportedByArchitecture(archSpec architectureSpec, mode string) bool {
+	for _, u := range archSpec.UnsupportedDeviceFeatures {
+		if u == mode {
+			return false
+		}
+	}
+	return true
+}
+
 func TestLoadSpecNotEmpty(t *testing.T) {
 	spec := loadSpec(t)
 
@@ -72,20 +124,28 @@ func TestLoadSpecNotEmpty(t *testing.T) {
 	require.NotEmpty(t, spec.Metrics, "metrics should not be empty")
 }
 
+func TestLoadArchitecturesNotEmpty(t *testing.T) {
+	arch := loadArchitectures(t)
+
+	require.NotEmpty(t, arch.Architectures, "architectures should not be empty")
+	for name, spec := range arch.Architectures {
+		name := name
+		spec := spec
+		t.Run(name, func(t *testing.T) {
+			require.NotEmpty(t, spec.Capabilities, "capabilities should not be empty")
+			require.NotNil(t, spec.UnsupportedDeviceFeatures, "unsupported_device_features should be present")
+		})
+	}
+}
+
 func TestRunMetricsArePresentInSpec(t *testing.T) {
 	spec := loadSpec(t)
+	archFile := loadArchitectures(t)
 
 	// Build spec metric set for quick membership checks.
 	specMetrics := make(map[string]struct{}, len(spec.Metrics))
 	for _, m := range spec.Metrics {
 		specMetrics[m.Name] = struct{}{}
-	}
-
-	emittedMetrics := runCheckAndCollectMetricNames(t)
-	require.NotEmpty(t, emittedMetrics, "expected check run to emit gpu metrics")
-	emittedSet := make(map[string]struct{}, len(emittedMetrics))
-	for _, metricName := range emittedMetrics {
-		emittedSet[metricName] = struct{}{}
 	}
 
 	// Deprecated metrics are kept in spec for visibility/history but are not expected
@@ -94,46 +154,102 @@ func TestRunMetricsArePresentInSpec(t *testing.T) {
 		"errors.xid.total": "requires XID device events",
 	}
 
-	t.Run("EmittedMetricsExistInSpec", func(t *testing.T) {
-		for _, metricName := range emittedMetrics {
-			metricName := metricName
-			t.Run(metricName, func(t *testing.T) {
-				_, found := specMetrics[metricName]
-				require.True(t, found, "metric emitted by check is missing from spec: %s", metricName)
-			})
-		}
-	})
+	deviceModes := []testutil.DeviceFeatureMode{
+		testutil.DeviceFeaturePhysical,
+		testutil.DeviceFeatureMIG,
+		testutil.DeviceFeatureVGPU,
+	}
 
-	t.Run("SpecMetricsAreEmittedByRun", func(t *testing.T) {
-		for _, metric := range spec.Metrics {
-			metric := metric
-			t.Run(metric.Name, func(t *testing.T) {
-				if metric.Deprecated {
-					t.Skip("deprecated metric; not expected from current check runs")
+	for archName, archSpec := range archFile.Architectures {
+		for _, mode := range deviceModes {
+			if !isModeSupportedByArchitecture(archSpec, string(mode)) {
+				continue
+			}
+			archName := archName
+			archSpec := archSpec
+			mode := mode
+			subtestName := "arch=" + archName + "/mode=" + string(mode)
+			t.Run(subtestName, func(t *testing.T) {
+				emittedMetrics := runCheckAndCollectMetricNamesWithConfig(t, archName, mode, archSpec)
+				emittedSet := make(map[string]struct{}, len(emittedMetrics))
+				for _, name := range emittedMetrics {
+					emittedSet[name] = struct{}{}
 				}
 
-				if reason, shouldSkip := notExpectedOnBasicRun[metric.Name]; shouldSkip {
-					t.Skip(reason)
-				}
+				t.Run("EmittedMetricsExistInSpec", func(t *testing.T) {
+					for _, metricName := range emittedMetrics {
+						metricName := metricName
+						t.Run(metricName, func(t *testing.T) {
+							_, found := specMetrics[metricName]
+							require.True(t, found, "metric emitted by check is missing from spec: %s", metricName)
+						})
+					}
+				})
 
-				_, found := emittedSet[metric.Name]
-				require.True(t, found, "spec metric is not emitted by check run: %s", metric.Name)
+				t.Run("SpecMetricsAreEmittedByRun", func(t *testing.T) {
+					for _, metric := range spec.Metrics {
+						metric := metric
+						t.Run(metric.Name, func(t *testing.T) {
+							if metric.Deprecated {
+								t.Skip("deprecated metric; not expected from current check runs")
+							}
+							if reason, shouldSkip := notExpectedOnBasicRun[metric.Name]; shouldSkip {
+								t.Skip(reason)
+							}
+							if !isArchitectureSupported(metric, archName) {
+								t.Skip("metric not supported on this architecture")
+							}
+							if !isDeviceFeatureSupported(metric, string(mode)) {
+								t.Skip("metric not supported for this device feature mode")
+							}
+							_, found := emittedSet[metric.Name]
+							require.True(t, found, "spec metric is not emitted by check run: %s", metric.Name)
+						})
+					}
+				})
 			})
 		}
-	})
+	}
 }
 
-func runCheckAndCollectMetricNames(t *testing.T) []string {
+// runCheckAndCollectMetricNamesWithConfig runs the GPU check with a capability-driven mock
+// for the given architecture and device feature mode, then returns emitted metric names (without "gpu." prefix).
+func runCheckAndCollectMetricNamesWithConfig(t *testing.T, archName string, mode testutil.DeviceFeatureMode, archSpec architectureSpec) []string {
 	t.Helper()
+
+	opts := []testutil.NvmlMockOption{
+		testutil.WithArchitecture(archName),
+		testutil.WithCapabilities(testutil.CapabilitiesMap(archSpec.Capabilities)),
+		testutil.WithMockAllFunctions(),
+	}
+	switch mode {
+	case testutil.DeviceFeaturePhysical:
+		opts = append([]testutil.NvmlMockOption{testutil.WithDeviceCount(1), testutil.WithMIGDisabled()}, opts...)
+	case testutil.DeviceFeatureMIG:
+		opts = append([]testutil.NvmlMockOption{testutil.WithDeviceFeatureMode(mode)}, opts...)
+	case testutil.DeviceFeatureVGPU:
+		opts = append([]testutil.NvmlMockOption{testutil.WithDeviceCount(1), testutil.WithDeviceFeatureMode(mode)}, opts...)
+	}
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	mockSender := mocksender.NewMockSenderWithSenderManager("gpu", senderManager)
 	mockSender.SetupAcceptAll()
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMockAllFunctions()))
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(opts...))
 
-	checkGeneric := newCheck(fakeTagger, testutil.GetTelemetryMock(t), testutil.GetWorkloadMetaMockWithDefaultGPUs(t))
+	wmeta := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
+	if mode == testutil.DeviceFeatureMIG {
+		for _, uuids := range testutil.MIGChildrenUUIDs {
+			for _, u := range uuids {
+				wmeta.Set(&workloadmeta.GPU{
+					EntityID: workloadmeta.EntityID{ID: u, Kind: workloadmeta.KindGPU},
+				})
+			}
+		}
+	}
+
+	checkGeneric := newCheck(fakeTagger, testutil.GetTelemetryMock(t), wmeta)
 	check, ok := checkGeneric.(*Check)
 	require.True(t, ok)
 
