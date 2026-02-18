@@ -269,6 +269,17 @@ func (i *installerImpl) SetupInstaller(ctx context.Context, path string) error {
 			return fmt.Errorf("could not copy installer: %w", err)
 		}
 		path = tmpDir
+
+		// TODO: Should this go here? is this method even used outside of Windows/MSI ?
+		// TODO: version formatting should be done somewhere more common
+		v := version.AgentVersionURLSafe
+		if !strings.HasSuffix(v, "-1") {
+			v = v + "-1"
+		}
+		err = extensions.SetPackage(ctx, packageDatadogAgent, v, false)
+		if err != nil {
+			return fmt.Errorf("could not store package extensions in db: %w", err)
+		}
 	}
 
 	// create the installer package

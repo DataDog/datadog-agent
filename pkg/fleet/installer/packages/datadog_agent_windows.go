@@ -12,6 +12,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -96,7 +97,11 @@ func postInstallDatadogAgent(ctx HookContext) error {
 
 	// Restore extensions after the agent is installed.
 	// This runs for all package types (OCI from setup, MSI from custom actions).
-	if err := restoreAgentExtensions(ctx, version.AgentPackageVersion, false); err != nil {
+	v := version.AgentVersionURLSafe
+	if !strings.HasSuffix(v, "-1") {
+		v = v + "-1"
+	}
+	if err := restoreAgentExtensions(ctx, v, false); err != nil {
 		log.Warnf("failed to restore extensions: %s", err)
 	}
 	return nil
