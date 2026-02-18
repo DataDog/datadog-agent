@@ -90,11 +90,7 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction RunPreRemoveHook { get; }
 
-        public ManagedAction RollbackPreRemoveHook { get; }
-
         public ManagedAction RunPostInstallHook { get; }
-
-        public ManagedAction RollbackPostInstallHook { get; }
 
         /// <summary>
         /// Registers and sequences our custom actions
@@ -751,23 +747,12 @@ namespace WixSetup.Datadog_Agent
             }
                 .SetProperties("PROJECTLOCATION=[PROJECTLOCATION], " +
                                "FLEET_INSTALL=[FLEET_INSTALL], " +
-                               "UPGRADINGPRODUCTCODE=[UPGRADINGPRODUCTCODE]");
-
-            // Rollback for pre-remove: calls postinst to undo the pre-remove work if later actions fail
-            RollbackPreRemoveHook = new CustomAction<CustomActions>(
-                    new Id(nameof(RollbackPreRemoveHook)),
-                    CustomActions.RollbackPreRemoveHook,
-                    Return.ignore,
-                    When.Before,
-                    new Step(RunPreRemoveHook.Id),
-                    Conditions.RemovingForUpgrade | Conditions.Uninstalling
-                )
-            {
-                Execute = Execute.rollback,
-                Impersonate = false
-            }
-                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION], " +
-                               "FLEET_INSTALL=[FLEET_INSTALL]");
+                               "UPGRADINGPRODUCTCODE=[UPGRADINGPRODUCTCODE], " +
+                               "DD_INSTALLER_REGISTRY_URL=[DD_INSTALLER_REGISTRY_URL], " +
+                               "DD_INSTALLER_REGISTRY_AUTH=[DD_INSTALLER_REGISTRY_AUTH], " +
+                               "DD_INSTALLER_REGISTRY_USERNAME=[DD_INSTALLER_REGISTRY_USERNAME], " +
+                               "DD_INSTALLER_REGISTRY_PASSWORD=[DD_INSTALLER_REGISTRY_PASSWORD]")
+                .HideTarget(true);
 
             // Post-install hook: runs after the new agent is installed or upgraded
             RunPostInstallHook = new CustomAction<CustomActions>(
@@ -783,23 +768,12 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }
                 .SetProperties("PROJECTLOCATION=[PROJECTLOCATION], " +
-                               "FLEET_INSTALL=[FLEET_INSTALL]");
-
-            // Rollback for post-install: calls prerm to undo the post-install work if later actions fail
-            RollbackPostInstallHook = new CustomAction<CustomActions>(
-                    new Id(nameof(RollbackPostInstallHook)),
-                    CustomActions.RollbackPostInstallHook,
-                    Return.ignore,
-                    When.Before,
-                    new Step(RunPostInstallHook.Id),
-                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
-                )
-            {
-                Execute = Execute.rollback,
-                Impersonate = false
-            }
-                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION], " +
-                               "FLEET_INSTALL=[FLEET_INSTALL]");
+                               "FLEET_INSTALL=[FLEET_INSTALL], " +
+                               "DD_INSTALLER_REGISTRY_URL=[DD_INSTALLER_REGISTRY_URL], " +
+                               "DD_INSTALLER_REGISTRY_AUTH=[DD_INSTALLER_REGISTRY_AUTH], " +
+                               "DD_INSTALLER_REGISTRY_USERNAME=[DD_INSTALLER_REGISTRY_USERNAME], " +
+                               "DD_INSTALLER_REGISTRY_PASSWORD=[DD_INSTALLER_REGISTRY_PASSWORD]")
+                .HideTarget(true);
         }
     }
 }

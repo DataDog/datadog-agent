@@ -2,6 +2,7 @@ using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
 using WixToolset.Dtf.WindowsInstaller;
 using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace Datadog.CustomActions
@@ -37,6 +38,27 @@ namespace Datadog.CustomActions
             return !string.IsNullOrEmpty(upgradingProductCode);
         }
 
+        private Dictionary<string, string> InstallerEnvironmentVariables()
+        {
+            var env = new Dictionary<string, string>();
+            var registryProps = new[]
+            {
+                ("DD_INSTALLER_REGISTRY_URL", "DD_INSTALLER_REGISTRY_URL"),
+                ("DD_INSTALLER_REGISTRY_AUTH", "DD_INSTALLER_REGISTRY_AUTH"),
+                ("DD_INSTALLER_REGISTRY_USERNAME", "DD_INSTALLER_REGISTRY_USERNAME"),
+                ("DD_INSTALLER_REGISTRY_PASSWORD", "DD_INSTALLER_REGISTRY_PASSWORD"),
+            };
+            foreach (var (prop, envVar) in registryProps)
+            {
+                var value = _session.Property(prop);
+                if (!string.IsNullOrEmpty(value))
+                {
+                    env[envVar] = value;
+                }
+            }
+            return env;
+        }
+
         private ActionResult RunHook(string hookArgs)
         {
             if (ShouldSkip())
@@ -51,14 +73,10 @@ namespace Datadog.CustomActions
                 return ActionResult.Failure;
             }
 
-            // OCI registry credentials (DD_INSTALLER_REGISTRY_URL, DD_INSTALLER_REGISTRY_AUTH, etc.)
-            // are not available as env vars in the MSI context, but the hook reads them from
-            // datadog.yaml via setRegistryConfig() as a fallback, so no extra env vars are needed.
-
             try
             {
                 _session.Log($"Running installer hook: {hookArgs}");
-                using (var proc = _session.RunCommand(_installerExecutable, hookArgs))
+                using (var proc = _session.RunCommand(_installerExecutable, hookArgs, InstallerEnvironmentVariables()))
                 {
                     if (proc.ExitCode != 0)
                     {
@@ -92,19 +110,6 @@ namespace Datadog.CustomActions
             return RunHook("postinst datadog-agent msi");
         }
 
-        // Rollback: if prerm succeeded but later actions failed, restore extensions
-        private ActionResult RollbackPreRemoveHookImpl()
-        {
-            // TODO: rollback of full uninstall will fail because prerm doesn't save the list of extensions.
-            return RunHook("postinst datadog-agent msi");
-        }
-
-        // Rollback: if postinst succeeded but later actions failed, remove extensions
-        private ActionResult RollbackPostInstallHookImpl()
-        {
-            return RunHook("prerm datadog-agent msi");
-        }
-
         // Static entry points for WiX custom actions
 
         [CustomAction]
@@ -117,18 +122,6 @@ namespace Datadog.CustomActions
         public static ActionResult RunPostInstallHook(Session session)
         {
             return new InstallerHooksCustomAction(new SessionWrapper(session)).RunPostInstallHookImpl();
-        }
-
-        [CustomAction]
-        public static ActionResult RollbackPreRemoveHook(Session session)
-        {
-            return new InstallerHooksCustomAction(new SessionWrapper(session)).RollbackPreRemoveHookImpl();
-        }
-
-        [CustomAction]
-        public static ActionResult RollbackPostInstallHook(Session session)
-        {
-            return new InstallerHooksCustomAction(new SessionWrapper(session)).RollbackPostInstallHookImpl();
         }
     }
 }

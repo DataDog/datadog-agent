@@ -234,21 +234,9 @@ namespace Datadog.AgentCustomActions
         }
 
         [CustomAction]
-        public static ActionResult RollbackPreRemoveHook(Session session)
-        {
-            return Datadog.CustomActions.InstallerHooksCustomAction.RollbackPreRemoveHook(session);
-        }
-
-        [CustomAction]
         public static ActionResult RunPostInstallHook(Session session)
         {
             return Datadog.CustomActions.InstallerHooksCustomAction.RunPostInstallHook(session);
-        }
-
-        [CustomAction]
-        public static ActionResult RollbackPostInstallHook(Session session)
-        {
-            return Datadog.CustomActions.InstallerHooksCustomAction.RollbackPostInstallHook(session);
         }
     }
 }

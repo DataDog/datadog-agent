@@ -155,6 +155,44 @@ func (s *extensionsSuite) TestExtensionSaveAndRestore() {
 	s.Require().True(exists, "Extension should be restored at %s", extensionPath)
 }
 
+// TestExtensionSurvivesAgentUpgrade verifies that extensions installed on the
+// datadog-agent package survive an upgrade via the experiment (start/promote) flow.
+func (s *extensionsSuite) TestExtensionSurvivesAgentUpgrade() {
+	s.Agent.MustInstall()
+	defer s.Agent.MustUninstall()
+
+	s.Installer.MustInstallExtension(s.getAgentPackageURL(), "ddot")
+	defer func() {
+		_, _ = s.Installer.RemoveExtension("datadog-agent", "ddot")
+	}()
+
+	s.verifyDDOTRunning()
+
+	s.Installer.MustStartExperiment("datadog-agent", s.getAgentPackageURL())
+	s.Installer.MustPromoteExperiment("datadog-agent")
+
+	s.verifyDDOTRunning()
+}
+
+// TestExtensionRestoredAfterExperimentRollback verifies that extensions are
+// restored to their stable state when an experiment is stopped (rolled back).
+func (s *extensionsSuite) TestExtensionRestoredAfterExperimentRollback() {
+	s.Agent.MustInstall()
+	defer s.Agent.MustUninstall()
+
+	s.Installer.MustInstallExtension(s.getAgentPackageURL(), "ddot")
+	defer func() {
+		_, _ = s.Installer.RemoveExtension("datadog-agent", "ddot")
+	}()
+
+	s.verifyDDOTRunning()
+
+	s.Installer.MustStartExperiment("datadog-agent", s.getAgentPackageURL())
+	s.Installer.MustStopExperiment("datadog-agent")
+
+	s.verifyDDOTRunning()
+}
+
 // TestDDOTExtension tests installing DDOT as an extension on all platforms
 func (s *extensionsSuite) TestDDOTExtension() {
 	// Install base agent
