@@ -401,6 +401,9 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	// Capture intake server time for clock offset monitoring
+	updateIntakeTimeOffset(resp.Header.Get("Date"))
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Errorf("Fail to read the response Body: %s", err)

@@ -14,9 +14,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	"github.com/DataDog/datadog-agent/pkg/network/indexedset"
 )
 
-func formatDNSStatsByDomainByQueryType(c *model.Connection, stats map[dns.Hostname]map[dns.QueryType]dns.Stats, dnsSet *indexedSet[dns.Hostname]) {
+func formatDNSStatsByDomainByQueryType(c *model.Connection, stats map[dns.Hostname]map[dns.QueryType]dns.Stats, dnsSet *indexedset.IndexedSet[dns.Hostname]) {
 	c.DnsStatsByDomainByQueryType = make(map[int32]*model.DNSStatsByQueryType, len(stats))
 	for d, bytype := range stats {
 		pos := dnsSet.Add(d)
@@ -35,7 +36,7 @@ func formatDNSStatsByDomainByQueryType(c *model.Connection, stats map[dns.Hostna
 	}
 }
 
-func formatDNSStatsByDomain(c *model.Connection, stats map[dns.Hostname]map[dns.QueryType]dns.Stats, dnsSet *indexedSet[dns.Hostname]) {
+func formatDNSStatsByDomain(c *model.Connection, stats map[dns.Hostname]map[dns.QueryType]dns.Stats, dnsSet *indexedset.IndexedSet[dns.Hostname]) {
 	c.DnsStatsByDomain = make(map[int32]*model.DNSStats, len(stats))
 	for d, bytype := range stats {
 		pos := dnsSet.Add(d)
@@ -79,7 +80,7 @@ func remapDNSStatsByOffset(c *model.Connection, indexToOffset []int32) {
 	c.DnsStatsByDomainByQueryType = nil
 }
 
-func (d *directSender) addDNS(nc network.ConnectionStats, c *model.Connection, dnsSet *indexedSet[dns.Hostname]) {
+func (d *directSender) addDNS(nc network.ConnectionStats, c *model.Connection, dnsSet *indexedset.IndexedSet[dns.Hostname]) {
 	if !d.dnsDomainsEnabled {
 		var total uint32
 		for _, byType := range nc.DNSStats {
