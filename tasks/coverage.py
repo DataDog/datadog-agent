@@ -335,11 +335,9 @@ def apply_missing_coverage(ctx: Context, from_commit_sha: str, keep_temp_files: 
 
     # Rename the coverage files to avoid conflicts: coverage.out -> coverage.out.dev
     dev_cov_files = [str(p) for p in pathlib.Path(".").rglob(PROFILE_COV)]
-    print(color_message(f'Dev coverage files: {dev_cov_files}', Color.GREEN))
     for f in dev_cov_files:
         os.rename(f, f"{f}.dev")
     dev_cov_files = [str(p) for p in pathlib.Path(".").rglob(f"{PROFILE_COV}.dev")]
-    print(color_message(f'Renamed dev coverage files: {dev_cov_files}', Color.GREEN))
 
     # Extract the coverage.out files from main to their folder
     with tarfile.open(f"{downloaded_archive}", "r:gz") as tgz:
@@ -382,9 +380,6 @@ def apply_missing_coverage(ctx: Context, from_commit_sha: str, keep_temp_files: 
                     Color.GREEN,
                 )
             )
-
-    print("Running ls -lah to see the files in the current directory")
-    ctx.run("ls -lah", echo=True)
 
     # Remove the local archive
     print(color_message(f'Successfully extracted coverage cache from {downloaded_archive}', Color.GREEN))
