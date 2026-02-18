@@ -59,7 +59,7 @@ func addEnv(conf *confmap.Conf, coreCfg config.Component) {
 			if profilerOptionsMap["env"] != nil && profilerOptionsMap["env"] != "" {
 				return
 			}
-			if coreCfg.Get("env") == nil || coreCfg.Get("env") == "" {
+			if coreCfg.GetString("env") == "" {
 				return
 			}
 			profilerOptionsMap["env"] = coreCfg.Get("env")
