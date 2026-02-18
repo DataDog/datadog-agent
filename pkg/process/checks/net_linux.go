@@ -13,7 +13,27 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/port/portlist"
 )
+
+// getListeningPortToPIDMap returns a map of listening port -> PID using the portlist Poller
+func getListeningPortToPIDMap() map[int32]int32 {
+	poller := &portlist.Poller{IncludeLocalhost: true}
+	defer poller.Close()
+
+	ports, _, err := poller.Poll()
+	if err != nil {
+		log.Debugf("failed to poll listening ports: %v", err)
+		return nil
+	}
+	result := make(map[int32]int32, len(ports))
+	for _, p := range ports {
+		if p.Pid > 0 {
+			result[int32(p.Port)] = int32(p.Pid)
+		}
+	}
+	return result
+}
 
 // getNetworkID fetches network_id from the current netNS or from the system probe if necessary, where the root netNS is used
 func getNetworkID(sysProbeClient *http.Client) (string, error) {

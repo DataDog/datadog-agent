@@ -460,6 +460,18 @@ func batchConnections(
 
 	dnsEncoder := model.NewV2DNSEncoder()
 
+	// Build listening port -> PID map from the OS for resolving destination service on same-host connections.
+	// Falls back to building from the connections list if OS-level API is unavailable.
+	portToPID := getListeningPortToPIDMap()
+	if portToPID == nil {
+		portToPID = make(map[int32]int32)
+		for _, c := range cxs {
+			if c.Pid > 0 {
+				portToPID[c.Laddr.Port] = c.Pid
+			}
+		}
+	}
+
 	if len(cxs) > maxConnsPerMessage {
 		// Sort connections by remote IP/PID for more efficient resolution
 		sort.Slice(cxs, func(i, j int) bool {
@@ -513,6 +525,19 @@ func batchConnections(
 			// tags remap
 			serviceCtx := serviceExtractor.GetServiceContext(c.Pid)
 			tagsStr := convertAndEnrichWithServiceCtx(tags, c.Tags, serviceCtx...)
+
+			// For same-host connections, resolve and attach the remote service tags
+			c.RemoteServiceTagsIdx = -1
+			if c.IntraHost {
+				if destPID, ok := portToPID[c.Raddr.Port]; ok && destPID != c.Pid {
+					destServiceCtx := serviceExtractor.GetServiceContext(destPID)
+					if len(destServiceCtx) > 0 {
+						c.RemoteServiceTagsIdx = int32(tagsEncoder.Encode(destServiceCtx))
+						log.Debugf("remote service tags: pid=%d -> raddr.port=%d destPID=%d remoteServiceTagsIdx=%d tags=%v",
+							c.Pid, c.Raddr.Port, destPID, c.RemoteServiceTagsIdx, destServiceCtx)
+					}
+				}
+			}
 
 			// Get process tags and add them to the connection tags
 			if processTagProvider != nil {
