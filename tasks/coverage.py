@@ -338,7 +338,7 @@ def apply_missing_coverage(ctx: Context, from_commit_sha: str, keep_temp_files: 
     print(color_message(f'Dev coverage files: {dev_cov_files}', Color.GREEN))
     for f in dev_cov_files:
         os.rename(f, f"{f}.dev")
-
+    dev_cov_files = [str(p) for p in pathlib.Path(".").rglob(f"{PROFILE_COV}.dev")]
     print(color_message(f'Renamed dev coverage files: {dev_cov_files}', Color.GREEN))
 
     # Extract the coverage.out files from main to their folder
