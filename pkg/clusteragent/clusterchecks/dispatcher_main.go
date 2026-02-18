@@ -14,7 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -158,8 +158,11 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 		checkNames = append(checkNames, c.Name)
 	}
 	span.SetTag("check_names", strings.Join(checkNames, ","))
-	var failedConfigs int
+	var failedConfigs, excludedConfigs int
 	defer func() {
+		if excludedConfigs > 0 {
+			span.SetTag("excluded_configs", excludedConfigs)
+		}
 		if failedConfigs > 0 {
 			span.SetTag("failed_configs", failedConfigs)
 			span.SetTag("error", true)
@@ -170,6 +173,7 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 	for _, c := range configs {
 		if _, found := d.excludedChecks[c.Name]; found {
 			log.Infof("Excluding check due to config: %s", c.Name)
+			excludedConfigs++
 			continue
 		}
 
@@ -212,6 +216,19 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 
 // Unschedule implements the scheduler.Scheduler interface
 func (d *dispatcher) Unschedule(configs []integration.Config) {
+	span := tracer.StartSpan("cluster_checks.dispatcher.unschedule",
+		tracer.ResourceName("unschedule_configs"),
+		tracer.SpanType("worker"))
+	span.SetTag("config_count", len(configs))
+	var failedConfigs int
+	defer func() {
+		if failedConfigs > 0 {
+			span.SetTag("failed_configs", failedConfigs)
+			span.SetTag("error", true)
+		}
+		span.Finish()
+	}()
+
 	for _, c := range configs {
 		if !c.ClusterCheck {
 			continue // Ignore non cluster-check configs
@@ -226,6 +243,7 @@ func (d *dispatcher) Unschedule(configs []integration.Config) {
 			patched, err := d.patchEndpointsConfiguration(c)
 			if err != nil {
 				log.Warnf("Cannot patch endpoint configuration %s: %s", c.Digest(), err)
+				failedConfigs++
 				continue
 			}
 			d.removeEndpointConfig(patched, c.NodeName)
@@ -234,6 +252,7 @@ func (d *dispatcher) Unschedule(configs []integration.Config) {
 		patched, err := d.patchConfiguration(c)
 		if err != nil {
 			log.Warnf("Cannot patch configuration %s: %s", c.Digest(), err)
+			failedConfigs++
 			continue
 		}
 		d.remove(patched)

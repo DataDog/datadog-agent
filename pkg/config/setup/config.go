@@ -656,7 +656,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.istio.namespace", "istio-system")
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.mode", "sidecar")
 
-	// APM tracing for the cluster agent itself
+	// APM tracing for the cluster agent itself (currently covers cluster check dispatching)
 	config.BindEnvAndSetDefault("cluster_agent.tracing.enabled", false)
 	config.BindEnvAndSetDefault("cluster_agent.tracing.env", "")
 	config.BindEnvAndSetDefault("cluster_agent.tracing.sample_rate", 0.1)
