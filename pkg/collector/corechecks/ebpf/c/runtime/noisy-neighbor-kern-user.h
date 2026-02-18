@@ -14,6 +14,6 @@ typedef struct {
 typedef struct {
     __u64 cgroup_id;
     __u32 pid;
-} __attribute__((packed)) pid_key_t;
+} pid_key_t;
 
 #endif
