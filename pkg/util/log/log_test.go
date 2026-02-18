@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"regexp"
 	"runtime"
@@ -611,23 +612,18 @@ func TestChangeLogLevel(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run("change log level to "+tc.String(), func(t *testing.T) {
-			var b bytes.Buffer
-			w := bufio.NewWriter(&b)
+			levelVar := new(slog.LevelVar)
+			levelVar.Set(slog.LevelInfo)
 
-			l, _ := LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, DebugLvl)
+			SetupLoggerWithLevelVar(Default(), DebugStr, levelVar)
 
-			SetupLogger(Default(), DebugStr)
-
-			err := ChangeLogLevel(l, tc)
+			err := ChangeLogLevel(tc)
 			assert.NoError(t, err)
 
 			// log level should have been updated
 			level, err := GetLogLevel()
 			require.NoError(t, err)
 			assert.Equal(t, tc, level)
-
-			// inner logger should have been replaced
-			assert.Equal(t, l, logger.Load().inner)
 		})
 	}
 }

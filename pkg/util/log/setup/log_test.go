@@ -21,10 +21,10 @@ func BenchmarkSlogParallel(b *testing.B) {
 	b.StopTimer()
 
 	cfg := initConfig(b)
-	logger, err := cfg.SlogLogger()
+	logger, levelVar, err := cfg.SlogLogger()
 	require.NoError(b, err)
 	require.NotNil(b, logger)
-	log.SetupLogger(logger, "debug")
+	log.SetupLoggerWithLevelVar(logger, "debug", levelVar)
 
 	runLogParallel(b)
 }
@@ -49,10 +49,10 @@ func BenchmarkSlogLogger(b *testing.B) {
 	b.StopTimer()
 
 	cfg := initConfig(b)
-	logger, err := cfg.SlogLogger()
+	logger, levelVar, err := cfg.SlogLogger()
 	require.NoError(b, err)
 	require.NotNil(b, logger)
-	log.SetupLogger(logger, "debug")
+	log.SetupLoggerWithLevelVar(logger, "debug", levelVar)
 
 	runLog(b)
 }
