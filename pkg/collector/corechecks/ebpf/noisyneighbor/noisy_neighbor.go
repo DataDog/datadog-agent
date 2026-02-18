@@ -71,10 +71,9 @@ func (n *NoisyNeighborCheck) Configure(senderManager sender.SenderManager, _ uin
 	n.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")))
 	reader, err := cgroups.NewReader(cgroups.WithReaderFilter(cgroups.ContainerFilter))
 	if err != nil {
-		log.Debugf("noisy_neighbor: cgroup reader init failed (container tags may be missing): %v", err)
-	} else {
-		n.cgroupReader = reader
+		return fmt.Errorf("noisy_neighbor: cgroup reader init failed: %s", err)
 	}
+	n.cgroupReader = reader
 	return nil
 }
 
@@ -97,7 +96,7 @@ func (n *NoisyNeighborCheck) Run() error {
 
 	for _, stat := range stats {
 		totalCgroups++
-		tags := n.buildTags(stat)
+		tags := n.getContainerTags(stat)
 		n.submitPrimaryMetrics(sender, stat, tags)
 		n.submitRawCounters(sender, stat, tags)
 	}
@@ -106,25 +105,22 @@ func (n *NoisyNeighborCheck) Run() error {
 	return nil
 }
 
-func (n *NoisyNeighborCheck) buildTags(stat model.NoisyNeighborStats) []string {
-	tags := []string{fmt.Sprintf("cgroup_id:%d", stat.CgroupID)}
-	if n.cgroupReader != nil {
-		if cg := n.cgroupReader.GetCgroupByInode(stat.CgroupID); cg != nil {
-			containerID := cg.Identifier()
-			if containerID != "" {
-				entityID := types.NewEntityID(types.ContainerID, containerID)
-				if !entityID.Empty() {
-					taggerTags, err := n.tagger.Tag(entityID, types.ChecksConfigCardinality)
-					if err != nil {
-						log.Debugf("noisy_neighbor: tagger error for container %s: %v", containerID, err)
-					} else {
-						tags = append(tags, taggerTags...)
-					}
+func (n *NoisyNeighborCheck) getContainerTags(stat model.NoisyNeighborStats) []string {
+	if cg := n.cgroupReader.GetCgroupByInode(stat.CgroupID); cg != nil {
+		containerID := cg.Identifier()
+		if containerID != "" {
+			entityID := types.NewEntityID(types.ContainerID, containerID)
+			if !entityID.Empty() {
+				taggerTags, err := n.tagger.Tag(entityID, types.ChecksConfigCardinality)
+				if err != nil {
+					log.Debugf("noisy_neighbor: tagger error for container %s: %v", containerID, err)
+				} else {
+					return taggerTags
 				}
 			}
 		}
 	}
-	return tags
+	return []string{}
 }
 
 // submitPrimaryMetrics sends the main PSL and PSP metrics
