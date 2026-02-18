@@ -27,35 +27,23 @@ cc_library(
     srcs = [
         "three.cpp",
         "three_mem.cpp",
-        ":constants.h",
+        "constants.h",
         "//rtloader/common:builtins/_util.c",
-        "//rtloader/common:builtins/_util.h",
         "//rtloader/common:builtins/aggregator.c",
-        "//rtloader/common:builtins/aggregator.h",
         "//rtloader/common:builtins/containers.c",
-        "//rtloader/common:builtins/containers.h",
         "//rtloader/common:builtins/datadog_agent.c",
-        "//rtloader/common:builtins/datadog_agent.h",
         "//rtloader/common:builtins/kubeutil.c",
-        "//rtloader/common:builtins/kubeutil.h",
         "//rtloader/common:builtins/tagger.c",
-        "//rtloader/common:builtins/tagger.h",
         "//rtloader/common:builtins/util.c",
-        "//rtloader/common:builtins/util.h",
         "//rtloader/common:cgo_free.c",
-        "//rtloader/common:cgo_free.h",
         "//rtloader/common:log.c",
-        "//rtloader/common:log.h",
-        "//rtloader/common:rtloader_mem.h",
         "//rtloader/common:stringutils.c",
-        "//rtloader/common:stringutils.h",
     ],
     hdrs = [
         "three.h",
     ],
     copts = [
         "-Wno-unused-function",
-        "-I.",
         "-O2",
     ] + select({
         "@platforms//os:linux": [
@@ -72,8 +60,6 @@ cc_library(
     }),
     includes = [
         ".",
-        "/rtloader/common",
-        "/rtloader/include",
     ],
     local_defines = COMMON_DEFINES + select({
         "@platforms//os:windows": [
@@ -88,22 +74,21 @@ cc_library(
     visibility = ["//rtloader:__subpackages__"],
     deps = [
         "//rtloader/common:headers",
-        "//rtloader/include",
         "@rules_python//python/cc:current_py_cc_headers",
     ],
 )
 
-# TODO: We comment this out for now so we can test with bazel build ...
-#cc_shared_library(
-#    name = "datadog-agent-three",
-#    deps = [
-#        ":three",
-#    ],
-#    dynamic_deps = [
-#        # TODO: point to embedded/libpython
-#    ],
-#    visibility = ["//rtloader:__subpackages__"],
-#)
+cc_shared_library(
+   name = "datadog-agent-three",
+   deps = [
+       ":three",
+   ],
+   dynamic_deps = [
+       "//rtloader/rtloader:datadog-agent-rtloader",
+       # TODO: point to embedded/libpython
+   ],
+   visibility = ["//rtloader:__subpackages__"],
+)
 
 pkg_files(
     name = "lib_files",

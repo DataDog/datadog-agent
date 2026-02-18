@@ -60,6 +60,7 @@ cc_shared_library(
         "//conditions:default": [],
     }),
     deps = [":static"],
+    visibility = ["//rtloader:__subpackages__"],
 )
 
 so_symlink(
