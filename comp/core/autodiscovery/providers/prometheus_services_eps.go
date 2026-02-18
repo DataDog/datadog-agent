@@ -26,7 +26,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	discv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	discinfov1 "k8s.io/client-go/informers/discovery/v1"
 	listersv1 "k8s.io/client-go/listers/core/v1"
@@ -169,12 +168,13 @@ func (p *PrometheusServicesEndpointSlicesConfigProvider) Collect(_ context.Conte
 			} else {
 				slices, err := p.api.ListEndpointSlices(svc.GetNamespace(), svc.GetName())
 				if err != nil {
-					// This can happen if a service does not have an endpointslice just yet
-					// Or on headless/external services.
-					if k8serrors.IsNotFound(err) {
-						continue
-					}
 					return nil, err
+				}
+
+				if len(slices) == 0 {
+					// No EndpointSlices found for this service, which can happen when
+					// the service is headless/external or the service hasn't been assigned an endpoint yet.
+					continue
 				}
 
 				// Add endpoint to tracking as soon as there are annotations (even if no config yet due to no endpoints)
