@@ -36,6 +36,7 @@ SOURCE_ROOT_DIR = os.path.join(os.getcwd(), "tools", "windows", "DatadogAgentIns
 BUILD_ROOT_DIR = os.path.join('C:\\', "dev", "msi", "DatadogAgentInstaller")
 BUILD_SOURCE_DIR = os.path.join(BUILD_ROOT_DIR, "src")
 BUILD_OUTPUT_DIR = os.path.join(BUILD_ROOT_DIR, "output")
+DDOT_ARTIFACT_DIR = os.path.join('C:\\', 'opt', 'datadog-agent-ddot')
 # Match to AgentInstaller.cs BinSource
 AGENT_BIN_SOURCE_DIR = os.path.join('C:\\', 'opt', 'datadog-agent', 'bin', 'agent')
 
@@ -651,15 +652,17 @@ def fetch_driver_msm(ctx, drivers=None):
 @task(
     help={
         'ref': 'The name of the ref (branch, tag) to fetch the latest artifacts from',
+        'ddot': 'Also download the DDOT zip artifact (default: False)',
     },
 )
-def fetch_artifacts(ctx, ref: str | None = None) -> None:
+def fetch_artifacts(ctx, ref: str | None = None, ddot: bool = False) -> None:
     """
     Initialize the build environment with artifacts from a ref (default: main)
 
     Example:
     dda inv msi.fetch-artifacts --ref main
     dda inv msi.fetch-artifacts --ref 7.66.x
+    dda inv msi.fetch-artifacts --ref main --ddot
     """
     if ref is None:
         ref = 'main'
@@ -668,16 +671,24 @@ def fetch_artifacts(ctx, ref: str | None = None) -> None:
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         download_latest_artifacts_for_ref(project, ref, tmp_dir)
+
+        if ddot:
+            download_latest_artifacts_for_ref(project, ref, tmp_dir, job='windows_zip_ddot_x64')
+
         tmp_dir_path = Path(tmp_dir)
 
         print(f"Downloaded artifacts to {tmp_dir_path}")
 
         # Recursively search for the zip files
-        agent_zips = list(tmp_dir_path.glob("**/datadog-agent-*-x86_64.zip"))
+        ddot_zips = list(tmp_dir_path.glob("**/datadog-agent-ddot-*x86_64.zip"))
+        ddot_set = set(ddot_zips)
+        agent_zips = [z for z in tmp_dir_path.glob("**/datadog-agent-*-x86_64.zip") if z not in ddot_set]
         installer_zips = list(tmp_dir_path.glob("**/datadog-installer-*-x86_64.zip"))
 
         print(f"Found {len(agent_zips)} agent zip files")
         print(f"Found {len(installer_zips)} installer zip files")
+        if ddot:
+            print(f"Found {len(ddot_zips)} DDOT zip files")
 
         if not agent_zips and not installer_zips:
             print("No zip files found. Directory contents:")
@@ -702,14 +713,28 @@ def fetch_artifacts(ctx, ref: str | None = None) -> None:
             with zipfile.ZipFile(zip_file, "r") as zip_ref:
                 zip_ref.extractall(dest)
 
+        # Extract DDOT zips
+        if ddot_zips:
+            dest = Path(DDOT_ARTIFACT_DIR)
+            dest.mkdir(parents=True, exist_ok=True)
+            for zip_file in ddot_zips:
+                print(f"Extracting {zip_file} to {dest}")
+                with zipfile.ZipFile(zip_file, "r") as zip_ref:
+                    zip_ref.extractall(dest)
+
         print("Extraction complete")
 
 
-def download_latest_artifacts_for_ref(project: Project, ref_name: str, output_dir: str) -> None:
+def download_latest_artifacts_for_ref(
+    project: Project,
+    ref_name: str,
+    output_dir: str,
+    job: str = 'windows_msi_and_bosh_zip_x64-a7',
+) -> None:
     """
-    Fetch the latest MSI artifacts for a ref from gitlab and store them in the output directory
+    Fetch the latest artifacts for a ref from gitlab and store them in the output directory
     """
-    print(f"Downloading artifacts for branch {ref_name}")
+    print(f"Downloading artifacts for branch {ref_name} (job: {job})")
     fd, tmp_path = tempfile.mkstemp()
     try:
         with os.fdopen(fd, "wb") as f:
@@ -722,7 +747,7 @@ def download_latest_artifacts_for_ref(project: Project, ref_name: str, output_di
 
             project.artifacts.download(
                 ref_name=ref_name,
-                job='windows_msi_and_bosh_zip_x64-a7',
+                job=job,
                 streamed=True,
                 action=writewrapper,
             )
@@ -736,20 +761,32 @@ def download_latest_artifacts_for_ref(project: Project, ref_name: str, output_di
             os.remove(tmp_path)
 
 
-@task
+@task(
+    help={
+        'msi_path': 'Path to the MSI or ZIP file (default: auto-detect in omnibus/pkg)',
+        'output_dir': 'Output directory for the OCI tar (default: omnibus/pkg)',
+        'source_type': "Source type - 'msi' or 'zip' (default: msi)",
+        'ddot': 'Path to the extracted DDOT artifact directory to include as an extension layer (default: auto-detect)',
+    },
+)
 def package_oci(
     ctx,
     msi_path=None,
     output_dir=None,
     source_type="msi",
+    ddot=None,
 ):
     """
     Create an OCI package from an MSI installer.
 
-    Args:
-        msi_path: Path to the MSI file (default: auto-detect in omnibus/pkg)
-        output_dir: Output directory for the OCI tar (default: omnibus/pkg)
-        source_type: Source type - 'msi' or 'zip' (default: msi)
+    Use --ddot to include the DDOT extension layer. Pass a path to the extracted
+    DDOT artifact directory, or pass --ddot=auto to auto-detect from the default
+    artifact directory (populated by fetch-artifacts --ddot).
+
+    Example:
+        dda inv msi.package-oci
+        dda inv msi.package-oci --ddot auto
+        dda inv msi.package-oci --ddot C:\\opt\\datadog-agent-ddot
 
     Requires:
         datadog-package: Install from https://github.com/DataDog/datadog-package
@@ -818,6 +855,24 @@ def package_oci(
         package_version = version_match.group(1)
         print(f"Extracted version from MSI filename: {package_version}")
 
+    # Resolve DDOT extension directory
+    ddot_ext_dir = None
+    if ddot is not None:
+        if ddot == "auto":
+            ddot_dir = Path(DDOT_ARTIFACT_DIR)
+            if not ddot_dir.exists() or not any(ddot_dir.iterdir()):
+                print(f"No DDOT artifacts found in {ddot_dir}")
+                print("Run 'dda inv msi.fetch-artifacts --ddot' first, or provide an explicit path.")
+                raise Exit(code=1)
+            ddot_ext_dir = str(ddot_dir)
+            print(f"Auto-detected DDOT directory: {ddot_ext_dir}")
+        else:
+            if not os.path.isdir(ddot):
+                print(f"DDOT directory not found: {ddot}")
+                raise Exit(code=1)
+            ddot_ext_dir = ddot
+            print(f"Using DDOT directory: {ddot_ext_dir}")
+
     # Create temporary directory for input
     with tempfile.TemporaryDirectory() as src_dir:
         print(f"Using temporary directory: {src_dir}")
@@ -841,6 +896,9 @@ def package_oci(
         else:
             print(f"Unknown source type: {source_type}")
             raise Exit(code=1)
+
+        if ddot_ext_dir:
+            extra_flags += f' --extension ddot={ddot_ext_dir}'
 
         # Construct output path
         oci_output_path = os.path.join(output_dir, f"datadog-agent-{package_version}-1-windows-amd64.oci.tar")
