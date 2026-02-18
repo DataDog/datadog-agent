@@ -131,8 +131,9 @@ fn get_service(pid: i32, context: &mut ParsingContext) -> Option<Service> {
     let apm_instrumentation =
         tracer_metadata.is_some() || apm::detect(&language, pid, &cmdline, &envs);
 
-    // Detect GPU usage
-    let has_nvidia_gpu = procfs::maps::has_gpu_nvidia(pid);
+    // Detect GPU usage: Fast path (devices) already checked, fallback to libraries
+    let has_nvidia_gpu = open_files_info.has_gpu_device
+        || procfs::maps::has_gpu_nvidia_libraries(pid);
 
     Some(Service {
         pid,
@@ -362,6 +363,39 @@ mod tests {
             assert!(
                 json.contains("/var/log/app.log"),
                 "log file path should be in JSON"
+            );
+        }
+    }
+
+    mod nvidia_gpu_field_validation {
+        use super::*;
+
+        #[test]
+        fn test_has_nvidia_gpu_serializes_true() {
+            let service = Service {
+                pid: 123,
+                has_nvidia_gpu: true,
+                ..Default::default()
+            };
+
+            let json = serde_json::to_string(&service).unwrap();
+            assert!(
+                json.contains("\"has_nvidia_gpu\":true"),
+                "has_nvidia_gpu should serialize as true"
+            );
+        }
+
+        #[test]
+        fn test_has_nvidia_gpu_serializes_false_by_default() {
+            let service = Service {
+                pid: 123,
+                ..Default::default()
+            };
+
+            let json = serde_json::to_string(&service).unwrap();
+            assert!(
+                json.contains("\"has_nvidia_gpu\":false"),
+                "has_nvidia_gpu should serialize as false when not set"
             );
         }
     }

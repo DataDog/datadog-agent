@@ -22,6 +22,7 @@ pub struct OpenFilesInfo {
     pub logs: Vec<FdPath>,
     pub tracer_memfd: Option<PathBuf>,
     pub memfd_path: Option<PathBuf>,
+    pub has_gpu_device: bool,
 }
 
 #[derive(Debug)]
@@ -42,6 +43,7 @@ pub fn get_open_files_info(pid: i32) -> Result<OpenFilesInfo, std::io::Error> {
         logs: Vec::new(),
         tracer_memfd: None,
         memfd_path: None,
+        has_gpu_device: false,
     };
 
     read_dir(fd_path)?
@@ -52,6 +54,11 @@ pub fn get_open_files_info(pid: i32) -> Result<OpenFilesInfo, std::io::Error> {
             Some((path, link))
         })
         .for_each(|(entry, link)| {
+            // Check for GPU device first (before link is moved)
+            if !result.has_gpu_device && is_gpu_device(link.as_path()) {
+                result.has_gpu_device = true;
+            }
+
             if let Some(socket) = is_socket(link.as_path()) {
                 result.sockets.push(socket);
             } else if is_logfile(link.as_path()) {
@@ -191,6 +198,23 @@ fn is_language_memfd(link: &Path) -> bool {
         .strip_prefix(LANGUAGE_MEMFD_NAME)
         .map(|rest| rest.is_empty() || rest.starts_with(' '))
         .unwrap_or(false)
+}
+
+fn is_gpu_device(link: &Path) -> bool {
+    const NVIDIA_DEV_PREFIX: &[u8] = b"/dev/nvidia";
+
+    let bytes = link.as_os_str().as_encoded_bytes();
+
+    let Some(suffix) = bytes.strip_prefix(NVIDIA_DEV_PREFIX) else {
+        return false;
+    };
+
+    suffix == b"ctl"
+        || suffix == b"-uvm"
+        || suffix == b"-uvm-tools"
+        || suffix == b"-modeset"
+        || suffix.starts_with(b"-caps/")
+        || (!suffix.is_empty() && suffix.iter().all(|c| c.is_ascii_digit()))
 }
 
 #[cfg(test)]
@@ -586,6 +610,73 @@ mod tests {
 
             let count = result.iter().filter(|p| *p == valid_log_str).count();
             assert_eq!(count, 1);
+        }
+    }
+
+    mod is_gpu_device {
+        use std::path::Path;
+
+        use crate::procfs::fd::is_gpu_device;
+
+        #[test]
+        fn test_nvidia_numbered_devices() {
+            // NVIDIA GPU devices with numbers
+            assert!(is_gpu_device(Path::new("/dev/nvidia0")));
+            assert!(is_gpu_device(Path::new("/dev/nvidia1")));
+            assert!(is_gpu_device(Path::new("/dev/nvidia2")));
+            assert!(is_gpu_device(Path::new("/dev/nvidia10")));
+            assert!(is_gpu_device(Path::new("/dev/nvidia123")));
+        }
+
+        #[test]
+        fn test_nvidia_special_devices() {
+            // NVIDIA special devices
+            assert!(is_gpu_device(Path::new("/dev/nvidiactl")));
+            assert!(is_gpu_device(Path::new("/dev/nvidia-uvm")));
+            assert!(is_gpu_device(Path::new("/dev/nvidia-uvm-tools")));
+            assert!(is_gpu_device(Path::new("/dev/nvidia-modeset")));
+        }
+
+        #[test]
+        fn test_nvidia_mig_devices() {
+            // NVIDIA MIG (Multi-Instance GPU) devices
+            assert!(is_gpu_device(Path::new("/dev/nvidia-caps/nvidia-cap1")));
+            assert!(is_gpu_device(Path::new("/dev/nvidia-caps/nvidia-cap2")));
+            assert!(is_gpu_device(Path::new("/dev/nvidia-caps/nvidia-cap10")));
+        }
+
+        #[test]
+        fn test_non_gpu_devices() {
+            // Standard system devices
+            assert!(!is_gpu_device(Path::new("/dev/null")));
+            assert!(!is_gpu_device(Path::new("/dev/zero")));
+            assert!(!is_gpu_device(Path::new("/dev/pts/0")));
+            assert!(!is_gpu_device(Path::new("/dev/tty")));
+            assert!(!is_gpu_device(Path::new("socket:[12345]")));
+            assert!(!is_gpu_device(Path::new("pipe:[12345]")));
+            assert!(!is_gpu_device(Path::new("anon_inode:[eventfd]")));
+        }
+
+        #[test]
+        fn test_invalid_nvidia_names() {
+            // Invalid NVIDIA device names
+            assert!(!is_gpu_device(Path::new("/dev/nvidia")));
+            assert!(!is_gpu_device(Path::new("/dev/nvidia-foo")));
+            assert!(!is_gpu_device(Path::new("/dev/nvidiaXYZ")));
+            assert!(!is_gpu_device(Path::new("/dev/nvidia0abc")));
+            assert!(!is_gpu_device(Path::new("/dev/nvidia-")));
+            assert!(!is_gpu_device(Path::new("/dev/nvidiactl2")));
+            assert!(!is_gpu_device(Path::new("/dev/nvidia0-uvm")));
+        }
+
+        #[test]
+        fn test_edge_cases() {
+            // Path variations
+            assert!(!is_gpu_device(Path::new("/dev/nvi")));
+            assert!(!is_gpu_device(Path::new("/home/nvidia0")));
+            assert!(!is_gpu_device(Path::new("nvidia0")));
+            assert!(!is_gpu_device(Path::new("/dev/nvidia 0")));
+            assert!(!is_gpu_device(Path::new("/dev/NVIDIA0")));
         }
     }
 }
