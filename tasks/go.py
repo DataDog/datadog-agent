@@ -20,6 +20,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
+from tasks.libs.build.bazel import bazel
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import check_uncommitted_changes
 from tasks.libs.common.go import download_go_dependencies
@@ -301,7 +302,10 @@ def tidy_all(ctx):
 @task
 def tidy(ctx, verbose: bool = False):
     check_valid_mods(ctx)
+    (_bazel_tidy if shutil.which("bazel") else _go_only_tidy)(ctx, verbose)
 
+
+def _go_only_tidy(ctx, verbose: bool):
     ctx.run("go work sync")
 
     if os.name != 'nt':  # not windows
@@ -324,6 +328,21 @@ def tidy(ctx, verbose: bool = False):
 
     for promise in promises:
         promise.join()
+
+    sys.stderr.write(
+        color_message("Done - please run `inv install-tools` to enable `bazel mod tidy` support\n", "orange")
+    )
+
+
+def _bazel_tidy(ctx, verbose: bool):
+    # 1. go.work + **/go.mod -> **/go.mod (sync each workspace module's deps to the workspace build list)
+    bazel("run", "//:go", "work", "sync")
+    # 2. **/*.go + **/go.mod -> **/go.mod, **/go.sum (reconcile each module's requirements with its actual imports)
+    bazel("run", "@go_mod_tidy_all", *(("--", "-x") if verbose else ()))
+    # 3. go.work + **/go.mod -> deps/go.MODULE.bazel (update use_repo declarations)
+    bazel("mod", "tidy")
+    # 4. deps/go.MODULE.bazel + /BUILD.bazel + **/*.go + **/go.mod -> **/BUILD.bazel (infer build rules from Go source)
+    bazel("run", "//:gazelle")
 
 
 @task(autoprint=True)
