@@ -115,7 +115,6 @@ func (n *NoisyNeighborCheck) buildTags(stat model.NoisyNeighborStats) []string {
 			}
 		}
 	}
-
 	tags = append(tags, "cgroup_name:"+cgroupName)
 	tags = append(tags, fmt.Sprintf("cgroup_id:%d", stat.CgroupID))
 
@@ -138,8 +137,6 @@ func (n *NoisyNeighborCheck) submitPrimaryMetrics(sender sender.Sender, stat mod
 
 func (n *NoisyNeighborCheck) submitRawCounters(sender sender.Sender, stat model.NoisyNeighborStats, tags []string) {
 	sender.Count("noisy_neighbor.events.total", float64(stat.EventCount), "", tags)
-	sender.Count("noisy_neighbor.process_scheduler_preemptions.total", float64(stat.PreemptionCount), "", tags)
-	sender.Count("noisy_neighbor.process_scheduling_latency.total", float64(stat.SumLatenciesNs), "", tags)
 	sender.Gauge("noisy_neighbor.unique_processes", float64(stat.UniquePidCount), "", tags)
 }
 
