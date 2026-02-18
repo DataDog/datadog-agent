@@ -316,9 +316,11 @@ func TestSender(t *testing.T) {
 		assert.NoError(err)
 
 		callbackInvoked := false
-		s.apiKeyManager.refreshFn = func() {
+		s.apiKeyManager.refreshFn = func() (string, error) {
 			callbackInvoked = true
+			return "secrets refreshed", nil
 		}
+		s.apiKeyManager.throttleInterval = 100 * time.Millisecond
 
 		s.Push(expectResponses(403))
 		s.Stop()
@@ -349,9 +351,11 @@ func TestSender(t *testing.T) {
 		assert.NoError(err)
 
 		callbackInvoked := false
-		s.apiKeyManager.refreshFn = func() {
+		s.apiKeyManager.refreshFn = func() (string, error) {
 			callbackInvoked = true
+			return "secrets refreshed", nil
 		}
+		s.apiKeyManager.throttleInterval = 100 * time.Millisecond
 
 		assert.NoError(err)
 		s.Push(expectResponses(403, 403, 200))
@@ -361,6 +365,41 @@ func TestSender(t *testing.T) {
 		assert.Equal(2, server.Retried(), "should have retried twice")
 		assert.Equal(1, server.Accepted(), "should have succeeded once")
 		assert.True(callbackInvoked, "secrets refresh callback should have been invoked on 403")
+	})
+
+	t.Run("403_throttles_refresh", func(t *testing.T) {
+		assert := assert.New(t)
+		server := newTestServer()
+		defer server.Close()
+		defer useBackoffDuration(time.Nanosecond)()
+
+		s, err := newTestSender(server.URL)
+		assert.NoError(err)
+
+		callCount := 0
+		s.apiKeyManager.refreshFn = func() (string, error) {
+			callCount++
+			return "secrets refreshed", nil
+		}
+		s.apiKeyManager.throttleInterval = 100 * time.Millisecond
+
+		// First 403 should trigger refresh
+		s.Push(expectResponses(403))
+		s.WaitForInflight()
+		assert.Equal(1, callCount, "first 403 should trigger refresh")
+
+		s.Push(expectResponses(403))
+		s.WaitForInflight()
+		assert.Equal(1, callCount, "second 403 should be throttled")
+
+		// Wait for throttle interval to expire
+		time.Sleep(110 * time.Millisecond)
+
+		s.Push(expectResponses(403))
+		s.WaitForInflight()
+		assert.Equal(2, callCount, "third 403 after throttle should trigger refresh")
+
+		s.Stop()
 	})
 }
 

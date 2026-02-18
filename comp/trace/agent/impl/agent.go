@@ -137,12 +137,12 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 
 	prepGoRuntime(tracecfg)
 
-	tracecfg.SecretsRefreshFn = func() {
+	tracecfg.SecretsRefreshFn = func() (string, error) {
 		if deps.Secrets == nil {
 			log.Error("Secrets component not available, cannot trigger refresh")
-			return
+			return "", fmt.Errorf("secrets component not available")
 		}
-		_, _ = deps.Secrets.Refresh(false)
+		return deps.Secrets.Refresh(true)
 	}
 
 	c.Agent = pkgagent.NewAgent(

@@ -415,6 +415,8 @@ type AgentConfig struct {
 	// case, the sender will drop failed payloads when it is unable to enqueue
 	// them for another retry.
 	MaxSenderRetries int
+	// APIKeyRefreshThrottleInterval is the minimum time between API key refresh attempts.
+	APIKeyRefreshThrottleInterval time.Duration
 	// HTTP Transport used in writer connections. If nil, default transport values will be used.
 	HTTPTransportFunc func() *http.Transport `json:"-"`
 	// ClientStatsFlushInterval specifies the frequency at which the client stats aggregator will flush its buffer.
@@ -559,9 +561,9 @@ type AgentConfig struct {
 	APMMode string
 
 	// SecretsRefreshFn is called when a 403 response is received to trigger
-	// API key refresh from the secrets backend. It returns true if the refresh
-	// was triggered, false if throttled or unavailable.
-	SecretsRefreshFn func() `json:"-"`
+	// API key refresh from the secrets backend. It blocks until the refresh
+	// completes and returns a message and any error encountered.
+	SecretsRefreshFn func() (string, error) `json:"-"`
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -617,11 +619,12 @@ func New() *AgentConfig {
 		PipeSecurityDescriptor: "D:AI(A;;GA;;;WD)",
 		GUIPort:                "5002",
 
-		StatsWriter:              new(WriterConfig),
-		TraceWriter:              new(WriterConfig),
-		ConnectionResetInterval:  0, // disabled
-		MaxSenderRetries:         4,
-		ClientStatsFlushInterval: 2 * time.Second, // bucket duration (2s)
+		StatsWriter:                   new(WriterConfig),
+		TraceWriter:                   new(WriterConfig),
+		ConnectionResetInterval:       0, // disabled
+		MaxSenderRetries:              4,
+		APIKeyRefreshThrottleInterval: 2 * time.Minute,
+		ClientStatsFlushInterval:      2 * time.Second, // bucket duration (2s)
 
 		StatsdHost:    "localhost",
 		StatsdPort:    8125,

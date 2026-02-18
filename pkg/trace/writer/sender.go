@@ -57,8 +57,9 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 			MRFFailoverAPM: cfg.MRFFailoverAPM,
 		}
 		apiKeyManager := &apiKeyManager{
-			apiKey:    endpoint.APIKey,
-			refreshFn: cfg.SecretsRefreshFn,
+			apiKey:           endpoint.APIKey,
+			refreshFn:        cfg.SecretsRefreshFn,
+			throttleInterval: cfg.APIKeyRefreshThrottleInterval,
 		}
 
 		senders[i] = newSender(scfg, apiKeyManager, statsd)
@@ -171,8 +172,14 @@ type apiKeyManager struct {
 	// apiKey specifies the Datadog API key to use.
 	apiKey string
 
-	// refreshFn triggers API key refresh from the secrets backend
-	refreshFn func()
+	// refreshFn triggers blocking API key refresh from the secrets backend
+	refreshFn func() (string, error)
+
+	// throttleInterval specifies minimum time between refresh calls
+	throttleInterval time.Duration
+
+	// lastRefresh tracks when the last refresh occurred
+	lastRefresh time.Time
 }
 
 func (m *apiKeyManager) Get() string {
@@ -188,8 +195,25 @@ func (m *apiKeyManager) Update(newKey string) {
 }
 
 func (m *apiKeyManager) refresh() {
-	if m.refreshFn != nil {
-		m.refreshFn()
+	if m.refreshFn == nil || m.throttleInterval == 0 {
+		return
+	}
+
+	m.Lock()
+	if time.Since(m.lastRefresh) < m.throttleInterval {
+		m.Unlock()
+		log.Debugf("API Key refresh throttled, last refresh was %v ago", time.Since(m.lastRefresh))
+		return
+	}
+
+	// Update the last refresh time before calling refresh to prevent concurrent calls
+	m.lastRefresh = time.Now()
+	m.Unlock()
+
+	if result, err := m.refreshFn(); err != nil {
+		log.Debugf("API Key refresh failed: %v", err)
+	} else if result != "" {
+		log.Infof("API Key refresh completed: %s", result)
 	}
 }
 
