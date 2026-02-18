@@ -12,6 +12,7 @@
 package noisyneighbor
 
 import (
+	"errors"
 	"fmt"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -63,7 +64,7 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 		return nil, fmt.Errorf("minimum kernel version %s not met, read %s", minimumKernelVersion, kv)
 	}
 	if !hasRcuBTFTagSupport() {
-		return nil, fmt.Errorf("vmlinux BTF lacks __rcu type tag support; kernel must be built with GCC 13+ or Clang 15+")
+		return nil, errors.New("vmlinux BTF lacks __rcu type tag support; kernel must be built with GCC 13+ or Clang 15+")
 	}
 
 	p := &Probe{}
