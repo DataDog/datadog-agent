@@ -68,32 +68,61 @@ const (
 
 // postInstallDatadogAgent runs post install scripts for a given package.
 func postInstallDatadogAgent(ctx HookContext) error {
-	// must get env before uninstalling the Agent since it may read from the registry
-	env := getenv()
+	if ctx.PackageType != PackageTypeMSI {
+		// OCI path (setup): remove old agent and install new one via MSI.
+		// must get env before uninstalling the Agent since it may read from the registry
+		env := getenv()
 
-	// remove the installer if it is installed
-	// if nothing is installed this will return without an error
-	err := removeInstallerIfInstalled(ctx)
-	if err != nil {
-		// failed to remove the installer
-		return fmt.Errorf("failed to remove installer: %w", err)
+		// remove the installer if it is installed
+		// if nothing is installed this will return without an error
+		err := removeInstallerIfInstalled(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to remove installer: %w", err)
+		}
+
+		// remove the Agent if it is installed
+		// if nothing is installed this will return without an error
+		err = removeAgentIfInstalledAndRestartOnFailure(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to remove Agent: %w", err)
+		}
+
+		// install the new stable Agent
+		err = installAgentPackage(ctx, env, "stable", ctx.WindowsArgs, "setup_agent.log")
+		if err != nil {
+			return err
+		}
 	}
 
-	// remove the Agent if it is installed
-	// if nothing is installed this will return without an error
-	err = removeAgentIfInstalledAndRestartOnFailure(ctx)
-	if err != nil {
-		// failed to remove the Agent
-		return fmt.Errorf("failed to remove Agent: %w", err)
+	// Restore extensions after the agent is installed.
+	// This runs for all package types (OCI from setup, MSI from custom actions).
+	if err := restoreAgentExtensions(ctx, version.AgentPackageVersion, false); err != nil {
+		log.Warnf("failed to restore extensions: %s", err)
 	}
-
-	// install the new stable Agent
-	err = installAgentPackage(ctx, env, "stable", ctx.WindowsArgs, "setup_agent.log")
-	return err
+	return nil
 }
 
 // preRemoveDatadogAgent runs pre remove scripts for a given package.
 func preRemoveDatadogAgent(ctx HookContext) (err error) {
+	// Save and remove extensions before the agent is removed.
+	// This runs for all package types (OCI from setup, MSI from custom actions).
+	if ctx.Upgrade {
+		// TODO: See Note in InstallerHooksCustomAction.cs, we might need to save the extensions to rollback
+		//       a failure to fully uninstall.
+		if err := saveAgentExtensions(ctx); err != nil {
+			log.Warnf("failed to save extensions: %s", err)
+		}
+	}
+	if err := removeAgentExtensions(ctx, false); err != nil {
+		log.Warnf("failed to remove extensions: %s", err)
+	}
+
+	if ctx.PackageType == PackageTypeMSI {
+		// Hook being called from the MSI, nothing else to do.
+		return nil
+	}
+
+	// OCI path: Must run the MSI to finish removing the Agent
 	// Don't return an error if the Agent is already not installed.
 	// returning an error here will prevent the package from being removed
 	// from the local repository.

@@ -88,6 +88,14 @@ namespace WixSetup.Datadog_Agent
 
         public ManagedAction DDCreateFolders { get; }
 
+        public ManagedAction RunPreRemoveHook { get; }
+
+        public ManagedAction RollbackPreRemoveHook { get; }
+
+        public ManagedAction RunPostInstallHook { get; }
+
+        public ManagedAction RollbackPostInstallHook { get; }
+
         /// <summary>
         /// Registers and sequences our custom actions
         /// </summary>
@@ -719,6 +727,79 @@ namespace WixSetup.Datadog_Agent
                 Execute = Execute.deferred,
                 Impersonate = false
             }.SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+
+            // Installer package hooks (prerm / postinst)
+            // These call datadog-installer.exe prerm/postinst, mirroring the deb/rpm maintainer
+            // scripts so that the installer can perform install/uninstall work in Go.
+            // Currently used for agent extension save/restore; will be extended for other
+            // installer-managed tasks in the future.
+            // Skipped when FLEET_INSTALL=1 (fleet automation runs its own hooks).
+
+            // Pre-remove hook: runs before the agent is uninstalled or upgraded.
+            // Uses UPGRADINGPRODUCTCODE to determine if this is an upgrade or a full uninstall.
+            RunPreRemoveHook = new CustomAction<CustomActions>(
+                    new Id(nameof(RunPreRemoveHook)),
+                    CustomActions.RunPreRemoveHook,
+                    Return.ignore,
+                    When.Before,
+                    new Step(PurgeOciPackages.Id),
+                    Conditions.RemovingForUpgrade | Conditions.Uninstalling
+                )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION], " +
+                               "FLEET_INSTALL=[FLEET_INSTALL], " +
+                               "UPGRADINGPRODUCTCODE=[UPGRADINGPRODUCTCODE]");
+
+            // Rollback for pre-remove: calls postinst to undo the pre-remove work if later actions fail
+            RollbackPreRemoveHook = new CustomAction<CustomActions>(
+                    new Id(nameof(RollbackPreRemoveHook)),
+                    CustomActions.RollbackPreRemoveHook,
+                    Return.ignore,
+                    When.Before,
+                    new Step(RunPreRemoveHook.Id),
+                    Conditions.RemovingForUpgrade | Conditions.Uninstalling
+                )
+            {
+                Execute = Execute.rollback,
+                Impersonate = false
+            }
+                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION], " +
+                               "FLEET_INSTALL=[FLEET_INSTALL]");
+
+            // Post-install hook: runs after the new agent is installed or upgraded
+            RunPostInstallHook = new CustomAction<CustomActions>(
+                    new Id(nameof(RunPostInstallHook)),
+                    CustomActions.RunPostInstallHook,
+                    Return.ignore,
+                    When.After,
+                    new Step(InstallOciPackages.Id),
+                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+                )
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }
+                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION], " +
+                               "FLEET_INSTALL=[FLEET_INSTALL]");
+
+            // Rollback for post-install: calls prerm to undo the post-install work if later actions fail
+            RollbackPostInstallHook = new CustomAction<CustomActions>(
+                    new Id(nameof(RollbackPostInstallHook)),
+                    CustomActions.RollbackPostInstallHook,
+                    Return.ignore,
+                    When.Before,
+                    new Step(RunPostInstallHook.Id),
+                    Condition.NOT(Conditions.Uninstalling | Conditions.RemovingForUpgrade)
+                )
+            {
+                Execute = Execute.rollback,
+                Impersonate = false
+            }
+                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION], " +
+                               "FLEET_INSTALL=[FLEET_INSTALL]");
         }
     }
 }

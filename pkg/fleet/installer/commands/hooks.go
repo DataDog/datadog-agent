@@ -9,8 +9,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/spf13/cobra"
 )
 
@@ -50,7 +52,7 @@ func hooksCommand() *cobra.Command {
 func postinstCommand() *cobra.Command {
 	return &cobra.Command{
 		Hidden:  true,
-		Use:     "postinst <package> <type:deb|rpm>",
+		Use:     "postinst <package> <type:deb|rpm|msi>",
 		Short:   "Run post-install scripts for a package",
 		GroupID: "installer",
 		Args:    cobra.MinimumNArgs(2),
@@ -67,7 +69,7 @@ func postinstCommand() *cobra.Command {
 				Context:     i.ctx,
 				Hook:        "postInstall",
 				Package:     pkg,
-				PackagePath: "/opt/datadog-agent",
+				PackagePath: packagePathForType(packageType),
 				PackageType: packageType,
 				Upgrade:     false,
 				WindowsArgs: nil,
@@ -81,7 +83,7 @@ func prermCommand() *cobra.Command {
 	upgrade := false
 	c := &cobra.Command{
 		Hidden:  true,
-		Use:     "prerm <package> <type:deb|rpm>",
+		Use:     "prerm <package> <type:deb|rpm|msi>",
 		Short:   "Run pre-remove scripts for a package",
 		GroupID: "installer",
 		Args:    cobra.MinimumNArgs(2),
@@ -98,7 +100,7 @@ func prermCommand() *cobra.Command {
 				Context:     i.ctx,
 				Hook:        "preRemove",
 				Package:     pkg,
-				PackagePath: "/opt/datadog-agent",
+				PackagePath: packagePathForType(packageType),
 				PackageType: packageType,
 				Upgrade:     upgrade,
 				WindowsArgs: nil,
@@ -110,12 +112,22 @@ func prermCommand() *cobra.Command {
 	return c
 }
 
+// packagePathForType returns the appropriate package path for the given package type.
+func packagePathForType(packageType packages.PackageType) string {
+	if packageType == packages.PackageTypeMSI && runtime.GOOS == "windows" {
+		return paths.DatadogProgramFilesDir
+	}
+	return "/opt/datadog-agent"
+}
+
 func parsePackageType(rawPackageType string) (packages.PackageType, error) {
 	switch rawPackageType {
 	case string(packages.PackageTypeDEB):
 		return packages.PackageTypeDEB, nil
 	case string(packages.PackageTypeRPM):
 		return packages.PackageTypeRPM, nil
+	case string(packages.PackageTypeMSI):
+		return packages.PackageTypeMSI, nil
 	default:
 		return "", fmt.Errorf("unknown package type: %s", rawPackageType)
 	}

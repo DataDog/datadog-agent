@@ -165,6 +165,8 @@ const (
 	PackageTypeDEB PackageType = "deb"
 	// PackageTypeRPM is the type for RPM packages.
 	PackageTypeRPM PackageType = "rpm"
+	// PackageTypeMSI is the type for MSI packages.
+	PackageTypeMSI PackageType = "msi"
 )
 
 // HookContext is the context passed to hooks during install/upgrade/uninstall.
