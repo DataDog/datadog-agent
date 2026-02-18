@@ -867,9 +867,6 @@
 /**/go.sum                              # do not notify anyone
 
 # Add here modules that need explicit review from the team owning them
-/internal/tools/**/go.mod                @DataDog/agent-devx
-/internal/tools/**/go.sum                @DataDog/agent-devx
-
 /pkg/util/scrubber/go.mod                @DataDog/agent-runtimes
 /pkg/util/scrubber/go.sum                @DataDog/agent-runtimes
 
