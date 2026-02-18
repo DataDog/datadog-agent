@@ -41,7 +41,7 @@ func TestNetpathAggregator(t *testing.T) {
 		assert.Equal(t, int64(1757494901878), np.Timestamp)
 		assert.Equal(t, "7.72.0-devel+git.93.cb80d71", np.AgentVersion)
 		assert.Equal(t, "default", np.Namespace)
-		assert.Equal(t, "bf6a0ba9-8823-4089-a3ff-ff9f7b7ff978", np.PathtraceID)
+		assert.Equal(t, "bf6a0ba9-8823-4089-a3ff-ff9f7b7ff978", np.TestRunID)
 		assert.Equal(t, payload.PathOrigin("network_path_integration"), np.Origin)
 		assert.Equal(t, payload.Protocol("TCP"), np.Protocol)
 		assert.Equal(t, "my-host", np.Source.Hostname)

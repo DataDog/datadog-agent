@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/core/secrets/impl
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.68.3
@@ -9,7 +9,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.70.0
 	github.com/DataDog/datadog-agent/comp/core/status v0.68.3
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.68.3
-	github.com/DataDog/datadog-agent/pkg/config/env v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/config/env v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/datadog-agent/pkg/template v0.68.3
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.70.0
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0
