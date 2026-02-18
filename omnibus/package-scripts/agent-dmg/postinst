@@ -93,8 +93,9 @@ chmod -v 755 "$RUN_DIR"  # Secure: protects databases and registries
 # Create separate world-writable directory ONLY for multi-user GUI sockets
 mkdir -vp "$RUN_DIR/ipc"
 # Remove stale GUI socket files before chown to prevent "Address already in use" on DMG reinstall
-# or installation over a partial installation or partial cleanup of a previous installation
-for f in "$RUN_DIR/ipc"/gui-*.sock; do [ -f "$f" ] && rm -f "$f" && echo "Removed stale socket: $f"; done
+# or installation over a partial installation or partial cleanup of a previous installation.
+# Use find instead of shell glob so removal works when Installer runs postinst (glob may not expand).
+find "$RUN_DIR/ipc" -maxdepth 1 -name 'gui-*.sock' -exec rm -fv {} \;
 chown -vR root:wheel "$RUN_DIR/ipc"
 chmod -v 1777 "$RUN_DIR/ipc"  # Sticky bit: users can create GUI sockets but not delete others' files
 
