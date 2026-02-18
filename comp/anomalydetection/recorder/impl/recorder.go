@@ -84,6 +84,15 @@ func NewComponent(req Requires) (Provides, error) {
 		}
 	}
 
+	// Initialize logs writer if enabled
+	logWriter, err := NewLogParquetWriter(parquetDir, flushInterval, retentionDuration)
+	if err != nil {
+		pkglog.Errorf("Failed to create log parquet writer: %v", err)
+	} else {
+		r.logParquetWriter = logWriter
+		pkglog.Infof("Recorder log writer started: dir=%s", parquetDir)
+	}
+
 	return Provides{Comp: r}, nil
 }
 
@@ -92,6 +101,7 @@ type recorderImpl struct {
 	parquetWriter        *ParquetWriter
 	traceParquetWriter   *TraceParquetWriter
 	profileParquetWriter *ProfileParquetWriter
+	logParquetWriter     *LogParquetWriter
 	mu                   sync.Mutex
 }
 
@@ -101,7 +111,7 @@ func (r *recorderImpl) GetHandle(handleFunc observer.HandleFunc) observer.Handle
 		innerHandle := handleFunc(name)
 
 		// If any recording is enabled, wrap with recording handle
-		if r.parquetWriter != nil || r.traceParquetWriter != nil || r.profileParquetWriter != nil {
+		if r.parquetWriter != nil || r.traceParquetWriter != nil || r.profileParquetWriter != nil || r.logParquetWriter != nil {
 			return &recordingHandle{
 				inner:    innerHandle,
 				recorder: r,
@@ -199,6 +209,21 @@ func (r *recorderImpl) ReadAllProfiles(inputDir string) ([]recorderdef.ProfileDa
 	return profiles, nil
 }
 
+// ReadAllLogs reads all logs from parquet files and returns them as a slice.
+func (r *recorderImpl) ReadAllLogs(inputDir string) ([]recorderdef.LogData, error) {
+	reader, err := NewLogParquetReader(inputDir)
+	if err != nil {
+		return nil, fmt.Errorf("creating log parquet reader: %w", err)
+	}
+
+	pkglog.Infof("ReadAllLogs: loading logs from %s", inputDir)
+
+	logs := reader.ReadAll()
+
+	pkglog.Infof("ReadAllLogs: loaded %d logs", len(logs))
+	return logs, nil
+}
+
 // recordingHandle wraps an observer handle to record observations.
 type recordingHandle struct {
 	inner    observer.Handle
@@ -227,11 +252,25 @@ func (h *recordingHandle) ObserveMetric(sample observer.MetricView) {
 	}
 }
 
-// ObserveLog forwards the log to the inner handle.
-// Log recording is not implemented yet but the hook is in place.
+// ObserveLog forwards the log to the inner handle and records it.
 func (h *recordingHandle) ObserveLog(msg observer.LogView) {
 	h.inner.ObserveLog(msg)
-	// TODO: Optionally record logs to parquet (future enhancement)
+
+	// Record to parquet if writer is available
+	if h.recorder.logParquetWriter != nil {
+		content := msg.GetContent()
+		contentCopy := make([]byte, len(content))
+		copy(contentCopy, content)
+
+		h.recorder.logParquetWriter.WriteLog(
+			h.name,
+			contentCopy,
+			msg.GetStatus(),
+			msg.GetHostname(),
+			msg.GetTags(),
+			time.Now().UnixMilli(),
+		)
+	}
 }
 
 // ObserveTrace forwards the trace to the inner handle and records it.
