@@ -182,11 +182,16 @@ func (c *Check) Run() error {
 }
 
 // Configure parses the check configuration and init the check
-func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	if flavor.GetFlavor() == flavor.DefaultAgent && !pkgconfigsetup.Datadog().GetBool("disk_check.use_core_loader") && !pkgconfigsetup.Datadog().GetBool("use_diskv2_check") {
 		// if use_diskv2_check, then do not skip the core check
 		return fmt.Errorf("%w: disk core check is disabled", check.ErrSkipCheckInstance)
 	}
+
+	// Must be called before CommonConfigure so each instance gets a unique
+	// check ID and therefore its own sender, preventing custom tags set on
+	// one instance from leaking into other instances' metrics.
+	c.BuildID(integrationConfigDigest, data, initConfig)
 
 	err := c.CommonConfigure(senderManager, initConfig, data, source)
 	if err != nil {
