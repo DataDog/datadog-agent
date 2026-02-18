@@ -74,7 +74,7 @@ static __attribute__((always_inline)) void set_file_layer(struct dentry *dentry,
     }
 }
 
-void __attribute__((always_inline)) fill_file(struct dentry *dentry, struct file_t *file) {
+static __attribute__((always_inline)) void fill_file(struct dentry *dentry, struct file_t *file) {
     struct inode *d_inode = get_dentry_inode(dentry);
 
     file->dev = get_dentry_dev(dentry);
