@@ -197,6 +197,6 @@ def run(ctx, branch_name, reports_folder):
     github = GithubAPI()
     prs = list(github.get_pr_for_branch(branch_name))
     if len(prs):
-        pr_commenter(ctx, title='File checks summary', body=pr_comment, pr=prs[0])
+        pr_commenter(ctx, title='Files check summary', body=pr_comment, pr=prs[0])
     else:
         print(color_message(f"Can't fetch PR assciated with branch {branch_name}", "red"))
