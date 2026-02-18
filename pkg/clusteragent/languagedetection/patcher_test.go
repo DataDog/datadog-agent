@@ -31,6 +31,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	workloadpatcher "github.com/DataDog/datadog-agent/pkg/clusteragent/patcher"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -45,12 +46,13 @@ func newMockLanguagePatcher(ctx context.Context, mockClient dynamic.Interface, m
 	ctx, cancel := context.WithCancel(ctx)
 
 	return languagePatcher{
-		ctx:       ctx,
-		cancel:    cancel,
-		k8sClient: mockClient,
-		store:     mockStore,
-		logger:    mockLogger,
-		queue: workqueue.NewTypedRateLimitingQueue[langUtil.NamespacedOwnerReference](
+		ctx:             ctx,
+		cancel:          cancel,
+		k8sClient:       mockClient,
+		workloadPatcher: workloadpatcher.NewPatcher(mockClient, nil),
+		store:           mockStore,
+		logger:          mockLogger,
+		queue: workqueue.NewTypedRateLimitingQueue(
 			workqueue.NewTypedItemExponentialFailureRateLimiter[langUtil.NamespacedOwnerReference](
 				1*time.Second,
 				4*time.Second,
