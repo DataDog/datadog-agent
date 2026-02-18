@@ -8,6 +8,7 @@
 package testutil
 
 import (
+	"encoding/binary"
 	"reflect"
 	"strings"
 	"testing"
@@ -83,8 +84,13 @@ var DefaultProcessInfo = []nvml.ProcessInfo{
 // DefaultTotalMemory is the total memory for the default device returned by the mock
 var DefaultTotalMemory = uint64(1024 * 1024 * 1024)
 
-// DefaultMaxClockRates is an array of Max SM clock and Max Mem Clock rates for the default device
-var DefaultMaxClockRates = [2]uint32{1000, 2000}
+// DefaultMaxClockRates is an array of Max clock rates for the default device
+var DefaultMaxClockRates = map[nvml.ClockType]uint32{
+	nvml.CLOCK_SM:       1000,
+	nvml.CLOCK_MEM:      2000,
+	nvml.CLOCK_GRAPHICS: 3000,
+	nvml.CLOCK_VIDEO:    4000,
+}
 
 // DevicesWithMIGChildren is a list of device indexes that have MIG children.
 var DevicesWithMIGChildren = []int{5, 6}
@@ -103,6 +109,7 @@ var MIGChildrenUUIDs = map[int][]string{
 
 // GetDeviceMock returns a mock of the nvml.Device with the given UUID.
 func GetDeviceMock(deviceIdx int, opts ...func(*nvmlmock.Device)) *nvmlmock.Device {
+	fieldValuesCounter := uint64(0)
 	mock := &nvmlmock.Device{
 		GetNumGpuCoresFunc: func() (int, nvml.Return) {
 			return GPUCores[deviceIdx], nvml.SUCCESS
@@ -148,14 +155,11 @@ func GetDeviceMock(deviceIdx int, opts ...func(*nvmlmock.Device)) *nvmlmock.Devi
 			return DefaultMemoryBusWidth, nvml.SUCCESS
 		},
 		GetMaxClockInfoFunc: func(clockType nvml.ClockType) (uint32, nvml.Return) {
-			switch clockType {
-			case nvml.CLOCK_SM:
-				return DefaultMaxClockRates[0], nvml.SUCCESS
-			case nvml.CLOCK_MEM:
-				return DefaultMaxClockRates[1], nvml.SUCCESS
-			default:
+			rate, ok := DefaultMaxClockRates[clockType]
+			if !ok {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
+			return rate, nvml.SUCCESS
 		},
 		GetIndexFunc: func() (int, nvml.Return) {
 			return deviceIdx, nvml.SUCCESS
@@ -163,12 +167,37 @@ func GetDeviceMock(deviceIdx int, opts ...func(*nvmlmock.Device)) *nvmlmock.Devi
 		IsMigDeviceHandleFunc: func() (bool, nvml.Return) {
 			return false, nvml.SUCCESS
 		},
-		GetSamplesFunc: func(_ nvml.SamplingType, _ uint64) (nvml.ValueType, []nvml.Sample, nvml.Return) {
+		GetProcessUtilizationFunc: func(lastSeenTimestamp uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
+			// Return one process sample newer than lastSeenTimestamp so process.* metrics
+			// are emitted by sampling collectors in spec tests.
+			return []nvml.ProcessUtilizationSample{
+				{Pid: 1234, TimeStamp: lastSeenTimestamp + 1000, SmUtil: 75, MemUtil: 60, EncUtil: 30, DecUtil: 15},
+			}, nvml.SUCCESS
+		},
+		GetSamplesFunc: func(_ nvml.SamplingType, lastSeenTimestamp uint64) (nvml.ValueType, []nvml.Sample, nvml.Return) {
+			// Keep sample timestamps newer than lastSeenTimestamp so sample-based metrics
+			// (dram_active, gr_engine_active, etc.) are emitted on collection runs.
 			samples := []nvml.Sample{
-				{TimeStamp: 1000, SampleValue: [8]byte{0, 0, 0, 0, 0, 0, 0, 1}},
-				{TimeStamp: 2000, SampleValue: [8]byte{0, 0, 0, 0, 0, 0, 0, 2}},
+				{TimeStamp: lastSeenTimestamp + 1000, SampleValue: [8]byte{0, 0, 0, 0, 0, 0, 0, 1}},
+				{TimeStamp: lastSeenTimestamp + 2000, SampleValue: [8]byte{0, 0, 0, 0, 0, 0, 0, 2}},
 			}
 			return nvml.VALUE_TYPE_UNSIGNED_INT, samples, nvml.SUCCESS
+		},
+		GetFieldValuesFunc: func(values []nvml.FieldValue) nvml.Return {
+			// Emulate monotonically increasing counters for field-based throughput metrics.
+			// Fields collector computes rates from consecutive values, so counters must increase
+			// between runs to emit nvlink.throughput.* metrics.
+			fieldValuesCounter += 1000
+			for i := range values {
+				values[i].Timestamp = int64(time.Now().UnixMilli())
+				values[i].NvmlReturn = uint32(nvml.SUCCESS)
+				values[i].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_LONG_LONG)
+
+				var encoded [8]byte
+				binary.LittleEndian.PutUint64(encoded[:], fieldValuesCounter+uint64(i))
+				values[i].Value = encoded
+			}
+			return nvml.SUCCESS
 		},
 		GpmQueryDeviceSupportFunc: func() (nvml.GpmSupport, nvml.Return) {
 			return nvml.GpmSupport{IsSupportedDevice: 1}, nvml.SUCCESS
@@ -377,18 +406,19 @@ type DeviceFeatureMode string
 const (
 	DeviceFeaturePhysical DeviceFeatureMode = "physical"
 	DeviceFeatureMIG      DeviceFeatureMode = "mig"
-	DeviceFeatureVGPU    DeviceFeatureMode = "vgpu"
+	DeviceFeatureVGPU     DeviceFeatureMode = "vgpu"
 )
 
 // WithDeviceFeatureMode configures the mock for physical, mig, or vgpu behavior.
 // - physical: default; MIG disabled, virtualization none.
-// - mig: MIG enabled on first device; DeviceGetHandleByIndex(0) returns a MIG child mock.
+// - mig: one physical device with MIG enabled; DeviceGetHandleByIndex(0) returns a physical device that has MIG children (from DevicesWithMIGChildren). The cache will enumerate MIG children via GetMigDeviceHandleByIndex.
 // - vgpu: GetVirtualizationMode returns HOST_VGPU; sampling APIs can return ERROR_NOT_FOUND.
 func WithDeviceFeatureMode(mode DeviceFeatureMode) NvmlMockOption {
 	switch mode {
 	case DeviceFeaturePhysical:
 		return WithMIGDisabled()
 	case DeviceFeatureMIG:
+		parentIdx := DevicesWithMIGChildren[0]
 		return func(o *nvmlMockOptions) {
 			o.libOptions = append(o.libOptions, func(lib *nvmlmock.Interface) {
 				lib.DeviceGetCountFunc = func() (int, nvml.Return) {
@@ -398,7 +428,7 @@ func WithDeviceFeatureMode(mode DeviceFeatureMode) NvmlMockOption {
 					if index != 0 {
 						return nil, nvml.ERROR_INVALID_ARGUMENT
 					}
-					return GetMIGDeviceMock(0, 0, o.deviceOptions...), nvml.SUCCESS
+					return GetDeviceMock(parentIdx, o.deviceOptions...), nvml.SUCCESS
 				}
 			})
 		}
@@ -415,31 +445,36 @@ func WithDeviceFeatureMode(mode DeviceFeatureMode) NvmlMockOption {
 	}
 }
 
-// CapabilitiesMap drives API support in the mock (e.g. from spec/architectures.yaml capabilities).
-// Keys: gpm, nvlink, ecc, device_events. When false, the corresponding APIs return unsupported.
+// Capabilities drives API support in the mock (e.g. from spec/architectures.yaml capabilities).
+// Fields: GPM, NVLink, ECC, DeviceEvents. When false, the corresponding APIs return unsupported.
 // process_detail_list is derived from architecture (Hopper+ only) and is not a capability.
-type CapabilitiesMap map[string]bool
+type Capabilities struct {
+	GPM          bool
+	NVLink       bool
+	ECC          bool
+	DeviceEvents bool
+}
 
 // WithCapabilities configures the mock so that APIs return NOT_SUPPORTED or equivalent when a capability is false.
-func WithCapabilities(caps CapabilitiesMap) NvmlMockOption {
+func WithCapabilities(caps Capabilities) NvmlMockOption {
 	return func(o *nvmlMockOptions) {
 		o.deviceOptions = append(o.deviceOptions, func(d *nvmlmock.Device) {
-			if caps["gpm"] == false {
+			if !caps.GPM {
 				d.GpmQueryDeviceSupportFunc = func() (nvml.GpmSupport, nvml.Return) {
 					return nvml.GpmSupport{IsSupportedDevice: 0}, nvml.SUCCESS
 				}
 			}
-			if caps["nvlink"] == false {
+			if !caps.NVLink {
 				d.GetNvLinkStateFunc = func(n int) (nvml.EnableState, nvml.Return) {
 					return nvml.EnableState(0), nvml.ERROR_NOT_SUPPORTED
 				}
 			}
-			if caps["ecc"] == false {
+			if !caps.ECC {
 				d.GetMemoryErrorCounterFunc = func(ct nvml.MemoryErrorType, ec nvml.EccCounterType, lt nvml.MemoryLocation) (uint64, nvml.Return) {
 					return 0, nvml.ERROR_NOT_SUPPORTED
 				}
 			}
-			if caps["device_events"] == false {
+			if !caps.DeviceEvents {
 				d.GetSupportedEventTypesFunc = func() (uint64, nvml.Return) {
 					return 0, nvml.ERROR_NOT_SUPPORTED
 				}
