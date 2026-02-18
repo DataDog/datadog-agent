@@ -1,11 +1,8 @@
 exporters:
     otlphttp:
         headers:
-            dd-api-key: test-api-key
+            dd-api-key: test-key
 processors:
-    infraattributes:
-        allow_hostname_override: false
-        some_config: value
     resource/dd-profiler-internal-metadata:
         attributes:
             - action: upsert
@@ -14,20 +11,28 @@ processors:
             - action: upsert
               key: profiler_version
               value: 7.0.0-test
+    resourcedetection:
+        detectors:
+            - system
+        system:
+            resource_attributes:
+                host.arch:
+                    enabled: true
+                host.name:
+                    enabled: true
 receivers:
     hostprofiler:
         symbol_uploader:
-            enabled: true
-            symbol_endpoints:
-                - api_key: test_api_key_123
-                  site: datadoghq.com
+            enabled: false
 service:
     pipelines:
+        metrics:
+            processors: []
         profiles:
             exporters:
                 - otlphttp
             processors:
-                - infraattributes
+                - resourcedetection
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - hostprofiler
