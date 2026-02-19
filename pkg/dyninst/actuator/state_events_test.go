@@ -76,6 +76,13 @@ func TestEventStringer(t *testing.T) {
 			wantStr: "eventShutdown{}",
 		},
 		{
+			ev: eventMissingTypesReported{
+				processID: ProcessID{PID: 100},
+				typeNames: []string{"Foo", "Bar"},
+			},
+			wantStr: "eventMissingTypesReported{processID: {PID:100}, typeNames: 2}",
+		},
+		{
 			ev: eventRuntimeStatsUpdated{
 				programID: 1,
 			},

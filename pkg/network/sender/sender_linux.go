@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
+	"github.com/DataDog/datadog-agent/pkg/network/indexedset"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
@@ -307,7 +308,7 @@ func (d *directSender) networkPathConnections(conns *network.Connections) iter.S
 
 			srcContainerID := ""
 			if conn.ContainerID.Source != nil {
-				srcContainerID = conn.ContainerID.Source.Get().(string)
+				srcContainerID, _ = conn.ContainerID.Source.Get().(string)
 			}
 
 			npc := npmodel.NetworkPathConnection{
@@ -409,7 +410,7 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 	numBatches := d.batchCount(conns)
 	dnsEncoder := model.NewV2DNSEncoder()
 	ipc := make(ipCache, len(conns.Conns)/2)
-	tagsSet := newIndexedSet[string]()
+	tagsSet := indexedset.New[string]()
 
 	usmEncoders := marshal.InitializeUSMEncoders(conns)
 	containersForTagging := d.getContainersForExplicitTagging(conns)
@@ -429,13 +430,15 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 			containerIDForPID := make(map[int32]string)
 			// DNS values for this batch only. Subset of conns.DNS
 			dnsForBatch := make(map[string]*model.DNSDatabaseEntry)
-			dnsSet := newIndexedSet[dns.Hostname]()
-			routeSet := newIndexedSet[network.Via]()
+			dnsSet := indexedset.New[dns.Hostname]()
+			routeSet := indexedset.New[network.Via]()
 
 			connectionsTagsEncoder := model.NewV3TagEncoder()
 			tagsEncoder := model.NewV3TagEncoder()
 			// Adding a dummy tag to ensure the indices we get are always >= 0.
 			_ = tagsEncoder.Encode([]string{"-"})
+
+			resolvConfSet := indexedset.New[string]()
 
 			for _, nc := range connsChunk {
 				destIP := ipc.get(nc.Dest.Addr)
@@ -480,11 +483,15 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 					RouteIdx:             formatRouteIndex(nc.Via, routeSet),
 					TcpFailuresByErrCode: ddmaps.CastIntegerKeys[uint16, uint32](nc.TCPFailures),
 					SystemProbeConn:      nc.Pid == d.sysProbePID,
+					ResolvConfIdx:        -1, // will be overwritten
 				}
 
 				d.addContainerTags(c, containerIDForPID, containersForTagging, tagsEncoder)
 				d.addTags(nc, c, tagsSet, usmEncoders, connectionsTagsEncoder)
 				d.addDNS(nc, c, dnsSet)
+				if resolvConf, ok := conns.ResolvConfs[nc.ContainerID.Source]; ok {
+					c.ResolvConfIdx = resolvConfSet.Add(resolvConf.Get())
+				}
 
 				batchConns = append(batchConns, c)
 			}
@@ -533,6 +540,7 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 				EncodedTags:            tagsEncoder.Buffer(),
 				HostTagsIndex:          hostTagsIndex,
 				Routes:                 ddslices.Map(routeSet.UniqueKeys(), viaToRoute),
+				ResolvConfs:            resolvConfSet.UniqueKeys(),
 			}
 
 			// Add OS telemetry
@@ -553,7 +561,8 @@ func getInternedString(v *intern.Value) string {
 	if v == nil {
 		return ""
 	}
-	return v.Get().(string)
+	s, _ := v.Get().(string)
+	return s
 }
 
 const (

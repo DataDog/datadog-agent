@@ -204,7 +204,7 @@ func (t *localTagger) getTags(entityID types.EntityID, cardinality types.TagCard
 		return tagset.HashedTags{}, errors.New("empty entity ID")
 	}
 
-	cachedTags, err := t.tagStore.LookupHashedWithEntityStr(entityID, cardinality)
+	cachedTags, err := t.tagStore.LookupHashed(entityID, cardinality)
 	if err != nil {
 		t.telemetryStore.QueriesByCardinality(cardinality).EmptyTags.Inc()
 		return tagset.HashedTags{}, err

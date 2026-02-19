@@ -12,6 +12,7 @@
       -m 24576M
       -v "$(Get-Location):c:\mnt"
       -e DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS="${DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS}"
+      -e GITLAB_CI
       -e CI_JOB_ID
       -e CI_PIPELINE_ID
       -e CI_PROJECT_NAME
@@ -65,7 +66,6 @@
 windows_msi_and_bosh_zip_x64-a7:
   extends: .windows_main_agent_base
   rules:
-    - !reference [.except_mergequeue]
     - when: on_success
   variables:
     ARCH: "x64"

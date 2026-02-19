@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Set Agent hostname to empty in DDOT when DDOT is in gateway mode. 

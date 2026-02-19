@@ -1,0 +1,11 @@
+health_platform:
+  enabled: true
+  forwarder:
+    interval: 1m
+logs_enabled: true
+logs_config:
+  container_collect_all: true
+logs:
+  - type: docker
+    service: docker
+    container_all: true

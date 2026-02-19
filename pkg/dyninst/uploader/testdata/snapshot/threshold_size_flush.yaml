@@ -46,8 +46,10 @@ metrics:
 now: 0s
 event: !stop {}
 effects:
+  - !send-batch {id: 1, items: 1, bytes: 3}
   - !reset-timer {}
 state:
-  batch_len: 1
-  current_size: 3
+  batch_len: 0
+  current_size: 0
+  inflight: [1]
   timer_set: false

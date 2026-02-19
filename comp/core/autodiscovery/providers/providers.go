@@ -9,6 +9,7 @@
 package providers
 
 import (
+	autoutils "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
@@ -54,12 +55,21 @@ func RegisterProviders(providerCatalog map[string]types.ConfigProviderFactory) {
 	RegisterProviderWithComponents(names.KubeContainer, NewContainerConfigProvider, providerCatalog)
 	RegisterProvider(names.EndpointsChecksRegisterName, NewEndpointsChecksConfigProvider, providerCatalog)
 	RegisterProvider(names.EtcdRegisterName, NewEtcdConfigProvider, providerCatalog)
-	RegisterProvider(names.KubeEndpointsFileRegisterName, NewKubeEndpointsFileConfigProvider, providerCatalog)
-	RegisterProvider(names.KubeEndpointsRegisterName, NewKubeEndpointsConfigProvider, providerCatalog)
 	RegisterProvider(names.KubeServicesFileRegisterName, NewKubeServiceFileConfigProvider, providerCatalog)
 	RegisterProvider(names.KubeServicesRegisterName, NewKubeServiceConfigProvider, providerCatalog)
 	RegisterProviderWithComponents(names.PrometheusPodsRegisterName, NewPrometheusPodsConfigProvider, providerCatalog)
-	RegisterProvider(names.PrometheusServicesRegisterName, NewPrometheusServicesConfigProvider, providerCatalog)
 	RegisterProvider(names.ZookeeperRegisterName, NewZookeeperConfigProvider, providerCatalog)
 	RegisterProviderWithComponents(names.ProcessLog, NewProcessLogConfigProvider, providerCatalog)
+
+	prometheusServicesProvider := NewPrometheusServicesConfigProvider
+	endpointsFileProvider := NewKubeEndpointsFileConfigProvider
+	endpointsProvider := NewKubeEndpointsConfigProvider
+	if autoutils.UseEndpointSlices() {
+		endpointsFileProvider = NewKubeEndpointSlicesFileConfigProvider
+		endpointsProvider = NewKubeEndpointSlicesConfigProvider
+		prometheusServicesProvider = NewPrometheusServicesEndpointSlicesConfigProvider
+	}
+	RegisterProvider(names.PrometheusServicesRegisterName, prometheusServicesProvider, providerCatalog)
+	RegisterProvider(names.KubeEndpointsFileRegisterName, endpointsFileProvider, providerCatalog)
+	RegisterProvider(names.KubeEndpointsRegisterName, endpointsProvider, providerCatalog)
 }

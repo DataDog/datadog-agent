@@ -1,0 +1,204 @@
+# Tests that missing types reported while the loading pipeline is busy
+# do not trigger recompilation immediately, but are deferred until the
+# pipeline becomes idle.
+- !processes-updated
+  updated:
+    - process_id: {pid: 1001}
+      executable: {path: /usr/bin/test}
+      service: svc-a
+      probes:
+        - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
+    - process_id: {pid: 1002}
+      executable: {path: /usr/bin/other}
+      service: svc-b
+      probes:
+        - {type: LOG_PROBE, id: probe2, where: {methodName: foo}, captureSnapshot: true}
+- !loaded {program_id: 1}
+- !attached {program_id: 1, process_id: 1001}
+# Pipeline is busy loading program 2 for process 1002.
+# Missing types for process 1001 should be recorded but not trigger recompilation.
+- !missing-types-reported {process_id: 1001, type_names: [SomeType]}
+# When program 2 finishes loading, the pipeline becomes idle and the deferred
+# recompilation for process 1001 is triggered.
+- !loaded {program_id: 2}
+- !attached {program_id: 2, process_id: 1002}
+# Complete the recompilation cycle for process 1001.
+- !detached {program_id: 1, process_id: 1001}
+- !unloaded {program_id: 1}
+- !loaded {program_id: 3}
+- !attached {program_id: 3, process_id: 1001}
+---
+event: !processes-updated
+  updated:
+    - process_id: {pid: 1001}
+      executable: {path: /usr/bin/test}
+      service: svc-a
+      probes:
+        - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
+    - process_id: {pid: 1002}
+      executable: {path: /usr/bin/other}
+      service: svc-b
+      probes:
+        - {type: LOG_PROBE, id: probe2, where: {methodName: foo}, captureSnapshot: true}
+effects:
+  - !spawn-bpf-loading {executable: /usr/bin/test@0.0m0.0, probes: [probe1], process_id: 1001, program_id: 1}
+state:
+  currently_loading: <nil> -> 1
+  queued_programs: '[] -> [2]'
+  processes:
+    1001: <nil> -> WaitingForProgram (prog 1)
+    1002: <nil> -> WaitingForProgram (prog 2)
+  programs:
+    1: <nil> -> Loading (proc 1001)
+    2: <nil> -> Queued (proc 1002)
+  stats:
+    numProcesses: 0 -> 2
+    numPrograms: 0 -> 2
+    numWaitingForProgram: 0 -> 2
+---
+event: !loaded {program_id: 1}
+effects:
+  - !attach-to-process {executable: /usr/bin/test@0.0m0.0, process_id: 1001, program_id: 1}
+  - !spawn-bpf-loading {executable: /usr/bin/other@0.0m0.0, probes: [probe2], process_id: 1002, program_id: 2}
+state:
+  currently_loading: 1 -> 2
+  queued_programs: '[2] -> []'
+  processes:
+    1001: WaitingForProgram (prog 1) -> Attaching (prog 1)
+    1002: WaitingForProgram (prog 2)
+  programs:
+    1: Loading (proc 1001) -> Loaded (proc 1001)
+    2: Queued (proc 1002) -> Loading (proc 1002)
+  stats:
+    loaded: 0 -> 1
+    numAttaching: 0 -> 1
+    numWaitingForProgram: 2 -> 1
+---
+event: !attached {program_id: 1, process_id: 1001}
+state:
+  currently_loading: "2"
+  queued_programs: '[]'
+  processes:
+    1001: Attaching (prog 1) -> Attached (prog 1)
+    1002: WaitingForProgram (prog 2)
+  programs:
+    1: Loaded (proc 1001)
+    2: Loading (proc 1002)
+  stats:
+    attached: 0 -> 1
+    numAttached: 0 -> 1
+    numAttaching: 1 -> 0
+---
+event: !missing-types-reported {process_id: 1001, type_names: [SomeType]}
+state:
+  currently_loading: "2"
+  queued_programs: '[]'
+  processes:
+    1001: Attached (prog 1)
+    1002: WaitingForProgram (prog 2)
+  programs:
+    1: Loaded (proc 1001)
+    2: Loading (proc 1002)
+  discovered_types:
+    svc-a: '[] -> [SomeType]'
+---
+event: !loaded {program_id: 2}
+effects:
+  - !attach-to-process {executable: /usr/bin/other@0.0m0.0, process_id: 1002, program_id: 2}
+  - !detach-from-process {failure: "no", process_id: 1001, program_id: 1}
+state:
+  currently_loading: 2 -> <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attached (prog 1) -> Detaching (prog 1)
+    1002: WaitingForProgram (prog 2) -> Attaching (prog 2)
+  programs:
+    1: Loaded (proc 1001) -> Draining (proc 1001)
+    2: Loading (proc 1002) -> Loaded (proc 1002)
+  stats:
+    loaded: 1 -> 2
+    numAttached: 1 -> 0
+    numAttaching: 0 -> 1
+    numDetaching: 0 -> 1
+    numWaitingForProgram: 1 -> 0
+    typeRecompilationsTriggered: 0 -> 1
+---
+event: !attached {program_id: 2, process_id: 1002}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Detaching (prog 1)
+    1002: Attaching (prog 2) -> Attached (prog 2)
+  programs:
+    1: Draining (proc 1001)
+    2: Loaded (proc 1002)
+  stats:
+    attached: 1 -> 2
+    numAttached: 0 -> 1
+    numAttaching: 1 -> 0
+---
+event: !detached {program_id: 1, process_id: 1001}
+effects:
+  - !unload-program {program_id: 1}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Detaching (prog 1)
+    1002: Attached (prog 2)
+  programs:
+    1: Draining (proc 1001) -> Unloading (proc 1001)
+    2: Loaded (proc 1002)
+  stats:
+    detached: 0 -> 1
+---
+event: !unloaded {program_id: 1}
+effects:
+  - !spawn-bpf-loading {additional_types: [SomeType], executable: /usr/bin/test@0.0m0.0, probes: [probe1], process_id: 1001, program_id: 3}
+state:
+  currently_loading: <nil> -> 3
+  queued_programs: '[]'
+  processes:
+    1001: Detaching (prog 1) -> WaitingForProgram (prog 3)
+    1002: Attached (prog 2)
+  programs:
+    1: Unloading (proc 1001) -> <nil>
+    2: Loaded (proc 1002)
+    3: <nil> -> Loading (proc 1001)
+  stats:
+    numDetaching: 1 -> 0
+    numWaitingForProgram: 0 -> 1
+    unloaded: 0 -> 1
+---
+event: !loaded {program_id: 3}
+effects:
+  - !attach-to-process {executable: /usr/bin/test@0.0m0.0, process_id: 1001, program_id: 3}
+state:
+  currently_loading: 3 -> <nil>
+  queued_programs: '[]'
+  processes:
+    1001: WaitingForProgram (prog 3) -> Attaching (prog 3)
+    1002: Attached (prog 2)
+  programs:
+    2: Loaded (proc 1002)
+    3: Loading (proc 1001) -> Loaded (proc 1001)
+  stats:
+    loaded: 2 -> 3
+    numAttaching: 0 -> 1
+    numWaitingForProgram: 1 -> 0
+---
+event: !attached {program_id: 3, process_id: 1001}
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attaching (prog 3) -> Attached (prog 3)
+    1002: Attached (prog 2)
+  programs:
+    2: Loaded (proc 1002)
+    3: Loaded (proc 1001)
+  stats:
+    attached: 2 -> 3
+    numAttached: 1 -> 2
+    numAttaching: 1 -> 0

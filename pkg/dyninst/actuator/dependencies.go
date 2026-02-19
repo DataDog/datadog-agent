@@ -12,6 +12,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 )
 
+// LoadOptions carries optional parameters for Runtime.Load.
+type LoadOptions struct {
+	// AdditionalTypes is a sorted, deduplicated list of Go type names
+	// discovered at runtime (e.g. from interface decoding) that should be
+	// included in the IR program's type registry.
+	AdditionalTypes []string
+}
+
 // Runtime abstracts the creation, attachment, and cleanup of a program.
 type Runtime interface {
 	// Load loads a program into the runtime.
@@ -19,7 +27,7 @@ type Runtime interface {
 	// If loading fails, the process will enter a failed state until new
 	// probes are added for it or the process is removed.
 	Load(
-		ir.ProgramID, Executable, ProcessID, []ir.ProbeDefinition,
+		ir.ProgramID, Executable, ProcessID, []ir.ProbeDefinition, LoadOptions,
 	) (LoadedProgram, error)
 }
 

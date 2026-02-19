@@ -15,7 +15,10 @@ import (
 
 var ddAutoconfiguredSuffix = "dd-autoconfigured"
 
-const secretRegex = "ENC\\[.*\\][ \t]*$"
+const (
+	defaultSite = "datadoghq.com"
+	secretRegex = "ENC\\[.*\\][ \t]*$"
+)
 
 type component struct {
 	Type         string
@@ -44,9 +47,14 @@ func (c *ddConverter) enhanceConfig(conf *confmap.Conf) {
 			if c.coreConfig == nil || c.coreConfig.GetString("api_key") == "" {
 				continue
 			}
+			site := defaultSite
+			if c.coreConfig.GetString("site") != "" {
+				site = c.coreConfig.GetString("site")
+			}
 			extension.Config = map[string]any{
 				"api": map[string]any{
-					"key": c.coreConfig.GetString("api_key"),
+					"key":  c.coreConfig.GetString("api_key"),
+					"site": site,
 				},
 			}
 		}

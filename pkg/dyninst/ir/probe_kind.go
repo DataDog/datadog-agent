@@ -24,6 +24,11 @@ const (
 	// Internally in rcjson these are log probes with capture_snapshot set to
 	// true.
 	ProbeKindSnapshot
+	// ProbeKindCaptureExpression is a probe that captures specific expressions.
+	//
+	// Internally in rcjson these are log probes with captureSnapshot=false and
+	// captureExpressions set.
+	ProbeKindCaptureExpression
 
 	maxProbeKind uint8 = iota
 )

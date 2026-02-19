@@ -10,16 +10,17 @@ from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.retry import run_command_with_retry
-from tasks.libs.common.utils import environ, gitlab_section
+from tasks.libs.common.utils import environ, get_gobin, gitlab_section, link_or_copy
 
 TOOL_LIST = [
+    'github.com/bazelbuild/bazelisk',
     'github.com/frapposelli/wwhrd',
     'github.com/go-enry/go-license-detector/v4/cmd/license-detector',
     'github.com/golangci/golangci-lint/v2/cmd/golangci-lint',
     'github.com/goware/modvendor',
     'github.com/stormcat24/protodep',
     'gotest.tools/gotestsum',
-    'github.com/vektra/mockery/v2',
+    'github.com/vektra/mockery/v3',
     'github.com/wadey/gocovmerge',
     'github.com/uber-go/gopatch',
     'github.com/aarzilli/whydeadcode',
@@ -62,6 +63,8 @@ def install_tools(ctx: Context, max_retry: int = 3):
                 with ctx.cd(path):
                     for tool in tools:
                         run_command_with_retry(ctx, f"go install {tool}", max_retry=max_retry)
+        for bazelisk in Path(get_gobin(ctx)).glob('bazelisk*'):
+            link_or_copy(bazelisk, bazelisk.with_stem(bazelisk.stem.replace('isk', '')))
 
 
 @task

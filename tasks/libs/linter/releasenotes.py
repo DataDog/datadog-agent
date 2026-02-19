@@ -286,6 +286,24 @@ def validate_reno_structure(content: dict, file_path: str) -> list[ReleasenoteEr
                     message=f"Section '{section}' is empty (null). Remove it or add content.",
                 )
             )
+        elif section == 'prelude':
+            # Prelude section contains a string, not a list
+            if not isinstance(section_content, str):
+                section_errors.append(
+                    RSTLintError(
+                        line=None,
+                        level='error',
+                        message=f"Section 'prelude' must be a string, got {type(section_content).__name__}",
+                    )
+                )
+            elif not section_content.strip():
+                section_errors.append(
+                    RSTLintError(
+                        line=None,
+                        level='warning',
+                        message="Section 'prelude' is empty or whitespace-only",
+                    )
+                )
         elif not isinstance(section_content, list):
             section_errors.append(
                 RSTLintError(

@@ -23,6 +23,8 @@ const (
 	ActionExecutionCompletedMetric = "datadog.actions.private_runner.executions.completed"
 	ActionExecutionLatencyMetric   = "datadog.actions.private_runner.executions.latency"
 
+	HealthCheckMetric = "datadog.actions.private_runner.health.check"
+
 	KeysManagerStartupLatencyMetric = "datadog.actions.private_runner.keys_manager.startup_latency"
 )
 
