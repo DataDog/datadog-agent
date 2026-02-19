@@ -9,7 +9,7 @@ package com_datadoghq_script
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -27,5 +27,5 @@ func (h *RunPredefinedScriptHandler) Run(
 	task *types.Task,
 	credentials *privateconnection.PrivateCredentials,
 ) (interface{}, error) {
-	return nil, fmt.Errorf("RunPredefinedScript is not available on Windows. Use PowerShell action instead")
+	return nil, errors.New("RunPredefinedScript is not available on Windows. Use PowerShell action instead")
 }
