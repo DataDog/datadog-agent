@@ -127,7 +127,7 @@ fn find_non_discovery_yaml_key(yaml_doc: &Option<Yaml>) -> Option<&str> {
             }
             None
         }
-        Some(Yaml::BadValue) => None,        // Empty or null document
+        Some(Yaml::BadValue) => None, // Empty or null document
         _ => Some("<non-hash YAML>"), // Any non-hash YAML (array, string, etc.) counts as "other config"
     }
 }
@@ -554,7 +554,10 @@ network_config:
 "#;
         let config_file = create_test_config(yaml);
         let yaml_doc = load_config(Some(config_file.path().to_path_buf())).unwrap();
-        assert_eq!(find_non_discovery_yaml_key(&yaml_doc), Some("network_config"));
+        assert_eq!(
+            find_non_discovery_yaml_key(&yaml_doc),
+            Some("network_config")
+        );
     }
 
     #[test]
