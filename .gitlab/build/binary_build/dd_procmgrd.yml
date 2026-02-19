@@ -7,9 +7,8 @@
     - !reference [.except_mergequeue]
     - when: on_success
   script:
-    - bazelisk build --config=dd-procmgrd-release //pkg/procmgr/rust:dd-procmgrd
     - mkdir -p dd-procmgrd-build-outputs
-    - cp bazel-bin/pkg/procmgr/rust/dd-procmgrd dd-procmgrd-build-outputs/
+    - bazelisk run --config=dd-procmgrd-release -- //pkg/procmgr/rust:install --destdir=$PWD/dd-procmgrd-build-outputs
     - tar -cJf $CI_PROJECT_DIR/dd-procmgrd-build-outputs.tar.xz dd-procmgrd-build-outputs/
   artifacts:
     expire_in: 2 weeks
