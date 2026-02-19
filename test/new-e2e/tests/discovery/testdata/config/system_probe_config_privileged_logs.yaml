@@ -1,5 +1,6 @@
 log_level: 'debug'
 discovery:
   enabled: true
+  use_sd_agent: true
 privileged_logs:
   enabled: true
