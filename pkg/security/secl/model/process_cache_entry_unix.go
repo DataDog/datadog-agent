@@ -20,11 +20,28 @@ func (pc *ProcessCacheEntry) setAncestor(parent *ProcessCacheEntry) {
 		return
 	}
 
+	// remove from old parent's children list
+	if pc.Ancestor != nil {
+		pc.Ancestor.RemoveChild(pc)
+	}
+
 	pc.Ancestor = parent
 	pc.Parent = &parent.Process
 
+	// add to new parent's children list
+	if parent != nil {
+		parent.Children = append(parent.Children, pc)
+	}
+
 	// keep some context
 	pc.copyProcessContextFrom(parent)
+}
+
+// RemoveChild removes a child from this entry's Children list.
+func (pc *ProcessCacheEntry) RemoveChild(child *ProcessCacheEntry) {
+	pc.Children = slices.DeleteFunc(pc.Children, func(c *ProcessCacheEntry) bool {
+		return c == child
+	})
 }
 
 // HasValidLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1 or if a node has a missing parent
