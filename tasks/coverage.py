@@ -337,7 +337,7 @@ def apply_missing_coverage(ctx: Context, from_commit_sha: str, keep_temp_files: 
     dev_cov_files = [str(p) for p in pathlib.Path(".").rglob(PROFILE_COV)]
     for f in dev_cov_files:
         os.rename(f, f"{f}.dev")
-    dev_cov_files = [str(p) for p in pathlib.Path(".").rglob(f"{PROFILE_COV}.dev")]
+    dev_cov_files = [f"{p}.dev" for p in dev_cov_files]
 
     # Extract the coverage.out files from main to their folder
     with tarfile.open(f"{downloaded_archive}", "r:gz") as tgz:
