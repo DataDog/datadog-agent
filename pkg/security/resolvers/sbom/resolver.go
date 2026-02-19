@@ -563,8 +563,6 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 
 	seclog.Infof("analyzing sbom '%s'", sb.ContainerID)
 
-	time.Sleep(5 * time.Second)
-
 	if currentState := sb.state.Load(); currentState != pendingState {
 		r.removePendingScan(sb.ContainerID)
 
