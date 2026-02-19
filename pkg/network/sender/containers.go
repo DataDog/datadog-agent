@@ -22,23 +22,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-const (
-	cacheValidityNoRT = 2 * time.Second
 )
 
 const containerResolverSubsystem = "sender__container_resolver"
 
 var containerResolverTelemetry = struct {
 	addressCount telemetry.Gauge
-	pidCount     telemetry.Gauge
 	tagCount     telemetry.Gauge
 }{
 	telemetry.NewGauge(containerResolverSubsystem, "address_count", nil, ""),
-	telemetry.NewGauge(containerResolverSubsystem, "pid_count", nil, ""),
 	telemetry.NewGauge(containerResolverSubsystem, "tag_count", nil, ""),
 }
 
@@ -59,7 +52,6 @@ type containerResolver struct {
 
 	mtx               sync.Mutex
 	addrToContainerID map[containerAddr]containerID
-	pidToContainerID  map[uint32]containerID
 	tagContainerIDs   map[containerID]struct{}
 	tagDuration       time.Duration
 }
@@ -69,7 +61,6 @@ func newContainerResolver(wmeta workloadmeta.Component, metricsProvider metrics.
 		wmeta:             wmeta,
 		metricsProvider:   metricsProvider,
 		addrToContainerID: make(map[containerAddr]containerID),
-		pidToContainerID:  make(map[uint32]containerID),
 	}
 	if tagDuration > 0 {
 		cr.tagContainerIDs = make(map[containerID]struct{})
@@ -144,28 +135,9 @@ func (r *containerResolver) process(eventBundle workloadmeta.EventBundle) {
 				r.tagContainerIDs[idWrapper] = struct{}{}
 			}
 		}
-
-		// map PID to container ID
-		collector := r.metricsProvider.GetCollector(provider.NewRuntimeMetadata(
-			string(container.Runtime),
-			string(container.RuntimeFlavor),
-		))
-		if collector == nil {
-			log.Infof("No metrics collector available for runtime: %s, skipping container: %s", container.Runtime, container.ID)
-			continue
-		}
-		pids, err := collector.GetPIDs(container.Namespace, container.ID, cacheValidityNoRT)
-		if err == nil && pids != nil {
-			for _, pid := range pids {
-				r.pidToContainerID[uint32(pid)] = idWrapper
-			}
-		} else {
-			log.Debugf("PIDs for: %+v not available, err: %v", container, err)
-		}
 	}
 
 	containerResolverTelemetry.addressCount.Set(float64(len(r.addrToContainerID)))
-	containerResolverTelemetry.pidCount.Set(float64(len(r.pidToContainerID)))
 	containerResolverTelemetry.tagCount.Set(float64(len(r.tagContainerIDs)))
 }
 
@@ -201,11 +173,7 @@ func (r *containerResolver) resolveDestinationContainerIDs(conns *network.Connec
 		maps.DeleteFunc(r.addrToContainerID, func(_ containerAddr, id containerID) bool {
 			return !id.alive
 		})
-		maps.DeleteFunc(r.pidToContainerID, func(_ uint32, id containerID) bool {
-			return !id.alive
-		})
 		containerResolverTelemetry.addressCount.Set(float64(len(r.addrToContainerID)))
-		containerResolverTelemetry.pidCount.Set(float64(len(r.pidToContainerID)))
 	}()
 
 	// establish a tighter bound on a number of container IDs for the map
@@ -215,16 +183,6 @@ func (r *containerResolver) resolveDestinationContainerIDs(conns *network.Connec
 		if !conn.IntraHost {
 			continue
 		}
-		cid := conn.ContainerID.Source
-		if cid == nil {
-			if v, ok := r.pidToContainerID[conn.Pid]; ok {
-				cid = v.id
-			}
-		}
-		if cid == nil {
-			continue
-		}
-		conn.ContainerID.Source = cid
 
 		if conn.NetNS != 0 {
 			containerIDCount++
