@@ -150,6 +150,12 @@ func (p *EBPFResolver) TryReparentFromProcfs(entry *model.ProcessCacheEntry) {
 		if pc.ExitTime.IsZero() || prev == nil || !prev.ExitTime.IsZero() {
 			continue
 		}
+		// Skip fork→exec transitions: when prev and pc share the same
+		// PID, pc is the fork entry replaced by an exec (prev). Its
+		// ExitTime is set by Exec() but it is not a real process death.
+		if pc.Pid == prev.Pid {
+			continue
+		}
 		p.tryReparentChildrenFromProcfs(pc)
 	}
 }
