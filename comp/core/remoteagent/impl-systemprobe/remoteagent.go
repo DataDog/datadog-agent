@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/remoteagent/helper"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -153,7 +152,7 @@ func (r *remoteagentImpl) GetFlareFiles(_ context.Context, _ *pbcore.GetFlareFil
 		files["system_probe_stats.json"] = data
 	}
 
-	if data, err := json.MarshalIndent(pkgconfigsetup.SystemProbe().AllSettings(), "", "  "); err == nil {
+	if data, err := json.MarshalIndent(r.cfg.AllSettings(), "", "  "); err == nil {
 		files["system_probe_runtime_config_dump.json"] = data
 	}
 
