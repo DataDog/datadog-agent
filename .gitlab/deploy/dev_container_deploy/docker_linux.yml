@@ -262,17 +262,30 @@ dev_deploy-host-profiler-devtest:
   variables:
     DEVTEST: "1"
 
-dev_branch-host-profiler-trigger_relenv:
+.trigger_relenv_base:
   stage: dev_container_deploy
-  rules:
-    - when: on_success
-  needs:
-    - dev_deploy-host-profiler-devtest
   trigger:
     project: DataDog/apm-reliability/datadog-reliability-env
-    branch: theomagellan/add-host-profiler
   variables:
     UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME
     UPSTREAM_PROJECT_ID: $CI_PROJECT_ID
     UPSTREAM_PROJECT_NAME: ddot-ebpf-dev
     UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA
+
+deploy_host_profiler_to_reliability_env_nightly:
+  extends: .trigger_relenv_base
+  rules:
+    - !reference [.on_deploy_nightly_repo_branch]
+  needs:
+    - dev_nightly-host-profiler-standalone
+  trigger:
+    branch: master
+
+deploy_host_profiler_to_reliability_env_devtest:
+  extends: .trigger_relenv_base
+  rules:
+    - when: on_success
+  needs:
+    - dev_deploy-host-profiler-devtest
+  trigger:
+    branch: theomagellan/add-host-profiler
