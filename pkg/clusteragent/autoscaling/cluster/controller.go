@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -240,8 +241,8 @@ func (c *Controller) updateNodePool(ctx context.Context, targetNp, datadogNp *ka
 	// Apply updates from NodePoolInternal to the NodePool object
 	desiredNp := model.UpdateNodePoolObject(targetNp, datadogNp, npi)
 	// Compare entire Spec
-	if equality.Semantic.DeepEqual(datadogNp.Spec, desiredNp.Spec) {
-		log.Debugf("NodePool: %s Spec has not changed, no action will be applied.", npi.Name())
+	if equality.Semantic.DeepEqual(datadogNp.Spec, desiredNp.Spec) && maps.Equal(datadogNp.GetLabels(), desiredNp.GetLabels()) {
+		log.Debugf("NodePool: %s spec and labels have not changed, no action will be applied.", npi.Name())
 		return nil
 	}
 
