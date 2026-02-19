@@ -358,12 +358,12 @@ type AgentConfig struct {
 	Endpoints []*Endpoint
 
 	// Concentrator
-	BucketInterval         time.Duration // the size of our pre-aggregation per bucket
-	ExtraAggregators       []string      // DEPRECATED
-	PeerTagsAggregation    bool          // enables/disables stats aggregation for peer entity tags, used by Concentrator and ClientStatsAggregator
-	ComputeStatsBySpanKind bool          // enables/disables the computing of stats based on a span's `span.kind` field
-	PeerTags               []string      // additional tags to use for peer entity stats aggregation
-	SpanDerivedPrimaryTagKeys []string   // tag keys to use for span-derived primary tag stats aggregation
+	BucketInterval            time.Duration // the size of our pre-aggregation per bucket
+	ExtraAggregators          []string      // DEPRECATED
+	PeerTagsAggregation       bool          // enables/disables stats aggregation for peer entity tags, used by Concentrator and ClientStatsAggregator
+	ComputeStatsBySpanKind    bool          // enables/disables the computing of stats based on a span's `span.kind` field
+	PeerTags                  []string      // additional tags to use for peer entity stats aggregation
+	SpanDerivedPrimaryTagKeys []string      // tag keys to use for span-derived primary tag stats aggregation
 
 	// Sampler configuration
 	ExtraSampleRate float64

@@ -287,20 +287,20 @@ func (sc *SpanConcentrator) NewStatSpan(
 ) (statSpan *StatSpan, ok bool) {
 	return sc.NewStatSpanWithConfig(
 		StatSpanConfig{
-			Service:                service,
-			Resource:               resource,
-			Name:                   name,
-			Type:                   typ,
-			ParentID:               parentID,
-			Start:                  start,
-			Duration:               duration,
-			Error:                  error,
-			Meta:                   meta,
-			Metrics:                metrics,
+			Service:                   service,
+			Resource:                  resource,
+			Name:                      name,
+			Type:                      typ,
+			ParentID:                  parentID,
+			Start:                     start,
+			Duration:                  duration,
+			Error:                     error,
+			Meta:                      meta,
+			Metrics:                   metrics,
 			PeerTags:                  peerTags,
 			SpanDerivedPrimaryTagKeys: nil,
 			HTTPMethod:                "",
-			HTTPEndpoint:           "",
+			HTTPEndpoint:              "",
 		},
 	)
 }
