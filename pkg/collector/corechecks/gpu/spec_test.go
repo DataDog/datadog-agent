@@ -67,15 +67,55 @@ type architecturesFile struct {
 }
 
 type architectureCapabilities struct {
-	GPM          bool `yaml:"gpm"`
-	NVLink       bool `yaml:"nvlink"`
-	ECC          bool `yaml:"ecc"`
-	DeviceEvents bool `yaml:"device_events"`
+	GPM               bool     `yaml:"gpm"`
+	UnsupportedFields []string `yaml:"unsupported_fields"`
 }
 
 type architectureSpec struct {
 	Capabilities              architectureCapabilities `yaml:"capabilities"`
 	UnsupportedDeviceFeatures []string                 `yaml:"unsupported_device_features"`
+}
+
+var nvmlFieldNameToFieldID = map[string]uint32{
+	"FI_DEV_MEMORY_TEMP":                   nvml.FI_DEV_MEMORY_TEMP,
+	"FI_DEV_NVLINK_THROUGHPUT_DATA_RX":     nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX,
+	"FI_DEV_NVLINK_THROUGHPUT_DATA_TX":     nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_TX,
+	"FI_DEV_NVLINK_THROUGHPUT_RAW_RX":      nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX,
+	"FI_DEV_NVLINK_THROUGHPUT_RAW_TX":      nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX,
+	"FI_DEV_NVLINK_SPEED_MBPS_COMMON":      nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON,
+	"FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT": nvml.FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT,
+	"FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL": nvml.FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL,
+	"FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL": nvml.FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL,
+	"FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL": nvml.FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL,
+	"FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL": nvml.FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL,
+	"FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL":   nvml.FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL,
+	"FI_DEV_PCIE_REPLAY_COUNTER":               nvml.FI_DEV_PCIE_REPLAY_COUNTER,
+	"FI_DEV_PERF_POLICY_THERMAL":               nvml.FI_DEV_PERF_POLICY_THERMAL,
+}
+
+func unsupportedFieldIDsFromNames(t *testing.T, names []string) []uint32 {
+	t.Helper()
+	ids := make([]uint32, 0, len(names))
+	for _, name := range names {
+		id, found := nvmlFieldNameToFieldID[name]
+		require.True(t, found, "unknown NVML field in architectures capabilities: %s", name)
+		ids = append(ids, id)
+	}
+	return ids
+}
+
+func allConfiguredNVMLFieldValues() []nvml.FieldValue {
+	ids := make([]uint32, 0, len(nvmlFieldNameToFieldID))
+	for _, id := range nvmlFieldNameToFieldID {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+
+	values := make([]nvml.FieldValue, len(ids))
+	for i, id := range ids {
+		values[i] = nvml.FieldValue{FieldId: id}
+	}
+	return values
 }
 
 func loadSpec(t *testing.T) *specFile {
@@ -132,12 +172,11 @@ func isModeSupportedByArchitecture(archSpec architectureSpec, mode string) bool 
 
 // buildMockOptionsForArchAndMode returns the same NVML mock options used by runCheckAndCollectMetricNamesWithConfig
 // for the given architecture and device feature mode, so capability assertions use the same mock contract.
-func buildMockOptionsForArchAndMode(archName string, mode testutil.DeviceFeatureMode, archSpec architectureSpec) []testutil.NvmlMockOption {
+func buildMockOptionsForArchAndMode(t *testing.T, archName string, mode testutil.DeviceFeatureMode, archSpec architectureSpec) []testutil.NvmlMockOption {
+	t.Helper()
 	caps := testutil.Capabilities{
-		GPM:          archSpec.Capabilities.GPM,
-		NVLink:       archSpec.Capabilities.NVLink,
-		ECC:          archSpec.Capabilities.ECC,
-		DeviceEvents: archSpec.Capabilities.DeviceEvents,
+		GPM:               archSpec.Capabilities.GPM,
+		UnsupportedFields: unsupportedFieldIDsFromNames(t, archSpec.Capabilities.UnsupportedFields),
 	}
 	opts := []testutil.NvmlMockOption{
 		testutil.WithArchitecture(archName),
@@ -181,7 +220,7 @@ func TestLoadArchitecturesNotEmpty(t *testing.T) {
 
 // TestMockCapabilitiesMatchArchitectureSpec ensures that for each architecture and supported device mode,
 // the NVML mock configured from architectures.yaml returns API behavior that matches the capability flags
-// (gpm, nvlink, ecc, device_events). This validates that the mock actually applies the spec.
+// (gpm, unsupported_fields). This validates that the mock actually applies the spec.
 func TestMockCapabilitiesMatchArchitectureSpec(t *testing.T) {
 	archFile := loadArchitectures(t)
 	deviceModes := []testutil.DeviceFeatureMode{
@@ -198,7 +237,7 @@ func TestMockCapabilitiesMatchArchitectureSpec(t *testing.T) {
 
 			subtestName := "arch=" + archName + "/mode=" + string(mode)
 			t.Run(subtestName, func(t *testing.T) {
-				opts := buildMockOptionsForArchAndMode(archName, mode, archSpec)
+				opts := buildMockOptionsForArchAndMode(t, archName, mode, archSpec)
 				ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(opts...))
 
 				lib, err := ddnvml.GetSafeNvmlLib()
@@ -218,26 +257,22 @@ func TestMockCapabilitiesMatchArchitectureSpec(t *testing.T) {
 				}
 				assert.Equal(t, expected, support.IsSupportedDevice, "%s: capability gpm=%v should yield GpmQueryDeviceSupport.IsSupportedDevice=%d", ctx, caps.GPM, expected)
 
-				_, err = dev.GetNvLinkState(0)
-				if caps.NVLink {
-					require.NoError(t, err, "%s: GetNvLinkState (capability nvlink=true)", ctx)
-				} else {
-					require.True(t, ddnvml.IsUnsupported(err), "%s: capability nvlink=false should yield unsupported from GetNvLinkState, got %v", ctx, err)
+				unsupportedIDs := unsupportedFieldIDsFromNames(t, caps.UnsupportedFields)
+				unsupportedSet := make(map[uint32]struct{}, len(unsupportedIDs))
+				for _, id := range unsupportedIDs {
+					unsupportedSet[id] = struct{}{}
 				}
 
-				_, err = dev.GetMemoryErrorCounter(nvml.MEMORY_ERROR_TYPE_CORRECTED, nvml.AGGREGATE_ECC, nvml.MEMORY_LOCATION_DEVICE_MEMORY)
-				if caps.ECC {
-					require.NoError(t, err, "%s: GetMemoryErrorCounter (capability ecc=true)", ctx)
-				} else {
-					require.True(t, ddnvml.IsUnsupported(err), "%s: capability ecc=false should yield unsupported from GetMemoryErrorCounter, got %v", ctx, err)
-				}
-
-				evtTypes, err := dev.GetSupportedEventTypes()
-				if caps.DeviceEvents {
-					require.NoError(t, err, "%s: GetSupportedEventTypes (capability device_events=true)", ctx)
-					require.NotZero(t, evtTypes, "%s: capability device_events=true should yield non-zero event types", ctx)
-				} else {
-					require.True(t, ddnvml.IsUnsupported(err), "%s: capability device_events=false should yield unsupported from GetSupportedEventTypes, got %v", ctx, err)
+				fieldValues := allConfiguredNVMLFieldValues()
+				err = dev.GetFieldValues(fieldValues)
+				require.NoError(t, err, "%s: GetFieldValues should be callable", ctx)
+				for _, fv := range fieldValues {
+					_, isUnsupported := unsupportedSet[fv.FieldId]
+					if isUnsupported {
+						require.Equal(t, uint32(nvml.ERROR_NOT_SUPPORTED), fv.NvmlReturn, "%s: field id %d should be unsupported", ctx, fv.FieldId)
+					} else {
+						require.Equal(t, uint32(nvml.SUCCESS), fv.NvmlReturn, "%s: field id %d should be supported", ctx, fv.FieldId)
+					}
 				}
 			})
 		}
@@ -309,10 +344,8 @@ func runCheckAndCollectMetricNamesWithConfig(t *testing.T, archName string, mode
 	opts := []testutil.NvmlMockOption{
 		testutil.WithArchitecture(archName),
 		testutil.WithCapabilities(testutil.Capabilities{
-			GPM:          archSpec.Capabilities.GPM,
-			NVLink:       archSpec.Capabilities.NVLink,
-			ECC:          archSpec.Capabilities.ECC,
-			DeviceEvents: archSpec.Capabilities.DeviceEvents,
+			GPM:               archSpec.Capabilities.GPM,
+			UnsupportedFields: unsupportedFieldIDsFromNames(t, archSpec.Capabilities.UnsupportedFields),
 		}),
 		testutil.WithMockAllFunctions(),
 	}

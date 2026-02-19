@@ -445,17 +445,16 @@ func WithDeviceFeatureMode(mode DeviceFeatureMode) NvmlMockOption {
 	}
 }
 
-// Capabilities drives API support in the mock (e.g. from spec/architectures.yaml capabilities).
-// Fields: GPM, NVLink, ECC, DeviceEvents. When false, the corresponding APIs return unsupported.
+// Capabilities drives architecture-gated API support in the mock
+// (e.g. from spec/architectures.yaml capabilities).
 // process_detail_list is derived from architecture (Hopper+ only) and is not a capability.
 type Capabilities struct {
-	GPM          bool
-	NVLink       bool
-	ECC          bool
-	DeviceEvents bool
+	GPM               bool
+	UnsupportedFields []uint32
 }
 
-// WithCapabilities configures the mock so that APIs return NOT_SUPPORTED or equivalent when a capability is false.
+// WithCapabilities configures the mock so that architecture-gated APIs return
+// NOT_SUPPORTED or equivalent when a capability is false.
 func WithCapabilities(caps Capabilities) NvmlMockOption {
 	return func(o *nvmlMockOptions) {
 		o.deviceOptions = append(o.deviceOptions, func(d *nvmlmock.Device) {
@@ -464,19 +463,27 @@ func WithCapabilities(caps Capabilities) NvmlMockOption {
 					return nvml.GpmSupport{IsSupportedDevice: 0}, nvml.SUCCESS
 				}
 			}
-			if !caps.NVLink {
-				d.GetNvLinkStateFunc = func(n int) (nvml.EnableState, nvml.Return) {
-					return nvml.EnableState(0), nvml.ERROR_NOT_SUPPORTED
+			if len(caps.UnsupportedFields) > 0 {
+				unsupported := make(map[uint32]struct{}, len(caps.UnsupportedFields))
+				for _, id := range caps.UnsupportedFields {
+					unsupported[id] = struct{}{}
 				}
-			}
-			if !caps.ECC {
-				d.GetMemoryErrorCounterFunc = func(ct nvml.MemoryErrorType, ec nvml.EccCounterType, lt nvml.MemoryLocation) (uint64, nvml.Return) {
-					return 0, nvml.ERROR_NOT_SUPPORTED
-				}
-			}
-			if !caps.DeviceEvents {
-				d.GetSupportedEventTypesFunc = func() (uint64, nvml.Return) {
-					return 0, nvml.ERROR_NOT_SUPPORTED
+
+				prevGetFieldValues := d.GetFieldValuesFunc
+				d.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
+					if prevGetFieldValues == nil {
+						return nvml.ERROR_NOT_SUPPORTED
+					}
+					ret := prevGetFieldValues(values)
+					if ret != nvml.SUCCESS {
+						return ret
+					}
+					for i := range values {
+						if _, found := unsupported[values[i].FieldId]; found {
+							values[i].NvmlReturn = uint32(nvml.ERROR_NOT_SUPPORTED)
+						}
+					}
+					return nvml.SUCCESS
 				}
 			}
 		})
