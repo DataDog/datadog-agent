@@ -6,6 +6,8 @@ go 1.25.7
 godebug tlsmlkem=0
 
 use (
+	internal/tools
 	internal/tools/modparser
+	internal/tools/proto
 	internal/tools/worksynchronizer
 )

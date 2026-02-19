@@ -1,0 +1,7 @@
+# dd-procmgrd build config ------------------------------------------------------------------------------------------------
+# Matches dd-procmgrd Cargo.toml [profile.release] settings
+build:dd-procmgrd-release --@rules_rust//rust/settings:lto=fat # Enable fat LTO
+build:dd-procmgrd-release --@rules_rust//rust/settings:extra_rustc_flag=-Copt-level=z # Optimize for size
+build:dd-procmgrd-release --@rules_rust//rust/settings:extra_rustc_flag=-Ccodegen-units=1 # Single codegen unit for maximum optimization
+build:dd-procmgrd-release --@rules_rust//rust/settings:extra_rustc_flag=-Cstrip=symbols # Strip debug symbols
+build:dd-procmgrd-release --@rules_rust//rust/settings:extra_rustc_flag=-Cpanic=abort # Remove stack unwinding

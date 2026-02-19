@@ -549,7 +549,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.SetKnown("network_devices.netflow.aggregator_flow_context_ttl")                //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.SetKnown("network_devices.netflow.aggregator_port_rollup_threshold")           //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.SetKnown("network_devices.netflow.aggregator_rollup_tracker_refresh_interval") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnvAndSetDefault("network_devices.netflow.enabled", "false")
+	config.BindEnvAndSetDefault("network_devices.netflow.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.netflow.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.netflow.reverse_dns_enrichment_enabled", false)
 
@@ -2083,14 +2083,11 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.enable_recursive_glob", false)
 
 	// Max size in MB an integration logs file can use
-	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 10)
+	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 100)
 	// Max disk usage in MB all integrations logs files are allowed to use in total
 	config.BindEnvAndSetDefault("logs_config.integrations_logs_total_usage", 100)
 	// Do not store logs on disk when the disk usage exceeds 80% of the disk capacity.
 	config.BindEnvAndSetDefault("logs_config.integrations_logs_disk_ratio", 0.80)
-
-	// Max size in MB to allow for integrations logs files
-	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 100)
 
 	// Control how the stream-logs log file is managed
 	config.BindEnvAndSetDefault("logs_config.streaming.streamlogs_log_file", DefaultStreamlogsLogFile)
