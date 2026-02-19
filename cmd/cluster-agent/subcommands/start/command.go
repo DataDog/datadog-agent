@@ -703,10 +703,7 @@ func startPrivateActionRunner(
 	if !config.GetBool("leader_election") {
 		return nil, errors.New("leader election is not enabled on the Cluster Agent. The private action runner needs leader election for identity coordination across replicas")
 	}
-	err := le.EnsureLeaderElectionRuns()
-	if err != nil {
-		log.Warnf("Leader election failed: %v", err)
-	}
+	le.StartLeaderElectionRun()
 	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform)
 	if err != nil {
 		return nil, err
