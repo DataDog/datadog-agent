@@ -88,10 +88,7 @@ impl ManagedProcess {
 
     /// Wait for the child to exit. Returns the exit status.
     pub async fn wait(&mut self) -> Result<std::process::ExitStatus> {
-        let child = self
-            .child
-            .as_mut()
-            .context("no child process to wait on")?;
+        let child = self.child.as_mut().context("no child process to wait on")?;
         let status = child.wait().await?;
         info!("[{}] exited with {status}", self.name);
         self.child = None;
@@ -288,10 +285,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_shutdown_all_sigkill_on_timeout() {
-        let cfg = make_config(
-            "/bin/sh",
-            vec!["-c", "trap '' TERM; sleep 60"],
-        );
+        let cfg = make_config("/bin/sh", vec!["-c", "trap '' TERM; sleep 60"]);
         let mut proc = ManagedProcess::new("stubborn".into(), cfg);
         proc.spawn().unwrap();
 

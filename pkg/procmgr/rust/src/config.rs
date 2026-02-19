@@ -85,8 +85,8 @@ pub fn load_configs(dir: &Path) -> Result<Vec<(String, ProcessConfig)>> {
 fn parse_config(path: &Path) -> Result<ProcessConfig> {
     let contents =
         std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
-    let config: ProcessConfig = serde_yaml::from_str(&contents)
-        .with_context(|| format!("parsing {}", path.display()))?;
+    let config: ProcessConfig =
+        serde_yaml::from_str(&contents).with_context(|| format!("parsing {}", path.display()))?;
     Ok(config)
 }
 
@@ -126,10 +126,7 @@ condition_path_exists: /usr/bin/sleep
         assert_eq!(cfg.working_dir.as_deref(), Some("/tmp"));
         assert_eq!(cfg.pidfile.as_deref(), Some("/tmp/test.pid"));
         assert!(cfg.auto_start);
-        assert_eq!(
-            cfg.condition_path_exists.as_deref(),
-            Some("/usr/bin/sleep")
-        );
+        assert_eq!(cfg.condition_path_exists.as_deref(), Some("/usr/bin/sleep"));
     }
 
     #[test]
