@@ -8,6 +8,8 @@ package systemprobeimpl
 
 import (
 	"context"
+	"encoding/json"
+	"expvar"
 	"net"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -17,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/remoteagent/helper"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -65,6 +68,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	// Add your gRPC services implementations here:
 	pbcore.RegisterTelemetryProviderServer(remoteAgentServer.GetGRPCServer(), remoteagentImpl)
+	pbcore.RegisterStatusProviderServer(remoteAgentServer.GetGRPCServer(), remoteagentImpl)
+	pbcore.RegisterFlareProviderServer(remoteAgentServer.GetGRPCServer(), remoteagentImpl)
 
 	provides := Provides{
 		Comp: remoteagentImpl,
@@ -80,6 +85,8 @@ type remoteagentImpl struct {
 
 	remoteAgentServer *helper.UnimplementedRemoteAgentServer
 	pbcore.UnimplementedTelemetryProviderServer
+	pbcore.UnimplementedStatusProviderServer
+	pbcore.UnimplementedFlareProviderServer
 }
 
 func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetryRequest) (*pbcore.GetTelemetryResponse, error) {
@@ -116,4 +123,45 @@ func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetry
 			PromText: prometheusText,
 		},
 	}, nil
+}
+
+// GetStatusDetails returns the status details of system-probe
+func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
+	fields := make(map[string]string)
+	expvar.Do(func(kv expvar.KeyValue) {
+		fields[kv.Key] = kv.Value.String()
+	})
+	return &pbcore.GetStatusDetailsResponse{
+		MainSection: &pbcore.StatusSection{Fields: fields},
+	}, nil
+}
+
+// GetFlareFiles returns files for the system-probe flare
+func (r *remoteagentImpl) GetFlareFiles(_ context.Context, _ *pbcore.GetFlareFilesRequest) (*pbcore.GetFlareFilesResponse, error) {
+	files := make(map[string][]byte)
+
+	expvarData := make(map[string]any)
+	expvar.Do(func(kv expvar.KeyValue) {
+		var v any
+		if err := json.Unmarshal([]byte(kv.Value.String()), &v); err == nil {
+			expvarData[kv.Key] = v
+		} else {
+			expvarData[kv.Key] = kv.Value.String()
+		}
+	})
+	if data, err := json.MarshalIndent(expvarData, "", "  "); err == nil {
+		files["system_probe_stats.json"] = data
+	}
+
+	if data, err := json.MarshalIndent(pkgconfigsetup.SystemProbe().AllSettings(), "", "  "); err == nil {
+		files["system_probe_runtime_config_dump.json"] = data
+	}
+
+	// prometheus telemetry
+	prometheusText, err := r.telemetry.GatherText(false, telemetry.NoFilter)
+	if err == nil {
+		files["system_probe_telemetry.log"] = []byte(prometheusText)
+	}
+
+	return &pbcore.GetFlareFilesResponse{Files: files}, nil
 }
