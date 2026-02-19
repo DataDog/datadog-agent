@@ -53,24 +53,31 @@ var (
 
 // DatadogLogger wrapper structure for seelog
 type DatadogLogger struct {
-	inner    LoggerInterface
-	level    LogLevel
-	levelVar *slog.LevelVar
-	l        sync.RWMutex
+	inner LoggerInterface
+	level *slog.LevelVar
+	l     sync.RWMutex
 }
 
 /*
 *	Setup and initialization of the logger
  */
 
-// SetupLogger setup agent wide logger (backward compatible, does not support dynamic log level changes)
+// SetupLogger setup agent wide logger
 func SetupLogger(i LoggerInterface, level string) {
-	SetupLoggerWithLevelVar(i, level, nil)
+	logLevel, err := ValidateLogLevel(level)
+	if err != nil {
+		logLevel = InfoLvl
+	}
+
+	levelVar := &slog.LevelVar{}
+	levelVar.Set(types.ToSlogLevel(logLevel))
+
+	SetupLoggerWithLevelVar(i, levelVar)
 }
 
 // SetupLoggerWithLevelVar setup agent wide logger with support for dynamic log level changes
-func SetupLoggerWithLevelVar(i LoggerInterface, level string, levelVar *slog.LevelVar) {
-	logger.Store(setupCommonLogger(i, level, levelVar))
+func SetupLoggerWithLevelVar(i LoggerInterface, level *slog.LevelVar) {
+	logger.Store(setupCommonLogger(i, level))
 
 	// Flush the log entries logged before initialization now that the logger is initialized
 	bufferMutex.Lock()
@@ -81,17 +88,11 @@ func SetupLoggerWithLevelVar(i LoggerInterface, level string, levelVar *slog.Lev
 	logsBuffer = []func(){}
 }
 
-func setupCommonLogger(i LoggerInterface, level string, levelVar *slog.LevelVar) *DatadogLogger {
+func setupCommonLogger(i LoggerInterface, level *slog.LevelVar) *DatadogLogger {
 	l := &DatadogLogger{
-		inner:    i,
-		levelVar: levelVar,
+		inner: i,
+		level: level,
 	}
-
-	lvl, err := ValidateLogLevel(level)
-	if err != nil {
-		lvl = InfoLvl
-	}
-	l.level = lvl
 
 	// We're not going to call DatadogLogger directly, but using the
 	// exported functions, that will give us two frames in the stack
@@ -142,12 +143,7 @@ func (sw *loggerPointer) changeLogLevel(level LogLevel) error {
 		return errors.New("cannot change loglevel: logger is initialized however logger.inner is nil")
 	}
 
-	l.level = level
-
-	// Update the slog level variable if available
-	if l.levelVar != nil {
-		l.levelVar.Set(types.ToSlogLevel(level))
-	}
+	l.level.Set(types.ToSlogLevel(level))
 
 	return nil
 }
@@ -169,7 +165,7 @@ func (sw *loggerPointer) getLogLevel() (LogLevel, error) {
 		return InfoLvl, errors.New("cannot get loglevel: logger not initialized")
 	}
 
-	return l.level, nil
+	return types.FromSlogLevel(l.level.Level()), nil
 }
 
 // ShouldLog returns whether a given log level should be logged by the default logger
@@ -186,7 +182,7 @@ func ShouldLog(lvl LogLevel) bool {
 
 // This function should be called with `sw.l` held
 func (sw *DatadogLogger) shouldLog(level LogLevel) bool {
-	return level >= sw.level
+	return level >= types.FromSlogLevel(sw.level.Level())
 }
 
 // ValidateLogLevel validates the given log level and returns the corresponding Seelog log level.

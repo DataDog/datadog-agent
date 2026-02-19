@@ -106,7 +106,7 @@ func TestLogBuffer(t *testing.T) {
 	w.Flush()
 
 	// Trace will not be logged, Error and Critical will directly be logged to Stderr
-	assert.Equal(t, strings.Count(b.String(), "foo"), 5)
+	assert.Equal(t, 5, strings.Count(b.String(), "foo"), b.String())
 }
 func TestLogBufferWithContext(t *testing.T) {
 	// reset buffer state
@@ -613,9 +613,9 @@ func TestChangeLogLevel(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run("change log level to "+tc.String(), func(t *testing.T) {
 			levelVar := new(slog.LevelVar)
-			levelVar.Set(slog.LevelInfo)
+			levelVar.Set(slog.LevelDebug)
 
-			SetupLoggerWithLevelVar(Default(), DebugStr, levelVar)
+			SetupLoggerWithLevelVar(Default(), levelVar)
 
 			err := ChangeLogLevel(tc)
 			assert.NoError(t, err)

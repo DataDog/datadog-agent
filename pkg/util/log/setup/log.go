@@ -32,18 +32,18 @@ const (
 // if a non empty logFile is provided, it will also log to the file
 // a non empty syslogURI will enable syslog, and format them following RFC 5424 if specified
 // you can also specify to log to the console and in JSON format
-func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) error {
-	seelogLogLevel, err := log.ValidateLogLevel(logLevel)
+func SetupLogger(loggerName LoggerName, strLogLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) error {
+	logLevel, err := log.ValidateLogLevel(strLogLevel)
 	if err != nil {
 		return err
 	}
-	loggerInterface, levelVar, err := buildLogger(loggerName, seelogLogLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, cfg)
+	loggerInterface, levelVar, err := buildLogger(loggerName, logLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, cfg)
 	if err != nil {
 		return err
 	}
 	handler := loggerInterface.(*slog.Wrapper).Handler()
 	stdslog.SetDefault(stdslog.New(handler))
-	log.SetupLoggerWithLevelVar(loggerInterface, seelogLogLevel.String(), levelVar)
+	log.SetupLoggerWithLevelVar(loggerInterface, levelVar)
 
 	// Registering a callback in case of "log_level" update
 	cfg.OnUpdate(func(setting string, _ pkgconfigmodel.Source, oldValue, newValue any, _ uint64) {
