@@ -354,6 +354,16 @@ func (r *Resolver) generateSBOM(root string) ([]sbomtypes.PackageWithInstalledFi
 	return report, nil
 }
 
+// escapeFilePathForRule escapes special characters in file paths for use in rule expressions
+// This prevents filenames with quotes, backslashes, or other special characters from breaking the syntax
+func escapeFilePathForRule(path string) string {
+	// Escape backslashes first (must be done before escaping quotes)
+	path = strings.ReplaceAll(path, `\`, `\\`)
+	// Escape double quotes
+	path = strings.ReplaceAll(path, `"`, `\"`)
+	return path
+}
+
 // generateSBOMPolicyDef generates a policy definition from SBOM packages
 func (r *Resolver) generateSBOMPolicyDef(containerID containerutils.ContainerID, packages []sbomtypes.PackageWithInstalledFiles) *rules.PolicyDef {
 	var sbomMacros []*rules.MacroDefinition
@@ -371,8 +381,9 @@ func (r *Resolver) generateSBOMPolicyDef(containerID containerutils.ContainerID,
 		macroName := "sbom_pkg_files_" + strings.ToLower(pkgName)
 
 		// Build the macro expression with the list of files
+		// Escape filenames to prevent special characters (e.g., ", \) from breaking the expression
 		macroExpression := "[ " + strings.Join(lo.Map(pkg.InstalledFiles, func(file string, _ int) string {
-			return `"` + file + `"`
+			return `"` + escapeFilePathForRule(file) + `"`
 		}), ", ") + " ]"
 
 		sbomMacros = append(sbomMacros, &rules.MacroDefinition{
