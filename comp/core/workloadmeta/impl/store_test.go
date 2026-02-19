@@ -1259,6 +1259,48 @@ func TestListKubernetesPods(t *testing.T) {
 	}
 }
 
+// TestKubernetesPodMergeOrder confirms that when the same pod is
+// reported by both kubelet (node_orchestrator) and kubemetadata (cluster_orchestrator),
+// the fresher data from the kubemetadata collector should win.
+func TestKubernetesPodMergeOrder(t *testing.T) {
+	podID := "pod-uid-123"
+	podNamespace := "default"
+	podName := "my-pod"
+
+	freshNamespaceLabels := map[string]string{
+		"key": "fresh",
+	}
+	staleNamespaceLabels := map[string]string{
+		"key": "stale",
+	}
+
+	fromKubemetadata := &wmdef.KubernetesPod{
+		EntityID:        wmdef.EntityID{Kind: wmdef.KindKubernetesPod, ID: podID},
+		EntityMeta:      wmdef.EntityMeta{Name: podName, Namespace: podNamespace},
+		NamespaceLabels: freshNamespaceLabels,
+	}
+	fromKubelet := &wmdef.KubernetesPod{
+		EntityID:        wmdef.EntityID{Kind: wmdef.KindKubernetesPod, ID: podID},
+		EntityMeta:      wmdef.EntityMeta{Name: podName, Namespace: podNamespace},
+		NamespaceLabels: staleNamespaceLabels,
+	}
+
+	s := newWorkloadmetaObject(t)
+	// Simulate the kubelet collector reporting the pod with stale namespace labels first
+	s.handleEvents([]wmdef.CollectorEvent{
+		{Type: wmdef.EventTypeSet, Source: wmdef.SourceNodeOrchestrator, Entity: fromKubelet},
+	})
+	// Followed by the kubemetadata collector with fresh labels afterwards
+	s.handleEvents([]wmdef.CollectorEvent{
+		{Type: wmdef.EventTypeSet, Source: wmdef.SourceClusterOrchestrator, Entity: fromKubemetadata},
+	})
+
+	got, err := s.GetKubernetesPodByName(podName, podNamespace)
+	assert.NoError(t, err)
+	assert.Equal(t, freshNamespaceLabels, got.NamespaceLabels,
+		"with alphabetical merge order, cluster_orchestrator (kubemetadata) should win")
+}
+
 func TestGetKubeletMetrics(t *testing.T) {
 	testKubeletMetrics := &wmdef.KubeletMetrics{
 		EntityID: wmdef.EntityID{
