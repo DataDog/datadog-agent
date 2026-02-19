@@ -15,7 +15,7 @@ use crate::procfs;
 pub type Ino = u64;
 pub type Port = u16;
 
-pub fn get_netns_ino(pid: u32) -> std::io::Result<Ino> {
+pub fn get_netns_ino(pid: i32) -> std::io::Result<Ino> {
     let pid = pid.to_string();
     let pid_netns_path = procfs::root_path().join(pid).join("ns/net");
     let metadata = fs::metadata(pid_netns_path)?;
@@ -39,7 +39,7 @@ impl NamespaceInfo {
 }
 
 /// Get the list of open ports by parsing the process socket tables.
-pub fn get_netns_info(pid: u32) -> NamespaceInfo {
+pub fn get_netns_info(pid: i32) -> NamespaceInfo {
     let mut info = NamespaceInfo::new();
 
     parse_socket_table(
@@ -95,7 +95,7 @@ impl TryFrom<u8> for SocketTableState {
 /// Parse a socket table file from /proc/<pid>/net and collect opened sockets
 /// with the expected state.
 fn parse_socket_table(
-    pid: u32,
+    pid: i32,
     socket_table: &str,
     expected_state: SocketTableState,
     result: &mut HashMap<Ino, Port>,
@@ -106,7 +106,7 @@ fn parse_socket_table(
 /// Parse a socket table file from /proc/<pid>/net and collect opened sockets
 /// with the expected state, applying a port filter.
 fn parse_socket_table_filtered<F>(
-    pid: u32,
+    pid: i32,
     socket_table: &str,
     expected_state: SocketTableState,
     port_filter: F,

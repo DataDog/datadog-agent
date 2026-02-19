@@ -51,23 +51,33 @@ for lib in "$@"; do
 
     # Resolve symlinks to get the actual file
     REAL_LIB=$(perl -e 'use Cwd "abs_path"; print abs_path($ARGV[0])' "$lib")
-    
+
     echo "Patching: $REAL_LIB"
-    
+
     PLACEHOLDER="$PLACEHOLDER" DESTDIR="$DESTDIR" perl -0777 -pi -e '
         my $placeholder = $ENV{PLACEHOLDER};
         my $destdir = $ENV{DESTDIR};
-        
+
         # All suffixes to replace (order matters - longer suffixes first to avoid partial matches)
+        # OpenSSL stores paths in two forms:
+        #   1. Display strings for `openssl version -a` ending with " (e.g., MODULESDIR: "/path")
+        #   2. Internal runtime paths without quotes used for actually loading modules/engines
+        # Both forms must be replaced for FIPS to work correctly.
         my @suffixes = (
+            # Longer paths first to avoid partial matches
             "/ssl/private",
-            "/ssl/cert.pem", 
+            "/ssl/cert.pem",
             "/ssl/certs",
+            # Display strings (with trailing quote)
             "/lib/engines-3\"",
             "/lib/ossl-modules\"",
             "/ssl\"",
+            # Internal runtime paths (no trailing quote) - CRITICAL for FIPS provider loading!
+            "/lib/engines-3",
+            "/lib/ossl-modules",
+            "/ssl",
         );
-        
+
         for my $suffix (@suffixes) {
             my $old_path = $placeholder . $suffix;
             my $new_path = $destdir . $suffix;

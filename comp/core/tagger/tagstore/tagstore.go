@@ -248,23 +248,8 @@ func (s *TagStore) Prune() {
 }
 
 // LookupHashed gets tags from the store and returns them as a HashedTags instance.
-func (s *TagStore) LookupHashed(entityID types.EntityID, cardinality types.TagCardinality) tagset.HashedTags {
-	s.RLock()
-	defer s.RUnlock()
-	storedTags, present := s.store.Get(entityID)
-
-	if !present {
-		return tagset.HashedTags{}
-	}
-	return storedTags.getHashedTags(cardinality)
-}
-
-// LookupHashedWithEntityStr is the same as LookupHashed but takes a string as input.
-// This function is needed only for performance reasons. It functions like
-// LookupHashed, but accepts a string instead of an EntityID. This reduces the
-// allocations that occur when an EntityID is passed as a parameter.
 // Returns ErrNotFound if the entity is not present in the store.
-func (s *TagStore) LookupHashedWithEntityStr(entityID types.EntityID, cardinality types.TagCardinality) (tagset.HashedTags, error) {
+func (s *TagStore) LookupHashed(entityID types.EntityID, cardinality types.TagCardinality) (tagset.HashedTags, error) {
 	s.RLock()
 	defer s.RUnlock()
 
@@ -278,7 +263,8 @@ func (s *TagStore) LookupHashedWithEntityStr(entityID types.EntityID, cardinalit
 
 // Lookup gets tags from the store and returns them concatenated in a string slice.
 func (s *TagStore) Lookup(entityID types.EntityID, cardinality types.TagCardinality) []string {
-	return s.LookupHashed(entityID, cardinality).Get()
+	tags, _ := s.LookupHashed(entityID, cardinality)
+	return tags.Get()
 }
 
 // LookupStandard returns the standard tags recorded for a given entity

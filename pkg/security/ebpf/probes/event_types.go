@@ -268,6 +268,7 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_attach_mnt"),
 				hookFunc("hook___attach_mnt"),
+				hookFunc("hook_make_visible"),
 				hookFunc("hook_mnt_set_mountpoint"),
 			}},
 

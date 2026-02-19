@@ -689,7 +689,7 @@ func TestDestinationSourceTagBasedOnTelemetryName(t *testing.T) {
 
 	// Create telemetry mock
 	telemetryMock := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
-	metrics.TlmBytesSent = telemetryMock.NewCounter("logs", "bytes_sent", []string{"source"}, "")
+	metrics.TlmBytesSent = telemetryMock.NewCounter("logs", "bytes_sent", []string{"remote_agent", "source"}, "")
 	metrics.TlmEncodedBytesSent = telemetryMock.NewCounter("logs", "encoded_bytes_sent", []string{"source", "compression_kind"}, "")
 
 	// Create a new server
@@ -712,6 +712,7 @@ func TestDestinationSourceTagBasedOnTelemetryName(t *testing.T) {
 	metric, err := telemetryMock.(telemetry.Mock).GetCountMetric("logs", "bytes_sent")
 	assert.NoError(t, err)
 	assert.Len(t, metric, 1)
+	assert.Equal(t, "agent", metric[0].Tags()["remote_agent"]) // "agent" for core agent (via GetAgentIdentityTag)
 	assert.Equal(t, "logs", metric[0].Tags()["source"])
 
 	metric, err = telemetryMock.(telemetry.Mock).GetCountMetric("logs", "encoded_bytes_sent")
@@ -726,7 +727,7 @@ func TestDestinationSourceTagEPForwarder(t *testing.T) {
 
 	// Create telemetry mock
 	telemetryMock := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
-	metrics.TlmBytesSent = telemetryMock.NewCounter("logs", "bytes_sent", []string{"source"}, "")
+	metrics.TlmBytesSent = telemetryMock.NewCounter("logs", "bytes_sent", []string{"remote_agent", "source"}, "")
 	metrics.TlmEncodedBytesSent = telemetryMock.NewCounter("logs", "encoded_bytes_sent", []string{"source", "compression_kind"}, "")
 
 	// Create a new server
@@ -748,6 +749,7 @@ func TestDestinationSourceTagEPForwarder(t *testing.T) {
 	metric, err := telemetryMock.(telemetry.Mock).GetCountMetric("logs", "bytes_sent")
 	assert.NoError(t, err)
 	assert.Len(t, metric, 1)
+	assert.Equal(t, "agent", metric[0].Tags()["remote_agent"]) // "agent" for core agent (via GetAgentIdentityTag)
 	assert.Equal(t, "epforwarder", metric[0].Tags()["source"])
 
 	metric, err = telemetryMock.(telemetry.Mock).GetCountMetric("logs", "encoded_bytes_sent")

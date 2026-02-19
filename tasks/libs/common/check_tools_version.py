@@ -49,7 +49,7 @@ def current_golangci_lint_v(ctx: Context, debug: bool = False) -> str:
     debug_flag = "--debug" if debug else ""
     cmd = f"golangci-lint version {debug_flag}"
     version_output = ctx.run(cmd, hide=True).stdout
-    return version_output if debug else version_output.split(' ')[3].rsplit("-", 1)[0]
+    return version_output if debug else version_output.split(' ')[3]
 
 
 def check_tools_version(ctx: Context, tools_list: list[str], debug: bool = False) -> bool:

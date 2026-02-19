@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	k8sschema "k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -131,6 +132,132 @@ func (f *FakeDCAClient) PostLanguageMetadata(_ context.Context, _ *pbgo.ParentLa
 
 func (f *FakeDCAClient) SupportsNamespaceMetadataCollection() bool {
 	return f.LocalVersion.Major >= 7 && f.LocalVersion.Minor >= 55
+}
+
+func TestCollector_detectExpiredNamespace(t *testing.T) {
+	tests := []struct {
+		name              string
+		seenID            workloadmeta.EntityID
+		namespaceLastSeen map[string]time.Time
+		isNsEntity        bool
+		keepAlive         bool
+		wantCleanup       bool // whether the namespace should be removed from tracking
+	}{
+		{
+			name: "non-metadata entity returns false",
+			seenID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesPod,
+				ID:   "some-pod-id",
+			},
+			namespaceLastSeen: map[string]time.Time{},
+			isNsEntity:        false,
+			keepAlive:         false,
+			wantCleanup:       false,
+		},
+		{
+			name: "metadata entity but not a namespace returns false",
+			seenID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesMetadata,
+				ID:   "/deployments/default/my-deployment",
+			},
+			namespaceLastSeen: map[string]time.Time{},
+			isNsEntity:        false,
+			keepAlive:         false,
+			wantCleanup:       false,
+		},
+		{
+			name: "namespace within TTL returns true",
+			seenID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesMetadata,
+				ID:   "/namespaces//my-namespace",
+			},
+			namespaceLastSeen: map[string]time.Time{
+				"my-namespace": time.Now().Add(-1 * namespaceMetadataTTL / 100), // 0.01 TTLs ago (unexpired)
+			},
+			isNsEntity:  true,
+			keepAlive:   true,
+			wantCleanup: false,
+		},
+		{
+			name: "namespace expired returns false and cleans up",
+			seenID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesMetadata,
+				ID:   "/namespaces//expired-namespace",
+			},
+			namespaceLastSeen: map[string]time.Time{
+				"expired-namespace": time.Now().Add(-2 * namespaceMetadataTTL), // 2 TTLs ago (expired)
+			},
+			isNsEntity:  true,
+			keepAlive:   false,
+			wantCleanup: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &collector{
+				namespaceLastSeen: tt.namespaceLastSeen,
+			}
+
+			namespaceName, isNsEntity := c.getNamespaceName(tt.seenID)
+			assert.Equal(t, tt.isNsEntity, isNsEntity)
+
+			if tt.isNsEntity {
+				keepAlive := c.shouldKeepNamespaceAlive(namespaceName)
+				assert.Equal(t, tt.keepAlive, keepAlive)
+			}
+
+			if tt.wantCleanup {
+				assert.Empty(t, c.namespaceLastSeen, "expired namespace should be removed from tracking")
+			}
+		})
+	}
+}
+
+func TestCollector_createUnsetEvent(t *testing.T) {
+	tests := []struct {
+		name       string
+		seenID     workloadmeta.EntityID
+		wantEntity workloadmeta.Entity
+	}{
+		{
+			name: "pod entity",
+			seenID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesPod,
+				ID:   "pod-uid-123",
+			},
+			wantEntity: &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   "pod-uid-123",
+				},
+			},
+		},
+		{
+			name: "kubernetes metadata entity",
+			seenID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesMetadata,
+				ID:   "/namespaces//my-namespace",
+			},
+			wantEntity: &workloadmeta.KubernetesMetadata{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesMetadata,
+					ID:   "/namespaces//my-namespace",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &collector{}
+			event := c.createUnsetEvent(tt.seenID)
+
+			assert.Equal(t, workloadmeta.EventTypeUnset, event.Type)
+			assert.Equal(t, workloadmeta.SourceClusterOrchestrator, event.Source)
+			assert.Equal(t, tt.wantEntity, event.Entity)
+		})
+	}
 }
 
 func TestKubeMetadataCollector_getMetadata(t *testing.T) {
@@ -426,17 +553,7 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 		Items: pods,
 	}
 
-	// Cache never expires because the unit tests below are not covering the case
-	// of cache miss. They are only testing parsePods behaves correctly depending
-	// on the cluster agent version and the agent configuration.
-	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("kubelet_cache_pods_duration", 5) // Cache is disabled by default. Enable it.
-	cache.Cache.Set("KubeletPodListCacheKey", podsCache, -1)
-
-	kubeUtilFake := kubelet.NewKubeUtil()
-
 	type fields struct {
-		kubeUtil                    *kubelet.KubeUtil
 		apiClient                   *apiserver.APIClient
 		dcaClient                   clusteragent.DCAClientInterface
 		lastUpdate                  time.Time
@@ -463,7 +580,6 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 				pods: pods,
 			},
 			fields: fields{
-				kubeUtil:               kubeUtilFake,
 				dcaEnabled:             true,
 				collectNamespaceLabels: true,
 				dcaClient: &FakeDCAClient{
@@ -496,6 +612,29 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 						},
 					},
 				},
+				{
+					Type:   workloadmeta.EventTypeSet,
+					Source: workloadmeta.SourceClusterOrchestrator,
+					Entity: &workloadmeta.KubernetesMetadata{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindKubernetesMetadata,
+							ID:   "/namespaces//default",
+						},
+						EntityMeta: workloadmeta.EntityMeta{
+							Name:      "default",
+							Namespace: "",
+							Labels: map[string]string{
+								"label": "value",
+							},
+							Annotations: map[string]string{},
+						},
+						GVR: &k8sschema.GroupVersionResource{
+							Group:    "",
+							Version:  "v1",
+							Resource: "namespaces",
+						},
+					},
+				},
 			},
 			wantErr: false,
 		},
@@ -505,7 +644,6 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 				pods: pods,
 			},
 			fields: fields{
-				kubeUtil:                    kubeUtilFake,
 				dcaEnabled:                  false,
 				collectNamespaceLabels:      true,
 				collectNamespaceAnnotations: true,
@@ -533,6 +671,27 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 						KubeServices: []string{},
 					},
 				},
+				{
+					Type:   workloadmeta.EventTypeSet,
+					Source: workloadmeta.SourceClusterOrchestrator,
+					Entity: &workloadmeta.KubernetesMetadata{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindKubernetesMetadata,
+							ID:   "/namespaces//default",
+						},
+						EntityMeta: workloadmeta.EntityMeta{
+							Name:        "default",
+							Namespace:   "",
+							Labels:      map[string]string{},
+							Annotations: map[string]string{},
+						},
+						GVR: &k8sschema.GroupVersionResource{
+							Group:    "",
+							Version:  "v1",
+							Resource: "namespaces",
+						},
+					},
+				},
 			},
 			wantErr: false,
 		},
@@ -542,7 +701,6 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 				pods: pods,
 			},
 			fields: fields{
-				kubeUtil:                    kubeUtilFake,
 				dcaEnabled:                  true,
 				collectNamespaceLabels:      true,
 				collectNamespaceAnnotations: true,
@@ -579,6 +737,29 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 						},
 					},
 				},
+				{
+					Type:   workloadmeta.EventTypeSet,
+					Source: workloadmeta.SourceClusterOrchestrator,
+					Entity: &workloadmeta.KubernetesMetadata{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindKubernetesMetadata,
+							ID:   "/namespaces//default",
+						},
+						EntityMeta: workloadmeta.EntityMeta{
+							Name:      "default",
+							Namespace: "",
+							Labels: map[string]string{
+								"label": "value",
+							},
+							Annotations: map[string]string{},
+						},
+						GVR: &k8sschema.GroupVersionResource{
+							Group:    "",
+							Version:  "v1",
+							Resource: "namespaces",
+						},
+					},
+				},
 			},
 			wantErr: false,
 		},
@@ -588,7 +769,6 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 				pods: pods,
 			},
 			fields: fields{
-				kubeUtil:                    kubeUtilFake,
 				dcaEnabled:                  true,
 				collectNamespaceLabels:      true,
 				collectNamespaceAnnotations: true,
@@ -636,6 +816,31 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 						},
 					},
 				},
+				{
+					Type:   workloadmeta.EventTypeSet,
+					Source: workloadmeta.SourceClusterOrchestrator,
+					Entity: &workloadmeta.KubernetesMetadata{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindKubernetesMetadata,
+							ID:   "/namespaces//default",
+						},
+						EntityMeta: workloadmeta.EntityMeta{
+							Name:      "default",
+							Namespace: "",
+							Labels: map[string]string{
+								"label": "value",
+							},
+							Annotations: map[string]string{
+								"annotation": "value",
+							},
+						},
+						GVR: &k8sschema.GroupVersionResource{
+							Group:    "",
+							Version:  "v1",
+							Resource: "namespaces",
+						},
+					},
+				},
 			},
 			wantErr: false,
 		},
@@ -645,7 +850,6 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 				pods: pods,
 			},
 			fields: fields{
-				kubeUtil:                    kubeUtilFake,
 				dcaEnabled:                  true,
 				collectNamespaceLabels:      true,
 				collectNamespaceAnnotations: false,
@@ -690,6 +894,31 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 						},
 					},
 				},
+				{
+					Type:   workloadmeta.EventTypeSet,
+					Source: workloadmeta.SourceClusterOrchestrator,
+					Entity: &workloadmeta.KubernetesMetadata{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindKubernetesMetadata,
+							ID:   "/namespaces//default",
+						},
+						EntityMeta: workloadmeta.EntityMeta{
+							Name:      "default",
+							Namespace: "",
+							Labels: map[string]string{
+								"label": "value",
+							},
+							Annotations: map[string]string{
+								"annotation": "value",
+							},
+						},
+						GVR: &k8sschema.GroupVersionResource{
+							Group:    "",
+							Version:  "v1",
+							Resource: "namespaces",
+						},
+					},
+				},
 			},
 			wantErr: false,
 		},
@@ -699,7 +928,6 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 				pods: pods,
 			},
 			fields: fields{
-				kubeUtil:               kubeUtilFake,
 				dcaEnabled:             true,
 				collectNamespaceLabels: false,
 				dcaClient: &FakeDCAClient{
@@ -729,6 +957,27 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 						KubeServices: []string{"svc1", "svc2"},
 					},
 				},
+				{
+					Type:   workloadmeta.EventTypeSet,
+					Source: workloadmeta.SourceClusterOrchestrator,
+					Entity: &workloadmeta.KubernetesMetadata{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindKubernetesMetadata,
+							ID:   "/namespaces//default",
+						},
+						EntityMeta: workloadmeta.EntityMeta{
+							Name:        "default",
+							Namespace:   "",
+							Labels:      map[string]string{},
+							Annotations: map[string]string{},
+						},
+						GVR: &k8sschema.GroupVersionResource{
+							Group:    "",
+							Version:  "v1",
+							Resource: "namespaces",
+						},
+					},
+				},
 			},
 			wantErr: false,
 		},
@@ -738,7 +987,6 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 				pods: pods,
 			},
 			fields: fields{
-				kubeUtil:   kubeUtilFake,
 				dcaEnabled: true,
 				dcaClient:  &FakeDCAClient{},
 			},
@@ -758,14 +1006,44 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 						KubeServices: []string{},
 					},
 				},
+				{
+					Type:   workloadmeta.EventTypeSet,
+					Source: workloadmeta.SourceClusterOrchestrator,
+					Entity: &workloadmeta.KubernetesMetadata{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindKubernetesMetadata,
+							ID:   "/namespaces//default",
+						},
+						EntityMeta: workloadmeta.EntityMeta{
+							Name:        "default",
+							Namespace:   "",
+							Labels:      map[string]string{},
+							Annotations: map[string]string{},
+						},
+						GVR: &k8sschema.GroupVersionResource{
+							Group:    "",
+							Version:  "v1",
+							Resource: "namespaces",
+						},
+					},
+				},
 			},
 			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Cache never expires because the unit tests below are not covering the case
+			// of cache miss. They are only testing parsePods behaves correctly depending
+			// on the cluster agent version and the agent configuration.
+			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("kubelet_cache_pods_duration", 5) // Cache is disabled by default. Enable it.
+			cache.Cache.Set("KubeletPodListCacheKey", podsCache, -1)
+
+			kubeUtilFake := kubelet.NewKubeUtil()
+
 			c := &collector{
-				kubeUtil:                    tt.fields.kubeUtil,
+				kubeUtil:                    kubeUtilFake,
 				apiClient:                   tt.fields.apiClient,
 				dcaClient:                   tt.fields.dcaClient,
 				lastUpdate:                  tt.fields.lastUpdate,
@@ -774,6 +1052,7 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 				collectNamespaceLabels:      tt.fields.collectNamespaceLabels,
 				collectNamespaceAnnotations: tt.fields.collectNamespaceAnnotations,
 				seen:                        make(map[workloadmeta.EntityID]struct{}),
+				namespaceLastSeen:           make(map[string]time.Time),
 			}
 
 			got, err := c.parsePods(context.TODO(), tt.args.pods, make(map[workloadmeta.EntityID]struct{}))

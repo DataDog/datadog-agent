@@ -9,6 +9,8 @@ package kubelet
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -206,9 +208,28 @@ func runMockDevicePluginServerWithCleanup(t *testing.T, socketPath string, devic
 	mockServer := &mockDevicePluginServer{devices: devices}
 	devicepluginv1beta1.RegisterDevicePluginServer(server, mockServer)
 
+	c := make(chan struct{})
 	// Give the server a moment to start
+	go func() {
+		close(c)
+		ee := server.Serve(listener)
+		// ErrServerStopped could be returned if cleanup was called fast enough to stop the server
+		// This might happen if the test is very quick in which case we ignore that specific error
+		if ee != nil && !errors.Is(ee, grpc.ErrServerStopped) {
+			// note(dp): Following error print is a debug measure to understand what kind of error
+			// intermittently happens in the test making it faaky.
+			fmt.Fprintf(os.Stderr, "server.Serve failed with error: %s", ee.Error())
+			// NoError call might fail because in most of the cases cleanup handler
+			// that causes Serve to stop is called once test is done which
+			// causes test runtime to panic with the followin message:
+			// panic: Fail in goroutine after Test... has completed
+			assert.NoError(t, ee)
+		}
+	}()
+	// Wait for the go routine to start
+	<-c
+
 	unixSocketPath := "unix://" + socketPath
-	go func() { assert.NoError(t, server.Serve(listener)) }()
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		conn, err := grpc.NewClient(unixSocketPath, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithDefaultCallOptions())
 		require.NoError(t, err)
@@ -217,16 +238,22 @@ func runMockDevicePluginServerWithCleanup(t *testing.T, socketPath string, devic
 	}, 5*time.Second, 200*time.Millisecond)
 
 	stopped := false
+	// Same cleanup handler could be called form the test itself and as registered hook
 	stoppedMtx := sync.Mutex{}
 	return unixSocketPath, func() {
 		stoppedMtx.Lock()
-		defer stoppedMtx.Unlock()
-		if !stopped {
-			server.Stop()
-			listener.Close()
-			os.Remove(socketPath)
-			stopped = true
+		// Note: do not use defer here to unlock the mutex to prevent Stop/Close called under the mutex
+		if stopped {
+			stoppedMtx.Unlock()
+			return
 		}
+		stopped = true
+		stoppedMtx.Unlock()
+
+		server.Stop()
+		listener.Close()
+		os.Remove(socketPath)
+		stopped = true
 	}
 }
 

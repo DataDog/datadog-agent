@@ -1,7 +1,7 @@
 using Datadog.CustomActions;
 using Datadog.CustomActions.Interfaces;
 using FluentAssertions;
-using Microsoft.Deployment.WindowsInstaller;
+using WixToolset.Dtf.WindowsInstaller;
 using Moq;
 using System;
 using System.ComponentModel;

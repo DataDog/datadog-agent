@@ -139,7 +139,15 @@ func (i *Mutator) MutatePod(pod *corev1.Pod, _ string, _ dynamic.Interface) (boo
 		apmMountBase := i.config.socketPath
 		dsdMountBase := i.config.socketPath
 
-		if (i.config.dogStatsDAgentHostSocket != i.config.traceAgentHostSocket) || isSocketVol || useCSI {
+		// If we are using a CSI driver, we always mount 2 volumes to avoid confusion.
+		// CSI volume types are: APMSocketDirectory, DSDSocketDirectory, APMSocket, DSDSocket.
+		// Although mounting only DSDSocketDirectory is sufficient in case sockets are in the same directory, we prefer mounting APMSocketDirectory and DSDSocketDirectory as well to avoid confusion.
+		//
+		// If the user requests socket volumes, we will not have a conflict because each file is mounted separately on a different mount point.
+		// In this case, we have no need for the subdirectories.
+		//
+		// See Issue #45952: https://github.com/DataDog/datadog-agent/issues/45952
+		if !isSocketVol && (useCSI || i.config.dogStatsDAgentHostSocket != i.config.traceAgentHostSocket) {
 			apmMountBase = apmMountBase + "/" + apmSubdir
 			dsdMountBase = dsdMountBase + "/" + dsdSubdir
 		}
@@ -186,12 +194,12 @@ func (i *Mutator) injectSocketVolumes(pod *corev1.Pod, withCSI bool) bool {
 			hostsocketpath string
 		}{
 			DogstatsdSocketVolumeName: {
-				socketpath:     i.config.socketPath + "/" + dsdSubdir + "/" + i.config.dsdSocketFile,
+				socketpath:     i.config.socketPath + "/" + i.config.dsdSocketFile,
 				csiVolumeType:  csiDSDSocket,
 				hostsocketpath: i.config.dogStatsDAgentHostSocket + "/" + i.config.dsdSocketFile,
 			},
 			TraceAgentSocketVolumeName: {
-				socketpath:     i.config.socketPath + "/" + apmSubdir + "/" + i.config.apmSocketFile,
+				socketpath:     i.config.socketPath + "/" + i.config.apmSocketFile,
 				csiVolumeType:  csiAPMSocket,
 				hostsocketpath: i.config.traceAgentHostSocket + "/" + i.config.apmSocketFile,
 			},

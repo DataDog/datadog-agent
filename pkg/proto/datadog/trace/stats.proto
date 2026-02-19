@@ -103,4 +103,6 @@ message ClientGroupedStats {
 	string GRPC_status_code = 18;
 	string HTTP_method = 19; // HTTP method of the request
 	string HTTP_endpoint = 20; // Http route or quantized/simplified URL path
+	string service_source = 21; // @inject_tag: msg:"srv_src"
+	// used to identify service override origin
 }

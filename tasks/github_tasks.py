@@ -523,7 +523,7 @@ def agenttelemetry_list_change_ack_check(_, pr_id=-1):
     files = gh.get_pr_files(pr_id)
     if "comp/core/agenttelemetry/impl/config.go" in files:
         if "need-change/agenttelemetry-governance" not in labels:
-            message = f"{color_message('Error', 'red')}: If you change the `comp/core/agenttelemetry/impl/config.go` file, you need to add `need-change/agenttelemetry-governance` label. If you have access, pleas follow the instructions specified in https://datadoghq.atlassian.net/wiki/spaces/ASUP/pages/4340679635/Agent+Telemetry+Governance"
+            message = f"{color_message('Error', 'red')}: If you change the `comp/core/agenttelemetry/impl/config.go` file, you need to add `need-change/agenttelemetry-governance` label. If you have access, please follow the instructions specified in https://datadoghq.atlassian.net/wiki/spaces/ASUP/pages/4340679635/Agent+Telemetry+Governance"
             raise Exit(message, code=1)
         else:
             print(

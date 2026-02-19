@@ -183,6 +183,137 @@ func TestGetTelemetry(t *testing.T) {
 	}, protocmp.Transform()))
 }
 
+// TestGetTelemetryPreservesExistingRemoteAgentLabel verifies that when a metric already
+// has a remote_agent label (set by the remote agent itself via metrics.SetAgentIdentity),
+// the registry collector preserves it and does NOT add a duplicate.
+func TestGetTelemetryPreservesExistingRemoteAgentLabel(t *testing.T) {
+	provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
+	lc.Start(context.Background())
+	component := provides.Comp
+
+	// Simulate system-probe forwarding a metric that already has remote_agent="system-probe"
+	// set via metrics.SetAgentIdentity("system-probe").
+	promText := `
+		# HELP logs__bytes_sent Total number of bytes sent
+		# TYPE logs__bytes_sent counter
+		logs__bytes_sent{remote_agent="system-probe",source="logs"} 42
+		`
+
+	_ = buildAndRegisterRemoteAgent(t, ipcComp, component, "system-probe", "System Probe", "123",
+		withTelemetryProvider(promText),
+	)
+
+	metrics, err := telemetryComp.Gather(false)
+	require.NoError(t, err)
+
+	// Find the logs__bytes_sent metric and verify the remote_agent label
+	require.Contains(t, metricsToMap(metrics), "logs__bytes_sent")
+
+	for _, mf := range metrics {
+		if mf.GetName() != "logs__bytes_sent" {
+			continue
+		}
+		require.Len(t, mf.GetMetric(), 1)
+		m := mf.GetMetric()[0]
+
+		// Count remote_agent labels — there should be exactly one (not duplicated)
+		remoteAgentCount := 0
+		remoteAgentValue := ""
+		for _, label := range m.GetLabel() {
+			if label.GetName() == remoteAgentMetricTagName {
+				remoteAgentCount++
+				remoteAgentValue = label.GetValue()
+			}
+		}
+		assert.Equal(t, 1, remoteAgentCount, "Should have exactly one remote_agent label, not a duplicate")
+		assert.Equal(t, "system-probe", remoteAgentValue, "remote_agent value should be preserved from the metric, not overwritten by the registry")
+
+		// Also verify the source label is preserved
+		assert.Empty(t, cmp.Diff(mf, &io_prometheus_client.MetricFamily{
+			Name: proto.String("logs__bytes_sent"),
+			Type: io_prometheus_client.MetricType_COUNTER.Enum(),
+			Help: proto.String("Total number of bytes sent"),
+			Metric: []*io_prometheus_client.Metric{
+				{
+					Label: []*io_prometheus_client.LabelPair{
+						{
+							Name:  proto.String(remoteAgentMetricTagName),
+							Value: proto.String("system-probe"),
+						},
+						{
+							Name:  proto.String("source"),
+							Value: proto.String("logs"),
+						},
+					},
+					Counter: &io_prometheus_client.Counter{
+						Value: proto.Float64(42),
+					},
+				},
+			},
+		}, protocmp.Transform()))
+	}
+}
+
+// TestGetTelemetryMixedLabels verifies the registry handles a mix of metrics:
+// some with pre-existing remote_agent labels and some without.
+func TestGetTelemetryMixedLabels(t *testing.T) {
+	provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
+	lc.Start(context.Background())
+	component := provides.Comp
+
+	// Simulate an agent sending two metrics:
+	// - logs__bytes_sent already has remote_agent (should be preserved)
+	// - some_other_metric does NOT have remote_agent (should be injected by registry)
+	promText := `
+		# HELP logs__bytes_sent Total number of bytes sent
+		# TYPE logs__bytes_sent counter
+		logs__bytes_sent{remote_agent="system-probe",source="logs"} 100
+		# HELP some_other_metric Another metric
+		# TYPE some_other_metric gauge
+		some_other_metric{tag="value"} 7
+		`
+
+	_ = buildAndRegisterRemoteAgent(t, ipcComp, component, "system-probe", "System Probe", "456",
+		withTelemetryProvider(promText),
+	)
+
+	metrics, err := telemetryComp.Gather(false)
+	require.NoError(t, err)
+
+	metricsMap := metricsToMap(metrics)
+
+	// logs__bytes_sent: remote_agent should be "system-probe" (from the metric itself)
+	require.Contains(t, metricsMap, "logs__bytes_sent")
+	for _, m := range metricsMap["logs__bytes_sent"].GetMetric() {
+		for _, label := range m.GetLabel() {
+			if label.GetName() == remoteAgentMetricTagName {
+				assert.Equal(t, "system-probe", label.GetValue(), "Pre-existing remote_agent should be preserved")
+			}
+		}
+	}
+
+	// some_other_metric: remote_agent should be "system-probe" (injected by registry from display name)
+	require.Contains(t, metricsMap, "some_other_metric")
+	for _, m := range metricsMap["some_other_metric"].GetMetric() {
+		foundRemoteAgent := false
+		for _, label := range m.GetLabel() {
+			if label.GetName() == remoteAgentMetricTagName {
+				foundRemoteAgent = true
+				assert.Equal(t, "system-probe", label.GetValue(), "Registry should inject remote_agent for metrics without it")
+			}
+		}
+		assert.True(t, foundRemoteAgent, "Registry should add remote_agent label when missing")
+	}
+}
+
+func metricsToMap(metrics []*io_prometheus_client.MetricFamily) map[string]*io_prometheus_client.MetricFamily {
+	m := make(map[string]*io_prometheus_client.MetricFamily)
+	for _, mf := range metrics {
+		m[mf.GetName()] = mf
+	}
+	return m
+}
+
 // TestHistogramBucketMismatch tests that histogram metrics from remote agents with different
 // bucket configurations do not cause panics or errors. This tests the reviewer concern about
 // bucket mismatch conflicts.

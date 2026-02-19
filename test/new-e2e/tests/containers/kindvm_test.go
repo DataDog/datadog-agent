@@ -95,6 +95,21 @@ func (suite *kindSuite) TestControlPlane() {
 		},
 	})
 
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "kube_apiserver.api_resource",
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^api_resource_kind:.*`,
+				`^api_resource_group:.*`,
+				`^api_resource_version:.*`,
+				`^api_resource_name:.*`,
+			},
+			AcceptUnexpectedTags: true,
+		},
+	})
+
 	// Test `kube_controller_manager` check is properly working
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{

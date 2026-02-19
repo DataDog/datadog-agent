@@ -3,6 +3,7 @@ import importlib
 import os
 import re
 import shutil
+from datetime import timedelta
 from pathlib import Path
 
 from invoke.context import Context
@@ -111,7 +112,8 @@ class PulumiPlugin(Requirement):
                 return RequirementState(Status.FAIL, "pulumi plugins not installed.", fixable=True)
 
             try:
-                ctx.run("go mod download")
+                # https://github.com/golang/go/issues/63758: downloading dependencies stuck when git tag signature [...]
+                ctx.run("GIT_TERMINAL_PROMPT=0 go mod download", timeout=timedelta(minutes=5).total_seconds())
                 ctx.run("PULUMI_CONFIG_PASSPHRASE=dummy pulumi --non-interactive plugin install")
             except Exception as e:
                 return RequirementState(Status.FAIL, f"pulumi plugins installation failed: {e}")

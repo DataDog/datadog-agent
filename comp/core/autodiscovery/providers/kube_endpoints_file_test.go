@@ -150,6 +150,13 @@ func TestStoreInsertEp(t *testing.T) {
 		}},
 	}
 
+	ns1CelTpl := integration.Config{
+		Name: "check2",
+		CELSelector: workloadfilter.Rules{
+			KubeEndpoints: []string{`kube_endpoint.namespace == "ns1" && kube_endpoint.name == "ep1"`},
+		},
+	}
+
 	ep1 := &v1.Endpoints{ObjectMeta: metav1.ObjectMeta{Name: "ep1", Namespace: "ns1"}}
 
 	tests := []struct {
@@ -190,6 +197,19 @@ func TestStoreInsertEp(t *testing.T) {
 				},
 				eps: nil,
 			}},
+		},
+		{
+			name: "found and inserts into both AdvancedAD and CEL configurations",
+			epConfigs: map[string]*epConfig{
+				"ns1/ep1":     {templates: []integration.Config{tpl}, eps: nil},
+				celEndpointID: {templates: []integration.Config{ns1CelTpl}, eps: nil},
+			},
+			ep:   ep1,
+			want: true,
+			wantEpConfigs: map[string]*epConfig{
+				"ns1/ep1":     {templates: []integration.Config{tpl}, eps: map[*v1.Endpoints]struct{}{ep1: {}}, shouldCollect: true},
+				celEndpointID: {templates: []integration.Config{ns1CelTpl}, eps: map[*v1.Endpoints]struct{}{ep1: {}}, shouldCollect: true},
+			},
 		},
 	}
 	for _, tt := range tests {

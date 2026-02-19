@@ -1909,6 +1909,11 @@ type Event struct {
 	// == EventTypeUnset, only the Entity ID is available and such a cast will
 	// fail.
 	Entity Entity
+
+	// IsComplete indicates whether all expected collectors have reported data
+	// for this entity. For example, in Kubernetes, a pod is complete when both
+	// the kubelet and kubemetadata collectors have reported.
+	IsComplete bool
 }
 
 // SubscriberPriority is a priority for subscribers to the store.  Subscribers
