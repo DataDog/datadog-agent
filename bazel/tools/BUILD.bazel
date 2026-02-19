@@ -5,12 +5,6 @@ load("@rules_python//python:py_binary.bzl", "py_binary")
 check_bazel_version()
 
 py_binary(
-    name = "bazelify_go_work",
-    srcs = ["bazelify_go_work.py"],
-    visibility = ["//:__pkg__"],
-)
-
-py_binary(
     name = "generate_module_bazel",
     srcs = ["generate_module_bazel.py"],
     visibility = ["//deps:__subpackages__"],
