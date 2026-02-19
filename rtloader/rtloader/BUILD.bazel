@@ -40,6 +40,10 @@ cc_library(
         "//rtloader/include",
     ],
     includes = ["."],
+    linkopts = [
+        # Make up for the fact that we may be using gcc and not g++
+        "-lstdc++",
+    ],
     local_defines = COMMON_DEFINES + select({
         "@platforms//os:windows": [
             "_hypot=hypot",
