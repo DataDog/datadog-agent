@@ -2,11 +2,11 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-//go:build windows
 
 package filesystem
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/hectane/go-acl"
@@ -67,4 +67,44 @@ func (p *Permission) RestrictAccessToUser(path string) error {
 // RemoveAccessToOtherUsers on Windows this function calls RestrictAccessToUser
 func (p *Permission) RemoveAccessToOtherUsers(path string) error {
 	return p.RestrictAccessToUser(path)
+}
+
+func (p *Permission) isAllowedOwner(sid *windows.SID) bool {
+	return windows.EqualSid(sid, p.administratorSid) ||
+		windows.EqualSid(sid, p.ddUserSid) ||
+		windows.EqualSid(sid, p.systemSid)
+}
+
+// checkOwner verifies that the file/directory is owned by either 'Administrator', system or dd user
+func (p *Permission) checkOwner(path string) error {
+	var ownerSid *windows.SID
+	err := winutil.GetNamedSecurityInfo(path,
+		windows.SE_FILE_OBJECT,
+		windows.OWNER_SECURITY_INFORMATION,
+		&ownerSid,
+		nil, nil, nil, nil)
+
+	if err != nil {
+		return err
+	}
+
+	if !p.isAllowedOwner(ownerSid) {
+		return errors.New("file owner is neither `Administrator`, system or dd user")
+	}
+
+	return nil
+}
+
+// CheckOwnerAndPermissions verifies that the owner and permissions of a file/directory correspond to the expected restrictions
+func CheckOwnerAndPermissions(path string) error {
+	p, err := NewPermission()
+	if err != nil {
+		return err
+	}
+
+	if err := p.checkOwner(path); err != nil {
+		return err
+	}
+
+	return CheckRights(path, false)
 }
