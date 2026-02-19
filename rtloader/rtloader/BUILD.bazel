@@ -41,6 +41,10 @@ cc_library(
         "@platforms//os:windows": [
             "_hypot=hypot",
         ],
+        "@platforms//os:linux": [
+            # backtrace / execinfo.h is provided by glibc 2.1+ so we know it to be available
+            "HAS_BACKTRACE_LIB",
+        ],
         "//conditions:default": [],
     }),
     visibility = ["//rtloader:__subpackages__"],
