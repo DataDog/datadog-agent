@@ -91,10 +91,17 @@ static __always_inline int cleanup_conn(void *ctx, conn_tuple_t *tup, struct soc
     }
 
     if (is_tcp) {
+        bool tst_ok = false;
         tst = bpf_map_lookup_elem(&tcp_stats, &(conn.tup));
         if (tst && (bpf_map_delete_elem(&tcp_stats, &(conn.tup)) == 0)) {
             conn.tcp_stats = *tst;
-        } else {
+            tst_ok = true;
+        }
+        // Delete the congestion snapshot; the last value was read by Go during the
+        // preceding polling cycle. We don't embed it into conn_t to avoid overflowing
+        // the BPF stack in flush_conn_close_if_full().
+        bpf_map_delete_elem(&tcp_congestion_stats, &(conn.tup));
+        if (!tst_ok) {
             if (!cst_flushable) {
                 int *count = bpf_map_lookup_elem(&tcp_retransmits, &(conn.tup));
                 if (count) {
@@ -111,6 +118,8 @@ static __always_inline int cleanup_conn(void *ctx, conn_tuple_t *tup, struct soc
             conn.tcp_stats.retransmits = *retrans;
             bpf_map_delete_elem(&tcp_retransmits, &(conn.tup));
         }
+        // Also delete RTO/recovery stats (keyed by zero-PID tuple, like tcp_retransmits).
+        bpf_map_delete_elem(&tcp_rto_recovery_stats, &(conn.tup));
         conn.tup.pid = tup->pid;
         conn.tcp_stats.state_transitions |= (1 << TCP_CLOSE);
 

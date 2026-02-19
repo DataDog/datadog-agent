@@ -149,6 +149,8 @@ type ebpfTracer struct {
 	conns                   *maps.GenericMap[netebpf.ConnTuple, netebpf.ConnStats]
 	tcpStats                *maps.GenericMap[netebpf.ConnTuple, netebpf.TCPStats]
 	tcpRetransmits          *maps.GenericMap[netebpf.ConnTuple, uint32]
+	tcpCongestionStats      *maps.GenericMap[netebpf.ConnTuple, netebpf.TCPCongestionStats]
+	tcpRTORecoveryStats     *maps.GenericMap[netebpf.ConnTuple, netebpf.TCPRTORecoveryStats]
 	ebpfTelemetryMap        *maps.GenericMap[uint32, netebpf.Telemetry]
 	tcpFailuresTelemetryMap *maps.GenericMap[int32, uint64]
 	sslCertInfoMap          *maps.GenericMap[uint32, netebpf.CertItem]
@@ -186,6 +188,8 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 			probes.ConnMap:                           {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.TCPStatsMap:                       {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.TCPRetransmitsMap:                 {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
+			probes.TCPCongestionStatsMap:             {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
+			probes.TCPRTORecoveryStatsMap:            {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.PortBindingsMap:                   {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.UDPPortBindingsMap:                {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.ConnectionProtocolMap:             {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
@@ -321,6 +325,14 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 	if tr.tcpRetransmits, err = maps.GetMap[netebpf.ConnTuple, uint32](m.Manager, probes.TCPRetransmitsMap); err != nil {
 		tr.Stop()
 		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.TCPRetransmitsMap, err)
+	}
+
+	if tr.tcpCongestionStats, err = maps.GetMap[netebpf.ConnTuple, netebpf.TCPCongestionStats](m.Manager, probes.TCPCongestionStatsMap); err != nil {
+		log.Warnf("error retrieving the bpf %s map: %s", probes.TCPCongestionStatsMap, err)
+	}
+
+	if tr.tcpRTORecoveryStats, err = maps.GetMap[netebpf.ConnTuple, netebpf.TCPRTORecoveryStats](m.Manager, probes.TCPRTORecoveryStatsMap); err != nil {
+		log.Warnf("error retrieving the bpf %s map: %s", probes.TCPRTORecoveryStatsMap, err)
 	}
 
 	tr.ebpfTelemetryMap, err = maps.GetMap[uint32, netebpf.Telemetry](m.Manager, probes.TelemetryMap)
@@ -554,6 +566,14 @@ func (t *ebpfTracer) GetConnections(buffer *network.ConnectionBuffer, filter fun
 		if retrans, ok := t.getTCPRetransmits(key, seen); ok && conn.Type == network.TCP {
 			conn.Monotonic.Retransmits = retrans
 		}
+		var congestion netebpf.TCPCongestionStats
+		if t.getTCPCongestionStats(key, &congestion) {
+			conn.FromTCPCongestionStats(&congestion)
+		}
+		var rtoRecovery netebpf.TCPRTORecoveryStats
+		if t.getTCPRTORecoveryStats(key, &rtoRecovery) {
+			conn.FromTCPRTORecoveryStats(&rtoRecovery)
+		}
 
 		// use a map to only refresh cert timestamps once per connections check
 		_, refreshTimestamp := refreshedCertIDs[stats.Cert_id]
@@ -626,7 +646,15 @@ func (t *ebpfTracer) Remove(conn *network.ConnectionStats) error {
 		pid := t.removeTuple.Pid
 		t.removeTuple.Pid = 0
 		_ = t.tcpRetransmits.Delete(t.removeTuple)
+		// RTO/recovery stats also keyed by zero-PID tuple (like tcp_retransmits)
+		if t.tcpRTORecoveryStats != nil {
+			_ = t.tcpRTORecoveryStats.Delete(t.removeTuple)
+		}
 		t.removeTuple.Pid = pid
+		// Congestion stats are keyed by the full tuple including PID
+		if t.tcpCongestionStats != nil {
+			_ = t.tcpCongestionStats.Delete(t.removeTuple)
+		}
 	}
 	return nil
 }
@@ -908,6 +936,30 @@ func (t *ebpfTracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnTup
 	}
 
 	return t.tcpStats.Lookup(tuple, stats) == nil
+}
+
+// getTCPCongestionStats reads the TCP congestion snapshot for the given ConnTuple.
+// Returns false for non-TCP connections or when the map is unavailable (e.g. prebuilt tracer).
+func (t *ebpfTracer) getTCPCongestionStats(tuple *netebpf.ConnTuple, stats *netebpf.TCPCongestionStats) bool {
+	if t.tcpCongestionStats == nil || tuple.Type() != netebpf.TCP {
+		return false
+	}
+
+	return t.tcpCongestionStats.Lookup(tuple, stats) == nil
+}
+
+// getTCPRTORecoveryStats reads RTO and fast-recovery event counters for the given ConnTuple.
+// The map is keyed by zero-PID tuple (like tcp_retransmits). Returns false for non-TCP
+// connections or when the map is unavailable (e.g. prebuilt tracer).
+func (t *ebpfTracer) getTCPRTORecoveryStats(tuple *netebpf.ConnTuple, stats *netebpf.TCPRTORecoveryStats) bool {
+	if t.tcpRTORecoveryStats == nil || tuple.Type() != netebpf.TCP {
+		return false
+	}
+	pid := tuple.Pid
+	tuple.Pid = 0
+	found := t.tcpRTORecoveryStats.Lookup(tuple, stats) == nil
+	tuple.Pid = pid
+	return found
 }
 
 // setupMapCleaners sets up the map cleaners for the eBPF maps
