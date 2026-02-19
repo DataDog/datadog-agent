@@ -70,9 +70,7 @@ func (s *processAutodiscoverySuite) SetupSuite() {
 
 	// Configure nginx with multiple workers and stub_status on port 81
 	nginxConf := `worker_processes 4;
-events {
-    worker_connections 768;
-}
+events {}
 http {
     server {
         listen 81;
@@ -85,9 +83,12 @@ http {
 	s.Env().RemoteHost.MustExecute("echo '" + nginxConf + "' | sudo tee /etc/nginx/nginx.conf")
 	s.Env().RemoteHost.MustExecute("sudo nginx -t && sudo systemctl reload nginx")
 
-	// Verify nginx stub_status is accessible
-	output = s.Env().RemoteHost.MustExecute("curl -s http://localhost:81/nginx_status")
-	require.Contains(s.T(), output, "Active connections", "nginx stub_status should be accessible")
+	// Verify nginx stub_status is accessible, retrying to allow reload to complete
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		output, err := s.Env().RemoteHost.Execute("curl -s http://localhost:81/nginx_status")
+		assert.NoError(c, err, "curl failed")
+		assert.Contains(c, output, "Active connections", "nginx stub_status should be accessible")
+	}, 30*time.Second, 2*time.Second)
 }
 
 // TestRedisCheckScheduledViaProcessAutodiscovery verifies that the redis check
