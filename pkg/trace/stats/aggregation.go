@@ -198,29 +198,8 @@ var grpcStatusMap = map[string]string{
 	"UNAUTHENTICATED":     "16",
 }
 
-func parseGRPCStatusCode(strC string) string {
-	if strC == "" {
-		return ""
-	}
-	c, err := strconv.ParseUint(strC, 10, 32)
-	if err == nil {
-		return strconv.FormatUint(c, 10)
-	}
-	strC = strings.TrimPrefix(strC, "StatusCode.") // Some tracers send status code values prefixed by "StatusCode."
-	strCUpper := strings.ToUpper(strC)
-	if statusCode, exists := grpcStatusMap[strCUpper]; exists {
-		return statusCode
-	}
-
-	// If not integer or canceled or multi-word, check for valid gRPC status string
-	if codeNum, found := code.Code_value[strCUpper]; found {
-		return strconv.Itoa(int(codeNum))
-	}
-
-	return ""
-}
-
 func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) string {
+	// List of possible keys to check in order
 	statusCodeFields := []string{"rpc.grpc.status_code", "grpc.code", "rpc.grpc.status.code", "grpc.status.code"}
 
 	if meta["rpc.system.name"] == "grpc" {
@@ -228,12 +207,26 @@ func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) strin
 	}
 
 	for _, key := range statusCodeFields {
-		if code := parseGRPCStatusCode(meta[key]); code != "" {
-			return code
+		strC := meta[key]
+		if strC == "" {
+			continue
+		}
+		c, err := strconv.ParseUint(strC, 10, 32)
+		if err == nil {
+			return strconv.FormatUint(c, 10)
+		}
+		strC = strings.TrimPrefix(strC, "StatusCode.") // Some tracers send status code values prefixed by "StatusCode."
+		strCUpper := strings.ToUpper(strC)
+		if statusCode, exists := grpcStatusMap[strCUpper]; exists {
+			return statusCode
+		}
+		// If not integer or canceled or multi-word, check for valid gRPC status string
+		if codeNum, found := code.Code_value[strCUpper]; found {
+			return strconv.Itoa(int(codeNum))
 		}
 	}
 
-	for _, key := range statusCodeFields {
+	for _, key := range statusCodeFields { // Check if gRPC status code is stored in metrics
 		if code, ok := metrics[key]; ok {
 			return strconv.FormatUint(uint64(code), 10)
 		}
