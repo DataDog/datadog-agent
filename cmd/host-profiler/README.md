@@ -13,7 +13,7 @@ To build the host-profiler binary, use the following invoke task:
 dda inv full-host-profiler.build
 ```
 
-> ![NOTE]
+> [!NOTE]
 > This must be run on a Linux system or in a Linux build environment, as the binary includes Linux-specific eBPF dependencies.
 
 ## Testing
@@ -77,7 +77,7 @@ UID=1234 # required on Datadog workspace, set to the output of `id -u` on the wo
 GID=1234 # required on Datadog workspace, set to the output of `id -g` on the workspace
 ```
 
-> ![IMPORTANT]
+> [!IMPORTANT]
 > All docker-compose commands must be run from the `cmd/host-profiler` directory.
 
 Then build and run with
