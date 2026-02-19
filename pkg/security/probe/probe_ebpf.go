@@ -1259,9 +1259,13 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) model.EventType {
 	event.RecordCheckpoint("unmarshal_contexts")
 
 	// save netns handle if applicable
-	_, _ = p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandleLazy(event.PIDContext.NetNS, func() *utils.NSPath {
-		return utils.NewNSPathFromPid(event.PIDContext.Pid, utils.NetNsType)
-	})
+	netNS := event.PIDContext.NetNS
+	pid := event.PIDContext.Pid
+	go func() {
+		_, _ = p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandleLazy(netNS, func() *utils.NSPath {
+			return utils.NewNSPathFromPid(pid, utils.NetNsType)
+		})
+	}()
 
 	// handle exec and fork before process context resolution as they modify the process context resolution
 	if !p.handleBeforeProcessContext(event, data, offset, dataLen, cgroupContext, newEntryCb) {
