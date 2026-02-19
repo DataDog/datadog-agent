@@ -10,8 +10,6 @@
   script:
     - dda inv -- check-go-version
     - dda inv -- -e cluster-agent.build
-    # Build secret-generic-connector (cluster-agent.build already builds it; re-build with FIPS args when needed)
-    - dda inv -- -e secret-generic-connector.build ${SECRET_GENERIC_CONNECTOR_EXTRA_ARGS:-}
     # keep the unstripped binary for fips compliance checks
     - cp $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent-unstripped
     - strip $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent
@@ -49,10 +47,8 @@ cluster_agent_fips-build_amd64:
   extends: cluster_agent-build_amd64
   variables:
     GOEXPERIMENT: boringcrypto
-    SECRET_GENERIC_CONNECTOR_EXTRA_ARGS: "--fips-mode"
 
 cluster_agent_fips-build_arm64:
   extends: cluster_agent-build_arm64
   variables:
     GOEXPERIMENT: boringcrypto
-    SECRET_GENERIC_CONNECTOR_EXTRA_ARGS: "--fips-mode"

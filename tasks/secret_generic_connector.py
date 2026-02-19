@@ -74,6 +74,7 @@ def build(
         env=env,
         check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
     )
+    ctx.run(f"chmod +x {bin_path}")
 
 
 @task

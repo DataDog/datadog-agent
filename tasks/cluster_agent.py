@@ -72,8 +72,10 @@ def build(
     else:
         print(f"Reusing existing security-agent-policies at {policies_path}")
 
-    # Build secret-generic-connector so it is shipped with the cluster agent
-    ctx.run("dda inv -- secret-generic-connector.build")
+    # Build secret-generic-connector so it is shipped with the cluster agent.
+    # Use same flavor as cluster-agent: FIPS when GOEXPERIMENT=boringcrypto (CI FIPS jobs).
+    sgc_fips = os.environ.get("GOEXPERIMENT") == "boringcrypto"
+    ctx.run("dda inv -- secret-generic-connector.build" + (" --fips-mode" if sgc_fips else ""))
 
 
 @task
@@ -122,14 +124,10 @@ def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
     latest_cws_instrumentation_file = max(cws_instrumentation_binary, key=os.path.getctime)
     ctx.run(f"chmod +x {latest_cws_instrumentation_file}")
 
-    # add secret-generic-connector (build if not present)
+    # Add secret-generic-connector (build if not present). We use ctx.run instead of
+    # ctx.invoke() because this repo's custom invoke context does not support ctx.invoke().
     if not os.path.isfile(secret_generic_connector.BIN_PATH):
         ctx.run("dda inv -- secret-generic-connector.build")
-    if not os.path.isfile(secret_generic_connector.BIN_PATH):
-        print(f"No bin found at {secret_generic_connector.BIN_PATH}")
-        print("You need to run secret-generic-connector.build first")
-        raise Exit(code=1)
-    ctx.run(f"chmod +x {secret_generic_connector.BIN_PATH}")
 
     build_context = "Dockerfiles/cluster-agent"
     exec_path = f"{build_context}/datadog-cluster-agent"
