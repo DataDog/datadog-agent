@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/logs-library
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/status/health v0.77.0-devel.0.20260211235139-a5361978c2b6

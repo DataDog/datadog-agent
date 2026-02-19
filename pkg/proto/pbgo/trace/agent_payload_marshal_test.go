@@ -1332,19 +1332,6 @@ func BenchmarkMarshalAgentPayload_Custom_SmallPayload(b *testing.B) {
 	}
 }
 
-func BenchmarkMarshalAgentPayload_Custom_MediumPayload(b *testing.B) {
-	template := createBenchmarkPayload(100, 0.5) // 100 spans, 50% unused strings
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		ap := cloneAgentPayload(template)
-		_, err := MarshalAgentPayload(ap)
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
 func BenchmarkMarshalAgentPayload_Custom_LargePayload(b *testing.B) {
 	template := createBenchmarkPayload(1000, 0.5) // 1000 spans, 50% unused strings
 	b.ResetTimer()
