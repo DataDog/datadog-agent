@@ -42,7 +42,12 @@ func (r *PackagesReport) ToCycloneDX() *cyclonedx_v1_4.Bom {
 	components := make([]*cyclonedx_v1_4.Component, 0, len(r.packages))
 
 	for _, pkg := range r.packages {
-		version := pkg.Version
+		// Construct version string with epoch, matching Debian/RPM format: [epoch:]version[-release]
+		version := ""
+		if pkg.Epoch > 0 {
+			version = strconv.Itoa(pkg.Epoch) + ":"
+		}
+		version += pkg.Version
 		if pkg.Release != "" {
 			version += "-" + pkg.Release
 		}
