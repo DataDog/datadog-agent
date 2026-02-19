@@ -137,7 +137,7 @@ Bazel automatically reads dependencies from `Cargo.toml` and `Cargo.lock`. When 
    rust_binary(
        name = "sd-agent",
        deps = [
-           "@sdagent_crates//:your-new-crate",
+           "@rust_crates//:your-new-crate",
            # ... other deps
        ],
    )

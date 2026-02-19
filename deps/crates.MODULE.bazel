@@ -1,22 +1,11 @@
 crate = use_extension("@rules_rs//rs:extensions.bzl", "crate")
 crate.from_cargo(
-    name = "sdagent_crates",
-    cargo_lock = "//pkg/discovery/module/rust:Cargo.lock",
-    cargo_toml = "//pkg/discovery/module/rust:Cargo.toml",
+    name = "rust_crates",
+    cargo_lock = "//:Cargo.lock",
+    cargo_toml = "//:Cargo.toml",
     platform_triples = [
         "aarch64-unknown-linux-gnu",
         "x86_64-unknown-linux-gnu",
     ],
 )
-use_repo(crate, "sdagent_crates")
-
-crate.from_cargo(
-    name = "procmgrd_crates",
-    cargo_lock = "//pkg/procmgr/rust:Cargo.lock",
-    cargo_toml = "//pkg/procmgr/rust:Cargo.toml",
-    platform_triples = [
-        "aarch64-unknown-linux-gnu",
-        "x86_64-unknown-linux-gnu",
-    ],
-)
-use_repo(crate, "procmgrd_crates")
+use_repo(crate, "rust_crates")

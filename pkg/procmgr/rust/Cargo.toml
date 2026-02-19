@@ -20,9 +20,3 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "pro
 
 [dev-dependencies]
 tempfile = "3"
-
-[profile.release]
-lto = "fat"
-opt-level = "z"
-strip = "symbols"
-panic = "abort"
