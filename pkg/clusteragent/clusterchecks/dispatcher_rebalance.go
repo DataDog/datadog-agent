@@ -14,6 +14,7 @@ import (
 	"sort"
 	"time"
 
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -173,11 +174,29 @@ func (d *dispatcher) moveCheck(src, dest, checkID string) error {
 }
 
 func (d *dispatcher) rebalance(force bool) []types.RebalanceResponse {
-	if pkgconfigsetup.Datadog().GetBool("cluster_checks.rebalance_with_utilization") {
-		return d.rebalanceUsingUtilization(force)
+	if !d.tracingEnabled {
+		if pkgconfigsetup.Datadog().GetBool("cluster_checks.rebalance_with_utilization") {
+			return d.rebalanceUsingUtilization(force)
+		}
+		return d.rebalanceUsingBusyness()
 	}
 
-	return d.rebalanceUsingBusyness()
+	span := tracer.StartSpan("cluster_checks.dispatcher.rebalance",
+		tracer.ResourceName("rebalance_checks"),
+		tracer.SpanType("worker"))
+	span.SetTag("force", force)
+	defer span.Finish()
+
+	var result []types.RebalanceResponse
+	if pkgconfigsetup.Datadog().GetBool("cluster_checks.rebalance_with_utilization") {
+		result = d.rebalanceUsingUtilization(force)
+		span.SetTag("algorithm", "utilization")
+	} else {
+		result = d.rebalanceUsingBusyness()
+		span.SetTag("algorithm", "busyness")
+	}
+	span.SetTag("checks_moved", len(result))
+	return result
 }
 
 // rebalanceUsingBusyness tries to optimize the checks repartition on cluster

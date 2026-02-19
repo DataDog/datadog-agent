@@ -142,6 +142,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
@@ -417,6 +419,32 @@ func start(log log.Component,
 	kubeDistro := cloudprovider.DCAGetName(mainCtx)
 
 	pkglog.Infof("Cluster ID: %s, Cluster Name: %s, Kube Distribution: %s", clusterID, clusterName, kubeDistro)
+
+	// Setup APM tracing
+	if config.GetBool("cluster_agent.tracing.enabled") {
+		sampleRate := config.GetFloat64("cluster_agent.tracing.sample_rate")
+		if sampleRate < 0.0 || sampleRate > 1.0 {
+			pkglog.Warnf("Invalid cluster_agent.tracing.sample_rate: %f (must be between 0.0 and 1.0), using default 0.1", sampleRate)
+			sampleRate = 0.1
+		}
+
+		opts := []tracer.StartOption{
+			tracer.WithService("datadog-cluster-agent"),
+			tracer.WithServiceVersion(version.AgentVersion),
+			tracer.WithSampler(tracer.NewRateSampler(sampleRate)),
+			tracer.WithGlobalTag("cluster_name", clusterName),
+			tracer.WithLogStartup(false),
+		}
+		if env := config.GetString("cluster_agent.tracing.env"); env != "" {
+			opts = append(opts, tracer.WithEnv(env))
+		}
+		if clusterID != "" {
+			opts = append(opts, tracer.WithGlobalTag("cluster_id", clusterID))
+		}
+		tracer.Start(opts...)
+		pkglog.Infof("APM tracing enabled for Cluster Agent (sample_rate=%.2f)", sampleRate)
+		defer tracer.Stop()
+	}
 
 	// Initialize and start remote configuration client
 	var rcClient *rcclient.Client
