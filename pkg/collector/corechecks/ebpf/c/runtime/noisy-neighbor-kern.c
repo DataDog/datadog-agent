@@ -62,7 +62,7 @@ static __always_inline cgroup_agg_stats_t *get_or_create_cgroup_stats(u64 cgroup
 static __always_inline void track_pid(u64 cgroup_id, u32 pid) {
     pid_key_t key = {.cgroup_id = cgroup_id, .pid = pid};
     __u8 one = 1;
-    bpf_map_update_elem(&cgroup_pids, &key, &one, BPF_ANY);
+    bpf_map_update_elem_with_telemetry(&cgroup_pids, &key, &one, BPF_NOEXIST, -EEXIST);
 }
 
 SEC("tp_btf/sched_wakeup")
