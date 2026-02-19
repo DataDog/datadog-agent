@@ -158,9 +158,9 @@ func TestProvider(t *testing.T) {
 			expectedOTel: "provider/multi-keys-per-ep/otel.yaml",
 		},
 		{
-			name:        "no-site",
-			agentConfig: "provider/no-site/agent.yaml",
-			shouldError: true,
+			name:         "no-site",
+			agentConfig:  "provider/no-site/agent.yaml",
+			expectedOTel: "provider/no-site/otel.yaml",
 		},
 		{
 			name:        "empty-api-key",
