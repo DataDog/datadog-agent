@@ -321,7 +321,7 @@ func preRemoveDatadogAgent(ctx HookContext) error {
 		if err := integrations.RemoveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 			log.Warnf("failed to remove custom integrations: %s\n", err.Error())
 		}
-		if err := saveAgentExtensions(ctx); err != nil {
+		if err := saveAgentExtensions(ctx, false); err != nil {
 			log.Warnf("failed to save agent extensions: %s", err)
 		}
 		if err := removeAgentExtensions(ctx, false); err != nil {
@@ -344,7 +344,7 @@ func preStartExperimentDatadogAgent(ctx HookContext) error {
 	if err := integrations.SaveCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 		log.Warnf("failed to save custom integrations: %s", err)
 	}
-	if err := saveAgentExtensions(ctx); err != nil {
+	if err := saveAgentExtensions(ctx, false); err != nil {
 		log.Warnf("failed to save agent extensions: %s", err)
 	}
 	return nil

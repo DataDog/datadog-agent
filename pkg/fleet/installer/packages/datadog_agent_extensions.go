@@ -92,9 +92,9 @@ func setRegistryConfig(env *env.Env) {
 // the extensions can then be picked up by the restoreAgentExtensions function to restore them
 //
 //nolint:unused // Used in platform-specific files
-func saveAgentExtensions(ctx HookContext) error {
+func saveAgentExtensions(ctx HookContext, isExperiment bool) error {
 	storagePath := getExtensionStoragePath(ctx.PackagePath)
-	return extensionsPkg.Save(ctx, agentPackage, storagePath)
+	return extensionsPkg.Save(ctx, agentPackage, storagePath, isExperiment)
 }
 
 // removeAgentExtensions removes the extensions of the Agent package & then deletes the package from the extensions db.

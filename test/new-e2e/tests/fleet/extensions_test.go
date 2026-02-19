@@ -269,7 +269,7 @@ func (s *extensionsSuite) getAgentPackageURL(version string) string {
 			s.T().Fatal("E2E_PIPELINE_ID environment variable not set")
 		}
 	}
-	return "oci://installtesting.datad0g.com.internal.dda-testing.com.internal.dda-testing.com/agent-package:pipeline-" + version
+	return "oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-" + version
 }
 
 // verifyDDOTRunning verifies DDOT is running via agent status

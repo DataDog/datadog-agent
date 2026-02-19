@@ -348,11 +348,12 @@ func Promote(ctx context.Context, pkg string) (err error) {
 }
 
 // Save saves the extensions for a package upgrade
-func Save(ctx context.Context, pkg string, saveDir string) (err error) {
+func Save(ctx context.Context, pkg string, saveDir string, isExperiment bool) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "extensions.save")
 	defer func() { span.Finish(err) }()
 	span.SetTag("package_name", pkg)
 	span.SetTag("save_dir", saveDir)
+	span.SetTag("is_experiment", isExperiment)
 
 	// Open & lock the extensions database
 	db, err := newExtensionsDB(filepath.Join(ExtensionsDBDir, "extensions.db"))
@@ -362,7 +363,7 @@ func Save(ctx context.Context, pkg string, saveDir string) (err error) {
 	defer db.Close()
 
 	// Get package from database
-	dbPkg, err := db.GetPackage(pkg, false)
+	dbPkg, err := db.GetPackage(pkg, isExperiment)
 	if err != nil && !errors.Is(err, errPackageNotFound) {
 		return fmt.Errorf("could not get package %s from db: %w", pkg, err)
 	} else if err != nil && errors.Is(err, errPackageNotFound) {

@@ -126,7 +126,7 @@ func TestSaveWritesExtensionList(t *testing.T) {
 
 	// Save and verify
 	saveDir := t.TempDir()
-	err = Save(context.Background(), "datadog-agent", saveDir)
+	err = Save(context.Background(), "datadog-agent", saveDir, false)
 	require.NoError(t, err)
 
 	// Verify file content
@@ -161,7 +161,7 @@ func TestSaveNoExtensionsNoFile(t *testing.T) {
 
 	// Save and verify no file created
 	saveDir := t.TempDir()
-	err = Save(context.Background(), "datadog-agent", saveDir)
+	err = Save(context.Background(), "datadog-agent", saveDir, false)
 	require.NoError(t, err)
 
 	// Verify file does not exist
@@ -182,7 +182,7 @@ func TestSavePackageNotFound(t *testing.T) {
 
 	// Try to save non-existent package
 	saveDir := t.TempDir()
-	err = Save(context.Background(), "datadog-agent", saveDir)
+	err = Save(context.Background(), "datadog-agent", saveDir, false)
 
 	require.Error(t, err, "should error when package not found")
 	assert.Contains(t, err.Error(), "not installed", "error should indicate package not found")
