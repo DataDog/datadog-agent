@@ -11,7 +11,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -19,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
-	compressioncommon "github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
 // Pipeline processes and sends messages to the backend
@@ -40,7 +38,8 @@ func NewPipeline(
 	serverlessMeta sender.ServerlessMeta,
 	hostname hostnameinterface.Component,
 	cfg pkgconfigmodel.Reader,
-	compression logscompression.Component,
+	compressorPool *CompressorPool,
+	compressorIndex int,
 	instanceID string,
 ) *Pipeline {
 	strategyInput := make(chan *message.Message, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))
@@ -56,7 +55,7 @@ func NewPipeline(
 	} else {
 		encoder = processor.RawEncoder
 	}
-	strategy := getStrategy(strategyInput, senderImpl.In(), flushChan, endpoints, serverlessMeta, senderImpl.PipelineMonitor(), compression, instanceID)
+	strategy := getStrategy(strategyInput, senderImpl.In(), flushChan, endpoints, serverlessMeta, senderImpl.PipelineMonitor(), compressorPool, compressorIndex, instanceID)
 
 	inputChan := make(chan *message.Message, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))
 
@@ -97,16 +96,13 @@ func getStrategy(
 	endpoints *config.Endpoints,
 	serverlessMeta sender.ServerlessMeta,
 	pipelineMonitor metrics.PipelineMonitor,
-	compressor logscompression.Component,
+	compressorPool *CompressorPool,
+	compressorIndex int,
 	instanceID string,
 ) sender.Strategy {
-	if endpoints.UseHTTP || serverlessMeta.IsEnabled() {
-		var encoder compressioncommon.Compressor
-		encoder = compressor.NewCompressor(compressioncommon.NoneKind, 0)
-		if endpoints.Main.UseCompression {
-			encoder = compressor.NewCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel)
-		}
+	compressor := compressorPool.GetCompressor(compressorIndex)
 
+	if endpoints.UseHTTP || serverlessMeta.IsEnabled() {
 		return sender.NewBatchStrategy(
 			inputChan,
 			outputChan,
@@ -116,9 +112,9 @@ func getStrategy(
 			endpoints.BatchMaxSize,
 			endpoints.BatchMaxContentSize,
 			"logs",
-			encoder,
+			compressor,
 			pipelineMonitor,
 			instanceID)
 	}
-	return sender.NewStreamStrategy(inputChan, outputChan, compressor.NewCompressor(compressioncommon.NoneKind, 0))
+	return sender.NewStreamStrategy(inputChan, outputChan, compressor)
 }

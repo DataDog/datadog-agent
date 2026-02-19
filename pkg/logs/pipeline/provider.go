@@ -25,6 +25,7 @@ import (
 	httpsender "github.com/DataDog/datadog-agent/pkg/logs/sender/http"
 	tcpsender "github.com/DataDog/datadog-agent/pkg/logs/sender/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
@@ -41,6 +42,41 @@ const (
 
 var httpSenderFactory = httpsender.NewHTTPSender
 var tcpSenderFactory = tcpsender.NewTCPSender
+
+// CompressorPool manages a pool of compressors that can be shared across pipelines
+type CompressorPool struct {
+	compressors []compression.Compressor
+	// currentIndex can be used for future round-robin switching logic
+	currentIndex *atomic.Uint32
+}
+
+// NewCompressorPool creates a new compressor pool with the specified size
+func NewCompressorPool(size int) *CompressorPool {
+	return &CompressorPool{
+		compressors:  make([]compression.Compressor, size),
+		currentIndex: atomic.NewUint32(0),
+	}
+}
+
+// GetCompressor returns the compressor at the specified index
+func (cp *CompressorPool) GetCompressor(index int) compression.Compressor {
+	if index < 0 || index >= len(cp.compressors) {
+		return nil
+	}
+	return cp.compressors[index]
+}
+
+// SetCompressor sets the compressor at the specified index
+func (cp *CompressorPool) SetCompressor(index int, compressor compression.Compressor) {
+	if index >= 0 && index < len(cp.compressors) {
+		cp.compressors[index] = compressor
+	}
+}
+
+// Size returns the number of compressors in the pool
+func (cp *CompressorPool) Size() int {
+	return len(cp.compressors)
+}
 
 // Provider provides message channels
 type Provider interface {
@@ -65,9 +101,10 @@ type provider struct {
 	currentPipelineIndex *atomic.Uint32
 	serverlessMeta       sender.ServerlessMeta
 
-	hostname    hostnameinterface.Component
-	cfg         pkgconfigmodel.Reader
-	compression logscompression.Component
+	hostname       hostnameinterface.Component
+	cfg            pkgconfigmodel.Reader
+	compression    logscompression.Component
+	compressorPool *CompressorPool
 }
 
 // NewProvider returns a new Provider
@@ -224,6 +261,7 @@ func newProvider(
 		hostname:                  hostname,
 		cfg:                       cfg,
 		compression:               compression,
+		compressorPool:            NewCompressorPool(numberOfPipelines),
 	}
 }
 
@@ -231,6 +269,22 @@ func newProvider(
 func (p *provider) Start() {
 	p.sender.Start()
 
+	// Create compressors for each pipeline upfront
+	for i := 0; i < p.numberOfPipelines; i++ {
+		var compressor compression.Compressor
+		if p.endpoints.UseHTTP || p.serverlessMeta.IsEnabled() {
+			compressor = p.compression.NewCompressor(compression.NoneKind, 0)
+			if p.endpoints.Main.UseCompression {
+				compressor = p.compression.NewCompressor(p.endpoints.Main.CompressionKind, p.endpoints.Main.CompressionLevel)
+			}
+		} else {
+			// TCP uses NoneKind compressor
+			compressor = p.compression.NewCompressor(compression.NoneKind, 0)
+		}
+		p.compressorPool.SetCompressor(i, compressor)
+	}
+
+	// Create pipelines with references to the compressor pool
 	for i := 0; i < p.numberOfPipelines; i++ {
 		pipeline := NewPipeline(
 			p.processingRules,
@@ -240,7 +294,8 @@ func (p *provider) Start() {
 			p.serverlessMeta,
 			p.hostname,
 			p.cfg,
-			p.compression,
+			p.compressorPool,
+			i,
 			strconv.Itoa(i),
 		)
 		pipeline.Start()
