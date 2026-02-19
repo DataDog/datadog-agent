@@ -101,7 +101,7 @@ int tp_sched_switch(u64 *ctx) {
         return 0;
     }
 
-    u64 *tsp = bpf_task_storage_get(&runq_enqueued, next, 0, 0);
+    u64 *tsp = bpf_task_storage_get(&runq_enqueued, next, NULL, 0);
     if (!tsp) {
         return 0;
     }
