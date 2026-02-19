@@ -247,10 +247,24 @@ func getGRPCStatusCodeV1(s *idx.InternalSpan) string {
 	statusCodeFields := []string{"rpc.grpc.status_code", "grpc.code", "rpc.grpc.status.code", "grpc.status.code"}
 
 	for _, key := range statusCodeFields {
-		if strC, exists := s.GetAttributeAsString(key); exists {
-			if code := parseGRPCStatusCode(strC); code != "" {
-				return code
+		// TODO: could optimize this to use the Attribute directly to avoid the string conversion sometimes
+		if strC, exists := s.GetAttributeAsString(key); exists && strC != "" {
+			c, err := strconv.ParseUint(strC, 10, 32)
+			if err == nil {
+				return strconv.FormatUint(c, 10)
 			}
+			strC = strings.TrimPrefix(strC, "StatusCode.") // Some tracers send status code values prefixed by "StatusCode."
+			strCUpper := strings.ToUpper(strC)
+			if statusCode, exists := grpcStatusMap[strCUpper]; exists {
+				return statusCode
+			}
+
+			// If not integer or canceled or multi-word, check for valid gRPC status string
+			if codeNum, found := code.Code_value[strCUpper]; found {
+				return strconv.Itoa(int(codeNum))
+			}
+
+			return ""
 		}
 	}
 
