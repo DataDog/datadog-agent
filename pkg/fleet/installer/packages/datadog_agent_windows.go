@@ -198,12 +198,12 @@ func postStartExperimentDatadogAgentBackground(ctx context.Context) error {
 	env := getenv()
 	hookCtx := HookContext{Context: ctx, PackagePath: paths.DatadogProgramFilesDir}
 
-	// Save stable extensions before removing agent
+	// Save stable extensions before removing agent.
+	// Do NOT remove extensions here: the experiment agent starts as part of MSI installation
+	// and needs extension config (e.g. datadog.yaml entries) to be in place from the start.
+	// PreRemoveExtension would strip that config before the experiment agent starts.
 	if err := saveAgentExtensions(hookCtx, false); err != nil {
 		log.Warnf("failed to save extensions: %s", err)
-	}
-	if err := removeAgentExtensions(hookCtx, false); err != nil {
-		log.Warnf("failed to remove extensions: %s", err)
 	}
 
 	// remove the Agent if it is installed
