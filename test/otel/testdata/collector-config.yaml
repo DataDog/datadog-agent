@@ -35,7 +35,7 @@ service:
       processors: [batch]
       exporters: [debug]
 
-# TODO: enable Additional configuration providerss
+# TODO: enable Additional configuration providers
 # providers:
 #   env:
 #   file:
