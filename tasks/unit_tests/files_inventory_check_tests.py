@@ -1,6 +1,6 @@
 import unittest
 
-from tasks.files_check import _compare_inventories
+from tasks.files_inventory import _compare_inventories
 from tasks.static_quality_gates.experimental_gates import (
     FileChange,
     FileInfo,

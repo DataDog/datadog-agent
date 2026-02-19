@@ -1,4 +1,4 @@
-files_check:
+files_inventory_check:
   stage: functional_test
   rules:
     - !reference [.except_coverage_pipeline] # Coverage pipeline creates a special artifact that will not pass the quality gate
@@ -11,7 +11,7 @@ files_check:
     - agent_deb-x64-a7
   script:
     - !reference [ .setup_agent_github_app ]
-    - dda inv -- files-check.run ${CI_COMMIT_BRANCH} ${OMNIBUS_PACKAGE_DIR}
+    - dda inv -- files-inventory.check ${CI_COMMIT_BRANCH} ${OMNIBUS_PACKAGE_DIR}
   artifacts:
     expire_in: 2 weeks
     paths:

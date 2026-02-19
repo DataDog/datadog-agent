@@ -157,7 +157,7 @@ def _filter_files(path: str) -> bool:
 
 
 @task
-def run(ctx, branch_name, reports_folder):
+def check(ctx, branch_name, reports_folder):
     package_types = ['deb', 'rpm']
     parent_sha = get_ancestor(ctx, branch_name)
     pr_comment = f"File checks results against ancestor [{parent_sha[:8]}](https://github.com/DataDog/datadog-agent/commit/{parent_sha}):\n\n"
@@ -197,6 +197,6 @@ def run(ctx, branch_name, reports_folder):
     github = GithubAPI()
     prs = list(github.get_pr_for_branch(branch_name))
     if len(prs):
-        pr_commenter(ctx, title='Files check summary', body=pr_comment, pr=prs[0])
+        pr_commenter(ctx, title='Files inventory check summary', body=pr_comment, pr=prs[0])
     else:
         print(color_message(f"Can't fetch PR assciated with branch {branch_name}", "red"))
