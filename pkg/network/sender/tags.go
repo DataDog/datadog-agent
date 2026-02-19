@@ -20,11 +20,12 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
+	"github.com/DataDog/datadog-agent/pkg/network/indexedset"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func formatTags(c network.ConnectionStats, tagsSet *indexedSet[string], connDynamicTags map[string]struct{}) ([]int32, uint32) {
+func formatTags(c network.ConnectionStats, tagsSet *indexedset.IndexedSet[string], connDynamicTags map[string]struct{}) ([]int32, uint32) {
 	var checksum uint32
 
 	staticTags := tls.GetStaticTags(c.StaticTags)
@@ -43,7 +44,13 @@ func formatTags(c network.ConnectionStats, tagsSet *indexedSet[string], connDyna
 
 	// other tags, e.g., from process env vars like DD_ENV, etc.
 	for _, tag := range c.Tags {
-		t := tag.Get().(string)
+		if tag == nil {
+			continue
+		}
+		t, ok := tag.Get().(string)
+		if !ok {
+			continue
+		}
 		checksum ^= murmur3.StringSum32(t)
 		tagsIdx = append(tagsIdx, tagsSet.Add(t))
 	}
@@ -59,7 +66,9 @@ func (d *directSender) getContainersForExplicitTagging(currentConnections *netwo
 	ids := make(map[string]struct{})
 	for _, conn := range currentConnections.Conns {
 		if conn.ContainerID.Source != nil {
-			ids[conn.ContainerID.Source.Get().(string)] = struct{}{}
+			if cid, ok := conn.ContainerID.Source.Get().(string); ok {
+				ids[cid] = struct{}{}
+			}
 		}
 	}
 
@@ -103,7 +112,7 @@ func (d *directSender) addContainerTags(c *model.Connection, containerIDForPID m
 	}
 }
 
-func (d *directSender) addTags(nc network.ConnectionStats, c *model.Connection, tagsSet *indexedSet[string], usmEncoders []marshal.USMEncoder, connectionsTagsEncoder model.TagEncoder) {
+func (d *directSender) addTags(nc network.ConnectionStats, c *model.Connection, tagsSet *indexedset.IndexedSet[string], usmEncoders []marshal.USMEncoder, connectionsTagsEncoder model.TagEncoder) {
 	var staticTags uint64
 	dynamicTags := nc.TLSTags.GetDynamicTags()
 	for _, encoder := range usmEncoders {

@@ -1,11 +1,11 @@
 module github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/stretchr/testify v1.11.1
-	go.opentelemetry.io/collector/pdata v1.50.0
-	go.opentelemetry.io/otel v1.39.1-0.20260115134311-f809f7d71e2d
+	go.opentelemetry.io/collector/pdata v1.51.1-0.20260205185216-81bc641f26c0
+	go.opentelemetry.io/otel v1.40.0
 	go.uber.org/zap v1.27.1
 )
 
@@ -19,8 +19,8 @@ require (
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
-	go.opentelemetry.io/collector/featuregate v1.50.0 // indirect
-	go.opentelemetry.io/otel/trace v1.39.1-0.20260115134311-f809f7d71e2d // indirect
+	go.opentelemetry.io/collector/featuregate v1.51.1-0.20260205185216-81bc641f26c0 // indirect
+	go.opentelemetry.io/otel/trace v1.40.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
