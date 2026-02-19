@@ -12,11 +12,20 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/DataDog/datadog-agent/cmd/host-profiler/globalparams"
 	"github.com/DataDog/datadog-agent/cmd/host-profiler/subcommands/run"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/version"
 )
+
+func normalizeCoreConfig(_ *pflag.FlagSet, name string) pflag.NormalizedName {
+	switch name {
+	case "core-config":
+		name = "agent-config"
+	}
+	return pflag.NormalizedName(name)
+}
 
 // MakeRootCommand makes the top-level Cobra command for this app.
 func MakeRootCommand() *cobra.Command {
@@ -30,6 +39,7 @@ func MakeRootCommand() *cobra.Command {
 	globalParamsGetter := func() *globalparams.GlobalParams {
 		return &globalParams
 	}
+
 	hostProfiler.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "config", "c", "", "path to host-profiler configuration file")
 	hostProfiler.PersistentFlags().StringVarP(&globalParams.CoreConfPath, "core-config", "", "", "Location to the Datadog Agent config file. If this value is not set, infra attribute processor and all features related to the Agent will not be enabled.")
 	hostProfiler.PersistentFlags().DurationVar(&globalParams.SyncOnInitTimeout, "sync-on-init-timeout", 30*time.Second, "How long should config sync retry at initialization before failing.")
@@ -40,6 +50,7 @@ func MakeRootCommand() *cobra.Command {
 	for _, subCommandFactory := range hostProfilerSubcommands() {
 		subcommands := subCommandFactory(globalParamsGetter)
 		for _, cmd := range subcommands {
+			cmd.Flags().SetNormalizeFunc(normalizeCoreConfig)
 			hostProfiler.AddCommand(cmd)
 		}
 	}
