@@ -8,6 +8,8 @@ package processimpl
 
 import (
 	"context"
+	"encoding/json"
+	"expvar"
 	"net"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -60,6 +62,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	// Add your gRPC services implementations here:
 	pbcore.RegisterTelemetryProviderServer(remoteAgentServer.GetGRPCServer(), remoteagentImpl)
+	pbcore.RegisterStatusProviderServer(remoteAgentServer.GetGRPCServer(), remoteagentImpl)
+	pbcore.RegisterFlareProviderServer(remoteAgentServer.GetGRPCServer(), remoteagentImpl)
 
 	provides := Provides{
 		Comp: remoteagentImpl,
@@ -75,6 +79,8 @@ type remoteagentImpl struct {
 
 	remoteAgentServer *helper.UnimplementedRemoteAgentServer
 	pbcore.UnimplementedTelemetryProviderServer
+	pbcore.UnimplementedStatusProviderServer
+	pbcore.UnimplementedFlareProviderServer
 }
 
 func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetryRequest) (*pbcore.GetTelemetryResponse, error) {
@@ -91,4 +97,40 @@ func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetry
 			PromText: prometheusText,
 		},
 	}, nil
+}
+
+// GetStatusDetails returns the status details of the process agent
+func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
+	fields := make(map[string]string)
+	expvar.Do(func(kv expvar.KeyValue) {
+		fields[kv.Key] = kv.Value.String()
+	})
+	return &pbcore.GetStatusDetailsResponse{
+		MainSection: &pbcore.StatusSection{Fields: fields},
+	}, nil
+}
+
+// GetFlareFiles returns files for the process agent flare
+func (r *remoteagentImpl) GetFlareFiles(_ context.Context, _ *pbcore.GetFlareFilesRequest) (*pbcore.GetFlareFilesResponse, error) {
+	files := make(map[string][]byte)
+
+	// structured JSON
+	expvarData := make(map[string]any)
+	expvar.Do(func(kv expvar.KeyValue) {
+		var v any
+		if err := json.Unmarshal([]byte(kv.Value.String()), &v); err == nil {
+			expvarData[kv.Key] = v
+		} else {
+			expvarData[kv.Key] = kv.Value.String()
+		}
+	})
+	if data, err := json.MarshalIndent(expvarData, "", "  "); err == nil {
+		files["process_agent_status.json"] = data
+	}
+
+	if data, err := json.MarshalIndent(r.cfg.AllSettings(), "", "  "); err == nil {
+		files["process_agent_runtime_config_dump.json"] = data
+	}
+
+	return &pbcore.GetFlareFilesResponse{Files: files}, nil
 }
