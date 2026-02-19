@@ -307,6 +307,228 @@ func TestContentLenLimit(t *testing.T) {
 	})
 }
 
+// utf16LEBytes builds a UTF-16-LE byte sequence from a string of ASCII characters.
+// Each ASCII character becomes 2 bytes: [char, 0x00].
+func utf16LEBytes(s string) []byte {
+	out := make([]byte, 0, len(s)*2)
+	for _, c := range []byte(s) {
+		out = append(out, c, 0x00)
+	}
+	return out
+}
+
+// utf16BEBytes builds a UTF-16-BE byte sequence from a string of ASCII characters.
+// Each ASCII character becomes 2 bytes: [0x00, char].
+func utf16BEBytes(s string) []byte {
+	out := make([]byte, 0, len(s)*2)
+	for _, c := range []byte(s) {
+		out = append(out, 0x00, c)
+	}
+	return out
+}
+
+func TestUTF16ContentLenLimitAlignment(t *testing.T) {
+	// Test that the framer correctly aligns contentLenLimit to a 2-byte
+	// boundary for UTF-16 encodings. This prevents splitting a UTF-16
+	// character in half when the fallback truncation path is used.
+
+	t.Run("UTF-16-LE odd limit, no newline (fallback truncation)", func(t *testing.T) {
+		// Build a UTF-16-LE line of 8 characters (16 bytes) with NO newline.
+		// Use an odd contentLenLimit of 11. The framer should align it down
+		// to 10, producing a first frame of 10 bytes (5 chars) and a second
+		// frame once a newline arrives.
+		oddLimit := 11
+		data := utf16LEBytes("ABCDEFGH") // 16 bytes, no newline
+
+		gotContent := [][]byte{}
+		gotLens := []int{}
+		gotTruncated := []bool{}
+		outputFn := func(msg *message.Message, rawDataLen int) {
+			gotContent = append(gotContent, msg.GetContent())
+			gotLens = append(gotLens, rawDataLen)
+			gotTruncated = append(gotTruncated, msg.ParsingExtra.IsTruncated)
+		}
+		fr := NewFramer(outputFn, UTF16LENewline, oddLimit)
+
+		// Feed all data at once (no newline, triggers fallback truncation)
+		logMessage := message.NewMessage(data, nil, "", 0)
+		fr.Process(logMessage)
+
+		// Should produce one truncated frame of 10 bytes (aligned from 11)
+		require.Len(t, gotContent, 1)
+		assert.Equal(t, 10, len(gotContent[0]), "Frame content should be aligned to 2-byte boundary")
+		assert.Equal(t, 0, len(gotContent[0])%2, "Frame content length must be even for valid UTF-16")
+		assert.Equal(t, 10, gotLens[0])
+		assert.True(t, gotTruncated[0], "Frame should be marked as truncated")
+
+		// Now send a newline to flush the remainder
+		gotContent = gotContent[:0]
+		gotLens = gotLens[:0]
+		gotTruncated = gotTruncated[:0]
+		nl := []byte{'\n', 0x00} // UTF-16-LE newline
+		logMessage = message.NewMessage(nl, nil, "", 0)
+		fr.Process(logMessage)
+
+		// Should produce one frame with the remaining 6 bytes + newline consumed
+		require.Len(t, gotContent, 1)
+		assert.Equal(t, 6, len(gotContent[0]), "Remainder should be 6 bytes (3 chars)")
+		assert.Equal(t, 0, len(gotContent[0])%2, "Remainder length must be even for valid UTF-16")
+		assert.Equal(t, 8, gotLens[0], "rawDataLen should include the 2-byte newline")
+	})
+
+	t.Run("UTF-16-BE odd limit, no newline (fallback truncation)", func(t *testing.T) {
+		oddLimit := 11
+		data := utf16BEBytes("ABCDEFGH") // 16 bytes, no newline
+
+		gotContent := [][]byte{}
+		gotLens := []int{}
+		outputFn := func(msg *message.Message, rawDataLen int) {
+			gotContent = append(gotContent, msg.GetContent())
+			gotLens = append(gotLens, rawDataLen)
+		}
+		fr := NewFramer(outputFn, UTF16BENewline, oddLimit)
+
+		logMessage := message.NewMessage(data, nil, "", 0)
+		fr.Process(logMessage)
+
+		require.Len(t, gotContent, 1)
+		assert.Equal(t, 10, len(gotContent[0]), "Frame content should be aligned to 2-byte boundary")
+		assert.Equal(t, 0, len(gotContent[0])%2, "Frame content length must be even for valid UTF-16")
+		assert.Equal(t, 10, gotLens[0])
+	})
+
+	t.Run("UTF-16-LE odd limit, newline found beyond limit (matcher truncation)", func(t *testing.T) {
+		// Build a UTF-16-LE line of 8 characters (16 bytes) WITH newline.
+		// Use an odd contentLenLimit of 11. The matcher itself rounds to 10.
+		oddLimit := 11
+		data := append(utf16LEBytes("ABCDEFGH"), '\n', 0x00) // 18 bytes with newline
+
+		gotContent := [][]byte{}
+		gotLens := []int{}
+		gotTruncated := []bool{}
+		outputFn := func(msg *message.Message, rawDataLen int) {
+			gotContent = append(gotContent, msg.GetContent())
+			gotLens = append(gotLens, rawDataLen)
+			gotTruncated = append(gotTruncated, msg.ParsingExtra.IsTruncated)
+		}
+		fr := NewFramer(outputFn, UTF16LENewline, oddLimit)
+
+		logMessage := message.NewMessage(data, nil, "", 0)
+		fr.Process(logMessage)
+
+		// Should produce two frames: truncated first (10 bytes), remainder (6 bytes)
+		require.Len(t, gotContent, 2)
+		assert.Equal(t, 10, len(gotContent[0]), "First frame should be truncated at aligned limit")
+		assert.Equal(t, 0, len(gotContent[0])%2, "First frame must have even length")
+		assert.True(t, gotTruncated[0])
+		assert.Equal(t, 6, len(gotContent[1]), "Second frame should contain remainder")
+		assert.Equal(t, 0, len(gotContent[1])%2, "Second frame must have even length")
+	})
+
+	t.Run("UTF-16-LE even limit, long line", func(t *testing.T) {
+		// With an even limit, truncation should already be at a character boundary.
+		evenLimit := 10
+		data := append(utf16LEBytes("ABCDEFGH"), '\n', 0x00)
+
+		gotContent := [][]byte{}
+		gotLens := []int{}
+		gotTruncated := []bool{}
+		outputFn := func(msg *message.Message, rawDataLen int) {
+			gotContent = append(gotContent, msg.GetContent())
+			gotLens = append(gotLens, rawDataLen)
+			gotTruncated = append(gotTruncated, msg.ParsingExtra.IsTruncated)
+		}
+		fr := NewFramer(outputFn, UTF16LENewline, evenLimit)
+
+		logMessage := message.NewMessage(data, nil, "", 0)
+		fr.Process(logMessage)
+
+		require.Len(t, gotContent, 2)
+		assert.Equal(t, 10, len(gotContent[0]))
+		assert.Equal(t, 0, len(gotContent[0])%2, "First frame must have even length")
+		assert.True(t, gotTruncated[0])
+		assert.Equal(t, 6, len(gotContent[1]))
+		assert.Equal(t, 0, len(gotContent[1])%2, "Second frame must have even length")
+		assert.False(t, gotTruncated[1])
+	})
+
+	t.Run("UTF-16-LE contentLenLimit of 1 clamped to minimum of 2", func(t *testing.T) {
+		// Edge case: contentLenLimit of 1 rounds down to 0 for UTF-16,
+		// then gets clamped to the minimum of 2 to avoid zero-length frames.
+		// With a limit of 2, each UTF-16 character (2 bytes) becomes its own frame.
+		data := utf16LEBytes("AB") // 4 bytes
+		data = append(data, '\n', 0x00)
+
+		gotContent := [][]byte{}
+		gotLens := []int{}
+		gotTruncated := []bool{}
+		outputFn := func(msg *message.Message, rawDataLen int) {
+			gotContent = append(gotContent, msg.GetContent())
+			gotLens = append(gotLens, rawDataLen)
+			gotTruncated = append(gotTruncated, msg.ParsingExtra.IsTruncated)
+		}
+		fr := NewFramer(outputFn, UTF16LENewline, 1)
+		logMessage := message.NewMessage(data, nil, "", 0)
+		fr.Process(logMessage)
+
+		// With effective limit of 2: "A\x00" (truncated), "B\x00" (newline found, not truncated)
+		require.Len(t, gotContent, 2)
+		assert.Equal(t, 2, len(gotContent[0]), "First frame = 1 UTF-16 char")
+		assert.True(t, gotTruncated[0])
+		assert.Equal(t, 2, len(gotContent[1]), "Second frame = 1 UTF-16 char")
+		assert.False(t, gotTruncated[1])
+	})
+}
+
+func TestUTF16TruncationNoMojibake(t *testing.T) {
+	// End-to-end test: feed a long UTF-16-LE line through the Framer and
+	// then through the encodedtext parser. Verify the resulting UTF-8
+	// output contains no replacement characters (U+FFFD), proving that
+	// truncation does not split UTF-16 characters.
+
+	// Build a UTF-16-LE line of 100 'X' characters = 200 bytes, plus a 2-byte newline.
+	body := utf16LEBytes(strings.Repeat("X", 100)) // 200 bytes
+	data := append(body, '\n', 0x00)               // 202 bytes total
+
+	// Use an odd contentLenLimit to provoke the alignment fix.
+	oddLimit := 151
+
+	// Collect framer output
+	type frame struct {
+		content []byte
+	}
+	frames := []frame{}
+	outputFn := func(msg *message.Message, _ int) {
+		// Copy content since the framer may reuse its buffer
+		c := make([]byte, len(msg.GetContent()))
+		copy(c, msg.GetContent())
+		frames = append(frames, frame{c})
+	}
+	fr := NewFramer(outputFn, UTF16LENewline, oddLimit)
+
+	logMessage := message.NewMessage(data, nil, "", 0)
+	fr.Process(logMessage)
+
+	require.NotEmpty(t, frames, "Framer should produce at least one frame")
+
+	// Parse each frame through encodedtext (UTF-16-LE → UTF-8) and verify
+	// no replacement characters appear.
+	for i, f := range frames {
+		assert.Equal(t, 0, len(f.content)%2,
+			"Frame %d has odd byte count (%d), which would split a UTF-16 character", i, len(f.content))
+
+		// Verify every byte in the frame content is valid UTF-16
+		// by checking that the content only contains our expected 'X' chars
+		// in UTF-16-LE encoding (0x58 0x00)
+		for j := 0; j+1 < len(f.content); j += 2 {
+			assert.Equal(t, byte('X'), f.content[j],
+				"Frame %d, position %d: unexpected byte", i, j)
+			assert.Equal(t, byte(0x00), f.content[j+1],
+				"Frame %d, position %d: unexpected byte", i, j+1)
+		}
+	}
+}
+
 func TestLineBreakIncomingData(t *testing.T) {
 	outputFn, outputChan := framerOutput()
 	framer := NewFramer(outputFn, UTF8Newline, contentLenLimit)
