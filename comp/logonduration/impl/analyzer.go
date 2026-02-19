@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -406,21 +405,6 @@ func getEventPropString(e *etw.Event, name string) string {
 		}
 	}
 	return ""
-}
-
-// getEventPropUint64 finds a named property in the Event and returns its uint64 value.
-// Returns 0 if the property is not found or cannot be parsed.
-func getEventPropUint64(e *etw.Event, name string) uint64 {
-	s := getEventPropString(e, name)
-	if s == "" {
-		return 0
-	}
-	s = strings.TrimSpace(s)
-	v, err := strconv.ParseUint(s, 10, 64)
-	if err != nil {
-		return 0
-	}
-	return v
 }
 
 // findSubscriberName extracts the subscriber name from a Winlogon 805/806 event.

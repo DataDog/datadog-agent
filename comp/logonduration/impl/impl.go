@@ -12,9 +12,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
-	"golang.org/x/sys/windows"
+	"github.com/DataDog/gopsutil/host"
 
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
@@ -46,15 +47,42 @@ type Provides struct {
 }
 
 type logonDurationComponent struct {
-	config        configcomp.Component
-	hostname      hostname.Component
-	eventPlatform eventplatform.Component
+	config                 configcomp.Component
+	hostname               hostname.Component
+	eventPlatformForwarder eventplatform.Forwarder
 }
 
 // NewComponent creates a new logon duration component
 func NewComponent(reqs Requires) Provides {
 	if !reqs.Config.GetBool("logon_duration.enabled") {
 		log.Debug("Logon duration component is disabled")
+
+		// disable the autologger so it doesn't run on next boot
+		exists, err := checkAutologgerExists(autologgerSessionName)
+		if err != nil {
+			log.Warnf("Logon duration: failed to check autologger: %v", err)
+		} else if exists {
+			err = toggleAutologger(autologgerSessionName, false)
+			if err != nil {
+				log.Warnf("Logon duration: failed to disable autologger: %v", err)
+			} else {
+				log.Info("Logon duration: disabled autologger for next boot")
+			}
+		}
+		return Provides{
+			Comp: &logonDurationComponent{},
+		}
+	}
+
+	// verify autologger exists
+	exists, err := checkAutologgerExists(autologgerSessionName)
+	if err != nil {
+		log.Warnf("Logon duration: failed to check autologger: %v", err)
+		return Provides{
+			Comp: &logonDurationComponent{},
+		}
+	} else if !exists {
+		log.Warn("Logon duration: autologger not found; boot traces will not be collected until it is created")
 		return Provides{
 			Comp: &logonDurationComponent{},
 		}
@@ -67,13 +95,11 @@ func NewComponent(reqs Requires) Provides {
 			Comp: &logonDurationComponent{},
 		}
 	}
-	// Ensure the forwarder is available (suppress unused warning)
-	_ = forwarder
 
 	comp := &logonDurationComponent{
-		config:        reqs.Config,
-		hostname:      reqs.Hostname,
-		eventPlatform: reqs.EventPlatform,
+		config:                 reqs.Config,
+		hostname:               reqs.Hostname,
+		eventPlatformForwarder: forwarder,
 	}
 
 	reqs.Lc.Append(compdef.Hook{
@@ -94,6 +120,17 @@ func NewComponent(reqs Requires) Provides {
 //  2. If no reboot, update cache and return.
 //  3. If reboot, parse the ETL file, build a payload, and submit a notable event.
 func (c *logonDurationComponent) run() error {
+
+	// Stop the active trace session
+	if err := stopAutologger(autologgerSessionName); err != nil {
+		log.Debugf("Logon duration: could not stop autologger session (may not be running): %v", err)
+	}
+
+	// Ensure autologger is enabled for the next boot
+	if err := toggleAutologger(autologgerSessionName, true); err != nil {
+		log.Warnf("Logon duration: failed to enable autologger for next boot: %v", err)
+	}
+
 	rebooted, currentBootTime, err := detectReboot()
 	if err != nil {
 		log.Warnf("Logon duration: failed to detect reboot: %v", err)
@@ -106,17 +143,11 @@ func (c *logonDurationComponent) run() error {
 	}
 
 	log.Info("Logon duration: reboot detected, analyzing boot trace")
-
-	etlPath := c.config.GetString("logon_duration.etl_path")
+	etlPath := getETLPath()
 	if etlPath == "" {
-		log.Warn("Logon duration: no ETL path configured (logon_duration.etl_path), skipping analysis")
-		// Still update the cache so we don't re-trigger on every restart
-		if err := persistentcache.Write(persistentCacheKey, currentBootTime); err != nil {
-			log.Warnf("Logon duration: failed to update persistent cache: %v", err)
-		}
+		log.Warn("Logon duration: no ETL path found, skipping analysis")
 		return nil
 	}
-
 	result, err := analyzeETL(etlPath)
 	if err != nil {
 		log.Errorf("Logon duration: failed to analyze ETL file: %v", err)
@@ -161,74 +192,102 @@ func detectReboot() (bool, string, error) {
 	return false, currentBootTime, nil
 }
 
-// getLastBootTime returns the system's last boot time as a string by computing
-// time.Now() minus the system uptime (via GetTickCount64). The result is
-// truncated to second precision so that minor tick differences across agent
-// restarts don't cause false reboot detections.
+// getLastBootTime returns the system's last boot time
 func getLastBootTime() (string, error) {
-	tickCount := windows.GetTickCount64()
-	uptime := time.Duration(tickCount) * time.Millisecond
-	bootTime := time.Now().Add(-uptime).Truncate(time.Second)
-	return bootTime.UTC().Format(time.RFC3339), nil
+	bootTime, err := host.BootTime()
+	if err != nil {
+		return "", fmt.Errorf("getting boot time: %w", err)
+	}
+	t := time.Unix(int64(bootTime), 0)
+	return t.UTC().Format(time.RFC3339), nil
+}
+
+func getDurationMilliseconds(start, end time.Time) int64 {
+	return end.Sub(start).Milliseconds()
+}
+
+func latestNonZero(times ...time.Time) time.Time {
+	var latest time.Time
+	for _, t := range times {
+		if !t.IsZero() && t.After(latest) {
+			latest = t
+		}
+	}
+	return latest
+}
+
+func buildCustomPayload(tl BootTimeline, subscribers []SubscriberInfo) map[string]interface{} {
+	const tsFmt = "2006-01-02T15:04:05.000Z"
+	custom := make(map[string]interface{})
+
+	if !tl.BootStart.IsZero() {
+		custom["Boot Time"] = tl.BootStart.UTC().Format(tsFmt)
+	}
+	if !tl.LogonStart.IsZero() {
+		custom["Logon Time"] = tl.LogonStart.UTC().Format(tsFmt)
+	}
+
+	for _, sub := range subscribers {
+		if strings.EqualFold(sub.Name, "NetworkProvider") || strings.Contains(strings.ToLower(sub.Name), "network provider") {
+			custom["Network Providers"] = sub.Duration.Milliseconds()
+			break
+		}
+	}
+
+	if !tl.ProfileStart.IsZero() && !tl.ProfileEnd.IsZero() {
+		custom["User Profile Load"] = getDurationMilliseconds(tl.ProfileStart, tl.ProfileEnd)
+	}
+
+	gp := make(map[string]interface{})
+	if !tl.UserGPStart.IsZero() && !tl.UserGPEnd.IsZero() {
+		gp["Total"] = getDurationMilliseconds(tl.UserGPStart, tl.UserGPEnd)
+	}
+	if len(gp) > 0 {
+		custom["Group Policy Processing"] = gp
+	}
+
+	if !tl.ShellStart.IsZero() {
+		preShellStart := latestNonZero(tl.UserGPEnd, tl.ProfileEnd, tl.SubscribersDone)
+		if !preShellStart.IsZero() {
+			custom["Pre-Shell"] = getDurationMilliseconds(preShellStart, tl.ShellStart)
+		}
+	}
+
+	shell := make(map[string]interface{})
+	if !tl.ShellStart.IsZero() && !tl.DesktopReady.IsZero() {
+		shell["Total"] = getDurationMilliseconds(tl.ShellStart, tl.DesktopReady)
+	}
+	if !tl.ShellStarted.IsZero() && !tl.DesktopReady.IsZero() {
+		shell["Desktop Responsive"] = getDurationMilliseconds(tl.ShellStarted, tl.DesktopReady)
+	}
+	if len(shell) > 0 {
+		custom["Shell"] = shell
+	}
+
+	if !tl.LogonStart.IsZero() && !tl.DesktopReady.IsZero() {
+		custom["Total Logon Duration"] = getDurationMilliseconds(tl.LogonStart, tl.DesktopReady)
+	}
+
+	return custom
 }
 
 // submitEvent builds an Event Management v2 payload from the analysis result
 // and sends it through the event platform forwarder.
 func (c *logonDurationComponent) submitEvent(result *AnalysisResult) error {
-	forwarder, ok := c.eventPlatform.Get()
-	if !ok {
-		return fmt.Errorf("event platform forwarder not available")
-	}
-
 	hostnameValue := c.hostname.GetSafe(context.TODO())
 	tl := result.Timeline
 
-	// Compute key durations (zero if the milestone was not observed)
-	durations := make(map[string]interface{})
-	if !tl.BootStart.IsZero() && !tl.DesktopReady.IsZero() {
-		durations["boot_to_desktop_ms"] = tl.DesktopReady.Sub(tl.BootStart).Milliseconds()
-	}
-	if !tl.BootStart.IsZero() && !tl.ExplorerStart.IsZero() {
-		durations["boot_to_explorer_ms"] = tl.ExplorerStart.Sub(tl.BootStart).Milliseconds()
-	}
-	if !tl.LogonStart.IsZero() && !tl.ShellStarted.IsZero() {
-		durations["logon_to_shell_ms"] = tl.ShellStarted.Sub(tl.LogonStart).Milliseconds()
-	}
-	if !tl.ProfileStart.IsZero() && !tl.ProfileEnd.IsZero() {
-		durations["profile_load_ms"] = tl.ProfileEnd.Sub(tl.ProfileStart).Milliseconds()
-	}
-	if !tl.MachineGPStart.IsZero() && !tl.MachineGPEnd.IsZero() {
-		durations["machine_gp_ms"] = tl.MachineGPEnd.Sub(tl.MachineGPStart).Milliseconds()
-	}
-	if !tl.UserGPStart.IsZero() && !tl.UserGPEnd.IsZero() {
-		durations["user_gp_ms"] = tl.UserGPEnd.Sub(tl.UserGPStart).Milliseconds()
-	}
+	custom := buildCustomPayload(tl, result.Subscribers)
 
-	// Build subscriber timing list
-	subscriberData := make([]map[string]interface{}, 0, len(result.Subscribers))
-	for _, sub := range result.Subscribers {
-		subscriberData = append(subscriberData, map[string]interface{}{
-			"name":        sub.Name,
-			"duration_ms": sub.Duration.Milliseconds(),
-		})
-	}
-
-	// Determine the event timestamp from the boot start time
 	eventTimestamp := tl.BootStart
 	if eventTimestamp.IsZero() {
 		eventTimestamp = time.Now()
 	}
 	timestamp := eventTimestamp.In(time.UTC).Format("2006-01-02T15:04:05.000000Z")
 
-	// Build a human-readable message
 	msg := "Windows logon duration analysis after reboot"
-	if bootToDesktop, ok := durations["boot_to_desktop_ms"]; ok {
-		msg = fmt.Sprintf("Windows boot to desktop took %d ms", bootToDesktop)
-	}
-
-	custom := map[string]interface{}{
-		"durations":   durations,
-		"subscribers": subscriberData,
+	if totalMs, ok := custom["Total Logon Duration"]; ok {
+		msg = fmt.Sprintf("Windows logon took %d ms", totalMs)
 	}
 
 	eventData := map[string]interface{}{
@@ -258,10 +317,11 @@ func (c *logonDurationComponent) submitEvent(result *AnalysisResult) error {
 		return fmt.Errorf("failed to marshal event payload: %w", err)
 	}
 
+	log.Debugf("Logon duration event payload: %s", string(jsonData))
 	log.Debugf("Submitting logon duration event for host %s", hostnameValue)
 
 	m := message.NewMessage(jsonData, nil, "", time.Now().UnixNano())
-	if err := forwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeEventManagement); err != nil {
+	if err := c.eventPlatformForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeEventManagement); err != nil {
 		return fmt.Errorf("failed to send event to platform: %w", err)
 	}
 
