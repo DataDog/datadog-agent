@@ -287,12 +287,6 @@ func (s *TagStore) LookupHashedWithCompleteness(entityID types.EntityID, cardina
 	return storedTags.getHashedTags(cardinality), storedTags.getIsComplete(), nil
 }
 
-// Lookup gets tags from the store and returns them concatenated in a string slice.
-func (s *TagStore) Lookup(entityID types.EntityID, cardinality types.TagCardinality) []string {
-	tags, _ := s.LookupHashed(entityID, cardinality)
-	return tags.Get()
-}
-
 // LookupStandard returns the standard tags recorded for a given entity
 func (s *TagStore) LookupStandard(entityID types.EntityID) ([]string, error) {
 	storedTags, err := s.getEntityTags(entityID)
