@@ -98,14 +98,8 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
 
     /// Attempt to prompt for location permission via detached process
     /// Background: LaunchAgent-launched apps cannot normally trigger prompts
-    private func attemptPermissionPrompt() {
-        let authStatus = getAuthorizationStatus()
-        
-        // Skip if permission already granted
-        guard authStatus != .authorizedAlways else {
-            return
-        }
-
+    /// Caller must pass current auth status (call only when not authorized).
+    private func attemptPermissionPrompt(authStatus: CLAuthorizationStatus) {
         // Skip if permission is restricted by policy (MDM, parental controls, etc.)
         // User cannot override policy restrictions
         if authStatus == .restricted {
@@ -184,7 +178,7 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
         if !isAuthorized && permissionAttemptCount < 2 && timeSinceInit >= 10.0 {
             if isGUIAvailable() {
                 Logger.info("WiFi data request without permission (after 10s delay), attempting prompt (attempt \(permissionAttemptCount + 1)/2)...", context: "WiFiDataProvider")
-                attemptPermissionPrompt()
+                attemptPermissionPrompt(authStatus: authStatus)
             } else {
                 Logger.info("WiFi data request without permission in headless environment - skipping prompt", context: "WiFiDataProvider")
             }
