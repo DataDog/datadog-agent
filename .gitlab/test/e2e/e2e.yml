@@ -205,13 +205,27 @@ go_e2e_test_binaries:
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
-    - qa_agent
-    - qa_agent_jmx
+    - qa_agent_linux
+    - qa_agent_linux_jmx
     - qa_dca
     - qa_dogstatsd
+    - job: qa_agent
+      optional: true
+    - job: qa_agent_jmx
+      optional: true
 
 new-e2e-containers-ecs:
-  extends: .new_e2e_template_needs_container_deploy
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - qa_agent_linux
+    - qa_agent_linux_jmx
+    - qa_dca
+    - qa_dogstatsd
+    - job: qa_agent
+      optional: true
+    - job: qa_agent_jmx
+      optional: true
   rules:
     - !reference [.on_container_or_e2e_changes]
     - !reference [.manual]
@@ -285,13 +299,21 @@ new-e2e-containers-eks-init:
   retry: !reference [.retry_only_infra_failure, retry]
 
 new-e2e-containers-eks:
-  extends: .new_e2e_template_needs_container_deploy
+  extends: .new_e2e_template
   rules:
     - !reference [.on_container_or_e2e_changes]
     - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
     - !reference [.manual]
   needs:
-    - !reference [.new_e2e_template_needs_container_deploy, needs]
+    - !reference [.needs_new_e2e_template]
+    - qa_agent_linux
+    - qa_agent_linux_jmx
+    - qa_dca
+    - qa_dogstatsd
+    - job: qa_agent
+      optional: true
+    - job: qa_agent_jmx
+      optional: true
     - new-e2e-containers-eks-init
   variables:
     TARGETS: ./tests/containers
@@ -1045,6 +1067,8 @@ generate-flakes-finder-pipeline:
   stage: e2e
   rules:
     - !reference [.except_disable_e2e_tests]
+    - if: $SKIP_WINDOWS == "true"
+      when: never
     - !reference [.on_deploy_nightly_repo_branch]
     - !reference [.manual]
   dependencies: [compute_gitlab_ci_config]
@@ -1066,9 +1090,12 @@ generate-flakes-finder-pipeline:
     - qa_cws_instrumentation
     - qa_dca
     - qa_dogstatsd
-    - qa_agent
-    - qa_agent_fips
-    - qa_agent_fips_jmx
+    - job: qa_agent
+      optional: true
+    - job: qa_agent_fips
+      optional: true
+    - job: qa_agent_fips_jmx
+      optional: true
     - qa_agent_fips_linux
     - qa_agent_fips_linux_jmx
     - qa_agent_full
@@ -1087,6 +1114,8 @@ trigger-flakes-finder:
   needs: [generate-flakes-finder-pipeline]
   rules:
     - !reference [.except_disable_e2e_tests]
+    - if: $SKIP_WINDOWS == "true"
+      when: never
     - !reference [.on_deploy_nightly_repo_branch]
     - !reference [.manual]
   variables:
@@ -1104,6 +1133,8 @@ generate-fips-e2e-pipeline:
   stage: e2e
   rules:
     - !reference [.except_disable_e2e_tests]
+    - if: $SKIP_WINDOWS == "true"
+      when: never
     - !reference [.on_deploy_nightly_repo_branch]
     - !reference [.manual]
   needs:
@@ -1130,10 +1161,13 @@ generate-fips-e2e-pipeline:
     - qa_cws_instrumentation
     - qa_dca
     - qa_dogstatsd
-    - qa_agent
+    - job: qa_agent
+      optional: true
     - qa_agent_full
-    - qa_agent_fips
-    - qa_agent_fips_jmx
+    - job: qa_agent_fips
+      optional: true
+    - job: qa_agent_fips_jmx
+      optional: true
     - qa_agent_fips_linux
     - qa_agent_fips_linux_jmx
     - job: tests_windows_sysprobe_x64
@@ -1151,6 +1185,8 @@ trigger-fips-e2e:
   needs: [generate-fips-e2e-pipeline]
   rules:
     - !reference [.except_disable_e2e_tests]
+    - if: $SKIP_WINDOWS == "true"
+      when: never
     - !reference [.on_deploy_nightly_repo_branch]
     - !reference [.manual]
   variables:
