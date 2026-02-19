@@ -153,7 +153,8 @@ func TestHTTPStatsWithIIS(t *testing.T) {
 	}
 
 	// Verify the monitor captured the HTTP traffic with IIS tags
+	accumulated := make(map[http.Key]statusCodeCount)
 	require.Eventuallyf(t, func() bool {
-		return verifyHTTPStats(t, monitor, expectedEndpoints, serverPort, false, makeIISTagValidator(expectedTags))
+		return verifyHTTPStats(t, monitor, accumulated, expectedEndpoints, serverPort, 1, makeIISTagValidator(expectedTags))
 	}, 5*time.Second, 100*time.Millisecond, "HTTP connection to IIS not found for %s", serverAddr)
 }
