@@ -487,7 +487,8 @@ func (r *Resolver) enrichSBOMsWithUsage() (bool, error) {
 	for _, image := range images {
 		uncompressedSBOM, err := sbomutil.UncompressSBOM(image.SBOM)
 		if err != nil {
-			return false, err
+			seclog.Warnf("failed to uncompress SBOM for image '%s': %v", image.Name, err)
+			continue
 		}
 
 		for _, sbom := range r.sboms.Values() {
