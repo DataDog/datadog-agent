@@ -9,7 +9,6 @@ crate.from_cargo(
     ],
 )
 use_repo(crate, "sdagent_crates")
-
 crate.from_cargo(
     name = "procmgrd_crates",
     cargo_lock = "//pkg/procmgr/rust:Cargo.lock",
