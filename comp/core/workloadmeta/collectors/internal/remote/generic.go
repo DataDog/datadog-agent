@@ -107,21 +107,16 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Compone
 				return nil, err
 			}
 			return vsock.Dial(cid, uint32(c.StreamHandler.Port()), &vsock.Config{})
+		} else if filepath.IsAbs(url) {
+			return net.Dial("unix", url)
 		}
+
 		return net.Dial("tcp", url)
 	})}
 
 	opts = append(opts, grpc.WithTransportCredentials(c.StreamHandler.Credentials()))
 
 	log.Infof("initializing remote collector with address: %s", address)
-
-	opts = append(opts, grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
-		if filepath.IsAbs(url) {
-			return net.Dial("unix", url)
-		}
-
-		return net.Dial("tcp", url)
-	}))
 
 	conn, err := grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
 		c.ctx,
