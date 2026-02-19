@@ -23,7 +23,7 @@ dd_agent_expand_template(
 )
 
 cc_library(
-    name = "static",
+    name = "rtloader",
     srcs = [
         "api.cpp",
         "rtloader.cpp",
@@ -36,6 +36,9 @@ cc_library(
         ],
         "//conditions:default": ["-O2"],
     }),
+    hdrs = [
+        "//rtloader/include",
+    ],
     includes = ["."],
     local_defines = COMMON_DEFINES + select({
         "@platforms//os:windows": [
@@ -63,7 +66,7 @@ cc_shared_library(
         ],
         "//conditions:default": [],
     }),
-    deps = [":static"],
+    deps = [":rtloader"],
     visibility = ["//rtloader:__subpackages__"],
 )
 
