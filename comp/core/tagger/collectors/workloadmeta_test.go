@@ -27,6 +27,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -2552,6 +2553,129 @@ func TestHandleContainer(t *testing.T) {
 			})
 
 			assertTagInfoListEqual(t, tt.expected, actual)
+		})
+	}
+}
+
+func TestHandleContainer_IsComplete(t *testing.T) {
+	podID := "test-pod"
+
+	container := workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "test-container",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "agent",
+		},
+		Owner: &workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   podID,
+		},
+	}
+
+	pod := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   podID,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "test-pod",
+			Namespace: "default",
+		},
+	}
+
+	tests := []struct {
+		name                string
+		isKubernetesEnv     bool
+		podInStore          bool
+		podIsComplete       bool
+		containerIsComplete bool
+		expectedIsComplete  bool
+	}{
+		{
+			name:                "non-Kubernetes: container complete",
+			isKubernetesEnv:     false,
+			containerIsComplete: true,
+			expectedIsComplete:  true,
+		},
+		{
+			name:                "non-Kubernetes: container incomplete",
+			isKubernetesEnv:     false,
+			containerIsComplete: false,
+			expectedIsComplete:  false,
+		},
+		{
+			name:                "kubernetes: container incomplete",
+			isKubernetesEnv:     true,
+			podInStore:          true,
+			podIsComplete:       true,
+			containerIsComplete: false,
+			expectedIsComplete:  false,
+		},
+		{
+			name:                "kubernetes: container complete but pod incomplete",
+			isKubernetesEnv:     true,
+			podInStore:          true,
+			podIsComplete:       false,
+			containerIsComplete: true,
+			expectedIsComplete:  false,
+		},
+		{
+			name:                "kubernetes: both container and pod complete",
+			isKubernetesEnv:     true,
+			podInStore:          true,
+			podIsComplete:       true,
+			containerIsComplete: true,
+			expectedIsComplete:  true,
+		},
+		{
+			name:                "kubernetes: pod not found in store",
+			isKubernetesEnv:     true,
+			podInStore:          false,
+			containerIsComplete: true,
+			expectedIsComplete:  false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if test.isKubernetesEnv {
+				env.SetFeatures(t, env.Kubernetes)
+			}
+
+			cfg := configmock.New(t)
+
+			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() config.Component { return cfg }),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+
+			wmeta.Set(&container)
+
+			if test.isKubernetesEnv && test.podInStore {
+				wmeta.Set(pod)
+			}
+
+			collector := NewWorkloadMetaCollector(context.TODO(), cfg, wmeta, nil)
+
+			if test.isKubernetesEnv {
+				collector.handleKubePod(workloadmeta.Event{
+					Type:       workloadmeta.EventTypeSet,
+					Entity:     pod,
+					IsComplete: test.podIsComplete,
+				})
+			}
+
+			actual := collector.handleContainer(workloadmeta.Event{
+				Type:       workloadmeta.EventTypeSet,
+				Entity:     &container,
+				IsComplete: test.containerIsComplete,
+			})
+
+			require.Len(t, actual, 1)
+			assert.Equal(t, test.expectedIsComplete, actual[0].IsComplete)
 		})
 	}
 }
