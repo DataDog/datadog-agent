@@ -459,5 +459,4 @@ github.com/google/go-tpm: Copyright (c) 2014, Google LLC All rights reserved.
 istio.io/*: Copyright Istio Authors
 
 # Copyright information is in the source file headers
-github.com/minio/simdjson-go: "MinIO Cloud Storage, (C) 2020 MinIO, Inc."
 github.com/petermattis/goid: "Copyright 2016 Peter Mattis."
