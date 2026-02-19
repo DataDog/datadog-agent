@@ -55,12 +55,33 @@ func (f *daemonSetRolloutFactory) MetricFamilyGenerators() []generator.FamilyGen
 			basemetrics.ALPHA,
 			"",
 			wrapDaemonSetFunc(func(ds *appsv1.DaemonSet) *metric.Family {
+				// LIMITATION: DaemonSets don't expose UpdateRevision in their status like StatefulSets do.
+				// This means we cannot use revision-based detection and must rely on generation mismatches.
+				//
+				// Implications:
+				// 1. If Kubernetes reconciles generation quickly (< 15s scrape interval) but pods are
+				//    still rolling, we may miss the rollout. This is less likely for DaemonSets since
+				//    they roll out node-by-node which is typically slower than Deployment/StatefulSet.
+				// 2. We cannot distinguish rollbacks from scaling as cleanly as we can with Deployments.
+				//
+				// We use generation-based detection combined with rollout condition checks.
 
+				// Check if this is a generation mismatch (Kubernetes hasn't caught up yet)
 				isNewRollout := ds.Generation != ds.Status.ObservedGeneration
-				// handles cases where we should consider a daemon set without a generation
-				// change an active rollout
+
+				// Check if we're already tracking this DaemonSet
+				isActivelyTracked := f.rolloutTracker.HasActiveDaemonSetRollout(ds)
+
+				// Check if Kubernetes reports an active rollout condition
 				hasRolloutCondition := f.rolloutTracker.HasDaemonSetRolloutCondition(ds)
-				isOngoing := isNewRollout || hasRolloutCondition
+
+				// A rollout is ongoing if:
+				// 1. Generation mismatch (new rollout starting)
+				// 2. OR we're already tracking AND has rollout condition (continuing rollout)
+				//
+				// Note: Unlike Deployments/StatefulSets, we cannot check "revisionChanged && hasRolloutCondition"
+				// because DaemonSets don't expose their updateRevision in status.
+				isOngoing := isNewRollout || (isActivelyTracked && hasRolloutCondition)
 
 				if isOngoing {
 					f.rolloutTracker.StoreDaemonSet(ds)

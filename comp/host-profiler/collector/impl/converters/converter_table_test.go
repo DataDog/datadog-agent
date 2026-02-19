@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
+	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
 
@@ -541,7 +542,7 @@ func TestConverterWithoutAgent(t *testing.T) {
 		},
 	}
 
-	runSuccessTests(t, &converterWithoutAgent{}, tests)
+	runSuccessTests(t, newConverterWithoutAgent(confmap.ConverterSettings{Logger: zap.NewNop()}), tests)
 }
 
 func TestConverterWithoutAgentErrors(t *testing.T) {
@@ -598,5 +599,5 @@ func TestConverterWithoutAgentErrors(t *testing.T) {
 		},
 	}
 
-	runErrorTests(t, &converterWithoutAgent{}, tests)
+	runErrorTests(t, newConverterWithoutAgent(confmap.ConverterSettings{Logger: zap.NewNop()}), tests)
 }

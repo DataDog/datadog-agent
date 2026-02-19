@@ -108,6 +108,11 @@ func (c *ContainerContext) Hash() eval.ScopeHashKey {
 	}
 }
 
+// UnixCreatedAt returns the creation time of the container
+func (c *ContainerContext) UnixCreatedAt() time.Time {
+	return time.Unix(0, int64(c.CreatedAt))
+}
+
 // IsNull returns true if the container context is null
 func (c *ContainerContext) IsNull() bool {
 	return c.ContainerID == ""
