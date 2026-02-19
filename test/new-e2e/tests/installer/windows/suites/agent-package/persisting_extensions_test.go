@@ -43,8 +43,8 @@ func (s *testExtensionsSuite) runInstallerCommand(args string) (string, error) {
 }
 
 // installExtension installs an extension using the datadog-installer.
-func (s *testExtensionsSuite) installExtension(packageURL, extensionName string) {
-	output, err := s.runInstallerCommand(fmt.Sprintf("extension install %s %s", packageURL, extensionName))
+func (s *testExtensionsSuite) installExtension(pkg installerwindows.TestPackageConfig, extensionName string) {
+	output, err := s.runInstallerCommand(fmt.Sprintf("extension install %s %s", pkg.URL(), extensionName))
 	s.Require().NoError(err, "Failed to install extension: %s", output)
 }
 
