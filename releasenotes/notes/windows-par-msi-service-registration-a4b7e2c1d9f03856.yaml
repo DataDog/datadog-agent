@@ -1,7 +1,7 @@
 features:
   - |
     On Windows, the private action runner binary is now included in the MSI
-    installer and registered as the ``datadog-private-action-runner`` Windows
+    installer and registered as the ``datadog-agent-action`` Windows
     service. The service is installed as demand-start with a dependency on the
     main Agent service, and its credentials and ACLs are managed alongside the
     other Agent services during install, upgrade, and repair.
