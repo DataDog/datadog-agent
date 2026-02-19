@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/mohae/deepcopy"
 	"github.com/spf13/cast"
 )
 
@@ -125,7 +124,7 @@ func (c *ntmConfig) Get(key string) interface{} {
 	defer c.RUnlock()
 	c.checkKnownKey(key)
 
-	return deepcopy.Copy(c.getNodeValue(key))
+	return copyIfNeeded(c.getNodeValue(key))
 }
 
 // GetAllSources returns all values for a key for each source in sorted from lower to higher priority

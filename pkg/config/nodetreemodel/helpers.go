@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/mohae/deepcopy"
 	"github.com/spf13/cast"
 )
 
@@ -176,6 +177,14 @@ func isScalar(v interface{}) bool {
 	default:
 		return false
 	}
+}
+
+// copyIfNeeded returns simple immutable types and deep copies complex types
+func copyIfNeeded(v interface{}) interface{} {
+	if v == nil || isScalar(v) {
+		return v
+	}
+	return deepcopy.Copy(v)
 }
 
 func isSlice(v interface{}) bool {
