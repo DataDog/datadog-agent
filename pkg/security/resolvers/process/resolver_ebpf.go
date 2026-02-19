@@ -17,7 +17,6 @@ import (
 	"io"
 	"os"
 	"path"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -101,7 +100,6 @@ type EBPFResolver struct {
 	inodeErrStats             map[string]*atomic.Int64 // inode error stats by tag
 
 	entryCache              map[uint32]*model.ProcessCacheEntry
-	childrenCache           map[uint32][]uint32 // PPid -> child PIDs
 	SnapshottedBoundSockets map[uint32][]model.SnapshottedBoundSocket
 	argsEnvsCache           *simplelru.LRU[uint64, *argsEnvsCacheEntry]
 
@@ -111,23 +109,9 @@ type EBPFResolver struct {
 	exitedQueue []uint32
 }
 
-func (p *EBPFResolver) addChild(ppid, pid uint32) {
-	p.childrenCache[ppid] = append(p.childrenCache[ppid], pid)
-}
-
-func (p *EBPFResolver) removeChild(ppid, pid uint32) {
-	p.childrenCache[ppid] = slices.DeleteFunc(p.childrenCache[ppid], func(c uint32) bool {
-		return c == pid
-	})
-	if len(p.childrenCache[ppid]) == 0 {
-		delete(p.childrenCache, ppid)
-	}
-}
-
 // resolveParentFromProcfs resolves the PPid of the given entry from procfs and links
 // it to its parent in the cache if available. This handles cases where the PPid is
 // missing (e.g. subreaper reparenting).
-// Note: the caller is responsible for maintaining the childrenCache.
 func (p *EBPFResolver) resolveParentFromProcfs(entry *model.ProcessCacheEntry) {
 	proc, err := process.NewProcess(int32(entry.Pid))
 	if err != nil {
@@ -166,35 +150,21 @@ func (p *EBPFResolver) TryReparentFromProcfs(entry *model.ProcessCacheEntry) {
 		if pc.ExitTime.IsZero() || !prev.ExitTime.IsZero() {
 			continue
 		}
-		p.tryReparentChildrenFromProcfs(pc.Pid, prev)
+		p.tryReparentChildrenFromProcfs(pc)
 	}
 }
 
 // tryReparentChildrenFromProcfs iterates over the children of an exited process
 // and tries to update their parent link by reading their current ppid from
-// procfs. caller is the entry that led us to the exited ancestor; if the
-// childrenCache is unexpectedly empty, caller is reparented directly.
+// procfs. The Children list is maintained by setAncestor/Reparent.
 // Must be called with the lock held.
-func (p *EBPFResolver) tryReparentChildrenFromProcfs(exitedPid uint32, caller *model.ProcessCacheEntry) {
-	children := p.childrenCache[exitedPid]
-	if len(children) == 0 {
-		// childrenCache is out of sync — reparent caller directly.
-		if caller != nil {
-			p.tryReparentEntryFromProcfs(caller, exitedPid)
-		}
-		return
-	}
+func (p *EBPFResolver) tryReparentChildrenFromProcfs(exitedEntry *model.ProcessCacheEntry) {
+	// snapshot since Reparent modifies the Children slice
+	children := make([]*model.ProcessCacheEntry, len(exitedEntry.Children))
+	copy(children, exitedEntry.Children)
 
-	// snapshot since the slice will be modified during iteration
-	childPids := make([]uint32, len(children))
-	copy(childPids, children)
-
-	for _, childPid := range childPids {
-		child := p.entryCache[childPid]
-		if child == nil || child.PPid != exitedPid {
-			continue
-		}
-		p.tryReparentEntryFromProcfs(child, exitedPid)
+	for _, child := range children {
+		p.tryReparentEntryFromProcfs(child, exitedEntry.Pid)
 	}
 }
 
@@ -224,8 +194,6 @@ func (p *EBPFResolver) tryReparentEntryFromProcfs(child *model.ProcessCacheEntry
 	}
 
 	if newParent != nil {
-		p.removeChild(exitedPid, child.Pid)
-		p.addChild(newPPidU32, child.Pid)
 		child.Reparent(newParent)
 	}
 }
@@ -235,9 +203,9 @@ func (p *EBPFResolver) DequeueExited() {
 	p.Lock()
 	defer p.Unlock()
 
-	delEntry := func(pid uint32, exitTime time.Time) {
-		p.tryReparentChildrenFromProcfs(pid, nil)
-		p.deleteEntry(pid, exitTime)
+	delEntry := func(entry *model.ProcessCacheEntry, exitTime time.Time) {
+		p.tryReparentChildrenFromProcfs(entry)
+		p.deleteEntry(entry.Pid, exitTime)
 		p.flushedEntries.Inc()
 	}
 
@@ -249,11 +217,11 @@ func (p *EBPFResolver) DequeueExited() {
 		}
 
 		if tm := entry.ExecTime; !tm.IsZero() && tm.Add(time.Minute).Before(now) {
-			delEntry(pid, now)
+			delEntry(entry, now)
 		} else if tm := entry.ForkTime; !tm.IsZero() && tm.Add(time.Minute).Before(now) {
-			delEntry(pid, now)
+			delEntry(entry, now)
 		} else if entry.ForkTime.IsZero() && entry.ExecTime.IsZero() {
-			delEntry(pid, now)
+			delEntry(entry, now)
 		}
 	}
 
@@ -475,7 +443,7 @@ func (p *EBPFResolver) ApplyExitEntry(event *model.Event, newEntryCb func(*model
 	// process cache would keep stale parent references until the next cache flush
 	// (up to 2 minutes), causing events on reparented children to report incorrect
 	// parent lineage.
-	p.tryReparentChildrenFromProcfs(event.PIDContext.Pid, nil)
+	p.tryReparentChildrenFromProcfs(event.ProcessCacheEntry)
 
 	return true
 }
@@ -707,18 +675,16 @@ func (p *EBPFResolver) RetrieveFileFieldsFromProcfs(filename string) (*model.Fil
 func (p *EBPFResolver) insertEntry(entry *model.ProcessCacheEntry, cgroupContext model.CGroupContext, source uint64) {
 	entry.Source = source
 
-	// maintain children cache: remove previous entry's relationship if it exists
-	if prev := p.entryCache[entry.Pid]; prev != nil {
-		p.removeChild(prev.PPid, entry.Pid)
+	// PID reuse: detach previous entry from its parent's Children list
+	if prev := p.entryCache[entry.Pid]; prev != nil && prev.Ancestor != nil {
+		prev.Ancestor.RemoveChild(prev)
 	}
 	p.entryCache[entry.Pid] = entry
 
-	// resolve missing PPid from procfs before updating the children cache
+	// resolve missing PPid from procfs
 	if entry.PPid == 0 && entry.Pid != 1 {
 		p.resolveParentFromProcfs(entry)
 	}
-
-	p.addChild(entry.PPid, entry.Pid)
 
 	// handle cgroup & container context
 	if p.cgroupResolver != nil {
@@ -822,7 +788,10 @@ func (p *EBPFResolver) deleteEntry(pid uint32, exitTime time.Time) {
 		p.cgroupResolver.DelPID(entry.Pid)
 	}
 
-	p.removeChild(entry.PPid, entry.Pid)
+	// detach from parent's Children list
+	if entry.Ancestor != nil {
+		entry.Ancestor.RemoveChild(entry)
+	}
 
 	entry.Exit(exitTime)
 	delete(p.entryCache, entry.Pid)
@@ -1730,7 +1699,6 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		statsdClient:              statsdClient,
 		scrubber:                  scrubber,
 		entryCache:                make(map[uint32]*model.ProcessCacheEntry),
-		childrenCache:             make(map[uint32][]uint32),
 		SnapshottedBoundSockets:   make(map[uint32][]model.SnapshottedBoundSocket),
 		opts:                      *opts,
 		argsEnvsCache:             argsEnvsCache,
