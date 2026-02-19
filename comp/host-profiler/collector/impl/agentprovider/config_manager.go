@@ -35,13 +35,16 @@ func newConfigManager(config config.Component) configManager {
 	apiKey := config.GetString("api_key")
 
 	var usedSite string
-	if profilingDDURL != "" {
+	switch {
+	case profilingDDURL != "":
 		usedSite = configutils.ExtractSiteFromURL(profilingDDURL)
 		if usedSite == "" {
 			log.Warnf("Could not extract site from apm_config.profiling_dd_url %s, skipping endpoint", profilingDDURL)
 		}
-	} else if ddSite != "" {
+	case ddSite != "":
 		usedSite = ddSite
+	default:
+		usedSite = "datadoghq.com"
 	}
 
 	profilingAdditionalEndpoints := config.GetStringMapStringSlice("apm_config.profiling_additional_endpoints")
