@@ -42,6 +42,18 @@ const (
 	RunningAsRootProperty = "RunningAsRoot"
 )
 
+// normalizeVersion normalizes version strings to handle epoch differences
+// e.g., "1:4.4.36-4build1" and "4.4.36-4build1" should both map to "4.4.36-4build1"
+// Returns both the normalized version (without epoch) and the original version
+func normalizeVersion(version string) (normalized string, hasEpoch bool) {
+	// Check if version has epoch prefix (e.g., "1:4.4.36-4build1")
+	if idx := strings.Index(version, ":"); idx > 0 {
+		// Extract the part after the epoch
+		return version[idx+1:], true
+	}
+	return version, false
+}
+
 type client struct {
 	cl sbompb.SBOMCollectorClient
 }
@@ -166,11 +178,13 @@ func mergeLastAccessProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclone
 		return existingBom
 	}
 
-	// Create a map of new components by name+version for quick lookup
+	// Create a map of new components by name+normalized_version for quick lookup
+	// We normalize versions to handle epoch differences (e.g., "1:4.4.36" vs "4.4.36")
 	newComponentsMap := make(map[string]*cyclonedx_v1_4.Component)
 	for _, comp := range newBom.Components {
 		if comp != nil {
-			key := comp.Name + "@" + comp.Version
+			normalizedVersion, _ := normalizeVersion(comp.Version)
+			key := comp.Name + "@" + normalizedVersion
 			newComponentsMap[key] = comp
 		}
 	}
@@ -227,7 +241,9 @@ func mergeLastAccessProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclone
 		}
 
 		// Check if new BOM has this component with property
-		key := existingComp.Name + "@" + existingComp.Version
+		// Use normalized version for lookup to handle epoch differences
+		normalizedVersion, _ := normalizeVersion(existingComp.Version)
+		key := existingComp.Name + "@" + normalizedVersion
 
 		updateProperty := func(newComp *cyclonedx_v1_4.Component, propertyName string) {
 			// Find property in new component
@@ -274,11 +290,13 @@ func mergeLastAccessProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclone
 	}
 
 	// Add any components from new BOM that don't exist in existing BOM
+	// Use normalized versions to avoid adding duplicates due to epoch differences
 	for key, newComp := range newComponentsMap {
 		found := false
 		for _, existingComp := range existingBom.Components {
 			if existingComp != nil {
-				existingKey := existingComp.Name + "@" + existingComp.Version
+				normalizedVersion, _ := normalizeVersion(existingComp.Version)
+				existingKey := existingComp.Name + "@" + normalizedVersion
 				if existingKey == key {
 					found = true
 					break
