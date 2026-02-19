@@ -32,9 +32,6 @@ func TestECSLogsSuite(t *testing.T) {
 				scenecs.WithFargateCapacityProvider(),
 				scenecs.WithLinuxNodeGroup(),
 			),
-			// Note: In a real implementation, we would add the log-generator workload here
-			// scenecs.WithFargateWorkloadApp(ecsloggenerator.FargateAppDefinition),
-			// scenecs.WithWorkloadApp(ecsloggenerator.EcsAppDefinition),
 			scenecs.WithTestingWorkload(),
 		),
 	)))
@@ -59,7 +56,6 @@ func (suite *ecsLogsSuite) Test00AgentLogsReady() {
 			assert.NoErrorf(c, err, "Failed to query logs from fake intake")
 			assert.NotEmptyf(c, logs, "No logs received - log agent may not be ready")
 
-			suite.T().Logf("Log agent is ready - received %d logs", len(logs))
 		}, 5*time.Minute, 10*time.Second, "Log agent readiness check failed")
 	})
 }
@@ -82,7 +78,6 @@ func (suite *ecsLogsSuite) TestContainerLogCollection() {
 				return
 			}
 
-			suite.T().Logf("Found %d logs from ECS cluster", len(ecsLogs))
 
 			// Validate log has container metadata
 			log := ecsLogs[0]
@@ -115,8 +110,6 @@ func (suite *ecsLogsSuite) TestContainerLogCollection() {
 			// Validate log has message
 			assert.NotEmptyf(c, log.Message, "Log has empty message")
 
-			suite.T().Logf("Container log collection validated: cluster=%s, container=%s",
-				suite.ecsClusterName, getTagValue(tags, "container_name"))
 		}, 3*time.Minute, 10*time.Second, "Container log collection validation failed")
 	})
 }
@@ -137,7 +130,6 @@ func (suite *ecsLogsSuite) TestLogMultiline() {
 			for _, log := range logs {
 				message := log.Message
 				if multilinePattern.MatchString(message) {
-					suite.T().Logf("Found multiline stack trace log (length: %d chars)", len(message))
 
 					// Verify the entire stack trace is in one log entry
 					assert.Containsf(c, message, "Exception",
@@ -150,12 +142,10 @@ func (suite *ecsLogsSuite) TestLogMultiline() {
 					assert.GreaterOrEqualf(c, len(lines), 2,
 						"Stack trace should have multiple lines")
 
-					suite.T().Logf("Multiline handling validated: %d lines in single log entry", len(lines))
 					return
 				}
 			}
 
-			suite.T().Logf("Note: No multiline stack traces found yet (checking %d logs)", len(logs))
 		}, 3*time.Minute, 10*time.Second, "Multiline log handling check completed")
 	})
 }
@@ -176,7 +166,6 @@ func (suite *ecsLogsSuite) TestLogParsing() {
 				// Check if this looks like it was originally JSON
 				// (may have been parsed into structured fields)
 				if strings.Contains(message, "timestamp") || strings.Contains(message, "level") {
-					suite.T().Logf("Found structured log: %s", truncateString(message, 100))
 
 					// Verify log has service tag (should be extracted from JSON)
 					tags := log.GetTags()
@@ -189,14 +178,12 @@ func (suite *ecsLogsSuite) TestLogParsing() {
 					}
 
 					if hasService {
-						suite.T().Logf("JSON log properly parsed with service tag")
-						assert.Truef(c, true, "Found properly parsed JSON log")
 						return
 					}
 				}
 			}
 
-			suite.T().Logf("Checked %d logs for JSON parsing", len(logs))
+			assert.Failf(c, "No properly parsed JSON logs found", "checked %d logs", len(logs))
 		}, 2*time.Minute, 10*time.Second, "JSON log parsing check completed")
 	})
 }
@@ -213,7 +200,6 @@ func (suite *ecsLogsSuite) TestLogSampling() {
 				return
 			}
 
-			suite.T().Logf("Received %d total logs", len(logs))
 
 			// In a high-volume scenario with sampling enabled, we should see:
 			// 1. Logs are being collected
@@ -233,7 +219,6 @@ func (suite *ecsLogsSuite) TestLogSampling() {
 				}
 			}
 
-			suite.T().Logf("Log distribution: %d errors, %d info logs", errorLogs, infoLogs)
 
 			// We should have collected some logs
 			assert.GreaterOrEqualf(c, len(logs), 10,
@@ -269,7 +254,6 @@ func (suite *ecsLogsSuite) TestLogFiltering() {
 				}
 			}
 
-			suite.T().Logf("Log sources found: %v", sourceDistribution)
 
 			// We should see logs from various sources
 			assert.GreaterOrEqualf(c, len(sourceDistribution), 1,
@@ -284,7 +268,6 @@ func (suite *ecsLogsSuite) TestLogFiltering() {
 				}
 			}
 
-			suite.T().Logf("Found %d debug logs out of %d total", debugCount, len(logs))
 		}, 2*time.Minute, 10*time.Second, "Log filtering validation completed")
 	})
 }
@@ -313,8 +296,6 @@ func (suite *ecsLogsSuite) TestLogSourceDetection() {
 				}
 			}
 
-			suite.T().Logf("Found %d logs with source out of %d total", logsWithSource, len(logs))
-			suite.T().Logf("Detected sources: %v", getKeys(sources))
 
 			// Most logs should have a source
 			sourcePercentage := float64(logsWithSource) / float64(len(logs)) * 100
@@ -349,7 +330,6 @@ func (suite *ecsLogsSuite) TestLogStatusRemapping() {
 				}
 			}
 
-			suite.T().Logf("Log status distribution: %v", statusDistribution)
 
 			// We should see various log statuses
 			assert.GreaterOrEqualf(c, len(statusDistribution), 1,
@@ -362,7 +342,6 @@ func (suite *ecsLogsSuite) TestLogStatusRemapping() {
 
 				if strings.Contains(strings.ToUpper(message), "ERROR") {
 					// This log should likely have error status
-					suite.T().Logf("Found log with ERROR in message: status=%s", status)
 
 					// Note: Status remapping depends on agent configuration
 					// This is an observational check
@@ -374,7 +353,6 @@ func (suite *ecsLogsSuite) TestLogStatusRemapping() {
 				}
 			}
 
-			suite.T().Logf("Status remapping check completed on %d logs", len(logs))
 		}, 2*time.Minute, 10*time.Second, "Log status remapping check completed")
 	})
 }
@@ -397,7 +375,6 @@ func (suite *ecsLogsSuite) TestLogTraceCorrelation() {
 						if len(chunk.Spans) > 0 {
 							traceID = chunk.Spans[0].TraceID
 							if traceID != 0 {
-								suite.T().Logf("Found trace ID: %d", traceID)
 								return
 							}
 						}
@@ -421,18 +398,13 @@ func (suite *ecsLogsSuite) TestLogTraceCorrelation() {
 					for _, tag := range tags {
 						if regexp.MustCompile(`dd\.trace_id:[[:xdigit:]]+`).MatchString(tag) {
 							logsWithTraceID++
-							suite.T().Logf("Found log with trace correlation: %s", tag)
 							break
 						}
 					}
 				}
 
-				if logsWithTraceID > 0 {
-					suite.T().Logf("Found %d logs with trace correlation", logsWithTraceID)
-					assert.Truef(c, true, "Trace-log correlation is working")
-				} else {
-					suite.T().Logf("Note: No logs with trace correlation found yet (checked %d logs)", len(logs))
-				}
+				assert.GreaterOrEqualf(c, logsWithTraceID, 1,
+					"No logs with trace correlation found yet (checked %d logs)", len(logs))
 			}, 2*time.Minute, 10*time.Second, "Trace-log correlation check completed")
 		}
 	})

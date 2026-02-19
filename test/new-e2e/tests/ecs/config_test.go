@@ -10,12 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
-	awsecs "github.com/aws/aws-sdk-go-v2/service/ecs"
-	awsecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/stretchr/testify/assert"
 
 	scenecs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
@@ -48,83 +44,8 @@ func (suite *ecsConfigSuite) SetupSuite() {
 	suite.ClusterName = suite.Env().ECSCluster.ClusterName
 }
 
-// Test00UpAndRunning is a foundation test that ensures all ECS tasks and services
-// are in RUNNING state before other tests execute. The 00 prefix ensures it runs first.
 func (suite *ecsConfigSuite) Test00UpAndRunning() {
-	ctx := suite.T().Context()
-
-	cfg, err := awsconfig.LoadDefaultConfig(ctx)
-	suite.Require().NoErrorf(err, "Failed to load AWS config")
-
-	client := awsecs.NewFromConfig(cfg)
-
-	suite.Run("ECS tasks are ready", func() {
-		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			var initToken string
-			for nextToken := &initToken; nextToken != nil; {
-				if nextToken == &initToken {
-					nextToken = nil
-				}
-
-				servicesList, err := client.ListServices(ctx, &awsecs.ListServicesInput{
-					Cluster:    &suite.ecsClusterName,
-					MaxResults: pointer.Ptr(int32(10)),
-					NextToken:  nextToken,
-				})
-				if !assert.NoErrorf(c, err, "Failed to list ECS services") {
-					return
-				}
-
-				nextToken = servicesList.NextToken
-
-				servicesDescription, err := client.DescribeServices(ctx, &awsecs.DescribeServicesInput{
-					Cluster:  &suite.ecsClusterName,
-					Services: servicesList.ServiceArns,
-				})
-				if !assert.NoErrorf(c, err, "Failed to describe ECS services %v", servicesList.ServiceArns) {
-					continue
-				}
-
-				for _, serviceDescription := range servicesDescription.Services {
-					assert.NotZerof(c, serviceDescription.DesiredCount, "ECS service %s has no task", *serviceDescription.ServiceName)
-
-					for nextToken := &initToken; nextToken != nil; {
-						if nextToken == &initToken {
-							nextToken = nil
-						}
-
-						tasksList, err := client.ListTasks(ctx, &awsecs.ListTasksInput{
-							Cluster:       &suite.ecsClusterName,
-							ServiceName:   serviceDescription.ServiceName,
-							DesiredStatus: awsecstypes.DesiredStatusRunning,
-							MaxResults:    pointer.Ptr(int32(100)),
-							NextToken:     nextToken,
-						})
-						if !assert.NoErrorf(c, err, "Failed to list ECS tasks for service %s", *serviceDescription.ServiceName) {
-							break
-						}
-
-						nextToken = tasksList.NextToken
-
-						tasksDescription, err := client.DescribeTasks(ctx, &awsecs.DescribeTasksInput{
-							Cluster: &suite.ecsClusterName,
-							Tasks:   tasksList.TaskArns,
-						})
-						if !assert.NoErrorf(c, err, "Failed to describe ECS tasks %v", tasksList.TaskArns) {
-							continue
-						}
-
-						for _, taskDescription := range tasksDescription.Tasks {
-							assert.Equalf(c, string(awsecstypes.DesiredStatusRunning), *taskDescription.LastStatus,
-								"Task %s of service %s is not running", *taskDescription.TaskArn, *serviceDescription.ServiceName)
-							assert.NotEqualf(c, awsecstypes.HealthStatusUnhealthy, taskDescription.HealthStatus,
-								"Task %s of service %s is unhealthy", *taskDescription.TaskArn, *serviceDescription.ServiceName)
-						}
-					}
-				}
-			}
-		}, 15*time.Minute, 10*time.Second, "Not all tasks became ready in time.")
-	})
+	suite.AssertECSTasksReady(suite.ecsClusterName)
 }
 
 func (suite *ecsConfigSuite) TestEnvVarConfiguration() {
@@ -202,9 +123,6 @@ func (suite *ecsConfigSuite) TestDockerLabelDiscovery() {
 			assert.NotEmptyf(c, checkMetrics,
 				"Expected autodiscovered check metrics (redis.* or nginx.*) but found none in %d metric names", len(names))
 
-			if len(checkMetrics) > 0 {
-				suite.T().Logf("Found autodiscovered check metrics: %v", getKeys(checkMetrics))
-			}
 		}, 5*time.Minute, 10*time.Second, "Docker label discovery validation failed")
 	})
 }
@@ -250,8 +168,6 @@ func (suite *ecsConfigSuite) TestTaskDefinitionDiscovery() {
 				}
 			}
 
-			suite.T().Logf("Task definition discovery: task_arn=%v, container=%v, family=%v",
-				foundTaskArn, foundContainerName, foundTaskFamily)
 
 			assert.Truef(c, foundTaskArn, "Metrics should have task_arn tag from task definition")
 			assert.Truef(c, foundContainerName, "Metrics should have container_name tag from task definition")
@@ -295,7 +211,6 @@ func (suite *ecsConfigSuite) TestDynamicConfiguration() {
 				}
 			}
 
-			suite.T().Logf("Dynamically discovered %d containers in %d tasks", len(containers), len(tasks))
 
 			// Should discover at least one container
 			assert.GreaterOrEqualf(c, len(containers), 1,
@@ -353,7 +268,6 @@ func (suite *ecsConfigSuite) TestMetadataEndpoints() {
 				}
 			}
 
-			suite.T().Logf("Found ECS metadata from endpoints: %v", getKeys(foundECSMetadata))
 
 			// Should have core ECS metadata
 			assert.Truef(c, foundECSMetadata["ecs_cluster_name"],
@@ -406,7 +320,6 @@ func (suite *ecsConfigSuite) TestServiceDiscovery() {
 				}
 			}
 
-			suite.T().Logf("Discovered services: %v", getKeys(services))
 
 			// Should discover at least one service
 			assert.GreaterOrEqualf(c, len(services), 1,
@@ -456,8 +369,6 @@ func (suite *ecsConfigSuite) TestConfigPrecedence() {
 				}
 			}
 
-			suite.T().Logf("Configuration precedence: high-priority=%v, agent=%v",
-				hasHighPriorityTags, hasAgentTags)
 
 			// Both high-priority (env var/label) and agent-level tags should be present
 			assert.Truef(c, hasHighPriorityTags,

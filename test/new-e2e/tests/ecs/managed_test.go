@@ -10,12 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
-	awsecs "github.com/aws/aws-sdk-go-v2/service/ecs"
-	awsecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/stretchr/testify/assert"
 
 	scenecs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
@@ -46,83 +42,8 @@ func (suite *ecsManagedSuite) SetupSuite() {
 	suite.ClusterName = suite.Env().ECSCluster.ClusterName
 }
 
-// Test00UpAndRunning is a foundation test that ensures all ECS tasks and services
-// are in RUNNING state before other tests execute. The 00 prefix ensures it runs first.
 func (suite *ecsManagedSuite) Test00UpAndRunning() {
-	ctx := suite.T().Context()
-
-	cfg, err := awsconfig.LoadDefaultConfig(ctx)
-	suite.Require().NoErrorf(err, "Failed to load AWS config")
-
-	client := awsecs.NewFromConfig(cfg)
-
-	suite.Run("ECS tasks are ready", func() {
-		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			var initToken string
-			for nextToken := &initToken; nextToken != nil; {
-				if nextToken == &initToken {
-					nextToken = nil
-				}
-
-				servicesList, err := client.ListServices(ctx, &awsecs.ListServicesInput{
-					Cluster:    &suite.ecsClusterName,
-					MaxResults: pointer.Ptr(int32(10)),
-					NextToken:  nextToken,
-				})
-				if !assert.NoErrorf(c, err, "Failed to list ECS services") {
-					return
-				}
-
-				nextToken = servicesList.NextToken
-
-				servicesDescription, err := client.DescribeServices(ctx, &awsecs.DescribeServicesInput{
-					Cluster:  &suite.ecsClusterName,
-					Services: servicesList.ServiceArns,
-				})
-				if !assert.NoErrorf(c, err, "Failed to describe ECS services %v", servicesList.ServiceArns) {
-					continue
-				}
-
-				for _, serviceDescription := range servicesDescription.Services {
-					assert.NotZerof(c, serviceDescription.DesiredCount, "ECS service %s has no task", *serviceDescription.ServiceName)
-
-					for nextToken := &initToken; nextToken != nil; {
-						if nextToken == &initToken {
-							nextToken = nil
-						}
-
-						tasksList, err := client.ListTasks(ctx, &awsecs.ListTasksInput{
-							Cluster:       &suite.ecsClusterName,
-							ServiceName:   serviceDescription.ServiceName,
-							DesiredStatus: awsecstypes.DesiredStatusRunning,
-							MaxResults:    pointer.Ptr(int32(100)),
-							NextToken:     nextToken,
-						})
-						if !assert.NoErrorf(c, err, "Failed to list ECS tasks for service %s", *serviceDescription.ServiceName) {
-							break
-						}
-
-						nextToken = tasksList.NextToken
-
-						tasksDescription, err := client.DescribeTasks(ctx, &awsecs.DescribeTasksInput{
-							Cluster: &suite.ecsClusterName,
-							Tasks:   tasksList.TaskArns,
-						})
-						if !assert.NoErrorf(c, err, "Failed to describe ECS tasks %v", tasksList.TaskArns) {
-							continue
-						}
-
-						for _, taskDescription := range tasksDescription.Tasks {
-							assert.Equalf(c, string(awsecstypes.DesiredStatusRunning), *taskDescription.LastStatus,
-								"Task %s of service %s is not running", *taskDescription.TaskArn, *serviceDescription.ServiceName)
-							assert.NotEqualf(c, awsecstypes.HealthStatusUnhealthy, taskDescription.HealthStatus,
-								"Task %s of service %s is unhealthy", *taskDescription.TaskArn, *serviceDescription.ServiceName)
-						}
-					}
-				}
-			}
-		}, 15*time.Minute, 10*time.Second, "Not all tasks became ready in time.")
-	})
+	suite.AssertECSTasksReady(suite.ecsClusterName)
 }
 
 func (suite *ecsManagedSuite) TestManagedInstanceBasicMetrics() {
@@ -155,7 +76,6 @@ func (suite *ecsManagedSuite) TestManagedInstanceBasicMetrics() {
 
 				if hasCluster && hasTask {
 					foundECSMetrics = true
-					suite.T().Logf("Found metric with ECS metadata: %s", metric.Metric)
 					break
 				}
 			}
@@ -163,7 +83,6 @@ func (suite *ecsManagedSuite) TestManagedInstanceBasicMetrics() {
 			assert.Truef(c, foundECSMetrics,
 				"Should find metrics with ECS metadata from managed instances")
 
-			suite.T().Logf("Collected %d metrics from managed instances", len(metrics))
 		}, 3*time.Minute, 10*time.Second, "Managed instance basic metrics validation failed")
 	})
 }
@@ -199,7 +118,6 @@ func (suite *ecsManagedSuite) TestManagedInstanceMetadata() {
 				}
 			}
 
-			suite.T().Logf("Managed instance metadata found: %v", getKeys(foundMetadata))
 
 			// Verify essential metadata
 			assert.Truef(c, foundMetadata["ecs_cluster_name"],
@@ -246,8 +164,6 @@ func (suite *ecsManagedSuite) TestManagedInstanceContainerDiscovery() {
 				}
 			}
 
-			suite.T().Logf("Discovered %d containers on managed instances", len(containers))
-			suite.T().Logf("Container names: %v", getKeys(containers))
 
 			assert.GreaterOrEqualf(c, len(containers), 1,
 				"Should discover at least one container on managed instances")
@@ -276,7 +192,6 @@ func (suite *ecsManagedSuite) TestManagedInstanceTaskTracking() {
 				}
 			}
 
-			suite.T().Logf("Tracking %d tasks on managed instances", len(tasks))
 
 			assert.GreaterOrEqualf(c, len(tasks), 1,
 				"Should track at least one task on managed instances")
@@ -297,7 +212,6 @@ func (suite *ecsManagedSuite) TestManagedInstanceTaskTracking() {
 				}
 			}
 
-			suite.T().Logf("Metrics with task attribution: %d/%d", taskMetrics, len(metrics))
 			assert.GreaterOrEqualf(c, taskMetrics, 10,
 				"Should have multiple metrics attributed to tasks")
 		}, 3*time.Minute, 10*time.Second, "Managed instance task tracking validation failed")
@@ -325,10 +239,9 @@ func (suite *ecsManagedSuite) TestManagedInstanceDaemonMode() {
 				}
 			}
 
-			suite.T().Logf("Found %d agent internal metrics", agentMetrics)
 
 			// Should have agent metrics (indicates daemon is running)
-			assert.GreaterOrEqualf(c, agentMetrics, 0,
+			assert.GreaterOrEqualf(c, agentMetrics, 1,
 				"Should have agent internal metrics from daemon mode")
 
 			// Verify UDS trace collection (daemon mode indicator)
@@ -343,7 +256,6 @@ func (suite *ecsManagedSuite) TestManagedInstanceDaemonMode() {
 				}
 			}
 
-			suite.T().Logf("Tracking %d unique container tags (daemon mode)", len(containers))
 		}, 3*time.Minute, 10*time.Second, "Managed instance daemon mode validation completed")
 	})
 }
@@ -369,7 +281,6 @@ func (suite *ecsManagedSuite) TestManagedInstanceLogCollection() {
 				}
 			}
 
-			suite.T().Logf("Found %d logs from managed instances", ecsLogs)
 
 			if ecsLogs > 0 {
 				// Verify logs have proper tagging
@@ -390,8 +301,6 @@ func (suite *ecsManagedSuite) TestManagedInstanceLogCollection() {
 
 				assert.Truef(c, hasCluster, "Logs should have cluster tag")
 				assert.Truef(c, hasContainer, "Logs should have container tag")
-			} else {
-				suite.T().Logf("Note: No logs from managed instances found yet")
 			}
 		}, 3*time.Minute, 10*time.Second, "Managed instance log collection validation completed")
 	})
@@ -402,34 +311,35 @@ func (suite *ecsManagedSuite) TestManagedInstanceTraceCollection() {
 	suite.Run("Managed instance trace collection", func() {
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
 			traces, err := suite.Fakeintake.GetTraces()
-			if err == nil && len(traces) > 0 {
-				// Check traces from managed instances
-				ecsTraces := 0
-				for _, trace := range traces {
-					tags := trace.Tags
-					if clusterName, exists := tags["ecs_cluster_name"]; exists && clusterName == suite.ecsClusterName {
-						ecsTraces++
-					}
-				}
+			if !assert.NoErrorf(c, err, "Failed to query traces") {
+				return
+			}
+			if !assert.NotEmptyf(c, traces, "No traces received yet") {
+				return
+			}
 
-				suite.T().Logf("Found %d traces from managed instances", ecsTraces)
-
-				if ecsTraces > 0 {
-					// Verify trace has proper metadata
-					trace := traces[0]
-					tags := trace.Tags
-
-					assert.NotEmptyf(c, tags["ecs_cluster_name"],
-						"Trace should have cluster name")
-					assert.NotEmptyf(c, tags["task_arn"],
-						"Trace should have task ARN")
-
-					suite.T().Logf("Trace collection validated on managed instances")
-				} else {
-					suite.T().Logf("Note: No traces from managed instances found yet")
+			// Check traces from managed instances
+			ecsTraces := 0
+			for _, trace := range traces {
+				tags := trace.Tags
+				if clusterName, exists := tags["ecs_cluster_name"]; exists && clusterName == suite.ecsClusterName {
+					ecsTraces++
 				}
 			}
-		}, 3*time.Minute, 10*time.Second, "Managed instance trace collection validation completed")
+
+			if !assert.GreaterOrEqualf(c, ecsTraces, 1, "No traces from managed instances found yet") {
+				return
+			}
+
+			// Verify trace has proper metadata
+			trace := traces[0]
+			tags := trace.Tags
+
+			assert.NotEmptyf(c, tags["ecs_cluster_name"],
+				"Trace should have cluster name")
+			assert.NotEmptyf(c, tags["task_arn"],
+				"Trace should have task ARN")
+		}, 3*time.Minute, 10*time.Second, "Managed instance trace collection validation failed")
 	})
 }
 
@@ -454,10 +364,9 @@ func (suite *ecsManagedSuite) TestManagedInstanceNetworkMode() {
 				}
 			}
 
-			suite.T().Logf("Found %d network metrics from managed instances", containerNetworkMetrics)
 
 			// Should have network metrics (indicates networking is functional)
-			assert.GreaterOrEqualf(c, containerNetworkMetrics, 0,
+			assert.GreaterOrEqualf(c, containerNetworkMetrics, 1,
 				"Should have network metrics from managed instances")
 
 			// Verify bridge mode indicators
@@ -472,7 +381,6 @@ func (suite *ecsManagedSuite) TestManagedInstanceNetworkMode() {
 				}
 			}
 
-			suite.T().Logf("Found %d unique port tags (bridge mode indicator)", len(portTags))
 		}, 3*time.Minute, 10*time.Second, "Managed instance network mode validation completed")
 	})
 }
@@ -507,7 +415,6 @@ func (suite *ecsManagedSuite) TestManagedInstanceAutoscalingIntegration() {
 				}
 			}
 
-			suite.T().Logf("Monitoring %d agent daemon tasks in managed node group", len(agentTasks))
 
 			assert.GreaterOrEqualf(c, len(agentTasks), 1,
 				"Should monitor at least one agent daemon task")
@@ -516,10 +423,7 @@ func (suite *ecsManagedSuite) TestManagedInstanceAutoscalingIntegration() {
 			assert.GreaterOrEqualf(c, len(metrics), 10,
 				"Should have continuous metrics during autoscaling")
 
-			// Note: In a real implementation, we would:
-			// 1. Trigger scale-up/scale-down events
-			// 2. Verify agent on new instances is automatically configured
-			// 3. Verify agent on drained instances stops cleanly
+			// Future: trigger scale-up/scale-down events and verify agent behavior
 		}, 3*time.Minute, 10*time.Second, "Managed instance autoscaling integration validation completed")
 	})
 }
@@ -546,18 +450,6 @@ func (suite *ecsManagedSuite) TestManagedInstancePlacementStrategy() {
 						tasks[taskArn] = true
 						taskMetricCount[taskArn]++
 					}
-				}
-			}
-
-			suite.T().Logf("Task placement: %d unique tasks tracked", len(tasks))
-			suite.T().Logf("Total metrics with task attribution: %d", len(taskMetricCount))
-
-			// Show some sample tasks
-			count := 0
-			for taskArn, metricCount := range taskMetricCount {
-				if count < 3 {
-					suite.T().Logf("  Task %s: %d metrics", taskArn, metricCount)
-					count++
 				}
 			}
 
@@ -596,8 +488,6 @@ func (suite *ecsManagedSuite) TestManagedInstanceResourceUtilization() {
 				}
 			}
 
-			suite.T().Logf("Resource metrics: CPU=%d, Memory=%d, Disk=%d",
-				cpuMetrics, memMetrics, diskMetrics)
 
 			// Should have resource metrics from managed instances
 			assert.GreaterOrEqualf(c, cpuMetrics+memMetrics+diskMetrics, 1,

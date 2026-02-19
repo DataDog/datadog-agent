@@ -10,12 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
-	awsecs "github.com/aws/aws-sdk-go-v2/service/ecs"
-	awsecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/stretchr/testify/assert"
 
 	scenecs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
@@ -34,8 +30,6 @@ func TestECSResilienceSuite(t *testing.T) {
 			scenecs.WithECSOptions(
 				scenecs.WithLinuxNodeGroup(),
 			),
-			// Note: In a real implementation, we would add the chaos workload here
-			// scenecs.WithWorkloadApp(ecschaos.EcsAppDefinition),
 			scenecs.WithTestingWorkload(),
 		),
 	)))
@@ -48,83 +42,8 @@ func (suite *ecsResilienceSuite) SetupSuite() {
 	suite.ClusterName = suite.Env().ECSCluster.ClusterName
 }
 
-// Test00UpAndRunning is a foundation test that ensures all ECS tasks and services
-// are in RUNNING state before other tests execute. The 00 prefix ensures it runs first.
 func (suite *ecsResilienceSuite) Test00UpAndRunning() {
-	ctx := suite.T().Context()
-
-	cfg, err := awsconfig.LoadDefaultConfig(ctx)
-	suite.Require().NoErrorf(err, "Failed to load AWS config")
-
-	client := awsecs.NewFromConfig(cfg)
-
-	suite.Run("ECS tasks are ready", func() {
-		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			var initToken string
-			for nextToken := &initToken; nextToken != nil; {
-				if nextToken == &initToken {
-					nextToken = nil
-				}
-
-				servicesList, err := client.ListServices(ctx, &awsecs.ListServicesInput{
-					Cluster:    &suite.ecsClusterName,
-					MaxResults: pointer.Ptr(int32(10)),
-					NextToken:  nextToken,
-				})
-				if !assert.NoErrorf(c, err, "Failed to list ECS services") {
-					return
-				}
-
-				nextToken = servicesList.NextToken
-
-				servicesDescription, err := client.DescribeServices(ctx, &awsecs.DescribeServicesInput{
-					Cluster:  &suite.ecsClusterName,
-					Services: servicesList.ServiceArns,
-				})
-				if !assert.NoErrorf(c, err, "Failed to describe ECS services %v", servicesList.ServiceArns) {
-					continue
-				}
-
-				for _, serviceDescription := range servicesDescription.Services {
-					assert.NotZerof(c, serviceDescription.DesiredCount, "ECS service %s has no task", *serviceDescription.ServiceName)
-
-					for nextToken := &initToken; nextToken != nil; {
-						if nextToken == &initToken {
-							nextToken = nil
-						}
-
-						tasksList, err := client.ListTasks(ctx, &awsecs.ListTasksInput{
-							Cluster:       &suite.ecsClusterName,
-							ServiceName:   serviceDescription.ServiceName,
-							DesiredStatus: awsecstypes.DesiredStatusRunning,
-							MaxResults:    pointer.Ptr(int32(100)),
-							NextToken:     nextToken,
-						})
-						if !assert.NoErrorf(c, err, "Failed to list ECS tasks for service %s", *serviceDescription.ServiceName) {
-							break
-						}
-
-						nextToken = tasksList.NextToken
-
-						tasksDescription, err := client.DescribeTasks(ctx, &awsecs.DescribeTasksInput{
-							Cluster: &suite.ecsClusterName,
-							Tasks:   tasksList.TaskArns,
-						})
-						if !assert.NoErrorf(c, err, "Failed to describe ECS tasks %v", tasksList.TaskArns) {
-							continue
-						}
-
-						for _, taskDescription := range tasksDescription.Tasks {
-							assert.Equalf(c, string(awsecstypes.DesiredStatusRunning), *taskDescription.LastStatus,
-								"Task %s of service %s is not running", *taskDescription.TaskArn, *serviceDescription.ServiceName)
-							assert.NotEqualf(c, awsecstypes.HealthStatusUnhealthy, taskDescription.HealthStatus,
-								"Task %s of service %s is unhealthy", *taskDescription.TaskArn, *serviceDescription.ServiceName)
-						}
-					}
-				}
-			}
-		}, 15*time.Minute, 10*time.Second, "Not all tasks became ready in time.")
-	})
+	suite.AssertECSTasksReady(suite.ecsClusterName)
 }
 
 func (suite *ecsResilienceSuite) TestAgentRestart() {
@@ -137,11 +56,9 @@ func (suite *ecsResilienceSuite) TestAgentRestart() {
 				return
 			}
 			assert.NotEmptyf(c, metrics, "Should have datadog.agent.running metrics")
-			suite.T().Logf("Agent running metrics: %d", len(metrics))
 		}, 5*time.Minute, 10*time.Second, "Failed to establish baseline")
 
-		// Note: In a real implementation, we would restart the agent here
-		// and verify it resumes collecting metrics
+		// Future: restart the agent here and verify it resumes collecting metrics
 	})
 }
 
@@ -171,7 +88,6 @@ func (suite *ecsResilienceSuite) TestTaskFailureRecovery() {
 				}
 			}
 
-			suite.T().Logf("Monitoring %d unique tasks", len(tasks))
 			assert.GreaterOrEqualf(c, len(tasks), 1,
 				"Should be monitoring at least one task")
 		}, 5*time.Minute, 10*time.Second, "Task failure recovery validation failed")
@@ -188,7 +104,6 @@ func (suite *ecsResilienceSuite) TestNetworkInterruption() {
 				return
 			}
 			assert.NotEmptyf(c, metrics, "Agent should be reporting metrics")
-			suite.T().Logf("Agent running metrics: %d", len(metrics))
 		}, 5*time.Minute, 10*time.Second, "Network interruption handling validation failed")
 	})
 }
@@ -203,7 +118,6 @@ func (suite *ecsResilienceSuite) TestHighCardinality() {
 				return
 			}
 
-			suite.T().Logf("Unique metric names: %d", len(names))
 
 			// Agent should be collecting a reasonable number of unique metrics
 			assert.GreaterOrEqualf(c, len(names), 10,
@@ -224,7 +138,6 @@ func (suite *ecsResilienceSuite) TestResourceExhaustion() {
 			assert.NotEmptyf(c, metrics,
 				"Agent should continue reporting metrics under pressure")
 
-			suite.T().Logf("Agent running metrics: %d", len(metrics))
 		}, 5*time.Minute, 10*time.Second, "Resource exhaustion handling validation failed")
 	})
 }
@@ -255,7 +168,6 @@ func (suite *ecsResilienceSuite) TestRapidContainerChurn() {
 				}
 			}
 
-			suite.T().Logf("Tracked containers: %d", len(containers))
 
 			// Verify agent is tracking at least one container
 			assert.GreaterOrEqualf(c, len(containers), 1,
@@ -289,7 +201,6 @@ func (suite *ecsResilienceSuite) TestLargePayloads() {
 						maxSpans = spanCount
 					}
 				}
-				suite.T().Logf("Largest trace: %d spans", maxSpans)
 			}
 		}, 5*time.Minute, 10*time.Second, "Large payload handling validation failed")
 	})
@@ -306,7 +217,6 @@ func (suite *ecsResilienceSuite) TestBackpressure() {
 			}
 			assert.NotEmptyf(c, metrics,
 				"Agent should continue reporting metrics (handles backpressure)")
-			suite.T().Logf("Agent running metrics: %d", len(metrics))
 		}, 5*time.Minute, 10*time.Second, "Backpressure handling validation failed")
 	})
 }

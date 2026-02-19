@@ -17,6 +17,10 @@ import (
 	"gopkg.in/yaml.v3"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	awsecs "github.com/aws/aws-sdk-go-v2/service/ecs"
+	awsecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
+
 	"github.com/DataDog/agent-payload/v5/gogen"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -331,7 +335,10 @@ func (suite *BaseSuite[Env]) AssertLog(args *TestLogArgs) {
 
 			// Check tags
 			if expectedTags != nil {
-				err := assertTags(logs[len(logs)-1].GetTags(), expectedTags, []*regexp.Regexp{}, false)
+				optionalTags := []*regexp.Regexp{
+					regexp.MustCompile("logsource:.*"),
+				}
+				err := assertTags(logs[len(logs)-1].GetTags(), expectedTags, optionalTags, false)
 				assert.NoErrorf(c, err, "Tags mismatch on `%s`", prettyLogQuery)
 			}
 
@@ -728,7 +735,7 @@ func (suite *BaseSuite[Env]) AssertAPMTrace(args *TestAPMTraceArgs) {
 
 			// Check sampling priority if specified
 			if args.Expect.SamplingPriority != nil {
-				assert.Equalf(c, int32(*args.Expect.SamplingPriority), matchingSpans[0].Metrics["_sampling_priority_v1"],
+				assert.Equalf(c, float64(*args.Expect.SamplingPriority), matchingSpans[0].Metrics["_sampling_priority_v1"],
 					"Sampling priority mismatch for `%s`", prettyTraceQuery)
 			}
 
@@ -935,5 +942,85 @@ func (suite *BaseSuite[Env]) AssertResilienceScenario(args *TestResilienceScenar
 		}, recoveryTimeout, 10*time.Second, "Recovery validation failed for scenario: %s", args.ScenarioName)
 
 		suite.T().Logf("Successfully recovered from resilience scenario: %s", args.ScenarioName)
+	})
+}
+
+// AssertECSTasksReady waits for all ECS services and tasks in the given cluster
+// to be in RUNNING state. This should be called as the first test (Test00UpAndRunning)
+// in each suite to ensure infrastructure is ready before other tests run.
+func (suite *BaseSuite[Env]) AssertECSTasksReady(ecsClusterName string) {
+	ctx := suite.T().Context()
+
+	cfg, err := awsconfig.LoadDefaultConfig(ctx)
+	suite.Require().NoErrorf(err, "Failed to load AWS config")
+
+	client := awsecs.NewFromConfig(cfg)
+
+	suite.Run("ECS tasks are ready", func() {
+		suite.EventuallyWithTf(func(c *assert.CollectT) {
+			var initToken string
+			for nextToken := &initToken; nextToken != nil; {
+				if nextToken == &initToken {
+					nextToken = nil
+				}
+
+				servicesList, err := client.ListServices(ctx, &awsecs.ListServicesInput{
+					Cluster:    &ecsClusterName,
+					MaxResults: pointer.Ptr(int32(10)), // Because `DescribeServices` takes at most 10 services in input
+					NextToken:  nextToken,
+				})
+				if !assert.NoErrorf(c, err, "Failed to list ECS services") {
+					return
+				}
+
+				nextToken = servicesList.NextToken
+
+				servicesDescription, err := client.DescribeServices(ctx, &awsecs.DescribeServicesInput{
+					Cluster:  &ecsClusterName,
+					Services: servicesList.ServiceArns,
+				})
+				if !assert.NoErrorf(c, err, "Failed to describe ECS services %v", servicesList.ServiceArns) {
+					continue
+				}
+
+				for _, serviceDescription := range servicesDescription.Services {
+					assert.NotZerof(c, serviceDescription.DesiredCount, "ECS service %s has no task", *serviceDescription.ServiceName)
+
+					for nextToken := &initToken; nextToken != nil; {
+						if nextToken == &initToken {
+							nextToken = nil
+						}
+
+						tasksList, err := client.ListTasks(ctx, &awsecs.ListTasksInput{
+							Cluster:       &ecsClusterName,
+							ServiceName:   serviceDescription.ServiceName,
+							DesiredStatus: awsecstypes.DesiredStatusRunning,
+							MaxResults:    pointer.Ptr(int32(100)), // Because `DescribeTasks` takes at most 100 tasks in input
+							NextToken:     nextToken,
+						})
+						if !assert.NoErrorf(c, err, "Failed to list ECS tasks for service %s", *serviceDescription.ServiceName) {
+							break
+						}
+
+						nextToken = tasksList.NextToken
+
+						tasksDescription, err := client.DescribeTasks(ctx, &awsecs.DescribeTasksInput{
+							Cluster: &ecsClusterName,
+							Tasks:   tasksList.TaskArns,
+						})
+						if !assert.NoErrorf(c, err, "Failed to describe ECS tasks %v", tasksList.TaskArns) {
+							continue
+						}
+
+						for _, taskDescription := range tasksDescription.Tasks {
+							assert.Equalf(c, string(awsecstypes.DesiredStatusRunning), *taskDescription.LastStatus,
+								"Task %s of service %s is not running", *taskDescription.TaskArn, *serviceDescription.ServiceName)
+							assert.NotEqualf(c, awsecstypes.HealthStatusUnhealthy, taskDescription.HealthStatus,
+								"Task %s of service %s is unhealthy", *taskDescription.TaskArn, *serviceDescription.ServiceName)
+						}
+					}
+				}
+			}
+		}, 15*time.Minute, 10*time.Second, "Not all tasks became ready in time.")
 	})
 }

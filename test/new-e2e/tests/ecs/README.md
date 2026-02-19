@@ -24,7 +24,7 @@ The ECS E2E test suite covers:
 
 ## Test Suites
 
-This directory contains **7 test suites** with **52 total tests**:
+This directory contains **7 test suites** with **61 total tests**:
 
 ### 1. `apm_test.go` - APM/Tracing (8 tests)
 Tests APM trace collection and distributed tracing across ECS environments.
@@ -216,25 +216,7 @@ Tests platform-specific functionality and performance monitoring.
 
 ### Test Applications
 
-Three custom test applications support the E2E tests:
-
-1. **ecs-multiservice** (`test/e2e-framework/components/datadog/apps/ecs-multiservice/`)
-   - **Purpose**: 3-tier distributed tracing application
-   - **Architecture**: Frontend → Backend → Database
-   - **Used by**: `apm_test.go`
-   - **Features**: Trace propagation, correlated logs, ECS metadata enrichment
-
-2. **ecs-log-generator** (`test/e2e-framework/components/datadog/apps/ecs-log-generator/`)
-   - **Purpose**: Comprehensive log testing
-   - **Generates**: JSON logs, multiline stack traces, various log levels
-   - **Used by**: `logs_test.go`
-   - **Features**: Configurable log types, trace correlation context
-
-3. **ecs-chaos** (`test/e2e-framework/components/datadog/apps/ecs-chaos/`)
-   - **Purpose**: Chaos engineering and resilience testing
-   - **Modes**: Memory leak, CPU spike, network timeout, crashes, high cardinality
-   - **Used by**: `resilience_test.go`
-   - **Features**: Configurable failure modes via environment variables
+The tests use the shared testing workload provided by the E2E framework via `scenecs.WithTestingWorkload()`. This includes standard test applications (redis, nginx, tracegen, dogstatsd, stress-ng, prometheus) deployed across both EC2 and Fargate launch types.
 
 ### Deployment Scenarios
 
@@ -326,12 +308,11 @@ All ECS test suites follow this structure:
 package ecs
 
 import (
-    "github.com/DataDog/datadog-agent/test/new-e2e/tests/containers"
     "github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 )
 
 type ecsAPMSuite struct {
-    containers.BaseSuite[environments.ECS]
+    BaseSuite[environments.ECS]
     ecsClusterName string
 }
 
@@ -358,46 +339,46 @@ func (suite *ecsAPMSuite) SetupSuite() {
 
 ### Helper Methods from BaseSuite
 
-The `containers.BaseSuite` provides helper methods for common validations:
+The `BaseSuite` (defined in `base.go`) provides helper methods for common validations:
 
 ```go
 // Metric validation
-suite.testMetric(&testMetricArgs{
-    Filter: testMetricFilterArgs{
+suite.AssertMetric(&TestMetricArgs{
+    Filter: TestMetricFilterArgs{
         Name: "nginx.net.request_per_s",
         Tags: []string{"^ecs_launch_type:ec2$"},
     },
-    Expect: testMetricExpectArgs{
+    Expect: TestMetricExpectArgs{
         Tags: &[]string{`^cluster_name:.*`, `^task_arn:.*`},
-        Value: &testMetricExpectValueArgs{Min: 0, Max: 1000},
+        Value: &TestMetricExpectValueArgs{Min: 0, Max: 1000},
     },
 })
 
 // Log validation
-suite.testLog(&testLogArgs{
-    Filter: testLogFilterArgs{
+suite.AssertLog(&TestLogArgs{
+    Filter: TestLogFilterArgs{
         Service: "nginx",
         Tags: []string{"^ecs_cluster_name:.*"},
     },
-    Expect: testLogExpectArgs{
+    Expect: TestLogExpectArgs{
         Tags: &[]string{`^container_name:.*`},
         Message: `GET / HTTP/1\.1`,
     },
 })
 
 // APM trace validation
-suite.testAPMTrace(&testAPMTraceArgs{
-    Filter: testAPMTraceFilterArgs{
+suite.AssertAPMTrace(&TestAPMTraceArgs{
+    Filter: TestAPMTraceFilterArgs{
         ServiceName: "frontend",
     },
-    Expect: testAPMTraceExpectArgs{
+    Expect: TestAPMTraceExpectArgs{
         SpanCount: pointer.Int(3),
         Tags: &[]string{`^trace_id:[[:xdigit:]]+$`},
     },
 })
 
 // Agent health check
-suite.testAgentHealth(&testAgentHealthArgs{
+suite.AssertAgentHealth(&TestAgentHealthArgs{
     CheckComponents: []string{"logs", "trace"},
 })
 ```
@@ -510,87 +491,6 @@ Every test should validate:
 4. **Feature-specific**: Validate the actual feature being tested
 
 ---
-
-## Test Applications
-
-### ecs-multiservice
-
-**Location**: `test/e2e-framework/components/datadog/apps/ecs-multiservice/`
-
-**Architecture**:
-```
-┌──────────┐      ┌──────────┐      ┌──────────┐
-│ Frontend │─────▶│ Backend  │─────▶│ Database │
-│  :8080   │      │  :8080   │      │  :8080   │
-└──────────┘      └──────────┘      └──────────┘
-     │                 │                 │
-     └─────────────────┴─────────────────┘
-                       │
-                  Traces with
-              - Parent-child relationships
-              - ECS metadata tags
-              - Correlated logs
-```
-
-**Configuration**:
-- `DD_SERVICE`: Set per container
-- `DD_TRACE_AGENT_URL`: `http://localhost:8126` (Fargate) or `unix:///var/run/datadog/apm.socket` (EC2)
-- `DD_LOGS_INJECTION`: `true` (enables trace-log correlation)
-
-**Use Cases**:
-- Multi-service distributed tracing
-- Trace propagation validation
-- Service map creation
-- Trace-log correlation
-
----
-
-### ecs-log-generator
-
-**Location**: `test/e2e-framework/components/datadog/apps/ecs-log-generator/`
-
-**Generated Log Types**:
-1. **JSON logs**: Structured logs with fields
-2. **Multiline logs**: Stack traces spanning multiple lines
-3. **High-volume logs**: Rapid log generation for sampling tests
-4. **Various levels**: DEBUG, INFO, WARN, ERROR
-
-**Configuration**:
-- `LOG_MODE`: `json`, `multiline`, `high_volume`, `mixed`
-- `LOG_RATE`: Logs per second (default: 10)
-- `INCLUDE_TRACE_ID`: `true` (adds `dd.trace_id` to logs)
-
-**Use Cases**:
-- Log parsing validation
-- Multiline handling
-- Log sampling under high volume
-- Trace-log correlation
-
----
-
-### ecs-chaos
-
-**Location**: `test/e2e-framework/components/datadog/apps/ecs-chaos/`
-
-**Chaos Modes** (via `CHAOS_MODE` env var):
-1. **memory_leak**: Gradual memory consumption
-2. **cpu_spike**: Periodic CPU usage spikes
-3. **network_timeout**: Slow/failing network requests
-4. **crash**: Random process termination
-5. **high_cardinality**: Unique tag combinations
-6. **large_payloads**: Generate large traces/logs
-7. **rapid_churn**: Fast container start/stop
-
-**Configuration**:
-- `CHAOS_MODE`: Failure mode to simulate
-- `CHAOS_INTENSITY`: 1-10 (severity)
-- `CHAOS_DURATION`: Duration in seconds
-
-**Use Cases**:
-- Agent resilience testing
-- Memory leak detection
-- Cardinality explosion handling
-- Recovery validation
 
 ---
 
@@ -715,7 +615,7 @@ Legend: ✅ Full support | ⚠️ Partial support | ❌ Not applicable
 | managed_test | 12 | N/A | N/A | ~18 min | Managed instance specific |
 | checks_test | 5 | ~7 min | ~8 min | ~7 min | Check execution time |
 | platform_test | 3 | ~10 min | ~12 min | ~10 min | Windows + stress tests |
-| **Total** | **52** | **~51 min** | **~55 min** | **~69 min** | With parallelism: ~30 min |
+| **Total** | **61** | **~51 min** | **~55 min** | **~69 min** | With parallelism: ~30 min |
 
 ---
 

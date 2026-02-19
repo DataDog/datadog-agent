@@ -6,15 +6,10 @@
 package ecs
 
 import (
+	"strings"
+
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
-)
-
-// Helper functions to aggregate all metrics/logs from fakeintake and common utilities
-// These replace the now-private GetMetrics() and GetLogs() methods
-
-import (
-	"strings"
 )
 
 func getAllMetrics(client *fakeintake.Client) ([]*aggregator.MetricSeries, error) {
@@ -47,15 +42,6 @@ func getAllLogs(client *fakeintake.Client) ([]*aggregator.Log, error) {
 		allLogs = append(allLogs, logs...)
 	}
 	return allLogs, nil
-}
-
-// getKeys returns the keys from a map[string]bool (for logging purposes)
-func getKeys(m map[string]bool) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
 }
 
 // filterLogsByTag filters logs that have a specific tag with a specific value

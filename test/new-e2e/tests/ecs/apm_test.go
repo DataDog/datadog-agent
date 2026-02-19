@@ -15,14 +15,10 @@ import (
 	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
-	awsecs "github.com/aws/aws-sdk-go-v2/service/ecs"
-	awsecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 
@@ -51,8 +47,6 @@ func TestECSAPMSuite(t *testing.T) {
 				scenecs.WithFargateCapacityProvider(),
 				scenecs.WithLinuxNodeGroup(),
 			),
-			// Note: In a real implementation, we would add the multiservice workload here
-			// scenecs.WithMultiServiceWorkload(),
 			scenecs.WithTestingWorkload(),
 		),
 	)))
@@ -123,96 +117,11 @@ func (suite *ecsAPMSuite) getCommonECSTagPatterns(clusterName, taskName, appName
 	}
 }
 
-// Once pulumi has finished to create a stack, it can still take some time for the images to be pulled,
-// for the containers to be started, for the agent collectors to collect workload information
-// and to feed workload meta and the tagger.
-//
-// We could increase the timeout of all tests to cope with the agent tagger warmup time.
-// But in case of a single bug making a single tag missing from every metric,
-// all the tests would time out and that would be a waste of time.
-//
-// It's better to have the first test having a long timeout to wait for the agent to warmup,
-// and to have the following tests with a smaller timeout.
-//
 // Inside a testify test suite, tests are executed in alphabetical order.
 // The 00 in Test00UpAndRunning is here to guarantee that this test, waiting for all tasks to be ready
-// is run first.
+// is run first. This gives the agent time to warm up before other tests run with shorter timeouts.
 func (suite *ecsAPMSuite) Test00UpAndRunning() {
-	ctx := suite.T().Context()
-
-	cfg, err := awsconfig.LoadDefaultConfig(ctx)
-	suite.Require().NoErrorf(err, "Failed to load AWS config")
-
-	client := awsecs.NewFromConfig(cfg)
-
-	suite.Run("ECS tasks are ready", func() {
-		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			var initToken string
-			for nextToken := &initToken; nextToken != nil; {
-				if nextToken == &initToken {
-					nextToken = nil
-				}
-
-				servicesList, err := client.ListServices(ctx, &awsecs.ListServicesInput{
-					Cluster:    &suite.ecsClusterName,
-					MaxResults: pointer.Ptr(int32(10)), // Because `DescribeServices` takes at most 10 services in input
-					NextToken:  nextToken,
-				})
-				// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-				if !assert.NoErrorf(c, err, "Failed to list ECS services") {
-					return
-				}
-
-				nextToken = servicesList.NextToken
-
-				servicesDescription, err := client.DescribeServices(ctx, &awsecs.DescribeServicesInput{
-					Cluster:  &suite.ecsClusterName,
-					Services: servicesList.ServiceArns,
-				})
-				if !assert.NoErrorf(c, err, "Failed to describe ECS services %v", servicesList.ServiceArns) {
-					continue
-				}
-
-				for _, serviceDescription := range servicesDescription.Services {
-					assert.NotZerof(c, serviceDescription.DesiredCount, "ECS service %s has no task", *serviceDescription.ServiceName)
-
-					for nextToken := &initToken; nextToken != nil; {
-						if nextToken == &initToken {
-							nextToken = nil
-						}
-
-						tasksList, err := client.ListTasks(ctx, &awsecs.ListTasksInput{
-							Cluster:       &suite.ecsClusterName,
-							ServiceName:   serviceDescription.ServiceName,
-							DesiredStatus: awsecstypes.DesiredStatusRunning,
-							MaxResults:    pointer.Ptr(int32(100)), // Because `DescribeTasks` takes at most 100 tasks in input
-							NextToken:     nextToken,
-						})
-						if !assert.NoErrorf(c, err, "Failed to list ECS tasks for service %s", *serviceDescription.ServiceName) {
-							break
-						}
-
-						nextToken = tasksList.NextToken
-
-						tasksDescription, err := client.DescribeTasks(ctx, &awsecs.DescribeTasksInput{
-							Cluster: &suite.ecsClusterName,
-							Tasks:   tasksList.TaskArns,
-						})
-						if !assert.NoErrorf(c, err, "Failed to describe ECS tasks %v", tasksList.TaskArns) {
-							continue
-						}
-
-						for _, taskDescription := range tasksDescription.Tasks {
-							assert.Equalf(c, string(awsecstypes.DesiredStatusRunning), *taskDescription.LastStatus,
-								"Task %s of service %s is not running", *taskDescription.TaskArn, *serviceDescription.ServiceName)
-							assert.NotEqualf(c, awsecstypes.HealthStatusUnhealthy, taskDescription.HealthStatus,
-								"Task %s of service %s is unhealthy", *taskDescription.TaskArn, *serviceDescription.ServiceName)
-						}
-					}
-				}
-			}
-		}, 15*time.Minute, 10*time.Second, "Not all tasks became ready in time.")
-	})
+	suite.AssertECSTasksReady(suite.ecsClusterName)
 }
 
 func (suite *ecsAPMSuite) Test01AgentAPMReady() {
@@ -228,7 +137,6 @@ func (suite *ecsAPMSuite) Test01AgentAPMReady() {
 			assert.NoErrorf(c, err, "Failed to query traces from fake intake")
 			assert.NotEmptyf(c, traces, "No traces received - APM agent may not be ready")
 
-			suite.T().Logf("APM agent is ready - received %d traces", len(traces))
 		}, 5*time.Minute, 10*time.Second, "APM agent readiness check failed")
 	})
 }
@@ -279,7 +187,6 @@ func (suite *ecsAPMSuite) TestMultiServiceTracing() {
 			assert.GreaterOrEqualf(c, len(serviceNames), 1,
 				"Expected traces from at least 1 service, got %d", len(serviceNames))
 
-			suite.T().Logf("Found traces from services: %v", lo.Keys(serviceNames))
 
 			// Verify trace propagation (parent-child relationships)
 			for _, trace := range traces {
@@ -297,15 +204,12 @@ func (suite *ecsAPMSuite) TestMultiServiceTracing() {
 								if span.ParentID != 0 {
 									if _, exists := spansByID[span.ParentID]; exists {
 										hasParentChild = true
-										suite.T().Logf("Found parent-child span relationship: parent=%d, child=%d",
-											span.ParentID, span.SpanID)
 										break
 									}
 								}
 							}
 
 							if hasParentChild {
-								assert.Truef(c, true, "Trace propagation working - found parent-child spans")
 								return
 							}
 						}
@@ -313,7 +217,6 @@ func (suite *ecsAPMSuite) TestMultiServiceTracing() {
 				}
 			}
 
-			suite.T().Logf("Note: No parent-child spans found yet, but traces are being collected")
 		}, 3*time.Minute, 10*time.Second, "Multi-service tracing validation failed")
 	})
 }
@@ -331,14 +234,11 @@ func (suite *ecsAPMSuite) TestTraceSampling() {
 			}
 
 			// Check for sampling priority in traces
-			foundSamplingPriority := false
 			for _, trace := range traces {
 				for _, payload := range trace.TracerPayloads {
 					for _, chunk := range payload.Chunks {
 						for _, span := range chunk.Spans {
 							if samplingPriority, exists := span.Metrics["_sampling_priority_v1"]; exists {
-								suite.T().Logf("Found span with sampling priority: %f (service=%s)",
-									samplingPriority, span.Service)
 
 								// Sampling priority should be >= 0
 								assert.GreaterOrEqualf(c, samplingPriority, float64(0),
@@ -355,7 +255,7 @@ func (suite *ecsAPMSuite) TestTraceSampling() {
 				}
 			}
 
-			assert.Truef(c, foundSamplingPriority, "No traces with sampling priority found")
+			assert.Failf(c, "No traces with sampling priority found", "checked %d traces", len(traces))
 		}, 2*time.Minute, 10*time.Second, "Trace sampling validation failed")
 	})
 }
@@ -386,8 +286,6 @@ func (suite *ecsAPMSuite) TestTraceTagEnrichment() {
 
 						if hasClusterName && hasTaskArn && hasContainerName {
 							foundEnrichedTrace = true
-							suite.T().Logf("Found trace with bundled ECS metadata tags: _dd.tags.container=%s",
-								containerTagsValue)
 							break
 						}
 					}
@@ -424,7 +322,6 @@ func (suite *ecsAPMSuite) TestTraceCorrelation() {
 						if len(chunk.Spans) > 0 {
 							traceID = chunk.Spans[0].TraceID
 							if traceID != 0 {
-								suite.T().Logf("Found trace ID: %d", traceID)
 								return
 							}
 						}
@@ -449,7 +346,6 @@ func (suite *ecsAPMSuite) TestTraceCorrelation() {
 					for _, tag := range log.GetTags() {
 						if regexp.MustCompile(`dd\.trace_id:[[:xdigit:]]+`).MatchString(tag) {
 							foundCorrelatedLog = true
-							suite.T().Logf("Found log with trace correlation tag: %s", tag)
 							break
 						}
 					}
@@ -458,17 +354,8 @@ func (suite *ecsAPMSuite) TestTraceCorrelation() {
 					}
 				}
 
-				if len(logs) > 0 {
-					suite.T().Logf("Checked %d logs for trace correlation", len(logs))
-				}
-
-				// Note: Correlation may not always be present depending on app configuration
-				// This is an informational check
-				if foundCorrelatedLog {
-					assert.Truef(c, true, "Trace-log correlation is working")
-				} else {
-					suite.T().Logf("Note: No logs with trace correlation found yet")
-				}
+				// Correlation may not always be present depending on app configuration.
+				assert.Truef(c, foundCorrelatedLog, "No logs with trace correlation found yet (checked %d logs)", len(logs))
 			}, 2*time.Minute, 10*time.Second, "Trace-log correlation check completed")
 		}
 	})
@@ -496,7 +383,6 @@ func (suite *ecsAPMSuite) TestAPMFargate() {
 			})
 
 			if len(fargateTraces) > 0 {
-				suite.T().Logf("Found %d traces from Fargate tasks", len(fargateTraces))
 
 				// Verify Fargate traces have expected metadata in bundled tag
 				trace := fargateTraces[0]
@@ -513,8 +399,6 @@ func (suite *ecsAPMSuite) TestAPMFargate() {
 						break
 					}
 				}
-			} else {
-				suite.T().Logf("No Fargate traces found yet - checking EC2 traces")
 			}
 		}, 3*time.Minute, 10*time.Second, "Fargate APM validation completed")
 	})
@@ -547,7 +431,6 @@ func (suite *ecsAPMSuite) TestAPMEC2() {
 				return
 			}
 
-			suite.T().Logf("Found %d traces from EC2 tasks", len(ec2Traces))
 
 			// Verify EC2 traces have expected metadata in bundled tag
 			trace := ec2Traces[0]
@@ -565,31 +448,18 @@ func (suite *ecsAPMSuite) TestAPMEC2() {
 					assert.Regexpf(c, `container_name:`, containerTags,
 						"EC2 trace should have container_name in bundled tag")
 
-					suite.T().Logf("EC2 trace container tags: %s", containerTags)
 					break
-				}
-			}
-
-			// Log transport method (UDS vs TCP)
-			for _, payload := range trace.TracerPayloads {
-				for _, chunk := range payload.Chunks {
-					if len(chunk.Spans) > 0 {
-						span := chunk.Spans[0]
-						// Check if span has metadata about transport
-						suite.T().Logf("EC2 trace: service=%s, resource=%s, operation=%s",
-							span.Service, span.Resource, span.Name)
-					}
 				}
 			}
 		}, 3*time.Minute, 10*time.Second, "EC2 APM validation failed")
 	})
 }
 
-func (suite *ecsAPMSuite) TestDogtstatsdUDS() {
+func (suite *ecsAPMSuite) TestDogstatsdUDS() {
 	suite.testDogstatsd(taskNameDogstatsdUDS)
 }
 
-func (suite *ecsAPMSuite) TestDogtstatsdUDP() {
+func (suite *ecsAPMSuite) TestDogstatsdUDP() {
 	suite.testDogstatsd(taskNameDogstatsdUDP)
 }
 
@@ -646,7 +516,6 @@ func (suite *ecsAPMSuite) testTrace(taskName string) {
 				if clusterNamePattern.MatchString(containerTags) &&
 					taskArnPattern.MatchString(containerTags) &&
 					containerNamePattern.MatchString(containerTags) {
-					suite.T().Logf("Found trace with proper bundled tags for task %s", taskName)
 					found = true
 					break
 				}
