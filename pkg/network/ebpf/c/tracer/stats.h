@@ -327,6 +327,14 @@ static __always_inline void handle_congestion_stats(conn_tuple_t *t, struct sock
     // BPF_CORE_READ_BITFIELD_PROBED requires __builtin_preserve_field_info which is
     // only available with full CO-RE support. The runtime compiler's clang does not
     // provide this builtin, so ca_state is read only on CO-RE (stays 0 on runtime).
+    //
+    // TODO: add runtime support for ca_state. icsk_ca_state is a 6-bit bitfield
+    // (`:6`) inside inet_connection_sock, so you can't take its address directly.
+    // The approach: since the runtime tracer compiles against real kernel headers,
+    // find the byte offset of the field at compile time, use bpf_probe_read_kernel
+    // to read the containing byte, then mask with & 0x3f to extract the low 6 bits.
+    // This is fragile across kernel versions if the bitfield layout changes, so it
+    // needs validation against a range of kernels before productionizing.
 #if defined(COMPILE_CORE)
     struct inet_connection_sock *icsk = &tcp_sk(sk)->inet_conn;
     val->ca_state = (u8)BPF_CORE_READ_BITFIELD_PROBED(icsk, icsk_ca_state);
