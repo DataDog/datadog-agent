@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux
+//go:build !linux || (linux && !seclmax && !test)
 
 // Package eval holds eval related files
 package eval
@@ -13,4 +13,8 @@ package eval
 // If the input is invalid or cannot be parsed, it returns the input unchanged.
 func GetPublicTLD(fqdn string) string {
 	return fqdn
+}
+
+func GetPublicTLDs(fqdns []string) []string {
+	return fqdns
 }

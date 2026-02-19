@@ -63,11 +63,14 @@ MACOS_LIBCRYPTO = "libcrypto.dylib"
 FIX_OPENSSL_PATHS = """
     # Fix OpenSSL hardcoded paths in binaries
     TARGET="##########################################################################################PLACEHOLDERDIRECTORY##########################################################################################"
+    SANDBOX="$$BUILD_TMPDIR/$$INSTALL_PREFIX"
 
-    # === OPENSSLDIR paths (no extra slash between BUILD_TMPDIR and INSTALL_PREFIX) ===
-    SANDBOX="$$BUILD_TMPDIR$$INSTALL_PREFIX"
-
+    # === OPENSSLDIR paths ===
     # OPENSSLDIR display string: /ssl"
+    if [ $$(echo $${SANDBOX} | wc -c) -lt $$(echo $${TARGET} | wc -c) ]; then
+        echo "The new path placeholder is larger than the target it should replace replace ($${SANDBOX})";
+        exit 1;
+    fi
     OLD_PATH="$${SANDBOX}/ssl\\"" NEW_PATH="$${TARGET}/ssl\\"" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
 
     # OPENSSLDIR internal path (bare, no quote) - used for actual config lookup
@@ -82,9 +85,7 @@ FIX_OPENSSL_PATHS = """
     # SSL cert.pem: /ssl/cert.pem
     OLD_PATH="$${SANDBOX}/ssl/cert.pem" NEW_PATH="$${TARGET}/ssl/cert.pem" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
 
-    # === ENGINESDIR and MODULESDIR paths (extra slash between BUILD_TMPDIR and INSTALL_PREFIX) ===
-    SANDBOX="$$BUILD_TMPDIR/$$INSTALL_PREFIX"
-
+    # === ENGINESDIR and MODULESDIR paths ===
     # ENGINESDIR display string: /lib/engines-3"
     OLD_PATH="$${SANDBOX}/lib/engines-3\\"" NEW_PATH="$${TARGET}/lib/engines-3\\"" perl -0777 -pi -e 's/\\Q$$ENV{OLD_PATH}\\E/$$ENV{NEW_PATH} . ("\\x00" x (length($$ENV{OLD_PATH}) - length($$ENV{NEW_PATH})))/ge' $$LIBS
 
@@ -139,11 +140,6 @@ configure_make(
         ],
         "//conditions:default": [],
     }),
-    # We should set this to make placeholder placement easier and more predictable.
-    install_prefix = select({
-        "@platforms//os:windows": "",
-        "//conditions:default": "/opt/datadog-agent/embedded",
-    }),
     env = select({
         "@platforms//os:macos": {
             # For some reason AR is set to libtool on macos
@@ -151,6 +147,12 @@ configure_make(
             "AR": "ar",
         },
         "//conditions:default": {},
+    }),
+    install_prefix = select({
+        "@platforms//os:windows": "",
+        # Provide a long value to ensure we end up with a path to openssl in the sandbox that
+        # is longer than the placeholder we will replace it with as part of the postfix script
+        "//conditions:default": "placeholder" + '_' * 50,
     }),
     lib_source = ":all_srcs",
     out_include_dir = "include",
@@ -206,6 +208,8 @@ configure_make(
     }),
     targets = ["depend", "", "install_sw", "install_ssldirs"],
     # Fix install names, as openssl's build system might not get them right
+    # Maybe for macos, @loader_path should be @rpath. That helped get curl_bin
+    # to link
     postfix_script = select({
         "@platforms//os:macos": """
             # Fix install names

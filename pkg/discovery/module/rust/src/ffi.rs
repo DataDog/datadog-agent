@@ -305,8 +305,9 @@ pub unsafe extern "C" fn dd_discovery_get_services(
     heartbeat_pids: *const i32,
     heartbeat_pids_len: usize,
 ) -> *mut dd_discovery_result {
-    // SAFETY: caller guarantees new_pids and heartbeat_pids point to valid arrays.
+    // SAFETY: caller guarantees new_pids points to a valid array.
     let new = unsafe { pids_from_c(new_pids, new_pids_len) };
+    // SAFETY: caller guarantees heartbeat_pids points to a valid array.
     let heartbeat = unsafe { pids_from_c(heartbeat_pids, heartbeat_pids_len) };
 
     let params = Params {
@@ -513,7 +514,12 @@ unsafe fn free_dd_tracer_metadata(metadata: &dd_tracer_metadata) {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::undocumented_unsafe_blocks,
+    clippy::bool_assert_comparison,
+    clippy::indexing_slicing
+)]
 mod tests {
     use super::*;
     use crate::service_name::ServiceNameSource;
@@ -524,7 +530,7 @@ mod tests {
         if s.data.is_null() {
             return "";
         }
-        let slice = unsafe { std::slice::from_raw_parts(s.data as *const u8, s.len) };
+        let slice = unsafe { std::slice::from_raw_parts(s.data.cast::<u8>(), s.len) };
         std::str::from_utf8(slice).unwrap()
     }
 

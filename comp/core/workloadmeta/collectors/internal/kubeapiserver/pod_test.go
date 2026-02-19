@@ -59,6 +59,7 @@ func Test_CollectEventsWithFullPod(t *testing.T) {
 					},
 					Owners: []workloadmeta.KubernetesPodOwner{},
 				},
+				IsComplete: true,
 			},
 		},
 	}
@@ -142,6 +143,7 @@ func Test_CollectEventsWithMinimalPod(t *testing.T) {
 					},
 					Owners: []workloadmeta.KubernetesPodOwner{},
 				},
+				IsComplete: true,
 			},
 		},
 	}

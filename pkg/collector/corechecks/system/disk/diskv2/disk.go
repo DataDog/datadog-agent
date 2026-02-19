@@ -172,10 +172,10 @@ func (c *Check) Run() error {
 	if err != nil {
 		return err
 	}
-	err = c.collectDiskMetrics(sender)
-	if err != nil {
-		return err
-	}
+	// IO counter collection is best-effort: on some systems (e.g. Windows Server 2016)
+	// the IOCTL_DISK_PERFORMANCE call may fail with ERROR_INVALID_FUNCTION.
+	// We should not discard partition/usage metrics when this happens.
+	c.collectDiskMetrics(sender)
 	sender.Commit()
 
 	return nil
@@ -497,19 +497,21 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 	return nil
 }
 
-func (c *Check) collectDiskMetrics(sender sender.Sender) error {
+func (c *Check) collectDiskMetrics(sender sender.Sender) {
 	iomap, err := c.diskIOCounters()
 	if err != nil {
-		log.Warnf("Unable to get disk iocounters: %s", err)
-		return err
+		if isExpectedIOCounterError(err) {
+			log.Debugf("IO counter collection not supported on this system: %s", err)
+		} else {
+			log.Warnf("Unable to get disk IO counters: %s", err)
+		}
+		return
 	}
 	for deviceName, ioCounters := range iomap {
 		log.Debugf("Checking iocounters: [device: %s] [ioCounters: %s]", deviceName, ioCounters)
 		tags := c.buildDeviceTags(deviceName, deviceName)
 		c.sendDiskMetrics(sender, ioCounters, tags)
 	}
-
-	return nil
 }
 
 func (c *Check) sendPartitionMetrics(sender sender.Sender, usage *gopsutil_disk.UsageStat, tags []string) {

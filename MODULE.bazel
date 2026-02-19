@@ -50,6 +50,14 @@ bazel_dep(name = "supply_chain_tools", version = "0.0.1")
 
 bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
 
+# Temporary until gazelle > 0.47.0 with Go 1.24+ fixes is in BCR
+git_override(
+    module_name = "gazelle",
+    commit = "6b2aeccd77d2668a21202f5b60e10b035419c61a",  # master as of Feb 13, 2026
+    patches = ["//bazel/patches:gazelle-expects-bazelified-go-work.patch"],
+    remote = "https://github.com/bazel-contrib/bazel-gazelle.git",
+)
+
 # Temporary until rules_go > 0.60.0 with go.work support is in BCR
 git_override(
     module_name = "rules_go",
@@ -237,6 +245,9 @@ include("//deps/compile_policy:compile_policy.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/cpython:cpython.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps/curl:curl.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/freetds:freetds.MODULE.bazel")

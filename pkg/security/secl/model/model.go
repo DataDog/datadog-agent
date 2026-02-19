@@ -108,6 +108,11 @@ func (c *ContainerContext) Hash() eval.ScopeHashKey {
 	}
 }
 
+// UnixCreatedAt returns the creation time of the container
+func (c *ContainerContext) UnixCreatedAt() time.Time {
+	return time.Unix(0, int64(c.CreatedAt))
+}
+
 // IsNull returns true if the container context is null
 func (c *ContainerContext) IsNull() bool {
 	return c.ContainerID == ""
@@ -389,6 +394,7 @@ type SSHSessionContext struct {
 	SSHClientIP   net.IPNet `field:"ssh_client_ip" json:"client_ip,omitempty"`       // SECLDoc[ssh_client_ip] Definition:`SSH client IP of the user that executed the process`
 	SSHAuthMethod int       `field:"ssh_auth_method" json:"auth_method,omitempty"`   // SECLDoc[ssh_auth_method] Definition:`SSH authentication method used by the user` Constants:`SSHAuthMethod`
 	SSHPublicKey  string    `field:"ssh_public_key" json:"public_key,omitempty"`     // SECLDoc[ssh_public_key] Definition:`SSH public key used for authentication (if applicable)`
+	SSHDPid       uint32    `field:"-" json:"-"`                                     // Internal field
 }
 
 // MatchedRule contains the identification of one rule that has match

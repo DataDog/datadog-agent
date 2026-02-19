@@ -96,7 +96,7 @@ func (s *StoreTestSuite) TestLookup() {
 	assert.Nil(s.T(), tagsNone)
 }
 
-func (s *StoreTestSuite) TestLookupHashedWithEntityStr() {
+func (s *StoreTestSuite) TestLookupHashed() {
 	entityID := types.NewEntityID(types.ContainerID, "test")
 	s.tagstore.ProcessTagInfo([]*types.TagInfo{
 		{
@@ -117,13 +117,13 @@ func (s *StoreTestSuite) TestLookupHashedWithEntityStr() {
 		},
 	})
 
-	tagsLow, err := s.tagstore.LookupHashedWithEntityStr(entityID, types.LowCardinality)
+	tagsLow, err := s.tagstore.LookupHashed(entityID, types.LowCardinality)
 	assert.NoError(s.T(), err)
-	tagsOrch, err := s.tagstore.LookupHashedWithEntityStr(entityID, types.OrchestratorCardinality)
+	tagsOrch, err := s.tagstore.LookupHashed(entityID, types.OrchestratorCardinality)
 	assert.NoError(s.T(), err)
-	tagsHigh, err := s.tagstore.LookupHashedWithEntityStr(entityID, types.HighCardinality)
+	tagsHigh, err := s.tagstore.LookupHashed(entityID, types.HighCardinality)
 	assert.NoError(s.T(), err)
-	tagsNone, err := s.tagstore.LookupHashedWithEntityStr(entityID, types.NoneCardinality)
+	tagsNone, err := s.tagstore.LookupHashed(entityID, types.NoneCardinality)
 	assert.NoError(s.T(), err)
 
 	assert.ElementsMatch(s.T(), tagsLow.Get(), []string{"low1", "low2"})
@@ -133,7 +133,7 @@ func (s *StoreTestSuite) TestLookupHashedWithEntityStr() {
 
 	// Test entity not found
 	nonExistentEntityID := types.NewEntityID(types.ContainerID, "non_existent")
-	_, err = s.tagstore.LookupHashedWithEntityStr(nonExistentEntityID, types.LowCardinality)
+	_, err = s.tagstore.LookupHashed(nonExistentEntityID, types.LowCardinality)
 	assert.Error(s.T(), err)
 	assert.Equal(s.T(), ErrNotFound, err)
 }
@@ -497,6 +497,60 @@ type entityEventExpectation struct {
 	lowCardTags  []string
 	orchCardTags []string
 	highCardTags []string
+}
+
+func TestProcessTagInfo_IsComplete(t *testing.T) {
+	entityID := types.NewEntityID(types.ContainerID, "test")
+
+	tests := []struct {
+		name                         string
+		completenessStateTransitions []bool
+		expectedIsComplete           bool
+	}{
+		{
+			name:                         "complete entity",
+			completenessStateTransitions: []bool{true},
+			expectedIsComplete:           true,
+		},
+		{
+			name:                         "incomplete entity",
+			completenessStateTransitions: []bool{false},
+			expectedIsComplete:           false,
+		},
+		{
+			name:                         "incomplete entity updated to complete",
+			completenessStateTransitions: []bool{false, true},
+			expectedIsComplete:           true,
+		},
+		{
+			name:                         "complete entity updated to incomplete",
+			completenessStateTransitions: []bool{true, false},
+			expectedIsComplete:           false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+			telemetryStore := taggerTelemetry.NewStore(telemetryComponent)
+			tagStore := NewTagStore(telemetryStore)
+
+			for _, isComplete := range test.completenessStateTransitions {
+				tagStore.ProcessTagInfo([]*types.TagInfo{
+					{
+						Source:      "source",
+						EntityID:    entityID,
+						LowCardTags: []string{"low"},
+						IsComplete:  isComplete,
+					},
+				})
+			}
+
+			entity, err := tagStore.GetEntity(entityID)
+			require.NoError(t, err)
+			assert.Equal(t, test.expectedIsComplete, entity.IsComplete)
+		})
+	}
 }
 
 func TestSubscribe(t *testing.T) {

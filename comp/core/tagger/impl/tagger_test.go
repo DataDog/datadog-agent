@@ -108,6 +108,73 @@ func TestTag(t *testing.T) {
 	assert.ElementsMatch(t, []string{}, undefinedTags)
 }
 
+func TestTagWithCompleteness(t *testing.T) {
+	completeEntityID := types.NewEntityID(types.ContainerID, "complete")
+	incompleteEntityID := types.NewEntityID(types.ContainerID, "incomplete")
+	missingEntityID := types.NewEntityID(types.ContainerID, "missing")
+
+	mockReq := MockRequires{
+		Config:    configmock.New(t),
+		Log:       logmock.New(t),
+		Telemetry: noopTelemetry.GetCompatComponent(),
+	}
+	mockReq.WorkloadMeta = fxutil.Test[workloadmeta.Component](t,
+		fx.Provide(func() config.Component { return mockReq.Config }),
+		fx.Provide(func() log.Component { return mockReq.Log }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	)
+	testTagger := NewMock(mockReq).Comp
+	tagStore := testTagger.GetTagStore()
+
+	tagStore.ProcessTagInfo([]*types.TagInfo{
+		{
+			Source:      "source",
+			EntityID:    completeEntityID,
+			LowCardTags: []string{"low"},
+			IsComplete:  true,
+		},
+		{
+			Source:      "source",
+			EntityID:    incompleteEntityID,
+			LowCardTags: []string{"low"},
+			IsComplete:  false,
+		},
+	})
+
+	for _, test := range []struct {
+		name               string
+		entityID           types.EntityID
+		expectedTags       []string
+		expectedIsComplete bool
+	}{
+		{
+			name:               "complete entity",
+			entityID:           completeEntityID,
+			expectedTags:       []string{"low"},
+			expectedIsComplete: true,
+		},
+		{
+			name:               "incomplete entity",
+			entityID:           incompleteEntityID,
+			expectedTags:       []string{"low"},
+			expectedIsComplete: false,
+		},
+		{
+			name:               "entity not found",
+			entityID:           missingEntityID,
+			expectedTags:       []string{},
+			expectedIsComplete: false,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			tags, isComplete, err := testTagger.TagWithCompleteness(test.entityID, types.LowCardinality)
+			assert.NoError(t, err)
+			assert.ElementsMatch(t, test.expectedTags, tags)
+			assert.Equal(t, test.expectedIsComplete, isComplete)
+		})
+	}
+}
+
 func TestGenerateContainerIDFromOriginInfo(t *testing.T) {
 	mockReq := MockRequires{
 		Config:    configmock.New(t),
