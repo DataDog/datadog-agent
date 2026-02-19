@@ -238,6 +238,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 		var out []string
 		if err := json.Unmarshal([]byte(in), &out); err != nil {
 			log.Warnf(`"apm_config.span_derived_primary_tags" can not be parsed: %v`, err)
+			return nil
 		}
 		return out
 	})
