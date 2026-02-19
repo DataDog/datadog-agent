@@ -236,15 +236,21 @@ func postStartExperimentDatadogAgentBackground(ctx context.Context) error {
 		return err
 	}
 
-	// Set package version for experiment
-	experimentVersion := getCurrentAgentVersion()
-	if err := extensionsPkg.SetPackage(ctx, agentPackage, experimentVersion, true); err != nil {
-		return fmt.Errorf("failed to set package version for experiment: %w", err)
-	}
-
-	// Restore as experiment
-	if err := restoreAgentExtensions(hookCtx, experimentVersion, true); err != nil {
-		log.Warnf("failed to restore extensions as experiment: %s", err)
+	// Get the actual experiment version from the repository state.
+	// getCurrentAgentVersion() returns the stable version since this process
+	// runs from a copy of the stable installer binary.
+	repos := repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks)
+	repoState, err := repos.Get(agentPackage).GetState()
+	if err != nil || repoState.Experiment == "" {
+		log.Warnf("could not determine experiment version for extension restore: %v", err)
+	} else {
+		experimentVersion := repoState.Experiment
+		if err := extensionsPkg.SetPackage(ctx, agentPackage, experimentVersion, true); err != nil {
+			return fmt.Errorf("failed to set package version for experiment: %w", err)
+		}
+		if err := restoreAgentExtensions(hookCtx, experimentVersion, true); err != nil {
+			log.Warnf("failed to restore extensions as experiment: %s", err)
+		}
 	}
 
 	// now we start our watchdog to make sure the Agent is running

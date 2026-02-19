@@ -84,6 +84,9 @@ api_key: `+apiKey+`
 site: datadoghq.com
 remote_updates: true
 log_level: debug
+installer:
+  registry:
+    url: installtesting.datad0g.com.internal.dda-testing.com
 `))
 }
 
@@ -131,25 +134,6 @@ func (s *testExtensionsSuite) TestExtensionPersistThroughMSIUpgrade() {
 	}()
 	s.verifyDDOTRunning()
 	s.installCurrentAgentVersion()
-	s.verifyDDOTRunning()
-}
-
-// TestExtensionPersistThroughExperiment tests that extensions survive an experiment (start/promote) flow.
-//
-// Scenario: Install previous MSI -> install extension -> start experiment -> promote -> verify extension
-func (s *testExtensionsSuite) TestExtensionPersistThroughExperiment() {
-	s.setAgentConfig()
-	s.installPreviousAgentVersion()
-	s.installExtension(s.StableAgentVersion().OCIPackage(), "ddot")
-	defer func() {
-		s.removeExtension("datadog-agent", "ddot")
-	}()
-	s.verifyDDOTRunning()
-	s.MustStartExperimentCurrentVersion()
-	s.AssertSuccessfulAgentStartExperiment(s.CurrentAgentVersion().PackageVersion())
-	_, err := s.Installer().PromoteExperiment(consts.AgentPackage)
-	s.Require().NoError(err, "daemon should respond to request")
-	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
 	s.verifyDDOTRunning()
 }
 

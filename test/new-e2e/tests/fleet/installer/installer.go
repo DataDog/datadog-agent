@@ -90,36 +90,3 @@ func (i *Installer) SaveExtensions(packageName, path string) (string, error) {
 func (i *Installer) RestoreExtensions(packageURL, path string) (string, error) {
 	return i.Run("extension", "restore", packageURL, path)
 }
-
-// StartExperiment starts an experiment for the given package.
-func (i *Installer) StartExperiment(packageName, packageURL string) (string, error) {
-	return i.Run("experiment", "start", packageName, packageURL)
-}
-
-// MustStartExperiment starts an experiment and fails the test if it returns an error.
-func (i *Installer) MustStartExperiment(packageName, packageURL string) {
-	output, err := i.StartExperiment(packageName, packageURL)
-	assert.NoError(i.t(), err, "Failed to start experiment: %s", output)
-}
-
-// PromoteExperiment promotes the experiment for the given package.
-func (i *Installer) PromoteExperiment(packageName string) (string, error) {
-	return i.Run("experiment", "promote", packageName)
-}
-
-// MustPromoteExperiment promotes the experiment and fails the test if it returns an error.
-func (i *Installer) MustPromoteExperiment(packageName string) {
-	output, err := i.PromoteExperiment(packageName)
-	assert.NoError(i.t(), err, "Failed to promote experiment: %s", output)
-}
-
-// StopExperiment stops the experiment for the given package.
-func (i *Installer) StopExperiment(packageName string) (string, error) {
-	return i.Run("experiment", "stop", packageName)
-}
-
-// MustStopExperiment stops the experiment and fails the test if it returns an error.
-func (i *Installer) MustStopExperiment(packageName string) {
-	output, err := i.StopExperiment(packageName)
-	assert.NoError(i.t(), err, "Failed to stop experiment: %s", output)
-}
