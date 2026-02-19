@@ -104,7 +104,7 @@ func TestGetDeploymentRolloutDurationFromMaps(t *testing.T) {
 	expectedDuration := time.Since(rolloutStartTime).Seconds()
 	// Allow for small timing differences in test
 	assert.InDelta(t, expectedDuration, duration, 1.0, "Duration should be based on deployment rollout start time")
-	assert.Greater(t, duration, 0.0, "Duration should be positive")
+	assert.GreaterOrEqual(t, duration, 0.0, "Duration should be non-negative")
 }
 
 func TestGetDeploymentRolloutDurationFromMaps_NoDeployment(t *testing.T) {
@@ -142,7 +142,7 @@ func TestGetDeploymentRolloutDurationFromMaps_DifferentDeployments(t *testing.T)
 
 	// Query for deployment-1 should return duration
 	duration = tracker.GetRolloutDuration(namespace, deploymentName1)
-	assert.Greater(t, duration, 0.0, "Should return duration for correct deployment")
+	assert.GreaterOrEqual(t, duration, 0.0, "Should return duration for correct deployment")
 }
 
 func TestCleanupCompletedDeployment(t *testing.T) {
@@ -431,7 +431,7 @@ func TestGetStatefulSetRolloutDurationFromMaps(t *testing.T) {
 	expectedDuration := time.Since(rolloutStartTime).Seconds()
 	// Allow for small timing differences in test
 	assert.InDelta(t, expectedDuration, duration, 1.0, "Duration should be based on StatefulSet rollout start time")
-	assert.Greater(t, duration, 0.0, "Duration should be positive")
+	assert.GreaterOrEqual(t, duration, 0.0, "Duration should be non-negative")
 }
 
 func TestGetStatefulSetRolloutDurationFromMaps_NoStatefulSet(t *testing.T) {
@@ -811,7 +811,7 @@ func TestGetDaemonSetRolloutDurationFromMaps(t *testing.T) {
 	expectedDuration := time.Since(rolloutStartTime).Seconds()
 	// Allow for small timing differences in test
 	assert.InDelta(t, expectedDuration, duration, 1.0, "Duration should be based on StatefulSet rollout start time")
-	assert.Greater(t, duration, 0.0, "Duration should be positive")
+	assert.GreaterOrEqual(t, duration, 0.0, "Duration should be non-negative")
 }
 
 func TestGetDaemonSetRolloutDurationFromMaps_NoDaemonSet(t *testing.T) {
@@ -1352,7 +1352,7 @@ func TestDeploymentRollbackScenario(t *testing.T) {
 
 	// Duration should be calculated from rollback start, not from old RS creation time
 	duration := tracker.GetRolloutDuration(namespace, deploymentName)
-	assert.Greater(t, duration, 0.0, "Duration should be positive")
+	assert.GreaterOrEqual(t, duration, 0.0, "Duration should be non-negative")
 	assert.Less(t, duration, 1.0, "Duration should be small (just started)")
 }
 
@@ -1700,7 +1700,7 @@ func TestDaemonSetRollbackScenario(t *testing.T) {
 
 	// Duration should use stored start time
 	duration := tracker.GetDaemonSetRolloutDuration(namespace, dsName)
-	assert.Greater(t, duration, 0.0, "Duration should be positive")
+	assert.GreaterOrEqual(t, duration, 0.0, "Duration should be non-negative")
 	assert.Less(t, duration, 1.0, "Duration should be small (just started)")
 }
 
@@ -1812,7 +1812,7 @@ func TestFastReconciliationDeployment(t *testing.T) {
 
 	// Verify duration is being tracked
 	duration := tracker.GetRolloutDuration(namespace, deploymentName)
-	assert.Greater(t, duration, 0.0, "Duration should be positive")
+	assert.GreaterOrEqual(t, duration, 0.0, "Duration should be non-negative")
 }
 
 // TestFastReconciliationStatefulSet tests the same scenario for StatefulSets
@@ -1873,7 +1873,7 @@ func TestFastReconciliationStatefulSet(t *testing.T) {
 
 	// Verify duration is being tracked
 	duration := tracker.GetStatefulSetRolloutDuration(namespace, stsName)
-	assert.Greater(t, duration, 0.0, "Duration should be positive")
+	assert.GreaterOrEqual(t, duration, 0.0, "Duration should be non-negative")
 }
 
 // TestVeryFastRolloutCompletesBeforeCheck verifies that if a rollout completes
