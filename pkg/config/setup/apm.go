@@ -233,7 +233,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 		return out
 	})
 
-	config.BindEnv("apm_config.span_derived_primary_tags", "DD_APM_SPAN_DERIVED_PRIMARY_TAGS") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("apm_config.span_derived_primary_tags", []string{}, "DD_APM_SPAN_DERIVED_PRIMARY_TAGS")
 	config.ParseEnvAsStringSlice("apm_config.span_derived_primary_tags", func(in string) []string {
 		var out []string
 		if err := json.Unmarshal([]byte(in), &out); err != nil {
