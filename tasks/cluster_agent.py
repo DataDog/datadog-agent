@@ -21,7 +21,7 @@ from tasks.libs.dependencies import get_effective_dependencies_env
 BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent")
 AGENT_TAG = "datadog/cluster_agent:master"
 POLICIES_REPO = "https://github.com/DataDog/security-agent-policies.git"
-CONTAINER_PLATFORM_MAPPING = {"aarch64": "arm64", "amd64": "amd64", "x86_64": "amd64"}
+CONTAINER_PLATFORM_MAPPING = {"aarch64": "arm64", "arm64": "arm64", "amd64": "amd64", "x86_64": "amd64"}
 
 
 @task

@@ -10,7 +10,7 @@
   {{- end }}
 {{- end }}
 
-{{- if and (eq .UseHTTP false) (eq .IsRunning true) }}
+{{- if and (eq .Transport "TCP") (eq .IsRunning true) }}
 
     You are currently sending Logs to Datadog through TCP (either because logs_config.force_use_tcp or logs_config.socks5_proxy_address is set or the HTTP connectivity test has failed). To benefit from increased reliability and better network performances, we strongly encourage switching over to compressed HTTPS which is now the default protocol.
 {{ end }}

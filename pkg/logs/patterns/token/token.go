@@ -23,18 +23,22 @@ type TokenType int
 const (
 	// Basic token types
 	//nolint:revive
-	TokenUnknown    TokenType = iota // TokenUnknown is the unknown token type
-	TokenWord                        // TokenWord is the word token type
-	TokenNumeric                     // TokenNumeric is the numeric token type
-	TokenWhitespace                  // TokenWhitespace is the whitespace token type
+	TokenUnknown     TokenType = iota // TokenUnknown is the unknown token type
+	TokenWord                         // TokenWord is the word token type
+	TokenNumeric                      // TokenNumeric is the numeric token type
+	TokenWhitespace                   // TokenWhitespace is the whitespace token type
+	TokenSpecialChar                  // TokenSpecialChar is the special character token type
 
 	// Network-related tokens
 	//nolint:revive
-	TokenIPv4         // TokenIPv4 is the IPv4 token type
-	TokenIPv6         // TokenIPv6 is the IPv6 token type
-	TokenEmail        // TokenEmail is the email token type
-	TokenURI          // TokenURI is the URI token type
-	TokenAbsolutePath // TokenAbsolutePath is the absolute path token type
+	TokenIPv4                     // TokenIPv4 is the IPv4 token type
+	TokenIPv6                     // TokenIPv6 is the IPv6 token type
+	TokenEmail                    // TokenEmail is the email token type
+	TokenURI                      // TokenURI is the URI token type
+	TokenAbsolutePath             // TokenAbsolutePath is the absolute path token type
+	TokenAuthority                // TokenAuthority is the authority token type (domain:port)
+	TokenPathWithQueryAndFragment // TokenPathWithQueryAndFragment is the path with query and fragment token type
+	TokenRegularName              // TokenRegularName is the regular name token type
 
 	// HTTP-related tokens
 	//nolint:revive
@@ -43,8 +47,17 @@ const (
 
 	// Log-related tokens
 	//nolint:revive
-	TokenSeverityLevel // TokenSeverityLevel is the severity level token type
-	TokenDate          // TokenDate is the date token type
+	TokenSeverityLevel  // TokenSeverityLevel is the severity level token type
+	TokenDate           // TokenDate is the date token type
+	TokenLocalDate      // TokenLocalDate is the local date token type (yyyy-MM-dd)
+	TokenLocalTime      // TokenLocalTime is the local time token type (HH:mm:ss)
+	TokenLocalDateTime  // TokenLocalDateTime is the local datetime token type
+	TokenOffsetDateTime // TokenOffsetDateTime is the offset datetime token type
+
+	// Composite tokens
+	//nolint:revive
+	TokenKeyValueSequence // TokenKeyValueSequence is the key-value sequence token type
+	TokenCollapsedToken   // TokenCollapsedToken is the collapsed token type
 )
 
 // WildcardStatus describes a token's potential to become a wildcard
@@ -85,6 +98,10 @@ type Token struct {
 	Type     TokenType
 	Value    string
 	Wildcard WildcardStatus
+
+	// Flags from Rust tokenizer
+	NeverWildcard bool // If true, this token should never become a wildcard
+	HasDigits     bool // If true, this word token contains digits
 }
 
 // NewToken creates a token with the specified wildcard status
@@ -123,8 +140,11 @@ func (t *Token) Compare(t2 *Token) MergeResult {
 		return Conflict
 	}
 
-	// Words only wildcard if both are PotentialWildcard
+	// Words only wildcard if both are PotentialWildcard and neither has NeverWildcard flag
 	if t.Type == TokenWord {
+		if t.NeverWildcard || t2.NeverWildcard {
+			return Conflict
+		}
 		if t.Wildcard == PotentialWildcard && t2.Wildcard == PotentialWildcard {
 			return Wildcard
 		}

@@ -385,6 +385,7 @@ func (suite *AgentTestSuite) TestStatusOut() {
 		Errors:       []string{},
 		Warnings:     []string{},
 		UseHTTP:      true,
+		Transport:    "HTTP",
 	}
 
 	logsProvider = func(_ bool) logsStatus.Status {

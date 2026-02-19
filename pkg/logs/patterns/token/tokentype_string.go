@@ -12,20 +12,30 @@ func _() {
 	_ = x[TokenWord-1]
 	_ = x[TokenNumeric-2]
 	_ = x[TokenWhitespace-3]
-	_ = x[TokenIPv4-4]
-	_ = x[TokenIPv6-5]
-	_ = x[TokenEmail-6]
-	_ = x[TokenURI-7]
-	_ = x[TokenAbsolutePath-8]
-	_ = x[TokenHTTPMethod-9]
-	_ = x[TokenHTTPStatus-10]
-	_ = x[TokenSeverityLevel-11]
-	_ = x[TokenDate-12]
+	_ = x[TokenSpecialChar-4]
+	_ = x[TokenIPv4-5]
+	_ = x[TokenIPv6-6]
+	_ = x[TokenEmail-7]
+	_ = x[TokenURI-8]
+	_ = x[TokenAbsolutePath-9]
+	_ = x[TokenAuthority-10]
+	_ = x[TokenPathWithQueryAndFragment-11]
+	_ = x[TokenRegularName-12]
+	_ = x[TokenHTTPMethod-13]
+	_ = x[TokenHTTPStatus-14]
+	_ = x[TokenSeverityLevel-15]
+	_ = x[TokenDate-16]
+	_ = x[TokenLocalDate-17]
+	_ = x[TokenLocalTime-18]
+	_ = x[TokenLocalDateTime-19]
+	_ = x[TokenOffsetDateTime-20]
+	_ = x[TokenKeyValueSequence-21]
+	_ = x[TokenCollapsedToken-22]
 }
 
-const _TokenType_name = "UnknownWordNumericWhitespaceIPv4IPv6EmailURIAbsolutePathHTTPMethodHTTPStatusSeverityLevelDate"
+const _TokenType_name = "UnknownWordNumericWhitespaceSpecialCharIPv4IPv6EmailURIAbsolutePathAuthorityPathWithQueryAndFragmentRegularNameHTTPMethodHTTPStatusSeverityLevelDateLocalDateLocalTimeLocalDateTimeOffsetDateTimeKeyValueSequenceCollapsedToken"
 
-var _TokenType_index = [...]uint8{0, 7, 11, 18, 28, 32, 36, 41, 44, 56, 66, 76, 89, 93}
+var _TokenType_index = [...]uint8{0, 7, 11, 18, 28, 39, 43, 47, 52, 55, 67, 76, 100, 111, 121, 131, 144, 148, 157, 166, 179, 193, 209, 223}
 
 func (i TokenType) String() string {
 	idx := int(i) - 0
