@@ -385,6 +385,7 @@ type Endpoints struct {
 	Endpoints              []Endpoint
 	UseProto               bool
 	UseHTTP                bool
+	UseGRPC                bool
 	BatchWait              time.Duration
 	BatchMaxConcurrentSend int
 	BatchMaxSize           int
@@ -411,6 +412,23 @@ func NewEndpoints(main Endpoint, additionalEndpoints []Endpoint, useProto bool, 
 		additionalEndpoints,
 		useProto,
 		useHTTP,
+		false, // useGRPC defaults to false for backward compatibility
+		pkgconfigsetup.DefaultBatchWait,
+		pkgconfigsetup.DefaultBatchMaxConcurrentSend,
+		pkgconfigsetup.DefaultBatchMaxSize,
+		pkgconfigsetup.DefaultBatchMaxContentSize,
+		pkgconfigsetup.DefaultInputChanSize,
+	)
+}
+
+// NewEndpointsWithGRPC returns a new endpoints composite with gRPC support
+func NewEndpointsWithGRPC(main Endpoint, additionalEndpoints []Endpoint, useProto bool, useHTTP bool, useGRPC bool) *Endpoints {
+	return NewEndpointsWithBatchSettings(
+		main,
+		additionalEndpoints,
+		useProto,
+		useHTTP,
+		useGRPC,
 		pkgconfigsetup.DefaultBatchWait,
 		pkgconfigsetup.DefaultBatchMaxConcurrentSend,
 		pkgconfigsetup.DefaultBatchMaxSize,
@@ -420,12 +438,13 @@ func NewEndpoints(main Endpoint, additionalEndpoints []Endpoint, useProto bool, 
 }
 
 // NewEndpointsWithBatchSettings returns a new endpoints composite with non-default batching settings specified
-func NewEndpointsWithBatchSettings(main Endpoint, additionalEndpoints []Endpoint, useProto bool, useHTTP bool, batchWait time.Duration, batchMaxConcurrentSend int, batchMaxSize int, batchMaxContentSize int, inputChanSize int) *Endpoints {
+func NewEndpointsWithBatchSettings(main Endpoint, additionalEndpoints []Endpoint, useProto bool, useHTTP bool, useGRPC bool, batchWait time.Duration, batchMaxConcurrentSend int, batchMaxSize int, batchMaxContentSize int, inputChanSize int) *Endpoints {
 	return &Endpoints{
 		Main:                   main,
 		Endpoints:              append([]Endpoint{main}, additionalEndpoints...),
 		UseProto:               useProto,
 		UseHTTP:                useHTTP,
+		UseGRPC:                useGRPC,
 		BatchWait:              batchWait,
 		BatchMaxConcurrentSend: batchMaxConcurrentSend,
 		BatchMaxSize:           batchMaxSize,
