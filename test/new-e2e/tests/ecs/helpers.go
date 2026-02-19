@@ -58,22 +58,3 @@ func filterLogsByTag(logs []*aggregator.Log, tagKey, tagValue string) []*aggrega
 	}
 	return filtered
 }
-
-// getTagValue extracts the value from a tag string like "key:value"
-func getTagValue(tags []string, key string) string {
-	prefix := key + ":"
-	for _, tag := range tags {
-		if strings.HasPrefix(tag, prefix) {
-			return strings.TrimPrefix(tag, prefix)
-		}
-	}
-	return ""
-}
-
-// truncateString truncates a string to maxLen characters
-func truncateString(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen] + "..."
-}

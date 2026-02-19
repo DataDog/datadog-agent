@@ -118,7 +118,6 @@ func (suite *ecsResilienceSuite) TestHighCardinality() {
 				return
 			}
 
-
 			// Agent should be collecting a reasonable number of unique metrics
 			assert.GreaterOrEqualf(c, len(names), 10,
 				"Agent should collect metrics despite cardinality")
@@ -167,7 +166,6 @@ func (suite *ecsResilienceSuite) TestRapidContainerChurn() {
 					}
 				}
 			}
-
 
 			// Verify agent is tracking at least one container
 			assert.GreaterOrEqualf(c, len(containers), 1,

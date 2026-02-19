@@ -168,7 +168,6 @@ func (suite *ecsConfigSuite) TestTaskDefinitionDiscovery() {
 				}
 			}
 
-
 			assert.Truef(c, foundTaskArn, "Metrics should have task_arn tag from task definition")
 			assert.Truef(c, foundContainerName, "Metrics should have container_name tag from task definition")
 			assert.Truef(c, foundTaskFamily, "Metrics should have task_family tag from task definition")
@@ -210,7 +209,6 @@ func (suite *ecsConfigSuite) TestDynamicConfiguration() {
 					}
 				}
 			}
-
 
 			// Should discover at least one container
 			assert.GreaterOrEqualf(c, len(containers), 1,
@@ -268,7 +266,6 @@ func (suite *ecsConfigSuite) TestMetadataEndpoints() {
 				}
 			}
 
-
 			// Should have core ECS metadata
 			assert.Truef(c, foundECSMetadata["ecs_cluster_name"],
 				"Should have ecs_cluster_name from metadata endpoint")
@@ -320,7 +317,6 @@ func (suite *ecsConfigSuite) TestServiceDiscovery() {
 				}
 			}
 
-
 			// Should discover at least one service
 			assert.GreaterOrEqualf(c, len(services), 1,
 				"Should discover at least one service")
@@ -368,7 +364,6 @@ func (suite *ecsConfigSuite) TestConfigPrecedence() {
 					break
 				}
 			}
-
 
 			// Both high-priority (env var/label) and agent-level tags should be present
 			assert.Truef(c, hasHighPriorityTags,

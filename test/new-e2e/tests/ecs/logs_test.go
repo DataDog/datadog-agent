@@ -78,7 +78,6 @@ func (suite *ecsLogsSuite) TestContainerLogCollection() {
 				return
 			}
 
-
 			// Validate log has container metadata
 			log := ecsLogs[0]
 			tags := log.GetTags()
@@ -200,7 +199,6 @@ func (suite *ecsLogsSuite) TestLogSampling() {
 				return
 			}
 
-
 			// In a high-volume scenario with sampling enabled, we should see:
 			// 1. Logs are being collected
 			// 2. Not every single log is collected (sampling is working)
@@ -218,7 +216,6 @@ func (suite *ecsLogsSuite) TestLogSampling() {
 					infoLogs++
 				}
 			}
-
 
 			// We should have collected some logs
 			assert.GreaterOrEqualf(c, len(logs), 10,
@@ -253,7 +250,6 @@ func (suite *ecsLogsSuite) TestLogFiltering() {
 					sourceDistribution[source]++
 				}
 			}
-
 
 			// We should see logs from various sources
 			assert.GreaterOrEqualf(c, len(sourceDistribution), 1,
@@ -296,7 +292,6 @@ func (suite *ecsLogsSuite) TestLogSourceDetection() {
 				}
 			}
 
-
 			// Most logs should have a source
 			sourcePercentage := float64(logsWithSource) / float64(len(logs)) * 100
 			assert.GreaterOrEqualf(c, sourcePercentage, 50.0,
@@ -329,7 +324,6 @@ func (suite *ecsLogsSuite) TestLogStatusRemapping() {
 					statusDistribution[status]++
 				}
 			}
-
 
 			// We should see various log statuses
 			assert.GreaterOrEqualf(c, len(statusDistribution), 1,

@@ -118,7 +118,6 @@ func (suite *ecsManagedSuite) TestManagedInstanceMetadata() {
 				}
 			}
 
-
 			// Verify essential metadata
 			assert.Truef(c, foundMetadata["ecs_cluster_name"],
 				"Should have ecs_cluster_name metadata")
@@ -164,7 +163,6 @@ func (suite *ecsManagedSuite) TestManagedInstanceContainerDiscovery() {
 				}
 			}
 
-
 			assert.GreaterOrEqualf(c, len(containers), 1,
 				"Should discover at least one container on managed instances")
 		}, 3*time.Minute, 10*time.Second, "Managed instance container discovery validation failed")
@@ -191,7 +189,6 @@ func (suite *ecsManagedSuite) TestManagedInstanceTaskTracking() {
 					}
 				}
 			}
-
 
 			assert.GreaterOrEqualf(c, len(tasks), 1,
 				"Should track at least one task on managed instances")
@@ -239,7 +236,6 @@ func (suite *ecsManagedSuite) TestManagedInstanceDaemonMode() {
 				}
 			}
 
-
 			// Should have agent metrics (indicates daemon is running)
 			assert.GreaterOrEqualf(c, agentMetrics, 1,
 				"Should have agent internal metrics from daemon mode")
@@ -280,7 +276,6 @@ func (suite *ecsManagedSuite) TestManagedInstanceLogCollection() {
 					}
 				}
 			}
-
 
 			if ecsLogs > 0 {
 				// Verify logs have proper tagging
@@ -364,7 +359,6 @@ func (suite *ecsManagedSuite) TestManagedInstanceNetworkMode() {
 				}
 			}
 
-
 			// Should have network metrics (indicates networking is functional)
 			assert.GreaterOrEqualf(c, containerNetworkMetrics, 1,
 				"Should have network metrics from managed instances")
@@ -414,7 +408,6 @@ func (suite *ecsManagedSuite) TestManagedInstanceAutoscalingIntegration() {
 					agentTasks[taskArn] = true
 				}
 			}
-
 
 			assert.GreaterOrEqualf(c, len(agentTasks), 1,
 				"Should monitor at least one agent daemon task")
@@ -487,7 +480,6 @@ func (suite *ecsManagedSuite) TestManagedInstanceResourceUtilization() {
 					diskMetrics++
 				}
 			}
-
 
 			// Should have resource metrics from managed instances
 			assert.GreaterOrEqualf(c, cpuMetrics+memMetrics+diskMetrics, 1,

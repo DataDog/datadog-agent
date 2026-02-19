@@ -187,7 +187,6 @@ func (suite *ecsAPMSuite) TestMultiServiceTracing() {
 			assert.GreaterOrEqualf(c, len(serviceNames), 1,
 				"Expected traces from at least 1 service, got %d", len(serviceNames))
 
-
 			// Verify trace propagation (parent-child relationships)
 			for _, trace := range traces {
 				for _, payload := range trace.TracerPayloads {
@@ -430,7 +429,6 @@ func (suite *ecsAPMSuite) TestAPMEC2() {
 			if !assert.NotEmptyf(c, ec2Traces, "No EC2 traces found") {
 				return
 			}
-
 
 			// Verify EC2 traces have expected metadata in bundled tag
 			trace := ec2Traces[0]
