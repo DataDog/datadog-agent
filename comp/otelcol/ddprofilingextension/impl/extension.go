@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"os"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -101,11 +102,15 @@ func (e *ddExtension) startForOCB() error {
 	if string(e.cfg.API.Key) == "" {
 		return errAPIKeyMissing
 	}
-	// agentless
-	profilerOptions = append(profilerOptions,
-		profiler.WithAgentlessUpload(),
-		profiler.WithAPIKey(string(e.cfg.API.Key)),
-	)
+	// dd-trace-go v2 (used by v1.74.0+) requires agentless mode and the API key
+	// to be configured via env variables; WithAgentlessUpload and WithAPIKey are
+	// no-ops in that version.
+	os.Setenv("DD_PROFILING_AGENTLESS", "true")
+	os.Setenv("DD_API_KEY", string(e.cfg.API.Key))
+	defer func() {
+		os.Unsetenv("DD_PROFILING_AGENTLESS")
+		os.Unsetenv("DD_API_KEY")
+	}()
 
 	if string(e.cfg.API.Site) != "" {
 		profilerOptions = append(profilerOptions, profiler.WithSite(string(e.cfg.API.Site)))
