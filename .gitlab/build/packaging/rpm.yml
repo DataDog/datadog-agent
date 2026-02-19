@@ -31,7 +31,7 @@ include:
 
 .package_rpm_x86:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   variables:
     DD_PKG_ARCH: x86_64
     PACKAGE_ARCH: amd64
@@ -39,7 +39,7 @@ include:
 
 .package_rpm_arm64:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:arm64", "specific:true"]
+  tags: ["arch:arm64-cidc"]
   variables:
     PACKAGE_ARCH: arm64
     DD_PKG_ARCH: arm64
@@ -60,7 +60,7 @@ include:
 
 agent_rpm-x64-a7:
   extends: [.package_rpm_common, .package_rpm_x86]
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   rules:
     - when: on_success
   needs: ["datadog-agent-7-x64"]
@@ -108,7 +108,7 @@ installer_rpm-amd64:
 
 agent_rpm-x64-a7-fips:
   extends: [.package_rpm_common, .package_rpm_x86]
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   rules:
     - when: on_success
   needs: ["datadog-agent-7-x64-fips"]
@@ -264,7 +264,7 @@ iot_agent_rpm-armhf:
   extends: .package_iot_rpm_common
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/rpm_armhf$CI_IMAGE_RPM_ARMHF_SUFFIX:$CI_IMAGE_RPM_ARMHF
   # Run with platform:arm64 since no platform:armhf exists and arm64 should be backwards compatible
-  tags: ["arch:arm64", "specific:true"]
+  tags: ["arch:arm64-cidc"]
   needs: ["iot-agent-armhf"]
   variables:
     PACKAGE_ARCH: armhf

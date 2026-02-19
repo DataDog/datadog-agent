@@ -4,7 +4,7 @@
 # https://github.com/DataDog/datadog-agent/pull/43846
 #deploy_latest_rc_only:
 #  stage: deploy_mutable_image_tags
-#  tags: ["arch:amd64", "specific:true"]
+#  tags: ["arch:amd64-cidc"]
 #  rules:
 #    !reference [.on_deploy_rc]
 #  needs: []

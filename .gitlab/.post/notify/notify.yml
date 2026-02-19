@@ -18,7 +18,7 @@ notify-on-tagged-success:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   rules: !reference [.on_deploy_stable_or_beta_repo_branch]
   dependencies: []
-  tags: ["arch:arm64", "specific:true"]
+  tags: ["arch:arm64-cidc"]
   script: |
     MESSAGE_TEXT=":host-green: Tagged build <$CI_PIPELINE_URL|$CI_PIPELINE_ID> succeeded.
     *$CI_COMMIT_REF_NAME* is available in the staging repositories."
@@ -32,7 +32,7 @@ notify:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   rules: !reference [.on_main_or_release_branch_or_deploy_always]
   dependencies: []
-  tags: ["arch:arm64", "specific:true"]
+  tags: ["arch:arm64-cidc"]
   resource_group: notification
   timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
   script:
@@ -43,7 +43,7 @@ notify:
 send_pipeline_stats:
   extends: .notify-job
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   when: always
   dependencies: []
   script:
@@ -54,7 +54,7 @@ notify_gitlab_ci_changes:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   extends: .notify-job
   needs: [compute_gitlab_ci_config]
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   rules:
     - !reference [.except_mergequeue]
     - changes:
@@ -73,7 +73,7 @@ close_failing_tests_stale_issues:
   rules:
     - !reference [.on_scheduled_main]
   needs: []
-  tags: ["arch:arm64", "specific:true"]
+  tags: ["arch:arm64-cidc"]
   script:
     - weekday="$(date --utc '+%A')"
     # Weekly on Friday

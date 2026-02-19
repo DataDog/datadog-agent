@@ -4,7 +4,7 @@ test_fuzz:
     - !reference [.on_scheduled_main]
     - !reference [.manual]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   stage: source_test
   needs: []
   allow_failure: true

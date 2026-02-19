@@ -92,7 +92,7 @@ upload_secagent_tests_x64:
     - !reference [.kmt_setup_needs]
     - prepare_secagent_ebpf_functional_tests_x64
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   variables:
     ARCH: x86_64
     INSTANCE_TYPE: m5d.metal
@@ -104,7 +104,7 @@ upload_secagent_tests_arm64:
     - !reference [.kmt_setup_needs]
     - prepare_secagent_ebpf_functional_tests_arm64
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:arm64", "specific:true"]
+  tags: ["arch:arm64-cidc"]
   variables:
     ARCH: arm64
     INSTANCE_TYPE: m6gd.metal
@@ -130,7 +130,7 @@ kmt_run_secagent_tests_x64:
   extends:
     - .kmt_run_secagent_tests
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   needs:
     - kmt_setup_env_secagent_x64
     - upload_dependencies_secagent_x64
@@ -173,7 +173,7 @@ kmt_run_secagent_tests_x64_peds:
   extends:
     - .kmt_run_secagent_tests_required
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   needs:
     - kmt_setup_env_secagent_x64
     - upload_dependencies_secagent_x64
@@ -216,7 +216,7 @@ kmt_run_secagent_tests_x64_required:
   extends:
     - .kmt_run_secagent_tests_required
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   needs:
     - kmt_setup_env_secagent_x64
     - upload_dependencies_secagent_x64
@@ -236,7 +236,7 @@ kmt_run_secagent_tests_x64_ad:
   extends:
     - .kmt_run_secagent_tests
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   needs:
     - kmt_setup_env_secagent_x64
     - upload_dependencies_secagent_x64
@@ -256,7 +256,7 @@ kmt_run_secagent_tests_x64_ebpfless:
   extends:
     - .kmt_run_secagent_tests
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   needs:
     - kmt_setup_env_secagent_x64
     - upload_dependencies_secagent_x64
@@ -277,7 +277,7 @@ kmt_run_secagent_tests_x64_docker:
   extends:
     - .kmt_run_secagent_tests
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   needs:
     - kmt_setup_env_secagent_x64
     - upload_dependencies_secagent_x64
@@ -316,7 +316,7 @@ kmt_run_secagent_tests_arm64:
   extends:
     - .kmt_run_secagent_tests
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:arm64", "specific:true"]
+  tags: ["arch:arm64-cidc"]
   needs:
     - kmt_setup_env_secagent_arm64
     - upload_dependencies_secagent_arm64
@@ -352,7 +352,7 @@ kmt_run_secagent_tests_arm64_peds:
   extends:
     - .kmt_run_secagent_tests_required
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:arm64", "specific:true"]
+  tags: ["arch:arm64-cidc"]
   needs:
     - kmt_setup_env_secagent_arm64
     - upload_dependencies_secagent_arm64
@@ -388,7 +388,7 @@ kmt_run_secagent_tests_arm64_ad:
   extends:
     - .kmt_run_secagent_tests
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:arm64", "specific:true"]
+  tags: ["arch:arm64-cidc"]
   needs:
     - kmt_setup_env_secagent_arm64
     - upload_dependencies_secagent_arm64
@@ -409,7 +409,7 @@ kmt_run_secagent_tests_arm64_ebpfless:
   extends:
     - .kmt_run_secagent_tests
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:arm64", "specific:true"]
+  tags: ["arch:arm64-cidc"]
   needs:
     - kmt_setup_env_secagent_arm64
     - upload_dependencies_secagent_arm64
@@ -430,7 +430,7 @@ kmt_run_secagent_tests_arm64_docker:
   extends:
     - .kmt_run_secagent_tests
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:arm64", "specific:true"]
+  tags: ["arch:arm64-cidc"]
   needs:
     - kmt_setup_env_secagent_arm64
     - upload_dependencies_secagent_arm64
@@ -471,7 +471,7 @@ kmt_run_secagent_tests_arm64_docker:
   stage: kernel_matrix_testing_cleanup
   rules: !reference [.on_security_agent_changes_or_manual]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:arm64", "specific:true"]
+  tags: ["arch:arm64-cidc"]
   script:
     - echo "nothing to do here"
 

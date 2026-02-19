@@ -1,7 +1,7 @@
 ---
 new-e2e-cleanup-on-failure:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   stage: .post
   dependencies: [go_e2e_deps]
   script:

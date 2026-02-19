@@ -4,7 +4,7 @@
     - !reference [.except_mergequeue]
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   before_script:
     - PACKAGE_VERSION="$(dda inv agent.version --url-safe)-1" || exit $?
     - export INSTALL_DIR=${INSTALL_DIR:-/opt/datadog-packages/${OCI_PRODUCT}/${PACKAGE_VERSION}}

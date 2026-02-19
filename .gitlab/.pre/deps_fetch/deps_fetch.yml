@@ -43,7 +43,7 @@
 # HACK: If you change the behavior of this job, change the `cache:key:prefix` value to invalidate the cache
 go_deps:
   extends: .cache
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   variables:
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
@@ -71,7 +71,7 @@ go_deps:
 
 go_tools_deps:
   extends: .cache
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   script:
     - if [ -f modcache_tools.tar.xz  ]; then exit 0; fi
     - dda inv -- -e install-tools
@@ -92,7 +92,7 @@ go_tools_deps:
 
 go_tools_deps_arm64:
   extends: .cache
-  tags: ["arch:arm64", "specific:true"]
+  tags: ["arch:arm64-cidc"]
   script:
     - if [ -f modcache_tools_arm64.tar.xz  ]; then exit 0; fi
     - dda inv -- -e install-tools
@@ -116,7 +116,7 @@ go_e2e_deps:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
   extends: .cache
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   before_script:
     - dd-octo-sts version
     - dd-octo-sts debug --scope DataDog/datadog-agent --policy self.gitlab.deps-fetch
@@ -158,7 +158,7 @@ go_e2e_deps:
 
 fetch_openjdk:
   needs: []
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   rules:
     - !reference [.manual]
   stage: deps_fetch

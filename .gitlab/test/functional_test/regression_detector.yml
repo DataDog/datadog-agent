@@ -7,7 +7,7 @@ single_machine_performance-regression_detector-merge_base_check:
      # This skips SMP for doc-only, CI-only, or e2e test-only PRs.
     - !reference [.on_dev_branches_with_artifact_changes]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   artifacts:
     expire_in: 1 day
     paths:
@@ -76,7 +76,7 @@ single_machine_performance-regression_detector-merge_base_check:
   stage: functional_test
   timeout: 1h10m
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   artifacts:
     expire_in: 1 weeks
     paths:
@@ -355,7 +355,7 @@ single-machine-performance-regression_detector-pr-comment:
   image:
     name: "486234852809.dkr.ecr.us-east-1.amazonaws.com/pr-commenter:3-jammy"
     entrypoint: [""] # disable entrypoint script for the pr-commenter image
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   needs:
     - job: single-machine-performance-regression_detector
   artifacts:

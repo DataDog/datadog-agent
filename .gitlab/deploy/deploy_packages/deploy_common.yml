@@ -2,7 +2,7 @@
 .deploy_packages:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   stage: deploy_packages
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   rules:
     !reference [.on_deploy]
   variables:
@@ -74,7 +74,7 @@ deploy_installer_install_scripts:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   stage: deploy_packages
   needs: ["installer-install-scripts"]
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:

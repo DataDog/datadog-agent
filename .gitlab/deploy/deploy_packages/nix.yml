@@ -200,7 +200,7 @@ deploy_staging_dsd:
     !reference [.on_deploy]
   stage: deploy_packages
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   needs: ["build_dogstatsd-binary_x64"]
   script:
     - $S3_CP_CMD $S3_ARTIFACTS_URI/dogstatsd/dogstatsd ./dogstatsd
@@ -213,7 +213,7 @@ deploy_staging_iot_agent:
     !reference [.on_deploy]
   stage: deploy_packages
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
-  tags: ["arch:amd64", "specific:true"]
+  tags: ["arch:amd64-cidc"]
   needs: ["build_iot_agent-binary_x64"]
   script:
     - $S3_CP_CMD $S3_ARTIFACTS_URI/iot/agent ./agent
