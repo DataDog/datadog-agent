@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 )
 
 // Params defines the parameters for the ECS Agent installation.
@@ -24,14 +25,17 @@ type Params struct {
 	// AgentServiceEnvironment is a map of environment variables to set in the docker compose agent service's environment.
 	AgentServiceEnvironment map[string]string
 	NetworkMode             string
+	// WindowsImage is true if Windows-compatible image is needed (multi-arch with Windows)
+	WindowsImage bool
 }
 
 type Option = func(*Params) error
 
-func NewParams(options ...Option) (*Params, error) {
+func NewParams(e config.Env, options ...Option) (*Params, error) {
 	version := &Params{
 		AgentServiceEnvironment: make(map[string]string),
 		NetworkMode:             "bridge",
+		WindowsImage:            !e.AgentLinuxOnly(),
 	}
 	return common.ApplyOption(version, options)
 }
@@ -55,6 +59,14 @@ func WithNetworkMode(mode string) func(*Params) error {
 			return fmt.Errorf("invalid network mode '%s'", mode)
 		}
 		p.NetworkMode = mode
+		return nil
+	}
+}
+
+// WithWindowsImage makes the image Windows-compatible (multi-arch with Windows)
+func WithWindowsImage() func(*Params) error {
+	return func(p *Params) error {
+		p.WindowsImage = true
 		return nil
 	}
 }

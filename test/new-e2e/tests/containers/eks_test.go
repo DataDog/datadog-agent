@@ -6,6 +6,7 @@
 package containers
 
 import (
+	"os"
 	"regexp"
 	"testing"
 
@@ -23,23 +24,33 @@ type eksSuite struct {
 }
 
 func TestEKSSuite(t *testing.T) {
-	e2e.Run(t, &eksSuite{}, e2e.WithProvisioner(proveks.Provisioner(
+	suite := &eksSuite{}
+
+	eksOptions := []sceneks.Option{
+		sceneks.WithLinuxNodeGroup(),
+		sceneks.WithBottlerocketNodeGroup(),
+		sceneks.WithLinuxARMNodeGroup(),
+	}
+
+	agentOptions := []kubernetesagentparams.Option{
+		kubernetesagentparams.WithDualShipping(),
+	}
+
+	if os.Getenv("SKIP_WINDOWS") != "true" {
+		eksOptions = append(eksOptions, sceneks.WithWindowsNodeGroup())
+		agentOptions = append(agentOptions, kubernetesagentparams.WithWindowsImage())
+		suite.windowsEnabled = true
+	}
+
+	e2e.Run(t, suite, e2e.WithProvisioner(proveks.Provisioner(
 		proveks.WithRunOptions(
-			sceneks.WithEKSOptions(
-				sceneks.WithLinuxNodeGroup(),
-				sceneks.WithWindowsNodeGroup(),
-				sceneks.WithBottlerocketNodeGroup(),
-				sceneks.WithLinuxARMNodeGroup(),
-			),
+			sceneks.WithEKSOptions(eksOptions...),
 			sceneks.WithDeployDogstatsd(),
 			sceneks.WithDeployTestWorkload(),
 			sceneks.WithFakeIntakeOptions(
 				fakeintake.WithRetentionPeriod("31m"),
 			),
-			sceneks.WithAgentOptions(
-				kubernetesagentparams.WithDualShipping(),
-				kubernetesagentparams.WithWindowsImage(),
-			),
+			sceneks.WithAgentOptions(agentOptions...),
 			sceneks.WithDeployArgoRollout(),
 		),
 	)))
