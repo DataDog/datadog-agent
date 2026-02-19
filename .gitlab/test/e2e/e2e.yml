@@ -315,8 +315,7 @@ new-e2e-containers-openshift-init:
     - go_e2e_deps
     - go_tools_deps
   rules:
-    - !reference [.on_container_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
+    - !reference [.on_main_or_rc_and_no_skip_e2e]
     - !reference [.manual]
   before_script:
     # We need to also fetch the OpenShift CRC pull secret and write it to a temp file, so we reference the new_e2e_template before_script first
@@ -337,8 +336,7 @@ new-e2e-containers-openshift-init:
 new-e2e-containers-openshift:
   extends: .new_e2e_template_needs_container_deploy_linux
   rules:
-    - !reference [.on_container_or_e2e_changes]
-    - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
+    - !reference [.on_main_or_rc_and_no_skip_e2e]
     - !reference [.manual]
   needs:
     - !reference [.new_e2e_template_needs_container_deploy_linux, needs]
