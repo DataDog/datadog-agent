@@ -157,6 +157,7 @@ func (r *containerResolver) process(eventBundle workloadmeta.EventBundle) {
 		pids, err := collector.GetPIDs(container.Namespace, container.ID, cacheValidityNoRT)
 		if err == nil && pids != nil {
 			for _, pid := range pids {
+				log.Debugf("adding pid->container mapping for runtime %s: %d->%s", container.Runtime, pid, container.ID)
 				r.pidToContainerID[uint32(pid)] = idWrapper
 			}
 		} else {
