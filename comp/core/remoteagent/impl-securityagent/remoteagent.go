@@ -9,7 +9,6 @@ package securityagentimpl
 import (
 	"context"
 	"encoding/json"
-	"expvar"
 	"net"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -83,19 +82,14 @@ type remoteagentImpl struct {
 
 // GetStatusDetails returns the status details of the security agent
 func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
-	mainFields := make(map[string]string)
-
-	// expvar data
-	expvar.Do(func(kv expvar.KeyValue) {
-		mainFields[kv.Key] = kv.Value.String()
-	})
+	fields := helper.ExpvarFields()
 
 	if statusJSON, err := r.statusComp.GetStatus("json", false); err == nil {
-		mainFields["status"] = string(statusJSON)
+		fields["status"] = string(statusJSON)
 	}
 
 	return &pbcore.GetStatusDetailsResponse{
-		MainSection: &pbcore.StatusSection{Fields: mainFields},
+		MainSection: &pbcore.StatusSection{Fields: fields},
 	}, nil
 }
 
@@ -107,16 +101,7 @@ func (r *remoteagentImpl) GetFlareFiles(_ context.Context, _ *pbcore.GetFlareFil
 		files["security_agent_status.json"] = statusJSON
 	}
 
-	expvarData := make(map[string]any)
-	expvar.Do(func(kv expvar.KeyValue) {
-		var v any
-		if err := json.Unmarshal([]byte(kv.Value.String()), &v); err == nil {
-			expvarData[kv.Key] = v
-		} else {
-			expvarData[kv.Key] = kv.Value.String()
-		}
-	})
-	if data, err := json.MarshalIndent(expvarData, "", "  "); err == nil {
+	if data, err := json.MarshalIndent(helper.ExpvarData(), "", "  "); err == nil {
 		files["security_agent_expvar_dump.json"] = data
 	}
 
