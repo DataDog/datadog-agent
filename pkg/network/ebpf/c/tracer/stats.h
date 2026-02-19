@@ -324,8 +324,13 @@ static __always_inline void handle_congestion_stats(conn_tuple_t *t, struct sock
     BPF_CORE_READ_INTO(&val->sacked_out,  tcp_sk(sk), sacked_out);
     BPF_CORE_READ_INTO(&val->delivered,   tcp_sk(sk), delivered);
     BPF_CORE_READ_INTO(&val->retrans_out, tcp_sk(sk), retrans_out);
+    // BPF_CORE_READ_BITFIELD_PROBED requires __builtin_preserve_field_info which is
+    // only available with full CO-RE support. The runtime compiler's clang does not
+    // provide this builtin, so ca_state is read only on CO-RE (stays 0 on runtime).
+#if defined(COMPILE_CORE)
     struct inet_connection_sock *icsk = &tcp_sk(sk)->inet_conn;
     val->ca_state = (u8)BPF_CORE_READ_BITFIELD_PROBED(icsk, icsk_ca_state);
+#endif
 #endif
 }
 
