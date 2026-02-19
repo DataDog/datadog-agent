@@ -84,5 +84,5 @@ blackhole:
 target_metrics:
   - prometheus: # core agent telemetry
       uri: "http://127.0.0.1:5000/telemetry"
-      tags:
-        sub_agent: "core"
+  - prometheus: # otel-agent telemetry
+      uri: "http://127.0.0.1:7778/telemetry"
