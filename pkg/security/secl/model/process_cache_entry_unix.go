@@ -26,15 +26,14 @@ func (pc *ProcessCacheEntry) setAncestor(parent *ProcessCacheEntry) {
 	}
 
 	pc.Ancestor = parent
-	pc.Parent = &parent.Process
 
-	// add to new parent's children list
 	if parent != nil {
+		pc.Parent = &parent.Process
 		parent.Children = append(parent.Children, pc)
+		pc.copyProcessContextFrom(parent)
+	} else {
+		pc.Parent = nil
 	}
-
-	// keep some context
-	pc.copyProcessContextFrom(parent)
 }
 
 // RemoveChild removes a child from this entry's Children list.
