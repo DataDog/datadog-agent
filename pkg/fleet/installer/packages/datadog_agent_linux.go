@@ -91,6 +91,7 @@ var (
 	agentPackagePermissions = file.Permissions{
 		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
 		{Path: "embedded/bin/system-probe", Owner: "root", Group: "root"},
+		{Path: "embedded/bin/sd-agent", Owner: "root", Group: "root"},
 		{Path: "embedded/bin/security-agent", Owner: "root", Group: "root"},
 		{Path: "embedded/share/system-probe/ebpf", Owner: "root", Group: "root", Recursive: true},
 	}
