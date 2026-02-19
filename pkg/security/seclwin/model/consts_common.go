@@ -67,6 +67,9 @@ const (
 
 	// EventFlagsFromReplay is true if the event is generated from a replay
 	EventFlagsFromReplay
+
+	// EventFlagsSlowProcessingReported is true if a "slow event processing" report was already emitted for this event
+	EventFlagsSlowProcessingReported
 )
 
 const (
