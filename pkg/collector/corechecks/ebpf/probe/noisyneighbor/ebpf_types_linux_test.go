@@ -11,7 +11,3 @@ import (
 func TestCgoAlignment_ebpfCgroupAggStats(t *testing.T) {
 	ebpftest.TestCgoAlignment[ebpfCgroupAggStats](t)
 }
-
-func TestCgoAlignment_ebpfPidKey(t *testing.T) {
-	ebpftest.TestCgoAlignment[ebpfPidKey](t)
-}

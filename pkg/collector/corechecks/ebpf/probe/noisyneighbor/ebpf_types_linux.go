@@ -7,9 +7,5 @@ type ebpfCgroupAggStats struct {
 	Sum_latencies_ns uint64
 	Event_count      uint64
 	Preemption_count uint64
-}
-type ebpfPidKey struct {
-	Id        uint64
-	Pid       uint32
-	Pad_cgo_0 [4]byte
+	Pid_count        uint64
 }

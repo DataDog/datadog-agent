@@ -13,4 +13,3 @@ package noisyneighbor
 import "C"
 
 type ebpfCgroupAggStats C.cgroup_agg_stats_t
-type ebpfPidKey C.pid_key_t

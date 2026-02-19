@@ -10,22 +10,14 @@
 #define MAX_TASK_ENTRIES 4096
 #define TASK_RUNNING 0
 
-struct {
-    __uint(type, BPF_MAP_TYPE_TASK_STORAGE);
-    __uint(map_flags, BPF_F_NO_PREALLOC);
-    __type(key, int);
-    __type(value, u64);
-} runq_enqueued SEC(".maps");
+BPF_TASK_STORAGE_MAP(runq_enqueued, u64)
 
-// Aggregation maps for metrics
 BPF_PERCPU_HASH_MAP(cgroup_agg_stats, __u64, cgroup_agg_stats_t, MAX_TASK_ENTRIES)
-// PID tracking map
-BPF_HASH_MAP(cgroup_pids, pid_key_t, __u8, 10000)
 
 void bpf_rcu_read_lock(void) __ksym;
 void bpf_rcu_read_unlock(void) __ksym;
 
-u64 get_task_cgroup_id(struct task_struct *task) {
+static __always_inline u64 get_task_cgroup_id(struct task_struct *task) {
     struct css_set *cgroups;
     u64 cgroup_id;
     bpf_rcu_read_lock();
@@ -35,17 +27,36 @@ u64 get_task_cgroup_id(struct task_struct *task) {
     return cgroup_id;
 }
 
+static __always_inline u64 get_cgroup_pids_count(struct task_struct *task) {
+    // ___local suffix + bpf_core_enum_value: CO-RE resolves the real pids_cgrp_id at load time
+    enum cgroup_subsys_id___local {
+        pids_cgrp_id___local = 123,
+    };
+    int cgrp_id = bpf_core_enum_value(enum cgroup_subsys_id___local, pids_cgrp_id___local);
+
+    u64 count = 0;
+    bpf_rcu_read_lock();
+    struct cgroup_subsys_state *css = task->cgroups->subsys[cgrp_id];
+    if (css) {
+        struct pids_cgroup *pids = (struct pids_cgroup *)css;
+        count = pids->counter.counter;
+    }
+    bpf_rcu_read_unlock();
+    return count;
+}
+
 static __always_inline int enqueue_timestamp(struct task_struct *task) {
     u32 pid = task->pid;
     if (!pid) {
         return 0;
     }
 
-    u64 *ptr = bpf_task_storage_get(&runq_enqueued, task, 0, BPF_LOCAL_STORAGE_GET_F_CREATE);
+    u64 ts = bpf_ktime_get_ns();
+    u64 *ptr = bpf_task_storage_get(&runq_enqueued, task, &ts, BPF_LOCAL_STORAGE_GET_F_CREATE);
     if (!ptr) {
         return 0;
     }
-    *ptr = bpf_ktime_get_ns();
+    *ptr = ts;
     return 0;
 }
 
@@ -57,12 +68,6 @@ static __always_inline cgroup_agg_stats_t *get_or_create_cgroup_stats(u64 cgroup
         stats = bpf_map_lookup_elem(&cgroup_agg_stats, &cgroup_id);
     }
     return stats;
-}
-
-static __always_inline void track_pid(u64 cgroup_id, u32 pid) {
-    pid_key_t key = {.cgroup_id = cgroup_id, .pid = pid};
-    __u8 one = 1;
-    bpf_map_update_elem_with_telemetry(&cgroup_pids, &key, &one, BPF_NOEXIST, -EEXIST);
 }
 
 SEC("tp_btf/sched_wakeup")
@@ -79,6 +84,7 @@ int tp_sched_wakeup_new(u64 *ctx) {
 
 SEC("tp_btf/sched_switch")
 int tp_sched_switch(u64 *ctx) {
+    bool preempted = ctx[0] & 1;
     struct task_struct *prev = (struct task_struct *)ctx[1];
     struct task_struct *next = (struct task_struct *)ctx[2];
     u32 prev_pid = prev->pid;
@@ -88,12 +94,11 @@ int tp_sched_switch(u64 *ctx) {
         enqueue_timestamp(prev);
     }
 
-    bool preemption = prev_pid != 0 && next_pid == 0 && prev->__state == TASK_RUNNING;
-    if (preemption) {
+    if (preempted && prev_pid) {
         u64 prev_cgroup_id = get_task_cgroup_id(prev);
         cgroup_agg_stats_t *stats = get_or_create_cgroup_stats(prev_cgroup_id);
         if (stats) {
-            __sync_fetch_and_add(&stats->preemption_count, 1);
+            stats->preemption_count += 1;
         }
     }
 
@@ -112,10 +117,10 @@ int tp_sched_switch(u64 *ctx) {
     u64 cgroup_id = get_task_cgroup_id(next);
     cgroup_agg_stats_t *stats = get_or_create_cgroup_stats(cgroup_id);
     if (stats) {
-        __sync_fetch_and_add(&stats->sum_latencies_ns, runq_lat);
-        __sync_fetch_and_add(&stats->event_count, 1);
+        stats->sum_latencies_ns += runq_lat;
+        stats->event_count += 1;
+        stats->pid_count = get_cgroup_pids_count(next);
     }
-    track_pid(cgroup_id, next_pid);
 
     return 0;
 }

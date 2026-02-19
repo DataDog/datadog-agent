@@ -59,7 +59,6 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 		p.mgr.Maps = []*manager.Map{
 			{Name: "runq_enqueued"},
 			{Name: "cgroup_agg_stats"},
-			{Name: "cgroup_pids"},
 		}
 		if err := p.mgr.InitWithOptions(buf, &opts); err != nil {
 			return fmt.Errorf("failed to init ebpf manager: %w", err)
@@ -91,7 +90,7 @@ func (p *Probe) Close() {
 // GetAndFlush gets the stats
 func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 	var nnstats []model.NoisyNeighborStats
-	// Get the aggregation map for PSL/PSP calculation
+
 	aggMap, found, err := p.mgr.GetMap("cgroup_agg_stats")
 	if err != nil {
 		log.Errorf("failed to get cgroup_agg_stats map: %v", err)
@@ -102,24 +101,24 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 		return nnstats
 	}
 
-	pidCounts := p.buildPidCounts()
-
-	// Iterate through all cgroups in the aggregation map
 	iter := aggMap.Iterate()
 	var cgroupID uint64
 	var perCPUStats []ebpfCgroupAggStats
 	var cgroupsToDelete []uint64
 
 	for iter.Next(&cgroupID, &perCPUStats) {
-		var cgroupLatencies, cgroupEvents, cgroupPreemptions uint64
+		var cgroupLatencies, cgroupEvents, cgroupPreemptions, pidCount uint64
 		for _, cpuStat := range perCPUStats {
 			cgroupLatencies += cpuStat.Sum_latencies_ns
 			cgroupEvents += cpuStat.Event_count
 			cgroupPreemptions += cpuStat.Preemption_count
+			// pid_count is a global cgroup value (not per-CPU), so take the max rather than summing
+			if cpuStat.Pid_count > pidCount {
+				pidCount = cpuStat.Pid_count
+			}
 		}
 
 		cgroupsToDelete = append(cgroupsToDelete, cgroupID)
-		uniquePidCount := pidCounts[cgroupID]
 
 		if cgroupEvents == 0 {
 			continue
@@ -130,7 +129,7 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 			SumLatenciesNs:  cgroupLatencies,
 			EventCount:      cgroupEvents,
 			PreemptionCount: cgroupPreemptions,
-			UniquePidCount:  uniquePidCount,
+			UniquePidCount:  pidCount,
 		}
 
 		nnstats = append(nnstats, stat)
@@ -140,56 +139,11 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 		log.Errorf("error iterating cgroup_agg_stats map: %v", err)
 	}
 
-	// Clear the aggregation map for next interval
 	for _, cgID := range cgroupsToDelete {
 		if err := aggMap.Delete(&cgID); err != nil {
-			log.Warnf("failed to delete cgroup %d from agg map: %v", cgID, err)
+			log.Errorf("failed to delete cgroup %d from agg map: %v", cgID, err)
 		}
-		p.deletePidsForCgroup(cgID)
 	}
 
 	return nnstats
-}
-
-// buildPidCounts scans the cgroup_pids BPF map once and builds a count of unique PIDs per cgroup
-func (p *Probe) buildPidCounts() map[uint64]uint64 {
-	pidCounts := make(map[uint64]uint64)
-
-	pidMap, found, err := p.mgr.GetMap("cgroup_pids")
-	if err != nil || !found {
-		return pidCounts
-	}
-
-	iter := pidMap.Iterate()
-	var key ebpfPidKey
-	var val uint8
-
-	for iter.Next(&key, &val) {
-		pidCounts[key.Id]++
-	}
-
-	return pidCounts
-}
-
-// deletePidsForCgroup cleans up PID tracking for a cgroup
-func (p *Probe) deletePidsForCgroup(cgroupID uint64) {
-	pidMap, found, err := p.mgr.GetMap("cgroup_pids")
-	if err != nil || !found {
-		return
-	}
-
-	var keysToDelete []ebpfPidKey
-	iter := pidMap.Iterate()
-	var key ebpfPidKey
-	var val uint8
-
-	for iter.Next(&key, &val) {
-		if key.Id == cgroupID {
-			keysToDelete = append(keysToDelete, key)
-		}
-	}
-
-	for _, k := range keysToDelete {
-		_ = pidMap.Delete(&k)
-	}
 }
