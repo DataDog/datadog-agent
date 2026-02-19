@@ -265,6 +265,8 @@ func (d *directSender) submitLoop() {
 			}
 			d.readResponseStatuses(responses)
 		}
+		senderTelemetry.queueSize.Set(float64(d.resultsQueue.Len()))
+		senderTelemetry.queueBytes.Set(float64(d.resultsQueue.Weight()))
 	}
 }
 
