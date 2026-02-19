@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
+	discv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -109,6 +110,110 @@ func newFakeEndpointAddress(nodeName string, pod v1.Pod) v1.EndpointAddress {
 	return v1.EndpointAddress{
 		IP:       pod.Status.PodIP,
 		NodeName: &nodeName,
+		TargetRef: &v1.ObjectReference{
+			Kind:      pod.Kind,
+			Namespace: pod.Namespace,
+			Name:      pod.Name,
+			UID:       pod.UID,
+		},
+	}
+}
+
+func TestSearchTargetPerNameInEndpointSlices(t *testing.T) {
+	pod1 := newFakePod(
+		"foo",
+		"pod1_name",
+		"1111",
+		"1.1.1.1",
+	)
+
+	pod2 := newFakePod(
+		"foo",
+		"pod2_name",
+		"2222",
+		"2.2.2.2",
+	)
+
+	nodeName := "myNode"
+
+	for nb, tc := range []struct {
+		targetName  string
+		slices      []*discv1.EndpointSlice
+		expectedIP  string
+		expectedErr error
+	}{
+		{
+			"pod2_name",
+			[]*discv1.EndpointSlice{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "svc-abc123",
+						Namespace: "foo",
+					},
+					Endpoints: []discv1.Endpoint{
+						{
+							Addresses: []string{},
+							TargetRef: nil, // Empty endpoint with nil targetRef
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "svc-def456",
+						Namespace: "foo",
+					},
+					Endpoints: []discv1.Endpoint{
+						newFakeEndpointSliceEndpoint(nodeName, pod1),
+						newFakeEndpointSliceEndpoint(nodeName, pod2),
+					},
+				},
+			},
+			"2.2.2.2",
+			nil,
+		},
+		{
+			"pod_not_found",
+			[]*discv1.EndpointSlice{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "svc-abc123",
+						Namespace: "foo",
+					},
+					Endpoints: []discv1.Endpoint{
+						newFakeEndpointSliceEndpoint(nodeName, pod1),
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "svc-def456",
+						Namespace: "foo",
+					},
+					Endpoints: []discv1.Endpoint{
+						newFakeEndpointSliceEndpoint(nodeName, pod2),
+					},
+				},
+			},
+			"",
+			errors.New("\"target named pod_not_found\" not found"),
+		},
+	} {
+		t.Run(fmt.Sprintf("case %d: %s", nb, tc.targetName), func(t *testing.T) {
+			result, err := SearchTargetPerNameInEndpointSlices(tc.slices, tc.targetName)
+			if tc.expectedErr != nil {
+				require.Error(t, err)
+				assert.Equal(t, tc.expectedErr.Error(), err.Error())
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expectedIP, result)
+			}
+		})
+	}
+}
+
+func newFakeEndpointSliceEndpoint(nodeName string, pod v1.Pod) discv1.Endpoint {
+	return discv1.Endpoint{
+		Addresses: []string{pod.Status.PodIP},
+		NodeName:  &nodeName,
 		TargetRef: &v1.ObjectReference{
 			Kind:      pod.Kind,
 			Namespace: pod.Namespace,
