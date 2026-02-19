@@ -10,4 +10,5 @@ feature:
   - |
     Allows the Agent to get an API key in exchange for an AWS cloud authorization proof.
     This allows you to use your AWS credentials against Datadog and removes the
-    need for you to manage an API key.
+    need for you to manage an API key. More details can be found here:
+    https://docs.datadoghq.com/account_management/cloud_provider_authentication/
