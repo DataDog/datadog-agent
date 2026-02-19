@@ -75,7 +75,7 @@ def build(
     # Build secret-generic-connector so it is shipped with the cluster agent.
     # Use same flavor as cluster-agent: FIPS when GOEXPERIMENT=boringcrypto (CI FIPS jobs).
     sgc_fips = os.environ.get("GOEXPERIMENT") == "boringcrypto"
-    ctx.run("dda inv -- secret-generic-connector.build" + (" --fips-mode" if sgc_fips else ""))
+    secret_generic_connector.build(ctx, fips_mode=sgc_fips)
 
 
 @task
@@ -124,10 +124,9 @@ def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
     latest_cws_instrumentation_file = max(cws_instrumentation_binary, key=os.path.getctime)
     ctx.run(f"chmod +x {latest_cws_instrumentation_file}")
 
-    # Add secret-generic-connector (build if not present). We use ctx.run instead of
-    # ctx.invoke() because this repo's custom invoke context does not support ctx.invoke().
+    # Add secret-generic-connector (build if not present).
     if not os.path.isfile(secret_generic_connector.BIN_PATH):
-        ctx.run("dda inv -- secret-generic-connector.build")
+        secret_generic_connector.build(ctx)
 
     build_context = "Dockerfiles/cluster-agent"
     exec_path = f"{build_context}/datadog-cluster-agent"
