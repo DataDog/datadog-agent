@@ -96,6 +96,41 @@
 //
 //	dda inv msi.package-oci --msi-path=omnibus/pkg/datadog-agent-7.77.0-devel.git.32.ce3a7fe-1-x86_64.msi
 //
+// To include the DDOT extension layer in the OCI package:
+//
+//	dda inv msi.package-oci --ddot
+//
+// # Using a Local OCI Registry for Testing
+//
+// For tests that need to pull OCI packages (e.g. extension restore during
+// upgrade/experiment), you can run a local Docker registry and use an SSH
+// reverse tunnel to make it accessible from the remote test VM.
+//
+// 1. Start a local registry (HTTP, no TLS):
+//
+//	docker run -d -p 5000:5000 --name registry registry:latest
+//
+// 2. Push the OCI package to the local registry using datadog-package:
+//
+//	datadog-package push 192.168.61.1:5000/agent-package:7.77.0-devel.git.648.368d6af.pipeline.1234-1 .\omnibus\pkg\datadog-agent-7.77.0-devel.git.648.368d6af.pipeline.1234-1-windows-amd64.oci.tar
+//
+// 3. Set up a reverse SSH tunnel so the test VM can reach your local registry:
+//
+//	ssh -R 5000:localhost:5000 user@test-vm
+//
+// 4. Configure the installer to use the tunnel endpoint. For now, set the
+// registry URL override globally on the test VM:
+//
+// PowerShell:
+//
+//	[System.Environment]::SetEnvironmentVariable("DD_INSTALLER_REGISTRY_URL", "localhost:5000", [System.EnvironmentVariableTarget]::Machine)
+//
+// Or in datadog.yaml:
+//
+//	installer:
+//	  registry:
+//	    url: 'localhost:5000'
+//
 // # Running Tests with Local Artifacts
 //
 // To run the tests using local artifacts, set one or more the following environment variables:
