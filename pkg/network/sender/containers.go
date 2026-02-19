@@ -19,7 +19,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -43,17 +42,15 @@ type containerID struct {
 }
 
 type containerResolver struct {
-	wmeta           workloadmeta.Component
-	metricsProvider metrics.Provider
+	wmeta workloadmeta.Component
 
 	mtx               sync.Mutex
 	addrToContainerID map[containerAddr]containerID
 }
 
-func newContainerResolver(wmeta workloadmeta.Component, metricsProvider metrics.Provider) *containerResolver {
+func newContainerResolver(wmeta workloadmeta.Component) *containerResolver {
 	return &containerResolver{
 		wmeta:             wmeta,
-		metricsProvider:   metricsProvider,
 		addrToContainerID: make(map[containerAddr]containerID),
 	}
 }
