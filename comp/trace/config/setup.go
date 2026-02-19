@@ -287,7 +287,8 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 
 	if core.IsSet("apm_config.span_derived_primary_tags") {
-		c.SpanDerivedPrimaryTags = core.GetStringSlice("apm_config.span_derived_primary_tags")
+		c.SpanDerivedPrimaryTagKeys = core.GetStringSlice("apm_config.span_derived_primary_tags")
+		log.Infof("span_derived_primary_tags configured: %v", c.SpanDerivedPrimaryTagKeys)
 	}
 
 	if core.IsConfigured("apm_config.extra_sample_rate") {

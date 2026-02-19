@@ -68,23 +68,23 @@ func TestPeerTagsAggregation(t *testing.T) {
 	})
 }
 
-func TestSpanDerivedPrimaryTags(t *testing.T) {
+func TestSpanDerivedPrimaryTagKeys(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		cfg := New()
-		assert.Empty(t, cfg.SpanDerivedPrimaryTags)
-		assert.Empty(t, cfg.ConfiguredSpanDerivedPrimaryTags())
+		assert.Empty(t, cfg.SpanDerivedPrimaryTagKeys)
+		assert.Empty(t, cfg.ConfiguredSpanDerivedPrimaryTagKeys())
 	})
 
 	t.Run("configured", func(t *testing.T) {
 		cfg := New()
-		cfg.SpanDerivedPrimaryTags = []string{"datacenter", "customer_tier", "availability_zone"}
-		assert.Equal(t, []string{"availability_zone", "customer_tier", "datacenter"}, cfg.ConfiguredSpanDerivedPrimaryTags())
+		cfg.SpanDerivedPrimaryTagKeys = []string{"datacenter", "customer_tier", "availability_zone"}
+		assert.Equal(t, []string{"availability_zone", "customer_tier", "datacenter"}, cfg.ConfiguredSpanDerivedPrimaryTagKeys())
 	})
 
 	t.Run("dedup", func(t *testing.T) {
 		cfg := New()
-		cfg.SpanDerivedPrimaryTags = []string{"datacenter", "customer_tier", "datacenter"}
-		assert.Equal(t, []string{"customer_tier", "datacenter"}, cfg.ConfiguredSpanDerivedPrimaryTags())
+		cfg.SpanDerivedPrimaryTagKeys = []string{"datacenter", "customer_tier", "datacenter"}
+		assert.Equal(t, []string{"customer_tier", "datacenter"}, cfg.ConfiguredSpanDerivedPrimaryTagKeys())
 	})
 }
 
