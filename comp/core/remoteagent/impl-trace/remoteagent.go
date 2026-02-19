@@ -9,7 +9,6 @@ package traceimpl
 import (
 	"context"
 	"encoding/json"
-	"expvar"
 	"net"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -79,12 +78,8 @@ type remoteagentImpl struct {
 
 // GetStatusDetails returns the status details of the trace agent
 func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
-	fields := make(map[string]string)
-	expvar.Do(func(kv expvar.KeyValue) {
-		fields[kv.Key] = kv.Value.String()
-	})
 	return &pbcore.GetStatusDetailsResponse{
-		MainSection: &pbcore.StatusSection{Fields: fields},
+		MainSection: &pbcore.StatusSection{Fields: helper.ExpvarFields()},
 	}, nil
 }
 
@@ -92,16 +87,7 @@ func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatu
 func (r *remoteagentImpl) GetFlareFiles(_ context.Context, _ *pbcore.GetFlareFilesRequest) (*pbcore.GetFlareFilesResponse, error) {
 	files := make(map[string][]byte)
 
-	expvarData := make(map[string]any)
-	expvar.Do(func(kv expvar.KeyValue) {
-		var v any
-		if err := json.Unmarshal([]byte(kv.Value.String()), &v); err == nil {
-			expvarData[kv.Key] = v
-		} else {
-			expvarData[kv.Key] = kv.Value.String()
-		}
-	})
-	if data, err := json.MarshalIndent(expvarData, "", "  "); err == nil {
+	if data, err := json.MarshalIndent(helper.ExpvarData(), "", "  "); err == nil {
 		files["trace_agent_status.json"] = data
 	}
 
