@@ -53,7 +53,7 @@ static __always_inline cgroup_agg_stats_t *get_or_create_cgroup_stats(u64 cgroup
     cgroup_agg_stats_t *stats = bpf_map_lookup_elem(&cgroup_agg_stats, &cgroup_id);
     if (!stats) {
         cgroup_agg_stats_t zero = {};
-        bpf_map_update_with_telemetry(cgroup_agg_stats, &cgroup_id, &zero, BPF_NOEXIST);
+        bpf_map_update_with_telemetry(cgroup_agg_stats, &cgroup_id, &zero, BPF_NOEXIST, -EEXIST);
         stats = bpf_map_lookup_elem(&cgroup_agg_stats, &cgroup_id);
     }
     return stats;
