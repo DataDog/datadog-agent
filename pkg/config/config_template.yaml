@@ -622,6 +622,21 @@ api_key:
 #
 #   validation_period: 60
 
+## @param remote_configuration - custom object - optional
+## Configuration for Remote Configuration.
+## Remote Configuration allows you to configure your Agents from the Datadog UI.
+## See https://docs.datadoghq.com/agent/guide/setup_remote_config/ for more information.
+#
+# remote_configuration:
+
+#   # @param enabled - boolean - optional - default: true
+#   # @env DD_REMOTE_CONFIGURATION_ENABLED - boolean - optional - default: true
+#   # Set to true to enable Remote Configuration. Enabled by default.
+#   # Note: On GovCloud (ddog-gov.com), Remote Configuration is disabled by default
+#   # and must be explicitly enabled.
+#
+#   enabled: true
+
 ## @param fips - custom object - optional
 ## Uncomment this parameter and the one below to enable them.
 #

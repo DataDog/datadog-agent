@@ -65,6 +65,7 @@ build:ci --output_groups=+rustfmt_checks
 
 # Project configs --------------------------------------------------------------------------------------
 import %workspace%/bazel/configs/sdagent.bazelrc
+import %workspace%/bazel/configs/procmgrd.bazelrc
 
 # Local development options --------------------------------------------------------------------------------------------
 try-import %workspace%/user.bazelrc
