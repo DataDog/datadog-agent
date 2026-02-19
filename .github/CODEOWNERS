@@ -28,8 +28,6 @@
 /bazel/                                 @DataDog/agent-build
 /bazel/configs/sdagent.bazelrc               @DataDog/agent-discovery
 /MODULE.bazel*                          @DataDog/agent-build
-# Temporary during Bazel migration
-/**/BUILD.bazel                         @DataDog/agent-build
 /deps/                                  @DataDog/agent-build
 
 # The owner should really be to a team that does not exist yet. It would cover supply chain in general.
@@ -859,6 +857,10 @@
 /internal/third_party/client-go         @DataDog/container-platform
 /internal/third_party/kubernetes        @DataDog/container-integrations
 /internal/third_party/golang/           @DataDog/container-integrations
+
+# Temporary during Bazel migration
+# This needs to go after all other rules that may include BUILD.bazel files, it otherwise gets overridden
+/**/BUILD.bazel                         @DataDog/agent-build
 
 # With the introduction of go.work, dependencies bump modify go.mod and go.sum in a lot of file.
 # Which bring a lot of team in the review each time. To make it smoother we no longer consider go.mod and go.sum owned by teams.
