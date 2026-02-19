@@ -47,14 +47,10 @@ func Factory(tagger tagger.Component) option.Option[func() check.Check] {
 
 func newCheck(tagger tagger.Component) check.Check {
 	return &NoisyNeighborCheck{
-		CheckBase: core.NewCheckBase(CheckName),
+		CheckBase: core.NewCheckBaseWithInterval(CheckName, 10*time.Second),
 		config:    &NoisyNeighborConfig{},
 		tagger:    tagger,
 	}
-}
-
-func (n *NoisyNeighborCheck) Interval() time.Duration {
-	return 10 * time.Second
 }
 
 func (c *NoisyNeighborConfig) Parse(data []byte) error {
