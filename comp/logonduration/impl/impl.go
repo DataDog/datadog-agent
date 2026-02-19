@@ -12,7 +12,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/DataDog/gopsutil/host"
@@ -206,66 +205,80 @@ func getDurationMilliseconds(start, end time.Time) int64 {
 	return end.Sub(start).Milliseconds()
 }
 
-func latestNonZero(times ...time.Time) time.Time {
-	var latest time.Time
-	for _, t := range times {
-		if !t.IsZero() && t.After(latest) {
-			latest = t
-		}
-	}
-	return latest
+// Milestone represents a single event in the boot/logon timeline.
+type Milestone struct {
+	Name      string  `json:"name"`
+	OffsetS   float64 `json:"offset_s"`
+	Timestamp string  `json:"timestamp"`
 }
 
-func buildCustomPayload(tl BootTimeline, subscribers []SubscriberInfo) map[string]interface{} {
+// buildTimelineMilestones returns an ordered slice of boot milestones.
+// Only milestones with a non-zero timestamp are included.
+func buildTimelineMilestones(tl BootTimeline) []Milestone {
 	const tsFmt = "2006-01-02T15:04:05.000Z"
+	boot := tl.BootStart
+
+	candidates := []struct {
+		name string
+		ts   time.Time
+	}{
+		{"boot_start", tl.BootStart},
+		{"smss_start", tl.SmssStart},
+		{"user_session_smss", tl.UserSmssStart},
+		{"winlogon_start", tl.WinlogonStart},
+		{"winlogon_init", tl.WinlogonInit},
+		{"services_ready", tl.ServicesReady},
+		{"machine_gp_start", tl.MachineGPStart},
+		{"machine_gp_complete", tl.MachineGPEnd},
+		{"user_session_winlogon", tl.UserWinlogonStart},
+		{"logon_start", tl.LogonStart},
+		{"profile_load_start", tl.ProfileStart},
+		{"shell_start", tl.ShellStart},
+		{"userinit_start", tl.UserinitStart},
+		{"shell_started", tl.ShellStarted},
+		{"explorer_start", tl.ExplorerStart},
+		{"desktop_ready", tl.DesktopReady},
+		{"user_gp_start", tl.UserGPStart},
+		{"user_gp_complete", tl.UserGPEnd},
+	}
+
+	var milestones []Milestone
+	for _, c := range candidates {
+		if c.ts.IsZero() {
+			continue
+		}
+		milestones = append(milestones, Milestone{
+			Name:      c.name,
+			OffsetS:   c.ts.Sub(boot).Seconds(),
+			Timestamp: c.ts.UTC().Format(tsFmt),
+		})
+	}
+	return milestones
+}
+
+func buildCustomPayload(tl BootTimeline) map[string]interface{} {
 	custom := make(map[string]interface{})
 
-	if !tl.BootStart.IsZero() {
-		custom["Boot Time"] = tl.BootStart.UTC().Format(tsFmt)
-	}
-	if !tl.LogonStart.IsZero() {
-		custom["Logon Time"] = tl.LogonStart.UTC().Format(tsFmt)
-	}
+	custom["boot_timeline"] = buildTimelineMilestones(tl)
 
-	for _, sub := range subscribers {
-		if strings.EqualFold(sub.Name, "NetworkProvider") || strings.Contains(strings.ToLower(sub.Name), "network provider") {
-			custom["Network Providers"] = sub.Duration.Milliseconds()
-			break
-		}
-	}
-
-	if !tl.ProfileStart.IsZero() && !tl.ProfileEnd.IsZero() {
-		custom["User Profile Load"] = getDurationMilliseconds(tl.ProfileStart, tl.ProfileEnd)
-	}
-
-	gp := make(map[string]interface{})
-	if !tl.UserGPStart.IsZero() && !tl.UserGPEnd.IsZero() {
-		gp["Total"] = getDurationMilliseconds(tl.UserGPStart, tl.UserGPEnd)
-	}
-	if len(gp) > 0 {
-		custom["Group Policy Processing"] = gp
-	}
-
-	if !tl.ShellStart.IsZero() {
-		preShellStart := latestNonZero(tl.UserGPEnd, tl.ProfileEnd, tl.SubscribersDone)
-		if !preShellStart.IsZero() {
-			custom["Pre-Shell"] = getDurationMilliseconds(preShellStart, tl.ShellStart)
-		}
-	}
-
-	shell := make(map[string]interface{})
-	if !tl.ShellStart.IsZero() && !tl.DesktopReady.IsZero() {
-		shell["Total"] = getDurationMilliseconds(tl.ShellStart, tl.DesktopReady)
-	}
-	if !tl.ShellStarted.IsZero() && !tl.DesktopReady.IsZero() {
-		shell["Desktop Responsive"] = getDurationMilliseconds(tl.ShellStarted, tl.DesktopReady)
-	}
-	if len(shell) > 0 {
-		custom["Shell"] = shell
-	}
-
+	durations := make(map[string]interface{})
 	if !tl.LogonStart.IsZero() && !tl.DesktopReady.IsZero() {
-		custom["Total Logon Duration"] = getDurationMilliseconds(tl.LogonStart, tl.DesktopReady)
+		durations["total_logon_ms"] = getDurationMilliseconds(tl.LogonStart, tl.DesktopReady)
+	}
+	if !tl.ProfileStart.IsZero() && !tl.ProfileEnd.IsZero() {
+		durations["profile_load_ms"] = getDurationMilliseconds(tl.ProfileStart, tl.ProfileEnd)
+	}
+	if !tl.MachineGPStart.IsZero() && !tl.MachineGPEnd.IsZero() {
+		durations["machine_gp_ms"] = getDurationMilliseconds(tl.MachineGPStart, tl.MachineGPEnd)
+	}
+	if !tl.UserGPStart.IsZero() && !tl.UserGPEnd.IsZero() {
+		durations["user_gp_ms"] = getDurationMilliseconds(tl.UserGPStart, tl.UserGPEnd)
+	}
+	if !tl.ShellStart.IsZero() && !tl.DesktopReady.IsZero() {
+		durations["shell_to_desktop_ms"] = getDurationMilliseconds(tl.ShellStart, tl.DesktopReady)
+	}
+	if len(durations) > 0 {
+		custom["durations"] = durations
 	}
 
 	return custom
@@ -277,7 +290,7 @@ func (c *logonDurationComponent) submitEvent(result *AnalysisResult) error {
 	hostnameValue := c.hostname.GetSafe(context.TODO())
 	tl := result.Timeline
 
-	custom := buildCustomPayload(tl, result.Subscribers)
+	custom := buildCustomPayload(tl)
 
 	eventTimestamp := tl.BootStart
 	if eventTimestamp.IsZero() {
@@ -286,8 +299,10 @@ func (c *logonDurationComponent) submitEvent(result *AnalysisResult) error {
 	timestamp := eventTimestamp.In(time.UTC).Format("2006-01-02T15:04:05.000000Z")
 
 	msg := "Windows logon duration analysis after reboot"
-	if totalMs, ok := custom["Total Logon Duration"]; ok {
-		msg = fmt.Sprintf("Windows logon took %d ms", totalMs)
+	if durations, ok := custom["durations"].(map[string]interface{}); ok {
+		if totalMs, ok := durations["total_logon_ms"]; ok {
+			msg = fmt.Sprintf("Windows logon took %d ms", totalMs)
+		}
 	}
 
 	eventData := map[string]interface{}{
