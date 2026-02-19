@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/logs-library/defaults"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
@@ -224,8 +223,8 @@ func (l *LogsConfigKeys) batchMaxConcurrentSend() int {
 	key := l.getConfigKey("batch_max_concurrent_send")
 	batchMaxConcurrentSend := l.getConfig().GetInt(key)
 	if batchMaxConcurrentSend < 0 {
-		log.Warnf("Invalid %s: %v should be >= 0, fallback on %v", key, batchMaxConcurrentSend, defaults.DefaultBatchMaxConcurrentSend)
-		return defaults.DefaultBatchMaxConcurrentSend
+		log.Warnf("Invalid %s: %v should be >= 0, fallback on %v", key, batchMaxConcurrentSend, pkgconfigsetup.DefaultBatchMaxConcurrentSend)
+		return pkgconfigsetup.DefaultBatchMaxConcurrentSend
 	}
 	return batchMaxConcurrentSend
 }

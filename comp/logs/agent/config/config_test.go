@@ -15,7 +15,6 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/logs-library/defaults"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
@@ -304,7 +303,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 		isReliable:             true,
 	}
 
-	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, 1*time.Second, defaults.DefaultBatchMaxConcurrentSend, pkgconfigsetup.DefaultBatchMaxSize, pkgconfigsetup.DefaultBatchMaxContentSize, pkgconfigsetup.DefaultInputChanSize)
+	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, 1*time.Second, pkgconfigsetup.DefaultBatchMaxConcurrentSend, pkgconfigsetup.DefaultBatchMaxSize, pkgconfigsetup.DefaultBatchMaxContentSize, pkgconfigsetup.DefaultInputChanSize)
 	endpoints, err := BuildHTTPEndpoints(suite.config, "test-track", "test-proto", "test-source")
 
 	suite.Nil(err)
@@ -431,7 +430,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 		isReliable:             true,
 	}
 
-	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, 1*time.Second, defaults.DefaultBatchMaxConcurrentSend, pkgconfigsetup.DefaultBatchMaxSize, pkgconfigsetup.DefaultBatchMaxContentSize, pkgconfigsetup.DefaultInputChanSize)
+	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, 1*time.Second, pkgconfigsetup.DefaultBatchMaxConcurrentSend, pkgconfigsetup.DefaultBatchMaxSize, pkgconfigsetup.DefaultBatchMaxContentSize, pkgconfigsetup.DefaultInputChanSize)
 	endpoints, err := BuildHTTPEndpoints(suite.config, "test-track", "test-proto", "test-source")
 
 	suite.Nil(err)
@@ -521,7 +520,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 		isReliable:             true,
 	}
 
-	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, 1*time.Second, defaults.DefaultBatchMaxConcurrentSend, pkgconfigsetup.DefaultBatchMaxSize, pkgconfigsetup.DefaultBatchMaxContentSize, pkgconfigsetup.DefaultInputChanSize)
+	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, 1*time.Second, pkgconfigsetup.DefaultBatchMaxConcurrentSend, pkgconfigsetup.DefaultBatchMaxSize, pkgconfigsetup.DefaultBatchMaxContentSize, pkgconfigsetup.DefaultInputChanSize)
 	endpoints, err := BuildHTTPEndpoints(suite.config, "test-track", "test-proto", "test-source")
 
 	suite.Nil(err)
@@ -692,7 +691,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 		Endpoints:              []Endpoint{main},
 		BatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		BatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-		BatchMaxConcurrentSend: defaults.DefaultBatchMaxConcurrentSend,
+		BatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
 		InputChanSize:          pkgconfigsetup.DefaultInputChanSize,
 	}
 
@@ -733,7 +732,7 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 		Endpoints:              []Endpoint{main},
 		BatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		BatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-		BatchMaxConcurrentSend: defaults.DefaultBatchMaxConcurrentSend,
+		BatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
 		InputChanSize:          pkgconfigsetup.DefaultInputChanSize,
 	}
 
@@ -766,7 +765,7 @@ func getTestEndpoints(e Endpoint) *Endpoints {
 		Endpoints:              []Endpoint{e},
 		BatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		BatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-		BatchMaxConcurrentSend: defaults.DefaultBatchMaxConcurrentSend,
+		BatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
 		InputChanSize:          pkgconfigsetup.DefaultInputChanSize,
 	}
 }
@@ -926,7 +925,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrlWithPrefix() {
 		Endpoints:              []Endpoint{main},
 		BatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		BatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-		BatchMaxConcurrentSend: defaults.DefaultBatchMaxConcurrentSend,
+		BatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
 		InputChanSize:          pkgconfigsetup.DefaultInputChanSize,
 	}
 
@@ -971,7 +970,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDUrlWithPrefix() {
 		Endpoints:              []Endpoint{main},
 		BatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 		BatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-		BatchMaxConcurrentSend: defaults.DefaultBatchMaxConcurrentSend,
+		BatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
 		InputChanSize:          pkgconfigsetup.DefaultInputChanSize,
 	}
 

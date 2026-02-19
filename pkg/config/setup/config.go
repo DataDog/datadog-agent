@@ -23,7 +23,6 @@ import (
 	"gopkg.in/yaml.v2"
 
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	logdefaults "github.com/DataDog/datadog-agent/comp/logs-library/defaults"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
@@ -75,6 +74,9 @@ const (
 
 	// DefaultBatchWait is the default HTTP batch wait in second for logs
 	DefaultBatchWait = 5
+
+	// DefaultBatchMaxConcurrentSend is the default HTTP batch max concurrent send for logs
+	DefaultBatchMaxConcurrentSend = 0
 
 	// DefaultBatchMaxSize is the default HTTP batch max size (maximum number of events in a single batch) for logs
 	DefaultBatchMaxSize = 1000
@@ -3163,7 +3165,7 @@ func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"batch_wait", DefaultBatchWait)
 	config.BindEnvAndSetDefault(prefix+"connection_reset_interval", 0) // in seconds, 0 means disabled
 	config.BindEnvAndSetDefault(prefix+"logs_no_ssl", false)
-	config.BindEnvAndSetDefault(prefix+"batch_max_concurrent_send", logdefaults.DefaultBatchMaxConcurrentSend)
+	config.BindEnvAndSetDefault(prefix+"batch_max_concurrent_send", DefaultBatchMaxConcurrentSend)
 	config.BindEnvAndSetDefault(prefix+"batch_max_content_size", DefaultBatchMaxContentSize)
 	config.BindEnvAndSetDefault(prefix+"batch_max_size", DefaultBatchMaxSize)
 	config.BindEnvAndSetDefault(prefix+"input_chan_size", DefaultInputChanSize) // Only used by EP Forwarder for now, not used by logs

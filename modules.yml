@@ -92,8 +92,6 @@ modules:
   comp/host-profiler/symboluploader/testdata: ignored
   comp/logs-library:
     used_by_otel: true
-  comp/logs-library/defaults:
-    used_by_otel: true
   comp/logs/agent/config:
     used_by_otel: true
   comp/netflow/payload: default
