@@ -1859,3 +1859,24 @@ func TestEnvVarLayerConvertsToDefaultType(t *testing.T) {
     leaf(#ptr<000002>), val:789, source:environment-variable`
 	assert.Equal(t, expect, txt)
 }
+
+func TestSetFloatPreservedForIntDefault(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg.BindEnvAndSetDefault("my_setting", 5)
+	cfg.BuildSchema()
+
+	// check preserved float conversions
+	cfg.Set("my_setting", 0.1, model.SourceAgentRuntime)
+	assert.Equal(t, 0.1, cfg.GetFloat64("my_setting"))
+
+	cfg.Set("my_setting", 1.5, model.SourceAgentRuntime)
+	assert.Equal(t, 1.5, cfg.GetFloat64("my_setting"))
+
+	// int values normal
+	cfg.Set("my_setting", 10, model.SourceAgentRuntime)
+	assert.Equal(t, 10, cfg.GetInt("my_setting"))
+
+	// string check still converts
+	cfg.Set("my_setting", "42", model.SourceAgentRuntime)
+	assert.Equal(t, 42, cfg.GetInt("my_setting"))
+}
