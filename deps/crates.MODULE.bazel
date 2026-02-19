@@ -9,3 +9,14 @@ crate.from_cargo(
     ],
 )
 use_repo(crate, "sdagent_crates")
+
+crate.from_cargo(
+    name = "procmgrd_crates",
+    cargo_lock = "//pkg/procmgr/rust:Cargo.lock",
+    cargo_toml = "//pkg/procmgr/rust:Cargo.toml",
+    platform_triples = [
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu",
+    ],
+)
+use_repo(crate, "procmgrd_crates")
