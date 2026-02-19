@@ -1,0 +1,12 @@
+[workspace]
+resolver = "3"
+members = [
+    "pkg/discovery/module/rust",
+    "pkg/procmgr/rust",
+]
+
+[profile.release]
+lto = "fat"
+opt-level = "z"
+strip = "symbols"
+panic = "abort"

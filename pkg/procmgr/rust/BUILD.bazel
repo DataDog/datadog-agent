@@ -11,13 +11,13 @@ rust_binary(
     ],
     visibility = ["//visibility:public"],
     deps = [
-        "@procmgrd_crates//:anyhow",
-        "@procmgrd_crates//:log",
-        "@procmgrd_crates//:nix",
-        "@procmgrd_crates//:serde",
-        "@procmgrd_crates//:serde_yaml",
-        "@procmgrd_crates//:simple_logger",
-        "@procmgrd_crates//:tokio",
+        "@rust_crates//:anyhow",
+        "@rust_crates//:log",
+        "@rust_crates//:nix",
+        "@rust_crates//:serde",
+        "@rust_crates//:serde_yaml",
+        "@rust_crates//:simple_logger",
+        "@rust_crates//:tokio",
     ],
 )
 

@@ -33,6 +33,8 @@ venv*/
 /.cache/
 # Bazel convenience symlinks to output folders
 /bazel-*
+# Rust build output (Cargo workspace)
+/target/
 # User specific bazelrc file
 /user.bazelrc
 
