@@ -286,3 +286,5 @@ require (
 	mvdan.cc/gofumpt v0.9.2 // indirect
 	mvdan.cc/unparam v0.0.0-20251027182757-5beb8c8f8f15 // indirect
 )
+
+replace github.com/spf13/viper v1.21.0 => github.com/spf13/viper v1.20.1
