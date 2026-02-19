@@ -429,6 +429,9 @@ cc_library(
         "@xmlsec//:libxmlsec1-openssl",
         "@acl//:libacl",
     ],
+    copts = [
+        "-O2",
+    ],
     implementation_deps = [
         ":compat",
         ":config_h",
@@ -468,6 +471,9 @@ cc_library(
     implementation_deps = [
         ":compat",
         ":config_h",
+    ],
+    copts = [
+        "-O2",
     ],
     deps = [
         "@libxml2//:libxml2",
@@ -521,6 +527,9 @@ cc_binary(
         ":compat_hdrs",
     ],
     linkstatic = False,
+    copts = [
+        "-O2",
+    ],
     dynamic_deps = [
         ":openscap",
         '@attr//:attr',
@@ -563,6 +572,9 @@ cc_binary(
         ":compat_hdrs",
     ],
     linkstatic = False,
+    copts = [
+        "-O2",
+    ],
     dynamic_deps = [
         ":openscap",
         '@attr//:attr',
