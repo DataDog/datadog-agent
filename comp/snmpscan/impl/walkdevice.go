@@ -25,6 +25,15 @@ func (s snmpScannerImpl) RunSnmpWalk(snmpConnection *gosnmp.GoSNMP, firstOid str
 	return nil
 }
 
+// RunSnmpWalkAll returns all PDUs as a slice
+func (s snmpScannerImpl) RunSnmpWalkAll(snmpConnection *gosnmp.GoSNMP, firstOid string) ([]gosnmp.SnmpPDU, error) {
+	if results, err := snmpConnection.WalkAll(firstOid); err != nil {
+		return nil, fmt.Errorf("unable to walk SNMP agent on %s:%d: %w", snmpConnection.Target, snmpConnection.Port, err)
+	} else {
+		return results, nil
+	}
+}
+
 // printValue prints a PDU in a similar style to snmpwalk -Ont
 func printValue(pdu gosnmp.SnmpPDU) error {
 	fmt.Printf("%s = ", pdu.Name)
