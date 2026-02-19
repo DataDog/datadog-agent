@@ -342,7 +342,7 @@ func postPromoteExperimentDatadogAgent(ctx HookContext) error {
 		// In this case, we were already premoting the experiment
 		// so we can return without an error as all we were about to do
 		// is stop the watchdog
-		log.Errorf("failed to set premote event: %s", err)
+		log.Errorf("failed to set promote event: %s", err)
 	}
 
 	// Promote extensions from experiment to stable
@@ -426,7 +426,7 @@ func startWatchdog(_ context.Context, timeout time.Time) error {
 			return fmt.Errorf("could not wait for events: %w", err)
 		}
 		if events == windows.WAIT_OBJECT_0 {
-			// the premote event was signaled
+			// the promote event was signaled
 			// this means we are done with the experiment
 			// we can return without an error
 			return nil
@@ -880,7 +880,7 @@ func postPromoteConfigExperimentDatadogAgent(ctx HookContext) error {
 		// if we can't set the event it means the watchdog has failed
 		// In this case, we were already promoting the experiment
 		// so we can continue without error
-		log.Errorf("failed to set premote event: %s", err)
+		log.Errorf("failed to set promote event: %s", err)
 	}
 
 	// Set the registry key to point to the stable config (which now contains the promoted experiment)

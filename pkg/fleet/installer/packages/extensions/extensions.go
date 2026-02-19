@@ -141,7 +141,7 @@ func installSingle(ctx context.Context, pkg *oci.DownloadedPackage, extension st
 	span.SetTag("package_name", pkg.Name)
 	span.SetTag("package_version", pkg.Version)
 
-	// TODO: Nuke previous extension if it exists
+	// TODO: Remove previous extension if it exists
 
 	// Pre-install hook
 	err = hooks.PreInstallExtension(ctx, pkg.Name, extension)
