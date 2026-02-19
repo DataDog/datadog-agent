@@ -30,4 +30,3 @@ func (h *RunPredefinedPowershellScriptHandler) Run(
 ) (interface{}, error) {
 	return nil, errors.New("RunPredefinedPowershellScript is not available")
 }
-
