@@ -125,6 +125,15 @@ func initManager(mgr *ddebpf.Manager, runtimeTracer bool) error {
 		&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.NetDevQueueRawTracepoint, UID: probeUID}, TracepointName: "net_dev_queue", TracepointCategory: "net"},
 	)
 
+	if runtimeTracer {
+		// TCPEnterLoss and TCPEnterRecovery are inside the COMPILE_RUNTIME block in
+		// tracer.c and therefore only exist in the runtime-compiled ELF.
+		mgr.Probes = append(mgr.Probes, slices.Map([]probes.ProbeFuncName{
+			probes.TCPEnterLoss,
+			probes.TCPEnterRecovery,
+		}, funcNameToProbe)...)
+	}
+
 	if !runtimeTracer {
 		// the runtime compiled tracer has no need for separate probes targeting specific kernel versions, since it can
 		// do that with #ifdefs inline. Thus, the following probes should only be declared as existing in the prebuilt

@@ -620,4 +620,40 @@ int BPF_PROG(inet6_bind_exit, struct socket *sock, struct sockaddr *uaddr, int a
     return sys_exit_bind(rc);
 }
 
+SEC("kprobe/tcp_enter_loss")
+int kprobe__tcp_enter_loss(struct pt_regs *ctx) {
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("kprobe/tcp_enter_loss");
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    conn_tuple_t t = {};
+    u64 zero = 0;
+    if (!read_conn_tuple(&t, sk, zero, CONN_TYPE_TCP)) {
+        return 0;
+    }
+    tcp_rto_recovery_stats_t empty = {};
+    bpf_map_update_with_telemetry(tcp_rto_recovery_stats, &t, &empty, BPF_NOEXIST, -EEXIST);
+    tcp_rto_recovery_stats_t *val = bpf_map_lookup_elem(&tcp_rto_recovery_stats, &t);
+    if (val) {
+        __sync_fetch_and_add(&val->rto_count, 1);
+    }
+    return 0;
+}
+
+SEC("kprobe/tcp_enter_recovery")
+int kprobe__tcp_enter_recovery(struct pt_regs *ctx) {
+    RETURN_IF_NOT_IN_SYSPROBE_TASK("kprobe/tcp_enter_recovery");
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    conn_tuple_t t = {};
+    u64 zero = 0;
+    if (!read_conn_tuple(&t, sk, zero, CONN_TYPE_TCP)) {
+        return 0;
+    }
+    tcp_rto_recovery_stats_t empty = {};
+    bpf_map_update_with_telemetry(tcp_rto_recovery_stats, &t, &empty, BPF_NOEXIST, -EEXIST);
+    tcp_rto_recovery_stats_t *val = bpf_map_lookup_elem(&tcp_rto_recovery_stats, &t);
+    if (val) {
+        __sync_fetch_and_add(&val->recovery_count, 1);
+    }
+    return 0;
+}
+
 char _license[] SEC("license") = "GPL";

@@ -919,6 +919,38 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__tcp_retransmit_skb, int rc) {
     return handle_retransmit(sk, retrans_out - retrans_out_pre);
 }
 
+SEC("kprobe/tcp_enter_loss")
+int BPF_BYPASSABLE_KPROBE(kprobe__tcp_enter_loss, struct sock *sk) {
+    conn_tuple_t t = {};
+    u64 zero = 0;
+    if (!read_conn_tuple(&t, sk, zero, CONN_TYPE_TCP)) {
+        return 0;
+    }
+    tcp_rto_recovery_stats_t empty = {};
+    bpf_map_update_with_telemetry(tcp_rto_recovery_stats, &t, &empty, BPF_NOEXIST, -EEXIST);
+    tcp_rto_recovery_stats_t *val = bpf_map_lookup_elem(&tcp_rto_recovery_stats, &t);
+    if (val) {
+        __sync_fetch_and_add(&val->rto_count, 1);
+    }
+    return 0;
+}
+
+SEC("kprobe/tcp_enter_recovery")
+int BPF_BYPASSABLE_KPROBE(kprobe__tcp_enter_recovery, struct sock *sk) {
+    conn_tuple_t t = {};
+    u64 zero = 0;
+    if (!read_conn_tuple(&t, sk, zero, CONN_TYPE_TCP)) {
+        return 0;
+    }
+    tcp_rto_recovery_stats_t empty = {};
+    bpf_map_update_with_telemetry(tcp_rto_recovery_stats, &t, &empty, BPF_NOEXIST, -EEXIST);
+    tcp_rto_recovery_stats_t *val = bpf_map_lookup_elem(&tcp_rto_recovery_stats, &t);
+    if (val) {
+        __sync_fetch_and_add(&val->recovery_count, 1);
+    }
+    return 0;
+}
+
 #endif // COMPILE_CORE || COMPILE_RUNTIME
 
 SEC("kprobe/tcp_connect")

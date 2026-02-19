@@ -155,6 +155,30 @@ func (c *ConnectionStats) FromTupleAndStats(t *netebpf.ConnTuple, s *netebpf.Con
 	}
 }
 
+// FromTCPCongestionStats populates the TCP congestion snapshot fields on ConnectionStats.
+func (c *ConnectionStats) FromTCPCongestionStats(cs *netebpf.TCPCongestionStats) {
+	if c.Type != TCP || cs == nil {
+		return
+	}
+
+	c.TCPPacketsOut = cs.Packets_out
+	c.TCPLostOut = cs.Lost_out
+	c.TCPSackedOut = cs.Sacked_out
+	c.TCPDelivered = cs.Delivered
+	c.TCPRetransOut = cs.Retrans_out
+	c.TCPCAState = cs.Ca_state
+}
+
+// FromTCPRTORecoveryStats populates the RTO and fast-recovery event counter fields on ConnectionStats.
+func (c *ConnectionStats) FromTCPRTORecoveryStats(rs *netebpf.TCPRTORecoveryStats) {
+	if c.Type != TCP || rs == nil {
+		return
+	}
+
+	c.TCPRTOCount = rs.Rto_count
+	c.TCPRecoveryCount = rs.Recovery_count
+}
+
 // FromTCPStats populates relevant fields on ConnectionStats from the arguments
 func (c *ConnectionStats) FromTCPStats(tcpStats *netebpf.TCPStats) {
 	if c.Type != TCP || tcpStats == nil {

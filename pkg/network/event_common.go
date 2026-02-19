@@ -287,9 +287,24 @@ type ConnectionStats struct {
 	Duration        time.Duration
 	RTT             uint32 // Stored in µs
 	RTTVar          uint32
-	StaticTags      uint64
-	ProtocolStack   protocols.Stack
-	TLSTags         tls.Tags
+	// TCP congestion snapshot fields (CO-RE/runtime tracer only; 0 on prebuilt)
+	// Note: spurious_retrans (DSACK-detected spurious retransmits) is intentionally
+	// omitted — the field is absent from the BTF of the build kernel and requires
+	// further investigation across kernel versions before it can be added.
+	TCPPacketsOut uint32 // segments currently in-flight
+	TCPLostOut    uint32 // SACK/RACK estimated lost segments
+	TCPSackedOut  uint32 // segments SACKed by receiver
+	TCPDelivered  uint32 // total segments delivered (loss rate denominator)
+	TCPRetransOut uint32 // retransmitted segments still in-flight
+	// TODO: before productionizing, move TCPCAState to the trailing single-byte
+	// section (near SPortIsEphemeral) to avoid 3 bytes of alignment padding.
+	TCPCAState uint8 // inet_connection_sock CA state (0=Open,1=Disorder,2=CWR,3=Recovery,4=Loss)
+	// TCP RTO/recovery event counters (CO-RE/runtime tracer only; 0 on prebuilt)
+	TCPRTOCount      uint32 // number of RTO loss events (tcp_enter_loss invocations)
+	TCPRecoveryCount uint32 // number of fast-recovery events (tcp_enter_recovery invocations)
+	StaticTags       uint64
+	ProtocolStack    protocols.Stack
+	TLSTags          tls.Tags
 
 	// keep these fields last because they are 1 byte each and otherwise inflate the struct size due to alignment
 	SPortIsEphemeral EphemeralPortType

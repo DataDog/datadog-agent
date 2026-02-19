@@ -95,6 +95,32 @@ typedef struct {
     __u16 failure_reason;
 } tcp_stats_t;
 
+// Per-connection TCP congestion snapshot. Stored in a separate BPF map (not in conn_t)
+// to avoid overflowing the BPF stack in flush_conn_close_if_full(). Updated on every
+// sendmsg/recvmsg via handle_congestion_stats(). CO-RE/runtime only; prebuilt returns 0.
+typedef struct {
+    __u32 packets_out;  // segments currently in-flight
+    __u32 lost_out;     // SACK/RACK estimated lost segments
+    __u32 sacked_out;   // segments SACKed by receiver
+    __u32 delivered;    // total segments delivered (loss rate denominator)
+    __u32 retrans_out;  // retransmitted segments still in-flight
+    // Note: spurious_retrans (tcp_sock.spurious_retrans, DSACK-detected spurious
+    // retransmits) is intentionally omitted — the field is absent from the BTF of
+    // the build kernel and requires investigation across kernel versions.
+    __u8  ca_state;     // inet_connection_sock.icsk_ca_state (TCP_CA_Open=0..TCP_CA_Loss=4)
+    __u8  _pad[3];      // explicit padding to maintain 4-byte alignment
+} tcp_congestion_stats_t;
+
+// Per-connection RTO and fast-recovery event counters. Stored in a separate BPF map
+// (not in conn_t) for the same BPF stack reason as tcp_congestion_stats_t. Keyed by
+// zero-PID conn_tuple_t (like tcp_retransmits) because tcp_enter_loss /
+// tcp_enter_recovery fire in kernel context without a reliable userspace PID.
+// CO-RE/runtime only; prebuilt returns 0.
+typedef struct {
+    __u32 rto_count;       // number of tcp_enter_loss() invocations
+    __u32 recovery_count;  // number of tcp_enter_recovery() invocations
+} tcp_rto_recovery_stats_t;
+
 // Full data for a tcp connection
 typedef struct {
     conn_tuple_t tup;

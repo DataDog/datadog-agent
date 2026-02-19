@@ -306,6 +306,29 @@ static __always_inline int handle_retransmit(struct sock *sk, int count) {
     return 0;
 }
 
+// handle_congestion_stats snapshots TCP congestion fields from tcp_sock into the
+// tcp_congestion_stats map. CO-RE/runtime only; prebuilt is a no-op.
+static __always_inline void handle_congestion_stats(conn_tuple_t *t, struct sock *sk) {
+#if !defined(COMPILE_PREBUILT)
+    tcp_congestion_stats_t empty = {};
+    // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for
+    // EEXIST here spams metrics and does not provide any useful signal since the key
+    // is expected to be present sometimes.
+    bpf_map_update_with_telemetry(tcp_congestion_stats, t, &empty, BPF_NOEXIST, -EEXIST);
+    tcp_congestion_stats_t *val = bpf_map_lookup_elem(&tcp_congestion_stats, t);
+    if (val == NULL) {
+        return;
+    }
+    BPF_CORE_READ_INTO(&val->packets_out, tcp_sk(sk), packets_out);
+    BPF_CORE_READ_INTO(&val->lost_out,    tcp_sk(sk), lost_out);
+    BPF_CORE_READ_INTO(&val->sacked_out,  tcp_sk(sk), sacked_out);
+    BPF_CORE_READ_INTO(&val->delivered,   tcp_sk(sk), delivered);
+    BPF_CORE_READ_INTO(&val->retrans_out, tcp_sk(sk), retrans_out);
+    struct inet_connection_sock *icsk = &tcp_sk(sk)->inet_conn;
+    val->ca_state = (u8)BPF_CORE_READ_BITFIELD_PROBED(icsk, icsk_ca_state);
+#endif
+}
+
 static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u8 state) {
     u32 rtt = 0, rtt_var = 0;
 #ifdef COMPILE_PREBUILT
@@ -321,6 +344,7 @@ static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u
         stats.state_transitions = (1 << state);
     }
     update_tcp_stats(t, stats);
+    handle_congestion_stats(t, sk);
 }
 
 static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buff *skb, int len) {
