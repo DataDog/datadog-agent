@@ -272,6 +272,15 @@ def _build_wxs(ctx, env, outdir, ca_dll):
     if not os.path.exists(wixsetup):
         raise Exit(f"WXS builder not found: {wixsetup}")
 
+    # Delete stale embedded3.COMPRESSED so that debug builds always re-compress
+    # from the current source directory (e.g. after fetch_artifacts updates
+    # C:\opt\datadog-agent\embedded3). In debug builds CompressedDir.cs skips
+    # re-compression when the file already exists.
+    compressed_file = os.path.join(BUILD_SOURCE_DIR, 'WixSetup', 'embedded3.COMPRESSED')
+    if os.path.exists(compressed_file):
+        print(f"Deleting stale compressed file: {compressed_file}")
+        os.remove(compressed_file)
+
     # Run the builder to produce the WXS
     # Set an env var to tell WixSetup.exe where to put the output
     env['AGENT_MSI_OUTDIR'] = outdir
