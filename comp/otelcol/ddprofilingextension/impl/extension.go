@@ -108,8 +108,8 @@ func (e *ddExtension) startForOCB() error {
 	os.Setenv("DD_PROFILING_AGENTLESS", "true")
 	os.Setenv("DD_API_KEY", string(e.cfg.API.Key))
 	defer func() {
-		os.Unsetenv("DD_PROFILING_AGENTLESS")
-		os.Unsetenv("DD_API_KEY")
+		_ = os.Unsetenv("DD_PROFILING_AGENTLESS")
+		_ = os.Unsetenv("DD_API_KEY")
 	}()
 
 	if string(e.cfg.API.Site) != "" {
