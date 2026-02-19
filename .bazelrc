@@ -56,6 +56,7 @@ common:cache --remote_timeout=60
 # CI config ------------------------------------------------------------------------------------------------------------
 common:ci --config=adms
 common:ci --config=cache
+common:ci --noexperimental_convenience_symlinks # not CI-suitable: "These symlinks are only for the user's convenience"
 
 # For Rust targets, enable clippy and rustfmt checks during the build
 build:ci --aspects=@rules_rust//rust:defs.bzl%rust_clippy_aspect
