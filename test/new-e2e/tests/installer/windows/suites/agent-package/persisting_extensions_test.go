@@ -54,11 +54,6 @@ func (s *testExtensionsSuite) removeExtension(packageName, extensionName string)
 	s.Require().NoError(err, "Failed to remove extension: %s", output)
 }
 
-// getAgentPackageURL returns the OCI URL for the current agent version.
-func (s *testExtensionsSuite) getAgentPackageURL() string {
-	return s.CurrentAgentVersion().OCIPackage().URL()
-}
-
 // verifyDDOTRunning verifies that DDOT is running via PowerShell service check.
 func (s *testExtensionsSuite) verifyDDOTRunning() {
 	assert.Eventually(s.T(), func() bool {
@@ -130,7 +125,7 @@ func (s *testExtensionsSuite) installCurrentAgentVersion(opts ...installerwindow
 func (s *testExtensionsSuite) TestExtensionPersistThroughMSIUpgrade() {
 	s.setAgentConfig()
 	s.installPreviousAgentVersion()
-	s.installExtension(s.getAgentPackageURL(), "ddot")
+	s.installExtension(s.StableAgentVersion().OCIPackage(), "ddot")
 	defer func() {
 		s.removeExtension("datadog-agent", "ddot")
 	}()
@@ -145,7 +140,7 @@ func (s *testExtensionsSuite) TestExtensionPersistThroughMSIUpgrade() {
 func (s *testExtensionsSuite) TestExtensionPersistThroughExperiment() {
 	s.setAgentConfig()
 	s.installPreviousAgentVersion()
-	s.installExtension(s.getAgentPackageURL(), "ddot")
+	s.installExtension(s.StableAgentVersion().OCIPackage(), "ddot")
 	defer func() {
 		s.removeExtension("datadog-agent", "ddot")
 	}()
@@ -165,7 +160,7 @@ func (s *testExtensionsSuite) TestExtensionPersistThroughExperiment() {
 func (s *testExtensionsSuite) TestExtensionRestoredOnMSIRollback() {
 	s.setAgentConfig()
 	s.installPreviousAgentVersion()
-	s.installExtension(s.getAgentPackageURL(), "ddot")
+	s.installExtension(s.StableAgentVersion().OCIPackage(), "ddot")
 	defer func() {
 		s.removeExtension("datadog-agent", "ddot")
 	}()
@@ -203,7 +198,7 @@ func (s *testExtensionsSuite) TestExtensionRemovedOnUninstall() {
 	s.installCurrentAgentVersion()
 
 	// 2. Install DDOT extension
-	s.installExtension(s.getAgentPackageURL(), "ddot")
+	s.installExtension(s.CurrentAgentVersion().OCIPackage(), "ddot")
 
 	// 3. Verify DDOT is running
 	s.verifyDDOTRunning()
