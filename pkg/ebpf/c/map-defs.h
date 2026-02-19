@@ -61,4 +61,12 @@
 #define BPF_STACK_MAP(name, value_type, max_entries) \
     BPF_MAP(name, BPF_MAP_TYPE_STACK, 0, value_type, max_entries, 0, 0, EXCLUDE_KEY_TYPE)
 
+#define BPF_TASK_STORAGE_MAP(name, value_type) \
+    struct {                                   \
+        __uint(type, BPF_MAP_TYPE_TASK_STORAGE); \
+        __uint(map_flags, BPF_F_NO_PREALLOC);   \
+        __type(key, int);                        \
+        __type(value, value_type);               \
+    } name SEC(".maps");
+
 #endif
