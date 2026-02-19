@@ -16,7 +16,7 @@ BPF_PERCPU_HASH_MAP(cgroup_agg_stats, __u64, cgroup_agg_stats_t, MAX_TASK_ENTRIE
 
 void bpf_rcu_read_lock(void) __ksym;
 void bpf_rcu_read_unlock(void) __ksym;
-void *bpf_rdonly_cast(void *obj, __u32 btf_id) __ksym;
+extern void *bpf_rdonly_cast(const void *obj, __u32 btf_id) __ksym __weak;
 
 static __always_inline u64 get_task_cgroup_id(struct task_struct *task) {
     struct css_set *cgroups;
