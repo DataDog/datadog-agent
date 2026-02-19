@@ -78,6 +78,10 @@ datadog_otel_components_ocb_build:
   rules:
     - !reference [.on_otel_components_changes]
   timeout: 15 minutes
+  variables:
+    KUBERNETES_CPU_REQUEST: 16
+    KUBERNETES_MEMORY_REQUEST: 32Gi
+    KUBERNETES_MEMORY_LIMIT: 32Gi
 
 # Test that the BYOC packages can be built with the existing Dockerfile
 ddot_byoc_package_build_test_rpm:
