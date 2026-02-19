@@ -22,31 +22,18 @@ func newTestMessage(content string) *message.Message {
 	return msg
 }
 
-// testHandlerWithTokenizer wraps AutoMultilineHandler and tokenizes messages before processing
-type testHandlerWithTokenizer struct {
-	*AutoMultilineHandler
-	tokenizer *preprocessor.Tokenizer
-}
-
-func (t *testHandlerWithTokenizer) process(msg *message.Message) {
-	msg.ParsingExtra.Tokens, msg.ParsingExtra.TokenIndices = t.tokenizer.Tokenize(msg.GetContent())
-	t.AutoMultilineHandler.process(msg)
-}
-
-func newCombiningHandler(outputFn func(*message.Message), maxContentSize int, flushTimeout time.Duration) *testHandlerWithTokenizer {
+func newCombiningHandler(outputFn func(*message.Message), maxContentSize int, flushTimeout time.Duration) LineHandler {
 	tailerInfo := status.NewInfoRegistry()
 	aggregator := preprocessor.NewCombiningAggregator(outputFn, maxContentSize, false, false, tailerInfo)
-	handler := NewAutoMultilineHandler(aggregator, maxContentSize, flushTimeout, tailerInfo, nil, nil, true)
 	tokenizer := preprocessor.NewTokenizer(1000)
-	return &testHandlerWithTokenizer{AutoMultilineHandler: handler, tokenizer: tokenizer}
+	return NewAutoMultilineHandler(aggregator, tokenizer, maxContentSize, flushTimeout, tailerInfo, nil, nil, true)
 }
 
-func newDetectingHandler(outputFn func(*message.Message), maxContentSize int, flushTimeout time.Duration) *testHandlerWithTokenizer {
+func newDetectingHandler(outputFn func(*message.Message), maxContentSize int, flushTimeout time.Duration) LineHandler {
 	tailerInfo := status.NewInfoRegistry()
 	aggregator := preprocessor.NewDetectingAggregator(outputFn, tailerInfo)
-	handler := NewAutoMultilineHandler(aggregator, maxContentSize, flushTimeout, tailerInfo, nil, nil, false)
 	tokenizer := preprocessor.NewTokenizer(1000)
-	return &testHandlerWithTokenizer{AutoMultilineHandler: handler, tokenizer: tokenizer}
+	return NewAutoMultilineHandler(aggregator, tokenizer, maxContentSize, flushTimeout, tailerInfo, nil, nil, false)
 }
 
 func TestAutoMultilineHandler_ManualFlush(t *testing.T) {
@@ -209,9 +196,11 @@ func TestAutoMultilineHandler_JSONAggregationDisabled(t *testing.T) {
 		outputChan <- m
 	}
 
-	// Create handler with JSON aggregation disabled
-	handler := newCombiningHandler(outputFn, 1000, 10*time.Second)
-	handler.enableJSONAggregation = false
+	// Create handler with JSON aggregation explicitly disabled
+	tailerInfo := status.NewInfoRegistry()
+	aggregator := preprocessor.NewCombiningAggregator(outputFn, 1000, false, false, tailerInfo)
+	tokenizer := preprocessor.NewTokenizer(1000)
+	handler := NewAutoMultilineHandler(aggregator, tokenizer, 1000, 10*time.Second, tailerInfo, nil, nil, false)
 
 	// Process multi-part JSON
 	handler.process(newTestMessage(`{"key":`))
@@ -393,7 +382,7 @@ func TestAutoMultilineHandler_AggregationMode_CombinesLines(t *testing.T) {
 	}
 }
 
-func TestAutoMultilineHandler_DetectionMode_DisablesJSONAggregation(t *testing.T) {
+func TestAutoMultilineHandler_DetectionMode_DoesNotCombineJSON(t *testing.T) {
 	outputChan := make(chan *message.Message, 10)
 	outputFn := func(m *message.Message) {
 		outputChan <- m
@@ -401,21 +390,18 @@ func TestAutoMultilineHandler_DetectionMode_DisablesJSONAggregation(t *testing.T
 
 	handler := newDetectingHandler(outputFn, 1000, 10*time.Second)
 
-	// Verify JSON aggregation is disabled
-	assert.False(t, handler.enableJSONAggregation, "JSON aggregation should be disabled in detection mode")
-
-	// Process split JSON that would normally be combined
+	// Process split JSON that would be combined in aggregation mode
 	handler.process(newTestMessage(`{"key":`))
 	handler.process(newTestMessage(`"value"}`))
 
-	// Should receive two separate messages, not combined
+	// Detection mode does not enable JSON aggregation - should receive two separate messages
 	msg1 := <-outputChan
 	msg2 := <-outputChan
 	assert.Equal(t, `{"key":`, string(msg1.GetContent()))
 	assert.Equal(t, `"value"}`, string(msg2.GetContent()))
 }
 
-func TestAutoMultilineHandler_CombiningMode_EnablesJSONAggregation(t *testing.T) {
+func TestAutoMultilineHandler_CombiningMode_CombinesJSON(t *testing.T) {
 	outputChan := make(chan *message.Message, 10)
 	outputFn := func(m *message.Message) {
 		outputChan <- m
@@ -423,6 +409,18 @@ func TestAutoMultilineHandler_CombiningMode_EnablesJSONAggregation(t *testing.T)
 
 	handler := newCombiningHandler(outputFn, 1000, 10*time.Second)
 
-	// Verify JSON aggregation is enabled
-	assert.True(t, handler.enableJSONAggregation, "JSON aggregation should be enabled in combining mode")
+	// Combining mode enables JSON aggregation - split JSON should be combined
+	handler.process(newTestMessage(`{"key":`))
+	handler.process(newTestMessage(`"value"}`))
+
+	// Should receive one combined message
+	msg := <-outputChan
+	assert.Equal(t, `{"key":"value"}`, string(msg.GetContent()))
+
+	// Verify no more messages
+	select {
+	case <-outputChan:
+		assert.Fail(t, "Expected only one combined message")
+	default:
+	}
 }

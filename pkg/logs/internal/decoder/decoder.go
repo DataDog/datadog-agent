@@ -52,36 +52,6 @@ type Decoder interface {
 	OutputChan() chan *message.Message
 }
 
-// TokenizingLineHandler wraps a LineHandler and tokenizes messages before passing them through.
-// This ensures messages have tokens populated in ParsingExtra before reaching handlers like AutoMultilineHandler.
-type TokenizingLineHandler struct {
-	tokenizer   *preprocessor.Tokenizer
-	lineHandler LineHandler
-}
-
-// NewTokenizingLineHandler creates a wrapper that tokenizes messages before passing to the underlying handler.
-func NewTokenizingLineHandler(tok *preprocessor.Tokenizer, lineHandler LineHandler) *TokenizingLineHandler {
-	return &TokenizingLineHandler{
-		tokenizer:   tok,
-		lineHandler: lineHandler,
-	}
-}
-
-func (t *TokenizingLineHandler) process(msg *message.Message) {
-	// Tokenize first - populates msg.ParsingExtra.Tokens
-	msg.ParsingExtra.Tokens, msg.ParsingExtra.TokenIndices = t.tokenizer.Tokenize(msg.GetContent())
-	// Then pass to actual line handler
-	t.lineHandler.process(msg)
-}
-
-func (t *TokenizingLineHandler) flushChan() <-chan time.Time {
-	return t.lineHandler.flushChan()
-}
-
-func (t *TokenizingLineHandler) flush() {
-	t.lineHandler.flush()
-}
-
 // decoderImpl is the default implementation of the Decoder interface
 type decoderImpl struct {
 	inputChan  chan *message.Message
@@ -161,16 +131,12 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 		adaptiveSampler.process(msg)
 	}
 
-	// Build the base line handler (e.g., AutoMultilineHandler, SingleLineHandler)
-	baseLineHandler := buildLineHandler(source, multiLinePattern, tailerInfo, outputFn, detectedPattern)
-
-	// Create tokenizer and wrap the line handler
 	// TODO: AGNTLOG-553 Respect source-specific tokenizer settings
 	//       (source.Config().AutoMultiLineOptions.TokenizerMaxInputBytes) to
 	//       avoid breaking change for sources with custom tokenizer config
 	tokenizerMaxInputBytes := pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")
 	tok := preprocessor.NewTokenizer(tokenizerMaxInputBytes)
-	lineHandler := NewTokenizingLineHandler(tok, baseLineHandler)
+	lineHandler := buildLineHandler(source, multiLinePattern, tailerInfo, outputFn, detectedPattern, tok)
 
 	var lineParser LineParser
 	if parser.SupportsPartialLine() {
@@ -184,7 +150,7 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 	return New(inputChan, outputChan, framer, lineParser, lineHandler, adaptiveSampler, detectedPattern)
 }
 
-func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry, outputFn func(*message.Message), detectedPattern *DetectedPattern) LineHandler {
+func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry, outputFn func(*message.Message), detectedPattern *DetectedPattern, tok *preprocessor.Tokenizer) LineHandler {
 	maxContentSize := config.MaxMessageSizeBytes(pkgconfigsetup.Datadog())
 
 	// construct the lineHandler
@@ -205,9 +171,9 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 		if source.Config().LegacyAutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
 			lineHandler = getLegacyAutoMultilineHandler(outputFn, multiLinePattern, maxContentSize, source, detectedPattern, tailerInfo)
 		} else if source.Config().AutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
-			lineHandler = getAutoMultilineAggregatingHandler(outputFn, maxContentSize, tailerInfo, source)
+			lineHandler = getAutoMultilineAggregatingHandler(outputFn, maxContentSize, tailerInfo, source, tok)
 		} else if pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line_detection_tagging") {
-			lineHandler = getAutoMultilineDetectingHandler(outputFn, tailerInfo, maxContentSize, source)
+			lineHandler = getAutoMultilineDetectingHandler(outputFn, tailerInfo, maxContentSize, source, tok)
 		} else {
 			lineHandler = NewSingleLineHandler(outputFn, maxContentSize)
 		}
@@ -215,14 +181,14 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 	return lineHandler
 }
 
-func getAutoMultilineDetectingHandler(outputFn func(msg *message.Message), tailerInfo *status.InfoRegistry, maxContentSize int, source *sources.ReplaceableSource) LineHandler {
+func getAutoMultilineDetectingHandler(outputFn func(msg *message.Message), tailerInfo *status.InfoRegistry, maxContentSize int, source *sources.ReplaceableSource, tok *preprocessor.Tokenizer) LineHandler {
 	// JSON aggregation is disabled in detection mode for consistency - we don't want to combine JSON
 	// while only tagging everything else
 	aggregator := preprocessor.NewDetectingAggregator(outputFn, tailerInfo)
-	return NewAutoMultilineHandler(aggregator, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo, source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, false)
+	return NewAutoMultilineHandler(aggregator, tok, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo, source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, false)
 }
 
-func getAutoMultilineAggregatingHandler(outputFn func(msg *message.Message), maxContentSize int, tailerInfo *status.InfoRegistry, source *sources.ReplaceableSource) LineHandler {
+func getAutoMultilineAggregatingHandler(outputFn func(msg *message.Message), maxContentSize int, tailerInfo *status.InfoRegistry, source *sources.ReplaceableSource, tok *preprocessor.Tokenizer) LineHandler {
 	aggregator := preprocessor.NewCombiningAggregator(
 		outputFn,
 		maxContentSize,
@@ -235,7 +201,7 @@ func getAutoMultilineAggregatingHandler(outputFn func(msg *message.Message), max
 	if source.Config().AutoMultiLineOptions != nil && source.Config().AutoMultiLineOptions.EnableJSONAggregation != nil {
 		enableJSONAggregation = *source.Config().AutoMultiLineOptions.EnableJSONAggregation
 	}
-	return NewAutoMultilineHandler(aggregator, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo, source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, enableJSONAggregation)
+	return NewAutoMultilineHandler(aggregator, tok, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo, source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, enableJSONAggregation)
 }
 
 func getLegacyAutoMultilineHandler(outputFn func(*message.Message), multiLinePattern *regexp.Regexp, maxContentSize int, source *sources.ReplaceableSource, detectedPattern *DetectedPattern, tailerInfo *status.InfoRegistry) LineHandler {

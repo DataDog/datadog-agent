@@ -16,24 +16,17 @@ import (
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
-// AutoMultilineHandler aggregates or detects multiline logs.
-type AutoMultilineHandler struct {
-	labeler               *preprocessor.Labeler
-	aggregator            preprocessor.Aggregator
-	jsonAggregator        *preprocessor.JSONAggregator
-	flushTimeout          time.Duration
-	flushTimer            *time.Timer
-	enableJSONAggregation bool
+// autoMultilineHandler is a thin adapter satisfying the LineHandler interface.
+// It delegates all processing to a Pipeline that runs stages in the correct order:
+// JSON aggregation → tokenization → labeling → aggregation.
+type autoMultilineHandler struct {
+	pipeline *preprocessor.Pipeline
 }
 
 // NewAutoMultilineHandler creates a new auto multiline handler.
 // The aggregator parameter determines whether logs are combined (combiningAggregator) or just tagged (detectingAggregator).
 // enableJSONAggregation controls whether split JSON objects should be combined before processing.
-func NewAutoMultilineHandler(aggregator preprocessor.Aggregator, maxContentSize int, flushTimeout time.Duration, tailerInfo *status.InfoRegistry, sourceSettings *config.SourceAutoMultiLineOptions, sourceSamples []*config.AutoMultilineSample, enableJSONAggregation bool) *AutoMultilineHandler {
-
-	// Order is important
-	// Note: Tokenization is handled by TokenizingLineHandler in the decoder pipeline.
-	// Tokens must be pre-populated in msg.ParsingExtra.Tokens before reaching this handler.
+func NewAutoMultilineHandler(aggregator preprocessor.Aggregator, tokenizer *preprocessor.Tokenizer, maxContentSize int, flushTimeout time.Duration, tailerInfo *status.InfoRegistry, sourceSettings *config.SourceAutoMultiLineOptions, sourceSamples []*config.AutoMultilineSample, enableJSONAggregation bool) LineHandler {
 	heuristics := []preprocessor.Heuristic{}
 	sourceHasSettings := sourceSettings != nil
 
@@ -73,74 +66,21 @@ func NewAutoMultilineHandler(aggregator preprocessor.Aggregator, maxContentSize 
 		tailerInfo),
 	}
 
-	handler := &AutoMultilineHandler{
-		labeler:               preprocessor.NewLabeler(heuristics, analyticsHeuristics),
-		aggregator:            aggregator,
-		jsonAggregator:        preprocessor.NewJSONAggregator(pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.tag_aggregated_json"), maxContentSize),
-		flushTimeout:          flushTimeout,
-		enableJSONAggregation: enableJSONAggregation,
-	}
+	labeler := preprocessor.NewLabeler(heuristics, analyticsHeuristics)
+	jsonAggregator := preprocessor.NewJSONAggregator(pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.tag_aggregated_json"), maxContentSize)
+	pipeline := preprocessor.NewPipeline(aggregator, tokenizer, labeler, jsonAggregator, enableJSONAggregation, flushTimeout)
 
-	return handler
+	return &autoMultilineHandler{pipeline: pipeline}
 }
 
-func (a *AutoMultilineHandler) process(msg *message.Message) {
-	a.stopFlushTimerIfNeeded()
-	defer a.startFlushTimerIfNeeded()
-
-	if a.enableJSONAggregation {
-		msgs := a.jsonAggregator.Process(msg)
-		for _, m := range msgs {
-			label := a.labeler.Label(m)
-			a.aggregator.Process(m, label)
-		}
-	} else {
-		label := a.labeler.Label(msg)
-		a.aggregator.Process(msg, label)
-	}
+func (a *autoMultilineHandler) process(msg *message.Message) {
+	a.pipeline.Process(msg)
 }
 
-func (a *AutoMultilineHandler) flushChan() <-chan time.Time {
-	if a.flushTimer != nil {
-		return a.flushTimer.C
-	}
-	return nil
+func (a *autoMultilineHandler) flushChan() <-chan time.Time {
+	return a.pipeline.FlushChan()
 }
 
-func (a *AutoMultilineHandler) isEmpty() bool {
-	return a.aggregator.IsEmpty() && a.jsonAggregator.IsEmpty()
-}
-
-func (a *AutoMultilineHandler) flush() {
-	if a.enableJSONAggregation {
-		msgs := a.jsonAggregator.Flush()
-		for _, m := range msgs {
-			label := a.labeler.Label(m)
-			a.aggregator.Process(m, label)
-		}
-	}
-	a.aggregator.Flush()
-	a.stopFlushTimerIfNeeded()
-}
-
-func (a *AutoMultilineHandler) stopFlushTimerIfNeeded() {
-	if a.flushTimer == nil || a.isEmpty() {
-		return
-	}
-	// stop the flush timer, as we now have data
-	if !a.flushTimer.Stop() {
-		<-a.flushTimer.C
-	}
-}
-
-func (a *AutoMultilineHandler) startFlushTimerIfNeeded() {
-	if a.isEmpty() {
-		return
-	}
-	// since there's buffered data, start the flush timer to flush it
-	if a.flushTimer == nil {
-		a.flushTimer = time.NewTimer(a.flushTimeout)
-	} else {
-		a.flushTimer.Reset(a.flushTimeout)
-	}
+func (a *autoMultilineHandler) flush() {
+	a.pipeline.Flush()
 }
