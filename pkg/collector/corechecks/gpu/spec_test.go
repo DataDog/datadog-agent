@@ -76,14 +76,33 @@ type architectureSpec struct {
 	UnsupportedDeviceFeatures []string                 `yaml:"unsupported_device_features"`
 }
 
+func (m specMetric) supportsArchitecture(arch string) bool {
+	for _, u := range m.Support.UnsupportedArchitectures {
+		if u == arch {
+			return false
+		}
+	}
+	return true
+}
+
+// supportsDeviceFeature returns true if the metric's device_features explicitly allows the mode.
+// "true" = supported, "false" = not supported, "unknown" or missing = treat as not required for assertion.
+func (m specMetric) supportsDeviceFeature(mode string) bool {
+	if m.Support.DeviceFeatures == nil {
+		return false
+	}
+	v, ok := m.Support.DeviceFeatures[mode]
+	return ok && v == "true"
+}
+
 var nvmlFieldNameToFieldID = map[string]uint32{
-	"FI_DEV_MEMORY_TEMP":                   nvml.FI_DEV_MEMORY_TEMP,
-	"FI_DEV_NVLINK_THROUGHPUT_DATA_RX":     nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX,
-	"FI_DEV_NVLINK_THROUGHPUT_DATA_TX":     nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_TX,
-	"FI_DEV_NVLINK_THROUGHPUT_RAW_RX":      nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX,
-	"FI_DEV_NVLINK_THROUGHPUT_RAW_TX":      nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX,
-	"FI_DEV_NVLINK_SPEED_MBPS_COMMON":      nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON,
-	"FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT": nvml.FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT,
+	"FI_DEV_MEMORY_TEMP":                       nvml.FI_DEV_MEMORY_TEMP,
+	"FI_DEV_NVLINK_THROUGHPUT_DATA_RX":         nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_RX,
+	"FI_DEV_NVLINK_THROUGHPUT_DATA_TX":         nvml.FI_DEV_NVLINK_THROUGHPUT_DATA_TX,
+	"FI_DEV_NVLINK_THROUGHPUT_RAW_RX":          nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_RX,
+	"FI_DEV_NVLINK_THROUGHPUT_RAW_TX":          nvml.FI_DEV_NVLINK_THROUGHPUT_RAW_TX,
+	"FI_DEV_NVLINK_SPEED_MBPS_COMMON":          nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON,
+	"FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT":     nvml.FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT,
 	"FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL": nvml.FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL,
 	"FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL": nvml.FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL,
 	"FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL": nvml.FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL,
@@ -138,27 +157,6 @@ func loadArchitectures(t *testing.T) *architecturesFile {
 	return &arch
 }
 
-// isArchitectureSupported returns true if the metric is supported on the given architecture.
-// A metric is supported if the architecture is not in the metric's unsupported_architectures list.
-func isArchitectureSupported(metric specMetric, arch string) bool {
-	for _, u := range metric.Support.UnsupportedArchitectures {
-		if u == arch {
-			return false
-		}
-	}
-	return true
-}
-
-// isDeviceFeatureSupported returns true if the metric's device_features explicitly allows the mode.
-// "true" = supported, "false" = not supported, "unknown" or missing = treat as not required for assertion.
-func isDeviceFeatureSupported(metric specMetric, mode string) bool {
-	if metric.Support.DeviceFeatures == nil {
-		return false
-	}
-	v, ok := metric.Support.DeviceFeatures[mode]
-	return ok && v == "true"
-}
-
 // isModeSupportedByArchitecture returns true if the architecture spec allows the device feature mode
 // (i.e. mode is not in unsupported_device_features).
 func isModeSupportedByArchitecture(archSpec architectureSpec, mode string) bool {
@@ -210,8 +208,6 @@ func TestLoadArchitecturesNotEmpty(t *testing.T) {
 
 	require.NotEmpty(t, arch.Architectures, "architectures should not be empty")
 	for name, spec := range arch.Architectures {
-		name := name
-		spec := spec
 		t.Run(name, func(t *testing.T) {
 			require.NotNil(t, spec.UnsupportedDeviceFeatures, "unsupported_device_features should be present")
 		})
@@ -241,21 +237,20 @@ func TestMockCapabilitiesMatchArchitectureSpec(t *testing.T) {
 				ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(opts...))
 
 				lib, err := ddnvml.GetSafeNvmlLib()
-				require.NoError(t, err, "arch=%s mode=%s: get NVML lib", archName, mode)
+				require.NoError(t, err, "should be able to get NVML lib", archName, mode)
 				dev, err := lib.DeviceGetHandleByIndex(0)
-				require.NoError(t, err, "arch=%s mode=%s: get device 0", archName, mode)
+				require.NoError(t, err, "should be able to get device 0", archName, mode)
 
 				caps := archSpec.Capabilities
-				ctx := "arch=" + archName + " mode=" + string(mode)
 
 				// gpm -> GpmQueryDeviceSupport(): IsSupportedDevice 1 when enabled, 0 when disabled
 				support, err := dev.GpmQueryDeviceSupport()
-				require.NoError(t, err, "%s: GpmQueryDeviceSupport", ctx)
+				require.NoError(t, err, "GpmQueryDeviceSupport should not report an error")
 				expected := uint32(0)
 				if caps.GPM {
 					expected = 1
 				}
-				assert.Equal(t, expected, support.IsSupportedDevice, "%s: capability gpm=%v should yield GpmQueryDeviceSupport.IsSupportedDevice=%d", ctx, caps.GPM, expected)
+				assert.Equal(t, expected, support.IsSupportedDevice, "GpmQueryDeviceSupport.IsSupportedDevice should be %d when gpm=%v", expected, caps.GPM)
 
 				unsupportedIDs := unsupportedFieldIDsFromNames(t, caps.UnsupportedFields)
 				unsupportedSet := make(map[uint32]struct{}, len(unsupportedIDs))
@@ -265,13 +260,13 @@ func TestMockCapabilitiesMatchArchitectureSpec(t *testing.T) {
 
 				fieldValues := allConfiguredNVMLFieldValues()
 				err = dev.GetFieldValues(fieldValues)
-				require.NoError(t, err, "%s: GetFieldValues should be callable", ctx)
+				require.NoError(t, err, "GetFieldValues should not return an error")
 				for _, fv := range fieldValues {
 					_, isUnsupported := unsupportedSet[fv.FieldId]
 					if isUnsupported {
-						require.Equal(t, uint32(nvml.ERROR_NOT_SUPPORTED), fv.NvmlReturn, "%s: field id %d should be unsupported", ctx, fv.FieldId)
+						require.Equal(t, uint32(nvml.ERROR_NOT_SUPPORTED), fv.NvmlReturn, "field id %d should be unsupported", fv.FieldId)
 					} else {
-						require.Equal(t, uint32(nvml.SUCCESS), fv.NvmlReturn, "%s: field id %d should be supported", ctx, fv.FieldId)
+						require.Equal(t, uint32(nvml.SUCCESS), fv.NvmlReturn, "field id %d should be supported", fv.FieldId)
 					}
 				}
 			})
@@ -322,7 +317,7 @@ func TestMetricsFollowSpec(t *testing.T) {
 				}
 
 				for name, m := range spec.Metrics {
-					if m.Deprecated || notExpectedOnBasicRun[name] || !isArchitectureSupported(m, archName) || !isDeviceFeatureSupported(m, string(mode)) {
+					if m.Deprecated || notExpectedOnBasicRun[name] || !m.supportsArchitecture(archName) || !m.supportsDeviceFeature(string(mode)) {
 						continue
 					}
 
