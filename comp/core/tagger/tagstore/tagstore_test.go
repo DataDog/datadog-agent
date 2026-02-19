@@ -499,6 +499,60 @@ type entityEventExpectation struct {
 	highCardTags []string
 }
 
+func TestProcessTagInfo_IsComplete(t *testing.T) {
+	entityID := types.NewEntityID(types.ContainerID, "test")
+
+	tests := []struct {
+		name                         string
+		completenessStateTransitions []bool
+		expectedIsComplete           bool
+	}{
+		{
+			name:                         "complete entity",
+			completenessStateTransitions: []bool{true},
+			expectedIsComplete:           true,
+		},
+		{
+			name:                         "incomplete entity",
+			completenessStateTransitions: []bool{false},
+			expectedIsComplete:           false,
+		},
+		{
+			name:                         "incomplete entity updated to complete",
+			completenessStateTransitions: []bool{false, true},
+			expectedIsComplete:           true,
+		},
+		{
+			name:                         "complete entity updated to incomplete",
+			completenessStateTransitions: []bool{true, false},
+			expectedIsComplete:           false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			telemetryComponent := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+			telemetryStore := taggerTelemetry.NewStore(telemetryComponent)
+			tagStore := NewTagStore(telemetryStore)
+
+			for _, isComplete := range test.completenessStateTransitions {
+				tagStore.ProcessTagInfo([]*types.TagInfo{
+					{
+						Source:      "source",
+						EntityID:    entityID,
+						LowCardTags: []string{"low"},
+						IsComplete:  isComplete,
+					},
+				})
+			}
+
+			entity, err := tagStore.GetEntity(entityID)
+			require.NoError(t, err)
+			assert.Equal(t, test.expectedIsComplete, entity.IsComplete)
+		})
+	}
+}
+
 func TestSubscribe(t *testing.T) {
 	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 	telemetryStore := taggerTelemetry.NewStore(tel)

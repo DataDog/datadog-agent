@@ -542,7 +542,7 @@ func start(log log.Component,
 	}
 
 	if config.GetBool("language_detection.enabled") && config.GetBool("cluster_agent.language_detection.patcher.enabled") {
-		if err = languagedetection.Start(mainCtx, wmeta, log, config); err != nil {
+		if err = languagedetection.Start(mainCtx, le.IsLeader, wmeta, log, config); err != nil {
 			log.Errorf("Cannot start language detection patcher: %v", err)
 		}
 	}
@@ -557,7 +557,7 @@ func start(log log.Component,
 	}
 
 	if config.GetBool("private_action_runner.enabled") {
-		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, log, taggerComp, tracerouteComp, eventPlatform)
+		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, le, log, taggerComp, tracerouteComp, eventPlatform)
 		if err != nil {
 			log.Errorf("Cannot start private action runner: %v", err)
 		} else {
@@ -691,6 +691,7 @@ func startPrivateActionRunner(
 	config config.Component,
 	hostnameGetter hostnameinterface.Component,
 	rcClient *rcclient.Client,
+	le *leaderelection.LeaderEngine,
 	log log.Component,
 	tagger tagger.Component,
 	tracerouteComp traceroute.Component,
@@ -699,14 +700,23 @@ func startPrivateActionRunner(
 	if rcClient == nil {
 		return nil, errors.New("Remote config is disabled or failed to initialize, remote config is a required dependency for private action runner")
 	}
+	if !config.GetBool("leader_election") {
+		return nil, errors.New("leader election is not enabled on the Cluster Agent. The private action runner needs leader election for identity coordination across replicas")
+	}
+	le.StartLeaderElectionRun()
 	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform)
 	if err != nil {
 		return nil, err
 	}
-	err = app.Start(ctx)
-	if err != nil {
-		return nil, err
-	}
+	// Start the private action runner asynchronously
+	errChan := app.StartAsync(ctx)
+
+	go func() {
+		// We could ignore this error but it's better to log it for debugging purposes
+		if err := <-errChan; err != nil {
+			log.Errorf("Failed to start private action runner: %v", err)
+		}
+	}()
 	return func() {
 		if err := app.Stop(context.Background()); err != nil {
 			log.Errorf("Error stopping private action runner: %v", err)
