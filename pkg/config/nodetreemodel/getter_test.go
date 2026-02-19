@@ -77,9 +77,9 @@ b:
 	}
 	assert.Equal(t, expected, cfg.Get("a"))
 
-	expected2 := map[interface{}]interface{}{
-		1: []interface{}{"a", "b"},
-		2: []interface{}{"c"},
+	expected2 := map[string]interface{}{
+		"1": []interface{}{"a", "b"},
+		"2": []interface{}{"c"},
 	}
 	assert.Equal(t, expected2, cfg.Get("b"))
 }

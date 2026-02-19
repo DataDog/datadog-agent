@@ -182,20 +182,9 @@ func loadYamlInto(dest *nodeImpl, source model.Source, inData map[string]interfa
 					if converted, err := convertToDefaultType(value, schemaChild.Get()); err == nil {
 						value = converted
 					}
-					// normalize map[interface{}]interface{} to map[string]interface{}
-					if m, ok := value.(map[interface{}]interface{}); ok {
-						normalized := make(map[string]interface{}, len(m))
-						for k, v := range m {
-							if ks, ok := k.(string); ok {
-								normalized[ks] = v
-							} else {
-								normalized = nil
-								break
-							}
-						}
-						if normalized != nil {
-							value = normalized
-						}
+					// normalize YAML v2 map[interface{}]interface{} to map[string]interface{}
+					if normalized, err := ToMapStringInterface(value, currPath); err == nil {
+						value = normalized
 					}
 					dest.InsertChildNode(key, newLeafNode(value, source))
 				}
