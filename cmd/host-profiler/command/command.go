@@ -10,11 +10,20 @@ package command
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/DataDog/datadog-agent/cmd/host-profiler/globalparams"
 	"github.com/DataDog/datadog-agent/cmd/host-profiler/subcommands/run"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/version"
 )
+
+func normalizeCoreConfig(_ *pflag.FlagSet, name string) pflag.NormalizedName {
+	switch name {
+	case "core-config":
+		name = "agent-config"
+	}
+	return pflag.NormalizedName(name)
+}
 
 // MakeRootCommand makes the top-level Cobra command for this app.
 func MakeRootCommand() *cobra.Command {
@@ -28,14 +37,16 @@ func MakeRootCommand() *cobra.Command {
 	globalParamsGetter := func() *globalparams.GlobalParams {
 		return &globalParams
 	}
+
 	hostProfiler.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "config", "c", "", "path to host-profiler configuration file")
+	hostProfiler.PersistentFlags().StringVar(&globalParams.CoreConfPath, "agent-config", "", "Location to the Datadog Agent config file. If this value is not set, infra attribute processor and all features related to the Agent will not be enabled.")
 	hostProfiler.PersistentFlags().StringVar(&globalParams.CoreConfPath, "core-config", "", "Location to the Datadog Agent config file. If this value is not set, infra attribute processor and all features related to the Agent will not be enabled.")
-	// Add --agent-config as an alias for --core-config
-	hostProfiler.PersistentFlags().StringVar(&globalParams.CoreConfPath, "agent-config", "", "alias for --core-config")
+	hostProfiler.PersistentFlags().SetNormalizeFunc(normalizeCoreConfig)
 
 	for _, subCommandFactory := range hostProfilerSubcommands() {
 		subcommands := subCommandFactory(globalParamsGetter)
 		for _, cmd := range subcommands {
+			cmd.Flags().SetNormalizeFunc(normalizeCoreConfig)
 			hostProfiler.AddCommand(cmd)
 		}
 	}
