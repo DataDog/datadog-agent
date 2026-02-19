@@ -45,7 +45,7 @@ func TestGetIAMRole(t *testing.T) {
 	defer ts.Close()
 	ec2internal.MetadataURL = ts.URL
 	conf := configmock.New(t)
-	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
+	conf.SetInTest("ec2_metadata_timeout", 1000)
 
 	val, err := getIAMRole(ctx)
 	require.NoError(t, err)
@@ -70,7 +70,7 @@ func TestGetSecurityCreds(t *testing.T) {
 	defer ts.Close()
 	ec2internal.MetadataURL = ts.URL
 	conf := configmock.New(t)
-	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
+	conf.SetInTest("ec2_metadata_timeout", 1000)
 
 	assert.EventuallyWithT(
 		t, func(_ *assert.CollectT) {
@@ -103,8 +103,8 @@ func TestFetchEc2TagsFromIMDS(t *testing.T) {
 	defer ts.Close()
 	ec2internal.MetadataURL = ts.URL
 	conf := configmock.New(t)
-	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
-	conf.SetWithoutSource("exclude_ec2_tags", []string{"ExcludedTag", "OtherExcludedTag2"})
+	conf.SetInTest("ec2_metadata_timeout", 1000)
+	conf.SetInTest("exclude_ec2_tags", []string{"ExcludedTag", "OtherExcludedTag2"})
 
 	tags, err := fetchEc2TagsFromIMDS(ctx)
 	require.NoError(t, err)
@@ -122,7 +122,7 @@ func TestFetchEc2TagsFromIMDSError(t *testing.T) {
 	defer ts.Close()
 	ec2internal.MetadataURL = ts.URL
 	conf := configmock.New(t)
-	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
+	conf.SetInTest("ec2_metadata_timeout", 1000)
 
 	_, err := fetchEc2TagsFromIMDS(ctx)
 	require.Error(t, err)
@@ -238,7 +238,7 @@ func TestCollectEC2InstanceInfo(t *testing.T) {
 	ec2internal.InstanceIdentityURL = ts.URL + "/latest/dynamic/instance-identity/document"
 	ec2internal.TokenURL = ts.URL + "/latest/api/token"
 
-	conf.SetWithoutSource("collect_ec2_instance_info", true)
+	conf.SetInTest("collect_ec2_instance_info", true)
 
 	// Enable ECS EC2 feature and mock ARN fetch
 	env.SetFeatures(t, env.ECSEC2)
@@ -265,7 +265,7 @@ func TestCollectEC2InstanceInfo(t *testing.T) {
 	assert.True(t, found)
 	assert.Equal(t, expected, ec2Info.([]string))
 
-	conf.SetWithoutSource("collect_ec2_instance_info", false)
+	conf.SetInTest("collect_ec2_instance_info", false)
 	tags, err = GetInstanceInfo(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, []string(nil), tags)
@@ -342,7 +342,7 @@ func setupTestIMDS(t *testing.T) {
 func TestFetchEc2TagsFromAPIFallback(t *testing.T) {
 	ctx := context.Background()
 	conf := configmock.New(t)
-	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
+	conf.SetInTest("ec2_metadata_timeout", 1000)
 
 	defer func() {
 		getTagsWithClientFunc = getTagsWithClient

@@ -159,7 +159,7 @@ func TestCheckRunnerStartStop(t *testing.T) {
 func TestCheckRunnerWithComponent(t *testing.T) {
 	lifecycle := newMockLifecycle()
 	reqs := testRequires(t, lifecycle)
-	reqs.Config.SetWithoutSource("health_platform.enabled", true)
+	reqs.Config.SetInTest("health_platform.enabled", true)
 
 	provides, err := NewComponent(reqs)
 	require.NoError(t, err)
@@ -195,7 +195,7 @@ func TestCheckRunnerWithComponent(t *testing.T) {
 func TestCheckRunnerReportsIssues(t *testing.T) {
 	lifecycle := newMockLifecycle()
 	reqs := testRequires(t, lifecycle)
-	reqs.Config.SetWithoutSource("health_platform.enabled", true)
+	reqs.Config.SetInTest("health_platform.enabled", true)
 
 	provides, err := NewComponent(reqs)
 	require.NoError(t, err)
@@ -227,7 +227,7 @@ func TestCheckRunnerReportsIssues(t *testing.T) {
 func TestCheckRunnerClearsIssueWhenNil(t *testing.T) {
 	lifecycle := newMockLifecycle()
 	reqs := testRequires(t, lifecycle)
-	reqs.Config.SetWithoutSource("health_platform.enabled", true)
+	reqs.Config.SetInTest("health_platform.enabled", true)
 
 	provides, err := NewComponent(reqs)
 	require.NoError(t, err)

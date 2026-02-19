@@ -482,7 +482,7 @@ func TestResolveTemplate(t *testing.T) {
 
 	t.Run("CEL Identifier on Container", func(t *testing.T) {
 		mockConfig := configmock.New(t)
-		mockConfig.SetWithoutSource("logs_config.container_collect_all", true)
+		mockConfig.SetInTest("logs_config.container_collect_all", true)
 
 		// Setup container tied to a pod
 		wmetaPod := listeners.CreateDummyPod("pod-name", "pod-ns", nil)

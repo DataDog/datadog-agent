@@ -200,7 +200,7 @@ func TestDBMRdsListener(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 			mockConfig := configmock.New(t)
-			mockConfig.SetWithoutSource("autodiscover_rds_instances", tc.config)
+			mockConfig.SetInTest("autodiscover_rds_instances", tc.config)
 			mockAWSClient := aws.NewMockRdsClient(ctrl)
 			tc.rdsClientConfigurer(mockAWSClient)
 			ticks := make(chan time.Time, 1)

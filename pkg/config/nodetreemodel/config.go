@@ -117,7 +117,7 @@ type ntmConfig struct {
 	// the map value represents `isLeaf` for each key
 	knownKeys map[string]bool
 
-	// keys that are unknown, but are used by either the file or SetWithoutSource
+	// keys that are unknown, but are used by either the file or SetInTest
 	// used to warn (a single time) on use
 	unknownKeys map[string]struct{}
 
@@ -254,11 +254,11 @@ func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source mo
 	return tree, err
 }
 
-// SetWithoutSource assigns the value to the given key using source Unknown, may only be called from tests
-func (c *ntmConfig) SetWithoutSource(key string, value interface{}) {
-	c.assertIsTest("SetWithoutSource")
+// SetInTest assigns the value to the given key using source Unknown, may only be called from tests
+func (c *ntmConfig) SetInTest(key string, value interface{}) {
+	c.assertIsTest("SetInTest")
 	if !basic.ValidateBasicTypes(value) {
-		panic(fmt.Errorf("SetWithoutSource can only be called with basic types (int, string, slice, map, etc), got %v", value))
+		panic(fmt.Errorf("SetInTest can only be called with basic types (int, string, slice, map, etc), got %v", value))
 	}
 	c.Set(key, value, model.SourceUnknown)
 	c.Lock()

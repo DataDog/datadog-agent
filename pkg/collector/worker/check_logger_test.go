@@ -39,7 +39,7 @@ func addExpvarsCheckStats(c check.Check) {
 }
 
 func setUp(cfg model.Config) {
-	cfg.SetWithoutSource(loggingFrequencyConfigKey, "20")
+	cfg.SetInTest(loggingFrequencyConfigKey, "20")
 	expvars.Reset()
 }
 

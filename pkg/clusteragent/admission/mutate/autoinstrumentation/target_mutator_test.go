@@ -74,7 +74,7 @@ func TestNewTargetMutator(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			// Load the config.
 			mockConfig := configmock.NewFromFile(t, test.configPath)
-			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.container_registry", "registry")
+			mockConfig.SetInTest("admission_controller.auto_instrumentation.container_registry", "registry")
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
 
@@ -197,7 +197,7 @@ func TestMutatePod(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			// Load the config.
 			mockConfig := configmock.NewFromFile(t, test.configPath)
-			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.container_registry", "registry")
+			mockConfig.SetInTest("admission_controller.auto_instrumentation.container_registry", "registry")
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
 
@@ -302,7 +302,7 @@ func TestShouldMutatePod(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			// Load the config.
 			mockConfig := configmock.NewFromFile(t, test.configPath)
-			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.container_registry", "registry")
+			mockConfig.SetInTest("admission_controller.auto_instrumentation.container_registry", "registry")
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
 
@@ -388,7 +388,7 @@ func TestIsNamespaceEligible(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			// Load the config.
 			mockConfig := configmock.NewFromFile(t, test.configPath)
-			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.container_registry", "registry")
+			mockConfig.SetInTest("admission_controller.auto_instrumentation.container_registry", "registry")
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
 
@@ -473,7 +473,7 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			// Load the config.
 			mockConfig := configmock.NewFromFile(t, test.configPath)
-			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.container_registry", "registry")
+			mockConfig.SetInTest("admission_controller.auto_instrumentation.container_registry", "registry")
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
 
@@ -727,7 +727,7 @@ func TestGetTargetLibraries(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			// Load the config.
 			mockConfig := configmock.NewFromFile(t, test.configPath)
-			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.container_registry", "registry")
+			mockConfig.SetInTest("admission_controller.auto_instrumentation.container_registry", "registry")
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)
 
@@ -854,7 +854,7 @@ func TestLanguageDetection(t *testing.T) {
 			// Load the config.
 			mockConfig := configmock.New(t)
 			for k, v := range test.config {
-				mockConfig.SetWithoutSource(k, v)
+				mockConfig.SetInTest(k, v)
 			}
 			config, err := NewConfig(mockConfig)
 			require.NoError(t, err)

@@ -1385,7 +1385,7 @@ func TestUnsetForSourceRemoveIfNotPrevious(t *testing.T) {
 	_, found = cfg.AllSettings()["api_key"]
 	assert.False(t, found)
 
-	cfg.SetWithoutSource("api_key", "0123456789abcdef")
+	cfg.SetInTest("api_key", "0123456789abcdef")
 
 	// api_key is set
 	assert.Equal(t, "0123456789abcdef", cfg.GetString("api_key"))
@@ -1476,12 +1476,12 @@ func TestSetInvalidSource(t *testing.T) {
 	assert.Equal(t, model.SourceDefault, cfg.GetSource("a"))
 }
 
-func TestSetWithoutSource(t *testing.T) {
+func TestSetInTest(t *testing.T) {
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
 	cfg.SetDefault("a", 1)
 	cfg.BuildSchema()
 
-	cfg.SetWithoutSource("a", 2)
+	cfg.SetInTest("a", 2)
 
 	assert.Equal(t, 2, cfg.Get("a"))
 	assert.Equal(t, model.SourceUnknown, cfg.GetSource("a"))
@@ -1491,8 +1491,8 @@ func TestSetWithoutSource(t *testing.T) {
 			Field string
 		}
 		assert.Panics(t, func() {
-			cfg.SetWithoutSource("b", dummyStruct{Field: "oops"})
-		}, "SetWithoutSource should panic when passed a struct")
+			cfg.SetInTest("b", dummyStruct{Field: "oops"})
+		}, "SetInTest should panic when passed a struct")
 	})
 }
 

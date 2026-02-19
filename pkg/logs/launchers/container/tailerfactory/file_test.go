@@ -137,7 +137,7 @@ func TestMakeFileSource_docker_success(t *testing.T) {
 func TestMakeFileSource_podman_success(t *testing.T) {
 	fileTestSetup(t)
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("logs_config.use_podman_logs", true)
+	mockConfig.SetInTest("logs_config.use_podman_logs", true)
 
 	// On Windows, podman runs within a Linux virtual machine, so the Agent would believe it runs in a Linux environment with all the paths being nix-like.
 	// The real path on the system is abstracted by the Windows Subsystem for Linux layer, so this unit test is skipped.
@@ -184,8 +184,8 @@ func TestMakeFileSource_podman_with_db_path_success(t *testing.T) {
 	tmp := t.TempDir()
 	customPath := filepath.Join(tmp, "/custom/path/containers/storage/db.sql")
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("logs_config.use_podman_logs", true)
-	mockConfig.SetWithoutSource("podman_db_path", customPath)
+	mockConfig.SetInTest("logs_config.use_podman_logs", true)
+	mockConfig.SetInTest("podman_db_path", customPath)
 
 	// On Windows, podman runs within a Linux virtual machine, so the Agent would believe it runs in a Linux environment with all the paths being nix-like.
 	// The real path on the system is abstracted by the Windows Subsystem for Linux layer, so this unit test is skipped.
@@ -251,7 +251,7 @@ func TestDockerOverride(t *testing.T) {
 	tmp := t.TempDir()
 	mockConfig := configmock.New(t)
 	customPath := filepath.Join(tmp, "/custom/path")
-	mockConfig.SetWithoutSource("logs_config.docker_path_override", customPath)
+	mockConfig.SetInTest("logs_config.docker_path_override", customPath)
 
 	p := filepath.Join(mockConfig.GetString("logs_config.docker_path_override"), filepath.FromSlash("containers/abc/abc-json.log"))
 	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))

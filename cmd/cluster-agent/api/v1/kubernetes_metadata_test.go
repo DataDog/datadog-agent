@@ -52,7 +52,7 @@ func TestGetNodeAnnotations(t *testing.T) {
 	// we need to do this because the default behavior for /annotations/node/{node}
 	// applies a filter based on this config
 	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("kubernetes_node_annotations_as_host_aliases", "annotation1")
+	mockConfig.SetInTest("kubernetes_node_annotations_as_host_aliases", "annotation1")
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		getNodeAnnotations(w, r, mockStore)

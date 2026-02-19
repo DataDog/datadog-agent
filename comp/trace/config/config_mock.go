@@ -17,7 +17,7 @@ import (
 // newMock exported mock builder to allow modifying mocks that might be
 // supplied in tests and used for dep injection.
 func newMock(deps Dependencies, _ testing.TB) (Component, error) {
-	deps.Config.SetWithoutSource("api_key", "apikey")
+	deps.Config.SetInTest("api_key", "apikey")
 	traceCfg, err := setupConfigCommon(deps)
 	if err != nil {
 		return nil, err

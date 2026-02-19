@@ -21,7 +21,7 @@ import (
 func TestGetInstanceID(t *testing.T) {
 	cfg := configmock.New(t)
 	ctx := context.Background()
-	cfg.SetWithoutSource("cloud_provider_metadata", []string{"tencent"})
+	cfg.SetInTest("cloud_provider_metadata", []string{"tencent"})
 
 	expected := "ins-nad6bga0"
 	var lastRequest *http.Request
@@ -42,7 +42,7 @@ func TestGetInstanceID(t *testing.T) {
 func TestGetHostAliases(t *testing.T) {
 	cfg := configmock.New(t)
 	ctx := context.Background()
-	cfg.SetWithoutSource("cloud_provider_metadata", []string{"tencent"})
+	cfg.SetInTest("cloud_provider_metadata", []string{"tencent"})
 
 	expected := "ins-nad6bga0"
 	var lastRequest *http.Request
@@ -63,7 +63,7 @@ func TestGetHostAliases(t *testing.T) {
 
 func TestGetNTPHosts(t *testing.T) {
 	cfg := configmock.New(t)
-	cfg.SetWithoutSource("cloud_provider_metadata", []string{"tencent"})
+	cfg.SetInTest("cloud_provider_metadata", []string{"tencent"})
 
 	ctx := context.Background()
 	expectedHosts := []string{"ntpupdate.tencentyun.com"}

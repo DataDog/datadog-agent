@@ -22,25 +22,25 @@ func TestGetClusterName(t *testing.T) {
 	data := newClusterNameData()
 
 	testClusterName := "laika"
-	mockConfig.SetWithoutSource("cluster_name", testClusterName)
-	defer mockConfig.SetWithoutSource("cluster_name", nil)
+	mockConfig.SetInTest("cluster_name", testClusterName)
+	defer mockConfig.SetInTest("cluster_name", nil)
 
 	assert.Equal(t, testClusterName, getClusterName(ctx, data, "hostname"))
 
 	// Test caching and reset
 	newClusterName := "youri"
-	mockConfig.SetWithoutSource("cluster_name", newClusterName)
+	mockConfig.SetInTest("cluster_name", newClusterName)
 	assert.Equal(t, testClusterName, getClusterName(ctx, data, "hostname"))
 	freshData := newClusterNameData()
 	assert.Equal(t, newClusterName, getClusterName(ctx, freshData, "hostname"))
 
 	dotClusterName := "aclusternamewitha.dot"
-	mockConfig.SetWithoutSource("cluster_name", dotClusterName)
+	mockConfig.SetInTest("cluster_name", dotClusterName)
 	data = newClusterNameData()
 	assert.Equal(t, dotClusterName, getClusterName(ctx, data, "hostname"))
 
 	dotsClusterName := "a.cluster.name.with.dots"
-	mockConfig.SetWithoutSource("cluster_name", dotsClusterName)
+	mockConfig.SetInTest("cluster_name", dotsClusterName)
 	data = newClusterNameData()
 	assert.Equal(t, dotsClusterName, getClusterName(ctx, data, "hostname"))
 
@@ -54,12 +54,12 @@ func TestGetClusterName(t *testing.T) {
 		"a.1.a",
 		"mx.gmail.com.",
 	} {
-		mockConfig.SetWithoutSource("cluster_name", invalidClusterName)
+		mockConfig.SetInTest("cluster_name", invalidClusterName)
 		freshData = newClusterNameData()
 		assert.Equal(t, "", getClusterName(ctx, freshData, "hostname"))
 	}
 
-	mockConfig.SetWithoutSource("cluster_name", "")
+	mockConfig.SetInTest("cluster_name", "")
 
 	// Test lowercase
 	wantedClustername := "foo"

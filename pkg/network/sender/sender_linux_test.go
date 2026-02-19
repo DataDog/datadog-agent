@@ -418,7 +418,7 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 
 	var dsch eventmonitor.EventConsumerHandler
 	d := mockDirectSender(t)
-	d.sysprobeconfig.SetWithoutSource("system_probe_config.process_service_inference.enabled", true)
+	d.sysprobeconfig.SetInTest("system_probe_config.process_service_inference.enabled", true)
 	evm := &fakeEventMonitor{}
 	dsc, err := NewDirectSenderConsumer(evm, d.log, d.sysprobeconfig)
 	require.NoError(t, err)

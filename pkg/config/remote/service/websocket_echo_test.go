@@ -59,8 +59,8 @@ func TestWebSocketActor_upstream(t *testing.T) {
 
 			// TLS test uses bogus certs
 			agentConfig := mock.New(t)
-			agentConfig.SetWithoutSource("skip_ssl_validation", true)                    // Transport
-			agentConfig.SetWithoutSource("remote_configuration.no_tls_validation", true) // RC check
+			agentConfig.SetInTest("skip_ssl_validation", true)                    // Transport
+			agentConfig.SetInTest("remote_configuration.no_tls_validation", true) // RC check
 
 			assert := assert.New(t)
 
@@ -94,8 +94,8 @@ func TestPanicHandler(t *testing.T) {
 
 	// TLS test uses bogus certs
 	agentConfig := mock.New(t)
-	agentConfig.SetWithoutSource("skip_ssl_validation", true)                    // Transport
-	agentConfig.SetWithoutSource("remote_configuration.no_tls_validation", true) // RC check
+	agentConfig.SetInTest("skip_ssl_validation", true)                    // Transport
+	agentConfig.SetInTest("remote_configuration.no_tls_validation", true) // RC check
 
 	assert := assert.New(t)
 

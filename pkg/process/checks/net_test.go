@@ -651,7 +651,7 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 		},
 	}
 	mockConfig := configmock.NewSystemProbe(t)
-	mockConfig.SetWithoutSource("system_probe_config.process_service_inference.enabled", true)
+	mockConfig.SetInTest("system_probe_config.process_service_inference.enabled", true)
 
 	maxConnsPerMessage := 1
 	serviceExtractorEnabled := mockConfig.GetBool("system_probe_config.process_service_inference.enabled")

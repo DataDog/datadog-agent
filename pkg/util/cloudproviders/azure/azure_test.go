@@ -102,7 +102,7 @@ func TestGetNTPHosts(t *testing.T) {
 	mockConfig := configmock.New(t)
 
 	metadataURL = ts.URL
-	mockConfig.SetWithoutSource("cloud_provider_metadata", []string{"azure"})
+	mockConfig.SetInTest("cloud_provider_metadata", []string{"azure"})
 	actualHosts := GetNTPHosts(ctx)
 
 	assert.Equal(t, expectedHosts, actualHosts)
@@ -137,7 +137,7 @@ func TestGetHostname(t *testing.T) {
 	mockConfig := configmock.New(t)
 
 	for _, tt := range cases {
-		mockConfig.SetWithoutSource(hostnameStyleSetting, tt.style)
+		mockConfig.SetInTest(hostnameStyleSetting, tt.style)
 		hostname, err := getHostnameWithConfig(ctx, mockConfig)
 		assert.Equal(t, tt.value, hostname)
 		assert.Equal(t, tt.err, (err != nil))
@@ -164,7 +164,7 @@ func TestGetHostnameWithInvalidMetadata(t *testing.T) {
 
 		t.Run(fmt.Sprintf("with response '%s'", response), func(t *testing.T) {
 			for _, style := range styles {
-				mockConfig.SetWithoutSource(hostnameStyleSetting, style)
+				mockConfig.SetInTest(hostnameStyleSetting, style)
 				hostname, err := getHostnameWithConfig(ctx, mockConfig)
 				assert.Empty(t, hostname)
 				assert.NotNil(t, err)

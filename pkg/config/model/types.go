@@ -31,7 +31,7 @@ const (
 	// SourceDefault are the values from defaults.
 	SourceDefault Source = "default"
 	// SourceUnknown are the values from unknown source. This should only be used in tests when calling
-	// SetWithoutSource.
+	// SetInTest.
 	SourceUnknown Source = "unknown"
 	// SourceInfraMode are the values set by infrastructure mode configurations. These values have higher
 	// priority than defaults but lower priority than user configuration (file, env vars, etc.).
@@ -215,7 +215,7 @@ type Reader interface {
 // Writer is a subset of Config that only allows writing the configuration
 type Writer interface {
 	Set(key string, value interface{}, source Source)
-	SetWithoutSource(key string, value interface{})
+	SetInTest(key string, value interface{})
 	UnsetForSource(key string, source Source)
 }
 

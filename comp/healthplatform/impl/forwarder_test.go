@@ -53,7 +53,7 @@ func (m *mockIssueProvider) addIssue(checkID string, issue *healthplatform.Issue
 // TestForwarderBuildReport tests report building
 func TestForwarderBuildReport(t *testing.T) {
 	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("api_key", "test-api-key")
+	cfg.SetInTest("api_key", "test-api-key")
 	provider := newMockIssueProvider()
 
 	fwd := newForwarder(cfg, provider, logmock.New(t), "test-host")
@@ -100,7 +100,7 @@ func TestForwarderSend(t *testing.T) {
 	defer server.Close()
 
 	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("api_key", "test-api-key")
+	cfg.SetInTest("api_key", "test-api-key")
 	provider := newMockIssueProvider()
 
 	fwd := newForwarder(cfg, provider, logmock.New(t), "test-host")
@@ -140,7 +140,7 @@ func TestForwarderSendNoIssues(t *testing.T) {
 	defer server.Close()
 
 	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("api_key", "test-api-key")
+	cfg.SetInTest("api_key", "test-api-key")
 	provider := newMockIssueProvider() // No issues
 
 	fwd := newForwarder(cfg, provider, logmock.New(t), "test-host")
@@ -160,7 +160,7 @@ func TestForwarderSendError(t *testing.T) {
 	defer server.Close()
 
 	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("api_key", "test-api-key")
+	cfg.SetInTest("api_key", "test-api-key")
 	provider := newMockIssueProvider()
 
 	fwd := newForwarder(cfg, provider, logmock.New(t), "test-host")
@@ -179,8 +179,8 @@ func TestForwarderSendError(t *testing.T) {
 // TestForwarderStartStop tests the forwarder lifecycle
 func TestForwarderStartStop(t *testing.T) {
 	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("health_platform.forwarder.interval", 100*time.Millisecond)
-	cfg.SetWithoutSource("api_key", "test-api-key")
+	cfg.SetInTest("health_platform.forwarder.interval", 100*time.Millisecond)
+	cfg.SetInTest("api_key", "test-api-key")
 
 	provider := newMockIssueProvider()
 
@@ -202,7 +202,7 @@ func TestForwarderWithComponent(t *testing.T) {
 	reqs := testRequires(t, lifecycle)
 
 	// Set API key to enable forwarder
-	reqs.Config.SetWithoutSource("api_key", "test-api-key")
+	reqs.Config.SetInTest("api_key", "test-api-key")
 
 	provides, err := NewComponent(reqs)
 	require.NoError(t, err)
@@ -289,10 +289,10 @@ func TestBuildIntakeURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := config.NewMock(t)
 			if tt.site != "" {
-				cfg.SetWithoutSource("site", tt.site)
+				cfg.SetInTest("site", tt.site)
 			}
 			if tt.ddURL != "" {
-				cfg.SetWithoutSource("dd_url", tt.ddURL)
+				cfg.SetInTest("dd_url", tt.ddURL)
 			}
 
 			url := buildIntakeURL(cfg)

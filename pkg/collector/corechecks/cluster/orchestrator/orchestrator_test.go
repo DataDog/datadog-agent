@@ -224,8 +224,8 @@ func TestOrchestratorCheckConfigure(t *testing.T) {
 		// Reset cluster name before each test
 		clustername.ResetClusterName()
 		// Set configuration in global Datadog config
-		pkgconfigsetup.Datadog().SetWithoutSource("orchestrator_explorer.enabled", true)
-		pkgconfigsetup.Datadog().SetWithoutSource("cluster_name", "test-cluster")
+		pkgconfigsetup.Datadog().SetInTest("orchestrator_explorer.enabled", true)
+		pkgconfigsetup.Datadog().SetInTest("cluster_name", "test-cluster")
 		// Set cluster ID environment variable to avoid cluster agent calls
 		t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", "d801b2b1-4811-11ea-8618-121d4d0938a3")
 	}
@@ -233,7 +233,7 @@ func TestOrchestratorCheckConfigure(t *testing.T) {
 	t.Run("failure when orchestrator collection is disabled", func(t *testing.T) {
 		env.SetFeatures(t, env.Kubernetes)
 		clustername.ResetClusterName()
-		pkgconfigsetup.Datadog().SetWithoutSource("orchestrator_explorer.enabled", false)
+		pkgconfigsetup.Datadog().SetInTest("orchestrator_explorer.enabled", false)
 		t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", "d801b2b1-4811-11ea-8618-121d4d0938a3")
 
 		fakeTagger := taggerfxmock.SetupFakeTagger(t)
@@ -248,7 +248,7 @@ func TestOrchestratorCheckConfigure(t *testing.T) {
 	t.Run("failure when cluster name is empty", func(t *testing.T) {
 		env.SetFeatures(t, env.Kubernetes)
 		clustername.ResetClusterName()
-		pkgconfigsetup.Datadog().SetWithoutSource("orchestrator_explorer.enabled", true)
+		pkgconfigsetup.Datadog().SetInTest("orchestrator_explorer.enabled", true)
 		// Don't set cluster_name to test empty cluster name scenario
 		t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", "d801b2b1-4811-11ea-8618-121d4d0938a3")
 
@@ -312,13 +312,13 @@ extra_sync_timeout_seconds: 30
 		clustername.ResetClusterName()
 
 		// Set custom configuration values
-		pkgconfigsetup.Datadog().SetWithoutSource("orchestrator_explorer.enabled", true)
-		pkgconfigsetup.Datadog().SetWithoutSource("cluster_name", "custom-cluster")
-		pkgconfigsetup.Datadog().SetWithoutSource("orchestrator_explorer.max_per_message", 75)
-		pkgconfigsetup.Datadog().SetWithoutSource("orchestrator_explorer.max_message_bytes", 30000000)
-		pkgconfigsetup.Datadog().SetWithoutSource("orchestrator_explorer.collector_discovery.enabled", true)
-		pkgconfigsetup.Datadog().SetWithoutSource("orchestrator_explorer.container_scrubbing.enabled", true)
-		pkgconfigsetup.Datadog().SetWithoutSource("orchestrator_explorer.manifest_collection.enabled", true)
+		pkgconfigsetup.Datadog().SetInTest("orchestrator_explorer.enabled", true)
+		pkgconfigsetup.Datadog().SetInTest("cluster_name", "custom-cluster")
+		pkgconfigsetup.Datadog().SetInTest("orchestrator_explorer.max_per_message", 75)
+		pkgconfigsetup.Datadog().SetInTest("orchestrator_explorer.max_message_bytes", 30000000)
+		pkgconfigsetup.Datadog().SetInTest("orchestrator_explorer.collector_discovery.enabled", true)
+		pkgconfigsetup.Datadog().SetInTest("orchestrator_explorer.container_scrubbing.enabled", true)
+		pkgconfigsetup.Datadog().SetInTest("orchestrator_explorer.manifest_collection.enabled", true)
 		t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", "d801b2b1-4811-11ea-8618-121d4d0938a3")
 
 		fakeTagger := taggerfxmock.SetupFakeTagger(t)
@@ -374,7 +374,7 @@ func TestOrchestratorCheck_IsLeader(t *testing.T) {
 		}
 
 		// Leader election is not enabled
-		pkgconfigsetup.Datadog().SetWithoutSource("leader_election", false)
+		pkgconfigsetup.Datadog().SetInTest("leader_election", false)
 
 		isLeader, err := orchCheck.IsLeader()
 		assert.False(t, isLeader)
@@ -393,7 +393,7 @@ func TestOrchestratorCheck_IsLeader(t *testing.T) {
 		}
 
 		// Leader election is not enabled
-		pkgconfigsetup.Datadog().SetWithoutSource("leader_election", false)
+		pkgconfigsetup.Datadog().SetInTest("leader_election", false)
 
 		isLeader, err := orchCheck.IsLeader()
 		assert.False(t, isLeader)
@@ -409,7 +409,7 @@ func TestOrchestratorCheck_IsLeader(t *testing.T) {
 		orchCheck.instance = &OrchestratorInstance{}
 
 		// Explicitly disable leader election
-		pkgconfigsetup.Datadog().SetWithoutSource("leader_election", false)
+		pkgconfigsetup.Datadog().SetInTest("leader_election", false)
 
 		isLeader, err := orchCheck.IsLeader()
 		assert.False(t, isLeader)
@@ -427,7 +427,7 @@ func TestOrchestratorCheck_IsLeader(t *testing.T) {
 		}
 
 		// Even if leader election is disabled, should still return true
-		pkgconfigsetup.Datadog().SetWithoutSource("leader_election", false)
+		pkgconfigsetup.Datadog().SetInTest("leader_election", false)
 
 		isLeader, err := orchCheck.IsLeader()
 		assert.True(t, isLeader)

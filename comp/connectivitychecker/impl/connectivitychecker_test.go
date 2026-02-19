@@ -70,8 +70,8 @@ func TestConnectivityInitialDelay(t *testing.T) {
 	lifecycle := newMockLifecycle()
 
 	// Configure the component
-	mockConfig.SetWithoutSource("api_key", "test-key")
-	mockConfig.SetWithoutSource("site", "datadoghq.com")
+	mockConfig.SetInTest("api_key", "test-key")
+	mockConfig.SetInTest("site", "datadoghq.com")
 
 	reqs := Requires{
 		Lifecycle:      lifecycle,

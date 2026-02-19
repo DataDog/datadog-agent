@@ -85,7 +85,7 @@ logs_config:
 func TestUserPatternsJSON(t *testing.T) {
 
 	mockConfig := mock.New(t)
-	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection_custom_samples", `[{"sample": "1", "label": "start_group"}, {"regex": "\\d\\w", "label": "no_aggregate"}, {"sample": "3", "match_threshold": 0.1}]`)
+	mockConfig.SetInTest("logs_config.auto_multi_line_detection_custom_samples", `[{"sample": "1", "label": "start_group"}, {"regex": "\\d\\w", "label": "no_aggregate"}, {"sample": "3", "match_threshold": 0.1}]`)
 
 	sampleOneTokens, _ := NewTokenizer(0).tokenize([]byte("1"))
 	sampleTwoRegex, _ := regexp.Compile("^" + "\\d\\w")
