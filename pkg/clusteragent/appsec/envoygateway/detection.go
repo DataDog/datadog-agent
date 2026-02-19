@@ -15,9 +15,9 @@ import (
 	"k8s.io/client-go/dynamic"
 )
 
-// Detect whenever Envoy Gateway is installed in the cluster by using the dynamic client to check for the presence of the EnvoyExtensionPolicy CRD
+// Detect checks whether Envoy Gateway is installed in the cluster by looking for the EnvoyPatchPolicy CRD
 func Detect(ctx context.Context, client dynamic.Interface) (bool, error) {
-	_, err := client.Resource(crdGVR).Get(ctx, envoyExtensionPolicyCRDName, metav1.GetOptions{})
+	_, err := client.Resource(crdGVR).Get(ctx, envoyPatchPolicyCRDName, metav1.GetOptions{})
 	if err == nil || errors.IsNotFound(err) {
 		return err == nil, nil
 	}
