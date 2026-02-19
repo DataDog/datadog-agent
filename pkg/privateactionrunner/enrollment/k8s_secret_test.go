@@ -10,7 +10,6 @@ package enrollment
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -184,7 +183,7 @@ func TestWaitForLeaderAndSecret_FailsImmediatelyOnNonTransientError(t *testing.T
 	client := fake.NewSimpleClientset()
 	client.PrependReactor("get", "secrets", func(action k8stesting.Action) (bool, runtime.Object, error) {
 		return true, nil, k8serrors.NewForbidden(
-			schema.GroupResource{Resource: "secrets"}, "test-secret", fmt.Errorf("RBAC denied"))
+			schema.GroupResource{Resource: "secrets"}, "test-secret", errors.New("RBAC denied"))
 	})
 
 	leadershipChange := make(chan struct{})
@@ -208,7 +207,7 @@ func TestIsNonTransientK8sError(t *testing.T) {
 		name string
 		err  error
 	}{
-		{"Forbidden", k8serrors.NewForbidden(gr, "s", fmt.Errorf("denied"))},
+		{"Forbidden", k8serrors.NewForbidden(gr, "s", errors.New("denied"))},
 		{"Unauthorized", k8serrors.NewUnauthorized("bad token")},
 		{"BadRequest", k8serrors.NewBadRequest("malformed")},
 		{"MethodNotSupported", k8serrors.NewMethodNotSupported(gr, "PATCH")},
@@ -227,9 +226,9 @@ func TestIsNonTransientK8sError(t *testing.T) {
 		{"ServerTimeout", k8serrors.NewServerTimeout(gr, "get", 5)},
 		{"TooManyRequests", k8serrors.NewTooManyRequests("slow down", 1)},
 		{"ServiceUnavailable", k8serrors.NewServiceUnavailable("down")},
-		{"InternalError", k8serrors.NewInternalError(fmt.Errorf("oops"))},
+		{"InternalError", k8serrors.NewInternalError(errors.New("oops"))},
 		{"NotFound", k8serrors.NewNotFound(gr, "s")},
-		{"NetworkError", fmt.Errorf("connection refused")},
+		{"NetworkError", errors.New("connection refused")},
 	}
 	for _, tc := range transient {
 		t.Run(tc.name, func(t *testing.T) {
