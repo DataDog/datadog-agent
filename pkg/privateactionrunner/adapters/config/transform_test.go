@@ -24,7 +24,7 @@ func TestGetBundleInheritedAllowedActions(t *testing.T) {
 				"com.datadoghq.script": sets.New[string]("action1"),
 			},
 			expectedInheritedActions: map[string]sets.Set[string]{
-				"com.datadoghq.script": sets.New[string]("testconnection", "enrichscript"),
+				"com.datadoghq.script": sets.New[string]("testConnection", "enrichScript"),
 			},
 		},
 		{
@@ -55,9 +55,9 @@ func TestGetBundleInheritedAllowedActions(t *testing.T) {
 				"com.datadoghq.kubernetes.core": sets.New[string]("action3"),
 			},
 			expectedInheritedActions: map[string]sets.Set[string]{
-				"com.datadoghq.script":          sets.New[string]("testconnection", "enrichscript"),
-				"com.datadoghq.gitlab.users":    sets.New[string]("testconnection"),
-				"com.datadoghq.kubernetes.core": sets.New[string]("testconnection"),
+				"com.datadoghq.script":          sets.New[string]("testConnection", "enrichScript"),
+				"com.datadoghq.gitlab.users":    sets.New[string]("testConnection"),
+				"com.datadoghq.kubernetes.core": sets.New[string]("testConnection"),
 			},
 		},
 	}
