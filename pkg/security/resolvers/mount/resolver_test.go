@@ -47,7 +47,10 @@ func TestMountResolver(t *testing.T) {
 						mount: &model.MountEvent{
 							Mount: model.Mount{
 								MountID: 27,
-								Device:  1,
+								RootPathKey: model.PathKey{
+									MountID: 27,
+								},
+								Device: 1,
 								ParentPathKey: model.PathKey{
 									MountID: 1,
 								},
@@ -76,7 +79,10 @@ func TestMountResolver(t *testing.T) {
 						mount: &model.MountEvent{
 							Mount: model.Mount{
 								MountID: 127,
-								Device:  52,
+								RootPathKey: model.PathKey{
+									MountID: 127,
+								},
+								Device: 52,
 								ParentPathKey: model.PathKey{
 									MountID: 27,
 								},
@@ -137,7 +143,10 @@ func TestMountResolver(t *testing.T) {
 						mount: &model.MountEvent{
 							Mount: model.Mount{
 								MountID: 27,
-								Device:  1,
+								RootPathKey: model.PathKey{
+									MountID: 27,
+								},
+								Device: 1,
 								ParentPathKey: model.PathKey{
 									MountID: 1,
 								},
@@ -206,7 +215,10 @@ func TestMountResolver(t *testing.T) {
 						mount: &model.MountEvent{
 							Mount: model.Mount{
 								MountID: 27,
-								Device:  1,
+								RootPathKey: model.PathKey{
+									MountID: 27,
+								},
+								Device: 1,
 								ParentPathKey: model.PathKey{
 									MountID: 1,
 								},
@@ -234,7 +246,10 @@ func TestMountResolver(t *testing.T) {
 						mount: &model.MountEvent{
 							Mount: model.Mount{
 								MountID: 638,
-								Device:  53,
+								RootPathKey: model.PathKey{
+									MountID: 638,
+								},
+								Device: 53,
 								ParentPathKey: model.PathKey{
 									MountID: 635,
 								},
@@ -248,7 +263,10 @@ func TestMountResolver(t *testing.T) {
 						mount: &model.MountEvent{
 							Mount: model.Mount{
 								MountID: 639,
-								Device:  54,
+								RootPathKey: model.PathKey{
+									MountID: 639,
+								},
+								Device: 54,
 								ParentPathKey: model.PathKey{
 									MountID: 638,
 								},
@@ -277,7 +295,10 @@ func TestMountResolver(t *testing.T) {
 						mount: &model.MountEvent{
 							Mount: model.Mount{
 								MountID: 32,
-								Device:  97,
+								RootPathKey: model.PathKey{
+									MountID: 32,
+								},
+								Device: 97,
 								ParentPathKey: model.PathKey{
 									MountID: 638,
 								},
@@ -289,7 +310,10 @@ func TestMountResolver(t *testing.T) {
 						mount: &model.MountEvent{
 							Mount: model.Mount{
 								MountID: 41,
-								Device:  98,
+								RootPathKey: model.PathKey{
+									MountID: 41,
+								},
+								Device: 98,
 								ParentPathKey: model.PathKey{
 									MountID: 32,
 								},
@@ -301,7 +325,10 @@ func TestMountResolver(t *testing.T) {
 						mount: &model.MountEvent{
 							Mount: model.Mount{
 								MountID: 42,
-								Device:  99,
+								RootPathKey: model.PathKey{
+									MountID: 42,
+								},
+								Device: 99,
 								ParentPathKey: model.PathKey{
 									MountID: 41,
 								},
