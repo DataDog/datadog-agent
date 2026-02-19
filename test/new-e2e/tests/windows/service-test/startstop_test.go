@@ -46,6 +46,9 @@ var agentConfigTADisabled string
 //go:embed fixtures/datadog-di-disabled.yaml
 var agentConfigDIDisabled string
 
+//go:embed fixtures/datadog-par-disabled.yaml
+var agentConfigPARDisabled string
+
 //go:embed fixtures/system-probe.yaml
 var systemProbeConfig string
 
@@ -356,6 +359,21 @@ type agentServiceDisabledInstallerSuite struct {
 	agentServiceDisabledSuite
 }
 
+func TestServiceBehaviorWhenDisabledPrivateActionRunner(t *testing.T) {
+	// TODO(windows-products): Fix flakiness and re-enable this test
+	flake.Mark(t)
+
+	s := &agentServiceDisabledPrivateActionRunnerSuite{}
+	s.disabledServices = []string{
+		"datadog-agent-action",
+	}
+	run(t, s, systemProbeConfig, agentConfigPARDisabled, securityAgentConfig)
+}
+
+type agentServiceDisabledPrivateActionRunnerSuite struct {
+	agentServiceDisabledSuite
+}
+
 func (s *agentServiceDisabledSuite) SetupSuite() {
 	s.baseStartStopSuite.SetupSuite()
 	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
@@ -507,7 +525,7 @@ func (s *baseStartStopSuite) TestAgentStopsAllServices() {
 	for _, serviceName := range s.runningUserServices() {
 		providerName := serviceName
 		// skip services without registered providers
-		if providerName == "Datadog Installer" || providerName == "datadog-private-action-runner" {
+		if providerName == "Datadog Installer" || providerName == "datadog-agent-action" {
 			continue
 		}
 		entries, err := windowsCommon.GetEventLogEntriesFromProvider(host, "Application", providerName)
@@ -807,7 +825,7 @@ func (s *baseStartStopSuite) getInstalledUserServices() []string {
 		"datadog-process-agent",
 		"datadog-security-agent",
 		"datadog-system-probe",
-		"datadog-private-action-runner",
+		"datadog-agent-action",
 		"Datadog Installer",
 	}
 }
@@ -956,6 +974,9 @@ type dvAgentServiceDisabledTraceAgentSuite struct {
 type dvAgentServiceDisabledInstallerSuite struct {
 	agentServiceDisabledInstallerSuite
 }
+type dvAgentServiceDisabledPrivateActionRunnerSuite struct {
+	agentServiceDisabledPrivateActionRunnerSuite
+}
 
 // TestDriverVerifierOnServiceBehaviorAgentCommand tests the same as TestServiceBehaviorAgentCommand
 // with driver verifier enabled.
@@ -1046,6 +1067,21 @@ func TestDriverVerifierOnServiceBehaviorWhenDisabledInstaller(t *testing.T) {
 	s.enableDriverVerifier = true
 	s.timeoutScale = driverVerifierTimeoutScale
 	run(t, s, systemProbeConfig, agentConfigDIDisabled, securityAgentConfig)
+}
+
+// TestDriverVerifierOnServiceBehaviorWhenDisabledPrivateActionRunner tests the same as TestServiceBehaviorWhenDisabledPrivateActionRunner
+// with driver verifier enabled.
+func TestDriverVerifierOnServiceBehaviorWhenDisabledPrivateActionRunner(t *testing.T) {
+	// TODO(windows-products): Fix flakiness and re-enable this test
+	flake.Mark(t)
+
+	s := &dvAgentServiceDisabledPrivateActionRunnerSuite{}
+	s.disabledServices = []string{
+		"datadog-agent-action",
+	}
+	s.enableDriverVerifier = true
+	s.timeoutScale = driverVerifierTimeoutScale
+	run(t, s, systemProbeConfig, agentConfigPARDisabled, securityAgentConfig)
 }
 
 // Driver verifier tests end

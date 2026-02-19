@@ -38,7 +38,7 @@ func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
 	var globalParams GlobalParams
 
 	privateActionRunnerCmd := &cobra.Command{
-		Use:   "datadog-private-action-runner [command]",
+		Use:   "datadog-agent-action [command]",
 		Short: "Datadog Private Action Runner.",
 		Long: `
 Datadog Private Action Runner enables execution of private actions.`,

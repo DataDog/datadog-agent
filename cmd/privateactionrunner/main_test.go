@@ -20,7 +20,7 @@ func TestPrivateActionRunnerCommandCreation(t *testing.T) {
 	// Test that the command can be created successfully
 	rootCmd := command.MakeCommand(subcommands.PrivateActionRunnerSubcommands())
 	require.NotNil(t, rootCmd)
-	require.Equal(t, "datadog-private-action-runner [command]", rootCmd.Use)
+	require.Equal(t, "datadog-agent-action [command]", rootCmd.Use)
 
 	// Test that subcommands are properly registered
 	subCommands := rootCmd.Commands()
