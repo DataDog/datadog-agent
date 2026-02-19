@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    The resource discovery agent (``sd-agent``) now wraps ``system-probe``,
+    acting as a loader for it. ``sd-agent`` will automatically fallback to
+    ``system-probe`` when one of the following is true:
+    - ``discovery.enabled` is set to false
+    - ``discovery.useSdAgent`` is set to false (the default).
+    - Any other non-discovery feature of system-probe is enabled.
