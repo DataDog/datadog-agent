@@ -226,7 +226,6 @@ core,github.com/Masterminds/goutils,Apache-2.0,Copyright 2014 Alexander Okoli
 core,github.com/Masterminds/semver,MIT,"Copyright (C) 2014-2019, Matt Butcher and Matt Farina"
 core,github.com/Masterminds/semver/v3,MIT,"Copyright (C) 2014-2019, Matt Butcher and Matt Farina"
 core,github.com/Masterminds/sprig/v3,MIT,Copyright (C) 2013-2020 Masterminds
-core,github.com/Masterminds/squirrel,MIT,"Copyright (c) 2014-2015, Lann Martin. Copyright (C) 2015-2016, Google. Copyright (C) 2015, Matt Farina and Matt Butcher"
 core,github.com/Microsoft/go-winio,MIT,Copyright (c) 2015 Microsoft
 core,github.com/Microsoft/go-winio/backuptar,MIT,Copyright (c) 2015 Microsoft
 core,github.com/Microsoft/go-winio/internal/fs,MIT,Copyright (c) 2015 Microsoft
@@ -1437,8 +1436,6 @@ core,github.com/kr/pretty,MIT,Copyright 2012 Keith Rarick
 core,github.com/kr/text,MIT,Copyright 2012 Keith Rarick
 core,github.com/kylelemons/godebug/diff,Apache-2.0,Copyright (c) 2013-2020 Kyle Lemons
 core,github.com/kylelemons/godebug/pretty,Apache-2.0,Copyright (c) 2013-2020 Kyle Lemons
-core,github.com/lann/builder,MIT,Copyright (c) 2014-2015 Lann Martin
-core,github.com/lann/ps,MIT,Copyright (c) 2013 Michael Hendricks
 core,github.com/leodido/go-syslog/v4,MIT,"Copyright (c) 2018, Leonardo Di Donato"
 core,github.com/leodido/go-syslog/v4/ciscoios,MIT,"Copyright (c) 2018, Leonardo Di Donato"
 core,github.com/leodido/go-syslog/v4/common,MIT,"Copyright (c) 2018, Leonardo Di Donato"
