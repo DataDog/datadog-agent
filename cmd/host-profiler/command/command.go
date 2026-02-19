@@ -32,7 +32,7 @@ func MakeRootCommand() *cobra.Command {
 	}
 	hostProfiler.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "config", "c", "", "path to host-profiler configuration file")
 	hostProfiler.PersistentFlags().StringVarP(&globalParams.CoreConfPath, "core-config", "", "", "Location to the Datadog Agent config file. If this value is not set, infra attribute processor and all features related to the Agent will not be enabled.")
-	hostProfiler.PersistentFlags().DurationVar(&globalParams.SyncOnInitTimeout, "sync-on-init-timeout", 0, "How long should config sync retry at initialization before failing.")
+	hostProfiler.PersistentFlags().DurationVar(&globalParams.SyncOnInitTimeout, "sync-on-init-timeout", 30*time.Second, "How long should config sync retry at initialization before failing.")
 	hostProfiler.PersistentFlags().DurationVar(&globalParams.SyncTimeout, "sync-to", 3*time.Second, "Timeout for config sync requests.")
 	for _, subCommandFactory := range hostProfilerSubcommands() {
 		subcommands := subCommandFactory(globalParamsGetter)
