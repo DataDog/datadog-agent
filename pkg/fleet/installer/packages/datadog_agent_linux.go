@@ -258,10 +258,11 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 	if err := integrations.RestoreCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 		log.Warnf("failed to restore custom integrations: %s", err)
 	}
-	if err := extensionsPkg.SetPackage(ctx, agentPackage, getCurrentAgentVersion(), false); err != nil {
+	agentVersion := getCurrentAgentVersion()
+	if err := extensionsPkg.SetPackage(ctx, agentPackage, agentVersion, false); err != nil {
 		return fmt.Errorf("failed to set package version in extensions db: %w", err)
 	}
-	if err := restoreAgentExtensions(ctx, false); err != nil {
+	if err := restoreAgentExtensions(ctx, agentVersion, false); err != nil {
 		fmt.Printf("failed to restore extensions: %s\n", err.Error())
 		log.Warnf("failed to restore extensions: %s", err)
 	}
@@ -359,10 +360,11 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 	if err := integrations.RestoreCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 		log.Warnf("failed to restore custom integrations: %s", err)
 	}
-	if err := extensionsPkg.SetPackage(ctx, agentPackage, getCurrentAgentVersion(), true); err != nil {
+	experimentVersion := getCurrentAgentVersion()
+	if err := extensionsPkg.SetPackage(ctx, agentPackage, experimentVersion, true); err != nil {
 		return fmt.Errorf("failed to set package version in extensions db: %w", err)
 	}
-	if err := restoreAgentExtensions(ctx, true); err != nil {
+	if err := restoreAgentExtensions(ctx, experimentVersion, true); err != nil {
 		log.Warnf("failed to restore agent extensions: %s", err)
 	}
 	if err := agentService.WriteExperiment(ctx); err != nil {

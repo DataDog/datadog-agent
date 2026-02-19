@@ -114,7 +114,7 @@ func removeAgentExtensions(ctx HookContext, experiment bool) error {
 // Note: Caller must call extensionsPkg.SetPackage() separately before calling this function.
 //
 //nolint:unused // Used in platform-specific files
-func restoreAgentExtensions(ctx HookContext, experiment bool) error {
+func restoreAgentExtensions(ctx HookContext, version string, experiment bool) error {
 	env := env.FromEnv()
 
 	storagePath := getExtensionStoragePath(ctx.PackagePath)
@@ -122,9 +122,8 @@ func restoreAgentExtensions(ctx HookContext, experiment bool) error {
 	// Best effort to get the registry config from datadog.yaml
 	setRegistryConfig(env)
 
-	agentVersion := getCurrentAgentVersion()
 	downloader := oci.NewDownloader(env, env.HTTPClient())
-	url := oci.PackageURL(env, agentPackage, agentVersion)
+	url := oci.PackageURL(env, agentPackage, version)
 	hooks := NewHooks(env, repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks))
 
 	return extensionsPkg.Restore(ctx, downloader, agentPackage, url, storagePath, experiment, hooks)

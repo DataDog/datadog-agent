@@ -28,7 +28,7 @@ func (m *mockHooks) PreInstallExtension(_ context.Context, _ string, _ string) e
 	return m.preInstallErr
 }
 
-func (m *mockHooks) PostInstallExtension(_ context.Context, _ string, _ string) error {
+func (m *mockHooks) PostInstallExtension(_ context.Context, _ string, _ string, _ bool) error {
 	return m.postInstallErr
 }
 
