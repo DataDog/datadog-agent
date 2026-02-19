@@ -141,7 +141,7 @@ func AllCustomRuleIDs() []string {
 // - agent.rule_id == SlowEventProcessingRuleID
 // - agent.original_rule_id == originalRuleID
 func NewSlowEventProcessingRule(originalRuleID, originalRuleVersion string) *rules.Rule {
-	r := NewCustomRule(SlowEventProcessingRuleID, SlowEventProcessingRuleDesc)
+	r := NewCustomRule(SlowEventProcessingRuleID, SlowEventProcessingRuleDesc, nil)
 	if r.Def != nil {
 		r.Def.ID = originalRuleID
 		r.Def.GroupID = SlowEventProcessingRuleID
