@@ -289,26 +289,13 @@ func mergeLastAccessProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclone
 		mergedBom.Components[i] = mergedComp
 	}
 
-	// Add any components from new BOM that don't exist in existing BOM
-	// Use normalized versions to avoid adding duplicates due to epoch differences
-	for key, newComp := range newComponentsMap {
-		found := false
-		for _, existingComp := range existingBom.Components {
-			if existingComp != nil {
-				normalizedVersion, _ := normalizeVersion(existingComp.Version)
-				existingKey := existingComp.Name + "@" + normalizedVersion
-				if existingKey == key {
-					found = true
-					break
-				}
-			}
-		}
-
-		if !found {
-			mergedBom.Components = append(mergedBom.Components, newComp)
-			log.Tracef("Added new component %s from runtime-generated SBOM", key)
-		}
-	}
+	// NOTE: We do NOT add components from newBom (system-probe) that don't exist in existingBom (Trivy).
+	// System-probe components have minimal metadata (just name/version/purl + runtime properties),
+	// while Trivy components have rich metadata (supplier, hashes, licenses, etc.).
+	// The correct approach is to:
+	// 1. Keep all Trivy components (done above in the loop)
+	// 2. Enrich them with runtime properties from system-probe (done above via updateProperty)
+	// 3. Don't add system-probe-only components (they would be duplicates with less metadata)
 
 	return mergedBom
 }
