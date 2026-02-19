@@ -5,7 +5,7 @@
 
 // This doesn't need BPF, but it's built with this tag to only run with
 // system-probe tests.
-//go:build test && linux_bpf
+//go:build test && linux_bpf && !cgo
 
 package module
 

@@ -145,9 +145,20 @@ pkg_files(
     ),
 )
 
+pkg_files(
+    name = "libdd_discovery_pkg",
+    srcs = [":libdd_discovery"],
+    attributes = pkg_attributes(
+        mode = "0755",
+    ),
+)
+
 pkg_install(
     name = "install",
-    srcs = [":sd-agent_pkg"],
+    srcs = [
+        ":libdd_discovery_pkg",
+        ":sd-agent_pkg",
+    ],
 )
 
 # Disco CLI tool for service discovery
