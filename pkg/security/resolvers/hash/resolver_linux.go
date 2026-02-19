@@ -98,6 +98,8 @@ type LRUCacheEntry struct {
 
 // SSDeepCacheKey is the key used for caching ssdeep hashes based on cheaper hashes
 type SSDeepCacheKey struct {
+	inode     uint64 // file inode
+	size      int64  // file size in bytes
 	cheapHash string // the cheapest hash used as cache key
 }
 
@@ -489,15 +491,18 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, cgroupID cont
 
 	// Step 2: Handle SSDEEP separately with caching based on cheapest hash
 	if resolver.ssdeepCache != nil {
-		// Find the cheapest computed hash to use as cache key
-		cheapestHash := computedHashes[0]
+		var (
+			cheapestHash  string
+			ssdeepHashStr string
+			foundInCache  bool
+		)
 
-		var ssdeepHashStr string
-		foundInCache := false
+		if len(computedHashes) > 0 {
+			// Find the cheapest computed hash to use as cache key
+			cheapestHash := computedHashes[0]
 
-		// Check if we have a cached SSDEEP for this cheap hash
-		if cheapestHash != "" {
-			ssdeepKey := SSDeepCacheKey{cheapHash: cheapestHash}
+			// Check if we have a cached SSDEEP for this cheap hash
+			ssdeepKey := SSDeepCacheKey{cheapHash: cheapestHash, inode: file.Inode, size: size}
 			if cached, ok := resolver.ssdeepCache.Get(ssdeepKey); ok {
 				ssdeepHashStr = cached.ssdeepHash
 				foundInCache = true
@@ -531,8 +536,8 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, cgroupID cont
 						ssdeepHashStr = hashStr.String()
 
 						// Cache the SSDEEP hash with the cheapest hash as key
-						if resolver.ssdeepCache != nil && cheapestHash != "" {
-							ssdeepKey := SSDeepCacheKey{cheapHash: cheapestHash}
+						if cheapestHash != "" {
+							ssdeepKey := SSDeepCacheKey{cheapHash: cheapestHash, inode: file.Inode, size: size}
 							resolver.ssdeepCache.Add(ssdeepKey, &SSDeepCacheEntry{ssdeepHash: ssdeepHashStr})
 						}
 
