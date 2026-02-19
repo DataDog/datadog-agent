@@ -147,7 +147,7 @@ func (p *EBPFResolver) TryReparentFromProcfs(entry *model.ProcessCacheEntry) {
 
 	var prev *model.ProcessCacheEntry
 	for pc := entry; pc != nil; prev, pc = pc, pc.Ancestor {
-		if pc.ExitTime.IsZero() || !prev.ExitTime.IsZero() {
+		if pc.ExitTime.IsZero() || prev == nil || !prev.ExitTime.IsZero() {
 			continue
 		}
 		p.tryReparentChildrenFromProcfs(pc)
