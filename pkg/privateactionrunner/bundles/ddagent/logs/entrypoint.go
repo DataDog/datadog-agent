@@ -23,6 +23,7 @@ func NewLogs(wmeta workloadmeta.Component) types.Bundle {
 			"tailProcessLog": NewTailProcessLogHandler(),
 			"headPodLog":     NewHeadPodLogHandler(wmeta),
 			"tailPodLog":     NewTailPodLogHandler(wmeta),
+			"listLogFiles":   NewListLogFilesHandler(wmeta),
 		},
 	}
 }
