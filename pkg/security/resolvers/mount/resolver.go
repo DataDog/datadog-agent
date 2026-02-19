@@ -399,6 +399,11 @@ func (mr *Resolver) insert(m *model.Mount) {
 		}
 	}
 
+	if m.RootPathKey.IsNull() {
+		// this should never happen
+		seclog.Warnf("root path key is null for mount %d", m.MountID)
+	}
+
 	mr.mounts.Add(m.MountID, m)
 }
 
