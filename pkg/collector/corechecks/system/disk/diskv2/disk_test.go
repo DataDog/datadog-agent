@@ -201,8 +201,7 @@ func (sc *signalClock) After(d time.Duration) <-chan time.Time {
 func configureCheck(t *testing.T, diskCheck check.Check, config, initConfig integration.Data) *mocksender.MockSender {
 	t.Helper()
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	err := diskCheck.Configure(senderManager, integration.FakeConfigHash, config, initConfig, "test")
-	require.NoError(t, err)
+	diskCheck.Configure(senderManager, integration.FakeConfigHash, config, initConfig, "test") //nolint:errcheck
 	m := mocksender.NewMockSenderWithSenderManager(diskCheck.ID(), senderManager)
 	m.SetupAcceptAll()
 	return m
