@@ -31,7 +31,7 @@ func newConfigSuite() e2e.Suite[environments.Host] {
 }
 
 func TestFleetConfig(t *testing.T) {
-	suite.Run(t, newConfigSuite, suite.AllPlatforms)
+	suite.Run(t, newConfigSuite, suite.Platforms())
 }
 
 func (s *configSuite) TestConfig() {
