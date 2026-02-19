@@ -492,9 +492,11 @@ func (r *Resolver) enrichSBOMsWithUsage() (bool, error) {
 		}
 
 		for _, sbom := range r.sboms.Values() {
+			sbom.Lock()
 			if sbom.data != nil && sbom.workloadKey == workloadKey(image.Name) {
 				enriched = enriched || r.enrichSBOMWithUsage(uncompressedSBOM, sbom)
 			}
+			sbom.Unlock()
 		}
 	}
 
