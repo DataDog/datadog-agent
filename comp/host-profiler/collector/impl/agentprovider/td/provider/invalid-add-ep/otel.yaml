@@ -15,6 +15,7 @@ extensions:
 processors:
     infraattributes/default:
         allow_hostname_override: true
+        cardinality: 2
     resource/dd-profiler-internal-metadata:
         attributes:
             - action: upsert

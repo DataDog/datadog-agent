@@ -80,7 +80,11 @@ func buildExporters(conf confMap, agent configManager) []any {
 func buildProcessors(conf confMap) []any {
 	processors := make(confMap)
 
-	_ = converters.Set(processors, "infraattributes/default::allow_hostname_override", true)
+	infraattributes := confMap{
+		"allow_hostname_override": true,
+		"cardinality":             2,
+	}
+	_ = converters.Set(processors, "infraattributes/default", infraattributes)
 
 	metadata := confMap{
 		"attributes": []any{
