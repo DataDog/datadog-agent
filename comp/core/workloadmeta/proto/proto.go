@@ -426,7 +426,7 @@ func protoContainerImageMetadataFromWorkloadmetaContainerImageMetadata(container
 		})
 	}
 
-	return &pb.ContainerImageMetadata{
+	containerImageMetadataProto := &pb.ContainerImageMetadata{
 		EntityId:     protoEntityID,
 		EntityMeta:   toProtoEntityMetaFromContainerImageMetadata(containerImageMetadata),
 		RepoTags:     containerImageMetadata.RepoTags,
@@ -438,15 +438,20 @@ func protoContainerImageMetadataFromWorkloadmetaContainerImageMetadata(container
 		Architecture: containerImageMetadata.Architecture,
 		Variant:      containerImageMetadata.Variant,
 		Layers:       protoLayers,
-		Sbom: &pb.CompressedSBOM{
+	}
+
+	if containerImageMetadata.SBOM != nil {
+		containerImageMetadataProto.Sbom = &pb.CompressedSBOM{
 			Bom:                containerImageMetadata.SBOM.Bom,
 			GenerationTime:     timestamppb.New(containerImageMetadata.SBOM.GenerationTime),
 			GenerationDuration: uint64(containerImageMetadata.SBOM.GenerationDuration),
 			GenerationMethod:   containerImageMetadata.SBOM.GenerationMethod,
 			Status:             string(containerImageMetadata.SBOM.Status),
 			Error:              containerImageMetadata.SBOM.Error,
-		},
-	}, nil
+		}
+	}
+
+	return containerImageMetadataProto, nil
 }
 
 func toProtoEntityMetaFromContainerImageMetadata(containerImageMetadata *workloadmeta.ContainerImageMetadata) *pb.EntityMeta {
@@ -1262,7 +1267,7 @@ func toWorkloadmetaContainerImageMetadata(protoContainerImageMetadata *pb.Contai
 		})
 	}
 
-	return &workloadmeta.ContainerImageMetadata{
+	containerImageMetadata := &workloadmeta.ContainerImageMetadata{
 		EntityID:     entityID,
 		EntityMeta:   toWorkloadmetaEntityMeta(protoContainerImageMetadata.EntityMeta),
 		RepoTags:     protoContainerImageMetadata.RepoTags,
@@ -1274,15 +1279,20 @@ func toWorkloadmetaContainerImageMetadata(protoContainerImageMetadata *pb.Contai
 		Architecture: protoContainerImageMetadata.Architecture,
 		Variant:      protoContainerImageMetadata.Variant,
 		Layers:       layers,
-		SBOM: &workloadmeta.CompressedSBOM{
+	}
+
+	if protoContainerImageMetadata.Sbom != nil {
+		containerImageMetadata.SBOM = &workloadmeta.CompressedSBOM{
 			Bom:                protoContainerImageMetadata.Sbom.Bom,
 			GenerationTime:     protoContainerImageMetadata.Sbom.GenerationTime.AsTime(),
 			GenerationDuration: time.Duration(protoContainerImageMetadata.Sbom.GenerationDuration),
 			GenerationMethod:   protoContainerImageMetadata.Sbom.GenerationMethod,
 			Status:             workloadmeta.SBOMStatus(protoContainerImageMetadata.Sbom.Status),
 			Error:              protoContainerImageMetadata.Sbom.Error,
-		},
-	}, nil
+		}
+	}
+
+	return containerImageMetadata, nil
 }
 
 func toWorkloadmetaCrd(protoCrd *pb.Crd) (*workloadmeta.CRD, error) {
