@@ -11,11 +11,10 @@ features:
     Add a new configuration provider, which schedules new instances of KSM checks to generate metrics
     from ``CustomResourceDefinitions``.
 
-    This new providers works with the ``kube_crd`` listener which listens for ``CustomResourceDefinitions``
+    This new provider works with the ``kube_crd`` listener which listens for ``CustomResourceDefinitions``
     created on the cluster and triggers a new autodiscovery-service for each one.
 
     This new configuration provider must use the standard kubernetes ``GroupVersionKind`` format in its
-    ``AdvancedADIdentifier`` section to apply to a the matching ``CustomResourceDefinition``.
+    ``AdvancedADIdentifier`` section to apply to a matching ``CustomResourceDefinition``.
 
     The rest of the configuration is a standard KSM configuration instance.
-
