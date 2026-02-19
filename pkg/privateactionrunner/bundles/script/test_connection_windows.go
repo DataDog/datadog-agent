@@ -24,9 +24,9 @@ func NewTestConnectionHandler() *TestConnectionHandler {
 }
 
 func (h *TestConnectionHandler) Run(
-	_ctx context.Context,
-	_task *types.Task,
-	_credentials *privateconnection.PrivateCredentials,
+	ctx context.Context,
+	task *types.Task,
+	credentials *privateconnection.PrivateCredentials,
 ) (interface{}, error) {
-	return nil, errors.New("testConnection is not available on Windows")
+	return nil, errors.New("Testing script connection is not available on Windows")
 }
