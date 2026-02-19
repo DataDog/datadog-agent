@@ -16,6 +16,7 @@ import (
 	"unsafe"
 
 	_ "github.com/DataDog/datadog-agent/pkg/collector/aggregator" // import submit functions
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
 /*
@@ -83,6 +84,10 @@ type SharedLibraryLoader struct {
 
 // Open looks for a shared library with the corresponding name and check if it has the required symbols
 func (l *SharedLibraryLoader) Open(path string) (*Library, error) {
+	if err := filesystem.CheckOwnerAndPermissions(path); err != nil {
+		return nil, err
+	}
+
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
 
