@@ -9,6 +9,7 @@ namespace WixSetup.Datadog_Agent
         public string Tray => $@"{_binSource}\ddtray.exe";
         public Id TrayId => new("ddtray");
         public string ProcessAgent => $@"{_binSource}\process-agent.exe";
+        public string PrivateActionRunner => $@"{_binSource}\privateactionrunner.exe";
         public string SystemProbe => $@"{_binSource}\system-probe.exe";
         public string TraceAgent => $@"{_binSource}\trace-agent.exe";
         public string SecretGenericConnector => $@"{_binSource}\secret-generic-connector.exe";

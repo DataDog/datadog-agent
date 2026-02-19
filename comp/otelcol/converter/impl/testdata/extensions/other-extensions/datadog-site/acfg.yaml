@@ -1,0 +1,5 @@
+api_key: ggggg77777
+site: us5.datadoghq.com
+otelcollector:
+  converter:
+    features: [pprof, zpages, health_check, datadog]

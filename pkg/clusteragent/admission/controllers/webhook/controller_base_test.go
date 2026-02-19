@@ -138,8 +138,7 @@ func TestAutoInstrumentation(t *testing.T) {
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
-			// Create APM webhook.
-			apm, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, wmeta)
+			apm, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, wmeta, nil)
 			assert.NoError(t, err)
 
 			// Create request.

@@ -27,6 +27,9 @@ replace (
 	go.opentelemetry.io/ebpf-profiler => github.com/DataDog/opentelemetry-ebpf-profiler v0.0.202602-0.20260130121113-9fabd54fb605
 )
 
+// FIXME: disk device labeling regression present in v4.25.12 and v4.26.1, waiting on new release
+replace github.com/shirou/gopsutil/v4 => github.com/shirou/gopsutil/v4 v4.25.11
+
 require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
@@ -167,7 +170,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.76.0-rc.4
 	github.com/DataDog/datadog-go/v5 v5.8.3
 	github.com/DataDog/datadog-operator/api v0.0.0-20260130110400-4fcb91d49671
-	github.com/DataDog/datadog-traceroute v1.0.6
+	github.com/DataDog/datadog-traceroute v1.0.8
 	github.com/DataDog/ebpf-manager v0.7.15
 	github.com/DataDog/go-sqllexer v0.1.13
 	github.com/DataDog/gopsutil v1.2.3
