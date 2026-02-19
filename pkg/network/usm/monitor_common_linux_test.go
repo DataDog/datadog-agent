@@ -67,6 +67,7 @@ func newLinuxCommonTestParams(t *testing.T) commonTestParams {
 		setupMonitor: func(t *testing.T) TestMonitor {
 			return setupLinuxTestMonitor(t, getHTTPCfg())
 		},
+		expectedOccurrences: 1,
 	}
 }
 
@@ -101,6 +102,7 @@ func (s *HTTPCommonTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 		setupMonitor: func(t *testing.T) TestMonitor {
 			return setupLinuxTestMonitor(t, getHTTPCfg())
 		},
+		expectedOccurrences: 1,
 	})
 }
 

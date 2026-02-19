@@ -48,22 +48,16 @@ func getHTTPStats(t *testing.T, monitor TestMonitor) map[http.Key]*http.RequestS
 	return monitor.GetHTTPStats()
 }
 
-// verifyHTTPStats validates that the expected HTTP endpoints are present in the stats.
-// expectedEndpoints maps http.Key (without connection details) to expected status code and count.
-// serverPort is used to filter stats to only those matching the server port.
+// verifyHTTPStats fetches HTTP stats from the monitor, accumulates them into the accumulated map
+// across multiple calls (since getHTTPStats drains stats), and checks whether all expected endpoints
+// have reached the expected counts.
+// expectedOccurrences multiplies the expected count (1 on Linux, 2 on Windows ETW).
 // additionalValidator is optional - if provided, performs custom validation on each RequestStat.
 // Returns true if all expected endpoints are found with matching status codes and counts.
-func verifyHTTPStats(t *testing.T, monitor TestMonitor, expectedEndpoints map[http.Key]statusCodeCount, serverPort int, allowExtraCounts bool, additionalValidator func(*testing.T, *http.RequestStat) bool) bool {
+func verifyHTTPStats(t *testing.T, monitor TestMonitor, accumulated map[http.Key]statusCodeCount, expectedEndpoints map[http.Key]statusCodeCount, serverPort int, expectedOccurrences int, additionalValidator func(*testing.T, *http.RequestStat) bool) bool {
 	t.Helper()
 
 	stats := getHTTPStats(t, monitor)
-	if len(stats) == 0 {
-		return false
-	}
-
-	// Build result map from actual stats
-	result := make(map[http.Key]statusCodeCount)
-
 	for key, reqStats := range stats {
 		// Only check stats matching the server port
 		if key.SrcPort != uint16(serverPort) && key.DstPort != uint16(serverPort) {
@@ -89,11 +83,10 @@ func verifyHTTPStats(t *testing.T, monitor TestMonitor, expectedEndpoints map[ht
 				},
 			}
 
-			// Accumulate counts for the same path/method/status
-			// This is critical for Windows ETW where stats may come from multiple connection keys
-			existing := result[simpleKey]
+			// Accumulate counts for the same path/method/status across polls
+			existing := accumulated[simpleKey]
 			if existing.statusCode == 0 || existing.statusCode == statusCode {
-				result[simpleKey] = statusCodeCount{
+				accumulated[simpleKey] = statusCodeCount{
 					statusCode: statusCode,
 					count:      existing.count + stat.Count,
 				}
@@ -101,27 +94,17 @@ func verifyHTTPStats(t *testing.T, monitor TestMonitor, expectedEndpoints map[ht
 		}
 	}
 
-	// Compare result with expected endpoints
-	if len(result) != len(expectedEndpoints) {
-		return false
-	}
-
+	// Compare accumulated with expected endpoints
 	for key, expected := range expectedEndpoints {
-		actual, ok := result[key]
+		actual, ok := accumulated[key]
 		if !ok {
 			return false
 		}
 		if actual.statusCode != expected.statusCode {
 			return false
 		}
-		if allowExtraCounts {
-			if actual.count < expected.count {
-				return false
-			}
-		} else {
-			if actual.count != expected.count {
-				return false
-			}
+		if actual.count < expected.count*expectedOccurrences {
+			return false
 		}
 	}
 
@@ -142,10 +125,10 @@ type commonTestParams struct {
 	serverPort int
 	// setupMonitor is a platform-specific function to set up the monitor
 	setupMonitor func(t *testing.T) TestMonitor
-	// allowExtraCounts when true, accepts actual count >= expected count.
-	// This is needed on Windows where ETW may capture the same transaction from both connection endpoints.
-	// On Linux this should be false to catch bugs where duplicate stats are reported.
-	allowExtraCounts bool
+	// expectedOccurrences is the exact number of times each request should be captured.
+	// On Windows ETW captures the same transaction from both connection endpoints, so this should be 2.
+	// On Linux this should be 1.
+	expectedOccurrences int
 }
 
 // runHTTPStatsTest runs the common HTTP stats test logic.
@@ -189,8 +172,9 @@ func runHTTPStatsTest(t *testing.T, params commonTestParams) {
 	}
 
 	// Verify both endpoints were captured by the monitor
+	accumulated := make(map[http.Key]statusCodeCount)
 	require.Eventuallyf(t, func() bool {
-		return verifyHTTPStats(t, monitor, expectedEndpoints, params.serverPort, params.allowExtraCounts, nil)
+		return verifyHTTPStats(t, monitor, accumulated, expectedEndpoints, params.serverPort, params.expectedOccurrences, nil)
 	}, 3*time.Second, 100*time.Millisecond, "HTTP connections not found for %s", serverAddr)
 }
 
@@ -350,17 +334,18 @@ func runHTTPMonitorIntegrationWithResponseBodyTest(t *testing.T, params commonTe
 			}
 			srvDoneFn()
 
-			assertAllRequestsExist(t, monitor, requests, params.allowExtraCounts)
+			assertAllRequestsExist(t, monitor, requests, params.expectedOccurrences)
 		})
 	}
 }
 
-// assertAllRequestsExist verifies that all requests are found in the monitor stats.
-// When allowExtraCounts is false (Linux), each request must appear exactly once.
-// When allowExtraCounts is true (Windows), each request must appear at least once.
-func assertAllRequestsExist(t *testing.T, monitor TestMonitor, requests []*nethttp.Request, allowExtraCounts bool) {
+// assertAllRequestsExist verifies that all requests are found in the monitor stats
+// exactly expectedOccurrences times. On Linux expectedOccurrences should be 1,
+// on Windows it should be 2 (ETW captures transactions from both connection endpoints).
+func assertAllRequestsExist(t *testing.T, monitor TestMonitor, requests []*nethttp.Request, expectedOccurrences int) {
 	t.Helper()
 	requestsExist := make([]bool, len(requests))
+	requestsCapturedCount := make([]int, len(requests))
 
 	assert.Eventually(t, func() bool {
 		stats := getHTTPStats(t, monitor)
@@ -369,14 +354,10 @@ func assertAllRequestsExist(t *testing.T, monitor TestMonitor, requests []*netht
 		}
 
 		for reqIndex, req := range requests {
+			count := countRequestOccurrences(stats, req)
+			requestsCapturedCount[reqIndex] += count
 			if !requestsExist[reqIndex] {
-				if allowExtraCounts {
-					requestsExist[reqIndex] = countRequestOccurrences(stats, req) >= 1
-				} else {
-					exists, err := isRequestIncludedOnce(stats, req)
-					require.NoError(t, err)
-					requestsExist[reqIndex] = exists
-				}
+				requestsExist[reqIndex] = requestsCapturedCount[reqIndex] >= expectedOccurrences
 			}
 		}
 
@@ -386,14 +367,12 @@ func assertAllRequestsExist(t *testing.T, monitor TestMonitor, requests []*netht
 			}
 		}
 		return true
-	}, 3*time.Second, 100*time.Millisecond, "not all requests were captured")
+	}, 3*time.Second, 100*time.Millisecond, "not all requests were captured the expected number of times")
 
-	if t.Failed() {
-		for reqIndex, exists := range requestsExist {
-			if !exists {
-				t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
-			}
-		}
+	for reqIndex := range requests {
+		req := requests[reqIndex]
+		assert.Equalf(t, expectedOccurrences, requestsCapturedCount[reqIndex],
+			"request %d captured %d times, expected %d (req %v)", reqIndex+1, requestsCapturedCount[reqIndex], expectedOccurrences, req)
 	}
 }
 
@@ -428,8 +407,9 @@ type httpLoadTestParams struct {
 	fastServerPort int
 	// setupMonitor is a platform-specific function to set up the monitor
 	setupMonitor func(t *testing.T) TestMonitor
-	// allowExtraCounts when true, accepts count >= expected (Windows ETW may report duplicates).
-	allowExtraCounts bool
+	// expectedOccurrences is the exact number of times the fast request should be captured.
+	// On Windows ETW this should be 2 (captures from both connection endpoints), on Linux 1.
+	expectedOccurrences int
 }
 
 // runHTTPMonitorLoadWithIncompleteBuffersTest sends thousands of requests without getting responses for them,
@@ -463,10 +443,10 @@ func runHTTPMonitorLoadWithIncompleteBuffersTest(t *testing.T, params httpLoadTe
 	slowSrvDoneFn()
 	fastSrvDoneFn()
 
-	foundFastReq := false
+	totalFastReqOccurrences := 0
 	// We are iterating for a couple of iterations and making sure the aborted requests will never be found.
 	// Since every call for monitor.GetHTTPStats will delete/pop all entries, and we want to find fastReq
-	// then we are using a variable to check if "we ever found it" among the iterations.
+	// then we are accumulating the count across iterations.
 	for i := 0; i < 10; i++ {
 		time.Sleep(10 * time.Millisecond)
 		stats := getHTTPStats(t, monitor)
@@ -474,15 +454,10 @@ func runHTTPMonitorLoadWithIncompleteBuffersTest(t *testing.T, params httpLoadTe
 			checkRequestIncluded(t, stats, req, false)
 		}
 
-		occurrences := countRequestOccurrences(stats, fastReq)
-		if params.allowExtraCounts {
-			foundFastReq = foundFastReq || occurrences >= 1
-		} else {
-			foundFastReq = foundFastReq || occurrences == 1
-		}
+		totalFastReqOccurrences += countRequestOccurrences(stats, fastReq)
 	}
 
-	require.True(t, foundFastReq)
+	require.Equal(t, params.expectedOccurrences, totalFastReqOccurrences, "expected fast request to be captured exactly %d times, got %d", params.expectedOccurrences, totalFastReqOccurrences)
 }
 
 // runRSTPacketRegressionTest checks that USM captures a request that was forcefully terminated by a RST packet.
@@ -517,15 +492,13 @@ func runRSTPacketRegressionTest(t *testing.T, params commonTestParams) {
 	reqURL, err := url.Parse(fmt.Sprintf("http://%s%s", serverAddr, requestPath))
 	require.NoError(t, err)
 
-	expectedOccurrences := 1
+	totalOccurrences := 0
 	require.Eventually(t, func() bool {
 		stats := getHTTPStats(t, monitor)
-		occurrences := countRequestOccurrences(stats, &nethttp.Request{URL: reqURL, Method: nethttp.MethodGet})
-		if params.allowExtraCounts {
-			return occurrences >= expectedOccurrences
-		}
-		return occurrences == expectedOccurrences
+		totalOccurrences += countRequestOccurrences(stats, &nethttp.Request{URL: reqURL, Method: nethttp.MethodGet})
+		return totalOccurrences >= params.expectedOccurrences
 	}, 3*time.Second, 100*time.Millisecond, "HTTP request with RST termination not captured")
+	require.Equal(t, params.expectedOccurrences, totalOccurrences, "expected exactly %d occurrences of RST request, got %d", params.expectedOccurrences, totalOccurrences)
 }
 
 // runKeepAliveWithIncompleteResponseRegressionTest checks that USM captures a request, although we initially saw a
@@ -594,15 +567,13 @@ func runKeepAliveWithIncompleteResponseRegressionTest(t *testing.T, params commo
 	reqURL, err := url.Parse(fmt.Sprintf("http://%s/200/foobar", serverAddr))
 	require.NoError(t, err)
 
-	expectedOccurrences := 1
+	totalOccurrences := 0
 	require.Eventually(t, func() bool {
 		stats := getHTTPStats(t, monitor)
-		occurrences := countRequestOccurrences(stats, &nethttp.Request{URL: reqURL, Method: nethttp.MethodGet})
-		if params.allowExtraCounts {
-			return occurrences >= expectedOccurrences
-		}
-		return occurrences == expectedOccurrences
+		totalOccurrences += countRequestOccurrences(stats, &nethttp.Request{URL: reqURL, Method: nethttp.MethodGet})
+		return totalOccurrences >= params.expectedOccurrences
 	}, 3*time.Second, 100*time.Millisecond, "HTTP request with incomplete response not captured")
+	require.Equal(t, params.expectedOccurrences, totalOccurrences, "expected exactly %d occurrences of keepalive request, got %d", params.expectedOccurrences, totalOccurrences)
 }
 
 // emptyConfigTestParams holds parameters for the empty config test.

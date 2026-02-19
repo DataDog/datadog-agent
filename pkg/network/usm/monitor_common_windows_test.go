@@ -60,7 +60,7 @@ func newWindowsCommonTestParams(t *testing.T) commonTestParams {
 		setupMonitor: func(t *testing.T) TestMonitor {
 			return setupWindowsTestMonitor(t, getHTTPCfg())
 		},
-		allowExtraCounts: true, // Windows ETW may capture the same transaction from both connection endpoints
+		expectedOccurrences: 2, // Windows ETW captures the same transaction from both connection endpoints
 	}
 }
 
@@ -79,7 +79,7 @@ func TestHTTPMonitorLoadWithIncompleteBuffersCommon(t *testing.T) {
 		setupMonitor: func(t *testing.T) TestMonitor {
 			return setupWindowsTestMonitor(t, getHTTPCfg())
 		},
-		allowExtraCounts: true, // Windows ETW may capture from both connection endpoints
+		expectedOccurrences: 2, // Windows ETW captures from both connection endpoints
 	})
 }
 
