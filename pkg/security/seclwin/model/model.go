@@ -522,6 +522,8 @@ var zeroProcessContext ProcessContext
 // ProcessCacheEntry this struct holds process context kept in the process tree
 type ProcessCacheEntry struct {
 	ProcessContext
+
+	Children []*ProcessCacheEntry `field:"-"`
 }
 
 // IsContainerRoot returns whether this is a top level process in the container ID
