@@ -4,13 +4,11 @@
 #include "bpf_helpers.h"
 #include "telemetry_types.h"
 #include "map-defs.h"
-#include "compiler.h"
 
 /* redefinition of some error values */
 #ifdef COMPILE_CORE
-#define EAGAIN 11
-#define EBUSY  16
 #define EEXIST 17
+#define EBUSY 16
 #endif
 
 #define STR(x) #x
