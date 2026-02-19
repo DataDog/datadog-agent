@@ -561,8 +561,7 @@ func (c *ntmConfig) insertNodeFromString(curr *nodeImpl, key string, envval stri
 		actualValue = transformer(envval)
 	}
 
-	defaultNode := c.leafAtPathFromNode(key, c.defaults)
-	if defaultNode != missingLeaf {
+	if defaultNode := c.leafAtPathFromNode(key, c.defaults); defaultNode != missingLeaf {
 		if converted, err := convertToDefaultType(actualValue, defaultNode.Get()); err == nil {
 			actualValue = converted
 		}
