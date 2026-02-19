@@ -6,7 +6,7 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-feature:
+features:
   - |
     Allows the Agent to get an API key in exchange for an AWS cloud authorization proof.
     This allows you to use your AWS credentials against Datadog and removes the
