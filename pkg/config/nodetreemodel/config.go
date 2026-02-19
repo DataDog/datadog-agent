@@ -214,7 +214,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	// convert the value to the type of the default
 	if declaredNode.IsLeafNode() {
 		if converted, err := convertToDefaultType(newValue, declaredNode.Get()); err == nil {
-			if converted != newValue {
+			if reflect.TypeOf(converted) != reflect.TypeOf(newValue) {
 				log.Warnf("Set('%s'): converting value from %T to %T to match default type", key, newValue, converted)
 			}
 			newValue = converted
