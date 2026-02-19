@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
@@ -60,6 +61,7 @@ type Requires struct {
 	RcClient      rcclient.Component
 	Hostname      hostname.Component
 	Tagger        tagger.Component
+	Wmeta         workloadmeta.Component
 	Traceroute    traceroute.Component
 	EventPlatform eventplatform.Component
 }
@@ -75,6 +77,7 @@ type PrivateActionRunner struct {
 	rcClient       pkgrcclient.Client
 	logger         log.Component
 	tagger         tagger.Component
+	wmeta          workloadmeta.Component
 	traceroute     traceroute.Component
 	eventPlatform  eventplatform.Component
 
@@ -95,7 +98,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
 
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Wmeta, reqs.Traceroute, reqs.EventPlatform)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -113,6 +116,7 @@ func NewPrivateActionRunner(
 	rcClient pkgrcclient.Client,
 	logger log.Component,
 	taggerComp tagger.Component,
+	wmeta workloadmeta.Component,
 	tracerouteComp traceroute.Component,
 	eventPlatform eventplatform.Component,
 ) (*PrivateActionRunner, error) {
@@ -122,6 +126,7 @@ func NewPrivateActionRunner(
 		rcClient:       rcClient,
 		logger:         logger,
 		tagger:         taggerComp,
+		wmeta:          wmeta,
 		traceroute:     tracerouteComp,
 		eventPlatform:  eventPlatform,
 		startChan:      make(chan struct{}),
@@ -195,7 +200,7 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(cfg)
 
-	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform)
+	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, p.wmeta, p.traceroute, p.eventPlatform)
 	if err != nil {
 		return err
 	}
