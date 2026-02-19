@@ -620,4 +620,77 @@ int BPF_PROG(inet6_bind_exit, struct socket *sock, struct sockaddr *uaddr, int a
     return sys_exit_bind(rc);
 }
 
+// tcp_enter_loss and tcp_enter_recovery fire from the kernel's RTO timer in
+// softirq context, not from a userspace syscall. RETURN_IF_NOT_IN_SYSPROBE_TASK
+// must NOT be used here because bpf_get_ns_current_pid_tgid() will fail when
+// the interrupted task is a kernel thread (e.g. ksoftirqd).
+SEC("kprobe/tcp_enter_loss")
+int kprobe__tcp_enter_loss(struct pt_regs *ctx) {
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    conn_tuple_t t = {};
+    u64 zero = 0;
+    if (!read_conn_tuple(&t, sk, zero, CONN_TYPE_TCP)) {
+        return 0;
+    }
+    tcp_rto_recovery_stats_t empty = {};
+    bpf_map_update_with_telemetry(tcp_rto_recovery_stats, &t, &empty, BPF_NOEXIST, -EEXIST);
+    tcp_rto_recovery_stats_t *val = bpf_map_lookup_elem(&tcp_rto_recovery_stats, &t);
+    if (val) {
+        __sync_fetch_and_add(&val->rto_count, 1);
+        BPF_CORE_READ_INTO(&val->cwnd_at_last_rto, tcp_sk(sk), snd_cwnd);
+        BPF_CORE_READ_INTO(&val->ssthresh_at_last_rto, tcp_sk(sk), snd_ssthresh);
+        u32 srtt = 0;
+        BPF_CORE_READ_INTO(&srtt, tcp_sk(sk), srtt_us);
+        val->srtt_at_last_rto = srtt >> 3;
+        u8 retransmits = 0;
+        BPF_CORE_READ_INTO(&retransmits, tcp_sk(sk), inet_conn.icsk_retransmits);
+        if (retransmits > val->max_consecutive_rtos) {
+            val->max_consecutive_rtos = retransmits;
+        }
+    }
+    return 0;
+}
+
+SEC("kprobe/tcp_enter_recovery")
+int kprobe__tcp_enter_recovery(struct pt_regs *ctx) {
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    conn_tuple_t t = {};
+    u64 zero = 0;
+    if (!read_conn_tuple(&t, sk, zero, CONN_TYPE_TCP)) {
+        return 0;
+    }
+    tcp_rto_recovery_stats_t empty = {};
+    bpf_map_update_with_telemetry(tcp_rto_recovery_stats, &t, &empty, BPF_NOEXIST, -EEXIST);
+    tcp_rto_recovery_stats_t *val = bpf_map_lookup_elem(&tcp_rto_recovery_stats, &t);
+    if (val) {
+        __sync_fetch_and_add(&val->recovery_count, 1);
+        BPF_CORE_READ_INTO(&val->cwnd_at_last_recovery, tcp_sk(sk), snd_cwnd);
+        BPF_CORE_READ_INTO(&val->ssthresh_at_last_recovery, tcp_sk(sk), snd_ssthresh);
+        u32 srtt = 0;
+        BPF_CORE_READ_INTO(&srtt, tcp_sk(sk), srtt_us);
+        val->srtt_at_last_recovery = srtt >> 3;
+    }
+    return 0;
+}
+
+// tcp_send_probe0 fires from the TCP probe timer when the receiver's window
+// is zero. Same softirq context caveat as tcp_enter_loss — no
+// RETURN_IF_NOT_IN_SYSPROBE_TASK.
+SEC("kprobe/tcp_send_probe0")
+int kprobe__tcp_send_probe0(struct pt_regs *ctx) {
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    conn_tuple_t t = {};
+    u64 zero = 0;
+    if (!read_conn_tuple(&t, sk, zero, CONN_TYPE_TCP)) {
+        return 0;
+    }
+    tcp_rto_recovery_stats_t empty = {};
+    bpf_map_update_with_telemetry(tcp_rto_recovery_stats, &t, &empty, BPF_NOEXIST, -EEXIST);
+    tcp_rto_recovery_stats_t *val = bpf_map_lookup_elem(&tcp_rto_recovery_stats, &t);
+    if (val) {
+        __sync_fetch_and_add(&val->probe0_count, 1);
+    }
+    return 0;
+}
+
 char _license[] SEC("license") = "GPL";
