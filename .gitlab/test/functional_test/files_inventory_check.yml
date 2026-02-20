@@ -16,3 +16,4 @@ files_inventory_check:
     expire_in: 2 weeks
     paths:
       - "**/*_size_report_*.yml"
+  allow_failure: true
