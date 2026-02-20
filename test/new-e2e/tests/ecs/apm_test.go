@@ -16,9 +16,13 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
+	ecsmultiservice "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/ecs-multiservice"
+	ecsComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/ecs"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 
@@ -48,6 +52,9 @@ func TestECSAPMSuite(t *testing.T) {
 				scenecs.WithLinuxNodeGroup(),
 			),
 			scenecs.WithTestingWorkload(),
+			scenecs.WithWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput) (*ecsComp.Workload, error) {
+				return ecsmultiservice.EcsAppDefinition(e, clusterArn)
+			}),
 		),
 	)))
 }

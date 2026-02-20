@@ -11,8 +11,12 @@ import (
 	"testing"
 	"time"
 
+	ecsloggenerator "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/ecs-log-generator"
+	ecsComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/ecs"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 
 	scenecs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
@@ -33,6 +37,9 @@ func TestECSLogsSuite(t *testing.T) {
 				scenecs.WithLinuxNodeGroup(),
 			),
 			scenecs.WithTestingWorkload(),
+			scenecs.WithWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput) (*ecsComp.Workload, error) {
+				return ecsloggenerator.EcsAppDefinition(e, clusterArn)
+			}),
 		),
 	)))
 }
