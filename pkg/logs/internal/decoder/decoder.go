@@ -170,7 +170,7 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 		if rule.Type == config.MultiLine {
 			regexCombiner := preprocessor.NewRegexCombiner(rule.Regex, maxContentSize, false, tailerInfo, "multi_line")
 			syncSourceInfoForRegexCombiner(source, regexCombiner)
-			lineHandler = newPipelineHandler(regexCombiner, tok, sampler, nil, false, flushTimeout)
+			lineHandler = newPipelineHandler(regexCombiner, tok, nil, sampler, nil, false, flushTimeout)
 		}
 	}
 
@@ -193,13 +193,13 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 				pkgconfigsetup.Datadog().GetBool("logs_config.tag_multi_line_logs"),
 				tailerInfo)
 		}
-		combiner := preprocessor.NewAutoMultilineCombiner(labeler, aggregatorFactory)
+		combiner := preprocessor.NewAutoMultilineCombiner(aggregatorFactory)
 		enableJSON := pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.enable_json_aggregation")
 		if source.Config().AutoMultiLineOptions != nil && source.Config().AutoMultiLineOptions.EnableJSONAggregation != nil {
 			enableJSON = *source.Config().AutoMultiLineOptions.EnableJSONAggregation
 		}
 		jsonAgg := preprocessor.NewJSONAggregator(pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.tag_aggregated_json"), maxContentSize)
-		return newPipelineHandler(combiner, tok, sampler, jsonAgg, enableJSON, flushTimeout)
+		return newPipelineHandler(combiner, tok, labeler, sampler, jsonAgg, enableJSON, flushTimeout)
 	} else if pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line_detection_tagging") {
 		labeler := buildAutoMultilineLabeler(source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, tailerInfo)
 		aggregatorFactory := func(outputFn func(*message.Message)) preprocessor.Aggregator {
@@ -207,10 +207,10 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 			// while only tagging everything else.
 			return preprocessor.NewDetectingAggregator(outputFn, tailerInfo)
 		}
-		combiner := preprocessor.NewAutoMultilineCombiner(labeler, aggregatorFactory)
-		return newPipelineHandler(combiner, tok, sampler, nil, false, flushTimeout)
+		combiner := preprocessor.NewAutoMultilineCombiner(aggregatorFactory)
+		return newPipelineHandler(combiner, tok, labeler, sampler, nil, false, flushTimeout)
 	}
-	return newPipelineHandler(preprocessor.NewPassThroughCombiner(maxContentSize), tok, sampler, nil, false, flushTimeout)
+	return newPipelineHandler(preprocessor.NewPassThroughCombiner(maxContentSize), tok, nil, sampler, nil, false, flushTimeout)
 }
 
 func getLegacyAutoMultilineHandler(outputFn func(*message.Message), multiLinePattern *regexp.Regexp, maxContentSize int, source *sources.ReplaceableSource, detectedPattern *DetectedPattern, tailerInfo *status.InfoRegistry) LineHandler {

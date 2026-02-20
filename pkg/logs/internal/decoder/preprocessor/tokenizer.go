@@ -10,8 +10,6 @@ import (
 	"math"
 	"strings"
 	"unsafe"
-
-	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 // maxRun is the maximum run of a char or digit before it is capped.
@@ -36,54 +34,54 @@ func makeToUpperLookup() [256]byte {
 	return lookup
 }
 
-func makeTokenLookup() [256]types.Token {
-	var lookup [256]types.Token
+func makeTokenLookup() [256]Token {
+	var lookup [256]Token
 
-	// Default everything to types.C1 (character)
+	// Default everything to C1 (character)
 	for i := range lookup {
-		lookup[i] = types.C1
+		lookup[i] = C1
 	}
 
 	// Digits
 	for c := byte('0'); c <= '9'; c++ {
-		lookup[c] = types.D1
+		lookup[c] = D1
 	}
 
 	// Whitespace
-	lookup[' '] = types.Space
-	lookup['\t'] = types.Space
-	lookup['\n'] = types.Space
-	lookup['\r'] = types.Space
+	lookup[' '] = Space
+	lookup['\t'] = Space
+	lookup['\n'] = Space
+	lookup['\r'] = Space
 
 	// Special characters
-	lookup[':'] = types.Colon
-	lookup[';'] = types.Semicolon
-	lookup['-'] = types.Dash
-	lookup['_'] = types.Underscore
-	lookup['/'] = types.Fslash
-	lookup['\\'] = types.Bslash
-	lookup['.'] = types.Period
-	lookup[','] = types.Comma
-	lookup['\''] = types.Singlequote
-	lookup['"'] = types.Doublequote
-	lookup['`'] = types.Backtick
-	lookup['~'] = types.Tilda
-	lookup['*'] = types.Star
-	lookup['+'] = types.Plus
-	lookup['='] = types.Equal
-	lookup['('] = types.Parenopen
-	lookup[')'] = types.Parenclose
-	lookup['{'] = types.Braceopen
-	lookup['}'] = types.Braceclose
-	lookup['['] = types.Bracketopen
-	lookup[']'] = types.Bracketclose
-	lookup['&'] = types.Ampersand
-	lookup['!'] = types.Exclamation
-	lookup['@'] = types.At
-	lookup['#'] = types.Pound
-	lookup['$'] = types.Dollar
-	lookup['%'] = types.Percent
-	lookup['^'] = types.Uparrow
+	lookup[':'] = Colon
+	lookup[';'] = Semicolon
+	lookup['-'] = Dash
+	lookup['_'] = Underscore
+	lookup['/'] = Fslash
+	lookup['\\'] = Bslash
+	lookup['.'] = Period
+	lookup[','] = Comma
+	lookup['\''] = Singlequote
+	lookup['"'] = Doublequote
+	lookup['`'] = Backtick
+	lookup['~'] = Tilda
+	lookup['*'] = Star
+	lookup['+'] = Plus
+	lookup['='] = Equal
+	lookup['('] = Parenopen
+	lookup[')'] = Parenclose
+	lookup['{'] = Braceopen
+	lookup['}'] = Braceclose
+	lookup['['] = Bracketopen
+	lookup[']'] = Bracketclose
+	lookup['&'] = Ampersand
+	lookup['!'] = Exclamation
+	lookup['@'] = At
+	lookup['#'] = Pound
+	lookup['$'] = Dollar
+	lookup['%'] = Percent
+	lookup['^'] = Uparrow
 
 	return lookup
 }
@@ -95,10 +93,10 @@ func makeTokenLookup() [256]types.Token {
 // as buffers are reused to avoid allocations.
 type Tokenizer struct {
 	maxEvalBytes int
-	strBuf       [maxRun]byte  // Fixed-size buffer for special token matching
-	strLen       int           // Current length of content in strBuf
-	tsBuf        []types.Token // Reusable token buffer
-	idxBuf       []int         // Reusable index buffer
+	strBuf       [maxRun]byte // Fixed-size buffer for special token matching
+	strLen       int          // Current length of content in strBuf
+	tsBuf        []Token      // Reusable token buffer
+	idxBuf       []int        // Reusable index buffer
 }
 
 // NewTokenizer returns a new Tokenizer detection heuristic.
@@ -110,14 +108,14 @@ func NewTokenizer(maxEvalBytes int) *Tokenizer {
 	}
 	return &Tokenizer{
 		maxEvalBytes: maxEvalBytes,
-		tsBuf:        make([]types.Token, 0, initCap),
+		tsBuf:        make([]Token, 0, initCap),
 		idxBuf:       make([]int, 0, initCap),
 	}
 }
 
 // Tokenize tokenizes the input bytes and returns tokens and their start indices.
 // The caller is responsible for slicing the input to the desired length.
-func (t *Tokenizer) Tokenize(input []byte) ([]types.Token, []int) {
+func (t *Tokenizer) Tokenize(input []byte) ([]Token, []int) {
 	maxBytes := len(input)
 	if t.maxEvalBytes > 0 && t.maxEvalBytes < maxBytes {
 		maxBytes = t.maxEvalBytes
@@ -127,29 +125,29 @@ func (t *Tokenizer) Tokenize(input []byte) ([]types.Token, []int) {
 
 // emitToken appends a token to the output slices, checking for special tokens first.
 // Returns the updated slices.
-func (t *Tokenizer) emitToken(ts []types.Token, indicies []int, lastToken types.Token, run, idx int) ([]types.Token, []int) {
-	// Check for special tokens (only for types.C1/letter runs, length 1-4)
-	if lastToken == types.C1 && t.strLen > 0 && t.strLen <= 4 {
+func (t *Tokenizer) emitToken(ts []Token, indicies []int, lastToken Token, run, idx int) ([]Token, []int) {
+	// Check for special tokens (only for C1/letter runs, length 1-4)
+	if lastToken == C1 && t.strLen > 0 && t.strLen <= 4 {
 		if t.strLen == 1 {
-			if specialToken := getSpecialShortToken(t.strBuf[0]); specialToken != types.End {
+			if specialToken := getSpecialShortToken(t.strBuf[0]); specialToken != End {
 				return append(ts, specialToken), append(indicies, idx)
 			}
 		} else {
 			str := unsafe.String(&t.strBuf[0], t.strLen)
-			if specialToken := getSpecialLongToken(str); specialToken != types.End {
+			if specialToken := getSpecialLongToken(str); specialToken != End {
 				return append(ts, specialToken), append(indicies, idx-run)
 			}
 		}
 	}
 
-	// Regular token - encode run length for types.C1/D1
+	// Regular token - encode run length for C1/D1
 	indicies = append(indicies, idx-run)
-	if lastToken == types.C1 || lastToken == types.D1 {
+	if lastToken == C1 || lastToken == D1 {
 		r := run
 		if r >= maxRun {
 			r = maxRun - 1
 		}
-		ts = append(ts, lastToken+types.Token(r))
+		ts = append(ts, lastToken+Token(r))
 	} else {
 		ts = append(ts, lastToken)
 	}
@@ -158,7 +156,7 @@ func (t *Tokenizer) emitToken(ts []types.Token, indicies []int, lastToken types.
 
 // tokenize converts a byte slice to a list of tokens.
 // This function return the slice of tokens, and a slice of indices where each token starts.
-func (t *Tokenizer) tokenize(input []byte) ([]types.Token, []int) {
+func (t *Tokenizer) tokenize(input []byte) ([]Token, []int) {
 	inputLen := len(input)
 	if inputLen == 0 {
 		return nil, nil
@@ -168,7 +166,7 @@ func (t *Tokenizer) tokenize(input []byte) ([]types.Token, []int) {
 	// Most logs produce ~inputLen/4 tokens, but we start smaller.
 	estTokens := inputLen/4 + 8
 	if cap(t.tsBuf) < estTokens {
-		t.tsBuf = make([]types.Token, 0, estTokens)
+		t.tsBuf = make([]Token, 0, estTokens)
 		t.idxBuf = make([]int, 0, estTokens)
 	}
 	ts := t.tsBuf[:0]
@@ -178,9 +176,9 @@ func (t *Tokenizer) tokenize(input []byte) ([]types.Token, []int) {
 	firstChar := input[0]
 	lastToken := tokenLookup[firstChar]
 
-	// Reset string buffer - only track for types.C1 tokens
+	// Reset string buffer - only track for C1 tokens
 	t.strLen = 0
-	if lastToken == types.C1 {
+	if lastToken == C1 {
 		t.strBuf[0] = toUpperLookup[firstChar]
 		t.strLen = 1
 	}
@@ -197,8 +195,8 @@ func (t *Tokenizer) tokenize(input []byte) ([]types.Token, []int) {
 			run++
 		}
 
-		// Only buffer types.C1 (letter) tokens for special token matching
-		if currentToken == types.C1 && t.strLen < maxRun {
+		// Only buffer C1 (letter) tokens for special token matching
+		if currentToken == C1 && t.strLen < maxRun {
 			t.strBuf[t.strLen] = toUpperLookup[char]
 			t.strLen++
 		}
@@ -215,140 +213,140 @@ func (t *Tokenizer) tokenize(input []byte) ([]types.Token, []int) {
 
 	// Allocate exact-sized result slices - smaller than inputLen
 	n := len(ts)
-	result := make([]types.Token, n)
+	result := make([]Token, n)
 	copy(result, ts)
 	resultIdx := make([]int, n)
 	copy(resultIdx, indicies)
 	return result, resultIdx
 }
 
-func getSpecialShortToken(char byte) types.Token {
-	// Only types.T and Z are special single-char tokens
+func getSpecialShortToken(char byte) Token {
+	// Only T and Z are special single-char tokens
 	if char == 'T' {
-		return types.T
+		return T
 	}
 	if char == 'Z' {
-		return types.Zone
+		return Zone
 	}
-	return types.End
+	return End
 }
 
 // getSpecialLongToken returns a special token that is > 1 character.
 // NOTE: This set of tokens is non-exhaustive and can be expanded.
-func getSpecialLongToken(input string) types.Token {
+func getSpecialLongToken(input string) Token {
 	// Length-based dispatch for faster rejection
 	switch len(input) {
 	case 2:
 		if input == "AM" || input == "PM" {
-			return types.Apm
+			return Apm
 		}
 	case 3:
 		switch input {
 		case "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
 			"JUL", "AUG", "SEP", "OCT", "NOV", "DEC":
-			return types.Month
+			return Month
 		case "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN":
-			return types.Day
+			return Day
 		case "UTC", "GMT", "EST", "EDT", "CST", "CDT",
 			"MST", "MDT", "PST", "PDT", "JST", "KST",
 			"IST", "MSK", "CET", "BST", "HST", "HDT",
 			"NST", "NDT":
-			return types.Zone
+			return Zone
 		}
 	case 4:
 		switch input {
 		case "CEST", "NZST", "NZDT", "ACST", "ACDT",
 			"AEST", "AEDT", "AWST", "AWDT", "AKST",
 			"AKDT", "CHST", "CHDT":
-			return types.Zone
+			return Zone
 		}
 	}
-	return types.End
+	return End
 }
 
 // tokenToString converts a single token to a debug string.
-func tokenToString(token types.Token) string {
-	if token >= types.D1 && token <= types.D10 {
-		return strings.Repeat("D", int(token-types.D1)+1)
-	} else if token >= types.C1 && token <= types.C10 {
-		return strings.Repeat("C", int(token-types.C1)+1)
+func tokenToString(token Token) string {
+	if token >= D1 && token <= D10 {
+		return strings.Repeat("D", int(token-D1)+1)
+	} else if token >= C1 && token <= C10 {
+		return strings.Repeat("C", int(token-C1)+1)
 	}
 
 	switch token {
-	case types.Space:
+	case Space:
 		return " "
-	case types.Colon:
+	case Colon:
 		return ":"
-	case types.Semicolon:
+	case Semicolon:
 		return ";"
-	case types.Dash:
+	case Dash:
 		return "-"
-	case types.Underscore:
+	case Underscore:
 		return "_"
-	case types.Fslash:
+	case Fslash:
 		return "/"
-	case types.Bslash:
+	case Bslash:
 		return "\\"
-	case types.Period:
+	case Period:
 		return "."
-	case types.Comma:
+	case Comma:
 		return ","
-	case types.Singlequote:
+	case Singlequote:
 		return "'"
-	case types.Doublequote:
+	case Doublequote:
 		return "\""
-	case types.Backtick:
+	case Backtick:
 		return "`"
-	case types.Tilda:
+	case Tilda:
 		return "~"
-	case types.Star:
+	case Star:
 		return "*"
-	case types.Plus:
+	case Plus:
 		return "+"
-	case types.Equal:
+	case Equal:
 		return "="
-	case types.Parenopen:
+	case Parenopen:
 		return "("
-	case types.Parenclose:
+	case Parenclose:
 		return ")"
-	case types.Braceopen:
+	case Braceopen:
 		return "{"
-	case types.Braceclose:
+	case Braceclose:
 		return "}"
-	case types.Bracketopen:
+	case Bracketopen:
 		return "["
-	case types.Bracketclose:
+	case Bracketclose:
 		return "]"
-	case types.Ampersand:
+	case Ampersand:
 		return "&"
-	case types.Exclamation:
+	case Exclamation:
 		return "!"
-	case types.At:
+	case At:
 		return "@"
-	case types.Pound:
+	case Pound:
 		return "#"
-	case types.Dollar:
+	case Dollar:
 		return "$"
-	case types.Percent:
+	case Percent:
 		return "%"
-	case types.Uparrow:
+	case Uparrow:
 		return "^"
-	case types.Month:
+	case Month:
 		return "MTH"
-	case types.Day:
+	case Day:
 		return "DAY"
-	case types.Apm:
+	case Apm:
 		return "PM"
-	case types.T:
+	case T:
 		return "T"
-	case types.Zone:
+	case Zone:
 		return "ZONE"
 	}
 	return ""
 }
 
 // tokensToString converts a list of tokens to a debug string.
-func TokensToString(tokens []types.Token) string {
+func TokensToString(tokens []Token) string {
 	var builder strings.Builder
 	for _, t := range tokens {
 		builder.WriteString(tokenToString(t))
@@ -360,7 +358,7 @@ func TokensToString(tokens []types.Token) string {
 // given threshold. if the token strings are different lengths, the shortest string is
 // used for comparison. This function is optimized to exit early if the match is impossible
 // without having to compare all of the tokens.
-func IsMatch(seqA []types.Token, seqB []types.Token, thresh float64) bool {
+func IsMatch(seqA []Token, seqB []Token, thresh float64) bool {
 	count := min(len(seqB), len(seqA))
 
 	if count == 0 {

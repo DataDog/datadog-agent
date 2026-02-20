@@ -6,11 +6,6 @@
 // Package preprocessor contains auto multiline detection and aggregation logic.
 package preprocessor
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/types"
-)
-
 // Label is a label for a log message.
 type Label uint32
 
@@ -26,7 +21,7 @@ type messageContext struct {
 	rawMessage []byte
 	// NOTE: tokens can be nil if the heuristic runs before the tokenizer.
 	// Heuristic implementations must check if tokens is nil before using it.
-	tokens          []types.Token
+	tokens          []Token
 	tokenIndicies   []int
 	label           Label
 	labelAssignedBy string
@@ -58,21 +53,15 @@ func NewLabeler(lablerHeuristics []Heuristic, analyticsHeuristics []Heuristic) *
 	}
 }
 
-// Label labels a log message, reusing tokens from ParsingExtra if available.
-// This avoids re-tokenizing messages that have already been tokenized by the decoder.
-func (l *Labeler) Label(msg *message.Message) Label {
+// Label labels a log message using the provided content and pre-computed tokens.
+// tokens and tokenIndices may be nil if tokenization was skipped for this path.
+func (l *Labeler) Label(content []byte, tokens []Token, tokenIndices []int) Label {
 	context := &messageContext{
-		rawMessage:      msg.GetContent(),
-		tokens:          nil,
-		tokenIndicies:   nil,
+		rawMessage:      content,
+		tokens:          tokens,
+		tokenIndicies:   tokenIndices,
 		label:           aggregate,
 		labelAssignedBy: defaultLabelSource,
-	}
-
-	// Reuse tokens from ParsingExtra if they exist (populated by TokenizingLineHandler)
-	if len(msg.ParsingExtra.Tokens) > 0 {
-		context.tokens = msg.ParsingExtra.Tokens
-		context.tokenIndicies = msg.ParsingExtra.TokenIndices
 	}
 
 	for _, h := range l.lablerHeuristics {

@@ -9,7 +9,6 @@ package preprocessor
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -67,10 +66,10 @@ func TestTokenizerMaxDigitRun(t *testing.T) {
 }
 
 func TestAllSymbolsAreHandled(t *testing.T) {
-	for i := types.Space; i < types.D1; i++ {
+	for i := Space; i < D1; i++ {
 		str := tokenToString(i)
 		assert.NotEmpty(t, str, "Token %d is not converted to a debug string", i)
-		assert.NotEqual(t, tokenLookup[str[0]], types.C1, "Token %v is not tokenizable", str)
+		assert.NotEqual(t, tokenLookup[str[0]], C1, "Token %v is not tokenizable", str)
 	}
 }
 

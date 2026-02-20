@@ -33,7 +33,7 @@ type captureCombiner struct {
 	received []*message.Message
 }
 
-func (c *captureCombiner) Process(msg *message.Message) []*message.Message {
+func (c *captureCombiner) Process(msg *message.Message, _ Label) []*message.Message {
 	c.received = append(c.received, msg)
 	return []*message.Message{msg}
 }
@@ -46,7 +46,7 @@ type flushCaptureCombiner struct {
 	pending *message.Message
 }
 
-func (c *flushCaptureCombiner) Process(msg *message.Message) []*message.Message {
+func (c *flushCaptureCombiner) Process(msg *message.Message, _ Label) []*message.Message {
 	c.pending = msg
 	return nil // buffer the message
 }
@@ -81,27 +81,25 @@ func newTestPipeline(enableJSON bool) (*Pipeline, *captureCombiner, *captureSamp
 	jsonAggregator := NewJSONAggregator(false, 10000)
 	// PatternTable is needed so the pipeline is representative, but combiner is captured above
 	_ = tailerInfo
-	pipeline := NewPipeline(combiner, tokenizer, sampler, jsonAggregator, enableJSON, 10*time.Second)
+	pipeline := NewPipeline(combiner, tokenizer, nil, sampler, jsonAggregator, enableJSON, 10*time.Second)
 	return pipeline, combiner, sampler
 }
 
 // --- tests ---
 
-// TestPipeline_TokenizesBeforeCombining verifies that tokens are populated on the message
-// before it is passed to the combiner.
-func TestPipeline_TokenizesBeforeCombining(t *testing.T) {
+// TestPipeline_CombinerReceivesMessage verifies that the combiner receives the message
+// after tokenization and labeling have run (tokens are local to the pipeline, not on the message).
+func TestPipeline_CombinerReceivesMessage(t *testing.T) {
 	pipeline, combiner, _ := newTestPipeline(false)
 
 	pipeline.Process(newTestPipelineMessage(`2024-01-01 12:00:00 INFO Starting`))
 
 	require.Len(t, combiner.received, 1)
-	msg := combiner.received[0]
-	assert.NotNil(t, msg.ParsingExtra.Tokens, "Tokens should be set before combiner sees the message")
-	assert.NotEmpty(t, msg.ParsingExtra.Tokens)
+	assert.Equal(t, `2024-01-01 12:00:00 INFO Starting`, string(combiner.received[0].GetContent()))
 }
 
-// TestPipeline_TokenizesAfterJSONAggregation verifies that tokenization runs AFTER JSON
-// aggregation so that tokens reflect the complete, compacted content.
+// TestPipeline_TokenizesAfterJSONAggregation verifies that the combiner sees the combined
+// JSON content (not individual fragments), confirming JSON aggregation runs before combining.
 func TestPipeline_TokenizesAfterJSONAggregation(t *testing.T) {
 	pipeline, combiner, _ := newTestPipeline(true)
 
@@ -111,11 +109,7 @@ func TestPipeline_TokenizesAfterJSONAggregation(t *testing.T) {
 
 	// JSON aggregation should combine the two fragments into one before the combiner sees it
 	require.Len(t, combiner.received, 1, "JSON parts should be aggregated into one message")
-
-	msg := combiner.received[0]
-	assert.Equal(t, `{"key":"value"}`, string(msg.GetContent()))
-	assert.NotNil(t, msg.ParsingExtra.Tokens, "Tokens should reflect the compacted JSON content")
-	assert.NotEmpty(t, msg.ParsingExtra.Tokens)
+	assert.Equal(t, `{"key":"value"}`, string(combiner.received[0].GetContent()))
 }
 
 // TestPipeline_JSONDisabledPassesThroughDirectly verifies that with JSON aggregation disabled,
@@ -138,7 +132,7 @@ func TestPipeline_FlushCascadesInOrder(t *testing.T) {
 	sampler := &captureSampler{}
 	tokenizer := NewTokenizer(1000)
 	jsonAggregator := NewJSONAggregator(false, 10000)
-	pipeline := NewPipeline(combiner, tokenizer, sampler, jsonAggregator, true, 10*time.Second)
+	pipeline := NewPipeline(combiner, tokenizer, nil, sampler, jsonAggregator, true, 10*time.Second)
 
 	// Send an incomplete JSON fragment — it stays in jsonAggregator
 	pipeline.Process(newTestPipelineMessage(`{"key":`))

@@ -79,8 +79,8 @@ func (c *RegexCombiner) SetLinesCombinedInfo(info *status.CountInfo) {
 }
 
 // Process aggregates log lines using the regex to detect new log entry boundaries.
-// Returns any completed messages (may be empty if the current line is buffered).
-func (c *RegexCombiner) Process(msg *message.Message) []*message.Message {
+// Returns any completed messages (may be empty if the current line is buffered). label is unused.
+func (c *RegexCombiner) Process(msg *message.Message, _ Label) []*message.Message {
 	c.collected = c.collected[:0]
 
 	if c.newContentRe.Match(msg.GetContent()) {

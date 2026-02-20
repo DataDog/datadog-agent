@@ -31,9 +31,9 @@ func newCombiningHandler(outputChan chan *message.Message, maxContentSize int, f
 	aggregatorFactory := func(outputFn func(*message.Message)) preprocessor.Aggregator {
 		return preprocessor.NewCombiningAggregator(outputFn, maxContentSize, false, false, tailerInfo)
 	}
-	combiner := preprocessor.NewAutoMultilineCombiner(labeler, aggregatorFactory)
+	combiner := preprocessor.NewAutoMultilineCombiner(aggregatorFactory)
 	jsonAgg := preprocessor.NewJSONAggregator(false, maxContentSize)
-	return newPipelineHandler(combiner, preprocessor.NewTokenizer(1000), sampler, jsonAgg, true, flushTimeout)
+	return newPipelineHandler(combiner, preprocessor.NewTokenizer(1000), labeler, sampler, jsonAgg, true, flushTimeout)
 }
 
 // newDetectingHandler creates an auto multiline handler in detection-only mode.
@@ -45,8 +45,8 @@ func newDetectingHandler(outputChan chan *message.Message, _ int, flushTimeout t
 	aggregatorFactory := func(outputFn func(*message.Message)) preprocessor.Aggregator {
 		return preprocessor.NewDetectingAggregator(outputFn, tailerInfo)
 	}
-	combiner := preprocessor.NewAutoMultilineCombiner(labeler, aggregatorFactory)
-	return newPipelineHandler(combiner, preprocessor.NewTokenizer(1000), sampler, nil, false, flushTimeout)
+	combiner := preprocessor.NewAutoMultilineCombiner(aggregatorFactory)
+	return newPipelineHandler(combiner, preprocessor.NewTokenizer(1000), labeler, sampler, nil, false, flushTimeout)
 }
 
 func TestAutoMultilineHandler_ManualFlush(t *testing.T) {
@@ -187,8 +187,8 @@ func TestAutoMultilineHandler_JSONAggregationDisabled(t *testing.T) {
 	aggregatorFactory := func(outputFn func(*message.Message)) preprocessor.Aggregator {
 		return preprocessor.NewCombiningAggregator(outputFn, 1000, false, false, tailerInfo)
 	}
-	combiner := preprocessor.NewAutoMultilineCombiner(labeler, aggregatorFactory)
-	handler := newPipelineHandler(combiner, preprocessor.NewTokenizer(1000), sampler, nil, false, 10*time.Second)
+	combiner := preprocessor.NewAutoMultilineCombiner(aggregatorFactory)
+	handler := newPipelineHandler(combiner, preprocessor.NewTokenizer(1000), labeler, sampler, nil, false, 10*time.Second)
 
 	// Process multi-part JSON
 	handler.process(newTestMessage(`{"key":`))

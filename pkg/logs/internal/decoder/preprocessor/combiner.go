@@ -15,7 +15,8 @@ import "github.com/DataDog/datadog-agent/pkg/logs/message"
 // The returned slice is only valid until the next call to Process or Flush.
 type Combiner interface {
 	// Process handles a log line and returns zero or more completed messages.
-	Process(msg *message.Message) []*message.Message
+	// label is the result of labeling this message; combiners that don't use it may ignore it.
+	Process(msg *message.Message, label Label) []*message.Message
 
 	// Flush returns any buffered messages and clears internal state.
 	Flush() []*message.Message
