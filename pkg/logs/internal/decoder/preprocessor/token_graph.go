@@ -3,10 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package automultilinedetection contains auto multiline detection and aggregation logic.
-package automultilinedetection
-
-import "github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection/tokens"
+// Package preprocessor contains auto multiline detection and aggregation logic.
+package preprocessor
 
 // TokenGraph is a directed cyclic graph of tokens that model the relationship between any two tokens.
 // It is used to calculate the probability of an unknown sequence of tokens being represented by the graph.
@@ -24,9 +22,9 @@ type MatchContext struct {
 }
 
 // NewTokenGraph returns a new TokenGraph.
-func NewTokenGraph(minimumTokenLength int, inputData [][]tokens.Token) *TokenGraph {
+func NewTokenGraph(minimumTokenLength int, inputData [][]Token) *TokenGraph {
 	g := &TokenGraph{
-		adjacencies:        make([][]bool, tokens.End),
+		adjacencies:        make([][]bool, End),
 		minimumTokenLength: minimumTokenLength,
 	}
 	for _, tokens := range inputData {
@@ -36,11 +34,11 @@ func NewTokenGraph(minimumTokenLength int, inputData [][]tokens.Token) *TokenGra
 }
 
 // add adds a sequence of tokens to the graph.
-func (m *TokenGraph) add(ts []tokens.Token) {
+func (m *TokenGraph) add(ts []Token) {
 	lastToken := ts[0]
 	for _, token := range ts[1:] {
 		if m.adjacencies[lastToken] == nil {
-			m.adjacencies[lastToken] = make([]bool, tokens.End)
+			m.adjacencies[lastToken] = make([]bool, End)
 		}
 		m.adjacencies[lastToken][token] = true
 		lastToken = token
@@ -48,7 +46,7 @@ func (m *TokenGraph) add(ts []tokens.Token) {
 }
 
 // MatchProbability returns the probability of a sequence of tokens being represented by the graph.
-func (m *TokenGraph) MatchProbability(ts []tokens.Token) MatchContext {
+func (m *TokenGraph) MatchProbability(ts []Token) MatchContext {
 	if len(ts) < m.minimumTokenLength {
 		return MatchContext{}
 	}

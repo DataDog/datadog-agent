@@ -3,10 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package automultilinedetection contains auto multiline detection and aggregation logic.
-package automultilinedetection
-
-import "github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection/tokens"
+// Package preprocessor contains auto multiline detection and aggregation logic.
+package preprocessor
 
 // Label is a label for a log message.
 type Label uint32
@@ -23,7 +21,7 @@ type messageContext struct {
 	rawMessage []byte
 	// NOTE: tokens can be nil if the heuristic runs before the tokenizer.
 	// Heuristic implementations must check if tokens is nil before using it.
-	tokens          []tokens.Token
+	tokens          []Token
 	tokenIndicies   []int
 	label           Label
 	labelAssignedBy string
@@ -55,14 +53,17 @@ func NewLabeler(lablerHeuristics []Heuristic, analyticsHeuristics []Heuristic) *
 	}
 }
 
-// Label labels a log message.
-func (l *Labeler) Label(rawMessage []byte) Label {
+// Label labels a log message using the provided content and pre-computed tokens.
+// tokens and tokenIndices may be nil if tokenization was skipped for this path.
+func (l *Labeler) Label(content []byte, tokens []Token, tokenIndices []int) Label {
 	context := &messageContext{
-		rawMessage:      rawMessage,
-		tokens:          nil,
+		rawMessage:      content,
+		tokens:          tokens,
+		tokenIndicies:   tokenIndices,
 		label:           aggregate,
 		labelAssignedBy: defaultLabelSource,
 	}
+
 	for _, h := range l.lablerHeuristics {
 		if !h.ProcessAndContinue(context) {
 			break

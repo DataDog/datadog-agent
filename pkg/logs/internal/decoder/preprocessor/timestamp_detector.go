@@ -3,11 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package automultilinedetection contains auto multiline detection and aggregation logic.
-package automultilinedetection
+// Package preprocessor contains auto multiline detection and aggregation logic.
+package preprocessor
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection/tokens"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -86,9 +85,9 @@ var minimumTokenLength = 8
 
 func makeStaticTokenGraph() *TokenGraph {
 	tokenizer := NewTokenizer(100) // 100 is arbitrary, anything larger than the longest knownTimestampFormat is fine.
-	inputData := make([][]tokens.Token, len(knownTimestampFormats))
+	inputData := make([][]Token, len(knownTimestampFormats))
 	for i, format := range knownTimestampFormats {
-		tokens, _ := tokenizer.tokenize([]byte(format))
+		tokens, _ := tokenizer.Tokenize([]byte(format))
 		inputData[i] = tokens
 	}
 	return NewTokenGraph(minimumTokenLength, inputData)
