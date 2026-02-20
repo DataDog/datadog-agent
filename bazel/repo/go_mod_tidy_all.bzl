@@ -4,9 +4,10 @@
 """
 
 load("@re.bzl", "re")
+load("//bazel/repo:parse_go_work.bzl", "parse_go_work")
 
 _COMMAND_TEMPLATE = """command(
-    name = "go_mod_tidy_{name}",
+    name = "{name}",
     arguments = [
         "-C",
         "{path}",
@@ -32,33 +33,26 @@ multirun(
 )
 """
 
-def _parse_modules_yaml(content):
-    modules = re.search(r"^modules:\r?\n((?:(?:[\t #][^\n]*)?\r?\n)+)", content, re.M)
-    if not modules:
-        fail("No modules found!")
-    return {
-        path: re.sub(r"\W", "_", path)
-        for path, tag in re.findall(r"^  (\S+):\s*(\S*)", modules.group(1), re.M)
-        if tag != "ignored"
+def _impl(rctx):
+    modules = {
+        "go_mod_tidy_{}".format(re.sub(r"\W", "_", path)): path
+        for path in parse_go_work(rctx).paths
     }
-
-def _impl(repository_ctx):
-    modules = _parse_modules_yaml(repository_ctx.read(repository_ctx.attr.modules_yml))
-    repository_ctx.file("BUILD.bazel", _BUILD_TEMPLATE.format(
+    rctx.file("BUILD.bazel", _BUILD_TEMPLATE.format(
         command_defs = "\n".join([
-            _COMMAND_TEMPLATE.format(name = name, go = repository_ctx.attr.go, path = path)
-            for path, name in modules.items()
+            _COMMAND_TEMPLATE.format(name = name, go = rctx.attr.go, path = path)
+            for name, path in modules.items()
         ]),
         command_refs = "\n".join([
-            '        ":go_mod_tidy_{name}",'.format(name = name)
-            for name in modules.values()
+            '        ":{name}",'.format(name = name)
+            for name in modules
         ]),
     ))
 
 go_mod_tidy_all = repository_rule(
     attrs = {
         "go": attr.label(default = "@rules_go//go"),
-        "modules_yml": attr.label(default = "//:modules.yml", allow_single_file = True),
+        "go_work": attr.label(default = "//:go.work", allow_single_file = True),
     },
     implementation = _impl,
     local = True,
