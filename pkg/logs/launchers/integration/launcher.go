@@ -196,20 +196,45 @@ func (s *Launcher) receiveLogs(log integrations.IntegrationLog) {
 	}
 
 	if fileToUpdate.size+logSize > s.fileSizeMax {
-		file, err := s.fs.Create(fileToUpdate.fileWithPath)
+		// Rotate the log file by deleting and recreating it.
+		// On Linux: The old inode persists until the tailer closes its file descriptor,
+		// allowing it to finish reading any unread data.
+		// On Windows: Data in the old file is lost, which is acceptable for high-volume
+		// integration logs.
+
+		oldSize := fileToUpdate.size
+
+		// Remove old file (directory entry removed, but data persists on disk)
+		// - Linux: Tailer's FD keeps old inode alive until close
+		// - Windows: File marked for deletion, data freed when handle closes
+		err := s.fs.Remove(fileToUpdate.fileWithPath)
 		if err != nil {
-			ddLog.Error("Failed to delete and remake oversize file:", err)
+			ddLog.Errorf("Failed to remove file for rotation: %v", err)
 			return
 		}
 
+		// Update size tracking immediately after successful removal
+		// This ensures correct accounting even if file creation fails below
 		s.combinedUsageSize -= fileToUpdate.size
+		fileToUpdate.size = 0
+
+		// Create new empty file with same path
+		file, err := s.fs.OpenFile(fileToUpdate.fileWithPath, os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			ddLog.Errorf("Failed to create new file after rotation: %v", err)
+			return
+		}
 
 		err = file.Close()
 		if err != nil {
-			ddLog.Warn("Failed to close file:", err)
+			ddLog.Warn("Failed to close new file:", err)
 		}
 
-		fileToUpdate.size = 0
+		ddLog.Infof("Rotated integration log file: %s (size: %d bytes)",
+			fileToUpdate.fileWithPath, oldSize)
+
+		// No cleanup goroutine needed - OS automatically frees old file data
+		// when tailer closes its file handle
 	}
 
 	// Ensure combined logs usage doesn't exceed integrations_logs_total_usage by

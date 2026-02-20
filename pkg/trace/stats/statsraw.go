@@ -32,13 +32,14 @@ const (
 
 type groupedStats struct {
 	// using float64 here to avoid the accumulation of rounding issues.
-	hits            float64
-	topLevelHits    float64
-	errors          float64
-	duration        float64
-	okDistribution  *ddsketch.DDSketch
-	errDistribution *ddsketch.DDSketch
-	peerTags        []string
+	hits                   float64
+	topLevelHits           float64
+	errors                 float64
+	duration               float64
+	okDistribution         *ddsketch.DDSketch
+	errDistribution        *ddsketch.DDSketch
+	peerTags               []string
+	spanDerivedPrimaryTags []string
 }
 
 // round a float to an int, uniformly choosing
@@ -63,25 +64,26 @@ func (s *groupedStats) export(a Aggregation) (*pb.ClientGroupedStats, error) {
 		return &pb.ClientGroupedStats{}, err
 	}
 	return &pb.ClientGroupedStats{
-		Service:        a.Service,
-		Name:           a.Name,
-		Resource:       a.Resource,
-		HTTPStatusCode: a.StatusCode,
-		Type:           a.Type,
-		Hits:           round(s.hits),
-		Errors:         round(s.errors),
-		Duration:       round(s.duration),
-		TopLevelHits:   round(s.topLevelHits),
-		OkSummary:      okSummary,
-		ErrorSummary:   errSummary,
-		Synthetics:     a.Synthetics,
-		SpanKind:       a.SpanKind,
-		PeerTags:       s.peerTags,
-		ServiceSource:  a.ServiceSource,
-		IsTraceRoot:    a.IsTraceRoot,
-		GRPCStatusCode: a.GRPCStatusCode,
-		HTTPMethod:     a.HTTPMethod,
-		HTTPEndpoint:   a.HTTPEndpoint,
+		Service:                a.Service,
+		Name:                   a.Name,
+		Resource:               a.Resource,
+		HTTPStatusCode:         a.StatusCode,
+		Type:                   a.Type,
+		Hits:                   round(s.hits),
+		Errors:                 round(s.errors),
+		Duration:               round(s.duration),
+		TopLevelHits:           round(s.topLevelHits),
+		OkSummary:              okSummary,
+		ErrorSummary:           errSummary,
+		Synthetics:             a.Synthetics,
+		SpanKind:               a.SpanKind,
+		PeerTags:               s.peerTags,
+		SpanDerivedPrimaryTags: s.spanDerivedPrimaryTags,
+		ServiceSource:          a.ServiceSource,
+		IsTraceRoot:            a.IsTraceRoot,
+		GRPCStatusCode:         a.GRPCStatusCode,
+		HTTPMethod:             a.HTTPMethod,
+		HTTPEndpoint:           a.HTTPEndpoint,
 	}, nil
 }
 
@@ -178,6 +180,7 @@ func (sb *RawBucket) add(s *StatSpan, weight float64, aggr Aggregation) {
 	if gs, ok = sb.data[aggr]; !ok {
 		gs = newGroupedStats()
 		gs.peerTags = s.matchingPeerTags
+		gs.spanDerivedPrimaryTags = s.matchingSpanDerivedPrimaryTags
 		sb.data[aggr] = gs
 	}
 	if s.isTopLevel {

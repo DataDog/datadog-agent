@@ -192,26 +192,6 @@ pkg_files(
     prefix = "embedded",
 )
 
-expand_template(
-    name = "gen_pkgconfig",
-    out = "libacl.pc",
-    substitutions = {
-        # Prepare the .pc file for our own substitution later
-        "@prefix@": "##PREFIX##",
-        "@exec_prefix@": "${prefix}",
-        "@libdir@": "${prefix}/lib",
-        "@includedir@": "${prefix}/include",
-        "@PACKAGE_VERSION@": VERSION,
-    },
-    template = "libacl.pc.in",
-)
-
-pkg_files(
-    name = "pc_file",
-    srcs = [":gen_pkgconfig"],
-    prefix = "embedded/lib/pkgconfig",
-)
-
 pkg_filegroup(
     name = "all_files",
     srcs = [
@@ -225,6 +205,5 @@ pkg_install(
     name = "install",
     srcs = [
         ":all_files",
-        ":pc_file",
     ],
 )

@@ -175,7 +175,14 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			InitHelper: workloadmetainit.GetWorkloadmetaInit(),
 		}),
 		fx.Supply(uris),
-		fx.Provide(func(h hostnameinterface.Component) (serializerexporter.SourceProviderFunc, error) {
+		fx.Provide(func(h hostnameinterface.Component, cfg coreconfig.Component) (serializerexporter.SourceProviderFunc, error) {
+			if cfg.GetBool("otelcollector.gateway.mode") {
+				// In gateway mode the agent does not represent a specific host, so return an empty
+				// hostname without error instead of failing when hostname resolution is not available.
+				return func(_ context.Context) (string, error) {
+					return "", nil
+				}, nil
+			}
 			return h.Get, nil
 		}),
 		remotehostnameimpl.Module(),

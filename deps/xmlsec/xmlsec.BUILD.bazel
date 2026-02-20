@@ -1,6 +1,5 @@
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
-load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
@@ -210,33 +209,6 @@ pkg_files(
     prefix = "include/xmlsec1/xmlsec/openssl",
 )
 
-expand_template(
-    name = "fixup_pc_xmlsec",
-    template = "xmlsec1.pc",
-    out = "fixed/xmlsec1.pc",
-    substitutions = {
-        "prefix=/usr": "prefix=##PREFIX##",
-    },
-)
-
-expand_template(
-    name = "fixup_pc_xmlsec_openssl",
-    template = "xmlsec1-openssl.pc",
-    out = "fixed/xmlsec1-openssl.pc",
-    substitutions = {
-        "prefix=/usr": "prefix=##PREFIX##",
-    },
-)
-
-pkg_files(
-    name = "pc_files",
-    srcs = [
-        ":fixup_pc_xmlsec",
-        ":fixup_pc_xmlsec_openssl",
-    ],
-    prefix = "lib/pkgconfig",
-)
-
 pkg_filegroup(
     name = "all_files",
     srcs = [
@@ -252,6 +224,5 @@ pkg_install(
     name = "install",
     srcs = [
         ":all_files",
-        ":pc_files",
     ],
 )

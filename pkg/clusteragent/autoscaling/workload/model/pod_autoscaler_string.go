@@ -160,7 +160,9 @@ func formatConstraints(constraints *datadoghqcommon.DatadogPodAutoscalerConstrai
 	if constraints.MinReplicas != nil {
 		_, _ = fmt.Fprintln(&sb, "Min Replicas:", *constraints.MinReplicas)
 	}
-	_, _ = fmt.Fprintln(&sb, "Max Replicas:", constraints.MaxReplicas)
+	if constraints.MaxReplicas != nil {
+		_, _ = fmt.Fprintln(&sb, "Max Replicas:", *constraints.MaxReplicas)
+	}
 
 	for _, container := range constraints.Containers {
 		_, _ = fmt.Fprintln(&sb, "Container:", container.Name)

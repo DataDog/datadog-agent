@@ -622,6 +622,21 @@ api_key:
 #
 #   validation_period: 60
 
+## @param remote_configuration - custom object - optional
+## Configuration for Remote Configuration.
+## Remote Configuration allows you to configure your Agents from the Datadog UI.
+## See https://docs.datadoghq.com/agent/guide/setup_remote_config/ for more information.
+#
+# remote_configuration:
+
+#   # @param enabled - boolean - optional - default: true
+#   # @env DD_REMOTE_CONFIGURATION_ENABLED - boolean - optional - default: true
+#   # Set to true to enable Remote Configuration. Enabled by default.
+#   # Note: On GovCloud (ddog-gov.com), Remote Configuration is disabled by default
+#   # and must be explicitly enabled.
+#
+#   enabled: true
+
 ## @param fips - custom object - optional
 ## Uncomment this parameter and the one below to enable them.
 #
@@ -2801,6 +2816,33 @@ api_key:
 #     # Idle timeout in seconds.
 #
 #     idle_timeout_seconds: 60
+
+#   # @param tracing - custom object - optional
+#   # APM tracing for the Cluster Agent. When enabled, traces internal operations for
+#   # improved debugging. Traces appear in APM with service name "datadog-cluster-agent".
+#   # Covers: cluster check dispatching and rebalancing decisions.
+#   # To view traces: APM -> Services -> datadog-cluster-agent -> Traces
+#
+#   tracing:
+
+#     # @param enabled - boolean - optional - default: false
+#     # @env DD_CLUSTER_AGENT_TRACING_ENABLED - boolean - optional - default: false
+#     # Enable APM tracing for the Cluster Agent.
+#
+#     enabled: false
+
+#     # @param env - string - optional - default: ""
+#     # @env DD_CLUSTER_AGENT_TRACING_ENV - string - optional - default: ""
+#     # The environment tag to apply to all traces emitted by the Cluster Agent.
+#
+#     env: ""
+
+#     # @param sample_rate - float - optional - default: 0.1
+#     # @env DD_CLUSTER_AGENT_TRACING_SAMPLE_RATE - float - optional - default: 0.1
+#     # Sample rate for traces emitted by the Cluster Agent (0.0 to 1.0).
+#     # Default is 0.1 (10%) for safety. Set to 1.0 to trace all operations.
+#
+#     sample_rate: 0.1
 {{ end -}}
 {{ if .ClusterChecks }}
 #################################

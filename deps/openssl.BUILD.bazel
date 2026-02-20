@@ -174,9 +174,7 @@ configure_make(
         ],
         "//conditions:default": [],
     }),
-    out_data_dirs = [
-        "lib/pkgconfig",
-    ] + select({
+    out_data_dirs = select({
         "@//packages/agent:fips_flavor": [
             "ssl",
             "lib/ossl-modules",
@@ -208,6 +206,8 @@ configure_make(
     }),
     targets = ["depend", "", "install_sw", "install_ssldirs"],
     # Fix install names, as openssl's build system might not get them right
+    # Maybe for macos, @loader_path should be @rpath. That helped get curl_bin
+    # to link
     postfix_script = select({
         "@platforms//os:macos": """
             # Fix install names

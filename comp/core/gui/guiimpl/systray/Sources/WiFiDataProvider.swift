@@ -42,26 +42,22 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
     // manually via System Settings -> Privacy & Security -> Location Services.
     // During the launch time of thhis GUI app, we will attempt to prompt for permission
     // based on the availability of the GUI environment.
+    private static let userDefaultsPromptCountKey = "locationPermissionPromptAttemptCount"
     private let locationManager: CLLocationManager
     private var permissionPromptProcess: Process? = nil
-    private var sessionPromptAttempted: Bool = false
-    private var firstWiFiRequestMade: Bool = false
-    private var tccLoadingCompleted: Bool = false  // Tracks if TCC polling has finished
+    private var permissionAttemptCount: Int = 0  // Track number of permission prompt attempts (max 2), persisted per-user
+    private let initializationTime: Date = Date()  // Track when WiFiDataProvider was initialized
 
     override init() {
         self.locationManager = CLLocationManager()
         super.init()
         // Keep delegate to monitor permission status changes
         self.locationManager.delegate = self
+
+        // Load persisted attempt count (per-user, per-installation); clamp to 0...2 (negative/corrupt → 0)
+        permissionAttemptCount = min(max(UserDefaults.standard.integer(forKey: Self.userDefaultsPromptCountKey), 0), 2)
         
-        Logger.info("WiFiDataProvider initialized, waiting for TCC to load...", context: "WiFiDataProvider")
-        
-        // Poll for TCC database to load on background thread (non-blocking)
-        // This provides fast permission prompts (~200ms) while avoiding the TCC timing race condition
-        // The first WiFi request check serves as a safety net and second-chance mechanism
-        DispatchQueue.global(qos: .utility).async { [weak self] in
-            self?.waitForTCCLoad(timeout: 2.0)
-        }
+        Logger.info("WiFiDataProvider initialized", context: "WiFiDataProvider")
     }
 
     /// Check if GUI environment is available (can display dialogs)
@@ -102,14 +98,8 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
 
     /// Attempt to prompt for location permission via detached process
     /// Background: LaunchAgent-launched apps cannot normally trigger prompts
-    private func attemptPermissionPrompt() {
-        let authStatus = getAuthorizationStatus()
-        
-        // Skip if permission already granted
-        guard authStatus != .authorizedAlways else {
-            return
-        }
-
+    /// Caller must pass current auth status (call only when not authorized).
+    private func attemptPermissionPrompt(authStatus: CLAuthorizationStatus) {
         // Skip if permission is restricted by policy (MDM, parental controls, etc.)
         // User cannot override policy restrictions
         if authStatus == .restricted {
@@ -120,9 +110,8 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
 
         // For .notDetermined and .denied: Allow up to 2 prompt attempts
         // These are user-controllable states (unlike .restricted)
-        // Only show once per session (prevents repeated prompts after dismissal)
-        guard !sessionPromptAttempted else {
-            Logger.debug("Permission prompt already attempted this session, skipping", context: "WiFiDataProvider")
+        // This gives users a second chance if they make a wrong choice
+        guard permissionAttemptCount < 2 else {
             return
         }
 
@@ -164,113 +153,14 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
             try task.run()
             // Don't wait for completion - let it run detached
             permissionPromptProcess = task
-            sessionPromptAttempted = true  // Only set on successful spawn
-            Logger.info("Permission prompt process spawned (PID: \(task.processIdentifier))", context: "WiFiDataProvider")
+            permissionAttemptCount += 1  // Increment on successful spawn
+            // Persist per-user so 2-attempt limit survives app restarts (never write 0)
+            UserDefaults.standard.set(permissionAttemptCount, forKey: Self.userDefaultsPromptCountKey)
+            Logger.info("Permission prompt process spawned (PID: \(task.processIdentifier), attempt \(permissionAttemptCount)/2)", context: "WiFiDataProvider")
         } catch {
             Logger.error("Failed to spawn permission prompt: \(error)", context: "WiFiDataProvider")
             permissionPromptProcess = nil
-            // sessionPromptAttempted stays false - can retry later
-        }
-    }
-
-    /// Wait for TCC (Transparency, Consent, and Control) database to load
-    /// TCC loads asynchronously when CLLocationManager is created, typically taking 50-500ms
-    /// This method polls the authorization status until it becomes definitive (not .notDetermined)
-    /// or until the timeout is reached
-    private func waitForTCCLoad(timeout: TimeInterval = 2.0) {
-        let startTime = Date()
-        let pollInterval: TimeInterval = 0.05 // 50ms - balance between responsiveness and CPU usage
-
-        // Early exit optimization: check immediately first
-        // On warm start, TCC might already be cached and ready
-        let initialStatus = getAuthorizationStatus()
-        if initialStatus != .notDetermined {
-            let elapsed = Int(Date().timeIntervalSince(startTime) * 1000)
-            Logger.info("TCC already loaded (immediate check after \(elapsed)ms), status: \(authorizationStatusString())", context: "WiFiDataProvider")
-
-            DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
-                self.handleTCCLoadedStatus(initialStatus)
-            }
-            return
-        }
-
-        // TCC not ready yet, start polling
-        Logger.info("TCC not ready (initial status: notDetermined), polling for up to \(Int(timeout * 1000))ms...", context: "WiFiDataProvider")
-
-        while Date().timeIntervalSince(startTime) < timeout {
-            let status = getAuthorizationStatus()
-
-            // Stop polling if we have a definitive answer
-            if status != .notDetermined {
-                let elapsed = Int(Date().timeIntervalSince(startTime) * 1000)
-                Logger.info("TCC loaded after \(elapsed)ms, status: \(authorizationStatusString())", context: "WiFiDataProvider")
-
-                // Handle the loaded status on main thread
-                DispatchQueue.main.async { [weak self] in
-                    guard let self = self else { return }
-                    self.handleTCCLoadedStatus(status)
-                }
-                return
-            }
-
-            Thread.sleep(forTimeInterval: pollInterval)
-        }
-
-        // Timeout - status still notDetermined after 2 seconds
-        let elapsed = Int(timeout * 1000)
-        Logger.info("TCC poll timeout after \(elapsed)ms, status: notDetermined", context: "WiFiDataProvider")
-        Logger.info("Permission likely not set - will attempt prompt", context: "WiFiDataProvider")
-
-        // Permission truly not set - handle on main thread
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            self.handleTCCLoadedStatus(.notDetermined)
-        }
-    }
-
-    /// Handle TCC authorization status after it has been loaded
-    /// This is called from waitForTCCLoad() on the main thread
-    private func handleTCCLoadedStatus(_ status: CLAuthorizationStatus) {
-        // Mark TCC loading as complete - this allows Check #2 to proceed with real status
-        self.tccLoadingCompleted = true
-
-        switch status {
-        case .notDetermined:
-            // After 2 seconds, still notDetermined = permission truly not set
-            Logger.info("Location permission not granted - SSID/BSSID will be unavailable", context: "WiFiDataProvider")
-            Logger.info("To enable: System Settings → Privacy & Security → Location Services → Datadog Agent", context: "WiFiDataProvider")
-
-            if isGUIAvailable() {
-                Logger.info("GUI environment detected, attempting permission prompt...", context: "WiFiDataProvider")
-                attemptPermissionPrompt()
-            } else {
-                Logger.info("Headless environment detected, skipping permission prompt (will retry at first WiFi request)", context: "WiFiDataProvider")
-            }
-
-        case .authorizedAlways:
-            Logger.info("Location permission already granted - WiFi SSID/BSSID will be available", context: "WiFiDataProvider")
-
-        case .denied:
-            // User explicitly denied - but they can change their mind
-            // Give them an opportunity to reconsider (Check #1)
-            Logger.info("Location permission previously denied - SSID/BSSID will be unavailable", context: "WiFiDataProvider")
-            Logger.info("To enable: System Settings → Privacy & Security → Location Services → Datadog Agent", context: "WiFiDataProvider")
-
-            if isGUIAvailable() {
-                Logger.info("Attempting to prompt (user may have changed mind)...", context: "WiFiDataProvider")
-                attemptPermissionPrompt()
-            } else {
-                Logger.info("Headless environment detected, will retry at first WiFi request", context: "WiFiDataProvider")
-            }
-
-        case .restricted:
-            // Policy restriction - cannot override, don't prompt
-            Logger.info("Location permission restricted by device policy - SSID/BSSID will be unavailable", context: "WiFiDataProvider")
-            Logger.info("Contact your system administrator to enable location access", context: "WiFiDataProvider")
-
-        @unknown default:
-            Logger.error("Unknown authorization status: \(status.rawValue)", context: "WiFiDataProvider")
+            // permissionAttemptCount not incremented - can retry later
         }
     }
 
@@ -280,22 +170,18 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
         let authStatus = getAuthorizationStatus()
         let isAuthorized = (authStatus == .authorizedAlways)
 
-        // Check #2 (Safety Net): On first WiFi request without permission, try prompting
-        // NOTE: Only check AFTER TCC loading completes (tccLoadingCompleted flag)
-        // This prevents acting on stale "notDetermined" status during the first ~2 seconds
-        // The first WiFi requests that arrive before TCC loads will still work (returning RSSI, noise, etc.)
-        // Only SSID/BSSID will be empty without location permission - this is acceptable
-        // This serves two purposes:
-        // 1. Safety net: Catches edge cases where TCC polling at startup failed/timed out
-        // 2. Second chance: Allows recovery if user accidentally denied permission at startup
-        if !isAuthorized && !firstWiFiRequestMade && tccLoadingCompleted {
+        // Permission detection during WLAN data collection
+        // Check permission at least 10 seconds after initialization to avoid TCC loading race condition
+        // This ensures TCC database has time to load before we check permission status
+        // Allow up to 2 attempts to give users a second chance if they make a wrong choice
+        let timeSinceInit = Date().timeIntervalSince(initializationTime)
+        if !isAuthorized && permissionAttemptCount < 2 && timeSinceInit >= 10.0 {
             if isGUIAvailable() {
-                Logger.info("First WiFi data request without permission (after TCC load), attempting prompt...", context: "WiFiDataProvider")
-                attemptPermissionPrompt()
+                Logger.info("WiFi data request without permission (after 10s delay), attempting prompt (attempt \(permissionAttemptCount + 1)/2)...", context: "WiFiDataProvider")
+                attemptPermissionPrompt(authStatus: authStatus)
             } else {
-                Logger.info("First WiFi data request without permission, but headless environment - skipping prompt", context: "WiFiDataProvider")
+                Logger.info("WiFi data request without permission in headless environment - skipping prompt", context: "WiFiDataProvider")
             }
-            firstWiFiRequestMade = true
         }
 
         // Get WiFi interface (this works regardless of location permission)
@@ -367,11 +253,10 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
         let status = getAuthorizationStatus()
         Logger.info("Location authorization changed to: \(authorizationStatusString())", context: "WiFiDataProvider")
         
-        // Reset flags when authorization status changes
-        // This allows showing the prompt again if permission is revoked or status changes
-        sessionPromptAttempted = false
+        // Clean up prompt process when authorization status changes
+        // Do not reset permissionAttemptCount so we respect user's manual choice:
+        // if they denied twice or later manually disable in Settings, we do not prompt again
         permissionPromptProcess = nil
-        firstWiFiRequestMade = false
 
         switch status {
         case .authorizedAlways:

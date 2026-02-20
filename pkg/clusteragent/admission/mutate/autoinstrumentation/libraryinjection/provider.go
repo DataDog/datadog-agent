@@ -13,6 +13,7 @@ package libraryinjection
 import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/version"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
@@ -89,6 +90,10 @@ type LibraryInjectionConfig struct {
 	// Wmeta is the workloadmeta component for accessing namespace metadata.
 	// Used to resolve security context based on namespace labels.
 	Wmeta workloadmeta.Component
+
+	// KubeServerVersion is the Kubernetes API server version.
+	// Used for gating features that depend on cluster version support (e.g. image volumes).
+	KubeServerVersion *version.Info
 
 	// Debug enables debug mode for the APM libraries.
 	// When true, additional debug environment variables are injected.
