@@ -120,18 +120,18 @@ func (e *Event) GetContainerID() string {
 
 // FileEvent is the common file event type
 type FileEvent struct {
-	FileObject  uint64 `field:"-"`                                                                                      // handle numeric value
-	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length|gen_getters" op_override:"eval.WindowsPathCmp"` // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "c:\cmd.bat"` Description:`Matches the execution of the file located at c:\cmd.bat`
-	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"eval.CaseInsensitiveCmp"`     // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "cmd.bat"` Description:`Matches the execution of any file named cmd.bat.`
+	FileObject  uint64 `field:"-"`                                                                                              // handle numeric value
+	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length|gen_getters" op_override:"eval.WindowsPathCmp"`         // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "c:\cmd.bat"` Description:`Matches the execution of the file located at c:\cmd.bat`
+	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"eval.CaseInsensitiveCmp"`             // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "cmd.bat"` Description:`Matches the execution of any file named cmd.bat.`
 	Extension   string `field:"extension,handler:ResolveFileExtension" op_override:"eval.CaseInsensitiveCmp,eval.ExtensionCmp"` // SECLDoc[extension] Definition:`File's extension`
 }
 
 // FimFileEvent is the common file event type
 type FimFileEvent struct {
-	FileObject      uint64 `field:"-"`                                                                                     // handle numeric value
-	PathnameStr     string `field:"device_path,handler:ResolveFimFilePath,opts:length" op_override:"eval.WindowsPathCmp"`  // SECLDoc[device_path] Definition:`File's path` Example:`create.file.device_path == "\device\harddisk1\cmd.bat"` Description:`Matches the creation of the file located at c:\cmd.bat`
-	UserPathnameStr string `field:"path,handler:ResolveFileUserPath,opts:length" op_override:"eval.WindowsPathCmp"`        // SECLDoc[path] Definition:`File's path` Example:`create.file.path == "c:\cmd.bat"` Description:`Matches the creation of the file located at c:\cmd.bat`
-	BasenameStr     string `field:"name,handler:ResolveFimFileBasename,opts:length" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[name] Definition:`File's basename` Example:`create.file.name == "cmd.bat"` Description:`Matches the creation of any file named cmd.bat.`
+	FileObject      uint64 `field:"-"`                                                                                                 // handle numeric value
+	PathnameStr     string `field:"device_path,handler:ResolveFimFilePath,opts:length" op_override:"eval.WindowsPathCmp"`              // SECLDoc[device_path] Definition:`File's path` Example:`create.file.device_path == "\device\harddisk1\cmd.bat"` Description:`Matches the creation of the file located at c:\cmd.bat`
+	UserPathnameStr string `field:"path,handler:ResolveFileUserPath,opts:length" op_override:"eval.WindowsPathCmp"`                    // SECLDoc[path] Definition:`File's path` Example:`create.file.path == "c:\cmd.bat"` Description:`Matches the creation of the file located at c:\cmd.bat`
+	BasenameStr     string `field:"name,handler:ResolveFimFileBasename,opts:length" op_override:"eval.CaseInsensitiveCmp"`             // SECLDoc[name] Definition:`File's basename` Example:`create.file.name == "cmd.bat"` Description:`Matches the creation of any file named cmd.bat.`
 	Extension       string `field:"extension,handler:ResolveFimFileExtension" op_override:"eval.CaseInsensitiveCmp,eval.ExtensionCmp"` // SECLDoc[extension] Definition:`File's extension`
 }
 
