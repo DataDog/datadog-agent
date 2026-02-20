@@ -10,28 +10,33 @@ import (
 	"os"
 )
 
-// CheckWritable verifies if a directory is writable by the current process.
-// It attempts to create a temporary file in the directory.
-func CheckWritable(dir string) error {
-	// Check if directory exists
-	info, err := os.Stat(dir)
-	if err != nil {
-		return fmt.Errorf("directory check failed: %w", err)
-	}
-	if !info.IsDir() {
-		return fmt.Errorf("path is not a directory")
+// IsWritable is used to verify if a directory is writable by the current process.
+// It will create a temp file in the directory and delete it after the check.
+func IsWritable(dir string) (bool, error) {
+	if !FileExists(dir) {
+		err := os.Mkdir(dir, 0755)
+		// If we can't create the directory, it's not writable.
+		if os.IsPermission(err) {
+			return false, nil
+		}
+
+		if err != nil {
+			return false, fmt.Errorf("failed to create directory: %w", err)
+		}
 	}
 
-	// Try to create a temp file
 	tempFile, err := os.CreateTemp(dir, ".agent-write-test-*")
 	if err != nil {
-		return fmt.Errorf("directory is not writable: %w", err)
+		if os.IsPermission(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to create temp file: %w", err)
 	}
 
-	// Clean up
-	name := tempFile.Name()
-	_ = tempFile.Close()
-	_ = os.Remove(name)
-
-	return nil
+	defer func() {
+		name := tempFile.Name()
+		_ = tempFile.Close()
+		_ = os.Remove(name)
+	}()
+	return true, nil
 }

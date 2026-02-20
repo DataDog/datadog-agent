@@ -8,40 +8,46 @@
 package rofspermissions
 
 import (
-	"fmt"
+	"strings"
 
+	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Only check on Linux/Unix for now, as ROFS is primarily a container concept
+// Check if all directories agent could write to are writable by the agent.
 func Check(cfg config.Component) (*healthplatform.IssueReport, error) {
 	writeDirs := []string{
 		cfg.GetString("conf_path"),
 		cfg.GetString("run_path"),
 	}
 
+	var nonWritableDirs []string
 	for _, dir := range writeDirs {
 		if dir == "" {
 			continue
 		}
 
-		err := filesystem.CheckWritable(dir)
+		writable, err := filesystem.IsWritable(dir)
 		if err != nil {
 			log.Warnf("Write permission check failed for %s: %v", dir, err)
+			continue
+		}
 
-			// Report to Health Platform
-			report := &healthplatform.IssueReport{
-				IssueID: "read-only-filesystem-error",
-				Context: map[string]string{
-					"directory": dir,
-				},
-			}
-			// Use the directory as part of the check ID to allow multiple reports
-			checkID := fmt.Sprintf("rofs-permissions-%s", dir)
-			hp.ReportIssue(checkID, "ROFS Permissions Check", report)
+		if !writable {
+			log.Warnf("Directory '%s' is not writable", dir)
+			nonWritableDirs = append(nonWritableDirs, dir)
 		}
 	}
+	report := &healthplatform.IssueReport{
+		IssueId: "read-only-filesystem-error",
+		Context: map[string]string{
+			"directories": strings.Join(nonWritableDirs, ","),
+		},
+	}
+	if len(nonWritableDirs) > 0 {
+		return nil, nil
+	}
+	return report, nil
 }
