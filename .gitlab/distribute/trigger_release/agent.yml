@@ -34,7 +34,7 @@ trigger_auto_staging_release:
   extends: .agent_release_management_trigger
   timeout: 2h 30m
   variables:
-    AUTO_RELEASE: "--auto-release"
+    AUTO_RELEASE: ""
     FOLLOW: "--follow"
     TARGET_REPO: staging
   rules:
