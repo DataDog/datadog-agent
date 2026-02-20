@@ -87,3 +87,24 @@ architectures:
       gpm: true
       unsupported_fields: []
     unsupported_device_features: []
+  ada:
+    capabilities:
+      gpm: false
+      unsupported_fields:
+      - FI_DEV_NVLINK_THROUGHPUT_DATA_RX
+      - FI_DEV_NVLINK_THROUGHPUT_DATA_TX
+      - FI_DEV_NVLINK_THROUGHPUT_RAW_RX
+      - FI_DEV_NVLINK_THROUGHPUT_RAW_TX
+      - FI_DEV_NVLINK_SPEED_MBPS_COMMON
+      - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
+      - FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL
+      - FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL
+      - FI_DEV_NVLINK_ECC_DATA_ERROR_COUNT_TOTAL
+      - FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL
+      - FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL
+    unsupported_device_features: []
+  blackwell:
+    capabilities:
+      gpm: true
+      unsupported_fields: []
+    unsupported_device_features: []

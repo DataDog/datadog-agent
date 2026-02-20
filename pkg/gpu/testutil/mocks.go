@@ -382,6 +382,12 @@ var archNameToNVML = map[string]struct {
 	"turing":  {nvml.DEVICE_ARCH_TURING, 7, 5},
 	"ampere":  {nvml.DEVICE_ARCH_AMPERE, 8, 0},
 	"hopper":  {nvml.DEVICE_ARCH_HOPPER, 9, 0},
+	"ada":     {nvml.DEVICE_ARCH_ADA, 8, 9},
+	"blackwell": {
+		nvml.DeviceArchitecture(10), // nvml.DEVICE_ARCH_BLACKWELL in newer go-nvml
+		10,
+		0,
+	},
 }
 
 // WithArchitecture sets device architecture and compute capability from a spec architecture name
@@ -438,6 +444,59 @@ func WithDeviceFeatureMode(mode DeviceFeatureMode) NvmlMockOption {
 				d.GetVirtualizationModeFunc = func() (nvml.GpuVirtualizationMode, nvml.Return) {
 					return nvml.GPU_VIRTUALIZATION_MODE_HOST_VGPU, nvml.SUCCESS
 				}
+				// Model vGPU production gaps: keep base identity APIs working but mark
+				// most performance/clock/power/link APIs as unsupported.
+				d.GetMaxClockInfoFunc = func(_ nvml.ClockType) (uint32, nvml.Return) {
+					return 0, nvml.ERROR_NOT_SUPPORTED
+				}
+				d.GetClockInfoFunc = func(_ nvml.ClockType) (uint32, nvml.Return) {
+					return 0, nvml.ERROR_NOT_SUPPORTED
+				}
+				d.GetCurrentClocksThrottleReasonsFunc = func() (uint64, nvml.Return) {
+					return 0, nvml.ERROR_NOT_SUPPORTED
+				}
+				d.GetFanSpeedFunc = func() (uint32, nvml.Return) {
+					return 0, nvml.ERROR_NOT_SUPPORTED
+				}
+				d.GetPowerManagementLimitFunc = func() (uint32, nvml.Return) {
+					return 0, nvml.ERROR_NOT_SUPPORTED
+				}
+				d.GetPowerUsageFunc = func() (uint32, nvml.Return) {
+					return 0, nvml.ERROR_NOT_SUPPORTED
+				}
+				d.GetTotalEnergyConsumptionFunc = func() (uint64, nvml.Return) {
+					return 0, nvml.ERROR_NOT_SUPPORTED
+				}
+				d.GetTemperatureFunc = func(_ nvml.TemperatureSensors) (uint32, nvml.Return) {
+					return 0, nvml.ERROR_NOT_SUPPORTED
+				}
+				d.GetRemappedRowsFunc = func() (int, int, bool, bool, nvml.Return) {
+					return 0, 0, false, false, nvml.ERROR_NOT_SUPPORTED
+				}
+				d.GetPcieReplayCounterFunc = func() (int, nvml.Return) {
+					return 0, nvml.ERROR_NOT_SUPPORTED
+				}
+				d.GetPcieThroughputFunc = func(_ nvml.PcieUtilCounter) (uint32, nvml.Return) {
+					return 0, nvml.ERROR_NOT_SUPPORTED
+				}
+				d.GetNvLinkStateFunc = func(_ int) (nvml.EnableState, nvml.Return) {
+					return 0, nvml.ERROR_NOT_SUPPORTED
+				}
+				d.GetNvLinkUtilizationCounterFunc = func(_, _ int) (uint64, uint64, nvml.Return) {
+					return 0, 0, nvml.ERROR_NOT_SUPPORTED
+				}
+				d.GetNvLinkErrorCounterFunc = func(_ int, _ nvml.NvLinkErrorCounter) (uint64, nvml.Return) {
+					return 0, nvml.ERROR_NOT_SUPPORTED
+				}
+				d.GetFieldValuesFunc = func(_ []nvml.FieldValue) nvml.Return {
+					return nvml.ERROR_NOT_SUPPORTED
+				}
+				d.GetProcessUtilizationFunc = func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
+					return nil, nvml.ERROR_NOT_FOUND
+				}
+				d.GetSamplesFunc = func(_ nvml.SamplingType, _ uint64) (nvml.ValueType, []nvml.Sample, nvml.Return) {
+					return nvml.VALUE_TYPE_UNSIGNED_INT, nil, nvml.ERROR_NOT_FOUND
+				}
 			})
 		}
 	default:
@@ -468,6 +527,10 @@ func WithCapabilities(caps Capabilities) NvmlMockOption {
 				for _, id := range caps.UnsupportedFields {
 					unsupported[id] = struct{}{}
 				}
+				nvlinkAPIsUnsupported := false
+				if _, found := unsupported[nvml.FI_DEV_NVLINK_SPEED_MBPS_COMMON]; found {
+					nvlinkAPIsUnsupported = true
+				}
 
 				prevGetFieldValues := d.GetFieldValuesFunc
 				d.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
@@ -484,6 +547,12 @@ func WithCapabilities(caps Capabilities) NvmlMockOption {
 						}
 					}
 					return nvml.SUCCESS
+				}
+
+				if nvlinkAPIsUnsupported {
+					d.GetNvLinkStateFunc = func(_ int) (nvml.EnableState, nvml.Return) {
+						return 0, nvml.ERROR_NOT_SUPPORTED
+					}
 				}
 			}
 		})
