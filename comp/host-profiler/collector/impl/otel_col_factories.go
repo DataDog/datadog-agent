@@ -57,6 +57,7 @@ type extraFactoriesWithAgentCore struct {
 	traceAgent traceagent.Component
 	log        log.Component
 	config     config.Component
+	params     Params
 }
 
 var _ ExtraFactories = (*extraFactoriesWithAgentCore)(nil)
@@ -74,6 +75,7 @@ func NewExtraFactoriesWithAgentCore(
 	traceAgent traceagent.Component,
 	log log.Component,
 	config config.Component,
+	params Params,
 ) ExtraFactories {
 	return extraFactoriesWithAgentCore{
 		tagger:     tagger,
@@ -82,6 +84,7 @@ func NewExtraFactoriesWithAgentCore(
 		traceAgent: traceAgent,
 		log:        log,
 		config:     config,
+		params:     params,
 	}
 }
 

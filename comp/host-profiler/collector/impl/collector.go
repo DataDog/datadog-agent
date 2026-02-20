@@ -42,6 +42,11 @@ func NewParams(uri string, goRuntimeMetrics bool) Params {
 	}
 }
 
+// GetGoRuntimeMetrics returns whether Go runtime metrics collection is enabled.
+func (p Params) GetGoRuntimeMetrics() bool {
+	return p.GoRuntimeMetrics
+}
+
 // Requires defines the dependencies for the collector component
 type Requires struct {
 	Params         Params
@@ -66,7 +71,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, err
 	}
 
-	settings, err := newCollectorSettings(reqs.Params.uri, reqs.ExtraFactories)
+	settings, err := newCollectorSettings(reqs.Params.uri, reqs.ExtraFactories, reqs.Params)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -92,7 +97,7 @@ func (c *collectorImpl) Run() error {
 	return c.collector.Run(context.Background())
 }
 
-func newCollectorSettings(uri string, extraFactories ExtraFactories) (otelcol.CollectorSettings, error) {
+func newCollectorSettings(uri string, extraFactories ExtraFactories, params Params) (otelcol.CollectorSettings, error) {
 	return otelcol.CollectorSettings{
 		BuildInfo: component.BuildInfo{
 			Command:     filepath.Base(os.Args[0]),
@@ -104,7 +109,7 @@ func newCollectorSettings(uri string, extraFactories ExtraFactories) (otelcol.Co
 			ResolverSettings: confmap.ResolverSettings{
 				URIs: []string{uri},
 				ProviderFactories: []confmap.ProviderFactory{
-					agentprovider.NewFactory(extraFactories.GetAgentConfig()),
+					agentprovider.NewFactory(extraFactories.GetAgentConfig(), params),
 					envprovider.NewFactory(),
 					fileprovider.NewFactory(),
 				},

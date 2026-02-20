@@ -8,6 +8,7 @@ extensions:
     ddprofiling/default: {}
     hpflare/default: {}
 processors:
+    cumulativetodelta: {}
     infraattributes/default:
         allow_hostname_override: true
         cardinality: 2
@@ -26,8 +27,21 @@ receivers:
             symbol_endpoints:
                 - api_key: test_key_123
                   site: datadoghq.eu
+    otlp:
+        protocols:
+            grpc: null
+            http: null
 service:
     pipelines:
+        metrics:
+            exporters:
+                - otlphttp/datadoghq.eu_0
+            processors:
+                - cumulativetodelta
+                - infraattributes/default
+                - resource/dd-profiler-internal-metadata
+            receivers:
+                - otlp
         profiles:
             exporters:
                 - otlphttp/datadoghq.eu_0

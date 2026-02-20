@@ -106,14 +106,48 @@ func buildProcessors(conf confMap) []any {
 	return []any{"infraattributes/default", "resource/dd-profiler-internal-metadata"}
 }
 
-func buildConfig(agent configManager) confMap {
+func buildMetricsPipeline(conf confMap, profilesProcessors, profilesExporters []any) {
+	metricsPipeline, _ := converters.Ensure[confMap](conf, "service::pipelines::metrics")
+
+	// Add OTLP receiver
+	receivers, _ := converters.Ensure[confMap](conf, "receivers")
+	receivers["otlp"] = confMap{
+		"protocols": confMap{
+			"grpc": nil,
+			"http": nil,
+		},
+	}
+
+	// Add cumulativetodelta processor
+	processors, _ := converters.Ensure[confMap](conf, "processors")
+	processors["cumulativetodelta"] = confMap{}
+
+	// Build metrics processors: cumulativetodelta + profile processors (infraattributes, metadata)
+	metricsProcessors := []any{"cumulativetodelta"}
+	metricsProcessors = append(metricsProcessors, profilesProcessors...)
+
+	// Use all exporters from profiles pipeline (they all have metrics_endpoint)
+	metricsPipeline["receivers"] = []any{"otlp"}
+	metricsPipeline["processors"] = metricsProcessors
+	metricsPipeline["exporters"] = profilesExporters
+}
+
+func buildConfig(agent configManager, params CollectorParams) confMap {
 	config := make(confMap)
 
 	profilesPipeline, _ := converters.Ensure[confMap](config, "service::pipelines::profiles")
 
-	profilesPipeline["processors"] = buildProcessors(config)
-	profilesPipeline["exporters"] = buildExporters(config, agent)
-	profilesPipeline["receivers"] = buildReceivers(config, agent)
+	profilesProcessors := buildProcessors(config)
+	profilesExporters := buildExporters(config, agent)
+	profilesReceivers := buildReceivers(config, agent)
+
+	profilesPipeline["processors"] = profilesProcessors
+	profilesPipeline["exporters"] = profilesExporters
+	profilesPipeline["receivers"] = profilesReceivers
+
+	if params.GetGoRuntimeMetrics() {
+		buildMetricsPipeline(config, profilesProcessors, profilesExporters)
+	}
 
 	_ = converters.Set(config, "extensions::ddprofiling/default", confMap{})
 	_ = converters.Set(config, "extensions::hpflare/default", confMap{})
