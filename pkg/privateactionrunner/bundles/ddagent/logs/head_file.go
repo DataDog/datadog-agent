@@ -12,32 +12,32 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
-// HeadProcessLogHandler implements headProcessLog: reads the first N lines of a host file.
-type HeadProcessLogHandler struct{}
+// HeadFileHandler implements headFile: reads the first N lines of a host file.
+type HeadFileHandler struct{}
 
-// NewHeadProcessLogHandler creates a new HeadProcessLogHandler.
-func NewHeadProcessLogHandler() *HeadProcessLogHandler {
-	return &HeadProcessLogHandler{}
+// NewHeadFileHandler creates a new HeadFileHandler.
+func NewHeadFileHandler() *HeadFileHandler {
+	return &HeadFileHandler{}
 }
 
-type headProcessLogInputs struct {
+type headFileInputs struct {
 	FilePath  string `json:"filePath"`
 	LineCount int    `json:"lineCount,omitempty"`
 }
 
-type processLogOutput struct {
+type fileOutput struct {
 	Lines     string `json:"lines"`
 	LineCount int    `json:"lineCount"`
 	FilePath  string `json:"filePath"`
 }
 
-// Run executes the headProcessLog action.
-func (h *HeadProcessLogHandler) Run(
+// Run executes the headFile action.
+func (h *HeadFileHandler) Run(
 	_ context.Context,
 	task *types.Task,
 	_ *privateconnection.PrivateCredentials,
 ) (interface{}, error) {
-	inputs, err := types.ExtractInputs[headProcessLogInputs](task)
+	inputs, err := types.ExtractInputs[headFileInputs](task)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +53,7 @@ func (h *HeadProcessLogHandler) Run(
 		return nil, err
 	}
 
-	return &processLogOutput{
+	return &fileOutput{
 		Lines:     lines,
 		LineCount: count,
 		FilePath:  inputs.FilePath,
