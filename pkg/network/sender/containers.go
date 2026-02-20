@@ -13,30 +13,21 @@ import (
 	"maps"
 	"net/netip"
 	"sync"
-	"time"
 
 	"go4.org/intern"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-const (
-	cacheValidityNoRT = 2 * time.Second
 )
 
 const containerResolverSubsystem = "sender__container_resolver"
 
 var containerResolverTelemetry = struct {
 	addressCount telemetry.Gauge
-	pidCount     telemetry.Gauge
 }{
 	telemetry.NewGauge(containerResolverSubsystem, "address_count", nil, ""),
-	telemetry.NewGauge(containerResolverSubsystem, "pid_count", nil, ""),
 }
 
 type connKey struct {
@@ -51,20 +42,16 @@ type containerID struct {
 }
 
 type containerResolver struct {
-	wmeta           workloadmeta.Component
-	metricsProvider metrics.Provider
+	wmeta workloadmeta.Component
 
 	mtx               sync.Mutex
 	addrToContainerID map[containerAddr]containerID
-	pidToContainerID  map[uint32]containerID
 }
 
-func newContainerResolver(wmeta workloadmeta.Component, metricsProvider metrics.Provider) *containerResolver {
+func newContainerResolver(wmeta workloadmeta.Component) *containerResolver {
 	return &containerResolver{
 		wmeta:             wmeta,
-		metricsProvider:   metricsProvider,
 		addrToContainerID: make(map[containerAddr]containerID),
-		pidToContainerID:  make(map[uint32]containerID),
 	}
 }
 
@@ -122,27 +109,9 @@ func (r *containerResolver) process(eventBundle workloadmeta.EventBundle) {
 			}
 		}
 
-		// map PID to container ID
-		collector := r.metricsProvider.GetCollector(provider.NewRuntimeMetadata(
-			string(container.Runtime),
-			string(container.RuntimeFlavor),
-		))
-		if collector == nil {
-			log.Infof("No metrics collector available for runtime: %s, skipping container: %s", container.Runtime, container.ID)
-			continue
-		}
-		pids, err := collector.GetPIDs(container.Namespace, container.ID, cacheValidityNoRT)
-		if err == nil && pids != nil {
-			for _, pid := range pids {
-				r.pidToContainerID[uint32(pid)] = idWrapper
-			}
-		} else {
-			log.Debugf("PIDs for: %+v not available, err: %v", container, err)
-		}
 	}
 
 	containerResolverTelemetry.addressCount.Set(float64(len(r.addrToContainerID)))
-	containerResolverTelemetry.pidCount.Set(float64(len(r.pidToContainerID)))
 }
 
 func (r *containerResolver) resolveDestinationContainerIDs(conns *network.Connections) {
@@ -152,30 +121,20 @@ func (r *containerResolver) resolveDestinationContainerIDs(conns *network.Connec
 		maps.DeleteFunc(r.addrToContainerID, func(_ containerAddr, id containerID) bool {
 			return !id.alive
 		})
-		maps.DeleteFunc(r.pidToContainerID, func(_ uint32, id containerID) bool {
-			return !id.alive
-		})
 		containerResolverTelemetry.addressCount.Set(float64(len(r.addrToContainerID)))
-		containerResolverTelemetry.pidCount.Set(float64(len(r.pidToContainerID)))
 	}()
 
 	containerIDByConnection := make(map[connKey]*intern.Value, len(conns.Conns))
 	for i := range conns.Conns {
 		conn := &conns.Conns[i]
-		cid := conn.ContainerID.Source
-		if cid == nil {
-			if v, ok := r.pidToContainerID[conn.Pid]; ok {
-				cid = v.id
-			}
-		}
-		if cid == nil {
-			continue
-		}
-		conn.ContainerID.Source = cid
 		if !conn.IntraHost {
 			continue
 		}
 
+		cid := conn.ContainerID.Source
+		if cid == nil {
+			continue
+		}
 		laddr, raddr, err := translatedAddrs(conn)
 		if err != nil {
 			log.Error(err)
