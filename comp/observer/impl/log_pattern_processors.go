@@ -20,6 +20,7 @@ import (
 type PatternLogProcessor struct {
 	ClustererPipeline *patterns.MultiThreadPipeline
 	ResultChannel     chan *patterns.MultiThreadResult
+	// AnomalyDetectors  []PatternLogAnomalyDetector
 }
 
 func NewPatternLogProcessor() *PatternLogProcessor {
@@ -33,7 +34,7 @@ func NewPatternLogProcessor() *PatternLogProcessor {
 
 	go func() {
 		for result := range resultChannel {
-			fmt.Printf("[cc] Processor: Result: %+v\n", result.ClusterResult.Signature)
+			fmt.Printf("[cc] Processor: Result: (ID: %d) %+v\n", result.ClusterResult.Cluster.ID, result.ClusterResult.Signature)
 		}
 	}()
 
@@ -52,3 +53,17 @@ func (p *PatternLogProcessor) Process(log observer.LogView) observer.LogProcesso
 	// Results arrive asynchronously via ResultChannel
 	return observer.LogProcessorResult{}
 }
+
+// // --- Anomaly Detectors ---
+// // What we plug after the log processor
+// type PatternLogAnomalyDetector interface {
+// 	Run()
+// 	Name() string
+// 	// TODO: Pattern id not pattern to avoid multi threading issues
+// 	Process(log observer.LogView, pattern *patterns.Cluster)
+// }
+
+// // AD algorithm similar to Watchdog
+// type WatchdogLogAnomalyDetector struct {
+
+// }

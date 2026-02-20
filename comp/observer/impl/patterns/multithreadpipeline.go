@@ -60,7 +60,7 @@ func NewMultiThreadPipeline(nCpus int, resultChannel chan *MultiThreadResult, on
 		pipeline.Tokenizers[i] = &MultiThreadTokenizer{Pipeline: pipeline, ID: i, Tokenizer: NewTokenizer(), Channel: make(chan string, 1024)}
 		go pipeline.Tokenizers[i].Run()
 
-		pipeline.PatternClusterers[i] = &MultiThreadPatternClusterer{Pipeline: pipeline, ID: i, PatternClusterer: NewPatternClusterer(), Channel: make(chan *ClustererInput, 1024)}
+		pipeline.PatternClusterers[i] = &MultiThreadPatternClusterer{Pipeline: pipeline, ID: i, PatternClusterer: NewPatternClusterer(IDComputeInfo{Offset: i, Stride: nCpus, Index: 0}), Channel: make(chan *ClustererInput, 1024)}
 		go pipeline.PatternClusterers[i].Run()
 	}
 

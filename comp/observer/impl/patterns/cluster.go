@@ -12,8 +12,23 @@ import (
 
 const DefaultSignatureVersion = 5
 
+// Used to compute cluster IDs on multiple threads without locking
+type IDComputeInfo struct {
+	Offset int
+	Stride int
+	Index  int
+}
+
+func (idComputeInfo *IDComputeInfo) NextID() int {
+	newId := idComputeInfo.Offset + idComputeInfo.Index*idComputeInfo.Stride
+	idComputeInfo.Index++
+
+	return newId
+}
+
 // Cluster represents a group of similar log messages.
 type Cluster struct {
+	ID        int
 	Signature string
 	Pattern   []Token
 	Count     int
@@ -47,9 +62,10 @@ type SignatureClusterer struct {
 	IgnoreEmpty      bool
 	TextGetter       func(doc map[string]string) string
 	TagGetters       map[string]func(doc map[string]string) string
+	IDComputeInfo    IDComputeInfo
 }
 
-func NewSignatureClusterer(version int) *SignatureClusterer {
+func NewSignatureClusterer(version int, idComputeInfo IDComputeInfo) *SignatureClusterer {
 	return &SignatureClusterer{
 		clusters:         make(map[string]*Cluster),
 		SignatureVersion: version,
@@ -57,6 +73,7 @@ func NewSignatureClusterer(version int) *SignatureClusterer {
 		IgnoreEmpty:      true,
 		TextGetter:       func(doc map[string]string) string { return doc["message"] },
 		TagGetters:       map[string]func(doc map[string]string) string{},
+		IDComputeInfo:    idComputeInfo,
 	}
 }
 
@@ -91,6 +108,7 @@ func (sc *SignatureClusterer) ProcessTokens(tokens []Token, message string) *Clu
 		Count:     1,
 		Tags:      make(map[string]string),
 		Samples:   []string{message},
+		ID:        sc.IDComputeInfo.NextID(),
 	}
 	sc.clusters[sig] = c
 	sc.orderedKeys = append(sc.orderedKeys, sig)
@@ -130,14 +148,16 @@ type PatternClusterer struct {
 	SignatureVersion    int
 	tokenizer           *Tokenizer
 	IgnoreEmpty         bool
+	IDComputeInfo       IDComputeInfo
 }
 
-func NewPatternClusterer() *PatternClusterer {
+func NewPatternClusterer(idComputeInfo IDComputeInfo) *PatternClusterer {
 	return &PatternClusterer{
 		clustersBySignature: make(map[string][]*Cluster),
 		SignatureVersion:    DefaultSignatureVersion,
 		tokenizer:           NewTokenizer(),
 		IgnoreEmpty:         true,
+		IDComputeInfo:       idComputeInfo,
 	}
 }
 
@@ -201,6 +221,7 @@ func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string) *Clust
 		Count:     1,
 		Tags:      make(map[string]string),
 		Samples:   []string{message},
+		ID:        pc.IDComputeInfo.NextID(),
 	}
 	pc.clustersBySignature[sig] = append(pc.clustersBySignature[sig], c)
 	pc.allClusters = append(pc.allClusters, c)
