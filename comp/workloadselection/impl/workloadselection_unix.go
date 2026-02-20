@@ -41,12 +41,20 @@ func (c *workloadselectionComponent) compileAndWriteConfig(rawConfig []byte) err
 	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
 		return err
 	}
-	cmd := exec.Command(getCompilePolicyBinaryPath(), "--input-string", string(rawConfig), "--output-file", configPath)
+
+	tmpPath := configPath + ".tmp"
+	defer os.Remove(tmpPath)
+
+	cmd := exec.Command(getCompilePolicyBinaryPath(), "--input-string", string(rawConfig), "--output-file", tmpPath)
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("error executing dd-policy-compile (%w); out: '%s'; err: '%s'", err, stdoutBuf.String(), stderrBuf.String())
+	}
+
+	if err := os.Rename(tmpPath, configPath); err != nil {
+		return fmt.Errorf("failed to atomically replace policy file: %w", err)
 	}
 	return nil
 }

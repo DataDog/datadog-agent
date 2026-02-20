@@ -79,7 +79,11 @@ func (c *workloadselectionComponent) compileAndWriteConfig(rawConfig []byte) err
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
-	cmd := exec.Command(getCompilePolicyBinaryPath(), "--input-string", string(rawConfig), "--output-file", configPath)
+
+	tmpPath := configPath + ".tmp"
+	defer os.Remove(tmpPath)
+
+	cmd := exec.Command(getCompilePolicyBinaryPath(), "--input-string", string(rawConfig), "--output-file", tmpPath)
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
@@ -88,8 +92,12 @@ func (c *workloadselectionComponent) compileAndWriteConfig(rawConfig []byte) err
 	}
 	// Set permissions on the file to allow Everyone read+execute access
 	// We keep the current owner (ddagentuser) and only modify the DACL
-	if err := setFileReadableByEveryone(configPath); err != nil {
-		return fmt.Errorf("failed to set permissions on file %s: %w", configPath, err)
+	if err := setFileReadableByEveryone(tmpPath); err != nil {
+		return fmt.Errorf("failed to set permissions on file %s: %w", tmpPath, err)
+	}
+
+	if err := os.Rename(tmpPath, configPath); err != nil {
+		return fmt.Errorf("failed to atomically replace policy file: %w", err)
 	}
 	return nil
 }
