@@ -340,6 +340,9 @@ func initCommonWithServerless(config pkgconfigmodel.Setup) {
 // InitConfig initializes the config defaults on a config used by all agents
 // (in particular more than just the serverless agent).
 func InitConfig(config pkgconfigmodel.Setup) {
+	// Reset registeredDelegatedAuthConfigs to avoid state leaking between tests
+	registeredDelegatedAuthConfigs = make(map[string]string)
+
 	initCommonWithServerless(config)
 
 	// Auto exit configuration
