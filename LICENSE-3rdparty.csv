@@ -168,7 +168,6 @@ core,github.com/DataDog/dd-trace-go/v2/ddtrace,Apache-2.0,"Copyright (c) 2016-Pr
 core,github.com/DataDog/dd-trace-go/v2/ddtrace/ext,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/ddtrace/internal,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/ddtrace/internal/tracerstats,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/ddtrace/mocktracer,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/ddtrace/tracer,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/instrumentation/appsec/dyngo,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/instrumentation/appsec/emitter/graphqlsec,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
@@ -202,7 +201,6 @@ core,github.com/DataDog/dd-trace-go/v2/internal/appsec/listener/sqlsec,Apache-2.
 core,github.com/DataDog/dd-trace-go/v2/internal/appsec/listener/trace,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/internal/appsec/listener/usersec,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/internal/appsec/listener/waf,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/civisibility,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils/telemetry,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
@@ -221,6 +219,8 @@ core,github.com/DataDog/dd-trace-go/v2/internal/hostname/validate,Apache-2.0,"Co
 core,github.com/DataDog/dd-trace-go/v2/internal/llmobs,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/internal/llmobs/config,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/internal/llmobs/transport,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/locking,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
+core,github.com/DataDog/dd-trace-go/v2/internal/locking/assert,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/internal/log,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/internal/namingschema,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/dd-trace-go/v2/internal/normalizer,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
@@ -1545,6 +1545,7 @@ core,github.com/lightstep/go-expohisto/mapping/exponent,Apache-2.0,Copyright The
 core,github.com/lightstep/go-expohisto/mapping/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/lightstep/go-expohisto/mapping/logarithm,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/lightstep/go-expohisto/structure,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/linkdata/deadlock,MIT,Copyright (c) 2023 Johan Lindh
 core,github.com/linode/go-metadata,Apache-2.0,"Copyright 2023 Akamai Technologies, Inc | Copyright Akamai Technologies, Inc. and is released under the [Apache 2.0 license](./LICENSE)"
 core,github.com/linode/linodego,MIT,"Copyright (c) 2017 Christopher ""Chief"" Najewicz"
 core,github.com/linode/linodego/internal/duration,MIT,"Copyright (c) 2017 Christopher ""Chief"" Najewicz"
@@ -2075,6 +2076,7 @@ core,github.com/pahanini/go-grpc-bidirectional-streaming-example/src/proto,MIT,C
 core,github.com/patrickmn/go-cache,MIT,Alex Edwards <ajmedwards@gmail.com> | Copyright (c) 2012-2017 Patrick Mylund Nielsen and the go-cache contributors | Dustin Sallings <dustin@spy.net> | Jason Mooberry <jasonmoo@me.com> | Sergey Shepelev <temotor@gmail.com>
 core,github.com/pborman/uuid,BSD-3-Clause,"Copyright (c) 2009,2014 Google Inc. All rights reserved | Paul Borman <borman@google.com>"
 core,github.com/pelletier/go-toml,MIT,"Copyright (c) 2013 - 2021 Thomas Pelletier, Eric Anderton"
+core,github.com/petermattis/goid,Apache-2.0,Copyright 2016 Peter Mattis.
 core,github.com/philhofer/fwd,MIT,"Copyright (c) 2014-2015, Philip Hofer"
 core,github.com/pierrec/lz4/v4,BSD-3-Clause,"Copyright (c) 2015, Pierre Curto"
 core,github.com/pierrec/lz4/v4/internal/lz4block,BSD-3-Clause,"Copyright (c) 2015, Pierre Curto"
@@ -2342,7 +2344,6 @@ core,github.com/swaggest/refl,MIT,Copyright (c) 2020 swaggest
 core,github.com/syndtr/gocapability/capability,BSD-2-Clause,Copyright 2013 Suryandaru Triandana <syndtr@gmail.com>
 core,github.com/tchap/go-patricia/v2/patricia,MIT,Copyright (c) 2014 The AUTHORS | Ondřej Kupka <ondra.cap@gmail.com> | This is the complete list of go-patricia copyright holders:
 core,github.com/tedsuo/rata,MIT,Copyright (c) 2014 Ted Young
-core,github.com/theckman/httpforwarded,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2016 Tim Heckman. All rights reserved
 core,github.com/tidwall/gjson,MIT,Copyright (c) 2016 Josh Baker
 core,github.com/tidwall/match,MIT,Copyright (c) 2016 Josh Baker
 core,github.com/tidwall/pretty,MIT,Copyright (c) 2017 Josh Baker
@@ -2356,6 +2357,7 @@ core,github.com/tinylib/msgp/printer,MIT,Copyright (c) 2009 The Go Authors (lice
 core,github.com/tklauser/go-sysconf,BSD-3-Clause,"Copyright (c) 2018-2022, Tobias Klauser"
 core,github.com/tklauser/numcpus,Apache-2.0,Copyright 2018 Tobias Klauser
 core,github.com/tmthrgd/go-hex,BSD-3-Clause,"Copyright (c) 2005-2016, Wojciech Muła | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2016, Tom Thorogood"
+core,github.com/trailofbits/go-mutexasserts,MIT,Copyright (c) 2020 Trail of Bits
 core,github.com/tv42/httpunix,MIT,Copyright (c) 2013-2019 Tommi Virtanen
 core,github.com/twitchtv/twirp,Apache-2.0,"Copyright 2018 Twitch Interactive, Inc.  All Rights Reserved"
 core,github.com/twitchtv/twirp/ctxsetters,Apache-2.0,"Copyright 2018 Twitch Interactive, Inc.  All Rights Reserved"
@@ -3315,16 +3317,6 @@ core,google.golang.org/protobuf/types/known/structpb,BSD-3-Clause,Copyright (c) 
 core,google.golang.org/protobuf/types/known/timestamppb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/types/known/wrapperspb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/types/pluginpb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
-core,gopkg.in/DataDog/dd-trace-go.v1/datastreams/options,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
-core,gopkg.in/DataDog/dd-trace-go.v1/ddtrace,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
-core,gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
-core,gopkg.in/DataDog/dd-trace-go.v1/ddtrace/internal,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
-core,gopkg.in/DataDog/dd-trace-go.v1/ddtrace/mocktracer,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
-core,gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
-core,gopkg.in/DataDog/dd-trace-go.v1/internal/datastreams,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
-core,gopkg.in/DataDog/dd-trace-go.v1/internal/globalconfig,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
-core,gopkg.in/DataDog/dd-trace-go.v1/internal/log,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
-core,gopkg.in/DataDog/dd-trace-go.v1/internal/version,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/Knetic/govaluate.v3,MIT,"Copyright (c) 2014-2016 George Lester | abrander (panic-finding testing tool) | benpaxton (fix for missing type checks during literal elide process) | bgaifullin (lifting restriction on complex/struct types) | dpaolella (exposure of variables used in an expression) | iasci (ternary operator) | oxtoacart (parameter structures, deferred parameter retrieval) | prashantv (optimization of bools) | vjeantet (regex support) | wmiller848 (bitwise operators) | xfennec (fix for dates being parsed in the current Location)"
 core,gopkg.in/cheggaaa/pb.v1,BSD-3-Clause,"Copyright (c) 2012-2015, Sergey Cherepanov"
 core,gopkg.in/evanphx/json-patch.v4,BSD-3-Clause,"Copyright (c) 2014, Evan Phoenix"

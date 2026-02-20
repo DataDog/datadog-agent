@@ -441,7 +441,9 @@ func start(log log.Component,
 		if clusterID != "" {
 			opts = append(opts, tracer.WithGlobalTag("cluster_id", clusterID))
 		}
-		tracer.Start(opts...)
+		if err := tracer.Start(opts...); err != nil {
+			return fmt.Errorf("failed to start APM tracing: %w", err)
+		}
 		pkglog.Infof("APM tracing enabled for Cluster Agent (sample_rate=%.2f)", sampleRate)
 		defer tracer.Stop()
 	}
