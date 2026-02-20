@@ -704,6 +704,14 @@ def fetch_artifacts(ctx, ref: str | None = None) -> None:
 
         print("Extraction complete")
 
+    # Delete stale embedded3.COMPRESSED so the next debug build re-compresses
+    # from the fresh artifacts. In debug builds CompressedDir.cs skips
+    # re-compression when the file already exists.
+    compressed_file = os.path.join(BUILD_SOURCE_DIR, 'WixSetup', 'embedded3.COMPRESSED')
+    if os.path.exists(compressed_file):
+        print(f"Deleting stale compressed file: {compressed_file}")
+        os.remove(compressed_file)
+
 
 def download_latest_artifacts_for_ref(project: Project, ref_name: str, output_dir: str) -> None:
     """

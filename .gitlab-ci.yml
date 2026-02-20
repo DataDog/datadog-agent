@@ -129,21 +129,21 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v95180930-5bed5d79
+  CI_IMAGE_BTF_GEN: v96864623-38cade90
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v95180930-5bed5d79
+  CI_IMAGE_DOCKER_X64: v96864623-38cade90
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v95180930-5bed5d79
+  CI_IMAGE_DOCKER_ARM64: v96864623-38cade90
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v95180930-5bed5d79
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v96864623-38cade90
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v95180930-5bed5d79
+  CI_IMAGE_LINUX: v96864623-38cade90
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v95180930-5bed5d79
+  CI_IMAGE_RPM_X64: v96864623-38cade90
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v95180930-5bed5d79
+  CI_IMAGE_RPM_ARM64: v96864623-38cade90
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v95180930-5bed5d79
+  CI_IMAGE_RPM_ARMHF: v96864623-38cade90
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
   CI_IMAGE_WIN_LTSC2022_X64: v95648322-a2e015b0
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
@@ -177,6 +177,7 @@ variables:
   CHANGELOG_COMMIT_SHA: ci.datadog-agent.gitlab_changelog_commit_sha # agent-devx
   CHOCOLATEY_API_KEY: ci.datadog-agent.chocolatey_api_key # windows-products
   CODECOV_TOKEN: ci.datadog-agent.codecov_token # agent-devx
+  CRC_PULL_SECRET: ci.datadog-agent.crc-pull-secret # container-integrations
   DOCKER_REGISTRY_LOGIN: ci.datadog-agent.docker_hub_login # container-integrations
   DOCKER_REGISTRY_PWD: ci.datadog-agent.docker_hub_pwd # container-integrations
   VCPKG_BLOB_SAS_URL: ci.datadog-agent-buildimages.vcpkg_blob_sas_url # windows-products

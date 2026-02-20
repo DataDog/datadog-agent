@@ -40,6 +40,7 @@ type context struct {
 	ClusterChecks       bool
 	AdmissionController bool
 	CloudFoundry        bool
+	PrivateActionRunner bool
 }
 
 func mkContext(buildType string, osName string) context {
@@ -48,19 +49,20 @@ func mkContext(buildType string, osName string) context {
 	switch buildType {
 	case "agent-py3":
 		return context{
-			OS:                osName,
-			Common:            true,
-			Agent:             true,
-			CoreAgent:         true,
-			Dogstatsd:         true,
-			LogsAgent:         true,
-			Logging:           true,
-			DockerTagging:     true,
-			KubernetesTagging: true,
-			ECS:               true,
-			TraceAgent:        true,
-			Kubelet:           true,
-			KubeApiServer:     true, // TODO: remove when phasing out from node-agent
+			OS:                  osName,
+			Common:              true,
+			Agent:               true,
+			CoreAgent:           true,
+			Dogstatsd:           true,
+			LogsAgent:           true,
+			Logging:             true,
+			DockerTagging:       true,
+			KubernetesTagging:   true,
+			ECS:                 true,
+			TraceAgent:          true,
+			Kubelet:             true,
+			KubeApiServer:       true,  // TODO: remove when phasing out from node-agent
+			PrivateActionRunner: false, // NOTE: hidden until v7.77.0
 		}
 	case "iot-agent":
 		return context{

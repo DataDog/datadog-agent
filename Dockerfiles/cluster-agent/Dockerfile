@@ -54,6 +54,7 @@ COPY ./datadog-cluster.yaml /etc/datadog-agent/datadog-cluster.yaml
 COPY ./security-agent-policies/compliance/containers/cis-kubernetes*.yaml /etc/datadog-agent/compliance.d/
 COPY ./security-agent-policies/compliance/containers/*.rego /etc/datadog-agent/compliance.d/
 COPY ./install_info etc/datadog-agent/install_info
+COPY ./private-action-runner /etc/datadog-agent/private-action-runner
 COPY entrypoint.sh .
 COPY readsecret.sh readsecret_multiple_providers.sh ./
 

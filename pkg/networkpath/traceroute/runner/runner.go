@@ -165,7 +165,7 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 
 	traceroutePath := payload.NetworkPath{
 		AgentVersion: version.AgentVersion,
-		PathtraceID:  payload.NewPathtraceID(),
+		TestRunID:    res.TestRunID,
 		Protocol:     protocol,
 		Timestamp:    time.Now().UnixMilli(),
 		Source: payload.NetworkPathSource{
