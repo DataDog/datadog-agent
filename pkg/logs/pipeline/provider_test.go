@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -73,6 +74,7 @@ func (f *mockSenderFactory) NewHTTPSender(
 	workersPerQueue int,
 	minWorkerConcurrency int,
 	maxWorkerConcurrency int,
+	_ secrets.Component,
 ) *sender.Sender {
 	f.queueCount = queueCount
 	f.workersPerQueue = workersPerQueue
