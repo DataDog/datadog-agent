@@ -202,7 +202,7 @@ func (suite *k8sSuite) TestSBOM() {
 			},
 		},
 		{
-			app:     "quay.io/coreos/etcd",
+			app:     "669783387624.dkr.ecr.us-east-1.amazonaws.com/quay/coreos/etcd",
 			version: "v3.5.1",
 		},
 	}
