@@ -17,6 +17,7 @@ import (
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/DataDog/datadog-agent/comp/observer/impl/patterns"
+	"github.com/DataDog/datadog-agent/comp/observer/impl/queue"
 )
 
 // PatternLogProcessor is a log processor that detects patterns in logs.
@@ -43,7 +44,9 @@ func NewPatternLogProcessor(anomalyDetectors []PatternLogAnomalyDetector) *Patte
 
 	go func() {
 		for result := range resultChannel {
-			fmt.Printf("[cc] Processor: Result: (ID: %d) %+v\n", result.ClusterResult.Cluster.ID, result.ClusterResult.Signature)
+			if result.ClusterResult.IsNew {
+				fmt.Printf("[cc] Processor: New cluster: (ID: %d) %+v\n", result.ClusterResult.Cluster.ID, result.ClusterResult.Signature)
+			}
 			for _, anomalyDetector := range p.AnomalyDetectors {
 				anomalyDetector.Process(result.ClusterInput, result.ClusterResult)
 			}
@@ -78,62 +81,6 @@ type PatternLogAnomalyDetector interface {
 type LogAnomalyDetectionProcessInput struct {
 	ClustererInput  *patterns.ClustererInput
 	ClustererResult *patterns.ClusterResult
-}
-
-// --- Utils ---
-// Float64 queue
-type Queue struct {
-	data []float64
-	head int
-}
-
-// NewQueue creates a new Queue.
-func NewQueue() *Queue {
-	return &Queue{
-		data: make([]float64, 0),
-	}
-}
-
-// Enqueue adds a value at the end of the queue.
-func (q *Queue) Enqueue(value float64) {
-	q.data = append(q.data, value)
-}
-
-// Dequeue removes and returns the value at the front of the queue.
-// Returns false if the queue is empty.
-func (q *Queue) Dequeue() (float64, bool) {
-	if q.head >= len(q.data) {
-		return 0, false
-	}
-	val := q.data[q.head]
-	q.data[q.head] = 0 // release reference
-	q.head++
-
-	// Compact once at least half the capacity sits behind the head pointer.
-	if q.head > cap(q.data)/2 {
-		n := copy(q.data, q.data[q.head:])
-		q.data = q.data[:n]
-		q.head = 0
-	}
-	return val, true
-}
-
-// Len returns the number of elements in the queue.
-func (q *Queue) Len() int {
-	return len(q.data) - q.head
-}
-
-// Peek returns the value at the front of the queue without removing it.
-// Returns false if the queue is empty.
-func (q *Queue) Peek() (float64, bool) {
-	if q.head >= len(q.data) {
-		return 0, false
-	}
-	return q.data[q.head], true
-}
-
-func (q *Queue) Slice() []float64 {
-	return q.data[q.head:]
 }
 
 // --- Watchdog Anomaly Detector ---
@@ -184,9 +131,9 @@ func NewWatchdogLogAnomalyDetector(resultChannel chan *observer.LogProcessorResu
 // Represents the history of pattern rate metrics
 type TimeSeriesHistory struct {
 	ClusterID  int
-	Preprocess *Queue
-	Eval       *Queue
-	Baseline   *Queue
+	Preprocess *queue.Queue
+	Eval       *queue.Queue
+	Baseline   *queue.Queue
 }
 
 // TODO: Is it better to have this in the processor and not each anomaly detector?
@@ -227,7 +174,7 @@ func (w *WatchdogLogAnomalyDetector) SetProcessor(processor *PatternLogProcessor
 }
 
 func (w *WatchdogLogAnomalyDetector) ProcessBatch(batch []*LogAnomalyDetectionProcessInput) {
-	fmt.Printf("[cc] WatchdogLogAnomalyDetector: Processing batch: %d\n", len(batch))
+	// fmt.Printf("[cc] WatchdogLogAnomalyDetector: Processing batch: %d\n", len(batch))
 	for _, input := range batch {
 		if _, ok := w.PatternRate[input.ClustererResult.Cluster.ID]; !ok {
 			w.PatternRate[input.ClustererResult.Cluster.ID] = 0
@@ -235,30 +182,37 @@ func (w *WatchdogLogAnomalyDetector) ProcessBatch(batch []*LogAnomalyDetectionPr
 		w.PatternRate[input.ClustererResult.Cluster.ID] += 1
 	}
 
-	maxRate := 0.0
-	maxRatePatternID := 0
-	for patternID, rate := range w.PatternRate {
-		w.PatternRate[patternID] = rate * w.Alpha
+	// We can do anomaly detection
+	if w.Snapshot() {
+		if len(w.PatternRate) > 0 {
+			maxRate := 0.0
+			maxRatePatternID := 0
+			for patternID, rate := range w.PatternRate {
+				w.PatternRate[patternID] = rate * w.Alpha
 
-		if rate < w.EvictionThreshold {
-			delete(w.PatternRate, patternID)
-			fmt.Printf("[cc] WatchdogLogAnomalyDetector: Evicting pattern: %d\n", patternID)
+				if rate < w.EvictionThreshold {
+					delete(w.PatternRate, patternID)
+					// fmt.Printf("[cc] WatchdogLogAnomalyDetector: Evicting pattern: %d\n", patternID)
+				}
+
+				if rate > maxRate {
+					maxRate = rate
+					maxRatePatternID = patternID
+				}
+			}
+
+			clusterInfo, err := w.Processor.ClustererPipeline.GetClusterInfo(maxRatePatternID)
+			if err != nil {
+				fmt.Printf("[cc] WatchdogLogAnomalyDetector: Error getting cluster info: %v\n", err)
+				return
+			}
+
+			fmt.Printf("[cc] WatchdogLogAnomalyDetector: Max Rate Cluster: Rate: %f, ID: %d, Pattern: %s\n", maxRate, maxRatePatternID, clusterInfo.PatternString)
+			fmt.Printf("[cc] WatchdogLogAnomalyDetector: Pattern rates: %d\n", len(w.PatternRate))
 		}
 
-		if rate > maxRate {
-			maxRate = rate
-			maxRatePatternID = patternID
-		}
+		w.DetectAnomalies()
 	}
-
-	clusterInfo, err := w.Processor.ClustererPipeline.GetClusterInfo(maxRatePatternID)
-	if err != nil {
-		fmt.Printf("[cc] WatchdogLogAnomalyDetector: Error getting cluster info: %v\n", err)
-		return
-	}
-
-	fmt.Printf("[cc] WatchdogLogAnomalyDetector: Max Rate Cluster: Rate: %f, ID: %d, Pattern: %s\n", maxRate, maxRatePatternID, clusterInfo.PatternString)
-	fmt.Printf("[cc] WatchdogLogAnomalyDetector: Pattern rates: %d\n", len(w.PatternRate))
 }
 
 // Will update the history with the current pattern rate metrics
@@ -266,7 +220,7 @@ func (w *WatchdogLogAnomalyDetector) ProcessBatch(batch []*LogAnomalyDetectionPr
 func (w *WatchdogLogAnomalyDetector) Snapshot() bool {
 	for clusterID, rate := range w.PatternRate {
 		if _, ok := w.History[clusterID]; !ok {
-			w.History[clusterID] = TimeSeriesHistory{ClusterID: clusterID, Preprocess: NewQueue(), Eval: NewQueue(), Baseline: NewQueue()}
+			w.History[clusterID] = TimeSeriesHistory{ClusterID: clusterID, Preprocess: queue.NewQueue(), Eval: queue.NewQueue(), Baseline: queue.NewQueue()}
 		}
 		w.History[clusterID].Preprocess.Enqueue(rate)
 	}
@@ -317,7 +271,7 @@ func (w *WatchdogLogAnomalyDetector) Snapshot() bool {
 // DetectAnomalies detects anomalies in the history
 func (w *WatchdogLogAnomalyDetector) DetectAnomalies() {
 	// TODO
-	zThreshold := 2.0
+	zThreshold := 2.5
 
 	for clusterID, history := range w.History {
 		// TODO: Is half filled enough?
@@ -325,7 +279,7 @@ func (w *WatchdogLogAnomalyDetector) DetectAnomalies() {
 			continue
 		}
 
-		fmt.Printf("[cc] WatchdogLogAnomalyDetector: Detecting anomalies for cluster: %d\n", clusterID)
+		// fmt.Printf("[cc] WatchdogLogAnomalyDetector: Detecting anomalies for cluster: %d\n", clusterID)
 
 		// Simple z-score
 		baselineMean := 0.0
@@ -341,7 +295,8 @@ func (w *WatchdogLogAnomalyDetector) DetectAnomalies() {
 		baselineStddev /= float64(len(baselineSlice))
 		baselineStddev = math.Sqrt(baselineStddev)
 
-		// TODO: What to do with the eval part?
+		// TODO: What to do with the eval part? Not useful for this method
+		// TODO: Directly send the rates to metrics AD?
 		evalMean := 0.0
 		evalSlice := history.Eval.Slice()
 		for _, val := range evalSlice {
