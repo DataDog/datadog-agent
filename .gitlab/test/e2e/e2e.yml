@@ -315,7 +315,11 @@ new-e2e-containers-openshift-init:
     - go_e2e_deps
     - go_tools_deps
   rules:
-    - !reference [.on_main_or_rc_and_no_skip_e2e]
+    - !reference [.on_e2e_main_release_or_rc]
+    - changes:
+        paths:
+          - test/new-e2e/tests/containers/**/*
+        compare_to: $COMPARE_TO_BRANCH
     - !reference [.manual]
   before_script:
     # We need to also fetch the OpenShift CRC pull secret and write it to a temp file, so we reference the new_e2e_template before_script first
