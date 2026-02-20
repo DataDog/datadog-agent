@@ -39,7 +39,7 @@ func newConfigManager(config config.Component) configManager {
 	if profilingDDURL != "" {
 		usedSite = configutils.ExtractSiteFromURL(profilingDDURL)
 		if usedSite == "" {
-			slog.Warn("could not extract site from apm_config.profiling_dd_url, skipping endpoint", "url", profilingDDURL)
+			slog.Warn("could not extract site from apm_config.profiling_dd_url, skipping endpoint", slog.String("url", profilingDDURL))
 		}
 		usedURL = profilingDDURL
 	} else if ddSite != "" {
@@ -51,7 +51,7 @@ func newConfigManager(config config.Component) configManager {
 	for endpointURL, keys := range profilingAdditionalEndpoints {
 		site := configutils.ExtractSiteFromURL(endpointURL)
 		if site == "" {
-			slog.Warn("could not extract site from URL, skipping endpoint", "url", endpointURL)
+			slog.Warn("could not extract site from URL, skipping endpoint", slog.String("url", endpointURL))
 			continue
 		}
 		endpoints = append(endpoints, endpoint{
@@ -60,7 +60,7 @@ func newConfigManager(config config.Component) configManager {
 			apiKeys: keys,
 		})
 	}
-	slog.Info("main site inferred from core configuration", "site", usedSite)
+	slog.Info("main site inferred from core configuration", slog.String("site", usedSite))
 
 	// Add main endpoint if we have a valid site
 	if usedSite == "" {
