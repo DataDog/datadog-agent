@@ -151,9 +151,15 @@ func newTelemetry(env *env.Env) *telemetry.Telemetry {
 		apiKey = config.APIKey
 	}
 	site := env.Site
-	if _, set := os.LookupEnv("DD_SITE"); !set && config.Site != "" {
+	_, ddSiteSet := os.LookupEnv("DD_SITE")
+	if !ddSiteSet && config.Site != "" {
 		site = config.Site
 	}
+
+	// Update env fields with corrected values so subprocesses inherit the right config
+	env.APIKey = apiKey
+	env.Site = site
+
 	t := telemetry.NewTelemetry(env.HTTPClient(), apiKey, site, "datadog-installer") // No sampling rules for commands
 	return t
 }

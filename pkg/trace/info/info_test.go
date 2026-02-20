@@ -573,6 +573,7 @@ func TestPublishReceiverStats(t *testing.T) {
 		[]interface{}{map[string]interface{}{
 			"ClientDroppedP0Spans":  8.0,
 			"ClientDroppedP0Traces": 7.0,
+			"ConnectionType":        "",
 			"EndpointVersion":       "",
 			"EventsExtracted":       13.0,
 			"EventsSampled":         14.0,

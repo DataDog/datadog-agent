@@ -3,7 +3,6 @@ msi namespaced tasks
 """
 
 import hashlib
-import mmap
 import os
 import re
 import shutil
@@ -18,7 +17,7 @@ from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
-from tasks.libs.common.utils import download_to_tempfile, timed
+from tasks.libs.common.utils import download_to_tempfile, running_in_ci, timed
 from tasks.libs.dependencies import get_effective_dependencies_env
 from tasks.libs.releasing.version import VERSION_RE, _create_version_from_match, get_version
 
@@ -106,75 +105,98 @@ def _msbuild_configuration(debug=False):
     return "Debug" if debug else "Release"
 
 
-def _fix_makesfxca_dll(path):
-    """
-    Zero out the certificate data directory table entry on the PE file at @path
-
-    MakeSfxCA.exe packages managed custom actions by bundling them into the sfxca.dll
-    that ships with the WiX toolset. In WiX 11.2 sfxca.dll was shipping with a digital
-    signature. When MakeSfxCA.exe copies the VERSION_INFO resource from the embedded
-    CA DLL into sfxca.dll it does not properly update the certificate data directory
-    offset, resulting in it pointing to garbage data. Since the certificate table looks
-    corrupted tools like signtool/jsign will throw an error when trying to sign the output file.
-    https://github.com/wixtoolset/issues/issues/6089
-
-    Zero-ing out the certificate data directory table entry allows signtool/jsign to create a new
-    certificate table in the PE file.
-
-    This may be able to be removed if we upgrade to a later version of the WiX toolset.
-    """
-
-    def intval(data, offset, size):
-        return int.from_bytes(data[offset : offset + size], 'little')
-
-    def word(data, offset):
-        return intval(data, offset, 2)
-
-    def dword(data, offset):
-        return intval(data, offset, 4)
-
-    # offsets and magic numbers from
-    # https://learn.microsoft.com/en-us/windows/win32/debug/pe-format
-    with open(path, 'r+b') as fd, mmap.mmap(fd.fileno(), 0) as pe_data:
-        # verify DOS magic
-        if pe_data[0:3] != b'MZ\x90':
-            raise Exit("Invalid DOS magic")
-        # get offset to PE/NT header
-        e_lfanew = dword(pe_data, 0x3C)
-        # verify PE magic
-        if dword(pe_data, e_lfanew) != dword(b'PE\x00\x00', 0):
-            raise Exit("Invalid PE magic")
-        # Check OptionalHeader magic (it affects the data directory base offset)
-        OptionalHeader = e_lfanew + 0x18
-        magic = word(pe_data, OptionalHeader)
-        if magic == 0x010B:
-            # PE32
-            DataDirectory = OptionalHeader + 96
-        elif magic == 0x20B:
-            # PE32+
-            DataDirectory = OptionalHeader + 112
-        else:
-            raise Exit(f"Invalid magic: {hex(magic)}")
-        # calculate offset to the certificate table data directory entry
-        ddentry_size = 8
-        certificatetable_index = 4
-        certificatetable = DataDirectory + certificatetable_index * ddentry_size
-        ct_offset = dword(pe_data, certificatetable)
-        ct_size = dword(pe_data, certificatetable + 4)
-        if ct_offset == 0 and ct_size == 0:
-            # no change necessary
-            return
-        print(
-            f"{path}: zeroing out certificate table directory entry {ct_offset:x},{ct_size:x} at offset {certificatetable:x}"
-        )
-        # zero out the certificate table data directory entry
-        pe_data[certificatetable : certificatetable + ddentry_size] = b'\x00' * ddentry_size
-
-
 def sign_file(ctx, path, force=False):
     dd_wcs_enabled = os.environ.get('SIGN_WINDOWS_DD_WCS')
     if dd_wcs_enabled or force:
         return ctx.run(f'dd-wcs sign "{path}"')
+
+
+def _ensure_wix_tools(ctx):
+    """
+    Ensure WiX 5.x dotnet tools and required extensions are installed globally.
+    This is required for WixSharp_wix4 which relies on the wix dotnet tool.
+    WixSharp_wix4 supports WiX 4.x and 5.x.
+    """
+    if sys.platform != 'win32':
+        return
+
+    WIX_VERSION = "5.0.2"
+    # These extensions are required for the MSI build:
+    # - Netfx: .NET Framework detection
+    # - Util: Utility elements (RemoveFolderEx, EventSource, ServiceConfig, FailWhenDeferred)
+    # - UI: Standard UI dialogs
+    REQUIRED_EXTENSIONS = [
+        "WixToolset.Netfx.wixext",
+        "WixToolset.Util.wixext",
+        "WixToolset.UI.wixext",
+    ]
+
+    # Check if wix is installed globally
+    # Note: .NET global tools are invoked directly by name, not with 'dotnet' prefix
+    result = ctx.run('wix --version', warn=True, hide=True)
+    if not result or result.return_code != 0:
+        if running_in_ci():
+            raise Exit(
+                "WiX tools not found in CI.",
+                code=1,
+            )
+        # Install WiX 5.x globally
+        print(f"WiX tools not found. Installing WiX {WIX_VERSION} globally...")
+        result = ctx.run(f'dotnet tool install --global wix --version {WIX_VERSION}', warn=True)
+        if not result or result.return_code != 0:
+            raise Exit(
+                f"Failed to install WiX tools. Please install manually with: dotnet tool install --global wix --version {WIX_VERSION}",
+                code=1,
+            )
+        print("WiX tools installed successfully")
+    else:
+        print("WiX tools found")
+
+    # Check and install required WiX extensions
+    _ensure_wix_extensions(ctx, REQUIRED_EXTENSIONS, WIX_VERSION)
+
+
+def _ensure_wix_extensions(ctx, extensions, version):
+    """
+    Ensure required WiX extensions are installed with the correct version.
+
+    WiX extensions must match the WiX toolset version. For example, WiX 5.0.2
+    requires extensions version 5.0.2. Using mismatched versions (e.g., 6.0.2
+    extensions with WiX 5.0.2) will cause build errors.
+    """
+    # Get list of installed extensions
+    result = ctx.run('wix extension list -g', warn=True, hide=True)
+    installed_extensions = {}
+    if result and result.return_code == 0 and result.stdout:
+        # Parse output like "WixToolset.Netfx.wixext 5.0.2" (space-separated)
+        for line in result.stdout.strip().split('\n'):
+            parts = line.strip().split()
+            if len(parts) >= 2:
+                ext_name, ext_version = parts[0], parts[1]
+                installed_extensions[ext_name] = ext_version
+
+    for ext in extensions:
+        expected = f"{ext}/{version}"
+        if ext in installed_extensions:
+            if installed_extensions[ext] == version:
+                print(f"WiX extension {expected} already installed")
+                continue
+            else:
+                if running_in_ci():
+                    raise Exit(
+                        f"WiX extension {ext} has wrong version {installed_extensions[ext]} in CI, need {version}.",
+                        code=1,
+                    )
+                # Wrong version installed - remove it first
+                print(f"Removing incompatible WiX extension {ext}/{installed_extensions[ext]}...")
+                ctx.run(f'wix extension remove -g {ext}', warn=True, hide=True)
+        print(f"Installing WiX extension {expected}...")
+        result = ctx.run(f'wix extension add -g {expected}', warn=True)
+        if not result or result.return_code != 0:
+            raise Exit(
+                f"Failed to install WiX extension {expected}. Please install manually with: wix extension add -g {expected}",
+                code=1,
+            )
 
 
 def _build(
@@ -190,6 +212,9 @@ def _build(
     if sys.platform != 'win32':
         print("Building the MSI installer is only for available on Windows")
         raise Exit(code=1)
+
+    # Ensure WiX 4+ tools are available
+    _ensure_wix_tools(ctx)
 
     cmd = ""
 
@@ -261,7 +286,7 @@ def _build_wxs(ctx, env, outdir, ca_dll):
         raise Exit("Failed to build the MSI WXS.", code=1)
 
     # sign the MakeSfxCA output files
-    _fix_makesfxca_dll(os.path.join(outdir, ca_dll))
+    # If signing fails due to corrupted PE file / signature, it may be a regression caused by the makesfxca template DLL being previously signed before the embedded files were added to it. For more information refer to `_fix_makesfxca_dll` from `msi.py` in the git history.
     sign_file(ctx, os.path.join(outdir, ca_dll))
 
 
@@ -535,7 +560,9 @@ def validate_msi_createfolder_table(db, allowlist):
 
 
 @task
-def validate_msi(_, allowlist, msi=None):
+def validate_msi(ctx, allowlist, msi=None):
+    print("Validating MSI")
+    ctx.run(f'wix msi validate "{msi}"')
     with MsiClosing(msilib.OpenDatabase(msi, msilib.MSIDBOPEN_READONLY)) as db:
         validate_msi_createfolder_table(db, allowlist)
 
@@ -676,6 +703,14 @@ def fetch_artifacts(ctx, ref: str | None = None) -> None:
                 zip_ref.extractall(dest)
 
         print("Extraction complete")
+
+    # Delete stale embedded3.COMPRESSED so the next debug build re-compresses
+    # from the fresh artifacts. In debug builds CompressedDir.cs skips
+    # re-compression when the file already exists.
+    compressed_file = os.path.join(BUILD_SOURCE_DIR, 'WixSetup', 'embedded3.COMPRESSED')
+    if os.path.exists(compressed_file):
+        print(f"Deleting stale compressed file: {compressed_file}")
+        os.remove(compressed_file)
 
 
 def download_latest_artifacts_for_ref(project: Project, ref_name: str, output_dir: str) -> None:

@@ -64,6 +64,7 @@ ALL_TAGS = {
     "podman",
     "python",
     "requirefips",  # used for Linux FIPS mode to avoid having to set GOFIPS
+    "seclmax",  # used for security agent/system-probe to compile the full feature set of secl
     "serverless",
     "serverlessfips",  # used for FIPS mode in the serverless build in datadog-lambda-extension
     "sharedlibrarycheck",
@@ -223,6 +224,7 @@ SYSTEM_PROBE_TAGS = {
     "pcap",
     "zlib",
     "zstd",
+    "seclmax",
 }
 
 # TRACE_AGENT_TAGS lists the tags that have to be added when the trace-agent

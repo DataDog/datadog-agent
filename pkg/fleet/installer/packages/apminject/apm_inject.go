@@ -402,6 +402,26 @@ func (a *InjectorInstaller) addLocalStableConfig(ctx context.Context) (err error
 				hasChanged = true
 				cfg.Default.LogsCollectionEnabled = a.Env.InstallScript.TracerLogsCollectionEnabled
 			}
+			if a.Env.InstallScript.RumEnabled != nil {
+				hasChanged = true
+				cfg.Default.RumEnabled = a.Env.InstallScript.RumEnabled
+			}
+			if a.Env.InstallScript.RumApplicationID != "" {
+				hasChanged = true
+				cfg.Default.RumApplicationID = a.Env.InstallScript.RumApplicationID
+			}
+			if a.Env.InstallScript.RumClientToken != "" {
+				hasChanged = true
+				cfg.Default.RumClientToken = a.Env.InstallScript.RumClientToken
+			}
+			if a.Env.InstallScript.RumRemoteConfigurationID != "" {
+				hasChanged = true
+				cfg.Default.RumRemoteConfigurationID = a.Env.InstallScript.RumRemoteConfigurationID
+			}
+			if a.Env.InstallScript.RumSite != "" {
+				hasChanged = true
+				cfg.Default.RumSite = a.Env.InstallScript.RumSite
+			}
 
 			// Avoid creating a .backup file and overwriting the existing file if no changes were made
 			if hasChanged {

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build private_runner_experimental
+//go:build private_runner_experimental && !windows
 
 package com_datadoghq_script
 
@@ -81,8 +81,10 @@ func (h *RunShellScriptHandler) Run(
 		return nil, fmt.Errorf("failed to set script file permissions: %w", err)
 	}
 
-	cmd := NewShellScriptCommand(ctx, scriptFile.Name(), inputs.Args)
-
+	cmd, err := NewShellScriptCommand(ctx, scriptFile.Name(), inputs.Args)
+	if err != nil {
+		return nil, fmt.Errorf("invalid command arguments: %w", err)
+	}
 	var stdoutBuffer bytes.Buffer
 	cmd.Stdout = &stdoutBuffer
 	var stderrBuffer bytes.Buffer

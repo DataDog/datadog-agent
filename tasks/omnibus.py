@@ -86,6 +86,7 @@ def get_omnibus_env(
     hardened_runtime=False,
     system_probe_bin=None,
     sd_agent_bin=None,
+    dd_procmgrd_bin=None,
     go_mod_cache=None,
     flavor=AgentFlavor.base,
     pip_config_file="pip.conf",
@@ -140,6 +141,8 @@ def get_omnibus_env(
         env['SYSTEM_PROBE_BIN'] = system_probe_bin
     if sd_agent_bin:
         env['SD_AGENT_BIN'] = sd_agent_bin
+    if dd_procmgrd_bin:
+        env['DD_PROCMGRD_BIN'] = dd_procmgrd_bin
     env['AGENT_FLAVOR'] = flavor.name
 
     if custom_config_dir:
@@ -205,6 +208,7 @@ def build(
     hardened_runtime=False,
     system_probe_bin=None,
     sd_agent_bin=None,
+    dd_procmgrd_bin=None,
     go_mod_cache=None,
     python_mirror=None,
     pip_config_file="pip.conf",
@@ -238,6 +242,7 @@ def build(
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
         sd_agent_bin=sd_agent_bin,
+        dd_procmgrd_bin=dd_procmgrd_bin,
         go_mod_cache=go_mod_cache,
         flavor=flavor,
         pip_config_file=pip_config_file,
@@ -382,6 +387,7 @@ def manifest(
     hardened_runtime=False,
     system_probe_bin=None,
     sd_agent_bin=None,
+    dd_procmgrd_bin=None,
     go_mod_cache=None,
 ):
     flavor = AgentFlavor[flavor]
@@ -394,6 +400,7 @@ def manifest(
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
         sd_agent_bin=sd_agent_bin,
+        dd_procmgrd_bin=dd_procmgrd_bin,
         go_mod_cache=go_mod_cache,
         flavor=flavor,
     )

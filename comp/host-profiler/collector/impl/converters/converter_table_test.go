@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
+	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
 
@@ -514,9 +515,34 @@ func TestConverterWithoutAgent(t *testing.T) {
 			provided: "no_agent/headers-wrong-type/in.yaml",
 			expected: "no_agent/headers-wrong-type/out.yaml",
 		},
+		{
+			name:     "preserve-host-arch",
+			provided: "no_agent/preserve-host-arch/in.yaml",
+			expected: "no_agent/preserve-host-arch/out.yaml",
+		},
+		{
+			name:     "preserve-host-name",
+			provided: "no_agent/preserve-host-name/in.yaml",
+			expected: "no_agent/preserve-host-name/out.yaml",
+		},
+		{
+			name:     "preserve-os-type",
+			provided: "no_agent/preserve-os-type/in.yaml",
+			expected: "no_agent/preserve-os-type/out.yaml",
+		},
+		{
+			name:     "preserve-all-res-attrs",
+			provided: "no_agent/preserve-all-res-attrs/in.yaml",
+			expected: "no_agent/preserve-all-res-attrs/out.yaml",
+		},
+		{
+			name:     "preserve-res-attrs-no-system",
+			provided: "no_agent/preserve-res-attrs-no-system/in.yaml",
+			expected: "no_agent/preserve-res-attrs-no-system/out.yaml",
+		},
 	}
 
-	runSuccessTests(t, &converterWithoutAgent{}, tests)
+	runSuccessTests(t, newConverterWithoutAgent(confmap.ConverterSettings{Logger: zap.NewNop()}), tests)
 }
 
 func TestConverterWithoutAgentErrors(t *testing.T) {
@@ -573,5 +599,5 @@ func TestConverterWithoutAgentErrors(t *testing.T) {
 		},
 	}
 
-	runErrorTests(t, &converterWithoutAgent{}, tests)
+	runErrorTests(t, newConverterWithoutAgent(confmap.ConverterSettings{Logger: zap.NewNop()}), tests)
 }

@@ -109,6 +109,11 @@ func (f *fakeTagger) Tag(entityID types.EntityID, cardinality types.TagCardinali
 	return f.tagger.Tag(entityID, cardinality)
 }
 
+// TagWithCompleteness calls tagger.TagWithCompleteness().
+func (f *fakeTagger) TagWithCompleteness(entityID types.EntityID, cardinality types.TagCardinality) ([]string, bool, error) {
+	return f.tagger.TagWithCompleteness(entityID, cardinality)
+}
+
 // GenerateContainerIDFromOriginInfo calls tagger.GenerateContainerIDFromOriginInfo().
 func (f *fakeTagger) GenerateContainerIDFromOriginInfo(originInfo origindetection.OriginInfo) (string, error) {
 	return f.tagger.GenerateContainerIDFromOriginInfo(originInfo)

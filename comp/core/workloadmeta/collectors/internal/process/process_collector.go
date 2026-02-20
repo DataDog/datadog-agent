@@ -31,6 +31,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/discovery/core"
 	"github.com/DataDog/datadog-agent/pkg/discovery/model"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -871,9 +872,26 @@ func normalizeAdditionalServiceNames(names []string) []string {
 	return out
 }
 
+// tracerCollectsLogs checks if any tracer metadata indicates the tracer is already collecting logs.
+func tracerCollectsLogs(tracerMetadata []tracermetadata.TracerMetadata) bool {
+	for _, tm := range tracerMetadata {
+		if tm.LogsCollected {
+			return true
+		}
+	}
+	return false
+}
+
 // convertModelServiceToService converts model.Service to workloadmeta.Service
 func convertModelServiceToService(modelService *model.Service) *workloadmeta.Service {
 	generatedName, additionalNames := normalizeNames(modelService.GeneratedName, modelService.AdditionalGeneratedNames, modelService.Language)
+
+	var logFiles []string
+	if !tracerCollectsLogs(modelService.TracerMetadata) {
+		logFiles = modelService.LogFiles
+	} else {
+		log.Debugf("Skipping log file for pid %d: tracer is already collecting logs, files: %v", modelService.PID, modelService.LogFiles)
+	}
 
 	return &workloadmeta.Service{
 		GeneratedName:            generatedName,
@@ -884,7 +902,7 @@ func convertModelServiceToService(modelService *model.Service) *workloadmeta.Ser
 		UDPPorts:                 modelService.UDPPorts,
 		APMInstrumentation:       modelService.APMInstrumentation,
 		Type:                     modelService.Type,
-		LogFiles:                 modelService.LogFiles,
+		LogFiles:                 logFiles,
 		UST: workloadmeta.UST{
 			Service: modelService.UST.Service,
 			Env:     modelService.UST.Env,

@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+
+go_library(
+    name = "worksynchronizer_lib",
+    srcs = ["worksynchronizer.go"],
+    importpath = "github.com/DataDog/datadog-agent/internal/tools/worksynchronizer",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@in_gopkg_yaml_v3//:yaml_v3",
+        "@org_golang_x_mod//modfile",
+    ],
+)
+
+go_binary(
+    name = "worksynchronizer",
+    embed = [":worksynchronizer_lib"],
+    visibility = ["//:__subpackages__"],
+)
+
+go_test(
+    name = "worksynchronizer_test",
+    srcs = ["worksynchronizer_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":worksynchronizer_lib"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

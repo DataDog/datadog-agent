@@ -509,7 +509,7 @@ func NewRuleSetLoadedEvent(acc *events.AgentContainerContext, rs *rules.RuleSet,
 	evt.FillCustomEventCommonFields(acc)
 
 	return RulesetLoadedEventBundle{
-		Rule:  events.NewCustomRule(events.RulesetLoadedRuleID, events.RulesetLoadedRuleDesc),
+		Rule:  events.NewCustomRule(events.RulesetLoadedRuleID, events.RulesetLoadedRuleDesc, nil),
 		Event: events.NewCustomEvent(model.CustomEventType, evt),
 	}
 }
@@ -526,7 +526,7 @@ func newHeartbeatEvents(acc *events.AgentContainerContext, policies []*PolicySta
 		evts = append(evts, events.NewCustomEvent(model.CustomEventType, evt))
 	}
 
-	return events.NewCustomRule(events.HeartbeatRuleID, events.HeartbeatRuleDesc),
+	return events.NewCustomRule(events.HeartbeatRuleID, events.HeartbeatRuleDesc, nil),
 		evts
 }
 

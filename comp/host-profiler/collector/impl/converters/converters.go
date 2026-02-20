@@ -5,16 +5,20 @@
 
 //go:build linux
 
-// Package converters implements the converters for the host profiler collector.
+// Package converters implements OTEL collector configuration converters for the host profiler.
+//
+// Converters normalize user-provided OTEL collector configs by adding required Datadog-specific
+// components while preserving explicit user configuration values wherever possible.
 package converters
 
 import (
 	"fmt"
+	"log/slog"
+	"reflect"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.opentelemetry.io/collector/confmap"
 )
 
@@ -93,13 +97,13 @@ func Get[T any](c confMap, path string) (T, bool) {
 	for _, key := range pathSlice[:len(pathSlice)-1] {
 		childConfMap, exists := currentMap[key]
 		if !exists {
-			log.Debugf("Non existent %s intermediate map in %s", key, path)
+			slog.Debug("non-existent intermediate map", "key", key, "path", path)
 			return zero, false
 		}
 
 		childMap, isMap := childConfMap.(confMap)
 		if !isMap {
-			log.Debugf("Intermediate node %s in %s is not a map", key, path)
+			slog.Debug("intermediate node is not a map", "key", key, "path", path)
 			return zero, false
 		}
 
@@ -108,7 +112,7 @@ func Get[T any](c confMap, path string) (T, bool) {
 
 	obj, exists := currentMap[target]
 	if !exists {
-		log.Debugf("leaf element in %s doesn't exist", path)
+		slog.Debug("leaf element doesn't exist", "path", path)
 		return zero, false
 	}
 
@@ -137,11 +141,10 @@ func Ensure[T any](c confMap, path string) (T, error) {
 	return zero, nil
 }
 
-// Set sets a value of type T in the confMap at the given path.
-// Path segments are separated by "::".
-// Creates intermediate maps as needed.
+// ensurePath walks the confMap along the given "::" separated path, creating intermediate maps as needed.
+// Returns the final map and the target key name.
 // Returns an error if an intermediate path element exists but is not a map.
-func Set[T any](c confMap, path string, value T) error {
+func ensurePath(c confMap, path string) (confMap, string, error) {
 	currentMap := c
 	pathSlice := strings.Split(path, "::")
 
@@ -155,17 +158,49 @@ func Set[T any](c confMap, path string, value T) error {
 
 		childMap, isMap := childConfMap.(map[string]any)
 		if !isMap {
-			return fmt.Errorf("path element %q is not a map", key)
+			return nil, "", fmt.Errorf("path element %q is not a map", key)
 		}
 
 		currentMap = childMap
 	}
 
+	return currentMap, target, nil
+}
+
+// Set sets a value of type T in the confMap at the given path.
+// Path segments are separated by "::".
+// Creates intermediate maps as needed.
+// Returns an error if an intermediate path element exists but is not a map.
+func Set[T any](c confMap, path string, value T) error {
+	currentMap, target, err := ensurePath(c, path)
+	if err != nil {
+		return err
+	}
+
 	if existingValue, exists := currentMap[target]; exists {
-		log.Debugf("Overwriting config at %s: %v -> %v", path, existingValue, value)
+		slog.Debug("overwriting config", "path", path, "old", existingValue, "new", value)
 	}
 	currentMap[target] = value
 	return nil
+}
+
+// SetDefault sets a default value if the key does not exist or already holds the same value.
+// If the key exists with a different value, the existing value is preserved (user override wins).
+// Path segments are separated by "::".
+// Creates intermediate maps as needed.
+// Returns true if the default is active (set or already matching), false if a user override was preserved.
+// Returns an error only if path traversal fails (intermediate element is not a map).
+func SetDefault[T any](c confMap, path string, value T) (bool, error) {
+	currentMap, target, err := ensurePath(c, path)
+	if err != nil {
+		return false, err
+	}
+
+	if existingValue, exists := currentMap[target]; exists {
+		return reflect.DeepEqual(existingValue, value), nil
+	}
+	currentMap[target] = value
+	return true, nil
 }
 
 // ensureKeyStringValue checks if a key exists in the config and converts it to a string if needed.
@@ -184,11 +219,11 @@ func ensureKeyStringValue(config confMap, key string) bool {
 	// Only convert primitive numeric types
 	switch v := val.(type) {
 	case int, int32, int64, float32, float64, uint, uint32, uint64:
-		log.Debugf("converting %s value from %T to string", key, val)
+		slog.Debug("converting value to string", "key", key, "type", fmt.Sprintf("%T", val))
 		config[key] = fmt.Sprintf("%v", v)
 		return true
 	default:
-		log.Warnf("API key %s has unexpected type %T, cannot convert", key, val)
+		slog.Warn("API key has unexpected type, cannot convert", "key", key, "type", fmt.Sprintf("%T", val))
 		return false
 	}
 }

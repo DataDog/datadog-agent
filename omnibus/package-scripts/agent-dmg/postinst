@@ -37,7 +37,7 @@ INSTALL_USER=$(ps aux | grep "CoreServices/Installer" | grep -v grep | awk '{pri
 # Otherwise, we hope he is using the install script and try to use this user
 # If it fails, no choice but to use root :'(
 if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
-    INSTALL_USER=`cat /tmp/datadog-install-user || echo 'root'`
+    INSTALL_USER=$(cat /tmp/datadog-install-user || echo 'root')
     rm -v /tmp/datadog-install-user || true
 fi
 echo "INSTALL_USER: $INSTALL_USER"
@@ -92,8 +92,23 @@ chmod -v 755 "$RUN_DIR"  # Secure: protects databases and registries
 
 # Create separate world-writable directory ONLY for multi-user GUI sockets
 mkdir -vp "$RUN_DIR/ipc"
+# Remove stale GUI socket files before chown to prevent "Address already in use" on DMG reinstall
+# or installation over a partial installation or partial cleanup of a previous installation.
+# Use find instead of shell glob so removal works when Installer runs postinst (glob may not expand).
+find "$RUN_DIR/ipc" -maxdepth 1 -name 'gui-*.sock' -exec rm -fv {} \;
 chown -vR root:wheel "$RUN_DIR/ipc"
 chmod -v 1777 "$RUN_DIR/ipc"  # Sticky bit: users can create GUI sockets but not delete others' files
+
+# Reset location permission prompt attempt count for all users so each user gets a fresh 2 prompt
+# attempts after each installation (per-installation behavior). UserDefaults key is in
+# ~/Library/Preferences/com.datadoghq.agent.plist and survives reinstall otherwise.
+echo "# Resetting location permission prompt attempt count for all users"
+for user_home in /Users/*; do
+    [ -d "$user_home" ] || continue
+    user=$(basename "$user_home")
+    [ "$user" = "Shared" ] && continue
+    sudo -u "$user" defaults delete com.datadoghq.agent locationPermissionPromptAttemptCount 2>/dev/null || true
+done
 
 echo "# Copying conf"
 mkdir -vp $CONF_DIR/checks.d

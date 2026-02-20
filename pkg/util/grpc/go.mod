@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/util/grpc
 
-go 1.24.0
+go 1.25.0
 
 require (
 	cloud.google.com/go/compute v1.54.0
@@ -12,7 +12,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/mdlayher/vsock v1.2.1
 	github.com/stretchr/testify v1.11.1
-	google.golang.org/grpc v1.78.0
+	google.golang.org/grpc v1.79.1
 )
 
 require (

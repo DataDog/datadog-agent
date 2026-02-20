@@ -1,0 +1,29 @@
+---
+.dd-procmgrd_build_common:
+  extends:
+    - .bazel:defs:cache:ephemeral
+    - .rust_internal_registry
+  rules:
+    - when: on_success
+  script:
+    - mkdir -p dd-procmgrd-build-outputs
+    - bazelisk run --config=dd-procmgrd-release -- //pkg/procmgr/rust:install --destdir=$PWD/dd-procmgrd-build-outputs
+    - tar -cJf $CI_PROJECT_DIR/dd-procmgrd-build-outputs.tar.xz dd-procmgrd-build-outputs/
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $CI_PROJECT_DIR/dd-procmgrd-build-outputs.tar.xz
+
+build_dd-procmgrd-x64:
+  stage: binary_build
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  needs: ["go_deps"]
+  extends: .dd-procmgrd_build_common
+
+build_dd-procmgrd-arm64:
+  stage: binary_build
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:arm64", "specific:true"]
+  needs: ["go_deps"]
+  extends: .dd-procmgrd_build_common

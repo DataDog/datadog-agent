@@ -61,10 +61,6 @@ target_include_directories(datadog-agent-rtloader PUBLIC
     ${CMAKE_SOURCE_DIR}/common
 )
 
-if(NOT WIN32)
-find_library( LIBdl dl )
-endif()
-
 install(TARGETS datadog-agent-rtloader
     RUNTIME DESTINATION bin
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}

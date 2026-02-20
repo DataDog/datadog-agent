@@ -17,7 +17,6 @@ if [ -n "${CI:-}" ]; then
   # Pass CI-specific options through `.user.bazelrc` so any nested `bazel run` also honor them
   cat >"$(dirname "$(dirname "$0")")/user.bazelrc" <<EOF
 common --config=ci
-common --config=adms
 EOF
 fi
 

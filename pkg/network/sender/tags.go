@@ -44,7 +44,13 @@ func formatTags(c network.ConnectionStats, tagsSet *indexedset.IndexedSet[string
 
 	// other tags, e.g., from process env vars like DD_ENV, etc.
 	for _, tag := range c.Tags {
-		t := tag.Get().(string)
+		if tag == nil {
+			continue
+		}
+		t, ok := tag.Get().(string)
+		if !ok {
+			continue
+		}
 		checksum ^= murmur3.StringSum32(t)
 		tagsIdx = append(tagsIdx, tagsSet.Add(t))
 	}
@@ -60,7 +66,9 @@ func (d *directSender) getContainersForExplicitTagging(currentConnections *netwo
 	ids := make(map[string]struct{})
 	for _, conn := range currentConnections.Conns {
 		if conn.ContainerID.Source != nil {
-			ids[conn.ContainerID.Source.Get().(string)] = struct{}{}
+			if cid, ok := conn.ContainerID.Source.Get().(string); ok {
+				ids[cid] = struct{}{}
+			}
 		}
 	}
 

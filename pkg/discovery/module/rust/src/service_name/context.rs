@@ -149,7 +149,7 @@ mod tests {
             .current_dir(&cwd_dir)
             .spawn()
             .expect("failed to spawn child process");
-        let child_pid = child.id() as i32;
+        let child_pid = child.id().cast_signed();
         defer! {
             let _ = child.kill();
             let _ = child.wait();

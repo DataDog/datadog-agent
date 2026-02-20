@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/config/create
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.72.2
