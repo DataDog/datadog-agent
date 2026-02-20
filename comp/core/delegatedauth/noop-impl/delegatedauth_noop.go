@@ -32,6 +32,11 @@ func NewComponent() Provides {
 	}
 }
 
+// AddInstance does nothing in the noop implementation
+func (d *delegatedAuthNoop) AddInstance(_ delegatedauth.InstanceParams) error {
+	return nil
+}
+
 // Status Provider implementation for noop
 
 // Name returns the name for status sorting

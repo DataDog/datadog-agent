@@ -16,19 +16,13 @@ import (
 
 // team: core-authn
 
-// InitParams holds parameters for one-time initialization.
-type InitParams struct {
-	// Config is used to read settings and write API keys.
-	Config pkgconfigmodel.ReaderWriter
-
-	// ProviderConfig contains provider-specific configuration.
-	// Use cloudauth.AWSProviderConfig for AWS, etc.
-	// If nil, auto-detects from the environment.
-	ProviderConfig common.ProviderConfig
-}
-
 // InstanceParams configures a single API key instance.
 type InstanceParams struct {
+	// Config is used to read settings and write API keys. Required.
+	// On the first AddInstance call, this is used to initialize the component.
+	// Subsequent calls should pass the same config instance.
+	Config pkgconfigmodel.ReaderWriter
+
 	// OrgUUID is the Datadog organization UUID. Required.
 	OrgUUID string
 
@@ -36,24 +30,26 @@ type InstanceParams struct {
 	RefreshInterval int
 
 	// APIKeyConfigKey is where to write the API key (e.g., "api_key", "logs_config.api_key").
-	// Defaults to "api_key" if empty.
+	// Required.
 	APIKeyConfigKey string
+
+	// ProviderConfig contains provider-specific configuration.
+	// Use cloudauth.AWSProviderConfig for AWS, etc.
+	// If nil, auto-detects from the environment (only used on first call).
+	ProviderConfig common.ProviderConfig
 }
 
 // Component manages cloud-based delegated authentication.
 //
-// Usage: Call Initialize() once, then AddInstance() for each API key to manage.
+// Usage: Call AddInstance() for each API key to manage.
+// The first call auto-detects the cloud provider and initializes the component.
 // Each instance starts a background goroutine that periodically refreshes the API key
 // and writes it to the config. Thread-safe.
 type Component interface {
-	// Initialize detects the cloud provider and prepares the component.
-	// Must be called once before AddInstance().
-	// Returns an error if already initialized or cloud provider detection fails.
-	Initialize(params InitParams) error
-
 	// AddInstance configures a specific API key instance.
+	// On the first call, it detects the cloud provider and initializes the component.
 	// Fetches the initial API key, writes it to config, and starts a background refresh goroutine.
 	// Can be called multiple times with different APIKeyConfigKey values.
-	// Returns an error if Initialize() was not called or if OrgUUID is empty.
+	// Returns an error if Config or OrgUUID is empty.
 	AddInstance(params InstanceParams) error
 }

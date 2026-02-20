@@ -67,21 +67,21 @@ func getAPIDomain(endpoint string) string {
 	return "https://api." + baseDomain
 }
 
-// GetAPIKey actually performs the cloud auth exchange and returns an API key. It is called be each individual provider
-func GetAPIKey(cfg pkgconfigmodel.Reader, _, delegatedAuthProof string) (*string, error) {
+// GetAPIKey performs the cloud auth exchange and returns an API key.
+// The delegatedAuthProof contains the signed AWS request which includes the org id.
+func GetAPIKey(cfg pkgconfigmodel.Reader, delegatedAuthProof string) (*string, error) {
 	var apiKey *string
 
 	site := utils.GetInfraEndpoint(cfg)
 	// Transform the endpoint to use the API subdomain (api.*)
 	site = getAPIDomain(site)
 	url := fmt.Sprintf(tokenURLEndpoint, site)
-	log.Infof("Fetching api key for url %s", url)
+	log.Infof("Getting API key from: %s with cloud auth proof", url)
 
 	transport := httputils.CreateHTTPTransport(cfg)
 	client := &http.Client{
 		Transport: transport,
 	}
-	log.Infof("Getting api key from: %s with cloud auth proof", url)
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer([]byte("")))
 	if err != nil {
 		return nil, err

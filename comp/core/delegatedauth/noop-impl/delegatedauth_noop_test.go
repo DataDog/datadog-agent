@@ -16,12 +16,6 @@ import (
 	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
 )
 
-func TestNoopInitialize(t *testing.T) {
-	noop := &delegatedauthnooptypes.DelegatedAuthNoop{}
-	err := noop.Initialize(delegatedauth.InitParams{})
-	assert.NoError(t, err)
-}
-
 func TestNoopAddInstance(t *testing.T) {
 	noop := &delegatedauthnooptypes.DelegatedAuthNoop{}
 	err := noop.AddInstance(delegatedauth.InstanceParams{

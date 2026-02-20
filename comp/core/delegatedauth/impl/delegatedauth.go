@@ -103,14 +103,11 @@ func newBackoff(refreshInterval time.Duration) *backoff.ExponentialBackOff {
 	return b
 }
 
-// Initialize resolves the cloud provider and prepares the component for use.
-func (d *delegatedAuthComponent) Initialize(params delegatedauth.InitParams) error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	// Check if already initialized
+// initializeIfNeeded performs lazy initialization on first AddInstance call.
+// Must be called with the write lock held.
+func (d *delegatedAuthComponent) initializeIfNeeded(params delegatedauth.InstanceParams) error {
 	if d.initialized {
-		return errors.New("delegated auth already initialized")
+		return nil
 	}
 
 	// Store the config
@@ -157,30 +154,33 @@ func (d *delegatedAuthComponent) Initialize(params delegatedauth.InitParams) err
 }
 
 // AddInstance configures delegated auth for a specific API key.
+// On the first call, it detects the cloud provider and initializes the component.
 func (d *delegatedAuthComponent) AddInstance(params delegatedauth.InstanceParams) error {
-	// Check initialization without holding the lock (fast path)
-	d.mu.RLock()
-	initialized := d.initialized
-	providerConfig := d.providerConfig
-	d.mu.RUnlock()
-
-	if !initialized {
-		return errors.New("delegated auth not initialized, call Initialize() first")
+	// Validate required parameters first
+	if params.Config == nil {
+		return errors.New("config is required")
 	}
+	if params.OrgUUID == "" {
+		return errors.New("org_uuid is required")
+	}
+	if params.APIKeyConfigKey == "" {
+		return errors.New("api_key_config_key is required")
+	}
+
+	// Initialize on first call (with write lock)
+	d.mu.Lock()
+	if err := d.initializeIfNeeded(params); err != nil {
+		d.mu.Unlock()
+		return err
+	}
+	providerConfig := d.providerConfig
+	d.mu.Unlock()
 
 	// If no provider is configured (unsupported cloud or not running in cloud),
 	// silently skip - the agent will use whatever API key is already configured
 	if providerConfig == nil {
 		log.Debugf("Delegated auth not available (no supported cloud provider), skipping configuration for '%s'", params.APIKeyConfigKey)
 		return nil
-	}
-
-	// Validate required parameters
-	if params.OrgUUID == "" {
-		return errors.New("org_uuid is required")
-	}
-	if params.APIKeyConfigKey == "" {
-		return errors.New("api_key_config_key is required")
 	}
 
 	apiKeyConfigKey := params.APIKeyConfigKey
@@ -254,7 +254,7 @@ func (d *delegatedAuthComponent) AddInstance(params delegatedauth.InstanceParams
 }
 
 // refreshAndGetAPIKey is the internal implementation that can optionally force a refresh
-func (d *delegatedAuthComponent) refreshAndGetAPIKey(_ context.Context, instance *authInstance, forceRefresh bool) (*string, bool, error) {
+func (d *delegatedAuthComponent) refreshAndGetAPIKey(ctx context.Context, instance *authInstance, forceRefresh bool) (*string, bool, error) {
 	// If not forcing refresh, check if we already have a cached key
 	if !forceRefresh {
 		d.mu.RLock()
@@ -278,7 +278,7 @@ func (d *delegatedAuthComponent) refreshAndGetAPIKey(_ context.Context, instance
 	log.Infof("Fetching delegated API key for '%s'", instance.apiKeyConfigKey)
 
 	// Authenticate with the configured provider
-	apiKey, err := d.authenticate(instance)
+	apiKey, err := d.authenticate(ctx, instance)
 	if err != nil {
 		log.Errorf("Failed to generate auth proof for '%s': %v", instance.apiKeyConfigKey, err)
 		return nil, false, err
@@ -350,15 +350,15 @@ func (d *delegatedAuthComponent) startBackgroundRefresh(instance *authInstance) 
 }
 
 // authenticate uses the configured provider to generate an auth proof, then exchanges it for an API key
-func (d *delegatedAuthComponent) authenticate(instance *authInstance) (*string, error) {
+func (d *delegatedAuthComponent) authenticate(ctx context.Context, instance *authInstance) (*string, error) {
 	// Generate the cloud-specific auth proof
-	authProof, err := instance.provider.GenerateAuthProof(d.config, instance.authConfig)
+	authProof, err := instance.provider.GenerateAuthProof(ctx, d.config, instance.authConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate auth proof: %w", err)
 	}
 
 	// Exchange the proof for an API key from Datadog
-	key, err := api.GetAPIKey(d.config, instance.authConfig.OrgUUID, authProof)
+	key, err := api.GetAPIKey(d.config, authProof)
 	if err != nil {
 		return nil, fmt.Errorf("failed to exchange auth proof for API key: %w", err)
 	}

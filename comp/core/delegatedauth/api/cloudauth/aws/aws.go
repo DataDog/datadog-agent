@@ -44,9 +44,10 @@ const (
 	contentTypeHeader = "Content-Type"
 	applicationForm   = "application/x-www-form-urlencoded; charset=utf-8"
 
-	awsAccessKeyIDName     = "AWS_ACCESS_KEY_ID"
-	awsSecretAccessKeyName = "AWS_SECRET_ACCESS_KEY"
-	awsSessionTokenName    = "AWS_SESSION_TOKEN"
+	// Environment variable names
+	awsAccessKeyIDEnvVar     = "AWS_ACCESS_KEY_ID"
+	awsSecretAccessKeyEnvVar = "AWS_SECRET_ACCESS_KEY"
+	awsSessionTokenEnvVar    = "AWS_SESSION_TOKEN"
 
 	defaultRegion         = "us-east-1"
 	defaultStsHost        = "sts.amazonaws.com"
@@ -73,16 +74,22 @@ func NewAWSAuth(config *cloudauthconfig.AWSProviderConfig) *AWSAuth {
 
 // GenerateAuthProof generates an AWS-specific authentication proof using SigV4 signing.
 // This proof includes a signed AWS STS GetCallerIdentity request that proves access to AWS credentials.
-func (a *AWSAuth) GenerateAuthProof(cfg pkgconfigmodel.Reader, config *common.AuthConfig) (string, error) {
+// The context parameter allows for cancellation of the proof generation.
+func (a *AWSAuth) GenerateAuthProof(ctx context.Context, cfg pkgconfigmodel.Reader, config *common.AuthConfig) (string, error) {
+	// Check for context cancellation early
+	if ctx.Err() != nil {
+		return "", ctx.Err()
+	}
+
 	// Get local AWS Credentials
-	creds := a.getCredentials(cfg)
+	credentials := a.getCredentials(cfg)
 
 	if config == nil || config.OrgUUID == "" {
 		return "", errors.New("missing org UUID in config")
 	}
 
 	// Use the credentials to generate the signing data
-	data, err := a.generateAwsAuthData(config.OrgUUID, creds)
+	data, err := a.generateAwsAuthData(config.OrgUUID, credentials)
 	if err != nil {
 		return "", err
 	}
@@ -97,21 +104,10 @@ func (a *AWSAuth) GenerateAuthProof(cfg pkgconfigmodel.Reader, config *common.Au
 func (a *AWSAuth) getCredentials(cfg pkgconfigmodel.Reader) *creds.SecurityCredentials {
 	awsCredentials := &creds.SecurityCredentials{}
 
-	// First, try to get credentials from config
-	awsCredentials.AccessKeyID = cfg.GetString(awsAccessKeyIDName)
-	awsCredentials.SecretAccessKey = cfg.GetString(awsSecretAccessKeyName)
-	awsCredentials.Token = cfg.GetString(awsSessionTokenName)
-
-	// Then try environment variables
-	if awsCredentials.AccessKeyID == "" {
-		awsCredentials.AccessKeyID = os.Getenv(awsAccessKeyIDName)
-	}
-	if awsCredentials.SecretAccessKey == "" {
-		awsCredentials.SecretAccessKey = os.Getenv(awsSecretAccessKeyName)
-	}
-	if awsCredentials.Token == "" {
-		awsCredentials.Token = os.Getenv(awsSessionTokenName)
-	}
+	// Try to get credentials from environment variables
+	awsCredentials.AccessKeyID = os.Getenv(awsAccessKeyIDEnvVar)
+	awsCredentials.SecretAccessKey = os.Getenv(awsSecretAccessKeyEnvVar)
+	awsCredentials.Token = os.Getenv(awsSessionTokenEnvVar)
 
 	// If we have explicit credentials, return them
 	if awsCredentials.AccessKeyID != "" && awsCredentials.SecretAccessKey != "" {
@@ -154,7 +150,7 @@ func (a *AWSAuth) generateAwsAuthData(orgUUID string, awsCredentials *creds.Secu
 	if orgUUID == "" {
 		return nil, errors.New("missing org UUID")
 	}
-	if awsCredentials == nil || (awsCredentials.AccessKeyID == "" && awsCredentials.SecretAccessKey == "") || awsCredentials.Token == "" {
+	if awsCredentials == nil || awsCredentials.AccessKeyID == "" || awsCredentials.SecretAccessKey == "" {
 		return nil, errors.New("missing AWS credentials")
 	}
 	stsFullURL, region, host := a.getConnectionParameters()
